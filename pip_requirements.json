@@ -1,0 +1,9 @@
+[
+  "uvicorn",
+  "fastapi",
+  "pydantic",
+  "sudachipy",
+  "sudachidict_core",
+  "spacy",
+  "beautifulsoup4"
+]

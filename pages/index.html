@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        connect-src *;
+        img-src 'self' data:;
+        media-src 'self' blob: *;
+        worker-src 'self' blob:;
+    ">
+    <title>mLearn</title>
+    <script src="jquery.min.js"></script>
+    <script src="hls.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="loader.css">
+</head>
+<body>
+    <div class="loading">
+        <span>Loading...</span>
+        <span id="status-update">Loading Python Server...</span>
+        <div class="progress-bar">
+            <div class="progress"></div>
+            <div class="l">
+                <div class="loader"></div>
+            </div>
+        </div>
+    </div>
+    <div class="recently-c">
+        <div class="recently">
+            <h1>Recently Streamed</h1>
+            <div class="cards">
+
+            </div>
+        </div>
+    </div>
+    <div class="drag-region"></div>
+    <video id="fullscreen-video">
+        <source type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+    <div class="subtitles">
+    </div>
+    <div id="video-controls">
+        <div class="upper">
+            <div class="volume">
+                <img src="assets/icons/volume.svg">
+                <input type="range" id="volume" min="0" max="1" step="0.01" value="1">
+            </div>
+            <div class="playback">
+                <button id="backward"><img src="assets/icons/fast-forward.svg"></button>
+                <button id="play-pause"><img src="assets/icons/play.svg"></button>
+                <button id="forward"><img src="assets/icons/fast-forward.svg"></button>
+            </div>
+            <div class="filler">
+                <select id="video-quality" class="hidden">
+                    <option value="-1">Auto</option>
+                </select>
+            </div>
+        </div>
+        <div class="lower">
+            <span class="current-time">--:--</span>
+            <input type="range" id="progress-bar" min="0" max="1000" value="0">
+            <span class="total-time">--:--</span>
+        </div>
+    </div>
+    <div class="aside">
+        <div class="header">
+            <div class="btn close"><img src="assets/icons/cross.svg"></div>
+        </div>
+        <div class="c">
+        </div>
+    </div>
+    <div class="sync-subs not-shown">
+        <div class="header">
+            <div class="btn close"><img src="assets/icons/cross.svg"></div>
+        </div>
+        <div class="controls">
+            <button class="backward"><img src="assets/icons/fast-forward.svg"></button>
+            <input type="text" class="">
+            <button class="forward"><img src="assets/icons/fast-forward.svg"></button>
+        </div>
+    </div>
+    <div class="stats-c hide">
+        <div class="stats">
+            <h1>Stats:</h1>
+            <h2 class="has-popup">You have looked up <span class="word-count">10</span> words.
+                <div class="popup">
+                    Most looked up words: <div class="word-lookup"></div>
+                </div></h2>
+            <canvas id="stats-chart" width="600" height="400"></canvas>
+        </div>
+    </div>
+
+    <iframe src="" frameborder="0" hidden></iframe>
+
+    <script src="main.js"></script>
+</body>
+</html>

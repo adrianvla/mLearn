@@ -1,0 +1,7 @@
+anki-cache.pkl
+dictionary_cache.pkl
+python.tar.gz
+env/
+py/python/
+node_modules/
+.idea/

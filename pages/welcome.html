@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Welcome</title>
+    <link rel="stylesheet" href="flashcard_window.css">
+    <script src="jquery.min.js"></script>
+</head>
+<body class="welcome-window">
+    <h1 class="welcome">Welcome!</h1>
+    <div class="progress-bar">
+        <div class="progress"></div>
+    </div>
+    <div class="dragger"></div>
+    <p class="info">Please select the language you want to learn to get started.</p>
+    <select name="language-select" id="language-select">
+        <option value="de">German</option>
+        <option value="ja">Japanese</option>
+        <option value="other">Other</option>
+    </select>
+    <p class="other hide">Please enter the URL of the other language you want to install.</p>
+    <input type="text" name="" id="url" class="hide">
+    <button class="next disabled">Please Wait...</button>
+
+    <p class="installing"><p class="overall-status">Installing...</p><br><br><span class="server-status"><p>Downloading required files...</p></span></p>
+
+    <script src="welcome.js"></script>
+</body>
+</html>

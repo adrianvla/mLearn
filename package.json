@@ -1,0 +1,32 @@
+{
+  "name": "intelligent-subtitles",
+  "version": "1.0.0",
+  "description": "A language-learning app that knows which words you know for faster learning by immersion",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "electron ."
+  },
+  "keywords": [
+    "language-learning"
+  ],
+  "author": "Adrian Vlasov",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^32.1.2"
+  },
+  "dependencies": {
+    "python-shell": "^5.0.0",
+    "tar": "^7.4.3",
+    "update-electron-app": "^3.0.0"
+  },
+  "extraResources": [
+    {
+      "from": "python",
+      "to": "python",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ]
+}
