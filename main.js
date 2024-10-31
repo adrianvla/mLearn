@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, dialog} = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('os');
@@ -8,6 +8,9 @@ const { spawn, exec } = require('child_process');
 const tar = require('tar');
 const url = require('url');
 const UPDATABLE_DIRS = [];
+const isPackaged = app.isPackaged;
+console.log("Is packaged", isPackaged, "Version", app.getVersion(),"Path",app.getPath('userData'));
+
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 let lang_data = {};
@@ -100,6 +103,38 @@ app.on('window-all-closed', () => {
         app.quit();
     }
 });
+const checkForUpdates = () => {
+    const updateURL = "https://mlearn-update.morisinc.net/package.json";
+    const currentVersion = app.getVersion();
+    https.get(updateURL, (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+            data += chunk;
+        });
+        res.on('end', () => {
+            const updates = JSON.parse(data);
+            if (updates.version !== currentVersion) {
+                console.log('Update available');
+                mainWindow.webContents.send('update-available', updates);
+                //use dialog to show update available
+                const options = {
+                    type: 'question',
+                    buttons: ['Cancel', 'Update'],
+                    defaultId: 1,
+                    title: 'Update available',
+                    message: 'Do you want to update to the latest version?',
+                    detail: 'Updating will restart the app, and introduce new features and bug fixes.',
+                };
+                dialog.showMessageBox(null, options, (response, checkboxChecked) => {
+                    console.log(response);
+                    console.log(checkboxChecked);
+                });
+            }
+        });
+    }).on('error', (err) => {
+        console.error(`Error checking for updates: ${err.message}`);
+    });
+};
 
 const saveSettings = (settings) => {
     fs.writeFileSync(settingsPath, JSON.stringify(settings));
