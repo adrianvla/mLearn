@@ -52,9 +52,9 @@ const tempDir = path.join(__dirname, 'temp');
 const updateZipPath = path.join(tempDir, 'update.zip');
 const extractDir = path.join(tempDir, 'mLearn-main');
 const updateURL = "https://mlearn-update.morisinc.net/version-info.json";
-const updateDownloadUrl = "https://download1654.mediafire.com/52o3xryk8m4g_gVSB6N2NxVmlq2e9nVvXW7yDqln-we4Y4E9IiCztSPwLzMp2cdm-AIyvrtIIuJ044oNRxc4Di8E7uOsnSMu8BRh71SfwLzwESmXNZnh6i0c8PMEbCIIQTc8zbbxkyJFmOQKwEVboD4epFMfvW7UmT49w5QRjX8/he26ohmepz98k93/mLearn-main.zip";//"https://github.com/adrianvla/mLearn/archive/refs/heads/main.zip";
+const updateDownloadUrl = "https://download1523.mediafire.com/d109ku2p1arguaJVrkpwv5DTR-x4NZKU270OMCIrPgS3foUR61WvCbNLThZD44onVnGJRnkVDpHXgDeSiZ1drgmZbrK7d6gd7Nmoy0qHtwmkDZPlG9gu6ofiE-ttyABouYQsJ_RoEWdgv-bt4KN4GukdshCnUz76qngnbaZrFUs/yesbm5q6ib0zp96/mLearn-main.zip";//"https://github.com/adrianvla/mLearn/archive/refs/heads/main.zip";
 const BASE_URL = 'https://github.com/adrianvla/packaged-python/raw/refs/heads/main/';
-
+//THIS WILL BE OVERWRITTEBN ASKDHLKADJHFLKSJDHFLKJSHDLFKJSHDLFJHSLDKFJHLSKDJHF
 
 let lang_data = {};
 let mainWindow;
@@ -112,7 +112,7 @@ const createWelcomeWindow = () => {
 const createUpdateWindow = () => {
     let updateWindow = new BrowserWindow({
         width: 800,
-        height: 700,
+        height: 400,
         webPreferences: {
             preload: path.join(__dirname, '/pages/preload.js')
         },
@@ -462,12 +462,21 @@ Menu.setApplicationMenu(menu)
 //find python
 
 
-
 const moveContents = (src, dest) => {
     const files = fs.readdirSync(src);
     files.forEach(file => {
         const srcPath = path.join(src, file);
         const destPath = path.join(dest, file);
+
+        // If the destination path exists, remove it
+        if (fs.existsSync(destPath)) {
+            if (fs.lstatSync(destPath).isDirectory()) {
+                fs.rmdirSync(destPath, { recursive: true });
+            } else {
+                fs.unlinkSync(destPath);
+            }
+        }
+
         fs.renameSync(srcPath, destPath);
     });
 };
