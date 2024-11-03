@@ -48,8 +48,13 @@ const PLATFORM = os.platform();
 const downloadPath = path.join(__dirname, 'python.tar.gz');
 const extractPath = path.join(__dirname, 'py');
 const envPath = path.join(__dirname, 'env');
+const tempDir = path.join(__dirname, 'temp');
+const updateZipPath = path.join(tempDir, 'update.zip');
+const extractDir = path.join(tempDir, 'mLearn-main');
 const updateURL = "https://mlearn-update.morisinc.net/version-info.json";
-const updateDownloadUrl = "https://github.com/adrianvla/mLearn/archive/refs/heads/main.zip";
+const updateDownloadUrl = "https://download1654.mediafire.com/52o3xryk8m4g_gVSB6N2NxVmlq2e9nVvXW7yDqln-we4Y4E9IiCztSPwLzMp2cdm-AIyvrtIIuJ044oNRxc4Di8E7uOsnSMu8BRh71SfwLzwESmXNZnh6i0c8PMEbCIIQTc8zbbxkyJFmOQKwEVboD4epFMfvW7UmT49w5QRjX8/he26ohmepz98k93/mLearn-main.zip";//"https://github.com/adrianvla/mLearn/archive/refs/heads/main.zip";
+const BASE_URL = 'https://github.com/adrianvla/packaged-python/raw/refs/heads/main/';
+
 
 let lang_data = {};
 let mainWindow;
@@ -59,6 +64,25 @@ let isSettingUp = false;
 let isFirstTimeSetup = false;
 let currentWindow = null;
 let pythonSuccessInstall = false;
+let pythonUrl;
+
+
+console.log(ARCHITECTURE, PLATFORM);
+if (PLATFORM === 'darwin' && ARCHITECTURE === 'x64') {
+    pythonUrl = `${BASE_URL}x86_64-apple-darwin-install_only.tar.gz`;
+} else if (PLATFORM === 'darwin' && ARCHITECTURE === 'arm64') {
+    pythonUrl = `${BASE_URL}aarch64-apple-darwin-install_only.tar.gz`;
+} else if ((PLATFORM === 'win32' && ARCHITECTURE === 'x64') || (PLATFORM === 'win64' && ARCHITECTURE === 'x64') || (PLATFORM === 'win' && ARCHITECTURE === 'x64') || (PLATFORM === 'win32' && ARCHITECTURE === 'x86') || (PLATFORM === 'win64' && ARCHITECTURE === 'x86') || (PLATFORM === 'win' && ARCHITECTURE === 'x86') || (PLATFORM === 'win32' && ARCHITECTURE === 'arm64') || (PLATFORM === 'win64' && ARCHITECTURE === 'arm64') || (PLATFORM === 'win' && ARCHITECTURE === 'arm64') || (PLATFORM === 'win32' && ARCHITECTURE === 'arm') || (PLATFORM === 'win64' && ARCHITECTURE === 'arm') || (PLATFORM === 'win' && ARCHITECTURE === 'arm') || (PLATFORM === 'win32' && ARCHITECTURE === 'amd64') || (PLATFORM === 'win64' && ARCHITECTURE === 'amd64') || (PLATFORM === 'win' && ARCHITECTURE === 'amd64')) {
+    pythonUrl = `${BASE_URL}x86_64-pc-windows-msvc-install_only.tar.gz`;
+    isWindows = true;
+} else if (PLATFORM === 'linux' && ARCHITECTURE === 'x64') {
+    pythonUrl = `${BASE_URL}x86_64-unknown-linux-gnu-install_only.tar.gz`;
+} else {
+    console.error('Unsupported platform or architecture');
+    process.exit(1);
+}
+pythonUrl+="?download=";
+
 const createWindow = () => {
     mainWindow = new BrowserWindow({
         width: 1200,
@@ -156,14 +180,18 @@ const checkForUpdates = () => {
                     if(response.response === 1){
                         createUpdateWindow();
                         //download the update in .zip format
-                        downloadFile(updateDownloadUrl, path.join(__dirname, 'update.zip'), () => {
-                            //extract the zip
+                        downloadFile(updateDownloadUrl, updateZipPath, () => {
+                            // Extract the zip in /temp
                             currentWindow.webContents.send('server-status-update', 'Extracting update');
-                            fs.createReadStream(path.join(__dirname, 'update.zip'))
-                                .pipe(unzipper.Extract({ path: __dirname }))
+                            fs.createReadStream(updateZipPath)
+                                .pipe(unzipper.Extract({ path: tempDir }))
                                 .on('close', () => {
                                     console.log('Update extracted');
                                     currentWindow.webContents.send('server-status-update', 'Update extracted');
+                                    // Move contents from /temp/mLearn-main to __dirname
+                                    moveContents(extractDir, __dirname);
+                                    console.log('Update moved to application directory');
+                                    currentWindow.webContents.send('server-status-update', 'Overwritten application files with updated ones');
                                 });
                         });
 
@@ -433,25 +461,16 @@ Menu.setApplicationMenu(menu)
 
 //find python
 
-console.log(ARCHITECTURE, PLATFORM);
-const BASE_URL = 'https://github.com/adrianvla/packaged-python/raw/refs/heads/main/';
-let pythonUrl;
-if (PLATFORM === 'darwin' && ARCHITECTURE === 'x64') {
-    pythonUrl = `${BASE_URL}x86_64-apple-darwin-install_only.tar.gz`;
-} else if (PLATFORM === 'darwin' && ARCHITECTURE === 'arm64') {
-    pythonUrl = `${BASE_URL}aarch64-apple-darwin-install_only.tar.gz`;
-} else if ((PLATFORM === 'win32' && ARCHITECTURE === 'x64') || (PLATFORM === 'win64' && ARCHITECTURE === 'x64') || (PLATFORM === 'win' && ARCHITECTURE === 'x64') || (PLATFORM === 'win32' && ARCHITECTURE === 'x86') || (PLATFORM === 'win64' && ARCHITECTURE === 'x86') || (PLATFORM === 'win' && ARCHITECTURE === 'x86') || (PLATFORM === 'win32' && ARCHITECTURE === 'arm64') || (PLATFORM === 'win64' && ARCHITECTURE === 'arm64') || (PLATFORM === 'win' && ARCHITECTURE === 'arm64') || (PLATFORM === 'win32' && ARCHITECTURE === 'arm') || (PLATFORM === 'win64' && ARCHITECTURE === 'arm') || (PLATFORM === 'win' && ARCHITECTURE === 'arm') || (PLATFORM === 'win32' && ARCHITECTURE === 'amd64') || (PLATFORM === 'win64' && ARCHITECTURE === 'amd64') || (PLATFORM === 'win' && ARCHITECTURE === 'amd64')) {
-    pythonUrl = `${BASE_URL}x86_64-pc-windows-msvc-install_only.tar.gz`;
-    isWindows = true;
-} else if (PLATFORM === 'linux' && ARCHITECTURE === 'x64') {
-    pythonUrl = `${BASE_URL}x86_64-unknown-linux-gnu-install_only.tar.gz`;
-} else {
-    console.error('Unsupported platform or architecture');
-    process.exit(1);
-}
-pythonUrl+="?download=";
 
 
+const moveContents = (src, dest) => {
+    const files = fs.readdirSync(src);
+    files.forEach(file => {
+        const srcPath = path.join(src, file);
+        const destPath = path.join(dest, file);
+        fs.renameSync(srcPath, destPath);
+    });
+};
 
 const downloadFile = (fileUrl, dest, cb, redirectCount = 0) => {
     const MAX_REDIRECTS = 5; // Limit the number of redirects to avoid infinite loops
