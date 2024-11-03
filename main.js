@@ -6,14 +6,15 @@ const https = require('https');
 const http = require('http');
 const { spawn, exec } = require('child_process');
 const tar = require('tar');
+const unzipper = require('unzipper');
 const url = require('url');
-const UPDATABLE_DIRS = [];
-const isPackaged = app.isPackaged;
+const isPackaged = true;//app.isPackaged;
+
 console.log("Is packaged", isPackaged, "Version", app.getVersion(),"Path",app.getPath('userData'));
 
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-let lang_data = {};
+const isMac = process.platform === 'darwin';
 const DEFAULT_SETTINGS = {
     "known_ease_threshold": 1500,
     "blur_words": false,
@@ -42,7 +43,17 @@ const DEFAULT_SETTINGS = {
     "subtitleTheme":"shadow",
     "subtitle_font_size":40
 };
+const ARCHITECTURE = os.arch();
+const PLATFORM = os.platform();
+const downloadPath = path.join(__dirname, 'python.tar.gz');
+const extractPath = path.join(__dirname, 'py');
+const envPath = path.join(__dirname, 'env');
+const updateURL = "https://mlearn-update.morisinc.net/version-info.json";
+const updateDownloadUrl = "https://github.com/adrianvla/mLearn/archive/refs/heads/main.zip";
+
+let lang_data = {};
 let mainWindow;
+let isWindows = false;
 let pythonChildProcess;
 let isSettingUp = false;
 let isFirstTimeSetup = false;
@@ -73,6 +84,19 @@ const createWelcomeWindow = () => {
     welcomeWindow.loadFile('pages/welcome.html');
     currentWindow = welcomeWindow;
 };
+
+const createUpdateWindow = () => {
+    let updateWindow = new BrowserWindow({
+        width: 800,
+        height: 700,
+        webPreferences: {
+            preload: path.join(__dirname, '/pages/preload.js')
+        },
+        titleBarStyle: 'hidden'
+    });
+    updateWindow.loadFile('pages/update.html');
+    currentWindow = updateWindow;
+};
 const firstTimeSetup = () => {
     isFirstTimeSetup = true;
     if(isSettingUp) return;
@@ -80,6 +104,9 @@ const firstTimeSetup = () => {
     createWelcomeWindow();
 };
 app.whenReady().then(() => {
+    if(isPackaged){
+        checkForUpdates();
+    }
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             if(isFirstTimeSetup){
@@ -104,7 +131,6 @@ app.on('window-all-closed', () => {
     }
 });
 const checkForUpdates = () => {
-    const updateURL = "https://mlearn-update.morisinc.net/package.json";
     const currentVersion = app.getVersion();
     https.get(updateURL, (res) => {
         let data = '';
@@ -113,21 +139,35 @@ const checkForUpdates = () => {
         });
         res.on('end', () => {
             const updates = JSON.parse(data);
-            if (updates.version !== currentVersion) {
+            console.log(updates);
+            if (updates.latest !== currentVersion) {
                 console.log('Update available');
-                mainWindow.webContents.send('update-available', updates);
+                // mainWindow.webContents.send('update-available', updates);
                 //use dialog to show update available
                 const options = {
                     type: 'question',
                     buttons: ['Cancel', 'Update'],
                     defaultId: 1,
                     title: 'Update available',
-                    message: 'Do you want to update to the latest version?',
-                    detail: 'Updating will restart the app, and introduce new features and bug fixes.',
+                    message: `Do you want to update to version ${updates.latest}?`,
+                    detail: updates.changelog
                 };
-                dialog.showMessageBox(null, options, (response, checkboxChecked) => {
-                    console.log(response);
-                    console.log(checkboxChecked);
+                dialog.showMessageBox(null, options).then((response) => {
+                    if(response.response === 1){
+                        createUpdateWindow();
+                        //download the update in .zip format
+                        downloadFile(updateDownloadUrl, path.join(__dirname, 'update.zip'), () => {
+                            //extract the zip
+                            currentWindow.webContents.send('server-status-update', 'Extracting update');
+                            fs.createReadStream(path.join(__dirname, 'update.zip'))
+                                .pipe(unzipper.Extract({ path: __dirname }))
+                                .on('close', () => {
+                                    console.log('Update extracted');
+                                    currentWindow.webContents.send('server-status-update', 'Update extracted');
+                                });
+                        });
+
+                    }
                 });
             }
         });
@@ -175,6 +215,8 @@ const loadSettings = () => {
 const loadPipRequirements = () => {
     return JSON.parse(fs.readFileSync(path.join(__dirname, 'pip_requirements.json')));
 };
+
+
 
 const loadLangData = () => {
     console.log("Loading lang data");
@@ -258,7 +300,7 @@ ipcMain.on('show-ctx-menu', (event) => {
 ipcMain.on('show-contact', (event) => {
     require("electron").shell.openExternal("https://morisinc.net/");
 });
-ipcMain.on('restart-app', (event) => {
+const restartApp = () => {
     if(!serverLoaded) return;
     pythonChildProcess.kill("SIGINT");
     console.log("Restarting app");
@@ -266,8 +308,9 @@ ipcMain.on('restart-app', (event) => {
         app.relaunch();
         app.exit();
     },1000);
-});
-ipcMain.on('restart-app-force',(event)=>{
+
+};
+const restartAppForce = () => {
     if(pythonChildProcess)
         pythonChildProcess.kill("SIGINT");
     console.log("Restarting app");
@@ -275,12 +318,17 @@ ipcMain.on('restart-app-force',(event)=>{
         app.relaunch();
         app.exit();
     },1000);
+};
+ipcMain.on('restart-app', (event) => {
+    restartApp();
+});
+ipcMain.on('restart-app-force',(event)=>{
+    restartAppForce();
 });
 ipcMain.on('is-loaded', (event) => {
     if(serverLoaded)
         event.reply('server-load', "Python server running");
 });
-const isMac = process.platform === 'darwin';
 
 const template = [
     // { role: 'appMenu' }
@@ -377,7 +425,7 @@ const template = [
                 ])
         ]
     }
-]
+];
 
 const menu = Menu.buildFromTemplate(template)
 Menu.setApplicationMenu(menu)
@@ -385,9 +433,6 @@ Menu.setApplicationMenu(menu)
 
 //find python
 
-const ARCHITECTURE = os.arch();
-const PLATFORM = os.platform();
-let isWindows = false;
 console.log(ARCHITECTURE, PLATFORM);
 const BASE_URL = 'https://github.com/adrianvla/packaged-python/raw/refs/heads/main/';
 let pythonUrl;
@@ -406,9 +451,6 @@ if (PLATFORM === 'darwin' && ARCHITECTURE === 'x64') {
 }
 pythonUrl+="?download=";
 
-const downloadPath = path.join(__dirname, 'python.tar.gz');
-const extractPath = path.join(__dirname, 'py');
-const envPath = path.join(__dirname, 'env');
 
 
 const downloadFile = (fileUrl, dest, cb, redirectCount = 0) => {

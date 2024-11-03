@@ -30,6 +30,7 @@ let languageInstallErrorCallbacks = [];
 let restarting = false;
 let hoveredWordsCount = 0;
 let hoveredWords = {};
+let hoveredIds = {};
 
 let loadStream = null; //set later
 let videoTimeUpdateCallback = null; //set later
@@ -90,7 +91,9 @@ const resetHoveredWordsCount = () => {
     hoveredWords = {};
     $(".stats-c").addClass("hide");
 };
-const hoveredWordTracker = (word) => {
+const hoveredWordTracker = (word,uuid) => {
+    if(hoveredIds[uuid]) return;
+    hoveredIds[uuid] = true;
     hoveredWordsCount++;
     if(hoveredWords[word])
         hoveredWords[word]++;
@@ -100,7 +103,18 @@ const hoveredWordTracker = (word) => {
 const onVideoEnded = (videoUrl) => {
     let videoStats = JSON.parse(localStorage.getItem("videoStats"));
     if(!videoStats) videoStats = [];
-    videoStats.push({url:videoUrl,words:hoveredWordsCount, name:parseSubtitleName(currentSubtitleFile)});
+    //if url already exists, merge
+    let exists = false;
+    for(let videoStat of videoStats){
+        if(videoStat.url === videoUrl){
+            videoStat.words += hoveredWordsCount;
+            localStorage.setItem("videoStats",JSON.stringify(videoStats));
+            exists = true;
+            continue;
+        }
+    }
+    if(!exists)
+        videoStats.push({url:videoUrl,words:hoveredWordsCount, name:parseSubtitleName(currentSubtitleFile)});
     //if more than 10
     if(videoStats.length>10){
         videoStats.shift();
@@ -354,6 +368,8 @@ const modify_sub = async (subtitle) => {
 
     let tokens = await tokenise(subtitle);
     console.log(tokens);
+
+    hoveredIds = {};
     //create spans
     let show_subtitle = false;
     for(let token of tokens){
@@ -473,7 +489,7 @@ const modify_sub = async (subtitle) => {
                 }, 300);
             };
             async function showHoverEl(){
-                hoveredWordTracker(word);
+                hoveredWordTracker(word,uuid);
                 $(`.hover_${uuid}`).addClass("show-hover");
                 if(processing) return;
                 if(hasBeenLoaded) return;
@@ -669,7 +685,7 @@ const modify_sub = async (subtitle) => {
             //calculate height
             newEl.hover(function(){
                 $(`.hover_${uuid}`).addClass("show-hover");
-                hoveredWordTracker(word);
+                hoveredWordTracker(word,uuid);
                 $(`.hover_${uuid}`).ready(()=>{
                     let hover_left = -($(`.hover_${uuid}`).width()-$(`.word_${uuid}`).width())/2;
                     $(`.hover_${uuid}`).css("left",`${hover_left}px`);
@@ -1257,6 +1273,7 @@ window.electron_settings.onServerLoad(() => {
         if (currentVideo) {
             localStorage.setItem(`videoCurrentTime_${btoa(currentVideo)}`, video.currentTime);
         }
+        onVideoEnded(currentPlayingVideo);
     });
     const manageFiles = async (files) => {
         console.log(files);
