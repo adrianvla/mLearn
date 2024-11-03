@@ -1,4 +1,4 @@
 {
-  "latest": "1.0.1",
-  "changelog": "Added chart to show learning progress, bug fixes, test message"
+  "latest": "1.0.0",
+  "changelog": "Added chart to show learning progress, bug fixes, auto-updater"
 }

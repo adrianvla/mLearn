@@ -52,9 +52,8 @@ const tempDir = path.join(__dirname, 'temp');
 const updateZipPath = path.join(tempDir, 'update.zip');
 const extractDir = path.join(tempDir, 'mLearn-main');
 const updateURL = "https://mlearn-update.morisinc.net/version-info.json";
-const updateDownloadUrl = "https://download1523.mediafire.com/d109ku2p1arguaJVrkpwv5DTR-x4NZKU270OMCIrPgS3foUR61WvCbNLThZD44onVnGJRnkVDpHXgDeSiZ1drgmZbrK7d6gd7Nmoy0qHtwmkDZPlG9gu6ofiE-ttyABouYQsJ_RoEWdgv-bt4KN4GukdshCnUz76qngnbaZrFUs/yesbm5q6ib0zp96/mLearn-main.zip";//"https://github.com/adrianvla/mLearn/archive/refs/heads/main.zip";
+const updateDownloadUrl = "https://github.com/adrianvla/mLearn/archive/refs/heads/main.zip";
 const BASE_URL = 'https://github.com/adrianvla/packaged-python/raw/refs/heads/main/';
-//THIS WILL BE OVERWRITTEBN ASKDHLKADJHFLKSJDHFLKJSHDLFKJSHDLFJHSLDKFJHLSKDJHF
 
 let lang_data = {};
 let mainWindow;
@@ -192,6 +191,7 @@ const checkForUpdates = () => {
                                     moveContents(extractDir, __dirname);
                                     console.log('Update moved to application directory');
                                     currentWindow.webContents.send('server-status-update', 'Overwritten application files with updated ones');
+                                    currentWindow.webContents.send('server-status-update', 'Update complete.');
                                 });
                         });
 
@@ -749,4 +749,3 @@ function findPython() {
 
 // receive a message in text mode
 findPython();
-

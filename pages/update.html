@@ -9,10 +9,10 @@
 <body class="welcome-window">
 <h1 class="welcome">Updating...</h1>
 <div class="progress-bar">
-    <div class="progress"></div>
+    <div class="progress" style="width:10%"></div>
 </div>
-<button class="next disabled">Please Wait...</button>
-<p class="installing"><p class="overall-status">Updating...</p><br><br><span class="server-status"><p>Downloading required files...</p></span></p>
+<button class="next disabled">Updating...</button>
+<p class="installing"><span class="server-status"><p>Downloading required files...</p></span></p>
 
 
 <script>
@@ -46,6 +46,13 @@ const restartAppAndServer = ()=>{
 };
 window.electron_settings.onServerStatusUpdate((status)=>{
     logInfo(status);
+    if(status === "Extracting update"){
+        $(".progress").css("width", "50%");
+    }else if(status === "Update extracted"){
+        $(".progress").css("width", "75%");
+    }else if(status === "Update complete."){
+        installCompleted();
+    }
 });
 </script>
 </body>
