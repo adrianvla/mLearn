@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electron_settings', {
     isLoaded: () => ipcRenderer.send('is-loaded'),
     isSuccess: () => ipcRenderer.send('is-successful-install'),
     installLanguage: (url) => ipcRenderer.send('install-lang', url),
+    writeToClipboard: (text) => ipcRenderer.send('write-to-clipboard', text),
     onSettings: (callback) => ipcRenderer.on('settings', (event, settings) => callback(settings)),
     onLangData: (callback) => ipcRenderer.on('lang-data', (event, data) => callback(data)),
     onSettingsSaved: (callback) => ipcRenderer.on('settings-saved', (event, message) => callback(message)),

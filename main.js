@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, dialog} = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, dialog, clipboard} = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('os');
@@ -8,7 +8,7 @@ const { spawn, exec } = require('child_process');
 const tar = require('tar');
 const unzipper = require('unzipper');
 const url = require('url');
-const isPackaged = true;//app.isPackaged;
+const isPackaged = app.isPackaged;
 
 console.log("Is packaged", isPackaged, "Version", app.getVersion(),"Path",app.getPath('userData'));
 
@@ -101,8 +101,7 @@ const createWelcomeWindow = () => {
         height: 700,
         webPreferences: {
             preload: path.join(__dirname, '/pages/preload.js')
-        },
-        titleBarStyle: 'hidden'
+        }
     });
     welcomeWindow.loadFile('pages/welcome.html');
     currentWindow = welcomeWindow;
@@ -114,8 +113,7 @@ const createUpdateWindow = () => {
         height: 400,
         webPreferences: {
             preload: path.join(__dirname, '/pages/preload.js')
-        },
-        titleBarStyle: 'hidden'
+        }
     });
     updateWindow.loadFile('pages/update.html');
     currentWindow = updateWindow;
@@ -127,9 +125,6 @@ const firstTimeSetup = () => {
     createWelcomeWindow();
 };
 app.whenReady().then(() => {
-    if(isPackaged){
-        checkForUpdates();
-    }
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             if(isFirstTimeSetup){
@@ -142,6 +137,9 @@ app.whenReady().then(() => {
     if(isFirstTimeSetup){
         firstTimeSetup();
         return;
+    }
+    if(isPackaged){
+        checkForUpdates();
     }
     createWindow();
 
@@ -319,11 +317,25 @@ ipcMain.on('show-ctx-menu', (event) => {
             label: 'Sync Subtitles with Video',
             click: () => { event.sender.send('ctx-menu-command', 'sync-subs') }
         },
+        {
+            label: 'Open Live Word Translator',
+            click: () => {mainWindow.webContents.send('show-aside');}
+        },
+        {
+            type: 'separator'
+        },
+        {
+            label: 'Copy Subtitle',
+            click: () => { event.sender.send('ctx-menu-command', 'copy-sub') }
+        }
         // { type: 'separator' },
         // { label: 'Menu Item 2', type: 'checkbox', checked: true }
     ];
     const menu = Menu.buildFromTemplate(template);
     menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
+});
+ipcMain.on('write-to-clipboard', (event, text)=>{
+    clipboard.writeText(text);
 });
 ipcMain.on('show-contact', (event) => {
     require("electron").shell.openExternal("https://morisinc.net/");
@@ -364,9 +376,12 @@ const template = [
         ? [{
             label: app.name,
             submenu: [
-                { role: 'about' },
-                { type: 'separator' },
-                { role: 'services' },
+                {
+                    label: 'About mLearn',
+                    click: async () => {
+                        if(serverLoaded) mainWindow.webContents.send('show-settings','About');
+                    }
+                },
                 { type: 'separator' },
                 {
                     label: 'Settings',
@@ -418,21 +433,21 @@ const template = [
     {
         label: 'View',
         submenu: [
-            { role: 'reload' },
-            { role: 'forceReload' },
             {
-                label: 'Show Live Translations',
+                label: 'Open Live Word Translator',
                 click: async () => {
                     mainWindow.webContents.send('show-aside');
                 }
             },
-            { role: 'toggleDevTools' },
             { type: 'separator' },
-            { role: 'resetZoom' },
-            { role: 'zoomIn' },
-            { role: 'zoomOut' },
-            { type: 'separator' },
-            { role: 'togglefullscreen' }
+            { role: 'togglefullscreen' },
+            ...(!isPackaged
+                ? [
+                    { label: 'Open DevTools', role: 'toggleDevTools' }
+                ]
+                : [
+                ])
+
         ]
     },
     // { role: 'windowMenu' }
