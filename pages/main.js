@@ -4,7 +4,7 @@ const DEFAULT_SETTINGS = {"known_ease_threshold":1500,"blur_words":false,"blur_k
 const SUBTITLE_THEMES = ["marker","background","shadow"];
 const FLASHCARD_CSS = `.card-c{background:#181818;display:flex;flex-direction:column;border-radius:20px;margin:10px;width:max-content;height:max-content;box-sizing:border-box;border:1px solid #444;color:#ccc;font-family:"Helvetica Neue","Arial", sans-serif;padding-bottom:20px;min-width:500px;max-width:700px}.card-c.light{background:#ccc;border:1px solid #aaa;color:#777}.divider{width:100%;background:#444;height:1px;margin-top:5px;margin-bottom:5px}.card-c.light .divider{background:#aaa}.card-item{display:flex;justify-content:center;align-items:center;padding-inline:20px;gap:20px}.img-btn{width:40px;height:40px;display:flex;justify-content:center;align-items:center;border-radius:10px;transition:background 0.1s;background:transparent;user-select:none;cursor:pointer}.img-btn:hover{background:#333}.card-c.light .img-btn:hover{background:#aaa}.img-btn svg{width:30px;height:30px;pointer-events:none;user-select:none;transition:opacity 0.2s, background 0.2s, fill 0.2s;box-sizing:border-box}.card-c.light .img-btn svg path{fill:#888}.img-btn:hover svg{opacity:0.8}.card-c.light .img-btn:hover svg path{fill:#777}.card-c.light .img-btn:hover svg{opacity:1}.pitch-accent-low{display:flex;background-image:linear-gradient(to top,#5e84ff,transparent);padding-bottom:2px;margin-top:2px;margin-right:-2px;padding-right:2px}a{color:#5e84ff}.pitch-accent-low div{background-color:#181818;padding-right:2px}.pitch-accent-high{display:flex;background-image:linear-gradient(to bottom, #ff5ec7,transparent);padding-top:2px;margin-bottom:2px;padding-left:2px}.card-c.light .pitch-accent-high{background-image:linear-gradient(to bottom, #e835a8,transparent)}.card-c.light .pitch-accent-low{background-image:linear-gradient(to top, #356ee8,transparent)}.pitch-accent-high.drop{padding-top:2px;margin-bottom:2px;margin-right:-2px;padding-left:2px;padding-right:2px}.pitch-accent-high div{background-color:#181818;padding-left:1px}.card-c.light .pitch-accent-high div,.card-c.light .pitch-accent-low div{background-color:#ccc}.pitch-accent-high.drop div{padding-right:2px}.word{display:flex}.definition{margin:10px;border-radius:10px;background:#222;padding:20px;font-size:20px;display:flex;flex-direction:column;gap:10px;border:1px solid #444;box-sizing:border-box;transition:border 0.2s;min-width:400px}.card-c.light .definition{background:#bbb;border:1px solid #aaa;color:#5a5a5a}.definition:focus{outline:none;border:3px solid #444}.card-c.light .definition:focus{border:3px solid #aaa}.definition p{margin:0}.example .sentence{font-size:30px;text-align:center}.example{display:flex;flex-direction:column}.example .translation{font-size:16px;color:#aaa;text-align:center}.card-c.light .example .translation{color:#888}.example .translation:hover{}.example .translation p{margin:5px}.defined{color:#ff5ec7;font-weight:bold}.card-c.light .defined{color:#356ee8}.card-item > img{border-radius:10px;min-width:100%;}`;
 const IN_SETTINGS_CATEGORY = {"General":["dark_mode","language","install_languages","save","restoreDefaults"],"Behaviour":["known_ease_threshold","blur_words","blur_known_subtitles","blur_amount","immediateFetch","do_colour_known","colour_known","do_colour_codes","show_pos","hover_known_get_from_dictionary","furigana","aside-auto","save","restoreDefaults"],"Customization":["subtitle_theme","subtitle_font_size","save","restoreDefaults"],"Anki":["use_anki","anki_connect_url","enable_flashcard_creation","flashcards_add_picture","flashcard_deck","save","restoreDefaults"],"About":[]};
-const WINDOW_HTML_SETTINGS = `<!doctypehtml><html lang="en"><meta charset="UTF-8"><title>Settings</title><link href="style.css"rel="stylesheet"><style>body{background:#000}</style><body class="settings-body"><div class="nav"><div class="nav-item selected"id="General"><img src="assets/icons/cog.svg"><span>General</span></div><div class="nav-item"id="Behaviour"><img src="assets/icons/subtitles.svg"><span>Behaviour</span></div><div class="nav-item"id="Customization"><img src="assets/icons/palette.svg"><span>Appearance</span></div><div class="nav-item"id="Anki"><img src="assets/icons/cards.svg"><span>Anki</span></div><div class="nav-item"id="About"><img src="assets/icons/document.svg"><span>About</span></div></div><div class="settingsMenuContent"><div class="preview"data-show="Customization"><div class="subtitles"><span class="subtitle_word SUB_W_COL_1">A</span><span class="subtitle_word SUB_W_COL_2">a</span><span class="subtitle_word SUB_W_COL_1">あア</span><span class="subtitle_word SUB_W_COL_2">億</span><span class="subtitle_word SUB_W_COL_1">ыЦ</span><span class="subtitle_word SUB_W_COL_2">è</span></div></div><div class="_1"></div><div class="_2"></div><div class="about"style="display:none">Intelligent Subtitles v1.0.0<br>Developed by <a id="contact">Adrian Vlasov</a><br>Contact: admin@morisinc.net<br><a id="licenses">Licenses</a></div></div>`;
+const WINDOW_HTML_SETTINGS = `<!doctypehtml><html lang="en"><meta charset="UTF-8"><title>Settings</title><link href="style.css"rel="stylesheet"><style>body{background:#000}</style><body class="settings-body"><div class="nav"><div class="nav-item selected"id="General"><img src="assets/icons/cog.svg"><span>General</span></div><div class="nav-item"id="Behaviour"><img src="assets/icons/subtitles.svg"><span>Behaviour</span></div><div class="nav-item"id="Customization"><img src="assets/icons/palette.svg"><span>Appearance</span></div><div class="nav-item"id="Anki"><img src="assets/icons/cards.svg"><span>Anki</span></div><div class="nav-item"id="About"><img src="assets/icons/document.svg"><span>About</span></div></div><div class="settingsMenuContent"><div class="preview"data-show="Customization"><div class="subtitles"><span class="subtitle_word SUB_W_COL_1">A</span><span class="subtitle_word SUB_W_COL_2">a</span><span class="subtitle_word SUB_W_COL_1">あア</span><span class="subtitle_word SUB_W_COL_2">億</span><span class="subtitle_word SUB_W_COL_1">ыЦ</span><span class="subtitle_word SUB_W_COL_2">è</span></div></div><div class="_1"></div><div class="_2"></div><div class="about"style="display:none">mLearn v1.0.0<br>Developed by <a id="contact">Adrian Vlasov</a><br>Contact: admin@morisinc.net<br><a id="licenses">Licenses</a></div></div>`;
 
 let subs = null;
 let settings = {};
@@ -115,6 +115,7 @@ const onVideoEnded = (videoUrl) => {
     }
     if(!exists)
         videoStats.push({url:videoUrl,words:hoveredWordsCount, name:parseSubtitleName(currentSubtitleFile)});
+    hoveredWordsCount = videoStats[videoStats.length-1].words; //fixed bug where hoveredWordsCount was not up-to-date
     //if more than 10
     if(videoStats.length>10){
         videoStats.shift();
@@ -1175,7 +1176,8 @@ window.electron_settings.onServerLoad(() => {
                 const option = document.createElement('option');
                 option.value = index;
                 option.text = `${level.height}p`;
-                qualitySelect.appendChild(option);
+                if(level.height != 0)
+                    qualitySelect.appendChild(option);
             });
         });
         HLSObject.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
@@ -1467,6 +1469,10 @@ window.electron_settings.onServerLoad(() => {
                 $(".sync-subs").removeClass("not-shown");
                 $(".sync-subs input").val(settings.subsOffsetTime.toFixed(2));
                 break;
+            case 'copy-sub':
+                //copy lastSub
+                window.electron_settings.writeToClipboard(lastSub.text);
+                break;
         }
     });
     $(".sync-subs .close").click(()=>{
@@ -1510,7 +1516,7 @@ window.electron_settings.onServerLoad(() => {
 
 
 
-window.electron_settings.onOpenSettings(()=>{
+window.electron_settings.onOpenSettings((msg)=>{
     if(isSettingsWindowOpen) return;
     isSettingsWindowOpen = true;
     let myWindow = window.open("", "SettingsWindow", "width=800,height=600");
@@ -1521,7 +1527,8 @@ window.electron_settings.onOpenSettings(()=>{
     });
 
     let new_document = myWindow.document;
-    let current_category = "General";
+    let current_category = msg ? msg : "General";
+
 
 
 
