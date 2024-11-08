@@ -928,6 +928,7 @@ setTimeout(()=>{window.electron_settings.isLoaded();},1000);
 
 function parseSubtitleName(filename) {
     // Remove the file extension (.srt, .ass, etc.)
+    if(!filename) return "";
     let nameWithoutExtension = filename.replace(/\.(srt|ass|txt)$/i, '');
 
     // Improved regex to capture the series title, numbers in parentheses, episode numbers, and ignore extra details like 1080p or Subtitles.
