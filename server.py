@@ -3,6 +3,16 @@ LANGUAGE = ""
 FETCH_ANKI = True
 ANKI_CONNECT_URL = "http://127.0.0.1:8765"
 
+import uvicorn
+from typing import List, Tuple
+import json
+import urllib.request
+from urllib.parse import quote
+import urllib.error
+import pickle
+import os
+import sys
+import importlib
 
 
 
@@ -22,16 +32,6 @@ if ISPACKAGED:
 
 
 
-import uvicorn
-from typing import List, Tuple
-import json
-import urllib.request
-from urllib.parse import quote
-import urllib.error
-import pickle
-import os
-import sys
-import importlib
 
 sys.path.append('./languages')
 language_module = None
