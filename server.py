@@ -3,10 +3,6 @@ LANGUAGE = ""
 FETCH_ANKI = True
 ANKI_CONNECT_URL = "http://127.0.0.1:8765"
 
-import sys
-import importlib
-sys.path.append('./languages')
-language_module = None
 
 
 
@@ -16,10 +12,14 @@ print("Arguments: ", arguments)
 ANKI_CONNECT_URL = arguments[0]
 FETCH_ANKI = arguments[1] == "true"
 LANGUAGE = arguments[2]
+ISPACKAGED = arguments[3] == "true"
+PLATFORM = arguments[4]
 print("Arguments: ", ANKI_CONNECT_URL, FETCH_ANKI, LANGUAGE)
+LANGUAGE_DIR_PATH = "./languages"
+if ISPACKAGED:
+    if PLATFORM == "darwin":
+        LANGUAGE_DIR_PATH = "../Resources/app/languages"
 
-language_module = importlib.import_module(LANGUAGE)
-print(language_module)
 
 
 import uvicorn
@@ -30,8 +30,14 @@ from urllib.parse import quote
 import urllib.error
 import pickle
 import os
+import sys
+import importlib
 
+sys.path.append('./languages')
+language_module = None
 
+language_module = importlib.import_module(LANGUAGE)
+print(language_module)
 # rest api
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
