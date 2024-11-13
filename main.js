@@ -672,7 +672,7 @@ const pythonFound = () => {
     let settings = loadSettings();
     if(isFirstTimeSetup) return;
     console.log(pythonExecutable)
-    pythonChildProcess = require('child_process').spawn('env', [pythonExecutable, path.join(__dirname, 'server.py'), String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language)], {
+    pythonChildProcess = require('child_process').spawn('env', [pythonExecutable, path.join(__dirname, 'server.py'), String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), String(isPackaged), String(process.platform)], {
         env: process.env
     });
     pythonChildProcess.stdout.on('data', function (data) {
