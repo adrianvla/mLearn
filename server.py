@@ -27,7 +27,7 @@ print("Arguments: ", ANKI_CONNECT_URL, FETCH_ANKI, LANGUAGE)
 LANGUAGE_DIR_PATH = os.path.join(RESPATH,"/languages")
 
 
-
+print("Language dir path: ", LANGUAGE_DIR_PATH)
 
 
 sys.path.append(LANGUAGE_DIR_PATH)
