@@ -30,7 +30,7 @@ LANGUAGE_DIR_PATH = os.path.join(RESPATH,"/languages")
 
 
 
-sys.path.append('./languages')
+sys.path.append(LANGUAGE_DIR_PATH)
 language_module = None
 
 language_module = importlib.import_module(LANGUAGE)
