@@ -9,7 +9,7 @@ const tar = require('tar');
 const unzipper = require('unzipper');
 const url = require('url');
 const isPackaged = app.isPackaged;
-const resPath = isPackaged ? process.resourcesPath : __dirname;
+const resPath = isPackaged ? path.join(process.resourcesPath, "app") : __dirname;
 
 console.log("Is packaged", isPackaged, "Version", app.getVersion(),"Path",app.getPath('userData'));
 
