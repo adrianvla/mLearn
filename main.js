@@ -9,6 +9,7 @@ const tar = require('tar');
 const unzipper = require('unzipper');
 const url = require('url');
 const isPackaged = app.isPackaged;
+const resPath = isPackaged ? process.resourcesPath : __dirname;
 
 console.log("Is packaged", isPackaged, "Version", app.getVersion(),"Path",app.getPath('userData'));
 
@@ -45,10 +46,10 @@ const DEFAULT_SETTINGS = {
 };
 const ARCHITECTURE = os.arch();
 const PLATFORM = os.platform();
-const downloadPath = path.join(__dirname, 'python.tar.gz');
-const extractPath = path.join(__dirname, 'py');
-const envPath = path.join(__dirname, 'env');
-const tempDir = path.join(__dirname, 'temp');
+const downloadPath = path.join(resPath, 'python.tar.gz');
+const extractPath = path.join(resPath, 'py');
+const envPath = path.join(resPath, 'env');
+const tempDir = path.join(resPath, 'temp');
 const updateZipPath = path.join(tempDir, 'update.zip');
 const extractDir = path.join(tempDir, 'mLearn-main');
 const updateURL = "https://mlearn-update.morisinc.net/version-info.json";
@@ -87,7 +88,7 @@ const createWindow = () => {
         width: 1200,
         height: 700,
         webPreferences: {
-            preload: path.join(__dirname, '/pages/preload.js')
+            preload: path.join(resPath, '/pages/preload.js')
         },
         titleBarStyle: 'hidden'
     });
@@ -100,7 +101,7 @@ const createWelcomeWindow = () => {
         width: 800,
         height: 700,
         webPreferences: {
-            preload: path.join(__dirname, '/pages/preload.js')
+            preload: path.join(resPath, '/pages/preload.js')
         }
     });
     welcomeWindow.loadFile('pages/welcome.html');
@@ -112,7 +113,7 @@ const createUpdateWindow = () => {
         width: 800,
         height: 400,
         webPreferences: {
-            preload: path.join(__dirname, '/pages/preload.js')
+            preload: path.join(resPath, '/pages/preload.js')
         }
     });
     updateWindow.loadFile('pages/update.html');
@@ -185,8 +186,8 @@ const checkForUpdates = () => {
                                 .on('close', () => {
                                     console.log('Update extracted');
                                     currentWindow.webContents.send('server-status-update', 'Update extracted');
-                                    // Move contents from /temp/mLearn-main to __dirname
-                                    moveContents(extractDir, __dirname);
+                                    // Move contents from /temp/mLearn-main to resPath
+                                    moveContents(extractDir, resPath);
                                     console.log('Update moved to application directory');
                                     currentWindow.webContents.send('server-status-update', 'Overwritten application files with updated ones');
                                     currentWindow.webContents.send('server-status-update', 'Update complete.');
@@ -239,7 +240,7 @@ const loadSettings = () => {
 };
 
 const loadPipRequirements = () => {
-    return JSON.parse(fs.readFileSync(path.join(__dirname, 'pip_requirements.json')));
+    return JSON.parse(fs.readFileSync(path.join(resPath, 'pip_requirements.json')));
 };
 
 
@@ -247,7 +248,7 @@ const loadPipRequirements = () => {
 const loadLangData = () => {
     console.log("Loading lang data");
     //scan the languages directory and load the json files
-    const langDir = path.join(__dirname, 'languages');
+    const langDir = path.join(resPath, 'languages');
     const files = fs.readdirSync(langDir);
     for (let file of files) {
         //read files ending in .json
@@ -280,21 +281,21 @@ ipcMain.on('is-successful-install', (event) => {
 });
 ipcMain.on('install-lang', (event, u) => {
     try{
-        downloadFile(u, path.join(__dirname, 'temp', 'temp.json'), () => {
+        downloadFile(u, path.join(resPath, 'temp', 'temp.json'), () => {
             let lang;
             try{
-                lang = JSON.parse(fs.readFileSync(path.join(__dirname, 'temp', 'temp.json')));
+                lang = JSON.parse(fs.readFileSync(path.join(resPath, 'temp', 'temp.json')));
             }catch(e){
                 currentWindow.webContents.send('lang-install-error', "Error: Invalid JSON file");
                 return;
             }
             //download lang.py
             if(lang.json && lang.lang_py && lang.lang)
-                downloadFile(lang.lang_py, path.join(__dirname, 'languages', lang.lang+'.py'), () => {
+                downloadFile(lang.lang_py, path.join(resPath, 'languages', lang.lang+'.py'), () => {
                     //write lang.json
-                    fs.writeFileSync(path.join(__dirname, 'languages', lang.lang + '.json'), JSON.stringify(lang.json));
+                    fs.writeFileSync(path.join(resPath, 'languages', lang.lang + '.json'), JSON.stringify(lang.json));
                     //delete temp.json
-                    fs.unlinkSync(path.join(__dirname, 'temp', 'temp.json'));
+                    fs.unlinkSync(path.join(resPath, 'temp', 'temp.json'));
                     //load lang data
                     loadLangData();
                     //send message to renderer
@@ -662,17 +663,17 @@ const pingPythonServer = (callback) => {
 let serverLoaded = false;
 
 const pythonExecutable = isWindows
-    ? path.join(__dirname, 'env', 'Scripts', 'python.exe')  // Python executable on Windows
-    : path.join(__dirname, 'env', 'bin', 'python3');        // Python executable on Unix
+    ? path.join(resPath, 'env', 'Scripts', 'python.exe')  // Python executable on Windows
+    : path.join(resPath, 'env', 'bin', 'python3');        // Python executable on Unix
 const pipExecutable = isWindows
-    ? path.join(__dirname, 'env', 'Scripts', 'pip.exe')     // pip executable on Windows
-    : path.join(__dirname, 'env', 'bin', 'pip3');           // pip executable on Unix
+    ? path.join(resPath, 'env', 'Scripts', 'pip.exe')     // pip executable on Windows
+    : path.join(resPath, 'env', 'bin', 'pip3');           // pip executable on Unix
 const pythonFound = () => {
     console.log("Python found at", PYTHON_PATH);
     let settings = loadSettings();
     if(isFirstTimeSetup) return;
     console.log(pythonExecutable)
-    pythonChildProcess = require('child_process').spawn('env', [pythonExecutable, path.join(__dirname, 'server.py'), String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), String(isPackaged), String(process.platform)], {
+    pythonChildProcess = require('child_process').spawn('env', [pythonExecutable, path.join(resPath, 'server.py'), String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), String(resPath)], {
         env: process.env
     });
     pythonChildProcess.stdout.on('data', function (data) {
@@ -716,7 +717,7 @@ function findPython() {
         // In packaged app
         path.join(process.resourcesPath, "env", "bin", "python3"),
         // In development
-        path.join(__dirname, "env", "bin", "python3"),
+        path.join(resPath, "env", "bin", "python3"),
     ];
     for (const path of possibilities) {
         if (fs.existsSync(path)) {

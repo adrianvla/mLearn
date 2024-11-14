@@ -22,13 +22,10 @@ print("Arguments: ", arguments)
 ANKI_CONNECT_URL = arguments[0]
 FETCH_ANKI = arguments[1] == "true"
 LANGUAGE = arguments[2]
-ISPACKAGED = arguments[3] == "true"
-PLATFORM = arguments[4]
+RESPATH = arguments[3]
 print("Arguments: ", ANKI_CONNECT_URL, FETCH_ANKI, LANGUAGE)
-LANGUAGE_DIR_PATH = "./languages"
-if ISPACKAGED:
-    if PLATFORM == "darwin":
-        LANGUAGE_DIR_PATH = "../Resources/app/languages"
+LANGUAGE_DIR_PATH = os.path.join(RESPATH,"/languages")
+
 
 
 
