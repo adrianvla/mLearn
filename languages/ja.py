@@ -128,10 +128,10 @@ def create_html_element(element):
     return f"<{tag} {' '.join(attributes)}>{content_html}</{tag}>"
 
 
-def load_dictionary():
+def load_dictionary(folder):
     global dictionary
     global kana_dict
-    cache_file = 'dictionary_cache.pkl'
+    cache_file = os.path.join(folder,'dictionary_cache.pkl')
 
     # Check if the cache file exists
     if os.path.exists(cache_file):
@@ -141,7 +141,7 @@ def load_dictionary():
     else:
         # Load dictionary from JSON files
         for i in range(1, 150):
-            with open(f'dictionaries/jitendex-yomitan/term_bank_{i}.json', 'r') as f:
+            with open(os.path.join(folder,f'dictionaries/jitendex-yomitan/term_bank_{i}.json'), 'r') as f:
                 dictionary += json.load(f)
         print("Loaded dictionary with", len(dictionary), "entries")
 
@@ -159,7 +159,8 @@ def load_dictionary():
 
 
 # load dictionary from file
-load_dictionary()
+def LOAD_MODULE(folder):
+    load_dictionary(folder)
 # test = binary_search("心臓")
 # print(test)
 # for element in test[5]:
