@@ -90,7 +90,7 @@ def get_all_cards_CACHE():
         print("Cache file not found")
         return False
     try:
-        with open('anki-cache.pkl', 'rb') as f:
+        with open(os.path.join(RESPATH,'anki-cache.pkl'), 'rb') as f:
             data = pickle.load(f)
             all_cards = data['all_cards']
             cards_per_id = data['cards_per_id']
@@ -183,7 +183,7 @@ def get_all_cards():
 
     print("Loaded who_contain")
     # Save the objects to a file
-    with open('anki-cache.pkl', 'wb') as f:
+    with open(os.path.join(RESPATH,'anki-cache.pkl'), 'wb') as f:
         pickle.dump({
             'all_cards': all_cards,
             'cards_per_id': cards_per_id,
