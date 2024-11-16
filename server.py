@@ -24,7 +24,7 @@ FETCH_ANKI = arguments[1] == "true"
 LANGUAGE = arguments[2]
 RESPATH = arguments[3]
 print("Arguments: ", ANKI_CONNECT_URL, FETCH_ANKI, LANGUAGE)
-LANGUAGE_DIR_PATH = os.path.join(RESPATH,"/languages")
+LANGUAGE_DIR_PATH = os.path.join(RESPATH,"languages")
 
 
 print("Language dir path: ", LANGUAGE_DIR_PATH)
@@ -34,6 +34,8 @@ sys.path.append(LANGUAGE_DIR_PATH)
 language_module = None
 
 language_module = importlib.import_module(LANGUAGE)
+
+language_module.LOAD_MODULE(RESPATH)
 print(language_module)
 # rest api
 from fastapi import FastAPI, Request

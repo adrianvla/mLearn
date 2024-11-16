@@ -5,11 +5,20 @@ import urllib.request
 from urllib.parse import quote
 from bs4 import BeautifulSoup, NavigableString
 
-try:
-    nlp = spacy.load("de_core_news_sm")
-except:
-    spacy.cli.download("de_core_news_sm")
-    nlp = spacy.load("de_core_news_sm")
+nlp = None
+
+
+
+
+def LOAD_MODULE(_):
+    global nlp
+    try:
+        nlp = spacy.load("de_core_news_sm")
+    except:
+        spacy.cli.download("de_core_news_sm")
+        nlp = spacy.load("de_core_news_sm")
+
+
 
 
 def LANGUAGE_TOKENIZE(text):
