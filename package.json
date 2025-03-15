@@ -19,7 +19,8 @@
     "python-shell": "^5.0.0",
     "tar": "^7.4.3",
     "unzipper": "^0.12.3",
-    "update-electron-app": "^3.0.0"
+    "update-electron-app": "^3.0.0",
+    "ws": "^8.18.0"
   },
   "extraResources": [
     {

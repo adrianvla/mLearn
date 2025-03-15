@@ -31,6 +31,10 @@ let restarting = false;
 let hoveredWordsCount = 0;
 let hoveredWords = {};
 let hoveredIds = {};
+let wordList = [];
+let isWatchTogether = false;
+let isCurrentlyPlayingVideo = false;
+let wordFreq = {};
 
 let loadStream = null; //set later
 let videoTimeUpdateCallback = null; //set later
@@ -60,8 +64,31 @@ const load_lang_data = () => {
     settings.colour_codes = lang_data[settings.language].colour_codes;
 };
 
+const parseWordFrequency = () => {
+    //using data from https://github.com/FerchusGames/JLPT-Migaku-Frequency-List/tree/main
+    if(!lang_data[settings.language].freq) return;
+    const freq = lang_data[settings.language].freq;
+    for(let wordi in freq){
+        if(!freq[wordi]) continue;
+        if(freq[wordi].length < 2) continue;
+        let level = 1;
+        if(wordi<=1500 && wordi>=0){
+            level = 5;
+        }else if(wordi>1500 && wordi<=5000){
+            level = 4;
+        }else if(wordi>5000 && wordi<=15000){
+            level = 3;
+        }else if(wordi>15000 && wordi<=30000){
+            level = 2;
+        }
+        wordFreq[freq[wordi][0]] = {reading:freq[wordi][1], level:level};
+    }
+
+};
+
 const checkSettings = () => {
     //check if every setting is present
+    console.log("Checking settings",settings);
     for(let key in DEFAULT_SETTINGS){
         if(!(key in settings)){
             settings[key] = DEFAULT_SETTINGS[key];
@@ -100,7 +127,58 @@ const hoveredWordTracker = (word,uuid) => {
     else
         hoveredWords[word] = 1;
 };
+const addAllFlashcardsToAnki = () => {
+    wordList.forEach(async (word)=>{
+        if(word.new){
+            if(already_added[word.word]) return;
+            //{word:word, new:true, fetch:true, screenshot: screenshotVideo()};
+            let translation_data = await getTranslation(word.word);
+            let raw_flashcard_data = {"example":"","front":word.word,"pitch":"","definitions":"","image":""};
+            translation_data.data.forEach((meaning)=>{
+                let reading_html = meaning.reading;
+                let translation_html = meaning.definitions;
+                raw_flashcard_data.definitions += `<p>${translation_html}</p>`;
+                raw_flashcard_data.definitions += `<p>${reading_html}</p>`;
+            });
+            if(translation_data.data.length==0) return;
+            //calculate actual example sentence by putting it into iframe
+            $("iframe")[0].contentWindow.document.body.innerHTML = word.currentSubtitle;
+            //remove each .subtitle_hover element
+            $("iframe").contents().find(".subtitle_hover").remove();
+            //remove each .subtitle_word element
+            $("iframe").contents().find(".subtitle_word").addClass("defined");
+            raw_flashcard_data.example = $("iframe")[0].contentWindow.document.body.innerHTML;
+            $("iframe")[0].contentWindow.document.body.innerHTML = "";
+            raw_flashcard_data.image = word.screenshot;
+            let card_creation_data = makeFlashcard(raw_flashcard_data, word.word, "", raw_flashcard_data.definitions, true);
+            let response = await sendRawToAnki({"action":"addNote","version":6,"params":card_creation_data});
+            console.log(card_creation_data);
+            if(!response.error){
+                already_added[word.word] = true;
+            }else{
+                console.log("Failed to create flashcard for word: "+word.word);
+            }
+        }
+    });
+};
+
+const updateFlashcardsAnkiDate = () => {
+    console.log("Updating flashcards due date");
+    wordList.forEach(async (word)=>{
+        if(!word.new){
+            //update due date
+            let response = await sendRawToAnki({"action":"setSpecificValueOfCard","version":6,"params":{"card":word.id,"keys":["due"],"newValues":[0]},"warning_check":true});
+            if(response.error){
+                console.log("Failed to update due date of flashcard for word: "+word.word);
+            }
+        }
+    });
+
+}
+
+
 const onVideoEnded = (videoUrl) => {
+    isCurrentlyPlayingVideo = false;
     let videoStats = JSON.parse(localStorage.getItem("videoStats"));
     if(!videoStats) videoStats = [];
     //if url already exists, merge
@@ -351,6 +429,79 @@ const randomUUID = () => {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
 
+const makeFlashcard = (raw_flashcard_data, word, _translation, _definition, _show_img) => {
+    let data = {
+        "note": {
+            "deckName": settings.flashcard_deck,
+            "modelName": "Basic",
+            "fields": {
+                "Back":"",
+                "Front": word+"<intelligent_definition style='display:none'>"+raw_flashcard_data.definitions+"</intelligent_definition>"
+            },
+            "options": {
+                "allowDuplicate": false,
+                "duplicateScope": "deck",
+                "duplicateScopeOptions": {
+                    "deckName": settings.deckName,
+                    "checkChildren": false,
+                    "checkAllModels": false
+                }
+            },
+            "tags": [
+                "intelligent-subtitles",
+                settings.language,
+                "video-"+parseSubtitleName(currentSubtitleFile)
+            ]
+        }
+    };
+    // _translation = $('input',createFlashcardWindow.document).val()
+    // _definition = $(".definition",createFlashcardWindow.document).html()
+    // _show_img = $("#show-img",createFlashcardWindow.document).is(":checked")
+    data.note.fields.Back = `
+    <style>${FLASHCARD_CSS}</style>
+    <div class="card-c ${settings.dark_mode ? '':'light'}">
+        <div class="card-item">
+            <h1>${raw_flashcard_data.front}</h1>
+        </div>
+        <div class="card-item">
+            <div class="example">
+                <div class="sentence">${raw_flashcard_data.example}</div>
+                <div class="translation">
+                    <p>${_translation}</p>
+                </div>
+            </div>
+        </div>
+        <div class="divider"></div>
+        <div class="card-item">
+            <div class="definition">
+                ${_definition}
+            </div>
+        </div>
+        <div class="card-item" ${_show_img ? "":"style='display:none'"}>
+            <img src="${_show_img?raw_flashcard_data.image:''}" alt="">
+        </div>
+    </div>
+    `;
+    return data;
+};
+
+const screenshotVideo = () => {
+    try{
+        let picture_data_url = "";
+        let video = $("video").get(0);
+        if(!video) throw "No video found";
+        let canvas = document.createElement("canvas");
+        let ctx = canvas.getContext("2d");
+        let width = 480;
+        let height = video.videoHeight * (width / video.videoWidth);
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        picture_data_url = canvas.toDataURL("image/jpeg",0.5);
+        return picture_data_url;
+    }catch(e){console.log(e);}
+};
+
 
 const modify_sub = async (subtitle) => {
     //console log lastIndex in big blue font
@@ -365,6 +516,8 @@ const modify_sub = async (subtitle) => {
     $(".subtitles").addClass("not-shown");
     //remove any HTML from the subtitle
     subtitle = subtitle.replace(/(<([^>]+)>)/gi, "");
+
+    let toAddToWordList = [];
 
 
     let tokens = await tokenise(subtitle);
@@ -401,6 +554,7 @@ const modify_sub = async (subtitle) => {
                 try{card_data = await getCards(word);}catch(e){card_data.poor = true;}
             else
                 card_data.poor = true;
+            console.log(card_data)
 
             if(card_data.poor){ //card not found
                 show_subtitle = true;
@@ -445,6 +599,8 @@ const modify_sub = async (subtitle) => {
                     hoverEl_html += `<div class="hover_translation">${translation_html}</div>`;
                     hoverEl_html += `<div class="hover_reading">${reading_html}</div>`;
                     newEl.attr("known","false");
+
+                    wordList.push({word:word, new:false, fetch:false, id: card_data.cards[0].cardId});
                     if(settings.openAside) addTranslationCard(translation_html,reading_html);
                     //furigana
                     if(settings.furigana && isNotAllKana(real_word)){
@@ -477,6 +633,7 @@ const modify_sub = async (subtitle) => {
         }
         hoverEl.html(hoverEl_html);
         if(doAppendHoverLazy){
+            toAddToWordList.push({word:word, new:true, fetch:true, screenshot: screenshotVideo()});
             newEl.append(hoverEl);
             newEl.addClass("has-hover");
             hoverEl.text("Loading...");
@@ -517,30 +674,6 @@ const modify_sub = async (subtitle) => {
                 if(settings.enable_flashcard_creation && (translation_data.data.length!=0) && (!already_added[word])){
                     hoverEl_html += `<button class="create_flashcard">+ Anki</button>`;
                     hoverEl.html(hoverEl_html);
-                    let card_creation_data = {
-                        "note": {
-                            "deckName": settings.flashcard_deck,
-                            "modelName": "Basic",
-                            "fields": {
-                                "Back":"",
-                                "Front": word+"<intelligent_definition style='display:none'>"+raw_flashcard_data.definitions+"</intelligent_definition>"
-                            },
-                            "options": {
-                                "allowDuplicate": false,
-                                "duplicateScope": "deck",
-                                "duplicateScopeOptions": {
-                                    "deckName": settings.deckName,
-                                    "checkChildren": false,
-                                    "checkAllModels": false
-                                }
-                            },
-                            "tags": [
-                                "intelligent-subtitles",
-                                settings.language,
-                                "video-"+parseSubtitleName(currentSubtitleFile)
-                            ]
-                        }
-                    };
                     hoverEl.find(".create_flashcard").click(async function(){
                         if(already_added[word]) return;
                         //calculate actual example sentence by putting it into iframe
@@ -552,20 +685,7 @@ const modify_sub = async (subtitle) => {
                         raw_flashcard_data.example = $("iframe")[0].contentWindow.document.body.innerHTML;
                         $("iframe")[0].contentWindow.document.body.innerHTML = "";
 
-                        try{
-                            let picture_data_url = "";
-                            let video = $("video").get(0);
-                            if(!video) throw "No video found";
-                            let canvas = document.createElement("canvas");
-                            let ctx = canvas.getContext("2d");
-                            let width = 480;
-                            let height = video.videoHeight * (width / video.videoWidth);
-                            canvas.width = width;
-                            canvas.height = height;
-                            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                            picture_data_url = canvas.toDataURL("image/jpeg",0.5);
-                            raw_flashcard_data.image = picture_data_url;
-                        }catch(e){console.log(e);}
+                        raw_flashcard_data.image = screenshotVideo();
                         
                         if(createFlashcardWindow) createFlashcardWindow.close();
                         //preview
@@ -620,31 +740,8 @@ const modify_sub = async (subtitle) => {
                                 $(".card-item img",createFlashcardWindow.document).toggle();
                             });
                             $('.createflashcardbtn',createFlashcardWindow.document).click(async function(){
-                                card_creation_data.note.fields.Back = `
-                                <style>${FLASHCARD_CSS}</style>
-                                <div class="card-c ${settings.dark_mode ? '':'light'}">
-                                    <div class="card-item">
-                                        <h1>${raw_flashcard_data.front}</h1>
-                                    </div>
-                                    <div class="card-item">
-                                        <div class="example">
-                                            <div class="sentence">${raw_flashcard_data.example}</div>
-                                            <div class="translation">
-                                                <p>${$('input',createFlashcardWindow.document).val()}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="divider"></div>
-                                    <div class="card-item">
-                                        <div class="definition">
-                                            ${$(".definition",createFlashcardWindow.document).html()}
-                                        </div>
-                                    </div>
-                                    <div class="card-item" ${$("#show-img",createFlashcardWindow.document).is(":checked") ? "":"style='display:none'"}>
-                                        <img src="${$("#show-img",createFlashcardWindow.document).is(":checked")?raw_flashcard_data.image:''}" alt="">
-                                    </div>
-                                </div>
-                                `;
+                                let card_creation_data = makeFlashcard(raw_flashcard_data, word, $('input',createFlashcardWindow.document).val(), $(".definition",createFlashcardWindow.document).html(), $("#show-img",createFlashcardWindow.document).is(":checked"));
+
                                 let response = await sendRawToAnki({"action":"addNote","version":6,"params":card_creation_data});
                                 if(!response.error){
                                     hoverEl.find(".create_flashcard").html("Success");
@@ -709,6 +806,11 @@ const modify_sub = async (subtitle) => {
         $(".subtitles").append(newEl);
     }
 
+
+    for(let word of toAddToWordList){
+        word.currentSubtitle = $(".subtitles").html();
+        wordList.push(word);
+    }
     console.log("finished_displaying_subs");
     if(!show_subtitle && settings.blur_known_subtitles){
         //blur the subtitle
@@ -716,6 +818,10 @@ const modify_sub = async (subtitle) => {
     }
     $(".subtitles").removeClass("quick-transition");
     $(".subtitles").removeClass("not-shown");
+
+    if(isWatchTogether){
+        window.electron_settings.watchTogetherSend({action:"subtitles",subtitle:$(".subtitles").html(), size:settings.subtitle_font_size});
+    }
 
 
 };
@@ -725,7 +831,13 @@ const modify_sub = async (subtitle) => {
     await loadSettings();
     checkSettings();
     load_lang_data();
+    parseWordFrequency();
 
+    if(settings.use_anki){
+        $(".add-all-to-anki, .update-flashcards-due-date").show();
+    }else{
+        $(".add-all-to-anki, .update-flashcards-due-date").hide();
+    }
 
     window.electron_settings.onServerLoad((message) => {
         $(".critical-error-c").remove();
@@ -845,6 +957,7 @@ const parseTime = (timeString,type) => {
 
 const readSubtitleFile = (file) => {
     return new Promise((resolve, reject) => {
+        lastIndex = 0;
         const reader = new FileReader();
         reader.onload = (event) => {
             const content = event.target.result;
@@ -1011,12 +1124,17 @@ window.electron_settings.onSettingsSaved((e) => {
     if(mustRestart) restartAppAndServer();
 });
 
+window.electron_settings.onWatchTogetherLaunch((e) => {
+    isWatchTogether = true;
+});
+
 
 window.electron_settings.onServerLoad(() => {
     //only once
     if(isLoaded) return;
     isLoaded = true;
     console.log("Server loaded");
+    window.electron_settings.isWatchingTogether();
 // document.addEventListener('DOMContentLoaded', () => {
     const video = document.getElementById('fullscreen-video');
     const playPauseButton = document.getElementById('play-pause');
@@ -1031,6 +1149,15 @@ window.electron_settings.onServerLoad(() => {
     let offsetX, offsetY;
     let isInteractingWithProgressBar = false;
     let hasReachedHalfPoint = false;
+
+    window.electron_settings.onWatchTogetherRequest((data)=>{
+        if(isWatchTogether && isCurrentlyPlayingVideo){
+            window.electron_settings.watchTogetherSend({action:"request-response", url:currentPlayingVideo, time:video.currentTime, video_playing:!video.paused});
+        }
+    });
+    $("#pip").click(()=>{
+        video.requestPictureInPicture();
+    });
 
     $(".aside").on("mouseover",()=>{
         if (asideTimeout) {
@@ -1128,9 +1255,15 @@ window.electron_settings.onServerLoad(() => {
     const playPause = () => {
         if (video.paused) {
             video.play();
+            if(isWatchTogether){
+                window.electron_settings.watchTogetherSend({action:"play", time:video.currentTime});
+            }
             playPauseButton.innerHTML = '<img src="assets/icons/pause.svg">';
         } else {
             video.pause();
+            if(isWatchTogether){
+                window.electron_settings.watchTogetherSend({action:"pause", time:video.currentTime});
+            }
             playPauseButton.innerHTML = '<img src="assets/icons/play.svg">';
             if(video.currentTime < (video.duration-10)) addToRecentlyWatched(currentPlayingVideo);
         }
@@ -1157,9 +1290,14 @@ window.electron_settings.onServerLoad(() => {
         HLSObject.attachMedia(video);
         currentPlayingVideo = text;
 
+        if(isWatchTogether){
+            window.electron_settings.watchTogetherSend({action:"start", url:text});
+        }
+
         $("#video-quality").removeClass("hidden");
         HLSObject.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
+            isCurrentlyPlayingVideo = true;
             loadWatchTime();
             playPauseButton.innerHTML = '<img src="assets/icons/pause.svg">';
             video.addEventListener('loadedmetadata', () => {
@@ -1170,6 +1308,9 @@ window.electron_settings.onServerLoad(() => {
                     width = 1200;
                 }
                 window.electron_settings.resizeWindow({width: width, height: height});
+                if(isWatchTogether){
+                    window.electron_settings.watchTogetherSend({action:"play", time:video.currentTime}); //synchronize with client
+                }
             });
             const levels = HLSObject.levels;
             qualitySelect.innerHTML = '<option value="-1">Auto</option>';
@@ -1352,6 +1493,9 @@ window.electron_settings.onServerLoad(() => {
         progressBar.addEventListener('input', () => {
         const time = (progressBar.value / 1000) * video.duration;
         video.currentTime = time;
+        if(isWatchTogether) {
+            window.electron_settings.watchTogetherSend({action: "sync", time: time});
+        }
     });
     video.addEventListener('ended', () => {
         onVideoEnded(currentPlayingVideo);
@@ -1464,6 +1608,16 @@ window.electron_settings.onServerLoad(() => {
         settings.openAside = false;
         saveSettings();
     });
+
+    $(".add-all-to-anki").click(()=>{
+        addAllFlashcardsToAnki();
+    });
+
+    $(".update-flashcards-due-date").click(()=>{
+        updateFlashcardsAnkiDate();
+    });
+
+
     window.electron_settings.onContextMenuCommand((cmd)=>{
         switch(cmd){
             case 'sync-subs':
@@ -1668,8 +1822,6 @@ window.electron_settings.onOpenSettings((msg)=>{
             myWindow.close();
         });
         const updateSubtitlePreview = ()=>{
-            settings.subtitleTheme = $('#subtitle_theme',new_document).val();
-            settings.subtitle_font_size = Number($('#subtitle_font_size',new_document).val());
             //set subtitle font size
             new_document.documentElement.style.setProperty('--subtitle-font-size', `${settings.subtitle_font_size}px`);
             document.documentElement.style.setProperty('--subtitle-font-size', `${settings.subtitle_font_size}px`);
@@ -1682,9 +1834,12 @@ window.electron_settings.onOpenSettings((msg)=>{
             $(".subtitles",new_document).addClass("theme-"+settings.subtitleTheme);
             $(".subtitles",document).addClass("theme-"+settings.subtitleTheme);
         };
+        $('#subtitle_theme',new_document).val(settings.subtitleTheme);
         updateSubtitlePreview();
         $("#subtitle_theme,#subtitle_font_size",new_document).change(()=>{
             console.log("Updating subtitle preview");
+            settings.subtitleTheme = $('#subtitle_theme',new_document).val();
+            settings.subtitle_font_size = Number($('#subtitle_font_size',new_document).val());
             updateSubtitlePreview();
         });
         $('#install_languages',new_document).on('click', function() {
@@ -1721,7 +1876,8 @@ window.electron_settings.onOpenSettings((msg)=>{
             }
             settings.furigana = $('#furigana',new_document).is(':checked');
             settings.enable_flashcard_creation = $('#enable_flashcard_creation',new_document).is(':checked');
-            settings.flashcard_deck = $('#flashcard_deck',new_document).val();
+            if($('#flashcard_deck',new_document).val()!= "Loading..." && settings.flashcard_deck != $('#flashcard_deck',new_document).val())
+                settings.flashcard_deck = $('#flashcard_deck',new_document).val();
             settings.flashcards_add_picture = $('#flashcards_add_picture',new_document).is(':checked');
             settings.openAside = $('#aside-auto',new_document).is(':checked');
             settings.subtitleTheme = $('#subtitle_theme',new_document).val();
@@ -1734,6 +1890,11 @@ window.electron_settings.onOpenSettings((msg)=>{
                 $(".aside").show();
             }else{
                 $(".aside").hide();
+            }
+            if(settings.use_anki){
+                $(".add-all-to-anki, .update-flashcards-due-date").show();
+            }else{
+                $(".add-all-to-anki, .update-flashcards-due-date").hide();
             }
             checkSettings();
             saveSettings();
