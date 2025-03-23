@@ -33,6 +33,7 @@ let hoveredWords = {};
 let hoveredIds = {};
 let wordList = [];
 let isWatchTogether = false;
+let isCurrentlyStreamingVideo = false;
 let isCurrentlyPlayingVideo = false;
 let wordFreq = {};
 
@@ -81,7 +82,14 @@ const parseWordFrequency = () => {
         }else if(wordi>15000 && wordi<=30000){
             level = 2;
         }
-        wordFreq[freq[wordi][0]] = {reading:freq[wordi][1], level:level};
+        let lvlName = "";
+        if(lang_data[settings.language].freq_level_names){
+            lvlName = lang_data[settings.language].freq_level_names[String(level)];
+        }
+        if(!lvlName){
+            lvlName = "Level "+level;
+        }
+        wordFreq[freq[wordi][0]] = {reading:freq[wordi][1], level:lvlName, raw_level:level};
     }
 
 };
@@ -178,8 +186,11 @@ const updateFlashcardsAnkiDate = () => {
 
 
 const onVideoEnded = (videoUrl) => {
+    console.log("ENDED")
+    isCurrentlyStreamingVideo = false;
     isCurrentlyPlayingVideo = false;
     let videoStats = JSON.parse(localStorage.getItem("videoStats"));
+    localStorage.removeItem(`videoCurrentTime_${btoa(currentPlayingVideo)}`); //reset time
     if(!videoStats) videoStats = [];
     //if url already exists, merge
     let exists = false;
@@ -188,7 +199,6 @@ const onVideoEnded = (videoUrl) => {
             videoStat.words += hoveredWordsCount;
             localStorage.setItem("videoStats",JSON.stringify(videoStats));
             exists = true;
-            continue;
         }
     }
     if(!exists)
@@ -544,6 +554,18 @@ const modify_sub = async (subtitle) => {
                 newEl.addClass("blur");
             }
         };
+        const addPills = ()=>{
+            //check if word is in wordFreq
+            let s = `<div class="pills">`;
+            if(word in wordFreq){
+                s += `<div class="pill" level="${wordFreq[word].raw_level}">${wordFreq[word].level}</div>`;
+            }
+            if(settings.show_pos){
+                s += `<div class='pill'>${pos}</div>`;
+            }
+            s += `</div>`;
+            return s;
+        };
 
         if(TRANSLATABLE.includes(pos)/* && (!(word.length==1))*/){
             console.log("REQUESTING: "+word);
@@ -663,6 +685,7 @@ const modify_sub = async (subtitle) => {
                     raw_flashcard_data.definitions += `<p>${reading_html}</p>`;
                 });
                 if(translation_data.data.length==0) hoverEl_html = "No translation found";
+                hoverEl_html += addPills();
                 hoverEl.html(hoverEl_html);
                 hasBeenLoaded = true;
 
@@ -767,16 +790,15 @@ const modify_sub = async (subtitle) => {
                 delayHideHoverEl(hoverEl, newEl);
             });
         }
+
+
+        hoverEl_html += addPills();
+        hoverEl.html(hoverEl_html);
         if(doAppend){
             if(settings.colour_codes[pos])
                 // hoverEl.css("box-shadow",`rgba(100, 66, 66, 0.16) 0px 1px 4px, ${settings.colour_codes[pos]} 0px 0px 0px 3px`);
                 hoverEl.css("border",`${settings.colour_codes[pos]} 3px solid`);
-            if(settings.show_pos){
-                hoverEl.attr("data-pos",pos);
-                hoverEl.css("padding-bottom","35px");
-            }else{
-                hoverEl.css("padding-bottom","10px");
-            }
+
 
             newEl.append(hoverEl);
             newEl.addClass("has-hover");
@@ -1042,7 +1064,7 @@ setTimeout(()=>{window.electron_settings.isLoaded();},1000);
 function parseSubtitleName(filename) {
     // Remove the file extension (.srt, .ass, etc.)
     if(!filename) return "";
-    let nameWithoutExtension = filename.replace(/\.(srt|ass|txt)$/i, '');
+    let nameWithoutExtension = filename.replace(/(\.[^.]+)+$/, '');
 
     // Improved regex to capture the series title, numbers in parentheses, episode numbers, and ignore extra details like 1080p or Subtitles.
     let regex = /^([a-zA-Z0-9\s]+)(?:\s*\((\d+)\))?(?:\s+(\d+))?(?:\s*(S\d+))?(?:\s*(EP\d+))?(?:\s*(\d+))?/i;
@@ -1050,18 +1072,25 @@ function parseSubtitleName(filename) {
     // Apply the regex to the filename
     let match = nameWithoutExtension.match(regex);
 
+    let step1returnable = "";
+
     if (match) {
         // Combine the parts that matched, removing undefined parts and unnecessary descriptors
         let parsedName = match.slice(1).filter(Boolean).join(' ').trim();
 
         // Remove additional descriptors like 'Subtitles' and '1080p'
-        parsedName = parsedName.replace(/\b(Subtitles|1080p|720p|480p|x264|BluRay|HD)\b/gi, '').trim();
+        step1returnable = parsedName.replace(/\b(Subtitles|1080p|720p|480p|x264|BluRay|HD)\b/gi, '').trim();
 
-        return parsedName;
+
     } else {
         // Return the filename without extension if no match was found
-        return nameWithoutExtension;
+        step1returnable = nameWithoutExtension;
     }
+    step1returnable = step1returnable.replace(/-/g, "");
+
+// Remove all content within [], {}, and () (including the brackets themselves)
+    step1returnable = step1returnable.replace(/\[[^\]]*\]|\{[^}]*\}|\([^)]*\)/g, "");
+    return step1returnable.replace(/ {2,}/g, ' ').trim();
 }
 window.electron_settings.onLanguageInstalled(()=>{
     languageInstalledCallbacks.forEach((callback)=>{
@@ -1151,7 +1180,7 @@ window.electron_settings.onServerLoad(() => {
     let hasReachedHalfPoint = false;
 
     window.electron_settings.onWatchTogetherRequest((data)=>{
-        if(isWatchTogether && isCurrentlyPlayingVideo){
+        if(isWatchTogether && isCurrentlyStreamingVideo){
             window.electron_settings.watchTogetherSend({action:"request-response", url:currentPlayingVideo, time:video.currentTime, video_playing:!video.paused});
         }
     });
@@ -1175,6 +1204,7 @@ window.electron_settings.onServerLoad(() => {
             const savedTime = localStorage.getItem(`videoCurrentTime_${btoa(currentVideo)}`);
             if (savedTime) {
                 video.currentTime = parseFloat(savedTime);
+                console.log("videoCurrentTime_" + btoa(currentVideo), parseFloat(savedTime));
             }
         }
     };
@@ -1297,8 +1327,10 @@ window.electron_settings.onServerLoad(() => {
         $("#video-quality").removeClass("hidden");
         HLSObject.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
+            isCurrentlyStreamingVideo = true;
             isCurrentlyPlayingVideo = true;
             loadWatchTime();
+            localStorage.setItem('currentVideo', text);
             playPauseButton.innerHTML = '<img src="assets/icons/pause.svg">';
             video.addEventListener('loadedmetadata', () => {
                 let [width, height] = [video.videoWidth, video.videoHeight];
@@ -1382,14 +1414,8 @@ window.electron_settings.onServerLoad(() => {
                         if(text.endsWith('.m3u8')){
                             if(Hls.isSupported()) {
                                 loadStream(text);
-                            }else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                                $("video source")[0].src = text;
-                                playbackType = "stream";
-                                resetHoveredWordsCount();
-                                $("#video-quality").addClass("hidden");
-                                video.play();
-                                loadWatchTime();
-                                $(".recently-c").addClass("hide");
+                            }else{
+                                console.error("HLS NOT SUPPORTED");
                             }
                         }else{
                             $("video source")[0].src = text;
@@ -1397,10 +1423,12 @@ window.electron_settings.onServerLoad(() => {
                             resetHoveredWordsCount();
                             $("#video-quality").addClass("hidden");
                             video.play();
+                            currentPlayingVideo = text;
                             loadWatchTime();
+                            isCurrentlyPlayingVideo = true;
+                            localStorage.setItem('currentVideo', text);
                             $(".recently-c").addClass("hide");
                         }
-                        localStorage.setItem('currentVideo', text);
                     }
                 });
                 break;
@@ -1414,7 +1442,7 @@ window.electron_settings.onServerLoad(() => {
     // Save current time when window is closed
     window.addEventListener('beforeunload', () => {
         const currentVideo = localStorage.getItem('currentVideo');
-        if (currentVideo) {
+        if (currentVideo && isCurrentlyPlayingVideo) {
             localStorage.setItem(`videoCurrentTime_${btoa(currentVideo)}`, video.currentTime);
         }
         onVideoEnded(currentPlayingVideo);
@@ -1423,16 +1451,18 @@ window.electron_settings.onServerLoad(() => {
         console.log(files);
         if (files.length > 0) {
             const file = files[0];
-            const fileType = file.type;
             const fileName = file.name;
             if (file.type === 'video/mp4') {
                 $("video source")[0].src = URL.createObjectURL(file);
+                console.log("set src to", URL.createObjectURL(file));
                 playbackType = "local";
                 resetHoveredWordsCount();
                 $("#video-quality").addClass("hidden");
                 video.load();
                 video.play();
+                currentPlayingVideo = file.name;
                 loadWatchTime();
+                isCurrentlyPlayingVideo = true;
                 $(".recently-c").addClass("hide");
                 localStorage.setItem('currentVideo', file.name);
                 playPauseButton.innerHTML = '<img src="assets/icons/pause.svg">';
