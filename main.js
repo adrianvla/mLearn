@@ -213,7 +213,7 @@ const createWindow = () => {
         webPreferences: {
             preload: path.join(resPath, '/pages/preload.js')
         },
-        titleBarStyle: 'hidden'
+        titleBarStyle: isMac ? 'hidden' : 'hiddenInset'
     });
     mainWindow.loadFile('pages/index.html');
     currentWindow = mainWindow;
@@ -507,40 +507,48 @@ ipcMain.on('is-loaded', (event) => {
         event.reply('server-load', "Python server running");
 });
 
+const appMenu = [
+    {
+        label: 'About mLearn',
+        click: async () => {
+            //if(serverLoaded)
+            mainWindow.webContents.send('show-settings','About');
+        }
+    },
+    { type: 'separator' },
+    {
+        label: 'Settings',
+        click: async () => {
+            // if(serverLoaded)
+            mainWindow.webContents.send('show-settings');
+        }
+    },
+    { type: 'separator' },
+    { role: 'hide' },
+    { type: 'separator' },
+    { role: 'hideOthers' },
+    { role: 'unhide' },
+    { type: 'separator' },
+    { role: 'quit' }
+];
+
 const template = [
     // { role: 'appMenu' }
     ...(isMac
         ? [{
             label: app.name,
-            submenu: [
-                {
-                    label: 'About mLearn',
-                    click: async () => {
-                        if(serverLoaded) mainWindow.webContents.send('show-settings','About');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: 'Settings',
-                    click: async () => {
-                        if(serverLoaded) mainWindow.webContents.send('show-settings');
-                    }
-                },
-                { type: 'separator' },
-                { role: 'hide' },
-                { type: 'separator' },
-                { role: 'hideOthers' },
-                { role: 'unhide' },
-                { type: 'separator' },
-                { role: 'quit' }
-            ]
+            submenu: appMenu
         }]
         : []),
     // { role: 'fileMenu' }
     {
         label: 'File',
         submenu: [
-            isMac ? { role: 'close' } : { role: 'quit' }
+            isMac ? { role: 'close' } : { role: 'quit' },
+            ...(isMac
+                    ? []
+                    : appMenu
+            )
         ]
     },
     // { role: 'editMenu' }
@@ -829,11 +837,15 @@ const pingPythonServer = (callback) => {
 let serverLoaded = false;
 
 const pythonExecutable = isWindows
-    ? path.join(resPath, 'env', 'Scripts', 'python.exe')  // Python executable on Windows
+    ? path.join(resPath, 'env', 'python.exe')  // Python executable on Windows
     : path.join(resPath, 'env', 'bin', 'python3');        // Python executable on Unix
 const pipExecutable = isWindows
-    ? path.join(resPath, 'env', 'Scripts', 'pip.exe')     // pip executable on Windows
+    ? path.join(resPath, 'env', 'python.exe')     // pip executable on Windows
     : path.join(resPath, 'env', 'bin', 'pip3');           // pip executable on Unix
+
+const accessArgs = isWindows
+    ? ["-m pip"]
+    : [];
 const pythonFound = () => {
     console.log("Python found at", PYTHON_PATH);
     let settings = loadSettings();
@@ -884,6 +896,11 @@ function findPython() {
         path.join(process.resourcesPath, "env", "bin", "python3"),
         // In development
         path.join(resPath, "env", "bin", "python3"),
+        // Windows
+        // In packaged app
+        path.join(process.resourcesPath, "env", "python.exe"),
+        // In development
+        path.join(resPath, "env", "python.exe"),
     ];
     for (const path of possibilities) {
         if (fs.existsSync(path)) {
@@ -897,6 +914,20 @@ function findPython() {
     console.log("Downloading Python...");
     try{currentWindow.webContents.send('server-status-update', 'Downloading Python...');}catch(e){}
 
+    const onPipSTDOUT = (data) => {
+        console.log(`stdout: ${data}`);
+        try{currentWindow.webContents.send('server-status-update', `${data}`);}catch(e){}
+    };
+    const onPipSTDERR = (data) => {
+        console.error(`stderr: ${data}`);
+        try{currentWindow.webContents.send('server-status-update', `ERROR: ${data}`);}catch(e){}
+    };
+    const onPipClose = (code) => {
+        console.log(`Installing libraries complete`);
+        try{currentWindow.webContents.send('server-status-update', 'Installing libraries complete');}catch(e){}
+        pythonFound();
+        pythonSuccessInstall = true;
+    };
     isFirstTimeSetup = true;
     downloadFile(pythonUrl, downloadPath, () => {
         console.log('Download complete');
@@ -907,23 +938,21 @@ function findPython() {
             try{currentWindow.webContents.send('server-status-update', 'Download complete');}catch(e){}
             const pipRequirements = loadPipRequirements();
             console.log(pythonExecutable);
-            const installPip = spawn(pipExecutable, ['install', ...pipRequirements], {
-                cwd: envPath
-            });
-            installPip.stdout.on('data', (data) => {
-                console.log(`stdout: ${data}`);
-                try{currentWindow.webContents.send('server-status-update', `${data}`);}catch(e){}
-            });
-            installPip.stderr.on('data', (data) => {
-                console.error(`stderr: ${data}`);
-            });
-            installPip.on('close', (code) => {
-                console.log(`Installing libraries complete`);
-                try{currentWindow.webContents.send('server-status-update', 'Installing libraries complete');}catch(e){}
-                pythonFound();
-                pythonSuccessInstall = true;
-            });
-            //pythonFound();
+            console.log("PIP EXECUTABLE:", pipExecutable);
+            if(isWindows){
+                const command = "start cmd.exe /C " + [pipExecutable, ...accessArgs, 'install', ...pipRequirements].join(" ");
+                exec(command, (error, stdout, stderr) => {
+                    onPipClose(null);
+                });
+            }else{
+                const installPip = spawn(pipExecutable, [...accessArgs, 'install', ...pipRequirements], {
+                    cwd: envPath
+                });
+                installPip.stdout.on('data', onPipSTDOUT);
+                installPip.stderr.on('data', onPipSTDERR);
+                installPip.on('close', onPipClose);
+            }
+
         });
     });
 }
