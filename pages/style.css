@@ -210,7 +210,7 @@ input#progress-bar::before{
 
 
 .subtitle_word {
-    position: relative
+    position: relative;
 }
 
 
@@ -261,7 +261,7 @@ hr {
     font-family:"Helvetica Neue", sans-serif;
 }
 .subtitles.theme-shadow{
-    text-shadow: 0 0 3px #000000, 0 0 3px #000000, 0 0 3px #000000, 0 0 3px #000000;
+    text-shadow: 0 0 1px #000000,0 0 3px #000000,0 0 5px #000000, 1px 1px 0 rgba(0,0,0,0.4);
     font-family:"Helvetica Neue", sans-serif;
 }
 
@@ -348,17 +348,44 @@ body.dark .subtitle_hover {
 body.dark .subtitle_hover .pitch {
     filter: invert(1)
 }
+
+.subtitle_word .frequency{
+    position: absolute;
+    bottom:-10px;
+    left:0;
+    right:0;
+    font-size: 0.8em;
+    padding: 5px;
+    text-align: center;
+    display:flex;
+    justify-content: center;
+    align-items: center;
+    gap:10px;
+}
+.subtitle_word .frequency .star{
+    position:relative;
+}
+.subtitle_word .frequency .star::before{
+    position:absolute;
+    content: "";
+    width: 10px;
+    height: 10px;
+    background: url(assets/icons/star.svg) no-repeat center;
+    background-size: contain;
+    top: 0;
+    left: 0;
+    transform:translate(-50%, -50%);
+    filter: drop-shadow(0px 0px 10px #ff0000) drop-shadow(1px 1px 0px #100) ;
+    z-index: -1;
+
+}
 .subtitle_hover .pills{
     order:3;
     z-index: -1;
     display:flex;
     gap:20px;
-
 }
 .subtitle_hover .pill {
-    /*position: absolute;*/
-    /*top: 0;*/
-    /*left: 0;*/
     content: attr(data-pos);
     font-size: 0.8em;
     font-weight:bold;
@@ -371,30 +398,59 @@ body.dark .subtitle_hover .pitch {
     align-items: center;
     color: rgb(255, 60, 170);
     background-color: rgb(255, 223, 239);
+    box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
+    z-index:1;
+}
+body.dark .subtitle_hover .pill{
+    box-shadow: rgba(50, 50, 93, 0.10) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+.subtitle_hover .pill span{
+    height:0.8em;
+    z-index:2;
 }
 .subtitle_hover .pill[level="5"] {
     color: rgb(255, 60, 252);
     background-color: rgb(254, 223, 255);
+}
+.subtitle_word .frequency[level="5"] .star{
+    filter: hue-rotate(273deg) saturate(200%) brightness(170%);
+    opacity:0.9;
 }
 
 .subtitle_hover .pill[level="4"] {
     color: rgb(255, 141, 60);
     background-color: rgb(255, 236, 223);
 }
+.subtitle_word .frequency[level="4"] .star{
+    filter: hue-rotate(60deg) saturate(200%) brightness(170%);
+    opacity:0.9;
+}
 
 .subtitle_hover .pill[level="3"] {
     color: rgb(66, 214, 49);
     background-color: rgb(219, 243, 213);
+}
+.subtitle_word .frequency[level="3"] .star{
+    filter: hue-rotate(113.82deg) saturate(200%) brightness(150%);
+    opacity:0.9;
 }
 
 .subtitle_hover .pill[level="2"] {
     color: rgb(60, 145, 255);
     background-color: rgb(223, 244, 255);
 }
+.subtitle_word .frequency[level="2"] .star{
+    filter: hue-rotate(214deg) saturate(200%) brightness(170%);
+    opacity:0.9;
+}
 
 .subtitle_hover .pill[level="1"] {
     color: rgb(255, 60, 89);
     background-color: rgb(255, 223, 228);
+}
+.subtitle_word .frequency[level="1"] .star{
+    filter: hue-rotate(343deg) saturate(200%) brightness(170%);
+    opacity:0.9;
 }
 body.dark .subtitle_hover .pill{
     filter: invert(1) hue-rotate(180deg) saturate(100%) saturate(200%);
