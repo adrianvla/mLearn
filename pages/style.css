@@ -286,7 +286,6 @@ body.hide-cursor .subtitles{
 
 .subtitle_hover {
     position: absolute;
-    width: max-content;
     height: max-content;
     background-color: rgba(240,240,240, 0.75);
     backdrop-filter: blur(20px);
@@ -295,12 +294,12 @@ body.hide-cursor .subtitles{
     font-size: 20px;
     /*display: none;*/
     flex-direction: column;
-    font-family: sans-serif;
+    font-family: "Helvetica Neue", "Arial", sans-serif;
     box-shadow: 0 0 20px 0 rgba(0,0,0,0.8);
     padding: 20px;
     border-radius: 10px;
     max-height: 350px;
-    max-width: 300px;
+    max-width: 350px;
     overflow-y: auto;
     bottom:50px;
     transition: opacity 0.1s;
@@ -309,6 +308,9 @@ body.hide-cursor .subtitles{
     text-shadow:none !important;
     gap: 10px;
     -webkit-text-stroke:unset !important;
+    padding-bottom:50px;
+    width:max-content;
+    min-width:350px;
 }
 
 body.dark .subtitle_hover {
@@ -379,14 +381,33 @@ body.dark .subtitle_hover .pitch {
     z-index: -1;
 
 }
+.subtitle_hover .footer{
+    display:flex;
+    flex-direction:column;
+    justify-content: center;
+    gap:10px;
+    position:fixed;
+    bottom:0;
+    left:0;
+    height:max-content;
+    padding:10px;
+    min-width: 100%;
+    box-sizing:border-box;
+    background: rgba(184, 184, 184, 0.1);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid #ddd;
+    z-index:1;
+    width:max-content;
+}
+body.dark .subtitle_hover .footer{
+    border-top: 1px solid #333;
+    background: rgba(0, 0, 0, 0.1);
+}
 .subtitle_hover .pills{
-    order:3;
-    z-index: -1;
     display:flex;
     gap:20px;
 }
 .subtitle_hover .pill {
-    content: attr(data-pos);
     font-size: 0.8em;
     font-weight:bold;
     padding: 5px;
@@ -401,36 +422,48 @@ body.dark .subtitle_hover .pitch {
     box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
     z-index:1;
 }
+.subtitle_hover .pill .icon{
+    width:max-content;
+    height:max-content;
+    display:flex;
+    justify-content: center;
+    align-items: center;
+    margin-right:5px;
+}
+.subtitle_hover .pill .icon img{
+    width: 20px;
+    height: 20px;
+}
+.subtitle_hover .pill-btn{
+    cursor: pointer;
+    user-select: none;
+}
 body.dark .subtitle_hover .pill{
     box-shadow: rgba(50, 50, 93, 0.10) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
-}
-.subtitle_hover .pill span{
-    height:0.8em;
-    z-index:2;
 }
 .subtitle_hover .pill[level="5"] {
     color: rgb(255, 60, 252);
     background-color: rgb(254, 223, 255);
 }
-.subtitle_word .frequency[level="5"] .star{
+.subtitle_word .frequency[level="5"] .star, .subtitle_hover .pill[level="5"] img{
     filter: hue-rotate(273deg) saturate(200%) brightness(170%);
     opacity:0.9;
 }
 
-.subtitle_hover .pill[level="4"] {
+.subtitle_hover .pill[level="4"], .subtitle_hover .pill.orange {
     color: rgb(255, 141, 60);
     background-color: rgb(255, 236, 223);
 }
-.subtitle_word .frequency[level="4"] .star{
+.subtitle_word .frequency[level="4"] .star, .subtitle_hover .pill[level="4"] img, .subtitle_hover .pill.orange img{
     filter: hue-rotate(60deg) saturate(200%) brightness(170%);
     opacity:0.9;
 }
 
-.subtitle_hover .pill[level="3"] {
+.subtitle_hover .pill[level="3"], .subtitle_hover .pill.green{
     color: rgb(66, 214, 49);
     background-color: rgb(219, 243, 213);
 }
-.subtitle_word .frequency[level="3"] .star{
+.subtitle_word .frequency[level="3"] .star, .subtitle_hover .pill[level="3"] img, .subtitle_hover .pill.green img{
     filter: hue-rotate(113.82deg) saturate(200%) brightness(150%);
     opacity:0.9;
 }
@@ -439,17 +472,17 @@ body.dark .subtitle_hover .pill{
     color: rgb(60, 145, 255);
     background-color: rgb(223, 244, 255);
 }
-.subtitle_word .frequency[level="2"] .star{
+.subtitle_word .frequency[level="2"] .star, .subtitle_hover .pill[level="2"] img{
     filter: hue-rotate(214deg) saturate(200%) brightness(170%);
     opacity:0.9;
 }
 
-.subtitle_hover .pill[level="1"] {
+.subtitle_hover .pill[level="1"], .subtitle_hover .pill.red {
     color: rgb(255, 60, 89);
     background-color: rgb(255, 223, 228);
 }
-.subtitle_word .frequency[level="1"] .star{
-    filter: hue-rotate(343deg) saturate(200%) brightness(170%);
+.subtitle_word .frequency[level="1"] .star, .subtitle_hover .pill[level="1"] img, .subtitle_hover .pill.red img{
+    filter: hue-rotate(350deg) saturate(200%) brightness(170%);
     opacity:0.9;
 }
 body.dark .subtitle_hover .pill{

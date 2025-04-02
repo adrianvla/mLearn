@@ -37,6 +37,8 @@ let isCurrentlyStreamingVideo = false;
 let isCurrentlyPlayingVideo = false;
 let wordFreq = {};
 let foundFreq = {};
+let knownAdjustment = {};
+let wordUUIDs = {};
 
 let loadStream = null; //set later
 let videoTimeUpdateCallback = null; //set later
@@ -496,6 +498,85 @@ const makeFlashcard = (raw_flashcard_data, word, _translation, _definition, _sho
     return data;
 };
 
+const saveKnownAdjustment = () => {
+    //save knownAdjustment to localStorage
+    localStorage.setItem("knownAdjustment", JSON.stringify(knownAdjustment));
+};
+const loadKnownAdjustment = () => {
+    //load knownAdjustment from localStorage
+    let data = localStorage.getItem("knownAdjustment");
+    if(data){
+        knownAdjustment = JSON.parse(data);
+    }else{
+        knownAdjustment = {};
+    }
+};
+const changeKnownStatus = (word, status) => {
+    knownAdjustment[word] = status;
+    saveKnownAdjustment();
+};
+const getKnownStatus = (word) => {
+    /*
+    * 0: unknown
+    * 1: learning
+    * 2: known
+    * */
+    if(word in knownAdjustment){
+        return knownAdjustment[word];
+    }
+    return 0;
+};
+const unknownStatusPillHTML = (uuid) => {
+    return `<div class="pill pill-btn red" onclick='changeKnownBtnStatus("${uuid}", 1);' id="status-pill-${uuid}">
+    <span class="icon">
+        <img src="assets/icons/cross2.svg" alt="">
+    </span>
+    <span>Unknown</span>
+</div>`;
+};
+const learningStatusPillHTML = (uuid) => {
+    return `<div class="pill pill-btn orange" onclick='changeKnownBtnStatus("${uuid}", 2);' id="status-pill-${uuid}">
+    <span class="icon">
+        <img src="assets/icons/check.svg" alt="">
+    </span>
+    <span>Learning</span>
+</div>`;
+};
+const knownStatusPillHTML = (uuid) => {
+    return `<div class="pill pill-btn green" onclick='changeKnownBtnStatus("${uuid}", 0);' id="status-pill-${uuid}">
+    <span class="icon">
+        <img src="assets/icons/check.svg" alt="">
+    </span>
+    <span>Known</span>
+</div>`;
+};
+const generateStatusPillHTML = async (word, status) => {
+    const uuid = await toUniqueIdentifier(word);
+    wordUUIDs[uuid] = word;
+    if(status == 0){
+        return unknownStatusPillHTML(uuid);
+    }else if(status == 1){
+        return learningStatusPillHTML(uuid);
+    }else if(status == 2){
+        return knownStatusPillHTML(uuid);
+    }
+    return "";
+};
+const changeKnownBtnStatus = async (uuid, status) => {
+    const id = `status-pill-${uuid}`;
+    const el = document.getElementById(id);
+    const word = wordUUIDs[uuid];
+    el.outerHTML = await generateStatusPillHTML(word, status);
+    console.log("Changed status of word: "+word+" to "+status);
+    changeKnownStatus(word, status);
+};
+
+const changeKnownStatusButtonHTML = async (word, status = 0) => {
+    if(!status)
+        status = getKnownStatus(word);
+    return await generateStatusPillHTML(word, status);
+};
+
 const screenshotVideo = () => {
     try{
         let picture_data_url = "";
@@ -525,17 +606,19 @@ const countFreq = (freq) => {
         foundFreq[freq] = 1;
     }
 };
-const addPills = (word,pos)=>{
+const addPills = async (word,pos)=>{
     //check if word is in wordFreq
-    let s = `<div class="pills">`;
+    let s = `<div class="footer"><div class="pills">`;
     if(word in wordFreq){
         countFreq(wordFreq[word].raw_level);
         s += `<div class="pill" level="${wordFreq[word].raw_level}">${wordFreq[word].level}</div>`;
     }
     if(settings.show_pos){
-        s += `<div class='pill'>${pos}</div>`;
+        s += `<div class="pill">${pos}</div>`;
     }
-    s += `</div>`;
+    s += await changeKnownStatusButtonHTML(word);
+
+    s += `</div></div>`;
     return s;
 };
 
@@ -562,6 +645,7 @@ const modify_sub = async (subtitle) => {
     console.log(tokens);
 
     hoveredIds = {};
+    wordUUIDs = {};
     //create spans
     let show_subtitle = false;
 
@@ -644,13 +728,13 @@ const modify_sub = async (subtitle) => {
                 addFurigana(reading_html);
             }
         };
-        const hoverElState = (state) => {
+        const hoverElState = async (state) => {
             switch(state) {
                 case "loading":
                     hoverEl.html("Loading...");
                     return;
                 case "not_found":
-                    hoverEl.html("No translation found" + addPills(word,pos));
+                    hoverEl.html("No translation found" + await addPills(word,pos));
                     return;
             }
         };
@@ -795,9 +879,8 @@ const modify_sub = async (subtitle) => {
                 try{card_data = await getCards(word);}catch(e){card_data.poor = true;}
             else
                 card_data.poor = true;
-            console.log(card_data)
 
-            if(card_data.poor){ //card not found
+            if(card_data.poor && getKnownStatus(word) < 2){ //card not found
                 show_subtitle = true;
                 doAppendHoverLazy = true;
                 newEl.attr("known","false");
@@ -805,12 +888,13 @@ const modify_sub = async (subtitle) => {
             }else{
                 //compare ease
                 let current_card = card_data.cards[0];
-                if(current_card.factor < settings.known_ease_threshold){
+                if(current_card.factor < settings.known_ease_threshold && getKnownStatus(word) < 2){
                     show_subtitle = true;
                     doAppend = true;
                     await translateWord(card_data, current_card);
                 }else{
                     newEl.attr("known","true");
+                    changeKnownStatus(word, 2);
                     blurWord(newEl);
                     if(settings.hover_known_get_from_dictionary){
                         doAppendHoverLazy=true;
@@ -818,7 +902,7 @@ const modify_sub = async (subtitle) => {
                         doAppend = true;
                         //translate the word
                         await addTranslationToToken(current_card);
-                        hoverEl_html += `<div class="hover_ease">You know this, ease: ${current_card.factor}</div>`;
+                        // hoverEl_html += `<div class="hover_ease">You know this, ease: ${current_card.factor}</div>`;
                         hoverEl.addClass("known");
                     }
                 }
@@ -846,7 +930,7 @@ const modify_sub = async (subtitle) => {
         }
 
 
-        hoverEl_html += addPills(word,pos);
+        hoverEl_html += await addPills(word,pos);
         updateHoverElHTML();
         if(doAppend){
             if(settings.colour_codes[pos])
@@ -1223,6 +1307,7 @@ window.electron_settings.onServerLoad(() => {
     isLoaded = true;
     console.log("Server loaded");
     window.electron_settings.isWatchingTogether();
+    loadKnownAdjustment();
 // document.addEventListener('DOMContentLoaded', () => {
     const video = document.getElementById('fullscreen-video');
     const playPauseButton = document.getElementById('play-pause');
