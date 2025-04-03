@@ -666,8 +666,8 @@ const modify_sub = async (subtitle) => {
         let pos = token.type;
         let real_word = token.word;
         let uuid = randomUUID();
-        let newEl = $(`<span class="subtitle_word word_${uuid}" style="color: #ffffff !important;font-size: 36px !important;font-weight: 700 !important;text-shadow: 0 0 3px #000000, 0 0 3px #000000, 0 0 3px #000000, 0 0 3px #000000 !important">${real_word}</span>`);
-        let hoverEl = $(`<div class="subtitle_hover hover_${uuid} ${settings.dark_mode ? 'dark' : ''}" style="display:none"></div>`);
+        let newEl = $(`<span class="subtitle_word word_${uuid}">${real_word}</span>`);
+        let hoverEl = $(`<div class="subtitle_hover hover_${uuid} ${settings.dark_mode ? 'dark' : ''}"></div>`);
         let hoverEl_html = "";
         let doAppend = false;
         let doAppendHoverLazy = false;
@@ -857,6 +857,7 @@ const modify_sub = async (subtitle) => {
             }
 
             $hover.ready(()=>{
+                $hover.css("width",`${$hover.find(".footer").width()+26}px`);
                 let hover_left = -($hover.width()-$(`.word_${uuid}`).width())/2;
                 $hover.css("left",`${hover_left}px`);
             });
@@ -945,6 +946,7 @@ const modify_sub = async (subtitle) => {
                 $hover.addClass("show-hover");
                 hoveredWordTracker(word,uuid);
                 $hover.ready(()=>{
+                    $hover.css("width",`${$hover.find(".footer").width()+26}px`);
                     let hover_left = -($hover.width()-$word.width())/2;
                     $hover.css("left",`${hover_left}px`);
 

@@ -310,7 +310,6 @@ body.hide-cursor .subtitles{
     -webkit-text-stroke:unset !important;
     padding-bottom:50px;
     width:max-content;
-    min-width:350px;
 }
 
 body.dark .subtitle_hover {
@@ -391,7 +390,6 @@ body.dark .subtitle_hover .pitch {
     left:0;
     height:max-content;
     padding:10px;
-    min-width: 100%;
     box-sizing:border-box;
     background: rgba(184, 184, 184, 0.1);
     backdrop-filter: blur(20px);
