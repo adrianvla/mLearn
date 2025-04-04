@@ -296,11 +296,9 @@ body.hide-cursor .subtitles{
     flex-direction: column;
     font-family: "Helvetica Neue", "Arial", sans-serif;
     box-shadow: 0 0 20px 0 rgba(0,0,0,0.8);
-    padding: 20px;
     border-radius: 10px;
     max-height: 350px;
-    max-width: 350px;
-    overflow-y: auto;
+    overflow-y: hidden;
     bottom:50px;
     transition: opacity 0.1s;
     box-sizing: border-box;
@@ -308,8 +306,21 @@ body.hide-cursor .subtitles{
     text-shadow:none !important;
     gap: 10px;
     -webkit-text-stroke:unset !important;
-    padding-bottom:50px;
     width:max-content;
+}
+.subtitle_hover_relative{
+    position: relative;
+    width: 100%;
+    overflow-y: hidden;
+    height:100%;
+}
+.subtitle_hover_content{
+    padding: 20px;
+    padding-bottom:65px;
+    width:100%;
+    box-sizing: border-box;
+    overflow-y: auto;
+    max-height: 350px;
 }
 
 body.dark .subtitle_hover {
@@ -385,7 +396,7 @@ body.dark .subtitle_hover .pitch {
     flex-direction:column;
     justify-content: center;
     gap:10px;
-    position:fixed;
+    position:absolute;
     bottom:0;
     left:0;
     height:max-content;
@@ -466,11 +477,11 @@ body.dark .subtitle_hover .pill{
     opacity:0.9;
 }
 
-.subtitle_hover .pill[level="2"] {
+.subtitle_hover .pill[level="2"], .subtitle_hover .pill.blue {
     color: rgb(60, 145, 255);
     background-color: rgb(223, 244, 255);
 }
-.subtitle_word .frequency[level="2"] .star, .subtitle_hover .pill[level="2"] img{
+.subtitle_word .frequency[level="2"] .star, .subtitle_hover .pill[level="2"] img, .subtitle_hover .pill.blue img{
     filter: hue-rotate(214deg) saturate(200%) brightness(170%);
     opacity:0.9;
 }
@@ -491,9 +502,6 @@ body.dark .subtitle_hover .pill{
 }
 .hover_reading{
     order:2;
-}
-.subtitle_hover:has(.create_flashcard) {
-    padding-top: 40px;
 }
 
 .create_flashcard {
