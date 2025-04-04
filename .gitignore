@@ -10,3 +10,4 @@ __pycache__/
 mLearn-darwin-arm64/
 languages/__pycache__/
 pages/main original.js
+**/.DS_Store
