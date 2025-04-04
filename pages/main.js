@@ -39,6 +39,7 @@ let wordFreq = {};
 let foundFreq = {};
 let knownAdjustment = {};
 let wordUUIDs = {};
+let flashcardFunctions = {};
 
 let loadStream = null; //set later
 let videoTimeUpdateCallback = null; //set later
@@ -550,6 +551,14 @@ const knownStatusPillHTML = (uuid) => {
     <span>Known</span>
 </div>`;
 };
+const addAnkiPillHTML = (uuid) => {
+    return `<div class="pill pill-btn blue" onclick='clickAddFlashcardBtn("${uuid}");'>
+    <span class="icon">
+        <img src="assets/icons/cross2.svg" alt="" style="transform: rotate(45deg);">
+    </span>
+    <span>Anki</span>
+</div>`;
+};
 const generateStatusPillHTML = async (word, status) => {
     const uuid = await toUniqueIdentifier(word);
     wordUUIDs[uuid] = word;
@@ -606,7 +615,11 @@ const countFreq = (freq) => {
         foundFreq[freq] = 1;
     }
 };
-const addPills = async (word,pos)=>{
+const clickAddFlashcardBtn = (uuid) =>{
+    console.log("clickAddFlashcardBtn",uuid);
+    flashcardFunctions[uuid]();
+};
+const addPills = async (word,pos, addAnkiBtn = false)=>{
     //check if word is in wordFreq
     let s = `<div class="footer"><div class="pills">`;
     if(word in wordFreq){
@@ -617,6 +630,11 @@ const addPills = async (word,pos)=>{
         s += `<div class="pill">${pos}</div>`;
     }
     s += await changeKnownStatusButtonHTML(word);
+    if(addAnkiBtn){
+        const uuid = await toUniqueIdentifier(word);
+        wordUUIDs[uuid] = word;
+        s += addAnkiPillHTML(uuid);
+    }
 
     s += `</div></div>`;
     return s;
@@ -669,6 +687,7 @@ const modify_sub = async (subtitle) => {
         let newEl = $(`<span class="subtitle_word word_${uuid}">${real_word}</span>`);
         let hoverEl = $(`<div class="subtitle_hover hover_${uuid} ${settings.dark_mode ? 'dark' : ''}"></div>`);
         let hoverEl_html = "";
+        let pill_html = "";
         let doAppend = false;
         let doAppendHoverLazy = false;
         let hasFurigana = false;
@@ -728,19 +747,22 @@ const modify_sub = async (subtitle) => {
                 addFurigana(reading_html);
             }
         };
+
+        const updateHoverElHTML = (h = hoverEl_html, p = pill_html)=>{
+            const realHTML = `<div class='subtitle_hover_relative'><div class='subtitle_hover_content'>${h}</div>${p}</div>`;
+            hoverEl.html(realHTML);
+        };
         const hoverElState = async (state) => {
             switch(state) {
                 case "loading":
                     hoverEl.html("Loading...");
                     return;
                 case "not_found":
-                    hoverEl.html("No translation found" + await addPills(word,pos));
+                    // hoverEl.html("No translation found" + await addPills(word,pos));
+                    updateHoverElHTML("No translation found", await addPills(word,pos));
                     return;
             }
         };
-
-        const updateHoverElHTML = ()=>{hoverEl.html(hoverEl_html);};
-
         const flashcardWindowHTML = (raw_flashcard_data)=>{
             return `<!doctype html>
 <html lang="en">
@@ -834,13 +856,13 @@ const modify_sub = async (subtitle) => {
         async function showHoverEl(){
             hoveredWordTracker(word,uuid);
             let $hover = $(`.hover_${uuid}`);
+            const $word = $(`.word_${uuid}`);
             $hover.addClass("show-hover");
             if(processingDB[uuid]) return;
             if(hasBeenLoadedDB[uuid]) return;
             processingDB[uuid] = true;
             let translation_data = await getTranslation(word);
             let raw_flashcard_data = {"example":"","front":word,"pitch":"","definitions":"","image":""};
-            console.log("Hovered Word", word, "lazy-load");
             translation_data.data.forEach((meaning)=>{
                 const reading_html = meaning.reading;
                 const translation_html = meaning.definitions;
@@ -856,19 +878,25 @@ const modify_sub = async (subtitle) => {
                 updateHoverElHTML();
             }
 
-            $hover.ready(()=>{
-                $hover.css("width",`${$hover.find(".footer").width()+26}px`);
-                let hover_left = -($hover.width()-$(`.word_${uuid}`).width())/2;
-                $hover.css("left",`${hover_left}px`);
-            });
 
             if(settings.enable_flashcard_creation && !already_added[word]){
-                hoverEl_html += `<button class="create_flashcard">+ Anki</button>`;
-                updateHoverElHTML();
-                hoverEl.find(".create_flashcard").click(()=>{
+                const encodedWord = await toUniqueIdentifier(word);
+                flashcardFunctions[encodedWord] = ()=>{
                     createFlashcardClick(raw_flashcard_data);
-                });
+                };
+                pill_html = await addPills(word,pos,true);
+                updateHoverElHTML();
             }
+
+            $hover.ready(()=>{
+                let calcW = 600;
+                console.log(".footer:",$hover.find(".footer"));
+                $hover.find(".footer").css("width","100%");
+                $hover.css("width",`${calcW}px`);
+                let hover_left = -(calcW-$word.width())/2;
+                $hover.css("left",`${hover_left}px`);
+                console.log("HOVERED WORD",word,"lazy load");
+            });
         }
 
         if(TRANSLATABLE.includes(pos)){
@@ -903,7 +931,6 @@ const modify_sub = async (subtitle) => {
                         doAppend = true;
                         //translate the word
                         await addTranslationToToken(current_card);
-                        // hoverEl_html += `<div class="hover_ease">You know this, ease: ${current_card.factor}</div>`;
                         hoverEl.addClass("known");
                     }
                 }
@@ -931,7 +958,7 @@ const modify_sub = async (subtitle) => {
         }
 
 
-        hoverEl_html += await addPills(word,pos);
+        pill_html += await addPills(word,pos);
         updateHoverElHTML();
         if(doAppend){
             if(settings.colour_codes[pos])
@@ -946,8 +973,13 @@ const modify_sub = async (subtitle) => {
                 $hover.addClass("show-hover");
                 hoveredWordTracker(word,uuid);
                 $hover.ready(()=>{
-                    $hover.css("width",`${$hover.find(".footer").width()+26}px`);
-                    let hover_left = -($hover.width()-$word.width())/2;
+                    let calcW = $hover.find(".footer").width()+26;
+                    if(calcW < 250) {
+                        calcW = 250;
+                        $hover.find(".footer").css("width","100%");
+                    }
+                    $hover.css("width",`${calcW}px`);
+                    let hover_left = -(calcW-$word.width())/2;
                     $hover.css("left",`${hover_left}px`);
 
                 });
