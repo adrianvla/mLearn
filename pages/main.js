@@ -1033,7 +1033,8 @@ const modify_sub = async (subtitle) => {
     parseWordFrequency();
 
     if(settings.use_anki){
-        $(".add-all-to-anki, .update-flashcards-due-date").show();
+        // $(".add-all-to-anki, .update-flashcards-due-date").show();
+        $(".add-all-to-anki, .update-flashcards-due-date").hide();
     }else{
         $(".add-all-to-anki, .update-flashcards-due-date").hide();
     }
@@ -2100,7 +2101,8 @@ window.electron_settings.onOpenSettings((msg)=>{
                 $(".aside").hide();
             }
             if(settings.use_anki){
-                $(".add-all-to-anki, .update-flashcards-due-date").show();
+                // $(".add-all-to-anki, .update-flashcards-due-date").show();
+                $(".add-all-to-anki, .update-flashcards-due-date").hide();
             }else{
                 $(".add-all-to-anki, .update-flashcards-due-date").hide();
             }
