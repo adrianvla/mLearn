@@ -13,6 +13,7 @@ import pickle
 import os
 import sys
 import importlib
+import re
 
 
 
@@ -135,6 +136,10 @@ def get_all_cards():
         elif 'Front' in card['fields']:
             if "</intelligent_definition>" in card['fields']['Front']['value']:
                 front = re.sub(r'<intelligent_definition\b[^>]*>.*?</intelligent_definition>', '', card['fields']['Front']['value'], flags=re.DOTALL)
+                card['fields']['Expression'] = {}
+                card['fields']['Meaning'] = {}
+                card['fields']['Reading'] = {}
+                card['fields']['Reading']['value'] = ""
                 card['fields']['Expression']['value'] = front
                 match1 = re.search(r'<intelligent_definition\b[^>]*>(.*?)</intelligent_definition>', card['fields']['Front']['value'], flags=re.DOTALL)
                 if match1:

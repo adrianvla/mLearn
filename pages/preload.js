@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('electron_settings', {
     isSuccess: () => ipcRenderer.send('is-successful-install'),
     installLanguage: (url) => ipcRenderer.send('install-lang', url),
     writeToClipboard: (text) => ipcRenderer.send('write-to-clipboard', text),
+    makePiP: (size) => ipcRenderer.send('make-pip',size),
+    unPiP: () => ipcRenderer.send('make-normal'),
+    isWatchingTogether: () => ipcRenderer.send('is-watching-together'),
+    watchTogetherSend: (message) => ipcRenderer.send('watch-together-send', message),
     onSettings: (callback) => ipcRenderer.on('settings', (event, settings) => callback(settings)),
     onLangData: (callback) => ipcRenderer.on('lang-data', (event, data) => callback(data)),
     onSettingsSaved: (callback) => ipcRenderer.on('settings-saved', (event, message) => callback(message)),
@@ -26,6 +30,8 @@ contextBridge.exposeInMainWorld('electron_settings', {
     onLanguageInstalled: (callback) => ipcRenderer.on('lang-installed', (event, message) => callback(message)),
     onLanguageInstallError: (callback) => ipcRenderer.on('lang-install-error', (event, message) => callback(message)),
     onPythonSuccess: (callback) => ipcRenderer.on('successful-install', (event, message) => callback(message)),
+    onWatchTogetherLaunch: (callback) => ipcRenderer.on('watch-together', (event, message) => callback(message)),
+    onWatchTogetherRequest: (callback) => ipcRenderer.on('watch-together-request', (event, message) => callback(message)),
 });
 
 window.addEventListener('DOMContentLoaded', () => {

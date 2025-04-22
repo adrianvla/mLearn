@@ -10,6 +10,8 @@ const unzipper = require('unzipper');
 const url = require('url');
 const isPackaged = app.isPackaged;
 const resPath = isPackaged ? path.join(process.resourcesPath, "app") : __dirname;
+const WebSocket = require('ws');
+const PORT = 7753;
 
 console.log("Is packaged", isPackaged, "Version", app.getVersion(),"Path",app.getPath('userData'));
 
@@ -65,6 +67,10 @@ let isFirstTimeSetup = false;
 let currentWindow = null;
 let pythonSuccessInstall = false;
 let pythonUrl;
+let oldWindowState = {width:null, height:null, fullscreen:false, trafficLights:true};
+let server;
+let HTTPServer;
+let sockets = [];
 
 
 console.log(ARCHITECTURE, PLATFORM);
@@ -83,6 +89,123 @@ if (PLATFORM === 'darwin' && ARCHITECTURE === 'x64') {
 }
 pythonUrl+="?download=";
 
+const makeMainWindowPIP = (w,h) => {
+    oldWindowState.width = mainWindow.getBounds().width;
+    oldWindowState.height = mainWindow.getBounds().height;
+    oldWindowState.fullscreen = mainWindow.isFullScreen();
+    mainWindow.setBounds({ width: w, height: h, x: 50, y: 50 },true); // Adjust size and position
+    mainWindow.setAlwaysOnTop(true, 'pop-up-menu');
+    mainWindow.setResizable(true); // Allow resizing if desired
+    mainWindow.setFocusable(false); // Optional: Prevent focus on PiP mode
+    mainWindow.setFullScreenable(false); // Disable fullscreen
+    mainWindow.setMinimizable(false); // Disable minimize
+    mainWindow.setWindowButtonVisibility(false);
+    mainWindow.setFullScreen(false);
+};
+
+const makeMainWindowNormal = () => {
+    mainWindow.setBounds({ width: oldWindowState.width, height: oldWindowState.height },true); // Adjust size and position
+    mainWindow.setAlwaysOnTop(false); // Disable always on top
+    mainWindow.setResizable(true); // Allow resizing
+    mainWindow.setFocusable(true); // Allow focus
+    mainWindow.setFullScreenable(true); // Enable fullscreen
+    mainWindow.setMinimizable(true); // Enable minimize
+    mainWindow.setWindowButtonVisibility(oldWindowState.trafficLights);
+    mainWindow.setFullScreen(oldWindowState.fullscreen);
+};
+
+const startWebSocketServer = () => {
+    if(server) return;
+    HTTPServer = http.createServer((req, res) => {
+        if (req.method === 'OPTIONS') {
+            // Handle preflight CORS requests
+            res.writeHead(204, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Max-Age': 86400, // Cache the preflight response for 24 hours
+            });
+            return res.end();
+        }
+
+        if (req.url.startsWith('/?url=')) {
+            const query = url.parse(req.url, true).query;
+            let targetUrl = query.url; // Extract the target URL from the query string
+
+            if (!targetUrl) {
+                res.writeHead(400, { 'Content-Type': 'text/plain' });
+                return res.end('Missing "url" query parameter');
+            }
+
+            // Add protocol if missing
+            if (!/^https?:\/\//i.test(targetUrl)) {
+                targetUrl = 'https://' + targetUrl;
+            }
+
+            // Determine the protocol (http or https)
+            const client = targetUrl.startsWith('https') ? https : http;
+
+            // Forward the request to the target server
+            client.get(targetUrl, (targetRes) => {
+                // Override any conflicting CORS headers from the target server
+                res.writeHead(targetRes.statusCode, {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                    'Content-Type': targetRes.headers['content-type'] || 'application/octet-stream',
+                });
+
+                // Pipe the response back to the client
+                targetRes.pipe(res);
+            }).on('error', (err) => {
+                // Handle errors
+                res.writeHead(500, {
+                    'Content-Type': 'text/plain',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                });
+                res.end(`Error: ${err.message}`);
+            });
+        } else {
+            // Respond with 426 if a non-WebSocket and non-Proxy request is made
+            res.writeHead(426, {
+                'Content-Type': 'text/plain',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            });
+            res.end('Upgrade Required');
+        }
+    });
+    server = new WebSocket.Server({ /*port: PORT,*/noServer:true });
+    server.on('connection', (ws) => {
+        sockets.push(ws);
+        ws.on('message', (message) => {
+            console.log(`Received message => ${message}`);
+            mainWindow.webContents.send('watch-together-request', message);
+        });
+    });
+
+    HTTPServer.on('upgrade', (req, socket, head) => {
+        server.handleUpgrade(req, socket, head, (ws) => {
+            server.emit('connection', ws, req);
+        });
+    });
+    HTTPServer.listen(PORT, () => {
+        console.log(`Watch Together running on http://localhost:${PORT}`);
+    });
+};
+
+const sendMessageToAllClients = (message) => {
+    for (let socket of sockets) {
+        if (socket.readyState === WebSocket.OPEN) {
+            socket.send(message);
+        }
+    }
+};
+
+
 const createWindow = () => {
     mainWindow = new BrowserWindow({
         width: 1200,
@@ -90,7 +213,7 @@ const createWindow = () => {
         webPreferences: {
             preload: path.join(resPath, '/pages/preload.js')
         },
-        titleBarStyle: 'hidden'
+        titleBarStyle: isMac ? 'hidden' : 'hiddenInset'
     });
     mainWindow.loadFile('pages/index.html');
     currentWindow = mainWindow;
@@ -272,9 +395,16 @@ ipcMain.on('save-settings', (event, settings) => {
 ipcMain.on('get-lang-data', (event) => {
     event.reply('lang-data', loadLangData());
 });
+ipcMain.on('is-watching-together', (event) => {
+    event.reply('watch-together', 'ping');
+});
 
 ipcMain.on('traffic-lights', (event, arg) => {
     mainWindow.setWindowButtonVisibility(arg.visibility);
+    oldWindowState.trafficLights = arg.visibility;
+});
+ipcMain.on('watch-together-send', (event, message) => {
+    sendMessageToAllClients(JSON.stringify(message));
 });
 ipcMain.on('is-successful-install', (event) => {
     event.reply('successful-install', pythonSuccessInstall);
@@ -311,6 +441,12 @@ ipcMain.on('install-lang', (event, u) => {
 
 ipcMain.on('changeWindowSize', (event, arg) => {
     mainWindow.setSize(arg.width, arg.height, true);
+});
+ipcMain.on('make-pip', (event, arg) => {
+    makeMainWindowPIP(arg.width, arg.height);
+});
+ipcMain.on('make-normal', (event) => {
+    makeMainWindowNormal();
 });
 ipcMain.on('show-ctx-menu', (event) => {
     const template = [
@@ -371,40 +507,48 @@ ipcMain.on('is-loaded', (event) => {
         event.reply('server-load', "Python server running");
 });
 
+const appMenu = [
+    {
+        label: 'About mLearn',
+        click: async () => {
+            //if(serverLoaded)
+            mainWindow.webContents.send('show-settings','About');
+        }
+    },
+    { type: 'separator' },
+    {
+        label: 'Settings',
+        click: async () => {
+            // if(serverLoaded)
+            mainWindow.webContents.send('show-settings');
+        }
+    },
+    { type: 'separator' },
+    { role: 'hide' },
+    { type: 'separator' },
+    { role: 'hideOthers' },
+    { role: 'unhide' },
+    { type: 'separator' },
+    { role: 'quit' }
+];
+
 const template = [
     // { role: 'appMenu' }
     ...(isMac
         ? [{
             label: app.name,
-            submenu: [
-                {
-                    label: 'About mLearn',
-                    click: async () => {
-                        if(serverLoaded) mainWindow.webContents.send('show-settings','About');
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: 'Settings',
-                    click: async () => {
-                        if(serverLoaded) mainWindow.webContents.send('show-settings');
-                    }
-                },
-                { type: 'separator' },
-                { role: 'hide' },
-                { type: 'separator' },
-                { role: 'hideOthers' },
-                { role: 'unhide' },
-                { type: 'separator' },
-                { role: 'quit' }
-            ]
+            submenu: appMenu
         }]
         : []),
     // { role: 'fileMenu' }
     {
         label: 'File',
         submenu: [
-            isMac ? { role: 'close' } : { role: 'quit' }
+            isMac ? { role: 'close' } : { role: 'quit' },
+            ...(isMac
+                    ? []
+                    : appMenu
+            )
         ]
     },
     // { role: 'editMenu' }
@@ -467,6 +611,36 @@ const template = [
                 : [
                     { role: 'close' }
                 ])
+        ]
+    },
+    {
+        label: 'Video',
+        submenu: [
+            {
+                label: 'Sync Subtitles with Video',
+                click: async () => {
+                    mainWindow.webContents.send('ctx-menu-command', 'sync-subs');
+                }
+            },
+            {
+                label: 'Copy Subtitle',
+                click: async () => {
+                    mainWindow.webContents.send('ctx-menu-command', 'copy-sub');
+                }
+            },
+            ...(isMac ? [{ type: 'separator' }] : []),
+            {
+                label: 'Watch Together',
+                click: async () => {
+                    mainWindow.webContents.send('watch-together');
+                    dialog.showMessageBox(null, {
+                        type: 'info',
+                        title: 'Watch Together',
+                        message: 'Started Watch Together at \nhttp://127.0.0.1:'+PORT+'\n\nPlease port forward this device\'s 7753 port if you want to share it with others. \n\nGo to https://mlearn.morisinc.net/watch-together to join the session.',
+                    });
+                    startWebSocketServer();
+                }
+            }
         ]
     }
 ];
@@ -663,11 +837,15 @@ const pingPythonServer = (callback) => {
 let serverLoaded = false;
 
 const pythonExecutable = isWindows
-    ? path.join(resPath, 'env', 'Scripts', 'python.exe')  // Python executable on Windows
+    ? path.join(resPath, 'env', 'python.exe')  // Python executable on Windows
     : path.join(resPath, 'env', 'bin', 'python3');        // Python executable on Unix
 const pipExecutable = isWindows
-    ? path.join(resPath, 'env', 'Scripts', 'pip.exe')     // pip executable on Windows
+    ? path.join(resPath, 'env', 'python.exe')     // pip executable on Windows
     : path.join(resPath, 'env', 'bin', 'pip3');           // pip executable on Unix
+
+const accessArgs = isWindows
+    ? ["-m pip"]
+    : [];
 const pythonFound = () => {
     console.log("Python found at", PYTHON_PATH);
     let settings = loadSettings();
@@ -718,6 +896,11 @@ function findPython() {
         path.join(process.resourcesPath, "env", "bin", "python3"),
         // In development
         path.join(resPath, "env", "bin", "python3"),
+        // Windows
+        // In packaged app
+        path.join(process.resourcesPath, "env", "python.exe"),
+        // In development
+        path.join(resPath, "env", "python.exe"),
     ];
     for (const path of possibilities) {
         if (fs.existsSync(path)) {
@@ -731,6 +914,20 @@ function findPython() {
     console.log("Downloading Python...");
     try{currentWindow.webContents.send('server-status-update', 'Downloading Python...');}catch(e){}
 
+    const onPipSTDOUT = (data) => {
+        console.log(`stdout: ${data}`);
+        try{currentWindow.webContents.send('server-status-update', `${data}`);}catch(e){}
+    };
+    const onPipSTDERR = (data) => {
+        console.error(`stderr: ${data}`);
+        try{currentWindow.webContents.send('server-status-update', `ERROR: ${data}`);}catch(e){}
+    };
+    const onPipClose = (code) => {
+        console.log(`Installing libraries complete`);
+        try{currentWindow.webContents.send('server-status-update', 'Installing libraries complete');}catch(e){}
+        pythonFound();
+        pythonSuccessInstall = true;
+    };
     isFirstTimeSetup = true;
     downloadFile(pythonUrl, downloadPath, () => {
         console.log('Download complete');
@@ -741,23 +938,21 @@ function findPython() {
             try{currentWindow.webContents.send('server-status-update', 'Download complete');}catch(e){}
             const pipRequirements = loadPipRequirements();
             console.log(pythonExecutable);
-            const installPip = spawn(pipExecutable, ['install', ...pipRequirements], {
-                cwd: envPath
-            });
-            installPip.stdout.on('data', (data) => {
-                console.log(`stdout: ${data}`);
-                try{currentWindow.webContents.send('server-status-update', `${data}`);}catch(e){}
-            });
-            installPip.stderr.on('data', (data) => {
-                console.error(`stderr: ${data}`);
-            });
-            installPip.on('close', (code) => {
-                console.log(`Installing libraries complete`);
-                try{currentWindow.webContents.send('server-status-update', 'Installing libraries complete');}catch(e){}
-                pythonFound();
-                pythonSuccessInstall = true;
-            });
-            //pythonFound();
+            console.log("PIP EXECUTABLE:", pipExecutable);
+            if(isWindows){
+                const command = "start cmd.exe /C " + [pipExecutable, ...accessArgs, 'install', ...pipRequirements].join(" ");
+                exec(command, (error, stdout, stderr) => {
+                    onPipClose(null);
+                });
+            }else{
+                const installPip = spawn(pipExecutable, [...accessArgs, 'install', ...pipRequirements], {
+                    cwd: envPath
+                });
+                installPip.stdout.on('data', onPipSTDOUT);
+                installPip.stderr.on('data', onPipSTDERR);
+                installPip.on('close', onPipClose);
+            }
+
         });
     });
 }

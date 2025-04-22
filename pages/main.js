@@ -31,6 +31,15 @@ let restarting = false;
 let hoveredWordsCount = 0;
 let hoveredWords = {};
 let hoveredIds = {};
+let wordList = [];
+let isWatchTogether = false;
+let isCurrentlyStreamingVideo = false;
+let isCurrentlyPlayingVideo = false;
+let wordFreq = {};
+let foundFreq = {};
+let knownAdjustment = {};
+let wordUUIDs = {};
+let flashcardFunctions = {};
 
 let loadStream = null; //set later
 let videoTimeUpdateCallback = null; //set later
@@ -60,8 +69,38 @@ const load_lang_data = () => {
     settings.colour_codes = lang_data[settings.language].colour_codes;
 };
 
+const parseWordFrequency = () => {
+    //using data from https://github.com/FerchusGames/JLPT-Migaku-Frequency-List/tree/main
+    if(!lang_data[settings.language].freq) return;
+    const freq = lang_data[settings.language].freq;
+    for(let wordi in freq){
+        if(!freq[wordi]) continue;
+        if(freq[wordi].length < 2) continue;
+        let level = 1;
+        if(wordi<=1500 && wordi>=0){
+            level = 5;
+        }else if(wordi>1500 && wordi<=5000){
+            level = 4;
+        }else if(wordi>5000 && wordi<=15000){
+            level = 3;
+        }else if(wordi>15000 && wordi<=30000){
+            level = 2;
+        }
+        let lvlName = "";
+        if(lang_data[settings.language].freq_level_names){
+            lvlName = lang_data[settings.language].freq_level_names[String(level)];
+        }
+        if(!lvlName){
+            lvlName = "Level "+level;
+        }
+        wordFreq[freq[wordi][0]] = {reading:freq[wordi][1], level:lvlName, raw_level:level};
+    }
+
+};
+
 const checkSettings = () => {
     //check if every setting is present
+    console.log("Checking settings",settings);
     for(let key in DEFAULT_SETTINGS){
         if(!(key in settings)){
             settings[key] = DEFAULT_SETTINGS[key];
@@ -100,8 +139,62 @@ const hoveredWordTracker = (word,uuid) => {
     else
         hoveredWords[word] = 1;
 };
+const addAllFlashcardsToAnki = () => {
+    wordList.forEach(async (word)=>{
+        if(word.new){
+            if(already_added[word.word]) return;
+            //{word:word, new:true, fetch:true, screenshot: screenshotVideo()};
+            let translation_data = await getTranslation(word.word);
+            let raw_flashcard_data = {"example":"","front":word.word,"pitch":"","definitions":"","image":""};
+            translation_data.data.forEach((meaning)=>{
+                let reading_html = meaning.reading;
+                let translation_html = meaning.definitions;
+                raw_flashcard_data.definitions += `<p>${translation_html}</p>`;
+                raw_flashcard_data.definitions += `<p>${reading_html}</p>`;
+            });
+            if(translation_data.data.length==0) return;
+            //calculate actual example sentence by putting it into iframe
+            $("iframe")[0].contentWindow.document.body.innerHTML = word.currentSubtitle;
+            //remove each .subtitle_hover element
+            $("iframe").contents().find(".subtitle_hover").remove();
+            //remove each .subtitle_word element
+            $("iframe").contents().find(".subtitle_word").addClass("defined");
+            raw_flashcard_data.example = $("iframe")[0].contentWindow.document.body.innerHTML;
+            $("iframe")[0].contentWindow.document.body.innerHTML = "";
+            raw_flashcard_data.image = word.screenshot;
+            let card_creation_data = makeFlashcard(raw_flashcard_data, word.word, "", raw_flashcard_data.definitions, true);
+            let response = await sendRawToAnki({"action":"addNote","version":6,"params":card_creation_data});
+            console.log(card_creation_data);
+            if(!response.error){
+                already_added[word.word] = true;
+            }else{
+                console.log("Failed to create flashcard for word: "+word.word);
+            }
+        }
+    });
+};
+
+const updateFlashcardsAnkiDate = () => {
+    console.log("Updating flashcards due date");
+    wordList.forEach(async (word)=>{
+        if(!word.new){
+            //update due date
+            let response = await sendRawToAnki({"action":"setSpecificValueOfCard","version":6,"params":{"card":word.id,"keys":["due"],"newValues":[0]},"warning_check":true});
+            if(response.error){
+                console.log("Failed to update due date of flashcard for word: "+word.word);
+            }
+        }
+    });
+
+}
+
+
 const onVideoEnded = (videoUrl) => {
+    console.log("ENDED")
+    isCurrentlyStreamingVideo = false;
+    isCurrentlyPlayingVideo = false;
     let videoStats = JSON.parse(localStorage.getItem("videoStats"));
+    localStorage.removeItem(`videoCurrentTime_${btoa(currentPlayingVideo)}`); //reset time
     if(!videoStats) videoStats = [];
     //if url already exists, merge
     let exists = false;
@@ -110,7 +203,6 @@ const onVideoEnded = (videoUrl) => {
             videoStat.words += hoveredWordsCount;
             localStorage.setItem("videoStats",JSON.stringify(videoStats));
             exists = true;
-            continue;
         }
     }
     if(!exists)
@@ -351,6 +443,204 @@ const randomUUID = () => {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 };
 
+const makeFlashcard = (raw_flashcard_data, word, _translation, _definition, _show_img) => {
+    let data = {
+        "note": {
+            "deckName": settings.flashcard_deck,
+            "modelName": "Basic",
+            "fields": {
+                "Back":"",
+                "Front": word+"<intelligent_definition style='display:none'>"+raw_flashcard_data.definitions+"</intelligent_definition>"
+            },
+            "options": {
+                "allowDuplicate": false,
+                "duplicateScope": "deck",
+                "duplicateScopeOptions": {
+                    "deckName": settings.deckName,
+                    "checkChildren": false,
+                    "checkAllModels": false
+                }
+            },
+            "tags": [
+                "intelligent-subtitles",
+                settings.language,
+                "video-"+parseSubtitleName(currentSubtitleFile)
+            ]
+        }
+    };
+    // _translation = $('input',createFlashcardWindow.document).val()
+    // _definition = $(".definition",createFlashcardWindow.document).html()
+    // _show_img = $("#show-img",createFlashcardWindow.document).is(":checked")
+    data.note.fields.Back = `
+    <style>${FLASHCARD_CSS}</style>
+    <div class="card-c ${settings.dark_mode ? '':'light'}">
+        <div class="card-item">
+            <h1>${raw_flashcard_data.front}</h1>
+        </div>
+        <div class="card-item">
+            <div class="example">
+                <div class="sentence">${raw_flashcard_data.example}</div>
+                <div class="translation">
+                    <p>${_translation}</p>
+                </div>
+            </div>
+        </div>
+        <div class="divider"></div>
+        <div class="card-item">
+            <div class="definition">
+                ${_definition}
+            </div>
+        </div>
+        <div class="card-item" ${_show_img ? "":"style='display:none'"}>
+            <img src="${_show_img?raw_flashcard_data.image:''}" alt="">
+        </div>
+    </div>
+    `;
+    return data;
+};
+
+const saveKnownAdjustment = () => {
+    //save knownAdjustment to localStorage
+    localStorage.setItem("knownAdjustment", JSON.stringify(knownAdjustment));
+};
+const loadKnownAdjustment = () => {
+    //load knownAdjustment from localStorage
+    let data = localStorage.getItem("knownAdjustment");
+    if(data){
+        knownAdjustment = JSON.parse(data);
+    }else{
+        knownAdjustment = {};
+    }
+};
+const changeKnownStatus = (word, status) => {
+    knownAdjustment[word] = status;
+    saveKnownAdjustment();
+};
+const getKnownStatus = (word) => {
+    /*
+    * 0: unknown
+    * 1: learning
+    * 2: known
+    * */
+    if(word in knownAdjustment){
+        return knownAdjustment[word];
+    }
+    return 0;
+};
+const unknownStatusPillHTML = (uuid) => {
+    return `<div class="pill pill-btn red" onclick='changeKnownBtnStatus("${uuid}", 1);' id="status-pill-${uuid}">
+    <span class="icon">
+        <img src="assets/icons/cross2.svg" alt="">
+    </span>
+    <span>Unknown</span>
+</div>`;
+};
+const learningStatusPillHTML = (uuid) => {
+    return `<div class="pill pill-btn orange" onclick='changeKnownBtnStatus("${uuid}", 2);' id="status-pill-${uuid}">
+    <span class="icon">
+        <img src="assets/icons/check.svg" alt="">
+    </span>
+    <span>Learning</span>
+</div>`;
+};
+const knownStatusPillHTML = (uuid) => {
+    return `<div class="pill pill-btn green" onclick='changeKnownBtnStatus("${uuid}", 0);' id="status-pill-${uuid}">
+    <span class="icon">
+        <img src="assets/icons/check.svg" alt="">
+    </span>
+    <span>Known</span>
+</div>`;
+};
+const addAnkiPillHTML = (uuid) => {
+    return `<div class="pill pill-btn blue" onclick='clickAddFlashcardBtn("${uuid}");'>
+    <span class="icon">
+        <img src="assets/icons/cross2.svg" alt="" style="transform: rotate(45deg);">
+    </span>
+    <span>Anki</span>
+</div>`;
+};
+const generateStatusPillHTML = async (word, status) => {
+    const uuid = await toUniqueIdentifier(word);
+    wordUUIDs[uuid] = word;
+    if(status == 0){
+        return unknownStatusPillHTML(uuid);
+    }else if(status == 1){
+        return learningStatusPillHTML(uuid);
+    }else if(status == 2){
+        return knownStatusPillHTML(uuid);
+    }
+    return "";
+};
+const changeKnownBtnStatus = async (uuid, status) => {
+    const id = `status-pill-${uuid}`;
+    const el = document.getElementById(id);
+    const word = wordUUIDs[uuid];
+    el.outerHTML = await generateStatusPillHTML(word, status);
+    console.log("Changed status of word: "+word+" to "+status);
+    changeKnownStatus(word, status);
+};
+
+const changeKnownStatusButtonHTML = async (word, status = 0) => {
+    if(!status)
+        status = getKnownStatus(word);
+    return await generateStatusPillHTML(word, status);
+};
+
+const screenshotVideo = () => {
+    try{
+        let picture_data_url = "";
+        let video = $("video").get(0);
+        if(!video) throw "No video found";
+        let canvas = document.createElement("canvas");
+        let ctx = canvas.getContext("2d");
+        let width = 480;
+        let height = video.videoHeight * (width / video.videoWidth);
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        picture_data_url = canvas.toDataURL("image/jpeg",0.5);
+        return picture_data_url;
+    }catch(e){console.log(e);}
+};
+
+const blurWord = (newEl)=>{
+    if(settings.blur_words){
+        newEl.addClass("blur");
+    }
+};
+const countFreq = (freq) => {
+    if(freq in foundFreq) {
+        foundFreq[freq]++;
+    }else{
+        foundFreq[freq] = 1;
+    }
+};
+const clickAddFlashcardBtn = (uuid) =>{
+    console.log("clickAddFlashcardBtn",uuid);
+    flashcardFunctions[uuid]();
+};
+const addPills = async (word,pos, addAnkiBtn = false)=>{
+    //check if word is in wordFreq
+    let s = `<div class="footer"><div class="pills">`;
+    if(word in wordFreq){
+        countFreq(wordFreq[word].raw_level);
+        s += `<div class="pill" level="${wordFreq[word].raw_level}">${wordFreq[word].level}</div>`;
+    }
+    if(settings.show_pos){
+        s += `<div class="pill">${pos}</div>`;
+    }
+    s += await changeKnownStatusButtonHTML(word);
+    if(addAnkiBtn){
+        const uuid = await toUniqueIdentifier(word);
+        wordUUIDs[uuid] = word;
+        s += addAnkiPillHTML(uuid);
+    }
+
+    s += `</div></div>`;
+    return s;
+};
+
+
 
 const modify_sub = async (subtitle) => {
     //console log lastIndex in big blue font
@@ -366,33 +656,250 @@ const modify_sub = async (subtitle) => {
     //remove any HTML from the subtitle
     subtitle = subtitle.replace(/(<([^>]+)>)/gi, "");
 
+    let toAddToWordList = [];
+
 
     let tokens = await tokenise(subtitle);
     console.log(tokens);
 
     hoveredIds = {};
+    wordUUIDs = {};
     //create spans
     let show_subtitle = false;
-    for(let token of tokens){
+
+    const addFrequencyStars = (word) => {
+        if(word in wordFreq){
+            let level = wordFreq[word].raw_level;
+            let s = `<span class="frequency" level="${level}">`;
+            for(let i=0;i<level;i++){
+                s += `<span class="star"></span>`;
+            }
+            s += `</span>`;
+            return s;
+        }
+        return "";
+    };
+    const processToken = async (token) => {
         let word = token.actual_word;
         let pos = token.type;
         let real_word = token.word;
         let uuid = randomUUID();
-        let newEl = $(`<span class="subtitle_word word_${uuid}" style="color: #ffffff !important;font-size: 36px !important;font-weight: 700 !important;text-shadow: 0 0 3px #000000, 0 0 3px #000000, 0 0 3px #000000, 0 0 3px #000000 !important">${real_word}</span>`);
-        let hoverEl = $(`<div class="subtitle_hover hover_${uuid} ${settings.dark_mode ? 'dark' : ''}" style="display:none"></div>`);
+        let newEl = $(`<span class="subtitle_word word_${uuid}">${real_word}</span>`);
+        let hoverEl = $(`<div class="subtitle_hover hover_${uuid} ${settings.dark_mode ? 'dark' : ''}"></div>`);
         let hoverEl_html = "";
+        let pill_html = "";
         let doAppend = false;
         let doAppendHoverLazy = false;
         let hasFurigana = false;
-        // console.log("POS: "+pos, TRANSLATABLE.includes(pos),word,word.length, word.length==1,  TRANSLATABLE.includes(pos) && (!word.length==1));
 
-        const blurWord = ()=>{
-            if(settings.blur_words){
-                newEl.addClass("blur");
+        const cardNotFound = async () => {
+            let translation_data = await getTranslation(word);
+            if(translation_data.data.length == 0) return;
+            if(settings.openAside){
+                //force fetch the word from the dictionary
+                doAppend = true;
+                const first_meaning = translation_data.data[0];
+                addTranslationCard(first_meaning.definitions, first_meaning.reading);
+            }
+            if(settings.immediateFetch || settings.openAside){
+                //translate the word + put in cache
+                if (settings.furigana && isNotAllKana(real_word)){
+                    let $word = $(".word_"+uuid);
+                    $word.contents().filter(function() {
+                        return this.nodeType === 3;
+                    }).remove();
+                    if($word.is(".has-hover"))
+                        $word.append($(`<ruby>${real_word}<rt>${translation_data.data[0].reading}</rt></ruby>`));
+                    else
+                        $word.html(`<ruby>${real_word}<rt>${translation_data.data[0].reading}</rt></ruby>`);
+                }
+            }
+        };
+        const addFurigana = (reading_html) => {
+            let reading_text = reading_html;
+            // remove when see <!-- accent_start -->
+            let accent_start = reading_text.indexOf("<!-- accent_start -->");
+            if(accent_start != -1){
+                reading_text = reading_text.substring(0,accent_start);
+            }
+            newEl.html(`<ruby>${real_word}<rt>${reading_text}</rt></ruby>`);
+            hasFurigana = true;
+        };
+        const generateTranslationHTML = (translation_html,reading_html) => {
+            hoverEl_html += `<div class="hover_translation">${translation_html}</div>`;
+            hoverEl_html += `<div class="hover_reading">${reading_html}</div>`;
+        };
+        const addTranslationToToken = async (current_card) => {
+            let translation_html = current_card.fields.Meaning.value;
+            let reading_html = current_card.fields.Reading.value;
+            generateTranslationHTML(translation_html,reading_html);
+            return {translation_html,reading_html};
+        }
+        const translateWord = async (card_data, current_card) => {
+            //translate the word
+            let {translation_html,reading_html} = await addTranslationToToken(current_card);
+            newEl.attr("known","false");
+
+            wordList.push({word:word, new:false, fetch:false, id: card_data.cards[0].cardId});
+            if(settings.openAside) addTranslationCard(translation_html,reading_html);
+            //furigana
+            if(settings.furigana && isNotAllKana(real_word)){
+                addFurigana(reading_html);
             }
         };
 
-        if(TRANSLATABLE.includes(pos)/* && (!(word.length==1))*/){
+        const updateHoverElHTML = (h = hoverEl_html, p = pill_html)=>{
+            const realHTML = `<div class='subtitle_hover_relative'><div class='subtitle_hover_content'>${h}</div>${p}</div>`;
+            hoverEl.html(realHTML);
+        };
+        const hoverElState = async (state) => {
+            switch(state) {
+                case "loading":
+                    hoverEl.html("Loading...");
+                    return;
+                case "not_found":
+                    // hoverEl.html("No translation found" + await addPills(word,pos));
+                    updateHoverElHTML("No translation found", await addPills(word,pos));
+                    return;
+            }
+        };
+        const flashcardWindowHTML = (raw_flashcard_data)=>{
+            return `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>New Flashcard - ${word}</title>
+    <link rel="stylesheet" href="flashcard_window.css">
+</head>
+<body class="flashcard-preview-body ${settings.dark_mode ? '':'light'}">
+    <div class="createFlashcardContent">
+        <h1>Flashcard Preview</h1>
+        <button class="createflashcardbtn">Create Flashcard</button>
+        <div class="l">
+            <label for="show-img">Show Image</label>
+            <input type="checkbox" id="show-img" name="show-img" checked>
+        </div>
+        <div class="card-c ${settings.dark_mode ? '':'light'}">
+            <div class="card-item">
+                <h1>${raw_flashcard_data.front}</h1>
+            </div>
+            <div class="card-item">
+                <div class="example">
+                    <div class="sentence">${raw_flashcard_data.example}</div>
+                    <div class="translation">
+                        <input type="text" name="" id="" placeholder="Add Translation" spellcheck="false">
+                    </div>
+                </div>
+            </div>
+            <div class="divider"></div>
+            <div class="card-item">
+                <div class="definition" contenteditable="true">
+                    ${raw_flashcard_data.definitions}
+                </div>
+            </div>
+            <div class="card-item">
+                <img src="${raw_flashcard_data.image}" alt="">
+            </div>
+        </div>
+    </div>
+</body>
+</html>`};
+
+        const createFlashcardClick = async function(raw_flashcard_data){
+            if(already_added[word]) return;
+            //calculate actual example sentence by putting it into iframe
+            const $iframe = $("iframe");
+            $iframe[0].contentWindow.document.body.innerHTML = $(".subtitles").html();
+            //remove each .subtitle_hover element
+            $iframe.contents().find(".subtitle_hover").remove();
+            //remove each .subtitle_word element
+            $iframe.contents().find(".subtitle_word.word_"+uuid).addClass("defined");
+            raw_flashcard_data.example = $iframe[0].contentWindow.document.body.innerHTML;
+            $iframe[0].contentWindow.document.body.innerHTML = "";
+
+            raw_flashcard_data.image = screenshotVideo();
+
+            if(createFlashcardWindow) createFlashcardWindow.close();
+            //preview
+            createFlashcardWindow = window.open("", "CreateFlashcardWindow", "width=800,height=600");
+            createFlashcardWindow.document.write(flashcardWindowHTML(raw_flashcard_data));
+            $(createFlashcardWindow.document).ready(()=>{
+                //add event listener to the input checkbox
+                $("#show-img",createFlashcardWindow.document).change(()=>{
+                    $(".card-item img",createFlashcardWindow.document).toggle();
+                });
+                $('.createflashcardbtn',createFlashcardWindow.document).click(async function(){
+                    let card_creation_data = makeFlashcard(raw_flashcard_data, word, $('input',createFlashcardWindow.document).val(), $(".definition",createFlashcardWindow.document).html(), $("#show-img",createFlashcardWindow.document).is(":checked"));
+
+                    let response = await sendRawToAnki({"action":"addNote","version":6,"params":card_creation_data});
+                    if(!response.error){
+                        hoverEl.find(".create_flashcard").html("Success");
+                        already_added[word] = true;
+                        hoverEl.find(".create_flashcard").attr("disabled",true);
+                        $(".content",createFlashcardWindow.document).html("");
+                        $("h1",createFlashcardWindow.document).html("Flashcard Created Successfully");
+                        $("button",createFlashcardWindow.document).remove();
+                        setTimeout(()=>{
+                            createFlashcardWindow.close();
+                        },1000);
+                    }else{
+                        $("h1",createFlashcardWindow.document).html("Failed to create flashcard, check console for details");
+                        alert("Failed to create flashcard, check console for details");
+                    }
+                });
+            });
+        };
+        let processingDB = {};
+        let hasBeenLoadedDB = {};
+        async function showHoverEl(){
+            hoveredWordTracker(word,uuid);
+            let $hover = $(`.hover_${uuid}`);
+            const $word = $(`.word_${uuid}`);
+            $hover.addClass("show-hover");
+            if(processingDB[uuid]) return;
+            if(hasBeenLoadedDB[uuid]) return;
+            processingDB[uuid] = true;
+            let translation_data = await getTranslation(word);
+            let raw_flashcard_data = {"example":"","front":word,"pitch":"","definitions":"","image":""};
+            translation_data.data.forEach((meaning)=>{
+                const reading_html = meaning.reading;
+                const translation_html = meaning.definitions;
+                generateTranslationHTML(translation_html, reading_html);
+                raw_flashcard_data.definitions += `<p>${translation_html}</p>`;
+                raw_flashcard_data.definitions += `<p>${reading_html}</p>`;
+            });
+            hasBeenLoadedDB[uuid] = true;
+            if(translation_data.data.length==0) {
+                hoverElState("not_found");
+                return;
+            }else{
+                updateHoverElHTML();
+            }
+
+
+            if(settings.enable_flashcard_creation && !already_added[word]){
+                const encodedWord = await toUniqueIdentifier(word);
+                flashcardFunctions[encodedWord] = ()=>{
+                    createFlashcardClick(raw_flashcard_data);
+                };
+                pill_html = await addPills(word,pos,true);
+                updateHoverElHTML();
+            }
+
+            $hover.ready(()=>{
+                let calcW = 600;
+                console.log(".footer:",$hover.find(".footer"));
+                $hover.find(".footer").css("width","100%");
+                $hover.css("width",`${calcW}px`);
+                let hover_left = -(calcW-$word.width())/2;
+                $hover.css("left",`${hover_left}px`);
+                console.log("HOVERED WORD",word,"lazy load");
+            });
+        }
+
+        if(TRANSLATABLE.includes(pos)){
             console.log("REQUESTING: "+word);
             //check if word is already known by the user
             let card_data = {};
@@ -402,86 +909,41 @@ const modify_sub = async (subtitle) => {
             else
                 card_data.poor = true;
 
-            if(card_data.poor){ //card not found
+            if(card_data.poor && getKnownStatus(word) < 2){ //card not found
                 show_subtitle = true;
                 doAppendHoverLazy = true;
                 newEl.attr("known","false");
-                if(settings.openAside){
-                    //force fetch the word from the dictionary
-                    doAppend = true;
-                    //queue another function
-                    (async () => {
-                        let translation_data = await getTranslation(word);
-                        if (translation_data.data.length != 0) {
-                            let first_meaning = translation_data.data[0];
-                            addTranslationCard(first_meaning.definitions, first_meaning.reading);
-                        }
-                    })();
-                }
-                if(settings.immediateFetch || settings.openAside){
-                    //translate the word + put in cache
-                    (async () => {
-                        let translation_data = await getTranslation(word);
-                        if (translation_data.data.length != 0 && settings.furigana && isNotAllKana(real_word)){
-                            $(".word_"+uuid).contents().filter(function() {
-                                return this.nodeType === 3;
-                            }).remove();
-                            if($(".word_"+uuid).is(".has-hover"))
-                                $(".word_"+uuid).append($(`<ruby>${real_word}<rt>${translation_data.data[0].reading}</rt></ruby>`));
-                            else
-                                $(".word_"+uuid).html(`<ruby>${real_word}<rt>${translation_data.data[0].reading}</rt></ruby>`);
-                        }
-                    })();
-                }
+                cardNotFound(); //intentionally not awaited, parallelized
             }else{
                 //compare ease
                 let current_card = card_data.cards[0];
-                if(current_card.factor < settings.known_ease_threshold){
+                if(current_card.factor < settings.known_ease_threshold && getKnownStatus(word) < 2){
                     show_subtitle = true;
                     doAppend = true;
-                    //translate the word
-                    let translation_html = current_card.fields.Meaning.value;
-                    let reading_html = current_card.fields.Reading.value;
-                    hoverEl_html += `<div class="hover_translation">${translation_html}</div>`;
-                    hoverEl_html += `<div class="hover_reading">${reading_html}</div>`;
-                    newEl.attr("known","false");
-                    if(settings.openAside) addTranslationCard(translation_html,reading_html);
-                    //furigana
-                    if(settings.furigana && isNotAllKana(real_word)){
-                        let reading_text = reading_html;
-                        // remove when see <!-- accent_start -->
-                        let accent_start = reading_text.indexOf("<!-- accent_start -->");
-                        if(accent_start != -1){
-                            reading_text = reading_text.substring(0,accent_start);
-                        }
-                        newEl.html(`<ruby>${real_word}<rt>${reading_text}</rt></ruby>`);
-                        hasFurigana = true;
-                    }
+                    await translateWord(card_data, current_card);
                 }else{
                     newEl.attr("known","true");
-                    blurWord();
+                    changeKnownStatus(word, 2);
+                    blurWord(newEl);
                     if(settings.hover_known_get_from_dictionary){
                         doAppendHoverLazy=true;
                     }else{
                         doAppend = true;
                         //translate the word
-                        let translation_html = current_card.fields.Meaning.value;
-                        let reading_html = current_card.fields.Reading.value;
-                        hoverEl_html += `<div class="hover_translation">${translation_html}</div>`;
-                        hoverEl_html += `<div class="hover_reading">${reading_html}</div>`;
-                        hoverEl_html += `<div class="hover_ease">You know this, ease: ${current_card.factor}</div>`;
+                        await addTranslationToToken(current_card);
                         hoverEl.addClass("known");
                     }
                 }
             }
         }
-        hoverEl.html(hoverEl_html);
+        updateHoverElHTML();
         if(doAppendHoverLazy){
+            toAddToWordList.push({word:word, new:true, fetch:true, screenshot: screenshotVideo()});
             newEl.append(hoverEl);
             newEl.addClass("has-hover");
-            hoverEl.text("Loading...");
-            let hasBeenLoaded = false;
-            let processing = false;
+            hoverElState("loading")
+            hasBeenLoadedDB[uuid] = false;
+            processingDB[uuid] = false;
             const delayHideHoverEl = (hoverEl, newEl) => {
                 setTimeout(() => {
                     if (!hoverEl[0].matches(':hover') && !newEl[0].matches(':hover')) {
@@ -489,207 +951,36 @@ const modify_sub = async (subtitle) => {
                     }
                 }, 300);
             };
-            async function showHoverEl(){
-                hoveredWordTracker(word,uuid);
-                $(`.hover_${uuid}`).addClass("show-hover");
-                if(processing) return;
-                if(hasBeenLoaded) return;
-                processing = true;
-                let translation_data = await getTranslation(word);
-                let raw_flashcard_data = {"example":"","front":word,"pitch":"","definitions":"","image":""};
-                translation_data.data.forEach((meaning)=>{
-                    let reading_html = meaning.reading;
-                    let translation_html = meaning.definitions;
-                    hoverEl_html += `<div class="hover_translation">${translation_html}</div>`;
-                    hoverEl_html += `<div class="hover_reading">${reading_html}</div>`;
-                    raw_flashcard_data.definitions += `<p>${translation_html}</p>`;
-                    raw_flashcard_data.definitions += `<p>${reading_html}</p>`;
-                });
-                if(translation_data.data.length==0) hoverEl_html = "No translation found";
-                hoverEl.html(hoverEl_html);
-                hasBeenLoaded = true;
 
-                $(`.hover_${uuid}`).ready(()=>{
-                    let hover_left = -($(`.hover_${uuid}`).width()-$(`.word_${uuid}`).width())/2;
-                    $(`.hover_${uuid}`).css("left",`${hover_left}px`);
-                });
-
-                if(settings.enable_flashcard_creation && (translation_data.data.length!=0) && (!already_added[word])){
-                    hoverEl_html += `<button class="create_flashcard">+ Anki</button>`;
-                    hoverEl.html(hoverEl_html);
-                    let card_creation_data = {
-                        "note": {
-                            "deckName": settings.flashcard_deck,
-                            "modelName": "Basic",
-                            "fields": {
-                                "Back":"",
-                                "Front": word+"<intelligent_definition style='display:none'>"+raw_flashcard_data.definitions+"</intelligent_definition>"
-                            },
-                            "options": {
-                                "allowDuplicate": false,
-                                "duplicateScope": "deck",
-                                "duplicateScopeOptions": {
-                                    "deckName": settings.deckName,
-                                    "checkChildren": false,
-                                    "checkAllModels": false
-                                }
-                            },
-                            "tags": [
-                                "intelligent-subtitles",
-                                settings.language,
-                                "video-"+parseSubtitleName(currentSubtitleFile)
-                            ]
-                        }
-                    };
-                    hoverEl.find(".create_flashcard").click(async function(){
-                        if(already_added[word]) return;
-                        //calculate actual example sentence by putting it into iframe
-                        $("iframe")[0].contentWindow.document.body.innerHTML = $(".subtitles").html();
-                        //remove each .subtitle_hover element
-                        $("iframe").contents().find(".subtitle_hover").remove();
-                        //remove each .subtitle_word element
-                        $("iframe").contents().find(".subtitle_word.word_"+uuid).addClass("defined");
-                        raw_flashcard_data.example = $("iframe")[0].contentWindow.document.body.innerHTML;
-                        $("iframe")[0].contentWindow.document.body.innerHTML = "";
-
-                        try{
-                            let picture_data_url = "";
-                            let video = $("video").get(0);
-                            if(!video) throw "No video found";
-                            let canvas = document.createElement("canvas");
-                            let ctx = canvas.getContext("2d");
-                            let width = 480;
-                            let height = video.videoHeight * (width / video.videoWidth);
-                            canvas.width = width;
-                            canvas.height = height;
-                            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                            picture_data_url = canvas.toDataURL("image/jpeg",0.5);
-                            raw_flashcard_data.image = picture_data_url;
-                        }catch(e){console.log(e);}
-                        
-                        if(createFlashcardWindow) createFlashcardWindow.close();
-                        //preview
-                        createFlashcardWindow = window.open("", "CreateFlashcardWindow", "width=800,height=600");
-                        createFlashcardWindow.document.write(`
-                        <!doctype html>
-                        <html lang="en">
-                        <head>
-                            <meta charset="UTF-8">
-                            <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-                            <meta http-equiv="X-UA-Compatible" content="ie=edge">
-                            <title>New Flashcard - ${word}</title>
-                            <link rel="stylesheet" href="flashcard_window.css">
-                        </head>
-                        <body class="flashcard-preview-body ${settings.dark_mode ? '':'light'}">
-                            <div class="createFlashcardContent">
-                                <h1>Flashcard Preview</h1>
-                                <button class="createflashcardbtn">Create Flashcard</button>
-                                <div class="l">
-                                    <label for="show-img">Show Image</label>
-                                    <input type="checkbox" id="show-img" name="show-img" checked>
-                                </div>
-                                <div class="card-c ${settings.dark_mode ? '':'light'}">
-                                    <div class="card-item">
-                                        <h1>${raw_flashcard_data.front}</h1>
-                                    </div>
-                                    <div class="card-item">
-                                        <div class="example">
-                                            <div class="sentence">${raw_flashcard_data.example}</div>
-                                            <div class="translation">
-                                                <input type="text" name="" id="" placeholder="Add Translation" spellcheck="false">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="divider"></div>
-                                    <div class="card-item">
-                                        <div class="definition" contenteditable="true">
-                                            ${raw_flashcard_data.definitions}
-                                        </div>
-                                    </div>
-                                    <div class="card-item">
-                                        <img src="${raw_flashcard_data.image}" alt="">
-                                    </div>
-                                </div>
-                            </div>
-                        </body>
-                        </html>
-                        `);
-                        $(createFlashcardWindow.document).ready(()=>{
-                            //add event listener to the input checkbox
-                            $("#show-img",createFlashcardWindow.document).change(()=>{
-                                $(".card-item img",createFlashcardWindow.document).toggle();
-                            });
-                            $('.createflashcardbtn',createFlashcardWindow.document).click(async function(){
-                                card_creation_data.note.fields.Back = `
-                                <style>${FLASHCARD_CSS}</style>
-                                <div class="card-c ${settings.dark_mode ? '':'light'}">
-                                    <div class="card-item">
-                                        <h1>${raw_flashcard_data.front}</h1>
-                                    </div>
-                                    <div class="card-item">
-                                        <div class="example">
-                                            <div class="sentence">${raw_flashcard_data.example}</div>
-                                            <div class="translation">
-                                                <p>${$('input',createFlashcardWindow.document).val()}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="divider"></div>
-                                    <div class="card-item">
-                                        <div class="definition">
-                                            ${$(".definition",createFlashcardWindow.document).html()}
-                                        </div>
-                                    </div>
-                                    <div class="card-item" ${$("#show-img",createFlashcardWindow.document).is(":checked") ? "":"style='display:none'"}>
-                                        <img src="${$("#show-img",createFlashcardWindow.document).is(":checked")?raw_flashcard_data.image:''}" alt="">
-                                    </div>
-                                </div>
-                                `;
-                                let response = await sendRawToAnki({"action":"addNote","version":6,"params":card_creation_data});
-                                if(!response.error){
-                                    hoverEl.find(".create_flashcard").html("Success");
-                                    already_added[word] = true;
-                                    hoverEl.find(".create_flashcard").attr("disabled",true);
-                                    $(".content",createFlashcardWindow.document).html("");
-                                    $("h1",createFlashcardWindow.document).html("Flashcard Created Successfully");
-                                    $("button",createFlashcardWindow.document).remove();
-                                    setTimeout(()=>{
-                                        createFlashcardWindow.close();
-                                    },1000);
-                                }else{
-                                    $("h1",createFlashcardWindow.document).html("Failed to create flashcard, check console for details");
-                                    alert("Failed to create flashcard, check console for details");
-                                }
-                            });
-                        });
-
-                    });
-                }
-            }
             newEl.hover(showHoverEl,async function(){
                 delayHideHoverEl(hoverEl, newEl);
             });
         }
+
+
+        pill_html += await addPills(word,pos);
+        updateHoverElHTML();
         if(doAppend){
             if(settings.colour_codes[pos])
                 // hoverEl.css("box-shadow",`rgba(100, 66, 66, 0.16) 0px 1px 4px, ${settings.colour_codes[pos]} 0px 0px 0px 3px`);
                 hoverEl.css("border",`${settings.colour_codes[pos]} 3px solid`);
-            if(settings.show_pos){
-                hoverEl.attr("data-pos",pos);
-                hoverEl.css("padding-bottom","35px");
-            }else{
-                hoverEl.css("padding-bottom","10px");
-            }
-
             newEl.append(hoverEl);
             newEl.addClass("has-hover");
             //calculate height
             newEl.hover(function(){
-                $(`.hover_${uuid}`).addClass("show-hover");
+                let $hover = $(`.hover_${uuid}`);
+                let $word = $(`.word_${uuid}`);
+                $hover.addClass("show-hover");
                 hoveredWordTracker(word,uuid);
-                $(`.hover_${uuid}`).ready(()=>{
-                    let hover_left = -($(`.hover_${uuid}`).width()-$(`.word_${uuid}`).width())/2;
-                    $(`.hover_${uuid}`).css("left",`${hover_left}px`);
+                $hover.ready(()=>{
+                    let calcW = $hover.find(".footer").width()+26;
+                    if(calcW < 250) {
+                        calcW = 250;
+                        $hover.find(".footer").css("width","100%");
+                    }
+                    $hover.css("width",`${calcW}px`);
+                    let hover_left = -(calcW-$word.width())/2;
+                    $hover.css("left",`${hover_left}px`);
 
                 });
             },function(){
@@ -701,14 +992,26 @@ const modify_sub = async (subtitle) => {
             }
         }
         if(settings.do_colour_codes)
-        if(settings.colour_codes[pos]){
-            console.log("COLOURING: "+pos);
-            newEl.css("color",settings.colour_codes[pos]);
-        }
+            if(settings.colour_codes[pos]){
+                console.log("COLOURING: "+pos);
+                newEl.css("color",settings.colour_codes[pos]);
+            }
         newEl.attr("grammar",pos);
+        newEl.append($(addFrequencyStars(word)));
         $(".subtitles").append(newEl);
+    };
+
+
+    for(let token of tokens){
+        // console.log("POS: "+pos, TRANSLATABLE.includes(pos),word,word.length, word.length==1,  TRANSLATABLE.includes(pos) && (!word.length==1));
+        await processToken(token);
     }
 
+
+    for(let word of toAddToWordList){
+        word.currentSubtitle = $(".subtitles").html();
+        wordList.push(word);
+    }
     console.log("finished_displaying_subs");
     if(!show_subtitle && settings.blur_known_subtitles){
         //blur the subtitle
@@ -717,7 +1020,9 @@ const modify_sub = async (subtitle) => {
     $(".subtitles").removeClass("quick-transition");
     $(".subtitles").removeClass("not-shown");
 
-
+    if(isWatchTogether){
+        window.electron_settings.watchTogetherSend({action:"subtitles",subtitle:$(".subtitles").html(), size:settings.subtitle_font_size});
+    }
 };
 
 
@@ -725,7 +1030,14 @@ const modify_sub = async (subtitle) => {
     await loadSettings();
     checkSettings();
     load_lang_data();
+    parseWordFrequency();
 
+    if(settings.use_anki){
+        // $(".add-all-to-anki, .update-flashcards-due-date").show();
+        $(".add-all-to-anki, .update-flashcards-due-date").hide();
+    }else{
+        $(".add-all-to-anki, .update-flashcards-due-date").hide();
+    }
 
     window.electron_settings.onServerLoad((message) => {
         $(".critical-error-c").remove();
@@ -845,6 +1157,7 @@ const parseTime = (timeString,type) => {
 
 const readSubtitleFile = (file) => {
     return new Promise((resolve, reject) => {
+        lastIndex = 0;
         const reader = new FileReader();
         reader.onload = (event) => {
             const content = event.target.result;
@@ -929,7 +1242,7 @@ setTimeout(()=>{window.electron_settings.isLoaded();},1000);
 function parseSubtitleName(filename) {
     // Remove the file extension (.srt, .ass, etc.)
     if(!filename) return "";
-    let nameWithoutExtension = filename.replace(/\.(srt|ass|txt)$/i, '');
+    let nameWithoutExtension = filename.replace(/(\.[^.]+)+$/, '');
 
     // Improved regex to capture the series title, numbers in parentheses, episode numbers, and ignore extra details like 1080p or Subtitles.
     let regex = /^([a-zA-Z0-9\s]+)(?:\s*\((\d+)\))?(?:\s+(\d+))?(?:\s*(S\d+))?(?:\s*(EP\d+))?(?:\s*(\d+))?/i;
@@ -937,18 +1250,25 @@ function parseSubtitleName(filename) {
     // Apply the regex to the filename
     let match = nameWithoutExtension.match(regex);
 
+    let step1returnable = "";
+
     if (match) {
         // Combine the parts that matched, removing undefined parts and unnecessary descriptors
         let parsedName = match.slice(1).filter(Boolean).join(' ').trim();
 
         // Remove additional descriptors like 'Subtitles' and '1080p'
-        parsedName = parsedName.replace(/\b(Subtitles|1080p|720p|480p|x264|BluRay|HD)\b/gi, '').trim();
+        step1returnable = parsedName.replace(/\b(Subtitles|1080p|720p|480p|x264|BluRay|HD)\b/gi, '').trim();
 
-        return parsedName;
+
     } else {
         // Return the filename without extension if no match was found
-        return nameWithoutExtension;
+        step1returnable = nameWithoutExtension;
     }
+    step1returnable = step1returnable.replace(/-/g, "");
+
+// Remove all content within [], {}, and () (including the brackets themselves)
+    step1returnable = step1returnable.replace(/\[[^\]]*\]|\{[^}]*\}|\([^)]*\)/g, "");
+    return step1returnable.replace(/ {2,}/g, ' ').trim();
 }
 window.electron_settings.onLanguageInstalled(()=>{
     languageInstalledCallbacks.forEach((callback)=>{
@@ -1011,12 +1331,18 @@ window.electron_settings.onSettingsSaved((e) => {
     if(mustRestart) restartAppAndServer();
 });
 
+window.electron_settings.onWatchTogetherLaunch((e) => {
+    isWatchTogether = true;
+});
+
 
 window.electron_settings.onServerLoad(() => {
     //only once
     if(isLoaded) return;
     isLoaded = true;
     console.log("Server loaded");
+    window.electron_settings.isWatchingTogether();
+    loadKnownAdjustment();
 // document.addEventListener('DOMContentLoaded', () => {
     const video = document.getElementById('fullscreen-video');
     const playPauseButton = document.getElementById('play-pause');
@@ -1031,6 +1357,15 @@ window.electron_settings.onServerLoad(() => {
     let offsetX, offsetY;
     let isInteractingWithProgressBar = false;
     let hasReachedHalfPoint = false;
+
+    window.electron_settings.onWatchTogetherRequest((data)=>{
+        if(isWatchTogether && isCurrentlyStreamingVideo){
+            window.electron_settings.watchTogetherSend({action:"request-response", url:currentPlayingVideo, time:video.currentTime, video_playing:!video.paused});
+        }
+    });
+    $("#pip").click(()=>{
+        video.requestPictureInPicture();
+    });
 
     $(".aside").on("mouseover",()=>{
         if (asideTimeout) {
@@ -1048,6 +1383,7 @@ window.electron_settings.onServerLoad(() => {
             const savedTime = localStorage.getItem(`videoCurrentTime_${btoa(currentVideo)}`);
             if (savedTime) {
                 video.currentTime = parseFloat(savedTime);
+                console.log("videoCurrentTime_" + btoa(currentVideo), parseFloat(savedTime));
             }
         }
     };
@@ -1128,9 +1464,15 @@ window.electron_settings.onServerLoad(() => {
     const playPause = () => {
         if (video.paused) {
             video.play();
+            if(isWatchTogether){
+                window.electron_settings.watchTogetherSend({action:"play", time:video.currentTime});
+            }
             playPauseButton.innerHTML = '<img src="assets/icons/pause.svg">';
         } else {
             video.pause();
+            if(isWatchTogether){
+                window.electron_settings.watchTogetherSend({action:"pause", time:video.currentTime});
+            }
             playPauseButton.innerHTML = '<img src="assets/icons/play.svg">';
             if(video.currentTime < (video.duration-10)) addToRecentlyWatched(currentPlayingVideo);
         }
@@ -1157,10 +1499,17 @@ window.electron_settings.onServerLoad(() => {
         HLSObject.attachMedia(video);
         currentPlayingVideo = text;
 
+        if(isWatchTogether){
+            window.electron_settings.watchTogetherSend({action:"start", url:text});
+        }
+
         $("#video-quality").removeClass("hidden");
         HLSObject.on(Hls.Events.MANIFEST_PARSED, function () {
             video.play();
+            isCurrentlyStreamingVideo = true;
+            isCurrentlyPlayingVideo = true;
             loadWatchTime();
+            localStorage.setItem('currentVideo', text);
             playPauseButton.innerHTML = '<img src="assets/icons/pause.svg">';
             video.addEventListener('loadedmetadata', () => {
                 let [width, height] = [video.videoWidth, video.videoHeight];
@@ -1170,6 +1519,9 @@ window.electron_settings.onServerLoad(() => {
                     width = 1200;
                 }
                 window.electron_settings.resizeWindow({width: width, height: height});
+                if(isWatchTogether){
+                    window.electron_settings.watchTogetherSend({action:"play", time:video.currentTime}); //synchronize with client
+                }
             });
             const levels = HLSObject.levels;
             qualitySelect.innerHTML = '<option value="-1">Auto</option>';
@@ -1241,14 +1593,8 @@ window.electron_settings.onServerLoad(() => {
                         if(text.endsWith('.m3u8')){
                             if(Hls.isSupported()) {
                                 loadStream(text);
-                            }else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                                $("video source")[0].src = text;
-                                playbackType = "stream";
-                                resetHoveredWordsCount();
-                                $("#video-quality").addClass("hidden");
-                                video.play();
-                                loadWatchTime();
-                                $(".recently-c").addClass("hide");
+                            }else{
+                                console.error("HLS NOT SUPPORTED");
                             }
                         }else{
                             $("video source")[0].src = text;
@@ -1256,10 +1602,12 @@ window.electron_settings.onServerLoad(() => {
                             resetHoveredWordsCount();
                             $("#video-quality").addClass("hidden");
                             video.play();
+                            currentPlayingVideo = text;
                             loadWatchTime();
+                            isCurrentlyPlayingVideo = true;
+                            localStorage.setItem('currentVideo', text);
                             $(".recently-c").addClass("hide");
                         }
-                        localStorage.setItem('currentVideo', text);
                     }
                 });
                 break;
@@ -1273,7 +1621,7 @@ window.electron_settings.onServerLoad(() => {
     // Save current time when window is closed
     window.addEventListener('beforeunload', () => {
         const currentVideo = localStorage.getItem('currentVideo');
-        if (currentVideo) {
+        if (currentVideo && isCurrentlyPlayingVideo) {
             localStorage.setItem(`videoCurrentTime_${btoa(currentVideo)}`, video.currentTime);
         }
         onVideoEnded(currentPlayingVideo);
@@ -1282,16 +1630,18 @@ window.electron_settings.onServerLoad(() => {
         console.log(files);
         if (files.length > 0) {
             const file = files[0];
-            const fileType = file.type;
             const fileName = file.name;
             if (file.type === 'video/mp4') {
                 $("video source")[0].src = URL.createObjectURL(file);
+                console.log("set src to", URL.createObjectURL(file));
                 playbackType = "local";
                 resetHoveredWordsCount();
                 $("#video-quality").addClass("hidden");
                 video.load();
                 video.play();
+                currentPlayingVideo = file.name;
                 loadWatchTime();
+                isCurrentlyPlayingVideo = true;
                 $(".recently-c").addClass("hide");
                 localStorage.setItem('currentVideo', file.name);
                 playPauseButton.innerHTML = '<img src="assets/icons/pause.svg">';
@@ -1349,9 +1699,12 @@ window.electron_settings.onServerLoad(() => {
 
     video.addEventListener('timeupdate',videoTimeUpdateCallback);
 
-        progressBar.addEventListener('input', () => {
+    progressBar.addEventListener('input', () => {
         const time = (progressBar.value / 1000) * video.duration;
         video.currentTime = time;
+        if(isWatchTogether) {
+            window.electron_settings.watchTogetherSend({action: "sync", time: time});
+        }
     });
     video.addEventListener('ended', () => {
         onVideoEnded(currentPlayingVideo);
@@ -1464,6 +1817,16 @@ window.electron_settings.onServerLoad(() => {
         settings.openAside = false;
         saveSettings();
     });
+
+    $(".add-all-to-anki").click(()=>{
+        addAllFlashcardsToAnki();
+    });
+
+    $(".update-flashcards-due-date").click(()=>{
+        updateFlashcardsAnkiDate();
+    });
+
+
     window.electron_settings.onContextMenuCommand((cmd)=>{
         switch(cmd){
             case 'sync-subs':
@@ -1622,12 +1985,12 @@ window.electron_settings.onOpenSettings((msg)=>{
             window.open("licenses.html", "LicensesWindow", "width=800,height=600");
         });
         if(settings.do_colour_codes)
-        for (let code in settings.colour_codes) {
-            $('._1',new_document).append(`<label for="${code}" data-show="Customization">${code}</label>`);
-            $('._2',new_document).append(`
+            for (let code in settings.colour_codes) {
+                $('._1',new_document).append(`<label for="${code}" data-show="Customization">${code}</label>`);
+                $('._2',new_document).append(`
                 <input type="color" id="${code}" name="${code}" value="${settings.colour_codes[code]}" data-show="Customization">
             `);
-        }
+            }
         flashcard_decks();
         // Add a button to the form in the context menu
         $('._2',new_document).append('<input type="button" id="restoreDefaults" value="Restore Defaults">');
@@ -1668,8 +2031,6 @@ window.electron_settings.onOpenSettings((msg)=>{
             myWindow.close();
         });
         const updateSubtitlePreview = ()=>{
-            settings.subtitleTheme = $('#subtitle_theme',new_document).val();
-            settings.subtitle_font_size = Number($('#subtitle_font_size',new_document).val());
             //set subtitle font size
             new_document.documentElement.style.setProperty('--subtitle-font-size', `${settings.subtitle_font_size}px`);
             document.documentElement.style.setProperty('--subtitle-font-size', `${settings.subtitle_font_size}px`);
@@ -1682,9 +2043,12 @@ window.electron_settings.onOpenSettings((msg)=>{
             $(".subtitles",new_document).addClass("theme-"+settings.subtitleTheme);
             $(".subtitles",document).addClass("theme-"+settings.subtitleTheme);
         };
+        $('#subtitle_theme',new_document).val(settings.subtitleTheme);
         updateSubtitlePreview();
         $("#subtitle_theme,#subtitle_font_size",new_document).change(()=>{
             console.log("Updating subtitle preview");
+            settings.subtitleTheme = $('#subtitle_theme',new_document).val();
+            settings.subtitle_font_size = Number($('#subtitle_font_size',new_document).val());
             updateSubtitlePreview();
         });
         $('#install_languages',new_document).on('click', function() {
@@ -1721,7 +2085,8 @@ window.electron_settings.onOpenSettings((msg)=>{
             }
             settings.furigana = $('#furigana',new_document).is(':checked');
             settings.enable_flashcard_creation = $('#enable_flashcard_creation',new_document).is(':checked');
-            settings.flashcard_deck = $('#flashcard_deck',new_document).val();
+            if($('#flashcard_deck',new_document).val()!= "Loading..." && settings.flashcard_deck != $('#flashcard_deck',new_document).val())
+                settings.flashcard_deck = $('#flashcard_deck',new_document).val();
             settings.flashcards_add_picture = $('#flashcards_add_picture',new_document).is(':checked');
             settings.openAside = $('#aside-auto',new_document).is(':checked');
             settings.subtitleTheme = $('#subtitle_theme',new_document).val();
@@ -1734,6 +2099,12 @@ window.electron_settings.onOpenSettings((msg)=>{
                 $(".aside").show();
             }else{
                 $(".aside").hide();
+            }
+            if(settings.use_anki){
+                // $(".add-all-to-anki, .update-flashcards-due-date").show();
+                $(".add-all-to-anki, .update-flashcards-due-date").hide();
+            }else{
+                $(".add-all-to-anki, .update-flashcards-due-date").hide();
             }
             checkSettings();
             saveSettings();

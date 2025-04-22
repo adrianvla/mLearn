@@ -5,7 +5,9 @@
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
+        style-src 'self' 'unsafe-inline';
         connect-src *;
+        script-src 'self' 'unsafe-inline';
         img-src 'self' data:;
         media-src 'self' blob: *;
         worker-src 'self' blob:;
@@ -54,6 +56,7 @@
                 <button id="forward"><img src="assets/icons/fast-forward.svg"></button>
             </div>
             <div class="filler">
+                <button id="pip"><img src="assets/icons/pip.svg"></button>
                 <select id="video-quality" class="hidden">
                     <option value="-1">Auto</option>
                 </select>
@@ -85,6 +88,8 @@
     <div class="stats-c hide">
         <div class="stats">
             <h1>Stats:</h1>
+            <button class="add-all-to-anki">Add All Words to Anki</button>
+            <button class="update-flashcards-due-date">Modify due date for seen words</button>
             <h2 class="has-popup">You have looked up <span class="word-count">10</span> words.
                 <div class="popup">
                     Most looked up words: <div class="word-lookup"></div>

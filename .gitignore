@@ -7,3 +7,10 @@ node_modules/
 .idea/
 __pycache__/
 .DS_Store
+mLearn-darwin-arm64/
+languages/__pycache__/
+.DS_Store
+._.DS_Store
+**/.DS_Store
+**/._.DS_Store
+

@@ -141,7 +141,7 @@ def load_dictionary(folder):
     else:
         # Load dictionary from JSON files
         for i in range(1, 150):
-            with open(os.path.join(folder,f'dictionaries/jitendex-yomitan/term_bank_{i}.json'), 'r') as f:
+            with open(os.path.join(folder,f'dictionaries/jitendex-yomitan/term_bank_{i}.json'), 'r', encoding='utf-8') as f:
                 dictionary += json.load(f)
         print("Loaded dictionary with", len(dictionary), "entries")
 
