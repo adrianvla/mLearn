@@ -852,7 +852,7 @@ const pythonFound = () => {
     if(isFirstTimeSetup) return;
     console.log(pythonExecutable);
 
-    const onSTDOUT = () => {
+    const onSTDOUT = (data) => {
         console.log("Python response: ", data.toString('utf8'));
         try{
             mainWindow.webContents.send('server-status-update', data.toString('utf8'));
