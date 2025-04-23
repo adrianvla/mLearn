@@ -263,7 +263,7 @@ app.whenReady().then(() => {
         return;
     }
     if(isPackaged){
-        checkForUpdates();
+        // checkForUpdates();
     }
     createWindow();
 
@@ -881,7 +881,8 @@ const pythonFound = () => {
 
     if(isWindows){
         //pythonExecutable
-        const command = "start cmd.exe /C \"" + ["\"" + pythonExecutable + "\"", "\"" + path.join(resPath, 'server.py') + "\"", String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), "\"" + String(resPath) + "\""].join(" ") + "\"";
+        // const command = "start cmd.exe /C \"" + ["\"" + pythonExecutable + "\"", "\"" + path.join(resPath, 'server.py') + "\"", String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), "\"" + String(resPath) + "\""].join(" ") + "\"";
+        const command = ["\"" + pythonExecutable + "\"", "\"" + path.join(resPath, 'server.py') + "\"", String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), "\"" + String(resPath) + "\""].join(" ");
         console.log("WINDOWS:::",command)
         pythonChildProcess = exec(command);
     }else{
