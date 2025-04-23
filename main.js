@@ -263,7 +263,7 @@ app.whenReady().then(() => {
         return;
     }
     if(isPackaged){
-        checkForUpdates();
+        // checkForUpdates();
     }
     createWindow();
 
@@ -850,18 +850,15 @@ const pythonFound = () => {
     console.log("Python found at", PYTHON_PATH);
     let settings = loadSettings();
     if(isFirstTimeSetup) return;
-    console.log(pythonExecutable)
-    pythonChildProcess = require('child_process').spawn('env', [pythonExecutable, path.join(resPath, 'server.py'), String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), String(resPath)], {
-        env: process.env
-    });
-    pythonChildProcess.stdout.on('data', function (data) {
+    console.log(pythonExecutable);
+
+    const onSTDOUT = () => {
         console.log("Python response: ", data.toString('utf8'));
         try{
             mainWindow.webContents.send('server-status-update', data.toString('utf8'));
         }catch(e){}
-    });
-
-    pythonChildProcess.stderr.on('data', (data) => {
+    };
+    const onSTDERR = (data) => {
         console.error(`stderr: ${data}`);
         try{
             mainWindow.webContents.send('server-status-update', 'stderr: '+data.toString('utf8'));
@@ -874,14 +871,30 @@ const pythonFound = () => {
             mainWindow.webContents.send('server-load', "Python server running");
             serverLoaded = true;
         });
+    };
 
-    });
-
-    pythonChildProcess.on('close', (code) => {
+    const onCLOSE = (code) => {
         console.log(`child process exited with code ${code}`);
         //send critical error to renderer
         mainWindow.webContents.send('server-critical-error', "<span style='color:#fcc'>Critical error</span>: could not start python server; app restart required. <br>Since Anki was not found, the server tried to find the cached Anki data from prior use, but this triggered an error <br>Ensure that Anki is running and restart the app.<br> Disable Anki in Settings if you do not want to use it <br>For more information, check the console.<br><button class='restart-app'>Restart App</button>");
-    });
+    };
+
+    if(isWindows){
+        //pythonExecutable
+        // const command = "start cmd.exe /C \"" + ["\"" + pythonExecutable + "\"", "\"" + path.join(resPath, 'server.py') + "\"", String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), "\"" + String(resPath) + "\""].join(" ") + "\"";
+        const command = ["\"" + pythonExecutable + "\"", "\"" + path.join(resPath, 'server.py') + "\"", String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), "\"" + String(resPath) + "\""].join(" ");
+        console.log("WINDOWS:::",command)
+        pythonChildProcess = exec(command);
+    }else{
+        pythonChildProcess = require('child_process').spawn('env', ["\"" + pythonExecutable + "\"", "\"" + path.join(resPath, 'server.py') + "\"", String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), "\"" + String(resPath) + "\""], {
+            env: process.env
+        });
+    }
+    pythonChildProcess.stdout.on('data', onSTDOUT);
+
+    pythonChildProcess.stderr.on('data', onSTDERR);
+
+    pythonChildProcess.on('close', onCLOSE);
 
 };
 
@@ -940,7 +953,7 @@ function findPython() {
             console.log(pythonExecutable);
             console.log("PIP EXECUTABLE:", pipExecutable);
             if(isWindows){
-                const command = "start cmd.exe /C " + [pipExecutable, ...accessArgs, 'install', ...pipRequirements].join(" ");
+                const command = "start cmd.exe /C \"" + ["\"" + pipExecutable + "\"", ...accessArgs, 'install', ...pipRequirements].join(" ") + "\"";
                 exec(command, (error, stdout, stderr) => {
                     onPipClose(null);
                 });
