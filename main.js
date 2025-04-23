@@ -888,7 +888,7 @@ const pythonFound = () => {
         console.log("WINDOWS:::",command)
         pythonChildProcess = exec(command);
     }else{
-        pythonChildProcess = require('child_process').spawn('env', ["\"" + pythonExecutable + "\"", "\"" + path.join(resPath, 'server.py') + "\"", String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), "\"" + String(resPath) + "\""], {
+        pythonChildProcess = require('child_process').spawn('env', [pythonExecutable, path.join(resPath, 'server.py'), String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), String(resPath)], {
             env: process.env
         });
     }
