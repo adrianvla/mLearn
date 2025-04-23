@@ -270,6 +270,7 @@ app.whenReady().then(() => {
 })
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
+        console.log("Tried to quit, pythonSuccessInstall=",pythonSuccessInstall);
         if(!pythonSuccessInstall) return;
         pythonChildProcess.kill("SIGINT");
         app.quit();
