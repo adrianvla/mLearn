@@ -400,7 +400,8 @@ ipcMain.on('is-watching-together', (event) => {
 });
 
 ipcMain.on('traffic-lights', (event, arg) => {
-    mainWindow.setWindowButtonVisibility(arg.visibility);
+    if(!isWindows)
+        mainWindow.setWindowButtonVisibility(arg.visibility);
     oldWindowState.trafficLights = arg.visibility;
 });
 ipcMain.on('watch-together-send', (event, message) => {
