@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electron_settings', {
     writeToClipboard: (text) => ipcRenderer.send('write-to-clipboard', text),
     makePiP: (size) => ipcRenderer.send('make-pip',size),
     unPiP: () => ipcRenderer.send('make-normal'),
+    sendLS: (data) => ipcRenderer.send('send-ls', data),
     isWatchingTogether: () => ipcRenderer.send('is-watching-together'),
     watchTogetherSend: (message) => ipcRenderer.send('watch-together-send', message),
     onSettings: (callback) => ipcRenderer.on('settings', (event, settings) => callback(settings)),

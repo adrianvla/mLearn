@@ -71,6 +71,7 @@ let oldWindowState = {width:null, height:null, fullscreen:false, trafficLights:t
 let server;
 let HTTPServer;
 let sockets = [];
+let lS = {};
 
 
 console.log(ARCHITECTURE, PLATFORM);
@@ -128,7 +129,51 @@ const startWebSocketServer = () => {
             return res.end();
         }
 
-        if (req.url.startsWith('/?url=')) {
+        if (req.url === '/core.js') {
+            const filePath = path.join(resPath, 'pages', 'core.js');
+            if (fs.existsSync(filePath)) {
+                res.writeHead(200, {
+                    'Content-Type': 'application/javascript',
+                    'Access-Control-Allow-Origin': '*',
+                });
+                fs.createReadStream(filePath).pipe(res);
+            } else {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('File not found');
+            }
+        } else if (req.url === '/settings.js') {
+            let s = "";
+            s += `window.lang_data = ${JSON.stringify(loadLangData())};\n`;
+            s += `window.settings = ${JSON.stringify(loadSettings())};\n`;
+            s += `window.lS = ${JSON.stringify(lS)};\n`;
+            res.writeHead(200, {
+                'Content-Type': 'application/javascript',
+                'Access-Control-Allow-Origin': '*',
+            });
+            res.end(s);
+        } else if (req.url.startsWith('/pages/')) {
+            // Serve static files from the 'assets' folder
+            const filePath = path.join(resPath, req.url);
+            if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+                const ext = path.extname(filePath).toLowerCase();
+                const mimeTypes = {
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.png': 'image/png',
+                    '.gif': 'image/gif',
+                    '.svg': 'image/svg+xml',
+                    '.js': 'application/javascript',
+                    '.css': 'text/css',
+                };
+
+                const contentType = mimeTypes[ext] || 'application/octet-stream';
+                res.writeHead(200, { 'Content-Type': contentType });
+                fs.createReadStream(filePath).pipe(res);
+            } else {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('File not found');
+            }
+        } else if (req.url.startsWith('/?url=')) {
             const query = url.parse(req.url, true).query;
             let targetUrl = query.url; // Extract the target URL from the query string
 
@@ -386,6 +431,10 @@ const loadLangData = () => {
 
 ipcMain.on('get-settings', (event) => {
     event.reply('settings', loadSettings());
+});
+ipcMain.on('send-ls', (event, data) => {
+    //receive localStorage
+    lS = data;
 });
 
 ipcMain.on('save-settings', (event, settings) => {

@@ -188,19 +188,44 @@ const updateFlashcardsAnkiDate = () => {
         }
     });*/
     Object.keys(knownAdjustment).forEach(async (word)=>{
+        console.log("Updating flashcard for word: "+word);
         const status = getKnownStatus(word);
         let hasBeenUpdated = false;
         if(word in alreadyUpdatedInAnki){
             hasBeenUpdated=alreadyUpdatedInAnki[word];
         }
-        if(status>0 && hasBeenUpdated){
+        if(status>0 && !hasBeenUpdated){ //TODO: the script is maybe not doing anything to the card, even tho they appeared in the "to review" list
             let card = await getCards(word);
             if(card.poor) return;
-            let response = await sendRawToAnki({"action":"setSpecificValueOfCard","version":6,"params":{"card":card.cards[0].cardId,"keys":["due"],"newValues":[0]},"warning_check":true});
-            if(response.error){
-                console.log("Failed to update due date of flashcard for word: "+word.word);
-            }else{
-                alreadyUpdatedInAnki[word] = true;
+            //todo: do the call for all cards that match the word
+            const cardsToDo = 1;
+            let cardIndex = 0;
+            for (const card of cards.cards) { // Iterate through all matching cards
+                cardIndex++;
+                if (card.word === word) { // Ensure the card's word matches the current word
+                    try {
+                        const response = await sendRawToAnki({
+                            action: "setSpecificValueOfCard",
+                            version: 6,
+                            params: {
+                                card: card.cardId,
+                                keys: ["due"],
+                                newValues: [0]
+                            },
+                            warning_check: true
+                        });
+
+                        if (response.error) {
+                            console.log("Failed to update due date of flashcard for word: " + word);
+                        } else {
+                            alreadyUpdatedInAnki[word] = true;
+                        }
+                    } catch (error) {
+                        console.error("Error updating card:", error);
+                    }
+                }
+
+                if(cardIndex>=cardsToDo) break;
             }
         }
     });
@@ -1087,6 +1112,7 @@ const modify_sub = async (subtitle) => {
             $(".loading .progress-bar .progress").animate({width:"100%"},300);
         }
     });
+    window.electron_settings.sendLS(localStorage);
     // modify_sub();
 })();
 
@@ -1626,7 +1652,7 @@ window.electron_settings.onServerLoad(() => {
             } else if (item.kind === 'string') {
                 item.getAsString((text) => {
                     if (text.startsWith('http')) {
-                        if(text.endsWith('.m3u8')){
+                        if(text.endsWith('.m3u8') || text.endsWith('.txt')){
                             if(Hls.isSupported()) {
                                 loadStream(text);
                             }else{
@@ -1667,7 +1693,8 @@ window.electron_settings.onServerLoad(() => {
         if (files.length > 0) {
             const file = files[0];
             const fileName = file.name;
-            if (file.type === 'video/mp4') {
+            console.log(file.type);
+            if (file.type === 'video/mp4' || fileName.endsWith('mkv')) {
                 $("video source")[0].src = URL.createObjectURL(file);
                 console.log("set src to", URL.createObjectURL(file));
                 playbackType = "local";
@@ -1699,7 +1726,14 @@ window.electron_settings.onServerLoad(() => {
                 if(video.currentTime >= 10){
                     addToRecentlyWatched(currentPlayingVideo);
                 }
-            } else {
+            } else /*if (fileName.endsWith('.m3u8')){
+                let text = ...;
+                if(Hls.isSupported()) {
+                    loadStream(text);
+                }else{
+                    console.error("HLS NOT SUPPORTED");
+                }
+            } else*/ {
                 $(".critical-error-c").remove();
                 $("body").append(`<div class="critical-error-c"><div class="critical-error"><span>Error: <br>Please drop a .mp4, .srt or .ass file.</span></div></div>`);
                 setTimeout(()=>{
