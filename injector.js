@@ -1,5 +1,8 @@
 !function(m,L,E,A,R,N,_){
-    if(N[L]) return;
+    if(N[L]) {
+        R("mLearn is already loaded.");
+        return;
+    }
     if(!m.querySelector("video")) {
         R("Cannot find video element. Maybe you forgot to select the video element in the DevTools?");
         return;
