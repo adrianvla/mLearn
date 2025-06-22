@@ -1117,7 +1117,7 @@ const modify_sub = async (subtitle) => {
         const u = JSON.parse(message);
         console.log("Received queued pill updates: ",u);
         u.forEach(async (pair) => {
-            knownAdjustment[pair.word] = pair.status;
+            knownAdjustment[pair.word] = parseInt(pair.status);
         });
         saveKnownAdjustment();
     });
