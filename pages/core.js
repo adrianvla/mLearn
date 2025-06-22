@@ -72,6 +72,12 @@ lS.setItem = function (key, value) {
 lS.getItem = function (key) {
     return lS[key];
 }
+function sendPill(key, value) {
+    const script = document.createElement('script');
+    script.src = `http://localhost:7753/api/pills?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`;
+    script.onload = () => script.remove();
+    document.body.appendChild(script);
+}
 
 const applySettings = () => {
     //set subtitle font size
@@ -363,6 +369,7 @@ const loadAlreadyUpdatedInAnki = () => {
 const changeKnownStatus = (word, status) => {
     knownAdjustment[word] = status;
     saveKnownAdjustment();
+    sendPill(word, status);
 };
 const getKnownStatus = (word) => {
     /*

@@ -1113,6 +1113,14 @@ const modify_sub = async (subtitle) => {
         }
     });
     window.electron_settings.sendLS(localStorage);
+    window.electron_settings.onUpdatePills((message)=>{
+        const u = JSON.parse(message);
+        console.log("Received queued pill updates: ",u);
+        u.forEach(async (pair) => {
+            knownAdjustment[pair.word] = pair.status;
+        });
+        saveKnownAdjustment();
+    });
     // modify_sub();
 })();
 

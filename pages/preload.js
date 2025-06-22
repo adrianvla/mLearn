@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('electron_settings', {
     onPythonSuccess: (callback) => ipcRenderer.on('successful-install', (event, message) => callback(message)),
     onWatchTogetherLaunch: (callback) => ipcRenderer.on('watch-together', (event, message) => callback(message)),
     onWatchTogetherRequest: (callback) => ipcRenderer.on('watch-together-request', (event, message) => callback(message)),
+    onUpdatePills: (callback) => ipcRenderer.on('update-pills', (event, message) => callback(message)),
 });
 
 window.addEventListener('DOMContentLoaded', () => {

@@ -72,6 +72,7 @@ let server;
 let HTTPServer;
 let sockets = [];
 let lS = {};
+let pillQueuedUpdates = [];
 
 
 console.log(ARCHITECTURE, PLATFORM);
@@ -114,6 +115,12 @@ const makeMainWindowNormal = () => {
     mainWindow.setWindowButtonVisibility(oldWindowState.trafficLights);
     mainWindow.setFullScreen(oldWindowState.fullscreen);
 };
+const sendPillUpdatesToMainWindow = () => {
+    if(pillQueuedUpdates.length === 0) return;
+    console.log("Sending queued updates to main window",pillQueuedUpdates);
+    mainWindow.webContents.send('update-pills',JSON.stringify(pillQueuedUpdates));
+    pillQueuedUpdates = [];
+};
 
 const startWebSocketServer = () => {
     if(server) return;
@@ -127,6 +134,18 @@ const startWebSocketServer = () => {
                 'Access-Control-Max-Age': 86400, // Cache the preflight response for 24 hours
             });
             return res.end();
+        }
+
+        if (req.method === 'GET' && req.url.startsWith('/api/pills')) {
+            const query = url.parse(req.url, true).query;
+            // query.key and query.value are available here
+            console.log('Received pill:', query.key, query.value);
+            pillQueuedUpdates.push({word: query.key, status: query.value});
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 'ok' }));
+            console.log("Is main window destroyed?", mainWindow.isDestroyed());
+            if(!mainWindow.isDestroyed()) sendPillUpdatesToMainWindow();
+            return;
         }
 
         if (req.url === '/core.js') {
@@ -435,6 +454,9 @@ ipcMain.on('get-settings', (event) => {
 ipcMain.on('send-ls', (event, data) => {
     //receive localStorage
     lS = data;
+
+    //window is ready, try to send queued updates
+    sendPillUpdatesToMainWindow();
 });
 
 ipcMain.on('save-settings', (event, settings) => {
