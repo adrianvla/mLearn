@@ -121,6 +121,15 @@ const sendPillUpdatesToMainWindow = () => {
     mainWindow.webContents.send('update-pills',JSON.stringify(pillQueuedUpdates));
     pillQueuedUpdates = [];
 };
+function getHostAndPort(url) {
+    try {
+        const parsed = new URL(url);
+        return [parsed.hostname, parsed.port];
+    } catch (e) {
+        return [null, null]; // in case of invalid URL
+    }
+}
+
 
 const startWebSocketServer = () => {
     if(server) return;
@@ -147,6 +156,30 @@ const startWebSocketServer = () => {
             if(!mainWindow.isDestroyed()) sendPillUpdatesToMainWindow();
             return;
         }
+        if (req.url.startsWith('/forward/')) {
+            const forwardPath = req.url.replace('/forward/', '/');
+            let [hostname, port] = getHostAndPort(loadSettings().tokeniserUrl);
+            const options = {
+                hostname,
+                port: parseInt(port),
+                path: forwardPath,
+                method: req.method,
+                headers: req.headers
+            };
+
+            const proxyReq = http.request(options, (proxyRes) => {
+                res.writeHead(proxyRes.statusCode, proxyRes.headers);
+                proxyRes.pipe(res, { end: true });
+            });
+
+            req.pipe(proxyReq, { end: true });
+
+            proxyReq.on('error', (err) => {
+                res.writeHead(502, { 'Content-Type': 'text/plain' });
+                res.end('Proxy error: ' + err.message);
+            });
+            return;
+        }
 
         if (req.url === '/core.js') {
             const filePath = path.join(resPath, 'pages', 'core.js');
@@ -162,9 +195,9 @@ const startWebSocketServer = () => {
             }
         } else if (req.url === '/settings.js') {
             let s = "";
-            s += `window.lang_data = ${JSON.stringify(loadLangData())};\n`;
-            s += `window.settings = ${JSON.stringify(loadSettings())};\n`;
-            s += `window.lS = ${JSON.stringify(lS)};\n`;
+            s += `globalThis.lang_data = ${JSON.stringify(loadLangData())};\n`;
+            s += `globalThis.settings = ${JSON.stringify(loadSettings())};\n`;
+            s += `globalThis.lS = ${JSON.stringify(lS)};\n`;
             res.writeHead(200, {
                 'Content-Type': 'application/javascript',
                 'Access-Control-Allow-Origin': '*',
