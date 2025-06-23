@@ -1,7 +1,6 @@
 const CSSInjectable = `
      #context-menu {
       position: absolute;
-      background: transparent;
       backdrop-filter:blur(20px) saturate(180%);
       background:rgba(60,60,60,0.5);
       border: 1px solid #444;
@@ -22,12 +21,16 @@ const CSSInjectable = `
     #context-menu .menu-item:hover {
       background-color: #333;
     }`;
+function srvUrl(){
+    if(!window.mLearnTethered) return "http://localhost:7753/";
+    return window.mLearnTetheredIP;
+}
 const HTMLInjectable = `
     <div class="subtitles">
     </div>
     <div class="aside">
         <div class="header">
-            <div class="btn close"><img src="http://localhost:7753/pages/assets/icons/cross.svg"></div>
+            <div class="btn close"><img src="${srvUrl()}pages/assets/icons/cross.svg"></div>
         </div>
         <div class="c">
         </div>
@@ -35,12 +38,12 @@ const HTMLInjectable = `
     <div id="context-menu"></div>
     <div class="sync-subs not-shown">
         <div class="header">
-            <div class="btn close"><img src="http://localhost:7753/pages/assets/icons/cross.svg"></div>
+            <div class="btn close"><img src="${srvUrl()}pages/assets/icons/cross.svg"></div>
         </div>
         <div class="controls">
-            <button class="backward"><img src="http://localhost:7753/pages/assets/icons/fast-forward.svg"></button>
+            <button class="backward"><img src="${srvUrl()}pages/assets/icons/fast-forward.svg"></button>
             <input type="text" class="">
-            <button class="forward"><img src="http://localhost:7753/pages/assets/icons/fast-forward.svg"></button>
+            <button class="forward"><img src="${srvUrl()}pages/assets/icons/fast-forward.svg"></button>
         </div>
     </div>`;
 const SUBTITLE_THEMES = ["marker","background","shadow"];
@@ -74,7 +77,7 @@ lS.getItem = function (key) {
 }
 function sendPill(key, value) {
     const script = document.createElement('script');
-    script.src = `http://localhost:7753/api/pills?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`;
+    script.src = srvUrl()+`api/pills?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`;
     script.onload = () => script.remove();
     document.body.appendChild(script);
 }
@@ -94,7 +97,7 @@ const applySettings = () => {
 const show_notification = (m, autoclose=true) => {
     let notification = $(`<div class="custom-notification">
         <div class="header">
-            <div class="btn close"><img src="http://localhost:7753/pages/assets/icons/cross.svg"></div>
+            <div class="btn close"><img src="${srvUrl()}pages/assets/icons/cross.svg"></div>
         </div>
         <div class="content">
             <span>${m}</span>
@@ -166,6 +169,25 @@ function initCTXMenu() {
             showContextMenu(items, e.pageX, e.pageY);
         }
     });
+    // Mobile long-press support
+    let touchTimer = null;
+    document.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            touchTimer = setTimeout(() => {
+                const touch = e.touches[0];
+                const items = getContextMenuItems(e.target);
+                if (items.length > 0) {
+                    showContextMenu(items, touch.pageX, touch.pageY);
+                }
+            }, 500); // 600ms for long press
+        }
+    });
+    document.addEventListener('touchend', () => {
+        clearTimeout(touchTimer);
+    });
+    document.addEventListener('touchmove', () => {
+        clearTimeout(touchTimer);
+    });
 
     document.addEventListener('click', hideContextMenu);
     window.addEventListener('blur', hideContextMenu);
@@ -219,6 +241,20 @@ const hoveredWordTracker = (word,uuid) => {
     else
         hoveredWords[word] = 1;
 };
+function replaceLocalhostEndpointURL(str) {
+    if(!window.mLearnTethered) return str;
+    let newBaseURL = window.mLearnTetheredIP;
+    // Ensure trailing slash on base URL
+    if (!newBaseURL.endsWith('/')) {
+        newBaseURL += '/';
+    }
+    newBaseURL += "forward/";
+
+    return str.replace(
+        /http:\/\/127\.0\.0\.1:8000\/([a-zA-Z0-9-_]+)/g,
+        (_, endpoint) => newBaseURL + endpoint
+    );
+}
 function tokenise(text){
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -232,7 +268,7 @@ function tokenise(text){
             }
         });
 
-        xhr.open('POST', settings.tokeniserUrl);
+        xhr.open('POST', replaceLocalhostEndpointURL(settings.tokeniserUrl));
         //send json
         xhr.setRequestHeader('Content-Type', 'application/json');
         xhr.send(JSON.stringify({"text":text}));
@@ -251,7 +287,7 @@ function getCards(text){
             }
         });
 
-        xhr.open('POST', settings.getCardUrl);
+        xhr.open('POST', replaceLocalhostEndpointURL(settings.getCardUrl));
         //send json
         xhr.setRequestHeader('Content-Type', 'application/json');
         xhr.send(JSON.stringify({"word":text}));
@@ -272,7 +308,7 @@ function getTranslation(text){
             }
         });
 
-        xhr.open('POST', settings.getTranslationUrl);
+        xhr.open('POST', replaceLocalhostEndpointURL(settings.getTranslationUrl));
         //send json
         xhr.setRequestHeader('Content-Type', 'application/json');
         xhr.send(JSON.stringify({"word":text}));
@@ -385,7 +421,7 @@ const getKnownStatus = (word) => {
 const unknownStatusPillHTML = (uuid) => {
     return `<div class="pill pill-btn red" onclick='changeKnownBtnStatus("${uuid}", 1);' id="status-pill-${uuid}">
     <span class="icon">
-        <img src="http://localhost:7753/pages/assets/icons/cross2.svg" alt="">
+        <img src="${srvUrl()}pages/assets/icons/cross2.svg" alt="">
     </span>
     <span>Unknown</span>
 </div>`;
@@ -393,7 +429,7 @@ const unknownStatusPillHTML = (uuid) => {
 const learningStatusPillHTML = (uuid) => {
     return `<div class="pill pill-btn orange" onclick='changeKnownBtnStatus("${uuid}", 2);' id="status-pill-${uuid}">
     <span class="icon">
-        <img src="http://localhost:7753/pages/assets/icons/check.svg" alt="">
+        <img src="${srvUrl()}pages/assets/icons/check.svg" alt="">
     </span>
     <span>Learning</span>
 </div>`;
@@ -401,7 +437,7 @@ const learningStatusPillHTML = (uuid) => {
 const knownStatusPillHTML = (uuid) => {
     return `<div class="pill pill-btn green" onclick='changeKnownBtnStatus("${uuid}", 0);' id="status-pill-${uuid}">
     <span class="icon">
-        <img src="http://localhost:7753/pages/assets/icons/check.svg" alt="">
+        <img src="${srvUrl()}pages/assets/icons/check.svg" alt="">
     </span>
     <span>Known</span>
 </div>`;
@@ -960,7 +996,7 @@ function getElementTopOffset(el) {
     {
         const style = document.createElement('link');
         style.rel = 'stylesheet';
-        style.href = 'http://localhost:7753/pages/assets/light_style.css';
+        style.href = srvUrl()+'pages/assets/light_style.css';
         document.head.appendChild(style);
     }
 
@@ -1038,6 +1074,7 @@ function getElementTopOffset(el) {
             <body>
                 <div class="drop-zone">
                     <span>Drop your .srt or .ass files here</span>
+                    <input type="file" accept=".srt,.ass" style="display:none" id="fileInput">
                 </div>
                 <script>
                     const readFile = (file) => {
@@ -1052,6 +1089,7 @@ function getElementTopOffset(el) {
                         });
                     };
                     const dropZone = document.querySelector('.drop-zone');
+                    const fileInput = document.getElementById('fileInput');
                     dropZone.addEventListener('dragover', (e) => {
                         e.preventDefault();
                         dropZone.classList.add('dragging');
@@ -1066,13 +1104,27 @@ function getElementTopOffset(el) {
                         if (files.length > 0) {
                             const file = files[0];
                             if (file.name.endsWith('.srt') || file.name.endsWith('.ass')) {
-                                console.log('Subtitle file dropped:', file.name);
-                                // Handle file processing here
                                 let f = {name:file.name};
                                 f.content = await readFile(file);
                                 window.opener.postMessage({ file: f }, '*');
                             } else {
                                 alert('Error: Please drop a .srt or .ass file');
+                            }
+                        }
+                    });
+                    dropZone.addEventListener('click', () => {
+                        fileInput.value = '';
+                        fileInput.click();
+                    });
+                    fileInput.addEventListener('change', async (e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                            if (file.name.endsWith('.srt') || file.name.endsWith('.ass')) {
+                                let f = {name:file.name};
+                                f.content = await readFile(file);
+                                window.opener.postMessage({ file: f }, '*');
+                            } else {
+                                alert('Error: Please select a .srt or .ass file');
                             }
                         }
                     });

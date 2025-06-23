@@ -117,10 +117,13 @@ body.hide-cursor .subtitles{
     margin-top: 25px;
     color: #9DD997 !important
 }
-
+@supports not (-webkit-touch-callout: none) { /*NO SAFARI*/
+    .subtitle_hover{
+        height: max-content;
+    }
+}
 .subtitle_hover {
     position: absolute;
-    height: max-content;
     background-color: rgba(240,240,240, 0.75);
     backdrop-filter: blur(20px);
     color: black;
@@ -542,6 +545,11 @@ body.hide-cursor .aside{
     overflow-x:auto;
     padding-right:10px;
     /*height:75px;*/
+}
+@supports (-webkit-touch-callout: none) { /*ONLY SAFARI*/
+    .aside .c{
+        width:100%;
+    }
 }
 .aside .c::-webkit-scrollbar{
     display:none;
