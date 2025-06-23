@@ -541,7 +541,7 @@ body.hide-cursor .aside{
     flex-wrap: wrap;
     overflow-x:auto;
     padding-right:10px;
-    height:75px;
+    /*height:75px;*/
 }
 .aside .c::-webkit-scrollbar{
     display:none;

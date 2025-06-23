@@ -703,13 +703,13 @@ const template = [
             },
             ...(isMac ? [{ type: 'separator' }] : []),
             {
-                label: 'Watch Together',
+                label: 'Start Server (For Watch Together / Online Extension / Tethered Mode)', //TODO: add Tethered Mode
                 click: async () => {
                     mainWindow.webContents.send('watch-together');
                     dialog.showMessageBox(null, {
                         type: 'info',
                         title: 'Watch Together',
-                        message: 'Started Watch Together at \nhttp://127.0.0.1:'+PORT+'\n\nPlease port forward this device\'s 7753 port if you want to share it with others. \n\nGo to https://mlearn.morisinc.net/watch-together to join the session.',
+                        message: 'Started Watch Together Server at \nhttp://127.0.0.1:'+PORT+'\n\nPlease port forward this device\'s 7753 port if you want to share it with others. \n\nGo to https://mlearn.morisinc.net/watch-together to join the session.\n\nIf you want to use the online extension, please paste the script into the DevTools console.',
                     });
                     startWebSocketServer();
                 }
