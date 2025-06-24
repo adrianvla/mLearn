@@ -156,6 +156,14 @@ const startWebSocketServer = () => {
             if(!mainWindow.isDestroyed()) sendPillUpdatesToMainWindow();
             return;
         }
+        if (req.url === '/') {
+            res.writeHead(200, {
+                'Content-Type': 'text/html',
+                'Access-Control-Allow-Origin': '*',
+            });
+            res.end('<!doctypehtml><html lang="en"><meta charset="UTF-8"><meta content="IE=edge"http-equiv="X-UA-Compatible"><meta content="width=device-width,initial-scale=1"name="viewport"><title>mLearn Backend</title><style>body{background:#222;color:#ccc;font-family:"Helvetica Neue",sans-serif}a{color:#ff0}</style><h1>mLearn Backend</h1><p>Hi, this is the mLearn Backend server, nothing to see here.<br>This server responds to HTTP requests made by the Injected mLearn Application, as well as by the Tethered version of mLearn for Mobile.<br>This server also responds to WebSockets, a feature used by mLearn\'s Watch Together feature.<p>Are you trying to use Watch Together and accidentally clicked on this link?<br>Go <a href="https://mlearn.morisinc.net/watch-together">here</a> to connect and paste this link (<span id="current_url"></span>) there.</p><script>document.getElementById("current_url").innerText=window.location</script>');
+            return;
+        }
         if (req.url.startsWith('/forward/')) {
             const forwardPath = req.url.replace('/forward/', '/');
             let [hostname, port] = getHostAndPort(loadSettings().tokeniserUrl);
