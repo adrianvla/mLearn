@@ -71,6 +71,8 @@ let oldWindowState = {width:null, height:null, fullscreen:false, trafficLights:t
 let server;
 let HTTPServer;
 let sockets = [];
+let lS = {};
+let pillQueuedUpdates = [];
 
 
 console.log(ARCHITECTURE, PLATFORM);
@@ -113,6 +115,21 @@ const makeMainWindowNormal = () => {
     mainWindow.setWindowButtonVisibility(oldWindowState.trafficLights);
     mainWindow.setFullScreen(oldWindowState.fullscreen);
 };
+const sendPillUpdatesToMainWindow = () => {
+    if(pillQueuedUpdates.length === 0) return;
+    console.log("Sending queued updates to main window",pillQueuedUpdates);
+    mainWindow.webContents.send('update-pills',JSON.stringify(pillQueuedUpdates));
+    pillQueuedUpdates = [];
+};
+function getHostAndPort(url) {
+    try {
+        const parsed = new URL(url);
+        return [parsed.hostname, parsed.port];
+    } catch (e) {
+        return [null, null]; // in case of invalid URL
+    }
+}
+
 
 const startWebSocketServer = () => {
     if(server) return;
@@ -128,7 +145,95 @@ const startWebSocketServer = () => {
             return res.end();
         }
 
-        if (req.url.startsWith('/?url=')) {
+        if (req.method === 'GET' && req.url.startsWith('/api/pills')) {
+            const query = url.parse(req.url, true).query;
+            // query.key and query.value are available here
+            console.log('Received pill:', query.key, query.value);
+            pillQueuedUpdates.push({word: query.key, status: query.value});
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 'ok' }));
+            console.log("Is main window destroyed?", mainWindow.isDestroyed());
+            if(!mainWindow.isDestroyed()) sendPillUpdatesToMainWindow();
+            return;
+        }
+        if (req.url === '/') {
+            res.writeHead(200, {
+                'Content-Type': 'text/html',
+                'Access-Control-Allow-Origin': '*',
+            });
+            res.end('<!doctypehtml><html lang="en"><meta charset="UTF-8"><meta content="IE=edge"http-equiv="X-UA-Compatible"><meta content="width=device-width,initial-scale=1"name="viewport"><title>mLearn Backend</title><style>body{background:#222;color:#ccc;font-family:"Helvetica Neue",sans-serif}a{color:#ff0}</style><h1>mLearn Backend</h1><p>Hi, this is the mLearn Backend server, nothing to see here.<br>This server responds to HTTP requests made by the Injected mLearn Application, as well as by the Tethered version of mLearn for Mobile.<br>This server also responds to WebSockets, a feature used by mLearn\'s Watch Together feature.<p>Are you trying to use Watch Together and accidentally clicked on this link?<br>Go <a href="https://mlearn.morisinc.net/watch-together">here</a> to connect and paste this link (<span id="current_url"></span>) there.</p><script>document.getElementById("current_url").innerText=window.location</script>');
+            return;
+        }
+        if (req.url.startsWith('/forward/')) {
+            const forwardPath = req.url.replace('/forward/', '/');
+            let [hostname, port] = getHostAndPort(loadSettings().tokeniserUrl);
+            const options = {
+                hostname,
+                port: parseInt(port),
+                path: forwardPath,
+                method: req.method,
+                headers: req.headers
+            };
+
+            const proxyReq = http.request(options, (proxyRes) => {
+                res.writeHead(proxyRes.statusCode, proxyRes.headers);
+                proxyRes.pipe(res, { end: true });
+            });
+
+            req.pipe(proxyReq, { end: true });
+
+            proxyReq.on('error', (err) => {
+                res.writeHead(502, { 'Content-Type': 'text/plain' });
+                res.end('Proxy error: ' + err.message);
+            });
+            return;
+        }
+
+        if (req.url === '/core.js') {
+            const filePath = path.join(resPath, 'pages', 'core.js');
+            if (fs.existsSync(filePath)) {
+                res.writeHead(200, {
+                    'Content-Type': 'application/javascript',
+                    'Access-Control-Allow-Origin': '*',
+                });
+                fs.createReadStream(filePath).pipe(res);
+            } else {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('File not found');
+            }
+        } else if (req.url === '/settings.js') {
+            let s = "";
+            s += `globalThis.lang_data = ${JSON.stringify(loadLangData())};\n`;
+            s += `globalThis.settings = ${JSON.stringify(loadSettings())};\n`;
+            s += `globalThis.lS = ${JSON.stringify(lS)};\n`;
+            res.writeHead(200, {
+                'Content-Type': 'application/javascript',
+                'Access-Control-Allow-Origin': '*',
+            });
+            res.end(s);
+        } else if (req.url.startsWith('/pages/')) {
+            // Serve static files from the 'assets' folder
+            const filePath = path.join(resPath, req.url);
+            if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+                const ext = path.extname(filePath).toLowerCase();
+                const mimeTypes = {
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.png': 'image/png',
+                    '.gif': 'image/gif',
+                    '.svg': 'image/svg+xml',
+                    '.js': 'application/javascript',
+                    '.css': 'text/css',
+                };
+
+                const contentType = mimeTypes[ext] || 'application/octet-stream';
+                res.writeHead(200, { 'Content-Type': contentType });
+                fs.createReadStream(filePath).pipe(res);
+            } else {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('File not found');
+            }
+        } else if (req.url.startsWith('/?url=')) {
             const query = url.parse(req.url, true).query;
             let targetUrl = query.url; // Extract the target URL from the query string
 
@@ -270,6 +375,7 @@ app.whenReady().then(() => {
 })
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
+        console.log("Tried to quit, pythonSuccessInstall=",pythonSuccessInstall);
         if(!pythonSuccessInstall) return;
         pythonChildProcess.kill("SIGINT");
         app.quit();
@@ -386,6 +492,13 @@ const loadLangData = () => {
 ipcMain.on('get-settings', (event) => {
     event.reply('settings', loadSettings());
 });
+ipcMain.on('send-ls', (event, data) => {
+    //receive localStorage
+    lS = data;
+
+    //window is ready, try to send queued updates
+    sendPillUpdatesToMainWindow();
+});
 
 ipcMain.on('save-settings', (event, settings) => {
     saveSettings(settings);
@@ -400,7 +513,8 @@ ipcMain.on('is-watching-together', (event) => {
 });
 
 ipcMain.on('traffic-lights', (event, arg) => {
-    mainWindow.setWindowButtonVisibility(arg.visibility);
+    if(!isWindows)
+        mainWindow.setWindowButtonVisibility(arg.visibility);
     oldWindowState.trafficLights = arg.visibility;
 });
 ipcMain.on('watch-together-send', (event, message) => {
@@ -630,13 +744,13 @@ const template = [
             },
             ...(isMac ? [{ type: 'separator' }] : []),
             {
-                label: 'Watch Together',
+                label: 'Start Server (For Watch Together / Online Extension / Tethered Mode)', //TODO: add Tethered Mode
                 click: async () => {
                     mainWindow.webContents.send('watch-together');
                     dialog.showMessageBox(null, {
                         type: 'info',
                         title: 'Watch Together',
-                        message: 'Started Watch Together at \nhttp://127.0.0.1:'+PORT+'\n\nPlease port forward this device\'s 7753 port if you want to share it with others. \n\nGo to https://mlearn.morisinc.net/watch-together to join the session.',
+                        message: 'Started Watch Together Server at \nhttp://127.0.0.1:'+PORT+'\n\nPlease port forward this device\'s 7753 port if you want to share it with others. \n\nGo to https://mlearn.morisinc.net/watch-together to join the session.\n\nIf you want to use the online extension, please paste the script into the DevTools console.',
                     });
                     startWebSocketServer();
                 }
@@ -852,7 +966,7 @@ const pythonFound = () => {
     if(isFirstTimeSetup) return;
     console.log(pythonExecutable);
 
-    const onSTDOUT = () => {
+    const onSTDOUT = (data) => {
         console.log("Python response: ", data.toString('utf8'));
         try{
             mainWindow.webContents.send('server-status-update', data.toString('utf8'));
@@ -886,7 +1000,7 @@ const pythonFound = () => {
         console.log("WINDOWS:::",command)
         pythonChildProcess = exec(command);
     }else{
-        pythonChildProcess = require('child_process').spawn('env', ["\"" + pythonExecutable + "\"", "\"" + path.join(resPath, 'server.py') + "\"", String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), "\"" + String(resPath) + "\""], {
+        pythonChildProcess = require('child_process').spawn('env', [pythonExecutable, path.join(resPath, 'server.py'), String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), String(resPath)], {
             env: process.env
         });
     }

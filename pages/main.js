@@ -40,6 +40,7 @@ let foundFreq = {};
 let knownAdjustment = {};
 let wordUUIDs = {};
 let flashcardFunctions = {};
+let alreadyUpdatedInAnki = {};
 
 let loadStream = null; //set later
 let videoTimeUpdateCallback = null; //set later
@@ -176,6 +177,7 @@ const addAllFlashcardsToAnki = () => {
 
 const updateFlashcardsAnkiDate = () => {
     console.log("Updating flashcards due date");
+    /*
     wordList.forEach(async (word)=>{
         if(!word.new){
             //update due date
@@ -184,7 +186,51 @@ const updateFlashcardsAnkiDate = () => {
                 console.log("Failed to update due date of flashcard for word: "+word.word);
             }
         }
+    });*/
+    Object.keys(knownAdjustment).forEach(async (word)=>{
+        console.log("Updating flashcard for word: "+word);
+        const status = getKnownStatus(word);
+        let hasBeenUpdated = false;
+        if(word in alreadyUpdatedInAnki){
+            hasBeenUpdated=alreadyUpdatedInAnki[word];
+        }
+        if(status>0 && !hasBeenUpdated){ //TODO: the script is maybe not doing anything to the card, even tho they appeared in the "to review" list
+            let card = await getCards(word);
+            if(card.poor) return;
+            //todo: do the call for all cards that match the word
+            const cardsToDo = 1;
+            let cardIndex = 0;
+            for (const card of cards.cards) { // Iterate through all matching cards
+                cardIndex++;
+                if (card.word === word) { // Ensure the card's word matches the current word
+                    try {
+                        const response = await sendRawToAnki({
+                            action: "setSpecificValueOfCard",
+                            version: 6,
+                            params: {
+                                card: card.cardId,
+                                keys: ["due"],
+                                newValues: [0]
+                            },
+                            warning_check: true
+                        });
+
+                        if (response.error) {
+                            console.log("Failed to update due date of flashcard for word: " + word);
+                        } else {
+                            alreadyUpdatedInAnki[word] = true;
+                        }
+                    } catch (error) {
+                        console.error("Error updating card:", error);
+                    }
+                }
+
+                if(cardIndex>=cardsToDo) break;
+            }
+        }
     });
+    saveAlreadyUpdatedInAnki();
+
 
 }
 
@@ -503,6 +549,10 @@ const saveKnownAdjustment = () => {
     //save knownAdjustment to localStorage
     localStorage.setItem("knownAdjustment", JSON.stringify(knownAdjustment));
 };
+const saveAlreadyUpdatedInAnki = () => {
+    //save alreadyUpdatedInAnki to localStorage
+    localStorage.setItem("alreadyUpdatedInAnki", JSON.stringify(alreadyUpdatedInAnki));
+};
 const loadKnownAdjustment = () => {
     //load knownAdjustment from localStorage
     let data = localStorage.getItem("knownAdjustment");
@@ -510,6 +560,15 @@ const loadKnownAdjustment = () => {
         knownAdjustment = JSON.parse(data);
     }else{
         knownAdjustment = {};
+    }
+};
+const loadAlreadyUpdatedInAnki = () => {
+    //load alreadyUpdatedInAnki from localStorage
+    let data = localStorage.getItem("alreadyUpdatedInAnki");
+    if(data){
+        alreadyUpdatedInAnki = JSON.parse(data);
+    }else{
+        alreadyUpdatedInAnki = {};
     }
 };
 const changeKnownStatus = (word, status) => {
@@ -1034,7 +1093,8 @@ const modify_sub = async (subtitle) => {
 
     if(settings.use_anki){
         // $(".add-all-to-anki, .update-flashcards-due-date").show();
-        $(".add-all-to-anki, .update-flashcards-due-date").hide();
+        $(".add-all-to-anki").hide();
+        $(".update-flashcards-due-date").show();
     }else{
         $(".add-all-to-anki, .update-flashcards-due-date").hide();
     }
@@ -1051,6 +1111,15 @@ const modify_sub = async (subtitle) => {
             $("#status-update").html("Anki is ready");
             $(".loading .progress-bar .progress").animate({width:"100%"},300);
         }
+    });
+    window.electron_settings.sendLS(localStorage);
+    window.electron_settings.onUpdatePills((message)=>{
+        const u = JSON.parse(message);
+        console.log("Received queued pill updates: ",u);
+        u.forEach(async (pair) => {
+            knownAdjustment[pair.word] = parseInt(pair.status);
+        });
+        saveKnownAdjustment();
     });
     // modify_sub();
 })();
@@ -1343,6 +1412,7 @@ window.electron_settings.onServerLoad(() => {
     console.log("Server loaded");
     window.electron_settings.isWatchingTogether();
     loadKnownAdjustment();
+    loadAlreadyUpdatedInAnki();
 // document.addEventListener('DOMContentLoaded', () => {
     const video = document.getElementById('fullscreen-video');
     const playPauseButton = document.getElementById('play-pause');
@@ -1590,7 +1660,7 @@ window.electron_settings.onServerLoad(() => {
             } else if (item.kind === 'string') {
                 item.getAsString((text) => {
                     if (text.startsWith('http')) {
-                        if(text.endsWith('.m3u8')){
+                        if(text.endsWith('.m3u8') || text.endsWith('.txt')){
                             if(Hls.isSupported()) {
                                 loadStream(text);
                             }else{
@@ -1631,7 +1701,8 @@ window.electron_settings.onServerLoad(() => {
         if (files.length > 0) {
             const file = files[0];
             const fileName = file.name;
-            if (file.type === 'video/mp4') {
+            console.log(file.type);
+            if (file.type === 'video/mp4' || fileName.endsWith('mkv')) {
                 $("video source")[0].src = URL.createObjectURL(file);
                 console.log("set src to", URL.createObjectURL(file));
                 playbackType = "local";
@@ -1663,7 +1734,14 @@ window.electron_settings.onServerLoad(() => {
                 if(video.currentTime >= 10){
                     addToRecentlyWatched(currentPlayingVideo);
                 }
-            } else {
+            } else /*if (fileName.endsWith('.m3u8')){
+                let text = ...;
+                if(Hls.isSupported()) {
+                    loadStream(text);
+                }else{
+                    console.error("HLS NOT SUPPORTED");
+                }
+            } else*/ {
                 $(".critical-error-c").remove();
                 $("body").append(`<div class="critical-error-c"><div class="critical-error"><span>Error: <br>Please drop a .mp4, .srt or .ass file.</span></div></div>`);
                 setTimeout(()=>{
@@ -2102,7 +2180,8 @@ window.electron_settings.onOpenSettings((msg)=>{
             }
             if(settings.use_anki){
                 // $(".add-all-to-anki, .update-flashcards-due-date").show();
-                $(".add-all-to-anki, .update-flashcards-due-date").hide();
+                $(".add-all-to-anki").hide();
+                $(".update-flashcards-due-date").show();
             }else{
                 $(".add-all-to-anki, .update-flashcards-due-date").hide();
             }
