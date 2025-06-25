@@ -1145,6 +1145,35 @@ function getElementTopOffset(el) {
         settings.openAside = true;
     });
     addContextMenuItem("Show Last Subtitle Raw Text",()=>{alert(lastSub.text)});
+    addContextMenuItem("Enter Fullscreen",()=>{
+        // if (window.self !== window.top) {
+        //     // In an iframe, request fullscreen for the iframe element
+        //     const iframe = window.frameElement;
+        //     if (iframe && iframe.requestFullscreen) {
+        //         iframe.requestFullscreen();
+        //     } else if (iframe && iframe.webkitRequestFullscreen) {
+        //         iframe.webkitRequestFullscreen();
+        //     } else if (iframe && iframe.msRequestFullscreen) {
+        //         iframe.msRequestFullscreen();
+        //     }
+        // } else {
+        //     // Not in an iframe, request fullscreen for the document
+        //     if (document.documentElement.requestFullscreen) {
+        //         document.documentElement.requestFullscreen();
+        //     } else if (document.documentElement.webkitRequestFullscreen) {
+        //         document.documentElement.webkitRequestFullscreen();
+        //     } else if (document.documentElement.msRequestFullscreen) {
+        //         document.documentElement.msRequestFullscreen();
+        //     }
+        // }
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
+        } else if (document.documentElement.webkitRequestFullscreen) {
+            document.documentElement.webkitRequestFullscreen();
+        } else if (document.documentElement.msRequestFullscreen) {
+            document.documentElement.msRequestFullscreen();
+        }
+    });
 
     if(settings.openAside){
         $(".aside").show();
