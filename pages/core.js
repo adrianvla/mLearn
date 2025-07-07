@@ -1260,7 +1260,7 @@ function watchTogetherSend(data) {
         }
     });
 
-    if(window.mLearnIsLocal) return;
+    // if(window.mLearnIsLocal) return;
     let serverURL = window.mLearnTetheredIP.replaceAll("https","").replaceAll("://","").replaceAll("http","").replaceAll("//","");
     console.log("Connecting to mLearn Watch Together Server at: "+serverURL);
     webSocket = new WebSocket("wss://"+serverURL);
