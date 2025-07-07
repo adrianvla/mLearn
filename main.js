@@ -156,6 +156,27 @@ const startWebSocketServer = () => {
             if(!mainWindow.isDestroyed()) sendPillUpdatesToMainWindow();
             return;
         }
+        // Handle /api/watch-together GET requests
+        if (req.method === 'GET' && req.url.startsWith('/api/watch-together')) {
+            const query = url.parse(req.url, true).query;
+            if (query.message) {
+                try {
+                    const decoded = Buffer.from(query.message, 'base64').toString('utf8');
+                    const message = JSON.parse(decoded);
+                    console.log('Received message from client:', message);
+                    sendMessageToAllClients(JSON.stringify(message));
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'ok' }));
+                } catch (e) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'error', error: 'Invalid message format' }));
+                }
+            } else {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'error', error: 'Missing message parameter' }));
+            }
+            return;
+        }
         if (req.url === '/') {
             res.writeHead(200, {
                 'Content-Type': 'text/html',
