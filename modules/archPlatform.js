@@ -1,5 +1,5 @@
 import os from "os";
-import {app} from "electron";
+import {app, ipcMain} from "electron";
 import path from "node:path";
 import { fileURLToPath } from 'node:url';
 
@@ -17,6 +17,11 @@ console.log("resPath", resPath);
 console.log("Is packaged", isPackaged, "Version", app.getVersion(),"Path",app.getPath('userData'));
 
 console.log(ARCHITECTURE, PLATFORM);
+console.log("App version:", app.getVersion());
+
+ipcMain.on('get-version', (event) => {
+    event.reply('version', app.getVersion());
+});
 
 function setIsWindows(to) {
     isWindows = to;

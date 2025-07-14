@@ -7,6 +7,8 @@ import fs from "node:fs";
 import https from "https";
 import {ipcMain} from "electron";
 import { WebSocketServer } from 'ws';
+import {loadLangData} from "./langData.js";
+import {loadSettings} from "./settings.js";
 
 const PORT = 7753;
 let server;
@@ -225,14 +227,15 @@ const startWebSocketServer = () => {
                 res.end(`Error: ${err.message}`);
             });
         } else {
-            // Respond with 426 if a non-WebSocket and non-Proxy request is made
-            res.writeHead(426, {
+            // Redirect to the main page
+            res.writeHead(302, {
+                'Location': '/',
                 'Content-Type': 'text/plain',
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Headers': '*',
                 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
             });
-            res.end('Upgrade Required');
+            res.end('Redirecting to main page...');
         }
     });
     server = new WebSocketServer({ /*port: PORT,*/noServer:true });
