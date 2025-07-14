@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         mLearn Injector Script
+// @name         mLearn Injector
 // @description  This script will inject the mLearn core into the page, to allow the mLearn app to run in Tethered mode.
-// @author       Userscripts
+// @author       Adrian Vlasov
 // @version      0.0.1
 // @match        *://*/*
 // @grant        none

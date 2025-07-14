@@ -1,9 +1,10 @@
-import {app, BrowserWindow, dialog, ipcMain, Menu} from "electron";
+import {app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell} from "electron";
 import path from "node:path";
 import {isMac, isPackaged, isWindows, resPath} from "./archPlatform.js";
 import {firstTimeSetup, isFirstTimeSetup, setFirstTimeSetup} from "./loadBackend.js";
 import fs from "node:fs";
-import {PORT, startWebSocketServer} from "./webServer.js";
+import {PORT, setAllowed, startWebSocketServer} from "./webServer.js";
+import {openBigDialog} from "./openBigDialog.js";
 
 let mainWindow;
 let currentWindow = null;
@@ -120,6 +121,12 @@ const template = [
     {
         label: 'Edit',
         submenu: [
+            {
+                label: 'Settings',
+                click: async () => {
+                    mainWindow.webContents.send('show-settings');
+                }
+            },
             { role: 'undo' },
             { role: 'redo' },
             { type: 'separator' },
@@ -193,19 +200,108 @@ const template = [
                     mainWindow.webContents.send('ctx-menu-command', 'copy-sub');
                 }
             },
-            ...(isMac ? [{ type: 'separator' }] : []),
+            // ...(isMac ? [{ type: 'separator' }] : []),
+        ]
+    },
+    {
+        label: 'Connect',
+        submenu: [
             {
-                label: 'Start Server (For Watch Together / Online Extension / Tethered Mode)', //TODO: add Tethered Mode
+                label: 'Allow Connections',
                 click: async () => {
                     mainWindow.webContents.send('watch-together');
+                    setAllowed(true);
                     dialog.showMessageBox(null, {
                         type: 'info',
-                        title: 'Watch Together',
-                        message: 'Started Watch Together Server at \nhttp://127.0.0.1:'+PORT+'\n\nPlease port forward this device\'s 7753 port if you want to share it with others. \n\nGo to https://mlearn.morisinc.net/watch-together to join the session.\n\nIf you want to use the online extension, please paste the script into the DevTools console.',
+                        title: 'Allowed Connections to Server!',
+                        message: 'Allowed connections to \nhttp://127.0.0.1:'+PORT+`.\n\nFor more information, open the Help menu.`
                     });
-                    startWebSocketServer(); //TODO: auto-run this
+                }
+            },
+            {
+                label: 'Copy Page Injector Script',
+                click: async () => {
+                    let text = '';
+                    try {
+                        text = fs.readFileSync(path.join(resPath, 'modules', 'scripts', 'injector.js'), 'utf-8');
+                    }catch(e){console.log(e);}
+                    clipboard.writeText(text);
+                    dialog.showMessageBox(null, {
+                       type: 'info',
+                       title: 'Copied!',
+                       message: 'Copied!\n\nMore information about how to use it in Online Browser Mode is available in the Help menu.'
+                    });
+                }
+            },
+            {
+                label: 'Install UserScript',
+                click: async ()=>{
+                    dialog.showMessageBox(null, {
+                        type:'question',
+                        title: 'Install UserScript',
+                        message: 'To use mLearn in Online Browser Mode, you need to install the mLearn UserScript on your browser.',
+                        buttons: ['Proceed', 'No'],
+                        defaultId: 0,
+                        cancelId: 1
+                    }).then((result) => {
+                        if (result.response !== 0) return;
+                        shell.openExternal(`http://127.0.0.1:${PORT}/mLearn.user.js`);
+                    });
                 }
             }
+        ]
+    },
+    {
+        label: 'Help',
+        submenu: [
+            {
+                label: 'About Watch Together',
+                click: async () => {
+                    openBigDialog("Help - About Watch Together", `
+                        Watch Together is a feature that allows you to watch videos with others in real-time. You can use it to share your video watching experience with friends or family, no matter where they are.\n\nTo use it, first Allow Connections (in the Connect menu).\nThen, this device's ${PORT} port if you want to use Watch Together with others.\nGo to https://mlearn.morisinc.net/watch-together to join the session.\n\nIf you are using mLearn in Online Browser mode, on the other device using the Userscript, paste the port-forwarded URL into the dialog. 
+                    `);
+                }
+            },
+            {
+                label: 'About Online Browser Mode',
+                click: async () => {
+                    openBigDialog("Help - About Online Browser Mode", `
+                        Online Browser Mode allows you to use mLearn in a browser with a video. \nYou just have to right-click on the video, then click "Inspect Element" to open the browser's DevTools.\nThen, go to the Console tab and paste the script that you can copy by clicking "Copy Page Injector Script" in the Connect menu.\n\nThis will inject mLearn into the page, allowing you to use it with the video.\n\nTo interact with it, right-click on the video.
+                    `);
+                }
+            },
+            {
+                label: 'About mLearn Tethered Mode',
+                click: async () => {
+                    openBigDialog("Help - About Online Browser Mode", `
+                        mLearn Tethered Mode allows you to use mLearn on a different device, such as a phone or a tablet, even if it's not your own device!\nIf you want to watch together with someone else, they will have to install the mLearn UserScript on their browser, and then paste your port-forwarded URL into the dialog that appears on every page that has a video in it (click Install UserScript for more details).\n\nTo use it, first Allow Connections (in the Connect menu).\nThen, copy the port-forwarded URL and paste it into the dialog that appears on the other device.\n\nYou can also use it to watch videos on your own device, but you will have to install the mLearn UserScript on your browser.
+                    `);
+                }
+            },
+            ...(isMac ? [{ type: 'separator' }] : []),
+            {
+                label: 'How to use mLearn on Mobile',
+                click: async () => {
+                    openBigDialog("Help - mLearn Mobile ", `
+                        mLearn Mobile is mLearn running in Tethered Mode. You'll have to install the mLearn UserScript on your mobile device's browser to use it.\n\nmLearn will have to be running on your computer, and you will have to Allow Connections (in the Connect menu), in order for it to work.\n\nFor more information on how to install UserScripts on Mobile, please refer to this Help menu.
+                    `);
+                }
+            },
+            {
+                label: 'How to install mLearn on Mobile',
+                click: async () =>{
+                    openBigDialog("Help - How to install mLearn on Mobile", `
+                        You'll have to port-forward port ${PORT} of this computer. \nYou can use a service like ngrok or localtunnel to do this.\n\nFor ngrok, you can use the command:\n\n<pre>ngrok http ${PORT}</pre>\n\nThis will give you a URL that you can use to access mLearn from your mobile device.\n\nThen, you can open the URL in your mobile browser and install the mLearn UserScript from there.\n\nYou'll have to have an extension that supports UserScripts, such as Tampermonkey installed on your mobile browser.\n\nOnce you have installed the UserScript, you can use mLearn on your mobile device.
+                    `);
+                }
+            },
+            ...(isMac ? [{ type: 'separator' }] : []),
+            {
+                label: 'About mLearn',
+                click: async () => {
+                    mainWindow.webContents.send('show-settings','About');
+                }
+            },
         ]
     }
 ];
