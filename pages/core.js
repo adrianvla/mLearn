@@ -14,7 +14,8 @@ const CSSInjectable = `
       color:#aaa;
     }
     #context-menu .menu-item {
-      padding: 10px;
+      padding: 5px;
+      padding-inline:10px;
       cursor: pointer;
     }
 
@@ -66,6 +67,8 @@ let foundFreq = {};
 let knownAdjustment = {};
 let wordUUIDs = {};
 let alreadyUpdatedInAnki = {};
+let isWatchTogether = false;
+let webSocket = null;
 
 let videoTimeUpdateCallback = null; //set later
 
@@ -980,6 +983,18 @@ function getElementTopOffset(el) {
     return rect.top + scrollTop;
 }
 
+function watchTogetherSend(data) {
+    // Encode the message as base64 (JSON stringified)
+    const message = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+    // Compose the URL for the GET request
+    const url = srvUrl() + 'api/watch-together?message=' + encodeURIComponent(message);
+    // Create a script element to bypass CORS
+    const script = document.createElement('script');
+    script.src = url;
+    script.onload = () => script.remove();
+    document.body.appendChild(script);
+}
+
 (function (){
     if(isLoaded) return;
     isLoaded = true;
@@ -1034,6 +1049,22 @@ function getElementTopOffset(el) {
     };
 
     video.addEventListener('timeupdate',videoTimeUpdateCallback);
+    //video on pause and play
+    video.addEventListener('play', () => {
+        if(isWatchTogether){
+            watchTogetherSend({action:"play", time:video.currentTime});
+        }
+    });
+    video.addEventListener('pause', () => {
+        if(isWatchTogether){
+            watchTogetherSend({action:"pause", time:video.currentTime});
+        }
+    });
+    video.addEventListener('seeked', () => {
+        if(isWatchTogether) {
+            watchTogetherSend({action: "sync", time: time});
+        }
+    });
 
     addContextMenuItem("Load Subtitles", () => {
         loadSubWindow = window.open("", "Load Subtitles", "width=400,height=300");
@@ -1146,26 +1177,6 @@ function getElementTopOffset(el) {
     });
     addContextMenuItem("Show Last Subtitle Raw Text",()=>{alert(lastSub.text)});
     addContextMenuItem("Enter Fullscreen",()=>{
-        // if (window.self !== window.top) {
-        //     // In an iframe, request fullscreen for the iframe element
-        //     const iframe = window.frameElement;
-        //     if (iframe && iframe.requestFullscreen) {
-        //         iframe.requestFullscreen();
-        //     } else if (iframe && iframe.webkitRequestFullscreen) {
-        //         iframe.webkitRequestFullscreen();
-        //     } else if (iframe && iframe.msRequestFullscreen) {
-        //         iframe.msRequestFullscreen();
-        //     }
-        // } else {
-        //     // Not in an iframe, request fullscreen for the document
-        //     if (document.documentElement.requestFullscreen) {
-        //         document.documentElement.requestFullscreen();
-        //     } else if (document.documentElement.webkitRequestFullscreen) {
-        //         document.documentElement.webkitRequestFullscreen();
-        //     } else if (document.documentElement.msRequestFullscreen) {
-        //         document.documentElement.msRequestFullscreen();
-        //     }
-        // }
         if (document.documentElement.requestFullscreen) {
             document.documentElement.requestFullscreen();
         } else if (document.documentElement.webkitRequestFullscreen) {
@@ -1174,6 +1185,10 @@ function getElementTopOffset(el) {
             document.documentElement.msRequestFullscreen();
         }
     });
+    addContextMenuItem("Become Watch Together Master",()=>{
+        isWatchTogether = true;
+    });
+
 
     if(settings.openAside){
         $(".aside").show();
@@ -1244,4 +1259,51 @@ function getElementTopOffset(el) {
             show_notification("Subtitles loaded successfully");
         }
     });
+
+    // if(window.mLearnIsLocal) return;
+    let serverURL = window.mLearnTetheredIP.replaceAll("https","").replaceAll("://","").replaceAll("http","").replaceAll("//","");
+    console.log("Connecting to mLearn Watch Together Server at: "+serverURL);
+    webSocket = new WebSocket("wss://"+serverURL);
+    webSocket.onopen = ()=>{
+        console.log("Connected to the server.");
+        $(".recently-c").remove();
+        webSocket.send("{}");
+    };
+    webSocket.onmessage = (message)=>{
+        console.log("Message received: " + message.data);
+        let msg = JSON.parse(message.data);
+        switch(msg.action){
+            case "play":
+                video.play();
+                if(msg.time) video.currentTime = msg.time;
+                break;
+            case "pause":
+                video.pause();
+                if(msg.time) video.currentTime = msg.time;
+                break;
+            case "start":
+                loadStream(msg.url);
+                break;
+            case "request-response":
+                loadStream(msg.url);
+                video.currentTime = msg.time;
+                if(msg.video_playing) video.play();
+                break;
+            case "sync":
+                video.currentTime = msg.time;
+                break;
+            case "subtitles":
+                if(!hasOwnSubs){
+                    $(".subtitles").html(msg.subtitle);
+                }
+                document.body.style.setProperty('--subtitle-font-size', `${msg.size}px`);
+                break;
+        }
+    };
+    webSocket.onclose = ()=>{
+        console.log("Connection closed.");
+    };
+
+
+
 })();
