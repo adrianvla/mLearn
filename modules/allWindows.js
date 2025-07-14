@@ -297,6 +297,15 @@ const template = [
             },
             ...(isMac ? [{ type: 'separator' }] : []),
             {
+                label: 'Troubleshooting mLearn in Browser/Tethered Mode',
+                click: async () =>{
+                    openBigDialog("Help - Troubleshooting mLearn in Browser/Tethered Mode", `
+                        Some websites with advanced security (like youtube.com) may not allow mLearn to run properly.\n\nIf you are having issues with mLearn in Browser/Tethered Mode, try the following:\n\nInstall an extension that would disable the website's security features, such as <a href="https://chromewebstore.google.com/detail/disable-content-security/ieelmcmcagommplceebfedjlakkhpden">Disable CSP</a> or <a href="https://chromewebstore.google.com/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigeejlf">Allow CORS</a>. These extensions may put at risk your browsing security, if you'll go on e-Banking websites or other websites that require high security, so only enable those extensions when you are using mLearn in Browser/Tethered Mode on a specific website.\n\nIf you are using mLearn in Tethered Mode, make sure that the port-forwarded URL is correct and that the mLearn UserScript is installed on your mobile browser.
+                    `);
+                }
+            },
+            ...(isMac ? [{ type: 'separator' }] : []),
+            {
                 label: 'About mLearn',
                 click: async () => {
                     mainWindow.webContents.send('show-settings','About');
