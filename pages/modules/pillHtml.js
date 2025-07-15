@@ -1,4 +1,4 @@
-import {changeKnownStatus, getKnownStatus} from "./saving.js";
+import {changeKnownStatus, getKnownStatus, saveKnownAdjustment, setKnownAdjustment} from "./saving.js";
 import {settings, wordFreq} from "./settings.js";
 import {toUniqueIdentifier} from "./utils.js";
 import {flashcardFunctions} from "./subtitler.js";
@@ -97,5 +97,13 @@ const clickAddFlashcardBtn = (uuid) =>{
 };
 window.changeKnownBtnStatus = changeKnownBtnStatus;
 
+window.electron_settings.onUpdatePills((message)=>{
+    const u = JSON.parse(message);
+    console.log("Received queued pill updates: ",u);
+    u.forEach(async (pair) => {
+        setKnownAdjustment(pair.word,parseInt(pair.status));
+    });
+    saveKnownAdjustment();
+});
 
 export {unknownStatusPillHTML, changeKnownStatusButtonHTML, generateStatusPillHTML, addAnkiPillHTML, changeKnownBtnStatus, knownStatusPillHTML, learningStatusPillHTML, addPills, resetWordUUIDs};
