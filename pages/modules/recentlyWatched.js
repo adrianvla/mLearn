@@ -7,6 +7,8 @@ const loadRecentlyWatched = () => {
     const recentlyWatched = localStorage.getItem('recentlyWatched');
     if (recentlyWatched) {
         JSON.parse(recentlyWatched).forEach(item => {
+            console.log("Loading recently watched item:", item);
+            if(!item.screenshotUrl || item.screenshotUrl == "data:," || !item.name) return; // Skip if videoUrl or screenshotUrl is missing
             let appendable = $(`<div class="card">
                     <img src="${item.screenshotUrl}">
                     <p>${item.name ? item.name : ""}</p>

@@ -4,6 +4,7 @@ import {playPauseButton, qualitySelect, video} from "./elements.js";
 import {isWatchTogether} from "./watchTogether.js";
 import {loadWatchTime} from "./saving.js";
 import {currentSubtitleFile} from "./manageFiles.js";
+import {parseSubtitleName} from "./subtitleParsers.js";
 
 
 let HLSObject = null;

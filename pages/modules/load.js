@@ -26,6 +26,10 @@ setTimeout(()=>{window.electron_settings.isLoaded();},1000);
 
 
 window.electron_settings.onServerLoad(() => {
+    $(".critical-error-c").remove();
+    $(".loading").addClass("not-shown");
+
+
     //only once
     if(isLoaded) return;
     isLoaded = true;
@@ -200,4 +204,13 @@ window.electron_settings.onServerLoad(() => {
     });
 });
 
+window.electron_settings.onServerStatusUpdate((message) => {
+    if(message.includes("Waiting for application startup.")){
+        $("#status-update").html("Waiting for Anki");
+        $(".loading .progress-bar .progress").animate({width:"50%"},300);
+    }else if(message.includes("Arguments")){
+        $("#status-update").html("Anki is ready");
+        $(".loading .progress-bar .progress").animate({width:"100%"},300);
+    }
+});
 export {isLoaded};

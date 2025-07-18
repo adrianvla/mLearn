@@ -58,6 +58,7 @@ function getTranslation(text){
         xhr.send(JSON.stringify({"word":text}));
     });
 }
+window.getTranslation = getTranslation;
 
 function sendRawToAnki(data){
     return new Promise((resolve, reject) => {
@@ -78,5 +79,6 @@ function sendRawToAnki(data){
         xhr.send(JSON.stringify(data));
     });
 }
+window.electron_settings.sendLS(localStorage);
 
 export {tokenise, getCards, getTranslation, sendRawToAnki};

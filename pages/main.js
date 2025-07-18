@@ -1,9 +1,5 @@
 import $ from './jquery.min.js'
 import {
-    saveKnownAdjustment,
-    setKnownAdjustment
-} from "./modules/saving.js";
-import {
     checkSettings,
     load_lang_data,
     loadSettings,
@@ -22,9 +18,6 @@ import './modules/videoUtils.js';
 import './modules/watchTogether.js';
 
 
-
-
-
 (async function() {
     await loadSettings();
     checkSettings();
@@ -37,28 +30,5 @@ import './modules/watchTogether.js';
     }else{
         $(".add-all-to-anki, .update-flashcards-due-date").hide();
     }
-
-    window.electron_settings.onServerLoad((message) => {
-        $(".critical-error-c").remove();
-        $(".loading").addClass("not-shown");
-    });
-    window.electron_settings.onServerStatusUpdate((message) => {
-        if(message.includes("Waiting for application startup.")){
-            $("#status-update").html("Waiting for Anki");
-            $(".loading .progress-bar .progress").animate({width:"50%"},300);
-        }else if(message.includes("Arguments")){
-            $("#status-update").html("Anki is ready");
-            $(".loading .progress-bar .progress").animate({width:"100%"},300);
-        }
-    });
-    window.electron_settings.sendLS(localStorage);
-    window.electron_settings.onUpdatePills((message)=>{
-        const u = JSON.parse(message);
-        console.log("Received queued pill updates: ",u);
-        u.forEach(async (pair) => {
-            setKnownAdjustment(pair.word,parseInt(pair.status));
-        });
-        saveKnownAdjustment();
-    });
 })();
 

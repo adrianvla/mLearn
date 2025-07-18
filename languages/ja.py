@@ -52,10 +52,12 @@ def LANGUAGE_TOKENIZE(text):
 TranslationCache = {}
 
 dictionary = []
+pitch_accent = []
 kana_dict = []
 def binary_search(word):
     global dictionary
     global kana_dict
+    global pitch_accent
     """
     Perform a binary search to find the word in the dictionary.
 
@@ -63,6 +65,23 @@ def binary_search(word):
     :param word: Word to search for.
     :return: Tuple (word, reading) if found, otherwise None.
     """
+    pitch_accent_entry = None
+    low = 0
+    high = len(pitch_accent) - 1
+
+    while low <= high:
+        mid = (low + high) // 2
+        guess = pitch_accent[mid][0]
+
+        if guess == word:
+            pitch_accent_entry = pitch_accent[mid]
+            break
+        if guess > word:
+            high = mid - 1
+        else:
+            low = mid + 1
+
+
     low = 0
     high = len(dictionary) - 1
 
@@ -71,7 +90,7 @@ def binary_search(word):
         guess = dictionary[mid][0]
 
         if guess == word:
-            return dictionary[mid]
+            return dictionary[mid],pitch_accent_entry
         if guess > word:
             high = mid - 1
         else:
@@ -85,7 +104,7 @@ def binary_search(word):
         guess = kana_dict[mid][1]
 
         if guess == word:
-            return kana_dict[mid]
+            return kana_dict[mid],pitch_accent_entry
         if guess > word:
             high = mid - 1
         else:
@@ -131,28 +150,33 @@ def create_html_element(element):
 def load_dictionary(folder):
     global dictionary
     global kana_dict
+    global pitch_accent
     cache_file = os.path.join(folder,'dictionary_cache.pkl')
 
     # Check if the cache file exists
     if os.path.exists(cache_file):
         with open(cache_file, 'rb') as f:
-            dictionary, kana_dict = pickle.load(f)
+            dictionary, kana_dict, pitch_accent = pickle.load(f)
         print("Loaded dictionary from cache")
     else:
         # Load dictionary from JSON files
         for i in range(1, 150):
             with open(os.path.join(folder,f'dictionaries/jitendex-yomitan/term_bank_{i}.json'), 'r', encoding='utf-8') as f:
                 dictionary += json.load(f)
-        print("Loaded dictionary with", len(dictionary), "entries")
+        for i in range(1,14):
+            with open(os.path.join(folder,f'dictionaries/jitendex-yomitan/term_meta_bank_{i}.json'), 'r', encoding='utf-8') as f:
+                pitch_accent += json.load(f)
+        print("Loaded dictionary with", len(dictionary), "entries", len(pitch_accent), "pitch accent entries")
 
         # Sort the dictionary
         kana_dict = sorted(dictionary, key=lambda x: x[1])
         dictionary.sort(key=lambda x: x[0])
+        pitch_accent.sort(key=lambda x: x[0])
         print("Sorted dictionary")
 
         # Save the dictionary to the cache
         with open(cache_file, 'wb') as f:
-            pickle.dump((dictionary, kana_dict), f)
+            pickle.dump((dictionary, kana_dict, pitch_accent), f)
         print("Saved dictionary to cache")
 
 
@@ -173,7 +197,14 @@ def LANGUAGE_TRANSLATE(word):
     if word in TranslationCache:
         return TranslationCache[word]
 
-    result = binary_search(word)
+    bns = binary_search(word)
+    if bns is None:
+        TranslationCache[word] = {"data": []}
+        return {"data": []}
+    result = bns[0]
+    pitch_accent_entry = bns[1]
+    if pitch_accent_entry is None:
+        pitch_accent_entry = {}
     if result is None:
         TranslationCache[word] = {"data": []}
         return {"data": []}
@@ -196,7 +227,8 @@ def LANGUAGE_TRANSLATE(word):
             one_line.append(re.sub(r'<[^>]+>', '', li))
     one_line = ', '.join(one_line[:3])  # Only keep the first 3 definitions
 
-    data = {}
-    data['data'] = [{'reading':result[1],'definitions':one_line},{'reading': result[1], 'definitions': html_string}]
+    data = {
+        'data': [{'reading': result[1], 'definitions': one_line}, {'reading': result[1], 'definitions': html_string}, pitch_accent_entry]
+    }
     TranslationCache[word] = {"data": data['data']}
     return {"data": data['data']}
