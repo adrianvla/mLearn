@@ -209,10 +209,6 @@ input#progress-bar::before{
 
 
 
-.subtitle_word {
-    position: relative;
-}
-
 
 /*.subtitle_hover .hover_reading *, .subtitle_hover .hover_translation * {*/
 /*    color: black !important*/
@@ -466,6 +462,12 @@ body.dark .subtitle_hover .pitch {
     filter: invert(1)
 }
 
+
+.subtitle_word {
+    position: relative;
+    white-space: nowrap;
+    word-break: keep-all;
+}
 .subtitle_word .frequency{
     position: absolute;
     bottom:-10px;

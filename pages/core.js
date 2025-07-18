@@ -562,7 +562,7 @@ const modify_sub = async (subtitle) => {
         }
         return "";
     };
-    const processToken = async (token) => {
+    const processToken = async (token, look_ahead_token) => {
         let word = token.actual_word;
         let pos = token.type;
         let real_word = token.word;
@@ -592,11 +592,22 @@ const modify_sub = async (subtitle) => {
             }
             if(settings.immediateFetch || settings.openAside){
                 //translate the word + put in cache
+                if(pos === "動詞") {
+                    let temp_translation_data = await getTranslation(real_word);
+                    if( temp_translation_data.data.length > 0) translation_data = temp_translation_data;
+                    //fix the reading if it's a verb
+                    let rd = translation_data.data[0].reading;
+                    if(real_word[real_word.length-1] !== rd[rd.length - 1] && real_word.length == rd.length){
+                        rd = rd.substring(0, rd.length - 1) + real_word[real_word.length-1];
+                        translation_data.data[0].reading = rd;
+                    }
+                    // console.log("%ctranslation then: "+real_word, "color: red; font-weight: bold;", translation_data);
+                }
                 if (settings.furigana && isNotAllKana(real_word)){
                     $word.contents().filter(function() {
                         return this.nodeType === 3;
                     }).remove();
-                    if(pos === "動詞") translation_data = await getTranslation(real_word);
+                    // console.log("%ctranslation now: "+word, "color: red; font-weight: bold;", translation_data);
                     if($word.is(".has-hover")){
                         let rd = translation_data.data[0].reading;
                         for(let i = translation_data.data[0].reading.length; i < real_word.length; i++){
@@ -612,7 +623,7 @@ const modify_sub = async (subtitle) => {
                     }
                 }
                 if(settings.showPitchAccent) {
-                    if(pos === "動詞") translation_data = await getTranslation(real_word);
+                    // if(pos === "動詞") translation_data = await getTranslation(real_word);
                     addPitchAccent(translation_data.data[2], translation_data.data[0].reading); //dict form and conjugated form got the same length in the tokenizer
                 }
             }
@@ -651,6 +662,7 @@ const modify_sub = async (subtitle) => {
             // 1: Atamadaka (頭高) - ↑↓↓↓↓↓↓↓(↓)
             // 2: Nakadaka (中高) - ↓↑↓↓↓↓↓↓(↓)
             // 3: Odaka (尾高) - ↓↑↑↑↑(↓)
+            // >=4: drop after accent_type mora
             let arr = [];
             let particle_accent = accent_type === 0;
             for(let i = 0;i<word_in_letters.length;i++){
@@ -666,6 +678,9 @@ const modify_sub = async (subtitle) => {
                         break;
                     case 3: // Odaka (尾高)
                         arr.push(i!==0);
+                        break;
+                    default: //drop after accent_type mora
+                        arr.push(i !== 0 && i < accent_type);
                         break;
                 }
             }
@@ -684,7 +699,7 @@ const modify_sub = async (subtitle) => {
                 html_string += `<div class="${classString}"></div>`;
             }
 
-            if(pos !== "動詞"){
+            if(!(pos === "動詞" && look_ahead_token === "動詞")){ //FIXME: do something with particle accent with verbs, ep 9, maybe use hiragana to query pitch accent?, 17:46
                 //if not a verb, add particle accent
                 let b = !particle_accent;
                 let t = particle_accent;
@@ -720,7 +735,7 @@ const modify_sub = async (subtitle) => {
                 newEl.append(el);
                 newEl.css("--pitch-accent-height", "5px");
             }
-            // console.log(`%cAdding pitch accent: (W:${word_in_letters}) (A:${accent_type}) (R:${real_word}) (L:${look_ahead_token})`, "color: green; font-weight: bold;");
+            console.log(`%cAdding pitch accent: (W:${word_in_letters}) (A:${accent_type}) (R:${real_word}) (L:${look_ahead_token})`, "color: green; font-weight: bold;");
         }
         const generateTranslationHTML = (translation_html,reading_html) => {
             hoverEl_html += `<div class="hover_translation">${translation_html}</div>`;
@@ -914,7 +929,7 @@ const modify_sub = async (subtitle) => {
 
     for(let i = 0; i < tokens.length; i++){
         // console.log("POS: "+pos, TRANSLATABLE.includes(pos),word,word.length, word.length==1,  TRANSLATABLE.includes(pos) && (!word.length==1));
-        await processToken(tokens[i]);
+        await processToken(tokens[i], i<tokens.length-1 ? tokens[i+1].type : null);
     }
 
 
