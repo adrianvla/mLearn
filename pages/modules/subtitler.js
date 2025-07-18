@@ -131,7 +131,13 @@ const modify_sub = async (subtitle) => {
         let hasFurigana = false;
 
         const cardNotFound = async () => {
+            let $word = newEl;
+            if(!(settings.immediateFetch || settings.openAside)) {
+                $word.append($(`${real_word}`));
+                return;
+            }
             let translation_data = await getTranslation(word);
+            console.log("Translation data for word: "+word, translation_data);
             if(translation_data.data.length == 0) return;
             if(settings.openAside){
                 //force fetch the word from the dictionary
@@ -142,14 +148,27 @@ const modify_sub = async (subtitle) => {
             if(settings.immediateFetch || settings.openAside){
                 //translate the word + put in cache
                 if (settings.furigana && isNotAllKana(real_word)){
-                    let $word = $(".word_"+uuid);
                     $word.contents().filter(function() {
                         return this.nodeType === 3;
                     }).remove();
-                    if($word.is(".has-hover"))
-                        $word.append($(`<ruby>${real_word}<rt>${translation_data.data[0].reading}</rt></ruby>`));
-                    else
-                        $word.html(`<ruby>${real_word}<rt>${translation_data.data[0].reading}</rt></ruby>`);
+                    if(pos === "動詞") translation_data = await getTranslation(real_word);
+                    if($word.is(".has-hover")){
+                        let rd = translation_data.data[0].reading;
+                        for(let i = translation_data.data[0].reading.length; i < real_word.length; i++){
+                            rd += "&nbsp;";
+                        }
+                        $word.append($(`<ruby>${real_word}<rt>${rd}</rt></ruby>`));
+                    }else{
+                        let rd = translation_data.data[0].reading;
+                        for(let i = translation_data.data[0].reading.length; i < real_word.length; i++){
+                            rd += "&nbsp;";
+                        }
+                        $word.html(`<ruby>${real_word}<rt>${rd}</rt></ruby>`);
+                    }
+                }
+                if(settings.showPitchAccent) {
+                    if(pos === "動詞") translation_data = await getTranslation(real_word);
+                    addPitchAccent(translation_data.data[2], translation_data.data[0].reading); //dict form and conjugated form got the same length in the tokenizer
                 }
             }
         };
@@ -160,9 +179,104 @@ const modify_sub = async (subtitle) => {
             if(accent_start != -1){
                 reading_text = reading_text.substring(0,accent_start);
             }
-            newEl.html(`<ruby>${real_word}<rt>${reading_text}</rt></ruby>`);
+
+            if(pos === "動詞"){
+                if(real_word[real_word.length-1] != reading_text[reading_text.length-1]){
+                    reading_text = reading_text.substring(0,reading_text.length-1);
+                }
+            }
+            console.log(`%c reading_html.length: ${reading_html.length} real_word.length: ${real_word.length} reading_text.length: ${reading_text.length}`, "color: blue; font-weight: bold;");
+            let correction = "";
+            for(let i = reading_text.length; i < real_word.length; i++){
+                correction += "&nbsp;";
+            }
+            newEl.html(`<ruby>${real_word}<rt>${reading_text}${correction}</rt></ruby>`);
             hasFurigana = true;
+            return reading_text;
         };
+        const addPitchAccent = (accent, word_in_letters) => {
+            //append to newEl inside an element
+            if(settings.language !== "ja") return; //only for japanese
+            if(accent === {}) return;
+            if(real_word.length <= 1 || word_in_letters.length <= 1) return; //no pitch accent for single letters
+            // if(settings.lang )
+            let el = $('<div class="mLearn-pitch-accent"></div>');//we'll draw everything after
+            let accent_type = accent[2].pitches[0].position;
+            // 0: Heiban (平板) - Flat, ↓↑↑↑↑(↑)
+            // 1: Atamadaka (頭高) - ↑↓↓↓↓↓↓↓(↓)
+            // 2: Nakadaka (中高) - ↓↑↓↓↓↓↓↓(↓)
+            // 3: Odaka (尾高) - ↓↑↑↑↑(↓)
+            let arr = [];
+            let particle_accent = accent_type === 0;
+            for(let i = 0;i<word_in_letters.length;i++){
+                switch(accent_type){
+                    case 0: // Heiban (平板)
+                        arr.push(i!==0);
+                        break;
+                    case 1: // Atamadaka (頭高)
+                        arr.push(i===0);
+                        break;
+                    case 2: // Nakadaka (中高)
+                        arr.push(i===1);
+                        break;
+                    case 3: // Odaka (尾高)
+                        arr.push(i!==0);
+                        break;
+                }
+            }
+
+            let html_string = "";
+
+            for(let i = 0; i < word_in_letters.length; i++){
+                //just make elements with the pitch accent, those will be divs
+                let b = !arr[i];
+                let t = arr[i];
+                let l = i >= 1 ? arr[i-1] !== arr[i] : false;
+                let classString = "box";
+                if(b) classString += " bottom";
+                if(t) classString += " top";
+                if(l) classString += " left";
+                html_string += `<div class="${classString}"></div>`;
+            }
+
+            if(pos !== "動詞"){
+                //if not a verb, add particle accent
+                let b = !particle_accent;
+                let t = particle_accent;
+                let l = arr[word_in_letters.length-1] !== particle_accent;
+                let classString = "box particle-box";
+                if(b) classString += " bottom";
+                if(t) classString += " top";
+                if(l) classString += " left";
+                html_string += `<div class="${classString}" style="margin-right:${-100/word_in_letters.length}%;"></div>`;
+            }
+            for(let i = word_in_letters.length; i < real_word.length; i++){
+                html_string += `<div class="box"></div>`;
+            }
+            el.html(html_string);
+
+
+
+            if(isNotAllKana(real_word)){
+                //there is furigana, so we need to add the pitch accent to the furigana
+                //find furigana in newEl
+                let furigana = newEl.find("ruby");
+                if(furigana.length > 0){
+                    //furigana found, add pitch accent to it
+                    let furigana_rt = furigana.find("rt");
+                    if(furigana_rt.length > 0){
+                        furigana_rt.append(el);
+                        newEl.css("--pitch-accent-height", "2px");
+                    }/*else{
+                        console.warn(`No furigana found for word: (W:${word_in_letters}) (R:${real_word}) (L:${look_ahead_token})`);
+                    }*/
+                }
+            }else{
+                newEl.append(el);
+                newEl.css("--pitch-accent-height", "5px");
+            }
+            // console.log(`%cAdding pitch accent: (W:${word_in_letters}) (A:${accent_type}) (R:${real_word}) (L:${look_ahead_token})`, "color: green; font-weight: bold;");
+        }
         const generateTranslationHTML = (translation_html,reading_html) => {
             hoverEl_html += `<div class="hover_translation">${translation_html}</div>`;
             hoverEl_html += `<div class="hover_reading">${reading_html}</div>`;
@@ -181,8 +295,12 @@ const modify_sub = async (subtitle) => {
             wordList.push({word:word, new:false, fetch:false, id: card_data.cards[0].cardId});
             if(settings.openAside) addTranslationCard(translation_html,reading_html);
             //furigana
-            if(settings.furigana && isNotAllKana(real_word)){
-                addFurigana(reading_html);
+            let reading = "";
+            if(settings.furigana && isNotAllKana(real_word)) reading = addFurigana(reading_html);
+
+            if(settings.immediateFetch || settings.openAside) {
+                let translation_data = await getTranslation(word);
+                if (settings.showPitchAccent) addPitchAccent(translation_data.data[2], reading);
             }
         };
 
@@ -336,11 +454,10 @@ const modify_sub = async (subtitle) => {
                 console.log("HOVERED WORD",word,"lazy load");
             });
         }
-
+        let card_data = {};
         if(TRANSLATABLE.includes(pos)){
             console.log("REQUESTING: "+word);
             //check if word is already known by the user
-            let card_data = {};
             // let card_data = await getCards(word);
             if(settings.use_anki)
                 try{card_data = await getCards(word);}catch(e){card_data.poor = true;}
@@ -351,7 +468,7 @@ const modify_sub = async (subtitle) => {
                 show_subtitle = true;
                 doAppendHoverLazy = true;
                 newEl.attr("known","false");
-                cardNotFound(); //intentionally not awaited, parallelized
+                newEl.on("customLoaded", cardNotFound); //intentionally not awaited, parallelized.
             }else{
                 //compare ease
                 let current_card = card_data.cards[0];
@@ -437,12 +554,13 @@ const modify_sub = async (subtitle) => {
         newEl.attr("grammar",pos);
         newEl.append($(addFrequencyStars(word)));
         $(".subtitles").append(newEl);
+        newEl.trigger("customLoaded");
     };
 
 
-    for(let token of tokens){
+    for(let i = 0; i < tokens.length; i++){
         // console.log("POS: "+pos, TRANSLATABLE.includes(pos),word,word.length, word.length==1,  TRANSLATABLE.includes(pos) && (!word.length==1));
-        await processToken(token);
+        await processToken(tokens[i]);
     }
 
 
