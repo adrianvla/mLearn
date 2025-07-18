@@ -1,5 +1,5 @@
 import $ from '../jquery.min.js'
-const DEFAULT_SETTINGS = {"known_ease_threshold":1500,"blur_words":false,"blur_known_subtitles":false,"blur_amount":5,"colour_known":"#cceec9","do_colour_known":true,"do_colour_codes":true,"colour_codes":{},"dark_mode":true,"hover_known_get_from_dictionary":false,"show_pos":true,"language":"ja","use_anki":true,"furigana":true,"enable_flashcard_creation":true,"flashcard_deck":null,"flashcards_add_picture":true,"getCardUrl":"http://127.0.0.1:8000/getCard","tokeniserUrl":"http://127.0.0.1:8000/tokenize","getTranslationUrl":"http://127.0.0.1:8000/translate","ankiUrl":"http://127.0.0.1:8000/fwd-to-anki","ankiConnectUrl":"http://127.0.0.1:8765","openAside":false,"subsOffsetTime":0,"immediateFetch":false,"subtitleTheme":"shadow","subtitle_font_size":40};
+const DEFAULT_SETTINGS = {"known_ease_threshold":1500,"blur_words":false,"blur_known_subtitles":false,"blur_amount":5,"colour_known":"#cceec9","do_colour_known":true,"do_colour_codes":true,"colour_codes":{},"dark_mode":true,"hover_known_get_from_dictionary":false,"show_pos":true,"language":"ja","use_anki":true,"furigana":true,"enable_flashcard_creation":true,"flashcard_deck":null,"flashcards_add_picture":true,"getCardUrl":"http://127.0.0.1:8000/getCard","tokeniserUrl":"http://127.0.0.1:8000/tokenize","getTranslationUrl":"http://127.0.0.1:8000/translate","ankiUrl":"http://127.0.0.1:8000/fwd-to-anki","ankiConnectUrl":"http://127.0.0.1:8765","openAside":false,"subsOffsetTime":0,"immediateFetch":false,"subtitleTheme":"shadow","subtitle_font_size":40,"showPitchAccent":true};
 
 let settings = {};
 let supported_languages = [];
@@ -94,6 +94,5 @@ const parseWordFrequency = () => {
     }
 
 };
-
 
 export {checkSettings, saveSettings, getSettings, getLangData, load_lang_data, loadSettings, parseWordFrequency, settings, supported_languages, lang_data, SUBTITLE_THEMES, TRANSLATABLE, wordFreq, DEFAULT_SETTINGS};

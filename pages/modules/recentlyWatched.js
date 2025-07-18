@@ -5,7 +5,7 @@ import {parseSubtitleName} from "./subtitleParsers.js";
 
 const loadRecentlyWatched = () => {
     const recentlyWatched = localStorage.getItem('recentlyWatched');
-    if (recentlyWatched) { //TODO: add check for empty image urls & names
+    if (recentlyWatched) {
         JSON.parse(recentlyWatched).forEach(item => {
             console.log("Loading recently watched item:", item);
             if(!item.screenshotUrl || item.screenshotUrl == "data:," || !item.name) return; // Skip if videoUrl or screenshotUrl is missing
