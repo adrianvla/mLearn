@@ -1,9 +1,8 @@
-import {addToRecentlyWatched, loadRecentlyWatched} from "./recentlyWatched.js";
+import {loadRecentlyWatched} from "./recentlyWatched.js";
 import {loadAlreadyUpdatedInAnki, loadKnownAdjustment, updateFlashcardsAnkiDate} from "./saving.js";
 import {
     backwardButton,
     forwardButton,
-    playPauseButton,
     progressBar,
     video,
     videoControls,
@@ -12,7 +11,6 @@ import {
 import {saveSettings, settings} from "./settings.js";
 import {addAllFlashcardsToAnki} from "./flashcards.js";
 import {isWatchTogether} from "./watchTogether.js";
-import {currentPlayingVideo} from "./streaming.js";
 
 
 let isLoaded = false;

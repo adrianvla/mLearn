@@ -1,4 +1,5 @@
 import {ipcMain, clipboard, shell} from 'electron';
+import './modules/drm/init.js';
 import {findPython} from "./modules/loadBackend.js";
 import {startWebSocketServer} from "./modules/webServer.js";
 

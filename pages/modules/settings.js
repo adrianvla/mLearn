@@ -90,7 +90,7 @@ const parseWordFrequency = () => {
         if(lang_data[settings.language].freq_level_names){
             lvlName = lang_data[settings.language].freq_level_names[String(level)];
         }
-        if(!lvlName){
+        if(!lvlName){ 
             lvlName = "Level "+level;
         }
         wordFreq[freq[wordi][0]] = {reading:freq[wordi][1], level:lvlName, raw_level:level};

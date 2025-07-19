@@ -114,12 +114,13 @@ function loadStream (text) {
 
 
 
-const onVideoEnded = (videoUrl) => {
+const onVideoEnded = (videoUrl, removeLocalStorate = true) => {
     console.log("ENDED")
     isCurrentlyStreamingVideo = false;
     isCurrentlyPlayingVideo = false;
     let videoStats = JSON.parse(localStorage.getItem("videoStats"));
-    localStorage.removeItem(`videoCurrentTime_${btoa(currentPlayingVideo)}`); //reset time
+    if(removeLocalStorate)
+        localStorage.removeItem(`videoCurrentTime_${btoa(currentPlayingVideo)}`); //reset time
     if(!videoStats) videoStats = [];
     //if url already exists, merge
     let exists = false;

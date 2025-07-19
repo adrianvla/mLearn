@@ -10,9 +10,10 @@ import {
 } from "./settings.js";
 import {restartAppAndServer} from "./super.js";
 import {sendRawToAnki} from "./networking.js";
+import {activateLicense, getLicenseName, isLicenseActive} from "./drm/init.js";
 
 
-const IN_SETTINGS_CATEGORY = {"General":["dark_mode","language","install_languages","save","restoreDefaults"],"Behaviour":["known_ease_threshold","blur_words","blur_known_subtitles","blur_amount","immediateFetch","do_colour_known","colour_known","do_colour_codes","show_pos","hover_known_get_from_dictionary","furigana","aside-auto","save","restoreDefaults","pitch_accent"],"Customization":["subtitle_theme","subtitle_font_size","save","restoreDefaults"],"Anki":["use_anki","anki_connect_url","enable_flashcard_creation","flashcards_add_picture","flashcard_deck","save","restoreDefaults"],"About":[]};
+const IN_SETTINGS_CATEGORY = {"General":["language","install_languages","save","restoreDefaults", "activate_license"],"Behaviour":["known_ease_threshold","blur_words","blur_known_subtitles","blur_amount","immediateFetch","do_colour_known","colour_known","do_colour_codes","show_pos","hover_known_get_from_dictionary","furigana","aside-auto","save","restoreDefaults","pitch_accent"],"Customization":["dark_mode","subtitle_theme","subtitle_font_size","save","restoreDefaults"],"Anki":["use_anki","anki_connect_url","enable_flashcard_creation","flashcards_add_picture","flashcard_deck","save","restoreDefaults"],"About":[]};
 const WINDOW_HTML_SETTINGS = `<!doctypehtml><html lang="en"><meta charset="UTF-8"><title>Settings</title><link href="style.css"rel="stylesheet"><style>body{background:#000}</style><body class="settings-body"><div class="nav"><div class="nav-item selected"id="General"><img src="assets/icons/cog.svg"><span>General</span></div><div class="nav-item"id="Behaviour"><img src="assets/icons/subtitles.svg"><span>Behaviour</span></div><div class="nav-item"id="Customization"><img src="assets/icons/palette.svg"><span>Appearance</span></div><div class="nav-item"id="Anki"><img src="assets/icons/cards.svg"><span>Anki</span></div><div class="nav-item"id="About"><img src="assets/icons/document.svg"><span>About</span></div></div><div class="settingsMenuContent"><div class="preview"data-show="Customization"><div class="subtitles"><span class="subtitle_word SUB_W_COL_1">A</span><span class="subtitle_word SUB_W_COL_2">a</span><span class="subtitle_word SUB_W_COL_1">あア</span><span class="subtitle_word SUB_W_COL_2">億</span><span class="subtitle_word SUB_W_COL_1">ыЦ</span><span class="subtitle_word SUB_W_COL_2">è</span></div></div><div class="_1"></div><div class="_2"></div><div class="about"style="display:none"><span id="version-number">PLACEHOLDER</span><br>Developed by <a id="contact">Adrian Vlasov</a><br>Contact: admin@morisinc.net<br><a id="licenses">Licenses</a></div></div>`;
 let isSettingsWindowOpen = false;
 let mustRestart = false;
@@ -65,7 +66,7 @@ window.electron_settings.onOpenSettings((msg)=>{
 
     let new_document = myWindow.document;
     let current_category = msg ? msg : "General";
-
+    let licenseActive = isLicenseActive();
 
 
 
@@ -115,6 +116,7 @@ window.electron_settings.onOpenSettings((msg)=>{
         $('._1', new_document).append($(`<label for="subtitle_theme">Subtitle Theme </label>`));
         $('._1', new_document).append($(`<label for="subtitle_font_size">Subtitle Font Size </label>`));
         $('._1', new_document).append($(`<label for="pitch_accent">Pitch Accent </label>`));
+        $('._1', new_document).append($(`<label for="activate_license">Activate License </label>`));
 
         $('._2', new_document).append($(`<input type="number" id="known_ease_threshold" name="known_ease_threshold" value="${settings.known_ease_threshold}">`));
         $('._2', new_document).append($(`<input type="checkbox" id="blur_words" name="blur_words" ${settings.blur_words ? 'checked' : ''}>`));
@@ -142,6 +144,8 @@ window.electron_settings.onOpenSettings((msg)=>{
         $('._2', new_document).append($(`<input type="checkbox" id="aside-auto" name="aside-auto" ${settings.openAside ? 'checked' : ''}>`));
         $('._2', new_document).append($(`<select id="subtitle_theme" name="subtitle_theme">${SUBTITLE_THEMES.map((theme)=>{return `<option value="${theme}" ${settings.subtitle_theme==theme ? 'selected' : ''}>${theme}</option>`})}</select>`));
         $('._2', new_document).append($(`<input type="number" id="subtitle_font_size" name="subtitle_font_size" value="${settings.subtitle_font_size}">`));
+        $('._2', new_document).append($(`<input type="text" id="activate_license" name="activate_license" value="" placeholder="${licenseActive ? "⋅⋅⋅⋅⋅⋅⋅Activated⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅" : "Enter Key And Press ⏎"}">`));
+        // $('._2',new_document).append('<input type="button" id="activate_license" value="Activate License">');
         $('._2',new_document).append('<input type="button" id="install_languages" value="Install Additional Languages...">');
         $('._2', new_document).append($(`<input type="checkbox" id="pitch_accent" name="pitch_accent" ${settings.showPitchAccent ? 'checked' : ''}>`));
 
@@ -194,6 +198,17 @@ window.electron_settings.onOpenSettings((msg)=>{
             } else {
                 $('.controls-colour-codes',new_document).addClass('hidden');
             }
+        });
+        $('#activate_license', new_document).on('change', async function() {
+            let licenseKey = $('#activate_license', new_document).val().trim();
+            if(licenseKey.length < 10) return;
+            console.log("Activating license", licenseKey);
+            $("#activate_license", new_document).val("");
+            $("#activate_license", new_document).attr("placeholder","⋅⋅⋅⋅⋅⋅Activating⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅");
+            await activateLicense(licenseKey);
+            $("#activate_license", new_document).val("");
+            $("#activate_license", new_document).attr("placeholder","⋅⋅⋅⋅⋅⋅⋅Activated⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅");
+            alert(`License activated! Your license type is: \n${getLicenseName()}`);
         });
         $('#enable_flashcard_creation',new_document).on('change', flashcard_decks);
         // Add an event listener to the button
