@@ -23,7 +23,13 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 setTimeout(()=>{window.electron_settings.isLoaded();},1000);
 
-
+function onSettingsLoaded(){
+    if(settings.openAside){
+        $(".aside").show();
+    }else{
+        $(".aside").hide();
+    }
+}
 
 window.electron_settings.onServerLoad(() => {
     $(".critical-error-c").remove();
@@ -168,11 +174,6 @@ window.electron_settings.onServerLoad(() => {
         e.preventDefault();
         window.electron_settings.showCtxMenu();
     });
-    if(settings.openAside){
-        $(".aside").show();
-    }else{
-        $(".aside").hide();
-    }
 
     window.electron_settings.onOpenAside(()=>{
         $(".aside").show();
@@ -213,4 +214,4 @@ window.electron_settings.onServerStatusUpdate((message) => {
         $(".loading .progress-bar .progress").animate({width:"100%"},300);
     }
 });
-export {isLoaded};
+export {isLoaded,onSettingsLoaded};
