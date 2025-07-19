@@ -109,6 +109,7 @@ const updateFlashcardsAnkiDate = () => {
     saveAlreadyUpdatedInAnki();
 }
 const loadWatchTime = ()=>{
+    //FIXME: strange drag'n'drop bug where the file name is the previous file name. Occurred only once.
     const currentVideo = localStorage.getItem('currentVideo');
     console.log("currentVideo", currentVideo);
     if (currentVideo) {
