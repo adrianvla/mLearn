@@ -16,6 +16,7 @@ import './modules/subtitler.js';
 import './modules/utils.js';
 import './modules/videoUtils.js';
 import './modules/watchTogether.js';
+import './modules/drm/init.js';
 
 
 (async function() {

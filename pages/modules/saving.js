@@ -110,8 +110,10 @@ const updateFlashcardsAnkiDate = () => {
 }
 const loadWatchTime = ()=>{
     const currentVideo = localStorage.getItem('currentVideo');
+    console.log("currentVideo", currentVideo);
     if (currentVideo) {
         const savedTime = localStorage.getItem(`videoCurrentTime_${btoa(currentVideo)}`);
+        console.log("savedTime", savedTime);
         if (savedTime) {
             video.currentTime = parseFloat(savedTime);
             console.log("videoCurrentTime_" + btoa(currentVideo), parseFloat(savedTime));
@@ -124,7 +126,7 @@ window.addEventListener('beforeunload', () => {
     if (currentVideo && isCurrentlyPlayingVideo) {
         localStorage.setItem(`videoCurrentTime_${btoa(currentVideo)}`, video.currentTime);
     }
-    onVideoEnded(currentPlayingVideo);
+    onVideoEnded(currentPlayingVideo, false);
 });
 
 export {saveKnownAdjustment, saveAlreadyUpdatedInAnki, loadKnownAdjustment, loadAlreadyUpdatedInAnki, changeKnownStatus, getKnownStatus, setKnownAdjustment,updateFlashcardsAnkiDate, loadWatchTime}
