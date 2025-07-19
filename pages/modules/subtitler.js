@@ -254,7 +254,7 @@ const modify_sub = async (subtitle) => {
                 html_string += `<div class="${classString}"></div>`;
             }
 
-            if(!(pos === "動詞" && look_ahead_token === "動詞")){ //FIXME: do something with particle accent with verbs, ep 9, maybe use hiragana to query pitch accent?, 17:46
+            if(!(pos === "動詞" && look_ahead_token === "動詞")){
                 //if not a verb, add particle accent
                 let b = !particle_accent;
                 let t = particle_accent;
