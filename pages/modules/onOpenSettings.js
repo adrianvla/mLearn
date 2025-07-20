@@ -208,7 +208,9 @@ window.electron_settings.onOpenSettings((msg)=>{
             await activateLicense(licenseKey);
             $("#activate_license", new_document).val("");
             $("#activate_license", new_document).attr("placeholder","⋅⋅⋅⋅⋅⋅⋅Activated⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅⋅");
-            alert(`License activated! Your license type is: \n${getLicenseName()}`);
+            setTimeout(()=>{
+                alert(`License activated! Your license type is: \n${getLicenseName()}`);
+            },50);
         });
         $('#enable_flashcard_creation',new_document).on('change', flashcard_decks);
         // Add an event listener to the button
