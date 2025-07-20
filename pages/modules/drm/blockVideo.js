@@ -26,7 +26,7 @@ function resetWatchTime() {
     notificationFlag = true;
     saveSettings(); // debug: always save immediately
 }
-// window.resetWatchTime = resetWatchTime;
+window.resetWatchTime = resetWatchTime;
 function setWatchTime(seconds) {
     const today = getTodayDateString();
     settings.video_watch_date = today;
@@ -34,7 +34,7 @@ function setWatchTime(seconds) {
     notificationFlag = true;
     console.log(`Set watch time: ${settings.video_watch_time} seconds for date ${today}`);
 }
-// window.setWatchTime = setWatchTime;
+window.setWatchTime = setWatchTime;
 
 function isWatchLimitExceeded() {
     const today = getTodayDateString();
@@ -49,7 +49,9 @@ function blockVideoIfNeeded() {
         video.pause();
         video.style.filter = "grayscale(1)";
         if(notificationFlag){
-            alert(`You have reached your daily watch limit of 1h. Please come back tomorrow.\n\nIf you want to watch more, please consider upgrading to Pro license.`);
+            setTimeout(()=>{
+                alert(`You have reached your daily watch limit of 1h. Please come back tomorrow.\n\nIf you want to watch more, please consider upgrading to Pro license.`);
+            },50);
             notificationFlag = false; // Prevent multiple alerts
         }
     }
