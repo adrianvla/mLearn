@@ -20,7 +20,7 @@ const manageFiles = async (files) => {
     if (files.length > 0) {
         const file = files[0];
         const fileName = file.name;
-        console.log(file.type);
+        console.log("file.type",file.type);
         if (file.type === 'video/mp4' || fileName.endsWith('mkv')) {
             $("video source")[0].src = URL.createObjectURL(file);
             console.log("set src to", URL.createObjectURL(file));

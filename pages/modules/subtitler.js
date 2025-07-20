@@ -208,7 +208,7 @@ const modify_sub = async (subtitle) => {
         const addPitchAccent = (accent, word_in_letters) => {
             //append to newEl inside an element
             if(settings.language !== "ja") return; //only for japanese
-            if(accent === {}) return;
+            if (accent && Object.keys(accent).length === 0) return;
             if(real_word.length <= 1 || word_in_letters.length <= 1) return; //no pitch accent for single letters
             // if(settings.lang )
             let el = $('<div class="mLearn-pitch-accent"></div>');//we'll draw everything after
@@ -254,7 +254,7 @@ const modify_sub = async (subtitle) => {
                 html_string += `<div class="${classString}"></div>`;
             }
 
-            if(!(pos === "動詞" && look_ahead_token === "動詞")){ //FIXME: do something with particle accent with verbs, ep 9, maybe use hiragana to query pitch accent?, 17:46
+            if(!(pos === "動詞" && look_ahead_token === "動詞")){
                 //if not a verb, add particle accent
                 let b = !particle_accent;
                 let t = particle_accent;

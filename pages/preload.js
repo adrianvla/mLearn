@@ -18,7 +18,10 @@ contextBridge.exposeInMainWorld('electron_settings', {
     makePiP: (size) => ipcRenderer.send('make-pip',size),
     unPiP: () => ipcRenderer.send('make-normal'),
     sendLS: (data) => ipcRenderer.send('send-ls', data),
+    getLicenseType: () => ipcRenderer.send('get-license-type'),
+    activateLicense: (key) => ipcRenderer.send('activate-license',key),
     isWatchingTogether: () => ipcRenderer.send('is-watching-together'),
+    removeLicense: () => ipcRenderer.send('remove-license'),
     watchTogetherSend: (message) => ipcRenderer.send('watch-together-send', message),
     onSettings: (callback) => ipcRenderer.on('settings', (event, settings) => callback(settings)),
     onVersionReceive: (callback) => ipcRenderer.on('version', (event, ver) => callback(ver)),
@@ -36,16 +39,6 @@ contextBridge.exposeInMainWorld('electron_settings', {
     onWatchTogetherLaunch: (callback) => ipcRenderer.on('watch-together', (event, message) => callback(message)),
     onWatchTogetherRequest: (callback) => ipcRenderer.on('watch-together-request', (event, message) => callback(message)),
     onUpdatePills: (callback) => ipcRenderer.on('update-pills', (event, message) => callback(message)),
+    onLicenseGet: (callback) => ipcRenderer.on('license-type', (event, message) => callback(message)),
+    onLicenseActivated: (callback) => ipcRenderer.on('license-activated', (event, message) => callback(message)),
 });
-
-window.addEventListener('DOMContentLoaded', () => {
-    const replaceText = (selector, text) => {
-        const element = document.getElementById(selector);
-        if (element) element.innerText = text
-    }
-
-    for (const dependency of ['chrome', 'node', 'electron']) {
-        replaceText(`${dependency}-version`, process.versions[dependency]);
-    }
-});
-

@@ -1,9 +1,8 @@
-import {addToRecentlyWatched, loadRecentlyWatched} from "./recentlyWatched.js";
+import {loadRecentlyWatched} from "./recentlyWatched.js";
 import {loadAlreadyUpdatedInAnki, loadKnownAdjustment, updateFlashcardsAnkiDate} from "./saving.js";
 import {
     backwardButton,
     forwardButton,
-    playPauseButton,
     progressBar,
     video,
     videoControls,
@@ -12,7 +11,6 @@ import {
 import {saveSettings, settings} from "./settings.js";
 import {addAllFlashcardsToAnki} from "./flashcards.js";
 import {isWatchTogether} from "./watchTogether.js";
-import {currentPlayingVideo} from "./streaming.js";
 
 
 let isLoaded = false;
@@ -23,7 +21,13 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 setTimeout(()=>{window.electron_settings.isLoaded();},1000);
 
-
+function onSettingsLoaded(){
+    if(settings.openAside){
+        $(".aside").show();
+    }else{
+        $(".aside").hide();
+    }
+}
 
 window.electron_settings.onServerLoad(() => {
     $(".critical-error-c").remove();
@@ -168,11 +172,6 @@ window.electron_settings.onServerLoad(() => {
         e.preventDefault();
         window.electron_settings.showCtxMenu();
     });
-    if(settings.openAside){
-        $(".aside").show();
-    }else{
-        $(".aside").hide();
-    }
 
     window.electron_settings.onOpenAside(()=>{
         $(".aside").show();
@@ -213,4 +212,4 @@ window.electron_settings.onServerStatusUpdate((message) => {
         $(".loading .progress-bar .progress").animate({width:"100%"},300);
     }
 });
-export {isLoaded};
+export {isLoaded,onSettingsLoaded};
