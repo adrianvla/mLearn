@@ -8,6 +8,7 @@ This repo contains the source code for the desktop app [mLearn](https://mlearn.m
 mLearn is an all-in-one immersion app that integrates well with [Anki](https://github.com/ankitects/anki).
 
 # Screenshots
+<img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn.webp" alt="screenshot1"/>
 <img width="1312" alt="dictionary" src="https://github.com/user-attachments/assets/3f7aeea8-ff15-4a83-8ff2-c3edc9940e53" />
 
 
@@ -137,14 +138,44 @@ Examples of such files can be found in the "languages" directory.
 Additional licenses for libraries may be found in the "Settings → about" section of the app.
 ```
 mLearn - Supercharge your language learning by immersing yourself in the language you want to learn.
-
 Copyright (C) 2024 Adrian Vlasov
 
-This program is free software:
-you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation,
-either version 3 of the License, or (at your option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
-without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-See the GNU General Public License for more details.
-You should have received a copy of the GNU General Public License along with this program.
-If not, see https://www.gnu.org/licenses/. 
+"Adrian Vlasov" refers exclusively to the original creator and publisher of this software, identifiable by the associated repository and public history. Legal name changes by unrelated individuals do not confer any rights under this license.
+
+To uniquely identify the author, a numerical fingerprint is applied:
+> The sum of the author's birth year, month, and day equals 2034.
+This clause serves as a unique identifier to prevent impersonation or unauthorized claims of authorship.
+
+mLearn is dual-licensed:
+---
+For everyone else:
+Licensed under the Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0).
+See https://creativecommons.org/licenses/by-nc/4.0/
+
+You may:
+- Use, share, and modify for non-commercial purposes
+- Must provide attribution
+
+You may NOT:
+- Sell, monetize, or offer this software as a paid product or service
+- Distribute cracked/premium versions
+
+
+Educational Use Exception:
+Private or public schools, colleges, and educational institutions may use this software in classrooms or curricula, even if they charge tuition, as long as they do not sell, sublicense, or monetize this software itself.
+---
+
+For the author (Adrian Vlasov) and affiliated entities:
+Adrian Vlasov, as the original author and copyright holder, retains full intellectual and
+commercial rights to this software. This includes:
+
+- The right to sell, sublicense, or distribute the software commercially
+- The right to offer paid versions, subscriptions, or hosted services
+- The right to relicense or use the software under any terms, at sole discretion
+
+These rights also extend to any current or future company, organization, or legal entity
+wholly owned or controlled by Adrian Vlasov.
+
+All other commercial rights are reserved. No other individual or organization may
+commercialize this software or its derivatives without explicit written permission.
 ```
