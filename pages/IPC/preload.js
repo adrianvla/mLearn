@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('electron_settings', {
+contextBridge.exposeInMainWorld('mLearnIPC', {
     getSettings: () => ipcRenderer.send('get-settings'),
     getFlashcards: () => ipcRenderer.send('get-flashcards'),
     getLangData: () => ipcRenderer.send('get-lang-data'),

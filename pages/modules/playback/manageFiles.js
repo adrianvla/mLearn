@@ -41,7 +41,7 @@ const manageFiles = async (files) => {
                     height = height * (1200/width);
                     width = 1200;
                 }
-                window.electron_settings.resizeWindow({width: width, height: height});
+                window.mLearnIPC.resizeWindow({width: width, height: height});
             });
         } else if (fileName.endsWith('.srt') || fileName.endsWith('.ass')) {
             console.log('Subtitle file dropped:', fileName);

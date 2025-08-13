@@ -42,9 +42,9 @@ const restartAppAndServer = ()=>{
     //send json
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.send("{}");
-    window.electron_settings.forceRestartApp();
+    window.mLearnIPC.forceRestartApp();
 };
-window.electron_settings.onServerStatusUpdate((status)=>{
+window.mLearnIPC.onServerStatusUpdate((status)=>{
     logInfo(status);
     if(status === "Extracting update"){
         $(".progress").css("width", "50%");

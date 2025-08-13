@@ -30,7 +30,7 @@ const showLanguageInstallationWindow = ()=>{
         $(languageInstallationWindow.document).ready(()=>{
             if(!settings.dark_mode) $(languageInstallationWindow.document.body).addClass("light");
             $(".install-language",languageInstallationWindow.document).click(()=>{
-                window.electron_settings.installLanguage($("input",languageInstallationWindow.document).val());
+                window.mLearnIPC.installLanguage($("input",languageInstallationWindow.document).val());
                 $(".install-language",languageInstallationWindow.document).attr("disabled",true);
                 $(".install-language",languageInstallationWindow.document).text("Installing...");
                 languageInstalledCallbacks.push(()=>{
@@ -55,7 +55,7 @@ const showLanguageInstallationWindow = ()=>{
     });
 };
 
-window.electron_settings.onOpenSettings((msg)=>{
+window.mLearnIPC.onOpenSettings((msg)=>{
     if(isSettingsWindowOpen) return;
     isSettingsWindowOpen = true;
     let myWindow = window.open("", "SettingsWindow", "width=800,height=600");
@@ -164,7 +164,7 @@ window.electron_settings.onOpenSettings((msg)=>{
 
         $("a#contact",new_document).click((e)=>{
             e.preventDefault();
-            window.electron_settings.showContact();
+            window.mLearnIPC.showContact();
         });
         $("a#licenses",new_document).click((e)=>{
             e.preventDefault();
@@ -341,22 +341,22 @@ window.electron_settings.onOpenSettings((msg)=>{
     });
 });
 
-window.electron_settings.onSettingsSaved((e) => {
+window.mLearnIPC.onSettingsSaved((e) => {
     if(mustRestart) restartAppAndServer();
 });
 
-window.electron_settings.getVersion();
-window.electron_settings.onVersionReceive((version) => {
+window.mLearnIPC.getVersion();
+window.mLearnIPC.onVersionReceive((version) => {
     APP_VERSION = version;
 });
 
 
-window.electron_settings.onLanguageInstalled(()=>{
+window.mLearnIPC.onLanguageInstalled(()=>{
     languageInstalledCallbacks.forEach((callback)=>{
         callback();
     });
 });
-window.electron_settings.onLanguageInstallError((mes)=>{
+window.mLearnIPC.onLanguageInstallError((mes)=>{
     languageInstallErrorCallbacks.forEach((callback)=>{
         callback(mes);
     });

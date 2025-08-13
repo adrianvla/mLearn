@@ -97,7 +97,7 @@ const clickAddFlashcardBtn = (uuid) =>{
 };
 window.changeKnownBtnStatus = changeKnownBtnStatus;
 
-window.electron_settings.onUpdatePills((message)=>{
+window.mLearnIPC.onUpdatePills((message)=>{
     const u = JSON.parse(message);
     console.log("Received queued pill updates: ",u);
     u.forEach(async (pair) => {

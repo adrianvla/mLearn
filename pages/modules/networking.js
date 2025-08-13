@@ -79,6 +79,6 @@ function sendRawToAnki(data){
         xhr.send(JSON.stringify(data));
     });
 }
-window.electron_settings.sendLS(localStorage);
+window.mLearnIPC.sendLS(localStorage);
 
 export {tokenise, getCards, getTranslation, sendRawToAnki};
