@@ -1,5 +1,5 @@
 import './blockVideo.js';
-import {saveSettings} from "../settings.js";
+import {saveSettings} from "../settings/settings.js";
 
 let license = 0;
 let licenseActivateCallbacks = [];
@@ -14,7 +14,8 @@ window.electron_settings.onLicenseGet((message) => {
 });
 
 function getLicenseType() {
-    return license;
+    return 1;
+    // return license;
 }
 function isLicenseActive() {
     return license > 0;

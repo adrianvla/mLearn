@@ -1,5 +1,5 @@
-import {playPauseButton, video} from "./elements.js";
-import {currentPlayingVideo, isCurrentlyStreamingVideo} from "./streaming.js";
+import {playPauseButton, video} from "../playback/elements.js";
+import {currentPlayingVideo, isCurrentlyStreamingVideo} from "../playback/streaming.js";
 
 let isWatchTogether = false;
 

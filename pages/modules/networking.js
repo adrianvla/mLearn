@@ -1,4 +1,4 @@
-import {settings} from "./settings.js";
+import {settings} from "./settings/settings.js";
 function tokenise(text){
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();

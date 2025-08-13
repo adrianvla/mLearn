@@ -1,10 +1,10 @@
-import {hoveredWords, hoveredWordsCount, resetHoveredWordsCount, setHoveredWordsCount} from "./subtitler.js";
-import Hls from "../hls.mjs";
+import {hoveredWords, hoveredWordsCount, resetHoveredWordsCount, setHoveredWordsCount} from "../subtitler/subtitler.js";
+import Hls from "../../lib/hls.mjs";
 import {playPauseButton, qualitySelect, video} from "./elements.js";
-import {isWatchTogether} from "./watchTogether.js";
-import {loadWatchTime} from "./saving.js";
+import {isWatchTogether} from "../watch-together/watchTogether.js";
+import {loadWatchTime} from "../stats/saving.js";
 import {currentSubtitleFile} from "./manageFiles.js";
-import {parseSubtitleName} from "./subtitleParsers.js";
+import {parseSubtitleName} from "../subtitler/subtitleParsers.js";
 
 
 let HLSObject = null;

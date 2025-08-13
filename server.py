@@ -355,4 +355,4 @@ def quit():
 
 
 if __name__ == "__main__":
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, log_level="debug")
+    uvicorn.run("server:app", host="0.0.0.0", port=7752, log_level="debug")

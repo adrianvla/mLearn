@@ -1,16 +1,16 @@
-import {saveSettings, settings, TRANSLATABLE, wordFreq} from "./settings.js";
-import {getCards, getTranslation, sendRawToAnki, tokenise} from "./networking.js";
-import {blurWord, isNotAllKana, randomUUID, screenshotVideo, toUniqueIdentifier} from "./utils.js";
-import $ from '../jquery.min.js'
+import {saveSettings, settings, TRANSLATABLE, wordFreq} from "../settings/settings.js";
+import {getCards, getTranslation, sendRawToAnki, tokenise} from "../networking.js";
+import {blurWord, isNotAllKana, randomUUID, screenshotVideo, toUniqueIdentifier} from "../utils.js";
+import $ from '../../lib/jquery.min.js'
 import {findCurrentSub, findSub, lastIndex} from "./subUtils.js";
-import {playPauseButton, progressBar, video} from "./elements.js";
-import {addToRecentlyWatched} from "./recentlyWatched.js";
-import {currentPlayingVideo} from "./streaming.js";
+import {playPauseButton, progressBar, video} from "../playback/elements.js";
+import {addToRecentlyWatched} from "../playback/recentlyWatched.js";
+import {currentPlayingVideo} from "../playback/streaming.js";
 import {addTranslationCard} from "./liveWordTranslator.js";
-import {makeFlashcard} from "./flashcards.js";
+import {makeFlashcard} from "../flashcards/anki.js";
 import {addPills, resetWordUUIDs} from "./pillHtml.js";
-import {changeKnownStatus, getKnownStatus} from "./saving.js";
-import {isWatchTogether} from "./watchTogether.js";
+import {changeKnownStatus, getKnownStatus} from "../stats/saving.js";
+import {isWatchTogether} from "../watch-together/watchTogether.js";
 
 
 

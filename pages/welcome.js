@@ -11,7 +11,7 @@ const restartAppAndServer = ()=>{
     xhr.addEventListener('load', () => {
     });
 
-    xhr.open('POST', "http://127.0.0.1:8000/quit");
+    xhr.open('POST', "http://127.0.0.1:7752/quit");
     //send json
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.send("{}");

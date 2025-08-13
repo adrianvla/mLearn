@@ -1,5 +1,5 @@
-import $ from '../jquery.min.js'
-import {toUniqueIdentifier} from "./utils.js";
+import $ from '../../lib/jquery.min.js'
+import {toUniqueIdentifier} from "../utils.js";
 let asideTimeout = null;
 let alreadyDisplayingCards = {};
 

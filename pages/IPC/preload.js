@@ -2,8 +2,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electron_settings', {
     getSettings: () => ipcRenderer.send('get-settings'),
+    getFlashcards: () => ipcRenderer.send('get-flashcards'),
     getLangData: () => ipcRenderer.send('get-lang-data'),
     saveSettings: (settings) => ipcRenderer.send('save-settings', settings),
+    saveFlashcards: (fc) => ipcRenderer.send('save-flashcards',fc),
     changeTrafficLights: (visibility) => ipcRenderer.send('traffic-lights', { visibility: visibility }),
     resizeWindow: (size) => ipcRenderer.send('changeWindowSize', size),
     showCtxMenu: () => ipcRenderer.send('show-ctx-menu'),
@@ -24,6 +26,7 @@ contextBridge.exposeInMainWorld('electron_settings', {
     removeLicense: () => ipcRenderer.send('remove-license'),
     watchTogetherSend: (message) => ipcRenderer.send('watch-together-send', message),
     onSettings: (callback) => ipcRenderer.on('settings', (event, settings) => callback(settings)),
+    onFlashcards: (callback) => ipcRenderer.on('flashcards-loaded', (event, settings) => callback(settings)),
     onVersionReceive: (callback) => ipcRenderer.on('version', (event, ver) => callback(ver)),
     onLangData: (callback) => ipcRenderer.on('lang-data', (event, data) => callback(data)),
     onSettingsSaved: (callback) => ipcRenderer.on('settings-saved', (event, message) => callback(message)),

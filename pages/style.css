@@ -919,7 +919,7 @@ body.light .settingsMenuContent, body.light .createFlashcardContent{
     padding:20px;
     width:100%;
     height:100%;
-    overflow:auto;
+    overflow:visible;
     align-items: end;
     padding-right:0;
 }
@@ -1338,7 +1338,7 @@ img{
     position: relative;
     color: #aaa;
     font-family: "Helvetica Neue", sans-serif;
-    /*overflow-x: auto;*/
+    gap:10px;
 }
 body:not(.dark) .recently{
     color: #888;
@@ -1514,7 +1514,7 @@ body:not(.dark) .popup{
     opacity:1;
 }
 
-.stats button{
+.stats button, button.button{
     justify-content: center;
     align-items: center;
     border-radius:10px;
@@ -1528,27 +1528,51 @@ body:not(.dark) .popup{
     color:#ccc;
     cursor:pointer;
 }
-.stats button:hover{
+.stats button:hover, button.button:hover{
     background:#222;
     border:1px solid #333;
 }
-.stats button:active{
+.stats button:active, button.button:active{
     background:#111;
     border:1px solid #222;
 }
-body:not(.dark) .stats{
+body:not(.dark) .stats, body:not(.dark) button.button{
     color:#777;
 }
-body:not(.dark) .stats button, body:not(.dark) .stats canvas{
+body:not(.dark) .stats button, body:not(.dark) .stats canvas, body:not(.dark) button.button{
     background:#ccc;
     color:#777;
     border:1px solid #bbb;
 }
-body:not(.dark) .stats button:hover{
+body:not(.dark) .stats button:hover, body:not(.dark) button.button:hover{
     background:#bbb;
     border:1px solid #aaa;
 }
-body:not(.dark) .stats button:active{
+body:not(.dark) .stats button:active, body:not(.dark) button.button:active{
     background:#aaa;
     border:1px solid #999;
+}
+
+button.review-flashcards{
+    z-index:1000;
+}
+
+.col{
+    display:flex;
+    flex-direction:column;
+}
+.recently .col{
+    gap:10px;
+    padding:20px;
+    user-select:none;
+}
+.recently .last-watched .card{
+    margin: 0;
+    cursor: default;
+}
+.recently .last-watched .card:hover{
+    background: transparent;
+}
+.col h3{
+    margin:0;
 }

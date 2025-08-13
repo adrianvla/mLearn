@@ -1,4 +1,4 @@
-import {settings} from "./settings.js";
+import {settings} from "./settings/settings.js";
 
 let restarting = false;
 const restartAppAndServer = ()=>{

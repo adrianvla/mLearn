@@ -1,5 +1,5 @@
-import {settings} from "./settings.js";
-import $ from '../jquery.min.js'
+import {settings} from "./settings/settings.js";
+import $ from '../lib/jquery.min.js'
 
 const show_notification = (m) => {
     let notification = $(`<div class="custom-notification">

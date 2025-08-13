@@ -1,9 +1,3 @@
-import {resetWordUUIDs} from "./modules/pillHtml.js";
-import {settings} from "./modules/settings.js";
-import {makeFlashcard} from "./modules/flashcards.js";
-import {sendRawToAnki} from "./modules/networking.js";
-import {flashcardFunctions} from "./modules/subtitler.js";
-
 const CSSInjectable = `
      #context-menu {
       position: absolute;
