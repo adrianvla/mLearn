@@ -1,5 +1,5 @@
-import {video} from "../elements.js";
-import {settings, saveSettings} from "../settings.js";
+import {video} from "../playback/elements.js";
+import {settings, saveSettings} from "../settings/settings.js";
 import {getLicenseType} from "./init.js";
 
 const MAX_DAILY_WATCH_SECONDS = 3600; // 1 hour

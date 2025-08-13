@@ -1,22 +1,24 @@
-import $ from './jquery.min.js'
+import $ from './lib/jquery.min.js'
 import {
     checkSettings,
     load_lang_data,
     loadSettings,
     parseWordFrequency,
     settings
-} from "./modules/settings.js";
-import "./modules/liveWordTranslator.js";
+} from "./modules/settings/settings.js";
+import "./modules/subtitler/liveWordTranslator.js";
 import "./modules/load.js";
-import "./modules/manageFiles.js";
-import './modules/onOpenSettings.js';
-import './modules/saving.js';
-import './modules/streaming.js';
-import './modules/subtitler.js';
+import "./modules/playback/manageFiles.js";
+import './modules/settings/onOpenSettings.js';
+import './modules/stats/saving.js';
+import './modules/playback/streaming.js';
+import './modules/subtitler/subtitler.js';
 import './modules/utils.js';
-import './modules/videoUtils.js';
-import './modules/watchTogether.js';
+import './modules/playback/videoUtils.js';
+import './modules/watch-together/watchTogether.js';
 import './modules/drm/init.js';
+import './modules/stats/stats.js';
+import './modules/flashcards/init.js';
 
 
 (async function() {

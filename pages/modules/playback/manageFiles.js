@@ -1,7 +1,7 @@
-import {resetHoveredWordsCount, setSubs} from "./subtitler.js";
-import {readSubtitleFile} from "./subUtils.js";
+import {resetHoveredWordsCount, setSubs} from "../subtitler/subtitler.js";
+import {readSubtitleFile} from "../subtitler/subUtils.js";
 import {addToRecentlyWatched} from "./recentlyWatched.js";
-import Hls from "../hls.mjs";
+import Hls from "../../lib/hls.mjs";
 import {
     currentPlayingVideo,
     loadStream,
@@ -10,8 +10,8 @@ import {
     setPlaybackType
 } from "./streaming.js";
 import {playPauseButton, video} from "./elements.js";
-import {loadWatchTime} from "./saving.js";
-import {isLoaded} from "./load.js";
+import {loadWatchTime} from "../stats/saving.js";
+import {isLoaded} from "../load.js";
 
 let currentSubtitleFile = null;
 

@@ -144,7 +144,7 @@ const startWebSocketServer = () => {
         }
 
         if (req.url === '/core.js') {
-            const filePath = path.join(resPath, 'pages', 'core.js');
+            const filePath = path.join(resPath, 'pages', 'tethered', 'core.js');
             if (fs.existsSync(filePath)) {
                 res.writeHead(200, {
                     'Content-Type': 'application/javascript',
@@ -156,9 +156,10 @@ const startWebSocketServer = () => {
                 res.end('File not found');
             }
         } else if (req.url === '/settings.js') {
+            let settingsToSend = loadSettings();
             let s = "";
             s += `globalThis.lang_data = ${JSON.stringify(loadLangData())};\n`;
-            s += `globalThis.settings = ${JSON.stringify(loadSettings())};\n`;
+            s += `globalThis.settings = ${JSON.stringify(settingsToSend)};\n`;
             s += `globalThis.lS = ${JSON.stringify(lS)};\n`;
             res.writeHead(200, {
                 'Content-Type': 'application/javascript',

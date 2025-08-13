@@ -8,6 +8,7 @@ This repo contains the source code for the desktop app [mLearn](https://mlearn.m
 mLearn is an all-in-one immersion app that integrates well with [Anki](https://github.com/ankitects/anki).
 
 # Screenshots
+<img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn.webp" alt="screenshot1"/>
 <img width="1312" alt="dictionary" src="https://github.com/user-attachments/assets/3f7aeea8-ff15-4a83-8ff2-c3edc9940e53" />
 
 

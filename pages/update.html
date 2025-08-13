@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>Updater</title>
     <link rel="stylesheet" href="flashcard_window.css">
-    <script src="jquery.min.js"></script>
+    <script src="lib/jquery.min.js"></script>
 </head>
 <body class="welcome-window">
 <h1 class="welcome">Updating...</h1>
@@ -38,7 +38,7 @@ const restartAppAndServer = ()=>{
     xhr.addEventListener('load', () => {
     });
 
-    xhr.open('POST', "http://127.0.0.1:8000/quit");
+    xhr.open('POST', "http://127.0.0.1:7752/quit");
     //send json
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.send("{}");

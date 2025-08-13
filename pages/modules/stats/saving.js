@@ -1,6 +1,6 @@
-import {video} from "./elements.js";
-import {getCards, sendRawToAnki} from "./networking.js";
-import {currentPlayingVideo, isCurrentlyPlayingVideo, onVideoEnded} from "./streaming.js";
+import {video} from "../playback/elements.js";
+import {getCards, sendRawToAnki} from "../networking.js";
+import {currentPlayingVideo, isCurrentlyPlayingVideo, onVideoEnded} from "../playback/streaming.js";
 
 let knownAdjustment = {};
 let alreadyUpdatedInAnki = {};
@@ -18,6 +18,7 @@ const loadKnownAdjustment = () => {
     let data = localStorage.getItem("knownAdjustment");
     if(data){
         knownAdjustment = JSON.parse(data);
+        window.knownAdjustment = knownAdjustment;
     }else{
         knownAdjustment = {};
     }
@@ -130,4 +131,4 @@ window.addEventListener('beforeunload', () => {
     onVideoEnded(currentPlayingVideo, false);
 });
 
-export {saveKnownAdjustment, saveAlreadyUpdatedInAnki, loadKnownAdjustment, loadAlreadyUpdatedInAnki, changeKnownStatus, getKnownStatus, setKnownAdjustment,updateFlashcardsAnkiDate, loadWatchTime}
+export {saveKnownAdjustment, saveAlreadyUpdatedInAnki, loadKnownAdjustment, loadAlreadyUpdatedInAnki, changeKnownStatus, getKnownStatus, setKnownAdjustment,updateFlashcardsAnkiDate, loadWatchTime, knownAdjustment}

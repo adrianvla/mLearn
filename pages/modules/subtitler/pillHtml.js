@@ -1,8 +1,8 @@
-import {changeKnownStatus, getKnownStatus, saveKnownAdjustment, setKnownAdjustment} from "./saving.js";
-import {settings, wordFreq} from "./settings.js";
-import {toUniqueIdentifier} from "./utils.js";
+import {changeKnownStatus, getKnownStatus, saveKnownAdjustment, setKnownAdjustment} from "../stats/saving.js";
+import {settings, wordFreq} from "../settings/settings.js";
+import {toUniqueIdentifier} from "../utils.js";
 import {flashcardFunctions} from "./subtitler.js";
-import {countFreq} from "./wordFreq.js";
+import {countFreq} from "../stats/wordFreq.js";
 
 let wordUUIDs = {};
 
