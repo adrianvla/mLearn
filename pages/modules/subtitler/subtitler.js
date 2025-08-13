@@ -592,14 +592,14 @@ const modify_sub = async (subtitle) => {
     $(".subtitles").removeClass("not-shown");
 
     if(isWatchTogether){
-        window.electron_settings.watchTogetherSend({action:"subtitles",subtitle:$(".subtitles").html(), size:settings.subtitle_font_size});
+        window.mLearnIPC.watchTogetherSend({action:"subtitles",subtitle:$(".subtitles").html(), size:settings.subtitle_font_size});
     }
 };
 
-window.electron_settings.onContextMenuCommand((cmd)=>{
+window.mLearnIPC.onContextMenuCommand((cmd)=>{
     switch(cmd){
         case 'copy-sub':
-            window.electron_settings.writeToClipboard(lastSub.text);
+            window.mLearnIPC.writeToClipboard(lastSub.text);
             break;
     }
 });

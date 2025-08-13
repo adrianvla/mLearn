@@ -5,10 +5,10 @@ let license = 0;
 let licenseActivateCallbacks = [];
 
 document.addEventListener('DOMContentLoaded', () => {
-    window.electron_settings.getLicenseType();
+    window.mLearnIPC.getLicenseType();
 });
 
-window.electron_settings.onLicenseGet((message) => {
+window.mLearnIPC.onLicenseGet((message) => {
     license = message;
     console.log("%cLicense type received:", "color:lightblue", license);
 });
@@ -23,12 +23,12 @@ function isLicenseActive() {
 
 function activateLicense(key){
     return new Promise((resolve, reject) => {
-        window.electron_settings.activateLicense(key);
+        window.mLearnIPC.activateLicense(key);
         licenseActivateCallbacks.push({resolve, reject});
     });
 }
 
-window.electron_settings.onLicenseActivated((message) => {
+window.mLearnIPC.onLicenseActivated((message) => {
     license = message.license;
     for(let i = 0; i < licenseActivateCallbacks.length; i++) {
         const callback = licenseActivateCallbacks[i];
@@ -61,7 +61,7 @@ function removeLicense() {
     settings.MLEARN_LICENSE_SECRET = "";
     settings.licenseKey = "";
     saveSettings();
-    window.electron_settings.removeLicense();
+    window.mLearnIPC.removeLicense();
 }
 window.removeLicense = removeLicense;
 

@@ -43,18 +43,18 @@ const checkSettings = () => {
 
 const saveSettings = async () => {
     //send settings
-    window.electron_settings.saveSettings(settings);
+    window.mLearnIPC.saveSettings(settings);
 };
 const getSettings = async () => new Promise((resolve) => {
-    window.electron_settings.getSettings();
-    window.electron_settings.onSettings((settings) => {
+    window.mLearnIPC.getSettings();
+    window.mLearnIPC.onSettings((settings) => {
         resolve(settings);
     });
 });
 
 const getLangData = async () => new Promise((resolve) => {
-    window.electron_settings.getLangData();
-    window.electron_settings.onLangData((lang_data) => {
+    window.mLearnIPC.getLangData();
+    window.mLearnIPC.onLangData((lang_data) => {
         //set supported languages
         supported_languages = Object.keys(lang_data);
         resolve(lang_data);

@@ -103,7 +103,7 @@ video.addEventListener("seeked", () => {
     // Resume tracking from the new position
     lastTimeUpdate = video.currentTime;
 });
-window.electron_settings.onLicenseActivated(m=>{
+window.mLearnIPC.onLicenseActivated(m=>{
     if(m.license < 1) return;
     resetWatchTime();
     video.style.filter = "none";

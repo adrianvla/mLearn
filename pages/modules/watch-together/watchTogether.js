@@ -6,13 +6,13 @@ let isWatchTogether = false;
 
 
 
-window.electron_settings.onWatchTogetherLaunch((e) => {
+window.mLearnIPC.onWatchTogetherLaunch((e) => {
     isWatchTogether = true;
 });
-window.electron_settings.onServerLoad(()=>{
-    window.electron_settings.onWatchTogetherRequest((data)=>{
+window.mLearnIPC.onServerLoad(()=>{
+    window.mLearnIPC.onWatchTogetherRequest((data)=>{
         if(isWatchTogether && isCurrentlyStreamingVideo){
-            window.electron_settings.watchTogetherSend({action:"request-response", url:currentPlayingVideo, time:video.currentTime, video_playing:!video.paused});
+            window.mLearnIPC.watchTogetherSend({action:"request-response", url:currentPlayingVideo, time:video.currentTime, video_playing:!video.paused});
         }
     });
 });
@@ -20,9 +20,9 @@ window.electron_settings.onServerLoad(()=>{
 const playPause = () => {
     if(!isWatchTogether) return;
     if (video.paused)
-        window.electron_settings.watchTogetherSend({action:"play", time:video.currentTime});
+        window.mLearnIPC.watchTogetherSend({action:"play", time:video.currentTime});
     else
-        window.electron_settings.watchTogetherSend({action:"pause", time:video.currentTime});
+        window.mLearnIPC.watchTogetherSend({action:"pause", time:video.currentTime});
 
 };
 playPauseButton.addEventListener('click', playPause);

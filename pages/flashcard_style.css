@@ -428,14 +428,28 @@ body:not(.dark) .nav .btn svg{
     cursor:pointer;
     opacity:1;
     transition: background 0.05s, opacity 0.05s;
+    position:relative;
+}
+.buttons .btn::after{
+    content:attr(data-content);
+    position:absolute;
+    top:-1.5em;
+    left:50%;
+    transform:translateX(-50%);
+    color:#ccc;
+    font-size:0.5em;
+    white-space: nowrap;
+}
+body:not(.dark) .buttons .btn::after{
+    color:#111;
 }
 body:not(.dark) .buttons .btn{
     color:#eee;
 }
-.hard{
+.hard,.again{
     background: var(--red);
 }
-body:not(.dark) .hard{
+body:not(.dark) .hard, body:not(.dark) .again{
     background: var(--dim-red);
 }
 .medium{
@@ -451,6 +465,9 @@ body:not(.dark) .easy{
     background: var(--dim-green);
 }
 .buttons .btn.already-known{
+    background: var(--blue);
+}
+.buttons .btn.show-answer{
     background: var(--blue);
 }
 body:not(.dark) .buttons .btn.already-known{
@@ -475,4 +492,26 @@ body:not(.dark) .buttons .btn.already-known{
 }
 .progress-c .progress-bar > div{
     height:100%;
+}
+.p{
+    color:#ccc;
+    font-family: "Helvetica Neue", "Arial", sans-serif;
+    font-size:1.5em;
+    font-weight: bold;
+    padding:10px;
+    display:flex;
+    gap:10px;
+}
+.actual-words{
+    display:flex;
+    flex-direction: column;
+    gap:10px;
+    padding:10px;
+}
+.actual-words h1{
+    margin: 0;
+}
+
+rt{
+    position:relative;
 }

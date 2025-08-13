@@ -34,7 +34,7 @@ function loadStream (text) {
     currentPlayingVideo = text;
 
     if(isWatchTogether){
-        window.electron_settings.watchTogetherSend({action:"start", url:text});
+        window.mLearnIPC.watchTogetherSend({action:"start", url:text});
     }
 
     $("#video-quality").removeClass("hidden");
@@ -52,9 +52,9 @@ function loadStream (text) {
                 height = height * (1200 / width);
                 width = 1200;
             }
-            window.electron_settings.resizeWindow({width: width, height: height});
+            window.mLearnIPC.resizeWindow({width: width, height: height});
             if(isWatchTogether){
-                window.electron_settings.watchTogetherSend({action:"play", time:video.currentTime}); //synchronize with client
+                window.mLearnIPC.watchTogetherSend({action:"play", time:video.currentTime}); //synchronize with client
             }
         });
         const levels = HLSObject.levels;
