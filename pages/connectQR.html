@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Connect</title>
+    <style>
+        body{
+            display:flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background:rgb(24, 24, 26);
+            color:#ccc;
+            font-family:"Helvetica Neue", sans-serif;
+            flex-direction:column;
+            gap:10px;
+        }
+        span{
+            font-size:25px;
+        }
+        #qrcode{
+            display:flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+            border:10px solid #fff;
+        }
+        button{
+            padding:10px;
+            border-radius:10px;
+            background: rgb(27, 33, 44);
+            color:#fff;
+            border:2px solid rgb(29, 42, 57);
+            font-size:20px;
+            cursor:pointer;
+        }
+
+        video{
+            border-radius: 10px;
+            margin:10px;
+            width:100%;
+            max-width:calc(100vw - 20px) !important;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <span>Loading...</span>
+    <button style="display:none;">Continue</button>
+    <div id="qrcode" style="display:none;"></div>
+    <video id="qr-video" style="width:100%;max-width:400px;display:none;" autoplay></video>
+</body>
+</html>

@@ -181,3 +181,8 @@ export const attemptFlashcardCreation = async (word, content) =>{
 })();
 
 export const Flashcards = () => flashcards;
+
+export function overwriteFlashcards(newFlashcards){
+    flashcards = newFlashcards;
+    saveFlashcards();
+}
