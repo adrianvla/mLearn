@@ -1,6 +1,6 @@
 import J from '../../../lib/jquery.min.js';
 import {getDocument} from "./window.js";
-import {settings} from "../../settings/settings.js";
+import {settings, wordFreq} from "../../settings/settings.js";
 import {isNotAllKana} from "../../utils.js";
 export const $ = s=>J(s,getDocument());
 
@@ -85,14 +85,16 @@ export function displayFlashcard(card){
     /* Flashcards look like this:
         {
             "content":{
-                "word":"",
+                "word":"感じ",
                 "pitchAccent":0,
-                "definition":"",
-                "pronunciation":"",
-                "example":"",
-                "exampleMeaning":"",
-                "screenshotUrl":"",
-                "pos": ""
+                "pronunciation":"かんじ",
+                "translation":"Feeling, sense, impression",
+                "definition":"HTML BEGIN CONTENT",
+                "example":"こういう感じだった",
+                "exampleMeaning":"MEANING",
+                "screenshotUrl":"no",
+                "pos": "名詞",
+                "level": -1
             },
             "dueDate":1755100026393,
             "lastReviewed":1755100026393,
@@ -100,12 +102,15 @@ export function displayFlashcard(card){
             "reviews":0
         }
     * */
-    $(".answer").hide().html(card.content.definition);
+    $(".answer").hide().html(card.content.translation);
     $(".question").html(card.content.word);
     $(".sentence").html(card.content.example);
     $(".definition").html(card.content.definition);
     $(".card-item:has(.definition)").hide();
     $(".example .translation p").html("");
+    if(card.content.word in wordFreq)
+        $(".pill").html(wordFreq[card.content.word].level).attr("level",card.content.level).show();
+    else $(".pill").hide();
 }
 
 export function revealAnswer(card){

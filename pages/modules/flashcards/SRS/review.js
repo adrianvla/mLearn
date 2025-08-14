@@ -86,24 +86,15 @@ function dateToInString(date){
 
 export const review = () => {
     let fs = sortByDueDate(Flashcards());
-    /* Flashcards look like this:
-        {
-            "content":{
-                "word":"",
-                "pitchAccent":0,
-                "pronunciation":"",
-                "definition":"",
-                "example":"",
-                "exampleMeaning":"",
-                "screenshotUrl":"",
-                "pos": ""
-            },
-            "dueDate":1755100026393,
-            "lastReviewed":1755100026393,
-            "ease":0,
-            "reviews":0
+
+    let flashcardsToGoThrough = 0;
+    function getFlashcardsLeft(){
+        for(flashcardsToGoThrough = 0;flashcardsToGoThrough < fs.flashcards.length;flashcardsToGoThrough++) {
+            if (fs.flashcards[flashcardsToGoThrough].dueDate > Date.now()) break;
         }
-    * */
+    }
+    getFlashcardsLeft();
+
     function displayLast(){
         fs = sortByDueDate(fs);
         $(".btn.again,.btn.hard,.btn.medium,.btn.easy,.btn.already-known").hide();
@@ -112,6 +103,8 @@ export const review = () => {
             alert("No flashcards to review");
             return;
         }
+        getFlashcardsLeft();
+        $(".p .to-review").text(flashcardsToGoThrough);
         if(fs.flashcards[0].dueDate <= Date.now()){
             displayFlashcard(fs.flashcards[0]);
             $(".btn.again").attr("data-content",`${dateToInString(getAnticipatedDueDate(fs.flashcards[0], 0).dueDate)}`);
