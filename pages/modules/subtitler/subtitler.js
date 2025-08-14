@@ -11,6 +11,7 @@ import {makeFlashcard} from "../flashcards/anki.js";
 import {addPills, resetWordUUIDs} from "./pillHtml.js";
 import {changeKnownStatus, getKnownStatus} from "../stats/saving.js";
 import {isWatchTogether} from "../watch-together/watchTogether.js";
+import {attemptFlashcardCreation, trackWordAppearance} from "../flashcards/storage.js";
 
 
 
@@ -137,8 +138,30 @@ const modify_sub = async (subtitle) => {
                 return;
             }
             let translation_data = await getTranslation(word);
-            console.log("Translation data for word: "+word, translation_data);
             if(translation_data.data.length == 0) return;
+            let flashcardContent = {
+                word:word,
+                pitchAccent:translation_data.data[2][2]?.pitches[0]?.position,
+                pronunciation:translation_data.data[0].reading,
+                translation:translation_data.data[0]?.definitions,
+                definition:translation_data.data[1]?.definitions,
+                example:"NO EXAMPLE FOUND, AN ERROR OCCURED",
+                exampleMeaning:"",
+                screenshotUrl: screenshotVideo(),
+                pos: pos,
+                level: word in wordFreq ? wordFreq[word].raw_level : -1,
+            };
+            {
+                const $iframe = $("iframe");
+                $iframe[0].contentWindow.document.body.innerHTML = $(".subtitles").html();
+                //remove each .subtitle_hover element
+                $iframe.contents().find(".subtitle_hover").remove();
+                //remove each .subtitle_word element
+                $iframe.contents().find(".subtitle_word.word_"+uuid).addClass("defined");
+                flashcardContent.example = $iframe[0].contentWindow.document.body.innerHTML;
+                $iframe[0].contentWindow.document.body.innerHTML = "";
+            }
+            console.log("Translation data for word: "+word, translation_data);
             if(settings.openAside){
                 //force fetch the word from the dictionary
                 doAppend = true;
@@ -182,6 +205,7 @@ const modify_sub = async (subtitle) => {
                     addPitchAccent(translation_data.data[2], translation_data.data[0].reading); //dict form and conjugated form got the same length in the tokenizer
                 }
             }
+            attemptFlashcardCreation(word,flashcardContent);
         };
         const addFurigana = (reading_html) => {
             let reading_text = reading_html;
@@ -484,6 +508,7 @@ const modify_sub = async (subtitle) => {
                 doAppendHoverLazy = true;
                 newEl.attr("known","false");
                 newEl.on("customLoaded", cardNotFound); //intentionally not awaited, parallelized.
+                trackWordAppearance(word);
             }else{
                 //compare ease
                 let current_card = card_data.cards[0];

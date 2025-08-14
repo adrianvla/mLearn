@@ -43,7 +43,8 @@ h1{
     font-family: "Helvetica Neue", "Arial", sans-serif;
     padding-bottom: 20px;
     min-width: 500px;
-    max-width: 700px
+    max-width: 700px;
+    position:relative;
 }
 
 body:not(.dark) .card-c {
@@ -189,7 +190,9 @@ body:not(.dark) .card-c .pitch-accent-high div, body:not(.dark) .card-c .pitch-a
     border: 1px solid #444;
     box-sizing: border-box;
     transition: border 0.2s;
-    min-width: 400px
+    min-width: 400px;
+    max-height:50vh;
+    overflow-y: auto;
 }
 
 body:not(.dark) .card-c .definition {
@@ -501,6 +504,7 @@ body:not(.dark) .buttons .btn.already-known{
     padding:10px;
     display:flex;
     gap:10px;
+    white-space: nowrap;
 }
 .actual-words{
     display:flex;
@@ -514,4 +518,90 @@ body:not(.dark) .buttons .btn.already-known{
 
 rt{
     position:relative;
+}
+
+
+.pill {
+    position:absolute;
+    left:10px;
+    top:10px;
+    font-size: 1.2em;
+    font-weight:bold;
+    padding: 5px;
+    text-align: center;
+    padding-inline:10px;
+    border-radius: 10px;
+    display:flex;
+    justify-content: center;
+    align-items: center;
+    color: rgb(255, 60, 170);
+    background-color: rgb(255, 223, 239);
+    box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
+    z-index:1;
+}
+.pill .icon{
+    width:max-content;
+    height:max-content;
+    display:flex;
+    justify-content: center;
+    align-items: center;
+    margin-right:5px;
+}
+.pill .icon img{
+    width: 20px;
+    height: 20px;
+}
+.pill-btn{
+    cursor: pointer;
+    user-select: none;
+}
+body.dark .pill{
+    box-shadow: rgba(50, 50, 93, 0.10) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+.pill[level="5"] {
+    color: rgb(255, 60, 252);
+    background-color: rgb(254, 223, 255);
+}
+.subtitle_word .frequency[level="5"] .star, .pill[level="5"] img{
+    filter: hue-rotate(273deg) saturate(200%) brightness(170%);
+    opacity:0.9;
+}
+
+.pill[level="4"], .pill.orange {
+    color: rgb(255, 141, 60);
+    background-color: rgb(255, 236, 223);
+}
+.subtitle_word .frequency[level="4"] .star, .pill[level="4"] img, .pill.orange img{
+    filter: hue-rotate(60deg) saturate(200%) brightness(170%);
+    opacity:0.9;
+}
+
+.pill[level="3"], .pill.green{
+    color: rgb(66, 214, 49);
+    background-color: rgb(219, 243, 213);
+}
+.subtitle_word .frequency[level="3"] .star, .pill[level="3"] img, .pill.green img{
+    filter: hue-rotate(113.82deg) saturate(200%) brightness(150%);
+    opacity:0.9;
+}
+
+.pill[level="2"], .pill.blue {
+    color: rgb(60, 145, 255);
+    background-color: rgb(223, 244, 255);
+}
+.subtitle_word .frequency[level="2"] .star, .pill[level="2"] img, .pill.blue img{
+    filter: hue-rotate(214deg) saturate(200%) brightness(170%);
+    opacity:0.9;
+}
+
+.pill[level="1"], .pill.red {
+    color: rgb(255, 60, 89);
+    background-color: rgb(255, 223, 228);
+}
+.subtitle_word .frequency[level="1"] .star, .pill[level="1"] img, .pill.red img{
+    filter: hue-rotate(350deg) saturate(200%) brightness(170%);
+    opacity:0.9;
+}
+body.dark .pill{
+    filter: invert(1) hue-rotate(180deg) saturate(100%) saturate(200%);
 }
