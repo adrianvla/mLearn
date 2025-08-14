@@ -1,6 +1,7 @@
 import {Flashcards, saveFlashcards} from "../storage.js";
 import {$, displayFlashcard, revealAnswer} from "../front-end/display.js";
 import {closeWindow, getDocument} from "../front-end/window.js";
+import {openConnection} from "../connect/openConnection.js";
 
 function sortByDueDate(fs) {
     fs.flashcards.sort((a, b) => a.dueDate - b.dueDate);
@@ -98,6 +99,7 @@ export const review = () => {
     function displayLast(){
         fs = sortByDueDate(fs);
         $(".btn.again,.btn.hard,.btn.medium,.btn.easy,.btn.already-known").hide();
+        $(".btn.show-answer").show();
         if(fs.flashcards.length === 0) { //TODO: change this
             closeWindow();
             alert("No flashcards to review");
@@ -173,5 +175,7 @@ export const review = () => {
     });
     $(".btn.bin").on('click',()=>$(".btn.already-known").click());
     $(".btn.close").on('click',closeWindow);
+
+    $(".btn.connect").on('click',openConnection);
 
 };
