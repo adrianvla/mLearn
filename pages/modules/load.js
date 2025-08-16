@@ -1,31 +1,35 @@
-import {addToRecentlyWatched, loadRecentlyWatched} from "./recentlyWatched.js";
-import {loadAlreadyUpdatedInAnki, loadKnownAdjustment, updateFlashcardsAnkiDate} from "./saving.js";
+import {loadRecentlyWatched} from "./playback/recentlyWatched.js";
+import {loadAlreadyUpdatedInAnki, loadKnownAdjustment, updateFlashcardsAnkiDate} from "./stats/saving.js";
 import {
     backwardButton,
     forwardButton,
-    playPauseButton,
     progressBar,
     video,
     videoControls,
     volumeSlider
-} from "./elements.js";
-import {saveSettings, settings} from "./settings.js";
-import {addAllFlashcardsToAnki} from "./flashcards.js";
-import {isWatchTogether} from "./watchTogether.js";
-import {currentPlayingVideo} from "./streaming.js";
+} from "./playback/elements.js";
+import {saveSettings, settings} from "./settings/settings.js";
+import {addAllFlashcardsToAnki} from "./flashcards/anki.js";
+import {isWatchTogether} from "./watch-together/watchTogether.js";
 
 
 let isLoaded = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     loadRecentlyWatched();
-    window.electron_settings.isLoaded();
+    window.mLearnIPC.isLoaded();
 });
-setTimeout(()=>{window.electron_settings.isLoaded();},1000);
+setTimeout(()=>{window.mLearnIPC.isLoaded();},1000);
 
+function onSettingsLoaded(){
+    if(settings.openAside){
+        $(".aside").show();
+    }else{
+        $(".aside").hide();
+    }
+}
 
-
-window.electron_settings.onServerLoad(() => {
+window.mLearnIPC.onServerLoad(() => {
     $(".critical-error-c").remove();
     $(".loading").addClass("not-shown");
 
@@ -34,7 +38,7 @@ window.electron_settings.onServerLoad(() => {
     if(isLoaded) return;
     isLoaded = true;
     console.log("Server loaded");
-    window.electron_settings.isWatchingTogether();
+    window.mLearnIPC.isWatchingTogether();
     loadKnownAdjustment();
     loadAlreadyUpdatedInAnki();
 // document.addEventListener('DOMContentLoaded', () => {
@@ -73,7 +77,7 @@ window.electron_settings.onServerLoad(() => {
         const time = (progressBar.value / 1000) * video.duration;
         video.currentTime = time;
         if(isWatchTogether) {
-            window.electron_settings.watchTogetherSend({action: "sync", time: time});
+            window.mLearnIPC.watchTogetherSend({action: "sync", time: time});
         }
     });
 
@@ -145,12 +149,12 @@ window.electron_settings.onServerLoad(() => {
     const showControls = () => {
         videoControls.classList.add('visible');
         document.body.classList.remove('hide-cursor');
-        window.electron_settings.changeTrafficLights(true);
+        window.mLearnIPC.changeTrafficLights(true);
         clearTimeout(hideControlsTimeout);
         hideControlsTimeout = setTimeout(() => {
             videoControls.classList.remove('visible');
             document.body.classList.add('hide-cursor');
-            window.electron_settings.changeTrafficLights(false);
+            window.mLearnIPC.changeTrafficLights(false);
         }, 2000); // Hide controls after 2 seconds of inactivity
     };
 
@@ -166,15 +170,10 @@ window.electron_settings.onServerLoad(() => {
 
     window.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        window.electron_settings.showCtxMenu();
+        window.mLearnIPC.showCtxMenu();
     });
-    if(settings.openAside){
-        $(".aside").show();
-    }else{
-        $(".aside").hide();
-    }
 
-    window.electron_settings.onOpenAside(()=>{
+    window.mLearnIPC.onOpenAside(()=>{
         $(".aside").show();
         settings.openAside = true;
         saveSettings();
@@ -194,7 +193,7 @@ window.electron_settings.onServerLoad(() => {
     });
 
 
-    window.electron_settings.onContextMenuCommand((cmd)=>{
+    window.mLearnIPC.onContextMenuCommand((cmd)=>{
         switch(cmd){
             case 'sync-subs':
                 $(".sync-subs").removeClass("not-shown");
@@ -204,7 +203,7 @@ window.electron_settings.onServerLoad(() => {
     });
 });
 
-window.electron_settings.onServerStatusUpdate((message) => {
+window.mLearnIPC.onServerStatusUpdate((message) => {
     if(message.includes("Waiting for application startup.")){
         $("#status-update").html("Waiting for Anki");
         $(".loading .progress-bar .progress").animate({width:"50%"},300);
@@ -213,4 +212,4 @@ window.electron_settings.onServerStatusUpdate((message) => {
         $(".loading .progress-bar .progress").animate({width:"100%"},300);
     }
 });
-export {isLoaded};
+export {isLoaded,onSettingsLoaded};

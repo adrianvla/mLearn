@@ -1,14 +1,14 @@
 import {loadStream, playbackType} from "./streaming.js";
-import $ from '../jquery.min.js';
+import $ from '../../lib/jquery.min.js';
 import {currentSubtitleFile} from "./manageFiles.js";
-import {parseSubtitleName} from "./subtitleParsers.js";
+import {parseSubtitleName} from "../subtitler/subtitleParsers.js";
 
 const loadRecentlyWatched = () => {
     const recentlyWatched = localStorage.getItem('recentlyWatched');
     if (recentlyWatched) {
         JSON.parse(recentlyWatched).forEach(item => {
             console.log("Loading recently watched item:", item);
-            if(!item.screenshotUrl || item.screenshotUrl == "data:," || !item.name) return; // Skip if videoUrl or screenshotUrl is missing
+            if(!item.screenshotUrl || item.screenshotUrl === "data:," || !item.name) return; // Skip if videoUrl or screenshotUrl is missing
             let appendable = $(`<div class="card">
                     <img src="${item.screenshotUrl}">
                     <p>${item.name ? item.name : ""}</p>
@@ -16,17 +16,29 @@ const loadRecentlyWatched = () => {
             appendable.click(()=>{
                 loadStream(item.videoUrl);
             });
-            $('.recently-c .recently .cards').append(appendable);
+            $('.recently-c .recently .cards.rec-watched-list').append(appendable);
         });
+    }
+    let lastVideo = localStorage.getItem('lastVideo');
+    if (lastVideo) {
+        lastVideo = JSON.parse(lastVideo);
+        $(".recently-c, .last-watched").show();
+        $('.recently-c .recently h3.last-watched-text').text(`Last watched:`);
+        $('.recently-c .recently h3.last-watched-content').text(lastVideo?.name);
+        $('.recently-c .recently .cards.last-watched').append(`<div class="card"><img src="${lastVideo?.screenshotUrl}"/></div>`);
     }else{
-        $(".recently-c").hide();
+        $(".last-watched").hide();
+    }
+    if(!recentlyWatched && !lastVideo) {
+        $(".recently-c h1, .recently-c .rec-watched-list").hide();
     }
 };
 
 const addToRecentlyWatched = (videoUrl) => {
-    console.log("Adding to recently watched");
-    if(playbackType === "local") return;
-    console.log("Adding to recently watched 2");
+    let findName;
+    if(videoUrl.includes("://")) findName = parseSubtitleName(currentSubtitleFile);
+    else findName = parseSubtitleName(videoUrl);
+    console.log("Adding to recently watched", findName);
     const recentlyWatched = localStorage.getItem('recentlyWatched');
     let recentlyWatchedArray = recentlyWatched ? JSON.parse(recentlyWatched) : [];
 
@@ -45,6 +57,8 @@ const addToRecentlyWatched = (videoUrl) => {
     // Convert the canvas to an image URL
     const screenshotUrl = canvas.toDataURL('image/png');
 
+    localStorage.setItem('lastVideo', JSON.stringify({name:findName, screenshotUrl }));
+    if(playbackType === "local") return;
     // Check if the video URL is already in the array
     const existingIndex = recentlyWatchedArray.findIndex(item => item.videoUrl === videoUrl);
 

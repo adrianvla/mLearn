@@ -22,16 +22,17 @@ const DEFAULT_SETTINGS = {
     "furigana":true,
     "enable_flashcard_creation":true,
     "flashcard_deck":null,
-    "getCardUrl" : "http://127.0.0.1:8000/getCard",
-    "tokeniserUrl" : "http://127.0.0.1:8000/tokenize",
-    "getTranslationUrl" : "http://127.0.0.1:8000/translate",
-    "ankiUrl" : "http://127.0.0.1:8000/fwd-to-anki",
+    "getCardUrl" : "http://127.0.0.1:7752/getCard",
+    "tokeniserUrl" : "http://127.0.0.1:7752/tokenize",
+    "getTranslationUrl" : "http://127.0.0.1:7752/translate",
+    "ankiUrl" : "http://127.0.0.1:7752/fwd-to-anki",
     "ankiConnectUrl": "http://127.0.0.1:8765",
     "openAside":false,
     "subsOffsetTime":0,
     "immediateFetch":false,
     "subtitleTheme":"shadow",
-    "subtitle_font_size":40
+    "subtitle_font_size":40,
+    "timeWatched":0
 };
 
 const saveSettings = (settings) => {

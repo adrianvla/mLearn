@@ -1,5 +1,5 @@
-import {settings} from "./settings.js";
-import $ from '../jquery.min.js'
+import {settings} from "./settings/settings.js";
+import $ from '../lib/jquery.min.js'
 
 const show_notification = (m) => {
     let notification = $(`<div class="custom-notification">
@@ -92,7 +92,7 @@ const parseTime = (timeString,type) => {
 }
 
 
-window.electron_settings.onServerCriticalError((message) => {
+window.mLearnIPC.onServerCriticalError((message) => {
     $(".critical-error-c").remove();
     $("body").append(`<div class="critical-error-c"><div class="critical-error"><span>${message}</span></div></div>`);
     $(".critical-error-c .restart-app").click(()=>{

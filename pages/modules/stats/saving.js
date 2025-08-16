@@ -1,6 +1,6 @@
-import {video} from "./elements.js";
-import {getCards, sendRawToAnki} from "./networking.js";
-import {currentPlayingVideo, isCurrentlyPlayingVideo, onVideoEnded} from "./streaming.js";
+import {video} from "../playback/elements.js";
+import {getCards, sendRawToAnki} from "../networking.js";
+import {currentPlayingVideo, isCurrentlyPlayingVideo, onVideoEnded} from "../playback/streaming.js";
 
 let knownAdjustment = {};
 let alreadyUpdatedInAnki = {};
@@ -18,6 +18,7 @@ const loadKnownAdjustment = () => {
     let data = localStorage.getItem("knownAdjustment");
     if(data){
         knownAdjustment = JSON.parse(data);
+        window.knownAdjustment = knownAdjustment;
     }else{
         knownAdjustment = {};
     }
@@ -109,9 +110,12 @@ const updateFlashcardsAnkiDate = () => {
     saveAlreadyUpdatedInAnki();
 }
 const loadWatchTime = ()=>{
+    //FIXME: strange drag'n'drop bug where the file name is the previous file name. Occurred only once.
     const currentVideo = localStorage.getItem('currentVideo');
+    console.log("currentVideo", currentVideo);
     if (currentVideo) {
         const savedTime = localStorage.getItem(`videoCurrentTime_${btoa(currentVideo)}`);
+        console.log("savedTime", savedTime);
         if (savedTime) {
             video.currentTime = parseFloat(savedTime);
             console.log("videoCurrentTime_" + btoa(currentVideo), parseFloat(savedTime));
@@ -124,7 +128,7 @@ window.addEventListener('beforeunload', () => {
     if (currentVideo && isCurrentlyPlayingVideo) {
         localStorage.setItem(`videoCurrentTime_${btoa(currentVideo)}`, video.currentTime);
     }
-    onVideoEnded(currentPlayingVideo);
+    onVideoEnded(currentPlayingVideo, false);
 });
 
-export {saveKnownAdjustment, saveAlreadyUpdatedInAnki, loadKnownAdjustment, loadAlreadyUpdatedInAnki, changeKnownStatus, getKnownStatus, setKnownAdjustment,updateFlashcardsAnkiDate, loadWatchTime}
+export {saveKnownAdjustment, saveAlreadyUpdatedInAnki, loadKnownAdjustment, loadAlreadyUpdatedInAnki, changeKnownStatus, getKnownStatus, setKnownAdjustment,updateFlashcardsAnkiDate, loadWatchTime, knownAdjustment}

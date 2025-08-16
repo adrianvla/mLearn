@@ -1,10 +1,10 @@
-import {hoveredWords, hoveredWordsCount, resetHoveredWordsCount, setHoveredWordsCount} from "./subtitler.js";
-import Hls from "../hls.mjs";
+import {hoveredWords, hoveredWordsCount, resetHoveredWordsCount, setHoveredWordsCount} from "../subtitler/subtitler.js";
+import Hls from "../../lib/hls.mjs";
 import {playPauseButton, qualitySelect, video} from "./elements.js";
-import {isWatchTogether} from "./watchTogether.js";
-import {loadWatchTime} from "./saving.js";
+import {isWatchTogether} from "../watch-together/watchTogether.js";
+import {loadWatchTime} from "../stats/saving.js";
 import {currentSubtitleFile} from "./manageFiles.js";
-import {parseSubtitleName} from "./subtitleParsers.js";
+import {parseSubtitleName} from "../subtitler/subtitleParsers.js";
 
 
 let HLSObject = null;
@@ -34,7 +34,7 @@ function loadStream (text) {
     currentPlayingVideo = text;
 
     if(isWatchTogether){
-        window.electron_settings.watchTogetherSend({action:"start", url:text});
+        window.mLearnIPC.watchTogetherSend({action:"start", url:text});
     }
 
     $("#video-quality").removeClass("hidden");
@@ -52,9 +52,9 @@ function loadStream (text) {
                 height = height * (1200 / width);
                 width = 1200;
             }
-            window.electron_settings.resizeWindow({width: width, height: height});
+            window.mLearnIPC.resizeWindow({width: width, height: height});
             if(isWatchTogether){
-                window.electron_settings.watchTogetherSend({action:"play", time:video.currentTime}); //synchronize with client
+                window.mLearnIPC.watchTogetherSend({action:"play", time:video.currentTime}); //synchronize with client
             }
         });
         const levels = HLSObject.levels;
@@ -114,12 +114,13 @@ function loadStream (text) {
 
 
 
-const onVideoEnded = (videoUrl) => {
+const onVideoEnded = (videoUrl, removeLocalStorate = true) => {
     console.log("ENDED")
     isCurrentlyStreamingVideo = false;
     isCurrentlyPlayingVideo = false;
     let videoStats = JSON.parse(localStorage.getItem("videoStats"));
-    localStorage.removeItem(`videoCurrentTime_${btoa(currentPlayingVideo)}`); //reset time
+    if(removeLocalStorate)
+        localStorage.removeItem(`videoCurrentTime_${btoa(currentPlayingVideo)}`); //reset time
     if(!videoStats) videoStats = [];
     //if url already exists, merge
     let exists = false;

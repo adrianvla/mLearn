@@ -40,7 +40,7 @@ const createWindow = () => {
         width: 1200,
         height: 700,
         webPreferences: {
-            preload: path.join(resPath, '/pages/preload.js')
+            preload: path.join(resPath, '/pages/IPC/preload.js')
         },
         titleBarStyle: isMac ? 'hidden' : 'hiddenInset'
     });

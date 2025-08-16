@@ -206,7 +206,7 @@ const copyRecursive = (src, dest, cb) => {
 const pingPythonServer = (callback) => {
     const options = {
         hostname: '127.0.0.1',
-        port: 8000,
+        port: 7752,
         path: '/control',
         method: 'POST',
         headers: {
@@ -264,7 +264,7 @@ const pythonFound = () => {
         try{
             mainWindow.webContents.send('server-status-update', 'stderr: '+data.toString('utf8'));
         }catch(e){}
-        //check if python server is running by pinging it with a request on port 8000 on 127.0.0.1/control and req.function = "ping"
+        //check if python server is running by pinging it with a request on port 7752 on 127.0.0.1/control and req.function = "ping"
         //if it returns "pong" then it is running
         pingPythonServer((running) => {
             if(!running) return;

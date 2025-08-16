@@ -1,6 +1,6 @@
 import {subs} from "./subtitler.js";
 import {parseASS, parseSRT} from "./subtitleParsers.js";
-import {parseTime} from "./utils.js";
+import {parseTime} from "../utils.js";
 
 let lastIndex = 0;
 

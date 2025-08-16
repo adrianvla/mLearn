@@ -1,6 +1,6 @@
 const getSettings = async () => new Promise((resolve) => {
-    window.electron_settings.getSettings();
-    window.electron_settings.onSettings((settings) => {
+    window.mLearnIPC.getSettings();
+    window.mLearnIPC.onSettings((settings) => {
         resolve(settings);
     });
 });
@@ -11,11 +11,11 @@ const restartAppAndServer = ()=>{
     xhr.addEventListener('load', () => {
     });
 
-    xhr.open('POST', "http://127.0.0.1:8000/quit");
+    xhr.open('POST', "http://127.0.0.1:7752/quit");
     //send json
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.send("{}");
-    window.electron_settings.forceRestartApp();
+    window.mLearnIPC.forceRestartApp();
 };
 document.addEventListener('DOMContentLoaded', () => {
     const welcomeElement = document.querySelector('.welcome');
@@ -54,12 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const lang = $("#language-select").val();
         if(lang === "other") {
             const url = $("#url").val();
-            window.electron_settings.installLanguage(url);
+            window.mLearnIPC.installLanguage(url);
         }else{
             let settings = await getSettings();
             settings.language = lang;
-            window.electron_settings.saveSettings(settings);
-            window.electron_settings.onSettingsSaved(() => {
+            window.mLearnIPC.saveSettings(settings);
+            window.mLearnIPC.onSettingsSaved(() => {
                 $(".info").text("Language installed! Restarting in 5 seconds...");
                 setTimeout(()=>{
                     restartAppAndServer();
@@ -68,21 +68,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         }
     });
-    window.electron_settings.onLanguageInstalled(async (lang)=>{
+    window.mLearnIPC.onLanguageInstalled(async (lang)=>{
         let settings = await getSettings();
         settings.language = lang;
-        window.electron_settings.saveSettings(settings);
-        window.electron_settings.onSettingsSaved(() => {
+        window.mLearnIPC.saveSettings(settings);
+        window.mLearnIPC.onSettingsSaved(() => {
             $(".info").text("Language installed! Restarting in 5 seconds...");
             setTimeout(()=>{
                 restartAppAndServer();
             },5000);
         });
     });
-    window.electron_settings.onLanguageInstallError((mes)=>{
+    window.mLearnIPC.onLanguageInstallError((mes)=>{
         $(".info").text("Error installing language: "+mes);
     });
-    window.electron_settings.isSuccess();
+    window.mLearnIPC.isSuccess();
 });
 const logInfo = (info) => {
     const serverStatusElement = $(".server-status");
@@ -96,10 +96,10 @@ const installCompleted = () => {
     logInfo("Installation complete!");
     $(".overall-status").text("Installation complete!");
 };
-window.electron_settings.onPythonSuccess(m=>{
+window.mLearnIPC.onPythonSuccess(m=>{
     if(m) installCompleted();
 });
-window.electron_settings.onServerStatusUpdate((status)=>{
+window.mLearnIPC.onServerStatusUpdate((status)=>{
     logInfo(status);
     if(status === "Downloading Python..."){
         $(".progress").css("width","5%");

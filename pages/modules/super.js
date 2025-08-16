@@ -1,10 +1,10 @@
-import {settings} from "./settings.js";
+import {settings} from "./settings/settings.js";
 
 let restarting = false;
 const restartAppAndServer = ()=>{
     if(restarting) return;
     restarting = true;
-    window.electron_settings.restartApp();
+    window.mLearnIPC.restartApp();
     const xhr = new XMLHttpRequest();
     // xhr.addEventListener('error', () => reject('failed to issue request'));
     xhr.addEventListener('load', () => {

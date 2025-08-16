@@ -1,9 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('electron_settings', {
+contextBridge.exposeInMainWorld('mLearnIPC', {
     getSettings: () => ipcRenderer.send('get-settings'),
+    getFlashcards: () => ipcRenderer.send('get-flashcards'),
     getLangData: () => ipcRenderer.send('get-lang-data'),
     saveSettings: (settings) => ipcRenderer.send('save-settings', settings),
+    saveFlashcards: (fc) => ipcRenderer.send('save-flashcards',fc),
     changeTrafficLights: (visibility) => ipcRenderer.send('traffic-lights', { visibility: visibility }),
     resizeWindow: (size) => ipcRenderer.send('changeWindowSize', size),
     showCtxMenu: () => ipcRenderer.send('show-ctx-menu'),
@@ -18,9 +20,13 @@ contextBridge.exposeInMainWorld('electron_settings', {
     makePiP: (size) => ipcRenderer.send('make-pip',size),
     unPiP: () => ipcRenderer.send('make-normal'),
     sendLS: (data) => ipcRenderer.send('send-ls', data),
+    getLicenseType: () => ipcRenderer.send('get-license-type'),
+    activateLicense: (key) => ipcRenderer.send('activate-license',key),
     isWatchingTogether: () => ipcRenderer.send('is-watching-together'),
+    removeLicense: () => ipcRenderer.send('remove-license'),
     watchTogetherSend: (message) => ipcRenderer.send('watch-together-send', message),
     onSettings: (callback) => ipcRenderer.on('settings', (event, settings) => callback(settings)),
+    onFlashcards: (callback) => ipcRenderer.on('flashcards-loaded', (event, settings) => callback(settings)),
     onVersionReceive: (callback) => ipcRenderer.on('version', (event, ver) => callback(ver)),
     onLangData: (callback) => ipcRenderer.on('lang-data', (event, data) => callback(data)),
     onSettingsSaved: (callback) => ipcRenderer.on('settings-saved', (event, message) => callback(message)),
@@ -36,16 +42,8 @@ contextBridge.exposeInMainWorld('electron_settings', {
     onWatchTogetherLaunch: (callback) => ipcRenderer.on('watch-together', (event, message) => callback(message)),
     onWatchTogetherRequest: (callback) => ipcRenderer.on('watch-together-request', (event, message) => callback(message)),
     onUpdatePills: (callback) => ipcRenderer.on('update-pills', (event, message) => callback(message)),
+    onUpdateWordAppearance: (callback) => ipcRenderer.on('update-word-appearance', (event, message) => callback(message)),
+    onUpdateAttemptFlashcardCreation: (callback) => ipcRenderer.on('update-attempt-flashcard-creation', (event, message) => callback(message)),
+    onLicenseGet: (callback) => ipcRenderer.on('license-type', (event, message) => callback(message)),
+    onLicenseActivated: (callback) => ipcRenderer.on('license-activated', (event, message) => callback(message)),
 });
-
-window.addEventListener('DOMContentLoaded', () => {
-    const replaceText = (selector, text) => {
-        const element = document.getElementById(selector);
-        if (element) element.innerText = text
-    }
-
-    for (const dependency of ['chrome', 'node', 'electron']) {
-        replaceText(`${dependency}-version`, process.versions[dependency]);
-    }
-});
-

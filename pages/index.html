@@ -13,8 +13,6 @@
         worker-src 'self' blob:;
     ">
     <title>mLearn</title>
-<!--    <script src="jquery.min.js"></script>-->
-<!--    <script src="hls.min.js"></script>-->
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="loader.css">
 </head>
@@ -32,9 +30,14 @@
     <div class="recently-c">
         <div class="recently">
             <h1>Recently Streamed</h1>
-            <div class="cards">
-
+            <div class="cards rec-watched-list"></div>
+            <div class="cards last-watched">
+                <div class="col">
+                    <h3 class="last-watched-text"></h3>
+                    <h3 class="last-watched-content"></h3>
+                </div>
             </div>
+            <button class="review-flashcards button">Review Flashcards</button>
         </div>
     </div>
     <div class="drag-region"></div>

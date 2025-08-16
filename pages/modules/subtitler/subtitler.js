@@ -1,16 +1,17 @@
-import {saveSettings, settings, TRANSLATABLE, wordFreq} from "./settings.js";
-import {getCards, getTranslation, sendRawToAnki, tokenise} from "./networking.js";
-import {blurWord, isNotAllKana, randomUUID, screenshotVideo, toUniqueIdentifier} from "./utils.js";
-import $ from '../jquery.min.js'
+import {saveSettings, settings, TRANSLATABLE, wordFreq} from "../settings/settings.js";
+import {getCards, getTranslation, sendRawToAnki, tokenise} from "../networking.js";
+import {blurWord, isNotAllKana, randomUUID, screenshotVideo, toUniqueIdentifier} from "../utils.js";
+import $ from '../../lib/jquery.min.js'
 import {findCurrentSub, findSub, lastIndex} from "./subUtils.js";
-import {playPauseButton, progressBar, video} from "./elements.js";
-import {addToRecentlyWatched} from "./recentlyWatched.js";
-import {currentPlayingVideo} from "./streaming.js";
+import {playPauseButton, progressBar, video} from "../playback/elements.js";
+import {addToRecentlyWatched} from "../playback/recentlyWatched.js";
+import {currentPlayingVideo} from "../playback/streaming.js";
 import {addTranslationCard} from "./liveWordTranslator.js";
-import {makeFlashcard} from "./flashcards.js";
+import {makeFlashcard} from "../flashcards/anki.js";
 import {addPills, resetWordUUIDs} from "./pillHtml.js";
-import {changeKnownStatus, getKnownStatus} from "./saving.js";
-import {isWatchTogether} from "./watchTogether.js";
+import {changeKnownStatus, getKnownStatus} from "../stats/saving.js";
+import {isWatchTogether} from "../watch-together/watchTogether.js";
+import {attemptFlashcardCreation, trackWordAppearance} from "../flashcards/storage.js";
 
 
 
@@ -137,8 +138,30 @@ const modify_sub = async (subtitle) => {
                 return;
             }
             let translation_data = await getTranslation(word);
-            console.log("Translation data for word: "+word, translation_data);
             if(translation_data.data.length == 0) return;
+            let flashcardContent = {
+                word:word,
+                pitchAccent:translation_data.data[2][2]?.pitches[0]?.position,
+                pronunciation:translation_data.data[0].reading,
+                translation:translation_data.data[0]?.definitions,
+                definition:translation_data.data[1]?.definitions,
+                example:"NO EXAMPLE FOUND, AN ERROR OCCURED",
+                exampleMeaning:"",
+                screenshotUrl: screenshotVideo(),
+                pos: pos,
+                level: word in wordFreq ? wordFreq[word].raw_level : -1,
+            };
+            {
+                const $iframe = $("iframe");
+                $iframe[0].contentWindow.document.body.innerHTML = $(".subtitles").html();
+                //remove each .subtitle_hover element
+                $iframe.contents().find(".subtitle_hover").remove();
+                //remove each .subtitle_word element
+                $iframe.contents().find(".subtitle_word.word_"+uuid).addClass("defined");
+                flashcardContent.example = $iframe[0].contentWindow.document.body.innerHTML;
+                $iframe[0].contentWindow.document.body.innerHTML = "";
+            }
+            console.log("Translation data for word: "+word, translation_data);
             if(settings.openAside){
                 //force fetch the word from the dictionary
                 doAppend = true;
@@ -182,6 +205,7 @@ const modify_sub = async (subtitle) => {
                     addPitchAccent(translation_data.data[2], translation_data.data[0].reading); //dict form and conjugated form got the same length in the tokenizer
                 }
             }
+            attemptFlashcardCreation(word,flashcardContent);
         };
         const addFurigana = (reading_html) => {
             let reading_text = reading_html;
@@ -208,7 +232,7 @@ const modify_sub = async (subtitle) => {
         const addPitchAccent = (accent, word_in_letters) => {
             //append to newEl inside an element
             if(settings.language !== "ja") return; //only for japanese
-            if(accent === {}) return;
+            if (accent && Object.keys(accent).length === 0) return;
             if(real_word.length <= 1 || word_in_letters.length <= 1) return; //no pitch accent for single letters
             // if(settings.lang )
             let el = $('<div class="mLearn-pitch-accent"></div>');//we'll draw everything after
@@ -254,7 +278,7 @@ const modify_sub = async (subtitle) => {
                 html_string += `<div class="${classString}"></div>`;
             }
 
-            if(!(pos === "動詞" && look_ahead_token === "動詞")){ //FIXME: do something with particle accent with verbs, ep 9, maybe use hiragana to query pitch accent?, 17:46
+            if(!(pos === "動詞" && look_ahead_token === "動詞")){
                 //if not a verb, add particle accent
                 let b = !particle_accent;
                 let t = particle_accent;
@@ -484,6 +508,7 @@ const modify_sub = async (subtitle) => {
                 doAppendHoverLazy = true;
                 newEl.attr("known","false");
                 newEl.on("customLoaded", cardNotFound); //intentionally not awaited, parallelized.
+                trackWordAppearance(word);
             }else{
                 //compare ease
                 let current_card = card_data.cards[0];
@@ -592,14 +617,14 @@ const modify_sub = async (subtitle) => {
     $(".subtitles").removeClass("not-shown");
 
     if(isWatchTogether){
-        window.electron_settings.watchTogetherSend({action:"subtitles",subtitle:$(".subtitles").html(), size:settings.subtitle_font_size});
+        window.mLearnIPC.watchTogetherSend({action:"subtitles",subtitle:$(".subtitles").html(), size:settings.subtitle_font_size});
     }
 };
 
-window.electron_settings.onContextMenuCommand((cmd)=>{
+window.mLearnIPC.onContextMenuCommand((cmd)=>{
     switch(cmd){
         case 'copy-sub':
-            window.electron_settings.writeToClipboard(lastSub.text);
+            window.mLearnIPC.writeToClipboard(lastSub.text);
             break;
     }
 });

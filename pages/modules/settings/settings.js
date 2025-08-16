@@ -1,5 +1,6 @@
-import $ from '../jquery.min.js'
-const DEFAULT_SETTINGS = {"known_ease_threshold":1500,"blur_words":false,"blur_known_subtitles":false,"blur_amount":5,"colour_known":"#cceec9","do_colour_known":true,"do_colour_codes":true,"colour_codes":{},"dark_mode":true,"hover_known_get_from_dictionary":false,"show_pos":true,"language":"ja","use_anki":true,"furigana":true,"enable_flashcard_creation":true,"flashcard_deck":null,"flashcards_add_picture":true,"getCardUrl":"http://127.0.0.1:8000/getCard","tokeniserUrl":"http://127.0.0.1:8000/tokenize","getTranslationUrl":"http://127.0.0.1:8000/translate","ankiUrl":"http://127.0.0.1:8000/fwd-to-anki","ankiConnectUrl":"http://127.0.0.1:8765","openAside":false,"subsOffsetTime":0,"immediateFetch":false,"subtitleTheme":"shadow","subtitle_font_size":40,"showPitchAccent":true};
+import $ from '../../lib/jquery.min.js'
+import {onSettingsLoaded} from "../load.js";
+const DEFAULT_SETTINGS = {"known_ease_threshold":1500,"blur_words":false,"blur_known_subtitles":false,"blur_amount":5,"colour_known":"#cceec9","do_colour_known":true,"do_colour_codes":true,"colour_codes":{},"dark_mode":true,"hover_known_get_from_dictionary":false,"show_pos":true,"language":"ja","use_anki":true,"furigana":true,"enable_flashcard_creation":true,"flashcard_deck":null,"flashcards_add_picture":true,"getCardUrl":"http://127.0.0.1:7752/getCard","tokeniserUrl":"http://127.0.0.1:7752/tokenize","getTranslationUrl":"http://127.0.0.1:7752/translate","ankiUrl":"http://127.0.0.1:7752/fwd-to-anki","ankiConnectUrl":"http://127.0.0.1:8765","openAside":false,"subsOffsetTime":0,"immediateFetch":false,"subtitleTheme":"shadow","subtitle_font_size":40,"showPitchAccent":true,"timeWatched":0, "maxNewCardsPerDay":10, "proportionOfExamCards":0.5,"preparedExam":3, "createUnseenCards":true};
 
 let settings = {};
 let supported_languages = [];
@@ -8,6 +9,10 @@ let TRANSLATABLE;
 let wordFreq = {};
 
 const SUBTITLE_THEMES = ["marker","background","shadow"];
+
+const setSettings = (newSettings) => {
+    settings = newSettings;
+};
 const checkSettings = () => {
     //check if every setting is present
     console.log("Checking settings",settings);
@@ -38,18 +43,18 @@ const checkSettings = () => {
 
 const saveSettings = async () => {
     //send settings
-    window.electron_settings.saveSettings(settings);
+    window.mLearnIPC.saveSettings(settings);
 };
 const getSettings = async () => new Promise((resolve) => {
-    window.electron_settings.getSettings();
-    window.electron_settings.onSettings((settings) => {
+    window.mLearnIPC.getSettings();
+    window.mLearnIPC.onSettings((settings) => {
         resolve(settings);
     });
 });
 
 const getLangData = async () => new Promise((resolve) => {
-    window.electron_settings.getLangData();
-    window.electron_settings.onLangData((lang_data) => {
+    window.mLearnIPC.getLangData();
+    window.mLearnIPC.onLangData((lang_data) => {
         //set supported languages
         supported_languages = Object.keys(lang_data);
         resolve(lang_data);
@@ -64,6 +69,8 @@ const load_lang_data = () => {
 const loadSettings = async () => {
     lang_data = await getLangData();
     settings = await getSettings();
+    window.settings = settings;
+    onSettingsLoaded();
 };
 
 const parseWordFrequency = () => {
@@ -87,7 +94,7 @@ const parseWordFrequency = () => {
         if(lang_data[settings.language].freq_level_names){
             lvlName = lang_data[settings.language].freq_level_names[String(level)];
         }
-        if(!lvlName){
+        if(!lvlName){ 
             lvlName = "Level "+level;
         }
         wordFreq[freq[wordi][0]] = {reading:freq[wordi][1], level:lvlName, raw_level:level};
@@ -95,4 +102,4 @@ const parseWordFrequency = () => {
 
 };
 
-export {checkSettings, saveSettings, getSettings, getLangData, load_lang_data, loadSettings, parseWordFrequency, settings, supported_languages, lang_data, SUBTITLE_THEMES, TRANSLATABLE, wordFreq, DEFAULT_SETTINGS};
+export {checkSettings, saveSettings, getSettings, getLangData, load_lang_data, loadSettings, parseWordFrequency, settings, supported_languages, lang_data, SUBTITLE_THEMES, TRANSLATABLE, wordFreq, DEFAULT_SETTINGS, setSettings};

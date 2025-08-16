@@ -1,7 +1,7 @@
-import {resetHoveredWordsCount, setSubs} from "./subtitler.js";
-import {readSubtitleFile} from "./subUtils.js";
+import {resetHoveredWordsCount, setSubs} from "../subtitler/subtitler.js";
+import {readSubtitleFile} from "../subtitler/subUtils.js";
 import {addToRecentlyWatched} from "./recentlyWatched.js";
-import Hls from "../hls.mjs";
+import Hls from "../../lib/hls.mjs";
 import {
     currentPlayingVideo,
     loadStream,
@@ -10,8 +10,8 @@ import {
     setPlaybackType
 } from "./streaming.js";
 import {playPauseButton, video} from "./elements.js";
-import {loadWatchTime} from "./saving.js";
-import {isLoaded} from "./load.js";
+import {loadWatchTime} from "../stats/saving.js";
+import {isLoaded} from "../load.js";
 
 let currentSubtitleFile = null;
 
@@ -20,7 +20,7 @@ const manageFiles = async (files) => {
     if (files.length > 0) {
         const file = files[0];
         const fileName = file.name;
-        console.log(file.type);
+        console.log("file.type",file.type);
         if (file.type === 'video/mp4' || fileName.endsWith('mkv')) {
             $("video source")[0].src = URL.createObjectURL(file);
             console.log("set src to", URL.createObjectURL(file));
@@ -41,7 +41,7 @@ const manageFiles = async (files) => {
                     height = height * (1200/width);
                     width = 1200;
                 }
-                window.electron_settings.resizeWindow({width: width, height: height});
+                window.mLearnIPC.resizeWindow({width: width, height: height});
             });
         } else if (fileName.endsWith('.srt') || fileName.endsWith('.ass')) {
             console.log('Subtitle file dropped:', fileName);
