@@ -59,7 +59,7 @@ export const onFlashcards = async (peer,fs)=>{
             console.error("Wait what? How did we get here? Word mismatch", myHashMap, otherHashMap, myFlashcards.flashcards, fs.flashcards, myCard, otherCard);
             continue;
         }
-        if(myCard.lastReviewed < otherCard.lastReviewed) {
+        if(myCard.lastUpdated < otherCard.lastUpdated) {
             myFlashcards.flashcards[value] = otherCard;
         }
     }

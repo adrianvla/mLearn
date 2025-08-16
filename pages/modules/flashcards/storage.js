@@ -33,6 +33,7 @@ export const resetFlashcards = () =>{
             },
             "dueDate":1755100026393,
             "lastReviewed":1755100026393,
+            "lastUpdated":1755100026393,
             "ease":0,
             "reviews":0
         }*/],
@@ -97,7 +98,8 @@ export const addFlashcard = async (word, content, ease=0) => {
         "dueDate":Date.now(),
         "lastReviewed":Date.now(),
         "ease":ease,
-        "reviews":0
+        "reviews":0,
+        "lastUpdated":Date.now()
     });
     flashcards.meta.flashcardsCreatedToday++;
 }
