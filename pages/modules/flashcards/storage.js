@@ -1,7 +1,7 @@
 import {screenshotVideo, toUniqueIdentifier} from "../utils.js";
 import {settings, wordFreq} from "../settings/settings.js";
 import {getCards, getTranslation} from "../networking.js";
-import {getKnownStatus} from "../stats/saving.js";
+import {getKnownStatus, saveKnownAdjustment, setKnownAdjustment} from "../stats/saving.js";
 
 let flashcards = {};
 
@@ -188,3 +188,15 @@ export function overwriteFlashcards(newFlashcards){
     flashcards = newFlashcards;
     saveFlashcards();
 }
+
+
+window.mLearnIPC.onUpdateWordAppearance((message)=>{
+    JSON.parse(message).forEach(async word => {
+        trackWordAppearance(word);
+    });
+});
+window.mLearnIPC.onUpdateAttemptFlashcardCreation((message)=>{
+    JSON.parse(message).forEach(async cardPair => {
+        await attemptFlashcardCreation(cardPair.word, cardPair.content);
+    });
+});
