@@ -605,3 +605,33 @@ body.dark .pill{
 body.dark .pill{
     filter: invert(1) hue-rotate(180deg) saturate(100%) saturate(200%);
 }
+
+
+.loading, .content > div:not(.card-c), .text{
+    color: #ccc;
+    font-family: "Helvetica Neue", "Arial", sans-serif;
+    font-size:0.75em;
+    padding:10px;
+    display:flex;
+    gap:10px;
+    white-space: nowrap;
+    user-select: none;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.content{
+    display:flex;
+    flex-direction: column;
+    gap:10px;
+}
+
+*[contenteditable="true"]{
+    outline: none;
+}
+
+*[contenteditable="true"]:focus{
+    border: 3px solid #444;
+    box-sizing: border-box;
+}

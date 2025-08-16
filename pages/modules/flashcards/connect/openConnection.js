@@ -81,6 +81,7 @@ export const collectChunk = (chunk)=>{
         return;
     }
     collectedChunks[chunk[0]] = chunk[1];
+    getDocument().getElementById('progress').style.width = (Object.keys(collectedChunks).length / numberOfChunks * 100)+"%";
     console.log("Collected chunk " + chunk[0] + " of " + numberOfChunks);
     if(Object.keys(collectedChunks).length === numberOfChunks){
         console.log("All chunks collected");
@@ -92,6 +93,8 @@ export const collectChunk = (chunk)=>{
         console.log(collectedChunks, JSON.parse(data));
         peer.signal(JSON.parse(data));
         collectedChunks = {};
+        getDocument().querySelector('.progress-c').style.display = 'none';
+        getDocument().getElementById('progress').style.display = "none";
     }
 };
 
@@ -161,7 +164,7 @@ export function openConnection(){
     peer.on('connect', () => {
         console.log('Connected to peer!');
         $("span").text("Connected!");
-        peer.send('{"type":"ping"}')
+        peer.send('{"type":"ping"}');
         $("video").hide();
         stopDetection();
         sync(peer); //sends wordFreq

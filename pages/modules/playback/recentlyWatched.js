@@ -30,7 +30,7 @@ const loadRecentlyWatched = () => {
         $(".last-watched").hide();
     }
     if(!recentlyWatched && !lastVideo) {
-        $(".recently-c").hide();
+        $(".recently-c h1, .recently-c .rec-watched-list").hide();
     }
 };
 
