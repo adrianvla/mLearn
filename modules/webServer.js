@@ -15,6 +15,8 @@ let server;
 let HTTPServer;
 let lS = {};
 let pillQueuedUpdates = [];
+let wordAppearanceQueuedUpdates = [];
+let attemptFlashcardCreationQueuedUpdates = [];
 let sockets = [];
 let isAllowed = false;
 
@@ -41,6 +43,19 @@ const sendPillUpdatesToMainWindow = () => {
     mainWindow.webContents.send('update-pills',JSON.stringify(pillQueuedUpdates));
     pillQueuedUpdates = [];
 };
+
+const sendWordAppearanceUpdatesToMainWindow = () => {
+    if(wordAppearanceQueuedUpdates.length === 0) return;
+    console.log("Sending queued updates to main window",wordAppearanceQueuedUpdates);
+    mainWindow.webContents.send('update-word-appearance',JSON.stringify(wordAppearanceQueuedUpdates));
+    wordAppearanceQueuedUpdates = [];
+}
+const sendAttemptFlashcardCreationUpdatesToMainWindow = () => {
+    if(attemptFlashcardCreationQueuedUpdates.length === 0) return;
+    console.log("Sending queued updates to main window",attemptFlashcardCreationQueuedUpdates);
+    mainWindow.webContents.send('update-attempt-flashcard-creation',JSON.stringify(attemptFlashcardCreationQueuedUpdates));
+    attemptFlashcardCreationQueuedUpdates = [];
+}
 
 function getHostAndPort(url) {
     try {
@@ -75,6 +90,26 @@ const startWebSocketServer = () => {
             if(!mainWindow.isDestroyed()) sendPillUpdatesToMainWindow();
             return;
         }
+
+        if (req.method === 'GET' && req.url.startsWith('/api/word-appearance') && isAllowed) {
+            const query = url.parse(req.url, true).query;
+            // query.key and query.value are available here
+            wordAppearanceQueuedUpdates.push(query.word);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 'ok' }));
+            if(!mainWindow.isDestroyed()) sendWordAppearanceUpdatesToMainWindow();
+            return;
+        }
+        if (req.method === 'GET' && req.url.startsWith('/api/attempt-flashcard-creation') && isAllowed) {
+            const query = url.parse(req.url, true).query;
+            // query.key and query.value are available here
+            attemptFlashcardCreationQueuedUpdates.push({word: query.word, content: query.content});
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 'ok' }));
+            if(!mainWindow.isDestroyed()) sendAttemptFlashcardCreationUpdatesToMainWindow();
+            return;
+        }
+
         // Handle /api/watch-together GET requests
         if (req.method === 'GET' && req.url.startsWith('/api/watch-together') && isAllowed) {
             const query = url.parse(req.url, true).query;
@@ -265,6 +300,8 @@ ipcMain.on('send-ls', (event, data) => {
 
     //window is ready, try to send queued updates
     sendPillUpdatesToMainWindow();
+    sendWordAppearanceUpdatesToMainWindow();
+    sendAttemptFlashcardCreationUpdatesToMainWindow();
 });
 
 ipcMain.on('watch-together-send', (event, message) => {

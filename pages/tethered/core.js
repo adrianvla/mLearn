@@ -84,6 +84,18 @@ function sendPill(key, value) {
     script.onload = () => script.remove();
     document.body.appendChild(script);
 }
+function trackWordAppearance(word) {
+    const script = document.createElement('script');
+    script.src = srvUrl()+`api/word-appearance?word=${encodeURIComponent(word)}`;
+    script.onload = () => script.remove();
+    document.body.appendChild(script);
+}
+function attemptFlashcardCreation(word,content){
+    const script = document.createElement('script');
+    script.src = srvUrl()+`api/attempt-flashcard-creation?word=${encodeURIComponent(word)}&content=${encodeURIComponent(JSON.stringify(content))}`;
+    script.onload = () => script.remove();
+    document.body.appendChild(script);
+}
 
 const applySettings = () => {
     //set subtitle font size
@@ -576,8 +588,30 @@ const modify_sub = async (subtitle) => {
                 return;
             }
             let translation_data = await getTranslation(word);
-            console.log("Translation data for word: "+word, translation_data);
             if(translation_data.data.length == 0) return;
+            let flashcardContent = {
+                word:word,
+                pitchAccent:translation_data.data[2][2]?.pitches[0]?.position,
+                pronunciation:translation_data.data[0].reading,
+                translation:translation_data.data[0]?.definitions,
+                definition:translation_data.data[1]?.definitions,
+                example:"NO EXAMPLE FOUND, AN ERROR OCCURED",
+                exampleMeaning:"",
+                screenshotUrl: screenshotVideo(),
+                pos: pos,
+                level: word in wordFreq ? wordFreq[word].raw_level : -1,
+            };
+            {
+                const $iframe = $("iframe");
+                $iframe[0].contentWindow.document.body.innerHTML = $(".subtitles").html();
+                //remove each .subtitle_hover element
+                $iframe.contents().find(".subtitle_hover").remove();
+                //remove each .subtitle_word element
+                $iframe.contents().find(".subtitle_word.word_"+uuid).addClass("defined");
+                flashcardContent.example = $iframe[0].contentWindow.document.body.innerHTML;
+                $iframe[0].contentWindow.document.body.innerHTML = "";
+            }
+            console.log("Translation data for word: "+word, translation_data);
             if(settings.openAside){
                 //force fetch the word from the dictionary
                 doAppend = true;
@@ -621,6 +655,7 @@ const modify_sub = async (subtitle) => {
                     addPitchAccent(translation_data.data[2], translation_data.data[0].reading); //dict form and conjugated form got the same length in the tokenizer
                 }
             }
+            attemptFlashcardCreation(word,flashcardContent);
         };
         const addFurigana = (reading_html) => {
             let reading_text = reading_html;
@@ -647,7 +682,7 @@ const modify_sub = async (subtitle) => {
         const addPitchAccent = (accent, word_in_letters) => {
             //append to newEl inside an element
             if(settings.language !== "ja") return; //only for japanese
-            if(accent === {}) return;
+            if (accent && Object.keys(accent).length === 0) return;
             if(real_word.length <= 1 || word_in_letters.length <= 1) return; //no pitch accent for single letters
             // if(settings.lang )
             let el = $('<div class="mLearn-pitch-accent"></div>');//we'll draw everything after
@@ -832,6 +867,7 @@ const modify_sub = async (subtitle) => {
                 doAppendHoverLazy = true;
                 newEl.attr("known","false");
                 newEl.on("customLoaded", cardNotFound); //intentionally not awaited, parallelized.
+                trackWordAppearance(word);
             }else{
                 //compare ease
                 let current_card = card_data.cards[0];
