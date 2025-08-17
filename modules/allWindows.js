@@ -5,6 +5,7 @@ import {firstTimeSetup, isFirstTimeSetup, setFirstTimeSetup} from "./loadBackend
 import fs from "node:fs";
 import {PORT, setAllowed, startWebSocketServer} from "./webServer.js";
 import {openBigDialog} from "./openBigDialog.js";
+import {initDRMIPC} from "./drm/init.js";
 
 let mainWindow;
 let currentWindow = null;
@@ -46,6 +47,7 @@ const createWindow = () => {
     });
     mainWindow.loadFile('pages/index.html');
     currentWindow = mainWindow;
+    initDRMIPC();
 }
 const createWelcomeWindow = () => {
 
