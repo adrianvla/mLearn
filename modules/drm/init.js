@@ -99,10 +99,12 @@ const getLicenseStatus = () => {
     return license;
 }
 
-(async function(){
-    await init();
-    mainWindow.webContents.send('license-type', getLicenseStatus());
-})();
+export const initDRMIPC = () => {
+    (async function(){
+        await init();
+        mainWindow.webContents.send('license-type', getLicenseStatus());
+    })();
+};
 
 ipcMain.on('get-license-type', (event) => {
     event.reply('license-type', getLicenseStatus());
