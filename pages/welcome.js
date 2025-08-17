@@ -1,3 +1,5 @@
+import $ from './lib/jquery.min.js';
+
 const getSettings = async () => new Promise((resolve) => {
     window.mLearnIPC.getSettings();
     window.mLearnIPC.onSettings((settings) => {
@@ -11,7 +13,7 @@ const restartAppAndServer = ()=>{
     xhr.addEventListener('load', () => {
     });
 
-    xhr.open('POST', "http://127.0.0.1:7752/quit");
+    xhr.open('POST', "http://127.0.0.1:7753/quit");
     //send json
     xhr.setRequestHeader('Content-Type', 'application/json');
     xhr.send("{}");

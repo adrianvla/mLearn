@@ -6,7 +6,7 @@ import http from "http";
 import {exec, spawn} from "child_process";
 import {ARCHITECTURE, isWindows, PLATFORM, resPath, setIsWindows} from "./archPlatform.js";
 import {app, ipcMain} from "electron";
-import {createWelcomeWindow, currentWindow, mainWindow} from "./allWindows.js";
+import {createWelcomeWindow, getCurrentWindow, getMainWindow} from "./allWindows.js";
 import {loadSettings} from "./settings.js";
 
 import * as tar from 'tar';
@@ -256,20 +256,20 @@ const pythonFound = () => {
     const onSTDOUT = (data) => {
         console.log("Python response: ", data.toString('utf8'));
         try{
-            mainWindow.webContents.send('server-status-update', data.toString('utf8'));
+            getMainWindow().webContents.send('server-status-update', data.toString('utf8'));
         }catch(e){}
     };
     const onSTDERR = (data) => {
         console.error(`stderr: ${data}`);
         try{
-            mainWindow.webContents.send('server-status-update', 'stderr: '+data.toString('utf8'));
+            getMainWindow().webContents.send('server-status-update', 'stderr: '+data.toString('utf8'));
         }catch(e){}
         //check if python server is running by pinging it with a request on port 7752 on 127.0.0.1/control and req.function = "ping"
         //if it returns "pong" then it is running
         pingPythonServer((running) => {
             if(!running) return;
             //send message to renderer that server is running
-            mainWindow.webContents.send('server-load', "Python server running");
+            getMainWindow().webContents.send('server-load', "Python server running");
             serverLoaded = true;
         });
     };
@@ -277,7 +277,7 @@ const pythonFound = () => {
     const onCLOSE = (code) => {
         console.log(`child process exited with code ${code}`);
         //send critical error to renderer
-        mainWindow.webContents.send('server-critical-error', "<span style='color:#fcc'>Critical error</span>: could not start python server; app restart required. <br>Since Anki was not found, the server tried to find the cached Anki data from prior use, but this triggered an error <br>Ensure that Anki is running and restart the app.<br> Disable Anki in Settings if you do not want to use it <br>For more information, check the console.<br><button class='restart-app'>Restart App</button>");
+        getMainWindow().webContents.send('server-critical-error', "<span style='color:#fcc'>Critical error</span>: could not start python server; app restart required. <br>Since Anki was not found, the server tried to find the cached Anki data from prior use, but this triggered an error <br>Ensure that Anki is running and restart the app.<br> Disable Anki in Settings if you do not want to use it <br>For more information, check the console.<br><button class='restart-app'>Restart App</button>");
     };
 
     if(isWindows){
@@ -325,30 +325,30 @@ function findPython() {
     }
     console.log("Could not find python3, checked", possibilities);
     console.log("Downloading Python...");
-    try{currentWindow.webContents.send('server-status-update', 'Downloading Python...');}catch(e){}
+    try{getCurrentWindow().webContents.send('server-status-update', 'Downloading Python...');}catch(e){console.log(e);}
 
     const onPipSTDOUT = (data) => {
         console.log(`stdout: ${data}`);
-        try{currentWindow.webContents.send('server-status-update', `${data}`);}catch(e){}
+        try{getCurrentWindow().webContents.send('server-status-update', `${data}`);}catch(e){console.log(e);}
     };
     const onPipSTDERR = (data) => {
         console.error(`stderr: ${data}`);
-        try{currentWindow.webContents.send('server-status-update', `ERROR: ${data}`);}catch(e){}
+        try{getCurrentWindow().webContents.send('server-status-update', `ERROR: ${data}`);}catch(e){console.log(e);}
     };
     const onPipClose = (code) => {
         console.log(`Installing libraries complete`);
-        try{currentWindow.webContents.send('server-status-update', 'Installing libraries complete');}catch(e){}
+        try{getCurrentWindow().webContents.send('server-status-update', 'Installing libraries complete');}catch(e){console.log(e);}
         pythonFound();
         pythonSuccessInstall = true;
     };
     isFirstTimeSetup = true;
     downloadFile(pythonUrl, downloadPath, () => {
         console.log('Download complete');
-        try{currentWindow.webContents.send('server-status-update', 'Download complete');}catch(e){}
+        try{getCurrentWindow().webContents.send('server-status-update', 'Download complete');}catch(e){console.log(e);}
         fs.mkdirSync(extractPath, { recursive: true });
         extractFile(downloadPath, extractPath, () => {
             console.log('Extraction complete, Installing libraries...');
-            try{currentWindow.webContents.send('server-status-update', 'Download complete');}catch(e){}
+            try{getCurrentWindow().webContents.send('server-status-update', 'Download complete');}catch(e){console.log(e);}
             const pipRequirements = loadPipRequirements();
             console.log(pythonExecutable);
             console.log("PIP EXECUTABLE:", pipExecutable);

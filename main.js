@@ -3,6 +3,7 @@ import './modules/drm/init.js';
 import {findPython} from "./modules/loadBackend.js";
 import {startWebSocketServer} from "./modules/webServer.js";
 import './modules/flashcardStorage.js';
+import './modules/super.js';
 
 
 

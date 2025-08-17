@@ -10,6 +10,9 @@ import {initDRMIPC} from "./drm/init.js";
 let mainWindow;
 let currentWindow = null;
 
+export const getCurrentWindow = () => currentWindow;
+export const getMainWindow = () => mainWindow;
+
 let oldWindowState = {width:null, height:null, fullscreen:false, trafficLights:true};
 const makeMainWindowPIP = (w,h) => {
     oldWindowState.width = mainWindow.getBounds().width;
@@ -55,7 +58,7 @@ const createWelcomeWindow = () => {
         width: 800,
         height: 700,
         webPreferences: {
-            preload: path.join(resPath, '/pages/preload.js')
+            preload: path.join(resPath, '/pages/IPC/preload.js')
         }
     });
     welcomeWindow.loadFile('pages/welcome.html');
@@ -67,7 +70,7 @@ const createUpdateWindow = () => {
         width: 800,
         height: 400,
         webPreferences: {
-            preload: path.join(resPath, '/pages/preload.js')
+            preload: path.join(resPath, '/pages/IPC/preload.js')
         }
     });
     updateWindow.loadFile('pages/update.html');
