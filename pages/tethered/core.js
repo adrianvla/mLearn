@@ -46,7 +46,10 @@ const HTMLInjectable = `
             <input type="text" class="">
             <button class="forward"><img src="${srvUrl()}pages/assets/icons/fast-forward.svg"></button>
         </div>
-    </div>`;
+    </div>
+
+    <iframe src="" frameborder="0" hidden id="mlearn-frame"></iframe>
+`;
 const SUBTITLE_THEMES = ["marker","background","shadow"];
 let subs = null;
 let alreadyDisplayingCards = {};
@@ -602,7 +605,7 @@ const modify_sub = async (subtitle) => {
                 level: word in wordFreq ? wordFreq[word].raw_level : -1,
             };
             {
-                const $iframe = $("iframe");
+                const $iframe = $("iframe#mlearn-frame");
                 $iframe[0].contentWindow.document.body.innerHTML = $(".subtitles").html();
                 //remove each .subtitle_hover element
                 $iframe.contents().find(".subtitle_hover").remove();

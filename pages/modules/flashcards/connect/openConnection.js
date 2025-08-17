@@ -32,7 +32,6 @@ function transmitByQR(data){
         // correctLevel : QRCode.CorrectLevel.H
     });
 }
-
 function splitInChunks(str, n) {
     if (n <= 0) throw new Error("Number of chunks must be greater than 0");
     const chunkSize = Math.ceil(str.length / n);
@@ -45,7 +44,7 @@ function splitInChunks(str, n) {
 let chunkedData = [];
 let chunkIndex = 0;
 let chunkInterval = null;
-const numberOfChunks = 10;
+const numberOfChunks = 30;
 function transmitByQRChunks(data){
     clearInterval(chunkInterval);
     chunkIndex = 0;
