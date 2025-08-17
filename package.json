@@ -1,5 +1,5 @@
 {
-  "name": "intelligent-subtitles",
+  "name": "mLearn",
   "version": "1.3.0",
   "description": "A language-learning app that knows which words you know for faster learning by immersion",
   "main": "main.js",
