@@ -5,9 +5,13 @@ import {firstTimeSetup, isFirstTimeSetup, setFirstTimeSetup} from "./loadBackend
 import fs from "node:fs";
 import {PORT, setAllowed, startWebSocketServer} from "./webServer.js";
 import {openBigDialog} from "./openBigDialog.js";
+import {initDRMIPC} from "./drm/init.js";
 
 let mainWindow;
 let currentWindow = null;
+
+export const getCurrentWindow = () => currentWindow;
+export const getMainWindow = () => mainWindow;
 
 let oldWindowState = {width:null, height:null, fullscreen:false, trafficLights:true};
 const makeMainWindowPIP = (w,h) => {
@@ -46,6 +50,7 @@ const createWindow = () => {
     });
     mainWindow.loadFile('pages/index.html');
     currentWindow = mainWindow;
+    initDRMIPC();
 }
 const createWelcomeWindow = () => {
 
@@ -53,7 +58,7 @@ const createWelcomeWindow = () => {
         width: 800,
         height: 700,
         webPreferences: {
-            preload: path.join(resPath, '/pages/preload.js')
+            preload: path.join(resPath, '/pages/IPC/preload.js')
         }
     });
     welcomeWindow.loadFile('pages/welcome.html');
@@ -65,7 +70,7 @@ const createUpdateWindow = () => {
         width: 800,
         height: 400,
         webPreferences: {
-            preload: path.join(resPath, '/pages/preload.js')
+            preload: path.join(resPath, '/pages/IPC/preload.js')
         }
     });
     updateWindow.loadFile('pages/update.html');
