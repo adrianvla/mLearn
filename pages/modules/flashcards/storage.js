@@ -62,8 +62,8 @@ const newSetup = () => {
     resetFlashcards();
 };
 
-export const trackWordAppearance = (word) => {
-    const uuid = toUniqueIdentifier(word);
+export const trackWordAppearance = async (word) => {
+    const uuid = await toUniqueIdentifier(word);
     if(flashcards.wordCandidates[uuid] === undefined) flashcards.wordCandidates[uuid] = { "count": 0, "lastSeen": Date.now(), word };
     flashcards.wordCandidates[uuid].count++;
     saveFlashcards();
@@ -96,6 +96,7 @@ export const doMakeFlashcard = async (word, content) => {
     }
     return [false,0];
 };
+window.doMakeFlashcard = doMakeFlashcard;
 
 const updateFlashcardSearchHashMap = async () => {
     flashcardSearchHashMap = {};
@@ -161,8 +162,6 @@ async function createFlashcardForWord(word, translation_data = null){
 }
 
 async function newDay(){
-    flashcards.meta.lastFlashcardCreatedDate = Date.now();
-    flashcards.meta.flashcardsCreatedToday = 0;
 
 
     if(settings.createUnseenCards){
@@ -190,6 +189,9 @@ async function newDay(){
 
         }
     }
+
+    flashcards.meta.lastFlashcardCreatedDate = Date.now();
+    flashcards.meta.flashcardsCreatedToday = 0;
 
     saveFlashcards();
 }
