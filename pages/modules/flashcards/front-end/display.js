@@ -108,6 +108,7 @@ export function displayFlashcard(card){
     $(".definition").html(card.content.definition);
     $(".card-item:has(.definition)").hide();
     $(".example .translation p").html("");
+    $(".card-item img").attr("src", card.content.screenshotUrl);
     if(card.content.word in wordFreq)
         $(".pill").html(wordFreq[card.content.word].level).attr("level",card.content.level).show();
     else $(".pill").hide();

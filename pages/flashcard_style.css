@@ -360,9 +360,10 @@ body:not(.dark) .card-c .defined {
 .content{
     display:flex;
     width:100%;
-    height:100%;
-    justify-content: center;
+    flex-direction: column;
+    gap:10px;
     align-items: center;
+    overflow:auto;
 }
 .nav{
     display:flex;
@@ -621,11 +622,6 @@ body.dark .pill{
     flex-direction: column;
 }
 
-.content{
-    display:flex;
-    flex-direction: column;
-    gap:10px;
-}
 
 *[contenteditable="true"]{
     outline: none;
@@ -634,4 +630,8 @@ body.dark .pill{
 *[contenteditable="true"]:focus{
     border: 3px solid #444;
     box-sizing: border-box;
+}
+
+.subtitle_word{
+    position:relative;
 }
