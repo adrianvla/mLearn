@@ -1,6 +1,6 @@
 @font-face {
     font-family: 'Rounded';
-    src: url(http://localhost:7753/pages/assets/fonts/KosugiMaru-Regular.ttf);
+    src: url(//localhost:7753/pages/assets/fonts/KosugiMaru-Regular.ttf);
 }
 
 body.hide-cursor {
@@ -80,6 +80,7 @@ hr {
     transform: translateX(-50%);
     width:100%;
     text-align: center;
+    z-index:10000;
 }
 .subtitles.theme-marker{
     text-shadow: 0px 0px 10px #000000, rgba(0,0,0,0.8) 0 30px 25px;
@@ -219,7 +220,7 @@ body.dark .subtitle_hover .pitch {
     content: "";
     width: 10px;
     height: 10px;
-    background: url(http://localhost:7753/pages/assets/icons/star.svg) no-repeat center;
+    background: url(//localhost:7753/pages/assets/icons/star.svg) no-repeat center;
     background-size: contain;
     top: 0;
     left: 0;
@@ -379,6 +380,7 @@ body.dark .subtitle_hover .pill{
     opacity:1;
     font-family:"Helvetica Neue", sans-serif;
     animation: flash 0.5s 4;
+    z-index:10000;
 }
 @keyframes flash {
     0% {
@@ -420,6 +422,7 @@ body.hide-cursor .aside{
     transition: background 0.2s, top 0.2s, left 0.2s, opacity 0.2s;
     border-radius:10px;
     overflow:hidden;
+    z-index:10000;
 }
 .opacity0{
     opacity:0 !important;
@@ -441,6 +444,7 @@ body.hide-cursor .aside{
     overflow:hidden;
     transition: background 0.2s, top 0.2s, left 0.2s, gap 0.2s, opacity 0.2s;
     opacity:1;
+    z-index:10000;
 }
 /*.sync-subs:hover{*/
 /*    gap:10px;*/
@@ -679,3 +683,109 @@ body:not(.dark) .popup{
     pointer-events: all;
     opacity:1;
 }
+
+
+.mLearn-pitch-accent{
+    position:absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: 0;
+    font-size: 0.8em;
+    display:flex;
+}
+.mLearn-pitch-accent .box{
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    position: relative;
+}
+.mLearn-pitch-accent .box.bottom::before {
+    content: "";
+    position: absolute;
+    left: calc(var(--pitch-accent-height) / -2);
+    right: calc(var(--pitch-accent-height) / -2);
+    bottom: calc(var(--pitch-accent-height) / -2);
+    height: var(--pitch-accent-height);
+    background: #4e86ca;
+    border-radius: 50px;
+    pointer-events: none;
+}
+.mLearn-pitch-accent .box.top::before {
+    content: "";
+    position: absolute;
+    left: calc(var(--pitch-accent-height) / -2);
+    right: calc(var(--pitch-accent-height) / -2);
+    top: calc(var(--pitch-accent-height) / -2);
+    height: var(--pitch-accent-height);
+    background: #e8687b;
+    border-radius: 50px;
+    pointer-events: none;
+}
+.mLearn-pitch-accent .box.left::after {
+    content: "";
+    position: absolute;
+    top: calc(var(--pitch-accent-height) / -2);
+    bottom: calc(var(--pitch-accent-height) / -2);
+    left: calc(var(--pitch-accent-height) / -2);
+    width: var(--pitch-accent-height);
+    background: linear-gradient(to bottom, #e8687b, #4e86ca);
+    border-radius: 50px;
+    pointer-events: none;
+}
+.mLearn-pitch-accent .particle-box.box.top::before{
+    background: linear-gradient(to right, #e8687b, #e8687b00);
+}
+.mLearn-pitch-accent .particle-box.box.bottom::before{
+    background: linear-gradient(to right, #4e86ca, #4e86ca00);
+}
+
+
+
+/* Remove left border radius for the right .box when a .top/.bottom follows a .top/.bottom */
+.mLearn-pitch-accent .box.top + .box.top::before {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+.mLearn-pitch-accent .box.bottom + .box.bottom::before {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+/* Remove right border radius for the left .box when a .top/.bottom is followed by a .top/.bottom */
+.mLearn-pitch-accent .box.top::before {
+    border-top-right-radius: 50px;
+    border-bottom-right-radius: 50px;
+}
+.mLearn-pitch-accent .box.bottom::before {
+    border-top-right-radius: 50px;
+    border-bottom-right-radius: 50px;
+}
+.mLearn-pitch-accent .box.top + .box.top::before {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+.mLearn-pitch-accent .box.top::before {
+    border-top-right-radius: 50px;
+    border-bottom-right-radius: 50px;
+}
+.mLearn-pitch-accent .box.top:has(+ .box.top)::before {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.mLearn-pitch-accent .box.bottom + .box.bottom::before {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+.mLearn-pitch-accent .box.bottom::before {
+    border-top-right-radius: 50px;
+    border-bottom-right-radius: 50px;
+}
+.mLearn-pitch-accent .box.bottom:has(+ .box.bottom)::before {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+ruby rt{
+    position:relative;
+}
+

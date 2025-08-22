@@ -5,7 +5,7 @@ import url from "url";
 import http from "http";
 import {exec, spawn} from "child_process";
 import {ARCHITECTURE, isWindows, PLATFORM, resPath, setIsWindows} from "./archPlatform.js";
-import {app, ipcMain} from "electron";
+import {app, ipcMain, dialog} from "electron";
 import {createWelcomeWindow, getCurrentWindow, getMainWindow} from "./allWindows.js";
 import {loadSettings} from "./settings.js";
 
@@ -25,7 +25,7 @@ let isSettingUp = false;
 // const tempDir = path.join(resPath, 'temp');
 // const updateZipPath = path.join(tempDir, 'update.zip');
 // const extractDir = path.join(tempDir, 'mLearn-main');
-// const updateURL = "https://mlearn-update.morisinc.net/version-info.json";
+const updateURL = "https://mlearn-update.morisinc.net/version-info.json";
 // const updateDownloadUrl = "https://github.com/adrianvla/mLearn/archive/refs/heads/main.zip";
 
 
@@ -369,6 +369,38 @@ function findPython() {
         });
     });
 }
+
+function checkForUpdates() {
+    https.get(updateURL, (res) => {
+        let data = '';
+        res.on('data', (chunk) => {
+            data += chunk;
+        });
+        res.on('end', () => {
+            try {
+                const updateInfo = JSON.parse(data);
+                const myVersion = app.getVersion();
+                const latestVersion = updateInfo?.latest;
+                console.log(myVersion, latestVersion, myVersion===latestVersion);
+                if(myVersion!==latestVersion){
+                    const postScriptum = "Download it from here: \nhttps://mlearn.morisinc.net/download/";
+                    dialog.showMessageBox({
+                        type: 'info',
+                        buttons: ['OK'],
+                        title: 'Update Available',
+                        message: `A new version (${latestVersion}) is available!`,
+                        detail: (updateInfo?.changelog || '') + '\n\n' + postScriptum,
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to parse update info:', e);
+            }
+        });
+    }).on('error', (err) => {
+        console.error('Error fetching update info:', err.message);
+    });
+}
+checkForUpdates();
 
 function setFirstTimeSetup(value) {
     isFirstTimeSetup = value;

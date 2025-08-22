@@ -1,12 +1,16 @@
 {
-  "name": "mLearn",
-  "version": "1.3.0",
+  "name": "mlearn",
+  "version": "1.3.1",
   "description": "A language-learning app that knows which words you know for faster learning by immersion",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron ."
+  "start": "electron .",
+  "dist": "electron-builder -mwl",
+  "dist:mac": "electron-builder --mac",
+  "dist:win": "electron-builder --win",
+  "dist:linux": "electron-builder --linux"
   },
   "keywords": [
     "language-learning"
@@ -14,9 +18,11 @@
   "author": "Adrian Vlasov",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^32.1.2"
+  "electron": "^32.1.2",
+  "electron-builder": "^24.13.3"
   },
   "dependencies": {
+  "devcert": "^1.2.0",
     "python-shell": "^5.0.0",
     "tar": "^7.4.3",
     "unzipper": "^0.12.3",
@@ -31,5 +37,26 @@
         "**/*"
       ]
     }
-  ]
+  ],
+  "build": {
+    "appId": "net.morisinc.mlearn",
+    "productName": "mLearn",
+    "files": [
+      "**/*",
+      "!env/**",
+      "!py/**",
+      "!**/*.map"
+    ],
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.education"
+    },
+    "win": {
+      "target": ["nsis", "zip"]
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Education"
+    }
+  }
 }

@@ -9,7 +9,7 @@ import {currentPlayingVideo} from "../playback/streaming.js";
 import {addTranslationCard} from "./liveWordTranslator.js";
 import {makeFlashcard} from "../flashcards/anki.js";
 import {addPills, resetWordUUIDs} from "./pillHtml.js";
-import {changeKnownStatus, getKnownStatus} from "../stats/saving.js";
+import {changeKnownStatus, getKnownStatus, WORD_STATUS_KNOWN} from "../stats/saving.js";
 import {isWatchTogether} from "../watch-together/watchTogether.js";
 import {attemptFlashcardCreation, trackWordAppearance} from "../flashcards/storage.js";
 
@@ -503,7 +503,7 @@ const modify_sub = async (subtitle) => {
             else
                 card_data.poor = true;
 
-            if(card_data.poor && getKnownStatus(word) < 2){ //card not found
+            if(card_data.poor && await getKnownStatus(word) < WORD_STATUS_KNOWN){ //card not found
                 show_subtitle = true;
                 doAppendHoverLazy = true;
                 newEl.attr("known","false");
@@ -512,13 +512,13 @@ const modify_sub = async (subtitle) => {
             }else{
                 //compare ease
                 let current_card = card_data.cards[0];
-                if(current_card.factor < settings.known_ease_threshold && getKnownStatus(word) < 2){
+                if(current_card.factor < settings.known_ease_threshold && await getKnownStatus(word) < WORD_STATUS_KNOWN){
                     show_subtitle = true;
                     doAppend = true;
                     await translateWord(card_data, current_card);
                 }else{
                     newEl.attr("known","true");
-                    changeKnownStatus(word, 2);
+                    changeKnownStatus(word, WORD_STATUS_KNOWN);
                     blurWord(newEl);
                     if(settings.hover_known_get_from_dictionary){
                         doAppendHoverLazy=true;
