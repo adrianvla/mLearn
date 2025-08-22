@@ -7,7 +7,7 @@ const CSSInjectable = `
       box-sizing: border-box;
       box-shadow: 0 2px 6px rgba(0,0,0,0.2);
       display: none;
-      z-index: 1000;
+      z-index: 10000;
       border-radius: 10px;
       min-width: 150px;
       overflow:hidden;
@@ -23,7 +23,7 @@ const CSSInjectable = `
       background-color: #333;
     }`;
 function srvUrl(){
-    if(!window.mLearnTethered) return "http://localhost:7753/";
+    if(!window.mLearnTethered) return "//localhost:7753/";
     return window.mLearnTetheredIP;
 }
 const HTMLInjectable = `
@@ -93,7 +93,19 @@ function trackWordAppearance(word) {
     script.onload = () => script.remove();
     document.body.appendChild(script);
 }
-function attemptFlashcardCreation(word,content){
+function attemptFlashcardCreation(word, content) {
+    try {
+        if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+            console.log("%cSending attempt-flashcard-creation payload to WS", "color:green;font-weight:bold;font-size:1.5em");
+            const payload = { action: 'attempt-flashcard-creation', word, content };
+            webSocket.send(JSON.stringify(payload));
+            return;
+        }
+    } catch (e) {
+        // Fall back to HTTP below
+        console.log("%cFailed to send attempt-flashcard-creation payload to WS, falling back to HTTP", "color:red");
+    }
+    // Fallback: keep legacy HTTP path if WS isn’t available
     const script = document.createElement('script');
     script.src = srvUrl()+`api/attempt-flashcard-creation?word=${encodeURIComponent(word)}&content=${encodeURIComponent(JSON.stringify(content))}`;
     script.onload = () => script.remove();
@@ -122,16 +134,18 @@ const show_notification = (m, autoclose=true) => {
         </div>
     </div>`);
     notification.css("right","-100%");
+    // const vid = $("video").get(0);
+    // const rect = vid.getBoundingClientRect();
+    // notification.css("top",rect.top+10).css("right",rect.left + rect.width -100).css("opacity",0);
     $("body").append(notification);
     //animate
     notification.animate({right: 10});
-    notification.find(".close").click(()=>{
+    const closeNotif = ()=>{
         notification.animate({right: "-100%"},()=>{notification.remove()});
-    });
+    }
+    notification.find(".close").click(closeNotif);
     if(autoclose){
-        setTimeout(() => {
-            notification.animate({right: "-100%"}, () => {notification.remove()});
-        }, 3000);
+        setTimeout(closeNotif, 3000);
     }
 };
 
@@ -431,10 +445,13 @@ const getKnownStatus = (word) => {
     * 1: learning
     * 2: known
     * */
-    if(word in knownAdjustment){
-        return knownAdjustment[word];
+    let returnable = 0;
+    if(word in knownAdjustment) returnable = knownAdjustment[word];
+    if(word in globalThis?.easeHashmap){
+        if(settings.known_ease_threshold/1000 > globalThis.easeHashmap[word]) returnable = 2;
+        else returnable = 1;
     }
-    return 0;
+    return returnable;
 };
 const unknownStatusPillHTML = (uuid) => {
     return `<div class="pill pill-btn red" onclick='changeKnownBtnStatus("${uuid}", 1);' id="status-pill-${uuid}">
@@ -1163,7 +1180,14 @@ function watchTogetherSend(data) {
     script.onload = () => script.remove();
     document.body.appendChild(script);
 }
-
+function calculateSubtitleOffset(){
+    const video = document.querySelector("video");
+    const offset = getElementTopOffset(video);
+    let offset1 = offset + video.getBoundingClientRect().height;
+    offset1 -= 10;
+    $(".subtitles").css("bottom",`${window.innerHeight-offset1}px`);
+    $(".aside, .sync-subs").css("top",`${offset+38}px`);
+}
 (function (){
     if(isLoaded) return;
     isLoaded = true;
@@ -1188,13 +1212,7 @@ function watchTogetherSend(data) {
     document.body.classList.add("dark");
 
     applySettings();
-    setTimeout(()=>{
-        const offset = getElementTopOffset(video);
-        let offset1 = offset + video.getBoundingClientRect().height;
-        offset1 -= 10;
-        $(".subtitles").css("bottom",`${window.innerHeight-offset1}px`);
-        $(".aside, .sync-subs").css("top",`${offset+38}px`);
-    },500);
+    setTimeout(calculateSubtitleOffset,500);
 
     $(".aside").on("mouseover",()=>{
         if (asideTimeout) {
@@ -1346,14 +1364,40 @@ function watchTogetherSend(data) {
     });
     addContextMenuItem("Show Last Subtitle Raw Text",()=>{alert(lastSub.text)});
     addContextMenuItem("Enter Fullscreen",()=>{
-        if (document.documentElement.requestFullscreen) {
-            document.documentElement.requestFullscreen();
-        } else if (document.documentElement.webkitRequestFullscreen) {
-            document.documentElement.webkitRequestFullscreen();
-        } else if (document.documentElement.msRequestFullscreen) {
-            document.documentElement.msRequestFullscreen();
+        let elToFullscreen = document.documentElement;
+        // if(elToFullscreen) { elToFullscreen = document.querySelector("video");
+        //     if(elToFullscreen?.parentElement) elToFullscreen = elToFullscreen.parentElement;
+        //     if(elToFullscreen?.parentElement) elToFullscreen = elToFullscreen.parentElement;
+        // }
+        if (elToFullscreen.requestFullscreen) {
+            elToFullscreen.requestFullscreen();
+        } else if (elToFullscreen.webkitRequestFullscreen) {
+            elToFullscreen.webkitRequestFullscreen();
+        } else if (elToFullscreen.msRequestFullscreen) {
+            elToFullscreen.msRequestFullscreen();
+        }
+        $('body').append($(`<div class="mlearn-page-blocker" style="position:fixed;background:#000;top:0;left:0;width:100%;height:100%;z-index:9998"></div>`));
+        const arr = [document.querySelector("video"),document.querySelector("video")?.parentElement,document.querySelector("video")?.parentElement?.parentElement];
+        arr.forEach(el => {
+            if (el) $(el).css("position", "fixed").css("width", "100%").css("height", "100%").css("top", 0).css("left", 0).css("z-index", 9999);
+            else console.log(el)
+        });
+        $('.subtitles').css("bottom","10px");
+    });
+    document.addEventListener("fullscreenchange", () => {
+        if (document.fullscreenElement) {
+            console.log("Entered fullscreen:", document.fullscreenElement);
+        } else {
+            console.log("Exited fullscreen");
+            $(".mlearn-page-blocker").remove();
+            const arr = [document.querySelector("video"),document.querySelector("video")?.parentElement,document.querySelector("video")?.parentElement?.parentElement];
+            arr.forEach(el => {
+                if (el) $(el).css("position", "unset").css("width", "unset").css("height", "unset").css("top", "unset").css("left", "unset").css("z-index", "unset");
+            });
+            calculateSubtitleOffset();
         }
     });
+
     addContextMenuItem("Become Watch Together Master",()=>{
         isWatchTogether = true;
     });
@@ -1431,7 +1475,8 @@ function watchTogetherSend(data) {
     // if(window.mLearnIsLocal) return;
     let serverURL = window.mLearnTetheredIP.replaceAll("https","").replaceAll("://","").replaceAll("http","").replaceAll("//","");
     console.log("Connecting to mLearn Watch Together Server at: "+serverURL);
-    webSocket = new WebSocket("wss://"+serverURL);
+    const wsProto = (typeof serverProtocol !== 'undefined' ? serverProtocol : (location.protocol === 'https:' ? 'https' : 'http')) === 'https' ? 'wss' : 'ws';
+    webSocket = new WebSocket(wsProto+"://"+serverURL);
     webSocket.onopen = ()=>{
         console.log("Connected to the server.");
         $(".recently-c").remove();

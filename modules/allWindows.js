@@ -3,7 +3,7 @@ import path from "node:path";
 import {isMac, isPackaged, isWindows, resPath} from "./archPlatform.js";
 import {firstTimeSetup, isFirstTimeSetup, setFirstTimeSetup} from "./loadBackend.js";
 import fs from "node:fs";
-import {PORT, setAllowed, startWebSocketServer} from "./webServer.js";
+import {PORT, startWebSocketServer, getServerProtocol} from "./webServer.js";
 import {openBigDialog} from "./openBigDialog.js";
 import {initDRMIPC} from "./drm/init.js";
 
@@ -211,18 +211,18 @@ const template = [
     {
         label: 'Connect',
         submenu: [
-            {
-                label: 'Allow Connections',
-                click: async () => {
-                    mainWindow.webContents.send('watch-together');
-                    setAllowed(true);
-                    dialog.showMessageBox(null, {
-                        type: 'info',
-                        title: 'Allowed Connections to Server!',
-                        message: 'Allowed connections to \nhttp://127.0.0.1:'+PORT+`.\n\nFor more information, open the Help menu.`
-                    });
-                }
-            },
+            // {
+            //     label: 'Allow Connections',
+            //     click: async () => {
+            //         mainWindow.webContents.send('watch-together');
+            //         setAllowed(true);
+            //         dialog.showMessageBox(null, {
+            //             type: 'info',
+            //             title: 'Allowed Connections to Server!',
+            //             message: `Allowed connections to \n${getServerProtocol()}://127.0.0.1:${PORT}.\n\nFor more information, open the Help menu.`
+            //         });
+            //     }
+            // },
             {
                 label: 'Copy Page Injector Script',
                 click: async () => {
@@ -240,7 +240,7 @@ const template = [
             },
             {
                 label: 'Install UserScript',
-                click: async ()=>{
+        click: async ()=>{
                     dialog.showMessageBox(null, {
                         type:'question',
                         title: 'Install UserScript',
@@ -250,7 +250,7 @@ const template = [
                         cancelId: 1
                     }).then((result) => {
                         if (result.response !== 0) return;
-                        shell.openExternal(`http://127.0.0.1:${PORT}/mLearn.user.js`);
+            shell.openExternal(`${getServerProtocol()}://127.0.0.1:${PORT}/mLearn.user.js`);
                     });
                 }
             }

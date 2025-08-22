@@ -9,6 +9,7 @@ import {ipcMain} from "electron";
 import { WebSocketServer } from 'ws';
 import {loadLangData} from "./langData.js";
 import {loadSettings} from "./settings.js";
+import {flashcardsToEaseHashmap} from "./flashcardStorage.js";
 
 const PORT = 7753;
 let server;
@@ -18,11 +19,55 @@ let pillQueuedUpdates = [];
 let wordAppearanceQueuedUpdates = [];
 let attemptFlashcardCreationQueuedUpdates = [];
 let sockets = [];
-let isAllowed = false;
+// let isAllowed = false;
 
-function setAllowed(to) {
-    isAllowed = to;
-}
+// Attempt to enable HTTPS if localhost certs are available or provided via env
+let useHTTPS = false;
+let httpsOptions = undefined;
+const resolveHttpsOptions = async () => {
+    if (httpsOptions) return httpsOptions;
+    try {
+        const envKey = process.env.MLEARN_SSL_KEY;
+        const envCert = process.env.MLEARN_SSL_CERT;
+        let keyPath = envKey;
+        let certPath = envCert;
+        if (!keyPath || !certPath) {
+            const certDir = path.join(resPath, 'certs');
+            keyPath = keyPath || path.join(certDir, 'localhost-key.pem');
+            certPath = certPath || path.join(certDir, 'localhost-cert.pem');
+        }
+        if (keyPath && certPath && fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+            httpsOptions = {
+                key: fs.readFileSync(keyPath),
+                cert: fs.readFileSync(certPath)
+            };
+            useHTTPS = true;
+            return httpsOptions;
+        }
+    } catch {}
+    // Try devcert as a fallback to auto-generate localhost certs
+    try {
+        const devcert = await import('devcert');
+        const devcertApi = (devcert && (devcert.default || devcert));
+        if (devcertApi && typeof devcertApi.certificateFor === 'function') {
+            const creds = await devcertApi.certificateFor('localhost');
+            if (creds && creds.key && creds.cert) {
+                httpsOptions = { key: creds.key, cert: creds.cert };
+                useHTTPS = true;
+            }
+        }
+    } catch (e) {
+        // No devcert or failed; remain on HTTP
+        useHTTPS = false;
+    }
+    return httpsOptions;
+};
+
+const getServerProtocol = () => (useHTTPS ? 'https' : 'http');
+
+// function setAllowed(to) {
+//     isAllowed = to;
+// }
 
 function setLocalStorage(data) {
     lS = data;
@@ -39,20 +84,20 @@ const sendMessageToAllClients = (message) => {
 
 const sendPillUpdatesToMainWindow = () => {
     if(pillQueuedUpdates.length === 0) return;
-    console.log("Sending queued updates to main window",pillQueuedUpdates);
+    console.log("Sending queued updates to main window pills",pillQueuedUpdates);
     mainWindow.webContents.send('update-pills',JSON.stringify(pillQueuedUpdates));
     pillQueuedUpdates = [];
 };
 
 const sendWordAppearanceUpdatesToMainWindow = () => {
     if(wordAppearanceQueuedUpdates.length === 0) return;
-    console.log("Sending queued updates to main window",wordAppearanceQueuedUpdates);
+    console.log("Sending queued updates to main window wordAppearance",wordAppearanceQueuedUpdates);
     mainWindow.webContents.send('update-word-appearance',JSON.stringify(wordAppearanceQueuedUpdates));
     wordAppearanceQueuedUpdates = [];
 }
 const sendAttemptFlashcardCreationUpdatesToMainWindow = () => {
     if(attemptFlashcardCreationQueuedUpdates.length === 0) return;
-    console.log("Sending queued updates to main window",attemptFlashcardCreationQueuedUpdates);
+    console.log("Sending queued updates to main window flashcardCreationAttempts",attemptFlashcardCreationQueuedUpdates);
     mainWindow.webContents.send('update-attempt-flashcard-creation',JSON.stringify(attemptFlashcardCreationQueuedUpdates));
     attemptFlashcardCreationQueuedUpdates = [];
 }
@@ -65,9 +110,11 @@ function getHostAndPort(url) {
         return [null, null]; // in case of invalid URL
     }
 }
-const startWebSocketServer = () => {
+const startWebSocketServer = async () => {
     if(server) return;
-    HTTPServer = http.createServer((req, res) => {
+    // Attempt to enable HTTPS if possible
+    await resolveHttpsOptions();
+    const requestHandler = (req, res) => {
         if (req.method === 'OPTIONS') {
             // Handle preflight CORS requests
             res.writeHead(204, {
@@ -79,7 +126,7 @@ const startWebSocketServer = () => {
             return res.end();
         }
 
-        if (req.method === 'GET' && req.url.startsWith('/api/pills') && isAllowed) {
+        if (req.method === 'GET' && req.url.startsWith('/api/pills')) {
             const query = url.parse(req.url, true).query;
             // query.key and query.value are available here
             console.log('Received pill:', query.key, query.value);
@@ -91,7 +138,7 @@ const startWebSocketServer = () => {
             return;
         }
 
-        if (req.method === 'GET' && req.url.startsWith('/api/word-appearance') && isAllowed) {
+        if (req.method === 'GET' && req.url.startsWith('/api/word-appearance')) {
             const query = url.parse(req.url, true).query;
             // query.key and query.value are available here
             wordAppearanceQueuedUpdates.push(query.word);
@@ -100,7 +147,7 @@ const startWebSocketServer = () => {
             if(!mainWindow.isDestroyed()) sendWordAppearanceUpdatesToMainWindow();
             return;
         }
-        if (req.method === 'GET' && req.url.startsWith('/api/attempt-flashcard-creation') && isAllowed) {
+        if (req.method === 'GET' && req.url.startsWith('/api/attempt-flashcard-creation')) {
             const query = url.parse(req.url, true).query;
             // query.key and query.value are available here
             attemptFlashcardCreationQueuedUpdates.push({word: query.word, content: query.content});
@@ -111,7 +158,7 @@ const startWebSocketServer = () => {
         }
 
         // Handle /api/watch-together GET requests
-        if (req.method === 'GET' && req.url.startsWith('/api/watch-together') && isAllowed) {
+        if (req.method === 'GET' && req.url.startsWith('/api/watch-together')) {
             const query = url.parse(req.url, true).query;
             if (query.message) {
                 try {
@@ -153,9 +200,10 @@ const startWebSocketServer = () => {
             }
             return;
         }
-        if (req.url.startsWith('/forward/') && isAllowed) {
+        if (req.url.startsWith('/forward/')) {
             const forwardPath = req.url.replace('/forward/', '/');
-            let [hostname, port] = getHostAndPort(loadSettings().tokeniserUrl);
+            const tokeniserUrl = loadSettings().tokeniserUrl || '';
+            let [hostname, port] = getHostAndPort(tokeniserUrl);
             const options = {
                 hostname,
                 port: parseInt(port),
@@ -164,7 +212,8 @@ const startWebSocketServer = () => {
                 headers: req.headers
             };
 
-            const proxyReq = http.request(options, (proxyRes) => {
+            const forwardClient = (tokeniserUrl || '').startsWith('https') ? https : http;
+            const proxyReq = forwardClient.request(options, (proxyRes) => {
                 res.writeHead(proxyRes.statusCode, proxyRes.headers);
                 proxyRes.pipe(res, { end: true });
             });
@@ -196,12 +245,14 @@ const startWebSocketServer = () => {
             s += `globalThis.lang_data = ${JSON.stringify(loadLangData())};\n`;
             s += `globalThis.settings = ${JSON.stringify(settingsToSend)};\n`;
             s += `globalThis.lS = ${JSON.stringify(lS)};\n`;
+            s += `globalThis.easeHashmap = ${JSON.stringify(flashcardsToEaseHashmap())};\n`;
+            s += `globalThis.serverProtocol = '${useHTTPS ? 'https' : 'http'}';\n`;
             res.writeHead(200, {
                 'Content-Type': 'application/javascript',
                 'Access-Control-Allow-Origin': '*',
             });
             res.end(s);
-        } else if (req.url.startsWith('/pages/') && isAllowed) {
+        } else if (req.url.startsWith('/pages/')) {
             // Serve static files from the 'assets' folder
             const filePath = path.join(resPath, req.url);
             if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
@@ -223,7 +274,7 @@ const startWebSocketServer = () => {
                 res.writeHead(404, { 'Content-Type': 'text/plain' });
                 res.end('File not found');
             }
-        } else if (req.url.startsWith('/?url=') && isAllowed) {
+        } else if (req.url.startsWith('/?url=')) {
             const query = url.parse(req.url, true).query;
             let targetUrl = query.url; // Extract the target URL from the query string
 
@@ -273,12 +324,24 @@ const startWebSocketServer = () => {
             });
             res.end('Redirecting to main page...');
         }
-    });
+    };
+    HTTPServer = useHTTPS && httpsOptions ? https.createServer(httpsOptions, requestHandler) : http.createServer(requestHandler);
     server = new WebSocketServer({ /*port: PORT,*/noServer:true });
     server.on('connection', (ws) => {
         sockets.push(ws);
         ws.on('message', (message) => {
             console.log(`Received message => ${message}`);
+            try {
+                const msg = JSON.parse(message);
+                if (msg && msg.action === 'attempt-flashcard-creation') {
+                    attemptFlashcardCreationQueuedUpdates.push({ word: msg.word, content: msg.content });
+                    console.log("Attempt: ", msg.word, msg.content);
+                    if(!mainWindow.isDestroyed()) sendAttemptFlashcardCreationUpdatesToMainWindow();
+                    return;
+                }
+            } catch (e) {
+                // not JSON or not our action; forward to renderer as legacy request
+            }
             mainWindow.webContents.send('watch-together-request', message);
         });
     });
@@ -289,7 +352,8 @@ const startWebSocketServer = () => {
         });
     });
     HTTPServer.listen(PORT, () => {
-        console.log(`Watch Together running on http://localhost:${PORT}`);
+    const proto = useHTTPS ? 'https' : 'http';
+    console.log(`Watch Together running on ${proto}://localhost:${PORT}`);
     });
 };
 
@@ -311,4 +375,4 @@ ipcMain.on('watch-together-send', (event, message) => {
 ipcMain.on('is-watching-together', (event) => {
     event.reply('watch-together', 'ping');
 });
-export {startWebSocketServer, setLocalStorage,sendPillUpdatesToMainWindow, PORT, setAllowed};
+export {startWebSocketServer, setLocalStorage,sendPillUpdatesToMainWindow, PORT, getServerProtocol};

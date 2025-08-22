@@ -21,7 +21,7 @@ const manageFiles = async (files) => {
         const file = files[0];
         const fileName = file.name;
         console.log("file.type",file.type);
-        if (file.type === 'video/mp4' || fileName.endsWith('mkv')) {
+        if (file.type === 'video/mp4' || fileName.endsWith('mkv') || fileName.endsWith('mov')) {
             $("video source")[0].src = URL.createObjectURL(file);
             console.log("set src to", URL.createObjectURL(file));
             setPlaybackType("local");
@@ -61,7 +61,7 @@ const manageFiles = async (files) => {
                 }
             } else*/ {
             $(".critical-error-c").remove();
-            $("body").append(`<div class="critical-error-c"><div class="critical-error"><span>Error: <br>Please drop a .mp4, .srt or .ass file.</span></div></div>`);
+            $("body").append(`<div class="critical-error-c"><div class="critical-error"><span>Error: <br>Please drop a .mp4, .mkv, .mov, .srt or .ass file.</span></div></div>`);
             setTimeout(()=>{
                 $(".critical-error-c").remove();
             },5000);

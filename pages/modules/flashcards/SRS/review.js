@@ -2,6 +2,7 @@ import {Flashcards, saveFlashcards} from "../storage.js";
 import {$, displayFlashcard, revealAnswer} from "../front-end/display.js";
 import {closeWindow, getDocument} from "../front-end/window.js";
 import {openConnection} from "../connect/openConnection.js";
+import {toUniqueIdentifier} from "../../utils.js";
 
 function sortByDueDate(fs) {
     fs.flashcards.sort((a, b) => a.dueDate - b.dueDate);
@@ -125,8 +126,10 @@ export const review = () => {
         fs.flashcards[0] = updateDueDate(fs.flashcards[0], q);
         displayLast();
     }
-    function removeFlashcard(){
+    async function removeFlashcard(){
         if(fs.flashcards.length === 0) return;
+        const uuid = await toUniqueIdentifier(fs.flashcards[0].content.word);
+        fs.knownUnTracked[uuid] = true;
         fs.flashcards.shift();
         displayLast();
     }

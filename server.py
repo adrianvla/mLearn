@@ -259,7 +259,7 @@ def get_card(req: GetCardRequest):
     global all_cards
     global cards_per_id
     global words_ids
-    print("requested card: ", req.word)
+    # print("requested card: ", req.word)
     if req.word in getCardCache:
         return getCardCache[req.word]
     # get all cards that contain the word
@@ -290,7 +290,7 @@ def get_card(req: GetCardRequest):
     #filter out cards that have the same id
     matched = list(set(matched))
     matched.sort(reverse=True)
-    print(matched)
+    # print(matched)
     matched = matched[:5]
     # #get ease of the cards
     # eases = invoke('getEaseFactors', cards=[match[1] for match in matched])

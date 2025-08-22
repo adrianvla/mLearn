@@ -66,7 +66,7 @@ const changeKnownBtnStatus = async (uuid, status) => {
 
 const changeKnownStatusButtonHTML = async (word, status = 0) => {
     if(!status)
-        status = getKnownStatus(word);
+        status = await getKnownStatus(word);
     return await generateStatusPillHTML(word, status);
 };
 

@@ -1,12 +1,19 @@
 import {screenshotVideo, toUniqueIdentifier} from "../utils.js";
 import {settings, wordFreq} from "../settings/settings.js";
 import {getCards, getTranslation} from "../networking.js";
-import {getKnownStatus, saveKnownAdjustment, setKnownAdjustment} from "../stats/saving.js";
+import {
+    WORD_STATUS_KNOWN,
+    WORD_STATUS_LEARNING,
+    WORD_STATUS_UNKNOWN,
+    getKnownStatus
+} from "../stats/saving.js";
 
 let flashcards = {};
+let flashcardSearchHashMap = {};
 
-export const saveFlashcards = () => {
+export const saveFlashcards = async () => {
     window.mLearnIPC.saveFlashcards(flashcards);
+    await updateFlashcardSearchHashMap();
 };
 const getFlashcards = async () => new Promise((resolve) => {
     window.mLearnIPC.getFlashcards();
@@ -41,6 +48,7 @@ export const resetFlashcards = () =>{
 
         },
         "alreadyCreated":{},
+        "knownUnTracked":{},
         "meta":{
             "flashcardsCreatedToday": 0,
             "lastFlashcardCreatedDate" : Date.now()
@@ -71,7 +79,7 @@ function isSameDay(date) {
 
 export const doMakeFlashcard = async (word, content) => {
     const uuid = await toUniqueIdentifier(word);
-    if(flashcards.wordCandidates[uuid] === undefined) return false;
+    if(flashcards.wordCandidates[uuid] === undefined) return [false,0];
     const wordCandidate = flashcards.wordCandidates[uuid];
     const hour = 60 * 60 * 1000;
     const isCandidate = wordCandidate.count >= 3 && (Date.now() - wordCandidate.lastSeen < hour * 24);
@@ -87,6 +95,32 @@ export const doMakeFlashcard = async (word, content) => {
         return [isCandidate,wordCandidate.count];
     }
     return [false,0];
+};
+
+const updateFlashcardSearchHashMap = async () => {
+    flashcardSearchHashMap = {};
+    for (const flashcard of flashcards.flashcards) {
+        const i = flashcards.flashcards.indexOf(flashcard);
+        const uuid = await toUniqueIdentifier(flashcard.content.word);
+        flashcardSearchHashMap[uuid] = i;
+    }
+};
+
+export const findFlashcard = async (word) => {
+    const uuid = await toUniqueIdentifier(word);
+    if(uuid in flashcardSearchHashMap) return flashcards.flashcards[flashcardSearchHashMap[uuid]];
+    return null;
+};
+
+export const getSRSWordKnownStatus = async (word) => {
+    const uuid = await toUniqueIdentifier(word);
+    if(uuid in flashcards.knownUnTracked) return WORD_STATUS_KNOWN;
+    else if(uuid in flashcardSearchHashMap){
+        const flashcard = flashcards.flashcards[flashcardSearchHashMap[uuid]];
+        if(settings.known_ease_threshold/1000 > flashcard.ease) return WORD_STATUS_KNOWN;
+        else return WORD_STATUS_LEARNING;
+    }
+    return WORD_STATUS_UNKNOWN;
 };
 
 export const addFlashcard = async (word, content, ease=0) => {
@@ -150,8 +184,8 @@ async function newDay(){
                 if(translation_data.data === undefined) bad_data = true;
                 else bad_data = translation_data.data.length === 0;
                 const uuid = await toUniqueIdentifier(word);
-                if(uuid in flashcards.alreadyCreated) inexistent = false;
-            }while(wordFreq[word]?.raw_level === undefined || wordFreq[word].raw_level < settings.preparedExam || !inexistent || !(getKnownStatus(word) < 2) || bad_data);
+                if(uuid in flashcards.alreadyCreated || uuid in flashcards.knownUnTracked) inexistent = false;
+            }while(wordFreq[word]?.raw_level === undefined || wordFreq[word].raw_level < settings.preparedExam || !inexistent || !(await getKnownStatus(word) < WORD_STATUS_KNOWN) || bad_data);
             await createFlashcardForWord(word, translation_data);
 
         }
@@ -167,8 +201,9 @@ export const attemptFlashcardCreation = async (word, content) =>{
 
     const uuid = await toUniqueIdentifier(word);
     if(uuid in flashcards.alreadyCreated) return;
+    if(uuid in flashcards.knownUnTracked) return;
 
-    let [isCandidate, count] = doMakeFlashcard(word, content);
+    let [isCandidate, count] = await doMakeFlashcard(word, content);
     if(!isCandidate) return;
     await addFlashcard(word, content, countToEase(count));
     saveFlashcards();
@@ -177,6 +212,7 @@ export const attemptFlashcardCreation = async (word, content) =>{
 
 (async function() {
     await getFlashcards();
+    await updateFlashcardSearchHashMap();
     console.log("flashcards:",flashcards);
     newSetup();
     if(!isSameDay(flashcards.meta.lastFlashcardCreatedDate)) await newDay();
@@ -197,6 +233,7 @@ window.mLearnIPC.onUpdateWordAppearance((message)=>{
 });
 window.mLearnIPC.onUpdateAttemptFlashcardCreation((message)=>{
     JSON.parse(message).forEach(async cardPair => {
+        console.log(cardPair);
         await attemptFlashcardCreation(cardPair.word, cardPair.content);
     });
 });

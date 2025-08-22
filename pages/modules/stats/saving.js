@@ -1,9 +1,13 @@
 import {video} from "../playback/elements.js";
 import {getCards, sendRawToAnki} from "../networking.js";
 import {currentPlayingVideo, isCurrentlyPlayingVideo, onVideoEnded} from "../playback/streaming.js";
+import {getSRSWordKnownStatus} from "../flashcards/storage.js";
 
 let knownAdjustment = {};
 let alreadyUpdatedInAnki = {};
+export const WORD_STATUS_UNKNOWN = 0;
+export const WORD_STATUS_LEARNING = 1;
+export const WORD_STATUS_KNOWN = 2;
 const saveKnownAdjustment = () => {
     //save knownAdjustment to localStorage
     localStorage.setItem("knownAdjustment", JSON.stringify(knownAdjustment));
@@ -36,16 +40,17 @@ const changeKnownStatus = (word, status) => {
     knownAdjustment[word] = status;
     saveKnownAdjustment();
 };
-const getKnownStatus = (word) => {
+const getKnownStatus = async (word) => {
     /*
     * 0: unknown
     * 1: learning
     * 2: known
     * */
-    if(word in knownAdjustment){
-        return knownAdjustment[word];
-    }
-    return 0;
+    let returnable = WORD_STATUS_UNKNOWN;
+    if(word in knownAdjustment) returnable = knownAdjustment[word];
+    returnable = Math.max(returnable, await getSRSWordKnownStatus(word)); //Query SRS
+
+    return returnable;
 };
 
 function setKnownAdjustment(word, status) {
@@ -67,7 +72,7 @@ const updateFlashcardsAnkiDate = () => {
     });*/
     Object.keys(knownAdjustment).forEach(async (word)=>{
         console.log("Updating flashcard for word: "+word);
-        const status = getKnownStatus(word);
+        const status = await getKnownStatus(word);
         let hasBeenUpdated = false;
         if(word in alreadyUpdatedInAnki){
             hasBeenUpdated=alreadyUpdatedInAnki[word];
