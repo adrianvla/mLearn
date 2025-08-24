@@ -84,7 +84,11 @@
     ],
     "dmg": {
       "background": "build/dmg-background.png",
-  "icon": "build/icon.icns"
+  "icon": "build/icon.icns",
+  "contents": [
+        { "x": 140, "y": 200 },
+        { "x": 660, "y": 200, "type": "link", "path": "/Applications" }
+      ]
     },
     "afterPack": "scripts/afterPack.cjs"
   }

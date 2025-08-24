@@ -7,6 +7,7 @@ import fs from "node:fs";
 import {PORT, startWebSocketServer, getServerProtocol} from "./webServer.js";
 import {openBigDialog} from "./openBigDialog.js";
 import {initDRMIPC} from "./drm/init.js";
+import {prompt_user} from "./misc/prompt.js";
 
 let mainWindow;
 let currentWindow = null;
@@ -231,11 +232,35 @@ const template = [
                     try {
                         text = fs.readFileSync(path.join(appPath, 'modules', 'scripts', 'injector.js'), 'utf-8');
                     }catch(e){console.log(e);}
+                    text = text.replaceAll("ISMLEARNTETHERED_TO_REPLACE","true");
                     clipboard.writeText(text);
                     dialog.showMessageBox(null, {
-                       type: 'info',
-                       title: 'Copied!',
-                       message: 'Copied!\n\nMore information about how to use it in Online Browser Mode is available in the Help menu.'
+                        type: 'info',
+                        title: 'Copied!',
+                        message: 'Copied!\n\nMore information about how to use it in Online Browser Mode is available in the Help menu.'
+                    });
+                }
+            },
+            {
+                label: 'Copy Watch Together Script',
+                click: async () => {
+                    let text = '';
+                    try {
+                        text = fs.readFileSync(path.join(appPath, 'modules', 'scripts', 'injector.js'), 'utf-8');
+                    }catch(e){console.log(e);} //FIXME
+                    prompt_user({
+                        title: 'Enter Port-Forwarded URL',
+                        desc: 'Enter the port-forwarded URL that you got from your tunneling service, such as ngrok or localtunnel. \n\nFor example, if you used ngrok, the URL would be https://example-123-345.ngrok-free.app/. Make sure that the url ends with a \'/\'',
+                        placeholder:'https://example-123-345.ngrok-free.app/',
+                        buttonConfirmText: 'Next'
+                    }).then(port_forwarded_url=>{
+                        text = text.replaceAll("ISMLEARNTETHERED_TO_REPLACE","false").replaceAll("http://localhost:7753/", port_forwarded_url);
+                        clipboard.writeText(text);
+                        dialog.showMessageBox(null, {
+                            type: 'info',
+                            title: 'Copied!',
+                            message: 'Copied!\n\nSuccessfully copied the Watch Together injector script to your clipboard.'
+                        });
                     });
                 }
             },

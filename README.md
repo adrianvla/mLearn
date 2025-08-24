@@ -134,6 +134,19 @@ The python file must have the following functions:
 
 Examples of such files can be found in the "languages" directory.
 
+# How to build
+```shell
+npm run dist:mac
+npm run dist:win
+npm run dist:linux
+```
+
+# How to run in dev mode
+```shell
+npm install
+npm run start
+```
+
 # License
 Additional licenses for libraries may be found in the "Settings → about" section of the app.
 ```

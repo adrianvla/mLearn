@@ -100,4 +100,25 @@ window.mLearnIPC.onServerCriticalError((message) => {
     });
 });
 
+
+let promptWindow = null;
+window.mLearnIPC.onOpenPrompt((message)=>{
+    //open window
+    if(promptWindow) promptWindow.close();
+    promptWindow = window.open("prompt.html","mLearn Prompt","width=600,height=400");
+    promptWindow.addEventListener("load", () => {
+        promptWindow.focus();
+        promptWindow.document.title = message.title;
+        $(".title", promptWindow.document).text(message.title);
+        $("#prompt-input", promptWindow.document).attr("placeholder",message.placeholder);
+        $(".small-desc", promptWindow.document).text(message.desc);
+        $(".button-confirm", promptWindow.document).text(message.buttonConfirmText).on("click",()=>{
+            window.mLearnIPC.promptOutput($("#prompt-input", promptWindow.document).val());
+            promptWindow.close();
+            promptWindow = null;
+        });
+    });
+    promptWindow.addEventListener("unload", () => {});
+});
+
 export {show_notification, blurWord, isNotAllKana, randomUUID, screenshotVideo, toUniqueIdentifier, parseTime}

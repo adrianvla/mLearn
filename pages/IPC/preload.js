@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('mLearnIPC', {
     isSuccess: () => ipcRenderer.send('is-successful-install'),
     installLanguage: (url) => ipcRenderer.send('install-lang', url),
     writeToClipboard: (text) => ipcRenderer.send('write-to-clipboard', text),
+    promptOutput: (text) => ipcRenderer.send('prompt-output', text),
     makePiP: (size) => ipcRenderer.send('make-pip',size),
     unPiP: () => ipcRenderer.send('make-normal'),
     sendLS: (data) => ipcRenderer.send('send-ls', data),
@@ -47,4 +48,5 @@ contextBridge.exposeInMainWorld('mLearnIPC', {
     onLicenseGet: (callback) => ipcRenderer.on('license-type', (event, message) => callback(message)),
     onLicenseActivated: (callback) => ipcRenderer.on('license-activated', (event, message) => callback(message)),
     onNewDayFlashcards : (callback) => ipcRenderer.on('force-newday-flashcards', (event, message) => callback(message)),
+    onOpenPrompt: (callback) => ipcRenderer.on('open-prompt', (event, message) => callback(message)),
 });
