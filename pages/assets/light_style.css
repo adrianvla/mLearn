@@ -73,7 +73,6 @@ hr {
     position: absolute;
     font-size:var(--subtitle-font-size);
     /*bottom:10px;*/
-    max-width:800px;
     transition:bottom 0.3s, opacity 0.1s;
     opacity:1;
     left:50%;

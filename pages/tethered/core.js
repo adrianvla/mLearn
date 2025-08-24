@@ -22,10 +22,40 @@ const CSSInjectable = `
     #context-menu .menu-item:hover {
       background-color: #333;
     }`;
+const CSSifSafariFix = `
+.mLearn-pitch-accent{
+    position:absolute;
+    bottom: 3em !important;
+    left: 0;
+    right: 0;
+    top: -1.5em !important;
+    }
+`;
+function isSafari() {
+    const ua = navigator.userAgent;
+
+    // Safari on iOS and macOS both include "Safari"
+    const isSafari = /safari/i.test(ua);
+    const isNotChrome = !/chrome|crios|crmo/i.test(ua);
+    const isNotEdge = !/edg/i.test(ua);
+    const isNotOpera = !/opr\//i.test(ua);
+
+    return isSafari && isNotChrome && isNotEdge && isNotOpera;
+}
+
 function srvUrl(){
-    if(!window.mLearnTethered) return "http://localhost:7753/";
+    // if(!window.mLearnTethered) return "http://localhost:7753/";
     return window.mLearnTetheredIP;
 }
+function adaptAllURLs(){
+    const settingsToChange = ["tokeniserUrl","getCardUrl","getTranslationUrl","ankiUrl"];
+    settingsToChange.forEach((setting)=>{
+        let value = globalThis.settings[setting];
+        value = value.replace("http://127.0.0.1:7752/",srvUrl()+"forward/");
+        globalThis.settings[setting] = value;
+    });
+}
+adaptAllURLs();
 const HTMLInjectable = `
     <div class="subtitles">
     </div>
@@ -82,18 +112,21 @@ lS.getItem = function (key) {
     return lS[key];
 }
 function sendPill(key, value) {
+    if(!window.mLearnTethered) return;
     const script = document.createElement('script');
     script.src = srvUrl()+`api/pills?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`;
     script.onload = () => script.remove();
     document.body.appendChild(script);
 }
 function trackWordAppearance(word) {
+    if(!window.mLearnTethered) return;
     const script = document.createElement('script');
     script.src = srvUrl()+`api/word-appearance?word=${encodeURIComponent(word)}`;
     script.onload = () => script.remove();
     document.body.appendChild(script);
 }
 function attemptFlashcardCreation(word, content) {
+    if(!window.mLearnTethered) return;
     try {
         if (webSocket && webSocket.readyState === WebSocket.OPEN) {
             console.log("%cSending attempt-flashcard-creation payload to WS", "color:green;font-weight:bold;font-size:1.5em");
@@ -1185,9 +1218,10 @@ function watchTogetherSend(data) {
 function calculateSubtitleOffset(){
     const video = document.querySelector("video");
     const offset = getElementTopOffset(video);
-    let offset1 = offset + video.getBoundingClientRect().height;
+    const rect = video.getBoundingClientRect();
+    let offset1 = offset + rect.height;
     offset1 -= 10;
-    $(".subtitles").css("bottom",`${window.innerHeight-offset1}px`);
+    $(".subtitles").css("bottom",`${window.innerHeight-offset1}px`).css("left",`${rect.left}px`).css("transform","none").css("width",`${rect.width}px`);
     $(".aside, .sync-subs").css("top",`${offset+38}px`);
 }
 (function (){
@@ -1202,6 +1236,7 @@ function calculateSubtitleOffset(){
     const video = document.querySelector("video");
     let loadSubWindow = null;
     injectCSS(CSSInjectable);
+    if(isSafari()) injectCSS(CSSifSafariFix);
 
     {
         const style = document.createElement('link');
@@ -1214,7 +1249,7 @@ function calculateSubtitleOffset(){
     document.body.classList.add("dark");
 
     applySettings();
-    setTimeout(calculateSubtitleOffset,500);
+    setInterval(calculateSubtitleOffset,500);
 
     $(".aside").on("mouseover",()=>{
         if (asideTimeout) {
@@ -1504,7 +1539,7 @@ function calculateSubtitleOffset(){
     // if(window.mLearnIsLocal) return;
     let serverURL = window.mLearnTetheredIP.replaceAll("https","").replaceAll("://","").replaceAll("http","").replaceAll("//","");
     console.log("Connecting to mLearn Watch Together Server at: "+serverURL);
-    const wsProto = (typeof serverProtocol !== 'undefined' ? serverProtocol : (location.protocol === 'https:' ? 'https' : 'http')) === 'https' ? 'wss' : 'ws';
+    const wsProto = serverURL.includes("localhost") || serverURL.includes("127.0.0.1") ? "ws" : "wss";
     webSocket = new WebSocket(wsProto+"://"+serverURL);
     webSocket.onopen = ()=>{
         console.log("Connected to the server.");
