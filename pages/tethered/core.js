@@ -31,7 +31,7 @@ const HTMLInjectable = `
     </div>
     <div class="aside">
         <div class="header">
-            <div class="btn close"><img src="http://localhost:7753/pages/assets/icons/cross.svg"></div>
+            <div class="btn close"><img src="${srvUrl}pages/assets/icons/cross.svg"></div>
         </div>
         <div class="c">
         </div>
@@ -39,12 +39,12 @@ const HTMLInjectable = `
     <div id="context-menu"></div>
     <div class="sync-subs not-shown">
         <div class="header">
-            <div class="btn close"><img src="http://localhost:7753/pages/assets/icons/cross.svg"></div>
+            <div class="btn close"><img src="${srvUrl}pages/assets/icons/cross.svg"></div>
         </div>
         <div class="controls">
-            <button class="backward"><img src="http://localhost:7753/pages/assets/icons/fast-forward.svg"></button>
+            <button class="backward"><img src="${srvUrl}pages/assets/icons/fast-forward.svg"></button>
             <input type="text" class="">
-            <button class="forward"><img src="http://localhost:7753/pages/assets/icons/fast-forward.svg"></button>
+            <button class="forward"><img src="${srvUrl}pages/assets/icons/fast-forward.svg"></button>
         </div>
     </div>
 
