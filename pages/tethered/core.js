@@ -23,7 +23,7 @@ const CSSInjectable = `
       background-color: #333;
     }`;
 function srvUrl(){
-    if(!window.mLearnTethered) return "//localhost:7753/";
+    if(!window.mLearnTethered) return "http://localhost:7753/";
     return window.mLearnTetheredIP;
 }
 const HTMLInjectable = `
@@ -31,7 +31,7 @@ const HTMLInjectable = `
     </div>
     <div class="aside">
         <div class="header">
-            <div class="btn close"><img src="${srvUrl()}pages/assets/icons/cross.svg"></div>
+            <div class="btn close"><img src="http://localhost:7753/pages/assets/icons/cross.svg"></div>
         </div>
         <div class="c">
         </div>
@@ -39,12 +39,12 @@ const HTMLInjectable = `
     <div id="context-menu"></div>
     <div class="sync-subs not-shown">
         <div class="header">
-            <div class="btn close"><img src="${srvUrl()}pages/assets/icons/cross.svg"></div>
+            <div class="btn close"><img src="http://localhost:7753/pages/assets/icons/cross.svg"></div>
         </div>
         <div class="controls">
-            <button class="backward"><img src="${srvUrl()}pages/assets/icons/fast-forward.svg"></button>
+            <button class="backward"><img src="http://localhost:7753/pages/assets/icons/fast-forward.svg"></button>
             <input type="text" class="">
-            <button class="forward"><img src="${srvUrl()}pages/assets/icons/fast-forward.svg"></button>
+            <button class="forward"><img src="http://localhost:7753/pages/assets/icons/fast-forward.svg"></button>
         </div>
     </div>
 
@@ -601,7 +601,7 @@ const modify_sub = async (subtitle) => {
         let doAppendHoverLazy = false;
         let hasFurigana = false;
 
-        const cardNotFound = async () => {
+        const cardNotFound = async (isWordKnown = false) => {
             let $word = newEl;
             if(!(settings.immediateFetch || settings.openAside)) {
                 $word.append($(`${real_word}`));
@@ -621,6 +621,7 @@ const modify_sub = async (subtitle) => {
                 pos: pos,
                 level: word in wordFreq ? wordFreq[word].raw_level : -1,
             };
+            if(!isWordKnown)
             {
                 const $iframe = $("iframe#mlearn-frame");
                 $iframe[0].contentWindow.document.body.innerHTML = $(".subtitles").html();
@@ -632,13 +633,13 @@ const modify_sub = async (subtitle) => {
                 $iframe[0].contentWindow.document.body.innerHTML = "";
             }
             console.log("Translation data for word: "+word, translation_data);
-            if(settings.openAside){
+            if(settings.openAside && !isWordKnown){
                 //force fetch the word from the dictionary
                 doAppend = true;
                 const first_meaning = translation_data.data[0];
                 addTranslationCard(first_meaning.definitions, first_meaning.reading);
             }
-            if(settings.immediateFetch || settings.openAside){
+            if((settings.immediateFetch || settings.openAside) && !isWordKnown){
                 //translate the word + put in cache
                 if(pos === "動詞") {
                     let temp_translation_data = await getTranslation(real_word);
@@ -675,7 +676,7 @@ const modify_sub = async (subtitle) => {
                     addPitchAccent(translation_data.data[2], translation_data.data[0].reading); //dict form and conjugated form got the same length in the tokenizer
                 }
             }
-            attemptFlashcardCreation(word,flashcardContent);
+            if(!isWordKnown) attemptFlashcardCreation(word,flashcardContent);
         };
         const addFurigana = (reading_html) => {
             let reading_text = reading_html;
@@ -881,17 +882,17 @@ const modify_sub = async (subtitle) => {
                 try{card_data = await getCards(word);}catch(e){card_data.poor = true;}
             else
                 card_data.poor = true;
-
-            if(card_data.poor && getKnownStatus(word) < 2){ //card not found
+            const isWordKnown = getKnownStatus(word) < 2;
+            if(card_data.poor){ //card not found
                 show_subtitle = true;
                 doAppendHoverLazy = true;
-                newEl.attr("known","false");
-                newEl.on("customLoaded", cardNotFound); //intentionally not awaited, parallelized.
+                newEl.attr("known",isWordKnown ? "true" : "false");
+                newEl.on("customLoaded", () => {cardNotFound(isWordKnown)}); //intentionally not awaited, parallelized.
                 trackWordAppearance(word);
             }else{
                 //compare ease
                 let current_card = card_data.cards[0];
-                if(current_card.factor < settings.known_ease_threshold && getKnownStatus(word) < 2){
+                if(current_card.factor < settings.known_ease_threshold && isWordKnown){
                     show_subtitle = true;
                     doAppend = true;
                     await translateWord(card_data, current_card);

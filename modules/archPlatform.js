@@ -11,8 +11,13 @@ const PLATFORM = os.platform();
 const isPackaged = app.isPackaged;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const resPath = isPackaged ? path.join(process.resourcesPath, "app") :  path.dirname(__dirname);
 
+// appPath: read-only bundled app root (app.asar in production, project root in dev)
+const appPath = app.getAppPath();
+// resPath: writable resources root outside asar (Resources/app in production, project root in dev)
+const resPath = isPackaged ? path.join(process.resourcesPath, "app") : path.dirname(__dirname);
+
+console.log("appPath", appPath);
 console.log("resPath", resPath);
 console.log("Is packaged", isPackaged, "Version", app.getVersion(),"Path",app.getPath('userData'));
 
@@ -28,3 +33,4 @@ function setIsWindows(to) {
 }
 
 export {isWindows, isMac, ARCHITECTURE, PLATFORM, isPackaged, resPath, setIsWindows};
+export { appPath };

@@ -239,3 +239,7 @@ window.mLearnIPC.onUpdateAttemptFlashcardCreation((message)=>{
         await attemptFlashcardCreation(cardPair.word, cardPair.content);
     });
 });
+
+window.mLearnIPC.onNewDayFlashcards(_=>{
+    newDay();
+});

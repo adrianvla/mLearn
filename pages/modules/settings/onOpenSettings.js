@@ -12,9 +12,10 @@ import {restartAppAndServer} from "../super.js";
 import {sendRawToAnki} from "../networking.js";
 import {activateLicense, getLicenseName, isLicenseActive} from "../drm/init.js";
 import {getTimeWatchedFormatted, getWordsLearnedInAppFormatted} from "../stats/stats.js";
+import {resetFlashcards} from "../flashcards/storage.js";
 
 
-const IN_SETTINGS_CATEGORY = {"General":["language","stats","install_languages","save","restoreDefaults", "activate_license"],"Behaviour":["known_ease_threshold","blur_words","blur_known_subtitles","blur_amount","immediateFetch","do_colour_known","colour_known","do_colour_codes","show_pos","hover_known_get_from_dictionary","furigana","aside-auto","save","restoreDefaults","pitch_accent"],"Customization":["dark_mode","subtitle_theme","subtitle_font_size","save","restoreDefaults"],"Anki":["use_anki","anki_connect_url","enable_flashcard_creation","flashcards_add_picture","flashcard_deck","save","restoreDefaults","maxNewCardsPerDay","proportionOfExamCards","preparedExam","createUnseenCards"],"About":[]};
+const IN_SETTINGS_CATEGORY = {"General":["language","stats","install_languages","save","restoreDefaults", "activate_license"],"Behaviour":["known_ease_threshold","blur_words","blur_known_subtitles","blur_amount","immediateFetch","do_colour_known","colour_known","do_colour_codes","show_pos","hover_known_get_from_dictionary","furigana","aside-auto","save","restoreDefaults","pitch_accent"],"Customization":["dark_mode","subtitle_theme","subtitle_font_size","save","restoreDefaults"],"Anki":["use_anki","anki_connect_url","enable_flashcard_creation","flashcards_add_picture","flashcard_deck","save","restoreDefaults","maxNewCardsPerDay","proportionOfExamCards","preparedExam","createUnseenCards","resetSRS"],"About":[]};
 const WINDOW_HTML_SETTINGS = `<!doctypehtml><html lang="en"><meta charset="UTF-8"><title>Settings</title><link href="style.css"rel="stylesheet"><style>body{background:#000}</style><body class="settings-body"><div class="nav"><div class="nav-item selected"id="General"><img src="assets/icons/cog.svg"><span>General</span></div><div class="nav-item"id="Behaviour"><img src="assets/icons/subtitles.svg"><span>Behaviour</span></div><div class="nav-item"id="Customization"><img src="assets/icons/palette.svg"><span>Appearance</span></div><div class="nav-item"id="Anki"><img src="assets/icons/cards.svg"><span>Flashcards</span></div><div class="nav-item"id="About"><img src="assets/icons/document.svg"><span>About</span></div></div><div class="settingsMenuContent"><div class="preview"data-show="Customization"><div class="subtitles"><span class="subtitle_word SUB_W_COL_1">A</span><span class="subtitle_word SUB_W_COL_2">a</span><span class="subtitle_word SUB_W_COL_1">あア</span><span class="subtitle_word SUB_W_COL_2">億</span><span class="subtitle_word SUB_W_COL_1">ыЦ</span><span class="subtitle_word SUB_W_COL_2">è</span></div></div><div class="_1"></div><div class="_2"></div><div class="about"style="display:none"><span id="version-number">PLACEHOLDER</span><br>Developed by <a id="contact">Adrian Vlasov</a><br>Contact: admin@morisinc.net<br><a id="licenses">Licenses</a></div></div>`;
 let isSettingsWindowOpen = false;
 let mustRestart = false;
@@ -164,6 +165,7 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         $('._2', new_document).append($(`<input type="number" id="proportionOfExamCards" name="proportionOfExamCards" value="${settings.proportionOfExamCards}"> (0.5 means 50% of cards are taken from exam level, 0.0 means only from video)`));
         $('._2', new_document).append($(`<select id="preparedExam" name="preparedExam">${Object.entries(lang_data[settings.language].freq_level_names).map((l)=>{let [i,level] = l;return `<option value="${i}" ${settings.preparedExam==i ? 'selected' : ''}>${level}</option>`})}</select>`));
         $('._2', new_document).append($(`<input type="checkbox" id="createUnseenCards" name="createUnseenCards" ${settings.createUnseenCards ? 'checked' : ''}>`));
+        $('._2',new_document).append('<input type="button" id="resetSRS" value="Reset Flashcard SRS Data">');
 
 
 
@@ -271,6 +273,10 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         });
         $('#install_languages',new_document).on('click', function() {
             showLanguageInstallationWindow();
+        });
+        $('#resetSRS',new_document).on('click', ()=>{
+            resetFlashcards();
+            alert("SRS Flashcard data was reset successfully.");
         });
 
         $('._2',new_document).append('<input type="button" id="save" value="Save">');

@@ -46,4 +46,5 @@ contextBridge.exposeInMainWorld('mLearnIPC', {
     onUpdateAttemptFlashcardCreation: (callback) => ipcRenderer.on('update-attempt-flashcard-creation', (event, message) => callback(message)),
     onLicenseGet: (callback) => ipcRenderer.on('license-type', (event, message) => callback(message)),
     onLicenseActivated: (callback) => ipcRenderer.on('license-activated', (event, message) => callback(message)),
+    onNewDayFlashcards : (callback) => ipcRenderer.on('force-newday-flashcards', (event, message) => callback(message)),
 });

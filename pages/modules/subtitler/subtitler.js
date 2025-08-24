@@ -131,7 +131,7 @@ const modify_sub = async (subtitle) => {
         let doAppendHoverLazy = false;
         let hasFurigana = false;
 
-        const cardNotFound = async () => {
+        const cardNotFound = async (isWordKnown = false) => {
             let $word = newEl;
             if(!(settings.immediateFetch || settings.openAside)) {
                 $word.append($(`${real_word}`));
@@ -151,6 +151,7 @@ const modify_sub = async (subtitle) => {
                 pos: pos,
                 level: word in wordFreq ? wordFreq[word].raw_level : -1,
             };
+            if(!isWordKnown)
             {
                 const $iframe = $("iframe");
                 $iframe[0].contentWindow.document.body.innerHTML = $(".subtitles").html();
@@ -162,13 +163,13 @@ const modify_sub = async (subtitle) => {
                 $iframe[0].contentWindow.document.body.innerHTML = "";
             }
             console.log("Translation data for word: "+word, translation_data);
-            if(settings.openAside){
+            if(settings.openAside && !isWordKnown){
                 //force fetch the word from the dictionary
                 doAppend = true;
                 const first_meaning = translation_data.data[0];
                 addTranslationCard(first_meaning.definitions, first_meaning.reading);
             }
-            if(settings.immediateFetch || settings.openAside){
+            if((settings.immediateFetch || settings.openAside) && !isWordKnown){
                 //translate the word + put in cache
                 if(pos === "動詞") {
                     let temp_translation_data = await getTranslation(real_word);
@@ -205,7 +206,7 @@ const modify_sub = async (subtitle) => {
                     addPitchAccent(translation_data.data[2], translation_data.data[0].reading); //dict form and conjugated form got the same length in the tokenizer
                 }
             }
-            attemptFlashcardCreation(word,flashcardContent);
+            if(!isWordKnown) attemptFlashcardCreation(word,flashcardContent);
         };
         const addFurigana = (reading_html) => {
             let reading_text = reading_html;
@@ -502,17 +503,17 @@ const modify_sub = async (subtitle) => {
                 try{card_data = await getCards(word);}catch(e){card_data.poor = true;}
             else
                 card_data.poor = true;
-
-            if(card_data.poor && await getKnownStatus(word) < WORD_STATUS_KNOWN){ //card not found
+            const isWordKnown =  await getKnownStatus(word) < WORD_STATUS_KNOWN;
+            if(card_data.poor){ //card not found
                 show_subtitle = true;
                 doAppendHoverLazy = true;
-                newEl.attr("known","false");
-                newEl.on("customLoaded", cardNotFound); //intentionally not awaited, parallelized.
+                newEl.attr("known",isWordKnown ? "true" : "false");
+                newEl.on("customLoaded", () => {cardNotFound(isWordKnown)}); //intentionally not awaited, parallelized.
                 trackWordAppearance(word);
             }else{
                 //compare ease
                 let current_card = card_data.cards[0];
-                if(current_card.factor < settings.known_ease_threshold && await getKnownStatus(word) < WORD_STATUS_KNOWN){
+                if(current_card.factor < settings.known_ease_threshold && isWordKnown){
                     show_subtitle = true;
                     doAppend = true;
                     await translateWord(card_data, current_card);
