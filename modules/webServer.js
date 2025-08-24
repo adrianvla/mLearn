@@ -3,10 +3,11 @@ import url from "url";
 import {mainWindow} from "./allWindows.js";
 import path from "node:path";
 import {resPath} from "./archPlatform.js";
+import { appPath } from "./archPlatform.js";
 import fs from "node:fs";
 import https from "https";
-import {ipcMain} from "electron";
-import { WebSocketServer } from 'ws';
+import {app, ipcMain} from "electron";
+import { WebSocketServer, WebSocket } from 'ws';
 import {loadLangData} from "./langData.js";
 import {loadSettings} from "./settings.js";
 import {flashcardsToEaseHashmap} from "./flashcardStorage.js";
@@ -18,52 +19,67 @@ let lS = {};
 let pillQueuedUpdates = [];
 let wordAppearanceQueuedUpdates = [];
 let attemptFlashcardCreationQueuedUpdates = [];
+// Best-effort: trust a PEM cert on macOS System keychain once (prompts for admin pwd)
+const trustCertOnMac = (certFilePath) => {
+    try {
+        if (process.platform !== 'darwin') return;
+        if (!fs.existsSync(certFilePath)) return;
+        const markerDir = path.join(app.getPath('userData'), 'certs');
+        const marker = path.join(markerDir, '.trusted');
+        try { fs.mkdirSync(markerDir, { recursive: true }); } catch {}
+        if (fs.existsSync(marker)) return;
+        // AppleScript tries System keychain first, then login keychain as fallback
+        const esc = certFilePath.replace(/"/g, '\\"');
+        const osaArgs = [
+            '-e', `set certPosix to "${esc}"`,
+            '-e', 'set cmd1 to "security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain " & quoted form of certPosix',
+            '-e', 'set cmd2 to "security add-trusted-cert -p ssl -k ~/Library/Keychains/login.keychain-db " & quoted form of certPosix',
+            '-e', 'try',
+            '-e', '  do shell script cmd1 with administrator privileges',
+            '-e', 'on error err1',
+            '-e', '  try',
+            '-e', '    do shell script cmd2',
+            '-e', '  on error err2',
+            '-e', '    error err1 & "\n" & err2',
+            '-e', '  end try',
+            '-e', 'end try'
+        ];
+        const osa = spawn('osascript', osaArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+        let stdout = '', stderr = '';
+        osa.stdout.on('data', d => { stdout += d.toString(); });
+        osa.stderr.on('data', d => { stderr += d.toString(); });
+        osa.on('exit', (code) => {
+            const combined = (stdout + '\n' + stderr).toLowerCase();
+            const duplicate = combined.includes('already exists') || combined.includes('duplicate');
+            if (code === 0 || duplicate) {
+                try { fs.writeFileSync(marker, String(Date.now())); } catch {}
+                console.log('mLearn: localhost certificate trusted' + (duplicate ? ' (already trusted)' : '') + '.');
+            } else {
+                console.warn('mLearn: failed to trust certificate (osascript exit code ' + code + '). Output:\n' + (stdout + stderr));
+                // If UI interaction isn’t possible (error -2700), open Terminal to run the command interactively
+                if (combined.includes('-2700') || combined.includes('no user interaction')) {
+                    try {
+                        const termArgs = [
+                            '-e', `set certPosix to "${esc}"`,
+                            '-e', 'tell application "Terminal" to activate',
+                            '-e', 'tell application "Terminal" to do script "sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain " & quoted form of certPosix'
+                        ];
+                        spawn('osascript', termArgs, { detached: true, stdio: 'ignore' }).unref();
+                        console.warn('mLearn: opened Terminal to run the trust command. Please enter your password in the Terminal window, then reload the page.');
+                    } catch (e2) {
+                        console.warn('mLearn: failed to open Terminal for trust command:', e2?.message || e2);
+                    }
+                }
+            }
+        });
+    } catch (e) {
+        try { console.warn('mLearn: trustCertOnMac error:', e?.message || e); } catch(_) {}
+    }
+};
 let sockets = [];
 // let isAllowed = false;
 
-// Attempt to enable HTTPS if localhost certs are available or provided via env
-let useHTTPS = false;
-let httpsOptions = undefined;
-const resolveHttpsOptions = async () => {
-    if (httpsOptions) return httpsOptions;
-    try {
-        const envKey = process.env.MLEARN_SSL_KEY;
-        const envCert = process.env.MLEARN_SSL_CERT;
-        let keyPath = envKey;
-        let certPath = envCert;
-        if (!keyPath || !certPath) {
-            const certDir = path.join(resPath, 'certs');
-            keyPath = keyPath || path.join(certDir, 'localhost-key.pem');
-            certPath = certPath || path.join(certDir, 'localhost-cert.pem');
-        }
-        if (keyPath && certPath && fs.existsSync(keyPath) && fs.existsSync(certPath)) {
-            httpsOptions = {
-                key: fs.readFileSync(keyPath),
-                cert: fs.readFileSync(certPath)
-            };
-            useHTTPS = true;
-            return httpsOptions;
-        }
-    } catch {}
-    // Try devcert as a fallback to auto-generate localhost certs
-    try {
-        const devcert = await import('devcert');
-        const devcertApi = (devcert && (devcert.default || devcert));
-        if (devcertApi && typeof devcertApi.certificateFor === 'function') {
-            const creds = await devcertApi.certificateFor('localhost');
-            if (creds && creds.key && creds.cert) {
-                httpsOptions = { key: creds.key, cert: creds.cert };
-                useHTTPS = true;
-            }
-        }
-    } catch (e) {
-        // No devcert or failed; remain on HTTP
-        useHTTPS = false;
-    }
-    return httpsOptions;
-};
-
-const getServerProtocol = () => (useHTTPS ? 'https' : 'http');
+const getServerProtocol = () => 'http';
 
 // function setAllowed(to) {
 //     isAllowed = to;
@@ -112,8 +128,7 @@ function getHostAndPort(url) {
 }
 const startWebSocketServer = async () => {
     if(server) return;
-    // Attempt to enable HTTPS if possible
-    await resolveHttpsOptions();
+    // HTTPS disabled: use plain HTTP only
     const requestHandler = (req, res) => {
         if (req.method === 'OPTIONS') {
             // Handle preflight CORS requests
@@ -191,7 +206,7 @@ const startWebSocketServer = async () => {
                 'Content-Type': 'application/javascript',
                 'Access-Control-Allow-Origin': '*',
             });
-            const filePath = path.join(resPath, 'modules', 'scripts', 'userscript.js');
+            const filePath = path.join(appPath, 'modules', 'scripts', 'userscript.js');
             if (fs.existsSync(filePath)) {
                 fs.createReadStream(filePath).pipe(res);
             } else {
@@ -228,7 +243,7 @@ const startWebSocketServer = async () => {
         }
 
         if (req.url === '/core.js') {
-            const filePath = path.join(resPath, 'pages', 'tethered', 'core.js');
+            const filePath = path.join(appPath, 'pages', 'tethered', 'core.js');
             if (fs.existsSync(filePath)) {
                 res.writeHead(200, {
                     'Content-Type': 'application/javascript',
@@ -246,7 +261,7 @@ const startWebSocketServer = async () => {
             s += `globalThis.settings = ${JSON.stringify(settingsToSend)};\n`;
             s += `globalThis.lS = ${JSON.stringify(lS)};\n`;
             s += `globalThis.easeHashmap = ${JSON.stringify(flashcardsToEaseHashmap())};\n`;
-            s += `globalThis.serverProtocol = '${useHTTPS ? 'https' : 'http'}';\n`;
+            s += `globalThis.serverProtocol = 'http';\n`;
             res.writeHead(200, {
                 'Content-Type': 'application/javascript',
                 'Access-Control-Allow-Origin': '*',
@@ -254,7 +269,7 @@ const startWebSocketServer = async () => {
             res.end(s);
         } else if (req.url.startsWith('/pages/')) {
             // Serve static files from the 'assets' folder
-            const filePath = path.join(resPath, req.url);
+            const filePath = path.join(appPath, req.url);
             if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
                 const ext = path.extname(filePath).toLowerCase();
                 const mimeTypes = {
@@ -325,7 +340,7 @@ const startWebSocketServer = async () => {
             res.end('Redirecting to main page...');
         }
     };
-    HTTPServer = useHTTPS && httpsOptions ? https.createServer(httpsOptions, requestHandler) : http.createServer(requestHandler);
+    HTTPServer = http.createServer(requestHandler);
     server = new WebSocketServer({ /*port: PORT,*/noServer:true });
     server.on('connection', (ws) => {
         sockets.push(ws);
@@ -352,8 +367,7 @@ const startWebSocketServer = async () => {
         });
     });
     HTTPServer.listen(PORT, () => {
-    const proto = useHTTPS ? 'https' : 'http';
-    console.log(`Watch Together running on ${proto}://localhost:${PORT}`);
+    console.log(`Watch Together running on http://localhost:${PORT}`);
     });
 };
 

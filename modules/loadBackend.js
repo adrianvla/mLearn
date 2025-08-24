@@ -5,6 +5,7 @@ import url from "url";
 import http from "http";
 import {exec, spawn} from "child_process";
 import {ARCHITECTURE, isWindows, PLATFORM, resPath, setIsWindows} from "./archPlatform.js";
+import { appPath } from "./archPlatform.js";
 import {app, ipcMain, dialog} from "electron";
 import {createWelcomeWindow, getCurrentWindow, getMainWindow} from "./allWindows.js";
 import {loadSettings} from "./settings.js";
@@ -45,7 +46,8 @@ if (PLATFORM === 'darwin' && ARCHITECTURE === 'x64') {
 pythonUrl+="?download=";
 
 const loadPipRequirements = () => {
-    return JSON.parse(fs.readFileSync(path.join(resPath, 'pip_requirements.json')));
+    // Read from bundled app (asar in production)
+    return JSON.parse(fs.readFileSync(path.join(appPath, 'pip_requirements.json'), 'utf-8'));
 };
 
 const firstTimeSetup = () => {
@@ -342,6 +344,7 @@ function findPython() {
         pythonSuccessInstall = true;
     };
     isFirstTimeSetup = true;
+    // Removed post-install trust scripts
     downloadFile(pythonUrl, downloadPath, () => {
         console.log('Download complete');
         try{getCurrentWindow().webContents.send('server-status-update', 'Download complete');}catch(e){console.log(e);}
@@ -369,6 +372,7 @@ function findPython() {
         });
     });
 }
+
 
 function checkForUpdates() {
     https.get(updateURL, (res) => {
@@ -405,11 +409,43 @@ checkForUpdates();
 function setFirstTimeSetup(value) {
     isFirstTimeSetup = value;
 }
+// Gracefully terminate the Python backend when the app is quitting
+function terminatePythonGracefully() {
+    if (!pythonChildProcess) return;
+    try {
+        // Try polite shutdown first
+        pythonChildProcess.kill('SIGINT');
+    } catch (e) {
+        console.warn('Failed to SIGINT python process:', e?.message || e);
+    }
+    // Fallback to SIGTERM after a short delay if still alive
+    setTimeout(() => {
+        if (!pythonChildProcess?.killed) {
+            try { pythonChildProcess.kill('SIGTERM'); } catch {}
+        }
+        // Last resort SIGKILL
+        setTimeout(() => {
+            if (!pythonChildProcess?.killed) {
+                try { pythonChildProcess.kill('SIGKILL'); } catch {}
+            }
+        }, 400);
+    }, 400);
+}
+
+app.on('before-quit', () => {
+    console.log('App before-quit: terminating Python backend if running');
+    terminatePythonGracefully();
+});
+
+app.on('quit', () => {
+    console.log('App quit: ensure Python backend terminated');
+    terminatePythonGracefully();
+});
+
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
-        console.log("Tried to quit, pythonSuccessInstall=",pythonSuccessInstall);
-        if(!pythonSuccessInstall) return;
-        pythonChildProcess.kill("SIGINT");
+        console.log('All windows closed: terminating Python backend if running');
+        terminatePythonGracefully();
         app.quit();
     }
 });

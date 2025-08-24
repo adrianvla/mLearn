@@ -1,6 +1,7 @@
 import {app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell} from "electron";
 import path from "node:path";
 import {isMac, isPackaged, isWindows, resPath} from "./archPlatform.js";
+import { appPath } from "./archPlatform.js";
 import {firstTimeSetup, isFirstTimeSetup, setFirstTimeSetup} from "./loadBackend.js";
 import fs from "node:fs";
 import {PORT, startWebSocketServer, getServerProtocol} from "./webServer.js";
@@ -44,11 +45,11 @@ const createWindow = () => {
         width: 1200,
         height: 700,
         webPreferences: {
-            preload: path.join(resPath, '/pages/IPC/preload.js')
+            preload: path.join(appPath, '/pages/IPC/preload.js')
         },
         titleBarStyle: isMac ? 'hidden' : 'hiddenInset'
     });
-    mainWindow.loadFile('pages/index.html');
+    mainWindow.loadFile(path.join(appPath,'pages/index.html'));
     currentWindow = mainWindow;
     initDRMIPC();
 }
@@ -58,10 +59,10 @@ const createWelcomeWindow = () => {
         width: 800,
         height: 700,
         webPreferences: {
-            preload: path.join(resPath, '/pages/IPC/preload.js')
+            preload: path.join(appPath, '/pages/IPC/preload.js')
         }
     });
-    welcomeWindow.loadFile('pages/welcome.html');
+    welcomeWindow.loadFile(path.join(appPath,'pages/welcome.html'));
     currentWindow = welcomeWindow;
 };
 
@@ -70,10 +71,10 @@ const createUpdateWindow = () => {
         width: 800,
         height: 400,
         webPreferences: {
-            preload: path.join(resPath, '/pages/IPC/preload.js')
+            preload: path.join(appPath, '/pages/IPC/preload.js')
         }
     });
-    updateWindow.loadFile('pages/update.html');
+    updateWindow.loadFile(path.join(appPath,'pages/update.html'));
     currentWindow = updateWindow;
 };
 
@@ -228,7 +229,7 @@ const template = [
                 click: async () => {
                     let text = '';
                     try {
-                        text = fs.readFileSync(path.join(resPath, 'modules', 'scripts', 'injector.js'), 'utf-8');
+                        text = fs.readFileSync(path.join(appPath, 'modules', 'scripts', 'injector.js'), 'utf-8');
                     }catch(e){console.log(e);}
                     clipboard.writeText(text);
                     dialog.showMessageBox(null, {
@@ -251,6 +252,22 @@ const template = [
                     }).then((result) => {
                         if (result.response !== 0) return;
             shell.openExternal(`${getServerProtocol()}://127.0.0.1:${PORT}/mLearn.user.js`);
+                    });
+                }
+            }
+        ]
+    },
+    {
+        label: 'Flashcards',
+        submenu:[
+            {
+                label: 'Force recreate new flashcards for today',
+                click: async () => {
+                    mainWindow.webContents.send('force-newday-flashcards');
+                    dialog.showMessageBox(null, {
+                        type: 'info',
+                        title: 'Created!',
+                        message: 'Created!\n\nYou may now review the flashcards that you just created.'
                     });
                 }
             }

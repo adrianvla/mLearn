@@ -23,40 +23,69 @@
   },
   "dependencies": {
   "devcert": "^1.2.0",
+  "selfsigned": "^2.4.1",
     "python-shell": "^5.0.0",
     "tar": "^7.4.3",
     "unzipper": "^0.12.3",
     "update-electron-app": "^3.0.0",
     "ws": "^8.18.0"
   },
-  "extraResources": [
-    {
-      "from": "python",
-      "to": "python",
-      "filter": [
-        "**/*"
-      ]
-    }
-  ],
   "build": {
     "appId": "net.morisinc.mlearn",
     "productName": "mLearn",
+  "asar": true,
     "files": [
-      "**/*",
+      "main.js",
+  "modules/**",
+  "pages/**",
+  "!dictionaries/**",
+  "!languages/**",
+      "node_modules/**",
+      "package.json",
+      "package-lock.json",
+      "pip_requirements.json",
+  "!server.py",
+      "version-info.json",
       "!env/**",
       "!py/**",
-      "!**/*.map"
+      "!**/*.map",
+      "!temp/**",
+      "!**/__pycache__/**",
+      "!**/*.pyc"
     ],
     "mac": {
-      "target": ["dmg", "zip"],
-      "category": "public.app-category.education"
+      "target": [
+        { "target": "dmg", "arch": ["universal"] },
+        { "target": "zip", "arch": ["universal"] }
+      ],
+      "artifactName": "${productName}-${version}-${os}.${ext}",
+      "category": "public.app-category.education",
+      "icon": "build/icon.icns"
     },
     "win": {
-      "target": ["nsis", "zip"]
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "zip", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
-      "category": "Education"
-    }
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ],
+      "category": "Education",
+      "icon": "build/icons"
+    },
+    "extraResources": [
+      { "from": "languages", "to": "app/languages", "filter": ["**/*"] },
+  { "from": "dictionaries", "to": "app/dictionaries", "filter": ["**/*"] },
+  { "from": "server.py", "to": "app/server.py" }
+    ],
+    "dmg": {
+      "background": "build/dmg-background.png",
+  "icon": "build/icon.icns"
+    },
+    "afterPack": "scripts/afterPack.cjs"
   }
 }

@@ -1,11 +1,11 @@
 @font-face {
     font-family: 'Rounded';
-    src: url(//localhost:7753/pages/assets/fonts/KosugiMaru-Regular.ttf);
+    src: url(http://localhost:7753/pages/assets/fonts/KosugiMaru-Regular.ttf);
 }
 
 body.hide-cursor {
     cursor: none;
-}
+} 
 .drag-region{
     position:absolute;
     top:0;
@@ -220,7 +220,7 @@ body.dark .subtitle_hover .pitch {
     content: "";
     width: 10px;
     height: 10px;
-    background: url(//localhost:7753/pages/assets/icons/star.svg) no-repeat center;
+    background: url(http://localhost:7753/pages/assets/icons/star.svg) no-repeat center;
     background-size: contain;
     top: 0;
     left: 0;

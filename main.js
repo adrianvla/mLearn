@@ -1,4 +1,4 @@
-import {ipcMain, clipboard, shell} from 'electron';
+import {app, ipcMain, clipboard, shell} from 'electron';
 import './modules/drm/init.js';
 import {findPython} from "./modules/loadBackend.js";
 import {startWebSocketServer} from "./modules/webServer.js";
@@ -16,3 +16,8 @@ ipcMain.on('show-contact', (event) => {
 
 findPython();
 startWebSocketServer();
+
+// Ensure backend quits on app exit (safety net)
+app.on('before-quit', () => {
+    // loadBackend registers its own quit handlers, this is just a trigger to ensure they run
+});
