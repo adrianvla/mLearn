@@ -31,7 +31,7 @@ const HTMLInjectable = `
     </div>
     <div class="aside">
         <div class="header">
-            <div class="btn close"><img src="${srvUrl}pages/assets/icons/cross.svg"></div>
+            <div class="btn close"><img src="${srvUrl()}pages/assets/icons/cross.svg"></div>
         </div>
         <div class="c">
         </div>
@@ -39,12 +39,12 @@ const HTMLInjectable = `
     <div id="context-menu"></div>
     <div class="sync-subs not-shown">
         <div class="header">
-            <div class="btn close"><img src="${srvUrl}pages/assets/icons/cross.svg"></div>
+            <div class="btn close"><img src="${srvUrl()}pages/assets/icons/cross.svg"></div>
         </div>
         <div class="controls">
-            <button class="backward"><img src="${srvUrl}pages/assets/icons/fast-forward.svg"></button>
+            <button class="backward"><img src="${srvUrl()}pages/assets/icons/fast-forward.svg"></button>
             <input type="text" class="">
-            <button class="forward"><img src="${srvUrl}pages/assets/icons/fast-forward.svg"></button>
+            <button class="forward"><img src="${srvUrl()}pages/assets/icons/fast-forward.svg"></button>
         </div>
     </div>
 
@@ -177,8 +177,8 @@ function initCTXMenu() {
             div.className = 'menu-item';
             div.textContent = item.name;
             div.onclick = (e) => {
-                e.stopPropagation();
-                item.callback();
+                // e.stopPropagation();
+                try{item.callback();}catch(e){console.warn(e)}
                 hideContextMenu();
             };
             contextMenu.appendChild(div);
@@ -190,6 +190,7 @@ function initCTXMenu() {
     }
 
     function hideContextMenu() {
+        console.log("hide context menu");
         contextMenu.style.display = 'none';
     }
 
@@ -1255,8 +1256,20 @@ function calculateSubtitleOffset(){
     });
 
     addContextMenuItem("Load Subtitles", () => {
-        loadSubWindow = window.open("", "Load Subtitles", "width=400,height=300");
+        try{
+            loadSubWindow = window.open("", "Load Subtitles", "width=400,height=300");
+        }catch(e){
+            console.warn("window.open is overriden, let's use a workaround",e);
+            const iframe = document.createElement('iframe');
+            iframe.src = 'about:blank';
+            document.body.appendChild(iframe);
+            // Bind the real window.open to the main window so opener is the top window, not the iframe
+            const realOpen = iframe.contentWindow.open.bind(window);
+            loadSubWindow = realOpen("", "Load Subtitles", "width=400,height=300");
+            iframe.remove();
+        }
         if (loadSubWindow) {
+            try { loadSubWindow.mLearnOpener = window; } catch(_) {}
             loadSubWindow.document.write(`
             <!DOCTYPE html>
             <html lang="en">
@@ -1296,6 +1309,21 @@ function calculateSubtitleOffset(){
                     <input type="file" accept=".srt,.ass" style="display:none" id="fileInput">
                 </div>
                 <script>
+                    // Resolve a robust target to postMessage to: prefer opener.top when available
+                    function postToParent(payload){
+                        let target = null;
+                        try {
+                            if (window.opener && window.opener.top) target = window.opener.top;
+                        } catch(_) {}
+                        if (!target && window.opener) target = window.opener;
+                        if (!target && window.mLearnOpener) target = window.mLearnOpener;
+                        if (!target && window.parent) target = window.parent;
+                        if (!target) {
+                            alert('Unable to communicate with parent window.');
+                            return;
+                        }
+                        try { target.postMessage(payload, '*'); } catch (err) { console.error('postMessage failed', err); }
+                    }
                     const readFile = (file) => {
                         return new Promise((resolve, reject) => {
                             const reader = new FileReader();
@@ -1325,7 +1353,7 @@ function calculateSubtitleOffset(){
                             if (file.name.endsWith('.srt') || file.name.endsWith('.ass')) {
                                 let f = {name:file.name};
                                 f.content = await readFile(file);
-                                window.opener.postMessage({ file: f }, '*');
+                                postToParent({ file: f });
                             } else {
                                 alert('Error: Please drop a .srt or .ass file');
                             }
@@ -1341,7 +1369,7 @@ function calculateSubtitleOffset(){
                             if (file.name.endsWith('.srt') || file.name.endsWith('.ass')) {
                                 let f = {name:file.name};
                                 f.content = await readFile(file);
-                                window.opener.postMessage({ file: f }, '*');
+                                postToParent({ file: f });
                             } else {
                                 alert('Error: Please select a .srt or .ass file');
                             }
