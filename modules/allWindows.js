@@ -106,268 +106,271 @@ const appMenu = [
     { role: 'quit' }
 ];
 
-const template = [
-    // { role: 'appMenu' }
-    ...(isMac
-        ? [{
-            label: app.name,
-            submenu: appMenu
-        }]
-        : []),
-    // { role: 'fileMenu' }
-    {
-        label: 'File',
-        submenu: [
-            isMac ? { role: 'close' } : { role: 'quit' },
-            ...(isMac
-                    ? []
-                    : appMenu
-            )
-        ]
-    },
-    // { role: 'editMenu' }
-    {
-        label: 'Edit',
-        submenu: [
-            {
-                label: 'Settings',
-                click: async () => {
-                    mainWindow.webContents.send('show-settings');
-                }
-            },
-            { role: 'undo' },
-            { role: 'redo' },
-            { type: 'separator' },
-            { role: 'cut' },
-            { role: 'copy' },
-            { role: 'paste' },
-            ...(isMac
-                ? [
-                    { role: 'pasteAndMatchStyle' },
-                    { role: 'delete' },
-                    { role: 'selectAll' }
-                ]
-                : [
-                    { role: 'delete' },
-                    { type: 'separator' },
-                    { role: 'selectAll' }
-                ])
-        ]
-    },
-    // { role: 'viewMenu' }
-    {
-        label: 'View',
-        submenu: [
-            {
-                label: 'Open Live Word Translator',
-                click: async () => {
-                    mainWindow.webContents.send('show-aside');
-                }
-            },
-            { type: 'separator' },
-            { role: 'togglefullscreen' },
-            ...( (!isPackaged || loadSettings().devMode)
-                ? [
-                    { label: 'Open DevTools', role: 'toggleDevTools' }
-                ]
-                : [
-                ])
+function setAppMenu(){
+    const template = [
+        // { role: 'appMenu' }
+        ...(isMac
+            ? [{
+                label: app.name,
+                submenu: appMenu
+            }]
+            : []),
+        // { role: 'fileMenu' }
+        {
+            label: 'File',
+            submenu: [
+                isMac ? { role: 'close' } : { role: 'quit' },
+                ...(isMac
+                        ? []
+                        : appMenu
+                )
+            ]
+        },
+        // { role: 'editMenu' }
+        {
+            label: 'Edit',
+            submenu: [
+                {
+                    label: 'Settings',
+                    click: async () => {
+                        mainWindow.webContents.send('show-settings');
+                    }
+                },
+                { role: 'undo' },
+                { role: 'redo' },
+                { type: 'separator' },
+                { role: 'cut' },
+                { role: 'copy' },
+                { role: 'paste' },
+                ...(isMac
+                    ? [
+                        { role: 'pasteAndMatchStyle' },
+                        { role: 'delete' },
+                        { role: 'selectAll' }
+                    ]
+                    : [
+                        { role: 'delete' },
+                        { type: 'separator' },
+                        { role: 'selectAll' }
+                    ])
+            ]
+        },
+        // { role: 'viewMenu' }
+        {
+            label: 'View',
+            submenu: [
+                {
+                    label: 'Open Live Word Translator',
+                    click: async () => {
+                        mainWindow.webContents.send('show-aside');
+                    }
+                },
+                { type: 'separator' },
+                { role: 'togglefullscreen' },
+                ...( ( loadSettings().devMode || !isPackaged)
+                    ? [
+                        { label: 'Open DevTools', role: 'toggleDevTools' }
+                    ]
+                    : [
+                    ])
 
-        ]
-    },
-    // { role: 'windowMenu' }
-    {
-        label: 'Window',
-        submenu: [
-            { role: 'minimize' },
-            { role: 'zoom' },
-            ...(isMac
-                ? [
-                    { type: 'separator' },
-                    { role: 'front' },
-                    { type: 'separator' },
-                    { role: 'window' }
-                ]
-                : [
-                    { role: 'close' }
-                ])
-        ]
-    },
-    {
-        label: 'Video',
-        submenu: [
-            {
-                label: 'Sync Subtitles with Video',
-                click: async () => {
-                    mainWindow.webContents.send('ctx-menu-command', 'sync-subs');
-                }
-            },
-            {
-                label: 'Copy Subtitle',
-                click: async () => {
-                    mainWindow.webContents.send('ctx-menu-command', 'copy-sub');
-                }
-            },
-            // ...(isMac ? [{ type: 'separator' }] : []),
-        ]
-    },
-    {
-        label: 'Connect',
-        submenu: [
-            // {
-            //     label: 'Allow Connections',
-            //     click: async () => {
-            //         mainWindow.webContents.send('watch-together');
-            //         setAllowed(true);
-            //         dialog.showMessageBox(null, {
-            //             type: 'info',
-            //             title: 'Allowed Connections to Server!',
-            //             message: `Allowed connections to \n${getServerProtocol()}://127.0.0.1:${PORT}.\n\nFor more information, open the Help menu.`
-            //         });
-            //     }
-            // },
-            {
-                label: 'Copy Page Injector Script',
-                click: async () => {
-                    let text = '';
-                    try {
-                        text = fs.readFileSync(path.join(appPath, 'modules', 'scripts', 'injector.js'), 'utf-8');
-                    }catch(e){console.log(e);}
-                    text = text.replaceAll("ISMLEARNTETHERED_TO_REPLACE","true");
-                    clipboard.writeText(text);
-                    dialog.showMessageBox(null, {
-                        type: 'info',
-                        title: 'Copied!',
-                        message: 'Copied!\n\nMore information about how to use it in Online Browser Mode is available in the Help menu.'
-                    });
-                }
-            },
-            {
-                label: 'Copy Watch Together Script',
-                click: async () => {
-                    let text = '';
-                    try {
-                        text = fs.readFileSync(path.join(appPath, 'modules', 'scripts', 'injector.js'), 'utf-8');
-                    }catch(e){console.log(e);} //FIXME
-                    prompt_user({
-                        title: 'Enter Port-Forwarded URL',
-                        desc: 'Enter the port-forwarded URL that you got from your tunneling service, such as ngrok or localtunnel. \n\nFor example, if you used ngrok, the URL would be https://example-123-345.ngrok-free.app/. Make sure that the url ends with a \'/\'',
-                        placeholder:'https://example-123-345.ngrok-free.app/',
-                        buttonConfirmText: 'Next'
-                    }).then(port_forwarded_url=>{
-                        text = text.replaceAll("ISMLEARNTETHERED_TO_REPLACE","false").replaceAll("http://localhost:7753/", port_forwarded_url);
+            ]
+        },
+        // { role: 'windowMenu' }
+        {
+            label: 'Window',
+            submenu: [
+                { role: 'minimize' },
+                { role: 'zoom' },
+                ...(isMac
+                    ? [
+                        { type: 'separator' },
+                        { role: 'front' },
+                        { type: 'separator' },
+                        { role: 'window' }
+                    ]
+                    : [
+                        { role: 'close' }
+                    ])
+            ]
+        },
+        {
+            label: 'Video',
+            submenu: [
+                {
+                    label: 'Sync Subtitles with Video',
+                    click: async () => {
+                        mainWindow.webContents.send('ctx-menu-command', 'sync-subs');
+                    }
+                },
+                {
+                    label: 'Copy Subtitle',
+                    click: async () => {
+                        mainWindow.webContents.send('ctx-menu-command', 'copy-sub');
+                    }
+                },
+                // ...(isMac ? [{ type: 'separator' }] : []),
+            ]
+        },
+        {
+            label: 'Connect',
+            submenu: [
+                // {
+                //     label: 'Allow Connections',
+                //     click: async () => {
+                //         mainWindow.webContents.send('watch-together');
+                //         setAllowed(true);
+                //         dialog.showMessageBox(null, {
+                //             type: 'info',
+                //             title: 'Allowed Connections to Server!',
+                //             message: `Allowed connections to \n${getServerProtocol()}://127.0.0.1:${PORT}.\n\nFor more information, open the Help menu.`
+                //         });
+                //     }
+                // },
+                {
+                    label: 'Copy Page Injector Script',
+                    click: async () => {
+                        let text = '';
+                        try {
+                            text = fs.readFileSync(path.join(appPath, 'modules', 'scripts', 'injector.js'), 'utf-8');
+                        }catch(e){console.log(e);}
+                        text = text.replaceAll("ISMLEARNTETHERED_TO_REPLACE","true");
                         clipboard.writeText(text);
                         dialog.showMessageBox(null, {
                             type: 'info',
                             title: 'Copied!',
-                            message: 'Copied!\n\nSuccessfully copied the Watch Together injector script to your clipboard.'
+                            message: 'Copied!\n\nMore information about how to use it in Online Browser Mode is available in the Help menu.'
                         });
-                    });
+                    }
+                },
+                {
+                    label: 'Copy Watch Together Script',
+                    click: async () => {
+                        let text = '';
+                        try {
+                            text = fs.readFileSync(path.join(appPath, 'modules', 'scripts', 'injector.js'), 'utf-8');
+                        }catch(e){console.log(e);} //FIXME
+                        prompt_user({
+                            title: 'Enter Port-Forwarded URL',
+                            desc: 'Enter the port-forwarded URL that you got from your tunneling service, such as ngrok or localtunnel. \n\nFor example, if you used ngrok, the URL would be https://example-123-345.ngrok-free.app/. Make sure that the url ends with a \'/\'',
+                            placeholder:'https://example-123-345.ngrok-free.app/',
+                            buttonConfirmText: 'Next'
+                        }).then(port_forwarded_url=>{
+                            text = text.replaceAll("ISMLEARNTETHERED_TO_REPLACE","false").replaceAll("http://localhost:7753/", port_forwarded_url);
+                            clipboard.writeText(text);
+                            dialog.showMessageBox(null, {
+                                type: 'info',
+                                title: 'Copied!',
+                                message: 'Copied!\n\nSuccessfully copied the Watch Together injector script to your clipboard.'
+                            });
+                        });
+                    }
+                },
+                {
+                    label: 'Install UserScript',
+                    click: async ()=>{
+                        dialog.showMessageBox(null, {
+                            type:'question',
+                            title: 'Install UserScript',
+                            message: 'To use mLearn in Online Browser Mode, you need to install the mLearn UserScript on your browser.',
+                            buttons: ['Proceed', 'No'],
+                            defaultId: 0,
+                            cancelId: 1
+                        }).then((result) => {
+                            if (result.response !== 0) return;
+                            shell.openExternal(`${getServerProtocol()}://127.0.0.1:${PORT}/mLearn.user.js`);
+                        });
+                    }
                 }
-            },
-            {
-                label: 'Install UserScript',
-        click: async ()=>{
-                    dialog.showMessageBox(null, {
-                        type:'question',
-                        title: 'Install UserScript',
-                        message: 'To use mLearn in Online Browser Mode, you need to install the mLearn UserScript on your browser.',
-                        buttons: ['Proceed', 'No'],
-                        defaultId: 0,
-                        cancelId: 1
-                    }).then((result) => {
-                        if (result.response !== 0) return;
-            shell.openExternal(`${getServerProtocol()}://127.0.0.1:${PORT}/mLearn.user.js`);
-                    });
+            ]
+        },
+        {
+            label: 'Flashcards',
+            submenu:[
+                {
+                    label: 'Force recreate new flashcards for today',
+                    click: async () => {
+                        mainWindow.webContents.send('force-newday-flashcards');
+                        dialog.showMessageBox(null, {
+                            type: 'info',
+                            title: 'Created!',
+                            message: 'Created!\n\nYou may now review the flashcards that you just created.'
+                        });
+                    }
                 }
-            }
-        ]
-    },
-    {
-        label: 'Flashcards',
-        submenu:[
-            {
-                label: 'Force recreate new flashcards for today',
-                click: async () => {
-                    mainWindow.webContents.send('force-newday-flashcards');
-                    dialog.showMessageBox(null, {
-                        type: 'info',
-                        title: 'Created!',
-                        message: 'Created!\n\nYou may now review the flashcards that you just created.'
-                    });
-                }
-            }
-        ]
-    },
-    {
-        label: 'Help',
-        submenu: [
-            {
-                label: 'About Watch Together',
-                click: async () => {
-                    openBigDialog("Help - About Watch Together", `
+            ]
+        },
+        {
+            label: 'Help',
+            submenu: [
+                {
+                    label: 'About Watch Together',
+                    click: async () => {
+                        openBigDialog("Help - About Watch Together", `
                         Watch Together is a feature that allows you to watch videos with others in real-time. You can use it to share your video watching experience with friends or family, no matter where they are.\n\nFirst, forward this device's ${PORT} port if you want to use Watch Together with others.\nGo to https://mlearn.morisinc.net/watch-together to join the session.\n\nIf you are using mLearn in Online Browser mode, on the other device using the Userscript, paste the port-forwarded URL into the dialog. 
                     `);
-                }
-            },
-            {
-                label: 'About Online Browser Mode',
-                click: async () => {
-                    openBigDialog("Help - About Online Browser Mode", `
+                    }
+                },
+                {
+                    label: 'About Online Browser Mode',
+                    click: async () => {
+                        openBigDialog("Help - About Online Browser Mode", `
                         Online Browser Mode allows you to use mLearn in a browser with a video. \nYou just have to right-click on the video, then click "Inspect Element" to open the browser's DevTools.\nThen, go to the Console tab and paste the script that you can copy by clicking "Copy Page Injector Script" in the Connect menu.\n\nThis will inject mLearn into the page, allowing you to use it with the video.\n\nTo interact with it, right-click on the video.
                     `);
-                }
-            },
-            {
-                label: 'About mLearn Tethered Mode',
-                click: async () => {
-                    openBigDialog("Help - About Online Browser Mode", `
+                    }
+                },
+                {
+                    label: 'About mLearn Tethered Mode',
+                    click: async () => {
+                        openBigDialog("Help - About Online Browser Mode", `
                         mLearn Tethered Mode allows you to use mLearn on a different device, such as a phone or a tablet, even if it's not your own device!\nIf you want to watch together with someone else, they will have to install the mLearn UserScript on their browser, and then paste your port-forwarded URL into the dialog that appears on every page that has a video in it (click Install UserScript for more details).\n\nTo use it, copy the port-forwarded URL and paste it into the dialog that appears on the other device.\n\nYou can also use it to watch videos on your own device, but you will have to install the mLearn UserScript on your browser.
                     `);
-                }
-            },
-            ...(isMac ? [{ type: 'separator' }] : []),
-            {
-                label: 'How to use mLearn on Mobile',
-                click: async () => {
-                    openBigDialog("Help - mLearn Mobile ", `
+                    }
+                },
+                ...(isMac ? [{ type: 'separator' }] : []),
+                {
+                    label: 'How to use mLearn on Mobile',
+                    click: async () => {
+                        openBigDialog("Help - mLearn Mobile ", `
                         mLearn Mobile is mLearn running in Tethered Mode. You'll have to install the mLearn UserScript on your mobile device's browser to use it.\n\nmLearn will have to be running on your computer.\n\nFor more information on how to install UserScripts on Mobile, please refer to this Help menu.
                     `);
-                }
-            },
-            {
-                label: 'How to install mLearn on Mobile',
-                click: async () =>{
-                    openBigDialog("Help - How to install mLearn on Mobile", `
+                    }
+                },
+                {
+                    label: 'How to install mLearn on Mobile',
+                    click: async () =>{
+                        openBigDialog("Help - How to install mLearn on Mobile", `
                         You'll have to port-forward port ${PORT} of this computer. \nYou can use a service like ngrok or localtunnel to do this.\n\nFor ngrok, you can use the command:\n\n<pre>ngrok http ${PORT}</pre>\n\nThis will give you a URL that you can use to access mLearn from your mobile device.\n\nThen, you can open the URL in your mobile browser and install the mLearn UserScript from there.\n\nYou'll have to have an extension that supports UserScripts, such as Tampermonkey installed on your mobile browser.\n\nOnce you have installed the UserScript, you can use mLearn on your mobile device.
                     `);
-                }
-            },
-            ...(isMac ? [{ type: 'separator' }] : []),
-            {
-                label: 'Troubleshooting mLearn in Browser/Tethered Mode',
-                click: async () =>{
-                    openBigDialog("Help - Troubleshooting mLearn in Browser/Tethered Mode", `
+                    }
+                },
+                ...(isMac ? [{ type: 'separator' }] : []),
+                {
+                    label: 'Troubleshooting mLearn in Browser/Tethered Mode',
+                    click: async () =>{
+                        openBigDialog("Help - Troubleshooting mLearn in Browser/Tethered Mode", `
                         Some websites with advanced security (like youtube.com) may not allow mLearn to run properly.\n\nIf you are having issues with mLearn in Browser/Tethered Mode, try the following:\n\nInstall an extension that would disable the website's security features, such as <a href="https://chromewebstore.google.com/detail/disable-content-security/ieelmcmcagommplceebfedjlakkhpden">Disable CSP</a> or <a href="https://chromewebstore.google.com/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigeejlf">Allow CORS</a>. These extensions may put at risk your browsing security, if you'll go on e-Banking websites or other websites that require high security, so only enable those extensions when you are using mLearn in Browser/Tethered Mode on a specific website.\n\nIf you are using mLearn in Tethered Mode, make sure that the port-forwarded URL is correct and that the mLearn UserScript is installed on your mobile browser.
                     `);
-                }
-            },
-            ...(isMac ? [{ type: 'separator' }] : []),
-            {
-                label: 'About mLearn',
-                click: async () => {
-                    mainWindow.webContents.send('show-settings','About');
-                }
-            },
-        ]
-    }
-];
+                    }
+                },
+                ...(isMac ? [{ type: 'separator' }] : []),
+                {
+                    label: 'About mLearn',
+                    click: async () => {
+                        mainWindow.webContents.send('show-settings','About');
+                    }
+                },
+            ]
+        }
+    ];
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+}
 
-const menu = Menu.buildFromTemplate(template);
-Menu.setApplicationMenu(menu);
 
 
 app.whenReady().then(() => {
+    setAppMenu();
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             if(isFirstTimeSetup){
