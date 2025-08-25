@@ -503,7 +503,7 @@ const modify_sub = async (subtitle) => {
                 try{card_data = await getCards(word);}catch(e){card_data.poor = true;}
             else
                 card_data.poor = true;
-            const isWordKnown =  await getKnownStatus(word) < WORD_STATUS_KNOWN;
+            const isWordKnown =  (await getKnownStatus(word)) === WORD_STATUS_KNOWN;
             if(card_data.poor){ //card not found
                 show_subtitle = true;
                 doAppendHoverLazy = true;
