@@ -115,7 +115,7 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         $('._1', new_document).append($(`<label for="use_anki">(Requires Restart) Use Anki </label>`));
         $('._1', new_document).append($(`<label for="anki_connect_url">(Requires Restart) Anki Connect URL </label>`));
         $('._1', new_document).append($(`<label for="furigana">Furigana </label>`));
-        $('._1', new_document).append($(`<label for="enable_flashcard_creation">Enable Anki flashcard creations </label>`));
+        $('._1', new_document).append($(`<label for="enable_flashcard_creation" class="${settings.use_anki ? '' : 'disabled'}">Enable Anki flashcard creations </label>`));
         $('._1', new_document).append($(`<label for="flashcard_deck" class="${settings.enable_flashcard_creation ? '' : 'disabled'}">Flashcard Deck: </label>`));
         $('._1', new_document).append($(`<label for="flashcards_add_picture">Add video thumbnail to created flashcards </label>`));
         $('._1', new_document).append($(`<label for="maxNewCardsPerDay"> </label>`));
@@ -149,7 +149,7 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         $('._2', new_document).append($(`<input type="checkbox" id="use_anki" name="use_anki" ${settings.use_anki ? 'checked' : ''}>`));
         $('._2', new_document).append($(`<input type="text" id="anki_connect_url" name="anki_connect_url" class="${settings.use_anki ? '' : 'disabled'}" value="${settings.ankiConnectUrl}">`));
         $('._2', new_document).append($(`<input type="checkbox" id="furigana" name="furigana" ${settings.furigana ? 'checked' : ''}>`));
-        $('._2', new_document).append($(`<input type="checkbox" id="enable_flashcard_creation" name="enable_flashcard_creation" ${settings.enable_flashcard_creation ? 'checked' : ''}>`));
+        $('._2', new_document).append($(`<input type="checkbox" id="enable_flashcard_creation" name="enable_flashcard_creation" ${settings.enable_flashcard_creation ? 'checked' : ''}  class="${settings.use_anki ? '' : 'disabled'}">`));
         $('._2', new_document).append($(`<select id="flashcard_deck" name="flashcard_deck" class="${settings.enable_flashcard_creation ? '' : 'disabled'}">`));
         $('._2', new_document).append($(`<select id="language" name="language">
 
@@ -246,6 +246,17 @@ window.mLearnIPC.onOpenSettings((msg)=>{
             },50);
         });
         $('#enable_flashcard_creation',new_document).on('change', flashcard_decks);
+        $('#use_anki',new_document).on('change', function() {
+            if ($('#use_anki',new_document).is(':checked')) {
+                $("#enable_flashcard_creation,[for=\"enable_flashcard_creation\"]",new_document).removeClass("disabled");
+            }else{
+                $("#enable_flashcard_creation,[for=\"enable_flashcard_creation\"]",new_document).addClass("disabled");
+                new_document.querySelector("#enable_flashcard_creation").checked = false;
+                settings.enable_flashcard_creation = false;
+                checkSettings();
+                saveSettings();
+            }
+        });
         // Add an event listener to the button
         $('#restoreDefaults',new_document).on('click', function() {
             setSettings(DEFAULT_SETTINGS);
