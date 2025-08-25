@@ -305,7 +305,7 @@ const template = [
                 label: 'About Watch Together',
                 click: async () => {
                     openBigDialog("Help - About Watch Together", `
-                        Watch Together is a feature that allows you to watch videos with others in real-time. You can use it to share your video watching experience with friends or family, no matter where they are.\n\nTo use it, first Allow Connections (in the Connect menu).\nThen, this device's ${PORT} port if you want to use Watch Together with others.\nGo to https://mlearn.morisinc.net/watch-together to join the session.\n\nIf you are using mLearn in Online Browser mode, on the other device using the Userscript, paste the port-forwarded URL into the dialog. 
+                        Watch Together is a feature that allows you to watch videos with others in real-time. You can use it to share your video watching experience with friends or family, no matter where they are.\n\nFirst, forward this device's ${PORT} port if you want to use Watch Together with others.\nGo to https://mlearn.morisinc.net/watch-together to join the session.\n\nIf you are using mLearn in Online Browser mode, on the other device using the Userscript, paste the port-forwarded URL into the dialog. 
                     `);
                 }
             },
@@ -321,7 +321,7 @@ const template = [
                 label: 'About mLearn Tethered Mode',
                 click: async () => {
                     openBigDialog("Help - About Online Browser Mode", `
-                        mLearn Tethered Mode allows you to use mLearn on a different device, such as a phone or a tablet, even if it's not your own device!\nIf you want to watch together with someone else, they will have to install the mLearn UserScript on their browser, and then paste your port-forwarded URL into the dialog that appears on every page that has a video in it (click Install UserScript for more details).\n\nTo use it, first Allow Connections (in the Connect menu).\nThen, copy the port-forwarded URL and paste it into the dialog that appears on the other device.\n\nYou can also use it to watch videos on your own device, but you will have to install the mLearn UserScript on your browser.
+                        mLearn Tethered Mode allows you to use mLearn on a different device, such as a phone or a tablet, even if it's not your own device!\nIf you want to watch together with someone else, they will have to install the mLearn UserScript on their browser, and then paste your port-forwarded URL into the dialog that appears on every page that has a video in it (click Install UserScript for more details).\n\nTo use it, copy the port-forwarded URL and paste it into the dialog that appears on the other device.\n\nYou can also use it to watch videos on your own device, but you will have to install the mLearn UserScript on your browser.
                     `);
                 }
             },
@@ -330,7 +330,7 @@ const template = [
                 label: 'How to use mLearn on Mobile',
                 click: async () => {
                     openBigDialog("Help - mLearn Mobile ", `
-                        mLearn Mobile is mLearn running in Tethered Mode. You'll have to install the mLearn UserScript on your mobile device's browser to use it.\n\nmLearn will have to be running on your computer, and you will have to Allow Connections (in the Connect menu), in order for it to work.\n\nFor more information on how to install UserScripts on Mobile, please refer to this Help menu.
+                        mLearn Mobile is mLearn running in Tethered Mode. You'll have to install the mLearn UserScript on your mobile device's browser to use it.\n\nmLearn will have to be running on your computer.\n\nFor more information on how to install UserScripts on Mobile, please refer to this Help menu.
                     `);
                 }
             },
