@@ -2,6 +2,10 @@
     font-family: 'Rounded';
     src: url(assets/fonts/KosugiMaru-Regular.ttf);
 }
+@font-face {
+    font-family: 'Noto Sans JP';
+    src: url(assets/fonts/NotoSansJP-VariableFont_wght.ttf);
+}
 
 body:not(.settings-body) {
     position: relative;
@@ -343,6 +347,7 @@ ruby rt{
 .subtitles {
     position: absolute;
     font-size:var(--subtitle-font-size);
+    font-weight:var(--subtitle-font-weight);
     bottom:120px;
     max-width:800px;
     transition:bottom 0.3s, opacity 0.1s;
@@ -359,11 +364,11 @@ ruby rt{
     border-radius: 10px;
     padding: 10px;
     box-shadow: 0 0 20px 0 rgba(0,0,0,0.4);
-    font-family:"Helvetica Neue", sans-serif;
+    font-family:"Helvetica Neue","Noto Sans JP", sans-serif;
 }
 .subtitles.theme-shadow{
     text-shadow: 0 0 1px #000000,0 0 3px #000000,0 0 5px #000000, 1px 1px 0 rgba(0,0,0,0.4);
-    font-family:"Helvetica Neue", sans-serif;
+    font-family:"Helvetica Neue","Noto Sans JP", sans-serif;
 }
 
 .subtitles.quick-transition{

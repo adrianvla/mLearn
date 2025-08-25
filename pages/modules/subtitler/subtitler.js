@@ -618,7 +618,7 @@ const modify_sub = async (subtitle) => {
     $(".subtitles").removeClass("not-shown");
 
     if(isWatchTogether){
-        window.mLearnIPC.watchTogetherSend({action:"subtitles",subtitle:$(".subtitles").html(), size:settings.subtitle_font_size});
+        window.mLearnIPC.watchTogetherSend({action:"subtitles",subtitle:$(".subtitles").html(), size:settings.subtitle_font_size, weight:settings.subtitle_font_weight});
     }
 };
 

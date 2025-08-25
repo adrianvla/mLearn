@@ -15,6 +15,20 @@ import sys
 import importlib
 import re
 
+# Ensure printing non-ASCII (e.g., Japanese) won't crash on Windows consoles
+try:
+    # Python 3.7+ TextIOWrapper exposes reconfigure
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    # As a fallback, attempt to replace the streams entirely (rarely needed in our packaging)
+    try:
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')  # type: ignore[attr-defined]
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')  # type: ignore[attr-defined]
+    except Exception:
+        # Last resort: do nothing; individual prints may still succeed for ASCII
+        pass
 
 
 # print arguments
