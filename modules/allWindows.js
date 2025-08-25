@@ -297,6 +297,12 @@ function setAppMenu(){
                             message: 'Created!\n\nYou may now review the flashcards that you just created.'
                         });
                     }
+                },
+                {
+                    label: 'Review Flashcards',
+                    click: async () => {
+                        mainWindow.webContents.send('review-flashcards-request');
+                    }
                 }
             ]
         },
