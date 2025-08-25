@@ -21,4 +21,8 @@ export function closeWindow(){
     myWindow.close();
 }
 
+window.mLearnIPC.onReviewFlashcardRequest(()=>{
+    $(".review-flashcards").trigger("click");
+});
+
 export function getDocument(){return myWindow.document;}
