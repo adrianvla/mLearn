@@ -32,6 +32,7 @@ const DEFAULT_SETTINGS = {
     "immediateFetch":false,
     "subtitleTheme":"shadow",
     "subtitle_font_size":40,
+    "subtitle_font_weight":300,
     "timeWatched":0,
     "maxNewCardsPerDay":10,
     "proportionOfExamCards":0.5,

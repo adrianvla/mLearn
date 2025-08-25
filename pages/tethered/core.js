@@ -148,6 +148,7 @@ function attemptFlashcardCreation(word, content) {
 const applySettings = () => {
     //set subtitle font size
     document.documentElement.style.setProperty('--subtitle-font-size', `${settings.subtitle_font_size}px`);
+    document.documentElement.style.setProperty('--subtitle-font-weight', `${settings.subtitle_font_weight}`);
     document.documentElement.style.setProperty('--word-blur-amount', `${settings.blur_amount}px`);
 
     SUBTITLE_THEMES.forEach((theme)=>{
@@ -1574,6 +1575,7 @@ function calculateSubtitleOffset(){
                     $(".subtitles").html(msg.subtitle);
                 }
                 document.body.style.setProperty('--subtitle-font-size', `${msg.size}px`);
+                document.body.style.setProperty('--subtitle-font-weight', `${msg.weight}`);
                 break;
         }
     };

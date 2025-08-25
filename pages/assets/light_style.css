@@ -2,6 +2,10 @@
     font-family: 'Rounded';
     src: url(http://localhost:7753/pages/assets/fonts/KosugiMaru-Regular.ttf);
 }
+@font-face {
+    font-family: 'Noto Sans JP';
+    src: url(http://localhost:7753/pages/assets/fonts/NotoSansJP-VariableFont_wght.ttf);
+}
 
 body.hide-cursor {
     cursor: none;
@@ -72,6 +76,7 @@ hr {
 .subtitles {
     position: absolute;
     font-size:var(--subtitle-font-size);
+    font-weight:var(--subtitle-font-weight);
     /*bottom:10px;*/
     transition:bottom 0.3s, opacity 0.1s;
     opacity:1;
@@ -92,11 +97,11 @@ hr {
     border-radius: 10px;
     padding: 10px;
     box-shadow: 0 0 20px 0 rgba(0,0,0,0.4);
-    font-family:"Helvetica Neue", sans-serif;
+    font-family:"Helvetica Neue","Noto Sans JP", sans-serif;
 }
 .subtitles.theme-shadow{
     text-shadow: 0 0 1px #000000,0 0 3px #000000,0 0 5px #000000, 1px 1px 0 rgba(0,0,0,0.4);
-    font-family:"Helvetica Neue", sans-serif;
+    font-family:"Helvetica Neue","Noto Sans JP", sans-serif;
 }
 
 .subtitles.quick-transition{
