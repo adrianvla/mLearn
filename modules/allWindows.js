@@ -8,6 +8,7 @@ import {PORT, startWebSocketServer, getServerProtocol} from "./webServer.js";
 import {openBigDialog} from "./openBigDialog.js";
 import {initDRMIPC} from "./drm/init.js";
 import {prompt_user} from "./misc/prompt.js";
+import {loadSettings} from "./settings.js";
 
 let mainWindow;
 let currentWindow = null;
@@ -165,7 +166,7 @@ const template = [
             },
             { type: 'separator' },
             { role: 'togglefullscreen' },
-            ...(!isPackaged
+            ...( (!isPackaged || loadSettings().devMode)
                 ? [
                     { label: 'Open DevTools', role: 'toggleDevTools' }
                 ]

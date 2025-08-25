@@ -15,7 +15,7 @@ import {getTimeWatchedFormatted, getWordsLearnedInAppFormatted} from "../stats/s
 import {resetFlashcards} from "../flashcards/storage.js";
 
 
-const IN_SETTINGS_CATEGORY = {"General":["language","stats","install_languages","save","restoreDefaults", "activate_license"],"Behaviour":["known_ease_threshold","blur_words","blur_known_subtitles","blur_amount","immediateFetch","do_colour_known","colour_known","do_colour_codes","show_pos","hover_known_get_from_dictionary","furigana","aside-auto","save","restoreDefaults","pitch_accent"],"Customization":["dark_mode","subtitle_theme","subtitle_font_size","save","restoreDefaults"],"Anki":["use_anki","anki_connect_url","enable_flashcard_creation","flashcards_add_picture","flashcard_deck","save","restoreDefaults","maxNewCardsPerDay","proportionOfExamCards","preparedExam","createUnseenCards","resetSRS"],"About":[]};
+const IN_SETTINGS_CATEGORY = {"General":["language","stats","install_languages","save","restoreDefaults", "activate_license"],"Behaviour":["known_ease_threshold","blur_words","blur_known_subtitles","blur_amount","immediateFetch","do_colour_known","colour_known","do_colour_codes","show_pos","hover_known_get_from_dictionary","furigana","aside-auto","save","restoreDefaults","pitch_accent","devMode"],"Customization":["dark_mode","subtitle_theme","subtitle_font_size","save","restoreDefaults"],"Anki":["use_anki","anki_connect_url","enable_flashcard_creation","flashcards_add_picture","flashcard_deck","save","restoreDefaults","maxNewCardsPerDay","proportionOfExamCards","preparedExam","createUnseenCards","resetSRS"],"About":[]};
 const WINDOW_HTML_SETTINGS = `<!doctypehtml><html lang="en"><meta charset="UTF-8"><title>Settings</title><link href="style.css"rel="stylesheet"><style>body{background:#000}</style><body class="settings-body"><div class="nav"><div class="nav-item selected"id="General"><img src="assets/icons/cog.svg"><span>General</span></div><div class="nav-item"id="Behaviour"><img src="assets/icons/subtitles.svg"><span>Behaviour</span></div><div class="nav-item"id="Customization"><img src="assets/icons/palette.svg"><span>Appearance</span></div><div class="nav-item"id="Anki"><img src="assets/icons/cards.svg"><span>Flashcards</span></div><div class="nav-item"id="About"><img src="assets/icons/document.svg"><span>About</span></div></div><div class="settingsMenuContent"><div class="preview"data-show="Customization"><div class="subtitles"><span class="subtitle_word SUB_W_COL_1">A</span><span class="subtitle_word SUB_W_COL_2">a</span><span class="subtitle_word SUB_W_COL_1">あア</span><span class="subtitle_word SUB_W_COL_2">億</span><span class="subtitle_word SUB_W_COL_1">ыЦ</span><span class="subtitle_word SUB_W_COL_2">è</span></div></div><div class="_1"></div><div class="_2"></div><div class="about"style="display:none"><span id="version-number">PLACEHOLDER</span><br>Developed by <a id="contact">Adrian Vlasov</a><br>Contact: admin@morisinc.net<br><a id="licenses">Licenses</a></div></div>`;
 let isSettingsWindowOpen = false;
 let mustRestart = false;
@@ -131,6 +131,7 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         $('._1', new_document).append($(`<label for="subtitle_theme">Subtitle Theme </label>`));
         $('._1', new_document).append($(`<label for="subtitle_font_size">Subtitle Font Size </label>`));
         $('._1', new_document).append($(`<label for="pitch_accent">Pitch Accent </label>`));
+        $('._1', new_document).append($(`<label for="devMode">Developer Mode  </label>`));
         // $('._1', new_document).append($(`<label for="activate_license">Activate License </label>`));
 
         $('._2', new_document).append($(`<input type="number" id="known_ease_threshold" name="known_ease_threshold" value="${settings.known_ease_threshold}">`));
@@ -169,6 +170,7 @@ window.mLearnIPC.onOpenSettings((msg)=>{
 
 
 
+
         $('._2', new_document).append($(`<input type="checkbox" id="aside-auto" name="aside-auto" ${settings.openAside ? 'checked' : ''}>`));
         $('._2', new_document).append($(`<select id="subtitle_theme" name="subtitle_theme">${SUBTITLE_THEMES.map((theme)=>{return `<option value="${theme}" ${settings.subtitle_theme==theme ? 'selected' : ''}>${theme}</option>`})}</select>`));
         $('._2', new_document).append($(`<input type="number" id="subtitle_font_size" name="subtitle_font_size" value="${settings.subtitle_font_size}">`));
@@ -177,6 +179,7 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         $('._2',new_document).append('<input type="button" id="install_languages" value="Install Additional Languages...">');
         $('._2', new_document).append($(`<input type="checkbox" id="pitch_accent" name="pitch_accent" ${settings.showPitchAccent ? 'checked' : ''}>`));
 
+        $('._2', new_document).append($(`<input type="checkbox" id="devMode" name="devMode" ${settings.devMode ? 'checked' : ''}>`));
         //disable fields
         for(let field of disabled_fields){
             $(`#${field}`,new_document).attr('disabled',true);
@@ -279,6 +282,12 @@ window.mLearnIPC.onOpenSettings((msg)=>{
             alert("SRS Flashcard data was reset successfully.");
         });
 
+        $('#devMode',new_document).on('change', ()=>{
+            if($('#devMode',new_document).is(':checked')){
+                alert("Warning!\n\nYou are about to enable Developer Mode.\n\nThis is only meant to be used for development and maintenance purposes. If you are not a developer, please disable this option.\n\nIf you have been asked to enable developer mode, this is likely a scam.");
+            }
+        });
+
         $('._2',new_document).append('<input type="button" id="save" value="Save">');
         // Update settings on form submit
         $('#save',new_document).on('click', function(e) {
@@ -321,6 +330,8 @@ window.mLearnIPC.onOpenSettings((msg)=>{
             settings.proportionOfExamCards = parseFloat($("#proportionOfExamCards",new_document).val());
             settings.preparedExam = parseInt($("#preparedExam",new_document).val());
             settings.createUnseenCards = $('#createUnseenCards',new_document).is(':checked');
+
+            settings.devMode = $('#devMode',new_document).is(':checked');
 
 
 
