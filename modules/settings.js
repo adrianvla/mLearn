@@ -20,7 +20,7 @@ const DEFAULT_SETTINGS = {
     "language":"ja",
     "use_anki":true,
     "furigana":true,
-    "enable_flashcard_creation":true,
+    "enable_flashcard_creation":false,
     "flashcard_deck":null,
     "getCardUrl" : "http://127.0.0.1:7752/getCard",
     "tokeniserUrl" : "http://127.0.0.1:7752/tokenize",
