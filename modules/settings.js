@@ -32,7 +32,12 @@ const DEFAULT_SETTINGS = {
     "immediateFetch":false,
     "subtitleTheme":"shadow",
     "subtitle_font_size":40,
-    "timeWatched":0
+    "timeWatched":0,
+    "maxNewCardsPerDay":10,
+    "proportionOfExamCards":0.5,
+    "preparedExam":3,
+    "createUnseenCards":true,
+    "devMode":false
 };
 
 const saveSettings = (settings) => {

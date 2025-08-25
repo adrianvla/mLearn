@@ -9,7 +9,8 @@
   "start": "electron .",
   "dist": "electron-builder -mwl",
   "dist:mac": "electron-builder --mac",
-  "dist:win": "electron-builder --win",
+  "icons": "node scripts/generate-ico.js",
+  "dist:win": "npm run icons && electron-builder --win",
   "dist:linux": "electron-builder --linux"
   },
   "keywords": [
