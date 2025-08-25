@@ -10,22 +10,8 @@ import {
 
 let flashcards = {};
 let flashcardSearchHashMap = {};
-
-export const saveFlashcards = async () => {
-    window.mLearnIPC.saveFlashcards(flashcards);
-    await updateFlashcardSearchHashMap();
-};
-const getFlashcards = async () => new Promise((resolve) => {
-    window.mLearnIPC.getFlashcards();
-    window.mLearnIPC.onFlashcards((fc) => {
-        flashcards = fc;
-        resolve(fc);
-    });
-});
-window.getFlashcards = getFlashcards;
-export const resetFlashcards = () =>{
-    flashcards = {
-        "flashcards": [/*{
+const DEFAULT_FLASHCARDS = {
+    "flashcards": [/*{
             "content":{
                 "word":"感じ",
                 "pitchAccent":0,
@@ -44,16 +30,38 @@ export const resetFlashcards = () =>{
             "ease":0,
             "reviews":0
         }*/],
-        "wordCandidates":{
+    "wordCandidates":{
 
-        },
-        "alreadyCreated":{},
-        "knownUnTracked":{},
-        "meta":{
-            "flashcardsCreatedToday": 0,
-            "lastFlashcardCreatedDate" : Date.now()
-        }
-    };
+    },
+    "alreadyCreated":{},
+    "knownUnTracked":{},
+    "meta":{
+        "flashcardsCreatedToday": 0,
+        "lastFlashcardCreatedDate" : Date.now()
+    }
+};
+
+export const saveFlashcards = async () => {
+    window.mLearnIPC.saveFlashcards(flashcards);
+    await updateFlashcardSearchHashMap();
+};
+
+const checkFlashcards = (fc_to_check) => {
+    Object.keys(DEFAULT_FLASHCARDS).forEach(key => {
+        if(fc_to_check[key] === undefined) fc_to_check[key] = DEFAULT_FLASHCARDS[key];
+    });
+    return fc_to_check;
+};
+const getFlashcards = async () => new Promise((resolve) => {
+    window.mLearnIPC.getFlashcards();
+    window.mLearnIPC.onFlashcards((fc) => {
+        flashcards = checkFlashcards(fc);
+        resolve(flashcards);
+    });
+});
+window.getFlashcards = getFlashcards;
+export const resetFlashcards = () =>{
+    flashcards = DEFAULT_FLASHCARDS;
     saveFlashcards();
 };
 window.resetFlashcards = resetFlashcards;
