@@ -14,6 +14,7 @@ import os
 import sys
 import importlib
 import re
+import threading
 
 # Ensure printing non-ASCII (e.g., Japanese) won't crash on Windows consoles
 try:
@@ -365,7 +366,12 @@ async def fwd_to_anki(req: Request):
 
 @app.post("/quit")
 def quit():
-    sys.exit(0)
+    print("Received /quit; exiting shortly...")
+    # Delay hard-exit slightly so the HTTP response doesn't get stream-closed prematurely
+    def _shutdown():
+        os._exit(0)
+    threading.Timer(0.2, _shutdown).start()
+    return {"response": "quitting"}
 
 
 if __name__ == "__main__":

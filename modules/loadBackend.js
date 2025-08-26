@@ -11,6 +11,7 @@ import {createWelcomeWindow, getCurrentWindow, getMainWindow} from "./allWindows
 import {loadSettings} from "./settings.js";
 
 import * as tar from 'tar';
+import {killPython} from "./super.js";
 let pythonSuccessInstall = false;
 let isFirstTimeSetup = false;
 let pythonChildProcess;
@@ -430,6 +431,7 @@ function terminatePythonGracefully() {
             }
         }, 400);
     }, 400);
+    killPython();
 }
 
 app.on('before-quit', () => {
