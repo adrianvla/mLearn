@@ -16,7 +16,10 @@
   "keywords": [
     "language-learning"
   ],
-  "author": "Adrian Vlasov",
+  "author": {
+    "name": "Adrian Vlasov",
+    "email": "admin@morisinc.net"
+  },
   "license": "MIT",
   "devDependencies": {
   "electron": "^32.1.2",
