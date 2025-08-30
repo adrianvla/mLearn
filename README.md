@@ -1,6 +1,7 @@
 # mLearn
 This repo contains the source code for the desktop app [mLearn](https://mlearn.morisinc.net).
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/adrianvla/mLearn)
 # Overview
 
 ### Supercharge your language learning journey by watching native content
