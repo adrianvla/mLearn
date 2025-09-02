@@ -457,12 +457,20 @@ const WINDOW_HTML_ADJUSTER = `<!doctypehtml>
 <meta charset="UTF-8">
 <title>Edit Word Knowledge Database</title>
 <link href="style.css" rel="stylesheet">
-<style>body {background: #000}</style>
+<style>
+body {background: #000}
+.load-progress{display:none; height:8px; width:220px; background:rgba(255,255,255,0.08); border-radius:6px; overflow:hidden; margin-left:8px; align-self:center}
+.load-progress .bar{height:100%; width:0%; background:#1976d2; transition:width 0.15s ease}
+.search-bar{display:flex; gap:8px; align-items:center}
+.search-bar .button[disabled]{opacity:0.6; cursor:not-allowed}
+</style>
 <body class="settings-body dark">
 <div class="search-bar">
     <input type="text" id="word-search-input" placeholder="Search word…">
     <button id="word-search-go" class="button">Search</button>
-    <span>Enter to search; exact matches prioritized. If the word doesn't exist, it'll be created.</span>
+    <button id="load-all-btn" class="button">Load all</button>
+    <div id="load-progress" class="load-progress"><div class="bar"></div></div>
+    <span>Enter to search; exact matches prioritized. If the word doesn't exist, it'll be created. To search for translations, please press Load all first.</span>
  </div>
 <div class="settingsMenuContent word-adjust-content">
     <div class="entry header">
@@ -485,6 +493,40 @@ export async function adjustWordsByLevel(){
         statsWindow = null;
     });
     let d = statsWindow.document;
+    // Translation search index and element map
+    // token(lowercased) -> Set(uuid)
+    const translationTokenIndex = new Map();
+    // uuid -> Set(tokens) for easy reindexing
+    const uuidToTokens = new Map();
+    // uuid -> current DOM element (placeholder or loaded)
+    const uuidToElement = new Map();
+    const tokenize = (str) => {
+        return String(str || '')
+            .toLowerCase()
+            .split(/[\s,;|\/\u3000、。・·]+/)
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+    };
+    const indexTranslationTokens = (uuid, fullTranslation) => {
+        if(!uuid) return;
+        // Remove previous tokens
+        const prev = uuidToTokens.get(uuid);
+        if(prev){
+            for(const t of prev){
+                const set = translationTokenIndex.get(t);
+                if(set){
+                    set.delete(uuid);
+                    if(set.size === 0) translationTokenIndex.delete(t);
+                }
+            }
+        }
+        const toks = new Set(tokenize(fullTranslation));
+        uuidToTokens.set(uuid, toks);
+        for(const t of toks){
+            if(!translationTokenIndex.has(t)) translationTokenIndex.set(t, new Set());
+            translationTokenIndex.get(t).add(uuid);
+        }
+    };
     // Cached maps for quick lookups
     const easeByWord = {};
 
@@ -542,6 +584,11 @@ export async function adjustWordsByLevel(){
         const statusPillHTML = await generateStatusPillHTML(word,status);
         const easeVal = easeByWord[word];
         const easePill = (easeVal !== undefined) ? `<div class="pill yellow" title="SRS ease">Ease: ${Math.round(easeVal*100)/100}</div>` : '';
+        // Resolve uuid (prefer existing row uuid when replacing)
+        let uuidResolved = null;
+        try{
+            uuidResolved = replaceTarget?.getAttribute?.('data-uuid') || await toUniqueIdentifier(word);
+        }catch(_e){ /* ignore */ }
     let el = $(`<div class="entry contains_pills">
     <div style="position:relative;"><span>${displayWord}</span><span class="pill pill-btn gray edit-translation-btn" style="margin-left:8px;">Edit</span></div>
     <div class="translation-cell"><span title="${fullT}">${translation}</span></div>
@@ -647,11 +694,21 @@ export async function adjustWordsByLevel(){
             if(reading) el.attr('data-reading', reading);
             if(pitch !== null && pitch !== undefined) el.attr('data-pitch', String(pitch));
             $(replaceTarget).replaceWith(el);
+            // Update uuid -> element map
+            const rowEl = el.get(0);
+            if(rowEl && uuidResolved){ uuidToElement.set(uuidResolved, rowEl); }
         } else {
             if(reading) el.attr('data-reading', reading);
             if(pitch !== null && pitch !== undefined) el.attr('data-pitch', String(pitch));
             $('.word-adjust-content',d).append(el);
+            // Update uuid -> element map
+            const rowEl = el.get(0);
+            if(rowEl && uuidResolved){ uuidToElement.set(uuidResolved, rowEl); }
         }
+        // Index translation tokens for search
+        try{
+            if(uuidResolved && fullT){ indexTranslationTokens(uuidResolved, fullT); }
+        }catch(_e){}
     }
 
     // Modal editor for translation override
@@ -900,6 +957,15 @@ export async function adjustWordsByLevel(){
                 for(const fc of fs.flashcards){
                     const w = fc?.content?.word;
                     if(w && easeByWord[w] === undefined) easeByWord[w] = fc.ease;
+                    // Pre-index flashcard translations for search
+                    try{
+                        const t = fc?.content?.translation;
+                        if(w && t){
+                            const fullT = Array.isArray(t) ? t.join(', ') : String(t);
+                            const uuid = await toUniqueIdentifier(w);
+                            indexTranslationTokens(uuid, fullT);
+                        }
+                    }catch(_e){}
                 }
             }
         }catch(_e){}
@@ -921,6 +987,72 @@ export async function adjustWordsByLevel(){
         // Prepare IntersectionObserver for on-demand rendering within the child window
         const visibleTimers = new Map(); // element -> timeout id
         const visibleSet = new Set(); // elements currently visible
+        // Single-placeholder loader used by IO and eager loader
+        async function loadPlaceholder(ph){
+            if(!ph || ph.dataset.loaded === '1') return;
+            ph.dataset.loaded = '1';
+            const uuid = ph.getAttribute('data-uuid');
+            const status = ph.getAttribute('data-status');
+            const tracker = ph.getAttribute('data-tracker') || 'unknown';
+            // Resolve word and details lazily
+            let word = ph.getAttribute('data-word') || knownMap[uuid] || await getWordByUUID(uuid);
+            if(word) knownMap[uuid] = word;
+            // Translation/reading from flashcards (if available)
+            let translation = ph.getAttribute('data-translation') || '-';
+            let fullTranslation = translation;
+            let reading = ph.getAttribute('data-reading') || null;
+            let pitch = ph.hasAttribute('data-pitch') ? Number(ph.getAttribute('data-pitch')) : undefined;
+            if(word && fs?.flashcards?.length){
+                const found = fs.flashcards.find(fc => fc?.content?.word === word);
+                if(found?.content?.translation){
+                    const t = found.content.translation;
+                    fullTranslation = Array.isArray(t) ? t.join(', ') : String(t);
+                    translation = fullTranslation;
+                }
+                if(!reading && found?.content?.pronunciation){
+                    reading = found.content.pronunciation;
+                }
+                if(pitch === undefined && found?.content?.pitchAccent !== undefined){
+                    pitch = found.content.pitchAccent;
+                }
+            }
+            // fallback: wordFreq reading
+            if(!reading && word && wordFreq[word]?.reading){
+                reading = wordFreq[word].reading;
+            }
+            // If we still need any of translation/reading/pitch, fetch once from backend
+            const needsTranslation = (!translation || translation === '-' || translation === '—');
+            const needsReading = !reading;
+            const needsPitch = (settings?.language === 'ja' && settings?.showPitchAccent && (pitch === undefined || pitch === null));
+            if((needsTranslation || needsReading || needsPitch) && word){
+                try{
+                    const tr = await getTranslation(word);
+                    if(needsTranslation){
+                        const defs = tr?.data?.[0]?.definitions;
+                        if(defs && defs.length){
+                            fullTranslation = Array.isArray(defs) ? defs.join(', ') : String(defs);
+                            translation = fullTranslation;
+                        }
+                    }
+                    if(needsReading && tr?.data?.[0]?.reading){
+                        reading = tr.data[0].reading;
+                    }
+                    if(needsPitch){
+                        const p = tr?.data?.[2]?.[2]?.pitches?.[0]?.position;
+                        if(p !== undefined) pitch = p;
+                    }
+                }catch(_e){ /* ignore */ }
+            }
+            const lvl = word && wordFreq[word]?.raw_level !== undefined ? wordFreq[word].raw_level : -1;
+            // Replace placeholder with the real entry
+            if(translation && translation.length > 25) translation = translation.slice(0,25) + '...';
+            if(!uuid || !word){
+                ph.remove();
+                return;
+            }
+            await addEntry(word || '(unknown)', translation, lvl, tracker, parseInt(status), false, ph, reading, fullTranslation, pitch);
+        }
+
         const io = new statsWindow.IntersectionObserver(async (entries) => {
             for(const entry of entries){
                 const ph = entry.target;
@@ -933,72 +1065,7 @@ export async function adjustWordsByLevel(){
                             visibleTimers.delete(ph);
                             if(!visibleSet.has(ph) || ph.dataset.loaded === '1') return;
                             // Now load after being visible for ~1s
-                            ph.dataset.loaded = '1';
-
-                            const uuid = ph.getAttribute('data-uuid');
-                            const status = ph.getAttribute('data-status');
-                            const tracker = ph.getAttribute('data-tracker') || 'unknown';
-
-                            // Resolve word and details lazily
-                            let word = ph.getAttribute('data-word') || knownMap[uuid] || await getWordByUUID(uuid);
-                            if(word) knownMap[uuid] = word;
-
-                // Translation/reading from existing flashcards (if available)
-                let translation = ph.getAttribute('data-translation') || '-';
-                let fullTranslation = translation;
-                            let reading = ph.getAttribute('data-reading') || null;
-                            let pitch = ph.hasAttribute('data-pitch') ? Number(ph.getAttribute('data-pitch')) : undefined;
-                            if(word && fs?.flashcards?.length){
-                                const found = fs.flashcards.find(fc => fc?.content?.word === word);
-                                if(found?.content?.translation){
-                                    const t = found.content.translation;
-                    fullTranslation = Array.isArray(t) ? t.join(', ') : String(t);
-                    translation = fullTranslation;
-                                }
-                                if(!reading && found?.content?.pronunciation){
-                                    reading = found.content.pronunciation;
-                                }
-                                if(pitch === undefined && found?.content?.pitchAccent !== undefined){
-                                    pitch = found.content.pitchAccent;
-                                }
-                            }
-                            // fallback: wordFreq reading
-                            if(!reading && wordFreq[word]?.reading){
-                                reading = wordFreq[word].reading;
-                            }
-                            // If we still need any of translation/reading/pitch, fetch once from backend
-                            const needsTranslation = (!translation || translation === '-' || translation === '—');
-                            const needsReading = !reading;
-                            const needsPitch = (settings?.language === 'ja' && settings?.showPitchAccent && (pitch === undefined || pitch === null));
-                            if((needsTranslation || needsReading || needsPitch) && word){
-                                try{
-                                    const tr = await getTranslation(word);
-                                    if(needsTranslation){
-                                        const defs = tr?.data?.[0]?.definitions;
-                                        if(defs && defs.length){
-                                            fullTranslation = Array.isArray(defs) ? defs.join(', ') : String(defs);
-                                            translation = fullTranslation;
-                                        }
-                                    }
-                                    if(needsReading && tr?.data?.[0]?.reading){
-                                        reading = tr.data[0].reading;
-                                    }
-                                    if(needsPitch){
-                                        const p = tr?.data?.[2]?.[2]?.pitches?.[0]?.position;
-                                        if(p !== undefined) pitch = p;
-                                    }
-                                }catch(_e){ /* ignore */ }
-                            }
-                            const lvl = word && wordFreq[word]?.raw_level !== undefined ? wordFreq[word].raw_level : -1;
-
-                            // Replace placeholder with the real entry
-                            if(translation && translation.length > 25) translation = translation.slice(0,25) + '...';
-                            if(!uuid || !word){
-                                ph.remove();
-                                io.unobserve(ph);
-                                return;
-                            }
-                            await addEntry(word || '(unknown)', translation, lvl, tracker, parseInt(status), false, ph, reading, fullTranslation, pitch);
+                            await loadPlaceholder(ph);
                             io.unobserve(ph);
                         }, 1000);
                         visibleTimers.set(ph, tid);
@@ -1033,6 +1100,8 @@ export async function adjustWordsByLevel(){
                 <div><span></span></div>
             `;
             frag.appendChild(placeholder);
+            // map uuid -> element for scrolling
+            uuidToElement.set(uuid, placeholder);
         }
         container.appendChild(frag);
 
@@ -1084,6 +1153,7 @@ export async function adjustWordsByLevel(){
                     <div><span></span></div>
                 `;
                 batchFrag.appendChild(placeholder);
+                uuidToElement.set(uuid, placeholder);
                 count++;
                 if(count % BATCH_SZ === 0){
                     container.appendChild(batchFrag);
@@ -1131,6 +1201,7 @@ export async function adjustWordsByLevel(){
                 <div><span></span></div>
             `;
             container.appendChild(placeholder);
+            uuidToElement.set(uuid, placeholder);
             if(!placeholder.__observed){ io.observe(placeholder); placeholder.__observed = true; }
             // index
             if(!itemsIndex[uuid]){
@@ -1156,12 +1227,45 @@ export async function adjustWordsByLevel(){
             }
             // If still nothing, just use the input as-is
             if(!targetWord) targetWord = query;
-            const row = await ensureRowForWord(targetWord);
-            if(!row) return;
-            // Scroll into view and highlight briefly
-            row.scrollIntoView({behavior:'smooth', block:'center'});
-            row.classList.add('highlight');
-            setTimeout(()=> row.classList.remove('highlight'), 1200);
+            if(targetWord && (wordFreq[targetWord] || Object.values(knownMap).includes(targetWord))){
+                const row = await ensureRowForWord(targetWord);
+                if(!row) return;
+                row.scrollIntoView({behavior:'smooth', block:'center'});
+                row.classList.add('highlight');
+                setTimeout(()=> row.classList.remove('highlight'), 1200);
+                return;
+            }
+            // Fallback: search by translation tokens
+            const tokens = tokenize(query);
+            for(const t of tokens){
+                const set = translationTokenIndex.get(t);
+                if(set && set.size){
+                    // pick first uuid
+                    const uuid = set.values().next().value;
+                    let el = uuidToElement.get(uuid);
+                    if(!el){
+                        // ensure row exists; need the word
+                        let w = knownMap[uuid] || await getWordByUUID(uuid);
+                        if(w){
+                            knownMap[uuid] = w;
+                            el = await ensureRowForWord(w);
+                        }
+                    }
+                    if(el){
+                        el.scrollIntoView({behavior:'smooth', block:'center'});
+                        el.classList.add('highlight');
+                        setTimeout(()=> el.classList.remove('highlight'), 1200);
+                        return;
+                    }
+                }
+            }
+            // If still nothing, create/find by literal and scroll
+            const row = await ensureRowForWord(query);
+            if(row){
+                row.scrollIntoView({behavior:'smooth', block:'center'});
+                row.classList.add('highlight');
+                setTimeout(()=> row.classList.remove('highlight'), 1200);
+            }
         }
 
         // Wire search UI
@@ -1169,6 +1273,38 @@ export async function adjustWordsByLevel(){
         const $searchBtn = $('#word-search-go', d);
         $searchBtn.on('click', async ()=>{ await searchAndScroll(($searchInput.val()||'').toString().trim()); });
         $searchInput.on('keydown', async (e)=>{ if(e.key === 'Enter'){ await searchAndScroll(($searchInput.val()||'').toString().trim()); }});
+
+        // Load all with progress
+        const $loadAllBtn = $('#load-all-btn', d);
+        const $progress = $('#load-progress', d);
+        const $bar = $('#load-progress .bar', d);
+        async function loadAllEntries(){
+            if(!$loadAllBtn.length) return;
+            const placeholders = Array.from(container.querySelectorAll('.entry.placeholder'));
+            const total = placeholders.length;
+            if(total === 0) return;
+            $loadAllBtn.attr('disabled','disabled');
+            $progress.show();
+            let done = 0;
+            const update = ()=>{
+                const pct = Math.floor((done/Math.max(1,total))*100);
+                $bar.css('width', pct+'%');
+            };
+            update();
+            // Process in small async batches to keep UI responsive
+            const BATCH = 25;
+            for(let i=0;i<placeholders.length;i+=BATCH){
+                const slice = placeholders.slice(i, i+BATCH);
+                await Promise.all(slice.map(ph => loadPlaceholder(ph).catch(()=>{})));
+                done = Math.min(total, i + slice.length);
+                update();
+                // yield to UI
+                await new Promise(r => setTimeout(r, 0));
+            }
+            // Hide progress after a short delay
+            setTimeout(()=>{ $progress.hide(); $bar.css('width','0%'); $loadAllBtn.removeAttr('disabled'); }, 400);
+        }
+        $loadAllBtn.on('click', async ()=>{ await loadAllEntries(); });
 
         // Layout adjustments: place header below search bar and push content
         try{
@@ -1186,7 +1322,9 @@ export async function adjustWordsByLevel(){
         // expose sorter state for UI updates from handlers
         statsWindow.__wordAdjust = {
             itemsIndex,
-            setTracker: (uuid, value) => { if(itemsIndex[uuid]) itemsIndex[uuid].tracker = value; }
+            setTracker: (uuid, value) => { if(itemsIndex[uuid]) itemsIndex[uuid].tracker = value; },
+            translationTokenIndex,
+            uuidToElement
         };
 
         // Sorting helpers
