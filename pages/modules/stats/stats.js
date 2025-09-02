@@ -5,6 +5,7 @@ import {Flashcards, getAllSRSTrackedWords, getSRSWordKnownStatusUUID, getWordByU
 import {toUniqueIdentifier} from "../utils.js";
 import {generateStatusPillHTML} from "../subtitler/pillHtml.js";
 import $ from "../../lib/jquery.min.js";
+import {getTranslation, setTranslationOverride, getTranslationOverride, clearTranslationOverride} from "../networking.js";
 
 let timeWatched = 0;
 let lastUpdateTime = 0;
@@ -458,10 +459,10 @@ const WINDOW_HTML_ADJUSTER = `<!doctypehtml>
 <link href="style.css" rel="stylesheet">
 <style>body {background: #000}</style>
 <body class="settings-body dark">
-<div class="adjust-words" style="position:fixed;top:0;left:0;width:100%;z-index:4;background:#2a2a2a;border-bottom:1px solid #444;padding:8px 10px;display:flex;gap:8px;align-items:center;">
-    <input type="text" id="word-search-input" placeholder="Search word…" style="flex:1;max-width:420px;height:28px;border-radius:6px;border:1px solid #444;background:#333;color:#eee;padding:0 10px;font-family:'Helvetica Neue',sans-serif;font-size:14px;cursor:text;">
+<div class="search-bar">
+    <input type="text" id="word-search-input" placeholder="Search word…">
     <button id="word-search-go" class="button">Search</button>
-    <span style="color:#aaa;font-size:12px;font-family:'Helvetica Neue', sans-serif;">Enter to search; exact matches prioritized. If the word doesn't exist, it'll be created.</span>
+    <span>Enter to search; exact matches prioritized. If the word doesn't exist, it'll be created.</span>
  </div>
 <div class="settingsMenuContent word-adjust-content">
     <div class="entry header">
@@ -497,9 +498,7 @@ export async function adjustWordsByLevel(){
     };
     // Helper: create a flashcard using backend translation data
     async function createFlashcardForWord(word, levelHint){
-        const translator = (window.getTranslation || (statsWindow.opener && statsWindow.opener.getTranslation));
-        if(!translator) throw new Error('Translation service unavailable');
-        const tr = await translator(word);
+        const tr = await getTranslation(word);
         if(!tr?.data || tr.data.length === 0) throw new Error('No translation data');
         const content = {
             word,
@@ -543,9 +542,9 @@ export async function adjustWordsByLevel(){
         const statusPillHTML = await generateStatusPillHTML(word,status);
         const easeVal = easeByWord[word];
         const easePill = (easeVal !== undefined) ? `<div class="pill yellow" title="SRS ease">Ease: ${Math.round(easeVal*100)/100}</div>` : '';
-        let el = $(`<div class="entry contains_pills">
-        <div><span>${displayWord}</span></div>
-        <div class="translation-cell"><span title="${fullT}">${translation}</span></div>
+    let el = $(`<div class="entry contains_pills">
+    <div style="position:relative;"><span>${displayWord}</span><span class="pill pill-btn gray edit-translation-btn" style="margin-left:8px;">Edit</span></div>
+    <div class="translation-cell"><span title="${fullT}">${translation}</span></div>
         <div>
             ${level === -1 || !level ? '-' : '<div class="pill" level="'+level+'">'+lang_data[settings.language].freq_level_names?.[level]+'</div>'}
         </div>
@@ -563,6 +562,14 @@ export async function adjustWordsByLevel(){
                     span.addEventListener('mouseleave', () => { span.textContent = span.dataset.shortTranslation; });
                 }
             }
+        }catch(_e){}
+        // Edit translation button: open a modal editor with fields for reading, pitch, and definitions
+        try{
+            const $editBtn = el.find('.edit-translation-btn');
+            $editBtn.on('click', async (ev)=>{
+                ev.stopPropagation();
+                await openEditTranslationDialog(word, el.get(0));
+            });
         }catch(_e){}
         // Tracker cell UI: toggle between Add/Remove Flashcard buttons
         try{
@@ -645,6 +652,175 @@ export async function adjustWordsByLevel(){
             if(pitch !== null && pitch !== undefined) el.attr('data-pitch', String(pitch));
             $('.word-adjust-content',d).append(el);
         }
+    }
+
+    // Modal editor for translation override
+    async function openEditTranslationDialog(word, rowEl){
+        const doc = statsWindow.document;
+        // Remove existing modal if present
+        const existing = doc.querySelector('.ml-modal-overlay');
+        if(existing) existing.remove();
+
+        // Fetch current data (override or backend)
+        let current = getTranslationOverride(word);
+        if(!current){
+            try { current = await getTranslation(word); } catch(_e){ current = { data: [] }; }
+        }
+        const curReading = current?.data?.[0]?.reading || rowEl?.getAttribute('data-reading') || '';
+        const defs = current?.data?.[0]?.definitions;
+        const defsLines = Array.isArray(defs) ? defs.join('\n') : (defs ? String(defs) : '');
+        const structured = current?.data?.[1]?.definitions ? String(current.data[1].definitions) : '';
+        const curPitch = (()=>{
+            try{ return (current?.data?.[2]?.[2]?.pitches?.[0]?.position) ?? ''; }catch{ return ''; }
+        })();
+
+        // Build modal DOM
+        const overlay = doc.createElement('div');
+        overlay.className = 'ml-modal-overlay';
+        const modal = doc.createElement('div');
+        modal.className = 'ml-modal';
+        modal.innerHTML = `
+            <div class="ml-modal-header">
+                <div style="font-size:16px;font-weight:600;">Edit translation – ${word}</div>
+                <button class="ml-close" style="background:transparent;border:0;color:inherit;font-size:18px;cursor:pointer;">×</button>
+            </div>
+            <div class="ml-modal-content">
+                <label>Word</label>
+                <input type="text" value="${word}" disabled>
+
+                <label>Reading (furigana)</label>
+                <input id="ml-reading" type="text" value="${curReading}" placeholder="かな / reading">
+
+                <label>Pitch accent</label>
+                <div class="ml-pitch-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                    <input id="ml-pitch" type="number" inputmode="numeric" min="0" value="${curPitch}" placeholder="0 (Heiban), 1, 2, 3…" style="flex:0 0 120px; padding:8px; border:1px solid ${settings.dark_mode? '#333':'#ccc'}; background:${settings.dark_mode? '#222':'#fff'}; color:inherit; border-radius:6px;">
+                    <div id="ml-pitch-name" style="flex:1 1 auto;opacity:0.9;"></div>
+                    <div id="ml-pitch-preview" style="flex:1 1 auto;text-align:right;min-height:24px;"></div>
+                </div>
+                
+                <label>Definitions (one per line)</label>
+                <textarea id="ml-defs" rows="6" placeholder="Definition per line">${defsLines}</textarea>
+
+                <label>Structured content (optional)</label>
+                <div id="ml-struct" contenteditable="true">${structured}</div>
+            </div>
+            <div class="ml-modal-footer">
+                <button class="ml-revert" style="background:${settings.dark_mode? '#5a1b1b':'#ffdede'};color:${settings.dark_mode? '#ffdede':'#8a0000'};border:1px solid ${settings.dark_mode? '#7a2a2a':'#ffcccc'};border-radius:6px; padding:8px 12px;cursor:pointer;">Remove Override</button>
+                <button class="ml-cancel" style="background:${settings.dark_mode? '#2a2b2f':'#f3f3f3'};color:inherit;border:1px solid ${settings.dark_mode? '#333':'#ddd'};border-radius:6px; padding:8px 12px;cursor:pointer;">Cancel</button>
+                <button class="ml-save" style="background:#1976d2;color:#fff;border:1px solid #115da6;border-radius:6px; padding:8px 12px;cursor:pointer;">Save</button>
+            </div>
+        `;
+        overlay.appendChild(modal);
+        doc.body.appendChild(overlay);
+
+        const byId = (id)=> modal.querySelector('#'+id);
+        const $reading = byId('ml-reading');
+        const $pitch = byId('ml-pitch');
+    const $defs = byId('ml-defs');
+    const $struct = byId('ml-struct');
+    const $pitchName = modal.querySelector('#ml-pitch-name');
+    const $pitchPreview = modal.querySelector('#ml-pitch-preview');
+
+        const close = ()=> overlay.remove();
+        modal.querySelector('.ml-close')?.addEventListener('click', close);
+        modal.querySelector('.ml-cancel')?.addEventListener('click', close);
+        overlay.addEventListener('click', (e)=>{ if(e.target === overlay) close(); });
+
+        function pitchTypeName(p){
+            if(p === null || p === undefined || Number.isNaN(p)) return '—';
+            if(p === 0) return 'Heiban (平板)';
+            if(p === 1) return 'Atamadaka (頭高)';
+            if(p === 2) return 'Nakadaka (中高)';
+            if(p === 3) return 'Odaka (尾高)';
+            if(typeof p === 'number' && Number.isFinite(p) && p >= 4) return `Drop after mora ${p}`;
+            return '—';
+        }
+
+        function updatePitchPreview(){
+            const r = ($reading?.value || '').trim();
+            let pStr = ($pitch?.value || '').trim();
+            // enforce minimum >= 0
+            if(pStr === ''){
+                // empty -> treat as 0 (minimum)
+                pStr = '0';
+                if($pitch) $pitch.value = '0';
+            }
+            let p = Number(pStr);
+            if(!Number.isFinite(p) || p < 0){ p = 0; if($pitch) $pitch.value = '0'; }
+            if($pitchName) $pitchName.textContent = pitchTypeName(p);
+            if($pitchPreview){
+                while($pitchPreview.firstChild) $pitchPreview.removeChild($pitchPreview.firstChild);
+                if(r && p !== null && Number.isFinite(p)){
+                    const sp = statsWindow.document.createElement('span');
+                    sp.textContent = r;
+                    $pitchPreview.appendChild(sp);
+                    try{ attachPitchAccentToWord($(sp), r, r, p); }catch(_e){}
+                }
+            }
+        }
+        // initialize and bind
+        updatePitchPreview();
+        $reading?.addEventListener('input', updatePitchPreview);
+        $pitch?.addEventListener('input', updatePitchPreview);
+
+        async function refreshRowFromData(obj){
+            // Extract values for UI
+            const r = $reading.value.trim();
+            const defsArr = (()=>{
+                const raw = $defs.value.split('\n').map(s=>s.trim()).filter(Boolean);
+                return raw;
+            })();
+            const fullT2 = defsArr.join(', ');
+            let short = fullT2 || '-';
+            if(short.length > 25) short = short.slice(0,25) + '...';
+            const p = $pitch.value === '' ? null : Number($pitch.value);
+            const level = (wordFreq[word]?.raw_level ?? -1);
+            const tracker = rowEl?.getAttribute('data-tracker') || 'nothing';
+            const status = parseInt(rowEl?.getAttribute('data-status') || '0');
+            await addEntry(word, short, level, tracker, status, false, rowEl, r || null, fullT2, (p===null||Number.isNaN(p))? null : p);
+        }
+
+        // Save override
+        modal.querySelector('.ml-save')?.addEventListener('click', async ()=>{
+            try{
+                const reading = $reading.value.trim();
+                const pitchVal = $pitch.value.trim();
+                const defsArr = $defs.value.split('\n').map(s=>s.trim()).filter(Boolean);
+                const structuredVal = $struct.innerHTML.trim();
+                const data = [];
+                // primary entry
+                data.push({ reading, definitions: defsArr });
+                // structured entry (optional)
+                if(structuredVal && structuredVal.length){ data.push({ reading, definitions: structuredVal }); }
+                // pitch entry (optional)
+                if(pitchVal !== ''){
+                    const pos = Number(pitchVal);
+                    if(!Number.isFinite(pos) || pos < 0){ throw new Error('Pitch must be a non-negative integer or empty'); }
+                    data.push([word, 'pitch', { reading, pitches: [{ position: pos }] }]);
+                }
+                const obj = { data };
+                setTranslationOverride(word, obj);
+                await refreshRowFromData(obj);
+                close();
+            }catch(err){ statsWindow.alert('Failed to save: ' + err); }
+        });
+
+        // Remove override
+        modal.querySelector('.ml-revert')?.addEventListener('click', async ()=>{
+            try{
+                clearTranslationOverride(word);
+                // Re-fetch from backend and update UI
+                const tr = await getTranslation(word);
+                // Prefill fields from backend for user feedback
+                $reading.value = tr?.data?.[0]?.reading || '';
+                const d0 = tr?.data?.[0]?.definitions;
+                $defs.value = Array.isArray(d0) ? d0.join('\n') : (d0 || '');
+                const d1 = tr?.data?.[1]?.definitions; $struct.innerHTML = d1 ? String(d1) : '';
+                const pv = tr?.data?.[2]?.[2]?.pitches?.[0]?.position; $pitch.value = (pv ?? '').toString();
+                await refreshRowFromData(tr);
+                close();
+            }catch(err){ statsWindow.alert('Failed to revert: ' + err); }
+        });
     }
 
     // Build and attach pitch accent overlay to the provided span element.
@@ -794,9 +970,9 @@ export async function adjustWordsByLevel(){
                             const needsTranslation = (!translation || translation === '-' || translation === '—');
                             const needsReading = !reading;
                             const needsPitch = (settings?.language === 'ja' && settings?.showPitchAccent && (pitch === undefined || pitch === null));
-                            if((needsTranslation || needsReading || needsPitch) && word && (window.getTranslation || (statsWindow.opener && statsWindow.opener.getTranslation))){
+                            if((needsTranslation || needsReading || needsPitch) && word){
                                 try{
-                                    const tr = await (window.getTranslation ? window.getTranslation(word) : statsWindow.opener.getTranslation(word));
+                                    const tr = await getTranslation(word);
                                     if(needsTranslation){
                                         const defs = tr?.data?.[0]?.definitions;
                                         if(defs && defs.length){
@@ -816,7 +992,7 @@ export async function adjustWordsByLevel(){
                             const lvl = word && wordFreq[word]?.raw_level !== undefined ? wordFreq[word].raw_level : -1;
 
                             // Replace placeholder with the real entry
-                            if(translation && translation.length > 15) translation = translation.slice(0,15) + '...';
+                            if(translation && translation.length > 25) translation = translation.slice(0,25) + '...';
                             if(!uuid || !word){
                                 ph.remove();
                                 io.unobserve(ph);
@@ -996,7 +1172,7 @@ export async function adjustWordsByLevel(){
 
         // Layout adjustments: place header below search bar and push content
         try{
-            const searchBar = d.querySelector('.adjust-words');
+            const searchBar = d.querySelector('.search-bar');
             const headerEl = container.querySelector('.entry.header');
             if(searchBar && headerEl){
                 const h = searchBar.getBoundingClientRect().height;
@@ -1063,7 +1239,7 @@ export async function adjustWordsByLevel(){
                                 if(found?.content?.translation){
                                     const t = found.content.translation;
                                     let tr = Array.isArray(t) ? t.join(', ') : String(t);
-                                    if(tr && tr.length > 15) tr = tr.slice(0,15) + '...';
+                                    if(tr && tr.length > 25) tr = tr.slice(0,25) + '...';
                                     item.translation = tr;
                                 }
                                 if(!item.reading && found?.content?.pronunciation){
