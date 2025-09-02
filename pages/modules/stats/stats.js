@@ -334,6 +334,13 @@ export async function drawWordsLearnedByExamLevel(canvas){
 
     // Columns are defined by globalWordsPerLevel keys (numeric levels)
     const levelsNumeric = Object.keys(globalWordsPerLevel).map(Number).sort((a,b)=> b-a);
+    for(const level_id of levelsNumeric){
+        if(!(level_id in trackedWordsPerLevel)) {
+            trackedWordsPerLevel[level_id] = {};
+            console.log("Adding empty level", level_id);
+        }
+    }
+    console.log(trackedWordsPerLevel);
 
     // Status ordering and colors
     const statusOrder = ["Learned", "Learning", "Viewed", "Unknown"];
