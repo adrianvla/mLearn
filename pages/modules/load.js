@@ -208,7 +208,7 @@ window.mLearnIPC.onServerStatusUpdate((message) => {
         $("#status-update").html("Waiting for Anki");
         $(".loading .progress-bar .progress").animate({width:"50%"},300);
     }else if(message.includes("Arguments")){
-        $("#status-update").html("Loading Anki Cache...");
+        $("#status-update").html("Loading Dictionaries...");
         $(".loading .progress-bar .progress").animate({width:"100%"},300);
     }
 });

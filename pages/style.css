@@ -1719,7 +1719,8 @@ body.dark .word-adjust-content .entry > div:first-child{
     position:fixed;
     top:0;
     left:0;
-    width:100%;
+    width:100vw;
+    box-sizing: border-box;
     z-index:4;
     background:#d0d0d055;
     backdrop-filter: blur(16px);
@@ -1732,6 +1733,16 @@ body.dark .word-adjust-content .entry > div:first-child{
 body.dark .search-bar{
     background:#30303055;
     border-bottom:1px solid #444;
+}
+.search-bar #word-search-input{
+    min-width:150px;
+}
+.search-bar span{
+    overflow:hidden;
+    word-wrap:break-word;
+}
+.search-bar button{
+    white-space: nowrap;
 }
 .search-bar input{
     flex:1;
