@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS = {
     "hover_known_get_from_dictionary":false,
     "show_pos":true,
     "language":"ja",
-    "use_anki":true,
+    "use_anki":false,
     "furigana":true,
     "enable_flashcard_creation":false,
     "flashcard_deck":null,
