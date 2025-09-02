@@ -100,7 +100,7 @@ const parseWordFrequency = () => {
         }
         wordFreq[freq[wordi][0]] = {reading:freq[wordi][1], level:lvlName, raw_level:level};
     }
-
 };
+window.wordFreq = wordFreq;
 
 export {checkSettings, saveSettings, getSettings, getLangData, load_lang_data, loadSettings, parseWordFrequency, settings, supported_languages, lang_data, SUBTITLE_THEMES, TRANSLATABLE, wordFreq, DEFAULT_SETTINGS, setSettings};

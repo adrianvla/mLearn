@@ -137,6 +137,7 @@ const modify_sub = async (subtitle) => {
                 $word.append($(`${real_word}`));
                 return;
             }
+            console.log(isWordKnown?"Word is known":"Word is not known", word);
             let translation_data = await getTranslation(word);
             if(translation_data.data.length == 0) return;
             let flashcardContent = {

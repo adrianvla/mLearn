@@ -1,4 +1,4 @@
-import {screenshotVideo, toUniqueIdentifier} from "../utils.js";
+import {toUniqueIdentifier} from "../utils.js";
 import {settings, wordFreq} from "../settings/settings.js";
 import {getCards, getTranslation} from "../networking.js";
 import {
@@ -115,18 +115,77 @@ const updateFlashcardSearchHashMap = async () => {
     }
 };
 
+// Reverse-lookup helpers: map UUID -> word
+let uuidToWordFromFreq = null; // lazily built
+let buildingUuidToWordFromFreq = null; // promise guard
+const ensureUuidToWordFromFreq = async () => {
+    if (uuidToWordFromFreq) return uuidToWordFromFreq;
+    if (buildingUuidToWordFromFreq) return await buildingUuidToWordFromFreq;
+    buildingUuidToWordFromFreq = (async () => {
+        const map = {};
+        try{
+            // Build a reverse index from the known frequency dictionary
+            const words = Object.keys(wordFreq || {});
+            for (let i = 0; i < words.length; i++) {
+                const w = words[i];
+                try{
+                    const id = await toUniqueIdentifier(w);
+                    if(!(id in map)) map[id] = w;
+                }catch(_e){ /* ignore per-word failures */ }
+            }
+        }catch(_e){ /* ignore build failures */ }
+        uuidToWordFromFreq = map;
+        buildingUuidToWordFromFreq = null;
+        return uuidToWordFromFreq;
+    })();
+    return await buildingUuidToWordFromFreq;
+};
+
+export const getWordByUUID = async (uuid) => {
+    // 1) Direct candidate store (uuid -> {word})
+    if (flashcards?.wordCandidates && flashcards.wordCandidates[uuid]?.word) {
+        return flashcards.wordCandidates[uuid].word;
+    }
+    // 2) Existing flashcard index (uuid -> index)
+    if (uuid in flashcardSearchHashMap) {
+        const i = flashcardSearchHashMap[uuid];
+        const fc = flashcards.flashcards[i];
+        if (fc?.content?.word) return fc.content.word;
+    }
+    // 3) Lazy reverse index from frequency list
+    const freqMap = await ensureUuidToWordFromFreq();
+    if (freqMap && uuid in freqMap) return freqMap[uuid];
+
+    return null;
+};
+window.getWordByUUID = getWordByUUID;
+
 export const findFlashcard = async (word) => {
     const uuid = await toUniqueIdentifier(word);
     if(uuid in flashcardSearchHashMap) return flashcards.flashcards[flashcardSearchHashMap[uuid]];
     return null;
 };
 
+export const getAllSRSTrackedWords = () => {
+    return flashcards.alreadyCreated;
+}
+
 export const getSRSWordKnownStatus = async (word) => {
     const uuid = await toUniqueIdentifier(word);
     if(uuid in flashcards.knownUnTracked) return WORD_STATUS_KNOWN;
     else if(uuid in flashcardSearchHashMap){
         const flashcard = flashcards.flashcards[flashcardSearchHashMap[uuid]];
-        if(settings.known_ease_threshold/1000 > flashcard.ease) return WORD_STATUS_KNOWN;
+        if(settings.known_ease_threshold/1000 <= flashcard.ease) return WORD_STATUS_KNOWN;
+        else return WORD_STATUS_LEARNING;
+    }
+    return WORD_STATUS_UNKNOWN;
+};
+window.getSRSWordKnownStatus = getSRSWordKnownStatus;
+export const getSRSWordKnownStatusUUID = (uuid) => {
+    if(uuid in flashcards.knownUnTracked) return WORD_STATUS_KNOWN;
+    else if(uuid in flashcardSearchHashMap){
+        const flashcard = flashcards.flashcards[flashcardSearchHashMap[uuid]];
+        if(settings.known_ease_threshold/1000 <= flashcard.ease) return WORD_STATUS_KNOWN;
         else return WORD_STATUS_LEARNING;
     }
     return WORD_STATUS_UNKNOWN;
@@ -150,6 +209,9 @@ export const addFlashcard = async (word, content, ease=0) => {
 function countToEase(x){
     return Math.atan(x/10)+1.01;
 }
+export function knownStatusToEaseFunction(status){
+    return Math.max((status-1)*0.25,0) + 1.3;
+}
 
 async function createFlashcardForWord(word, translation_data = null){
     if(translation_data == null) return console.error("translation_data is null for word", word);
@@ -166,7 +228,7 @@ async function createFlashcardForWord(word, translation_data = null){
         pos: "",
         level: word in wordFreq ? wordFreq[word].raw_level : -1,
     };
-    await addFlashcard(word, flashcardContent, Math.max((getKnownStatus(word)-1)*0.25,0) + 1.3);
+    await addFlashcard(word, flashcardContent, knownStatusToEaseFunction(await getKnownStatus(word)));
 }
 
 async function newDay(){

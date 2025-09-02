@@ -1,58 +1,101 @@
-<!doctype html>
+<!doctypehtml>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>New Flashcard</title>
-    <link rel="stylesheet" href="flashcard_window.css">
-    <link rel="stylesheet" href="style.css">
-    <style>
-        :root {
-            --subtitle-font-size: 40px;
-        }
-    </style>
-</head>
-<body class="dark">
-<div class="subtitles theme-shadow">
-    <span class="subtitle_word word_uqkradbzmdogkbnvnkm1rv has-hover" style="color: rgb(214, 206, 253);" known="false" grammar="動詞">
-        <span class="frequency" level="1"><span class="star"></span><span class="star"></span><span class="star"></span></span>
-        <ruby>刺さっ<rt>ささる</rt></ruby><div
-            class="subtitle_hover hover_uqkradbzmdogkbnvnkm1rv dark show-hover" style="border: 3px solid rgb(214, 206, 253);left: -8.5px;">
-            <div class="footer">
-                <div class="pills">
-
-                    <div class="pill">
-                        動詞
-                    </div>
-                    <div class="pill" level="1" data-pos="asdfasdf">
-                        <span>JLPT N1</span>
-                    </div>
-                    <div class="pill green pill-btn">
-                        <span class="icon">
-                            <img src="assets/icons/check.svg" alt="">
-                        </span>
-                        <span>Known</span>
-                    </div>
-                    <div class="pill orange pill-btn">
-                        <span class="icon">
-                            <img src="assets/icons/check.svg" alt="">
-                        </span>
-                        <span>Learning</span>
-                    </div>
-                    <div class="pill red pill-btn">
-                        <span class="icon">
-                            <img src="assets/icons/cross2.svg" alt="">
-                        </span>
-                        <span>Unknown</span>
-                    </div>
-                </div>
+<meta charset="UTF-8">
+<title>Settings</title>
+<link href="style.css" rel="stylesheet">
+<style>body {
+    background: #000
+}</style>
+<body class="settings-body dark">
+<div class="settingsMenuContent word-adjust-content">
+    <div class="entry header">
+        <div><span>Word</span></div>
+        <div><span>Translation</span></div>
+        <div><span>Exam level</span></div>
+        <div><span>Tracked by:</span></div>
+        <div><span>Status</span></div>
+    </div>
+    <div class="entry contains_pills">
+        <div><span>試し</span></div>
+        <div><span>Trial, test,...</span></div>
+        <div>
+            <div class="pill" level="3">JLPT N3</div>
+        </div>
+        <div><span>Pills</span></div>
+        <div>
+            <div class="pill pill-btn red">
+            <span class="icon">
+                <img src="assets/icons/cross2.svg" alt="">
+            </span>
+                <span>Unknown</span>
             </div>
-            <div class="hover_translation">stick, be stuck</div>
-            <div class="hover_reading">ささる<!-- accent_start --><br><hr><br><svg class="pitch" width="137px" height="75px" viewBox="0 0 137 75"><text x="5" y="67.5" style="font-size:20px;font-family:sans-serif;fill:#000;">さ</text><text x="40" y="67.5" style="font-size:20px;font-family:sans-serif;fill:#000;">さ</text><text x="75" y="67.5" style="font-size:20px;font-family:sans-serif;fill:#000;">る</text><path d="m 16,30 35,-25" style="fill:none;stroke:#000;stroke-width:1.5;"></path><path d="m 51,5 35,25" style="fill:none;stroke:#000;stroke-width:1.5;"></path><path d="m 86,30 35,0" style="fill:none;stroke:#000;stroke-width:1.5;"></path><circle r="5" cx="16" cy="30" style="opacity:1;fill:#000;"></circle><circle r="5" cx="51" cy="5" style="opacity:1;fill:#000;"></circle><circle r="5" cx="86" cy="30" style="opacity:1;fill:#000;"></circle><circle r="5" cx="121" cy="30" style="opacity:1;fill:#000;"></circle><circle r="3.25" cx="121" cy="30" style="opacity:1;fill:#fff;"></circle></svg>
-        <!-- accent_end --></div></div></span>
+        </div>
+    </div>
+    <div class="entry contains_pills">
+        <div><span>試し</span></div>
+        <div><span>Trial, test,...</span></div>
+        <div>
+            <div class="pill" level="3">JLPT N3</div>
+        </div>
+        <div><span>Pills</span></div>
+        <div>
+            <div class="pill pill-btn red">
+            <span class="icon">
+                <img src="assets/icons/cross2.svg" alt="">
+            </span>
+                <span>Unknown</span>
+            </div>
+        </div>
+    </div>
+    <div class="entry contains_pills">
+        <div><span>試し</span></div>
+        <div><span>Trial, test,...</span></div>
+        <div>
+            <div class="pill yellow">Ease: 12</div>
+        </div>
+        <div><span>Pills</span></div>
+        <div>
+            <div class="pill pill-btn red">
+            <span class="icon">
+                <img src="assets/icons/cross2.svg" alt="">
+            </span>
+                <span>Unknown</span>
+            </div>
+        </div>
+    </div>
+    <div class="entry contains_pills highlight">
+        <div><span>試し</span></div>
+        <div><span>Trial, test,...</span></div>
+        <div>
+            <div class="pill" level="3">JLPT N3</div>
+        </div>
+        <div><span>Pills</span></div>
+        <div>
+            <div class="pill pill-btn red">
+            <span class="icon">
+                <img src="assets/icons/cross2.svg" alt="">
+            </span>
+                <span>Unknown</span>
+            </div>
+        </div>
+    </div>
+    <div class="entry contains_pills">
+        <div><span>試し</span></div>
+        <div><span>Trial, test,...</span></div>
+        <div>
+            <div class="pill" level="3">JLPT N3</div>
+        </div>
+        <div><span>Pills</span></div>
+        <div>
+            <div class="pill pill-btn red">
+            <span class="icon">
+                <img src="assets/icons/cross2.svg" alt="">
+            </span>
+                <span>Unknown</span>
+            </div>
+        </div>
+    </div>
 </div>
-
+<!--<div class="fullscreen-load">Loading...</div>-->
 </body>
 </html>
