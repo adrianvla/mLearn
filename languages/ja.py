@@ -9,6 +9,7 @@ from urllib.parse import quote
 import re
 import os
 import pickle
+from typing import Optional, Tuple, List as _List
 
 def camel_to_kebab_case(name):
     """Convert camelCase to kebab-case."""
@@ -54,63 +55,146 @@ TranslationCache = {}
 dictionary = []
 pitch_accent = []
 kana_dict = []
-def binary_search(word):
+
+
+# --- Helpers for ranking and Unicode categories ---
+def is_hiragana(s: str) -> bool:
+    return bool(s) and all('\u3040' <= ch <= '\u309F' for ch in s)
+
+
+def is_katakana(s: str) -> bool:
+    return bool(s) and all('\u30A0' <= ch <= '\u30FF' for ch in s)
+
+
+def is_kana(s: str) -> bool:
+    return bool(s) and all((\
+        ('\u3040' <= ch <= '\u309F') or ('\u30A0' <= ch <= '\u30FF') or ch == 'ー'\
+    ) for ch in s)
+
+
+def _rank_entry(e) -> Tuple[int, int, int]:
+    """Return a sort key for a Yomichan entry.
+    Prefer hiragana readings, then kana readings (to exclude pinyin/latin),
+    then higher score (fallback if available).
+    """
+    try:
+        reading = e[1] if len(e) > 1 else ''
+    except Exception:
+        reading = ''
+    # Primary: prefer pure hiragana (native Japanese reading)
+    pref_hira = 0 if is_hiragana(reading) else 1
+    # Secondary: prefer kana over non-kana (filters out pinyin/latin)
+    pref_kana = 0 if is_kana(reading) else 1
+    # Tertiary: use score when present; assume higher is better if int
+    score_val = 0
+    try:
+        raw = e[4] if len(e) > 4 else 0
+        if isinstance(raw, (int, float)):
+            score_val = int(raw)
+    except Exception:
+        pass
+    return (pref_hira, pref_kana, -score_val)
+
+
+def _collect_by_headword(word: str) -> _List:
+    """Collect all entries in `dictionary` whose headword (index 0) == word.
+    Assumes `dictionary` is sorted by headword.
+    """
     global dictionary
+    matches = []
+    if not dictionary:
+        return matches
+    # Binary search for any index where headword == word
+    lo, hi = 0, len(dictionary) - 1
+    found = -1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        hw = dictionary[mid][0]
+        if hw == word:
+            found = mid
+            break
+        if hw > word:
+            hi = mid - 1
+        else:
+            lo = mid + 1
+    if found == -1:
+        return matches
+    # Expand left/right for contiguous range with same headword
+    left = found
+    while left - 1 >= 0 and dictionary[left - 1][0] == word:
+        left -= 1
+    right = found
+    n = len(dictionary)
+    while right + 1 < n and dictionary[right + 1][0] == word:
+        right += 1
+    matches = dictionary[left:right + 1]
+    return matches
+
+
+def _collect_by_reading(kana: str) -> _List:
+    """Collect all entries in `kana_dict` whose reading (index 1) == kana.
+    Assumes `kana_dict` is sorted by reading.
+    """
     global kana_dict
+    matches = []
+    if not kana_dict:
+        return matches
+    lo, hi = 0, len(kana_dict) - 1
+    found = -1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        rd = kana_dict[mid][1]
+        if rd == kana:
+            found = mid
+            break
+        if rd > kana:
+            hi = mid - 1
+        else:
+            lo = mid + 1
+    if found == -1:
+        return matches
+    left = found
+    while left - 1 >= 0 and kana_dict[left - 1][1] == kana:
+        left -= 1
+    right = found
+    n = len(kana_dict)
+    while right + 1 < n and kana_dict[right + 1][1] == kana:
+        right += 1
+    matches = kana_dict[left:right + 1]
+    return matches
+
+
+def binary_search(word):
+    """Find the best matching dictionary entry for `word`.
+    Returns (best_entry, pitch_accent_entry, all_matches) or None.
+    """
     global pitch_accent
-    """
-    Perform a binary search to find the word in the dictionary.
-
-    :param dictionary: List of tuples (word, reading) sorted by word.
-    :param word: Word to search for.
-    :return: Tuple (word, reading) if found, otherwise None.
-    """
+    # Find pitch accent entry by headword match (if available)
     pitch_accent_entry = None
-    low = 0
-    high = len(pitch_accent) - 1
-
-    while low <= high:
-        mid = (low + high) // 2
+    lo, hi = 0, len(pitch_accent) - 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
         guess = pitch_accent[mid][0]
-
         if guess == word:
             pitch_accent_entry = pitch_accent[mid]
             break
         if guess > word:
-            high = mid - 1
+            hi = mid - 1
         else:
-            low = mid + 1
+            lo = mid + 1
 
+    # Collect candidates by headword; fallback to kana reading
+    matches = _collect_by_headword(word)
+    if not matches:
+        # If input itself is kana, try reading lookup
+        matches = _collect_by_reading(word)
 
-    low = 0
-    high = len(dictionary) - 1
+    if not matches:
+        return None
 
-    while low <= high:
-        mid = (low + high) // 2
-        guess = dictionary[mid][0]
-
-        if guess == word:
-            return dictionary[mid],pitch_accent_entry
-        if guess > word:
-            high = mid - 1
-        else:
-            low = mid + 1
-
-    # If the word is not found, try to find it in the kana dictionary
-    low = 0
-    high = len(kana_dict) - 1
-    while low <= high:
-        mid = (low + high) // 2
-        guess = kana_dict[mid][1]
-
-        if guess == word:
-            return kana_dict[mid],pitch_accent_entry
-        if guess > word:
-            high = mid - 1
-        else:
-            low = mid + 1
-
-    return None
+    # Rank and pick the best
+    best = sorted(matches, key=_rank_entry)[0]
+    return best, pitch_accent_entry, matches
 def create_html_element(element):
     """Recursively create HTML elements from JSON."""
     oneliner = ""
