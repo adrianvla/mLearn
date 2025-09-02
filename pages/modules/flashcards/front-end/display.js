@@ -52,7 +52,7 @@ const addPitchAccent = (accent_type, word_in_letters, real_word, pos) => {
         html_string += `<div class="${classString}"></div>`;
     }
 
-    if(!(pos === "動詞" && look_ahead_token === "動詞")){
+    if(!(pos === "動詞")){
         //if not a verb, add particle accent
         let b = !particle_accent;
         let t = particle_accent;

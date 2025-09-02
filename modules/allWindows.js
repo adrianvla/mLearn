@@ -307,6 +307,25 @@ function setAppMenu(){
             ]
         },
         {
+            label: 'Statistics',
+            submenu:[
+                {
+                    label: 'Show learning statistics',
+                    click: async () => {
+                        //if(serverLoaded)
+                        mainWindow.webContents.send('show-settings','Stats');
+                    }
+                },
+                {
+                    label: 'Edit word knowledge database',
+                    click: async () => {
+                        //if(serverLoaded)
+                        mainWindow.webContents.send('open-word-db-editor');
+                    }
+                },
+            ]
+        },
+        {
             label: 'Help',
             submenu: [
                 {
