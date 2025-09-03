@@ -19,6 +19,8 @@ let lS = {};
 let pillQueuedUpdates = [];
 let wordAppearanceQueuedUpdates = [];
 let attemptFlashcardCreationQueuedUpdates = [];
+let createFlashcardQueuedUpdates = [];
+let lastWatchedQueuedUpdates = [];
 // Best-effort: trust a PEM cert on macOS System keychain once (prompts for admin pwd)
 const trustCertOnMac = (certFilePath) => {
     try {
@@ -117,6 +119,18 @@ const sendAttemptFlashcardCreationUpdatesToMainWindow = () => {
     mainWindow.webContents.send('update-attempt-flashcard-creation',JSON.stringify(attemptFlashcardCreationQueuedUpdates));
     attemptFlashcardCreationQueuedUpdates = [];
 }
+const sendCreateFlashcardUpdatesToMainWindow = () => {
+    if(createFlashcardQueuedUpdates.length === 0) return;
+    console.log("Sending queued updates to main window createFlashcardUpdates",createFlashcardQueuedUpdates);
+    mainWindow.webContents.send('update-create-flashcard',JSON.stringify(createFlashcardQueuedUpdates));
+    createFlashcardQueuedUpdates = [];
+}
+const sendLastWatchedUpdatesToMainWindow = () => {
+    if(lastWatchedQueuedUpdates.length === 0) return;
+    console.log("Sending queued updates to main window last-watched", lastWatchedQueuedUpdates);
+    mainWindow.webContents.send('update-last-watched', JSON.stringify(lastWatchedQueuedUpdates));
+    lastWatchedQueuedUpdates = [];
+}
 
 function getHostAndPort(url) {
     try {
@@ -169,6 +183,25 @@ const startWebSocketServer = async () => {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ status: 'ok' }));
             if(!mainWindow.isDestroyed()) sendAttemptFlashcardCreationUpdatesToMainWindow();
+            return;
+        }
+
+        if (req.method === 'GET' && req.url.startsWith('/api/update-last-watched')) {
+            const query = url.parse(req.url, true).query;
+            try{
+                const decoded = JSON.parse(Buffer.from(query.payload || '', 'base64').toString('utf8'));
+                if(decoded && decoded.action === 'update-last-watched'){
+                    lastWatchedQueuedUpdates.push({ name: decoded.name, screenshotUrl: decoded.screenshotUrl, videoUrl: decoded.videoUrl });
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'ok' }));
+                    if(!mainWindow.isDestroyed()) sendLastWatchedUpdatesToMainWindow();
+                    return;
+                }
+            }catch(e){
+                // fallthrough to 400 below
+            }
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 'error', error: 'Invalid payload' }));
             return;
         }
 
@@ -356,6 +389,29 @@ const startWebSocketServer = async () => {
                 }
             } catch (e) {
                 // not JSON or not our action; forward to renderer as legacy request
+            }
+            try{
+                const msg = JSON.parse(message);
+                if (msg && msg.action === 'update-last-watched') {
+                    lastWatchedQueuedUpdates.push({ name: msg.name, screenshotUrl: msg.screenshotUrl, videoUrl: msg.videoUrl });
+                    console.log("last watched update: ", msg);
+                    if(!mainWindow.isDestroyed()) sendLastWatchedUpdatesToMainWindow();
+                    return;
+                }
+            }catch(e){
+                // ignore
+            }
+            try{
+                //sendCreateFlashcardUpdatesToMainWindow
+                const msg = JSON.parse(message);
+                if (msg && msg.action === 'create-new-flashcard') {
+                    createFlashcardQueuedUpdates.push({ content: msg.content });
+                    console.log("create new flashcard: ", msg.content);
+                    if(!mainWindow.isDestroyed()) sendCreateFlashcardUpdatesToMainWindow();
+                    return;
+                }
+            } catch(e) {
+
             }
             mainWindow.webContents.send('watch-together-request', message);
         });

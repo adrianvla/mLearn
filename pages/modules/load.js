@@ -1,4 +1,4 @@
-import {loadRecentlyWatched} from "./playback/recentlyWatched.js";
+import {loadRecentlyWatched, updateLastWatchedFromIPC} from "./playback/recentlyWatched.js";
 import {loadAlreadyUpdatedInAnki, loadKnownAdjustment, updateFlashcardsAnkiDate} from "./stats/saving.js";
 import {
     backwardButton,
@@ -199,6 +199,18 @@ window.mLearnIPC.onServerLoad(() => {
                 $(".sync-subs").removeClass("not-shown");
                 $(".sync-subs input").val(settings.subsOffsetTime.toFixed(2));
                 break;
+        }
+    });
+
+    // Consume "last watched" updates from tethered core via server bridge
+    window.mLearnIPC.onUpdateLastWatched((message)=>{
+        try{
+            const arr = JSON.parse(message);
+            if(Array.isArray(arr)){
+                arr.forEach(item => updateLastWatchedFromIPC(item));
+            }
+        }catch(e){
+            console.warn('Failed to process last-watched IPC message', e);
         }
     });
 });

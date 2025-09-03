@@ -33,35 +33,28 @@ const parseASS = (content) => {
 };
 
 function parseSubtitleName(filename) {
-    // Remove the file extension (.srt, .ass, etc.)
-    if(!filename) return "";
-    let nameWithoutExtension = filename.replace(/(\.[^.]+)+$/, '');
+    if (!filename) return "";
 
-    // Improved regex to capture the series title, numbers in parentheses, episode numbers, and ignore extra details like 1080p or Subtitles.
-    let regex = /^([a-zA-Z0-9\s]+)(?:\s*\((\d+)\))?(?:\s+(\d+))?(?:\s*(S\d+))?(?:\s*(EP\d+))?(?:\s*(\d+))?/i;
+    // Step 1: Remove only short extensions (like .srt, .ass, .sub)
+    let nameWithoutExtension = filename.replace(/\.[^.]{1,3}$/, "");
 
-    // Apply the regex to the filename
-    let match = nameWithoutExtension.match(regex);
+    // Step 2: Normalize separators (replace . and _ with spaces)
+    let normalized = nameWithoutExtension.replace(/[._]/g, " ");
 
-    let step1returnable = "";
+    // Step 3: Remove junk tags (common release tags, codecs, sources, etc.)
+    normalized = normalized.replace(/\b(WEBRip|BluRay|HDTV|Netflix|AMZN|x264|x265|1080p|720p|480p|Subtitles)\b/gi, "");
 
-    if (match) {
-        // Combine the parts that matched, removing undefined parts and unnecessary descriptors
-        let parsedName = match.slice(1).filter(Boolean).join(' ').trim();
+    // Step 4: Keep season/episode identifiers like S01E02 intact
+    // Make sure "S01E02" becomes "S01E2" (remove leading 0 in episode number)
+    normalized = normalized.replace(/S(\d{1,2})E0?(\d{1,2})/gi, (m, s, e) => `S${s}E${parseInt(e)}`);
 
-        // Remove additional descriptors like 'Subtitles' and '1080p'
-        step1returnable = parsedName.replace(/\b(Subtitles|1080p|720p|480p|x264|BluRay|HD)\b/gi, '').trim();
+    normalized = normalized.replace(/\b(ja|en|fr|es|de|it|pt|ru|zh|ko)\b/gi, "");
 
+    // Step 5: Remove bracketed/parenthesized junk
+    normalized = normalized.replace(/\[[^\]]*\]|\{[^}]*\}|\([^)]*\)/g, "");
 
-    } else {
-        // Return the filename without extension if no match was found
-        step1returnable = nameWithoutExtension;
-    }
-    step1returnable = step1returnable.replace(/-/g, "");
-
-// Remove all content within [], {}, and () (including the brackets themselves)
-    step1returnable = step1returnable.replace(/\[[^\]]*\]|\{[^}]*\}|\([^)]*\)/g, "");
-    return step1returnable.replace(/ {2,}/g, ' ').trim();
+    // Step 6: Collapse multiple spaces, trim
+    return normalized.replace(/ {2,}/g, " ").trim();
 }
 
 

@@ -313,3 +313,14 @@ window.mLearnIPC.onUpdateAttemptFlashcardCreation((message)=>{
 window.mLearnIPC.onNewDayFlashcards(_=>{
     newDay();
 });
+
+window.mLearnIPC.onUpdateCreateFlashcard(async (message)=>{
+    for (const card of JSON.parse(message)) {
+        console.log("%cAdding flashcard:","color:#0ff;font-weight:bold;");
+        console.log(card);
+        const word = card.content.word;
+        const newEase = knownStatusToEaseFunction(await getKnownStatus(word));
+        await addFlashcard(word, card.content, newEase);
+    }
+    await saveFlashcards();
+});

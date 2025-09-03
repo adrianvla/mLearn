@@ -23,6 +23,7 @@ const loadRecentlyWatched = () => {
     if (lastVideo) {
         lastVideo = JSON.parse(lastVideo);
         $(".recently-c, .last-watched").show();
+        $(".last-watched .card").remove();
         $('.recently-c .recently h3.last-watched-text').text(`Last watched:`);
         $('.recently-c .recently h3.last-watched-content').text(lastVideo?.name);
         $('.recently-c .recently .cards.last-watched').append(`<div class="card"><img src="${lastVideo?.screenshotUrl}"/></div>`);
@@ -84,6 +85,28 @@ const addToRecentlyWatched = (videoUrl) => {
     localStorage.setItem('recentlyWatched', JSON.stringify(recentlyWatchedArray));
     console.log('Added to recently watched:', videoUrl);
 };
+// Consume last-watched updates from IPC (browser tethered -> server -> renderer)
+const updateLastWatchedFromIPC = ({ name, screenshotUrl, videoUrl }) => {
+    try{
+        if(!name || !screenshotUrl) return;
+        localStorage.setItem('lastVideo', JSON.stringify({ name, screenshotUrl }));
+        // Optionally maintain the recents list with a synthetic item
+        /*
+        const recentlyWatched = localStorage.getItem('recentlyWatched');
+        let recentlyWatchedArray = recentlyWatched ? JSON.parse(recentlyWatched) : [];
+        if(videoUrl){
+            const existingIndex = recentlyWatchedArray.findIndex(item => item.videoUrl === videoUrl);
+            if (existingIndex !== -1) {
+                recentlyWatchedArray[existingIndex].screenshotUrl = screenshotUrl;
+                recentlyWatchedArray[existingIndex].name = name;
+            } else {
+                recentlyWatchedArray.unshift({ videoUrl, screenshotUrl, name });
+            }
+            if (recentlyWatchedArray.length > 5) recentlyWatchedArray.pop();
+            localStorage.setItem('recentlyWatched', JSON.stringify(recentlyWatchedArray));
+        }*/
+    }catch(e){ console.warn('Failed updating last watched from IPC', e); }
+    loadRecentlyWatched();
+};
 
-
-export { loadRecentlyWatched, addToRecentlyWatched };
+export { loadRecentlyWatched, addToRecentlyWatched, updateLastWatchedFromIPC };
