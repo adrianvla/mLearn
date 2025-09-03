@@ -554,7 +554,7 @@ const getKnownStatus = (word) => {
     let returnable = 0;
     if(word in knownAdjustment) returnable = knownAdjustment[word];
     if(word in globalThis?.easeHashmap){
-        if(settings.known_ease_threshold/1000 < globalThis.easeHashmap[word]) returnable = 2;
+        if(settings.known_ease_threshold/1000 <= globalThis.easeHashmap[word]) returnable = 2;
         else returnable = 1;
     }
     return returnable;
