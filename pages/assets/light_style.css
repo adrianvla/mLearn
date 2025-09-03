@@ -292,52 +292,69 @@ body.dark .subtitle_hover .footer{
 body.dark .subtitle_hover .pill{
     box-shadow: rgba(50, 50, 93, 0.10) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
 }
-.subtitle_hover .pill[level="5"] {
+.subtitle_hover .pill[level="7"],.contains_pills .pill[level="7"],.subtitle_hover .pill.gray,.contains_pills .pill.gray{
+    color: rgb(124, 124, 124);
+    background-color: rgb(230, 230, 230);
+}
+.subtitle_word .frequency[level="7"] .star, .subtitle_hover .pill[level="7"] img,.contains_pills .pill[level="7"] img{
+    filter: hue-rotate(57deg) saturate(0%) brightness(170%);
+    opacity:0.9;
+}
+.subtitle_hover .pill[level="6"],.contains_pills .pill[level="6"],.subtitle_hover .pill.yellow,.contains_pills .pill.yellow{
+    color: rgb(120, 99, 27);
+    background-color: rgb(230, 223, 195);
+}
+.subtitle_word .frequency[level="6"] .star, .subtitle_hover .pill[level="6"] img,.contains_pills .pill[level="6"] img{
+    filter: hue-rotate(57deg) saturate(200%) brightness(500%);
+    opacity:0.9;
+}
+
+.subtitle_hover .pill[level="5"],.contains_pills .pill[level="5"]{
     color: rgb(255, 60, 252);
     background-color: rgb(254, 223, 255);
 }
-.subtitle_word .frequency[level="5"] .star, .subtitle_hover .pill[level="5"] img{
+.subtitle_word .frequency[level="5"] .star, .subtitle_hover .pill[level="5"] img,.contains_pills .pill[level="5"] img{
     filter: hue-rotate(273deg) saturate(200%) brightness(170%);
     opacity:0.9;
 }
 
-.subtitle_hover .pill[level="4"], .subtitle_hover .pill.orange {
+.subtitle_hover .pill[level="4"], .subtitle_hover .pill.orange,.contains_pills .pill[level="4"],.contains_pills .pill.orange {
     color: rgb(255, 141, 60);
     background-color: rgb(255, 236, 223);
 }
-.subtitle_word .frequency[level="4"] .star, .subtitle_hover .pill[level="4"] img, .subtitle_hover .pill.orange img{
+.subtitle_word .frequency[level="4"] .star, .subtitle_hover .pill[level="4"] img, .subtitle_hover .pill.orange img,.contains_pills .pill[level="4"] img,.contains_pills .pill.orange img{
     filter: hue-rotate(60deg) saturate(200%) brightness(170%);
     opacity:0.9;
 }
 
-.subtitle_hover .pill[level="3"], .subtitle_hover .pill.green{
+.subtitle_hover .pill[level="3"], .subtitle_hover .pill.green,.contains_pills .pill[level="3"],.contains_pills .pill.green{
     color: rgb(66, 214, 49);
     background-color: rgb(219, 243, 213);
 }
-.subtitle_word .frequency[level="3"] .star, .subtitle_hover .pill[level="3"] img, .subtitle_hover .pill.green img{
+.subtitle_word .frequency[level="3"] .star, .subtitle_hover .pill[level="3"] img, .subtitle_hover .pill.green img,.contains_pills .pill[level="3"] img,.contains_pills .pill.green img{
     filter: hue-rotate(113.82deg) saturate(200%) brightness(150%);
     opacity:0.9;
 }
 
-.subtitle_hover .pill[level="2"], .subtitle_hover .pill.blue {
+.subtitle_hover .pill[level="2"], .subtitle_hover .pill.blue,.contains_pills .pill[level="2"],.contains_pills .pill.blue {
     color: rgb(60, 145, 255);
     background-color: rgb(223, 244, 255);
 }
-.subtitle_word .frequency[level="2"] .star, .subtitle_hover .pill[level="2"] img, .subtitle_hover .pill.blue img{
+.subtitle_word .frequency[level="2"] .star, .subtitle_hover .pill[level="2"] img, .subtitle_hover .pill.blue img,.contains_pills .pill[level="2"] img,.contains_pills .pill.blue img{
     filter: hue-rotate(214deg) saturate(200%) brightness(170%);
     opacity:0.9;
 }
 
-.subtitle_hover .pill[level="1"], .subtitle_hover .pill.red {
+.subtitle_hover .pill[level="1"], .subtitle_hover .pill.red,.contains_pills .pill[level="1"],.contains_pills .pill.red{
     color: rgb(255, 60, 89);
     background-color: rgb(255, 223, 228);
 }
-.subtitle_word .frequency[level="1"] .star, .subtitle_hover .pill[level="1"] img, .subtitle_hover .pill.red img{
+.subtitle_word .frequency[level="1"] .star, .subtitle_hover .pill[level="1"] img, .subtitle_hover .pill.red img,.contains_pills .pill[level="1"] img,.contains_pills .pill.red img{
     filter: hue-rotate(350deg) saturate(200%) brightness(170%);
     opacity:0.9;
 }
-body.dark .subtitle_hover .pill{
-    filter: invert(1) hue-rotate(180deg) saturate(100%) saturate(200%);
+body.dark .subtitle_hover .pill,body.dark .contains_pills .pill {
+    filter: invert(1) hue-rotate(180deg) saturate(200%);
 }
 .hover_translation{
     order:1;

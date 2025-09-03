@@ -12,6 +12,7 @@ const CSSInjectable = `
       min-width: 150px;
       overflow:hidden;
       color:#aaa;
+      user-select:none;
     }
     #context-menu .menu-item {
       padding: 5px;
@@ -99,11 +100,66 @@ let wordFreq = {};
 let foundFreq = {};
 let knownAdjustment = {};
 let wordUUIDs = {};
+let wordPosByUUID = {};
+let srsMapRef = {};
 let alreadyUpdatedInAnki = {};
 let isWatchTogether = false;
 let webSocket = null;
 
 let videoTimeUpdateCallback = null; //set later
+let lastParsedSubtitleName = ""; // updated when subs are loaded
+
+function parseSubtitleName(filename) {
+    if (!filename) return "";
+
+    // Step 1: Remove only short extensions (like .srt, .ass, .sub)
+    let nameWithoutExtension = filename.replace(/\.[^.]{1,3}$/, "");
+
+    // Step 2: Normalize separators (replace . and _ with spaces)
+    let normalized = nameWithoutExtension.replace(/[._]/g, " ");
+
+    // Step 3: Remove junk tags (common release tags, codecs, sources, etc.)
+    normalized = normalized.replace(/\b(WEBRip|BluRay|HDTV|Netflix|AMZN|x264|x265|1080p|720p|480p|Subtitles)\b/gi, "");
+
+    // Step 4: Keep season/episode identifiers like S01E02 intact
+    // Make sure "S01E02" becomes "S01E2" (remove leading 0 in episode number)
+    normalized = normalized.replace(/S(\d{1,2})E0?(\d{1,2})/gi, (m, s, e) => `S${s}E${parseInt(e)}`);
+
+    normalized = normalized.replace(/\b(ja|en|fr|es|de|it|pt|ru|zh|ko)\b/gi, "");
+
+    // Step 5: Remove bracketed/parenthesized junk
+    normalized = normalized.replace(/\[[^\]]*\]|\{[^}]*\}|\([^)]*\)/g, "");
+
+    // Step 6: Collapse multiple spaces, trim
+    return normalized.replace(/ {2,}/g, " ").trim();
+}
+
+
+
+function sendLastWatchedUpdateViaHTTP(payload){
+    try{
+        const script = document.createElement('script');
+        const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+        script.src = srvUrl()+`api/update-last-watched?payload=${encodeURIComponent(encoded)}`;
+        script.onload = () => script.remove();
+        document.body.appendChild(script);
+    }catch(e){ console.warn('HTTP fallback for last-watched failed', e); }
+}
+
+function sendLastWatchedUpdate(name, screenshotUrl, videoUrl){
+    if(!window.mLearnTethered) return; // only meaningful in tethered mode
+    const payload = { action: 'update-last-watched', name, screenshotUrl, videoUrl };
+    try {
+        if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+            console.log('%cSending update-last-watched payload to WS', 'color:green;font-weight:bold');
+            webSocket.send(JSON.stringify(payload));
+            return;
+        }
+    } catch(e){
+        console.log('%cWS send failed for last-watched, will try HTTP fallback', 'color:orange');
+    }
+    sendLastWatchedUpdateViaHTTP(payload);
+}
 
 lS.setItem = function (key, value) {
     lS[key] = value;
@@ -143,6 +199,21 @@ function attemptFlashcardCreation(word, content) {
     script.src = srvUrl()+`api/attempt-flashcard-creation?word=${encodeURIComponent(word)}&content=${encodeURIComponent(JSON.stringify(content))}`;
     script.onload = () => script.remove();
     document.body.appendChild(script);
+}
+
+function createNewFlashcard(content){
+    if(!window.mLearnTethered) return;
+    try {
+        if (webSocket && webSocket.readyState === WebSocket.OPEN) {
+            console.log("%cSending create-new-flashcard payload to WS", "color:green;font-weight:bold;font-size:1.5em");
+            const payload = { action: 'create-new-flashcard', content };
+            webSocket.send(JSON.stringify(payload));
+            return;
+        }
+    } catch (e) {
+        // Fall back to HTTP below
+        console.log("%cFailed to send attempt-flashcard-creation payload to WS, falling back to HTTP", "color:red");
+    }
 }
 
 const applySettings = () => {
@@ -483,7 +554,7 @@ const getKnownStatus = (word) => {
     let returnable = 0;
     if(word in knownAdjustment) returnable = knownAdjustment[word];
     if(word in globalThis?.easeHashmap){
-        if(settings.known_ease_threshold/1000 > globalThis.easeHashmap[word]) returnable = 2;
+        if(settings.known_ease_threshold/1000 < globalThis.easeHashmap[word]) returnable = 2;
         else returnable = 1;
     }
     return returnable;
@@ -511,6 +582,64 @@ const knownStatusPillHTML = (uuid) => {
     </span>
     <span>Known</span>
 </div>`;
+};
+
+// Flashcard pills (browser version)
+const addToFlashcardsPillHTML = (uuid) => {
+    return `<div class="pill pill-btn blue" onclick='clickAddToFlashcards("${uuid}");' id="add-to-srs-pill-${uuid}">
+    <span class="icon">
+        <img src="${srvUrl()}pages/assets/icons/cross2.svg" alt="" style="transform: rotate(45deg);">
+    </span>
+    <span>Flashcard</span>
+    </div>`;
+};
+const checkMarkFlashcardPillHTML = () => {
+    return `<div class="pill pill-btn green">
+    <span class="icon">
+        <img src="${srvUrl()}pages/assets/icons/check.svg" alt="">
+    </span>
+    <span>Tracked</span>
+    </div>`;
+};
+
+// Ease pill helpers
+function getSrsMap(){
+    return srsMapRef || {};
+}
+function getEaseByWord(){
+    // In the tethered browser build, ease may be provided globally
+    return (globalThis && globalThis.easeHashmap) ? globalThis.easeHashmap : {};
+}
+function ensureEaseMap(){
+    if(!globalThis.easeHashmap) globalThis.easeHashmap = {};
+    return globalThis.easeHashmap;
+}
+function defaultEaseForStatus(status){
+    // Keep minimum 1.3 as stated; bump for learning/known for nicer UX
+    if(status === 2) return 2.2;    // known
+    if(status === 1) return 1.6;    // learning
+    return 1.3;                     // unknown
+}
+const easePillHTML = (ease)=>{
+    return `<div class="pill yellow">
+    <span>Ease: ${ease}</span>
+    </div>`;
+};
+const addEasePill = async (word) => {
+    const easeMap = getEaseByWord();
+    let easeVal = easeMap[word];
+    if(easeVal === undefined || easeVal === null){
+        // If tracked but no ease yet, show a sensible default >= 1.3
+        try{
+            const uuid = await toUniqueIdentifier(word);
+            const srsMap = getSrsMap();
+            if(srsMap && (uuid in srsMap)){
+                easeVal = defaultEaseForStatus(getKnownStatus(word));
+            }
+        }catch(_e){ /* ignore */ }
+    }
+    const display = (easeVal !== undefined && easeVal !== null) ? (Math.round(easeVal*100)/100) : "?";
+    return easePillHTML(display);
 };
 const generateStatusPillHTML = async (word, status) => {
     const uuid = await toUniqueIdentifier(word);
@@ -580,9 +709,89 @@ const addPills = async (word,pos, addAnkiBtn = false)=>{
     }
     s += await changeKnownStatusButtonHTML(word);
 
+    // Decide SRS/tracked status and show corresponding pills
+    if(window.mLearnTethered){
+        try{
+            const uuid = await toUniqueIdentifier(word);
+            wordUUIDs[uuid] = word;
+            wordPosByUUID[uuid] = pos;
+            const easeMap = getEaseByWord();
+            const srsMap = getSrsMap();
+            const isInSRS = (srsMap && (uuid in srsMap)) || (easeMap && easeMap[word] !== undefined);
+            if(isInSRS){
+                s += checkMarkFlashcardPillHTML();
+                s += await addEasePill(word);
+            }else{
+                if(addAnkiBtn) s += addToFlashcardsPillHTML(uuid); // legacy anki button parity if needed
+                // Always allow creating a flashcard
+                s += addToFlashcardsPillHTML(uuid);
+            }
+        }catch(_e){ /* ignore uuid/ease issues */ }
+    }
+
     s += `</div></div>`;
     return s;
 };
+
+// Create a flashcard immediately with the same content shape used in the app
+async function clickAddToFlashcards(uuid){
+    try{
+        const word = wordUUIDs[uuid];
+        if(!word) return;
+        const pos = wordPosByUUID[uuid] || "";
+        const translation_data = await getTranslation(word);
+        if(!translation_data?.data || translation_data.data.length === 0) return;
+        // Build example HTML snapshot similar to the desktop version
+        let exampleHtml = "-";
+        try{
+            const $iframe = $("iframe#mlearn-frame");
+            if($iframe && $iframe.length){
+                const body = $iframe[0].contentWindow.document.body;
+                body.innerHTML = $(".subtitles").html();
+                $iframe.contents().find(".subtitle_hover").remove();
+                $iframe.contents().find(`.subtitle_word.word_${uuid}`).addClass("defined");
+                exampleHtml = body.innerHTML || "-";
+                body.innerHTML = "";
+            }
+        }catch(_e){ /* ignore snapshot issues */ }
+        const content = {
+            word: word,
+            pitchAccent: translation_data.data?.[2]?.[2]?.pitches?.[0]?.position,
+            pronunciation: translation_data.data?.[0]?.reading,
+            translation: translation_data.data?.[0]?.definitions,
+            definition: translation_data.data?.[1]?.definitions,
+            example: exampleHtml,
+            exampleMeaning: "",
+            screenshotUrl: screenshotVideo(),
+            pos: pos,
+            level: (word in wordFreq ? (wordFreq[word]?.raw_level ?? -1) : -1),
+        };
+
+        createNewFlashcard(content);
+
+        // Mark locally as tracked for immediate UI feedback
+        try{ getSrsMap()[uuid] = true; }catch(_e){}
+        // Set an initial ease so the UI shows a number instead of '?'
+        try{
+            const status = getKnownStatus(word);
+            const initialEase = defaultEaseForStatus(status);
+            const emap = ensureEaseMap();
+            emap[word] = initialEase;
+        }catch(_e){}
+
+        // Update the UI pill to a checkmark
+        const this_ = document.getElementById(`add-to-srs-pill-${uuid}`);
+        if(this_){
+            // Add ease pill next to it (may show ? if ease unknown yet)
+            this_.insertAdjacentHTML('afterend', await addEasePill(word));
+            this_.outerHTML = checkMarkFlashcardPillHTML();
+        }
+        console.log(`Created SRS flashcard (browser) for word: ${word}`);
+    }catch(e){
+        console.error("Failed to add SRS flashcard (browser):", e);
+    }
+}
+window.clickAddToFlashcards = clickAddToFlashcards;
 
 
 
@@ -608,6 +817,7 @@ const modify_sub = async (subtitle) => {
 
     hoveredIds = {};
     wordUUIDs = {};
+    wordPosByUUID = {};
     //create spans
     let show_subtitle = false;
 
@@ -1284,6 +1494,14 @@ function calculateSubtitleOffset(){
         if(isWatchTogether){
             watchTogetherSend({action:"pause", time:video.currentTime});
         }
+        try{
+            const name = lastParsedSubtitleName || parseSubtitleName(document.title) || '';
+            const screenshotUrl = screenshotVideo() || '';
+            const videoUrl = (video.currentSrc || video.src || window.location.href || '') + '';
+            if(screenshotUrl && name){
+                sendLastWatchedUpdate(name, screenshotUrl, videoUrl);
+            }
+        }catch(e){ console.warn('Failed to send last-watched update', e); }
     });
     video.addEventListener('seeked', () => {
         if(isWatchTogether) {
@@ -1521,6 +1739,7 @@ function calculateSubtitleOffset(){
     const manageRawSub = async (o) => {
         const fileName = o.name;
         console.log('Subtitle file dropped:', fileName);
+        try{ lastParsedSubtitleName = parseSubtitleName(fileName); }catch(_e){ lastParsedSubtitleName = fileName || ''; }
         let temp = await readSubtitleRaw(o);
         // sort subtitles by starting time
         subs = temp.sort((a, b) => a.start - b.start);

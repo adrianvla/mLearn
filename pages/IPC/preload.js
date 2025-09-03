@@ -45,6 +45,8 @@ contextBridge.exposeInMainWorld('mLearnIPC', {
     onUpdatePills: (callback) => ipcRenderer.on('update-pills', (event, message) => callback(message)),
     onUpdateWordAppearance: (callback) => ipcRenderer.on('update-word-appearance', (event, message) => callback(message)),
     onUpdateAttemptFlashcardCreation: (callback) => ipcRenderer.on('update-attempt-flashcard-creation', (event, message) => callback(message)),
+    onUpdateCreateFlashcard: (callback) => ipcRenderer.on('update-create-flashcard', (event, message) => callback(message)),
+    onUpdateLastWatched: (callback) => ipcRenderer.on('update-last-watched', (event, message) => callback(message)),
     onLicenseGet: (callback) => ipcRenderer.on('license-type', (event, message) => callback(message)),
     onLicenseActivated: (callback) => ipcRenderer.on('license-activated', (event, message) => callback(message)),
     onNewDayFlashcards : (callback) => ipcRenderer.on('force-newday-flashcards', (event, message) => callback(message)),
