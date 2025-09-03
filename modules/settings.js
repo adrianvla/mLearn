@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS = {
     "getTranslationUrl" : "http://127.0.0.1:7752/translate",
     "ankiUrl" : "http://127.0.0.1:7752/fwd-to-anki",
     "ankiConnectUrl": "http://127.0.0.1:8765",
-    "openAside":false,
+    "openAside":true,
     "subsOffsetTime":0,
     "immediateFetch":false,
     "subtitleTheme":"shadow",
