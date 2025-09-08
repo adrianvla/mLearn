@@ -1,6 +1,6 @@
 {
   "name": "mlearn",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "A language-learning app that knows which words you know for faster learning by immersion",
   "main": "main.js",
   "type": "module",

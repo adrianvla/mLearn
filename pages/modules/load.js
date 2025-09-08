@@ -12,8 +12,24 @@ import {saveSettings, settings} from "./settings/settings.js";
 import {addAllFlashcardsToAnki} from "./flashcards/anki.js";
 import {isWatchTogether} from "./watch-together/watchTogether.js";
 
-
+// Performance timing: record when the page JS first executes (approx page open)
+let __pageOpenTimestamp = performance.now();
+let __animInterval = null;  
 let isLoaded = false;
+
+function updateMaxLocalStorage(key, value){
+    try{
+        const prev = parseFloat(localStorage.getItem(key));
+        if(isNaN(prev) || value > 1000){
+            localStorage.setItem(key, String(value));
+        }
+    }catch(e){
+        console.warn('Failed updating localStorage metric', key, e);
+    }
+}
+
+// Keys used for metrics
+const METRIC_TIME_TO_SERVER_LOAD = 'metric_time_to_server_load_ms';
 
 document.addEventListener('DOMContentLoaded', () => {
     loadRecentlyWatched();
@@ -38,6 +54,11 @@ window.mLearnIPC.onServerLoad(() => {
     if(isLoaded) return;
     isLoaded = true;
     console.log("Server loaded");
+    clearInterval(__animInterval);
+    // Record time to server load (from initial script execution)
+    const timeToServerLoad = performance.now() - __pageOpenTimestamp;
+    updateMaxLocalStorage(METRIC_TIME_TO_SERVER_LOAD, timeToServerLoad);
+    console.log('[metrics] time to server load (ms):', timeToServerLoad);
     window.mLearnIPC.isWatchingTogether();
     loadKnownAdjustment();
     loadAlreadyUpdatedInAnki();
@@ -218,10 +239,30 @@ window.mLearnIPC.onServerLoad(() => {
 window.mLearnIPC.onServerStatusUpdate((message) => {
     if(message.includes("Waiting for application startup.")){
         $("#status-update").html("Waiting for Anki");
-        $(".loading .progress-bar .progress").animate({width:"50%"},300);
     }else if(message.includes("Arguments")){
         $("#status-update").html("Loading Dictionaries...");
-        $(".loading .progress-bar .progress").animate({width:"100%"},300);
     }
+});
+$(document).ready(() => {
+    let animType = "progress";
+    __animInterval = setInterval(() => {
+        const timeSincePageOpen = performance.now() - __pageOpenTimestamp;
+        const ls = localStorage.getItem(METRIC_TIME_TO_SERVER_LOAD);
+        let progress = null;
+        if(ls === null)
+            progress = 2;
+        else
+            progress = timeSincePageOpen/ls;
+        if(progress > 1 && animType != "indeterminate") {
+            progress = 1;
+            animType = "indeterminate";
+            __pageOpenTimestamp = performance.now();
+        };
+        if(animType == "progress") {
+            $(".loading .progress-bar .progress").css("width",`${100*progress}%`);
+            return;
+        }
+        $(".loading .progress-bar .progress").css("width",`${(Math.sin(timeSincePageOpen/250)*5)+15}%`).css("margin-left",`${((timeSincePageOpen/15)%120)-20}%`);
+    });
 });
 export {isLoaded,onSettingsLoaded};

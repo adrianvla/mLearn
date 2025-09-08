@@ -10,7 +10,8 @@ mLearn is an all-in-one immersion app that integrates well with [Anki](https://g
 
 # Screenshots
 <img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn.webp" alt="screenshot1"/>
-<img width="1312" alt="dictionary" src="https://github.com/user-attachments/assets/3f7aeea8-ff15-4a83-8ff2-c3edc9940e53" />
+<img src="https://mlearn.morisinc.net/img/statistics.webp" alt="exam learning features">
+<img alt="legends" src="https://morisinc.net/assets/img/mlearn-screenshot.png" />
 
 
 
