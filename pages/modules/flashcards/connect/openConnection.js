@@ -44,9 +44,12 @@ function splitInChunks(str, n) {
 let chunkedData = [];
 let chunkIndex = 0;
 let chunkInterval = null;
-const numberOfChunks = 30;
+let numberOfChunks = 30;
 function transmitByQRChunks(data){
     clearInterval(chunkInterval);
+
+    //calculate number of chunks needed
+    numberOfChunks = Math.ceil(data.length / 60);
     chunkIndex = 0;
     chunkedData = splitInChunks(data, numberOfChunks);
     const tick = ()=>{
@@ -112,10 +115,12 @@ export function openConnection(){
         console.log('Your peer ID (signal data):', data);
         transmitByQRChunks(JSON.stringify(data));
         $("#qrcode,button").show();
-        $("span").text("Scan this with the mLearn app to connect.");
+        $("span#additional-info").html(`Enter <b>${numberOfChunks}</b> in the mLearn app, then`);
+        $("span#other-info").text("scan this with it to connect.");
         $("button").on("click",()=>{
             $("#qrcode,button").hide();
-            $("span").text("Point your camera at the QR code to connect.");
+            $("span#other-info").text("Point your camera at the QR code to connect.");
+            $("span#additional-info").hide();
             stopTransmitByQRChunks();
             startConnectionByQR();
 
