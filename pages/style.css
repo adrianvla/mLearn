@@ -762,6 +762,7 @@ body:not(.dark) .loading{
     border-radius:5px;
     position:relative;
     max-width:300px;
+    overflow:hidden;
 }
 body:not(.dark) .progress-bar{
     background:#ccc;
@@ -769,21 +770,12 @@ body:not(.dark) .progress-bar{
 .progress-bar .progress{
     height:100%;
     background: #2baa1d;
-    border-radius:5px;
     position:absolute;
     top:0;
     left:0;
 }
 body:not(.dark) .progress-bar .progress{
     background: #4eec3c;
-}
-.progress-bar .l{
-    position:absolute;
-    top:0;
-    right:-60px;
-    transform:translateY(-50%);
-    height:max-content;
-
 }
 
 .nav{
