@@ -477,6 +477,9 @@ body {background: #000}
     <button id="word-search-go" class="button">Search</button>
     <button id="load-all-btn" class="button">Load all</button>
     <div id="load-progress" class="load-progress"><div class="bar"></div></div>
+    <select id="level-select" class="button styled" style="min-width:180px"></select>
+    <button id="add-level-btn" class="button">Add level flashcards</button>
+    <div id="add-level-progress" class="load-progress"><div class="bar"></div></div>
     <span>Enter to search; exact matches prioritized. If the word doesn't exist, it'll be created. To search for translations, please press Load all first.</span>
  </div>
 <div class="settingsMenuContent word-adjust-content">
@@ -1312,6 +1315,102 @@ export async function adjustWordsByLevel(){
             setTimeout(()=>{ $progress.hide(); $bar.css('width','0%'); $loadAllBtn.removeAttr('disabled'); }, 400);
         }
         $loadAllBtn.on('click', async ()=>{ await loadAllEntries(); });
+
+        // Populate level selector and wire bulk add
+        try{
+            const $levelSel = $('#level-select', d);
+            const $addBtn = $('#add-level-btn', d);
+            const $addProg = $('#add-level-progress', d);
+            const $addBar = $('#add-level-progress .bar', d);
+            if($levelSel && $levelSel.length){
+                // Collect unique levels from wordFreq
+                const levelsSet = new Set();
+                for(const v of Object.values(wordFreq||{})){
+                    const lv = (v && typeof v.raw_level === 'number') ? v.raw_level : -1;
+                    levelsSet.add(lv);
+                }
+                const levels = Array.from(levelsSet).sort((a,b)=>a-b);
+                // Build options using language names if available
+                const names = (lang_data?.[settings.language]?.freq_level_names) || {};
+                $levelSel.append(`<option value="" disabled selected>Select level…</option>`);
+                for(const lv of levels){
+                    const key = String(lv);
+                    const label = (lv === -1 ? 'Unlisted (-1)' : (names[key] || `Level ${lv}`));
+                    $levelSel.append(`<option value="${lv}">${label}</option>`);
+                }
+            }
+            if($addBtn && $addBtn.length){
+                $addBtn.on('click', async ()=>{
+                    try{
+                        const selected = ($('#level-select', d).val()||'').toString();
+                        if(!selected.length) return;
+                        const levelNum = Number(selected);
+                        if(!Number.isFinite(levelNum)) return;
+                        const WORD_STATUS_KNOWN_SAFE = (typeof WORD_STATUS_KNOWN === 'number') ? WORD_STATUS_KNOWN : 2;
+
+                        const fs = Flashcards();
+                        const existingWords = new Set(Array.isArray(fs?.flashcards) ? fs.flashcards.map(fc=>fc?.content?.word).filter(Boolean) : []);
+                        // Build a fast lookup for alreadyCreated uuids
+                        const alreadyMap = (fs && fs.alreadyCreated) ? fs.alreadyCreated : {};
+
+                        // Gather words at the selected level
+                        const words = [];
+                        for(const [w, data] of Object.entries(wordFreq||{})){
+                            const lv = (data && typeof data.raw_level === 'number') ? data.raw_level : -1;
+                            if(lv === levelNum){ words.push(w); }
+                        }
+                        if(words.length === 0) return;
+
+                        // UI: disable while running
+                        $addBtn.attr('disabled','disabled');
+                        $levelSel.attr('disabled','disabled');
+                        $addProg.show();
+                        let done = 0;
+                        const update = ()=>{ const pct = Math.floor((done/Math.max(1,words.length))*100); $addBar.css('width', pct+'%'); };
+                        update();
+
+                        for(const w of words){
+                            try{
+                                // Resolve uuid once for both status and alreadyCreated checks
+                                let uuid = null;
+                                try{ uuid = await toUniqueIdentifier(w); }catch(_e){ uuid = null; }
+
+                                // Skip if status is KNOWN from any source (tracked, SRS, or knownUnTracked)
+                                const stTracked = (uuid && (uuid in trackedWords)) ? Number(trackedWords[uuid]) : -1;
+                                const stSrs = (uuid) ? Number(getSRSWordKnownStatusUUID(uuid)) : -1;
+                                const isKnownUnTracked = !!(uuid && fs?.knownUnTracked && (uuid in fs.knownUnTracked));
+                                if((Number.isFinite(stTracked) && stTracked >= WORD_STATUS_KNOWN_SAFE) ||
+                                   (Number.isFinite(stSrs) && stSrs >= WORD_STATUS_KNOWN_SAFE) ||
+                                   isKnownUnTracked){
+                                    done++; update(); continue;
+                                }
+
+                                // Skip if already has a flashcard
+                                if(existingWords.has(w)) { done++; update(); continue; }
+                                // Check uuid against alreadyCreated
+                                if(uuid && alreadyMap && (uuid in alreadyMap)) { done++; update(); continue; }
+                                await createFlashcardForWord(w, levelNum);
+                                existingWords.add(w);
+                            }catch(_e){ /* skip on error */ }
+                            done++; update();
+                            // yield to UI occasionally
+                            if(done % 10 === 0){ await new Promise(r => setTimeout(r, 0)); }
+                        }
+
+                        // Small delay then reset UI
+                        setTimeout(()=>{ $addProg.hide(); $addBar.css('width','0%'); }, 400);
+                        $addBtn.removeAttr('disabled');
+                        $levelSel.removeAttr('disabled');
+                    }catch(_err){
+                        // Best-effort reset
+                        $addBtn.removeAttr('disabled');
+                        $levelSel.removeAttr('disabled');
+                        $addProg.hide();
+                        $addBar.css('width','0%');
+                    }
+                });
+            }
+        }catch(_e){ /* ignore UI wiring errors */ }
 
         // Layout adjustments: place header below search bar and push content
         try{

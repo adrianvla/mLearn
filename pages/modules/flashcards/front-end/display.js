@@ -109,13 +109,18 @@ export function displayFlashcard(card){
     $(".card-item:has(.definition)").hide();
     $(".example .translation p").html("");
     $(".card-item img").attr("src", card.content.screenshotUrl);
+    $(".card-c").css("padding-top", "10px").css("padding-bottom", "10px");
+    if(["","-"," "].includes(card.content.example)) $(".card-item:has(.example)").hide();
+    else $(".card-item:has(.example)").show();
+    $(".divider").hide();
     if(card.content.word in wordFreq)
         $(".pill").html(wordFreq[card.content.word].level).attr("level",card.content.level).show();
     else $(".pill").hide();
 }
 
 export function revealAnswer(card){
-    $(".answer").show();
+    $(".answer,.divider").show();
+    $(".card-c").css("padding-top", "0px").css("padding-bottom", "20px");
     $(".question").html("").append(addPitchAccent(card.content.pitchAccent, card.content.pronunciation, card.content.word, card.content.pos));
     $(".example .translation p").html(card.content.exampleMeaning);
     $(".card-item:has(.definition)").show();
