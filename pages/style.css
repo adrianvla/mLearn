@@ -1042,7 +1042,7 @@ body.light .settingsMenuContent input[type="checkbox"]:hover{
     transform: translate(-50%, -50%);
 }
 
-.settingsMenuContent select{
+.settingsMenuContent select, select.styled{
     background:#333;
     border:1px solid #444;
     color:#fff;
@@ -1053,7 +1053,7 @@ body.light .settingsMenuContent input[type="checkbox"]:hover{
     height:25px;
     margin-inline:10px;
 }
-body.light .settingsMenuContent select{
+body.light .settingsMenuContent select, body.light select.styled{
     background:#ccc;
     border:1px solid #bbb;
     color:rgb(110,110,110);
