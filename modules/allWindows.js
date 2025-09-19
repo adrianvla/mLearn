@@ -336,6 +336,12 @@ function setAppMenu(){
                     }
                 },
                 {
+                    label: 'Show Kanji grid',
+                    click: async () => {
+                        mainWindow.webContents.send('open-kanji-grid');
+                    }
+                },
+                {
                     label: 'Edit word knowledge database',
                     click: async () => {
                         //if(serverLoaded)

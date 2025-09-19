@@ -1283,6 +1283,7 @@ export async function adjustWordsByLevel(){
         const $searchBtn = $('#word-search-go', d);
         $searchBtn.on('click', async ()=>{ await searchAndScroll(($searchInput.val()||'').toString().trim()); });
         $searchInput.on('keydown', async (e)=>{ if(e.key === 'Enter'){ await searchAndScroll(($searchInput.val()||'').toString().trim()); }});
+        // (Kanji grid opener moved to Settings and Menubar)
 
         // Load all with progress
         const $loadAllBtn = $('#load-all-btn', d);
@@ -1633,6 +1634,319 @@ export async function adjustWordsByLevel(){
 }
 
 window.mLearnIPC.onOpenWordDbEditor(adjustWordsByLevel);
+// Allow menubar or other IPC to open Kanji grid directly
+if(window?.mLearnIPC && typeof window.mLearnIPC.onOpenKanjiGrid === 'function'){
+    window.mLearnIPC.onOpenKanjiGrid(()=>{ try{ showKnownKanjiGrid(); }catch(_e){} });
+}
+
+// -----------------------------
+// Kanji Grid Window
+// -----------------------------
+const WINDOW_HTML_KANJI_GRID = `<!doctypehtml>
+<html lang="en">
+<meta charset="UTF-8">
+<title>Known Kanji Grid</title>
+<link href="style.css" rel="stylesheet">
+<style>
+.kg-stats{font-size:12px; opacity:0.9; margin:6px 0 10px}
+/* Align legends using CSS Grid */
+.kg-topbar{ display:grid; row-gap:8px; align-content:start }
+.kg-legend{ display:grid; grid-template-columns: 90px 16px 12px 16px; align-items:center; column-gap:6px }
+.kg-legend .arrow{ text-align:center; opacity:0.8 }
+</style>
+<body class="settings-body dark">
+<div class="kg-root">
+  <div class="kg-title">Character knowledge overview</div>
+  <div class="kg-sub">Colors: learning (orange→yellow), known (green→light-green); unknown (gray). Hover a level to highlight expected character. This is all the character found in all tested words included in all levels of your language exam.</div>
+    <div class="kg-row">
+    <div class="kg-grid"></div>
+    <div class="kg-topbar">
+        <div class="kg-legend"><span class="label">learning:</span>
+            <span class="box" style="background:#E65100"></span> <span class="arrow">→</span>
+            <span class="box" style="background:#FFEB3B"></span></div>
+        <div class="kg-legend"><span class="label">known:</span>
+            <span class="box" style="background:#2E7D32"></span> <span class="arrow">→</span>
+            <span class="box" style="background:#81C784"></span></div>
+        <div class="kg-legend">
+            <span class="label">unknown:</span>
+            <span class="box" style="background:#616161"></span>
+            <span class="arrow"></span>
+            <span class="box" style="visibility:hidden"></span>
+        </div>
+        <div class="kg-stats"></div>
+    <div class="kg-levels contains_pills"><p>Kanji contained in words per levels</p><p>(some of them don't have to be learned): </p><div></div></div>
+    </div>
+    </div>
+
+</div>
+</body>
+</html>`;
+
+let kanjiGridWindow = null;
+function isKanjiChar(ch){
+    if(!ch) return false;
+    const code = ch.codePointAt(0);
+    return (
+        (code >= 0x4E00 && code <= 0x9FFF) || // CJK Unified Ideographs
+        (code >= 0x3400 && code <= 0x4DBF) || // Extension A
+        (code >= 0xF900 && code <= 0xFAFF)    // Compatibility Ideographs
+    );
+}
+
+function lerp(a,b,t){return a + (b-a)*Math.max(0,Math.min(1,t));}
+function hexToRgb(hex){
+    const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex);
+    if(!m) return {r:0,g:0,b:0};
+    return { r: parseInt(m[1],16), g: parseInt(m[2],16), b: parseInt(m[3],16) };
+}
+function rgbToHex({r,g,b}){
+    const c = (n)=>{
+        const v = Math.max(0, Math.min(255, Math.round(n)));
+        return v.toString(16).padStart(2,'0');
+    };
+    return `#${c(r)}${c(g)}${c(b)}`;
+}
+function mixHex(c1,c2,t){
+    const a = hexToRgb(c1), b = hexToRgb(c2);
+    return rgbToHex({ r: lerp(a.r,b.r,t), g: lerp(a.g,b.g,t), b: lerp(a.b,b.b,t) });
+}
+
+function buildFrequencyStars(doc, word){
+    try{
+        if(!(word in wordFreq)) return null;
+        const level = wordFreq[word]?.raw_level;
+        if(typeof level !== 'number' || level <= 0) return null;
+        const freq = doc.createElement('span');
+        freq.className = 'frequency';
+        freq.setAttribute('level', level);
+        for(let i=0;i<level;i++){
+            const star = doc.createElement('span');
+            star.className = 'star';
+            freq.appendChild(star);
+        }
+        return freq;
+    }catch(_e){ return null; }
+}
+
+async function buildKanjiStats(){
+    // Aggregate kanji knowledge from tracked words
+    const [trackedWords] = await getWordsLearnedInAppMoreInfo();
+    const kanjiMap = new Map(); // kanji -> { score, hasKnown, learnCount, knownCount }
+    const wordsByKanjiKnown = new Map();    // kanji -> Set(words)
+    const wordsByKanjiLearning = new Map(); // kanji -> Set(words)
+    const wordsByKanjiUnknown = new Map();  // kanji -> Set(words)
+    const knownWordSet = new Set();         // word strings with status Known
+    const learningWordSet = new Set();      // word strings with status Learning
+    const seenWords = [];
+    for(const [uuid, status] of Object.entries(trackedWords)){
+        let word = null;
+        try{ word = await getWordByUUID(uuid); }catch(_e){ word = null; }
+        if(!word) continue;
+        seenWords.push(word);
+        const chars = Array.from(word);
+        const uniqueKanji = new Set(chars.filter(isKanjiChar));
+        if(uniqueKanji.size === 0) continue;
+        for(const k of uniqueKanji){
+            if(!kanjiMap.has(k)) kanjiMap.set(k, { score:0, hasKnown:false, learnCount:0, knownCount:0 });
+            const it = kanjiMap.get(k);
+            if(Number(status) === 2){
+                it.score += 1; it.hasKnown = true; it.knownCount += 1;
+                if(!wordsByKanjiKnown.has(k)) wordsByKanjiKnown.set(k, new Set());
+                wordsByKanjiKnown.get(k).add(word);
+                knownWordSet.add(word);
+            } else if(Number(status) === 1){
+                it.score += 0.5; it.learnCount += 1;
+                if(!wordsByKanjiLearning.has(k)) wordsByKanjiLearning.set(k, new Set());
+                wordsByKanjiLearning.get(k).add(word);
+                learningWordSet.add(word);
+            }
+        }
+    }
+    // Add remaining kanji from frequency list and also build per-level kanji sets
+    const levelKanji = {}; // level -> Set(kanji)
+    if(typeof wordFreq === 'object'){
+        for(const [w, data] of Object.entries(wordFreq)){
+            const lvl = (data && (data.raw_level !== undefined)) ? data.raw_level : -1;
+            if(levelKanji[lvl] === undefined) levelKanji[lvl] = new Set();
+            const chars = Array.from(w);
+            for(const ch of chars){
+                if(!isKanjiChar(ch)) continue;
+                levelKanji[lvl].add(ch);
+                if(!kanjiMap.has(ch)) kanjiMap.set(ch, { score:0, hasKnown:false, learnCount:0, knownCount:0 });
+                // If word is not in known or learning sets, consider it unknown for tooltip purposes
+                if(!knownWordSet.has(w) && !learningWordSet.has(w)){
+                    if(!wordsByKanjiUnknown.has(ch)) wordsByKanjiUnknown.set(ch, new Set());
+                    wordsByKanjiUnknown.get(ch).add(w);
+                }
+            }
+        }
+    }
+    // Classify and compute min/max for scales
+    let maxKnown = 1, maxLearn = 0.5;
+    for(const v of kanjiMap.values()){
+        if(v.hasKnown){ maxKnown = Math.max(maxKnown, v.score); }
+        else if(v.score > 0){ maxLearn = Math.max(maxLearn, v.score); }
+    }
+    return { kanjiMap, levelKanji, maxKnown, maxLearn, wordsByKanjiKnown, wordsByKanjiLearning, wordsByKanjiUnknown };
+}
+
+export async function showKnownKanjiGrid(){
+    if(kanjiGridWindow){ kanjiGridWindow.focus(); return; }
+    kanjiGridWindow = window.open("", "KanjiGridWindow", "width=1200,height=800");
+    kanjiGridWindow.document.write(WINDOW_HTML_KANJI_GRID);
+    kanjiGridWindow.window.addEventListener('unload', ()=>{ kanjiGridWindow = null; });
+    const d = kanjiGridWindow.document;
+    // Theme
+    try{ d.body.classList.remove('dark','light'); d.body.classList.add(settings.dark_mode ? 'dark' : 'light'); }catch(_e){}
+
+    // Build data and render
+    const { kanjiMap, levelKanji, maxKnown, maxLearn, wordsByKanjiKnown, wordsByKanjiLearning, wordsByKanjiUnknown } = await buildKanjiStats();
+    const grid = d.querySelector('.kg-grid');
+    const levelsEl = d.querySelector('.kg-levels > div');
+    const statsEl = d.querySelector('.kg-stats');
+
+    // Prepare ordered kanji: known -> learning -> unknown, within groups by score desc, then by char
+    const entries = Array.from(kanjiMap.entries()).map(([k, v])=>{
+        const category = v.hasKnown ? 'known' : (v.score > 0 ? 'learning' : 'unknown');
+        return [k, { ...v, category }];
+    });
+    entries.sort((a,b)=>{
+        const order = { known:0, learning:1, unknown:2 };
+        const ca = a[1].category, cb = b[1].category;
+        if(order[ca] !== order[cb]) return order[ca]-order[cb];
+        if(a[1].score !== b[1].score) return b[1].score - a[1].score;
+        return a[0].localeCompare(b[0]);
+    });
+
+    function colorFor(item){
+        if(item.category === 'known'){
+            const t = (maxKnown > 1) ? (item.score - 1) / (maxKnown - 1) : 0;
+            return mixHex('#2E7D32', '#81C784', t);
+        }else if(item.category === 'learning'){
+            const t = (maxLearn > 0.5) ? (item.score - 0.5) / (maxLearn - 0.5) : 0;
+            return mixHex('#E65100', '#FFEB3B', t);
+        }
+        return settings.dark_mode ? '#616161' : '#9E9E9E';
+    }
+
+    // Render grid
+    const frag = d.createDocumentFragment();
+    let tooltipEl = null;
+    const destroyTooltip = ()=>{ try{ tooltipEl?.remove(); tooltipEl = null; }catch(_e){} };
+    const showTooltip = (ev, kanji, info)=>{
+        destroyTooltip();
+    const listKnown = Array.from(wordsByKanjiKnown.get(kanji) || []);
+    const listLearning = Array.from(wordsByKanjiLearning.get(kanji) || []);
+    const listUnknown = Array.from(wordsByKanjiUnknown.get(kanji) || []);
+    if(listKnown.length === 0 && listLearning.length === 0 && listUnknown.length === 0) return;
+        tooltipEl = d.createElement('div');
+        tooltipEl.className = 'kg-tooltip contains_pills';
+        const title = d.createElement('div');
+        title.className = 'title';
+        title.innerHTML = `Words containing ${kanji}<span style="opacity:0.5;"> - ${info.category} (score ${Math.round(info.score*10)/10}, known:${info.knownCount} learning:${info.learnCount})</span>`;
+        const wordsWrap = d.createElement('div');
+        wordsWrap.className = 'words';
+        const addPill = (word, cls)=>{
+            const pill = d.createElement('div');
+            pill.className = `pill ${cls}`;
+            pill.textContent = word;
+            const stars = buildFrequencyStars(d, word);
+            if(stars) pill.appendChild(stars);
+            wordsWrap.appendChild(pill);
+        };
+    const CAP = 200;
+    listKnown.slice(0,CAP).forEach(w=> addPill(w,'green'));
+    listLearning.slice(0,CAP).forEach(w=> addPill(w,'orange'));
+    listUnknown.slice(0,CAP).forEach(w=> addPill(w,'gray'));
+        tooltipEl.appendChild(title);
+        tooltipEl.appendChild(wordsWrap);
+        d.body.appendChild(tooltipEl);
+        // position
+        const pad = 8;
+        let x = ev.clientX + pad;
+        let y = ev.clientY + pad;
+        const rect = tooltipEl.getBoundingClientRect();
+        const vw = d.documentElement.clientWidth;
+        const vh = d.documentElement.clientHeight;
+        if(x + rect.width + pad > vw) x = ev.clientX - rect.width - pad;
+        if(y + rect.height + pad > vh) y = ev.clientY - rect.height - pad;
+        tooltipEl.style.left = `${Math.max(0, x)}px`;
+        tooltipEl.style.top = `${Math.max(0, y)}px`;
+    };
+
+    for(const [kanji, info] of entries){
+        const div = d.createElement('div');
+        div.className = 'kg-cell';
+        div.setAttribute('data-kanji', kanji);
+        div.setAttribute('data-status', info.category);
+        // div.title = `${kanji} – ${info.category}\nscore ${Math.round(info.score*10)/10}  (known:${info.knownCount} learning:${info.learnCount})`;
+        div.style.background = colorFor(info);
+        // Text contrast for light backgrounds
+        if(info.category !== 'unknown'){
+            div.style.color = '#111';
+        } else {
+            div.style.color = settings.dark_mode ? '#ddd' : '#222';
+        }
+        const span = d.createElement('div');
+        span.className = 'label';
+        span.textContent = kanji;
+        div.appendChild(span);
+        // Tooltip events
+        div.addEventListener('mousemove', (ev)=>{
+            showTooltip(ev, kanji, info);
+        });
+        div.addEventListener('mouseleave', ()=>{
+            destroyTooltip();
+        });
+        frag.appendChild(div);
+    }
+    grid.appendChild(frag);
+
+    // Stats summary
+    try{
+        let knownCount = 0, learningCount = 0, unknownCount = 0;
+        kanjiMap.forEach(v=>{
+            if(v.hasKnown) knownCount++;
+            else if(v.score > 0) learningCount++;
+            else unknownCount++;
+        });
+        const total = knownCount + learningCount + unknownCount;
+        if(statsEl){
+            const pct = (n)=> total? Math.round(n/total*1000)/10 : 0;
+            statsEl.innerHTML = ` · Known: <b>${knownCount}</b> (${pct(knownCount)}%)<br> · Learning: <b>${learningCount}</b> (${pct(learningCount)}%)<br> · Unknown: <b>${unknownCount}</b> (${pct(unknownCount)}%)<br> · Total Found: <b>${total}</b>`;
+        }
+    }catch(_e){}
+
+    // Level chips
+    const freqNames = (lang_data?.[settings.language]?.freq_level_names) || {};
+    let levelKeys = Object.keys(freqNames).map(k=>Number(k)).filter(n=>!Number.isNaN(n));
+    if(levelKeys.length === 0){
+        levelKeys = Object.keys(levelKanji).map(k=>Number(k));
+    }
+    levelKeys.sort((a,b)=> b-a);
+    const chipFrag = d.createDocumentFragment();
+    for(const lvl of levelKeys){
+        const name = freqNames?.[String(lvl)] || `Level ${lvl}`;
+        const chip = d.createElement('div');
+        chip.className = 'pill pill-btn';
+        chip.setAttribute('level', String(lvl));
+        chip.textContent = name;
+        // Hover filter: dim cells not in this level set
+        chip.addEventListener('mouseenter', ()=>{
+            const set = levelKanji[lvl] || new Set();
+            grid.querySelectorAll('.kg-cell').forEach(el=>{
+                const k = el.getAttribute('data-kanji');
+                const keep = set.has(k);
+                el.setAttribute('dimmed', keep ? '0' : '1');
+            });
+        });
+        chip.addEventListener('mouseleave', ()=>{
+            grid.querySelectorAll('.kg-cell').forEach(el=> el.setAttribute('dimmed','0'));
+        });
+        chipFrag.appendChild(chip);
+    }
+    levelsEl.appendChild(chipFrag);
+}
 
 
 export {
@@ -1644,5 +1958,5 @@ export {
     getTimeWatchedFormatted,
     setupVideoTracking,
     getWordsLearnedInApp,
-    getWordsLearnedInAppFormatted
+    getWordsLearnedInAppFormatted,
 };

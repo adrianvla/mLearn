@@ -18,6 +18,8 @@ const loadRecentlyWatched = () => {
             });
             $('.recently-c .recently .cards.rec-watched-list').append(appendable);
         });
+    }else{
+        $(".recently-c h1, .recently-c .cards.rec-watched-list").hide();
     }
     let lastVideo = localStorage.getItem('lastVideo');
     if (lastVideo) {
