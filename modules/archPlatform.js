@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 let isWindows = false;
 const isMac = process.platform === 'darwin';
+const isLinux = process.platform === 'linux';
 const ARCHITECTURE = os.arch();
 const PLATFORM = os.platform();
 const isPackaged = app.isPackaged;
@@ -32,5 +33,5 @@ function setIsWindows(to) {
     isWindows = to;
 }
 
-export {isWindows, isMac, ARCHITECTURE, PLATFORM, isPackaged, resPath, setIsWindows};
+export {isWindows, isMac, ARCHITECTURE, PLATFORM, isPackaged, resPath, setIsWindows, isLinux};
 export { appPath };
