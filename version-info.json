@@ -1,4 +1,4 @@
 {
-  "latest": "1.3.4",
+  "latest": "1.3.5",
   "changelog": "Added:\n - Pitch accent Support,\n - custom SRS,\n - advanced word statistics,\n - exam preparation mode,\n - bug fixes,\nand more!"
 }

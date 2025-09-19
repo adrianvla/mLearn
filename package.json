@@ -1,6 +1,6 @@
 {
   "name": "mlearn",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "A language-learning app that knows which words you know for faster learning by immersion",
   "main": "main.js",
   "type": "module",
@@ -22,7 +22,7 @@
   },
   "license": "MIT",
   "devDependencies": {
-  "electron": "^32.1.2",
+  "electron": "^35.7.5",
   "electron-builder": "^24.13.3"
   },
   "dependencies": {
