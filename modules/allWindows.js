@@ -1,10 +1,10 @@
 import {app, BrowserWindow, clipboard, dialog, ipcMain, Menu, shell} from "electron";
 import path from "node:path";
-import {isMac, isPackaged, isWindows, resPath} from "./archPlatform.js";
+import {isLinux, isMac, isPackaged, isWindows} from "./archPlatform.js"; // removed unused resPath
 import { appPath } from "./archPlatform.js";
-import {firstTimeSetup, isFirstTimeSetup, setFirstTimeSetup} from "./loadBackend.js";
+import {firstTimeSetup, isFirstTimeSetup} from "./loadBackend.js"; // removed unused setFirstTimeSetup
 import fs from "node:fs";
-import {PORT, startWebSocketServer, getServerProtocol} from "./webServer.js";
+import {PORT, getServerProtocol} from "./webServer.js"; // removed unused startWebSocketServer
 import {openBigDialog} from "./openBigDialog.js";
 import {initDRMIPC} from "./drm/init.js";
 import {prompt_user} from "./misc/prompt.js";
@@ -21,36 +21,55 @@ const makeMainWindowPIP = (w,h) => {
     oldWindowState.width = mainWindow.getBounds().width;
     oldWindowState.height = mainWindow.getBounds().height;
     oldWindowState.fullscreen = mainWindow.isFullScreen();
-    mainWindow.setBounds({ width: w, height: h, x: 50, y: 50 },true); // Adjust size and position
-    mainWindow.setAlwaysOnTop(true, 'pop-up-menu');
+    // Animate setBounds only on macOS where the second arg is respected
+    if(isMac) {
+        mainWindow.setBounds({ width: w, height: h, x: 50, y: 50 }, true);
+    } else {
+        mainWindow.setBounds({ width: w, height: h, x: 50, y: 50 });
+    }
+    // setAlwaysOnTop level argument is macOS-specific
+    if(isMac) {
+        mainWindow.setAlwaysOnTop(true, 'pop-up-menu');
+    } else {
+        mainWindow.setAlwaysOnTop(true);
+    }
     mainWindow.setResizable(true); // Allow resizing if desired
     mainWindow.setFocusable(false); // Optional: Prevent focus on PiP mode
-    mainWindow.setFullScreenable(false); // Disable fullscreen
+    if(isMac) mainWindow.setFullScreenable(false); // Disable fullscreen (macOS only API)
     mainWindow.setMinimizable(false); // Disable minimize
-    mainWindow.setWindowButtonVisibility(false);
+    if(isMac) mainWindow.setWindowButtonVisibility(false); // macOS only
     mainWindow.setFullScreen(false);
 };
 
-const makeMainWindowNormal = () => {
-    mainWindow.setBounds({ width: oldWindowState.width, height: oldWindowState.height },true); // Adjust size and position
+const makeMainWindowNormal = () => { // removed unused event param later where used
+    if(isMac) {
+        mainWindow.setBounds({ width: oldWindowState.width, height: oldWindowState.height }, true);
+    } else {
+        mainWindow.setBounds({ width: oldWindowState.width, height: oldWindowState.height });
+    }
     mainWindow.setAlwaysOnTop(false); // Disable always on top
     mainWindow.setResizable(true); // Allow resizing
     mainWindow.setFocusable(true); // Allow focus
-    mainWindow.setFullScreenable(true); // Enable fullscreen
+    if(isMac) mainWindow.setFullScreenable(true); // Enable fullscreen (macOS only API)
     mainWindow.setMinimizable(true); // Enable minimize
-    mainWindow.setWindowButtonVisibility(oldWindowState.trafficLights);
+    if(isMac) mainWindow.setWindowButtonVisibility(oldWindowState.trafficLights); // macOS only
     mainWindow.setFullScreen(oldWindowState.fullscreen);
 };
 
 const createWindow = () => {
-    mainWindow = new BrowserWindow({
+    const windowOptions = {
         width: 1200,
         height: 700,
         webPreferences: {
             preload: path.join(appPath, '/pages/IPC/preload.js')
-        },
-        titleBarStyle: isMac ? 'hidden' : 'hiddenInset'
-    });
+        }
+    };
+    // Only set titleBarStyle on macOS (option is macOS-specific)
+    if(isMac) {
+        // Preserve original intent: used 'hidden' for mac earlier
+        windowOptions.titleBarStyle = 'hidden';
+    }
+    mainWindow = new BrowserWindow(windowOptions);
     mainWindow.loadFile(path.join(appPath,'pages/index.html'));
     currentWindow = mainWindow;
     initDRMIPC();
@@ -415,6 +434,7 @@ app.whenReady().then(() => {
 
 
 ipcMain.on('traffic-lights', (event, arg) => {
+    if(isLinux) return;
     if(!isWindows)
         mainWindow.setWindowButtonVisibility(arg.visibility);
     oldWindowState.trafficLights = arg.visibility;
@@ -427,7 +447,7 @@ ipcMain.on('changeWindowSize', (event, arg) => {
 ipcMain.on('make-pip', (event, arg) => {
     makeMainWindowPIP(arg.width, arg.height);
 });
-ipcMain.on('make-normal', (event) => {
+ipcMain.on('make-normal', () => { // removed unused event param
     makeMainWindowNormal();
 });
 
@@ -454,4 +474,4 @@ ipcMain.on('show-ctx-menu', (event) => {
     const menu = Menu.buildFromTemplate(template);
     menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
 });
-export {createWindow, createWelcomeWindow, createUpdateWindow, currentWindow, mainWindow};
+export {createWindow, createWelcomeWindow, currentWindow, mainWindow};
