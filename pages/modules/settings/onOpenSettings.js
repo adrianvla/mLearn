@@ -15,7 +15,8 @@ import {
     adjustWordsByLevel,
     drawWordsLearnedByExamLevel,
     getTimeWatchedFormatted,
-    getWordsLearnedInAppFormatted
+    getWordsLearnedInAppFormatted,
+    showKnownKanjiGrid
 } from "../stats/stats.js";
 import {resetFlashcards} from "../flashcards/storage.js";
 
@@ -131,12 +132,21 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         $('._1', new_document).append($(`<label for="createUnseenCards">Fill remaining cards with yet unseen exam cards  </label>`));
 
         $('._1', new_document).append($(`<label for="language">(Requires Restart) Subtitle Language: </label>`));
+
+        // Add Kanji grid launcher in Stats section
+        $('.stats-widget', new_document).append(
+            $('<div class="kanji-grid-launch"><span>Kanji grid</span><div class="button"><span style="height:1em">Open grid</span></div></div>')
+        );
+        $('.kanji-grid-launch .button', new_document).on('click', ()=>{
+            try { showKnownKanjiGrid(); } catch(_e) { /* no-op */ }
+        });
         $('.stats-widget', new_document).append($(`<label for="stats">${getTimeWatchedFormatted()}</label>`));
         await getWordsLearnedInAppFormatted(new_document.getElementById("learned-words-pie-chart"));
         await drawWordsLearnedByExamLevel(new_document.getElementById("exam-stats"));
         $('.adjust-words .button', new_document).on('click', ()=>{
             adjustWordsByLevel($('.adjust-words select', new_document).val());
         });
+
 
         $('._1', new_document).append($(`<label for="aside-auto">(Requires Fast Internet / Local Dictionary) Open Automatic Subtitle Translation Drawer </label>`));
         $('._1', new_document).append($(`<label for="subtitle_theme">Subtitle Theme </label>`));

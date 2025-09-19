@@ -53,4 +53,5 @@ contextBridge.exposeInMainWorld('mLearnIPC', {
     onOpenPrompt: (callback) => ipcRenderer.on('open-prompt', (event, message) => callback(message)),
     onReviewFlashcardRequest: (callback) => ipcRenderer.on('review-flashcards-request', (event, message) => callback(message)),
     onOpenWordDbEditor: (callback) => ipcRenderer.on('open-word-db-editor', (event, message) => callback(message)),
+    onOpenKanjiGrid: (callback) => ipcRenderer.on('open-kanji-grid', (event, message) => callback(message)),
 });
