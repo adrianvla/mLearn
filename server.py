@@ -15,6 +15,12 @@ import sys
 import importlib
 import re
 import threading
+import time
+import traceback
+import platform
+import faulthandler
+import signal
+import atexit
 
 # Ensure printing non-ASCII (e.g., Japanese) won't crash on Windows consoles
 try:
@@ -65,10 +71,45 @@ from PIL import Image
 import numpy as np
 import statistics
 import math
+from fastapi.responses import JSONResponse
+import asyncio
 
 app = FastAPI()
 
 
+
+def _now():
+    try:
+        return time.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return "time?"
+
+
+def _log(*args):
+    try:
+        print(f"[{_now()}]", *args, flush=True)
+    except Exception:
+        # Fallback if printing fails for any reason
+        try:
+            print(*args, flush=True)
+        except Exception:
+            pass
+
+
+def _process_stats(tag: str = "stats"):
+    try:
+        pid = os.getpid()
+        th = threading.active_count()
+        info = f"[{tag}] pid={pid} threads={th} platform={platform.platform()} python={platform.python_version()}"
+        try:
+            import resource  # available on Unix, including macOS
+            usage = resource.getrusage(resource.RUSAGE_SELF)
+            info += f" rss(max)={usage.ru_maxrss}KB"
+        except Exception:
+            pass
+        _log(info)
+    except Exception:
+        pass
 
 
 def request(action, **params):
@@ -89,10 +130,10 @@ def invoke(action, **params):
             raise Exception(response['error'])
         return response['result']
     except urllib.error.URLError as e:
-        print(f"Failed to connect to Anki: {e}")
+        _log(f"Failed to connect to Anki: {e}")
         return None
     except Exception as e:
-        print(f"An error occurred: {e}")
+        _log(f"An error occurred: {e}")
         return None
 
 
@@ -110,7 +151,7 @@ def get_all_cards_CACHE():
     global words_ids
     global who_contain
     if not os.path.exists('anki-cache.pkl'):
-        print("Cache file not found")
+        _log("Cache file not found")
         return False
     try:
         with open(os.path.join(RESPATH,'anki-cache.pkl'), 'rb') as f:
@@ -127,7 +168,7 @@ def get_all_cards_CACHE():
 
 def get_all_cards():
     global FETCH_ANKI
-    print("Fetch Anki is set to",FETCH_ANKI)
+    _log("Fetch Anki is set to", FETCH_ANKI)
     if not FETCH_ANKI:
         return True
     global all_cards
@@ -135,19 +176,19 @@ def get_all_cards():
     global words_ids
     global who_contain
 
-    print("Loading all card ids")
+    _log("Loading all card ids")
 
     card_ids = invoke('findCards', query='deck:*')
     if card_ids is None:
-        print("Failed to load card ids")
+        _log("Failed to load card ids")
         return False
-    print("Loaded all card ids")
-    print("Loading all cards")
+    _log("Loaded all card ids")
+    _log("Loading all cards")
     all_cards = invoke('cardsInfo', cards=card_ids)
     if all_cards is None:
-        print("Failed to load cards")
+        _log("Failed to load cards")
         return False
-    print("Recieved all cards")
+    _log("Recieved all cards")
     # print(all_cards[0]['fields']['Expression']['value'])
     # filter out cards that may crash the server
     all_cards_temp = []
@@ -176,7 +217,7 @@ def get_all_cards():
     all_cards = [card for card in all_cards if 'Expression' in card['fields']]
 
     if len(all_cards) == 0:
-        print("No valid cards found, maybe you have selected the wrong deck?")
+        _log("No valid cards found, maybe you have selected the wrong deck?")
         sys.exit(-1)
         return
 
@@ -187,8 +228,8 @@ def get_all_cards():
         words_ids[words] = card['cardId']
 
         cards_per_id[card['cardId']] = card
-    print("Loaded all cards")
-    print("Loading who_contain")
+    _log("Loaded all cards")
+    _log("Loading who_contain")
 
 
     # generate who_contain
@@ -208,7 +249,7 @@ def get_all_cards():
                 no_duplicates[character] = set([characters])
                 who_contain[character] = [(characters, card['cardId'])]
 
-    print("Loaded who_contain")
+    _log("Loaded who_contain")
     # Save the objects to a file
     with open(os.path.join(RESPATH,'anki-cache.pkl'), 'wb') as f:
         pickle.dump({
@@ -230,15 +271,39 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    print("Getting all cards")
+    _log("Getting all cards")
+    _process_stats("startup")
+    _log("Runtime info:", {
+        "LANGUAGE": LANGUAGE,
+        "RESPATH": RESPATH,
+        "ANKI_CONNECT_URL": ANKI_CONNECT_URL,
+        "FETCH_ANKI": FETCH_ANKI,
+        "python": platform.python_version(),
+        "platform": platform.platform(),
+    })
     resp = get_all_cards()
     if not resp:
-        print("Anki is offline, loading from Cache")
+        _log("Anki is offline, loading from Cache")
         if get_all_cards_CACHE():
-            print("Loaded from cache")
+            _log("Loaded from cache")
         else:
-            print("Failed to load from cache")
+            _log("Failed to load from cache")
             sys.exit(-1)
+    # Enable faulthandler to diagnose crashes
+    try:
+        crash_log_path = os.path.join(RESPATH, 'python_crash.log') if 'RESPATH' in globals() else 'python_crash.log'
+        global _crash_log
+        _crash_log = open(crash_log_path, 'a')
+        faulthandler.enable(_crash_log)
+        for _sig in (getattr(signal, n, None) for n in ["SIGSEGV", "SIGABRT", "SIGBUS", "SIGFPE", "SIGILL"]):
+            try:
+                if _sig is not None:
+                    faulthandler.register(_sig, file=_crash_log, all_threads=True, chain=True)
+            except Exception:
+                pass
+        _log(f"Faulthandler enabled; crash logs -> {crash_log_path}")
+    except Exception as e:
+        _log("Failed to enable faulthandler:", e)
 
 # Request Body
 class TokenizeRequest(BaseModel):
@@ -266,7 +331,7 @@ def tokenize(req: TokenizeRequest):
 #     if not hasattr(language_module, 'LANGUAGE_TOKENIZE'):
 #         print("LANGUAGE_TOKENIZE function not found in the language module")
 #         return {"tokens": [], "error": "LANGUAGE_TOKENIZE function not found in the language module"}
-    print("requested tokenization: ", req.text)
+    _log("requested tokenization: ", req.text)
     # text = nagisa.tagging(req.text)
 #     print(language_module, language_module.LANGUAGE_TOKENIZE
     tokens = language_module.LANGUAGE_TOKENIZE(req.text)
@@ -344,13 +409,14 @@ class TranslationResponse(BaseModel):
 @app.post("/translate", response_model=TranslationResponse)
 def get_translation(req: TranslationRequest):
     global language_module
-    print("requested translation: ", req.word)
+    _log("requested translation: ", req.word)
     return language_module.LANGUAGE_TRANSLATE(req.word)
 class ControlRequest(BaseModel):
     function: str
 
 @app.post("/control")
 def control(req: ControlRequest):
+    _log("/control called with function:", req.function)
     if req.function == "ping":
         return {"response": "pong"}
     elif req.function == "reload":
@@ -368,12 +434,12 @@ async def fwd_to_anki(req: Request):
     # Forward the request to AnkiConnect
     requestJson = json.dumps(body).encode('utf-8')
     response = json.load(urllib.request.urlopen(urllib.request.Request(ANKI_CONNECT_URL, requestJson)))
-    print("Received response from AnkiConnect:", response)
+    _log("Received response from AnkiConnect:", response)
     return response
 
 @app.post("/quit")
 def quit():
-    print("Received /quit; exiting shortly...")
+    _log("Received /quit; exiting shortly...")
     # Delay hard-exit slightly so the HTTP response doesn't get stream-closed prematurely
     def _shutdown():
         os._exit(0)
@@ -393,7 +459,7 @@ def _get_paddle_ocr():
     try:
         from paddleocr import PaddleOCR  # type: ignore
     except Exception as e:
-        print("PaddleOCR import error:", e)
+        _log("PaddleOCR import error:", e)
         return None
     # Use Japanese models if LANGUAGE == 'ja', else default to 'en'
     langs = {
@@ -407,7 +473,18 @@ def _get_paddle_ocr():
         "ru": "russian"
     }
     lang_code = langs.get(LANGUAGE, 'en')  # Default to 'en' if language not found
+    # Log PaddlePaddle version if available
+    try:
+        import paddle  # type: ignore
+        _log("PaddlePaddle version:", getattr(paddle, "__version__", "unknown"))
+    except Exception as e:
+        _log("Paddle import/version error:", e)
+    _log("Initializing PaddleOCR with lang:", lang_code)
+    t0 = time.perf_counter()
     _paddle_ocr = PaddleOCR(lang=lang_code, use_angle_cls=True, use_doc_orientation_classify=False, use_doc_unwarping=False)
+    t1 = time.perf_counter()
+    _log(f"PaddleOCR initialized in {t1 - t0:.2f}s")
+    _process_stats("paddle_init")
     return _paddle_ocr
 
 
@@ -427,12 +504,17 @@ def _get_manga_ocr():
     try:
         from manga_ocr import MangaOcr  # type: ignore
     except Exception as e:
-        print("MangaOCR import error:", e)
+        _log("MangaOCR import error:", e)
         return None
     try:
+        _log("Initializing MangaOCR...")
+        t0 = time.perf_counter()
         _manga_ocr = MangaOcr()
+        t1 = time.perf_counter()
+        _log(f"MangaOCR initialized in {t1 - t0:.2f}s")
+        _process_stats("mangaocr_init")
     except Exception as e:
-        print("Failed to initialize MangaOCR:", e)
+        _log("Failed to initialize MangaOCR:", e)
         _manga_ocr = None
     return _manga_ocr
 
@@ -442,11 +524,20 @@ def _load_image_from_inputs(file_bytes: bytes | None, image_base64: str | None) 
         raise HTTPException(status_code=400, detail="No image provided. Send 'file' or 'image_base64'.")
     try:
         if file_bytes is not None:
-            return Image.open(io.BytesIO(file_bytes)).convert('RGB')
+            _log("Loading image from file bytes of length:", len(file_bytes))
+            img = Image.open(io.BytesIO(file_bytes))
+            _log("Loaded image: mode=", img.mode, " size=", img.size)
+            return img.convert('RGB')
         else:
-            raw = base64.b64decode(image_base64.split(',')[-1])  # support data URLs
-            return Image.open(io.BytesIO(raw)).convert('RGB')
-    except Exception:
+            raw_part = image_base64.split(',')[-1] if image_base64 else ''
+            _log("Loading image from base64 of length:", len(raw_part))
+            raw = base64.b64decode(raw_part)
+            img = Image.open(io.BytesIO(raw))
+            _log("Loaded image: mode=", img.mode, " size=", img.size)
+            return img.convert('RGB')
+    except Exception as e:
+        _log("_load_image_from_inputs error:", e)
+        _log(traceback.format_exc())
         raise HTTPException(status_code=400, detail="Invalid image data.")
 
 
@@ -627,76 +718,150 @@ async def ocr_endpoint(
     file: UploadFile | None = File(None),
     image_base64: str | None = Form(None)
 ):
-    # Load image
-    file_bytes = await file.read() if file is not None else None
-    image = _load_image_from_inputs(file_bytes, image_base64)
-    np_img = np.array(image)
+    _log("/ocr called")
+    _process_stats("ocr_req")
+    try:
+        # Load image
+        if file is not None:
+            _log("UploadFile:", {"filename": file.filename, "content_type": file.content_type})
+        file_bytes = await file.read() if file is not None else None
+        image = _load_image_from_inputs(file_bytes, image_base64)
+        np_img = np.array(image, dtype=np.uint8)
+        if not np_img.flags['C_CONTIGUOUS']:
+            np_img = np.ascontiguousarray(np_img)
+        _log("Image numpy shape:", np_img.shape, " dtype=", str(np_img.dtype), " contiguous=", np_img.flags['C_CONTIGUOUS'])
 
-    # Initialize OCR backends
-    paddle = _get_paddle_ocr()
-    if paddle is None:
-        raise HTTPException(status_code=500, detail="PaddleOCR is not available. Please install dependencies.")
+        # Initialize OCR backends
+        try:
+            import PIL
+            _log("Pillow version:", getattr(PIL, '__version__', 'unknown'))
+        except Exception:
+            pass
+        try:
+            _log("Numpy version:", getattr(np, '__version__', 'unknown'))
+        except Exception:
+            pass
+        t0 = time.perf_counter()
+        paddle = _get_paddle_ocr()
+        t1 = time.perf_counter()
+        if paddle is None:
+            raise HTTPException(status_code=500, detail="PaddleOCR is not available. Please install dependencies.")
+        _log(f"Paddle handle ready in {t1 - t0:.2f}s")
 
-    results: list[OcrBox] = []
+        results: list[OcrBox] = []
 
-    print(f"OCR requested for language: {LANGUAGE}")
+        _log(f"OCR requested for language: {LANGUAGE}")
 
-    if LANGUAGE == 'ja':
-        # Use Paddle for detection (boxes), MangaOCR for recognition
-        print("Running PaddleOCR for detection...")
-        det = _paddle_run_ocr(paddle, np_img)
-        print(f"PaddleOCR raw detection result: {det}")
+        if LANGUAGE == 'ja':
+            # Use Paddle for detection (boxes), MangaOCR for recognition
+            _log("Running PaddleOCR for detection...")
+            # Downscale very large images to reduce native memory pressure
+            H, W = int(np_img.shape[0]), int(np_img.shape[1])
+            det_img = np_img
+            scale = 1.0
+            if max(H, W) > 2000:
+                scale = 2000.0 / float(max(H, W))
+                new_w = max(1, int(W * scale))
+                new_h = max(1, int(H * scale))
+                _log(f"Downscaling for detection from ({W},{H}) to ({new_w},{new_h}), scale={scale:.4f}")
+                det_img = np.ascontiguousarray(np.array(image.resize((new_w, new_h)), dtype=np.uint8))
+            t2 = time.perf_counter()
+            det = _paddle_run_ocr(paddle, det_img)
+            t3 = time.perf_counter()
+            _log(f"PaddleOCR detection finished in {t3 - t2:.2f}s")
+            _log(f"PaddleOCR raw detection result type: {type(det)}")
 
-        lines = _extract_lines_from_paddle_result(det)
-        print(f"Extracted {len(lines)} lines from PaddleOCR result.")
-        
-        initial_boxes = [item[0] for item in lines if item and item[0] is not None]
-        print(f"Found {len(initial_boxes)} initial bounding boxes.")
+            lines = _extract_lines_from_paddle_result(det)
+            _log(f"Extracted {len(lines)} lines from PaddleOCR result.")
+            
+            initial_boxes = [item[0] for item in lines if item and item[0] is not None]
+            # Rescale boxes back to original coordinates if we downscaled
+            if scale != 1.0 and len(initial_boxes) > 0:
+                inv = 1.0 / scale
+                rescaled = []
+                for pts in initial_boxes:
+                    rescaled.append([[float(x) * inv, float(y) * inv] for x, y in pts])
+                initial_boxes = rescaled
+                _log(f"Rescaled {len(initial_boxes)} boxes back using inv scale={inv:.4f}")
+            _log(f"Found {len(initial_boxes)} initial bounding boxes.")
 
-        boxes_only = _filter_furigana_boxes(initial_boxes)
-        print(f"Filtered boxes, {len(boxes_only)} remaining after furigana filter.")
+            boxes_only = _filter_furigana_boxes(initial_boxes)
+            _log(f"Filtered boxes, {len(boxes_only)} remaining after furigana filter.")
 
-        mocr = _get_manga_ocr()
-        if mocr is None:
-            raise HTTPException(status_code=500, detail="MangaOCR is not available. Please install dependencies.")
+            mocr = _get_manga_ocr()
+            if mocr is None:
+                raise HTTPException(status_code=500, detail="MangaOCR is not available. Please install dependencies.")
 
-        if len(boxes_only) == 0:
-            print("No boxes detected for JA with Paddle; falling back to MangaOCR on full image.")
-            try:
-                full_txt = mocr(image)
-                print(f"MangaOCR full-image text: '{full_txt}'")
-                # Use full image bounds as a single box
-                w, h = image.size
-                full_box = [[0.0, 0.0], [float(w), 0.0], [float(w), float(h)], [0.0, float(h)]]
-                results.append(OcrBox(box=full_box, text=full_txt or '', score=None))
-            except Exception as e:
-                print("MangaOCR full-image fallback error:", e)
-        else:
-            print(f"Processing {len(boxes_only)} boxes with MangaOCR...")
-            for i, pts in enumerate(boxes_only):
-                crop = _crop_by_box(image, pts)
+            if len(boxes_only) == 0:
+                _log("No boxes detected for JA with Paddle; falling back to MangaOCR on full image.")
                 try:
-                    # MangaOCR returns string; no score provided
-                    txt = mocr(crop)
-                    print(f"  Box {i+1}/{len(boxes_only)}: Recognized text: '{txt}'")
+                    full_txt = mocr(image)
+                    _log(f"MangaOCR full-image text length: {len(full_txt) if full_txt else 0}")
+                    # Use full image bounds as a single box
+                    w, h = image.size
+                    full_box = [[0.0, 0.0], [float(w), 0.0], [float(w), float(h)], [0.0, float(h)]]
+                    results.append(OcrBox(box=full_box, text=full_txt or '', score=None))
                 except Exception as e:
-                    print(f"  Box {i+1}/{len(boxes_only)}: MangaOCR error on crop: {e}")
-                    txt = ""
-                results.append(OcrBox(box=[[float(x), float(y)] for x, y in pts], text=txt, score=None))
-    else:
-        # Use PaddleOCR for both detection and recognition
-        print("Running PaddleOCR for detection and recognition...")
-        out = _paddle_run_ocr(paddle, np_img)
-        print(f"PaddleOCR raw output: {out}")
-        lines = _extract_lines_from_paddle_result(out)
-        print(f"Extracted {len(lines)} lines from PaddleOCR result.")
-        for i, (pts, txt, scr) in enumerate(lines):
-            print(f"  Box {i+1}/{len(lines)}: Text='{txt}', Score={scr}")
-            results.append(OcrBox(box=[[float(x), float(y)] for x, y in pts], text=str(txt or ''), score=(float(scr) if scr is not None else None)))
+                    _log("MangaOCR full-image fallback error:", e)
+                    _log(traceback.format_exc())
+            else:
+                _log(f"Processing {len(boxes_only)} boxes with MangaOCR...")
+                for i, pts in enumerate(boxes_only):
+                    crop = _crop_by_box(image, pts)
+                    try:
+                        # MangaOCR returns string; no score provided
+                        txt = mocr(crop)
+                        _log(f"  Box {i+1}/{len(boxes_only)}: Recognized text length: {len(txt) if txt else 0}")
+                    except Exception as e:
+                        _log(f"  Box {i+1}/{len(boxes_only)}: MangaOCR error on crop: {e}")
+                        _log(traceback.format_exc())
+                        txt = ""
+                    results.append(OcrBox(box=[[float(x), float(y)] for x, y in pts], text=txt, score=None))
+        else:
+            # Use PaddleOCR for both detection and recognition
+            _log("Running PaddleOCR for detection and recognition...")
+            t2 = time.perf_counter()
+            out = _paddle_run_ocr(paddle, np_img)
+            t3 = time.perf_counter()
+            _log(f"PaddleOCR end-to-end finished in {t3 - t2:.2f}s")
+            _log(f"PaddleOCR raw output type: {type(out)}")
+            lines = _extract_lines_from_paddle_result(out)
+            _log(f"Extracted {len(lines)} lines from PaddleOCR result.")
+            for i, (pts, txt, scr) in enumerate(lines):
+                _log(f"  Box {i+1}/{len(lines)}: TextLen='{len(str(txt or ''))}', Score={scr}")
+                results.append(OcrBox(box=[[float(x), float(y)] for x, y in pts], text=str(txt or ''), score=(float(scr) if scr is not None else None)))
 
-    print(f"Final number of boxes returned: {len(results)}")
-    # Exclude fields that are None (e.g., score for MangaOCR) to reduce noise
-    return {"boxes": [r.dict(exclude_none=True) for r in results]}
+        _log(f"Final number of boxes returned: {len(results)}")
+        _process_stats("ocr_done")
+        # Exclude fields that are None (e.g., score for MangaOCR) to reduce noise
+        return {"boxes": [r.dict(exclude_none=True) for r in results]}
+    except HTTPException:
+        _log("/ocr returning HTTPException")
+        raise
+    except Exception as e:
+        _log("Unhandled error in /ocr:", e)
+        _log(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="OCR processing error")
+
+
+@app.get("/health")
+async def health():
+    _process_stats("health")
+    return {"status": "ok", "language": LANGUAGE}
+
+
+# Request/Response logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    _log("HTTP", request.method, str(request.url))
+    try:
+        response = await call_next(request)
+        _log("HTTP Response", response.status_code, request.method, str(request.url))
+        return response
+    except Exception:
+        _log("HTTP Exception during handling:")
+        _log(traceback.format_exc())
+        raise
 
 
 if __name__ == "__main__":

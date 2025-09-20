@@ -126,22 +126,25 @@ function deriveOcrUrl(){
     return null;
 }
 
+// Max target area for OCR (preserve aspect ratio)
+const MAX_OCR_AREA = 1000 * 1600; // pixels
+
 // Helper: transcode any image Blob to PNG using canvas without blob: URLs (CSP-safe)
-async function transcodeBlobToPng(blob){
-    // Fast path: if already PNG, return as-is
-    if (!blob || blob.type === 'image/png') return blob;
+async function transcodeBlobToPng(blob, targetW, targetH){
+    // If a size is provided, draw at that size; else keep intrinsic size
     // Try ImageBitmap path first (no URL required)
     try{
         if (typeof createImageBitmap === 'function'){
             const bmp = await createImageBitmap(blob);
-            // Prefer OffscreenCanvas if available
+            const w = targetW || bmp.width;
+            const h = targetH || bmp.height;
             const useOffscreen = typeof OffscreenCanvas !== 'undefined';
-            const canvas = useOffscreen ? new OffscreenCanvas(bmp.width, bmp.height) : document.createElement('canvas');
+            const canvas = useOffscreen ? new OffscreenCanvas(w, h) : document.createElement('canvas');
             if (!useOffscreen){
-                canvas.width = bmp.width; canvas.height = bmp.height;
+                canvas.width = w; canvas.height = h;
             }
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(bmp, 0, 0);
+            ctx.drawImage(bmp, 0, 0, w, h);
             if (useOffscreen && typeof canvas.convertToBlob === 'function'){
                 return await canvas.convertToBlob({ type: 'image/png', quality: 0.92 });
             }
@@ -165,16 +168,55 @@ async function transcodeBlobToPng(blob){
         img.onerror = () => reject(new Error('Failed to load data URL for transcode'));
         img.src = dataUrl;
     });
-    const canvas = document.createElement('canvas');
-    const w = img.naturalWidth || img.width;
-    const h = img.naturalHeight || img.height;
+    const w = targetW || img.naturalWidth || img.width;
+    const h = targetH || img.naturalHeight || img.height;
     if (!w || !h) throw new Error('Image has no intrinsic size');
+    const canvas = document.createElement('canvas');
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
+    ctx.drawImage(img, 0, 0, w, h);
     return await new Promise((resolve, reject) => {
         canvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create PNG blob')), 'image/png', 0.92);
     });
+}
+
+async function prepareBlobForOCR(blob){
+    // Read dimensions without blob URLs, then resize/transcode to PNG if needed
+    let w = 0, h = 0;
+    try{
+        if (typeof createImageBitmap === 'function'){
+            const bmp = await createImageBitmap(blob);
+            w = bmp.width; h = bmp.height;
+        } else {
+            // Fallback: use FileReader->Image path
+            const dataUrl = await new Promise((resolve, reject) => {
+                const fr = new FileReader();
+                fr.onload = () => resolve(fr.result);
+                fr.onerror = () => reject(new Error('Failed to read blob as data URL'));
+                fr.readAsDataURL(blob);
+            });
+            const img = new Image();
+            await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = dataUrl; });
+            w = img.naturalWidth || img.width; h = img.naturalHeight || img.height;
+        }
+    }catch(_e){ /* ignore; we will attempt direct transcode at native size */ }
+
+    // Compute target size under MAX_OCR_AREA while preserving aspect ratio
+    let targetW = w, targetH = h;
+    if (w && h){
+        const area = w * h;
+        if (area > MAX_OCR_AREA){
+            const scale = Math.sqrt(MAX_OCR_AREA / area);
+            targetW = Math.max(1, Math.floor(w * scale));
+            targetH = Math.max(1, Math.floor(h * scale));
+        }
+    }
+    const t = (blob.type || '').toLowerCase();
+    const needTranscode = t !== 'image/png' || (w && h && (w * h > MAX_OCR_AREA));
+    if (!needTranscode){
+        return blob;
+    }
+    return await transcodeBlobToPng(blob, targetW, targetH);
 }
 
 // Convert various inputs to a Blob or base64 string
@@ -183,19 +225,12 @@ function inputToBlobOrBase64(input, type='image/png', quality=0.92){
         try{
             // If it's a Blob/File already
             if (input instanceof Blob){
-                // Only transcode if the type is likely unsupported by server-side Pillow
-                const t = (input.type || '').toLowerCase();
-                const needsTranscode = t.includes('webp') || t.includes('avif') || t.includes('heic') || t.includes('heif');
-                if (needsTranscode){
-                    try{
-                        const png = await transcodeBlobToPng(input);
-                        return resolve({ blob: png });
-                    }catch(_e){
-                        // Fallback to original blob
-                        return resolve({ blob: input });
-                    }
+                try{
+                    const processed = await prepareBlobForOCR(input);
+                    return resolve({ blob: processed });
+                }catch(_e){
+                    return resolve({ blob: input });
                 }
-                return resolve({ blob: input });
             }
 
             // If it's a data URL string
@@ -205,28 +240,51 @@ function inputToBlobOrBase64(input, type='image/png', quality=0.92){
 
             // If it's a canvas
             if (typeof HTMLCanvasElement !== 'undefined' && input instanceof HTMLCanvasElement){
-                input.toBlob((blob) => {
-                    if (blob) resolve({ blob }); else reject('Failed to create blob from canvas');
-                }, type, quality);
+                const w = input.width, h = input.height;
+                const area = w * h;
+                if (area > MAX_OCR_AREA){
+                    const scale = Math.sqrt(MAX_OCR_AREA / area);
+                    const newW = Math.max(1, Math.floor(w * scale));
+                    const newH = Math.max(1, Math.floor(h * scale));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = newW; canvas.height = newH;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(input, 0, 0, newW, newH);
+                    canvas.toBlob((blob) => {
+                        if (blob) resolve({ blob }); else reject('Failed to create blob from canvas');
+                    }, 'image/png', 0.92);
+                } else {
+                    input.toBlob((blob) => {
+                        if (blob) resolve({ blob }); else reject('Failed to create blob from canvas');
+                    }, 'image/png', 0.92);
+                }
                 return;
             }
 
             // If it's an image element
             if (typeof HTMLImageElement !== 'undefined' && input instanceof HTMLImageElement){
-                const canvas = document.createElement('canvas');
                 const w = input.naturalWidth || input.width;
                 const h = input.naturalHeight || input.height;
                 if(!w || !h) return reject('Image has no intrinsic size');
-                canvas.width = w; canvas.height = h;
+                const area = w * h;
+                let newW = w, newH = h;
+                if (area > MAX_OCR_AREA){
+                    const scale = Math.sqrt(MAX_OCR_AREA / area);
+                    newW = Math.max(1, Math.floor(w * scale));
+                    newH = Math.max(1, Math.floor(h * scale));
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = newW; canvas.height = newH;
                 const ctx = canvas.getContext('2d');
                 try {
-                    ctx.drawImage(input, 0, 0);
+                    ctx.drawImage(input, 0, 0, newW, newH);
                 } catch (e){
                     // Likely cross-origin taint; try fetching the src directly
                     try{
                         const res = await fetch(input.src, { mode: 'cors' });
                         const blob = await res.blob();
-                        return resolve({ blob });
+                        const processed = await prepareBlobForOCR(blob);
+                        return resolve({ blob: processed });
                     }catch(_e){
                         return reject('Cannot access image data due to cross-origin restrictions.');
                     }
@@ -242,17 +300,23 @@ function inputToBlobOrBase64(input, type='image/png', quality=0.92){
                 try{
                     const res = await fetch(input, { mode: 'cors' });
                     const blob = await res.blob();
-                    const t = (blob.type || '').toLowerCase();
-                    const needsTranscode = t.includes('webp') || t.includes('avif') || t.includes('heic') || t.includes('heif');
-                    if (needsTranscode){
-                        try{
-                            const png = await transcodeBlobToPng(blob);
-                            return resolve({ blob: png });
-                        }catch(_e){ /* fall through */ }
-                    }
-                    return resolve({ blob });
+                    const processed = await prepareBlobForOCR(blob);
+                    return resolve({ blob: processed });
                 }catch(_e){
                     return reject('Failed to fetch image from URL');
+                }
+            }
+
+            // If it's a data URL string
+            if (typeof input === 'string' && input.startsWith('data:')){
+                try{
+                    // Convert to blob first for unified processing
+                    const response = await fetch(input);
+                    const blob = await response.blob();
+                    const processed = await prepareBlobForOCR(blob);
+                    return resolve({ blob: processed });
+                }catch(_e){
+                    return reject('Failed to process data URL for OCR');
                 }
             }
 
