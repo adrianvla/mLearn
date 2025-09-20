@@ -1,5 +1,4 @@
 import { sendImageForOCR } from "../../networking.js";
-import {blobToDataURL} from "./utils.js";
 
 // Simple FIFO task queue for OCR requests
 let cache = {};
@@ -25,13 +24,19 @@ async function processQueue() {
                 if(task.key in cache){
                     task.resolve(cache[task.key]);
                 }else{
+                    if (!task.page || !task.page.blob) {
+                        throw new Error("OCR task is missing a valid page blob");
+                    }
                     setOCRStatus(task.mode || "Processing...");
                     console.log("%cSending image for OCR", "color: #4CAF50; font-weight: bold; font-size:16px;");
-                    const resp = await sendImageForOCR(await blobToDataURL(task.page.blob));
+                    // Send the raw Blob directly; the networking layer will package it into FormData
+                    const resp = await sendImageForOCR(task.page.blob);
                     cache[task.key] = resp;
                     task.resolve(resp);
                 }
             } catch (err) {
+                console.error("OCR task failed:", err);
+                setOCRStatus("Error");
                 task.reject(err);
             } finally {
                 pending.delete(task.key);
@@ -44,7 +49,11 @@ async function processQueue() {
 }
 
 export async function sendToReader(page, pageNum = 0, mode = "Processing...") {
-    const key = `${pageNum}-${page.name}`;
+    if (!page) {
+        setOCRStatus("Ready");
+        return Promise.resolve({ boxes: [] });
+    }
+    const key = `${pageNum}-${page.name || 'page'}`;
 
     // Return cached result if available
     if (key in cache) {

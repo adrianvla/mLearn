@@ -5,9 +5,11 @@ export const readPage = async (pageNum, el) => {
     const pages = getPages();
     const thisPage = pages[pageNum];
     let resp = await sendToReader(thisPage, pageNum);
-    {//cache next page automatically
-        const nextPage = pages[pageNum+1];
-        sendToReader(nextPage, pageNum, "Caching...");
+    // Cache next page automatically (if exists)
+    const nextIndex = pageNum + 1;
+    if (nextIndex < pages.length) {
+        const nextPage = pages[nextIndex];
+        if (nextPage) sendToReader(nextPage, nextIndex, "Caching...");
     }
     console.log(pageNum,resp);
 }

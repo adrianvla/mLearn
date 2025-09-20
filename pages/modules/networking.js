@@ -126,12 +126,77 @@ function deriveOcrUrl(){
     return null;
 }
 
+// Helper: transcode any image Blob to PNG using canvas without blob: URLs (CSP-safe)
+async function transcodeBlobToPng(blob){
+    // Fast path: if already PNG, return as-is
+    if (!blob || blob.type === 'image/png') return blob;
+    // Try ImageBitmap path first (no URL required)
+    try{
+        if (typeof createImageBitmap === 'function'){
+            const bmp = await createImageBitmap(blob);
+            // Prefer OffscreenCanvas if available
+            const useOffscreen = typeof OffscreenCanvas !== 'undefined';
+            const canvas = useOffscreen ? new OffscreenCanvas(bmp.width, bmp.height) : document.createElement('canvas');
+            if (!useOffscreen){
+                canvas.width = bmp.width; canvas.height = bmp.height;
+            }
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(bmp, 0, 0);
+            if (useOffscreen && typeof canvas.convertToBlob === 'function'){
+                return await canvas.convertToBlob({ type: 'image/png', quality: 0.92 });
+            }
+            return await new Promise((resolve, reject) => {
+                canvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create PNG blob')), 'image/png', 0.92);
+            });
+        }
+    }catch(_e){ /* fallthrough to data URL path */ }
+
+    // Fallback: data URL via FileReader (allowed by img-src 'self' data:)
+    const dataUrl = await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = () => reject(new Error('Failed to read blob as data URL'));
+        fr.readAsDataURL(blob);
+    });
+    const img = new Image();
+    img.decoding = 'async';
+    await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(new Error('Failed to load data URL for transcode'));
+        img.src = dataUrl;
+    });
+    const canvas = document.createElement('canvas');
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    if (!w || !h) throw new Error('Image has no intrinsic size');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    return await new Promise((resolve, reject) => {
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to create PNG blob')), 'image/png', 0.92);
+    });
+}
+
 // Convert various inputs to a Blob or base64 string
 function inputToBlobOrBase64(input, type='image/png', quality=0.92){
     return new Promise(async (resolve, reject) => {
         try{
             // If it's a Blob/File already
-            if (input instanceof Blob) return resolve({ blob: input });
+            if (input instanceof Blob){
+                // Only transcode if the type is likely unsupported by server-side Pillow
+                const t = (input.type || '').toLowerCase();
+                const needsTranscode = t.includes('webp') || t.includes('avif') || t.includes('heic') || t.includes('heif');
+                if (needsTranscode){
+                    try{
+                        const png = await transcodeBlobToPng(input);
+                        return resolve({ blob: png });
+                    }catch(_e){
+                        // Fallback to original blob
+                        return resolve({ blob: input });
+                    }
+                }
+                return resolve({ blob: input });
+            }
 
             // If it's a data URL string
             if (typeof input === 'string' && input.startsWith('data:')){
@@ -168,7 +233,7 @@ function inputToBlobOrBase64(input, type='image/png', quality=0.92){
                 }
                 canvas.toBlob((blob) => {
                     if (blob) resolve({ blob }); else reject('Failed to create blob from image');
-                }, type, quality);
+                }, 'image/png', 0.92);
                 return;
             }
 
@@ -177,6 +242,14 @@ function inputToBlobOrBase64(input, type='image/png', quality=0.92){
                 try{
                     const res = await fetch(input, { mode: 'cors' });
                     const blob = await res.blob();
+                    const t = (blob.type || '').toLowerCase();
+                    const needsTranscode = t.includes('webp') || t.includes('avif') || t.includes('heic') || t.includes('heif');
+                    if (needsTranscode){
+                        try{
+                            const png = await transcodeBlobToPng(blob);
+                            return resolve({ blob: png });
+                        }catch(_e){ /* fall through */ }
+                    }
                     return resolve({ blob });
                 }catch(_e){
                     return reject('Failed to fetch image from URL');
