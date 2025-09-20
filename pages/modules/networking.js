@@ -213,10 +213,20 @@ async function prepareBlobForOCR(blob){
     }
     const t = (blob.type || '').toLowerCase();
     const needTranscode = t !== 'image/png' || (w && h && (w * h > MAX_OCR_AREA));
+    const clientScale = (w && h && targetW && targetH && w > 0 && h > 0) ? (targetW / w) : 1;
     if (!needTranscode){
-        return blob;
+        return { blob, clientScale, originalW: w || 0, originalH: h || 0, sentW: w || 0, sentH: h || 0 };
     }
-    return await transcodeBlobToPng(blob, targetW, targetH);
+    const outBlob = await transcodeBlobToPng(blob, targetW || undefined, targetH || undefined);
+    return { blob: outBlob, clientScale, originalW: w || 0, originalH: h || 0, sentW: targetW || w || 0, sentH: targetH || h || 0 };
+}
+
+// Utility: format a factor like 1, 1.6 into label "x1", "x1.6"
+function formatScaleFactor(f){
+    const n = (!isFinite(f) || f <= 0) ? 1 : f;
+    // Show up to one decimal if needed
+    const rounded = Math.round(n * 10) / 10;
+    return `x${rounded}`;
 }
 
 // Convert various inputs to a Blob or base64 string
@@ -227,9 +237,9 @@ function inputToBlobOrBase64(input, type='image/png', quality=0.92){
             if (input instanceof Blob){
                 try{
                     const processed = await prepareBlobForOCR(input);
-                    return resolve({ blob: processed });
+                    return resolve({ blob: processed.blob, clientScale: processed.clientScale, originalW: processed.originalW, originalH: processed.originalH, sentW: processed.sentW, sentH: processed.sentH });
                 }catch(_e){
-                    return resolve({ blob: input });
+                    return resolve({ blob: input, clientScale: 1 });
                 }
             }
 
@@ -251,11 +261,11 @@ function inputToBlobOrBase64(input, type='image/png', quality=0.92){
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(input, 0, 0, newW, newH);
                     canvas.toBlob((blob) => {
-                        if (blob) resolve({ blob }); else reject('Failed to create blob from canvas');
+                        if (blob) resolve({ blob, clientScale: newW / w, originalW: w, originalH: h, sentW: newW, sentH: newH }); else reject('Failed to create blob from canvas');
                     }, 'image/png', 0.92);
                 } else {
                     input.toBlob((blob) => {
-                        if (blob) resolve({ blob }); else reject('Failed to create blob from canvas');
+                        if (blob) resolve({ blob, clientScale: 1, originalW: w, originalH: h, sentW: w, sentH: h }); else reject('Failed to create blob from canvas');
                     }, 'image/png', 0.92);
                 }
                 return;
@@ -284,13 +294,13 @@ function inputToBlobOrBase64(input, type='image/png', quality=0.92){
                         const res = await fetch(input.src, { mode: 'cors' });
                         const blob = await res.blob();
                         const processed = await prepareBlobForOCR(blob);
-                        return resolve({ blob: processed });
+                        return resolve({ blob: processed.blob, clientScale: processed.clientScale, originalW: processed.originalW, originalH: processed.originalH, sentW: processed.sentW, sentH: processed.sentH });
                     }catch(_e){
                         return reject('Cannot access image data due to cross-origin restrictions.');
                     }
                 }
                 canvas.toBlob((blob) => {
-                    if (blob) resolve({ blob }); else reject('Failed to create blob from image');
+                    if (blob) resolve({ blob, clientScale: newW / w, originalW: w, originalH: h, sentW: newW, sentH: newH }); else reject('Failed to create blob from image');
                 }, 'image/png', 0.92);
                 return;
             }
@@ -301,7 +311,7 @@ function inputToBlobOrBase64(input, type='image/png', quality=0.92){
                     const res = await fetch(input, { mode: 'cors' });
                     const blob = await res.blob();
                     const processed = await prepareBlobForOCR(blob);
-                    return resolve({ blob: processed });
+                    return resolve({ blob: processed.blob, clientScale: processed.clientScale, originalW: processed.originalW, originalH: processed.originalH, sentW: processed.sentW, sentH: processed.sentH });
                 }catch(_e){
                     return reject('Failed to fetch image from URL');
                 }
@@ -314,7 +324,7 @@ function inputToBlobOrBase64(input, type='image/png', quality=0.92){
                     const response = await fetch(input);
                     const blob = await response.blob();
                     const processed = await prepareBlobForOCR(blob);
-                    return resolve({ blob: processed });
+                    return resolve({ blob: processed.blob, clientScale: processed.clientScale, originalW: processed.originalW, originalH: processed.originalH, sentW: processed.sentW, sentH: processed.sentH });
                 }catch(_e){
                     return reject('Failed to process data URL for OCR');
                 }
@@ -351,6 +361,17 @@ function sendImageForOCR(imageInput){
         xhr.addEventListener('load', () => {
             try {
                 const response = JSON.parse(xhr.responseText);
+                // Attach client-side scaling metadata for overlay consumers
+                const cs = (payload && typeof payload.clientScale === 'number') ? payload.clientScale : 1;
+                const downscaleFactor = cs > 0 ? (1 / cs) : 1;
+                response.client_scale = cs; // sent/original (<=1)
+                response.downscale_factor = downscaleFactor; // original/sent (>=1)
+                if (typeof payload.originalW === 'number' && typeof payload.originalH === 'number'){
+                    response.original_size = { width: payload.originalW, height: payload.originalH };
+                }
+                if (typeof payload.sentW === 'number' && typeof payload.sentH === 'number'){
+                    response.sent_size = { width: payload.sentW, height: payload.sentH };
+                }
                 resolve(response);
             } catch (e) {
                 reject(e);
@@ -362,6 +383,7 @@ function sendImageForOCR(imageInput){
     });
 }
 window.sendImageForOCR = sendImageForOCR;
+export { formatScaleFactor };
 
 function sendRawToAnki(data){
     return new Promise((resolve, reject) => {
