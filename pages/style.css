@@ -1587,7 +1587,7 @@ body:not(.dark) .stats button:active, body:not(.dark) button.button:active{
     border:1px solid #999;
 }
 
-button.review-flashcards{
+button.review-flashcards, button.open-mlearn-reader{
     z-index:1000;
 }
 
