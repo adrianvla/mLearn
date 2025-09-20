@@ -785,8 +785,9 @@ async def ocr_endpoint(
                 _log(f"Rescaled {len(initial_boxes)} boxes back using inv scale={inv:.4f}")
             _log(f"Found {len(initial_boxes)} initial bounding boxes.")
 
-            boxes_only = _filter_furigana_boxes(initial_boxes)
-            _log(f"Filtered boxes, {len(boxes_only)} remaining after furigana filter.")
+            # boxes_only = _filter_furigana_boxes(initial_boxes)
+            boxes_only = initial_boxes
+            # _log(f"Filtered boxes, {len(boxes_only)} remaining after furigana filter.")
 
             mocr = _get_manga_ocr()
             if mocr is None:

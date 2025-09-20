@@ -74,6 +74,7 @@ export const updateCurrentMode = (d)=>{
         pl.addClass("dn");
     }
 };
+export const anticipatePages = 2;
 
 export const updateImagePages = (d) => {
     updateCurrentMode(d);
