@@ -55,9 +55,16 @@ language_module.LOAD_MODULE(RESPATH)
 print(language_module)
 # rest api
 from fastapi import FastAPI, Request
+from fastapi import UploadFile, File, Form, HTTPException
 from pydantic import BaseModel
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
+import base64
+import io
+from PIL import Image
+import numpy as np
+import statistics
+import math
 
 app = FastAPI()
 
@@ -372,6 +379,324 @@ def quit():
         os._exit(0)
     threading.Timer(0.2, _shutdown).start()
     return {"response": "quitting"}
+
+
+# --- OCR Support (PaddleOCR + MangaOCR) ---
+_paddle_ocr = None
+_manga_ocr = None
+
+
+def _get_paddle_ocr():
+    global _paddle_ocr
+    if _paddle_ocr is not None:
+        return _paddle_ocr
+    try:
+        from paddleocr import PaddleOCR  # type: ignore
+    except Exception as e:
+        print("PaddleOCR import error:", e)
+        return None
+    # Use Japanese models if LANGUAGE == 'ja', else default to 'en'
+    langs = {
+        "de": "german",
+        "ja": "japan",
+        "en": "en",
+        "ch": "ch",
+        "ko": "korean",
+        "fr": "french",
+        "es": "spanish",
+        "ru": "russian"
+    }
+    lang_code = langs.get(LANGUAGE, 'en')  # Default to 'en' if language not found
+    _paddle_ocr = PaddleOCR(lang=lang_code, use_angle_cls=True, use_doc_orientation_classify=False, use_doc_unwarping=False)
+    return _paddle_ocr
+
+
+def _paddle_run_ocr(paddle_inst, img):
+    """Call paddle.ocr with broad compatibility."""
+    try:
+        return paddle_inst.ocr(img, cls=False)
+    except TypeError:
+        # Older signatures may not accept cls
+        return paddle_inst.ocr(img)
+
+
+def _get_manga_ocr():
+    global _manga_ocr
+    if _manga_ocr is not None:
+        return _manga_ocr
+    try:
+        from manga_ocr import MangaOcr  # type: ignore
+    except Exception as e:
+        print("MangaOCR import error:", e)
+        return None
+    try:
+        _manga_ocr = MangaOcr()
+    except Exception as e:
+        print("Failed to initialize MangaOCR:", e)
+        _manga_ocr = None
+    return _manga_ocr
+
+
+def _load_image_from_inputs(file_bytes: bytes | None, image_base64: str | None) -> Image.Image:
+    if file_bytes is None and not image_base64:
+        raise HTTPException(status_code=400, detail="No image provided. Send 'file' or 'image_base64'.")
+    try:
+        if file_bytes is not None:
+            return Image.open(io.BytesIO(file_bytes)).convert('RGB')
+        else:
+            raw = base64.b64decode(image_base64.split(',')[-1])  # support data URLs
+            return Image.open(io.BytesIO(raw)).convert('RGB')
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid image data.")
+
+
+def _extract_lines_from_paddle_result(result):
+    """Normalize PaddleOCR result to a flat list of (box, text, score).
+    Supports legacy list-based output and newer dict-based outputs that contain
+    keys such as 'rec_texts', 'rec_scores', and (ideally) some polygon boxes.
+    """
+    if not result:
+        print("_extract_lines_from_paddle_result: Empty result")
+        return []
+
+    # Use global numpy alias 'np' imported at module level
+
+    # If it's a batch-of-one list, unwrap
+    if isinstance(result, list) and len(result) == 1 and not isinstance(result[0], (list, tuple)):
+        # Could be a dict inside
+        result = result[0]
+
+    # Handle dict-based output
+    if isinstance(result, dict):
+        print("_extract_lines_from_paddle_result: Detected dict-based output. Keys:", list(result.keys()))
+        # Common fields
+        texts = result.get('rec_texts') or result.get('texts')
+        scores = result.get('rec_scores') or result.get('scores')
+
+        # Try common box keys in order
+        box_keys = [
+            'text_det_polys', 'det_polys', 'dt_polys', 'polys',
+            'text_region_polys', 'boxes', 'dt_boxes', 'det_boxes'
+        ]
+        boxes = None
+        for k in box_keys:
+            if k in result:
+                boxes = result[k]
+                print(f"_extract_lines_from_paddle_result: Found boxes under key '{k}' with count:", (len(boxes) if isinstance(boxes, (list, tuple)) else 'n/a'))
+                break
+
+        # If boxes not found, attempt to heuristically locate a list of polygon-like arrays
+        if boxes is None:
+            for k, v in result.items():
+                if isinstance(v, (list, tuple)) and len(v) > 0:
+                    first = v[0]
+                    try:
+                        arr = np.array(first)
+                        if arr.ndim == 2 and arr.shape[1] == 2 and arr.shape[0] >= 4:
+                            boxes = v
+                            print(f"_extract_lines_from_paddle_result: Heuristically using key '{k}' for boxes; count:", len(v))
+                            break
+                    except Exception:
+                        pass
+
+        if texts is None:
+            print("_extract_lines_from_paddle_result: No 'rec_texts'/'texts' found.")
+        else:
+            print("_extract_lines_from_paddle_result: Text count:", len(texts))
+        if isinstance(boxes, (list, tuple)):
+            print("_extract_lines_from_paddle_result: Box count:", len(boxes))
+        else:
+            print("_extract_lines_from_paddle_result: Boxes missing or not a sequence.")
+
+        # If we have both texts and boxes, pair them by index
+        flat: list[tuple] = []
+        try:
+            if texts is not None and isinstance(boxes, (list, tuple)) and len(boxes) > 0:
+                n = min(len(texts), len(boxes))
+                for i in range(n):
+                    pts = boxes[i]
+                    # normalize to list of [x,y]
+                    if isinstance(pts, np.ndarray):
+                        pts = pts.tolist()
+                    # Some formats might be [[x1,y1,x2,y2,...]] -> convert to [[x,y],...]
+                    if pts and isinstance(pts[0], (int, float)) and len(pts) % 2 == 0:
+                        pts = [[float(pts[j]), float(pts[j+1])] for j in range(0, len(pts), 2)]
+                    # Ensure it's a list of pairs
+                    pts = [[float(x), float(y)] for x, y in pts]
+                    txt = str(texts[i])
+                    scr = float(scores[i]) if scores is not None and i < len(scores) else None
+                    flat.append((pts, txt, scr))
+                return flat
+            # If we only have texts, return without boxes (caller can decide fallback)
+            if texts is not None:
+                return [(None, str(t), float(scores[i]) if scores is not None and i < len(scores) else None) for i, t in enumerate(texts)]
+        except Exception as e:
+            print("_extract_lines_from_paddle_result: Exception while pairing dict-based output:", e)
+            return []
+
+        return []
+
+    # Handle legacy list-based outputs
+    lines = result
+    if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list) and (
+        len(result) == 1 or (result and isinstance(result[0][0], (list, tuple)))
+    ):
+        lines = result[0]
+
+    flat = []
+    try:
+        for item in lines:
+            if not item:
+                continue
+            # Expected: item[0] = points, item[1] = (text, score)
+            pts = item[0]
+            txt, scr = None, None
+            if len(item) > 1 and isinstance(item[1], (list, tuple)) and len(item[1]) >= 2:
+                txt, scr = item[1][0], float(item[1][1])
+            flat.append((pts, txt, scr))
+    except Exception as e:
+        print(f"Failed to parse PaddleOCR lines. Error: {e}. Data was: {lines}")
+        return []
+    return flat
+
+
+def _box_width(pts) -> float:
+    try:
+        xs = [p[0] for p in pts]
+        return max(xs) - min(xs)
+    except Exception:
+        return 0.0
+
+
+def _box_height(pts) -> float:
+    try:
+        ys = [p[1] for p in pts]
+        return max(ys) - min(ys)
+    except Exception:
+        return 0.0
+
+
+def _filter_furigana_boxes(boxes: list[list[list[float]]]) -> list[list[list[float]]]:
+    """Remove boxes whose width is drastically different from the typical width (heuristic).
+    We consider widths close to the median as typical; drop boxes outside [0.6, 1.8] * median.
+    """
+    if not boxes:
+        return boxes
+    widths = [max(1.0, _box_width(b)) for b in boxes]
+    try:
+        med = statistics.median(widths)
+    except statistics.StatisticsError:
+        med = sum(widths) / max(1, len(widths))
+    lo, hi = 0.6 * med, 1.8 * med
+    filtered = []
+    for b, w in zip(boxes, widths):
+        h = _box_height(b)
+        # Also drop extremely tiny height (noise)
+        if h < 5:
+            continue
+        if lo <= w <= hi:
+            filtered.append(b)
+    return filtered
+
+
+def _crop_by_box(image: Image.Image, pts) -> Image.Image:
+    # Use the bounding rectangle of the quad for simplicity
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    left, upper, right, lower = max(0, int(min(xs))), max(0, int(min(ys))), int(max(xs)), int(max(ys))
+    # Ensure non-empty crop
+    if right <= left:
+        right = left + 1
+    if lower <= upper:
+        lower = upper + 1
+    return image.crop((left, upper, right, lower))
+
+
+class OcrBox(BaseModel):
+    box: List[List[float]]  # 4x2 points
+    text: str
+    score: float | None = None
+
+
+class OcrResponse(BaseModel):
+    boxes: List[OcrBox]
+
+
+@app.post("/ocr", response_model=OcrResponse)
+async def ocr_endpoint(
+    file: UploadFile | None = File(None),
+    image_base64: str | None = Form(None)
+):
+    # Load image
+    file_bytes = await file.read() if file is not None else None
+    image = _load_image_from_inputs(file_bytes, image_base64)
+    np_img = np.array(image)
+
+    # Initialize OCR backends
+    paddle = _get_paddle_ocr()
+    if paddle is None:
+        raise HTTPException(status_code=500, detail="PaddleOCR is not available. Please install dependencies.")
+
+    results: list[OcrBox] = []
+
+    print(f"OCR requested for language: {LANGUAGE}")
+
+    if LANGUAGE == 'ja':
+        # Use Paddle for detection (boxes), MangaOCR for recognition
+        print("Running PaddleOCR for detection...")
+        det = _paddle_run_ocr(paddle, np_img)
+        print(f"PaddleOCR raw detection result: {det}")
+
+        lines = _extract_lines_from_paddle_result(det)
+        print(f"Extracted {len(lines)} lines from PaddleOCR result.")
+        
+        initial_boxes = [item[0] for item in lines if item and item[0] is not None]
+        print(f"Found {len(initial_boxes)} initial bounding boxes.")
+
+        boxes_only = _filter_furigana_boxes(initial_boxes)
+        print(f"Filtered boxes, {len(boxes_only)} remaining after furigana filter.")
+
+        mocr = _get_manga_ocr()
+        if mocr is None:
+            raise HTTPException(status_code=500, detail="MangaOCR is not available. Please install dependencies.")
+
+        if len(boxes_only) == 0:
+            print("No boxes detected for JA with Paddle; falling back to MangaOCR on full image.")
+            try:
+                full_txt = mocr(image)
+                print(f"MangaOCR full-image text: '{full_txt}'")
+                # Use full image bounds as a single box
+                w, h = image.size
+                full_box = [[0.0, 0.0], [float(w), 0.0], [float(w), float(h)], [0.0, float(h)]]
+                results.append(OcrBox(box=full_box, text=full_txt or '', score=None))
+            except Exception as e:
+                print("MangaOCR full-image fallback error:", e)
+        else:
+            print(f"Processing {len(boxes_only)} boxes with MangaOCR...")
+            for i, pts in enumerate(boxes_only):
+                crop = _crop_by_box(image, pts)
+                try:
+                    # MangaOCR returns string; no score provided
+                    txt = mocr(crop)
+                    print(f"  Box {i+1}/{len(boxes_only)}: Recognized text: '{txt}'")
+                except Exception as e:
+                    print(f"  Box {i+1}/{len(boxes_only)}: MangaOCR error on crop: {e}")
+                    txt = ""
+                results.append(OcrBox(box=[[float(x), float(y)] for x, y in pts], text=txt, score=None))
+    else:
+        # Use PaddleOCR for both detection and recognition
+        print("Running PaddleOCR for detection and recognition...")
+        out = _paddle_run_ocr(paddle, np_img)
+        print(f"PaddleOCR raw output: {out}")
+        lines = _extract_lines_from_paddle_result(out)
+        print(f"Extracted {len(lines)} lines from PaddleOCR result.")
+        for i, (pts, txt, scr) in enumerate(lines):
+            print(f"  Box {i+1}/{len(lines)}: Text='{txt}', Score={scr}")
+            results.append(OcrBox(box=[[float(x), float(y)] for x, y in pts], text=str(txt or ''), score=(float(scr) if scr is not None else None)))
+
+    print(f"Final number of boxes returned: {len(results)}")
+    # Exclude fields that are None (e.g., score for MangaOCR) to reduce noise
+    return {"boxes": [r.dict(exclude_none=True) for r in results]}
 
 
 if __name__ == "__main__":
