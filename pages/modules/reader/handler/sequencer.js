@@ -1,4 +1,5 @@
 import {refreshFitMode} from "../front-end/positioning.js";
+import {readPage} from "../ocr/read.js";
 
 let pages = [];
 let currentIndex = 0;
@@ -85,10 +86,14 @@ export const updateImagePages = (d) => {
         pr.src = currPage[0].url;
         pl.src = currPage[1].url;
         console.log("double", pr.src, pl.src);
+        readPage(getCurrentIndex(), pr); //promise ignored intentionally
+        if(getCurrentIndex() <= pages.length - 1)
+            readPage(getCurrentIndex()+1, pl); //promise ignored intentionally
     }else{
         pr.src = currPage[0].url;
         pl.src = "";
         console.log("single", pr.src, pl.src);
+        readPage(getCurrentIndex(), pr); //promise ignored intentionally
     }
     refreshFitMode();
 }
