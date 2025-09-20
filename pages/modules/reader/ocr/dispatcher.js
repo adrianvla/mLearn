@@ -11,6 +11,8 @@ export const setDocument = (d) => (doc = d);
 
 const setOCRStatus = (s) => {
     if (!doc) return;
+    if(s === "Ready") $(".progress-container",doc).addClass("dn");
+    else $(".progress-container",doc).removeClass("dn");
     $(".ocr-status", doc).text(s);
 };
 

@@ -179,6 +179,9 @@ body.reader .status-bar h2{
 .main-content .main-page > div{
     position:relative;
 }
+.main-content .main-page .page-left, .main-content .main-page .page-right{
+    position:relative;
+}
 .main-content .main-page .page-left img{
     border-top-left-radius:32px;
     border-bottom-left-radius:32px;
@@ -254,4 +257,44 @@ body.reader .mode-selector select{
 }
 body.reader .dn{
     display:none !important;
+}
+body.reader .progress-container{
+    margin:0;
+    width:150px;
+    display:flex;
+    justify-content: center;
+    align-items: center;
+}
+body.reader .progress-bar {
+    height: 4px;
+    background-color: rgba(5, 114, 206, 0.2);
+    width: 100%;
+    overflow: hidden;
+}
+
+.progress-bar-value {
+    width: 100%;
+    height: 100%;
+    background-color: rgb(5, 114, 206);
+    animation: indeterminateAnimation 1s infinite linear;
+    transform-origin: 0% 50%;
+}
+
+@keyframes indeterminateAnimation {
+    0% {
+        transform:  translateX(0) scaleX(0);
+    }
+    40% {
+        transform:  translateX(0) scaleX(0.4);
+    }
+    100% {
+        transform:  translateX(100%) scaleX(0.5);
+    }
+}
+
+.recognized-text{
+    position:absolute;
+    border:1px solid yellow;
+    background:rgba(0,0,0,0.1);
+    box-sizing: border-box;
 }

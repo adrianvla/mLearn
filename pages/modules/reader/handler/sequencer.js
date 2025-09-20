@@ -86,9 +86,9 @@ export const updateImagePages = (d) => {
         pr.src = currPage[0].url;
         pl.src = currPage[1].url;
         console.log("double", pr.src, pl.src);
-        readPage(getCurrentIndex(), pr); //promise ignored intentionally
-        if(getCurrentIndex() <= pages.length - 1)
-            readPage(getCurrentIndex()+1, pl); //promise ignored intentionally
+        readPage(Math.floor(currentIndex/2)*2, pr); //promise ignored intentionally
+        if(Math.floor(currentIndex/2)*2 + 1 <= pages.length - 1)
+            readPage(Math.floor(currentIndex/2)*2+1, pl); //promise ignored intentionally
     }else{
         pr.src = currPage[0].url;
         pl.src = "";
