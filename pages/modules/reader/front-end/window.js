@@ -1,6 +1,7 @@
 import {initPositioning} from "./positioning.js";
 import {initReaderDnD} from "../handler/init.js";
 import {initSequencer} from "../handler/sequencer.js";
+import {setDocument} from "../ocr/dispatcher.js";
 
 let readerWindow = null;
 let hasLoaded = false;
@@ -23,6 +24,7 @@ $(".open-mlearn-reader").on("click", () => {
         initPositioning(winRef.document);
         initReaderDnD(winRef.document);
         initSequencer(winRef.document);
+        setDocument(winRef.document);
     };
 });
 
