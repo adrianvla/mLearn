@@ -148,6 +148,7 @@ body.reader .status-bar{
     border-radius:0;
     border:none !important;
     border-top:1px solid #444 !important;
+    user-select: none;
 }
 body.reader .status-bar h1,body.reader .status-bar h2{
     margin: 0;
