@@ -83,7 +83,8 @@ body.reader .main-content{
     justify-content: center;
     align-items: center;
     transition: margin-left 0.5s, margin-right 0.5s;
-    overflow:auto;
+    overflow-y:auto;
+    overflow-x:hidden;
 }
 body.reader .sidebar{
     left: 16px;
@@ -100,6 +101,7 @@ body.reader .sidebar{
     position:fixed;
     z-index:3;
     transition: left 0.5s;
+    overflow:auto;
 }
 body.reader .sidebar h1{
     margin:0;
@@ -248,4 +250,7 @@ body.reader .mode-selector select{
     border:none !important;
     font-size:24px;
     color:#fff;
+}
+body.reader .dn{
+    display:none !important;
 }

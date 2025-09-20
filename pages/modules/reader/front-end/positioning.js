@@ -1,4 +1,6 @@
+let doc = null;
 export function initPositioning(d) {
+    doc = d;
     // Sidebar toggle
     $(".sidebar-btn", d).on("click", () => {
         $(".main-content", d).toggleClass("show-sidebar");
@@ -33,7 +35,10 @@ export function initPositioning(d) {
         });
     }
 }
-
+export const refreshFitMode = ()=>{
+    const mode = getCurrentMode(doc);
+    setFitMode(doc, mode);
+};
 function initAutoHideNav(d){
     const $nav = $(".nav", d);
     if(!$nav.length) return;

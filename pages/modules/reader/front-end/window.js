@@ -1,5 +1,6 @@
-// Open the Reader window when the user clicks elements with class `.open-mlearn-reader`
 import {initPositioning} from "./positioning.js";
+import {initReaderDnD} from "../handler/init.js";
+import {initSequencer} from "../handler/sequencer.js";
 
 let readerWindow = null;
 let hasLoaded = false;
@@ -20,7 +21,8 @@ $(".open-mlearn-reader").on("click", () => {
     winRef.onload = () => {
         hasLoaded = true;
         initPositioning(winRef.document);
-        // Place reader init code here if needed, e.g. winRef.someInit && winRef.someInit();
+        initReaderDnD(winRef.document);
+        initSequencer(winRef.document);
     };
 });
 
