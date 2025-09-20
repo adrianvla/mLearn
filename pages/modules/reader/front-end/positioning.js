@@ -9,8 +9,11 @@ export function initPositioning(d) {
         }, 550);
     });
 
+    // Auto-hide/show top nav by cursor proximity
+    initAutoHideNav(d);
+
     // Bind mode selector (dropdown) if present
-    const $modeSelect = $(".mode-selector select", d);
+    const $modeSelect = $(".mode-selector select#fit-select", d);
     if ($modeSelect.length) {
         const applyFromSelect = () => {
             const val = String($modeSelect.val() || "fit-width").toLowerCase();
@@ -31,6 +34,41 @@ export function initPositioning(d) {
     }
 }
 
+function initAutoHideNav(d){
+    const $nav = $(".nav", d);
+    if(!$nav.length) return;
+
+    // Start hidden, then show on proximity
+    $nav.addClass("auto-hide");
+
+    const $win = $(d.defaultView || window);
+    let hoverLock = false; // prevent hide while actually hovering nav
+
+    // If mouse over nav, force visible
+    $nav.on("mouseenter", () => {
+        hoverLock = true;
+        $nav.removeClass("auto-hide").addClass("nav-visible");
+    });
+    $nav.on("mouseleave", () => {
+        hoverLock = false;
+    });
+
+    // Show nav when cursor is near the top (e.g., within 80px)
+    $win.on("mousemove", (e) => {
+        const y = e.clientY;
+        if (y <= 80) {
+            $nav.removeClass("auto-hide").addClass("nav-visible");
+        } else if (!hoverLock) {
+            $nav.removeClass("nav-visible").addClass("auto-hide");
+        }
+    });
+
+    // Also show when focusing inputs in the nav (keyboard users)
+    $nav.find("input, select, button, a").on("focus", () => {
+        $nav.removeClass("auto-hide").addClass("nav-visible");
+    });
+}
+
 function getCurrentMode(d) {
     const $modeSelect = $(".mode-selector select", d);
     if ($modeSelect.length) {
@@ -40,6 +78,7 @@ function getCurrentMode(d) {
     // Fallback to body attribute
     return $("body", d).attr("data-fit-mode") === "height" ? "fit-height" : "fit-width";
 }
+
 function setFitMode(...args){
     $(".main-content .main-page",args[0]).css("width",""); // Clear any inline width to allow recalculation
     _setFitMode(...args);

@@ -12,6 +12,18 @@ body.reader .nav{
     position:fixed;
     height:73px;
     border:none;
+    transition: transform 0.25s ease, opacity 0.2s ease;
+    top: 0; /* ensure fixed to top */
+    left: 0;
+    right: 0;
+}
+body.reader .nav.auto-hide{
+    transform: translateY(calc(-100% - 10px));
+    opacity: 0.0;
+}
+body.reader .nav.nav-visible{
+    transform: translateY(0);
+    opacity: 1.0;
 }
 body.reader .glass{
     border:1px solid #444 !important;
@@ -172,7 +184,7 @@ body.reader .status-bar h2{
     border-top-right-radius:32px;
     border-bottom-right-radius:32px;
 }
-.main-content .main-page .page-left::before{
+.main-content .main-page:not(.single-page) .page-left::before{
     content: "";
     position: absolute;
     top: 0;
@@ -183,7 +195,7 @@ body.reader .status-bar h2{
     pointer-events: none;
 }
 
-.main-content .main-page .page-right::before{
+.main-content .main-page:not(.single-page) .page-right::before{
     content: "";
     position: absolute;
     top: 0;
@@ -213,6 +225,14 @@ body.reader .main-content:not(.show-sidebar) .main-page{
     margin-left:0 !important;
     margin-right:0 !important;
     max-width:calc(100% - 32px) !important;
+}
+body.reader .main-content.single-page{
+    display:flex;
+    justify-content: center;
+    align-items: center;
+}
+body.reader .main-content.single-page .main-page > div{
+    margin:auto;
 }
 body.reader:not(:has(.main-content.show-sidebar)) .sidebar{
     left: -100%;
