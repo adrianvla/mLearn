@@ -1,4 +1,5 @@
 import { sendImageForOCR } from "../../networking.js";
+import {anticipatePages, getCurrentIndex} from "../handler/sequencer.js";
 
 // Simple FIFO task queue for OCR requests
 let cache = {};
@@ -26,15 +27,19 @@ async function processQueue() {
                 if(task.key in cache){
                     task.resolve(cache[task.key]);
                 }else{
-                    if (!task.page || !task.page.blob) {
-                        throw new Error("OCR task is missing a valid page blob");
+                    if(task.pageNum >= (Math.floor(getCurrentIndex()/2)*2) && task.pageNum <= (Math.floor(getCurrentIndex()/2)*2 + anticipatePages)){
+                        if (!task.page || !task.page.blob) {
+                            throw new Error("OCR task is missing a valid page blob");
+                        }
+                        setOCRStatus(task.mode || "Processing...");
+                        console.log("%cSending image for OCR", "color: #4CAF50; font-weight: bold; font-size:16px;");
+                        // Send the raw Blob directly; the networking layer will package it into FormData
+                        const resp = await sendImageForOCR(task.page.blob);
+                        cache[task.key] = resp;
+                        task.resolve(resp);
+                    }else{
+                        task.reject("Canceled");
                     }
-                    setOCRStatus(task.mode || "Processing...");
-                    console.log("%cSending image for OCR", "color: #4CAF50; font-weight: bold; font-size:16px;");
-                    // Send the raw Blob directly; the networking layer will package it into FormData
-                    const resp = await sendImageForOCR(task.page.blob);
-                    cache[task.key] = resp;
-                    task.resolve(resp);
                 }
             } catch (err) {
                 console.error("OCR task failed:", err);
@@ -76,7 +81,7 @@ export async function sendToReader(page, pageNum = 0, mode = "Processing...") {
     });
     pending.set(key, { promise, resolve, reject });
 
-    taskQueue.push({ key, page, mode, resolve, reject });
+    taskQueue.push({ key, page, mode, resolve, reject, pageNum });
     processQueue();
     return promise;
 }
