@@ -207,6 +207,7 @@ const copyRecursive = (src, dest, cb) => {
 };
 
 const pingPythonServer = (callback) => {
+    console.log("Pinging Python server at http://127.0.0.1:7752/control ...");
     const options = {
         hostname: '127.0.0.1',
         port: 7752,
@@ -223,6 +224,7 @@ const pingPythonServer = (callback) => {
             data += chunk;
         });
         res.on('end', () => {
+            console.log(`Ping response status: ${res.statusCode}, body: ${data}`);
             if (res.statusCode === 200 && data.includes('"response":"pong"')) {
                 callback(true);
             } else {
@@ -280,7 +282,7 @@ const pythonFound = () => {
     const onCLOSE = (code) => {
         console.log(`child process exited with code ${code}`);
         //send critical error to renderer
-        getMainWindow().webContents.send('server-critical-error', "<span style='color:#fcc'>Critical error</span>: could not start python server; app restart required. <br>Since Anki was not found, the server tried to find the cached Anki data from prior use, but this triggered an error <br>Ensure that Anki is running and restart the app.<br> Disable Anki in Settings if you do not want to use it <br>For more information, check the console.<br><button class='restart-app'>Restart App</button>");
+        getMainWindow().webContents.send('server-critical-error', `<span style='color:#fcc'>Critical error</span>: Python server stopped (exit code: ${code}). App restart may be required.<br>Ensure that Anki is running or disable Anki in Settings if not needed.<br>Check the console and 'python_crash.log' for details.<br><button class='restart-app'>Restart App</button>`);
     };
 
     if(isWindows){
