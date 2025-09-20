@@ -1,0 +1,225 @@
+body.reader{
+    display:flex;
+    flex-direction:column;
+    font-family: "Helvetica Neue", sans-serif;
+}
+body.reader .nav{
+    justify-content: space-between;
+    padding:10px;
+    box-sizing: border-box;
+    user-select: none;
+    background:transparent;
+    position:fixed;
+    height:73px;
+    border:none;
+}
+body.reader .glass{
+    border:1px solid #444 !important;
+    box-sizing: border-box;
+    color:#fff !important;
+    backdrop-filter: blur(10px) saturate(200%) brightness(0.8);
+    background:transparent !important;
+    border-radius:100px;
+}
+body.reader .nav .nav-item{
+    height:50px;
+    padding:16px !important;
+    margin: 0px;
+
+    border:none;
+    background:transparent;
+    color:#fff;
+}
+body.reader .nav .nav-item.nav-btn{
+    aspect-ratio: 1/1;
+    transition:background 0.1s, filter 0.1s, transform 0.2s;
+    cursor:pointer;
+}
+body.reader .nav .nav-item.nav-btn:hover{
+    background:rgba(255,255,255,0.1) !important;
+    backdrop-filter: blur(10px) saturate(300%);
+    transform: scale(1.1);
+}
+body.reader .nav .nav-item.nav-btn.back-btn img, body.reader .nav .nav-item.nav-btn.left-btn img{
+    transform: rotate(-90deg) translate(0px, -1.5px);
+}
+body.reader .nav .nav-item.nav-btn.right-btn img{
+    transform: rotate(90deg) translate(0px, -1.5px);
+}
+body.reader .group{
+    display:flex;
+    gap:16px;
+}
+body.reader .group.glass{
+    overflow: hidden;
+}
+body.reader .group.glass .nav-item{
+    padding:0 !important;
+}
+.ver-sep{
+    padding-top:10px;
+    box-sizing: border-box;
+    width:1px;
+    background:#444;
+}
+body.reader .main-content{
+    display:flex;
+    width:100%;
+    box-sizing: border-box;
+    flex:1;
+    height:calc(100% - 100px);
+    justify-content: center;
+    align-items: center;
+    transition: margin-left 0.5s, margin-right 0.5s;
+    overflow:auto;
+}
+body.reader .sidebar{
+    left: 16px;
+    top:73px;
+    height:calc(100% - 100px - 16px);
+    width:200px;
+    box-sizing: border-box;
+    padding:16px;
+    border-radius:32px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    user-select: none;
+    position:fixed;
+    z-index:3;
+    transition: left 0.5s;
+}
+body.reader .sidebar h1{
+    margin:0;
+    font-size:20px;
+    font-weight:normal;
+}
+body.reader .sidebar .page-entry{
+    display:flex;
+    justify-content: space-between;
+    align-items: center;
+    gap:8px;
+    padding:4px;
+    width:100%;
+    box-sizing: border-box;
+    cursor:pointer;
+    border-radius:10px;
+    transition: background 0.1s, transform 0.15s;
+}
+body.reader .sidebar .page-entry:hover{
+    background:rgba(255,255,255,0.1) !important;
+    transform:scale(1.1);
+}
+body.reader .sidebar .page-entry img{
+    width:30px;
+    height:20px;
+    object-fit: cover;
+    border-radius:5px;
+}
+body.reader .sidebar h2{
+    opacity:0.5;
+    margin:0;
+    font-size:16px;
+    font-weight:normal;
+}
+body.reader .status-bar{
+    display:flex;
+    gap:8px;
+    justify-content: space-between;
+    align-items: center;
+    padding:4px;
+    padding-inline:12px;
+    width:100%;
+    margin:0;
+    border-radius:0;
+    border:none !important;
+    border-top:1px solid #444 !important;
+}
+body.reader .status-bar h1,body.reader .status-bar h2{
+    margin: 0;
+    font-size:12px;
+    font-weight:normal;
+}
+body.reader .status-bar h2{
+    opacity:0.5;
+}
+.main-content .main-page{
+    max-height:calc(100% - 32px);
+    box-sizing: border-box;
+    border-radius:32px;
+    overflow:hidden;
+    display: flex;
+    height:max-content;
+    margin: 16px;
+    margin-left:auto;
+    margin-right:auto;
+    transition: margin-left 0.5s, margin-right 0.5s, max-height 0.5s, max-width 0.5s;
+}
+.main-content .main-page img{
+    max-width:100%;
+    max-height:100%;
+    object-fit: contain;
+    display:block;
+}
+.main-content .main-page > div{
+    position:relative;
+}
+.main-content .main-page .page-left img{
+    border-top-left-radius:32px;
+    border-bottom-left-radius:32px;
+}
+.main-content .main-page .page-right img{
+    border-top-right-radius:32px;
+    border-bottom-right-radius:32px;
+}
+.main-content .main-page .page-left::before{
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to right, rgba(0,0,0,0) 0%,rgba(0,0,0,0) 95%, rgba(0,0,0,0.8) 100%);
+    pointer-events: none;
+}
+
+.main-content .main-page .page-right::before{
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to left, rgba(0,0,0,0) 0%,rgba(0,0,0,0) 95%, rgba(0,0,0,0.8) 100%);
+    pointer-events: none;
+}
+
+body.reader .main-content.show-sidebar{
+    margin-left:calc(200px + 16px + 16px);
+    margin-right:16px;
+}
+body.reader .main-content.show-sidebar .main-page{
+    max-width:calc(100% - 232px - 16px);
+}
+body.reader:has(.main-content.show-sidebar) .sidebar{
+    left: 16px;
+}
+body.reader .main-content:not(.show-sidebar){
+    margin-left:unset;
+    margin-right:unset;
+    max-width:unset;
+}
+body.reader .main-content:not(.show-sidebar) .main-page{
+    margin-left:0 !important;
+    margin-right:0 !important;
+    max-width:calc(100% - 32px) !important;
+}
+body.reader:not(:has(.main-content.show-sidebar)) .sidebar{
+    left: -100%;
+}
+body.reader .mode-selector select{
+    background:transparent !important;
+    border:none !important;
+    font-size:24px;
+    color:#fff;
+}

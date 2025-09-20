@@ -19,6 +19,7 @@ import './modules/watch-together/watchTogether.js';
 import './modules/drm/init.js';
 import './modules/stats/stats.js';
 import './modules/flashcards/init.js';
+import './modules/reader/init.js';
 
 
 (async function() {
