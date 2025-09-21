@@ -162,13 +162,11 @@ body.reader .status-bar h2{
     max-height:calc(100% - 32px);
     box-sizing: border-box;
     border-radius:32px;
-    overflow:hidden;
     display: flex;
     height:max-content;
-    margin: 16px;
-    margin-left:auto;
-    margin-right:auto;
+    margin: 16px auto;
     transition: margin-left 0.5s, margin-right 0.5s, max-height 0.5s, max-width 0.5s;
+    overflow:visible;
 }
 .main-content .main-page img{
     max-width:100%;
@@ -181,6 +179,7 @@ body.reader .status-bar h2{
 }
 .main-content .main-page .page-left, .main-content .main-page .page-right{
     position:relative;
+    overflow:visible;
 }
 .main-content .main-page .page-left img{
     border-top-left-radius:32px;
@@ -294,7 +293,22 @@ body.reader .progress-bar {
 
 .recognized-text{
     position:absolute;
-    border:1px solid yellow;
-    background:rgba(0,0,0,0.1);
     box-sizing: border-box;
+    transition: background 0.1s, color 0.1s;
+    color:transparent;
+    white-space: nowrap;
+}
+
+.debug-highlight{
+    /*border:1px solid yellow;*/
+    /*background:rgba(0,0,0,0.1);*/
+}
+.recognized-text:hover{
+    background:#fff;
+    color:#000;
+}
+
+body.reader .pill .icon{
+    width:20px !important;
+    height:20px !important;
 }

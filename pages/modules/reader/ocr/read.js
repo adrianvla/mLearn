@@ -1,97 +1,189 @@
 import {getCurrentIndex, getPages} from "../handler/sequencer.js";
-import {sendToReader} from "./dispatcher.js";
+import {sendToReader, markRendered} from "./dispatcher.js";
 import { formatScaleFactor } from "../../networking.js";
 import {settings} from "../../settings/settings.js";
+import {attachInteractiveText} from "../../common/hoverTokens.js";
 let doc = null;
 export const setDocument = (d) => doc = d;
 
-const bindElement = (el)=>{
-    console.log(el);
-}
+// Track in-flight renders so we can cancel when leaving a page
+const renderControllers = new Map(); // pageNum -> { canceled: boolean }
+export const cancelPageRender = (pageNum) => {
+    const ctrl = renderControllers.get(pageNum);
+    if(ctrl){ ctrl.canceled = true; }
+    try{ $(`.recognized-text[data-ocr-page='${pageNum}']`).remove(); }catch(_e){}
+    try{ markRendered(pageNum); }catch(_e){}
+    renderControllers.delete(pageNum);
+};
+
+const bindElement = async (el, text, bbox, pageNum)=>{
+    // Make the OCR box act like a subtitle token container: hover to see translation popup
+    const $el = $(el);
+    // Ensure styling classes consistent with subtitler widgets
+    $el.addClass("subtitle_word_container");
+    // Detect vertical text boxes: bbox is [[x0,y0],[x1,y1],[x2,y2],[x3,y3]]
+    let isVertical = false;
+    try{
+        if(Array.isArray(bbox) && bbox.length >= 2){
+            const x0 = bbox[0][0], y0 = bbox[0][1];
+            const x2 = bbox[2][0], y2 = bbox[2][1];
+            const w = Math.abs(x2 - x0);
+            const h = Math.abs(y2 - y0);
+            isVertical = h > w * 1.2; // heuristic: clearly taller than wide
+        }
+    }catch(_e){ /* ignore bbox issues */ }
+    // Render interactive content inside the box
+    // We nest a span so absolute positioned overlay retains correct size for hover area
+    const $inner = $('<span class="ocr-word-inner"></span>');
+    if(isVertical){
+        try{
+            $inner.css({
+                writingMode: 'vertical-rl',
+                textOrientation: 'mixed',
+            });
+        }catch(_e){ /* ignore */ }
+    }
+    $el.empty().append($inner);
+    // For OCR overlays we avoid subtitler-specific coloring/styling/stars
+    if(renderControllers.get(pageNum)?.canceled) return; // abort early
+    try{
+        await attachInteractiveText($inner, text, {
+            disableColor: true,
+            disableFrequency: true,
+            disableThemeClasses: true,
+            forceHoverHorizontal: true,
+            disablePitchAccent: true
+        });
+    }catch(e){
+        console.error("attachInteractiveText failed for OCR box", e);
+        // Proceed without interactive hover to avoid blocking the queue
+        $inner.text(text);
+    }
+    // Fit the rendered text using canvas measurement (no DOM style tweaks)
+    try{
+        const innerNode = $inner.get(0);
+        if(!innerNode) return;
+        const contW = Math.max(1, $el.innerWidth());
+        const contH = Math.max(1, $el.innerHeight());
+
+        // Build canvas context once
+        const canvas = bindElement.__measureCanvas || (bindElement.__measureCanvas = document.createElement('canvas'));
+        const ctx = canvas.getContext('2d');
+        const cs = window.getComputedStyle(innerNode);
+        const fontFamily = cs.fontFamily || 'sans-serif';
+        const fontWeight = cs.fontWeight || '400';
+        const fontStyle = cs.fontStyle || 'normal';
+        const basePx = 100; // measure at 100px then scale
+        ctx.font = `${fontStyle} ${fontWeight} ${basePx}px ${fontFamily}`;
+
+        const estimateLineHeight = () => {
+            const m = ctx.measureText('Mg');
+            const h = (m.actualBoundingBoxAscent || 0) + (m.actualBoundingBoxDescent || 0);
+            return h > 0 ? h : basePx * 1.1;
+        };
+        const lineH = estimateLineHeight();
+
+        const textStr = typeof text === 'string' ? text : (text?.toString?.() || '');
+
+        function measureHorizontal(str){
+            // Treat as single line for sizing; DOM can still wrap if smaller
+            const m = ctx.measureText(str);
+            const reqW = m.width; // measured at basePx
+            const reqH = lineH;   // single-line height at basePx
+            return { reqW, reqH };
+        }
+
+        function measureVertical(str){
+            // Stack characters vertically: width = max char width, height = chars * lineH
+            let maxW = 0;
+            let count = 0;
+            for(const ch of str){
+                maxW = Math.max(maxW, ctx.measureText(ch).width);
+                count++;
+            }
+            const reqW = maxW; // measured at basePx
+            const reqH = count * lineH;
+            return { reqW, reqH };
+        }
+
+        const { reqW, reqH } = isVertical ? measureVertical(textStr) : measureHorizontal(textStr);
+        // Scale from basePx to fit container
+        const scaleW = contW / Math.max(1, reqW);
+        const scaleH = contH / Math.max(1, reqH);
+        let target = Math.floor(basePx * Math.max(0.1, Math.min(scaleW, scaleH)));
+        // Clamp to sensible range
+        target = Math.max(6, Math.min(96, target));
+        if(!renderControllers.get(pageNum)?.canceled){
+            $inner.css('font-size', `${target}px`);
+        }
+    }catch(_e){ /* best-effort fitting only */ }
+    // Pills are included inside each word's hover as in subtitler.js; no external pill bar here.
+};
 
 const processPage = async (ocr, scaleFactor, el, num)=> {
-    if(num !== (Math.floor(getCurrentIndex()/2)*2) && num !== (Math.floor(getCurrentIndex()/2)*2 + 1)) return;
-    console.log(ocr,scaleFactor,el);
-    const rect = el.getBoundingClientRect();
-    const origW = (ocr && ocr.original_size && ocr.original_size.width) ? ocr.original_size.width : (el.naturalWidth || rect.width || 1);
-    const displayScale = rect.width / (origW || 1); // map original pixels -> CSS pixels
-    const totalScale = scaleFactor * displayScale; // (original/sent) * (displayed/original) = displayed/sent
-    $(el).parent().find(".recognized-text").remove();
-    
-    // Furigana filtering (JP): detect a distinct small-width cluster and drop it
-    // let boxes = (ocr && Array.isArray(ocr.boxes)) ? [...ocr.boxes] : [];
-    // if (settings.language === "ja" && boxes.length > 2) {
-    //     try {
-    //         // Work with widths in original OCR pixel space (before any scaling)
-    //         const widths = boxes.map(b => {
-    //             const x0 = (b && b.box && b.box[0]) ? b.box[0][0] : 0;
-    //             const x2 = (b && b.box && b.box[2]) ? b.box[2][0] : x0;
-    //             return Math.max(0, x2 - x0);
-    //         });
-    //
-    //         const minW = Math.min(...widths);
-    //         const maxW = Math.max(...widths);
-    //         if (maxW > 0 && maxW > minW) {
-    //             // Simple 1D k-means (k=2) to separate small (furigana) vs regular widths
-    //             let c0 = minW;
-    //             let c1 = maxW;
-    //             const assign = new Array(widths.length).fill(0);
-    //             for (let iter = 0; iter < 10; iter++) {
-    //                 let changed = false;
-    //                 // Assign step
-    //                 for (let i = 0; i < widths.length; i++) {
-    //                     const w = widths[i];
-    //                     const a = (Math.abs(w - c0) <= Math.abs(w - c1)) ? 0 : 1;
-    //                     if (assign[i] !== a) { assign[i] = a; changed = true; }
-    //                 }
-    //                 // Update step
-    //                 let sum0 = 0, n0 = 0, sum1 = 0, n1 = 0;
-    //                 for (let i = 0; i < widths.length; i++) {
-    //                     if (assign[i] === 0) { sum0 += widths[i]; n0++; } else { sum1 += widths[i]; n1++; }
-    //                 }
-    //                 if (n0 > 0) c0 = sum0 / n0;
-    //                 if (n1 > 0) c1 = sum1 / n1;
-    //                 if (!changed) break;
-    //             }
-    //             const bigIdx = (c0 >= c1) ? 0 : 1;
-    //             const bigMean = Math.max(c0, c1);
-    //             const smallMean = Math.min(c0, c1);
-    //             const separation = bigMean / Math.max(1e-6, smallMean);
-    //             // Only filter when bimodality is clear (avoid false positives)
-    //             if (separation >= 1.8) {
-    //                 boxes = boxes.filter((_, i) => assign[i] === bigIdx);
-    //             }
-    //         }
-    //     } catch (_e) {
-    //         // If anything goes wrong, fall back to rendering all boxes
-    //     }
-    // }
+    // Prepare controller for this page and clear previous overlays
+    renderControllers.set(num, { canceled: false });
+    try{ $(`.recognized-text[data-ocr-page='${num}']`).remove(); }catch(_e){}
+    try{
+        if(num !== (Math.floor(getCurrentIndex()/2)*2) && num !== (Math.floor(getCurrentIndex()/2)*2 + 1)){
+            // This page is no longer in view; signal completion so the queue doesn't wait forever
+            return;
+        }
+        console.log(ocr,scaleFactor,el);
+        const rect = el.getBoundingClientRect();
+        const origW = (ocr && ocr.original_size && ocr.original_size.width) ? ocr.original_size.width : (el.naturalWidth || rect.width || 1);
+        const displayScale = rect.width / (origW || 1); // map original pixels -> CSS pixels
+        const totalScale = scaleFactor * displayScale; // (original/sent) * (displayed/original) = displayed/sent
+        $(el).parent().find(".recognized-text").remove();
 
-    ocr.boxes.forEach(box => {
-        let x = box.box[0][0];
-        let y = box.box[0][1];
-        let w = box.box[2][0] - x;
-        let h = box.box[2][1] - y;
-        x *= totalScale;
-        y *= totalScale;
-        w *= totalScale;
-        h *= totalScale;
+        for(const box of ocr.boxes){
+            if(renderControllers.get(num)?.canceled) break;
+            let x = box.box[0][0];
+            let y = box.box[0][1];
+            let w = box.box[2][0] - x;
+            let h = box.box[2][1] - y;
+            x *= totalScale;
+            y *= totalScale;
+            w *= totalScale;
+            h *= totalScale;
 
-        const text = box.text;
-        const txEl = $(`<div class="recognized-text" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"></div>`);
-        bindElement(txEl);
-        $(el).parent().append(txEl);
-    });
+            const text = box.text;
+            const txEl = $(`<div class="recognized-text ${settings.devMode ? 'debug-highlight' : ''}" data-ocr-page='${num}' style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"></div>`);
+            // Append immediately so the page looks responsive; enhance asynchronously
+            $(el).parent().append(txEl);
+            if(renderControllers.get(num)?.canceled){ break; }
+            (async () => {
+                try{
+                    await bindElement(txEl,text, box.box, num);
+                }catch(e){
+                    console.error("bindElement failed for OCR box", e);
+                    try{ txEl.text(text); }catch(_e){}
+                }
+            })();
+        }
+    }catch(e){
+        console.error("processPage failed", e);
+    }finally{
+        // Signal that page overlays finished rendering (even on error/early return)
+        if(!renderControllers.get(num)?.canceled){
+            try{ markRendered(num); }catch(_e){}
+        }
+        renderControllers.delete(num);
+    }
 }
 
 export const readPage = async (pageNum, el) => {
+    // Cancel any in-flight other pages when switching
+    for(const [n, ctrl] of renderControllers.entries()){
+        if(n !== pageNum && !ctrl.canceled){ cancelPageRender(n); }
+    }
     const pages = getPages();
     const thisPage = pages[pageNum];
     let resp = await sendToReader(thisPage, pageNum);
     // Attach and/or display client-side scale info for correct box rendering
     // resp.client_scale is the factor applied to the original (<=1). To map boxes returned
     // for the sent image to the original rendered page, multiply by 1/resp.client_scale.
-    if (resp && typeof resp.client_scale === 'number'){
+    if (resp && typeof resp.client_scale === 'number' && el){
         const cs = resp.client_scale;
         const downFactor = cs > 0 ? (1 / cs) : 1;
         // Store on the element for overlay modules to use
@@ -103,5 +195,8 @@ export const readPage = async (pageNum, el) => {
             }catch(_e){ /* dataset may be unavailable on some nodes */ }
         }
         processPage(resp, downFactor, el, pageNum); //intentionally not awaited
+    } else {
+        // If we can't render (missing element or scaling), don't block the dispatcher
+        try{ markRendered(pageNum); }catch(_e){}
     }
 }
