@@ -1,5 +1,6 @@
 import {refreshFitMode} from "../front-end/positioning.js";
 import {readPage} from "../ocr/read.js";
+import {sendToReader} from "../ocr/dispatcher.js";
 
 let pages = [];
 let currentIndex = 0;
@@ -76,6 +77,10 @@ export const updateCurrentMode = (d)=>{
 };
 export const anticipatePages = 2;
 
+export const getCacheOffset = () => {
+    return currentMode === "double" ? 2 : 1;
+}
+
 export const updateImagePages = (d) => {
     updateCurrentMode(d);
     const pl = d.querySelector(".page-left img");
@@ -97,4 +102,16 @@ export const updateImagePages = (d) => {
         readPage(getCurrentIndex(), pr); //promise ignored intentionally
     }
     refreshFitMode();
+    // const nextIndex = pageNum + 1;
+    // if (nextIndex < pages.length) {
+    //     const nextPage = pages[nextIndex];
+    //     if (nextPage) sendToReader(nextPage, nextIndex, "Caching...");
+    // }
+    const cacheOffset = getCacheOffset();
+    const flooredCurrIndex = Math.floor(currentIndex/2)*2;
+    for(let i = flooredCurrIndex + cacheOffset; i < flooredCurrIndex + cacheOffset + anticipatePages; i++){
+        if(i >= pages.length) break;
+        const pageToCache = pages[i];
+        if(pageToCache) sendToReader(pageToCache, i, `Caching ${i - flooredCurrIndex - cacheOffset + 1}/${anticipatePages}...`);
+    }
 }

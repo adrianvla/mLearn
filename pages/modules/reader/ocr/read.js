@@ -19,55 +19,55 @@ const processPage = async (ocr, scaleFactor, el, num)=> {
     $(el).parent().find(".recognized-text").remove();
     
     // Furigana filtering (JP): detect a distinct small-width cluster and drop it
-    let boxes = (ocr && Array.isArray(ocr.boxes)) ? [...ocr.boxes] : [];
-    if (settings.language === "ja" && boxes.length > 2) {
-        try {
-            // Work with widths in original OCR pixel space (before any scaling)
-            const widths = boxes.map(b => {
-                const x0 = (b && b.box && b.box[0]) ? b.box[0][0] : 0;
-                const x2 = (b && b.box && b.box[2]) ? b.box[2][0] : x0;
-                return Math.max(0, x2 - x0);
-            });
+    // let boxes = (ocr && Array.isArray(ocr.boxes)) ? [...ocr.boxes] : [];
+    // if (settings.language === "ja" && boxes.length > 2) {
+    //     try {
+    //         // Work with widths in original OCR pixel space (before any scaling)
+    //         const widths = boxes.map(b => {
+    //             const x0 = (b && b.box && b.box[0]) ? b.box[0][0] : 0;
+    //             const x2 = (b && b.box && b.box[2]) ? b.box[2][0] : x0;
+    //             return Math.max(0, x2 - x0);
+    //         });
+    //
+    //         const minW = Math.min(...widths);
+    //         const maxW = Math.max(...widths);
+    //         if (maxW > 0 && maxW > minW) {
+    //             // Simple 1D k-means (k=2) to separate small (furigana) vs regular widths
+    //             let c0 = minW;
+    //             let c1 = maxW;
+    //             const assign = new Array(widths.length).fill(0);
+    //             for (let iter = 0; iter < 10; iter++) {
+    //                 let changed = false;
+    //                 // Assign step
+    //                 for (let i = 0; i < widths.length; i++) {
+    //                     const w = widths[i];
+    //                     const a = (Math.abs(w - c0) <= Math.abs(w - c1)) ? 0 : 1;
+    //                     if (assign[i] !== a) { assign[i] = a; changed = true; }
+    //                 }
+    //                 // Update step
+    //                 let sum0 = 0, n0 = 0, sum1 = 0, n1 = 0;
+    //                 for (let i = 0; i < widths.length; i++) {
+    //                     if (assign[i] === 0) { sum0 += widths[i]; n0++; } else { sum1 += widths[i]; n1++; }
+    //                 }
+    //                 if (n0 > 0) c0 = sum0 / n0;
+    //                 if (n1 > 0) c1 = sum1 / n1;
+    //                 if (!changed) break;
+    //             }
+    //             const bigIdx = (c0 >= c1) ? 0 : 1;
+    //             const bigMean = Math.max(c0, c1);
+    //             const smallMean = Math.min(c0, c1);
+    //             const separation = bigMean / Math.max(1e-6, smallMean);
+    //             // Only filter when bimodality is clear (avoid false positives)
+    //             if (separation >= 1.8) {
+    //                 boxes = boxes.filter((_, i) => assign[i] === bigIdx);
+    //             }
+    //         }
+    //     } catch (_e) {
+    //         // If anything goes wrong, fall back to rendering all boxes
+    //     }
+    // }
 
-            const minW = Math.min(...widths);
-            const maxW = Math.max(...widths);
-            if (maxW > 0 && maxW > minW) {
-                // Simple 1D k-means (k=2) to separate small (furigana) vs regular widths
-                let c0 = minW;
-                let c1 = maxW;
-                const assign = new Array(widths.length).fill(0);
-                for (let iter = 0; iter < 10; iter++) {
-                    let changed = false;
-                    // Assign step
-                    for (let i = 0; i < widths.length; i++) {
-                        const w = widths[i];
-                        const a = (Math.abs(w - c0) <= Math.abs(w - c1)) ? 0 : 1;
-                        if (assign[i] !== a) { assign[i] = a; changed = true; }
-                    }
-                    // Update step
-                    let sum0 = 0, n0 = 0, sum1 = 0, n1 = 0;
-                    for (let i = 0; i < widths.length; i++) {
-                        if (assign[i] === 0) { sum0 += widths[i]; n0++; } else { sum1 += widths[i]; n1++; }
-                    }
-                    if (n0 > 0) c0 = sum0 / n0;
-                    if (n1 > 0) c1 = sum1 / n1;
-                    if (!changed) break;
-                }
-                const bigIdx = (c0 >= c1) ? 0 : 1;
-                const bigMean = Math.max(c0, c1);
-                const smallMean = Math.min(c0, c1);
-                const separation = bigMean / Math.max(1e-6, smallMean);
-                // Only filter when bimodality is clear (avoid false positives)
-                if (separation >= 1.8) {
-                    boxes = boxes.filter((_, i) => assign[i] === bigIdx);
-                }
-            }
-        } catch (_e) {
-            // If anything goes wrong, fall back to rendering all boxes
-        }
-    }
-
-    boxes.forEach(box => {
+    ocr.boxes.forEach(box => {
         let x = box.box[0][0];
         let y = box.box[0][1];
         let w = box.box[2][0] - x;
@@ -103,11 +103,5 @@ export const readPage = async (pageNum, el) => {
             }catch(_e){ /* dataset may be unavailable on some nodes */ }
         }
         processPage(resp, downFactor, el, pageNum); //intentionally not awaited
-    }
-    // Cache next page automatically (if exists)
-    const nextIndex = pageNum + 1;
-    if (nextIndex < pages.length) {
-        const nextPage = pages[nextIndex];
-        if (nextPage) sendToReader(nextPage, nextIndex, "Caching...");
     }
 }

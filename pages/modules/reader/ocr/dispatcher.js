@@ -1,5 +1,5 @@
 import { sendImageForOCR } from "../../networking.js";
-import {anticipatePages, getCurrentIndex} from "../handler/sequencer.js";
+import {anticipatePages, getCacheOffset, getCurrentIndex} from "../handler/sequencer.js";
 
 // Simple FIFO task queue for OCR requests
 let cache = {};
@@ -27,7 +27,7 @@ async function processQueue() {
                 if(task.key in cache){
                     task.resolve(cache[task.key]);
                 }else{
-                    if(task.pageNum >= (Math.floor(getCurrentIndex()/2)*2) && task.pageNum <= (Math.floor(getCurrentIndex()/2)*2 + anticipatePages)){
+                    if(task.pageNum >= (Math.floor(getCurrentIndex()/2)*2) && task.pageNum <= (Math.floor(getCurrentIndex()/2)*2 + anticipatePages + getCacheOffset())){
                         if (!task.page || !task.page.blob) {
                             throw new Error("OCR task is missing a valid page blob");
                         }
