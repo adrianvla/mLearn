@@ -17,6 +17,8 @@ const setOCRStatus = (s) => {
     $(".ocr-status", doc).text(s);
 };
 
+const waitNms = (n) => new Promise((resolve) => setTimeout(resolve, n));
+
 async function processQueue() {
     if (processing) return;
     processing = true;
@@ -37,6 +39,12 @@ async function processQueue() {
                         const resp = await sendImageForOCR(task.page.blob);
                         cache[task.key] = resp;
                         task.resolve(resp);
+                        // Wait until this page's overlays finish rendering before processing next task
+                        // Skip waiting for caching tasks, since those pages won't render immediately
+                        const isCachingTask = typeof task.mode === 'string' && /^Caching\b/.test(task.mode);
+                        if(!isCachingTask){
+                            await waitForRender(task.pageNum);
+                        }
                     }else{
                         task.reject("Canceled");
                     }
@@ -84,4 +92,26 @@ export async function sendToReader(page, pageNum = 0, mode = "Processing...") {
     taskQueue.push({ key, page, mode, resolve, reject, pageNum });
     processQueue();
     return promise;
+}
+
+// Rendering coordination: block the queue until a page reports it's done drawing overlays
+const renderWaiters = new Map(); // pageNum -> [resolvers]
+const renderedPages = new Set();
+
+export function markRendered(pageNum){
+    try{
+        renderedPages.add(pageNum);
+        const arr = renderWaiters.get(pageNum) || [];
+        for(const r of arr){ try{ r(); }catch(_e){} }
+        renderWaiters.delete(pageNum);
+    }catch(_e){ /* ignore */ }
+}
+
+export function waitForRender(pageNum){
+    if(renderedPages.has(pageNum)) return Promise.resolve();
+    return new Promise((resolve)=>{
+        const arr = renderWaiters.get(pageNum) || [];
+        arr.push(resolve);
+        renderWaiters.set(pageNum, arr);
+    });
 }

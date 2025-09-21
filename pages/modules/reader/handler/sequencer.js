@@ -24,6 +24,14 @@ export const initSequencer = (d) => {
         nextPage();
         updateImagePages(d);
     });
+    $(d).on("keydown", (e) => {
+        if (e.key === "ArrowLeft") {
+            $(".nav .left-btn", d).trigger("click");
+        }
+        if (e.key === "ArrowRight") {
+            $(".nav .right-btn", d).trigger("click");
+        }
+    });
 };
 
 export const setPages = (newPages) => pages = newPages;
@@ -86,19 +94,15 @@ export const updateImagePages = (d) => {
     const pl = d.querySelector(".page-left img");
     const pr = d.querySelector(".page-right img");
     const currPage = getCurrentPage();
-    console.log(pl,pr);
-    console.log(currPage[0].url, currPage[1] ? currPage[1].url : "no second page");
     if(currentMode === "double"){
         pr.src = currPage[0].url;
         pl.src = currPage[1].url;
-        console.log("double", pr.src, pl.src);
         readPage(Math.floor(currentIndex/2)*2, pr); //promise ignored intentionally
         if(Math.floor(currentIndex/2)*2 + 1 <= pages.length - 1)
             readPage(Math.floor(currentIndex/2)*2+1, pl); //promise ignored intentionally
     }else{
         pr.src = currPage[0].url;
         pl.src = "";
-        console.log("single", pr.src, pl.src);
         readPage(getCurrentIndex(), pr); //promise ignored intentionally
     }
     refreshFitMode();
