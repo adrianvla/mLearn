@@ -27,6 +27,19 @@ $(".open-mlearn-reader").on("click", () => {
         initSequencer(winRef.document);
         setDoc1(winRef.document);
         setDoc2(winRef.document);
+        try{
+            // Bridge pill functions if parent window has them
+            if(window.mLearnPills){
+                winRef.mLearnPills = winRef.mLearnPills || {};
+                for(const k of Object.keys(window.mLearnPills)){
+                    winRef.mLearnPills[k] = window.mLearnPills[k];
+                }
+                // Also expose legacy globals expected by inline onclick attributes
+                if(window.mLearnPills.clickAddToFlashcards) winRef.clickAddToFlashcards = window.mLearnPills.clickAddToFlashcards;
+                if(window.mLearnPills.changeKnownBtnStatus) winRef.changeKnownBtnStatus = window.mLearnPills.changeKnownBtnStatus;
+                if(window.mLearnPills.clickAddFlashcardBtn) winRef.clickAddFlashcardBtn = window.mLearnPills.clickAddFlashcardBtn;
+            }
+        }catch(e){ console.warn("Failed to bridge pill functions to reader window", e); }
     };
 });
 
