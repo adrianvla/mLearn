@@ -258,11 +258,33 @@ const pythonFound = () => {
     if(isFirstTimeSetup) return;
     console.log(pythonExecutable);
 
+    const STATUS_PREFIX = '::STATUS::';
     const onSTDOUT = (data) => {
-        console.log("Python response: ", data.toString('utf8'));
-        try{
-            getMainWindow().webContents.send('server-status-update', data.toString('utf8'));
-        }catch(e){}
+        const text = data.toString('utf8');
+        console.log("Python response:", text);
+        // Split into lines because Python may batch flush
+        const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+        for(const line of lines){
+            if(line.startsWith(STATUS_PREFIX)){
+                // Pattern: ::STATUS::<CHANNEL>::<TIMESTAMP>::<MESSAGE>
+                const parts = line.substring(STATUS_PREFIX.length).split('::');
+                if(parts.length >= 3){
+                    const channel = parts[0];
+                    // const ts = parts[1]; // currently unused
+                    const message = parts.slice(2).join('::');
+                    try{
+                        if(channel.startsWith('OCR')){
+                            getMainWindow().webContents.send('ocr-status-update', message);
+                        }
+                        // Always also pipe raw structured line to server-status-update for log console
+                        getMainWindow().webContents.send('server-status-update', message);
+                    }catch(e){/* ignore ipc errors */}
+                    continue;
+                }
+            }
+            // Fallback: forward raw line
+            try{ getMainWindow().webContents.send('server-status-update', line); }catch(e){}
+        }
     };
     const onSTDERR = (data) => {
         console.error(`stderr: ${data}`);

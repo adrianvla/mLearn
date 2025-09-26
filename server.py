@@ -85,15 +85,49 @@ def _now():
         return "time?"
 
 
-def _log(*args):
+LOG_PATTERN_PREFIX = "::STATUS::"  # sentinel prefix so Electron side can parse quickly
+
+def _format_status(channel: str, *parts) -> str:
+    """Return a strict machine‑parsable status line.
+    Pattern: ::STATUS::<CHANNEL>::<TIMESTAMP>::<MESSAGE>
+    CHANNEL examples: GENERAL, OCR, OCR-INIT, OCR-RUN, OCR-DL
+    """
+    ts = _now()
     try:
-        print(f"[{_now()}]", *args, flush=True)
+        msg = " ".join(str(p) for p in parts)
     except Exception:
-        # Fallback if printing fails for any reason
         try:
-            print(*args, flush=True)
+            msg = " ".join(repr(p) for p in parts)
+        except Exception:
+            msg = "?"
+    msg = msg.replace('\n', ' ')  # single line
+    return f"{LOG_PATTERN_PREFIX}{channel}::{ts}::{msg}"
+
+def _emit(line: str):
+    try:
+        print(line, flush=True)
+    except Exception:
+        try:
+            sys.stdout.write(line + '\n')
+            sys.stdout.flush()
         except Exception:
             pass
+
+def _log(*args):
+    """General log (structured)."""
+    _emit(_format_status("GENERAL", *args))
+
+def _log_ocr(*args):
+    _emit(_format_status("OCR", *args))
+
+def _log_ocr_init(*args):
+    _emit(_format_status("OCR-INIT", *args))
+
+def _log_ocr_run(*args):
+    _emit(_format_status("OCR-RUN", *args))
+
+def _log_ocr_dl(*args):
+    _emit(_format_status("OCR-DL", *args))
 
 
 def _process_stats(tag: str = "stats"):
@@ -455,11 +489,12 @@ _manga_ocr = None
 def _get_paddle_ocr():
     global _paddle_ocr
     if _paddle_ocr is not None:
+        _log_ocr_init("PaddleOCR already initialized")
         return _paddle_ocr
     try:
         from paddleocr import PaddleOCR  # type: ignore
     except Exception as e:
-        _log("PaddleOCR import error:", e)
+        _log_ocr_init("PaddleOCR import error", e)
         return None
     # Use Japanese models if LANGUAGE == 'ja', else default to 'en'
     langs = {
@@ -476,45 +511,50 @@ def _get_paddle_ocr():
     # Log PaddlePaddle version if available
     try:
         import paddle  # type: ignore
-        _log("PaddlePaddle version:", getattr(paddle, "__version__", "unknown"))
+        _log_ocr_init("PaddlePaddle version", getattr(paddle, "__version__", "unknown"))
     except Exception as e:
-        _log("Paddle import/version error:", e)
-    _log("Initializing PaddleOCR with lang:", lang_code)
+        _log_ocr_init("Paddle import/version error", e)
+    _log_ocr_init("Initializing PaddleOCR with lang", lang_code)
     t0 = time.perf_counter()
     _paddle_ocr = PaddleOCR(lang=lang_code, use_angle_cls=True, use_doc_orientation_classify=False, use_doc_unwarping=False)
     t1 = time.perf_counter()
-    _log(f"PaddleOCR initialized in {t1 - t0:.2f}s")
+    _log_ocr_init(f"PaddleOCR initialized in {t1 - t0:.2f}s")
     _process_stats("paddle_init")
     return _paddle_ocr
 
 
 def _paddle_run_ocr(paddle_inst, img):
-    """Call paddle.ocr with broad compatibility."""
+    """Call paddle.ocr with broad compatibility and structured progress logs."""
     try:
-        return paddle_inst.ocr(img, cls=False)
+        res = paddle_inst.ocr(img, cls=False)
+        _log_ocr_run("paddle ocr produced", len(res) if isinstance(res, list) else 'n/a', "items")
+        return res
     except TypeError:
         # Older signatures may not accept cls
-        return paddle_inst.ocr(img)
+        res = paddle_inst.ocr(img)
+        _log_ocr_run("paddle ocr produced (compat)", len(res) if isinstance(res, list) else 'n/a', "items")
+        return res
 
 
 def _get_manga_ocr():
     global _manga_ocr
     if _manga_ocr is not None:
+        _log_ocr_init("MangaOCR already initialized")
         return _manga_ocr
     try:
         from manga_ocr import MangaOcr  # type: ignore
     except Exception as e:
-        _log("MangaOCR import error:", e)
+        _log_ocr_init("MangaOCR import error", e)
         return None
     try:
-        _log("Initializing MangaOCR...")
+        _log_ocr_init("Initializing MangaOCR")
         t0 = time.perf_counter()
         _manga_ocr = MangaOcr()
         t1 = time.perf_counter()
-        _log(f"MangaOCR initialized in {t1 - t0:.2f}s")
+        _log_ocr_init(f"MangaOCR initialized in {t1 - t0:.2f}s")
         _process_stats("mangaocr_init")
     except Exception as e:
-        _log("Failed to initialize MangaOCR:", e)
+        _log_ocr_init("Failed to initialize MangaOCR", e)
         _manga_ocr = None
     return _manga_ocr
 
@@ -718,44 +758,32 @@ async def ocr_endpoint(
     file: UploadFile | None = File(None),
     image_base64: str | None = Form(None)
 ):
-    _log("/ocr called")
+    _log_ocr_run("/ocr called")
     _process_stats("ocr_req")
     try:
         # Load image
         if file is not None:
-            _log("UploadFile:", {"filename": file.filename, "content_type": file.content_type})
+            _log_ocr_run("UploadFile", {"filename": file.filename, "content_type": file.content_type})
         file_bytes = await file.read() if file is not None else None
         image = _load_image_from_inputs(file_bytes, image_base64)
         np_img = np.array(image, dtype=np.uint8)
         if not np_img.flags['C_CONTIGUOUS']:
             np_img = np.ascontiguousarray(np_img)
-        _log("Image numpy shape:", np_img.shape, " dtype=", str(np_img.dtype), " contiguous=", np_img.flags['C_CONTIGUOUS'])
+        _log_ocr_run("Image numpy shape", np_img.shape, "dtype", str(np_img.dtype), "contiguous", np_img.flags['C_CONTIGUOUS'])
 
-        # Initialize OCR backends
-        try:
-            import PIL
-            _log("Pillow version:", getattr(PIL, '__version__', 'unknown'))
-        except Exception:
-            pass
-        try:
-            _log("Numpy version:", getattr(np, '__version__', 'unknown'))
-        except Exception:
-            pass
+        # Init paddle
         t0 = time.perf_counter()
         paddle = _get_paddle_ocr()
         t1 = time.perf_counter()
         if paddle is None:
-            raise HTTPException(status_code=500, detail="PaddleOCR is not available. Please install dependencies.")
-        _log(f"Paddle handle ready in {t1 - t0:.2f}s")
+            raise HTTPException(status_code=500, detail="PaddleOCR not available")
+        _log_ocr_run(f"Paddle handle ready in {t1 - t0:.2f}s")
+        _log_ocr_run(f"OCR requested for language {LANGUAGE}")
 
         results: list[OcrBox] = []
 
-        _log(f"OCR requested for language: {LANGUAGE}")
-
         if LANGUAGE == 'ja':
-            # Use Paddle for detection (boxes), MangaOCR for recognition
-            _log("Running PaddleOCR for detection...")
-            # Downscale very large images to reduce native memory pressure
+            # Detection with Paddle, recognition with MangaOCR
             H, W = int(np_img.shape[0]), int(np_img.shape[1])
             det_img = np_img
             scale = 1.0
@@ -763,85 +791,66 @@ async def ocr_endpoint(
                 scale = 2000.0 / float(max(H, W))
                 new_w = max(1, int(W * scale))
                 new_h = max(1, int(H * scale))
-                _log(f"Downscaling for detection from ({W},{H}) to ({new_w},{new_h}), scale={scale:.4f}")
+                _log_ocr_run(f"Downscaling for detection {W}x{H}->{new_w}x{new_h} scale={scale:.3f}")
                 det_img = np.ascontiguousarray(np.array(image.resize((new_w, new_h)), dtype=np.uint8))
             t2 = time.perf_counter()
             det = _paddle_run_ocr(paddle, det_img)
             t3 = time.perf_counter()
-            _log(f"PaddleOCR detection finished in {t3 - t2:.2f}s")
-            _log(f"PaddleOCR raw detection result type: {type(det)}")
-
+            _log_ocr_run(f"Paddle detection {t3 - t2:.2f}s")
             lines = _extract_lines_from_paddle_result(det)
-            _log(f"Extracted {len(lines)} lines from PaddleOCR result.")
-            
+            _log_ocr_run(f"Extracted {len(lines)} lines (det stage)")
             initial_boxes = [item[0] for item in lines if item and item[0] is not None]
-            # Rescale boxes back to original coordinates if we downscaled
-            if scale != 1.0 and len(initial_boxes) > 0:
+            if scale != 1.0 and initial_boxes:
                 inv = 1.0 / scale
-                rescaled = []
-                for pts in initial_boxes:
-                    rescaled.append([[float(x) * inv, float(y) * inv] for x, y in pts])
-                initial_boxes = rescaled
-                _log(f"Rescaled {len(initial_boxes)} boxes back using inv scale={inv:.4f}")
-            _log(f"Found {len(initial_boxes)} initial bounding boxes.")
-
-            # boxes_only = _filter_furigana_boxes(initial_boxes)
-            boxes_only = initial_boxes
-            # _log(f"Filtered boxes, {len(boxes_only)} remaining after furigana filter.")
-
+                initial_boxes = [[[float(x)*inv, float(y)*inv] for x, y in pts] for pts in initial_boxes]
+            _log_ocr_run(f"Found {len(initial_boxes)} boxes after rescale")
             mocr = _get_manga_ocr()
             if mocr is None:
-                raise HTTPException(status_code=500, detail="MangaOCR is not available. Please install dependencies.")
-
-            if len(boxes_only) == 0:
-                _log("No boxes detected for JA with Paddle; falling back to MangaOCR on full image.")
+                raise HTTPException(status_code=500, detail="MangaOCR not available")
+            if not initial_boxes:
                 try:
-                    full_txt = mocr(image)
-                    _log(f"MangaOCR full-image text length: {len(full_txt) if full_txt else 0}")
-                    # Use full image bounds as a single box
+                    full_txt = mocr(image) or ''
                     w, h = image.size
-                    full_box = [[0.0, 0.0], [float(w), 0.0], [float(w), float(h)], [0.0, float(h)]]
-                    results.append(OcrBox(box=full_box, text=full_txt or '', score=None))
+                    full_box = [[0.0,0.0],[float(w),0.0],[float(w),float(h)],[0.0,float(h)]]
+                    results.append(OcrBox(box=full_box, text=full_txt, score=None))
+                    _log_ocr_run(f"Full-image fallback len={len(full_txt)}")
                 except Exception as e:
-                    _log("MangaOCR full-image fallback error:", e)
-                    _log(traceback.format_exc())
+                    _log_ocr_run("Full-image fallback error", e)
             else:
-                _log(f"Processing {len(boxes_only)} boxes with MangaOCR...")
-                for i, pts in enumerate(boxes_only):
+                for i, pts in enumerate(initial_boxes):
                     crop = _crop_by_box(image, pts)
                     try:
-                        # MangaOCR returns string; no score provided
-                        txt = mocr(crop)
-                        _log(f"  Box {i+1}/{len(boxes_only)}: Recognized text length: {len(txt) if txt else 0}")
+                        txt = mocr(crop) or ''
+                        if i % 10 == 0:
+                            _log_ocr_run(f"MangaOCR progress {i+1}/{len(initial_boxes)}")
                     except Exception as e:
-                        _log(f"  Box {i+1}/{len(boxes_only)}: MangaOCR error on crop: {e}")
-                        _log(traceback.format_exc())
-                        txt = ""
-                    results.append(OcrBox(box=[[float(x), float(y)] for x, y in pts], text=txt, score=None))
+                        _log_ocr_run(f"MangaOCR error box {i+1}", e)
+                        txt = ''
+                    results.append(OcrBox(box=[[float(x),float(y)] for x,y in pts], text=txt, score=None))
         else:
-            # Use PaddleOCR for both detection and recognition
-            _log("Running PaddleOCR for detection and recognition...")
+            # Use paddle for detection + recognition
             t2 = time.perf_counter()
             out = _paddle_run_ocr(paddle, np_img)
             t3 = time.perf_counter()
-            _log(f"PaddleOCR end-to-end finished in {t3 - t2:.2f}s")
-            _log(f"PaddleOCR raw output type: {type(out)}")
+            _log_ocr_run(f"Paddle e2e {t3 - t2:.2f}s")
             lines = _extract_lines_from_paddle_result(out)
-            _log(f"Extracted {len(lines)} lines from PaddleOCR result.")
+            _log_ocr_run(f"Extracted {len(lines)} lines (e2e)")
             for i, (pts, txt, scr) in enumerate(lines):
-                _log(f"  Box {i+1}/{len(lines)}: TextLen='{len(str(txt or ''))}', Score={scr}")
-                results.append(OcrBox(box=[[float(x), float(y)] for x, y in pts], text=str(txt or ''), score=(float(scr) if scr is not None else None)))
+                if pts is None:
+                    continue
+                if i % 25 == 0:
+                    _log_ocr_run(f"Recognition progress {i+1}/{len(lines)}")
+                results.append(OcrBox(box=[[float(x),float(y)] for x,y in pts], text=str(txt or ''), score=(float(scr) if scr is not None else None)))
 
-        _log(f"Final number of boxes returned: {len(results)}")
+        _log_ocr_run(f"Final boxes {len(results)}")
         _process_stats("ocr_done")
-        # Exclude fields that are None (e.g., score for MangaOCR) to reduce noise
         return {"boxes": [r.dict(exclude_none=True) for r in results]}
     except HTTPException:
-        _log("/ocr returning HTTPException")
+        _log_ocr_run("/ocr http exception")
         raise
     except Exception as e:
-        _log("Unhandled error in /ocr:", e)
-        _log(traceback.format_exc())
+        _log_ocr_run("Unhandled error", e)
+        _log_ocr_run(traceback.format_exc())
         raise HTTPException(status_code=500, detail="OCR processing error")
 
 

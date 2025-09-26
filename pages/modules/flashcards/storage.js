@@ -287,7 +287,9 @@ export const attemptFlashcardCreation = async (word, content) =>{
     await updateFlashcardSearchHashMap();
     console.log("flashcards:",flashcards);
     newSetup();
-    if(!isSameDay(flashcards.meta.lastFlashcardCreatedDate)) await newDay();
+    window.mLearnIPC.onServerLoad(async () => {
+        if(!isSameDay(flashcards.meta.lastFlashcardCreatedDate)) await newDay();
+    });
 })();
 
 export const Flashcards = () => flashcards;
