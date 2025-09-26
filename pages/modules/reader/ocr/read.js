@@ -52,7 +52,8 @@ const bindElement = async (el, text, bbox, pageNum)=>{
             disableFrequency: true,
             disableThemeClasses: true,
             forceHoverHorizontal: true,
-            disablePitchAccent: true
+            disablePitchAccent: true,
+            isOCR: true
         });
     }catch(e){
         console.error("attachInteractiveText failed for OCR box", e);

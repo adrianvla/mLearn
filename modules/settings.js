@@ -38,7 +38,8 @@ const DEFAULT_SETTINGS = {
     "proportionOfExamCards":0.5,
     "preparedExam":3,
     "createUnseenCards":true,
-    "devMode":false
+    "devMode":false,
+    "ocr_crop_padding" : 200
 };
 
 const saveSettings = (settings) => {

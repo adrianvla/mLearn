@@ -21,8 +21,8 @@ import {
 import {resetFlashcards} from "../flashcards/storage.js";
 
 
-const IN_SETTINGS_CATEGORY = {"General":["language","stats","install_languages","save","restoreDefaults", "activate_license"],"Behaviour":["known_ease_threshold","blur_words","blur_known_subtitles","blur_amount","immediateFetch","do_colour_known","colour_known","do_colour_codes","show_pos","hover_known_get_from_dictionary","furigana","aside-auto","save","restoreDefaults","pitch_accent","devMode"],"Customization":["dark_mode","subtitle_theme","subtitle_font_size","subtitle_font_weight","save","restoreDefaults"],"Anki":["use_anki","anki_connect_url","enable_flashcard_creation","flashcards_add_picture","flashcard_deck","save","restoreDefaults","maxNewCardsPerDay","proportionOfExamCards","preparedExam","createUnseenCards","resetSRS"],"Stats":[],"About":[]};
-const WINDOW_HTML_SETTINGS = `<!doctypehtml><html lang="en"><meta charset="UTF-8"><title>Settings</title><link href="style.css"rel="stylesheet"><style>body{background:#000}</style><body class="settings-body"><div class="nav"><div class="nav-item selected"id="General"><img src="assets/icons/cog.svg"><span>General</span></div><div class="nav-item"id="Behaviour"><img src="assets/icons/subtitles.svg"><span>Behaviour</span></div><div class="nav-item"id="Customization"><img src="assets/icons/palette.svg"><span>Appearance</span></div><div class="nav-item"id="Anki"><img src="assets/icons/cards.svg"><span>Flashcards</span></div><div class="nav-item"id="Stats"><img src="assets/icons/stats.svg"><span>Stats</span></div><div class="nav-item"id="About"><img src="assets/icons/document.svg"><span>About</span></div></div><div class="settingsMenuContent"><div class="preview"data-show="Customization"><div class="subtitles"><span class="subtitle_word SUB_W_COL_1">A</span><span class="subtitle_word SUB_W_COL_2">a</span><span class="subtitle_word SUB_W_COL_1">あア</span><span class="subtitle_word SUB_W_COL_2">億</span><span class="subtitle_word SUB_W_COL_1">ыЦ</span><span class="subtitle_word SUB_W_COL_2">è</span></div></div><div class="_1"></div><div class="_2"></div><div class="about"style="display:none"><span id="version-number">PLACEHOLDER</span><br>Developed by <a id="contact">Adrian Vlasov</a><br>Contact: admin@morisinc.net<br><a id="licenses">Licenses</a></div><div class="stats-widget"style="display:none"><canvas id="exam-stats"></canvas><div class="adjust-words"><span>Adjust word known status </span><div class="button"><span style="height:1em">Edit database</span></div></div><canvas id="learned-words-pie-chart"></canvas></div></div><div class="fullscreen-load">Loading...</div>`;
+const IN_SETTINGS_CATEGORY = {"General":["language","stats","install_languages","save","restoreDefaults", "activate_license"],"Behaviour":["known_ease_threshold","blur_words","blur_known_subtitles","blur_amount","immediateFetch","do_colour_known","colour_known","do_colour_codes","show_pos","hover_known_get_from_dictionary","furigana","aside-auto","save","restoreDefaults","pitch_accent","devMode"],"Customization":["dark_mode","subtitle_theme","subtitle_font_size","subtitle_font_weight","save","restoreDefaults"],"SRS":["use_anki","anki_connect_url","enable_flashcard_creation","flashcards_add_picture","flashcard_deck","save","restoreDefaults","maxNewCardsPerDay","proportionOfExamCards","preparedExam","createUnseenCards","resetSRS"],"Reader":["ocr_crop_padding"],"Stats":[],"About":[]};
+const WINDOW_HTML_SETTINGS = `<!doctypehtml><html lang="en"><meta charset="UTF-8"><title>Settings</title><link href="style.css"rel="stylesheet"><style>body{background:#000}</style><body class="settings-body"><div class="nav"><div class="nav-item selected"id="General"><img src="assets/icons/cog.svg"><span>General</span></div><div class="nav-item"id="Behaviour"><img src="assets/icons/subtitles.svg"><span>Behaviour</span></div><div class="nav-item"id="Customization"><img src="assets/icons/palette.svg"><span>Appearance</span></div><div class="nav-item"id="SRS"><img src="assets/icons/cards.svg"><span>Flashcards</span></div><div class="nav-item"id="Reader"><img src="assets/icons/book.svg"><span>Reader</span></div><div class="nav-item"id="Stats"><img src="assets/icons/stats.svg"><span>Stats</span></div><div class="nav-item"id="About"><img src="assets/icons/document.svg"><span>About</span></div></div><div class="settingsMenuContent"><div class="preview"data-show="Customization"><div class="subtitles"><span class="subtitle_word SUB_W_COL_1">A</span><span class="subtitle_word SUB_W_COL_2">a</span><span class="subtitle_word SUB_W_COL_1">あア</span><span class="subtitle_word SUB_W_COL_2">億</span><span class="subtitle_word SUB_W_COL_1">ыЦ</span><span class="subtitle_word SUB_W_COL_2">è</span></div></div><div class="_1"></div><div class="_2"></div><div class="about"style="display:none"><span id="version-number">PLACEHOLDER</span><br>Developed by <a id="contact">Adrian Vlasov</a><br>Contact: admin@morisinc.net<br><a id="licenses">Licenses</a></div><div class="stats-widget"style="display:none"><canvas id="exam-stats"></canvas><div class="adjust-words"><span>Adjust word known status </span><div class="button"><span style="height:1em">Edit database</span></div></div><canvas id="learned-words-pie-chart"></canvas></div></div><div class="fullscreen-load">Loading...</div>`;
 let isSettingsWindowOpen = false;
 let mustRestart = false;
 let APP_VERSION = "";
@@ -154,6 +154,7 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         $('._1', new_document).append($(`<label for="subtitle_font_weight">Subtitle Font Weight </label>`));
         $('._1', new_document).append($(`<label for="pitch_accent">Pitch Accent </label>`));
         $('._1', new_document).append($(`<label for="devMode">Developer Mode  </label>`));
+        $('._1', new_document).append($(`<label for="ocr_crop_padding">Flashcard Snapshot Crop Padding  </label>`));
         // $('._1', new_document).append($(`<label for="activate_license">Activate License </label>`));
 
         $('._2', new_document).append($(`<input type="number" id="known_ease_threshold" name="known_ease_threshold" value="${settings.known_ease_threshold}">`));
@@ -203,6 +204,7 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         $('._2', new_document).append($(`<input type="checkbox" id="pitch_accent" name="pitch_accent" ${settings.showPitchAccent ? 'checked' : ''}>`));
 
         $('._2', new_document).append($(`<input type="checkbox" id="devMode" name="devMode" ${settings.devMode ? 'checked' : ''}>`));
+        $('._2', new_document).append($(`<input type="number" id="ocr_crop_padding" name="ocr_crop_padding" value="${settings.ocr_crop_padding}">`));
         //disable fields
         for(let field of disabled_fields){
             $(`#${field}`,new_document).attr('disabled',true);
@@ -370,6 +372,8 @@ window.mLearnIPC.onOpenSettings((msg)=>{
             settings.createUnseenCards = $('#createUnseenCards',new_document).is(':checked');
 
             settings.devMode = $('#devMode',new_document).is(':checked');
+
+            settings.ocr_crop_padding = parseInt($('#ocr_crop_padding',new_document).val());
 
 
 

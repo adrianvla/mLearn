@@ -4,11 +4,10 @@
 import {settings, TRANSLATABLE, wordFreq} from "../settings/settings.js";
 import {getCards, getTranslation, sendRawToAnki, tokenise} from "../networking.js";
 import {blurWord, isNotAllKana, randomUUID, screenshotVideo, toUniqueIdentifier} from "../utils.js";
-import {addTranslationCard} from "../subtitler/liveWordTranslator.js";
 import {makeFlashcard} from "../flashcards/anki.js";
 import {addPills, resetWordUUIDs} from "../subtitler/pillHtml.js";
 import {changeKnownStatus, getKnownStatus, WORD_STATUS_KNOWN} from "../stats/saving.js";
-import {attemptFlashcardCreation, trackWordAppearance} from "../flashcards/storage.js";
+import {trackWordAppearance} from "../flashcards/storage.js";
 
 // Lightweight state containers (kept local to each render to avoid global collisions)
 function createLocalState() {
@@ -41,14 +40,14 @@ function updateHoverElHTML($hover, h, p){
     $hover.html(realHTML);
 }
 
-function hoverElState($hover, state, word, pos){
+function hoverElState($hover, state, word, pos, isOCR){
     switch(state){
         case "loading":
             $hover.html("Loading...");
             break;
         case "not_found":
             (async ()=>{
-                const pills = await addPills(word, pos);
+                const pills = await addPills(word, pos, false, !!isOCR);
                 updateHoverElHTML($hover, "No translation found", pills);
             })();
             break;
@@ -139,7 +138,7 @@ function addPitchAccentToEl($targetWordEl, accentData, word_in_letters, real_wor
 }
 
 async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $wordEl, $hoverEl, opts = {}){
-    const { disablePitchAccent = false } = opts || {};
+    const { disablePitchAccent = false, isOCR = false } = opts || {};
     const uuid = $wordEl.data('uuid');
     const $hover = $hoverEl;
 
@@ -155,7 +154,7 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
     }
     let hoverEl_html = "";
     // Always include pills in hover like subtitler.js; add Anki button only if enabled
-    let pill_html = await addPills(word, pos, !!settings.enable_flashcard_creation);
+    let pill_html = await addPills(word, pos, !!settings.enable_flashcard_creation, isOCR);
     let raw_flashcard_data = {example:"", front:word, pitch:"", definitions:"", image:""};
 
     translation_data.data.forEach((meaning)=>{
@@ -169,7 +168,7 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
 
     state.hasBeenLoadedDB[uuid] = true;
     if(translation_data.data.length === 0){
-        hoverElState($hover, "not_found", word, pos);
+    hoverElState($hover, "not_found", word, pos, isOCR);
         state.processingDB[uuid] = false;
         return;
     }
@@ -194,7 +193,7 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
             if(!response.error){ state.already_added[word] = true; }
         };
         // Regenerate pills to ensure Anki button presence (already true since enable is on)
-        pill_html = await addPills(word, pos, true);
+    pill_html = await addPills(word, pos, true, isOCR);
         updateHoverElHTML($hover, hoverEl_html, pill_html);
     }
 
@@ -214,6 +213,65 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
         const $w = $wordEl;
         let hover_left = -(calcW - $w.width())/2;
         $hover.css("left", `${hover_left}px`);
+        // Auto-flip logic: ensure hover stays within viewport. If it would
+        // overflow vertically, switch between using bottom and top. If it
+        // would overflow horizontally, switch between left and right.
+        const adjustHoverPosition = () => {
+            const node = $hover.get(0);
+            if(!node) return;
+            // Clear dynamic flips before measuring (except width & initial left)
+            // (We don't clear left here so we can detect overflow from baseline)
+            node.style.top = node.style.top; // no-op placeholder
+            const rect = node.getBoundingClientRect();
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const parentH = $w.outerHeight() || 0;
+
+            // Vertical flip
+            if(rect.top < 0){
+                // Would go above viewport, place below word
+                $hover.css({ bottom: '', top: `${parentH + 8}px` });
+            }else if(rect.bottom > vh){
+                // Would go below viewport, place above word (using bottom)
+                $hover.css({ top: '', bottom: `${parentH + 8}px` });
+            }else{
+                // Default above word if neither overflow (retain original bottom if previously set)
+                if(!node.style.top && !node.style.bottom){
+                    $hover.css({ bottom: `50px` });
+                }
+            }
+
+            // Recompute after possible vertical change for horizontal assessment
+            const rect2 = node.getBoundingClientRect();
+            // Horizontal flip
+            if(rect2.left < 0){
+                // Switch to right anchoring relative to parent
+                const rightVal = -(calcW - $w.width())/2; // symmetric to left calc
+                $hover.css({ left: '', right: `${rightVal}px` });
+            }else if(rect2.right > vw){
+                // Try shifting left first
+                const overshoot = rect2.right - vw;
+                const currentLeft = parseFloat($hover.css('left')) || 0;
+                if(currentLeft - overshoot - 10 >= 0){
+                    $hover.css('left', `${currentLeft - overshoot - 10}px`);
+                }else{
+                    const rightVal = -(calcW - $w.width())/2;
+                    $hover.css({ left: '', right: `${rightVal}px` });
+                }
+            }
+        };
+        // Run after layout tick & also on resize while visible
+        requestAnimationFrame(adjustHoverPosition);
+        const resizeHandler = () => { if($hover.hasClass('show-hover')) adjustHoverPosition(); };
+        window.addEventListener('resize', resizeHandler, { passive: true });
+        // Cleanup when hover element is removed
+        const obs = new MutationObserver(()=>{
+            if(!document.body.contains($hover.get(0))){
+                window.removeEventListener('resize', resizeHandler);
+                try{ obs.disconnect(); }catch(_e){}
+            }
+        });
+        try{ obs.observe(document.body, { childList: true, subtree: true }); }catch(_e){}
     });
 
     state.processingDB[uuid] = false;
@@ -226,6 +284,7 @@ export async function attachInteractiveText($container, text, options = {}){
         disableThemeClasses = false,
         forceHoverHorizontal = false,
         disablePitchAccent = false,
+        isOCR = false,
     } = options || {};
     // Render interactive tokens into provided jQuery container
     if(!$container || $container.length === 0) return;
@@ -252,12 +311,10 @@ export async function attachInteractiveText($container, text, options = {}){
                 );
             }
         }
-        // Await all translation fetches (even if some fail they resolve with empty data)
         if(toPrefetch.length) await Promise.all(toPrefetch);
     } catch(_e){ /* best effort prefetch */ }
 
     const state = createLocalState();
-    // Optional reset for pills ID mapping
     try{ resetWordUUIDs(); }catch(_e){}
 
     for(let i = 0; i < tokens.length; i++){
@@ -267,44 +324,32 @@ export async function attachInteractiveText($container, text, options = {}){
         const real_word = token.word;
         const pos = token.type;
         const uuid = randomUUID();
-
         const $wordEl = $(`<span class="subtitle_word word_${uuid}">${real_word}</span>`);
         $wordEl.attr("grammar", pos);
         $wordEl.attr("data-uuid", uuid);
-        // POS coloring
         if(!disableColor){
             if(settings.do_colour_codes && settings.colour_codes[pos]){
                 $wordEl.css("color", settings.colour_codes[pos]);
             }
         }
-
-        // Hover container
-    const themeClass = disableThemeClasses ? '' : (settings.dark_mode ? 'dark' : '');
-    const $hoverEl = $(`<div class="subtitle_hover hover_${uuid} ${themeClass}"></div>`);
+        const themeClass = disableThemeClasses ? '' : (settings.dark_mode ? 'dark' : '');
+        const $hoverEl = $(`<div class="subtitle_hover hover_${uuid} ${themeClass}"></div>`);
         if(forceHoverHorizontal){
-            try{
-                $hoverEl.css({ writingMode: 'horizontal-tb', textOrientation: 'mixed' });
-            }catch(_e){ /* ignore */ }
+            try{ $hoverEl.css({ writingMode: 'horizontal-tb', textOrientation: 'mixed' }); }catch(_e){}
         }
         updateHoverElHTML($hoverEl, "", "");
-
-        // Determine known/Anki and behavior similar to subtitler
         let card_data = {};
-        let showDetails = false;
         if(TRANSLATABLE.includes(pos)){
+            let showDetails = false;
             if(settings.use_anki){
                 try{ card_data = await getCards(word); }catch(_e){ card_data.poor = true; }
-            }else{
-                card_data.poor = true;
-            }
+            }else{ card_data.poor = true; }
             const isWordKnown = (await getKnownStatus(word)) === WORD_STATUS_KNOWN;
             if(card_data.poor){
-                showDetails = true;
                 $wordEl.attr("known", isWordKnown ? "true" : "false");
                 trackWordAppearance(word);
-                // lazy hover fetch
                 $wordEl.addClass("has-hover").append($hoverEl);
-                hoverElState($hoverEl, "loading", word, pos);
+                hoverElState($hoverEl, "loading", word, pos, isOCR);
                 state.hasBeenLoadedDB[uuid] = false;
                 state.processingDB[uuid] = false;
                 const delayHide = () => setTimeout(()=>{
@@ -314,7 +359,7 @@ export async function attachInteractiveText($container, text, options = {}){
                 }, 300);
                 $wordEl.hover(()=>{
                     $hoverEl.addClass('show-hover');
-                    buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent });
+                    buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR });
                 }, ()=>{ delayHide(); });
             }else{
                 const current_card = card_data.cards?.[0];
@@ -323,10 +368,10 @@ export async function attachInteractiveText($container, text, options = {}){
                     // Treat as unknown and show translation
                     $wordEl.addClass("has-hover").append($hoverEl);
                     $wordEl.attr("known","false");
-                    hoverElState($hoverEl, "loading", word, pos);
+                    hoverElState($hoverEl, "loading", word, pos, isOCR);
                     $wordEl.hover(()=>{
                         $hoverEl.addClass('show-hover');
-                        buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent });
+                        buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR });
                     }, ()=>{ $hoverEl.removeClass('show-hover'); });
                 }else{
                     $wordEl.attr("known","true");
@@ -336,17 +381,13 @@ export async function attachInteractiveText($container, text, options = {}){
                         $wordEl.addClass("has-hover").append($hoverEl);
                         $wordEl.hover(()=>{
                             $hoverEl.addClass('show-hover');
-                            buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent });
+                            buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR });
                         }, ()=>{ $hoverEl.removeClass('show-hover'); });
                     }
                 }
             }
         }
-
-        // frequency stars and append
-        if(!disableFrequency){
-            $wordEl.append($(addFrequencyStars(word)));
-        }
+        if(!disableFrequency){ $wordEl.append($(addFrequencyStars(word))); }
         $container.append($wordEl);
     }
 }

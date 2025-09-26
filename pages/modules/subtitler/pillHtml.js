@@ -96,8 +96,8 @@ const addAnkiPillHTML = (uuid) => {
     <span>Anki</span>
 </div>`;
 };
-const addToFlashcardsPillHTML = (uuid) => {
-    return `<div class="pill pill-btn blue" onclick='clickAddToFlashcards(this, "${uuid}");' id="add-to-srs-pill-${uuid}">
+const addToFlashcardsPillHTML = (uuid, isOCR = false) => {
+    return `<div class="pill pill-btn blue" onclick='clickAddToFlashcards(this, "${uuid}", ${isOCR ? 'true' : 'false'});' id="add-to-srs-pill-${uuid}" data-ocr="${isOCR}">
     <span class="icon">
         <img src="assets/icons/cross2.svg" alt="" style="transform: rotate(45deg);">
     </span>
@@ -187,7 +187,7 @@ const addEasePill = async (word) => {
     return easePillHTML(easeVal !== undefined ? (Math.round(easeVal*100)/100) : "?");
 };
 
-const addPills = async (word,pos, addAnkiBtn = false)=>{
+const addPills = async (word,pos, addAnkiBtn = false, isOCR = false)=>{
     //check if word is in wordFreq
     let s = `<div class="footer"><div class="pills">`;
     if(word in wordFreq){
@@ -213,7 +213,7 @@ const addPills = async (word,pos, addAnkiBtn = false)=>{
     }else{
         if(addAnkiBtn)
             s += addAnkiPillHTML(uuid);
-        s+=addToFlashcardsPillHTML(uuid);
+        s+=addToFlashcardsPillHTML(uuid, isOCR);
     }
 
 
@@ -233,10 +233,22 @@ window.changeKnownBtnStatus = changeKnownBtnStatus;
 
 // Create a flashcard immediately with the same content shape used when calling attemptFlashcardCreation in subtitler.js
 async function clickAddToFlashcards(...args){
-    // Signatures: (el, uuid) OR (uuid)
-    let el = null, uuid = null;
-    if(args.length === 2){
-        [el, uuid] = args;
+    // Signatures: (el, uuid, isOCR) OR (uuid) OR (uuid, isOCR)
+    let el = null, uuid = null, isOCR = false;
+    if(args.length === 3){
+        [el, uuid, isOCR] = args;
+    }else if(args.length === 2){
+        // Could be (el, uuid) or (uuid, isOCR) depending on first arg type
+        if(typeof args[0] === 'string' && typeof args[1] !== 'string'){
+            // unlikely pattern; treat as (uuid, isOCR)
+            [uuid, isOCR] = args;
+        }else if(typeof args[0] === 'string'){
+            [uuid] = args;
+        }else if(typeof args[1] === 'string'){
+            [el, uuid] = args;
+        }else{
+            [el, uuid] = args; // fallback
+        }
     }else if(args.length === 1){
         [uuid] = args;
     }else{
@@ -258,17 +270,86 @@ async function clickAddToFlashcards(...args){
         if(!translation_data?.data || translation_data.data.length === 0) return;
         // Build example HTML snapshot similar to subtitler's cardNotFound
         let exampleHtml = "-";
-        try{
-            const $iframe = window.$ && window.$("iframe");
-            if($iframe && $iframe.length){
-                const body = $iframe[0].contentWindow.document.body;
-                body.innerHTML = window.$(".subtitles").html();
-                $iframe.contents().find(".subtitle_hover").remove();
-                $iframe.contents().find(`.subtitle_word.word_${uuid}`).addClass("defined");
-                exampleHtml = body.innerHTML || "-";
-                body.innerHTML = "";
+        let screenshot = screenshotVideo();
+        if(isOCR){
+            try{
+                // OCR context: crop from the corresponding page image instead of video.
+                const boxEl = el && el.closest ? el.closest('.recognized-text') : null;
+                console.log("clickAddToFlashcards: boxEl", boxEl);
+                const targetBox = boxEl || (el && el.matches && el.matches('.recognized-text') ? el : null);
+                console.log("clickAddToFlashcards: targetBox", targetBox);
+                // Determine which page side contains the box (.page-left or .page-right)
+                let pageContainer = null;
+                if(targetBox){
+                    const left = targetBox.closest('.page-left');
+                    const right = targetBox.closest('.page-right');
+                    pageContainer = left || right || null;
+                }
+                console.log("clickAddToFlashcards: pageContainer", pageContainer);
+                // Find the <img> inside that page
+                const pageImg = pageContainer ? pageContainer.querySelector('img') : null;
+                console.log("clickAddToFlashcards: pageImg", pageImg);
+                if(targetBox && pageImg && pageImg.naturalWidth && pageImg.naturalHeight){
+                    const imgRect = pageImg.getBoundingClientRect();
+                    const boxRect = targetBox.getBoundingClientRect();
+                    // Padding neighborhood
+                    const pad = settings.ocr_crop_padding || 200;
+                    const sxDom = boxRect.left - pad;
+                    const syDom = boxRect.top - pad;
+                    const swDom = boxRect.width + pad*2;
+                    const shDom = boxRect.height + pad*2;
+                    // Clamp within the image's displayed rect
+                    const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
+                    const visLeft = clamp(sxDom, imgRect.left, imgRect.right);
+                    const visTop = clamp(syDom, imgRect.top, imgRect.bottom);
+                    const visRight = clamp(sxDom + swDom, imgRect.left, imgRect.right);
+                    const visBottom = clamp(syDom + shDom, imgRect.top, imgRect.bottom);
+                    const visW = Math.max(1, visRight - visLeft);
+                    const visH = Math.max(1, visBottom - visTop);
+                    // Map DOM coordinates to intrinsic image pixels
+                    const scaleX = pageImg.naturalWidth / Math.max(1, imgRect.width);
+                    const scaleY = pageImg.naturalHeight / Math.max(1, imgRect.height);
+                    const srcX = (visLeft - imgRect.left) * scaleX;
+                    const srcY = (visTop - imgRect.top) * scaleY;
+                    const srcW = visW * scaleX;
+                    const srcH = visH * scaleY;
+                    // Prepare canvas
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.min(4096, Math.max(1, Math.floor(srcW)));
+                    canvas.height = Math.min(4096, Math.max(1, Math.floor(srcH)));
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(pageImg, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+                    // Highlight original box relative to crop
+                    ctx.save();
+                    ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
+                    ctx.lineWidth = 6;
+                    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                    ctx.shadowBlur = 8;
+                    const boxRelX = (boxRect.left - visLeft) * (canvas.width / visW);
+                    const boxRelY = (boxRect.top - visTop) * (canvas.height / visH);
+                    const boxRelW = boxRect.width * (canvas.width / visW);
+                    const boxRelH = boxRect.height * (canvas.height / visH);
+                    ctx.strokeRect(boxRelX, boxRelY, boxRelW, boxRelH);
+                    ctx.restore();
+                    screenshot = canvas.toDataURL('image/jpeg',0.5);
+                }
+            }catch(e){
+                console.warn('OCR page image crop failed, leaving default screenshot placeholder', e);
             }
-        }catch(_e){ /* ignore snapshot issues */ }
+        }else{
+            try{
+                const $iframe = window.$ && window.$('iframe');
+                if($iframe && $iframe.length){
+                    const bodyEl = $iframe[0].contentWindow.document.body;
+                    bodyEl.innerHTML = window.$('.subtitles').html();
+                    $iframe.contents().find('.subtitle_hover').remove();
+                    $iframe.contents().find(`.subtitle_word.word_${uuid}`).addClass('defined');
+                    exampleHtml = bodyEl.innerHTML || '-';
+                    bodyEl.innerHTML = '';
+                }
+            }catch(_e){ /* ignore snapshot issues */ }
+        }
+        // console.log(screenshot);
         const content = {
             word: word,
             pitchAccent: translation_data.data?.[2]?.[2]?.pitches?.[0]?.position,
@@ -277,7 +358,7 @@ async function clickAddToFlashcards(...args){
             definition: translation_data.data?.[1]?.definitions,
             example: exampleHtml,
             exampleMeaning: "",
-            screenshotUrl: screenshotVideo(),
+            screenshotUrl: screenshot,
             pos: pos,
             level: (word in wordFreq ? (wordFreq[word]?.raw_level ?? -1) : -1),
         };
