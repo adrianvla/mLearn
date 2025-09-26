@@ -44,11 +44,28 @@ function getEaseByWord(){
     return easeByWordRef;
 }
 
+// Cross-window resolver: attempts to locate the element in the current window first,
+// then in any known reader window (opened via window.open) if bridged.
+function findElementByIdAnyWindow(id){
+    let el = null;
+    try{ el = document.getElementById(id); }catch(_e){}
+    if(el) return el;
+    try{
+        // If this is the main window, attempt to access the reader window reference (if stored globally)
+        if(window.readerWindow && !window.readerWindow.closed){
+            try{ el = window.readerWindow.document.getElementById(id); }catch(_e){}
+            if(el) return el;
+        }
+    }catch(_e){}
+    // Fallback: scan open child windows tracked in a simple list (future extension)
+    return el;
+}
+
 function resetWordUUIDs() {
     wordUUIDs = {};
 }
 const unknownStatusPillHTML = (uuid) => {
-    return `<div class="pill pill-btn red" onclick='changeKnownBtnStatus("${uuid}", 1);' id="status-pill-${uuid}">
+    return `<div class="pill pill-btn red" onclick='changeKnownBtnStatus(this, "${uuid}", 1);' id="status-pill-${uuid}">
     <span class="icon">
         <img src="assets/icons/cross2.svg" alt="">
     </span>
@@ -56,7 +73,7 @@ const unknownStatusPillHTML = (uuid) => {
 </div>`;
 };
 const learningStatusPillHTML = (uuid) => {
-    return `<div class="pill pill-btn orange" onclick='changeKnownBtnStatus("${uuid}", 2);' id="status-pill-${uuid}">
+    return `<div class="pill pill-btn orange" onclick='changeKnownBtnStatus(this, "${uuid}", 2);' id="status-pill-${uuid}">
     <span class="icon">
         <img src="assets/icons/check.svg" alt="">
     </span>
@@ -64,7 +81,7 @@ const learningStatusPillHTML = (uuid) => {
 </div>`;
 };
 const knownStatusPillHTML = (uuid) => {
-    return `<div class="pill pill-btn green" onclick='changeKnownBtnStatus("${uuid}", 0);' id="status-pill-${uuid}">
+    return `<div class="pill pill-btn green" onclick='changeKnownBtnStatus(this, "${uuid}", 0);' id="status-pill-${uuid}">
     <span class="icon">
         <img src="assets/icons/check.svg" alt="">
     </span>
@@ -80,7 +97,7 @@ const addAnkiPillHTML = (uuid) => {
 </div>`;
 };
 const addToFlashcardsPillHTML = (uuid) => {
-    return `<div class="pill pill-btn blue" onclick='clickAddToFlashcards("${uuid}");' id="add-to-srs-pill-${uuid}">
+    return `<div class="pill pill-btn blue" onclick='clickAddToFlashcards(this, "${uuid}");' id="add-to-srs-pill-${uuid}">
     <span class="icon">
         <img src="assets/icons/cross2.svg" alt="" style="transform: rotate(45deg);">
     </span>
@@ -113,13 +130,49 @@ const generateStatusPillHTML = async (word, status) => {
     return "";
 };
 
-const changeKnownBtnStatus = async (uuid, status) => {
-    const id = `status-pill-${uuid}`;
-    const el = document.getElementById(id);
-    const word = wordUUIDs[uuid];
-    el.outerHTML = await generateStatusPillHTML(word, status);
-    console.log("Changed status of word: "+word+" to "+status);
-    changeKnownStatus(word, status);
+const changeKnownBtnStatus = async (...args) => {
+    // Support signatures: (el, uuid, status) OR (uuid, status)
+    let el = null, uuid = null, status = null;
+    if(args.length === 3){
+        [el, uuid, status] = args;
+    }else if(args.length === 2){
+        [uuid, status] = args;
+    }else{
+        console.warn("changeKnownBtnStatus called with unexpected args", args);
+        return;
+    }
+    if(!uuid){
+        console.warn("changeKnownBtnStatus missing uuid", args);
+        return;
+    }
+    if(el == null){
+        const id = `status-pill-${uuid}`;
+        el = findElementByIdAnyWindow(id);
+    }
+    if(!el){
+        console.warn("changeKnownBtnStatus: element not found for uuid", uuid);
+        return;
+    }
+    try{
+        const word = wordUUIDs[uuid];
+        if(!word){
+            console.warn("changeKnownBtnStatus: word not found for uuid", uuid);
+            return;
+        }
+        const newHTML = await generateStatusPillHTML(word, status);
+        // Replace carefully: if outerHTML not available (should be), fallback to manual replace
+        if(typeof el.outerHTML === 'string'){
+            el.outerHTML = newHTML;
+        }else if(el.parentNode){
+            const temp = document.createElement('div');
+            temp.innerHTML = newHTML;
+            el.parentNode.replaceChild(temp.firstElementChild, el);
+        }
+        console.log("Changed status of word:", word, "to", status);
+        changeKnownStatus(word, status);
+    }catch(e){
+        console.error("changeKnownBtnStatus error", e);
+    }
 };
 
 
@@ -172,11 +225,31 @@ const clickAddFlashcardBtn = (uuid) =>{
     console.log("clickAddFlashcardBtn",uuid);
     flashcardFunctions[uuid]();
 };
+// Namespace support for multi-window usage
+if(!window.mLearnPills) window.mLearnPills = {};
+window.mLearnPills.changeKnownBtnStatus = changeKnownBtnStatus;
+// Keep legacy global for existing inline handlers
 window.changeKnownBtnStatus = changeKnownBtnStatus;
 
 // Create a flashcard immediately with the same content shape used when calling attemptFlashcardCreation in subtitler.js
-async function clickAddToFlashcards(uuid){
-    const this_ = document.getElementById(`add-to-srs-pill-${uuid}`);
+async function clickAddToFlashcards(...args){
+    // Signatures: (el, uuid) OR (uuid)
+    let el = null, uuid = null;
+    if(args.length === 2){
+        [el, uuid] = args;
+    }else if(args.length === 1){
+        [uuid] = args;
+    }else{
+        console.warn("clickAddToFlashcards called with unexpected args", args);
+        return;
+    }
+    if(!uuid){
+        console.warn("clickAddToFlashcards missing uuid", args);
+        return;
+    }
+    if(el == null){
+        el = findElementByIdAnyWindow(`add-to-srs-pill-${uuid}`);
+    }
     try{
         const word = wordUUIDs[uuid];
         if(!word) return;
@@ -216,14 +289,19 @@ async function clickAddToFlashcards(uuid){
     try{ getSrsMap()[await toUniqueIdentifier(word)] = true; }catch(_e){}
     try{ getEaseByWord()[word] = newEase; }catch(_e){}
 
-        this_.insertAdjacentHTML('afterend',await addEasePill(word));
-        this_.outerHTML = checkMarkFlashcardPillHTML();
+        if(!el){
+            console.warn("clickAddToFlashcards: element not found for uuid", uuid);
+        }else{
+            try{ el.insertAdjacentHTML('afterend', await addEasePill(word)); }catch(_e){/* ignore */}
+            try{ el.outerHTML = checkMarkFlashcardPillHTML(); }catch(_e){/* ignore */}
+        }
         console.log(`Created SRS flashcard for word: ${word}`);
     }catch(e){
         console.error("Failed to add SRS flashcard:", e);
     }
 }
-window.clickAddToFlashcards = clickAddToFlashcards;
+window.mLearnPills.clickAddToFlashcards = clickAddToFlashcards;
+window.clickAddToFlashcards = clickAddToFlashcards; // legacy
 
 window.mLearnIPC.onUpdatePills((message)=>{
     const u = JSON.parse(message);
@@ -233,5 +311,9 @@ window.mLearnIPC.onUpdatePills((message)=>{
     });
     saveKnownAdjustment();
 });
+
+// Export additional helper for reader window if needed
+window.mLearnPills.clickAddFlashcardBtn = clickAddFlashcardBtn;
+window.clickAddFlashcardBtn = clickAddFlashcardBtn; // legacy
 
 export {unknownStatusPillHTML, changeKnownStatusButtonHTML, generateStatusPillHTML, addAnkiPillHTML, changeKnownBtnStatus, knownStatusPillHTML, learningStatusPillHTML, addPills, resetWordUUIDs};

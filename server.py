@@ -778,7 +778,8 @@ async def ocr_endpoint(
         if paddle is None:
             raise HTTPException(status_code=500, detail="PaddleOCR not available")
         _log_ocr_run(f"Paddle handle ready in {t1 - t0:.2f}s")
-        _log_ocr_run(f"OCR requested for language {LANGUAGE}")
+        # _log_ocr_run(f"OCR requested for language {LANGUAGE}")
+        _log_ocr_run(f"Working...")
 
         results: list[OcrBox] = []
 

@@ -180,6 +180,10 @@ body.reader .status-bar h2{
 .main-content .main-page .page-left, .main-content .main-page .page-right{
     position:relative;
     overflow:visible;
+    z-index:3;
+}
+.main-content .main-page .page-left:hover, .main-content .main-page .page-right:hover{
+    z-index:4 !important;
 }
 .main-content .main-page .page-left img{
     border-top-left-radius:32px;
@@ -313,6 +317,10 @@ body.reader .pill .icon{
     height:20px !important;
 }
 body.reader .subtitle_hover{
-    min-width:max-content;
-    max-width:500px;
+    min-width:600px;
+    max-width:800px;
+}
+
+body.reader .subtitle_hover .footer{
+    width:100%;
 }
