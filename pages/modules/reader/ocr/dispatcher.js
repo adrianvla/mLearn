@@ -10,12 +10,29 @@ const pending = new Map(); // key -> { promise, resolve, reject }
 
 export const setDocument = (d) => (doc = d);
 
-const setOCRStatus = (s) => {
+const setOCRStatus = s => {
     if (!doc) return;
-    if(s === "Ready") $(".progress-container",doc).addClass("dn");
-    else $(".progress-container",doc).removeClass("dn");
+    if(s === "Ready") $(".progress-container, .ocr-response",doc).addClass("dn");
+    else $(".progress-container, .ocr-response",doc).removeClass("dn");
     $(".ocr-status", doc).text(s);
 };
+
+const setOCRResponse = s => {
+    if (!doc) return;
+    $(".ocr-response", doc).text(s);
+};
+
+// Hook into IPC OCR status updates (if running inside Electron preload context)
+try {
+    if(window.mLearnIPC && typeof window.mLearnIPC.onOcrStatusUpdate === 'function'){
+        window.mLearnIPC.onOcrStatusUpdate((message)=>{
+            // Update transient OCR response text without changing status label unless needed
+            setOCRResponse(message);
+        });
+    }
+} catch(e){
+    console.warn('Failed attaching OCR status IPC listener', e);
+}
 
 const waitNms = (n) => new Promise((resolve) => setTimeout(resolve, n));
 

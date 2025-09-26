@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('mLearnIPC', {
     onServerLoad: (callback) => ipcRenderer.on('server-load', (event, message) => callback(message)),
     onServerStatusUpdate: (callback) => ipcRenderer.on('server-status-update', (event, message) => callback(message)),
     onServerCriticalError: (callback) => ipcRenderer.on('server-critical-error', (event, message) => callback(message)),
+    onOcrStatusUpdate: (callback) => ipcRenderer.on('ocr-status-update', (event, message) => callback(message)),
     onOpenSettings: (callback) => ipcRenderer.on('show-settings', (event, message) => callback(message)),
     onOpenAside: (callback) => ipcRenderer.on('show-aside', (event, message) => callback(message)),
     onContextMenuCommand: (callback) => ipcRenderer.on('ctx-menu-command', (event, message) => callback(message)),
