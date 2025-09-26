@@ -21,6 +21,10 @@ function createLocalState() {
     };
 }
 
+// Preloaded translation cache so that attachInteractiveText can wait for getTranslation calls to finish.
+// Key: word (actual_word); Value: translation_data returned by getTranslation.
+const translationPreloadCache = {};
+
 function addFrequencyStars(word){
     if(word in wordFreq){
         let level = wordFreq[word].raw_level;
@@ -143,7 +147,12 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
     if(state.processingDB[uuid] || state.hasBeenLoadedDB[uuid]) return;
     state.processingDB[uuid] = true;
 
-    let translation_data = await getTranslation(word);
+    // Use preloaded translation if available, otherwise fetch now (and cache).
+    let translation_data = translationPreloadCache[word];
+    if(!translation_data){
+        try{ translation_data = await getTranslation(word); translationPreloadCache[word] = translation_data; }
+        catch(_e){ translation_data = { data: [] }; }
+    }
     let hoverEl_html = "";
     // Always include pills in hover like subtitler.js; add Anki button only if enabled
     let pill_html = await addPills(word, pos, !!settings.enable_flashcard_creation);
@@ -222,9 +231,30 @@ export async function attachInteractiveText($container, text, options = {}){
     if(!$container || $container.length === 0) return;
     $container.empty();
 
-    // tokenise string
+    // tokenise string (await tokenizer readiness)
     let tokens;
     try{ tokens = await tokenise(text); }catch(_e){ tokens = [{actual_word: text, word: text, type: '名詞'}]; }
+
+    // Preload translations for all translatable tokens before proceeding so caller waits until ready.
+    try {
+        const toPrefetch = [];
+        const seen = new Set();
+        for(const t of tokens){
+            if(!t || !t.actual_word) continue;
+            if(!TRANSLATABLE.includes(t.type)) continue;
+            if(seen.has(t.actual_word)) continue;
+            seen.add(t.actual_word);
+            if(!translationPreloadCache[t.actual_word]){
+                toPrefetch.push(
+                    getTranslation(t.actual_word)
+                        .then(data => { translationPreloadCache[t.actual_word] = data; })
+                        .catch(()=>{ translationPreloadCache[t.actual_word] = { data: [] }; })
+                );
+            }
+        }
+        // Await all translation fetches (even if some fail they resolve with empty data)
+        if(toPrefetch.length) await Promise.all(toPrefetch);
+    } catch(_e){ /* best effort prefetch */ }
 
     const state = createLocalState();
     // Optional reset for pills ID mapping
