@@ -546,6 +546,10 @@ body.dark .subtitle_hover .footer{
     background-color: rgb(255, 223, 239);
     box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
     z-index:1;
+    position:relative;
+    top:unset;
+    left:unset;
+    bottom:unset;
 }
 .subtitle_hover .pill .icon,.contains_pills .pill .icon{
     width:max-content;
@@ -1866,7 +1870,7 @@ body.dark .ml-modal-overlay .ml-modal input,body.dark .ml-modal-overlay .ml-moda
     color:#eee;
 }
 .edit-translation-btn{
-    position:absolute;
+    position:absolute !important;
     right:16px;
 }
 

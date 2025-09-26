@@ -769,7 +769,7 @@ async def ocr_endpoint(
         np_img = np.array(image, dtype=np.uint8)
         if not np_img.flags['C_CONTIGUOUS']:
             np_img = np.ascontiguousarray(np_img)
-        _log_ocr_run("Image numpy shape", np_img.shape, "dtype", str(np_img.dtype), "contiguous", np_img.flags['C_CONTIGUOUS'])
+        # _log_ocr_run("Image numpy shape", np_img.shape, "dtype", str(np_img.dtype), "contiguous", np_img.flags['C_CONTIGUOUS'])
 
         # Init paddle
         t0 = time.perf_counter()
@@ -822,8 +822,8 @@ async def ocr_endpoint(
                     crop = _crop_by_box(image, pts)
                     try:
                         txt = mocr(crop) or ''
-                        if i % 10 == 0:
-                            _log_ocr_run(f"MangaOCR progress {i+1}/{len(initial_boxes)}")
+                        # if i % 10 == 0:
+                        _log_ocr_run(f"MangaOCR progress {i+1}/{len(initial_boxes)}")
                     except Exception as e:
                         _log_ocr_run(f"MangaOCR error box {i+1}", e)
                         txt = ''

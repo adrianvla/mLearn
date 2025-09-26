@@ -16,139 +16,85 @@ const lookupStatus = {
     2: "Learned"
 };
 
-// Initialize time watched from settings
+// Time tracking functions (restored)
 const initTimeWatched = () => {
     timeWatched = settings.timeWatched || 0;
 };
-
-// Start tracking time watched
 const startTimeTracking = () => {
     if (!isTracking && video && !video.paused) {
         isTracking = true;
         lastUpdateTime = Date.now();
     }
 };
-
-// Stop tracking time watched
 const stopTimeTracking = () => {
     if (isTracking) {
         updateTimeWatched();
         isTracking = false;
     }
 };
-
-// Update time watched and save to settings
 const updateTimeWatched = () => {
     if (isTracking && lastUpdateTime > 0) {
         const currentTime = Date.now();
-        const elapsed = Math.floor((currentTime - lastUpdateTime) / 1000); // Convert to seconds
+        const elapsed = Math.floor((currentTime - lastUpdateTime) / 1000);
         timeWatched += elapsed;
         settings.timeWatched = timeWatched;
-        // console.log(`%cTime watched updated: ${timeWatched} seconds`, "color: green; font-weight: bold;");
         saveSettings();
         lastUpdateTime = currentTime;
     }
 };
-
-// Get time watched in seconds
-const getTimeWatchedSeconds = () => {
-    return timeWatched;
-};
-
+const getTimeWatchedSeconds = () => timeWatched;
 const setTimeWatchedSeconds = (seconds) => {
     if (typeof seconds === 'number' && seconds >= 0) {
         timeWatched = seconds;
         settings.timeWatched = timeWatched;
         saveSettings();
     } else {
-        console.error("Invalid seconds value:", seconds);
+        console.error('Invalid seconds value:', seconds);
     }
-}
+};
 window.setTimeWatchedSeconds = setTimeWatchedSeconds;
-
-// Format time watched in English (e.g., "2 days 3 hours 45 minutes 12 seconds")
 const getTimeWatchedFormatted = () => {
     const totalSeconds = timeWatched;
-
-    if (totalSeconds === 0) {
-        return "0 seconds";
-    }
-
+    if (totalSeconds === 0) return '0 seconds';
     const days = Math.floor(totalSeconds / (24 * 60 * 60));
     const hours = Math.floor((totalSeconds % (24 * 60 * 60)) / (60 * 60));
     const minutes = Math.floor((totalSeconds % (60 * 60)) / 60);
     const seconds = Math.floor(totalSeconds % 60);
-
-    const parts = ["Time watched:"];
-
-    if (days > 0) {
-        parts.push(`${days} day${days !== 1 ? 's' : ''}`);
-    }
-    if (hours > 0) {
-        parts.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
-    }
-    if (minutes > 0) {
-        parts.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
-    }
-    if (seconds > 0) {
-        parts.push(`${seconds} second${seconds !== 1 ? 's' : ''}`);
-    }
-
-    if (parts.length === 0) {
-        return "0 seconds";
-    }
-
+    const parts = ['Time watched:'];
+    if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+    if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+    if (minutes > 0) parts.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+    if (seconds > 0) parts.push(`${seconds} second${seconds !== 1 ? 's' : ''}`);
+    if (parts.length === 0) return '0 seconds';
     return parts.join('<br>');
 };
-
-// Set up video event listeners for automatic tracking
 const setupVideoTracking = () => {
     if (!video) return;
-
     video.addEventListener('play', startTimeTracking);
     video.addEventListener('pause', stopTimeTracking);
     video.addEventListener('ended', stopTimeTracking);
-
-    // Update time watched every 10 seconds while playing
-    setInterval(() => {
-        if (isTracking) {
-            updateTimeWatched();
-        }
-    }, 10000);
-
-    // Also update when page is about to unload
-    window.addEventListener('beforeunload', () => {
-        if (isTracking) {
-            updateTimeWatched();
-        }
-    });
+    setInterval(() => { if (isTracking) updateTimeWatched(); }, 10000);
+    window.addEventListener('beforeunload', () => { if (isTracking) updateTimeWatched(); });
 };
-
-// Initialize when settings are loaded
 if (typeof window !== 'undefined' && window.settings) {
     initTimeWatched();
     setupVideoTracking();
 } else {
-    // Wait for settings to be loaded
-    document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(() => {
-            initTimeWatched();
-            setupVideoTracking();
-        }, 100);
-    });
+    document.addEventListener('DOMContentLoaded', () => { setTimeout(() => { initTimeWatched(); setupVideoTracking(); }, 100); });
 }
+
+// getWordsLearnedInAppMoreInfo (restored)
 async function getWordsLearnedInAppMoreInfo(){
     let trackedWords = {};
     let trackingInfo = {};
     for(const uuid of Object.keys(getAllSRSTrackedWords())){
         trackedWords[uuid] = getSRSWordKnownStatusUUID(uuid);
-        trackingInfo[uuid] = "flashcards";
+        trackingInfo[uuid] = 'flashcards';
     }
     for(const word of Object.keys(knownAdjustment)){
         const uuid = await toUniqueIdentifier(word);
         trackedWords[uuid] = Math.max(knownAdjustment[word], trackedWords[uuid] || 0);
-        if(!(uuid in trackingInfo))
-            trackingInfo[uuid] = "user pills";
+        if(!(uuid in trackingInfo)) trackingInfo[uuid] = 'user pills';
     }
     return [trackedWords, trackingInfo];
 }
@@ -463,6 +409,7 @@ const WINDOW_HTML_ADJUSTER = `<!doctypehtml>
 <html lang="en">
 <meta charset="UTF-8">
 <title>Edit Word Knowledge Database</title>
+<link href="flashcard_style.css" rel="stylesheet">
 <link href="style.css" rel="stylesheet">
 <style>
 body {background: #000}
@@ -640,7 +587,8 @@ export async function adjustWordsByLevel(){
                     const $remove = $('<span class="pill pill-btn red" style="margin-left:16px;"><span class="icon">\n' +
                         '        <img src="assets/icons/cross2.svg" alt="">\n' +
                         '    </span><span>Remove Flashcard</span></span>');
-                    $trackerCell.append($remove);
+                    const $editFc = $('<span class="pill pill-btn gray edit-flashcard-btn" style="margin-left:8px;" title="Edit flashcard contents">Edit</span>');
+                    $trackerCell.append($remove).append($editFc);
                     $remove.on('click', async (ev)=>{
                         ev.stopPropagation();
                         const uuid = $row.attr('data-uuid');
@@ -656,6 +604,10 @@ export async function adjustWordsByLevel(){
                             $remove.removeClass('disabled').text('Failed');
                             setTimeout(()=>{ setTrackerUI('flashcards'); }, 1200);
                         }
+                    });
+                    $editFc.on('click', async (ev)=>{
+                        ev.stopPropagation();
+                        await openEditFlashcardDialog(word, $row.get(0));
                     });
                 } else {
                     const $add = $('<span class="pill pill-btn add-flashcard-btn blue" style="margin-left:16px;"><span class="icon">\n' +
@@ -760,7 +712,7 @@ export async function adjustWordsByLevel(){
 
                 <label>Pitch accent</label>
                 <div class="ml-pitch-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-                    <input id="ml-pitch" type="number" inputmode="numeric" min="0" value="${curPitch}" placeholder="0 (Heiban), 1, 2, 3…" style="flex:0 0 120px; padding:8px; border:1px solid ${settings.dark_mode? '#333':'#ccc'}; background:${settings.dark_mode? '#222':'#fff'}; color:inherit; border-radius:6px;">
+                    <input id="ml-pitch" type="number" inputmode="numeric" min="0" value="${curPitch}" placeholder="0 (Heiban), 1, 2, 3…">
                     <div id="ml-pitch-name" style="flex:1 1 auto;opacity:0.9;"></div>
                     <div id="ml-pitch-preview" style="flex:1 1 auto;text-align:right;min-height:24px;"></div>
                 </div>
@@ -791,8 +743,11 @@ export async function adjustWordsByLevel(){
         const close = ()=> overlay.remove();
         modal.querySelector('.ml-close')?.addEventListener('click', close);
         modal.querySelector('.ml-cancel')?.addEventListener('click', close);
-        overlay.addEventListener('click', (e)=>{ if(e.target === overlay) close(); });
 
+    // Close on clicking outside (overlay background)
+    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) close(); });
+    // Prevent overlay handler when clicking inside modal
+    modal.addEventListener('click', (e)=> e.stopPropagation());
         function pitchTypeName(p){
             if(p === null || p === undefined || Number.isNaN(p)) return '—';
             if(p === 0) return 'Heiban (平板)';
@@ -890,6 +845,257 @@ export async function adjustWordsByLevel(){
         });
     }
 
+    // Modal editor for full flashcard content (word-level SRS data) mirroring review.js editable fields
+    async function openEditFlashcardDialog(word, rowEl){
+        const doc = statsWindow.document;
+        const existing = doc.querySelector('.ml-modal-overlay');
+        if(existing) existing.remove();
+        const fs = Flashcards();
+        let cardIndex = -1;
+        let card = null;
+        if(Array.isArray(fs.flashcards)){
+            cardIndex = fs.flashcards.findIndex(fc => fc?.content?.word === word);
+            if(cardIndex !== -1) card = fs.flashcards[cardIndex];
+        }
+        const now = Date.now();
+        if(!card){
+            card = {
+                content:{
+                    word,
+                    pitchAccent: '',
+                    pronunciation: '',
+                    translation: [],
+                    definition: '',
+                    example: '',
+                    exampleMeaning: '',
+                    screenshotUrl: '',
+                    pos: '',
+                    level: (word in wordFreq ? (wordFreq[word]?.raw_level ?? -1) : -1)
+                },
+                dueDate: now,
+                lastReviewed: now,
+                lastUpdated: now,
+                ease: 2.5,
+                reviews: 0
+            };
+        }
+        const c = card.content;
+        const translationText = Array.isArray(c.translation) ? c.translation.join(', ') : (c.translation || '');
+        const intervalMs = card.dueDate - card.lastReviewed;
+        // Build level options for dropdown
+        const freqNames = (lang_data?.[settings.language]?.freq_level_names) || {};
+        let levelOptions = `<option value="-1" ${(-1 === Number(c.level)?'selected':'')}>None / -1</option>`;
+        const levelKeys = Object.keys(freqNames).map(k=>Number(k)).filter(n=>!Number.isNaN(n));
+        levelKeys.sort((a,b)=> b-a);
+        for(const k of levelKeys){
+            const label = freqNames[String(k)] || `Level ${k}`;
+            levelOptions += `<option value="${k}" ${(Number(c.level)===k)?'selected':''}>${label}</option>`;
+        }
+        if(c.level !== undefined && c.level !== null && ![-1, ...levelKeys].includes(Number(c.level))){
+            levelOptions += `<option value="${c.level}" selected>${c.level}</option>`;
+        }
+
+        const overlay = doc.createElement('div');
+        overlay.className = 'ml-modal-overlay';
+        const modal = doc.createElement('div');
+        modal.className = 'ml-modal';
+        modal.style.maxWidth = '760px';
+        modal.innerHTML = `
+            <div class="ml-modal-header">
+                <div style="font-size:16px;font-weight:600;">Edit flashcard – ${word}</div>
+                <button class="ml-close" style="background:transparent;border:0;color:inherit;font-size:18px;cursor:pointer;">×</button>
+            </div>
+            <div class="ml-modal-content" style="max-height:60vh;overflow:auto;display:flex;">
+                <div style="display:flex;flex-direction: column;gap:8px;width:100%;align-items: center">
+                    <div class="ml-modal-content" style="background:unset !important;box-shadow:unset !important; border:unset !important;max-height:unset !important; overflow:unset !important;width:100%">
+                        <label>Level </label>
+                        <select data-field="levelSelect" class="styled" style="margin:0">
+                            ${levelOptions}
+                        </select>
+                        <label>Pronunciation</label>
+                        <input type="text" data-field="pronunciationInput" value="${c.pronunciation || ''}" placeholder="reading" />
+                        <label>Pitch accent</label>
+                        <div class="ml-pitch-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+                            <input id="ml-pitch" data-field="pitchAccentInput" type="number" inputmode="numeric" min="0" value="${c.pitchAccent ?? ''}" placeholder="0 (Heiban), 1, 2, 3…" style="width:110px;"/>
+                            <div id="ml-pitch-name" data-field="pitchName" style="flex:1 1 auto;opacity:0.9;"></div>
+                            <div id="ml-pitch-preview" data-field="pitchPreview" style="flex:1 1 auto;text-align:right;min-height:24px;position:relative;">
+                                <span data-field="pronunciationPreview" style="position:relative;display:inline-block;font-size:16px;font-weight:500;">${c.pronunciation || ''}</span>
+                            </div>
+                        </div>
+                        <label>POS:</label>
+                        <input type="text" class="can-be-edited" data-field="pos" placeholder="Grammatical Class..." value="${c.pos || ''}"/>
+                    </div>
+                    <div class="card-c">
+                        <div class="card-item actual-words" style="margin-top:4px;">
+                            <h1 class="question" style="margin:4px 0;font-size:28px;" data-field="word">${c.word}</h1>
+                            <h1 class="answer can-be-edited" style="margin:4px 0;font-size:20px;white-space:pre-wrap;" data-field="translation" contenteditable="true">${translationText}</h1>
+                        </div>
+                        <div class="card-item">
+                            <div class="example">
+                                <div class="sentence can-be-edited" data-field="example" contenteditable="true">${c.example || '-'}</div>
+                                <div class="translation">
+                                    <p class="translation can-be-edited" data-field="exampleMeaning" contenteditable="true">${c.exampleMeaning || '-'}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="divider" style="margin:8px 0;border-top:1px solid ${settings.dark_mode? '#333':'#ddd'};"></div>
+                        <div class="card-item" style="display:flex;flex-direction:column;gap:8px;">
+                            <div>
+                                <div style="font-size:12px;opacity:0.7;margin-bottom:2px;">Definition (HTML allowed)</div>
+                                <div class="definition can-be-edited" style="min-height:60px;border:1px solid ${settings.dark_mode? '#333':'#ccc'};padding:4px;border-radius:4px;" data-field="definition" contenteditable="true">${c.definition || ''}</div>
+                            </div>
+                            <div style="min-width:220px;">
+                                <div class="card-item" style="padding:0;border:none;">
+                                    <img class="fc-screenshot" src="${c.screenshotUrl || ''}" alt="screenshot" style="max-width:100%;${c.screenshotUrl ? '' : 'display:none;'};border:1px solid ${settings.dark_mode? '#333':'#ccc'};border-radius:4px;" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ml-modal-content" style="background:unset !important;box-shadow:unset !important; border:unset !important;max-height:unset !important; overflow:unset !important;width:100%">
+                        <div style="font-weight:600;font-size:16px">Stats</div><span></span>
+                        <label>Ease:</label><span data-stat="ease">${card.ease}</span>
+                        <label>Reviews:</label><span data-stat="reviews">${card.reviews}</span>
+                        <label>Last reviewed:</label><span data-stat="lastReviewedAbs">${new Date(card.lastReviewed).toLocaleString()}</span>
+                        <label>Due date:</label><span><span data-stat="dueAbs">${new Date(card.dueDate).toLocaleString()}</span> (<span data-stat="dueRel"></span>)</span>
+                        <label>Interval:</label><span data-stat="interval">${intervalMs > 0 ? Math.round(intervalMs/1000/60/60/24*10)/10+'d' : '—'}</span>
+                    </div>
+                    <div style="font-size:11px;opacity:0.65;padding-bottom:16px">Translations: comma or newline separated. Pitch accent is mora drop position (0=heiban).</div>
+                </div>
+            </div>
+            <div class="ml-modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
+                <button class="ml-cancel" style="background:${settings.dark_mode? '#2a2b2f':'#f3f3f3'};color:inherit;border:1px solid ${settings.dark_mode? '#333':'#ddd'};border-radius:6px; padding:8px 12px;cursor:pointer;">Cancel</button>
+                <button class="ml-save" style="background:#673ab7;color:#fff;border:1px solid #4527a0;border-radius:6px; padding:8px 12px;cursor:pointer;">Save</button>
+            </div>
+        `;
+
+        function close(){
+            try{ overlay.remove(); }catch(_e){}
+        }
+        modal.querySelector('.ml-close')?.addEventListener('click', close);
+        modal.querySelector('.ml-cancel')?.addEventListener('click', close);
+
+        overlay.appendChild(modal);
+        doc.body.appendChild(overlay);
+
+        // Relative due updater
+        const dueRelEl = modal.querySelector('[data-stat="dueRel"]');
+        function rel(t){
+            const diff = t - Date.now();
+            if(diff <= 0) return 'due';
+            const m = 60*1000, h = 60*m, d = 24*h;
+            if(diff < m) return '<1m';
+            if(diff < h) return Math.round(diff/m)+'m';
+            if(diff < d) return Math.round(diff/h)+'h';
+            return Math.round(diff/d)+'d';
+        }
+        function tick(){ if(dueRelEl) dueRelEl.textContent = rel(card.dueDate); }
+        tick();
+        const relTimer = setInterval(tick, 60000);
+        overlay.addEventListener('remove', ()=> clearInterval(relTimer));
+
+        function extract(){
+            const get = f => modal.querySelector(`[data-field="${f}"]`);
+            const translationRaw = get('translation')?.textContent.trim() || '';
+            const translationArr = translationRaw.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
+            let levelVal = parseInt(modal.querySelector('[data-field="levelSelect"]')?.value || '-1');
+            if(!Number.isFinite(levelVal)) levelVal = -1;
+            const pitchValRaw = modal.querySelector('[data-field="pitchAccentInput"]')?.value.trim() || '';
+            const pitchParsed = pitchValRaw === '' ? undefined : Number(pitchValRaw);
+            const pronunciationVal = modal.querySelector('[data-field="pronunciationInput"]')?.value.trim() || '';
+            return {
+                word: c.word,
+                pitchAccent: (pitchParsed !== undefined && Number.isFinite(pitchParsed)) ? pitchParsed : undefined,
+                pronunciation: pronunciationVal,
+                translation: translationArr,
+                definition: modal.querySelector('[data-field="definition"]')?.innerHTML || '',
+                example: modal.querySelector('[data-field="example"]')?.innerHTML || '',
+                exampleMeaning: modal.querySelector('[data-field="exampleMeaning"]')?.innerHTML || '',
+                screenshotUrl: c.screenshotUrl || '', // preserved (no editing in dialog now)
+                pos: $(modal.querySelector('[data-field="pos"]')).val().trim() || '',
+                level: levelVal
+            };
+        }
+
+        modal.querySelector('.ml-save')?.addEventListener('click', async ()=>{
+            try{
+                const updatedContent = extract();
+                let updated = null;
+                if(cardIndex === -1){
+                    updated = {
+                        content: updatedContent,
+                        ease: card.ease,
+                        reviews: card.reviews,
+                        dueDate: card.dueDate,
+                        lastReviewed: card.lastReviewed,
+                        lastUpdated: Date.now()
+                    };
+                    fs.flashcards.push(updated);
+                    cardIndex = fs.flashcards.length - 1;
+                } else {
+                    fs.flashcards[cardIndex].content = updatedContent;
+                    fs.flashcards[cardIndex].lastUpdated = Date.now();
+                    updated = fs.flashcards[cardIndex];
+                }
+                await saveFlashcards();
+                const fullT2 = Array.isArray(updated.content.translation)? updated.content.translation.join(', ') : (updated.content.translation || '');
+                let short = fullT2 || '-';
+                if(short.length > 25) short = short.slice(0,25) + '...';
+                const levelVal2 = updated.content.level ?? (wordFreq[word]?.raw_level ?? -1);
+                const tracker = 'flashcards';
+                const status = parseInt(rowEl?.getAttribute('data-status') || '0');
+                await addEntry(word, short, levelVal2, tracker, status, false, rowEl, updated.content.pronunciation || null, fullT2, updated.content.pitchAccent ?? null);
+                close();
+            }catch(err){ statsWindow.alert('Failed to save flashcard: '+err); }
+        });
+
+        // Live pitch accent preview (applies ONLY to pronunciation preview span)
+        try{
+            const pitchInput = modal.querySelector('[data-field="pitchAccentInput"]');
+            const pronunciationInput = modal.querySelector('[data-field="pronunciationInput"]');
+            const pronunciationEl = modal.querySelector('[data-field="pronunciationPreview"]');
+            const pitchNameEl = modal.querySelector('[data-field="pitchName"]');
+            function accentName(reading, n){
+                if(n === null || n === undefined || Number.isNaN(n)) return '—';
+                if(n === 0) return 'Heiban (平板)';
+                if(n === 1) return 'Atamadaka (頭高)';
+                if(n === 2) return 'Nakadaka (中高)';
+                if(n === 3) return 'Odaka (尾高)';
+                if(typeof n === 'number' && Number.isFinite(n) && n >= 4) return `Drop after mora ${n}`;
+                return '—';
+            }
+            function refreshPitch(){
+                try{
+                    // Remove existing overlays inside pronunciation
+                    if(pronunciationEl){
+                        $(pronunciationEl).find('.mLearn-pitch-accent').remove();
+                    }
+                    // Update preview text from input
+                    if(pronunciationEl && pronunciationInput){
+                        pronunciationEl.textContent = pronunciationInput.value.trim();
+                    }
+                    const valRaw = pitchInput?.value.trim();
+                    const reading = pronunciationInput?.value.trim();
+                    const n = Number(valRaw);
+                    if(pitchNameEl){
+                        if(valRaw === '' || !Number.isFinite(n) || n < 0){
+                            pitchNameEl.textContent = '';
+                        } else {
+                            pitchNameEl.textContent = accentName(reading, n);
+                        }
+                    }
+                    if(!valRaw || !Number.isFinite(n) || n < 0 || !reading){
+                        return; // no overlay
+                    }
+                    attachPitchAccentToWord($(pronunciationEl), reading, reading, n);
+                }catch(_e){}
+            }
+            pitchInput?.addEventListener('input', refreshPitch);
+            pronunciationInput?.addEventListener('input', refreshPitch);
+            // initial
+            refreshPitch();
+        }catch(_e){}
+    }
+
     // Build and attach pitch accent overlay to the provided span element.
     function attachPitchAccentToWord($span, real_word, reading, pitch){
         try{
@@ -952,7 +1158,7 @@ export async function adjustWordsByLevel(){
             } else {
                 $span.append(el);
                 if($span.css('position') === 'static' || !$span.css('position')){ $span.css('position','relative'); }
-                $span.css('--pitch-accent-height', '5px');
+                $span.css('--pitch-accent-height', '2px');
             }
         }catch(_e){console.log(_e)}
     }

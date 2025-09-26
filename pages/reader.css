@@ -319,6 +319,7 @@ body.reader .pill .icon{
 body.reader .subtitle_hover{
     min-width:600px;
     max-width:800px;
+    z-index:5;
 }
 
 body.reader .subtitle_hover .footer{
