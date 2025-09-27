@@ -6,6 +6,61 @@ import {attachInteractiveText} from "../../common/hoverTokens.js";
 let doc = null;
 export const setDocument = (d) => doc = d;
 
+// Cache last known OCR render context so we can recompute overlay positions
+// Structure: pageNum -> { ocr, downFactor, el }
+const ocrRenderCache = new Map();
+
+// Simple debounce helper (local to this module)
+export function debounce(fn, wait = 50){
+    let t; return function(...args){ clearTimeout(t); t = setTimeout(()=>fn.apply(this,args), wait); };
+}
+
+// Recalculate box positions for all currently rendered pages.
+// Keeps existing interactive content (inner spans) & only updates container positioning.
+export function refreshOCRPositions(){
+    try{
+        for(const [pageNum, ctx] of ocrRenderCache.entries()){
+            const { ocr, downFactor, el } = ctx || {};
+            if(!ocr || !el) continue;
+            // Only refresh if page images are still in DOM
+            if(!document.contains(el)){
+                ocrRenderCache.delete(pageNum);
+                continue;
+            }
+            const rect = el.getBoundingClientRect();
+            const origW = (ocr && ocr.original_size && ocr.original_size.width) ? ocr.original_size.width : (el.naturalWidth || rect.width || 1);
+            const displayScale = rect.width / (origW || 1);
+            const totalScale = downFactor * displayScale;
+            // Iterate existing overlays by index mapping
+            const $parent = $(el).parent();
+            // If overlays missing or count mismatched we fall back to full re-render
+            const existing = $parent.find(`.recognized-text[data-ocr-page='${pageNum}']`);
+            if(!existing.length){
+                // Re-render fully (non-blocking) to restore boxes
+                processPage(ocr, downFactor, el, pageNum); // fire & forget
+                continue;
+            }
+            for(const box of ocr.boxes){
+                const idx = box.__idx;
+                if(idx == null) continue;
+                const $box = existing.filter(`[data-ocr-idx='${idx}']`);
+                if(!$box.length) continue;
+                let x = box.box[0][0];
+                let y = box.box[0][1];
+                let w = box.box[2][0] - x;
+                let h = box.box[2][1] - y;
+                x *= totalScale;
+                y *= totalScale;
+                w *= totalScale;
+                h *= totalScale;
+                $box.css({ left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
+            }
+        }
+    }catch(e){ console.warn("refreshOCRPositions failed", e); }
+}
+
+export const scheduleRefreshOCRPositions = debounce(()=>refreshOCRPositions(), 60);
+
 // Track in-flight renders so we can cancel when leaving a page
 const renderControllers = new Map(); // pageNum -> { canceled: boolean }
 export const cancelPageRender = (pageNum) => {
@@ -137,6 +192,7 @@ const processPage = async (ocr, scaleFactor, el, num)=> {
         const totalScale = scaleFactor * displayScale; // (original/sent) * (displayed/original) = displayed/sent
         $(el).parent().find(".recognized-text").remove();
 
+        let boxIndex = 0;
         for(const box of ocr.boxes){
             if(renderControllers.get(num)?.canceled) break;
             let x = box.box[0][0];
@@ -149,7 +205,9 @@ const processPage = async (ocr, scaleFactor, el, num)=> {
             h *= totalScale;
 
             const text = box.text;
-            const txEl = $(`<div class="recognized-text ${settings.devMode ? 'debug-highlight' : ''}" data-ocr-page='${num}' style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"></div>`);
+            // Tag each overlay with stable index to support refresh recalculation
+            box.__idx = boxIndex;
+            const txEl = $(`<div class="recognized-text ${settings.devMode ? 'debug-highlight' : ''}" data-ocr-page='${num}' data-ocr-idx='${boxIndex}' style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"></div>`);
             // Append immediately so the page looks responsive; enhance asynchronously
             $(el).parent().append(txEl);
             if(renderControllers.get(num)?.canceled){ break; }
@@ -161,6 +219,7 @@ const processPage = async (ocr, scaleFactor, el, num)=> {
                     try{ txEl.text(text); }catch(_e){}
                 }
             })();
+            boxIndex++;
         }
     }catch(e){
         console.error("processPage failed", e);
@@ -195,7 +254,9 @@ export const readPage = async (pageNum, el) => {
                 el.dataset.ocrScaleLabel = formatScaleFactor(downFactor);
             }catch(_e){ /* dataset may be unavailable on some nodes */ }
         }
-        processPage(resp, downFactor, el, pageNum); //intentionally not awaited
+        // Cache context then render
+        ocrRenderCache.set(pageNum, { ocr: resp, downFactor, el });
+        processPage(resp, downFactor, el, pageNum); // intentionally not awaited
     } else {
         // If we can't render (missing element or scaling), don't block the dispatcher
         try{ markRendered(pageNum); }catch(_e){}

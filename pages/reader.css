@@ -21,7 +21,7 @@ body.reader .nav.auto-hide{
     transform: translateY(calc(-100% - 10px));
     opacity: 0.0;
 }
-body.reader .nav.nav-visible{
+body.reader .nav.nav-visible, body.reader:has(.main-content.show-sidebar) .nav{
     transform: translateY(0);
     opacity: 1.0;
 }
@@ -304,8 +304,8 @@ body.reader .progress-bar {
 }
 
 .debug-highlight{
-    /*border:1px solid yellow;*/
-    /*background:rgba(0,0,0,0.1);*/
+    border:1px solid yellow !important;
+    background:rgba(0,0,0,0.1) !important;
 }
 .recognized-text:hover{
     background:#fff;
