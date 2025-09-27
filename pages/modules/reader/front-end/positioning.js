@@ -1,9 +1,12 @@
+import {debounce, scheduleRefreshOCRPositions} from "../ocr/read.js";
 let doc = null;
+let isSidebarOpen = true;
 export function initPositioning(d) {
     doc = d;
     // Sidebar toggle
     $(".sidebar-btn", d).on("click", () => {
         $(".main-content", d).toggleClass("show-sidebar");
+        isSidebarOpen = !isSidebarOpen;
         // Re-apply fit after sidebar animation (matches CSS 0.5s)
         setTimeout(() => {
             const mode = getCurrentMode(d);
@@ -29,9 +32,21 @@ export function initPositioning(d) {
 
     // Re-apply on window resize to maintain fit
     if (d && d.defaultView) {
+        let hasBeenExecuted = false;
+        let resizeTimeout = null;
         $(d.defaultView).on("resize", () => {
             const mode = getCurrentMode(d);
-            setFitMode(d, mode);
+            debounce(()=>{
+                if(hasBeenExecuted) return;
+                clearTimeout(resizeTimeout);
+                setFitMode(d, mode);
+                scheduleRefreshOCRPositions();
+                console.log("Resized");
+                hasBeenExecuted = true;
+                resizeTimeout = setTimeout(()=>{
+                    hasBeenExecuted = false;
+                }, 1000);
+            },550)();
         });
     }
 }
@@ -87,6 +102,8 @@ function getCurrentMode(d) {
 function setFitMode(...args){
     $(".main-content .main-page",args[0]).css("width",""); // Clear any inline width to allow recalculation
     _setFitMode(...args);
+    // After mode change, recalc OCR overlays (debounced)
+    try{ scheduleRefreshOCRPositions(); }catch(_e){}
 }
 
 function _setFitMode(d, mode) {
@@ -94,6 +111,7 @@ function _setFitMode(d, mode) {
     const $mainPage = $(".main-content .main-page", d);
     const $imgs = $(".main-content .main-page img", d);
     const $mainContent = $(".main-content", d);
+    const $pages = $(".main-content .main-page .page-left, .main-content .main-page .page-right", d);
 
     // Keep the select UI in sync, if present
     const $modeSelect = $(".mode-selector select", d);
@@ -117,12 +135,23 @@ function _setFitMode(d, mode) {
             maxHeight: "100%",
             objectFit: "contain"
         });
-        setTimeout(() => {
-            $imgs.each((i, img) => {sum += $(img).width()});
-            $mainPage.css({ width: `${sum}px`});
-        },1000/60);
+        // setTimeout(() => {
+            // $imgs.each((i, img) => {sum += $(img).width()});
+            // $mainPage.css({ width: `${sum}px`});
+            const ctHeight = $mainContent.height()-(isSidebarOpen ? 32 : 0);
+            $pages.each((i, page) => {
+                const EL = $(page).find("img")[0];
+                const scaleRatio = ctHeight / EL.naturalHeight;
+                $(page).css({
+                    width: `${EL.naturalWidth * scaleRatio}px`,
+                    height: "unset"
+                });
+            });
+            // Width adjustment after image measurement may shift pages; refresh overlays
+            try{ scheduleRefreshOCRPositions(); }catch(_e){}
+        // },1000/60);
     } else {
-        // Default: fit width across available content width
+        $pages.css("width","unset");
         $body.attr("data-fit-mode", "width");
         $mainPage.css({ height: "max-content", width: "100%", marginLeft:"16px", marginRight:"16px", maxHeight: "unset"});
         $mainContent.css("alignItems","start");
@@ -133,5 +162,6 @@ function _setFitMode(d, mode) {
             maxHeight: "",
             objectFit: "contain"
         });
+        try{ scheduleRefreshOCRPositions(); }catch(_e){}
     }
 }

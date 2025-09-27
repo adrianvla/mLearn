@@ -762,8 +762,8 @@ async def ocr_endpoint(
     _process_stats("ocr_req")
     try:
         # Load image
-        if file is not None:
-            _log_ocr_run("UploadFile", {"filename": file.filename, "content_type": file.content_type})
+        # if file is not None:
+        #     _log_ocr_run("UploadFile", {"filename": file.filename, "content_type": file.content_type})
         file_bytes = await file.read() if file is not None else None
         image = _load_image_from_inputs(file_bytes, image_base64)
         np_img = np.array(image, dtype=np.uint8)
@@ -779,7 +779,7 @@ async def ocr_endpoint(
             raise HTTPException(status_code=500, detail="PaddleOCR not available")
         _log_ocr_run(f"Paddle handle ready in {t1 - t0:.2f}s")
         # _log_ocr_run(f"OCR requested for language {LANGUAGE}")
-        _log_ocr_run(f"Working...")
+        _log_ocr_run(f"Recognizing text positions...")
 
         results: list[OcrBox] = []
 
@@ -823,7 +823,7 @@ async def ocr_endpoint(
                     try:
                         txt = mocr(crop) or ''
                         # if i % 10 == 0:
-                        _log_ocr_run(f"MangaOCR progress {i+1}/{len(initial_boxes)}")
+                        _log_ocr_run(f"Recognition progress {i+1}/{len(initial_boxes)}")
                     except Exception as e:
                         _log_ocr_run(f"MangaOCR error box {i+1}", e)
                         txt = ''
