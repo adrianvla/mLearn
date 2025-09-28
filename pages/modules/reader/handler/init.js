@@ -2,7 +2,10 @@ import {initDragAndDrop} from "./dragndrop-lib.js";
 import {createAndAddPageEntry} from "../elements/page-entry.js";
 import {parseSubtitleName} from "../../subtitler/subtitleParsers.js";
 import {setCurrentPage, setPages, updateImagePages} from "./sequencer.js";
+let isInit = false;
 
+
+export const isInitialized = () => isInit;
 export function initReaderDnD(winDoc) {
     // Initialize drag-n-drop on the reader window document
     const dnd = initDragAndDrop(winDoc);
@@ -12,6 +15,7 @@ export function initReaderDnD(winDoc) {
         const { images } = ev.detail;
         setPages(images);
         renderImages(winDoc, images);
+        isInit = true;
     });
 
     // Optional: if you prefer awaiting instead of the event

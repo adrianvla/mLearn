@@ -89,7 +89,7 @@ export const getCacheOffset = () => {
     return currentMode === "double" ? 2 : 1;
 }
 
-export const updateImagePages = (d) => {
+export const updateImagePages = (d, doRefresh = true) => {
     updateCurrentMode(d);
     const pl = d.querySelector(".page-left img");
     const pr = d.querySelector(".page-right img");
@@ -105,6 +105,7 @@ export const updateImagePages = (d) => {
         pl.src = "";
         readPage(getCurrentIndex(), pr); //promise ignored intentionally
     }
+    if(!doRefresh) return;
     refreshFitMode();
     // const nextIndex = pageNum + 1;
     // if (nextIndex < pages.length) {

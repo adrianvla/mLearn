@@ -1,4 +1,6 @@
-import {debounce, scheduleRefreshOCRPositions} from "../ocr/read.js";
+import {debounce} from "../ocr/read.js";
+import {updateImagePages} from "../handler/sequencer.js";
+import {isInitialized} from "../handler/init.js";
 let doc = null;
 let isSidebarOpen = true;
 export function initPositioning(d) {
@@ -10,7 +12,7 @@ export function initPositioning(d) {
         // Re-apply fit after sidebar animation (matches CSS 0.5s)
         setTimeout(() => {
             const mode = getCurrentMode(d);
-            setFitMode(d, mode);
+            setFitMode(d, mode, true);
         }, 550);
     });
 
@@ -23,7 +25,7 @@ export function initPositioning(d) {
         const applyFromSelect = () => {
             const val = String($modeSelect.val() || "fit-width").toLowerCase();
             const mode = (val === "height" || val === "fit-height") ? "fit-height" : "fit-width";
-            setFitMode(d, mode);
+            setFitMode(d, mode, true);
         };
         $modeSelect.on("change", applyFromSelect);
         // Initialize once on load
@@ -39,14 +41,13 @@ export function initPositioning(d) {
             debounce(()=>{
                 if(hasBeenExecuted) return;
                 clearTimeout(resizeTimeout);
-                setFitMode(d, mode);
-                scheduleRefreshOCRPositions();
+                setFitMode(d, mode, true);
                 console.log("Resized");
                 hasBeenExecuted = true;
                 resizeTimeout = setTimeout(()=>{
                     hasBeenExecuted = false;
                 }, 1000);
-            },550)();
+            },50)();
         });
     }
 }
@@ -99,11 +100,12 @@ function getCurrentMode(d) {
     return $("body", d).attr("data-fit-mode") === "height" ? "fit-height" : "fit-width";
 }
 
-function setFitMode(...args){
-    $(".main-content .main-page",args[0]).css("width",""); // Clear any inline width to allow recalculation
-    _setFitMode(...args);
+function setFitMode(d, mode, wasCalledFromResize = false){
+    $(".main-content .main-page",d).css("width",""); // Clear any inline width to allow recalculation
+    _setFitMode(d,mode);
     // After mode change, recalc OCR overlays (debounced)
-    try{ scheduleRefreshOCRPositions(); }catch(_e){}
+    if(isInitialized() && wasCalledFromResize)
+        updateImagePages(doc,false);
 }
 
 function _setFitMode(d, mode) {
@@ -148,7 +150,6 @@ function _setFitMode(d, mode) {
                 });
             });
             // Width adjustment after image measurement may shift pages; refresh overlays
-            try{ scheduleRefreshOCRPositions(); }catch(_e){}
         // },1000/60);
     } else {
         $pages.css("width","unset");
@@ -162,6 +163,5 @@ function _setFitMode(d, mode) {
             maxHeight: "",
             objectFit: "contain"
         });
-        try{ scheduleRefreshOCRPositions(); }catch(_e){}
     }
 }

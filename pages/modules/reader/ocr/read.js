@@ -1,65 +1,98 @@
-import {getCurrentIndex, getPages} from "../handler/sequencer.js";
-import {sendToReader, markRendered} from "./dispatcher.js";
+import {getCurrentIndex, getPages, getCurrentMode} from "../handler/sequencer.js";
+import {sendToReader, markRendered, isPageRendered} from "./dispatcher.js";
 import { formatScaleFactor } from "../../networking.js";
 import {settings} from "../../settings/settings.js";
-import {attachInteractiveText} from "../../common/hoverTokens.js";
+import {attachInteractiveText, warmTokeniseCache} from "../../common/hoverTokens.js";
 let doc = null;
 export const setDocument = (d) => doc = d;
 
 // Cache last known OCR render context so we can recompute overlay positions
 // Structure: pageNum -> { ocr, downFactor, el }
 const ocrRenderCache = new Map();
+// Map page numbers to their current image elements for reliable loading UI targeting
+const pageImageElements = new Map(); // pageNum -> HTMLImageElement
+
+// New overlay implementation replacing previous ocr-loading-bar
+const ensureLoadingOverlayStyles = () => {
+    const targetDoc = doc || document;
+    if(targetDoc.getElementById('ocr-loading-overlay-style')) return;
+    const style = targetDoc.createElement('style');
+    style.id = 'ocr-loading-overlay-style';
+    style.textContent = `
+    body > .loading[data-ocr-loading-page]{position:absolute;z-index:9999;height:6px;background:linear-gradient(90deg,#4e9aff,#6bc6ff);pointer-events:none;overflow:hidden;border-radius:4px;box-shadow:0 0 4px rgba(0,0,0,.25);}
+    body > .loading[data-ocr-loading-page]::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.7) 50%,rgba(255,255,255,0) 100%);animation:ocrLoadingOverlayShine 1.1s linear infinite;}
+    @keyframes ocrLoadingOverlayShine{0%{transform:translateX(-100%);}100%{transform:translateX(100%);}}
+    `;
+    targetDoc.head.appendChild(style);
+};
+
+const pageLoadingOverlays = new Map(); // pageNum -> jQuery element
+const updateLoadingOverlays = () => {
+    for(const [pageNum, $ov] of pageLoadingOverlays.entries()){
+        let $pageWrapper = null;
+        const imgEl = pageImageElements.get(pageNum);
+        if(imgEl){ $pageWrapper = $(imgEl).closest('.page-left, .page-right'); }
+        if(!$pageWrapper || !$pageWrapper.length){
+            const mode = getCurrentMode ? getCurrentMode() : 'double';
+            const scope = doc ? $(doc) : $(document);
+            if(mode === 'single') $pageWrapper = scope.find('.page-right'); else {
+                const even = (pageNum % 2) === 0; $pageWrapper = even ? scope.find('.page-right') : scope.find('.page-left');
+            }
+        }
+        if(!$pageWrapper || !$pageWrapper.length){
+            $ov.remove();
+            pageLoadingOverlays.delete(pageNum);
+            continue;
+        }
+        const rect = $pageWrapper.get(0).getBoundingClientRect();
+        const inset = 32; const barH = 6;
+        const view = (doc && doc.defaultView) ? doc.defaultView : window;
+        const left = view.scrollX + rect.left + inset;
+        const width = Math.max(0, rect.width - inset*2);
+        const top = view.scrollY + rect.bottom - inset - barH;
+        $ov.css({ left: `${left}px`, top: `${top}px`, width: `${width}px`, height: `${barH}px` });
+    }
+};
+const debouncedUpdateLoadingOverlays = debounce(updateLoadingOverlays, 50);
+let overlayListenersBound = false;
+const ensureLoadingOverlayListeners = () => {
+    if(overlayListenersBound) return;
+    overlayListenersBound = true;
+    const view = (doc && doc.defaultView) ? doc.defaultView : window;
+    view.addEventListener('resize', debouncedUpdateLoadingOverlays, { passive: true });
+    view.addEventListener('scroll', debouncedUpdateLoadingOverlays, { passive: true });
+};
+const removeLoadingOverlay = (pageNum) => {
+    const $ov = pageLoadingOverlays.get(pageNum);
+    if($ov){ $ov.remove(); pageLoadingOverlays.delete(pageNum); }
+};
+
+// Remove overlays for pages that are no longer the currently visible set (after navigation / page switch)
+const pruneLoadingOverlays = () => {
+    try{
+        const mode = getCurrentMode ? getCurrentMode() : 'double';
+        const currentIdx = getCurrentIndex ? getCurrentIndex() : 0;
+        const visible = new Set();
+        if(mode === 'single'){
+            visible.add(currentIdx);
+        } else {
+            const base = Math.floor(currentIdx/2)*2;
+            visible.add(base);
+            visible.add(base+1);
+        }
+        for(const pageNum of Array.from(pageLoadingOverlays.keys())){
+            if(!visible.has(pageNum)){
+                removeLoadingOverlay(pageNum);
+                console.log('[OCR][LoadingOverlay] pruned stale overlay for page', pageNum);
+            }
+        }
+    }catch(_e){ /* ignore pruning errors */ }
+};
 
 // Simple debounce helper (local to this module)
 export function debounce(fn, wait = 50){
     let t; return function(...args){ clearTimeout(t); t = setTimeout(()=>fn.apply(this,args), wait); };
 }
-
-// Recalculate box positions for all currently rendered pages.
-// Keeps existing interactive content (inner spans) & only updates container positioning.
-export function refreshOCRPositions(){
-    try{
-        for(const [pageNum, ctx] of ocrRenderCache.entries()){
-            const { ocr, downFactor, el } = ctx || {};
-            if(!ocr || !el) continue;
-            // Only refresh if page images are still in DOM
-            if(!document.contains(el)){
-                ocrRenderCache.delete(pageNum);
-                continue;
-            }
-            const rect = el.getBoundingClientRect();
-            const origW = (ocr && ocr.original_size && ocr.original_size.width) ? ocr.original_size.width : (el.naturalWidth || rect.width || 1);
-            const displayScale = rect.width / (origW || 1);
-            const totalScale = downFactor * displayScale;
-            // Iterate existing overlays by index mapping
-            const $parent = $(el).parent();
-            // If overlays missing or count mismatched we fall back to full re-render
-            const existing = $parent.find(`.recognized-text[data-ocr-page='${pageNum}']`);
-            if(!existing.length){
-                // Re-render fully (non-blocking) to restore boxes
-                processPage(ocr, downFactor, el, pageNum); // fire & forget
-                continue;
-            }
-            for(const box of ocr.boxes){
-                const idx = box.__idx;
-                if(idx == null) continue;
-                const $box = existing.filter(`[data-ocr-idx='${idx}']`);
-                if(!$box.length) continue;
-                let x = box.box[0][0];
-                let y = box.box[0][1];
-                let w = box.box[2][0] - x;
-                let h = box.box[2][1] - y;
-                x *= totalScale;
-                y *= totalScale;
-                w *= totalScale;
-                h *= totalScale;
-                $box.css({ left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
-            }
-        }
-    }catch(e){ console.warn("refreshOCRPositions failed", e); }
-}
-
-export const scheduleRefreshOCRPositions = debounce(()=>refreshOCRPositions(), 60);
 
 // Track in-flight renders so we can cancel when leaving a page
 const renderControllers = new Map(); // pageNum -> { canceled: boolean }
@@ -68,8 +101,71 @@ export const cancelPageRender = (pageNum) => {
     if(ctrl){ ctrl.canceled = true; }
     try{ $(`.recognized-text[data-ocr-page='${pageNum}']`).remove(); }catch(_e){}
     try{ markRendered(pageNum); }catch(_e){}
+    try{ setPageLoading(pageNum, false); }catch(_e){}
     renderControllers.delete(pageNum);
+    pageImageElements.delete(pageNum);
+    removeLoadingOverlay(pageNum);
 };
+
+// Toggle loading class directly on the page containers (.page-left / .page-right)
+// Mapping rules mirror sequencer: in double mode even index page -> right page element, odd -> left.
+// In single mode every displayed page uses the right page element.
+const setPageLoading = (pageNum, isLoading, pageElOverride = null) => {
+    try {
+        const mode = getCurrentMode ? getCurrentMode() : 'double';
+        let $page = null;
+        if(pageElOverride){
+            $page = $(pageElOverride).closest('.page-left, .page-right');
+        } else if(pageImageElements.has(pageNum)){
+            $page = $(pageImageElements.get(pageNum)).closest('.page-left, .page-right');
+        }
+        if(!$page || !$page.length){
+            const scope = doc ? $(doc) : $(document);
+            if(mode === 'single'){
+                $page = scope.find('.page-right');
+            } else {
+                const even = (pageNum % 2) === 0; // even -> right, odd -> left
+                $page = even ? scope.find('.page-right') : scope.find('.page-left');
+            }
+        }
+        if(!$page || !$page.length){
+            const scope = doc ? $(doc) : $(document);
+            const leftCount = scope.find('.page-left').length; const rightCount = scope.find('.page-right').length;
+            console.log('[OCR][setPageLoading] No page element found for page', pageNum, 'mode=', mode, 'mapped=', pageImageElements.has(pageNum), 'leftCount=', leftCount, 'rightCount=', rightCount);
+            return;
+        }
+        console.log('[OCR][setPageLoading] pageNum=', pageNum, 'isLoading=', isLoading, 'mode=', mode, 'target=', $page.hasClass('page-right') ? 'page-right':'page-left', 'mapped=', pageImageElements.has(pageNum));
+        // Manage body overlay (.loading element) only; no longer toggling class on page container
+        if(isLoading){
+            ensureLoadingOverlayStyles();
+            ensureLoadingOverlayListeners();
+            let $ov = pageLoadingOverlays.get(pageNum);
+            if(!$ov){
+                const targetBody = doc ? $(doc.body) : $('body');
+                $ov = $('<div class="loading" data-ocr-loading-page="'+pageNum+'"></div>');
+                targetBody.append($ov);
+                pageLoadingOverlays.set(pageNum, $ov);
+                console.log('[OCR][LoadingOverlay] created for page', pageNum);
+            }
+            updateLoadingOverlays();
+        } else {
+            console.log('[OCR][LoadingOverlay] remove request for page', pageNum);
+            removeLoadingOverlay(pageNum);
+        }
+    } catch(_e){ /* ignore */ }
+};
+
+// Global event listeners (dispatched from dispatcher.js) to guarantee loading state updates
+try{
+    window.addEventListener('ocr-page-loading-start', (e)=>{
+        if(!e || !e.detail) return;
+        setPageLoading(e.detail.pageNum, true);
+    });
+    window.addEventListener('ocr-page-loading-end', (e)=>{
+        if(!e || !e.detail) return;
+        setPageLoading(e.detail.pageNum, false);
+    });
+}catch(_e){ /* ignore */ }
 
 const bindElement = async (el, text, bbox, pageNum)=>{
     // Make the OCR box act like a subtitle token container: hover to see translation popup
@@ -185,12 +281,18 @@ const processPage = async (ocr, scaleFactor, el, num)=> {
             // This page is no longer in view; signal completion so the queue doesn't wait forever
             return;
         }
-        console.log(ocr,scaleFactor,el);
         const rect = el.getBoundingClientRect();
         const origW = (ocr && ocr.original_size && ocr.original_size.width) ? ocr.original_size.width : (el.naturalWidth || rect.width || 1);
         const displayScale = rect.width / (origW || 1); // map original pixels -> CSS pixels
         const totalScale = scaleFactor * displayScale; // (original/sent) * (displayed/original) = displayed/sent
         $(el).parent().find(".recognized-text").remove();
+
+        // Prefetch tokenisation for all unique texts first (non-blocking) to reduce tokenise storms
+        try{
+            const uniqueTexts = Array.from(new Set((ocr.boxes||[]).map(b=> b.text).filter(t=> typeof t === 'string' && t.trim())));
+            // Fire and forget prefetch
+            warmTokeniseCache(uniqueTexts);
+        }catch(_e){}
 
         let boxIndex = 0;
         for(const box of ocr.boxes){
@@ -225,9 +327,8 @@ const processPage = async (ocr, scaleFactor, el, num)=> {
         console.error("processPage failed", e);
     }finally{
         // Signal that page overlays finished rendering (even on error/early return)
-        if(!renderControllers.get(num)?.canceled){
-            try{ markRendered(num); }catch(_e){}
-        }
+        try{ markRendered(num); }catch(_e){}
+        try{ setPageLoading(num, false); }catch(_e){}
         renderControllers.delete(num);
     }
 }
@@ -236,6 +337,16 @@ export const readPage = async (pageNum, el) => {
     // Cancel any in-flight other pages when switching
     for(const [n, ctrl] of renderControllers.entries()){
         if(n !== pageNum && !ctrl.canceled){ cancelPageRender(n); }
+    }
+    // Prune overlays from pages that are no longer visible after navigation
+    pruneLoadingOverlays();
+    // If already rendered, skip showing loader again
+    const alreadyRendered = isPageRendered(pageNum);
+    try{ if(el) pageImageElements.set(pageNum, el); }catch(_e){}
+    if(!alreadyRendered){
+        setPageLoading(pageNum, true, el);
+    } else {
+        console.log('[OCR][readPage] page', pageNum, 'already rendered; skip loader');
     }
     const pages = getPages();
     const thisPage = pages[pageNum];
@@ -260,5 +371,6 @@ export const readPage = async (pageNum, el) => {
     } else {
         // If we can't render (missing element or scaling), don't block the dispatcher
         try{ markRendered(pageNum); }catch(_e){}
+        try{ if(!alreadyRendered) setPageLoading(pageNum, false); }catch(_e){}
     }
 }

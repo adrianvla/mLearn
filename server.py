@@ -758,7 +758,7 @@ async def ocr_endpoint(
     file: UploadFile | None = File(None),
     image_base64: str | None = Form(None)
 ):
-    _log_ocr_run("/ocr called")
+    _log_ocr_run("Loading Neural Network")
     _process_stats("ocr_req")
     try:
         # Load image

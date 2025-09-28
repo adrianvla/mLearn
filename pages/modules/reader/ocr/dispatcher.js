@@ -51,6 +51,16 @@ async function processQueue() {
                             throw new Error("OCR task is missing a valid page blob");
                         }
                         setOCRStatus(task.mode || "Processing...");
+                        const isCachingTask = typeof task.mode === 'string' && /^Caching\b/.test(task.mode);
+                        if(!isCachingTask){
+                            // Fire a DOM event to signal page OCR started
+                            try{ 
+                                console.log('[OCR][dispatcher] dispatch start page', task.pageNum); 
+                                window.dispatchEvent(new CustomEvent('ocr-page-loading-start', { detail: { pageNum: task.pageNum } })); 
+                            }catch(_e){}
+                        } else {
+                            console.log('[OCR][dispatcher] caching task start (no loading bar) page', task.pageNum);
+                        }
                         console.log("%cSending image for OCR", "color: #4CAF50; font-weight: bold; font-size:16px;");
                         // Send the raw Blob directly; the networking layer will package it into FormData
                         const resp = await sendImageForOCR(task.page.blob);
@@ -58,9 +68,12 @@ async function processQueue() {
                         task.resolve(resp);
                         // Wait until this page's overlays finish rendering before processing next task
                         // Skip waiting for caching tasks, since those pages won't render immediately
-                        const isCachingTask = typeof task.mode === 'string' && /^Caching\b/.test(task.mode);
                         if(!isCachingTask){
                             await waitForRender(task.pageNum);
+                            try{ 
+                                console.log('[OCR][dispatcher] dispatch end page', task.pageNum); 
+                                window.dispatchEvent(new CustomEvent('ocr-page-loading-end', { detail: { pageNum: task.pageNum } })); 
+                            }catch(_e){}
                         }
                     }else{
                         task.reject("Canceled");
@@ -69,6 +82,10 @@ async function processQueue() {
             } catch (err) {
                 console.error("OCR task failed:", err);
                 setOCRStatus("Error");
+                try{ 
+                    console.log('[OCR][dispatcher] dispatch end(error) page', task.pageNum); 
+                    window.dispatchEvent(new CustomEvent('ocr-page-loading-end', { detail: { pageNum: task.pageNum, error: true } })); 
+                }catch(_e){}
                 task.reject(err);
             } finally {
                 pending.delete(task.key);
@@ -131,4 +148,8 @@ export function waitForRender(pageNum){
         arr.push(resolve);
         renderWaiters.set(pageNum, arr);
     });
+}
+// Query helper so UI layer can avoid showing loaders for pages already rendered
+export function isPageRendered(pageNum){
+    return renderedPages.has(pageNum);
 }
