@@ -24,6 +24,107 @@ function createLocalState() {
 // Key: word (actual_word); Value: translation_data returned by getTranslation.
 const translationPreloadCache = {};
 
+// Tokenisation cache with promise de-duplication to prevent storm of requests
+// Key: raw text string -> { tokens, ts }
+const tokeniseResultCache = new Map();
+// In-flight promises to collapse concurrent requests
+const tokeniseInFlight = new Map();
+const TOKENISE_MAX_CACHE = 1000; // simple LRU trim threshold
+
+function cachedTokenise(text){
+    if(typeof text !== 'string' || !text.trim()){
+        return Promise.resolve([{actual_word: text, word: text, type: '名詞'}]);
+    }
+    const key = text;
+    if(tokeniseResultCache.has(key)){
+        return Promise.resolve(tokeniseResultCache.get(key).tokens);
+    }
+    if(tokeniseInFlight.has(key)) return tokeniseInFlight.get(key);
+    const p = (async ()=>{
+        try{
+            const tokens = await tokenise(key);
+            // Basic LRU: if beyond threshold, delete oldest (FIFO order of Map iteration)
+            tokeniseResultCache.set(key, { tokens, ts: Date.now() });
+            if(tokeniseResultCache.size > TOKENISE_MAX_CACHE){
+                const firstKey = tokeniseResultCache.keys().next().value;
+                if(firstKey) tokeniseResultCache.delete(firstKey);
+            }
+            return tokens;
+        }catch(e){
+            return [{actual_word: key, word: key, type: '名詞'}];
+        }finally{
+            tokeniseInFlight.delete(key);
+        }
+    })();
+    tokeniseInFlight.set(key, p);
+    return p;
+}
+
+export function warmTokeniseCache(texts){
+    try{
+        const arr = Array.isArray(texts) ? texts : [texts];
+        for(const t of arr){ cachedTokenise(String(t)); }
+    }catch(_e){}
+}
+
+// --- Simple hover positioning helper ---
+// Places hover above anchor by default; flips below if needed; clamps inside viewport horizontally & vertically.
+function simplePosition($hover, $anchor){
+    try{
+        const hoverEl = $hover.get(0);
+        const anchorEl = $anchor.get(0);
+        if(!hoverEl || !anchorEl) return;
+        // Ensure anchor is positioning context
+        if(getComputedStyle(anchorEl).position === 'static') anchorEl.style.position = 'relative';
+        // Reset dynamic styles
+        Object.assign(hoverEl.style, { top: '', bottom: '', left: '', right: '', width: hoverEl.style.width });
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        // Initial placement attempt: above, centered
+        const anchorRect = anchorEl.getBoundingClientRect();
+        const hw = hoverEl.offsetWidth || 0;
+        const hh = hoverEl.offsetHeight || 0;
+        let left = (anchorRect.width - hw)/2; // relative to anchor
+        let top = -(hh + 8); // above
+        // Apply baseline
+        hoverEl.style.left = `${left}px`;
+        hoverEl.style.top = `${top}px`;
+        // Measure viewport position
+        let rect = hoverEl.getBoundingClientRect();
+        // Flip below if top overflow
+        if(rect.top < 0){
+            top = anchorRect.height + 8; // below
+            hoverEl.style.top = `${top}px`;
+            rect = hoverEl.getBoundingClientRect();
+        }
+        // Vertical clamp if bottom overflow
+        if(rect.bottom > vh){
+            const delta = rect.bottom - vh + 4;
+            hoverEl.style.top = `${top - delta}px`;
+            rect = hoverEl.getBoundingClientRect();
+        }
+        // Horizontal clamp
+        if(rect.left < 4){
+            const shift = 4 - rect.left;
+            hoverEl.style.left = `${(parseFloat(hoverEl.style.left)||0) + shift}px`;
+            rect = hoverEl.getBoundingClientRect();
+        } else if(rect.right > vw - 4){
+            const shift = rect.right - (vw - 4);
+            hoverEl.style.left = `${(parseFloat(hoverEl.style.left)||0) - shift}px`;
+            rect = hoverEl.getBoundingClientRect();
+        }
+        // If still wider than viewport, force max width & center relative to viewport
+        if(rect.width > vw - 8){
+            hoverEl.style.width = `${vw - 8}px`;
+            const nw = hoverEl.getBoundingClientRect().width;
+            const centeredViewportLeft = (vw - nw)/2;
+            // Translate to anchor-relative left
+            const newLeftRel = centeredViewportLeft - anchorRect.left;
+            hoverEl.style.left = `${newLeftRel}px`;
+        }
+    }catch(_e){ /* silent */ }
+}
+
 function addFrequencyStars(word){
     if(word in wordFreq){
         let level = wordFreq[word].raw_level;
@@ -160,10 +261,10 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
     translation_data.data.forEach((meaning)=>{
         const reading_html = meaning.reading;
         const translation_html = meaning.definitions;
-        hoverEl_html += `<div class="hover_translation">${translation_html}</div>`;
-        hoverEl_html += `<div class="hover_reading">${reading_html}</div>`;
-        raw_flashcard_data.definitions += `<p>${translation_html}</p>`;
-        raw_flashcard_data.definitions += `<p>${reading_html}</p>`;
+        if(translation_html) hoverEl_html += `<div class="hover_translation">${translation_html}</div>`;
+        if(reading_html) hoverEl_html += `<div class="hover_reading">${reading_html}</div>`;
+        if(translation_html) raw_flashcard_data.definitions += `<p>${translation_html}</p>`;
+        if(reading_html) raw_flashcard_data.definitions += `<p>${reading_html}</p>`;
     });
 
     state.hasBeenLoadedDB[uuid] = true;
@@ -205,74 +306,12 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
         }catch(_e){}
     }
 
-    // layout sizing once content ready
-    $hover.ready(()=>{
-        let calcW = $hover.find(".footer").width() + 26;
-        if(!Number.isFinite(calcW) || calcW < 250) calcW = 600;
-        $hover.css("width", `${calcW}px`);
-        const $w = $wordEl;
-        let hover_left = -(calcW - $w.width())/2;
-        $hover.css("left", `${hover_left}px`);
-        // Auto-flip logic: ensure hover stays within viewport. If it would
-        // overflow vertically, switch between using bottom and top. If it
-        // would overflow horizontally, switch between left and right.
-        const adjustHoverPosition = () => {
-            const node = $hover.get(0);
-            if(!node) return;
-            // Clear dynamic flips before measuring (except width & initial left)
-            // (We don't clear left here so we can detect overflow from baseline)
-            node.style.top = node.style.top; // no-op placeholder
-            const rect = node.getBoundingClientRect();
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
-            const parentH = $w.outerHeight() || 0;
-
-            // Vertical flip
-            if(rect.top < 0){
-                // Would go above viewport, place below word
-                $hover.css({ bottom: '', top: `${parentH + 8}px` });
-            }else if(rect.bottom > vh){
-                // Would go below viewport, place above word (using bottom)
-                $hover.css({ top: '', bottom: `${parentH + 8}px` });
-            }else{
-                // Default above word if neither overflow (retain original bottom if previously set)
-                if(!node.style.top && !node.style.bottom){
-                    $hover.css({ bottom: `50px` });
-                }
-            }
-
-            // Recompute after possible vertical change for horizontal assessment
-            const rect2 = node.getBoundingClientRect();
-            // Horizontal flip
-            if(rect2.left < 0){
-                // Switch to right anchoring relative to parent
-                const rightVal = -(calcW - $w.width())/2; // symmetric to left calc
-                $hover.css({ left: '', right: `${rightVal}px` });
-            }else if(rect2.right > vw){
-                // Try shifting left first
-                const overshoot = rect2.right - vw;
-                const currentLeft = parseFloat($hover.css('left')) || 0;
-                if(currentLeft - overshoot - 10 >= 0){
-                    $hover.css('left', `${currentLeft - overshoot - 10}px`);
-                }else{
-                    const rightVal = -(calcW - $w.width())/2;
-                    $hover.css({ left: '', right: `${rightVal}px` });
-                }
-            }
-        };
-        // Run after layout tick & also on resize while visible
-        requestAnimationFrame(adjustHoverPosition);
-        const resizeHandler = () => { if($hover.hasClass('show-hover')) adjustHoverPosition(); };
-        window.addEventListener('resize', resizeHandler, { passive: true });
-        // Cleanup when hover element is removed
-        const obs = new MutationObserver(()=>{
-            if(!document.body.contains($hover.get(0))){
-                window.removeEventListener('resize', resizeHandler);
-                try{ obs.disconnect(); }catch(_e){}
-            }
-        });
-        try{ obs.observe(document.body, { childList: true, subtree: true }); }catch(_e){}
-    });
+    // Initial simple positioning after content build
+    requestAnimationFrame(()=> simplePosition($hover, $wordEl));
+    // Re-check whenever hovering over the hover itself (user moves into panel)
+    $hover.on('mouseenter', ()=> simplePosition($hover, $wordEl));
+    // (Optional) quick second pass after 60ms for late layout changes
+    setTimeout(()=> simplePosition($hover, $wordEl), 60);
 
     state.processingDB[uuid] = false;
 }
@@ -292,7 +331,7 @@ export async function attachInteractiveText($container, text, options = {}){
 
     // tokenise string (await tokenizer readiness)
     let tokens;
-    try{ tokens = await tokenise(text); }catch(_e){ tokens = [{actual_word: text, word: text, type: '名詞'}]; }
+    try{ tokens = await cachedTokenise(text); }catch(_e){ tokens = [{actual_word: text, word: text, type: '名詞'}]; }
 
     // Preload translations for all translatable tokens before proceeding so caller waits until ready.
     try {
@@ -360,6 +399,7 @@ export async function attachInteractiveText($container, text, options = {}){
                 $wordEl.hover(()=>{
                     $hoverEl.addClass('show-hover');
                     buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR });
+                    requestAnimationFrame(()=> simplePosition($hoverEl, $wordEl));
                 }, ()=>{ delayHide(); });
             }else{
                 const current_card = card_data.cards?.[0];
@@ -372,6 +412,7 @@ export async function attachInteractiveText($container, text, options = {}){
                     $wordEl.hover(()=>{
                         $hoverEl.addClass('show-hover');
                         buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR });
+                        requestAnimationFrame(()=> simplePosition($hoverEl, $wordEl));
                     }, ()=>{ $hoverEl.removeClass('show-hover'); });
                 }else{
                     $wordEl.attr("known","true");
@@ -382,6 +423,7 @@ export async function attachInteractiveText($container, text, options = {}){
                         $wordEl.hover(()=>{
                             $hoverEl.addClass('show-hover');
                             buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR });
+                            requestAnimationFrame(()=> simplePosition($hoverEl, $wordEl));
                         }, ()=>{ $hoverEl.removeClass('show-hover'); });
                     }
                 }

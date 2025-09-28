@@ -193,7 +193,10 @@ body.reader .status-bar h2{
     border-top-right-radius:32px;
     border-bottom-right-radius:32px;
 }
-.main-content .main-page:not(.single-page) .page-left::before{
+.main-content.single-page .main-page .page-right img{
+    border-radius:32px;
+}
+.main-content:not(.single-page) .main-page .page-left::before{
     content: "";
     position: absolute;
     top: 0;
@@ -203,8 +206,23 @@ body.reader .status-bar h2{
     background: linear-gradient(to right, rgba(0,0,0,0) 0%,rgba(0,0,0,0) 95%, rgba(0,0,0,0.8) 100%);
     pointer-events: none;
 }
+.main-content .main-page .page-left.loading::after, .main-content .main-page .page-right.loading::after{
+    content: "";
+    position: absolute;
+    bottom:0;
+    left:0;
+    width:100%;
+    height:15px;
+    z-index:5;
+    background-image:
+            -webkit-linear-gradient(-45deg,
+            transparent 33%, #fff 33%,
+            #fff 66%, transparent 66%),
+            -webkit-linear-gradient(left, rgb(5,144,206), rgb(5,144,206));
+    background-size: 25px 15px, 100% 100%, 100% 100%;
+}
 
-.main-content .main-page:not(.single-page) .page-right::before{
+.main-content:not(.single-page) .main-page .page-right::before{
     content: "";
     position: absolute;
     top: 0;
@@ -304,8 +322,8 @@ body.reader .progress-bar {
 }
 
 .debug-highlight{
-    border:1px solid yellow !important;
-    background:rgba(0,0,0,0.1) !important;
+    /*border:1px solid yellow !important;*/
+    /*background:rgba(0,0,0,0.1) !important;*/
 }
 .recognized-text:hover{
     background:#fff;
@@ -324,4 +342,7 @@ body.reader .subtitle_hover{
 
 body.reader .subtitle_hover .footer{
     width:100%;
+}
+body.reader .loading{
+    min-height:unset !important;
 }

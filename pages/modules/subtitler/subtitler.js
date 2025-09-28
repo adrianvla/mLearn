@@ -319,8 +319,8 @@ const modify_sub = async (subtitle) => {
             console.log(`%cAdding pitch accent: (W:${word_in_letters}) (A:${accent_type}) (R:${real_word}) (L:${look_ahead_token})`, "color: green; font-weight: bold;");
         }
         const generateTranslationHTML = (translation_html,reading_html) => {
-            hoverEl_html += `<div class="hover_translation">${translation_html}</div>`;
-            hoverEl_html += `<div class="hover_reading">${reading_html}</div>`;
+            if(translation_html) hoverEl_html += `<div class="hover_translation">${translation_html}</div>`;
+            if(reading_html) hoverEl_html += `<div class="hover_reading">${reading_html}</div>`;
         };
         const addTranslationToToken = async (current_card) => {
             let translation_html = current_card.fields.Meaning.value;
