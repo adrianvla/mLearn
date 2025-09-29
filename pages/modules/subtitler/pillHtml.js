@@ -57,9 +57,32 @@ function findElementByIdAnyWindow(id){
             if(el) return el;
         }
     }catch(_e){}
+    // Additional registered child windows (e.g., stats / word adjuster window)
+    try{
+        if(Array.isArray(window.__mLearnChildWindows)){
+            for(const w of window.__mLearnChildWindows){
+                if(!w || w.closed) continue;
+                try{ el = w.document.getElementById(id); }catch(_e){}
+                if(el) return el;
+            }
+        }
+    }catch(_e){}
     // Fallback: scan open child windows tracked in a simple list (future extension)
     return el;
 }
+
+// Child window registration helpers (idempotent)
+if(!window.__mLearnChildWindows) window.__mLearnChildWindows = [];
+function registerMLearnChildWindow(w){
+    if(!w || w.closed) return;
+    if(!window.__mLearnChildWindows.includes(w)){
+        window.__mLearnChildWindows.push(w);
+        try{ w.addEventListener('unload', ()=>{
+            window.__mLearnChildWindows = window.__mLearnChildWindows.filter(x=>x!==w);
+        }); }catch(_e){}
+    }
+}
+window.registerMLearnChildWindow = registerMLearnChildWindow;
 
 function resetWordUUIDs() {
     wordUUIDs = {};
