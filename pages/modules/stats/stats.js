@@ -1828,14 +1828,53 @@ export async function adjustWordsByLevel(){
     updateSortIndicators();
     });
 
-    statsWindow.changeKnownBtnStatus = async (uuid, status) => {
+    // Fix: support inline HTML handlers produced by generateStatusPillHTML which call
+    // changeKnownBtnStatus(this, "uuid", newStatus). Original implementation only
+    // accepted (uuid, status) so the first arg (HTMLElement) was mistaken for uuid.
+    // This flexible version mirrors the logic in pillHtml.js and coerces arguments.
+    statsWindow.changeKnownBtnStatus = async (...args) => {
         try{
-            const el = d.getElementById(`status-pill-${uuid}`);
+            let el = null, uuid = null, status = null;
+            if(args.length === 3){
+                [el, uuid, status] = args;
+            }else if(args.length === 2){
+                // Could be (uuid, status) OR (el, uuid)
+                if(typeof args[0] === 'string'){ // (uuid, status)
+                    [uuid, status] = args;
+                }else{
+                    [el, uuid] = args; // status will be resolved later (fallback)
+                }
+            }else if(args.length === 1){
+                [uuid] = args; // status unknown -> bail
+            }
+            // If first param was the element, pick up real element id
+            if(el && !uuid && el.id && el.id.startsWith('status-pill-')){
+                uuid = el.id.substring('status-pill-'.length);
+            }
+            if(typeof status === 'string' && /^(0|1|2)$/.test(status)) status = parseInt(status,10);
+            if(typeof status !== 'number' || status < 0 || status > 2){
+                console.warn('changeKnownBtnStatus: invalid/missing status', status, args);
+                return;
+            }
+            if(!uuid){
+                console.warn('changeKnownBtnStatus: missing uuid', args);
+                return;
+            }
+            if(!el){
+                el = d.getElementById(`status-pill-${uuid}`);
+            }
             const word = knownMap[uuid] || await getWordByUUID(uuid);
-            if(!word) return;
-            if(el){ el.outerHTML = await generateStatusPillHTML(word, status); }
+            if(!word){
+                console.warn('changeKnownBtnStatus: word not resolved for uuid', uuid);
+                return;
+            }
+            if(el){
+                try{ el.outerHTML = await generateStatusPillHTML(word, status); }catch(e){ console.warn('changeKnownBtnStatus: pill re-render failed', e); }
+            }
             changeKnownStatus(word, status);
-        }catch(_e){}
+        }catch(e){
+            console.error('changeKnownBtnStatus error (stats window)', e);
+        }
     };
 }
 
