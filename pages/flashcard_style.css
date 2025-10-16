@@ -474,7 +474,10 @@ body:not(.dark) .easy{
 .buttons .btn.show-answer{
     background: var(--blue);
 }
-body:not(.dark) .buttons .btn.already-known{
+.buttons .btn.postpone{
+    background: var(--blue);
+}
+body:not(.dark) .buttons .btn.already-known,body:not(.dark) .buttons .btn.show-answer,body:not(.dark) .buttons .btn.postpone{
     background: var(--dim-blue);
 }
 .buttons .btn:hover{

@@ -7,8 +7,22 @@ export const $ = s=>J(s,getDocument());
 
 const addPitchAccent = (accent_type, word_in_letters, real_word, pos) => {
     //append to newEl inside an element
-    if(accent_type === undefined || accent_type === null) return; //no pitch accent
-    if(real_word.length <= 1 || word_in_letters.length <= 1) return; //no pitch accent for single letters
+    console.log("Adding pitch accent", accent_type, word_in_letters, real_word, pos);
+    const buildBasicRuby = () => {
+        if(isNotAllKana(real_word)){
+            return $(`<ruby>${real_word}<rt>${word_in_letters}</rt></ruby>`);
+        }
+        return $(`<span>${real_word}</span>`);
+    };
+
+    const shouldSkipAccent = (
+        accent_type === undefined || accent_type === null ||
+        word_in_letters.length <= 1
+    );
+
+    if(shouldSkipAccent){
+        return buildBasicRuby();
+    }
     // if(settings.lang )
     let el = $('<div class="mLearn-pitch-accent"></div>');//we'll draw everything after
     // 0: Heiban (平板) - Flat, ↓↑↑↑↑(↑)
@@ -102,6 +116,7 @@ export function displayFlashcard(card){
             "reviews":0
         }
     * */
+    console.log("Displaying flashcard", card);
     $(".answer").hide().html(card.content.translation);
     $(".question").html(card.content.word);
     $(".sentence").html(card.content.example);

@@ -168,16 +168,24 @@
         const regex = /^https:\/\/[^:\s\/]+(?::\d+)?\/$/;
         return regex.test(url);
     }
+    function createAndAppendScript(content, parent = document.body) {
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.textContent = content;
+        parent.appendChild(script);
+        return script;
+    }
+    function createScriptFromSRC(src,parent = document.body, isModule = false){
+        const e = document.createElement('script');
+        e.src = src;
+        e.type = isModule ? 'module' : 'text/javascript';
+        parent.appendChild(e);
+        return e;
+    }
     let ip = "";
-    const inj = (logger)=>{
+    let isLocal = false;
+    const inj = (logger,scriptName = 'core.js',isModule = false, requireVideo = true)=>{
         return new Promise((resolve, reject)=>{
-            function createAndAppendScript(content, parent = document.body) {
-                const script = document.createElement('script');
-                script.type = 'text/javascript';
-                script.textContent = content;
-                parent.appendChild(script);
-                return script;
-            }
             createAndAppendScript(`
                 globalThis.mLearnTethered = true;
                 globalThis.mLearnTetheredIP = '${ip}';
@@ -188,42 +196,45 @@
                     R("mLearn is already loaded.");
                     return;
                 }
-                if(!m.querySelector("video")) {
+                if((!m.querySelector("video")) && requireVideo) {
                     R("Cannot find video element. Maybe you forgot to select the video element in the DevTools?");
                     return;
                 }
-                function a(s,w){
-                    const e = m.createElement('script');
-                    e.src = s;
-                    e.type = 'text/javascript';
-                    w.appendChild(e);
-                    return e;
-                }
-                a("https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js",m.head);
-                let o = a(_+"settings.js",m.body);
+
+                createScriptFromSRC("https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js",m.head);
+                let o = createScriptFromSRC(_+"settings.js",m.body);
                 o.onerror = ()=>{
                     R("Failed to load settings.js. Please check the URL/IP and try again.");
                     alert("Failed to load settings.js. Please check the URL/IP and try again.");
                 }
                 o.onload = ()=>{
-                    a(_+"core.js",m.body);
+                    createScriptFromSRC(_+scriptName,m.body, isModule);
                     N[L] = true;
                     resolve();
                 };
             }(document, "mLearnOnlineAgentLoaded", "bUxlYXJuIGRpZCBub3QgbG9hZCBwcm9wZXJseS4gUGxlYXNlIGNoZWNrIGlmIHRoZSBhcHBsaWNhdGlvbiBsb2FkZWQgc3VjY2Vzc2Z1bGx5IGFuZCBpcyBydW5uaW5nLiBJZiB0aGUgcHJvYmxlbSBwZXJzaXN0cywgdHJ5IHJlbG9hZGluZyB0aGUgcGFnZSBhbmQgdHJ5aW5nIGFnYWluLiBJZiB0aGUgcHJvYmxlbSBzdGlsbCBwZXJzaXN0cywgcGxlYXNlIHJlc3RhcnQgbUxlYXJuLg==", atob, logger, window, ip);
         });
     };
+    (async function(){
+        //ping server at localhost:7753
+        try {
+            const response = await fetch("http://localhost:7753/");
+            if (response.ok) {
+                console.log("Server is running.");
+            } else {
+                console.error("Server is not running.");
+            }
+        } catch (error) {}
+        console.log("mLearn app detected at localhost:7753.");
+        isLocal = true;
+        ip = "http://localhost:7753/";
+        await inj(console.log,"quick-lookup.js",true,false);
+        console.log("mLearn quick-lookup.js injected.");
+    })();
     const B = () => {
-        clearInterval(I);
-        const style = document.createElement('style');
-        style.textContent = CSSstr;
-        document.head.appendChild(style);
-        const container = document.createElement('div');
-        container.innerHTML = HTMLstr;
-        document.body.appendChild(container);
-
-        document.getElementById(mLearnBtnName).onclick = async () => {
+        const isClickedFn = async () => {
             ip = document.getElementById(mLearnInputId).value.trim();
+            if(isLocal) ip = "http://localhost:7753/";
             if (!ip || !isValidHttpUrlWithPort(ip)) {
                 document.getElementById("mLearn-info").innerText = "Please enter a valid URL/IP.";
                 return;
@@ -236,6 +247,15 @@
             await inj(info);
             document.getElementById(popupId).remove();
         };
+        clearInterval(I);
+        const style = document.createElement('style');
+        style.textContent = CSSstr;
+        document.head.appendChild(style);
+        const container = document.createElement('div');
+        container.innerHTML = HTMLstr;
+        document.body.appendChild(container);
+        document.getElementById(mLearnBtnName).onclick = isClickedFn;
+        if(isLocal) isClickedFn();
     };
     let I = setInterval(()=>{
         video = document.querySelector("video");
