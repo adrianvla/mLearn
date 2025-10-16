@@ -85,6 +85,9 @@ function dateToInString(date){
     if (diff < year) return `${Math.round(diff / day)} days`;
     return `${(diff / year).toFixed(1)} years`;
 }
+function getPostponeDate(fc){
+    return Date.now() + 24 * 60 * 60 * 100 * (50 + Math.random()*100); //postpone by 5-15 days
+}
 
 
 export const review = () => {
@@ -98,9 +101,14 @@ export const review = () => {
     }
     getFlashcardsLeft();
 
+    function postponeFlashcard(){
+        fs.flashcards[0].dueDate = getPostponeDate(fs.flashcards[0]);
+        displayLast();
+    }
+
     function displayLast(){
         fs = sortByDueDate(fs);
-        $(".btn.again,.btn.hard,.btn.medium,.btn.easy,.btn.already-known").hide();
+        $(".btn.again,.btn.hard,.btn.medium,.btn.easy,.btn.already-known,.btn.postpone").hide();
         $(".btn.show-answer").show();
         if(fs.flashcards.length === 0) { //TODO: change this
             closeWindow();
@@ -115,6 +123,7 @@ export const review = () => {
             $(".btn.hard").attr("data-content",`${dateToInString(getAnticipatedDueDate(fs.flashcards[0], 1).dueDate)}`);
             $(".btn.medium").attr("data-content",`${dateToInString(getAnticipatedDueDate(fs.flashcards[0], 3).dueDate)}`);
             $(".btn.easy").attr("data-content",`${dateToInString(getAnticipatedDueDate(fs.flashcards[0], 5).dueDate)}`);
+            $(".btn.postpone").attr("data-content",`${dateToInString(getPostponeDate(fs.flashcards[0]))}`);
             $(".btn.already-known").attr("data-content",`∞`);
         }else{
             closeWindow();
@@ -126,10 +135,20 @@ export const review = () => {
         fs.flashcards[0] = updateDueDate(fs.flashcards[0], q);
         displayLast();
     }
-    async function removeFlashcard(){
+    async function removeFlashcard(neverShowAgain = true){
         if(fs.flashcards.length === 0) return;
         const uuid = await toUniqueIdentifier(fs.flashcards[0].content.word);
-        fs.knownUnTracked[uuid] = true;
+
+        // Stop treating this UUID as an active SRS card so stats/windows don't see it
+        if(fs.alreadyCreated && uuid in fs.alreadyCreated){
+            delete fs.alreadyCreated[uuid];
+        }
+
+        if(neverShowAgain){
+            fs.knownUnTracked[uuid] = true;
+        }else if(fs.knownUnTracked && uuid in fs.knownUnTracked){
+            delete fs.knownUnTracked[uuid];
+        }
         fs.flashcards.shift();
         displayLast();
     }
@@ -151,8 +170,13 @@ export const review = () => {
             case "4":
                 $(".btn.easy").click();
                 break;
+            case "p":
+                $(".btn.postone").click();
             case "-":
                 $(".btn.already-known").click();
+                break;
+            case "x":
+                $(".btn.bin").click();
                 break;
             case " ":
                 $(".btn.show-answer").click();
@@ -172,15 +196,18 @@ export const review = () => {
     $(".btn.easy").on('click',()=>{
         updateFlashcard(5);
     });
+    $(".btn.postone").on('click',postponeFlashcard);
     $(".btn.already-known").on('click',()=>{
         removeFlashcard();
     });
     $(".btn.show-answer").on('click',()=>{
-        $(".btn.again,.btn.hard,.btn.medium,.btn.easy,.btn.already-known").show();
+        $(".btn.again,.btn.hard,.btn.medium,.btn.easy,.btn.already-known,.btn.postpone").show();
         $(".btn.show-answer").hide();
         revealAnswer(fs.flashcards[0]);
     });
-    $(".btn.bin").on('click',()=>$(".btn.already-known").click());
+    $(".btn.bin").on('click',()=>{
+        removeFlashcard(false);
+    });
     $(".btn.close").on('click',closeWindow);
 
     $(".btn.connect").on('click',openConnection);

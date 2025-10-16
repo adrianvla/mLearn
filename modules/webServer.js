@@ -81,7 +81,7 @@ const trustCertOnMac = (certFilePath) => {
 let sockets = [];
 // let isAllowed = false;
 
-const getServerProtocol = () => 'http';
+const getServerProtocol = () => 'http'
 
 // function setAllowed(to) {
 //     isAllowed = to;
@@ -233,22 +233,20 @@ const startWebSocketServer = async () => {
             });
             res.end('<!doctypehtml><html lang="en"><meta charset="UTF-8"><meta content="IE=edge" http-equiv="X-UA-Compatible"><meta content="width=device-width,initial-scale=1"name="viewport"><title>mLearn Backend</title><style>body{background:#222;color:#ccc;font-family:"Helvetica Neue",sans-serif}a{color:#ff0}</style><h1>mLearn Backend</h1><p>Hi, this is the mLearn Backend server, nothing to see here.<br>This server responds to HTTP requests made by the Injected mLearn Application, as well as by the Tethered version of mLearn for Mobile.<br>This server also responds to WebSockets, a feature used by mLearn\'s Watch Together feature.<p>Are you trying to use Watch Together and accidentally clicked on this link?<br>Go <a href="https://mlearn.morisinc.net/watch-together">here</a> to connect and paste this link (<span id="current_url"></span>) there.</p><p>If you want to install the mLearn Mobile UserScript for use in Tethered Mode, please click <a href="/mLearn.user.js" id="installUserscript">here</a>.</p><script>document.getElementById("current_url").innerText=window.location</script>');
             return;
-        }
-        if (req.url === "/mLearn.user.js"){
-            res.writeHead(200, {
-                'Content-Type': 'application/javascript',
-                'Access-Control-Allow-Origin': '*',
-            });
+        } else if (req.url === "/mLearn.user.js"){
             const filePath = path.join(appPath, 'modules', 'scripts', 'userscript.js');
             if (fs.existsSync(filePath)) {
+                res.writeHead(200, {
+                    'Content-Type': 'application/javascript',
+                    'Access-Control-Allow-Origin': '*',
+                });
                 fs.createReadStream(filePath).pipe(res);
             } else {
                 res.writeHead(404, { 'Content-Type': 'text/plain' });
                 res.end('File not found');
             }
             return;
-        }
-        if (req.url.startsWith('/forward/')) {
+        } else if (req.url.startsWith('/forward/')) {
             const forwardPath = req.url.replace('/forward/', '/');
             const tokeniserUrl = loadSettings().tokeniserUrl || '';
             let [hostname, port] = getHostAndPort(tokeniserUrl);
@@ -273,9 +271,7 @@ const startWebSocketServer = async () => {
                 res.end('Proxy error: ' + err.message);
             });
             return;
-        }
-
-        if (req.url === '/core.js') {
+        } else if (req.url === '/core.js') {
             const filePath = path.join(appPath, 'pages', 'tethered', 'core.js');
             if (fs.existsSync(filePath)) {
                 res.writeHead(200, {
@@ -287,6 +283,20 @@ const startWebSocketServer = async () => {
                 res.writeHead(404, { 'Content-Type': 'text/plain' });
                 res.end('File not found');
             }
+            return;
+        } else if (req.url === '/quick-lookup.js') {
+            const filePath = path.join(appPath, 'pages', 'tethered', 'quick-lookup.js');
+            if (fs.existsSync(filePath)) {
+                res.writeHead(200, {
+                    'Content-Type': 'application/javascript',
+                    'Access-Control-Allow-Origin': '*',
+                });
+                fs.createReadStream(filePath).pipe(res);
+            } else {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('File not found');
+            }
+            return;
         } else if (req.url === '/settings.js') {
             let settingsToSend = loadSettings();
             let s = "";
@@ -300,6 +310,7 @@ const startWebSocketServer = async () => {
                 'Access-Control-Allow-Origin': '*',
             });
             res.end(s);
+            return;
         } else if (req.url.startsWith('/pages/')) {
             // Serve static files from the 'assets' folder
             const filePath = path.join(appPath, req.url);
@@ -322,6 +333,48 @@ const startWebSocketServer = async () => {
                 res.writeHead(404, { 'Content-Type': 'text/plain' });
                 res.end('File not found');
             }
+            return;
+        } else if (req.url.startsWith('/modules/')) {
+            const modulePath = req.url.replace('/modules/', '');
+            const filePath = path.join(appPath, 'pages', 'modules', modulePath);
+            if (fs.existsSync(filePath)) {
+                res.writeHead(200, {
+                    'Content-Type': 'application/javascript',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                fs.createReadStream(filePath).pipe(res);
+            } else {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('File not found');
+            }
+            return;
+        } else if (req.url.startsWith('/lib/')) {
+            const modulePath = req.url.replace('/lib/', '');
+            const filePath = path.join(appPath, 'pages', 'lib', modulePath);
+            if (fs.existsSync(filePath)) {
+                res.writeHead(200, {
+                    'Content-Type': 'application/javascript',
+                    'Access-Control-Allow-Origin': '*'
+                });
+                fs.createReadStream(filePath).pipe(res);
+            } else {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('File not found');
+            }
+            return;
+        } else if (req.url.startsWith('/assets/')) {
+            const modulePath = req.url.replace('/assets/', '');
+            const filePath = path.join(appPath, 'pages', 'assets', modulePath);
+            if (fs.existsSync(filePath)) {
+                res.writeHead(200, {
+                    'Access-Control-Allow-Origin': '*'
+                });
+                fs.createReadStream(filePath).pipe(res);
+            } else {
+                res.writeHead(404, { 'Content-Type': 'text/plain' });
+                res.end('File not found');
+            }
+            return;
         } else if (req.url.startsWith('/?url=')) {
             const query = url.parse(req.url, true).query;
             let targetUrl = query.url; // Extract the target URL from the query string
