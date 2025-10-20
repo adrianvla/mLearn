@@ -3,6 +3,7 @@ import {$, displayFlashcard, revealAnswer} from "../front-end/display.js";
 import {closeWindow, getDocument} from "../front-end/window.js";
 import {openConnection} from "../connect/openConnection.js";
 import {toUniqueIdentifier} from "../../utils.js";
+import {WORD_STATUS_KNOWN, changeKnownStatus} from "../../stats/saving.js";
 
 function sortByDueDate(fs) {
     fs.flashcards.sort((a, b) => a.dueDate - b.dueDate);
@@ -198,6 +199,9 @@ export const review = () => {
     });
     $(".btn.postone").on('click',postponeFlashcard);
     $(".btn.already-known").on('click',()=>{
+        try{
+            changeKnownStatus(fs.flashcards[0].content.word, WORD_STATUS_KNOWN);
+        }catch(e){console.error(e);}
         removeFlashcard();
     });
     $(".btn.show-answer").on('click',()=>{
