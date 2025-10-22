@@ -61,6 +61,7 @@ const getLangData = async () => new Promise((resolve) => {
         resolve(lang_data);
     });
 });
+window.getLangData = getLangData;
 
 const load_lang_data = () => {
     TRANSLATABLE = lang_data[settings.language].translatable;
