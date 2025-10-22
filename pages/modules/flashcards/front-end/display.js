@@ -1,11 +1,11 @@
 import J from '../../../lib/jquery.min.js';
 import {getDocument} from "./window.js";
-import {settings, wordFreq} from "../../settings/settings.js";
+import {lang_data, settings, wordFreq} from "../../settings/settings.js";
 import {isNotAllKana} from "../../utils.js";
 export const $ = s=>J(s,getDocument());
 
 
-const addPitchAccent = (accent_type, word_in_letters, real_word, pos) => {
+export const addPitchAccent = (accent_type, word_in_letters, real_word, pos) => {
     //append to newEl inside an element
     console.log("Adding pitch accent", accent_type, word_in_letters, real_word, pos);
     const buildBasicRuby = () => {
@@ -118,6 +118,7 @@ export function displayFlashcard(card){
     * */
     console.log("Displaying flashcard", card);
     $(".answer").hide().html(card.content.translation);
+    $(".pill").show();
     $(".question").html(card.content.word);
     $(".sentence").html(card.content.example);
     $(".definition").html(card.content.definition);
@@ -128,8 +129,8 @@ export function displayFlashcard(card){
     if(["","-"," "].includes(card.content.example)) $(".card-item:has(.example)").hide();
     else $(".card-item:has(.example)").show();
     $(".divider").hide();
-    if(card.content.word in wordFreq)
-        $(".pill").html(wordFreq[card.content.word].level).attr("level",card.content.level).show();
+    if(card.content.level >= 0)
+        $(".pill").html(wordFreq[card.content.word]?.level || lang_data[settings.language]?.freq_level_names[card.content.level] || "NOT FOUND").attr("level",card.content.level).show();
     else $(".pill").hide();
 }
 
