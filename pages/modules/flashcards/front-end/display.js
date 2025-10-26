@@ -2,12 +2,13 @@ import J from '../../../lib/jquery.min.js';
 import {getDocument} from "./window.js";
 import {lang_data, settings, wordFreq} from "../../settings/settings.js";
 import {isNotAllKana} from "../../utils.js";
+import {buildPitchAccentHtml, getPitchAccentInfo} from "../../common/pitchAccent.js";
 export const $ = s=>J(s,getDocument());
-
 
 export const addPitchAccent = (accent_type, word_in_letters, real_word, pos) => {
     //append to newEl inside an element
     console.log("Adding pitch accent", accent_type, word_in_letters, real_word, pos);
+    const accentInfo = getPitchAccentInfo(accent_type, word_in_letters);
     const buildBasicRuby = () => {
         if(isNotAllKana(real_word)){
             return $(`<ruby>${real_word}<rt>${word_in_letters}</rt></ruby>`);
@@ -17,7 +18,7 @@ export const addPitchAccent = (accent_type, word_in_letters, real_word, pos) => 
 
     const shouldSkipAccent = (
         accent_type === undefined || accent_type === null ||
-        word_in_letters.length <= 1
+        !accentInfo
     );
 
     if(shouldSkipAccent){
@@ -30,56 +31,9 @@ export const addPitchAccent = (accent_type, word_in_letters, real_word, pos) => 
     // 2: Nakadaka (中高) - ↓↑↓↓↓↓↓↓(↓)
     // 3: Odaka (尾高) - ↓↑↑↑↑(↓)
     // >=4: drop after accent_type mora
-    let arr = [];
-    let particle_accent = accent_type === 0;
-    for(let i = 0;i<word_in_letters.length;i++){
-        switch(accent_type){
-            case 0: // Heiban (平板)
-                arr.push(i!==0);
-                break;
-            case 1: // Atamadaka (頭高)
-                arr.push(i===0);
-                break;
-            case 2: // Nakadaka (中高)
-                arr.push(i===1);
-                break;
-            case 3: // Odaka (尾高)
-                arr.push(i!==0);
-                break;
-            default: //drop after accent_type mora
-                arr.push(i !== 0 && i < accent_type);
-                break;
-        }
-    }
-
-    let html_string = "";
-
-    for(let i = 0; i < word_in_letters.length; i++){
-        //just make elements with the pitch accent, those will be divs
-        let b = !arr[i];
-        let t = arr[i];
-        let l = i >= 1 ? arr[i-1] !== arr[i] : false;
-        let classString = "box";
-        if(b) classString += " bottom";
-        if(t) classString += " top";
-        if(l) classString += " left";
-        html_string += `<div class="${classString}"></div>`;
-    }
-
-    if(!(pos === "動詞")){
-        //if not a verb, add particle accent
-        let b = !particle_accent;
-        let t = particle_accent;
-        let l = arr[word_in_letters.length-1] !== particle_accent;
-        let classString = "box particle-box";
-        if(b) classString += " bottom";
-        if(t) classString += " top";
-        if(l) classString += " left";
-        html_string += `<div class="${classString}" style="margin-right:${-100/word_in_letters.length}%;"></div>`;
-    }
-    for(let i = word_in_letters.length; i < real_word.length; i++){
-        html_string += `<div class="box"></div>`;
-    }
+    const html_string = buildPitchAccentHtml(accentInfo, real_word.length, {
+        includeParticleBox: !(pos === "動詞"),
+    });
     el.html(html_string);
 
 
@@ -140,4 +94,5 @@ export function revealAnswer(card){
     $(".question").html("").append(addPitchAccent(card.content.pitchAccent, card.content.pronunciation, card.content.word, card.content.pos));
     $(".example .translation p").html(card.content.exampleMeaning);
     $(".card-item:has(.definition)").show();
+    $(".content").scrollTop(0);
 }
