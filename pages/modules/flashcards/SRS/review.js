@@ -1,9 +1,9 @@
-import {Flashcards, saveFlashcards} from "../storage.js";
+import {Flashcards, saveFlashcards, overwriteFlashcards} from "../storage.js";
 import {$, addPitchAccent, displayFlashcard, revealAnswer} from "../front-end/display.js";
 import {closeWindow, getDocument} from "../front-end/window.js";
 import {openConnection} from "../connect/openConnection.js";
 import {toUniqueIdentifier} from "../../utils.js";
-import {WORD_STATUS_KNOWN, changeKnownStatus} from "../../stats/saving.js";
+import {WORD_STATUS_KNOWN, changeKnownStatus, loadKnownAdjustment} from "../../stats/saving.js";
 import {lang_data} from "../../settings/settings.js";
 
 function sortByDueDate(fs) {
@@ -91,9 +91,51 @@ function getPostponeDate(fc){
     return Date.now() + 24 * 60 * 60 * 100 * (50 + Math.random()*100); //postpone by 5-15 days
 }
 
+const MAX_UNDO_STACK_SIZE = 50;
+const cloneFlashcardState = (state) => {
+    if (typeof structuredClone === "function") {
+        try {
+            return structuredClone(state);
+        } catch (_err) {
+            // Fallback to JSON clone when structuredClone is unavailable or fails
+        }
+    }
+    return JSON.parse(JSON.stringify(state));
+};
 
 export const review = () => {
     let fs = sortByDueDate(Flashcards());
+    let mutationEpoch = 0;
+
+    const undoStack = [];
+    const pushUndoState = (options = {}) => {
+        if (!fs) return;
+        mutationEpoch++;
+        const snapshot = cloneFlashcardState(fs);
+        undoStack.push({state: snapshot, ...options});
+        if (undoStack.length > MAX_UNDO_STACK_SIZE) undoStack.shift();
+    };
+
+    const undoLastAction = () => {
+        if (undoStack.length === 0) return;
+        mutationEpoch++;
+        const entry = undoStack.pop();
+        overwriteFlashcards(entry.state);
+        fs = Flashcards();
+        if (typeof entry.restore === "function") {
+            let maybePromise;
+            try{
+                maybePromise = entry.restore();
+            }catch(err){
+                console.error(err);
+            }
+            if (maybePromise && typeof maybePromise.then === "function") {
+                maybePromise.finally(() => displayLast());
+                return;
+            }
+        }
+        displayLast();
+    };
 
     let flashcardsToGoThrough = 0;
     function getFlashcardsLeft(){
@@ -104,6 +146,8 @@ export const review = () => {
     getFlashcardsLeft();
 
     function postponeFlashcard(){
+        if(fs.flashcards.length === 0) return;
+        pushUndoState({type: "postpone"});
         fs.flashcards[0].dueDate = getPostponeDate(fs.flashcards[0]);
         displayLast();
     }
@@ -134,12 +178,28 @@ export const review = () => {
     }
     displayLast();
     function updateFlashcard(q){
+        if(fs.flashcards.length === 0) return;
+        pushUndoState({type: "review", quality: q});
         fs.flashcards[0] = updateDueDate(fs.flashcards[0], q);
         displayLast();
     }
-    async function removeFlashcard(neverShowAgain = true){
-        if(fs.flashcards.length === 0) return;
-        const uuid = await toUniqueIdentifier(fs.flashcards[0].content.word);
+    async function removeFlashcard(neverShowAgain = true, undoOptions = {}){
+        if(fs.flashcards.length === 0) return false;
+        const activeCard = fs.flashcards[0];
+        if(!activeCard) return false;
+        const epochAtStart = mutationEpoch;
+        const word = activeCard.content?.word;
+        if(!word) return false;
+        let uuid;
+        try{
+            uuid = await toUniqueIdentifier(word);
+        }catch(err){
+            console.error(err);
+            return false;
+        }
+        if(epochAtStart !== mutationEpoch) return false;
+        const {restore = null, ...restOptions} = undoOptions || {};
+        pushUndoState({...restOptions, restore, type: "remove", neverShowAgain});
 
         // Stop treating this UUID as an active SRS card so stats/windows don't see it
         if(fs.alreadyCreated && uuid in fs.alreadyCreated){
@@ -153,6 +213,7 @@ export const review = () => {
         }
         fs.flashcards.shift();
         displayLast();
+        return true;
     }
     let isInEditMode = false;
     let isInCreateMode = false;
@@ -230,6 +291,7 @@ export const review = () => {
             reviews: 0
         };
 
+        pushUndoState({type: "create"});
         fs.flashcards.unshift(newFlashcard);
         fs = sortByDueDate(fs);
         displayLast();
@@ -237,6 +299,13 @@ export const review = () => {
         isInCreateMode = false;
     };
     $(getDocument()).on('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && typeof e.key === "string" && e.key.toLowerCase() === "z") {
+            if(!isInEditMode && !isInCreateMode){
+                e.preventDefault();
+                undoLastAction();
+            }
+            return;
+        }
         console.log(e.key);
         if(isInEditMode || isInCreateMode) return;
         switch(e.key){
@@ -254,6 +323,7 @@ export const review = () => {
                 break;
             case "p":
                 $(".btn.postone").click();
+                break;
             case "-":
                 $(".btn.already-known").click();
                 break;
@@ -279,11 +349,31 @@ export const review = () => {
         updateFlashcard(5);
     });
     $(".btn.postone").on('click',postponeFlashcard);
-    $(".btn.already-known").on('click',()=>{
+    $(".btn.already-known").on('click',async ()=>{
+        if(fs.flashcards.length === 0) return;
+        const word = fs.flashcards[0].content.word;
+        let previousKnownAdjustmentRaw = null;
         try{
-            changeKnownStatus(fs.flashcards[0].content.word, WORD_STATUS_KNOWN);
+            previousKnownAdjustmentRaw = localStorage.getItem("knownAdjustment");
+        }catch(_e){
+            previousKnownAdjustmentRaw = null;
+        }
+        const removalSucceeded = await removeFlashcard(true, {
+            restore: () => {
+                try{
+                    if(previousKnownAdjustmentRaw === null){
+                        localStorage.removeItem("knownAdjustment");
+                    }else{
+                        localStorage.setItem("knownAdjustment", previousKnownAdjustmentRaw);
+                    }
+                    loadKnownAdjustment();
+                }catch(err){console.error(err);}
+            }
+        });
+        if(!removalSucceeded) return;
+        try{
+            changeKnownStatus(word, WORD_STATUS_KNOWN);
         }catch(e){console.error(e);}
-        removeFlashcard();
     });
     $(".btn.show-answer").on('click',()=>{
         $(".btn.again,.btn.hard,.btn.medium,.btn.easy,.btn.already-known,.btn.postpone").show();
@@ -302,6 +392,7 @@ export const review = () => {
         const $pitch_span = $(".pitch span");
         const $pill = $(".pill");
         if(isInEditMode){
+            if(fs.flashcards.length > 0) pushUndoState({type: "edit"});
             $(".editMode,.pill,.pitch,.pronunciation,.pronunciation-preview").hide();
             $(".can-be-edited").attr("contenteditable", "false");
             fs.flashcards[0].content.translation = $(".answer").text();

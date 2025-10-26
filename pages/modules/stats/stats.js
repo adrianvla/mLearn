@@ -6,6 +6,7 @@ import {toUniqueIdentifier} from "../utils.js";
 import {generateStatusPillHTML} from "../subtitler/pillHtml.js";
 import $ from "../../lib/jquery.min.js";
 import {getTranslation, setTranslationOverride, getTranslationOverride, clearTranslationOverride} from "../networking.js";
+import {buildPitchAccentHtml, getPitchAccentInfo} from "../common/pitchAccent.js";
 
 let timeWatched = 0;
 let lastUpdateTime = 0;
@@ -1101,58 +1102,16 @@ export async function adjustWordsByLevel(){
     // Build and attach pitch accent overlay to the provided span element.
     function attachPitchAccentToWord($span, real_word, reading, pitch){
         try{
-            if(!reading || reading === '-' || reading.length <= 1) return console.log('attachPitchAccentToWord: skipping', real_word, reading, pitch);
+            if(!reading || reading === '-') return console.log('attachPitchAccentToWord: skipping', real_word, reading, pitch);
             if(pitch === undefined || pitch === null) return console.log('attachPitchAccentToWord: skipping', real_word, reading, pitch);
-            // Construct overlay
-            const el = $('<div class="mLearn-pitch-accent"></div>');
-            const accent_type = Number(pitch);
             const word_in_letters = String(reading);
-            // Build segment flags
-            const arr = [];
-            for(let i = 0;i<word_in_letters.length;i++){
-                switch(accent_type){
-                    case 0: // Heiban (平板)
-                        arr.push(i!==0);
-                        break;
-                    case 1: // Atamadaka (頭高)
-                        arr.push(i===0);
-                        break;
-                    case 2: // Nakadaka (中高)
-                        arr.push(i===1);
-                        break;
-                    case 3: // Odaka (尾高)
-                        arr.push(i!==0);
-                        break;
-                    default: //drop after accent_type mora
-                        arr.push(i !== 0 && i < accent_type);
-                        break;
-                }
-            }
-            let html = '';
-            for(let i = 0; i < word_in_letters.length; i++){
-                const b = !arr[i];
-                const t = arr[i];
-                const l = i >= 1 ? (arr[i-1] !== arr[i]) : false;
-                let cls = 'box';
-                if(b) cls += ' bottom';
-                if(t) cls += ' top';
-                if(l) cls += ' left';
-                html += `<div class="${cls}"></div>`;
-            }
-            // Particle accent box (matching subtitle behavior; shown always)
-            const particle_accent = (accent_type === 0);
-            {
-                const b = !particle_accent;
-                const t = particle_accent;
-                const l = (arr[word_in_letters.length-1] !== particle_accent);
-                let cls = 'box particle-box';
-                if(b) cls += ' bottom';
-                if(t) cls += ' top';
-                if(l) cls += ' left';
-                html += `<div class="${cls}" style="margin-right:${-100/word_in_letters.length}%;"></div>`;
-            }
-            el.html(html);
-            // If we have ruby, append inside rt; else append to span
+            const accent_type = Number(pitch);
+            if(!Number.isFinite(accent_type)) return console.log('attachPitchAccentToWord: skipping', real_word, reading, pitch);
+            const accentInfo = getPitchAccentInfo(accent_type, word_in_letters);
+            if(!accentInfo) return console.log('attachPitchAccentToWord: skipping', real_word, reading, pitch);
+            const html = buildPitchAccentHtml(accentInfo, real_word.length, { includeParticleBox: true });
+            if(!html) return;
+            const el = $('<div class="mLearn-pitch-accent"></div>').html(html);
             const $ruby = $span.find('ruby');
             if($ruby.length && $ruby.find('rt').length){
                 $ruby.find('rt').append(el);
@@ -1162,7 +1121,7 @@ export async function adjustWordsByLevel(){
                 if($span.css('position') === 'static' || !$span.css('position')){ $span.css('position','relative'); }
                 $span.css('--pitch-accent-height', '2px');
             }
-        }catch(_e){console.log(_e)}
+        }catch(_e){console.log(_e);}
     }
 
     $(d).ready(async ()=>{

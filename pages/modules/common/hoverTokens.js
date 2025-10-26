@@ -8,6 +8,7 @@ import {makeFlashcard} from "../flashcards/anki.js";
 import {addPills, resetWordUUIDs} from "../subtitler/pillHtml.js";
 import {changeKnownStatus, getKnownStatus, WORD_STATUS_KNOWN} from "../stats/saving.js";
 import {trackWordAppearance} from "../flashcards/storage.js";
+import {buildPitchAccentHtml, getPitchAccentInfo} from "./pitchAccent.js";
 
 // Lightweight state containers (kept local to each render to avoid global collisions)
 function createLocalState() {
@@ -175,52 +176,14 @@ function addPitchAccentToEl($targetWordEl, accentData, word_in_letters, real_wor
     try{
         if(settings.language !== "ja") return;
         if(!accentData || Object.keys(accentData).length === 0) return;
-        if(real_word.length <= 1 || word_in_letters.length <= 1) return;
+        if(real_word.length <= 1) return;
         const accent_type = accentData[2]?.pitches?.[0]?.position;
-        if(typeof accent_type !== 'number') return;
-        let arr = [];
-        const particle_accent = accent_type === 0;
-        for(let i = 0; i < word_in_letters.length; i++){
-            switch(accent_type){
-                case 0: // Heiban
-                    arr.push(i !== 0);
-                    break;
-                case 1: // Atamadaka
-                    arr.push(i === 0);
-                    break;
-                case 2: // Nakadaka (approx)
-                    arr.push(i <= 1);
-                    break;
-                case 3: // Odaka (approx)
-                    arr.push(i !== 0);
-                    break;
-                default:
-                    arr.push(i !== 0 && i < accent_type);
-            }
-        }
-
-        let html_string = "";
-        for(let i = 0; i < word_in_letters.length; i++){
-            const b = !arr[i];
-            const t = arr[i];
-            const l = i >= 1 ? arr[i-1] !== arr[i] : false;
-            let classString = "box";
-            if(b) classString += " bottom";
-            if(t) classString += " top";
-            if(l) classString += " left";
-            html_string += `<div class="${classString}"></div>`;
-        }
-        if(!(pos === "動詞" && look_ahead_token === "動詞")){
-            const b = !particle_accent;
-            const t = particle_accent;
-            const l = arr[word_in_letters.length-1] !== particle_accent;
-            let classString = "box particle-box";
-            if(b) classString += " bottom";
-            if(t) classString += " top";
-            if(l) classString += " left";
-            html_string += `<div class="${classString}" style="margin-right:${-100/word_in_letters.length}%;"></div>`;
-        }
-        for(let i = word_in_letters.length; i < real_word.length; i++) html_string += `<div class="box"></div>`;
+        const accentInfo = getPitchAccentInfo(accent_type, word_in_letters);
+        if(!accentInfo) return;
+        const html_string = buildPitchAccentHtml(accentInfo, real_word.length, {
+            includeParticleBox: !(pos === "動詞" && look_ahead_token === "動詞"),
+        });
+        if(!html_string) return;
 
         const $accentEl = $('<div class="mLearn-pitch-accent"></div>').html(html_string);
         if(isNotAllKana(real_word)){

@@ -12,6 +12,7 @@ import {addPills, resetWordUUIDs} from "./pillHtml.js";
 import {changeKnownStatus, getKnownStatus, WORD_STATUS_KNOWN} from "../stats/saving.js";
 import {isWatchTogether} from "../watch-together/watchTogether.js";
 import {attemptFlashcardCreation, trackWordAppearance} from "../flashcards/storage.js";
+import {buildPitchAccentHtml, getPitchAccentInfo} from "../common/pitchAccent.js";
 
 
 
@@ -234,67 +235,16 @@ const modify_sub = async (subtitle) => {
         const addPitchAccent = (accent, word_in_letters) => {
             //append to newEl inside an element
             if(settings.language !== "ja") return; //only for japanese
-            if (accent && Object.keys(accent).length === 0) return;
-            if(real_word.length <= 1 || word_in_letters.length <= 1) return; //no pitch accent for single letters
-            // if(settings.lang )
-            let el = $('<div class="mLearn-pitch-accent"></div>');//we'll draw everything after
-            let accent_type = accent[2].pitches[0].position;
-            // 0: Heiban (平板) - Flat, ↓↑↑↑↑(↑)
-            // 1: Atamadaka (頭高) - ↑↓↓↓↓↓↓↓(↓)
-            // 2: Nakadaka (中高) - ↓↑↓↓↓↓↓↓(↓)
-            // 3: Odaka (尾高) - ↓↑↑↑↑(↓)
-            // >=4: drop after accent_type mora
-            let arr = [];
-            let particle_accent = accent_type === 0;
-            for(let i = 0;i<word_in_letters.length;i++){
-                switch(accent_type){
-                    case 0: // Heiban (平板)
-                        arr.push(i!==0);
-                        break;
-                    case 1: // Atamadaka (頭高)
-                        arr.push(i===0);
-                        break;
-                    case 2: // Nakadaka (中高)
-                        arr.push(i===1);
-                        break;
-                    case 3: // Odaka (尾高)
-                        arr.push(i!==0);
-                        break;
-                    default: //drop after accent_type mora
-                        arr.push(i !== 0 && i < accent_type);
-                        break;
-                }
-            }
-
-            let html_string = "";
-
-            for(let i = 0; i < word_in_letters.length; i++){
-                //just make elements with the pitch accent, those will be divs
-                let b = !arr[i];
-                let t = arr[i];
-                let l = i >= 1 ? arr[i-1] !== arr[i] : false;
-                let classString = "box";
-                if(b) classString += " bottom";
-                if(t) classString += " top";
-                if(l) classString += " left";
-                html_string += `<div class="${classString}"></div>`;
-            }
-
-            if(!(pos === "動詞" && look_ahead_token === "動詞")){
-                //if not a verb, add particle accent
-                let b = !particle_accent;
-                let t = particle_accent;
-                let l = arr[word_in_letters.length-1] !== particle_accent;
-                let classString = "box particle-box";
-                if(b) classString += " bottom";
-                if(t) classString += " top";
-                if(l) classString += " left";
-                html_string += `<div class="${classString}" style="margin-right:${-100/word_in_letters.length}%;"></div>`;
-            }
-            for(let i = word_in_letters.length; i < real_word.length; i++){
-                html_string += `<div class="box"></div>`;
-            }
-            el.html(html_string);
+            if(!accent || Object.keys(accent).length === 0) return;
+            if(real_word.length <= 1) return; //no pitch accent for single letters
+            const accent_type = accent[2]?.pitches?.[0]?.position;
+            const accentInfo = getPitchAccentInfo(accent_type, word_in_letters);
+            if(!accentInfo) return;
+            const html_string = buildPitchAccentHtml(accentInfo, real_word.length, {
+                includeParticleBox: !(pos === "動詞" && look_ahead_token === "動詞"),
+            });
+            if(!html_string) return;
+            const el = $('<div class="mLearn-pitch-accent"></div>').html(html_string);
 
 
 
