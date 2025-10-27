@@ -318,7 +318,7 @@ function setAppMenu(){
                     }
                 },
                 {
-                    label: 'Open Connection Window',
+                    label: 'Open Syncing Window',
                     click: async () => {
                         mainWindow.webContents.send('flashcard-connect-open');
                     }
