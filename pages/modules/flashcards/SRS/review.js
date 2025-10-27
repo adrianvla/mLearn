@@ -322,7 +322,7 @@ export const review = () => {
                 $(".btn.easy").click();
                 break;
             case "p":
-                $(".btn.postone").click();
+                $(".btn.postpone").click();
                 break;
             case "-":
                 $(".btn.already-known").click();
@@ -348,7 +348,7 @@ export const review = () => {
     $(".btn.easy").on('click',()=>{
         updateFlashcard(5);
     });
-    $(".btn.postone").on('click',postponeFlashcard);
+    $(".btn.postpone").on('click',postponeFlashcard);
     $(".btn.already-known").on('click',async ()=>{
         if(fs.flashcards.length === 0) return;
         const word = fs.flashcards[0].content.word;
