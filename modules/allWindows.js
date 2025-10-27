@@ -318,6 +318,12 @@ function setAppMenu(){
                     }
                 },
                 {
+                    label: 'Open Connection Window',
+                    click: async () => {
+                        mainWindow.webContents.send('flashcard-connect-open');
+                    }
+                },
+                {
                     label: 'Review Flashcards',
                     click: async () => {
                         mainWindow.webContents.send('review-flashcards-request');

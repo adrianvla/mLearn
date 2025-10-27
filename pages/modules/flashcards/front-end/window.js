@@ -1,5 +1,6 @@
 import {displayFlashcard} from "./display.js";
 import {review} from "../SRS/review.js";
+import {openWindow as openConnectWindow} from "../connect/window.js";
 
 let myWindow = null;
 let hasLoaded = false;
@@ -24,5 +25,11 @@ export function closeWindow(){
 window.mLearnIPC.onReviewFlashcardRequest(()=>{
     $(".review-flashcards").trigger("click");
 });
+
+if (window.mLearnIPC && typeof window.mLearnIPC.onFlashcardConnectOpen === "function") {
+    window.mLearnIPC.onFlashcardConnectOpen(() => {
+        openConnectWindow();
+    });
+}
 
 export function getDocument(){return myWindow.document;}
