@@ -3,6 +3,11 @@ import {updateImagePages} from "../handler/sequencer.js";
 import {isInitialized} from "../handler/init.js";
 let doc = null;
 let isSidebarOpen = true;
+
+export function refreshPositioning(d) {
+    const mode = getCurrentMode(d);
+    setFitMode(d, mode, true);
+}
 export function initPositioning(d) {
     doc = d;
     // Sidebar toggle
