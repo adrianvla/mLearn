@@ -1,16 +1,77 @@
 import {refreshFitMode} from "../front-end/positioning.js";
 import {readPage} from "../ocr/read.js";
 import {sendToReader} from "../ocr/dispatcher.js";
+import {parseSubtitleName} from "../../subtitler/subtitleParsers.js";
 
 let pages = [];
 let currentIndex = 0;
 let currentMode = "double"; //also "single"
 let doc = null;
+let currentBookId = null;
+
+const STORAGE_KEY_PREFIX = "reader:last-page:";
+
+const getView = () => {
+    if (doc && doc.defaultView) return doc.defaultView;
+    if (typeof window !== "undefined") return window;
+    return null;
+};
+
+const getStorage = () => {
+    const view = getView();
+    if (!view) return null;
+    try {
+        return view.localStorage;
+    } catch (err) {
+        console.warn("[Reader][Storage] localStorage unavailable", err);
+        return null;
+    }
+};
+
+const makeStorageKey = (bookId) => `${STORAGE_KEY_PREFIX}${bookId}`;
+
+const loadSavedPageIndex = (bookId) => {
+    if (!bookId) return null;
+    const storage = getStorage();
+    if (!storage) return null;
+    try {
+        const raw = storage.getItem(makeStorageKey(bookId));
+        if (raw === null) return null;
+        const val = Number.parseInt(raw, 10);
+        return Number.isFinite(val) ? val : null;
+    } catch (err) {
+        console.warn("[Reader][Storage] Failed to read page index", err);
+        return null;
+    }
+};
+
+const persistCurrentPage = () => {
+    if (!currentBookId) return;
+    const storage = getStorage();
+    if (!storage) return;
+    if (!pages.length) return;
+    const normalized = Math.min(Math.max(currentIndex, 0), pages.length - 1);
+    try {
+        storage.setItem(makeStorageKey(currentBookId), String(normalized));
+    } catch (err) {
+        console.warn("[Reader][Storage] Failed to persist page index", err);
+    }
+};
+
+const normalizeCurrentIndex = () => {
+    if (!pages.length) {
+        currentIndex = 0;
+        return;
+    }
+    if (currentIndex < 0) currentIndex = 0;
+    if (currentIndex >= pages.length) currentIndex = pages.length - 1;
+};
 export const initSequencer = (d) => {
     doc = d;
     pages = [];
     currentIndex = 0;
     currentMode = "double";
+    currentBookId = null;
     $("select#page-mode-select",d).on("change", (e) => {
         setCurrentMode(e.target.value);
         updateCurrentMode(d);
@@ -34,7 +95,21 @@ export const initSequencer = (d) => {
     });
 };
 
-export const setPages = (newPages) => pages = newPages;
+export const setPages = (newPages, bookId) => {
+    pages = Array.isArray(newPages) ? newPages : [];
+    const trimmedBookId = typeof bookId === "string" ? bookId.trim() : null;
+    const derivedFromPages = pages.length ? parseSubtitleName(pages[0].source || pages[0].name || "") : null;
+    currentBookId = trimmedBookId || derivedFromPages || null;
+    currentIndex = 0;
+    const savedIndex = loadSavedPageIndex(currentBookId);
+    if (typeof savedIndex === "number") {
+        currentIndex = savedIndex;
+    }
+    normalizeCurrentIndex();
+    updatePageIndicators();
+    persistCurrentPage();
+    return currentIndex;
+};
 export const getPages = () => pages;
 
 export const getCurrentPage = () => {
@@ -46,20 +121,29 @@ export const getCurrentPage = () => {
 };
 export const setCurrentPage = (newIndex) => {
     currentIndex = newIndex;
-    if(currentIndex < 0) currentIndex = 0;
-    if(currentIndex >= pages.length) currentIndex = pages.length - 1;
+    normalizeCurrentIndex();
     updatePageIndicators();
+    persistCurrentPage();
 };
 const updatePageIndicators = ()=>{
-    $(".book-progress",doc).text(`${currentIndex+1}/${pages.length}`);
+    if(!doc) return;
+    const $progress = $(".book-progress", doc);
+    if(!$progress.length) return;
+    const totalPages = pages.length;
+    const displayIndex = totalPages ? Math.min(Math.max(currentIndex, 0), totalPages - 1) + 1 : 0;
+    $progress.text(`${displayIndex}/${totalPages}`);
 };
 export const nextPage = () => {
     currentIndex += currentMode === "double" ? 2 : 1;
+    normalizeCurrentIndex();
     updatePageIndicators();
+    persistCurrentPage();
 };
 export const previousPage = () => {
     currentIndex -= currentMode === "double" ? 2 : 1;
+    normalizeCurrentIndex();
     updatePageIndicators();
+    persistCurrentPage();
 };
 export const getCurrentIndex = () => currentIndex;
 export const setCurrentMode = (newMode) => {

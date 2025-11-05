@@ -73,6 +73,7 @@ const newSetup = () => {
 export const trackWordAppearance = async (word) => {
     const uuid = await toUniqueIdentifier(word);
     if(flashcards.wordCandidates[uuid] === undefined || flashcards.wordCandidates[uuid] === null) flashcards.wordCandidates[uuid] = { "count": 0, "lastSeen": Date.now(), word };
+    if(typeof flashcards.wordCandidates[uuid] == "number") flashcards.wordCandidates[uuid] = { "count": flashcards.wordCandidates[uuid], "lastSeen": Date.now(), word };
     flashcards.wordCandidates[uuid].count++;
     saveFlashcards();
 }

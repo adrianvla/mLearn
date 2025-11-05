@@ -91,6 +91,10 @@ function getPostponeDate(fc){
     return Date.now() + 24 * 60 * 60 * 100 * (50 + Math.random()*100); //postpone by 5-15 days
 }
 
+function getPitchMistakeDate(){
+    return Date.now() + 24 * 60 * 60 * 1000; //schedule for next day
+}
+
 const MAX_UNDO_STACK_SIZE = 50;
 const cloneFlashcardState = (state) => {
     if (typeof structuredClone === "function") {
@@ -154,7 +158,7 @@ export const review = () => {
 
     function displayLast(){
         fs = sortByDueDate(fs);
-        $(".btn.again,.btn.hard,.btn.medium,.btn.easy,.btn.already-known,.btn.postpone").hide();
+        $(".btn.again,.btn.hard,.btn.medium,.btn.easy,.btn.already-known,.btn.postpone,.btn.pitch-mistake").hide();
         $(".btn.show-answer").show();
         if(fs.flashcards.length === 0) { //TODO: change this
             closeWindow();
@@ -170,6 +174,7 @@ export const review = () => {
             $(".btn.medium").attr("data-content",`${dateToInString(getAnticipatedDueDate(fs.flashcards[0], 3).dueDate)}`);
             $(".btn.easy").attr("data-content",`${dateToInString(getAnticipatedDueDate(fs.flashcards[0], 5).dueDate)}`);
             $(".btn.postpone").attr("data-content",`${dateToInString(getPostponeDate(fs.flashcards[0]))}`);
+            $(".btn.pitch-mistake").attr("data-content",`${dateToInString(getPitchMistakeDate())}`);
             $(".btn.already-known").attr("data-content",`∞`);
         }else{
             closeWindow();
@@ -181,6 +186,15 @@ export const review = () => {
         if(fs.flashcards.length === 0) return;
         pushUndoState({type: "review", quality: q});
         fs.flashcards[0] = updateDueDate(fs.flashcards[0], q);
+        displayLast();
+    }
+    function schedulePitchMistake(){
+        if(fs.flashcards.length === 0) return;
+        pushUndoState({type: "pitch-mistake"});
+        const updated = getAnticipatedDueDate(fs.flashcards[0], 3);
+        const nextDay = getPitchMistakeDate();
+        updated.dueDate = nextDay;
+        fs.flashcards[0] = updated;
         displayLast();
     }
     async function removeFlashcard(neverShowAgain = true, undoOptions = {}){
@@ -324,6 +338,9 @@ export const review = () => {
             case "p":
                 $(".btn.postpone").click();
                 break;
+            case "m":
+                $(".btn.pitch-mistake").click();
+                break;
             case "-":
                 $(".btn.already-known").click();
                 break;
@@ -349,6 +366,7 @@ export const review = () => {
         updateFlashcard(5);
     });
     $(".btn.postpone").on('click',postponeFlashcard);
+    $(".btn.pitch-mistake").on('click',schedulePitchMistake);
     $(".btn.already-known").on('click',async ()=>{
         if(fs.flashcards.length === 0) return;
         const word = fs.flashcards[0].content.word;
@@ -376,7 +394,7 @@ export const review = () => {
         }catch(e){console.error(e);}
     });
     $(".btn.show-answer").on('click',()=>{
-        $(".btn.again,.btn.hard,.btn.medium,.btn.easy,.btn.already-known,.btn.postpone").show();
+        $(".btn.again,.btn.hard,.btn.medium,.btn.easy,.btn.already-known,.btn.postpone,.btn.pitch-mistake").show();
         $(".btn.show-answer").hide();
         revealAnswer(fs.flashcards[0]);
     });
