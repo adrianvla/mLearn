@@ -87,12 +87,16 @@ export function displayFlashcard(card){
         $(".pill").html(wordFreq[card.content.word]?.level || lang_data[settings.language]?.freq_level_names[card.content.level] || "NOT FOUND").attr("level",card.content.level).show();
     else $(".pill").hide();
 }
-
+let scroll_interval = null;
 export function revealAnswer(card){
+    clearInterval(scroll_interval);
     $(".answer,.divider").show();
     $(".card-c").css("padding-top", "0px").css("padding-bottom", "20px");
     $(".question").html("").append(addPitchAccent(card.content.pitchAccent, card.content.pronunciation, card.content.word, card.content.pos));
     $(".example .translation p").html(card.content.exampleMeaning);
     $(".card-item:has(.definition)").show();
-    $(".content").scrollTop(0);
+    scroll_interval = setInterval(()=>{
+        getDocument().querySelector(".content").scrollTo(0,0);
+    },1);
+    setTimeout(()=>clearInterval(scroll_interval), 100);
 }
