@@ -96,7 +96,11 @@ export function revealAnswer(card){
     $(".example .translation p").html(card.content.exampleMeaning);
     $(".card-item:has(.definition)").show();
     scroll_interval = setInterval(()=>{
+        $(getDocument().querySelector(".content")).css("overflow-y", "hidden");
         getDocument().querySelector(".content").scrollTo(0,0);
     },1);
-    setTimeout(()=>clearInterval(scroll_interval), 100);
+    setTimeout(()=> {
+        clearInterval(scroll_interval);
+        $(getDocument().querySelector(".content")).css("overflow-y", "auto");
+    }, 100);
 }
