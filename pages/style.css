@@ -570,6 +570,12 @@ body.dark .subtitle_hover .footer{
 body.dark .subtitle_hover .pill,.contains_pills .subtitle_hover .pill {
     box-shadow: rgba(50, 50, 93, 0.10) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
 }
+.subtitle_hover .pill.pitch-accent-pill .mLearn-pitch-accent,.contains_pills .pill.pitch-accent-pill .mLearn-pitch-accent{
+    --pitch-accent-height: 2px;
+}
+.subtitle_hover .pill.pitch-accent-pill .pitch-accent-word{
+    position:relative;
+}
 .subtitle_hover .pill[level="7"],.contains_pills .pill[level="7"],.subtitle_hover .pill.gray,.contains_pills .pill.gray{
     color: rgb(124, 124, 124);
     background-color: rgb(230, 230, 230);

@@ -431,7 +431,7 @@ const modify_sub = async (subtitle) => {
                 flashcardFunctions[encodedWord] = ()=>{
                     createFlashcardClick(raw_flashcard_data);
                 };
-                pill_html = await addPills(word,pos,true);
+                pill_html = await addPills(word,pos,true,false,translation_data);
                 updateHoverElHTML();
             }
 

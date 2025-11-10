@@ -17,6 +17,137 @@ import {
 import {toUniqueIdentifier, screenshotVideo} from "../utils.js";
 import {flashcardFunctions} from "./subtitler.js";
 import {countFreq} from "../stats/wordFreq.js";
+import {buildPitchAccentHtml, getPitchAccentInfo} from "../common/pitchAccent.js";
+
+const pitchAccentTranslationCache = new Map();
+const pitchAccentTranslationInFlight = new Map();
+
+function escapeHtml(str){
+    if(str === null || str === undefined) return "";
+    return String(str).replace(/[&<>"']/g, (ch)=>{
+        switch(ch){
+            case "&": return "&amp;";
+            case "<": return "&lt;";
+            case ">": return "&gt;";
+            case '"': return "&quot;";
+            case "'": return "&#39;";
+            default: return ch;
+        }
+    });
+}
+
+let stripHtmlContainer = null;
+function stripHtml(value){
+    if(typeof value !== "string") return "";
+    if(typeof document !== "undefined"){
+        if(!stripHtmlContainer) stripHtmlContainer = document.createElement("div");
+        stripHtmlContainer.innerHTML = value;
+        const text = stripHtmlContainer.textContent || stripHtmlContainer.innerText || "";
+        stripHtmlContainer.innerHTML = "";
+        return text.replace(/\u00a0/g, " ");
+    }
+    return value.replace(/<[^>]*>/g, "").replace(/\u00a0/g, " ");
+}
+
+function normaliseReading(raw){
+    if(typeof raw !== "string") return "";
+    let text = raw;
+    const markerIndex = text.indexOf("<!-- accent_start -->");
+    if(markerIndex !== -1) text = text.substring(0, markerIndex);
+    text = stripHtml(text).trim();
+    if(!text) return "";
+    return text.replace(/\s+/g, "");
+}
+
+async function resolveTranslationForPitchAccent(word, provided){
+    if(provided && Array.isArray(provided.data)){
+        pitchAccentTranslationCache.set(word, provided);
+        return provided;
+    }
+    if(pitchAccentTranslationCache.has(word)) return pitchAccentTranslationCache.get(word);
+    if(pitchAccentTranslationInFlight.has(word)) return pitchAccentTranslationInFlight.get(word);
+    const promise = getTranslation(word)
+        .then((res)=>{
+            if(res && Array.isArray(res.data)){
+                pitchAccentTranslationCache.set(word, res);
+            }
+            return res;
+        })
+        .catch(()=>null)
+        .finally(()=>{
+            pitchAccentTranslationInFlight.delete(word);
+        });
+    pitchAccentTranslationInFlight.set(word, promise);
+    return promise;
+}
+
+function extractReadingFromEntries(entries){
+    if(!Array.isArray(entries)) return "";
+    for(const entry of entries){
+        if(entry && typeof entry.reading === "string" && entry.reading){
+            return entry.reading;
+        }
+    }
+    return "";
+}
+
+function extractPitchAccentPosition(entries){
+    if(!Array.isArray(entries)) return null;
+    const stack = [...entries];
+    const visited = new Set();
+    while(stack.length){
+        const node = stack.pop();
+        if(!node) continue;
+        if(typeof node === "object"){
+            if(visited.has(node)) continue;
+            visited.add(node);
+        }
+        if(Array.isArray(node)){
+            for(let i = 0; i < node.length; i++){
+                stack.push(node[i]);
+            }
+            continue;
+        }
+        if(typeof node === "object"){
+            const pitches = node.pitches;
+            if(Array.isArray(pitches) && pitches.length){
+                const pos = Number(pitches[0]?.position);
+                if(Number.isFinite(pos) && pos >= 0) return pos;
+            }
+            for(const key of Object.keys(node)){
+                const val = node[key];
+                if(val && typeof val === "object") stack.push(val);
+            }
+        }
+    }
+    return null;
+}
+
+async function buildPitchAccentPill(word, providedTranslation){
+    try{
+        if(settings.language !== "ja") return "";
+        if(!settings.showPitchAccent) return "";
+        const translationData = await resolveTranslationForPitchAccent(word, providedTranslation);
+        if(!translationData || !Array.isArray(translationData.data) || translationData.data.length === 0) return "";
+        const readingRaw = extractReadingFromEntries(translationData.data);
+        const reading = normaliseReading(readingRaw);
+        if(!reading || reading.length <= 1) return "";
+        const accentType = extractPitchAccentPosition(translationData.data);
+        if(accentType === null) return "";
+        const accentInfo = getPitchAccentInfo(accentType, reading);
+        if(!accentInfo) return "";
+        const accentHtml = buildPitchAccentHtml(accentInfo, reading.length, {
+            includeParticleBox: true,
+            padTo: reading.length,
+            homogenous: true
+        });
+        if(!accentHtml) return "";
+        const readingEscaped = escapeHtml(reading);
+        return `<div class="pill gray pitch-accent-pill"><div class="pitch-accent-word">${readingEscaped}✦<div class="mLearn-pitch-accent" aria-hidden="true">${accentHtml}</div></div></div>`;
+    }catch(_e){
+        return "";
+    }
+}
 
 let wordUUIDs = {};
 let wordPosByUUID = {};
@@ -210,9 +341,11 @@ const addEasePill = async (word) => {
     return easePillHTML(easeVal !== undefined ? (Math.round(easeVal*100)/100) : "?");
 };
 
-const addPills = async (word,pos, addAnkiBtn = false, isOCR = false)=>{
+const addPills = async (word,pos, addAnkiBtn = false, isOCR = false, translationDataOverride = undefined)=>{
     //check if word is in wordFreq
     let s = `<div class="footer"><div class="pills">`;
+    const pitchAccentPill = await buildPitchAccentPill(word, translationDataOverride);
+    if(pitchAccentPill) s += pitchAccentPill;
     if(word in wordFreq){
         countFreq(wordFreq[word].raw_level);
         s += `<div class="pill" level="${wordFreq[word].raw_level}">${wordFreq[word].level}</div>`;
