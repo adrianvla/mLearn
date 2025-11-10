@@ -20,7 +20,7 @@ function buildAccentPattern(accentType, reading){
                 pattern.push(i === 1);
                 break;
             case 3:
-                pattern.push(i !== 0);
+                pattern.push(i !== 0 && i < count - 1);
                 break;
             default:
                 pattern.push(i !== 0 && i < accentType);
@@ -85,11 +85,11 @@ export function buildPitchAccentHtml(info, realWordLength, options = {}){
         const top = particleAccent;
         const prev = unitCount ? pattern[unitCount - 1] : false;
         const left = prev !== particleAccent;
-        let classString = "box particle-box";
+        let classString = `box ${options.homogenous ? '' : 'particle-box'}`;
         if(bottom) classString += " bottom";
         if(top) classString += " top";
         if(left) classString += " left";
-        html += `<div class="${classString}" style="margin-right:${marginPercent}%;"></div>`;
+        html += `<div class="${classString}" ${options.homogenous ? '' : `style="margin-right:${marginPercent}%;"`}></div>`;
     }
 
     if(padTo && padTo > unitCount){

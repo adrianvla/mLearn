@@ -218,7 +218,7 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
     }
     let hoverEl_html = "";
     // Always include pills in hover like subtitler.js; add Anki button only if enabled
-    let pill_html = await addPills(word, pos, !!settings.enable_flashcard_creation, isOCR);
+    let pill_html = await addPills(word, pos, !!settings.enable_flashcard_creation, isOCR, translation_data);
     let raw_flashcard_data = {example:"", front:word, pitch:"", definitions:"", image:""};
 
     translation_data.data.forEach((meaning)=>{
@@ -257,7 +257,7 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
             if(!response.error){ state.already_added[word] = true; }
         };
         // Regenerate pills to ensure Anki button presence (already true since enable is on)
-    pill_html = await addPills(word, pos, true, isOCR);
+    pill_html = await addPills(word, pos, true, isOCR, translation_data);
         updateHoverElHTML($hover, hoverEl_html, pill_html);
     }
 
@@ -287,7 +287,9 @@ export async function attachInteractiveText($container, text, options = {}){
         forceHoverHorizontal = false,
         disablePitchAccent = false,
         isOCR = false,
+        hoverShowDelayMs: rawHoverShowDelayMs = 0,
     } = options || {};
+    const hoverShowDelayMs = Math.max(0, Number(rawHoverShowDelayMs));
     // Render interactive tokens into provided jQuery container
     if(!$container || $container.length === 0) return;
     $container.empty();
@@ -342,6 +344,63 @@ export async function attachInteractiveText($container, text, options = {}){
         updateHoverElHTML($hoverEl, "", "");
         let card_data = {};
         if(TRANSLATABLE.includes(pos)){
+            let hoverShowTimer = null;
+            let hoverHideTimer = null;
+            const clearHoverShowTimer = () => {
+                if(hoverShowTimer !== null){
+                    clearTimeout(hoverShowTimer);
+                    hoverShowTimer = null;
+                }
+            };
+            const clearHoverHideTimer = () => {
+                if(hoverHideTimer !== null){
+                    clearTimeout(hoverHideTimer);
+                    hoverHideTimer = null;
+                }
+            };
+            const triggerShowHover = () => {
+                clearHoverShowTimer();
+                clearHoverHideTimer();
+                if(!$hoverEl.hasClass('show-hover')){
+                    $hoverEl.addClass('show-hover');
+                }
+                buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR });
+                requestAnimationFrame(()=> simplePosition($hoverEl, $wordEl));
+            };
+            const scheduleShowHover = () => {
+                clearHoverHideTimer();
+                clearHoverShowTimer();
+                if(hoverShowDelayMs > 0){
+                    hoverShowTimer = setTimeout(triggerShowHover, hoverShowDelayMs);
+                }else{
+                    triggerShowHover();
+                }
+            };
+            const scheduleHideHoverDelayed = () => {
+                clearHoverShowTimer();
+                clearHoverHideTimer();
+                hoverHideTimer = setTimeout(()=>{
+                    const h = $hoverEl.get(0), wEl = $wordEl.get(0);
+                    if(!h || !wEl) return;
+                    if(!h.matches(':hover') && !wEl.matches(':hover')){
+                        $hoverEl.removeClass('show-hover');
+                    }
+                }, 300);
+            };
+            const hideHoverImmediate = () => {
+                clearHoverShowTimer();
+                clearHoverHideTimer();
+                $hoverEl.removeClass('show-hover');
+            };
+            const bindHoverHandlers = (hideMode = 'delayed') => {
+                $wordEl.off('.mLearnHover');
+                $wordEl.on('mouseenter.mLearnHover', scheduleShowHover);
+                if(hideMode === 'delayed'){
+                    $wordEl.on('mouseleave.mLearnHover', scheduleHideHoverDelayed);
+                }else{
+                    $wordEl.on('mouseleave.mLearnHover', hideHoverImmediate);
+                }
+            };
             let showDetails = false;
             if(settings.use_anki){
                 try{ card_data = await getCards(word); }catch(_e){ card_data.poor = true; }
@@ -354,16 +413,7 @@ export async function attachInteractiveText($container, text, options = {}){
                 hoverElState($hoverEl, "loading", word, pos, isOCR);
                 state.hasBeenLoadedDB[uuid] = false;
                 state.processingDB[uuid] = false;
-                const delayHide = () => setTimeout(()=>{
-                    const h = $hoverEl.get(0), w = $wordEl.get(0);
-                    if(!h || !w) return;
-                    if(!h.matches(':hover') && !w.matches(':hover')) $hoverEl.removeClass('show-hover');
-                }, 300);
-                $wordEl.hover(()=>{
-                    $hoverEl.addClass('show-hover');
-                    buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR });
-                    requestAnimationFrame(()=> simplePosition($hoverEl, $wordEl));
-                }, ()=>{ delayHide(); });
+                bindHoverHandlers('delayed');
             }else{
                 const current_card = card_data.cards?.[0];
                 if(current_card && current_card.factor < settings.known_ease_threshold && isWordKnown){
@@ -372,22 +422,14 @@ export async function attachInteractiveText($container, text, options = {}){
                     $wordEl.addClass("has-hover").append($hoverEl);
                     $wordEl.attr("known","false");
                     hoverElState($hoverEl, "loading", word, pos, isOCR);
-                    $wordEl.hover(()=>{
-                        $hoverEl.addClass('show-hover');
-                        buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR });
-                        requestAnimationFrame(()=> simplePosition($hoverEl, $wordEl));
-                    }, ()=>{ $hoverEl.removeClass('show-hover'); });
+                    bindHoverHandlers('immediate');
                 }else{
                     $wordEl.attr("known","true");
                     changeKnownStatus(word, WORD_STATUS_KNOWN);
                     blurWord($wordEl);
                     if(settings.hover_known_get_from_dictionary){
                         $wordEl.addClass("has-hover").append($hoverEl);
-                        $wordEl.hover(()=>{
-                            $hoverEl.addClass('show-hover');
-                            buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR });
-                            requestAnimationFrame(()=> simplePosition($hoverEl, $wordEl));
-                        }, ()=>{ $hoverEl.removeClass('show-hover'); });
+                        bindHoverHandlers('immediate');
                     }
                 }
             }
