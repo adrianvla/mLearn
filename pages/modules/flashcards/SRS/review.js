@@ -1,9 +1,9 @@
-import {Flashcards, saveFlashcards, overwriteFlashcards} from "../storage.js";
+import {Flashcards, overwriteFlashcards, saveFlashcards} from "../storage.js";
 import {$, addPitchAccent, displayFlashcard, revealAnswer} from "../front-end/display.js";
 import {closeWindow, getDocument} from "../front-end/window.js";
 import {openConnection} from "../connect/openConnection.js";
 import {toUniqueIdentifier} from "../../utils.js";
-import {WORD_STATUS_KNOWN, changeKnownStatus, loadKnownAdjustment} from "../../stats/saving.js";
+import {changeKnownStatus, loadKnownAdjustment, WORD_STATUS_KNOWN} from "../../stats/saving.js";
 import {lang_data} from "../../settings/settings.js";
 
 function sortByDueDate(fs) {
@@ -191,10 +191,10 @@ export const review = () => {
     function schedulePitchMistake(){
         if(fs.flashcards.length === 0) return;
         pushUndoState({type: "pitch-mistake"});
-        const updated = getAnticipatedDueDate(fs.flashcards[0], 3);
-        const nextDay = getPitchMistakeDate();
-        updated.dueDate = nextDay;
-        fs.flashcards[0] = updated;
+        fs.flashcards[0].dueDate = getPitchMistakeDate();
+        fs.flashcards[0].lastReviewed = Date.now();
+        fs.flashcards[0].lastUpdated = Date.now();
+        fs.flashcards[0].reviews++;
         displayLast();
     }
     async function removeFlashcard(neverShowAgain = true, undoOptions = {}){
