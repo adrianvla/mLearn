@@ -185,7 +185,7 @@ async function checkLlmStatus(llmUrl){
     return null;
 }
 
-async function getLLMResponse(prompt,max_new_tokens,temperature){
+export async function getLLMResponse(prompt,max_new_tokens,temperature){
     const llmUrl = deriveLLMUrl();
     if (!llmUrl){
         return {error: 'LLM URL not configured'};
@@ -238,7 +238,7 @@ async function getLLMResponse(prompt,max_new_tokens,temperature){
         xhr.send(JSON.stringify({prompt,max_new_tokens,temperature}));
     });
 }
-window.getLLMResponse = getLLMResponse;
+// window.getLLMResponse = getLLMResponse;
 
 function deriveLLMUrl(){
     if (settings?.llmUrl) return settings.llmUrl;

@@ -38,6 +38,7 @@ $(".open-mlearn-reader").on("click", () => {
                 if(window.mLearnPills.clickAddToFlashcards) winRef.clickAddToFlashcards = window.mLearnPills.clickAddToFlashcards;
                 if(window.mLearnPills.changeKnownBtnStatus) winRef.changeKnownBtnStatus = window.mLearnPills.changeKnownBtnStatus;
                 if(window.mLearnPills.clickAddFlashcardBtn) winRef.clickAddFlashcardBtn = window.mLearnPills.clickAddFlashcardBtn;
+                if(window.mLearnPills.clickLLMExplain) winRef.clickLLMExplain = window.mLearnPills.clickLLMExplain;
             }
         }catch(e){ console.warn("Failed to bridge pill functions to reader window", e); }
     };

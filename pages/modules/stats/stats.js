@@ -3,7 +3,7 @@ import {settings, saveSettings, lang_data, wordFreq} from "../settings/settings.
 import {knownAdjustment, changeKnownStatus} from "./saving.js";
 import {Flashcards, getAllSRSTrackedWords, getSRSWordKnownStatusUUID, getWordByUUID, addFlashcard, saveFlashcards} from "../flashcards/storage.js";
 import {toUniqueIdentifier} from "../utils.js";
-import {generateStatusPillHTML} from "../subtitler/pillHtml.js";
+import {generateStatusPillHTML} from "../common/pillHtml.js";
 import $ from "../../lib/jquery.min.js";
 import {getTranslation, setTranslationOverride, getTranslationOverride, clearTranslationOverride} from "../networking.js";
 import {buildPitchAccentHtml, getPitchAccentInfo} from "../common/pitchAccent.js";

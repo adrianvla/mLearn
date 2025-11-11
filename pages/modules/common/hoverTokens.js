@@ -5,7 +5,7 @@ import {settings, TRANSLATABLE, wordFreq} from "../settings/settings.js";
 import {getCards, getTranslation, sendRawToAnki, tokenise} from "../networking.js";
 import {blurWord, isNotAllKana, randomUUID, screenshotVideo, toUniqueIdentifier} from "../utils.js";
 import {makeFlashcard} from "../flashcards/anki.js";
-import {addPills, resetWordUUIDs} from "../subtitler/pillHtml.js";
+import {addPills, resetWordUUIDs} from "./pillHtml.js";
 import {changeKnownStatus, getKnownStatus, WORD_STATUS_KNOWN} from "../stats/saving.js";
 import {trackWordAppearance} from "../flashcards/storage.js";
 import {buildPitchAccentHtml, getPitchAccentInfo} from "./pitchAccent.js";
@@ -142,14 +142,14 @@ function updateHoverElHTML($hover, h, p){
     $hover.html(realHTML);
 }
 
-function hoverElState($hover, state, word, pos, isOCR){
+function hoverElState($hover, state, word, pos, isOCR, contextPhrase = ""){
     switch(state){
         case "loading":
             $hover.html("Loading...");
             break;
         case "not_found":
             (async ()=>{
-                const pills = await addPills(word, pos, false, !!isOCR);
+                const pills = await addPills(word, pos, false, !!isOCR, undefined, contextPhrase);
                 updateHoverElHTML($hover, "No translation found", pills);
             })();
             break;
@@ -202,7 +202,7 @@ function addPitchAccentToEl($targetWordEl, accentData, word_in_letters, real_wor
 }
 
 async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $wordEl, $hoverEl, opts = {}){
-    const { disablePitchAccent = false, isOCR = false } = opts || {};
+    const { disablePitchAccent = false, isOCR = false, contextPhrase = "" } = opts || {};
     const uuid = $wordEl.data('uuid');
     const $hover = $hoverEl;
 
@@ -218,7 +218,7 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
     }
     let hoverEl_html = "";
     // Always include pills in hover like subtitler.js; add Anki button only if enabled
-    let pill_html = await addPills(word, pos, !!settings.enable_flashcard_creation, isOCR, translation_data);
+    let pill_html = await addPills(word, pos, !!settings.enable_flashcard_creation, isOCR, translation_data, contextPhrase);
     let raw_flashcard_data = {example:"", front:word, pitch:"", definitions:"", image:""};
 
     translation_data.data.forEach((meaning)=>{
@@ -232,7 +232,7 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
 
     state.hasBeenLoadedDB[uuid] = true;
     if(translation_data.data.length === 0){
-    hoverElState($hover, "not_found", word, pos, isOCR);
+        hoverElState($hover, "not_found", word, pos, isOCR, contextPhrase);
         state.processingDB[uuid] = false;
         return;
     }
@@ -257,7 +257,7 @@ async function buildHoverForWord(word, real_word, pos, look_ahead_pos, state, $w
             if(!response.error){ state.already_added[word] = true; }
         };
         // Regenerate pills to ensure Anki button presence (already true since enable is on)
-    pill_html = await addPills(word, pos, true, isOCR, translation_data);
+        pill_html = await addPills(word, pos, true, isOCR, translation_data, contextPhrase);
         updateHoverElHTML($hover, hoverEl_html, pill_html);
     }
 
@@ -288,6 +288,7 @@ export async function attachInteractiveText($container, text, options = {}){
         disablePitchAccent = false,
         isOCR = false,
         hoverShowDelayMs: rawHoverShowDelayMs = 0,
+        contextPhrase = "",
     } = options || {};
     const hoverShowDelayMs = Math.max(0, Number(rawHoverShowDelayMs));
     // Render interactive tokens into provided jQuery container
@@ -364,7 +365,7 @@ export async function attachInteractiveText($container, text, options = {}){
                 if(!$hoverEl.hasClass('show-hover')){
                     $hoverEl.addClass('show-hover');
                 }
-                buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR });
+                buildHoverForWord(word, real_word, pos, look_ahead_token, state, $wordEl, $hoverEl, { disablePitchAccent, isOCR, contextPhrase });
                 requestAnimationFrame(()=> simplePosition($hoverEl, $wordEl));
             };
             const scheduleShowHover = () => {
@@ -410,7 +411,7 @@ export async function attachInteractiveText($container, text, options = {}){
                 $wordEl.attr("known", isWordKnown ? "true" : "false");
                 trackWordAppearance(word);
                 $wordEl.addClass("has-hover").append($hoverEl);
-                hoverElState($hoverEl, "loading", word, pos, isOCR);
+                hoverElState($hoverEl, "loading", word, pos, isOCR, contextPhrase);
                 state.hasBeenLoadedDB[uuid] = false;
                 state.processingDB[uuid] = false;
                 bindHoverHandlers('delayed');
@@ -421,7 +422,7 @@ export async function attachInteractiveText($container, text, options = {}){
                     // Treat as unknown and show translation
                     $wordEl.addClass("has-hover").append($hoverEl);
                     $wordEl.attr("known","false");
-                    hoverElState($hoverEl, "loading", word, pos, isOCR);
+                    hoverElState($hoverEl, "loading", word, pos, isOCR, contextPhrase);
                     bindHoverHandlers('immediate');
                 }else{
                     $wordEl.attr("known","true");

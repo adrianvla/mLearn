@@ -15,9 +15,9 @@ import {
     knownStatusToEaseFunction
 } from "../flashcards/storage.js";
 import {toUniqueIdentifier, screenshotVideo} from "../utils.js";
-import {flashcardFunctions} from "./subtitler.js";
+import {flashcardFunctions} from "../subtitler/subtitler.js";
 import {countFreq} from "../stats/wordFreq.js";
-import {buildPitchAccentHtml, getPitchAccentInfo} from "../common/pitchAccent.js";
+import {buildPitchAccentHtml, getPitchAccentInfo} from "./pitchAccent.js";
 
 const pitchAccentTranslationCache = new Map();
 const pitchAccentTranslationInFlight = new Map();
@@ -151,6 +151,7 @@ async function buildPitchAccentPill(word, providedTranslation){
 
 let wordUUIDs = {};
 let wordPosByUUID = {};
+let wordContextByUUID = {};
 let srsMapRef = null; // cached reference to alreadyCreated hashmap (uuid -> true)
 let easeByWordRef = null; // cached map: word -> ease
 
@@ -217,6 +218,8 @@ window.registerMLearnChildWindow = registerMLearnChildWindow;
 
 function resetWordUUIDs() {
     wordUUIDs = {};
+    wordPosByUUID = {};
+    wordContextByUUID = {};
 }
 const unknownStatusPillHTML = (uuid) => {
     return `<div class="pill pill-btn red" onclick='changeKnownBtnStatus(this, "${uuid}", 1);' id="status-pill-${uuid}">
@@ -267,8 +270,16 @@ const checkMarkFlashcardPillHTML = () => {
 </div>`;
 };
 const easePillHTML = (ease)=>{
-    return `<div class="pill yellow">
+    return `<div class="ease-indicator">
     <span>Ease: ${ease}</span>
+</div>`;
+};
+const llmPillHTML = (uuid) => {
+    return `<div class="pill pill-btn blue" onclick='clickLLMExplain(this, "${uuid}")' id="explain-llm-pill-${uuid}">
+    <span class="icon">
+        <img src="assets/icons/bot.svg" alt="">
+    </span>
+    <span>Explain</span>
 </div>`;
 };
 const generateStatusPillHTML = async (word, status) => {
@@ -341,7 +352,7 @@ const addEasePill = async (word) => {
     return easePillHTML(easeVal !== undefined ? (Math.round(easeVal*100)/100) : "?");
 };
 
-const addPills = async (word,pos, addAnkiBtn = false, isOCR = false, translationDataOverride = undefined)=>{
+const addPills = async (word,pos, addAnkiBtn = false, isOCR = false, translationDataOverride = undefined, contextPhrase = "")=>{
     //check if word is in wordFreq
     let s = `<div class="footer"><div class="pills">`;
     const pitchAccentPill = await buildPitchAccentPill(word, translationDataOverride);
@@ -357,6 +368,9 @@ const addPills = async (word,pos, addAnkiBtn = false, isOCR = false, translation
     const uuid = await toUniqueIdentifier(word);
     wordUUIDs[uuid] = word;
     wordPosByUUID[uuid] = pos;
+    const ctx = typeof contextPhrase === "string" ? contextPhrase.trim() : "";
+    if(ctx) wordContextByUUID[uuid] = ctx;
+    else delete wordContextByUUID[uuid];
     // Determine if this word is already in the SRS system (O(1) hashmap lookup)
     let isInSRS = false;
     try{
@@ -371,6 +385,7 @@ const addPills = async (word,pos, addAnkiBtn = false, isOCR = false, translation
             s += addAnkiPillHTML(uuid);
         s+=addToFlashcardsPillHTML(uuid, isOCR);
     }
+    s += llmPillHTML(uuid, contextPhrase);
 
 
     s += `</div></div>`;
@@ -505,6 +520,7 @@ async function clickAddToFlashcards(...args){
                 }
             }catch(_e){ /* ignore snapshot issues */ }
         }
+    const contextPhrase = (wordContextByUUID[uuid] || "").trim();
         // console.log(screenshot);
         const content = {
             word: word,
@@ -517,6 +533,7 @@ async function clickAddToFlashcards(...args){
             screenshotUrl: screenshot,
             pos: pos,
             level: (word in wordFreq ? (wordFreq[word]?.raw_level ?? -1) : -1),
+            contextPhrase: contextPhrase,
         };
         // Create immediately (bypass candidate/attempt gating)
     const newEase = knownStatusToEaseFunction(await getKnownStatus(word));
@@ -539,6 +556,23 @@ async function clickAddToFlashcards(...args){
 }
 window.mLearnPills.clickAddToFlashcards = clickAddToFlashcards;
 window.clickAddToFlashcards = clickAddToFlashcards; // legacy
+
+async function clickLLMExplain(el,uuid){
+    console.log("word context",wordContextByUUID[uuid]);
+    const div = document.createElement('div');
+    div.classList = 'subtitle_hover_alt_c skeleton-c';
+    const div2 = document.createElement('div');
+    for(let i = 0;i<Math.floor(Math.random()*10)+10;i++){
+        const p = document.createElement('span');
+        p.classList = 'skeleton';
+        p.style.width = `${Math.floor(Math.random()*100)+10}px`;
+        div2.appendChild(p);
+    }
+    div.appendChild(div2);
+    el?.parentElement?.parentElement?.parentElement?.appendChild(div);
+}
+window.mLearnPills.clickLLMExplain = clickLLMExplain;
+window.clickLLMExplain = clickLLMExplain;
 
 window.mLearnIPC.onUpdatePills((message)=>{
     const u = JSON.parse(message);

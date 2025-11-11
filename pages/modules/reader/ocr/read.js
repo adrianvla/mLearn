@@ -89,6 +89,155 @@ const pruneLoadingOverlays = () => {
     }catch(_e){ /* ignore pruning errors */ }
 };
 
+function overlapAmount(aMin, aMax, bMin, bMax){
+    const top = Math.max(aMin, bMin);
+    const bottom = Math.min(aMax, bMax);
+    return Math.max(0, bottom - top);
+}
+
+function horizontalGap(infoA, infoB){
+    if(infoA.centerX <= infoB.centerX){
+        return Math.max(0, infoB.minX - infoA.maxX);
+    }
+    return Math.max(0, infoA.minX - infoB.maxX);
+}
+
+function verticalGap(infoA, infoB){
+    if(infoA.centerY <= infoB.centerY){
+        return Math.max(0, infoB.minY - infoA.maxY);
+    }
+    return Math.max(0, infoA.minY - infoB.maxY);
+}
+
+function computeBoxMetrics(box, idx){
+    const pts = Array.isArray(box?.box) ? box.box : [];
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for(const pt of pts){
+        if(!pt || pt.length < 2) continue;
+        const x = Number(pt[0]);
+        const y = Number(pt[1]);
+        if(Number.isFinite(x)){
+            if(x < minX) minX = x;
+            if(x > maxX) maxX = x;
+        }
+        if(Number.isFinite(y)){
+            if(y < minY) minY = y;
+            if(y > maxY) maxY = y;
+        }
+    }
+    if(!pts.length){
+        minX = maxX = 0;
+        minY = maxY = 0;
+    }else{
+        if(!Number.isFinite(minX)) minX = 0;
+        if(!Number.isFinite(maxX)) maxX = minX;
+        if(!Number.isFinite(minY)) minY = 0;
+        if(!Number.isFinite(maxY)) maxY = minY;
+    }
+    const width = Math.max(1, maxX - minX);
+    const height = Math.max(1, maxY - minY);
+    return {
+        idx,
+        text: typeof box?.text === 'string' ? box.text : '',
+        minX,
+        maxX,
+        minY,
+        maxY,
+        width,
+        height,
+        centerX: minX + width / 2,
+        centerY: minY + height / 2,
+        orientation: height > width * 1.25 ? 'vertical' : 'horizontal'
+    };
+}
+
+function buildOcrContextMap(boxes){
+    const contextMap = new Map();
+    try{
+        if(!Array.isArray(boxes) || boxes.length === 0) return contextMap;
+        const infos = boxes.map((box, idx)=> computeBoxMetrics(box, idx));
+        const neighbors = new Map();
+        for(let i = 0; i < infos.length; i++){
+            const info = infos[i];
+            const adj = [];
+            for(let j = 0; j < infos.length; j++){
+                if(i === j) continue;
+                const other = infos[j];
+                if(info.orientation !== other.orientation) continue;
+                if(info.orientation === 'vertical'){
+                    const overlapRatio = overlapAmount(info.minY, info.maxY, other.minY, other.maxY) / Math.max(1, Math.min(info.height, other.height));
+                    const gapRatio = horizontalGap(info, other) / Math.max(1, (info.width + other.width)/2);
+                    if(overlapRatio >= 0.3 && gapRatio <= 1.8){
+                        adj.push(j);
+                    }
+                }else{
+                    const overlapRatio = overlapAmount(info.minX, info.maxX, other.minX, other.maxX) / Math.max(1, Math.min(info.width, other.width));
+                    const gapRatio = verticalGap(info, other) / Math.max(1, (info.height + other.height)/2);
+                    if(overlapRatio >= 0.25 && gapRatio <= 1.5){
+                        adj.push(j);
+                    }
+                }
+            }
+            neighbors.set(i, adj);
+        }
+        const visited = new Set();
+        for(let i = 0; i < infos.length; i++){
+            if(visited.has(i)) continue;
+            const cluster = [];
+            const stack = [i];
+            while(stack.length){
+                const idx = stack.pop();
+                if(visited.has(idx)) continue;
+                visited.add(idx);
+                cluster.push(idx);
+                const adj = neighbors.get(idx) || [];
+                for(const neigh of adj){
+                    if(!visited.has(neigh)) stack.push(neigh);
+                }
+            }
+            if(cluster.length === 0) continue;
+            const orient = infos[cluster[0]].orientation;
+            const sorted = cluster.slice().sort((aIdx, bIdx)=>{
+                const a = infos[aIdx];
+                const b = infos[bIdx];
+                if(orient === 'vertical'){
+                    const deltaX = Math.abs(a.centerX - b.centerX);
+                    const widthRef = Math.min(a.width, b.width);
+                    if(deltaX < widthRef * 0.3){
+                        return a.minY - b.minY;
+                    }
+                    return b.centerX - a.centerX;
+                }
+                const deltaY = Math.abs(a.centerY - b.centerY);
+                const heightRef = Math.min(a.height, b.height);
+                if(deltaY < heightRef * 0.3){
+                    return a.centerX - b.centerX;
+                }
+                return a.centerY - b.centerY;
+            });
+            const pieces = [];
+            for(const idx of sorted){
+                const raw = infos[idx].text;
+                if(typeof raw === 'string'){
+                    const trimmed = raw.trim();
+                    if(trimmed) pieces.push(trimmed);
+                }
+            }
+            let context = pieces.join(orient === 'vertical' ? '' : ' ');
+            if(!context){
+                const fallback = infos[sorted[0]].text;
+                context = typeof fallback === 'string' ? fallback : '';
+            }
+            const trimmed = typeof context === 'string' ? context.trim() : '';
+            const limited = trimmed.length > 500 ? trimmed.slice(0, 500) : trimmed;
+            for(const idx of cluster){
+                contextMap.set(idx, limited);
+            }
+        }
+    }catch(_e){ /* best effort grouping */ }
+    return contextMap;
+}
+
 // Simple debounce helper (local to this module)
 export function debounce(fn, wait = 50){
     let t; return function(...args){ clearTimeout(t); t = setTimeout(()=>fn.apply(this,args), wait); };
@@ -167,7 +316,7 @@ try{
     });
 }catch(_e){ /* ignore */ }
 
-const bindElement = async (el, text, bbox, pageNum)=>{
+const bindElement = async (el, text, bbox, pageNum, contextPhrase = "")=>{
     // Make the OCR box act like a subtitle token container: hover to see translation popup
     const $el = $(el);
     // Ensure styling classes consistent with subtitler widgets
@@ -198,6 +347,7 @@ const bindElement = async (el, text, bbox, pageNum)=>{
     // For OCR overlays we avoid subtitler-specific coloring/styling/stars
     if(renderControllers.get(pageNum)?.canceled) return; // abort early
     try{
+        const safeContext = typeof contextPhrase === "string" ? contextPhrase : (contextPhrase?.toString?.() || "");
         await attachInteractiveText($inner, text, {
             disableColor: true,
             disableFrequency: true,
@@ -206,6 +356,7 @@ const bindElement = async (el, text, bbox, pageNum)=>{
             disablePitchAccent: true,
             isOCR: true,
             hoverShowDelayMs: 200,
+            contextPhrase: safeContext,
         });
     }catch(e){
         console.error("attachInteractiveText failed for OCR box", e);
@@ -295,6 +446,7 @@ const processPage = async (ocr, scaleFactor, el, num)=> {
             warmTokeniseCache(uniqueTexts);
         }catch(_e){}
 
+        const contextMap = buildOcrContextMap(ocr?.boxes);
         let boxIndex = 0;
         for(const box of ocr.boxes){
             if(renderControllers.get(num)?.canceled) break;
@@ -308,6 +460,7 @@ const processPage = async (ocr, scaleFactor, el, num)=> {
             h *= totalScale;
 
             const text = box.text;
+            const contextPhrase = contextMap.get(boxIndex) ?? (typeof text === 'string' ? text : '');
             // Tag each overlay with stable index to support refresh recalculation
             box.__idx = boxIndex;
             const txEl = $(`<div class="recognized-text ${settings.devMode ? 'debug-highlight' : ''}" data-ocr-page='${num}' data-ocr-idx='${boxIndex}' style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"></div>`);
@@ -316,7 +469,7 @@ const processPage = async (ocr, scaleFactor, el, num)=> {
             if(renderControllers.get(num)?.canceled){ break; }
             (async () => {
                 try{
-                    await bindElement(txEl,text, box.box, num);
+                    await bindElement(txEl,text, box.box, num, contextPhrase);
                 }catch(e){
                     console.error("bindElement failed for OCR box", e);
                     try{ txEl.text(text); }catch(_e){}
