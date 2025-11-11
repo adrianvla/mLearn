@@ -108,7 +108,14 @@ For example, for Japanese it would be:
       "形容詞": "#def6ff",
       "形容動詞": "#def6ff"
     },
-    "fixed_settings": {}
+    "fixed_settings": {},
+    "freq": [["N5", "N5"],
+    ["会う", "あう"],
+    ["青", "あお"],
+    ["青い", "あおい"], 
+      ...(more)...
+      ], 
+    "freq_level_names": {"5": "JLPT N5", "4": "JLPT N4", "3": "JLPT N3", "2": "JLPT N2", "1": "JLPT N1"}
   },
   "lang_py": "URL THAT POINTS TO THE SOURCE CODE OF JA.PY",
   "lang": "ja"
@@ -154,7 +161,7 @@ npm run start
 Additional licenses for libraries may be found in the "Settings → about" section of the app.
 ```
 mLearn - Supercharge your language learning by immersing yourself in the language you want to learn.
-Copyright (C) 2024 Adrian Vlasov
+Copyright (C) 2024-2025 Adrian Vlasov
 
 "Adrian Vlasov" refers exclusively to the original creator and publisher of this software, identifiable by the associated repository and public history. Legal name changes by unrelated individuals do not confer any rights under this license.
 
