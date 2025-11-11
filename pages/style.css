@@ -420,7 +420,39 @@ body.hide-cursor .subtitles{
     overflow-y: hidden;
     height:100%;
 }
-.subtitle_hover_content{
+.subtitle_hover_alt_c{
+    position:absolute;
+    top:0;
+    background: rgba(0,0,0,0.3);
+    backdrop-filter: blur(20px);
+    height:100%;
+}
+.subtitle_hover_alt_c > div{
+    display:flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+.subtitle_hover_alt_c.skeleton-c > div{
+    gap: 12px;
+}
+.subtitle_hover_alt_c .skeleton{
+    height: 30px;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #707070a0 25%, #a0a0a0a0 50%, #707070a0 75%);
+    background-size: 200% 100%;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+/* Animation for pulsating effect */
+@keyframes pulse {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+.subtitle_hover_content, .subtitle_hover_alt_c{
     padding: 20px;
     padding-bottom:65px;
     width:100%;
@@ -576,6 +608,24 @@ body.dark .subtitle_hover .pill,.contains_pills .subtitle_hover .pill {
 .subtitle_hover .pill.pitch-accent-pill .pitch-accent-word{
     position:relative;
 }
+.ease-indicator{
+    height:34px;
+    top:-34px;
+    position:fixed;
+    box-sizing: border-box;
+    right:0;
+    display:flex;
+    justify-content: center;
+    align-items: center;
+    padding-inline:10px;
+    border-top-left-radius:10px;
+    box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
+    color: rgb(124, 124, 124);
+    background-color: rgb(230, 230, 230);
+    font-size: 0.8em;
+    font-weight:bold;
+}
+
 .subtitle_hover .pill[level="7"],.contains_pills .pill[level="7"],.subtitle_hover .pill.gray,.contains_pills .pill.gray{
     color: rgb(124, 124, 124);
     background-color: rgb(230, 230, 230);
@@ -637,7 +687,7 @@ body.dark .subtitle_hover .pill,.contains_pills .subtitle_hover .pill {
     filter: hue-rotate(350deg) saturate(200%) brightness(170%);
     opacity:0.9;
 }
-body.dark .subtitle_hover .pill,body.dark .contains_pills .pill {
+body.dark .subtitle_hover .pill,body.dark .contains_pills .pill, .ease-indicator {
     filter: invert(1) hue-rotate(180deg) saturate(200%);
 }
 .hover_translation{

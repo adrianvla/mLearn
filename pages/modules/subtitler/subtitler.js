@@ -8,7 +8,7 @@ import {addToRecentlyWatched} from "../playback/recentlyWatched.js";
 import {currentPlayingVideo} from "../playback/streaming.js";
 import {addTranslationCard} from "./liveWordTranslator.js";
 import {makeFlashcard} from "../flashcards/anki.js";
-import {addPills, resetWordUUIDs} from "./pillHtml.js";
+import {addPills, resetWordUUIDs} from "../common/pillHtml.js";
 import {changeKnownStatus, getKnownStatus, WORD_STATUS_KNOWN} from "../stats/saving.js";
 import {isWatchTogether} from "../watch-together/watchTogether.js";
 import {attemptFlashcardCreation, trackWordAppearance} from "../flashcards/storage.js";
@@ -306,7 +306,7 @@ const modify_sub = async (subtitle) => {
                     return;
                 case "not_found":
                     // hoverEl.html("No translation found" + await addPills(word,pos));
-                    updateHoverElHTML("No translation found", await addPills(word,pos));
+                    updateHoverElHTML("No translation found", await addPills(word,pos, undefined, undefined, undefined, subtitle));
                     return;
             }
         };
@@ -431,7 +431,7 @@ const modify_sub = async (subtitle) => {
                 flashcardFunctions[encodedWord] = ()=>{
                     createFlashcardClick(raw_flashcard_data);
                 };
-                pill_html = await addPills(word,pos,true,false,translation_data);
+                pill_html = await addPills(word,pos,true,false,translation_data, subtitle);
                 updateHoverElHTML();
             }
 
@@ -505,7 +505,7 @@ const modify_sub = async (subtitle) => {
         }
 
 
-        pill_html += await addPills(word,pos);
+    pill_html += await addPills(word,pos, undefined, undefined, undefined, subtitle);
         updateHoverElHTML();
         if(doAppend){
             if(settings.colour_codes[pos])

@@ -1070,7 +1070,7 @@ const modify_sub = async (subtitle) => {
                     return;
                 case "not_found":
                     // hoverEl.html("No translation found" + await addPills(word,pos));
-                    updateHoverElHTML("No translation found", await addPills(word,pos));
+                    updateHoverElHTML("No translation found", await addPills(word,pos, undefined, undefined, undefined, subtitle));
                     return;
             }
         };
@@ -1104,7 +1104,7 @@ const modify_sub = async (subtitle) => {
 
             if(settings.enable_flashcard_creation && !already_added[word]){
                 const encodedWord = await toUniqueIdentifier(word);
-                pill_html = await addPills(word,pos,true);
+                pill_html = await addPills(word,pos,true,false,undefined, subtitle);
                 updateHoverElHTML();
             }
 
@@ -1178,7 +1178,7 @@ const modify_sub = async (subtitle) => {
         }
 
 
-        pill_html += await addPills(word,pos);
+    pill_html += await addPills(word,pos, undefined, undefined, undefined, subtitle);
         updateHoverElHTML();
         if(doAppend){
             if(settings.colour_codes[pos])
