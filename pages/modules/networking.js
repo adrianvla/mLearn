@@ -44,6 +44,82 @@ export function setTranslationOverride(word, value){
 export function clearTranslationOverride(word){
     setTranslationOverride(word, null);
 }
+const LLM_STATUS_CACHE_TTL = 30_000; // 30 seconds
+const LLM_STATUS_CACHE_ACTIVE_TTL = 2_000; // 2 seconds while actively downloading
+let cachedLlmStatus = null;
+let cachedLlmCheckedAt = 0;
+let llmDownloadApproved = false;
+let lastLlmDownloadState = 'idle';
+let lastLlmDownloadProgress = -1;
+let lastLlmDownloadBytes = 0;
+
+function formatBytes(bytes){
+    const value = Number(bytes) || 0;
+    if (!Number.isFinite(value) || value <= 0) return '0 B';
+    const units = ['B','KB','MB','GB','TB'];
+    let magnitude = Math.abs(value);
+    let unitIndex = 0;
+    while (magnitude >= 1024 && unitIndex < units.length - 1){
+        magnitude /= 1024;
+        unitIndex += 1;
+    }
+    const precision = magnitude >= 10 || unitIndex === 0 ? 0 : 1;
+    const rounded = magnitude.toFixed(precision);
+    return `${rounded} ${units[unitIndex]}`;
+}
+
+function logLlmDownloadProgress(status){
+    if (!status || typeof status !== 'object') return;
+    const downloaded = Number(status.downloadedBytes) || 0;
+    const expected = Number(status.expectedBytes) || 0;
+    const rawProgress = typeof status.progress === 'number' ? status.progress : (expected > 0 ? downloaded / expected : 0);
+    const progress = Math.max(0, Math.min(rawProgress, 1));
+    const isComplete = status.downloaded === true || status.cached === true || progress >= 0.999;
+
+    if (isComplete){
+        if (lastLlmDownloadState !== 'complete'){
+            const totalLabel = expected ? formatBytes(expected) : formatBytes(downloaded);
+            console.info(`[LLM] Download complete (${totalLabel})`);
+            lastLlmDownloadState = 'complete';
+            lastLlmDownloadProgress = 1;
+            lastLlmDownloadBytes = downloaded;
+        }
+        return;
+    }
+
+    if (!status.downloading){
+        if (!isComplete && lastLlmDownloadState !== 'idle'){
+            lastLlmDownloadState = 'idle';
+            lastLlmDownloadProgress = -1;
+            lastLlmDownloadBytes = 0;
+        }
+        return;
+    }
+
+    if (downloaded <= 0){
+        if (lastLlmDownloadState !== 'starting'){
+            console.info('[LLM] Download starting...');
+            lastLlmDownloadState = 'starting';
+            lastLlmDownloadProgress = 0;
+            lastLlmDownloadBytes = 0;
+        }
+        return;
+    }
+
+    const bytesChanged = downloaded !== lastLlmDownloadBytes;
+    const progressChanged = Math.abs(progress - lastLlmDownloadProgress) >= 0.01;
+    if (!bytesChanged && !progressChanged){
+        return;
+    }
+
+    const percent = Math.round(progress * 1000) / 10;
+    const totalLabel = expected ? `${formatBytes(downloaded)} / ${formatBytes(expected)}` : `${formatBytes(downloaded)} downloaded`;
+    console.info(`[LLM] Downloading... ${totalLabel} (${percent.toFixed(1)}%)`);
+    lastLlmDownloadState = 'downloading';
+    lastLlmDownloadProgress = progress;
+    lastLlmDownloadBytes = downloaded;
+}
+
 function tokenise(text){
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -82,6 +158,106 @@ function getCards(text){
         xhr.send(JSON.stringify({"word":text}));
     });
 }
+async function checkLlmStatus(llmUrl){
+    const now = Date.now();
+    const cacheTtl = (cachedLlmStatus && cachedLlmStatus.downloading === true && (typeof cachedLlmStatus.progress !== 'number' || cachedLlmStatus.progress < 1))
+        ? LLM_STATUS_CACHE_ACTIVE_TTL
+        : LLM_STATUS_CACHE_TTL;
+    if (cachedLlmStatus && (now - cachedLlmCheckedAt) < cacheTtl){
+        logLlmDownloadProgress(cachedLlmStatus);
+        return cachedLlmStatus;
+    }
+    const statusUrl = deriveLLMStatusUrl(llmUrl);
+    if (!statusUrl) return null;
+    try {
+        const res = await fetch(statusUrl, { method: 'GET', cache: 'no-store' });
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (typeof data === 'object' && data){
+            cachedLlmStatus = data;
+            cachedLlmCheckedAt = now;
+            logLlmDownloadProgress(data);
+            return data;
+        }
+    } catch (err){
+        console.warn('Failed to check LLM status', err);
+    }
+    return null;
+}
+
+async function getLLMResponse(prompt,max_new_tokens,temperature){
+    const llmUrl = deriveLLMUrl();
+    if (!llmUrl){
+        return {error: 'LLM URL not configured'};
+    }
+
+    const status = await checkLlmStatus(llmUrl);
+    const isReady = status?.downloaded === true;
+    const isCached = status?.cached === true;
+    if (!isReady && !isCached && !llmDownloadApproved){
+        const confirmDownload = window.confirm('The local language model is not downloaded. Download it now? This may take several minutes and require additional disk space.');
+        if (!confirmDownload){
+            return {error: 'No Model Downloaded'};
+        }
+        llmDownloadApproved = true;
+    }
+
+    return await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.addEventListener('error', () => reject('failed to issue request'));
+        xhr.addEventListener('load', () => {
+            try {
+                let response = JSON.parse(xhr.responseText);
+                if(response.output) response.output = response.output.replace(prompt, "");
+                if (xhr.status >= 200 && xhr.status < 300){
+                    const previousStatus = cachedLlmStatus;
+                    cachedLlmStatus = {
+                        downloaded: true,
+                        cached: true,
+                        device: response?.device ?? null,
+                        downloading: false,
+                        progress: 1,
+                        downloadedBytes: previousStatus?.downloadedBytes || previousStatus?.expectedBytes || 0,
+                        expectedBytes: previousStatus?.expectedBytes || previousStatus?.downloadedBytes || 0,
+                    };
+                    cachedLlmCheckedAt = Date.now();
+                    logLlmDownloadProgress(cachedLlmStatus);
+                } else if (response && typeof response === 'object'){
+                    cachedLlmStatus = response;
+                    cachedLlmCheckedAt = Date.now();
+                    logLlmDownloadProgress(cachedLlmStatus);
+                }
+                resolve(response);
+            } catch (e) {
+                reject(e);
+            }
+        });
+
+        xhr.open('POST', llmUrl);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send(JSON.stringify({prompt,max_new_tokens,temperature}));
+    });
+}
+window.getLLMResponse = getLLMResponse;
+
+function deriveLLMUrl(){
+    if (settings?.llmUrl) return settings.llmUrl;
+    if (settings.getTranslationUrl && settings.getTranslationUrl.includes('/translate')){
+        return settings.getTranslationUrl.replace('/translate','/llm');
+    }
+    if (settings.tokeniserUrl && settings.tokeniserUrl.includes('/tokenize')){
+        return settings.tokeniserUrl.replace('/tokenize','/llm');
+    }
+    return null;
+}
+
+function deriveLLMStatusUrl(llmUrl){
+    if (!llmUrl) return null;
+    if (llmUrl.endsWith('/llm/status')) return llmUrl;
+    if (llmUrl.endsWith('/llm')) return `${llmUrl}/status`;
+    return `${llmUrl.replace(/\/$/, '')}/status`;
+}
+
 
 function getTranslation(text){
     // If there's a local override, return it immediately

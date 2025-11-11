@@ -108,7 +108,14 @@ For example, for Japanese it would be:
       "形容詞": "#def6ff",
       "形容動詞": "#def6ff"
     },
-    "fixed_settings": {}
+    "fixed_settings": {},
+    "freq": [["N5", "N5"],
+    ["会う", "あう"],
+    ["青", "あお"],
+    ["青い", "あおい"], 
+      ...(more)...
+      ], 
+    "freq_level_names": {"5": "JLPT N5", "4": "JLPT N4", "3": "JLPT N3", "2": "JLPT N2", "1": "JLPT N1"}
   },
   "lang_py": "URL THAT POINTS TO THE SOURCE CODE OF JA.PY",
   "lang": "ja"

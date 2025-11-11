@@ -15,5 +15,8 @@
   "onnxruntime",
   "python-multipart",
   "setuptools",
-  "wheel"
+  "wheel",
+  "torch",
+  "transformers",
+  "sentencepiece"
 ]

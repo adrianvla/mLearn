@@ -4,7 +4,7 @@ FETCH_ANKI = True
 ANKI_CONNECT_URL = "http://127.0.0.1:8765"
 
 import uvicorn
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import json
 import urllib.request
 from urllib.parse import quote
@@ -21,6 +21,7 @@ import platform
 import faulthandler
 import signal
 import atexit
+from pathlib import Path
 
 # Ensure printing non-ASCII (e.g., Japanese) won't crash on Windows consoles
 try:
@@ -73,6 +74,15 @@ import statistics
 import math
 from fastapi.responses import JSONResponse
 import asyncio
+
+torch = None  # populated lazily to avoid heavy import costs
+AutoTokenizer = None  # populated lazily
+AutoModelForCausalLM = None  # populated lazily
+
+try:
+    from huggingface_hub import HfApi  # type: ignore
+except ImportError:
+    HfApi = None  # type: ignore
 
 app = FastAPI()
 
@@ -171,6 +181,29 @@ def invoke(action, **params):
         return None
 
 
+@app.get("/llm/status")
+async def llm_status():
+    downloaded = _llm_model is not None
+    cached = _llm_cache_exists()
+    device = _llm_device if downloaded else None
+    _set_expected_llm_size()
+    expected_bytes = _LLM_EXPECTED_BYTES or MIN_LLM_DOWNLOAD_BYTES
+    downloaded_bytes, snapshot_ready = _llm_download_bytes()
+    progress_ratio = 0.0
+    if expected_bytes > 0:
+        progress_ratio = min(float(downloaded_bytes) / float(expected_bytes), 1.0)
+    in_progress = bool(downloaded_bytes and not snapshot_ready)
+    return {
+        "downloaded": bool(downloaded),
+        "cached": bool(cached),
+        "device": device,
+        "downloadedBytes": int(downloaded_bytes),
+        "expectedBytes": int(expected_bytes),
+        "progress": progress_ratio,
+        "downloading": in_progress,
+    }
+
+
 all_cards = []
 
 cards_per_id = {}
@@ -178,6 +211,201 @@ cards_per_id = {}
 words_ids = {}
 
 who_contain = {}
+
+LLM_MODEL_ID = "Qwen/Qwen2.5-3B"
+MIN_LLM_DOWNLOAD_BYTES = 100 * 1024 * 1024  # 100MB fallback threshold
+
+_llm_lock = threading.Lock()
+_llm_tokenizer = None
+_llm_model = None
+_llm_device = "cpu"
+_llm_dtype = None
+_LLM_EXPECTED_BYTES: int | None = None
+_LLM_EXPECTED_LOCK = threading.Lock()
+
+
+def _llm_cache_root() -> Path:
+    env_cache = os.environ.get("TRANSFORMERS_CACHE")
+    if env_cache:
+        return Path(env_cache).expanduser()
+    env_home = os.environ.get("HF_HOME")
+    if env_home:
+        return Path(env_home).expanduser() / "hub"
+    return Path.home() / ".cache" / "huggingface" / "hub"
+
+
+def _llm_snapshot_ready(snap_dir: Path) -> bool:
+    if not snap_dir.exists() or not snap_dir.is_dir():
+        return False
+    config_file = snap_dir / "config.json"
+    tokenizer_file = snap_dir / "tokenizer.json"
+    if not config_file.exists() or not tokenizer_file.exists():
+        return False
+    min_size = 100 * 1024 * 1024  # require at least ~100MB to treat as fully downloaded
+    for weight_ext in (".safetensors", ".bin", ".pt"):
+        for candidate in snap_dir.glob(f"**/*{weight_ext}"):
+            try:
+                if candidate.is_file() and candidate.stat().st_size >= min_size:
+                    return True
+            except OSError:
+                continue
+    return False
+
+
+def _llm_cache_exists() -> bool:
+    try:
+        base = _llm_cache_root()
+        if not base.exists():
+            return False
+        model_dir = base / f"models--{LLM_MODEL_ID.replace('/', '--')}"
+        if not model_dir.exists():
+            return False
+        snapshots_dir = model_dir / "snapshots"
+        if not snapshots_dir.exists():
+            return False
+        for entry in snapshots_dir.iterdir():
+            if _llm_snapshot_ready(entry):
+                return True
+    except Exception as exc:
+        _log("LLM cache detection error", exc)
+    return False
+
+
+def _set_expected_llm_size() -> None:
+    global _LLM_EXPECTED_BYTES
+    with _LLM_EXPECTED_LOCK:
+        if _LLM_EXPECTED_BYTES is not None:
+            return
+        expected_bytes = None
+        token = os.environ.get("HUGGINGFACEHUB_API_TOKEN")
+        if HfApi is not None:
+            try:
+                api = HfApi(token=token) if token else HfApi()
+                info = api.model_info(LLM_MODEL_ID)
+                # Prefer safetensors size when available, fallback to repo size.
+                expected_bytes = info.safetensors_size or info.size
+            except Exception as exc:
+                _log("LLM expected size lookup failed", exc)
+        if expected_bytes is None:
+            expected_bytes = MIN_LLM_DOWNLOAD_BYTES
+        _LLM_EXPECTED_BYTES = int(expected_bytes)
+
+
+def _current_snapshot_dir() -> Optional[Path]:
+    try:
+        base = _llm_cache_root()
+        model_dir = base / f"models--{LLM_MODEL_ID.replace('/', '--')}"
+        snapshots_dir = model_dir / "snapshots"
+        if not snapshots_dir.exists():
+            return None
+        candidates: List[Path] = []
+        for entry in snapshots_dir.iterdir():
+            if entry.is_dir():
+                candidates.append(entry)
+        if not candidates:
+            return None
+        # Prefer most recent snapshot (sorted by mtime).
+        candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return candidates[0]
+    except Exception:
+        return None
+
+
+def _llm_download_bytes() -> Tuple[int, bool]:
+    snap_dir = _current_snapshot_dir()
+    if snap_dir is None:
+        return 0, False
+    total = 0
+    ready = _llm_snapshot_ready(snap_dir)
+    try:
+        for path in snap_dir.rglob("*"):
+            if path.is_file():
+                try:
+                    total += path.stat().st_size
+                except OSError:
+                    continue
+    except Exception as exc:
+        _log("LLM download byte scan failed", exc)
+    return total, ready
+
+
+def _ensure_llm_loaded():
+
+    global _llm_tokenizer
+    global _llm_model
+    global _llm_device
+    global _llm_dtype
+    global torch
+    global AutoTokenizer
+    global AutoModelForCausalLM
+    if _llm_tokenizer is not None and _llm_model is not None:
+        return
+    with _llm_lock:
+        if _llm_tokenizer is not None and _llm_model is not None:
+            return
+        try:
+            if torch is None:
+                torch = importlib.import_module("torch")  # type: ignore[assignment]
+            if AutoTokenizer is None or AutoModelForCausalLM is None:
+                transformers_mod = importlib.import_module("transformers")
+                AutoTokenizer = getattr(transformers_mod, "AutoTokenizer")  # type: ignore[attr-defined]
+                AutoModelForCausalLM = getattr(transformers_mod, "AutoModelForCausalLM")  # type: ignore[attr-defined]
+        except Exception as exc:
+            raise RuntimeError("torch/transformers dependencies are missing") from exc
+
+        try:
+            _set_expected_llm_size()
+            if torch.cuda.is_available():  # type: ignore[attr-defined]
+                device = "cuda"
+                dtype = torch.bfloat16  # type: ignore[attr-defined]
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                device = "mps"
+                dtype = torch.float16  # type: ignore[attr-defined]
+            else:
+                device = "cpu"
+                dtype = torch.bfloat16 if hasattr(torch, "bfloat16") else torch.float32  # type: ignore[attr-defined]
+            _log("Initializing LLM", {"device": device, "dtype": str(dtype)})
+
+            tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_ID, trust_remote_code=True)  # type: ignore[operator]
+            load_kwargs = {
+                "torch_dtype": dtype,
+                "trust_remote_code": True,
+                "low_cpu_mem_usage": True,
+            }
+            if device == "cuda":
+                load_kwargs["device_map"] = "auto"
+
+            try:
+                model = AutoModelForCausalLM.from_pretrained(LLM_MODEL_ID, **load_kwargs)  # type: ignore[operator]
+            except Exception as first_exc:
+                if device == "cpu" and load_kwargs.get("torch_dtype") is not torch.float32:  # type: ignore[attr-defined]
+                    load_kwargs["torch_dtype"] = torch.float32  # type: ignore[attr-defined]
+                    _log("LLM load retry", {"reason": "float32 fallback", "error": str(first_exc)})
+                    model = AutoModelForCausalLM.from_pretrained(LLM_MODEL_ID, **load_kwargs)  # type: ignore[operator]
+                    dtype = torch.float32  # type: ignore[attr-defined]
+                else:
+                    raise
+
+            if device != "cuda":
+                model.to(device)
+
+            if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
+                tokenizer.pad_token = tokenizer.eos_token
+            if model.config.pad_token_id is None and tokenizer.pad_token_id is not None:
+                model.config.pad_token_id = tokenizer.pad_token_id
+
+            model.eval()
+            _llm_tokenizer = tokenizer
+            _llm_model = model
+            _llm_device = device
+            _llm_dtype = dtype
+            _log("LLM ready")
+        except Exception as exc:
+            _llm_tokenizer = None
+            _llm_model = None
+            _llm_device = "cpu"
+            _llm_dtype = None
+            raise RuntimeError(f"Failed to initialize LLM: {exc}") from exc
 
 def get_all_cards_CACHE():
     global all_cards
@@ -438,6 +666,17 @@ class TranslationRequest(BaseModel):
 
 class TranslationResponse(BaseModel):
     data: List
+
+
+class LlmRequest(BaseModel):
+    prompt: str
+    max_new_tokens: int = 128
+    temperature: float = 0.0
+
+
+class LlmResponse(BaseModel):
+    output: str
+    device: str
 
 
 @app.post("/translate", response_model=TranslationResponse)
@@ -873,6 +1112,40 @@ async def log_requests(request: Request, call_next):
         _log("HTTP Exception during handling:")
         _log(traceback.format_exc())
         raise
+
+@app.post("/llm", response_model=LlmResponse)
+async def llm_endpoint(req: LlmRequest):
+    _log("LLM request", {"chars": len(req.prompt), "max_new_tokens": req.max_new_tokens})
+    try:
+        _ensure_llm_loaded()
+    except RuntimeError as exc:
+        _log("LLM init error", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    if torch is None or _llm_tokenizer is None or _llm_model is None:
+        raise HTTPException(status_code=500, detail="LLM unavailable")
+
+    try:
+        inputs = _llm_tokenizer(req.prompt, return_tensors="pt")
+        tensor_inputs = {k: v.to(_llm_device) for k, v in inputs.items()}
+        max_new_tokens = max(1, min(req.max_new_tokens, 512))
+        gen_opts = {
+            "max_new_tokens": max_new_tokens,
+            "do_sample": False,
+            "pad_token_id": _llm_tokenizer.pad_token_id,
+            "eos_token_id": _llm_tokenizer.eos_token_id,
+        }
+        if req.temperature > 0:
+            gen_opts["temperature"] = float(req.temperature)
+            gen_opts["do_sample"] = True
+        with torch.no_grad():
+            output_ids = _llm_model.generate(**tensor_inputs, **gen_opts)
+        text = _llm_tokenizer.decode(output_ids[0], skip_special_tokens=True).strip()
+        return {"output": text, "device": _llm_device}
+    except Exception as exc:
+        _log("LLM generation error", exc)
+        raise HTTPException(status_code=500, detail="Generation failed")
+
 
 
 if __name__ == "__main__":
