@@ -28,6 +28,8 @@ const DEFAULT_SETTINGS = {
     "ankiUrl" : "http://127.0.0.1:7752/fwd-to-anki",
     "ankiConnectUrl": "http://127.0.0.1:8765",
     "openAside":true,
+    "llmEnabled":true,
+    "ocrEnabled":true,
     "subsOffsetTime":0,
     "immediateFetch":false,
     "subtitleTheme":"shadow",

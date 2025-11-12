@@ -31,6 +31,19 @@ export function initReaderDnD(winDoc) {
 function renderImages(doc, images, options = {}) {
     updateImagePages(doc);
 
+    try {
+        const welcomeEl = doc.querySelector('.reader-welcome');
+        if (welcomeEl) {
+            if (Array.isArray(images) && images.length > 0) {
+                welcomeEl.classList.add('hidden');
+            } else {
+                welcomeEl.classList.remove('hidden');
+            }
+        }
+    } catch (_e) {
+        /* non-critical */
+    }
+
     // Update basic title/progress if you want
     const titleEls = doc.querySelectorAll(".book-title");
     const totalPages = images.length;

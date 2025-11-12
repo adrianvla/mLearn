@@ -14,17 +14,39 @@
         <div class="progress"></div>
     </div>
     <div class="dragger"></div>
-    <p class="info">Please select the language you want to learn to get started.</p>
-    <select name="language-select" id="language-select">
+    <p class="info">Choose the components you want to install, then click Install. Language selection unlocks after setup finishes.</p>
+
+    <div class="install-options">
+        <label class="option">
+            <input type="checkbox" id="install-llm" checked>
+            <span>
+                Install local AI language model support (includes PyTorch &amp; Transformers packages)<br>
+                <small>Skips ~3&nbsp;GB of dependencies if left unchecked. You can enable them later from Settings.</small>
+            </span>
+        </label>
+        <label class="option">
+            <input type="checkbox" id="install-ocr" checked>
+            <span>
+                Install OCR reader support (includes PaddleOCR &amp; MangaOCR packages)<br>
+                <small>Skip to save download size if you do not plan on using the manga/comic reader right now.</small>
+            </span>
+        </label>
+    </div>
+
+    <select name="language-select" id="language-select" disabled>
         <option value="de">German</option>
         <option value="ja">Japanese</option>
         <option value="other">Other</option>
     </select>
     <p class="other hide">Please enter the URL of the other language you want to install.</p>
-    <input type="text" name="" id="url" class="hide">
-    <button class="next disabled">Please Wait...</button>
+    <input type="text" name="" id="url" class="hide" disabled>
+    <button class="next">Start Installation</button>
 
-    <p class="installing"><p class="overall-status">Installing...</p><br><br><span class="server-status"><p>Downloading required files...</p></span></p>
+    <div class="installing">
+        <p class="overall-status">Waiting to start installation...</p>
+        <br><br>
+        <div class="server-status"><p>Click Install to begin.</p></div>
+    </div>
 
     <script type="module" src="welcome.js"></script>
 </body>

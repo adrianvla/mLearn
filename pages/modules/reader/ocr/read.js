@@ -89,6 +89,17 @@ const pruneLoadingOverlays = () => {
     }catch(_e){ /* ignore pruning errors */ }
 };
 
+// Heuristics for removing furigana-sized OCR boxes before rendering interactive overlays
+const DEFAULT_FURIGANA_RATIO = 1.5;
+const DEFAULT_NEIGHBOR_WINDOW_MULT = 2.4;
+const DEFAULT_NEIGHBOR_LOOKAHEAD = 3;
+const KANJI_REGEX = /[\u3400-\u9FFF\uF900-\uFAFF]/;
+
+function containsKanji(str){
+    if(typeof str !== "string") return false;
+    return KANJI_REGEX.test(str);
+}
+
 function overlapAmount(aMin, aMax, bMin, bMax){
     const top = Math.max(aMin, bMin);
     const bottom = Math.min(aMax, bMax);
@@ -149,6 +160,75 @@ function computeBoxMetrics(box, idx){
         centerY: minY + height / 2,
         orientation: height > width * 1.25 ? 'vertical' : 'horizontal'
     };
+}
+
+function filterNarrowBoxes(boxes, {
+    ratio = DEFAULT_FURIGANA_RATIO,
+    neighborWindowMultiplier = DEFAULT_NEIGHBOR_WINDOW_MULT,
+    neighborLookahead = DEFAULT_NEIGHBOR_LOOKAHEAD,
+} = {}){
+    if(!Array.isArray(boxes) || boxes.length < 2) return Array.isArray(boxes) ? boxes.slice() : [];
+
+    const clampPositive = (val, fallback) => {
+        const num = Number(val);
+        return (Number.isFinite(num) && num > 0) ? num : fallback;
+    };
+
+    const effectiveRatio = clampPositive(ratio, DEFAULT_FURIGANA_RATIO);
+    const windowMultiplier = clampPositive(neighborWindowMultiplier, DEFAULT_NEIGHBOR_WINDOW_MULT);
+    const lookahead = Math.max(1, Math.floor(clampPositive(neighborLookahead, DEFAULT_NEIGHBOR_LOOKAHEAD)));
+
+    const metrics = boxes.map((box, idx)=> computeBoxMetrics(box, idx));
+    const indicesToRemove = new Set();
+
+    const considerOrientation = (orientation) => {
+        const oriented = metrics.filter(m => m.orientation === orientation);
+        if(oriented.length < 2) return;
+        const sorted = oriented.slice().sort((a, b)=> orientation === 'vertical' ? (a.centerX - b.centerX) : (a.centerY - b.centerY));
+
+        for(let i = 0; i < sorted.length; i++){
+            const current = sorted[i];
+            if(indicesToRemove.has(current.idx)) continue;
+            const currentMeasure = orientation === 'vertical' ? current.width : current.height;
+            if(!(currentMeasure > 0)) continue;
+
+            for(let offset = 1; offset <= lookahead && (i + offset) < sorted.length; offset++){
+                const neighbor = sorted[i + offset];
+                if(indicesToRemove.has(neighbor.idx)) continue;
+
+                const neighborMeasure = orientation === 'vertical' ? neighbor.width : neighbor.height;
+                if(!(neighborMeasure > 0)) continue;
+
+                const axisDistance = orientation === 'vertical'
+                    ? Math.abs(current.centerX - neighbor.centerX)
+                    : Math.abs(current.centerY - neighbor.centerY);
+                const sizeRef = orientation === 'vertical'
+                    ? Math.max(current.width, neighbor.width)
+                    : Math.max(current.height, neighbor.height);
+                if(!(sizeRef > 0)) continue;
+                if(axisDistance > sizeRef * windowMultiplier) continue;
+
+                const smallerMeasure = Math.min(currentMeasure, neighborMeasure);
+                const largerMeasure = Math.max(currentMeasure, neighborMeasure);
+                if(!(smallerMeasure > 0)) continue;
+
+                if(largerMeasure >= smallerMeasure * effectiveRatio){
+                    const smallerIdx = currentMeasure <= neighborMeasure ? current.idx : neighbor.idx;
+                    const candidateText = (metrics[smallerIdx]?.text || "").trim();
+                    if(!containsKanji(candidateText)){
+                        indicesToRemove.add(smallerIdx);
+                    }
+                }
+            }
+        }
+    };
+
+    considerOrientation('vertical');
+    considerOrientation('horizontal');
+
+    if(indicesToRemove.size === 0) return boxes.slice();
+
+    return boxes.filter((_, idx)=> !indicesToRemove.has(idx));
 }
 
 function buildOcrContextMap(boxes){
@@ -357,6 +437,7 @@ const bindElement = async (el, text, bbox, pageNum, contextPhrase = "")=>{
             isOCR: true,
             hoverShowDelayMs: 200,
             contextPhrase: safeContext,
+            resetWordCache: false,
         });
     }catch(e){
         console.error("attachInteractiveText failed for OCR box", e);
@@ -439,16 +520,23 @@ const processPage = async (ocr, scaleFactor, el, num)=> {
         const totalScale = scaleFactor * displayScale; // (original/sent) * (displayed/original) = displayed/sent
         $(el).parent().find(".recognized-text").remove();
 
+        const rawBoxes = Array.isArray(ocr?.boxes) ? ocr.boxes : [];
+        const boxes = filterNarrowBoxes(rawBoxes, {
+            ratio: settings?.ocrFuriganaWidthRatio,
+            neighborWindowMultiplier: settings?.ocrFuriganaNeighborWindowMultiplier,
+            neighborLookahead: settings?.ocrFuriganaNeighborLookahead,
+        });
+
         // Prefetch tokenisation for all unique texts first (non-blocking) to reduce tokenise storms
         try{
-            const uniqueTexts = Array.from(new Set((ocr.boxes||[]).map(b=> b.text).filter(t=> typeof t === 'string' && t.trim())));
+            const uniqueTexts = Array.from(new Set(boxes.map(b=> b.text).filter(t=> typeof t === 'string' && t.trim())));
             // Fire and forget prefetch
             warmTokeniseCache(uniqueTexts);
         }catch(_e){}
 
-        const contextMap = buildOcrContextMap(ocr?.boxes);
+        const contextMap = buildOcrContextMap(boxes);
         let boxIndex = 0;
-        for(const box of ocr.boxes){
+        for(const box of boxes){
             if(renderControllers.get(num)?.canceled) break;
             let x = box.box[0][0];
             let y = box.box[0][1];

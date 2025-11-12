@@ -2,6 +2,8 @@
 LANGUAGE = ""
 FETCH_ANKI = True
 ANKI_CONNECT_URL = "http://127.0.0.1:8765"
+LLM_ALLOWED = True
+OCR_ALLOWED = True
 
 import uvicorn
 from typing import List, Tuple, Optional
@@ -46,7 +48,13 @@ ANKI_CONNECT_URL = arguments[0]
 FETCH_ANKI = arguments[1] == "true"
 LANGUAGE = arguments[2]
 RESPATH = arguments[3]
+if len(arguments) >= 5:
+    LLM_ALLOWED = str(arguments[4]).lower() == "true"
+if len(arguments) >= 6:
+    OCR_ALLOWED = str(arguments[5]).lower() == "true"
 print("Arguments: ", ANKI_CONNECT_URL, FETCH_ANKI, LANGUAGE)
+print("LLM allowed:", LLM_ALLOWED)
+print("OCR allowed:", OCR_ALLOWED)
 LANGUAGE_DIR_PATH = os.path.join(RESPATH,"languages")
 
 
@@ -183,6 +191,17 @@ def invoke(action, **params):
 
 @app.get("/llm/status")
 async def llm_status():
+    if not LLM_ALLOWED:
+        return {
+            "allowed": False,
+            "downloaded": False,
+            "cached": False,
+            "device": None,
+            "downloadedBytes": 0,
+            "expectedBytes": 0,
+            "progress": 0.0,
+            "downloading": False,
+        }
     downloaded = _llm_model is not None
     cached = _llm_cache_exists()
     device = _llm_device if downloaded else None
@@ -194,6 +213,7 @@ async def llm_status():
         progress_ratio = min(float(downloaded_bytes) / float(expected_bytes), 1.0)
     in_progress = bool(downloaded_bytes and not snapshot_ready)
     return {
+        "allowed": True,
         "downloaded": bool(downloaded),
         "cached": bool(cached),
         "device": device,
@@ -727,6 +747,9 @@ _manga_ocr = None
 
 def _get_paddle_ocr():
     global _paddle_ocr
+    if not OCR_ALLOWED:
+        _log_ocr_init("OCR disabled; PaddleOCR not initialised")
+        return None
     if _paddle_ocr is not None:
         _log_ocr_init("PaddleOCR already initialized")
         return _paddle_ocr
@@ -777,6 +800,9 @@ def _paddle_run_ocr(paddle_inst, img):
 
 def _get_manga_ocr():
     global _manga_ocr
+    if not OCR_ALLOWED:
+        _log_ocr_init("OCR disabled; MangaOCR not initialised")
+        return None
     if _manga_ocr is not None:
         _log_ocr_init("MangaOCR already initialized")
         return _manga_ocr
@@ -997,6 +1023,8 @@ async def ocr_endpoint(
     file: UploadFile | None = File(None),
     image_base64: str | None = Form(None)
 ):
+    if not OCR_ALLOWED:
+        raise HTTPException(status_code=403, detail="OCR disabled by user")
     _log_ocr_run("Loading Neural Network")
     _process_stats("ocr_req")
     try:
@@ -1116,6 +1144,8 @@ async def log_requests(request: Request, call_next):
 @app.post("/llm", response_model=LlmResponse)
 async def llm_endpoint(req: LlmRequest):
     _log("LLM request", {"chars": len(req.prompt), "max_new_tokens": req.max_new_tokens})
+    if not LLM_ALLOWED:
+        raise HTTPException(status_code=403, detail="LLM disabled by user")
     try:
         _ensure_llm_loaded()
     except RuntimeError as exc:

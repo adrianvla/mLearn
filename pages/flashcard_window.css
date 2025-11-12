@@ -6,6 +6,36 @@ body{
     color: #ccc;
     overflow-x:hidden;
 }
+.install-options{
+    margin: 20px 0;
+    padding: 12px 16px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    background: rgba(0,0,0,0.2);
+}
+.install-options .option{
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 14px;
+    line-height: 1.4;
+}
+.install-options .option + .option{
+    margin-top: 12px;
+}
+.install-options .option input{
+    margin-top: 4px;
+}
+.install-options .option small{
+    display: block;
+    opacity: 0.8;
+    font-size: 12px;
+    margin-top: 4px;
+}
+.install-options.options-locked{
+    opacity: 0.6;
+    pointer-events: none;
+}
 body.light{
     background-color: #eee;
     color: #333;
@@ -173,12 +203,6 @@ body.light .createFlashcardContent{
     width: 50px
 }
 
-.flashcard-preview .content {
-    /*overflow: auto;*/
-    /*margin-bottom: 30px*/
-}
-
-
 input[type="text"]{
     background: transparent;
     color:#aaa;
@@ -214,6 +238,7 @@ input[type="checkbox"]{
     margin-inline:10px;
     transition: background 0.1s, border 0.1s;
     position:relative;
+    appearance: none;
     -webkit-appearance: none;
     border-radius: 5px;
     background: rgb(195,195,195);
@@ -427,9 +452,6 @@ a{
 }
 .card-c.light .example .translation{
     color:#888;
-}
-.example .translation:hover{
-    /*filter:blur(0);*/
 }
 .example .translation p{
     margin: 5px;

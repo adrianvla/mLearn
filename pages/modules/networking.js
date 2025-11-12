@@ -185,7 +185,10 @@ async function checkLlmStatus(llmUrl){
     return null;
 }
 
-export async function getLLMResponse(prompt,max_new_tokens,temperature){
+export async function getLLMResponse(prompt,phrase,max_new_tokens,temperature){
+    if (settings?.llmEnabled === false){
+        return {error: 'LLM disabled'};
+    }
     const llmUrl = deriveLLMUrl();
     if (!llmUrl){
         return {error: 'LLM URL not configured'};
@@ -235,12 +238,13 @@ export async function getLLMResponse(prompt,max_new_tokens,temperature){
 
         xhr.open('POST', llmUrl);
         xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.send(JSON.stringify({prompt,max_new_tokens,temperature}));
+        xhr.send(JSON.stringify({prompt:prompt+phrase,max_new_tokens,temperature}));
     });
 }
 // window.getLLMResponse = getLLMResponse;
 
 function deriveLLMUrl(){
+    if (settings?.llmEnabled === false) return null;
     if (settings?.llmUrl) return settings.llmUrl;
     if (settings.getTranslationUrl && settings.getTranslationUrl.includes('/translate')){
         return settings.getTranslationUrl.replace('/translate','/llm');
@@ -292,6 +296,7 @@ window.clearTranslationOverride = clearTranslationOverride;
 
 // Helper: derive OCR URL if not explicitly set
 function deriveOcrUrl(){
+    if (settings?.ocrEnabled === false) return null;
     if (settings.ocrUrl) return settings.ocrUrl;
     if (settings.getTranslationUrl && settings.getTranslationUrl.includes('/translate')){
         return settings.getTranslationUrl.replace('/translate','/ocr');
@@ -512,6 +517,9 @@ function inputToBlobOrBase64(input, type='image/png', quality=0.92){
 }
 
 function sendImageForOCR(imageInput){
+    if (settings?.ocrEnabled === false){
+        return Promise.reject('OCR disabled');
+    }
     return new Promise(async (resolve, reject) => {
         const url = deriveOcrUrl();
         if(!url) return reject('OCR URL not configured');

@@ -78,7 +78,7 @@ const createWelcomeWindow = () => {
 
     let welcomeWindow = new BrowserWindow({
         width: 800,
-        height: 700,
+        height: 900,
         webPreferences: {
             preload: path.join(appPath, '/pages/IPC/preload.js')
         }
