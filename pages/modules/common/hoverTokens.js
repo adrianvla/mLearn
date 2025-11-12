@@ -289,6 +289,7 @@ export async function attachInteractiveText($container, text, options = {}){
         isOCR = false,
         hoverShowDelayMs: rawHoverShowDelayMs = 0,
         contextPhrase = "",
+        resetWordCache = true,
     } = options || {};
     const hoverShowDelayMs = Math.max(0, Number(rawHoverShowDelayMs));
     // Render interactive tokens into provided jQuery container
@@ -320,7 +321,9 @@ export async function attachInteractiveText($container, text, options = {}){
     } catch(_e){ /* best effort prefetch */ }
 
     const state = createLocalState();
-    try{ resetWordUUIDs(); }catch(_e){}
+    if(resetWordCache){
+        try{ resetWordUUIDs(); }catch(_e){}
+    }
 
     for(let i = 0; i < tokens.length; i++){
         const token = tokens[i];

@@ -18,6 +18,7 @@ import {toUniqueIdentifier, screenshotVideo} from "../utils.js";
 import {flashcardFunctions} from "../subtitler/subtitler.js";
 import {countFreq} from "../stats/wordFreq.js";
 import {buildPitchAccentHtml, getPitchAccentInfo} from "./pitchAccent.js";
+import {getWordExplanation} from "./llmInteractions.js";
 
 const pitchAccentTranslationCache = new Map();
 const pitchAccentTranslationInFlight = new Map();
@@ -558,7 +559,13 @@ window.mLearnPills.clickAddToFlashcards = clickAddToFlashcards;
 window.clickAddToFlashcards = clickAddToFlashcards; // legacy
 
 async function clickLLMExplain(el,uuid){
-    console.log("word context",wordContextByUUID[uuid]);
+    console.log("uuid:",uuid,"wordUUIDs[uuid]:",wordUUIDs[uuid],"wordContextByUUID[uuid]",wordContextByUUID[uuid]);
+    const resolvedSettings = (typeof window !== "undefined" && window.settings) ? window.settings : settings;
+    if(resolvedSettings && resolvedSettings.llmEnabled === false){
+        window.alert('The explain feature requires the local AI language model. Re-run the setup and enable "Install local AI language model support" to use it.');
+        return;
+    }
+    try{el?.parentElement?.parentElement?.parentElement?.querySelector('.subtitle_hover_alt_c').remove()}catch(_e){};
     const div = document.createElement('div');
     div.classList = 'subtitle_hover_alt_c skeleton-c';
     const div2 = document.createElement('div');
@@ -570,6 +577,8 @@ async function clickLLMExplain(el,uuid){
     }
     div.appendChild(div2);
     el?.parentElement?.parentElement?.parentElement?.appendChild(div);
+    let answer = await getWordExplanation(wordUUIDs[uuid], wordContextByUUID[uuid]);
+    div.innerHTML = `<p>${answer.output}</p>`;
 }
 window.mLearnPills.clickLLMExplain = clickLLMExplain;
 window.clickLLMExplain = clickLLMExplain;

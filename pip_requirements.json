@@ -1,22 +1,28 @@
-[
-  "pip",
-  "uvicorn",
-  "fastapi",
-  "pydantic",
-  "sudachipy",
-  "sudachidict_core",
-  "spacy",
-  "beautifulsoup4",
-  "pillow",
-  "numpy",
-  "paddlepaddle>=2.5.2",
-  "paddleocr>=2.7.3",
-  "manga-ocr",
-  "onnxruntime",
-  "python-multipart",
-  "setuptools",
-  "wheel",
-  "torch",
-  "transformers",
-  "sentencepiece"
-]
+{
+  "core": [
+    "pip",
+    "uvicorn",
+    "fastapi",
+    "pydantic",
+    "sudachipy",
+    "sudachidict_core",
+    "spacy",
+    "beautifulsoup4",
+    "pillow",
+    "numpy",
+    "python-multipart",
+    "setuptools",
+    "wheel"
+  ],
+  "ocr": [
+    "paddlepaddle>=2.5.2",
+    "paddleocr>=2.7.3",
+    "manga-ocr",
+    "onnxruntime"
+  ],
+  "llm": [
+    "torch",
+    "transformers",
+    "sentencepiece"
+  ]
+}

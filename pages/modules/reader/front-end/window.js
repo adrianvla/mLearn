@@ -3,11 +3,17 @@ import {initReaderDnD} from "../handler/init.js";
 import {initSequencer} from "../handler/sequencer.js";
 import {setDocument as setDoc1} from "../ocr/dispatcher.js";
 import {setDocument as setDoc2} from "../ocr/read.js";
+import {settings as globalSettings} from "../../settings/settings.js";
 
 let readerWindow = null;
 let hasLoaded = false;
 
 $(".open-mlearn-reader").on("click", () => {
+    const resolvedSettings = (typeof window !== "undefined" && window.settings) ? window.settings : globalSettings;
+    if (resolvedSettings && resolvedSettings.ocrEnabled === false) {
+        window.alert('The Reader module is not installed. Re-run the setup and enable "Install OCR reader support" to use this feature.');
+        return;
+    }
     if (readerWindow) return;
     readerWindow = window.open("reader.html", "ReaderWindow", "width=1400,height=900");
     const winRef = readerWindow;
@@ -47,6 +53,11 @@ $(".open-mlearn-reader").on("click", () => {
 // Optional: allow other modules or IPC to request opening the reader window
 if (window.mLearnIPC && typeof window.mLearnIPC.onOpenReaderRequest === 'function') {
     window.mLearnIPC.onOpenReaderRequest(() => {
+        const resolvedSettings = (typeof window !== "undefined" && window.settings) ? window.settings : globalSettings;
+        if (resolvedSettings && resolvedSettings.ocrEnabled === false) {
+            window.alert('The Reader module is not installed. Re-run the setup and enable "Install OCR reader support" to use this feature.');
+            return;
+        }
         $(".open-mlearn-reader").trigger("click");
     });
 }

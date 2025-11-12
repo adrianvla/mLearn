@@ -2,6 +2,7 @@ import {refreshFitMode} from "../front-end/positioning.js";
 import {readPage} from "../ocr/read.js";
 import {sendToReader} from "../ocr/dispatcher.js";
 import {parseSubtitleName} from "../../subtitler/subtitleParsers.js";
+import {resetWordUUIDs} from "../../common/pillHtml.js";
 
 let pages = [];
 let currentIndex = 0;
@@ -78,10 +79,12 @@ export const initSequencer = (d) => {
         updateImagePages(d);
     });
     $(".nav .left-btn",d).on("click", ()=>{
+        resetWordUUIDs();
         previousPage();
         updateImagePages(d);
     });
     $(".nav .right-btn",d).on("click", ()=>{
+        resetWordUUIDs();
         nextPage();
         updateImagePages(d);
     });

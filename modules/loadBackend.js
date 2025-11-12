@@ -23,6 +23,9 @@ let pythonUrl;
 let serverLoaded = false;
 let PYTHON_PATH = "";
 let isSettingUp = false;
+let installInProgress = false;
+let pendingInstallOptions = { includeLLM: true, includeOCR: true };
+let waitingForInstallChoice = false;
 
 // const tempDir = path.join(resPath, 'temp');
 // const updateZipPath = path.join(tempDir, 'update.zip');
@@ -46,9 +49,30 @@ if (PLATFORM === 'darwin' && ARCHITECTURE === 'x64') {
 }
 pythonUrl+="?download=";
 
-const loadPipRequirements = () => {
+const loadPipRequirementsConfig = () => {
     // Read from bundled app (asar in production)
     return JSON.parse(fs.readFileSync(path.join(appPath, 'pip_requirements.json'), 'utf-8'));
+};
+
+const buildPipRequirementList = (options = {}) => {
+    const config = loadPipRequirementsConfig();
+    const includeLLM = options.includeLLM !== undefined ? !!options.includeLLM : true;
+    const includeOCR = options.includeOCR !== undefined ? !!options.includeOCR : true;
+    if (Array.isArray(config)) {
+        // Backwards compatibility with legacy flat list format
+        return [...config];
+    }
+    const core = Array.isArray(config.core) ? config.core : [];
+    const ocr = Array.isArray(config.ocr) ? config.ocr : [];
+    const llm = Array.isArray(config.llm) ? config.llm : [];
+    const packages = [...core];
+    if (includeOCR) {
+        packages.push(...ocr);
+    }
+    if (includeLLM) {
+        packages.push(...llm);
+    }
+    return packages;
 };
 
 const firstTimeSetup = () => {
@@ -257,6 +281,10 @@ const pythonFound = () => {
     let settings = loadSettings();
     if(isFirstTimeSetup) return;
     console.log(pythonExecutable);
+    const llmEnabled = settings.llmEnabled !== false;
+    const ocrEnabled = settings.ocrEnabled !== false;
+    console.log("LLM support enabled:", llmEnabled);
+    console.log("OCR support enabled:", ocrEnabled);
 
     const STATUS_PREFIX = '::STATUS::';
     const onSTDOUT = (data) => {
@@ -310,11 +338,11 @@ const pythonFound = () => {
     if(isWindows){
         //pythonExecutable
         // const command = "start cmd.exe /C \"" + ["\"" + pythonExecutable + "\"", "\"" + path.join(resPath, 'server.py') + "\"", String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), "\"" + String(resPath) + "\""].join(" ") + "\"";
-        const command = ["\"" + pythonExecutable + "\"", "\"" + path.join(resPath, 'server.py') + "\"", String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), "\"" + String(resPath) + "\""].join(" ");
+    const command = ["\"" + pythonExecutable + "\"", "\"" + path.join(resPath, 'server.py') + "\"", String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), "\"" + String(resPath) + "\"", llmEnabled ? 'true' : 'false', ocrEnabled ? 'true' : 'false'].join(" ");
         console.log("WINDOWS:::",command)
         pythonChildProcess = exec(command);
     }else{
-        pythonChildProcess = spawn('env', [pythonExecutable, path.join(resPath, 'server.py'), String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), String(resPath)], {
+    pythonChildProcess = spawn('env', [pythonExecutable, path.join(resPath, 'server.py'), String(settings.ankiConnectUrl), String(settings.use_anki), String(settings.language), String(resPath), llmEnabled ? 'true' : 'false', ocrEnabled ? 'true' : 'false'], {
             env: process.env
         });
     }
@@ -351,41 +379,158 @@ function findPython() {
         }
     }
     console.log("Could not find python3, checked", possibilities);
+    waitingForInstallChoice = true;
+    isFirstTimeSetup = true;
+    console.log("Awaiting user to start installation");
+    try{getCurrentWindow().webContents.send('server-status-update', 'Select the components you want and click Install to continue.');}catch(e){/* window not ready yet */}
+    try{getCurrentWindow().webContents.send('installer-awaiting-choice');}catch(e){/* window not ready yet */}
+    return null;
+}
+
+const startPythonInstall = (options = {}) => {
+    if (installInProgress) {
+        console.warn("Python installation already in progress");
+        return;
+    }
+    const normalizedOptions = {
+        includeLLM: options.includeLLM !== undefined ? !!options.includeLLM : true,
+        includeOCR: options.includeOCR !== undefined ? !!options.includeOCR : true,
+    };
+    pendingInstallOptions = normalizedOptions;
+    waitingForInstallChoice = false;
+    installInProgress = true;
+    pythonSuccessInstall = false;
+
+    const selectedComponents = ['Python runtime'];
+    if (normalizedOptions.includeLLM) {
+        selectedComponents.push('Local language model support');
+    }
+    if (normalizedOptions.includeOCR) {
+        selectedComponents.push('OCR reader support');
+    }
+    console.log('Selected installation components:', selectedComponents.join(', '));
+    try {
+        getCurrentWindow().webContents.send('install-started', normalizedOptions);
+    } catch (e) {
+        /* window may not be ready yet */
+    }
+
     console.log("Downloading Python...");
-    try{getCurrentWindow().webContents.send('server-status-update', 'Downloading Python...');}catch(e){console.log(e);}
+    try {
+        getCurrentWindow().webContents.send('server-status-update', 'Downloading Python...');
+    } catch (e) {
+        console.log(e);
+    }
+
+    try {
+        if (fs.existsSync(downloadPath)) {
+            fs.unlinkSync(downloadPath);
+        }
+    } catch (e) {
+        console.warn('Failed to clear previous download', e?.message || e);
+    }
+    try {
+        if (fs.existsSync(envPath)) {
+            fs.rmSync(envPath, { recursive: true, force: true });
+        }
+    } catch (e) {
+        console.warn('Failed to clear previous env directory', e?.message || e);
+    }
+
+    const pipRequirements = buildPipRequirementList(normalizedOptions);
+    console.log('Will install pip packages:', pipRequirements.join(', '));
+    try {
+        const summary = `Installing Python dependencies (LLM ${normalizedOptions.includeLLM ? 'enabled' : 'skipped'}, OCR ${normalizedOptions.includeOCR ? 'enabled' : 'skipped'})...`;
+        getCurrentWindow().webContents.send('server-status-update', summary);
+    } catch (e) {
+        /* window may not be ready */
+    }
 
     const onPipSTDOUT = (data) => {
         console.log(`stdout: ${data}`);
-        try{getCurrentWindow().webContents.send('server-status-update', `${data}`);}catch(e){console.log(e);}
+        try {
+            getCurrentWindow().webContents.send('server-status-update', `${data}`);
+        } catch (e) {
+            console.log(e);
+        }
     };
     const onPipSTDERR = (data) => {
         console.error(`stderr: ${data}`);
-        try{getCurrentWindow().webContents.send('server-status-update', `ERROR: ${data}`);}catch(e){console.log(e);}
+        try {
+            getCurrentWindow().webContents.send('server-status-update', `ERROR: ${data}`);
+        } catch (e) {
+            console.log(e);
+        }
     };
     const onPipClose = (code) => {
+        installInProgress = false;
+        const succeeded = typeof code !== 'number' || code === 0;
+        if (!succeeded) {
+            console.error('pip install exited with code', code);
+            pythonSuccessInstall = false;
+            waitingForInstallChoice = true;
+            try {
+                getCurrentWindow().webContents.send('server-status-update', `ERROR: pip exited with code ${code}`);
+                getCurrentWindow().webContents.send('installer-awaiting-choice');
+            } catch (e) {
+                console.log(e);
+            }
+            return;
+        }
         console.log(`Installing libraries complete`);
-        try{getCurrentWindow().webContents.send('server-status-update', 'Installing libraries complete');}catch(e){console.log(e);}
+        try {
+            getCurrentWindow().webContents.send('server-status-update', 'Installing libraries complete');
+        } catch (e) {
+            console.log(e);
+        }
         pythonFound();
         pythonSuccessInstall = true;
     };
-    isFirstTimeSetup = true;
-    // Removed post-install trust scripts
-    downloadFile(pythonUrl, downloadPath, () => {
+
+    const onDownloadComplete = () => {
         console.log('Download complete');
-        try{getCurrentWindow().webContents.send('server-status-update', 'Download complete');}catch(e){console.log(e);}
+        try {
+            getCurrentWindow().webContents.send('server-status-update', 'Download complete');
+        } catch (e) {
+            console.log(e);
+        }
         fs.mkdirSync(extractPath, { recursive: true });
         extractFile(downloadPath, extractPath, () => {
             console.log('Extraction complete, Installing libraries...');
-            try{getCurrentWindow().webContents.send('server-status-update', 'Download complete');}catch(e){console.log(e);}
-            const pipRequirements = loadPipRequirements();
+            try {
+                getCurrentWindow().webContents.send('server-status-update', 'Extraction complete, installing libraries...');
+            } catch (e) {
+                console.log(e);
+            }
+            if (pipRequirements.length === 0) {
+                console.warn('No pip requirements resolved, marking installation complete');
+                onPipClose(0);
+                return;
+            }
             console.log(pythonExecutable);
-            console.log("PIP EXECUTABLE:", pipExecutable);
-            if(isWindows){
+            console.log('PIP EXECUTABLE:', pipExecutable);
+            if (isWindows) {
                 const command = "start cmd.exe /C \"" + ["\"" + pipExecutable + "\"", ...accessArgs, 'install', ...pipRequirements].join(" ") + "\"";
                 exec(command, (error, stdout, stderr) => {
+                    if (error) {
+                        console.error('pip install failed', error);
+                        try {
+                            getCurrentWindow().webContents.send('server-status-update', `ERROR: ${error.message}`);
+                        } catch (e) {
+                            console.log(e);
+                        }
+                        installInProgress = false;
+                        waitingForInstallChoice = true;
+                        try {
+                            getCurrentWindow().webContents.send('installer-awaiting-choice');
+                        } catch (e) {
+                            /* window might be gone */
+                        }
+                        return;
+                    }
                     onPipClose(null);
                 });
-            }else{
+            } else {
                 const installPip = spawn(pipExecutable, [...accessArgs, 'install', ...pipRequirements], {
                     cwd: envPath
                 });
@@ -393,10 +538,11 @@ function findPython() {
                 installPip.stderr.on('data', onPipSTDERR);
                 installPip.on('close', onPipClose);
             }
-
         });
-    });
-}
+    };
+
+    downloadFile(pythonUrl, downloadPath, onDownloadComplete);
+};
 
 
 function checkForUpdates() {
@@ -482,6 +628,20 @@ ipcMain.on('is-successful-install', (event) => {
 ipcMain.on('is-loaded', (event) => {
     if(serverLoaded)
         event.reply('server-load', "Python server running");
+});
+
+ipcMain.on('start-install', (_event, rawOptions) => {
+    const options = rawOptions && typeof rawOptions === 'object' ? rawOptions : {};
+    startPythonInstall(options);
+});
+
+ipcMain.on('installer-state-request', (event) => {
+    event.reply('installer-state', {
+        waiting: waitingForInstallChoice,
+        inProgress: installInProgress,
+        success: pythonSuccessInstall,
+        options: pendingInstallOptions,
+    });
 });
 
 export {findPython, downloadFile, isFirstTimeSetup, setFirstTimeSetup, serverLoaded, firstTimeSetup, pythonChildProcess}
