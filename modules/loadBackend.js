@@ -27,6 +27,34 @@ let installInProgress = false;
 let pendingInstallOptions = { includeLLM: true, includeOCR: true };
 let waitingForInstallChoice = false;
 
+const handleInstallerFailure = (displayMessage, options = {}) => {
+    installInProgress = false;
+    pythonSuccessInstall = false;
+    waitingForInstallChoice = true;
+    const detail = options.detail;
+    try {
+        getCurrentWindow().webContents.send('server-status-update', `ERROR: ${displayMessage}`);
+        if (detail) {
+            getCurrentWindow().webContents.send('server-status-update', detail);
+        }
+    } catch (e) {
+        /* renderer may be unavailable */
+    }
+    if (options.emitNetworkError) {
+        const payload = { message: displayMessage, detail: detail || null };
+        try {
+            getCurrentWindow().webContents.send('installer-network-error', payload);
+        } catch (e) {
+            /* renderer may be unavailable */
+        }
+    }
+    try {
+        getCurrentWindow().webContents.send('installer-awaiting-choice');
+    } catch (e) {
+        /* renderer may be unavailable */
+    }
+};
+
 // const tempDir = path.join(resPath, 'temp');
 // const updateZipPath = path.join(tempDir, 'update.zip');
 // const extractDir = path.join(tempDir, 'mLearn-main');
@@ -109,14 +137,26 @@ const downloadFile = (fileUrl, dest, cb, redirectCount = 0) => {
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
             if (redirectCount >= MAX_REDIRECTS) {
                 console.error('Too many redirects');
-                process.exit(1);
+                file.destroy();
+                fs.unlink(dest, () => {});
+                handleInstallerFailure('Installation failed: Too many redirects encountered while downloading required files.', {
+                    detail: 'Too many redirects during download. Please try again later.',
+                    emitNetworkError: true,
+                });
+                return;
             }
             const redirectUrl = url.resolve(fileUrl, response.headers.location); // Resolve relative redirects
             console.log(`Redirecting to: ${redirectUrl}`);
+            file.destroy();
             downloadFile(redirectUrl, dest, cb, redirectCount + 1);
         } else if (response.statusCode !== 200) {
             console.error(`Download failed with status code: ${response.statusCode}`);
-            process.exit(1);
+            file.destroy();
+            fs.unlink(dest, () => {});
+            handleInstallerFailure('Installation failed: Unable to download required files. Please check your internet connection and try again.', {
+                detail: `Download failed with status code: ${response.statusCode}`,
+                emitNetworkError: true,
+            });
         } else {
             // Pipe the response to the file
             response.pipe(file);
@@ -125,7 +165,12 @@ const downloadFile = (fileUrl, dest, cb, redirectCount = 0) => {
                     const stats = fs.statSync(dest);
                     if (stats.size === 0) {
                         console.error('Downloaded file is 0 bytes');
-                        process.exit(1);
+                        fs.unlink(dest, () => {});
+                        handleInstallerFailure('Installation failed: Downloaded file is empty. Please check your internet connection and try again.', {
+                            detail: 'Downloaded file is 0 bytes. Network connection may have been interrupted.',
+                            emitNetworkError: true,
+                        });
+                        return;
                     }
                     console.log('Download complete!');
                     cb();
@@ -133,9 +178,13 @@ const downloadFile = (fileUrl, dest, cb, redirectCount = 0) => {
             });
         }
     }).on('error', (err) => {
+        file.destroy();
         fs.unlink(dest, () => {}); // Delete the incomplete file
         console.error('Error downloading file:', err.message);
-        process.exit(1);
+        handleInstallerFailure('Installation failed: Unable to reach the download server. Please check your internet connection and try again.', {
+            detail: `Download error: ${err.message}`,
+            emitNetworkError: true,
+        });
     });
 };
 

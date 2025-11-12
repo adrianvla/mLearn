@@ -22,6 +22,7 @@ PITCH_CACHE_SIZE = 2048
 _DB_CONN: Optional[sqlite3.Connection] = None
 _DB_LOCK = threading.RLock()
 _tokenizer_lock = threading.Lock()
+_tokenizer_use_lock = threading.Lock()
 tokenizer_obj = None
 mode = tokenizer.Tokenizer.SplitMode.C  # Use a coarser split mode
 _atexit_registered = False
@@ -56,7 +57,8 @@ def _ensure_tokenizer():
 def LANGUAGE_TOKENIZE(text):
     tokenizer_inst = _ensure_tokenizer()
     token_list = []
-    tokens = tokenizer_inst.tokenize(text, mode)
+    with _tokenizer_use_lock:
+        tokens = list(tokenizer_inst.tokenize(text, mode))
     for token in tokens:
         surface = token.surface()
         pos = token.part_of_speech()[0]

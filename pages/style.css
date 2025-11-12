@@ -1577,6 +1577,54 @@ body:not(.dark) .recently .welcome-note{
         max-width:100%;
     }
 }
+@media (max-height: 850px){
+    .recently{
+        padding:24px 20px;
+        gap:16px;
+    }
+    .recently .welcome-hero{
+        padding:24px 20px;
+        gap:16px;
+    }
+    .recently .welcome-title{
+        font-size:28px;
+    }
+    .recently .welcome-subtitle{
+        font-size:15px;
+    }
+    .recently .welcome-steps{
+        gap:12px;
+    }
+    .recently .welcome-step{
+        padding:14px 18px;
+        gap:14px;
+    }
+    .recently .step-number{
+        width:30px;
+        height:30px;
+        font-size:15px;
+    }
+    .recently .step-copy h3{
+        font-size:16px;
+    }
+    .recently .step-copy p{
+        font-size:13px;
+    }
+    .recently .welcome-note{
+        font-size:12px;
+    }
+    .recently .cards{
+        margin-top:12px;
+    }
+    .recently .cards .card{
+        margin:12px;
+    }
+    .recently .button,
+    .recently button{
+        padding:10px 16px;
+        font-size:14px;
+    }
+}
 .recently .cards{
     display: flex;
     gap: 10px;

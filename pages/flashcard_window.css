@@ -20,6 +20,9 @@ body{
     font-size: 14px;
     line-height: 1.4;
 }
+.install-options .option input{
+    width:50px;
+}
 .install-options .option + .option{
     margin-top: 12px;
 }
