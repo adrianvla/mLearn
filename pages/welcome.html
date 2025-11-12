@@ -14,26 +14,26 @@
         <div class="progress"></div>
     </div>
     <div class="dragger"></div>
-    <p class="info">Choose the components you want to install, then click Install. Language selection unlocks after setup finishes.</p>
+    <p class="info">Choose the components you want to install, then click Install. <br>Language selection unlocks after setup finishes. <br>If you forget to install something, delete mLearn and restart the installer again. <br>You will <b>not</b> loose your data.</p>
 
     <div class="install-options">
         <label class="option">
             <input type="checkbox" id="install-llm" checked>
             <span>
-                Install local AI language model support (includes PyTorch &amp; Transformers packages)<br>
-                <small>Skips ~3&nbsp;GB of dependencies if left unchecked. You can enable them later from Settings.</small>
+                Install mLearn Explain AI Module<br>
+                <small>Installs a local LLM Neural Network. Skips ~3&nbsp;GB of dependencies if left unchecked.</small>
             </span>
         </label>
         <label class="option">
             <input type="checkbox" id="install-ocr" checked>
             <span>
-                Install OCR reader support (includes PaddleOCR &amp; MangaOCR packages)<br>
-                <small>Skip to save download size if you do not plan on using the manga/comic reader right now.</small>
+                Install mLearn Reader Module<br>
+                <small>Will install text recognition neural networks. Skip to save download size <br>if you do not plan on using the manga/comic reader right now.</small>
             </span>
         </label>
     </div>
 
-    <select name="language-select" id="language-select" disabled>
+    <select name="language-select" id="language-select" disabled style="filter:blur(10px)">
         <option value="de">German</option>
         <option value="ja">Japanese</option>
         <option value="other">Other</option>

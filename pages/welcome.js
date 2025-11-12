@@ -167,6 +167,23 @@ document.addEventListener('DOMContentLoaded', () => {
         setWaitingState(lastInstallOptions);
     });
 
+    window.mLearnIPC.onInstallerNetworkError((payload = {}) => {
+        const normalized = typeof payload === 'string' ? { message: payload } : (payload || {});
+        const message = normalized.message || 'Installation failed due to a network issue.';
+        const detail = normalized.detail;
+        if(detail){
+            logInfo(detail);
+        }
+        $(".overall-status").text(message);
+        $(".info").text("Please check your internet connection, then click Install to retry.");
+        setWaitingState(lastInstallOptions);
+        try {
+            window.alert(detail ? `${message}\n\nDetails: ${detail}` : message);
+        } catch (e) {
+            console.warn('Unable to show alert for network error', e);
+        }
+    });
+
     window.mLearnIPC.onLanguageInstalled(async (lang)=>{
         let settings = await getSettings();
         settings.language = lang;
@@ -228,7 +245,7 @@ const installCompleted = () => {
     $(".progress").css("width", "100%");
     $(".next").removeClass("disabled");
     $(".next").text("Continue");
-    $("#language-select").prop("disabled", false).trigger("change");
+    $("#language-select").css("filter","unset").prop("disabled", false).trigger("change");
     $(".info").text("Installation complete! Choose your language to finish setup.");
     logInfo("Installation complete!");
     $(".overall-status").text("Installation complete!");

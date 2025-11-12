@@ -45,6 +45,7 @@ contextBridge.exposeInMainWorld('mLearnIPC', {
     onPythonSuccess: (callback) => ipcRenderer.on('successful-install', (event, message) => callback(message)),
     onInstallStarted: (callback) => ipcRenderer.on('install-started', (event, message) => callback(message)),
     onInstallerAwaitingChoice: (callback) => ipcRenderer.on('installer-awaiting-choice', () => callback()),
+    onInstallerNetworkError: (callback) => ipcRenderer.on('installer-network-error', (event, message) => callback(message)),
     onInstallerState: (callback) => ipcRenderer.on('installer-state', (event, message) => callback(message)),
     onWatchTogetherLaunch: (callback) => ipcRenderer.on('watch-together', (event, message) => callback(message)),
     onWatchTogetherRequest: (callback) => ipcRenderer.on('watch-together-request', (event, message) => callback(message)),
