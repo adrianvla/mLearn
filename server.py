@@ -383,7 +383,8 @@ def _ensure_llm_loaded():
                 dtype = torch.float16  # type: ignore[attr-defined]
             else:
                 device = "cpu"
-                dtype = torch.bfloat16 if hasattr(torch, "bfloat16") else torch.float32  # type: ignore[attr-defined]
+                # Default to float32 on CPU for broader compatibility (Windows lacks bfloat16 CPU kernels).
+                dtype = torch.float32  # type: ignore[attr-defined]
             _log("Initializing LLM", {"device": device, "dtype": str(dtype)})
 
             tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_ID, trust_remote_code=True)  # type: ignore[operator]
