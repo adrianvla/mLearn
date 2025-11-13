@@ -1619,11 +1619,6 @@ body:not(.dark) .recently .welcome-note{
     .recently .cards .card{
         margin:12px;
     }
-    .recently .button,
-    .recently button{
-        padding:10px 16px;
-        font-size:14px;
-    }
 }
 .recently .cards{
     display: flex;

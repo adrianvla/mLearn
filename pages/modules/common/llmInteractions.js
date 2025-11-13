@@ -3,7 +3,7 @@ import {getLLMResponse} from "../networking.js";
 export async function getWordExplanation(word, phrase) {
     const language = "English";
     const prompt = `
-You are a language assistant.
+You are a ${language}-only language assistant. You must always respond entirely in ${language}.
 
 Task:
 1. Translate the following sentence into ${language}.
