@@ -5,6 +5,107 @@ import {isNotAllKana} from "../../utils.js";
 import {buildPitchAccentHtml, getPitchAccentInfo} from "../../common/pitchAccent.js";
 export const $ = s=>J(s,getDocument());
 
+let scrollGuardObserver = null;
+let scrollGuardTimeout = null;
+let scrollGuardContent = null;
+let scrollGuardReleaseFn = null;
+let scrollGuardDeadline = 0;
+
+const teardownScrollGuard = () => {
+    if(typeof scrollGuardReleaseFn === "function"){
+        scrollGuardReleaseFn();
+    }
+    scrollGuardReleaseFn = null;
+    scrollGuardDeadline = 0;
+};
+
+const ensureContentStaysAtTop = () => {
+    const doc = getDocument();
+    if(!doc) return;
+    const contentEl = doc.querySelector(".content");
+    if(!contentEl) return;
+
+    teardownScrollGuard();
+
+    scrollGuardContent = contentEl;
+    scrollGuardDeadline = Date.now() + 1400;
+
+    function releaseGuard(){
+        if(scrollGuardContent !== contentEl) return;
+        contentEl.removeEventListener("scroll", handleScroll);
+        contentEl.removeEventListener("wheel", handleUserIntent);
+        contentEl.removeEventListener("touchstart", handleUserIntent);
+        contentEl.removeEventListener("mousedown", handleUserIntent);
+        if(scrollGuardObserver){
+            scrollGuardObserver.disconnect();
+            scrollGuardObserver = null;
+        }
+        if(scrollGuardTimeout){
+            clearTimeout(scrollGuardTimeout);
+            scrollGuardTimeout = null;
+        }
+        scrollGuardContent = null;
+        scrollGuardReleaseFn = null;
+        scrollGuardDeadline = 0;
+    }
+
+    function enforceTop(){
+        if(!scrollGuardContent) return;
+        if(Date.now() > scrollGuardDeadline){
+            releaseGuard();
+            return;
+        }
+        if(contentEl.scrollTop !== 0){
+            contentEl.scrollTop = 0;
+        }
+    }
+
+    function handleScroll(){
+        if(Date.now() > scrollGuardDeadline){
+            releaseGuard();
+            return;
+        }
+        enforceTop();
+    }
+
+    function handleUserIntent(){
+        releaseGuard();
+    }
+
+    scrollGuardReleaseFn = releaseGuard;
+
+    contentEl.addEventListener("scroll", handleScroll, {passive:true});
+    contentEl.addEventListener("wheel", handleUserIntent, {passive:true});
+    contentEl.addEventListener("touchstart", handleUserIntent, {passive:true});
+    contentEl.addEventListener("mousedown", handleUserIntent, {passive:true});
+
+    contentEl.scrollTop = 0;
+    enforceTop();
+    requestAnimationFrame(enforceTop);
+    setTimeout(enforceTop, 80);
+    setTimeout(enforceTop, 260);
+    setTimeout(enforceTop, 520);
+
+    scrollGuardTimeout = setTimeout(() => {
+        enforceTop();
+        releaseGuard();
+    }, 1600);
+
+    if(typeof ResizeObserver === "function"){
+        const cardEl = doc.querySelector(".card-c");
+        if(cardEl){
+            scrollGuardObserver = new ResizeObserver(enforceTop);
+            scrollGuardObserver.observe(cardEl);
+        }
+    }else if(typeof MutationObserver === "function"){
+        const cardEl = doc.querySelector(".card-c");
+        if(cardEl){
+            scrollGuardObserver = new MutationObserver(enforceTop);
+            scrollGuardObserver.observe(cardEl, {childList:true, subtree:true});
+        }
+    }
+};
+
 export const addPitchAccent = (accent_type, word_in_letters, real_word, pos) => {
     //append to newEl inside an element
     console.log("Adding pitch accent", accent_type, word_in_letters, real_word, pos);
@@ -86,21 +187,13 @@ export function displayFlashcard(card){
     if(card.content.level >= 0)
         $(".pill").html(wordFreq[card.content.word]?.level || lang_data[settings.language]?.freq_level_names[card.content.level] || "NOT FOUND").attr("level",card.content.level).show();
     else $(".pill").hide();
+    ensureContentStaysAtTop();
 }
-let scroll_interval = null;
 export function revealAnswer(card){
-    clearInterval(scroll_interval);
     $(".answer,.divider").show();
     $(".card-c").css("padding-top", "0px").css("padding-bottom", "20px");
     $(".question").html("").append(addPitchAccent(card.content.pitchAccent, card.content.pronunciation, card.content.word, card.content.pos));
     $(".example .translation p").html(card.content.exampleMeaning);
     $(".card-item:has(.definition)").show();
-    scroll_interval = setInterval(()=>{
-        $(getDocument().querySelector(".content")).css("overflow-y", "hidden");
-        getDocument().querySelector(".content").scrollTo(0,0);
-    },1);
-    setTimeout(()=> {
-        clearInterval(scroll_interval);
-        $(getDocument().querySelector(".content")).css("overflow-y", "auto");
-    }, 100);
+    ensureContentStaysAtTop();
 }
