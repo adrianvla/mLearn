@@ -44,34 +44,13 @@ const addAllFlashcardsToAnki = () => {
 
 
 const makeFlashcard = (raw_flashcard_data, word, _translation, _definition, _show_img) => {
-    let data = {
-        "note": {
-            "deckName": settings.flashcard_deck,
-            "modelName": "Basic",
-            "fields": {
-                "Back":"",
-                "Front": word+"<intelligent_definition style='display:none'>"+raw_flashcard_data.definitions+"</intelligent_definition>"
-            },
-            "options": {
-                "allowDuplicate": false,
-                "duplicateScope": "deck",
-                "duplicateScopeOptions": {
-                    "deckName": settings.deckName,
-                    "checkChildren": false,
-                    "checkAllModels": false
-                }
-            },
-            "tags": [
-                "intelligent-subtitles",
-                settings.language,
-                "video-"+parseSubtitleName(currentSubtitleFile)
-            ]
-        }
-    };
+    let fields = {};
+    fields[settings.anki_field_expression] = word+"<intelligent_definition style='display:none'>"+raw_flashcard_data.definitions+"</intelligent_definition>";
+    
     // _translation = $('input',createFlashcardWindow.document).val()
     // _definition = $(".definition",createFlashcardWindow.document).html()
     // _show_img = $("#show-img",createFlashcardWindow.document).is(":checked")
-    data.note.fields.Back = `
+    fields[settings.anki_field_meaning] = `
     <style>${FLASHCARD_CSS}</style>
     <div class="card-c ${settings.dark_mode ? '':'light'}">
         <div class="card-item">
@@ -96,6 +75,28 @@ const makeFlashcard = (raw_flashcard_data, word, _translation, _definition, _sho
         </div>
     </div>
     `;
+
+    let data = {
+        "note": {
+            "deckName": settings.flashcard_deck,
+            "modelName": settings.anki_model_name,
+            "fields": fields,
+            "options": {
+                "allowDuplicate": false,
+                "duplicateScope": "deck",
+                "duplicateScopeOptions": {
+                    "deckName": settings.flashcard_deck,
+                    "checkChildren": false,
+                    "checkAllModels": false
+                }
+            },
+            "tags": [
+                "intelligent-subtitles",
+                settings.language,
+                "video-"+parseSubtitleName(currentSubtitleFile)
+            ]
+        }
+    };
     return data;
 };
 

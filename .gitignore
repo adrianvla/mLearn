@@ -15,3 +15,5 @@ languages/__pycache__/
 **/._.DS_Store
 qodana.yaml
 dictionary_cache.sqlite3
+dist/
+temp/*
