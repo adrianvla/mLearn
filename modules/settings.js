@@ -41,7 +41,11 @@ const DEFAULT_SETTINGS = {
     "preparedExam":3,
     "createUnseenCards":true,
     "devMode":false,
-    "ocr_crop_padding" : 200
+    "ocr_crop_padding" : 200,
+    "anki_field_expression": "Expression",
+    "anki_field_reading": "Reading",
+    "anki_field_meaning": "Meaning",
+    "anki_model_name": "Basic"
 };
 
 const saveSettings = (settings) => {

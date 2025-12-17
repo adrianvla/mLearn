@@ -52,6 +52,28 @@ if len(arguments) >= 5:
     LLM_ALLOWED = str(arguments[4]).lower() == "true"
 if len(arguments) >= 6:
     OCR_ALLOWED = str(arguments[5]).lower() == "true"
+
+USER_DATA_PATH = ""
+if len(arguments) >= 7:
+    USER_DATA_PATH = arguments[6]
+
+ANKI_FIELD_EXPRESSION = "Expression"
+ANKI_FIELD_READING = "Reading"
+ANKI_FIELD_MEANING = "Meaning"
+
+if USER_DATA_PATH:
+    settings_path = os.path.join(USER_DATA_PATH, "settings.json")
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+                ANKI_FIELD_EXPRESSION = settings.get("anki_field_expression", "Expression")
+                ANKI_FIELD_READING = settings.get("anki_field_reading", "Reading")
+                ANKI_FIELD_MEANING = settings.get("anki_field_meaning", "Meaning")
+                print(f"Loaded Anki field mappings: Expression='{ANKI_FIELD_EXPRESSION}', Reading='{ANKI_FIELD_READING}', Meaning='{ANKI_FIELD_MEANING}'")
+        except Exception as e:
+            print(f"Error reading settings.json: {e}")
+
 print("Arguments: ", ANKI_CONNECT_URL, FETCH_ANKI, LANGUAGE)
 print("LLM allowed:", LLM_ALLOWED)
 print("OCR allowed:", OCR_ALLOWED)
@@ -476,6 +498,14 @@ def get_all_cards():
     # filter out cards that may crash the server
     all_cards_temp = []
     for card in all_cards:
+        # Map user configured fields to standard fields
+        if ANKI_FIELD_EXPRESSION in card['fields'] and ANKI_FIELD_EXPRESSION != 'Expression':
+            card['fields']['Expression'] = card['fields'][ANKI_FIELD_EXPRESSION]
+        if ANKI_FIELD_READING in card['fields'] and ANKI_FIELD_READING != 'Reading':
+            card['fields']['Reading'] = card['fields'][ANKI_FIELD_READING]
+        if ANKI_FIELD_MEANING in card['fields'] and ANKI_FIELD_MEANING != 'Meaning':
+            card['fields']['Meaning'] = card['fields'][ANKI_FIELD_MEANING]
+
         if 'Expression' in card['fields']:
             all_cards_temp.append(card)
         # or 'Front' in card['fields'] and 'Front' contains "<intelligent_definition >"

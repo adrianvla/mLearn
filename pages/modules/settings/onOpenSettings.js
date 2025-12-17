@@ -21,7 +21,7 @@ import {
 import {resetFlashcards} from "../flashcards/storage.js";
 
 
-const IN_SETTINGS_CATEGORY = {"General":["language","stats","install_languages","save","restoreDefaults", "activate_license"],"Behaviour":["known_ease_threshold","blur_words","blur_known_subtitles","blur_amount","immediateFetch","do_colour_known","colour_known","do_colour_codes","show_pos","hover_known_get_from_dictionary","furigana","aside-auto","save","restoreDefaults","pitch_accent","devMode"],"Customization":["dark_mode","subtitle_theme","subtitle_font_size","subtitle_font_weight","save","restoreDefaults"],"SRS":["use_anki","anki_connect_url","enable_flashcard_creation","flashcards_add_picture","flashcard_deck","save","restoreDefaults","maxNewCardsPerDay","proportionOfExamCards","preparedExam","createUnseenCards","resetSRS"],"Reader":["ocr_crop_padding"],"Stats":[],"About":[]};
+const IN_SETTINGS_CATEGORY = {"General":["language","stats","install_languages","save","restoreDefaults", "activate_license"],"Behaviour":["known_ease_threshold","blur_words","blur_known_subtitles","blur_amount","immediateFetch","do_colour_known","colour_known","do_colour_codes","show_pos","hover_known_get_from_dictionary","furigana","aside-auto","save","restoreDefaults","pitch_accent","devMode"],"Customization":["dark_mode","subtitle_theme","subtitle_font_size","subtitle_font_weight","save","restoreDefaults"],"SRS":["use_anki","anki_connect_url","enable_flashcard_creation","flashcards_add_picture","flashcard_deck","anki_model_display","anki_field_expression","anki_field_reading","anki_field_meaning","save","restoreDefaults","maxNewCardsPerDay","proportionOfExamCards","preparedExam","createUnseenCards","resetSRS"],"Reader":["ocr_crop_padding"],"Stats":[],"About":[]};
 const WINDOW_HTML_SETTINGS = `<!doctypehtml><html lang="en"><meta charset="UTF-8"><title>Settings</title><link href="style.css"rel="stylesheet"><style>body{background:#000}</style><body class="settings-body"><div class="nav"><div class="nav-item selected"id="General"><img src="assets/icons/cog.svg"><span>General</span></div><div class="nav-item"id="Behaviour"><img src="assets/icons/subtitles.svg"><span>Behaviour</span></div><div class="nav-item"id="Customization"><img src="assets/icons/palette.svg"><span>Appearance</span></div><div class="nav-item"id="SRS"><img src="assets/icons/cards.svg"><span>Flashcards</span></div><div class="nav-item"id="Reader"><img src="assets/icons/book.svg"><span>Reader</span></div><div class="nav-item"id="Stats"><img src="assets/icons/stats.svg"><span>Stats</span></div><div class="nav-item"id="About"><img src="assets/icons/document.svg"><span>About</span></div></div><div class="settingsMenuContent"><div class="preview"data-show="Customization"><div class="subtitles"><span class="subtitle_word SUB_W_COL_1">A</span><span class="subtitle_word SUB_W_COL_2">a</span><span class="subtitle_word SUB_W_COL_1">あア</span><span class="subtitle_word SUB_W_COL_2">億</span><span class="subtitle_word SUB_W_COL_1">ыЦ</span><span class="subtitle_word SUB_W_COL_2">è</span></div></div><div class="_1"></div><div class="_2"></div><div class="about"style="display:none"><span id="version-number">PLACEHOLDER</span><br>Developed by <a id="contact">Adrian Vlasov</a><br>Contact: admin@morisinc.net<br><a id="licenses">Licenses</a></div><div class="stats-widget"style="display:none"><canvas id="exam-stats"></canvas><div class="adjust-words"><span>Adjust word known status </span><div class="button"><span style="height:1em">Edit database</span></div></div><canvas id="learned-words-pie-chart"></canvas></div></div><div class="fullscreen-load">Loading...</div>`;
 let isSettingsWindowOpen = false;
 let mustRestart = false;
@@ -86,12 +86,23 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         else new_document.body.classList.add("light");
 
         const flashcard_decks = async function() {
-            if ($('#enable_flashcard_creation',new_document).is(':checked')) {
+            const useAnki = $('#use_anki',new_document).is(':checked');
+            const enableCreation = $('#enable_flashcard_creation',new_document).is(':checked');
+
+            if (useAnki) {
                 $('#flashcard_deck',new_document).removeClass('hidden');
                 $('[for=flashcard_deck]',new_document).removeClass('hidden');
+                
+                /*// Show field selectors
+                $('#anki_field_expression, #anki_field_reading, #anki_field_meaning', new_document).removeClass('hidden');
+                $('[for=anki_field_expression], [for=anki_field_reading], [for=anki_field_meaning]', new_document).removeClass('hidden');
+                $('[for=anki_field_expression], [for=anki_field_reading], [for=anki_field_meaning]', new_document).removeClass('disabled');
+                $('#anki_field_expression, #anki_field_reading, #anki_field_meaning', new_document).removeClass('disabled');
+                $('#anki_model_display', new_document).removeClass('hidden');*/
                 //show flashcards_add_picture
                 $('#flashcards_add_picture',new_document).removeClass('hidden');
                 $('[for=flashcards_add_picture]',new_document).removeClass('hidden');
+
                 //get flashcard decks
                 $('#flashcard_deck',new_document).html('<option value="Loading...">Loading...</option>');
                 let flashcard_decks = await sendRawToAnki({"action":"deckNamesAndIds","version":6});
@@ -99,9 +110,58 @@ window.mLearnIPC.onOpenSettings((msg)=>{
                 for(let deck of Object.keys(flashcard_decks.result)){
                     $('#flashcard_deck',new_document).append(`<option value="${deck}" ${deck==settings.flashcard_deck ? 'selected' : ''}>${deck}</option>`);
                 }
+
+                // Fetch fields for the selected deck
+                const updateFields = async () => {
+                     let deck = $('#flashcard_deck',new_document).val();
+                     if(!deck || deck === "Loading...") return;
+                     
+                     // Find a card in this deck to get the model
+                     let cards = await sendRawToAnki({"action":"findCards","version":6, "params": {"query": `deck:"${deck}"`}});
+                     if(cards.result && cards.result.length > 0) {
+                         let cardInfo = await sendRawToAnki({"action":"cardsInfo","version":6, "params": {"cards": [cards.result[0]]}});
+                         if(cardInfo.result && cardInfo.result.length > 0) {
+                             let modelName = cardInfo.result[0].modelName;
+                             settings.anki_model_name = modelName;
+                             $('#anki_model_display', new_document).text(`Model: ${modelName}`);
+                             let modelFields = await sendRawToAnki({"action":"modelFieldNames","version":6, "params": {"modelName": modelName}});
+                             
+                             if(modelFields.result) {
+                                 const populateSelect = (id, currentVal) => {
+                                     let select = $(`#${id}`, new_document);
+                                     select.html('');
+                                     for(let field of modelFields.result) {
+                                         select.append(`<option value="${field}" ${field==currentVal ? 'selected' : ''}>${field}</option>`);
+                                     }
+                                 };
+                                 
+                                 populateSelect('anki_field_expression', settings.anki_field_expression);
+                                 populateSelect('anki_field_reading', settings.anki_field_reading);
+                                 populateSelect('anki_field_meaning', settings.anki_field_meaning);
+                             }
+                         }
+                     }
+                };
+                
+                $('#flashcard_deck', new_document).off('change', updateFields); // prevent duplicate listeners
+                $('#flashcard_deck', new_document).on('change', updateFields);
+                await updateFields();
+
             } else {
                 $('#flashcard_deck',new_document).addClass('hidden');
                 $('[for=flashcard_deck]',new_document).addClass('hidden');
+
+                // Hide field selectors
+                $('#anki_field_expression, #anki_field_reading, #anki_field_meaning', new_document).addClass('hidden');
+                $('[for=anki_field_expression], [for=anki_field_reading], [for=anki_field_meaning]', new_document).addClass('hidden');
+                $('#anki_model_display', new_document).addClass('hidden');
+            }
+
+            if (enableCreation && useAnki) {
+                //show flashcards_add_picture
+                $('#flashcards_add_picture',new_document).removeClass('hidden');
+                $('[for=flashcards_add_picture]',new_document).removeClass('hidden');
+            } else {
                 $('#flashcards_add_picture',new_document).addClass('hidden');
                 $('[for=flashcards_add_picture]',new_document).addClass('hidden');
             }
@@ -122,7 +182,11 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         $('._1', new_document).append($(`<label for="anki_connect_url">(Requires Restart) Anki Connect URL </label>`));
         $('._1', new_document).append($(`<label for="furigana">Furigana </label>`));
         $('._1', new_document).append($(`<label for="enable_flashcard_creation" class="${settings.use_anki ? '' : 'disabled'}">Enable Anki flashcard creations </label>`));
-        $('._1', new_document).append($(`<label for="flashcard_deck" class="${settings.enable_flashcard_creation ? '' : 'disabled'}">Flashcard Deck: </label>`));
+        $('._1', new_document).append($(`<label for="flashcard_deck" class="${settings.use_anki ? '' : 'disabled'}">Flashcard Deck: </label>`));
+        $('._1', new_document).append($(`<label for="anki_model_display" class="${settings.use_anki ? '' : 'disabled'}">Anki Model Display </label>`));
+        $('._1', new_document).append($(`<label for="anki_field_expression" class="${settings.use_anki ? '' : 'disabled'}">Anki Field: Expression </label>`));
+        $('._1', new_document).append($(`<label for="anki_field_reading" class="${settings.use_anki ? '' : 'disabled'}">Anki Field: Reading </label>`));
+        $('._1', new_document).append($(`<label for="anki_field_meaning" class="${settings.use_anki ? '' : 'disabled'}">Anki Field: Meaning </label>`));
         $('._1', new_document).append($(`<label for="flashcards_add_picture">Add video thumbnail to created flashcards </label>`));
         $('._1', new_document).append($(`<label for="maxNewCardsPerDay"> </label>`));
         $('._1', new_document).append($(`<label for="maxNewCardsPerDay">Built In SRS </label>`));
@@ -172,7 +236,11 @@ window.mLearnIPC.onOpenSettings((msg)=>{
         $('._2', new_document).append($(`<input type="text" id="anki_connect_url" name="anki_connect_url" class="${settings.use_anki ? '' : 'disabled'}" value="${settings.ankiConnectUrl}">`));
         $('._2', new_document).append($(`<input type="checkbox" id="furigana" name="furigana" ${settings.furigana ? 'checked' : ''}>`));
         $('._2', new_document).append($(`<input type="checkbox" id="enable_flashcard_creation" name="enable_flashcard_creation" ${settings.enable_flashcard_creation ? 'checked' : ''}  class="${settings.use_anki ? '' : 'disabled'}">`));
-        $('._2', new_document).append($(`<select id="flashcard_deck" name="flashcard_deck" class="${settings.enable_flashcard_creation ? '' : 'disabled'}">`));
+        $('._2', new_document).append($(`<select id="flashcard_deck" name="flashcard_deck" class="${settings.use_anki ? '' : 'disabled'}">`));
+        $('._2', new_document).append($(`<div id="anki_model_display" name="anki_model_display" style="margin-top: 5px; margin-bottom: 5px; margin-inline:10px; color: #888; font-family: 'Helvetica Neue', sans-serif;" class="${settings.use_anki ? '' : 'disabled'}">Model: ${settings.anki_model_name}</div>`));
+        $('._2', new_document).append($(`<select id="anki_field_expression" name="anki_field_expression" class="${settings.use_anki ? '' : 'disabled'}"></select>`));
+        $('._2', new_document).append($(`<select id="anki_field_reading" name="anki_field_reading" class="${settings.use_anki ? '' : 'disabled'}"></select>`));
+        $('._2', new_document).append($(`<select id="anki_field_meaning" name="anki_field_meaning" class="${settings.use_anki ? '' : 'disabled'}"></select>`));
         $('._2', new_document).append($(`<select id="language" name="language">
 
             ${supported_languages.map((lang)=>{
@@ -279,6 +347,7 @@ window.mLearnIPC.onOpenSettings((msg)=>{
                 checkSettings();
                 saveSettings();
             }
+            flashcard_decks();
         });
         // Add an event listener to the button
         $('#restoreDefaults',new_document).on('click', function() {
@@ -360,6 +429,11 @@ window.mLearnIPC.onOpenSettings((msg)=>{
             if($('#flashcard_deck',new_document).val()!= "Loading..." && settings.flashcard_deck != $('#flashcard_deck',new_document).val())
                 settings.flashcard_deck = $('#flashcard_deck',new_document).val();
             settings.flashcards_add_picture = $('#flashcards_add_picture',new_document).is(':checked');
+            
+            settings.anki_field_expression = $('#anki_field_expression',new_document).val();
+            settings.anki_field_reading = $('#anki_field_reading',new_document).val();
+            settings.anki_field_meaning = $('#anki_field_meaning',new_document).val();
+
             settings.openAside = $('#aside-auto',new_document).is(':checked');
             settings.subtitleTheme = $('#subtitle_theme',new_document).val();
             settings.subtitle_font_size = Number($('#subtitle_font_size',new_document).val());
