@@ -749,18 +749,6 @@ def control(req: ControlRequest):
     else:
         return {"response": "Unknown function"}
 
-@app.post("/fwd-to-anki")
-async def fwd_to_anki(req: Request):
-
-    # Get the body of the incoming request
-    body = await req.json()
-
-    # Forward the request to AnkiConnect
-    requestJson = json.dumps(body).encode('utf-8')
-    response = json.load(urllib.request.urlopen(urllib.request.Request(ANKI_CONNECT_URL, requestJson)))
-    _log("Received response from AnkiConnect:", response)
-    return response
-
 @app.post("/quit")
 def quit():
     _log("Received /quit; exiting shortly...")

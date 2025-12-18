@@ -155,6 +155,33 @@ const startWebSocketServer = async () => {
             return res.end();
         }
 
+        if (req.method === 'POST' && req.url === '/api/fwd-to-anki') {
+            let body = '';
+            req.on('data', chunk => {
+                body += chunk.toString();
+            });
+            req.on('end', async () => {
+                try {
+                    const settings = loadSettings();
+                    const ankiUrl = settings.ankiConnectUrl || 'http://127.0.0.1:8765';
+                    
+                    const response = await fetch(ankiUrl, {
+                        method: 'POST',
+                        body: body,
+                    });
+                    const data = await response.json();
+                    
+                    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                    res.end(JSON.stringify(data));
+                } catch (e) {
+                    console.error("Error forwarding to Anki:", e);
+                    res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                    res.end(JSON.stringify({ error: e.message }));
+                }
+            });
+            return;
+        }
+
         if (req.method === 'GET' && req.url.startsWith('/api/pills')) {
             const query = url.parse(req.url, true).query;
             // query.key and query.value are available here
