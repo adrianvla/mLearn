@@ -25,7 +25,7 @@ const DEFAULT_SETTINGS = {
     "getCardUrl" : "http://127.0.0.1:7752/getCard",
     "tokeniserUrl" : "http://127.0.0.1:7752/tokenize",
     "getTranslationUrl" : "http://127.0.0.1:7752/translate",
-    "ankiUrl" : "http://127.0.0.1:7752/fwd-to-anki",
+    "ankiUrl" : "http://127.0.0.1:7753/api/fwd-to-anki",
     "ankiConnectUrl": "http://127.0.0.1:8765",
     "openAside":true,
     "llmEnabled":true,
@@ -60,6 +60,12 @@ const loadSettings = () => {
     }
     if (fs.existsSync(settingsPath)) {
         let settings = JSON.parse(fs.readFileSync(settingsPath));
+        
+        // Migration: Update ankiUrl if it points to the old python endpoint
+        if (settings.ankiUrl === "http://127.0.0.1:7752/fwd-to-anki") {
+            settings.ankiUrl = "http://127.0.0.1:7753/api/fwd-to-anki";
+        }
+
         const checkSettings = () => {
             //check if every setting is present
             for(let key in DEFAULT_SETTINGS){
