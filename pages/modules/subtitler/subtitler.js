@@ -446,7 +446,7 @@ const modify_sub = async (subtitle) => {
             });
         }
         let card_data = {};
-        if(TRANSLATABLE.includes(pos)){
+        if(TRANSLATABLE.includes(pos) || (pos && pos.indexOf("動詞") !== -1)){
             console.log("REQUESTING: "+word);
             //check if word is already known by the user
             // let card_data = await getCards(word);
@@ -464,13 +464,14 @@ const modify_sub = async (subtitle) => {
             }else{
                 //compare ease
                 let current_card = card_data.cards[0];
-                if(current_card.factor < settings.known_ease_threshold && isWordKnown){
+                if(current_card.factor < settings.known_ease_threshold && !isWordKnown){
                     show_subtitle = true;
                     doAppend = true;
                     await translateWord(card_data, current_card);
                 }else{
                     newEl.attr("known","true");
-                    changeKnownStatus(word, WORD_STATUS_KNOWN);
+                    if(current_card.factor >= settings.known_ease_threshold)
+                        changeKnownStatus(word, WORD_STATUS_KNOWN);
                     blurWord(newEl);
                     if(settings.hover_known_get_from_dictionary){
                         doAppendHoverLazy=true;
@@ -486,9 +487,9 @@ const modify_sub = async (subtitle) => {
         updateHoverElHTML();
         if(doAppendHoverLazy){
             toAddToWordList.push({word:word, new:true, fetch:true, screenshot: screenshotVideo()});
-            newEl.append(hoverEl);
+            // newEl.append(hoverEl);
             newEl.addClass("has-hover");
-            hoverElState("loading")
+            // hoverElState("loading")
             hasBeenLoadedDB[uuid] = false;
             processingDB[uuid] = false;
             const delayHideHoverEl = (hoverEl, newEl) => {
@@ -499,7 +500,13 @@ const modify_sub = async (subtitle) => {
                 }, 300);
             };
 
-            newEl.hover(showHoverEl,async function(){
+            newEl.hover(async function(){
+                if(newEl.find(".subtitle_hover").length === 0){
+                    newEl.append(hoverEl);
+                    hoverElState("loading");
+                }
+                await showHoverEl();
+            },async function(){
                 delayHideHoverEl(hoverEl, newEl);
             });
         }
@@ -511,10 +518,13 @@ const modify_sub = async (subtitle) => {
             if(settings.colour_codes[pos])
                 // hoverEl.css("box-shadow",`rgba(100, 66, 66, 0.16) 0px 1px 4px, ${settings.colour_codes[pos]} 0px 0px 0px 3px`);
                 hoverEl.css("border",`${settings.colour_codes[pos]} 3px solid`);
-            newEl.append(hoverEl);
+            // newEl.append(hoverEl);
             newEl.addClass("has-hover");
             //calculate height
             newEl.hover(function(){
+                if(newEl.find(".subtitle_hover").length === 0){
+                    newEl.append(hoverEl);
+                }
                 let $hover = $(`.hover_${uuid}`);
                 let $word = $(`.word_${uuid}`);
                 $hover.addClass("show-hover");
