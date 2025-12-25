@@ -38,8 +38,11 @@ const loadAlreadyUpdatedInAnki = () => {
 };
 const changeKnownStatus = (word, status) => {
     knownAdjustment[word] = status;
+    console.log("Set and saved known status for word: "+word+" to "+status);
+    console.trace();
     saveKnownAdjustment();
 };
+window.changeKnownStatus = changeKnownStatus;
 const getKnownStatus = async (word) => {
     /*
     * 0: unknown
@@ -52,9 +55,11 @@ const getKnownStatus = async (word) => {
 
     return returnable;
 };
-
+window.getKnownStatus = getKnownStatus;
 function setKnownAdjustment(word, status) {
     knownAdjustment[word] = status;
+    console.log("Set known status for word: "+word+" to "+status);
+    console.trace();
 }
 
 

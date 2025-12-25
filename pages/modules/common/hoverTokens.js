@@ -347,7 +347,7 @@ export async function attachInteractiveText($container, text, options = {}){
         }
         updateHoverElHTML($hoverEl, "", "");
         let card_data = {};
-        if(TRANSLATABLE.includes(pos)){
+        if(TRANSLATABLE.includes(pos) || (pos && pos.indexOf("動詞") !== -1)){
             let hoverShowTimer = null;
             let hoverHideTimer = null;
             const clearHoverShowTimer = () => {
@@ -365,6 +365,9 @@ export async function attachInteractiveText($container, text, options = {}){
             const triggerShowHover = () => {
                 clearHoverShowTimer();
                 clearHoverHideTimer();
+                if($wordEl.find(".subtitle_hover").length === 0){
+                    $wordEl.append($hoverEl);
+                }
                 if(!$hoverEl.hasClass('show-hover')){
                     $hoverEl.addClass('show-hover');
                 }
@@ -413,26 +416,28 @@ export async function attachInteractiveText($container, text, options = {}){
             if(card_data.poor){
                 $wordEl.attr("known", isWordKnown ? "true" : "false");
                 trackWordAppearance(word);
-                $wordEl.addClass("has-hover").append($hoverEl);
+                $wordEl.addClass("has-hover");
                 hoverElState($hoverEl, "loading", word, pos, isOCR, contextPhrase);
                 state.hasBeenLoadedDB[uuid] = false;
                 state.processingDB[uuid] = false;
                 bindHoverHandlers('delayed');
             }else{
                 const current_card = card_data.cards?.[0];
-                if(current_card && current_card.factor < settings.known_ease_threshold && isWordKnown){
+                if(current_card && current_card.factor < settings.known_ease_threshold && !isWordKnown){
                     showDetails = true;
                     // Treat as unknown and show translation
-                    $wordEl.addClass("has-hover").append($hoverEl);
+                    $wordEl.addClass("has-hover");
                     $wordEl.attr("known","false");
                     hoverElState($hoverEl, "loading", word, pos, isOCR, contextPhrase);
                     bindHoverHandlers('immediate');
                 }else{
+                    $wordEl.addClass("has-hover");
                     $wordEl.attr("known","true");
-                    changeKnownStatus(word, WORD_STATUS_KNOWN);
+                    if(current_card.factor >= settings.known_ease_threshold)
+                        changeKnownStatus(word, WORD_STATUS_KNOWN);
                     blurWord($wordEl);
                     if(settings.hover_known_get_from_dictionary){
-                        $wordEl.addClass("has-hover").append($hoverEl);
+                        $wordEl.addClass("has-hover");
                         bindHoverHandlers('immediate');
                     }
                 }
