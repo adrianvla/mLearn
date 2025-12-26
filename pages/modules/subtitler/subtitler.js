@@ -446,7 +446,7 @@ const modify_sub = async (subtitle) => {
             });
         }
         let card_data = {};
-        if(TRANSLATABLE.includes(pos) || (pos && pos.indexOf("動詞") !== -1)){
+        if(TRANSLATABLE.includes(pos)){
             console.log("REQUESTING: "+word);
             //check if word is already known by the user
             // let card_data = await getCards(word);

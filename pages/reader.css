@@ -91,6 +91,7 @@ body.reader .main-content{
     overflow-y:auto;
     overflow-x:hidden;
     position:relative;
+    overflow:visible;
 }
 body.reader .reader-welcome{
     position:absolute;

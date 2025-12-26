@@ -347,7 +347,7 @@ export async function attachInteractiveText($container, text, options = {}){
         }
         updateHoverElHTML($hoverEl, "", "");
         let card_data = {};
-        if(TRANSLATABLE.includes(pos) || (pos && pos.indexOf("動詞") !== -1)){
+        if(TRANSLATABLE.includes(pos)){
             let hoverShowTimer = null;
             let hoverHideTimer = null;
             const clearHoverShowTimer = () => {
@@ -431,7 +431,6 @@ export async function attachInteractiveText($container, text, options = {}){
                     hoverElState($hoverEl, "loading", word, pos, isOCR, contextPhrase);
                     bindHoverHandlers('immediate');
                 }else{
-                    $wordEl.addClass("has-hover");
                     $wordEl.attr("known","true");
                     if(current_card.factor >= settings.known_ease_threshold)
                         changeKnownStatus(word, WORD_STATUS_KNOWN);
