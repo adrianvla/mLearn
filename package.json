@@ -1,0 +1,45 @@
+{
+  "name": "mlearn-ts",
+  "version": "1.0.0",
+  "description": "SolidJS + Vite + Electron + TypeScript",
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "start": "npm run dev",
+    "dev": "concurrently -k \"npm run dev:vite\" \"npm run dev:electron\"",
+    "dev:vite": "vite",
+    "dev:electron": "wait-on tcp:3000 && tsc -p electron/tsconfig.json && cross-env NODE_ENV=development electron .",
+    "build": "tsc -p electron/tsconfig.json && vite build",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^33.4.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vite-plugin-solid": "^2.11.0",
+    "wait-on": "^8.0.2"
+  },
+  "dependencies": {
+    "solid-js": "^1.9.4"
+  },
+  "build": {
+    "appId": "com.mlearn.app",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    }
+  }
+}
