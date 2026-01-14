@@ -4,8 +4,7 @@
  */
 
 import { Component, JSX, Show, createSignal, createMemo } from 'solid-js';
-import type { Flashcard } from '../../../shared/types';
-import { useFlashcard } from '../../context';
+import { useFlashcards } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { GlassButton } from '../common/GlassButton';
 import { GlassPanel } from '../common/GlassPanel';
@@ -16,13 +15,23 @@ export interface FlashcardReviewProps {
 }
 
 export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
-  const { getDueCards, reviewCard, stats } = useFlashcard();
+  const { getDueCards, reviewFlashcard, getNewCards, store } = useFlashcards();
   
   const [currentIndex, setCurrentIndex] = createSignal(0);
   const [showAnswer, setShowAnswer] = createSignal(false);
   const [isReviewing, setIsReviewing] = createSignal(true);
 
   const dueCards = createMemo(() => getDueCards());
+  
+  // Compute stats from store
+  const stats = createMemo(() => {
+    const cards = store.flashcards;
+    return {
+      new: cards.filter(c => c.reviews === 0).length,
+      learning: cards.filter(c => c.reviews > 0 && c.interval < 21).length,
+      review: dueCards().length,
+    };
+  });
   
   const currentCard = createMemo(() => {
     const cards = dueCards();
@@ -37,11 +46,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     return Math.round((currentIndex() / total) * 100);
   });
 
-  const handleRating = (quality: number) => {
+  const handleRating = (quality: 'again' | 'hard' | 'good' | 'easy') => {
     const card = currentCard();
     if (!card) return;
 
-    reviewCard(card.id, quality);
+    reviewFlashcard(card.id, quality);
     setShowAnswer(false);
     
     const nextIndex = currentIndex() + 1;
@@ -75,10 +84,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   // Rating buttons config
   const ratingButtons = [
-    { quality: 0, label: 'Again', color: 'var(--color-danger)', subtitle: '< 1 min' },
-    { quality: 2, label: 'Hard', color: 'var(--color-warning)', subtitle: '~6 min' },
-    { quality: 3, label: 'Good', color: 'var(--color-success)', subtitle: '~10 min' },
-    { quality: 5, label: 'Easy', color: 'var(--color-primary)', subtitle: '~4 days' },
+    { quality: 'again' as const, label: 'Again', color: 'var(--color-danger)', subtitle: '< 1 min' },
+    { quality: 'hard' as const, label: 'Hard', color: 'var(--color-warning)', subtitle: '~6 min' },
+    { quality: 'good' as const, label: 'Good', color: 'var(--color-success)', subtitle: '~10 min' },
+    { quality: 'easy' as const, label: 'Easy', color: 'var(--color-primary)', subtitle: '~4 days' },
   ];
 
   return (

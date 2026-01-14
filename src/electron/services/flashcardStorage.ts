@@ -7,7 +7,7 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import type { FlashcardStore, Flashcard } from '../../shared/types';
+import type { FlashcardStore } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 
 // Default flashcard store

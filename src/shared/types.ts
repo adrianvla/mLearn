@@ -2,7 +2,10 @@
  * Shared TypeScript types between main and renderer processes
  */
 
-import type { SubtitleTheme, ThemeMode, WindowType, WordStatus } from './constants';
+import type { SubtitleTheme, WordStatus, WindowType as ConstWindowType } from './constants';
+
+// Re-export WindowType
+export type WindowType = ConstWindowType;
 
 // ============================================================================
 // Settings Types
@@ -33,7 +36,9 @@ export interface Settings {
   hover_known_get_from_dictionary: boolean;
   show_pos: boolean;
   furigana: boolean;
+  showFurigana?: boolean; // Alias for furigana
   showPitchAccent: boolean;
+  showDictionary?: boolean; // Show dictionary on hover
   
   // Anki settings
   use_anki: boolean;
@@ -42,6 +47,8 @@ export interface Settings {
   anki_field_meaning: string;
   anki_model_name: string;
   ankiConnectUrl: string;
+  ankiDeckName?: string;
+  ankiModelName?: string; // Alias for anki_model_name
   
   // Flashcard settings
   enable_flashcard_creation: boolean;
@@ -65,6 +72,11 @@ export interface Settings {
   subtitleTheme: SubtitleTheme;
   subtitle_font_size: number;
   subtitle_font_weight: number;
+  subtitlePosition?: 'top' | 'bottom'; // Subtitle position on screen
+  subtitleFont?: string; // Custom font for subtitles
+  showSubtitles?: boolean; // Toggle subtitle visibility
+  showTranslation?: boolean; // Show translation line
+  videoFit?: 'contain' | 'cover' | 'fill'; // Video object fit
   
   // Feature flags
   llmEnabled: boolean;
@@ -76,6 +88,9 @@ export interface Settings {
   
   // Stats
   timeWatched: number;
+  
+  // First-run tracking
+  hasCompletedSetup?: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -149,10 +164,15 @@ export interface LanguageDataMap {
 // ============================================================================
 
 export interface Token {
-  word: string;
-  actual_word: string;
-  type: string; // Part of speech (動詞, 名詞, etc.)
+  word: string;        // The display form
+  actual_word: string; // The dictionary form
+  type: string;        // Part of speech (動詞, 名詞, etc.)
   reading?: string;
+  // Computed/derived properties for UI
+  surface?: string;    // Alias for word (for compatibility)
+  partOfSpeech?: string; // Alias for type
+  isKnown?: boolean;   // Whether word is in known list
+  meaning?: string;    // Quick translation if available
 }
 
 // ============================================================================
@@ -163,6 +183,14 @@ export interface TranslationEntry {
   definitions: string[];
   reading: string;
   word?: string;
+}
+
+export interface DictionaryEntry {
+  word: string;
+  reading: string;
+  meanings: string[];
+  partOfSpeech?: string[];
+  tags?: string[];
 }
 
 export interface PitchInfo {

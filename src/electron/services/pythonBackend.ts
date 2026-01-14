@@ -8,9 +8,9 @@ import path from 'path';
 import https from 'https';
 import http from 'http';
 import { spawn, exec, ChildProcess } from 'child_process';
-import { app, ipcMain } from 'electron';
+import { ipcMain } from 'electron';
 import * as tar from 'tar';
-import { IPC_CHANNELS, PYTHON_BACKEND_PORT, PYTHON_DOWNLOAD_BASE, API_ENDPOINTS } from '../../shared/constants';
+import { IPC_CHANNELS, PYTHON_BACKEND_PORT, PYTHON_DOWNLOAD_BASE } from '../../shared/constants';
 import type { InstallOptions, InstallerState, PipRequirementsConfig } from '../../shared/types';
 import { 
   getResourcePath, 
@@ -22,7 +22,7 @@ import {
   isWindows 
 } from '../utils/platform';
 import { loadSettings } from './settings';
-import { getCurrentWindow, getMainWindow, createWelcomeWindow, createMainWindow } from './windowManager';
+import { getCurrentWindow, getMainWindow, createMainWindow } from './windowManager';
 
 // State
 let pythonChildProcess: ChildProcess | null = null;

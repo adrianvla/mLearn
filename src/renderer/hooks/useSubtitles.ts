@@ -3,7 +3,7 @@
  * Manages subtitle parsing, timing, and display
  */
 
-import { createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
+import { createSignal, createMemo } from 'solid-js';
 import type { Subtitle, Token } from '../../shared/types';
 import { useSettings } from '../context';
 import { useTokenizer } from './useTranslation';

@@ -3,16 +3,18 @@
  * SRS flashcard review interface
  */
 
-import { Component, Show, For, createSignal } from 'solid-js';
+import { Component, Show, For, createSignal, createMemo } from 'solid-js';
 import { WindowWrapper } from '../../context';
-import { useFlashcard, useSettings } from '../../context';
-import { FlashcardReview, FlashcardDisplay } from '../../components/flashcard';
+import { useFlashcards, useSettings } from '../../context';
+import { FlashcardReview } from '../../components/flashcard';
 import { GlassPanel, GlassButton, GlassCard, GlassModal, GlassInput } from '../../components/common';
+import type { Flashcard } from '../../../shared/types';
 
 type TabId = 'review' | 'browse' | 'stats';
 
 const FlashcardsContent: Component = () => {
-  const { flashcards, getDueCards, stats, deleteFlashcard, addFlashcard } = useFlashcard();
+  const { store, getDueCards, removeFlashcard, addFlashcard } = useFlashcards();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { settings } = useSettings();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
@@ -25,12 +27,25 @@ const FlashcardsContent: Component = () => {
   const [newReading, setNewReading] = createSignal('');
   const [newMeaning, setNewMeaning] = createSignal('');
 
+  // Get flashcards from store
+  const flashcards = () => store.flashcards;
+
   const dueCount = () => getDueCards().length;
+  
+  // Compute stats
+  const stats = createMemo(() => {
+    const cards = flashcards();
+    return {
+      new: cards.filter((c: Flashcard) => c.reviews === 0).length,
+      learning: cards.filter((c: Flashcard) => c.reviews > 0 && c.interval < 21).length,
+      review: dueCount(),
+    };
+  });
 
   const handleDeleteCard = () => {
     const cardId = selectedCard();
     if (cardId) {
-      deleteFlashcard(cardId);
+      removeFlashcard(cardId);
       setShowDeleteConfirm(false);
       setSelectedCard(null);
     }
@@ -40,18 +55,13 @@ const FlashcardsContent: Component = () => {
     if (!newWord().trim() || !newMeaning().trim()) return;
 
     addFlashcard({
-      id: crypto.randomUUID(),
       word: newWord().trim(),
-      reading: newReading().trim(),
-      meaning: newMeaning().trim(),
-      sentence: '',
-      sentenceMeaning: '',
-      createdAt: Date.now(),
-      dueAt: Date.now(),
-      interval: 0,
-      ease: 2.5,
-      reviews: 0,
-      language: settings.language || 'ja',
+      pronunciation: newReading().trim() || newWord().trim(),
+      translation: [newMeaning().trim()],
+      example: '',
+      exampleMeaning: '',
+      pos: '',
+      level: 0,
     });
 
     setNewWord('');
@@ -189,11 +199,11 @@ const FlashcardsContent: Component = () => {
                   gap: '1rem',
                 }}
               >
-                <For each={flashcards}>
+                <For each={flashcards()}>
                   {(card) => (
                     <GlassCard
-                      title={card.word}
-                      subtitle={card.reading !== card.word ? card.reading : undefined}
+                      title={card.content.word}
+                      subtitle={card.content.pronunciation !== card.content.word ? card.content.pronunciation : undefined}
                     >
                       <p
                         style={{
@@ -202,7 +212,7 @@ const FlashcardsContent: Component = () => {
                           'margin-bottom': '0.75rem',
                         }}
                       >
-                        {card.meaning}
+                        {card.content.translation?.join(', ') || card.content.definition?.join(', ')}
                       </p>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <span
@@ -286,7 +296,7 @@ const FlashcardsContent: Component = () => {
                     color: 'var(--color-success)',
                   }}
                 >
-                  {flashcards.filter(c => c.interval > 21).length}
+                  {flashcards().filter((c: Flashcard) => c.interval > 21).length}
                 </p>
               </GlassCard>
             </div>

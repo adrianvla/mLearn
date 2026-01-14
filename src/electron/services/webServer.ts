@@ -9,7 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import { ipcMain } from 'electron';
 import { PROXY_SERVER_PORT, IPC_CHANNELS } from '../../shared/constants';
-import { getAppPath, getResourcePath } from '../utils/platform';
+import { getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
 import { loadLangData } from './settings';
 import { getMainWindow } from './windowManager';
@@ -22,6 +22,7 @@ let wss: WebSocketServer | null = null;
 const connectedClients: Set<WebSocket> = new Set();
 
 // LocalStorage sync data
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 let localStorageData: Record<string, unknown> = {};
 
 // Queued updates for main window
@@ -310,7 +311,7 @@ function handleWebSocketConnection(ws: WebSocket): void {
   console.log('WebSocket client connected');
   connectedClients.add(ws);
 
-  ws.on('message', (message) => {
+  ws.on('message', (message: Buffer) => {
     try {
       const data = JSON.parse(message.toString());
       
@@ -334,7 +335,7 @@ function handleWebSocketConnection(ws: WebSocket): void {
     connectedClients.delete(ws);
   });
 
-  ws.on('error', (error) => {
+  ws.on('error', (error: Error) => {
     console.error('WebSocket error:', error);
     connectedClients.delete(ws);
   });

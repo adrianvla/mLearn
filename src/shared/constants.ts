@@ -6,6 +6,12 @@
 export const PYTHON_BACKEND_PORT = 7752;
 export const PROXY_SERVER_PORT = 7753;
 
+// Ports object for hooks
+export const PORTS = {
+  PYTHON_BACKEND: PYTHON_BACKEND_PORT,
+  PROXY_SERVER: PROXY_SERVER_PORT,
+} as const;
+
 // API endpoints
 export const API_ENDPOINTS = {
   tokenize: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/tokenize`,

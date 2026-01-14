@@ -4,7 +4,7 @@
  * This solves the memory leak issue from the old implementation
  */
 
-import { createSignal, onCleanup, onMount } from 'solid-js';
+import { createSignal, onCleanup } from 'solid-js';
 import type { TranslationResponse, Token } from '../../shared/types';
 
 export interface HoverData {

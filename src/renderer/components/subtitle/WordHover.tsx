@@ -6,9 +6,7 @@
 import { Component, JSX, Show, For, createMemo } from 'solid-js';
 import type { Token, DictionaryEntry } from '../../../shared/types';
 import { GlassPanel } from '../common/GlassPanel';
-import { GlassButton } from '../common/GlassButton';
-import { usePitchAccent } from '../../hooks';
-import { useSettings, useFlashcard } from '../../context';
+import { useSettings, useFlashcards } from '../../context';
 
 export interface WordHoverProps {
   token: Token;
@@ -22,13 +20,10 @@ export interface WordHoverProps {
 
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings } = useSettings();
-  const { addFlashcard } = useFlashcard();
-  const { getPitchAccentInfo, buildPitchAccentHtml } = usePitchAccent();
+  const { addFlashcard } = useFlashcards();
 
-  const pitchInfo = createMemo(() => {
-    if (!props.token.reading) return null;
-    return getPitchAccentInfo(props.token.surface, props.token.reading);
-  });
+  // Helper to get display word
+  const displayWord = () => props.token.surface ?? props.token.word;
 
   // Calculate position to keep popup on screen
   const hoverStyle = createMemo((): JSX.CSSProperties => {
@@ -61,20 +56,16 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     if (props.onAddFlashcard) {
       props.onAddFlashcard(props.token, entry);
     } else {
-      // Default flashcard creation
+      // Default flashcard creation - pass FlashcardContent
       addFlashcard({
-        id: crypto.randomUUID(),
-        word: props.token.surface,
-        reading: props.token.reading || '',
-        meaning: entry?.meanings?.join('; ') || props.token.meaning || '',
-        sentence: '', // Would need to get from context
-        sentenceMeaning: '',
-        createdAt: Date.now(),
-        dueAt: Date.now(),
-        interval: 0,
-        ease: 2.5,
-        reviews: 0,
-        language: settings.language || 'ja',
+        word: displayWord(),
+        pronunciation: props.token.reading || displayWord(),
+        translation: entry?.meanings ? [entry.meanings.join('; ')] : undefined,
+        definition: props.token.meaning ? [props.token.meaning] : undefined,
+        example: '', // Would need to get from context
+        exampleMeaning: '',
+        pos: props.token.partOfSpeech ?? props.token.type ?? '',
+        level: 0,
       });
     }
   };
@@ -114,14 +105,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 color: 'var(--text-primary)',
               }}
             >
-              <Show
-                when={pitchInfo()}
-                fallback={props.token.surface}
-              >
-                <span innerHTML={buildPitchAccentHtml(props.token.surface, props.token.reading || '', pitchInfo()!)} />
-              </Show>
+              {displayWord()}
             </span>
-            <Show when={props.token.reading && props.token.reading !== props.token.surface}>
+            <Show when={props.token.reading && props.token.reading !== displayWord()}>
               <span style={{ color: 'var(--text-secondary)', 'font-size': '1rem' }}>
                 ({props.token.reading})
               </span>
@@ -138,7 +124,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                   cursor: 'pointer',
                   display: 'flex',
                 }}
-                onClick={() => props.onPlayAudio?.(props.token.surface)}
+                onClick={() => props.onPlayAudio?.(displayWord())}
                 aria-label="Play audio"
               >
                 <SpeakerIcon />

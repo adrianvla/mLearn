@@ -6,9 +6,9 @@
 import { BrowserWindow, app, ipcMain, Menu, dialog, shell, clipboard } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { IPC_CHANNELS, WINDOW_TYPES, WindowType } from '../../shared/constants';
-import type { WindowSize, OpenWindowPayload, PromptOptions } from '../../shared/types';
-import { isMac, isWindows, isLinux, isPackaged, getAppPath } from '../utils/platform';
+import { IPC_CHANNELS, WindowType } from '../../shared/constants';
+import type { WindowSize, OpenWindowPayload } from '../../shared/types';
+import { isMac, isLinux, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
 
 // Window references
@@ -48,6 +48,7 @@ function getPreloadPath(): string {
 }
 
 // Get HTML file path for a window type
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getWindowHtmlPath(type: WindowType): string {
   const isDev = process.env.NODE_ENV === 'development';
   

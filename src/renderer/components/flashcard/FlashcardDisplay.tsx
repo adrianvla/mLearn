@@ -6,7 +6,6 @@
 import { Component, JSX, Show, createSignal, createMemo } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
 import { GlassPanel } from '../common/GlassPanel';
-import { usePitchAccent } from '../../hooks';
 import { useSettings } from '../../context';
 
 export interface FlashcardDisplayProps {
@@ -18,15 +17,10 @@ export interface FlashcardDisplayProps {
 
 export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const { settings } = useSettings();
-  const { getPitchAccentInfo, buildPitchAccentHtml } = usePitchAccent();
   const [isFlipped, setIsFlipped] = createSignal(props.showAnswer ?? false);
 
-  const pitchInfo = createMemo(() => {
-    if (!settings.showPitchAccent || !props.flashcard.reading) {
-      return null;
-    }
-    return getPitchAccentInfo(props.flashcard.word, props.flashcard.reading);
-  });
+  // Access content through the nested structure
+  const content = () => props.flashcard.content;
 
   const handleFlip = () => {
     setIsFlipped(!isFlipped());
@@ -80,15 +74,10 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
               color: 'var(--text-primary)',
             }}
           >
-            <Show
-              when={pitchInfo()}
-              fallback={props.flashcard.word}
-            >
-              <span innerHTML={buildPitchAccentHtml(props.flashcard.word, props.flashcard.reading || '', pitchInfo()!)} />
-            </Show>
+            {content().word}
           </div>
           
-          <Show when={props.flashcard.reading && props.flashcard.reading !== props.flashcard.word}>
+          <Show when={content().pronunciation && content().pronunciation !== content().word}>
             <div
               style={{
                 'font-size': '1.25rem',
@@ -96,11 +85,11 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
                 'margin-bottom': '1rem',
               }}
             >
-              {props.flashcard.reading}
+              {content().pronunciation}
             </div>
           </Show>
 
-          <Show when={props.flashcard.sentence}>
+          <Show when={content().example}>
             <div
               style={{
                 'font-size': '1rem',
@@ -109,7 +98,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
                 'line-height': '1.5',
               }}
             >
-              {props.flashcard.sentence}
+              {content().example}
             </div>
           </Show>
 
@@ -135,10 +124,10 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
               'line-height': '1.6',
             }}
           >
-            {props.flashcard.meaning}
+            {content().translation?.join(', ') || content().definition?.join(', ')}
           </div>
 
-          <Show when={props.flashcard.sentenceMeaning}>
+          <Show when={content().exampleMeaning}>
             <div
               style={{
                 'font-size': '1rem',
@@ -146,7 +135,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
                 'line-height': '1.5',
               }}
             >
-              {props.flashcard.sentenceMeaning}
+              {content().exampleMeaning}
             </div>
           </Show>
 

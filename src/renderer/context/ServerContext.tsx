@@ -12,6 +12,7 @@ interface ServerContextValue {
   status: () => ServerStatus;
   statusMessage: () => string;
   isLoaded: () => boolean;
+  isConnected: () => boolean;  // Alias for isLoaded
   error: () => string | null;
   restart: () => void;
   forceRestart: () => void;
@@ -93,6 +94,7 @@ export const ServerProvider: ParentComponent = (props) => {
     status,
     statusMessage,
     isLoaded: () => status() === 'connected',
+    isConnected: () => status() === 'connected',
     error,
     restart,
     forceRestart,

@@ -5,8 +5,6 @@
 
 import { Component, JSX, createMemo, Show } from 'solid-js';
 import type { Token } from '../../../shared/types';
-import { useWordHoverTarget } from '../../hooks';
-import { usePitchAccent } from '../../hooks';
 import { useSettings } from '../../context';
 
 export interface SubtitleWordProps {
@@ -19,16 +17,10 @@ export interface SubtitleWordProps {
 
 export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const { settings } = useSettings();
-  const { getPitchAccentInfo, buildPitchAccentHtml } = usePitchAccent();
   let wordRef: HTMLSpanElement | undefined;
 
-  // Get pitch accent info if enabled
-  const pitchInfo = createMemo(() => {
-    if (!settings.showPitchAccent || !props.token.reading) {
-      return null;
-    }
-    return getPitchAccentInfo(props.token.surface, props.token.reading);
-  });
+  // Helper to get display word (surface or word)
+  const displayWord = () => props.token.surface ?? props.token.word;
 
   // Determine word class based on token type
   const getWordClass = createMemo(() => {
@@ -39,13 +31,14 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     }
     
     // Add part-of-speech class
-    if (props.token.partOfSpeech) {
-      const pos = props.token.partOfSpeech.toLowerCase();
-      if (pos.includes('verb')) classes.push('verb');
-      else if (pos.includes('noun')) classes.push('noun');
-      else if (pos.includes('adj')) classes.push('adjective');
-      else if (pos.includes('adv')) classes.push('adverb');
-      else if (pos.includes('particle')) classes.push('particle');
+    const pos = props.token.partOfSpeech ?? props.token.type;
+    if (pos) {
+      const posLower = pos.toLowerCase();
+      if (posLower.includes('verb') || posLower.includes('動詞')) classes.push('verb');
+      else if (posLower.includes('noun') || posLower.includes('名詞')) classes.push('noun');
+      else if (posLower.includes('adj') || posLower.includes('形容')) classes.push('adjective');
+      else if (posLower.includes('adv') || posLower.includes('副詞')) classes.push('adverb');
+      else if (posLower.includes('particle') || posLower.includes('助詞')) classes.push('particle');
     }
 
     return classes.join(' ');
@@ -71,10 +64,11 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   // For Japanese, show furigana if enabled
   const showFurigana = createMemo(() => {
-    if (!settings.showFurigana) return false;
+    const furiganaEnabled = settings.showFurigana ?? settings.furigana;
+    if (!furiganaEnabled) return false;
     if (!props.token.reading) return false;
     // Only show if reading differs from surface
-    return props.token.reading !== props.token.surface;
+    return props.token.reading !== displayWord();
   });
 
   return (
@@ -89,22 +83,10 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     >
       <Show
         when={showFurigana()}
-        fallback={
-          <Show
-            when={pitchInfo()}
-            fallback={props.token.surface}
-          >
-            <span innerHTML={buildPitchAccentHtml(props.token.surface, props.token.reading || '', pitchInfo()!)} />
-          </Show>
-        }
+        fallback={displayWord()}
       >
         <ruby>
-          <Show
-            when={pitchInfo()}
-            fallback={props.token.surface}
-          >
-            <span innerHTML={buildPitchAccentHtml(props.token.surface, props.token.reading || '', pitchInfo()!)} />
-          </Show>
+          {displayWord()}
           <rp>(</rp>
           <rt style={{ 'font-size': '0.6em' }}>{props.token.reading}</rt>
           <rp>)</rp>

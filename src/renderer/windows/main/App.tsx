@@ -3,7 +3,7 @@
  * Primary video player window
  */
 
-import { Component, Show, createSignal, createEffect, onMount } from 'solid-js';
+import { Component, Show, createSignal, onMount } from 'solid-js';
 import { WindowWrapper } from '../../context';
 import { useSettings } from '../../context';
 import { useIPC, useVideo, useSubtitles } from '../../hooks';

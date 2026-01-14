@@ -69,7 +69,7 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   const { settings } = useSettings();
   const [currentWord, setCurrentWord] = createSignal<string | null>(null);
 
-  const [translation, { refetch, mutate }] = createResource(
+  const [translation, { refetch }] = createResource(
     () => currentWord(),
     async (word) => {
       if (!word) return null;
@@ -129,4 +129,44 @@ export function useTokenizer() {
   };
 
   return { tokenize };
+}
+
+import type { DictionaryEntry } from '../../shared/types';
+
+export function useDictionary() {
+  const { settings } = useSettings();
+  
+  const lookup = async (word: string, reading?: string): Promise<DictionaryEntry[]> => {
+    try {
+      const response = await fetch(settings.getCardUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word, reading }),
+      });
+      
+      if (!response.ok) {
+        return [];
+      }
+      
+      const data = await response.json();
+      // Transform backend response to DictionaryEntry array
+      if (data.data && Array.isArray(data.data)) {
+        return data.data
+          .filter((entry: unknown): entry is { definitions?: string[]; reading?: string } => 
+            entry !== null && typeof entry === 'object'
+          )
+          .map((entry: { definitions?: string[]; reading?: string; word?: string }) => ({
+            word: entry.word || word,
+            reading: entry.reading || '',
+            meanings: entry.definitions || [],
+          }));
+      }
+      return [];
+    } catch (e) {
+      console.error('Dictionary lookup error:', e);
+      return [];
+    }
+  };
+  
+  return { lookup };
 }

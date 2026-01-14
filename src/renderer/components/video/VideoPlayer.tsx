@@ -3,12 +3,11 @@
  * Main video player with controls and subtitle overlay
  */
 
-import { Component, JSX, Show, createEffect, onMount, onCleanup } from 'solid-js';
+import { Component, JSX, createEffect, onMount, onCleanup } from 'solid-js';
 import { useVideo, useVideoKeyboard, useSubtitles } from '../../hooks';
 import { useSettings } from '../../context';
 import { SubtitleContainer } from '../subtitle/SubtitleContainer';
 import { VideoControls } from './VideoControls';
-import { GlassPanel } from '../common/GlassPanel';
 
 export interface VideoPlayerProps {
   src?: string;
@@ -73,7 +72,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   const videoStyle = (): JSX.CSSProperties => ({
     width: '100%',
     height: '100%',
-    'object-fit': settings.videoFit || 'contain',
+    'object-fit': (settings.videoFit as JSX.CSSProperties['object-fit']) || 'contain',
   });
 
   return (

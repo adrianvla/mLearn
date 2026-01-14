@@ -6,7 +6,7 @@
 import { Component, JSX, Show, For, createSignal, createMemo } from 'solid-js';
 import type { Token, DictionaryEntry } from '../../../shared/types';
 import { useSettings } from '../../context';
-import { useWordHover, useDictionary, type HoverData } from '../../hooks';
+import { useWordHover, useDictionary } from '../../hooks';
 import { SubtitleWord } from './SubtitleWord';
 import { WordHover } from './WordHover';
 import { GlassPanel } from '../common/GlassPanel';
@@ -22,7 +22,7 @@ export interface SubtitleContainerProps {
 
 export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const { settings } = useSettings();
-  const { hoverData, setHoverData, isVisible, show, hide } = useWordHover();
+  const { hoverData, isVisible, showHover, hideHover } = useWordHover();
   const { lookup } = useDictionary();
 
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
@@ -36,14 +36,20 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       y: rect.bottom + 8,
     };
 
-    setHoverData({ token, position });
-    show();
+    const displayWord = token.surface ?? token.word;
+    showHover({ 
+      word: displayWord,
+      token, 
+      translation: null,
+      position,
+      element: null 
+    });
 
     // Look up dictionary entry
     if (settings.showDictionary) {
       setIsLoadingDict(true);
       try {
-        const entries = await lookup(token.surface, token.reading);
+        const entries = await lookup(displayWord, token.reading);
         setDictionaryEntries(entries);
       } catch (e) {
         console.error('Dictionary lookup failed:', e);
@@ -62,7 +68,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       if (hoverPopup && hoverPopup.matches(':hover')) {
         return;
       }
-      hide();
+      hideHover();
     }, 100);
   };
 
@@ -72,7 +78,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
   // Determine subtitle style based on settings
   const subtitleStyle = createMemo((): JSX.CSSProperties => ({
-    'font-size': `${settings.subtitleFontSize}px`,
+    'font-size': `${settings.subtitle_font_size}px`,
     'font-family': settings.subtitleFont || 'inherit',
     'text-align': 'center',
     'line-height': '1.6',
@@ -82,7 +88,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
   const containerStyle = (): JSX.CSSProperties => ({
     position: 'absolute',
-    bottom: settings.subtitlePosition === 'bottom' ? '60px' : 'auto',
+    bottom: settings.subtitlePosition === 'top' ? 'auto' : '60px',
     top: settings.subtitlePosition === 'top' ? '60px' : 'auto',
     left: '50%',
     transform: 'translateX(-50%)',
@@ -128,7 +134,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
             <Show when={settings.showTranslation && props.translation}>
               <div
                 style={{
-                  'font-size': `${(settings.subtitleFontSize || 24) * 0.75}px`,
+                  'font-size': `${(settings.subtitle_font_size || 24) * 0.75}px`,
                   color: 'var(--text-secondary)',
                   'text-align': 'center',
                   'margin-top': '0.5rem',
@@ -146,11 +152,11 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       {/* Word hover popup */}
       <Show when={isVisible() && hoverData()}>
         <WordHover
-          token={hoverData()!.token}
+          token={hoverData()!.token!}
           position={hoverData()!.position}
           dictionaryEntries={dictionaryEntries()}
           isLoading={isLoadingDict()}
-          onClose={hide}
+          onClose={hideHover}
         />
       </Show>
     </>

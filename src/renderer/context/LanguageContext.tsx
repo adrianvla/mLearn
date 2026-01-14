@@ -24,6 +24,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const [langData, setLangData] = createStore<LanguageDataMap>({});
   const [wordFrequency, setWordFrequency] = createStore<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [currentLang, setCurrentLang] = createSignal<string>(props.language || 'ja');
 
   // Load language data
@@ -31,8 +32,8 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     if (typeof window !== 'undefined' && window.mLearnIPC) {
       window.mLearnIPC.getLangData();
       window.mLearnIPC.onLangData((data) => {
-        setLangData(reconcile(data as LanguageDataMap));
-        parseWordFrequency(data as LanguageDataMap);
+        setLangData(reconcile(data as unknown as LanguageDataMap));
+        parseWordFrequency(data as unknown as LanguageDataMap);
         setIsLoading(false);
       });
     } else {

@@ -3,7 +3,7 @@
  * Manages flashcard state with SRS algorithm
  */
 
-import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
+import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
 import type { FlashcardStore, Flashcard, FlashcardContent } from '../../shared/types';
 

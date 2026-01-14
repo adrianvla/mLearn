@@ -42,7 +42,11 @@
     "wait-on": "^8.0.2"
   },
   "dependencies": {
-    "solid-js": "^1.9.4"
+    "@types/tar": "^6.1.13",
+    "@types/ws": "^8.18.1",
+    "solid-js": "^1.9.4",
+    "tar": "^7.5.2",
+    "ws": "^8.19.0"
   },
   "build": {
     "appId": "com.mlearn.app",
@@ -58,21 +62,32 @@
       {
         "from": "resources/",
         "to": "resources/",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {
       "category": "public.app-category.education",
       "icon": "build/icon.icns",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
     },
     "win": {
       "icon": "build/icon.ico",
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     },
     "linux": {
       "icon": "build/icon.png",
-      "target": ["AppImage", "deb"]
+      "target": [
+        "AppImage",
+        "deb"
+      ]
     },
     "nsis": {
       "oneClick": false,

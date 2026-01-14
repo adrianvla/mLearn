@@ -7,7 +7,7 @@ import { createContext, useContext, ParentComponent, onMount, onCleanup, createS
 import { createStore, reconcile, produce } from 'solid-js/store';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
-import { SUBTITLE_THEMES, SubtitleTheme } from '../../shared/constants';
+import type { SubtitleTheme } from '../../shared/constants';
 
 // Context interface
 interface SettingsContextValue {
