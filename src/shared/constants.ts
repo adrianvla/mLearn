@@ -1,0 +1,145 @@
+/**
+ * Shared constants between main and renderer processes
+ */
+
+// Server ports
+export const PYTHON_BACKEND_PORT = 7752;
+export const PROXY_SERVER_PORT = 7753;
+
+// API endpoints
+export const API_ENDPOINTS = {
+  tokenize: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/tokenize`,
+  translate: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/translate`,
+  getCard: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/getCard`,
+  llm: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/llm`,
+  llmStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/llm/status`,
+  ocr: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/ocr`,
+  control: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/control`,
+  quit: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/quit`,
+} as const;
+
+// IPC Channel names - strongly typed
+export const IPC_CHANNELS = {
+  // Settings
+  GET_SETTINGS: 'get-settings',
+  SAVE_SETTINGS: 'save-settings',
+  SETTINGS: 'settings',
+  SETTINGS_SAVED: 'settings-saved',
+  
+  // Language data
+  GET_LANG_DATA: 'get-lang-data',
+  LANG_DATA: 'lang-data',
+  INSTALL_LANG: 'install-lang',
+  LANG_INSTALLED: 'lang-installed',
+  LANG_INSTALL_ERROR: 'lang-install-error',
+  
+  // Flashcards
+  GET_FLASHCARDS: 'get-flashcards',
+  SAVE_FLASHCARDS: 'save-flashcards',
+  FLASHCARDS_LOADED: 'flashcards-loaded',
+  FORCE_NEWDAY_FLASHCARDS: 'force-newday-flashcards',
+  FLASHCARD_CONNECT_OPEN: 'flashcard-connect-open',
+  REVIEW_FLASHCARDS_REQUEST: 'review-flashcards-request',
+  
+  // Window management
+  TRAFFIC_LIGHTS: 'traffic-lights',
+  CHANGE_WINDOW_SIZE: 'changeWindowSize',
+  MAKE_PIP: 'make-pip',
+  MAKE_NORMAL: 'make-normal',
+  SHOW_CTX_MENU: 'show-ctx-menu',
+  CTX_MENU_COMMAND: 'ctx-menu-command',
+  
+  // App lifecycle
+  RESTART_APP: 'restart-app',
+  RESTART_APP_FORCE: 'restart-app-force',
+  GET_VERSION: 'get-version',
+  VERSION: 'version',
+  
+  // Server status
+  IS_LOADED: 'is-loaded',
+  SERVER_LOAD: 'server-load',
+  SERVER_STATUS_UPDATE: 'server-status-update',
+  SERVER_CRITICAL_ERROR: 'server-critical-error',
+  OCR_STATUS_UPDATE: 'ocr-status-update',
+  
+  // Installation
+  IS_SUCCESSFUL_INSTALL: 'is-successful-install',
+  SUCCESSFUL_INSTALL: 'successful-install',
+  START_INSTALL: 'start-install',
+  INSTALL_STARTED: 'install-started',
+  INSTALLER_STATE_REQUEST: 'installer-state-request',
+  INSTALLER_STATE: 'installer-state',
+  INSTALLER_AWAITING_CHOICE: 'installer-awaiting-choice',
+  INSTALLER_NETWORK_ERROR: 'installer-network-error',
+  
+  // UI
+  SHOW_SETTINGS: 'show-settings',
+  SHOW_ASIDE: 'show-aside',
+  WRITE_TO_CLIPBOARD: 'write-to-clipboard',
+  SHOW_CONTACT: 'show-contact',
+  
+  // Watch together
+  WATCH_TOGETHER: 'watch-together',
+  WATCH_TOGETHER_REQUEST: 'watch-together-request',
+  WATCH_TOGETHER_SEND: 'watch-together-send',
+  IS_WATCHING_TOGETHER: 'is-watching-together',
+  
+  // Updates from tethered clients
+  UPDATE_PILLS: 'update-pills',
+  UPDATE_WORD_APPEARANCE: 'update-word-appearance',
+  UPDATE_ATTEMPT_FLASHCARD_CREATION: 'update-attempt-flashcard-creation',
+  UPDATE_CREATE_FLASHCARD: 'update-create-flashcard',
+  UPDATE_LAST_WATCHED: 'update-last-watched',
+  
+  // Stats & editors
+  OPEN_WORD_DB_EDITOR: 'open-word-db-editor',
+  OPEN_KANJI_GRID: 'open-kanji-grid',
+  
+  // Prompt
+  OPEN_PROMPT: 'open-prompt',
+  PROMPT_OUTPUT: 'prompt-output',
+  
+  // Window spawning from renderer
+  OPEN_WINDOW: 'open-window',
+  CLOSE_WINDOW: 'close-window',
+  
+  // LocalStorage sync
+  SEND_LS: 'send-ls',
+} as const;
+
+// Window types
+export const WINDOW_TYPES = {
+  MAIN: 'main',
+  WELCOME: 'welcome',
+  SETTINGS: 'settings',
+  READER: 'reader',
+  FLASHCARDS: 'flashcards',
+  PROMPT: 'prompt',
+  UPDATE: 'update',
+  KANJI_GRID: 'kanji-grid',
+  WORD_DB_EDITOR: 'word-db-editor',
+} as const;
+
+export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];
+
+// Subtitle themes
+export const SUBTITLE_THEMES = ['marker', 'background', 'shadow'] as const;
+export type SubtitleTheme = typeof SUBTITLE_THEMES[number];
+
+// Theme modes
+export const THEME_MODES = ['light', 'dark'] as const;
+export type ThemeMode = typeof THEME_MODES[number];
+
+// Word status (for SRS)
+export const WORD_STATUS = {
+  UNKNOWN: 0,
+  LEARNING: 1,
+  KNOWN: 2,
+} as const;
+export type WordStatus = typeof WORD_STATUS[keyof typeof WORD_STATUS];
+
+// Python download URLs
+export const PYTHON_DOWNLOAD_BASE = 'https://github.com/adrianvla/packaged-python/raw/refs/heads/main/';
+
+// Update URL
+export const UPDATE_URL = 'https://mlearn-update.morisinc.net/version-info.json';

@@ -1,18 +1,33 @@
 {
   "name": "mlearn-ts",
   "version": "1.0.0",
-  "description": "SolidJS + Vite + Electron + TypeScript",
+  "description": "Language learning through immersion - SolidJS + TypeScript + Electron",
   "main": "dist-electron/electron/main.js",
   "scripts": {
     "start": "npm run dev",
     "dev": "concurrently -k \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
-    "dev:electron": "wait-on tcp:3000 && tsc -p electron/tsconfig.json && cross-env NODE_ENV=development electron .",
-    "build": "tsc -p electron/tsconfig.json && vite build",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dev:electron": "wait-on tcp:3000 && tsc -p src/electron/tsconfig.json && cross-env NODE_ENV=development electron .",
+    "build": "tsc -p src/electron/tsconfig.json && vite build",
+    "build:web": "vite build --mode web",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit && tsc -p src/electron/tsconfig.json --noEmit",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux"
   },
-  "keywords": [],
+  "keywords": [
+    "language-learning",
+    "immersion",
+    "japanese",
+    "chinese",
+    "korean",
+    "subtitles",
+    "flashcards",
+    "srs"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
@@ -31,6 +46,7 @@
   },
   "build": {
     "appId": "com.mlearn.app",
+    "productName": "mLearn",
     "files": [
       "dist/**/*",
       "dist-electron/**/*"
@@ -38,8 +54,29 @@
     "directories": {
       "output": "release"
     },
+    "extraResources": [
+      {
+        "from": "resources/",
+        "to": "resources/",
+        "filter": ["**/*"]
+      }
+    ],
     "mac": {
-      "category": "public.app-category.developer-tools"
+      "category": "public.app-category.education",
+      "icon": "build/icon.icns",
+      "target": ["dmg", "zip"]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": ["nsis", "portable"]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "target": ["AppImage", "deb"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   }
 }

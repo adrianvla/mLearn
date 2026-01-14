@@ -1,0 +1,258 @@
+/**
+ * Subtitle Styles
+ */
+
+/* ========== Subtitle Container ========== */
+.subtitles {
+  position: fixed;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 90%;
+  text-align: center;
+  font-family: var(--font-family-japanese);
+  font-size: var(--subtitle-font-size);
+  font-weight: var(--subtitle-font-weight);
+  line-height: 1.6;
+  z-index: 10;
+  transition: opacity var(--transition-normal);
+  user-select: none;
+}
+
+.subtitles.not-shown {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.subtitles.quick-transition {
+  transition: opacity 0.1s;
+}
+
+/* ========== Subtitle Themes ========== */
+.subtitles.theme-shadow .subtitle_word {
+  text-shadow: 
+    2px 2px 4px rgba(0, 0, 0, 0.8),
+    -1px -1px 2px rgba(0, 0, 0, 0.5),
+    1px -1px 2px rgba(0, 0, 0, 0.5),
+    -1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.subtitles.theme-background .subtitle_word {
+  background: rgba(0, 0, 0, 0.75);
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.subtitles.theme-marker .subtitle_word {
+  background: linear-gradient(to top, rgba(255, 230, 0, 0.4) 40%, transparent 40%);
+}
+
+body:not(.dark) .subtitles.theme-marker .subtitle_word {
+  background: linear-gradient(to top, rgba(255, 230, 0, 0.6) 40%, transparent 40%);
+  color: #111;
+}
+
+/* ========== Subtitle Word ========== */
+.subtitle_word {
+  display: inline-block;
+  cursor: pointer;
+  position: relative;
+  transition: color var(--transition-fast);
+}
+
+.subtitle_word:hover {
+  color: var(--color-primary);
+}
+
+.subtitle_word[known="true"] {
+  color: var(--color-success);
+}
+
+.subtitle_word.blur {
+  filter: blur(var(--word-blur-amount));
+  transition: filter var(--transition-normal);
+}
+
+.subtitle_word.blur:hover {
+  filter: blur(0);
+}
+
+.subtitle_word.defined {
+  text-decoration: underline;
+  text-decoration-color: var(--color-primary);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+/* ========== Furigana (Ruby) ========== */
+.subtitle_word ruby {
+  ruby-align: center;
+}
+
+.subtitle_word ruby rt {
+  font-size: 0.45em;
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-secondary);
+  letter-spacing: 0.05em;
+}
+
+/* ========== Pitch Accent ========== */
+.mLearn-pitch-accent {
+  display: inline-flex;
+  align-items: flex-end;
+  height: var(--pitch-accent-height);
+  margin-left: 2px;
+  vertical-align: super;
+  font-size: 0.6em;
+}
+
+.mLearn-pitch-accent .box {
+  width: 0.8em;
+  height: 0.6em;
+  border: 1px solid currentColor;
+  border-top: none;
+  border-left: none;
+  margin-right: -1px;
+}
+
+.mLearn-pitch-accent .box.top {
+  border-top: 1px solid currentColor;
+  border-bottom: none;
+}
+
+.mLearn-pitch-accent .box.bottom {
+  border-top: none;
+  border-bottom: 1px solid currentColor;
+}
+
+.mLearn-pitch-accent .box.left {
+  border-left: 1px solid currentColor;
+}
+
+.mLearn-pitch-accent .box.particle-box {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+/* ========== Frequency Stars ========== */
+.frequency {
+  display: inline-flex;
+  gap: 1px;
+  margin-left: 4px;
+  vertical-align: super;
+  font-size: 0.5em;
+}
+
+.frequency .star {
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+
+.frequency[level="5"] .star { color: var(--freq-level-5); }
+.frequency[level="4"] .star { color: var(--freq-level-4); }
+.frequency[level="3"] .star { color: var(--freq-level-3); }
+.frequency[level="2"] .star { color: var(--freq-level-2); }
+.frequency[level="1"] .star { color: var(--freq-level-1); }
+
+/* ========== Hover Element ========== */
+.subtitle_hover {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--glass-bg-current);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border-current);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-4);
+  min-width: 200px;
+  max-width: 400px;
+  margin-bottom: var(--spacing-2);
+  text-align: left;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+  z-index: var(--z-tooltip);
+  box-shadow: var(--shadow-xl);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-normal);
+}
+
+.subtitle_word:hover .subtitle_hover,
+.subtitle_hover.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.subtitle_hover_relative {
+  position: relative;
+}
+
+.subtitle_hover_content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.hover_translation {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.hover_reading {
+  font-size: var(--font-size-lg);
+  font-family: var(--font-family-japanese);
+}
+
+/* ========== Pills ========== */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pill.primary { background: rgba(74, 144, 217, 0.2); border-color: rgba(74, 144, 217, 0.3); }
+.pill.success { background: rgba(46, 204, 113, 0.2); border-color: rgba(46, 204, 113, 0.3); }
+.pill.warning { background: rgba(241, 196, 15, 0.2); border-color: rgba(241, 196, 15, 0.3); }
+.pill.error { background: rgba(231, 76, 60, 0.2); border-color: rgba(231, 76, 60, 0.3); }
+.pill.gray { background: rgba(150, 150, 150, 0.2); border-color: rgba(150, 150, 150, 0.3); }
+
+.pill button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  transition: background var(--transition-fast);
+}
+
+.pill button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ========== Pitch Accent Pill ========== */
+.pitch-accent-pill {
+  cursor: default;
+}
+
+.pitch-accent-word {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.pitch-accent-pill .mLearn-pitch-accent {
+  height: auto;
+  margin-left: var(--spacing-1);
+}

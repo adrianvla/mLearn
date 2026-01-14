@@ -17,7 +17,13 @@
     "skipLibCheck": true,
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@shared/*": ["src/shared/*"],
+      "@renderer/*": ["src/renderer/*"]
+    }
   },
-  "include": ["src", "electron", "shared"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "dist-electron"]
 }
