@@ -13,7 +13,8 @@ export { useOCR } from './useOCR';
 
 // Language & Learning
 export { useTranslation, useTokenizer, useDictionary } from './useTranslation';
-export { usePitchAccent, getPitchAccentInfo, buildPitchAccentHtml, type PitchAccentInfo } from './usePitchAccent';
+export { usePitchAccent, getPitchAccentInfo, buildPitchAccentHtml } from './usePitchAccent';
+export type { PitchAccentInfo } from '../../shared/types';
 export { useWordHover, getGlobalHoverManager, useWordHoverTarget, type HoverData } from './useWordHover';
 export { useLLM } from './useLLM';
 export { useAnki } from './useAnki';

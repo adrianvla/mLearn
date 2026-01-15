@@ -92,6 +92,15 @@ export interface MLearnIPC {
   
   // Local Storage Sync
   sendLS: (data: Record<string, unknown>) => void;
+  
+  // Generic IPC Methods
+  send: (channel: string, data?: unknown) => void;
+  on: (channel: string, callback: (...args: unknown[]) => void) => void;
+  removeListener: (channel: string, callback: (...args: unknown[]) => void) => void;
+  
+  // Window Management
+  openWindow: (payload: { type: string; data?: unknown }) => void;
+  closeWindow: () => void;
 }
 
 declare global {
