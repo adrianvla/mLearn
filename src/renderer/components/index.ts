@@ -14,3 +14,8 @@ export * from './video';
 
 // Flashcard
 export * from './flashcard';
+
+// Settings
+export * from './settings';
+
+export * from './utils';

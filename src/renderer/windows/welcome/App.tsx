@@ -1,14 +1,14 @@
 /**
  * Welcome Window App Component
- * Initial setup and language installation
+ * Initial setup and language installation - Production Ready
+ * Uses real IPC to install Python backend and configure language
  */
 
 import { Component, Show, For, createSignal, createEffect, onMount } from 'solid-js';
 import { WindowWrapper } from '../../context';
 import { useSettings } from '../../context';
-import { useServer } from '../../context';
-import { useIPC, useBackendStatus } from '../../hooks';
-import { GlassPanel, GlassButton, GlassCard } from '../../components/common';
+import type { Settings, InstallOptions, InstallerState } from '../../../shared/types';
+import { GlassPanel, GlassButton } from '../../components/common';
 
 interface LanguageOption {
   code: string;
@@ -27,48 +27,210 @@ const LANGUAGES: LanguageOption[] = [
   { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸', available: false },
 ];
 
+// Animated welcome text in multiple languages
+const WELCOME_TEXTS = ['Welcome!', 'ようこそ！', 'Wilkommen!', 'Bienvenue!', '欢迎！', 'Добро пожаловать!'];
+
 const WelcomeContent: Component = () => {
-  const { settings, updateSettings } = useSettings();
-  const { isConnected } = useServer();
-  const { isElectron, openWindow, getVersion } = useIPC();
-  const backendStatus = useBackendStatus();
+  const { updateSettings } = useSettings();
 
-  const [step, setStep] = createSignal(0);
+  // Installation state
+  const [installationStarted, setInstallationStarted] = createSignal(false);
+  const [installationCompleted, setInstallationCompleted] = createSignal(false);
+  const [progress, setProgress] = createSignal(0);
+  const [statusLogs, setStatusLogs] = createSignal<string[]>(['Click Install to begin.']);
+  const [overallStatus, setOverallStatus] = createSignal('Waiting to start installation...');
+  const [networkError, setNetworkError] = createSignal<string | null>(null);
+
+  // Install options
+  const [includeLLM, setIncludeLLM] = createSignal(true);
+  const [includeOCR, setIncludeOCR] = createSignal(true);
+
+  // Language selection (enabled after install completes)
   const [selectedLanguage, setSelectedLanguage] = createSignal<string>('ja');
-  const [isInstalling, setIsInstalling] = createSignal(false);
-  const [installProgress, setInstallProgress] = createSignal(0);
 
-  const steps = [
-    { title: 'Welcome', subtitle: 'Get started with mLearn' },
-    { title: 'Language', subtitle: 'Choose your target language' },
-    { title: 'Setup', subtitle: 'Installing language support' },
-    { title: 'Ready', subtitle: 'You\'re all set!' },
-  ];
+  // Welcome text animation
+  const [welcomeTextIndex, setWelcomeTextIndex] = createSignal(0);
+  const [welcomeFading, setWelcomeFading] = createSignal(false);
 
-  const handleLanguageSelect = (code: string) => {
-    setSelectedLanguage(code);
+  // Log a message to the status console
+  const logInfo = (message: string) => {
+    setStatusLogs(prev => [...prev, message]);
   };
 
-  const handleInstall = async () => {
-    setStep(2);
-    setIsInstalling(true);
+  // Handle installation completion
+  const installCompleted = () => {
+    setInstallationCompleted(true);
+    setInstallationStarted(false);
+    setProgress(100);
+    setOverallStatus('Installation complete!');
+    logInfo('Installation complete!');
+  };
 
-    // Simulate installation progress
-    // In production, this would call the backend to install language packages
-    for (let i = 0; i <= 100; i += 5) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      setInstallProgress(i);
+  // Reset to waiting state (for retries)
+  const setWaitingState = (opts?: InstallOptions) => {
+    if (installationCompleted()) return;
+    setInstallationStarted(false);
+    setProgress(0);
+    setOverallStatus('Waiting to start installation...');
+    setStatusLogs(['Click Install to begin.']);
+    if (opts) {
+      setIncludeLLM(opts.includeLLM ?? true);
+      setIncludeOCR(opts.includeOCR ?? true);
     }
+  };
 
-    setIsInstalling(false);
+  // Start installation
+  const handleInstall = async () => {
+    if (installationStarted()) return;
+
+    setInstallationStarted(true);
+    setNetworkError(null);
+    setProgress(5);
+    setOverallStatus('Installing...');
+    setStatusLogs([]);
+    logInfo(includeLLM() ? 'Local AI model dependencies will be installed.' : 'Skipping local AI model dependencies.');
+    logInfo(includeOCR() ? 'OCR reader dependencies will be installed.' : 'Skipping OCR reader dependencies.');
+
+    // Save preferences and start install via IPC
+    try {
+      const mLearnIPC = (window as unknown as { mLearnIPC?: typeof window.mLearnIPC }).mLearnIPC;
+      if (mLearnIPC) {
+        mLearnIPC.startInstall({ includeLLM: includeLLM(), includeOCR: includeOCR() });
+      } else {
+        throw new Error('IPC not available');
+      }
+    } catch (e) {
+      console.error('Failed to start installation:', e);
+      setOverallStatus('Error: Could not start installation');
+      setInstallationStarted(false);
+    }
+  };
+
+  // Continue after installation to select language
+  const handleContinue = () => {
+    if (!installationCompleted()) return;
+
+    // Save language and restart
     updateSettings({ language: selectedLanguage() });
-    setStep(3);
+
+    const mLearnIPC = (window as unknown as { mLearnIPC?: typeof window.mLearnIPC }).mLearnIPC;
+    if (mLearnIPC) {
+      mLearnIPC.saveSettings({ language: selectedLanguage() } as Settings);
+      mLearnIPC.onSettingsSaved(() => {
+        setOverallStatus('Language installed! Restarting in 5 seconds...');
+        setTimeout(() => {
+          // Send quit request to proxy server
+          fetch('http://127.0.0.1:7753/quit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+          }).catch(() => { /* ignore */ });
+          mLearnIPC.forceRestartApp();
+        }, 5000);
+      });
+    }
   };
 
-  const handleComplete = () => {
-    updateSettings({ hasCompletedSetup: true });
-    openWindow('main');
-  };
+  // Setup IPC event listeners
+  onMount(() => {
+    const mLearnIPC = (window as unknown as { mLearnIPC?: typeof window.mLearnIPC }).mLearnIPC;
+    if (!mLearnIPC) return;
+
+    // Python install success
+    mLearnIPC.onPythonSuccess((success: boolean) => {
+      if (success) installCompleted();
+    });
+
+    // Server status updates (pip output, download progress, etc.)
+    mLearnIPC.onServerStatusUpdate((status: string) => {
+      logInfo(status);
+
+      // Update progress bar based on status
+      if (status.includes('Installing Python dependencies')) {
+        setProgress(5);
+      } else if (status === 'Downloading Python...') {
+        setProgress(10);
+      } else if (status.includes('Download complete')) {
+        setProgress(45);
+      } else if (status.includes('Extraction complete')) {
+        setProgress(70);
+      } else if (status === 'Installation complete') {
+        installCompleted();
+      } else if (status.toLowerCase().includes('error')) {
+        setOverallStatus('An error occurred. Check the log below.');
+      }
+    });
+
+    // Installation started by backend
+    mLearnIPC.onInstallStarted((opts: InstallOptions) => {
+      if (!installationStarted()) {
+        setInstallationStarted(true);
+        setIncludeLLM(opts.includeLLM ?? true);
+        setIncludeOCR(opts.includeOCR ?? true);
+      }
+    });
+
+    // Installer awaiting user choice (error recovery or initial state)
+    mLearnIPC.onInstallerAwaitingChoice(() => {
+      setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR() });
+    });
+
+    // Network error during install
+    mLearnIPC.onInstallerNetworkError((payload: { message: string; detail?: string }) => {
+      const message = typeof payload === 'string' ? payload : payload.message;
+      const detail = typeof payload === 'object' ? payload.detail : undefined;
+      if (detail) logInfo(detail);
+      setOverallStatus(message);
+      setNetworkError(detail ? `${message}\n\nDetails: ${detail}` : message);
+      setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR() });
+    });
+
+    // Get current installer state
+    mLearnIPC.onInstallerState((state: InstallerState) => {
+      if (state.success) {
+        installCompleted();
+        return;
+      }
+      if (state.inProgress && !installationStarted()) {
+        setInstallationStarted(true);
+        if (state.options) {
+          setIncludeLLM(state.options.includeLLM ?? true);
+          setIncludeOCR(state.options.includeOCR ?? true);
+        }
+        return;
+      }
+      if (state.waiting) {
+        setWaitingState(state.options);
+      }
+    });
+
+    // Load current settings
+    mLearnIPC.onSettings((settings: Settings) => {
+      if (settings.llmEnabled !== undefined) {
+        setIncludeLLM(settings.llmEnabled !== false);
+      }
+      if (settings.ocrEnabled !== undefined) {
+        setIncludeOCR(settings.ocrEnabled !== false);
+      }
+    });
+
+    // Request current state
+    mLearnIPC.requestInstallerState();
+    mLearnIPC.isSuccess();
+    mLearnIPC.getSettings();
+  });
+
+  // Welcome text animation
+  createEffect(() => {
+    const interval = setInterval(() => {
+      setWelcomeFading(true);
+      setTimeout(() => {
+        setWelcomeTextIndex(prev => (prev + 1) % WELCOME_TEXTS.length);
+        setWelcomeFading(false);
+      }, 1000);
+    }, 3000);
+    return () => clearInterval(interval);
+  });
 
   return (
     <div
@@ -78,32 +240,59 @@ const WelcomeContent: Component = () => {
         display: 'flex',
         'flex-direction': 'column',
         'align-items': 'center',
-        'justify-content': 'center',
+        'justify-content': 'flex-start',
         padding: '2rem',
         'background': 'linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%)',
+        overflow: 'auto',
       }}
     >
-      {/* Progress indicator */}
+      {/* Draggable region */}
       <div
+        class="dragger"
         style={{
-          display: 'flex',
-          gap: '0.5rem',
-          'margin-bottom': '2rem',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '32px',
+          '-webkit-app-region': 'drag',
+        }}
+      />
+
+      {/* Animated welcome text */}
+      <h1
+        style={{
+          'font-size': '2.5rem',
+          'font-weight': '700',
+          color: 'var(--text-primary)',
+          'margin-bottom': '1rem',
+          transition: 'opacity 0.5s ease',
+          opacity: welcomeFading() ? '0' : '1',
         }}
       >
-        <For each={steps}>
-          {(_, index) => (
-            <div
-              style={{
-                width: '2rem',
-                height: '4px',
-                'border-radius': 'var(--radius-full)',
-                'background-color': index() <= step() ? 'var(--color-primary)' : 'var(--glass-border)',
-                transition: 'background-color 0.3s ease',
-              }}
-            />
-          )}
-        </For>
+        {WELCOME_TEXTS[welcomeTextIndex()]}
+      </h1>
+
+      {/* Progress bar */}
+      <div
+        style={{
+          width: '100%',
+          'max-width': '500px',
+          height: '8px',
+          'background-color': 'var(--glass-bg)',
+          'border-radius': 'var(--radius-full)',
+          overflow: 'hidden',
+          'margin-bottom': '1rem',
+        }}
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${progress()}%`,
+            'background-color': 'var(--color-primary)',
+            transition: 'width 0.3s ease',
+          }}
+        />
       </div>
 
       <GlassPanel
@@ -114,207 +303,219 @@ const WelcomeContent: Component = () => {
         style={{
           'max-width': '600px',
           width: '100%',
-          'min-height': '400px',
           display: 'flex',
           'flex-direction': 'column',
         }}
       >
-        {/* Step 0: Welcome */}
-        <Show when={step() === 0}>
-          <div style={{ 'text-align': 'center', flex: '1', display: 'flex', 'flex-direction': 'column', 'justify-content': 'center' }}>
-            <div style={{ 'font-size': '4rem', 'margin-bottom': '1rem' }}>🎓</div>
-            <h1
+        {/* Info text */}
+        <p
+          style={{
+            color: 'var(--text-secondary)',
+            'margin-bottom': '1.5rem',
+            'line-height': '1.6',
+          }}
+        >
+          <Show when={!installationStarted() && !installationCompleted()}>
+            Choose the components you want to install, then click Install.
+            <br />
+            Language selection unlocks after setup finishes.
+            <br />
+            If you forget to install something, delete mLearn and restart the installer again.
+            <br />
+            You will <strong>not</strong> lose your data.
+          </Show>
+          <Show when={installationStarted() && !installationCompleted()}>
+            Installing required components. This can take several minutes—please keep this window open.
+          </Show>
+          <Show when={installationCompleted()}>
+            Installation complete! Choose your language to finish setup.
+          </Show>
+        </p>
+
+        {/* Install options - only shown before installation */}
+        <Show when={!installationStarted() && !installationCompleted()}>
+          <div style={{ 'margin-bottom': '1.5rem' }}>
+            <label
               style={{
-                'font-size': '2rem',
-                'font-weight': '700',
-                color: 'var(--text-primary)',
+                display: 'flex',
+                'align-items': 'flex-start',
+                gap: '0.75rem',
+                padding: '0.75rem',
+                background: 'var(--glass-bg)',
+                'border-radius': 'var(--radius-md)',
+                cursor: 'pointer',
                 'margin-bottom': '0.5rem',
               }}
             >
-              Welcome to mLearn
-            </h1>
-            <p
+              <input
+                type="checkbox"
+                checked={includeLLM()}
+                onChange={(e) => setIncludeLLM(e.currentTarget.checked)}
+                style={{ 'margin-top': '4px' }}
+              />
+              <span>
+                <strong style={{ color: 'var(--text-primary)' }}>Install mLearn Explain AI Module</strong>
+                <br />
+                <small style={{ color: 'var(--text-secondary)' }}>
+                  Installs a local LLM Neural Network. Skips ~3 GB of dependencies if left unchecked.
+                </small>
+              </span>
+            </label>
+            <label
               style={{
-                color: 'var(--text-secondary)',
-                'margin-bottom': '2rem',
-                'line-height': '1.6',
+                display: 'flex',
+                'align-items': 'flex-start',
+                gap: '0.75rem',
+                padding: '0.75rem',
+                background: 'var(--glass-bg)',
+                'border-radius': 'var(--radius-md)',
+                cursor: 'pointer',
               }}
             >
-              Learn languages through immersion with videos, subtitles, and flashcards.
-              Let's get you set up!
-            </p>
-            <GlassButton variant="primary" onClick={() => setStep(1)}>
-              Get Started
-            </GlassButton>
-            <p
-              style={{
-                'margin-top': '2rem',
-                'font-size': '0.75rem',
-                color: 'var(--text-muted)',
-              }}
-            >
-              Version {getVersion()}
-            </p>
+              <input
+                type="checkbox"
+                checked={includeOCR()}
+                onChange={(e) => setIncludeOCR(e.currentTarget.checked)}
+                style={{ 'margin-top': '4px' }}
+              />
+              <span>
+                <strong style={{ color: 'var(--text-primary)' }}>Install mLearn Reader Module</strong>
+                <br />
+                <small style={{ color: 'var(--text-secondary)' }}>
+                  Will install text recognition neural networks. Skip to save download size
+                  if you do not plan on using the manga/comic reader right now.
+                </small>
+              </span>
+            </label>
           </div>
         </Show>
 
-        {/* Step 1: Language Selection */}
-        <Show when={step() === 1}>
-          <div style={{ flex: '1', display: 'flex', 'flex-direction': 'column' }}>
-            <h2
+        {/* Language selection - only enabled after installation */}
+        <Show when={installationCompleted()}>
+          <div
+            style={{
+              display: 'grid',
+              'grid-template-columns': 'repeat(2, 1fr)',
+              gap: '0.75rem',
+              'margin-bottom': '1.5rem',
+            }}
+          >
+            <For each={LANGUAGES}>
+              {(lang) => (
+                <button
+                  disabled={!lang.available}
+                  onClick={() => setSelectedLanguage(lang.code)}
+                  style={{
+                    display: 'flex',
+                    'align-items': 'center',
+                    gap: '0.75rem',
+                    padding: '1rem',
+                    background: selectedLanguage() === lang.code ? 'var(--color-primary-alpha)' : 'var(--glass-bg)',
+                    border: selectedLanguage() === lang.code ? '2px solid var(--color-primary)' : '2px solid transparent',
+                    'border-radius': 'var(--radius-md)',
+                    cursor: lang.available ? 'pointer' : 'not-allowed',
+                    opacity: lang.available ? '1' : '0.5',
+                    transition: 'all 0.2s ease',
+                    'text-align': 'left',
+                  }}
+                >
+                  <span style={{ 'font-size': '1.5rem' }}>{lang.flag}</span>
+                  <div>
+                    <div style={{ 'font-weight': '500', color: 'var(--text-primary)' }}>{lang.name}</div>
+                    <div style={{ 'font-size': '0.875rem', color: 'var(--text-secondary)' }}>{lang.nativeName}</div>
+                  </div>
+                  <Show when={!lang.available}>
+                    <span
+                      style={{
+                        'margin-left': 'auto',
+                        'font-size': '0.75rem',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      Coming soon
+                    </span>
+                  </Show>
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
+
+        {/* Installation log - shown during/after installation */}
+        <Show when={installationStarted() || installationCompleted()}>
+          <div style={{ 'margin-bottom': '1rem' }}>
+            <p
               style={{
-                'font-size': '1.5rem',
                 'font-weight': '600',
                 color: 'var(--text-primary)',
                 'margin-bottom': '0.5rem',
               }}
             >
-              Choose Your Language
-            </h2>
-            <p
-              style={{
-                color: 'var(--text-secondary)',
-                'margin-bottom': '1.5rem',
-              }}
-            >
-              Select the language you want to learn
+              {overallStatus()}
             </p>
-
             <div
               style={{
-                display: 'grid',
-                'grid-template-columns': 'repeat(2, 1fr)',
-                gap: '0.75rem',
-                flex: '1',
+                height: '150px',
+                overflow: 'auto',
+                background: 'rgba(0,0,0,0.3)',
+                'border-radius': 'var(--radius-md)',
+                padding: '0.75rem',
+                'font-family': 'monospace',
+                'font-size': '0.75rem',
+                color: 'var(--text-secondary)',
+              }}
+              ref={(el) => {
+                // Auto-scroll to bottom when logs update
+                createEffect(() => {
+                  statusLogs();
+                  if (el) el.scrollTop = el.scrollHeight;
+                });
               }}
             >
-              <For each={LANGUAGES}>
-                {(lang) => (
-                  <button
-                    disabled={!lang.available}
-                    onClick={() => handleLanguageSelect(lang.code)}
+              <For each={statusLogs()}>
+                {(log) => (
+                  <p
                     style={{
-                      display: 'flex',
-                      'align-items': 'center',
-                      gap: '0.75rem',
-                      padding: '1rem',
-                      background: selectedLanguage() === lang.code ? 'var(--color-primary-alpha)' : 'var(--glass-bg)',
-                      border: selectedLanguage() === lang.code ? '2px solid var(--color-primary)' : '2px solid transparent',
-                      'border-radius': 'var(--radius-md)',
-                      cursor: lang.available ? 'pointer' : 'not-allowed',
-                      opacity: lang.available ? '1' : '0.5',
-                      transition: 'all 0.2s ease',
-                      'text-align': 'left',
+                      margin: '0.25rem 0',
+                      color: log.toLowerCase().includes('error') ? 'var(--color-danger)' : 'inherit',
                     }}
                   >
-                    <span style={{ 'font-size': '1.5rem' }}>{lang.flag}</span>
-                    <div>
-                      <div style={{ 'font-weight': '500', color: 'var(--text-primary)' }}>{lang.name}</div>
-                      <div style={{ 'font-size': '0.875rem', color: 'var(--text-secondary)' }}>{lang.nativeName}</div>
-                    </div>
-                    <Show when={!lang.available}>
-                      <span
-                        style={{
-                          'margin-left': 'auto',
-                          'font-size': '0.75rem',
-                          color: 'var(--text-muted)',
-                        }}
-                      >
-                        Coming soon
-                      </span>
-                    </Show>
-                  </button>
+                    {log}
+                  </p>
                 )}
               </For>
             </div>
-
-            <div style={{ display: 'flex', gap: '1rem', 'margin-top': '1.5rem' }}>
-              <GlassButton onClick={() => setStep(0)}>Back</GlassButton>
-              <GlassButton variant="primary" onClick={handleInstall}>
-                Continue
-              </GlassButton>
-            </div>
           </div>
         </Show>
 
-        {/* Step 2: Installation */}
-        <Show when={step() === 2}>
-          <div style={{ flex: '1', display: 'flex', 'flex-direction': 'column', 'justify-content': 'center', 'text-align': 'center' }}>
-            <div style={{ 'font-size': '3rem', 'margin-bottom': '1rem' }}>⚙️</div>
-            <h2
-              style={{
-                'font-size': '1.5rem',
-                'font-weight': '600',
-                color: 'var(--text-primary)',
-                'margin-bottom': '0.5rem',
-              }}
-            >
-              Setting Up
-            </h2>
-            <p
-              style={{
-                color: 'var(--text-secondary)',
-                'margin-bottom': '2rem',
-              }}
-            >
-              Installing language support...
-            </p>
-
-            <div
-              style={{
-                width: '100%',
-                height: '8px',
-                'background-color': 'var(--glass-bg)',
-                'border-radius': 'var(--radius-full)',
-                overflow: 'hidden',
-                'margin-bottom': '1rem',
-              }}
-            >
-              <div
-                style={{
-                  height: '100%',
-                  width: `${installProgress()}%`,
-                  'background-color': 'var(--color-primary)',
-                  transition: 'width 0.2s ease',
-                }}
-              />
-            </div>
-
-            <p style={{ 'font-size': '0.875rem', color: 'var(--text-muted)' }}>
-              {installProgress()}% complete
-            </p>
+        {/* Network error alert */}
+        <Show when={networkError()}>
+          <div
+            style={{
+              padding: '1rem',
+              background: 'rgba(255, 100, 100, 0.2)',
+              border: '1px solid var(--color-danger)',
+              'border-radius': 'var(--radius-md)',
+              'margin-bottom': '1rem',
+              color: 'var(--color-danger)',
+            }}
+          >
+            <strong>Network Error</strong>
+            <p style={{ 'margin-top': '0.5rem', 'font-size': '0.875rem' }}>{networkError()}</p>
           </div>
         </Show>
 
-        {/* Step 3: Complete */}
-        <Show when={step() === 3}>
-          <div style={{ flex: '1', display: 'flex', 'flex-direction': 'column', 'justify-content': 'center', 'text-align': 'center' }}>
-            <div style={{ 'font-size': '4rem', 'margin-bottom': '1rem' }}>🎉</div>
-            <h2
-              style={{
-                'font-size': '1.5rem',
-                'font-weight': '600',
-                color: 'var(--text-primary)',
-                'margin-bottom': '0.5rem',
-              }}
-            >
-              You're All Set!
-            </h2>
-            <p
-              style={{
-                color: 'var(--text-secondary)',
-                'margin-bottom': '2rem',
-                'line-height': '1.6',
-              }}
-            >
-              mLearn is ready to help you learn {LANGUAGES.find(l => l.code === selectedLanguage())?.name}.
-              Start by dropping a video file into the app.
-            </p>
-            <GlassButton variant="primary" onClick={handleComplete}>
-              Start Learning
-            </GlassButton>
-          </div>
-        </Show>
+        {/* Action button */}
+        <GlassButton
+          variant="primary"
+          onClick={installationCompleted() ? handleContinue : handleInstall}
+          disabled={installationStarted() && !installationCompleted()}
+          style={{ width: '100%' }}
+        >
+          <Show when={!installationStarted() && !installationCompleted()}>Start Installation</Show>
+          <Show when={installationStarted() && !installationCompleted()}>Installing...</Show>
+          <Show when={installationCompleted()}>Continue</Show>
+        </GlassButton>
       </GlassPanel>
     </div>
   );

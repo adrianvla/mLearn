@@ -15,9 +15,13 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
-        welcome: resolve(__dirname, 'welcome.html'),
-        flashcards: resolve(__dirname, 'flashcards.html'),
+        main: resolve(__dirname, 'src/html/main.html'),
+        welcome: resolve(__dirname, 'src/html/welcome.html'),
+        flashcards: resolve(__dirname, 'src/html/flashcards.html'),
+        settings: resolve(__dirname, 'src/html/settings.html'),
+        'word-db-editor': resolve(__dirname, 'src/html/word-db-editor.html'),
+        'kanji-grid': resolve(__dirname, 'src/html/kanji-grid.html'),
+        reader: resolve(__dirname, 'src/html/reader.html'),
       },
     },
   },

@@ -8,6 +8,7 @@ import { SettingsProvider } from './SettingsContext';
 import { LanguageProvider } from './LanguageContext';
 import { FlashcardProvider } from './FlashcardContext';
 import { ServerProvider } from './ServerContext';
+import {WindowOverlay} from "@renderer/components/common/WindowOverlay";
 
 /**
  * WindowWrapper wraps all window entry points with necessary providers

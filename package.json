@@ -42,6 +42,7 @@
     "wait-on": "^8.0.2"
   },
   "dependencies": {
+    "@solidjs/router": "^0.15.4",
     "@types/tar": "^6.1.13",
     "@types/ws": "^8.18.1",
     "solid-js": "^1.9.4",

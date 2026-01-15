@@ -160,6 +160,22 @@ const mLearnIPC = {
 
   // ========== LocalStorage Sync ==========
   sendLS: (data: Record<string, unknown>) => ipcRenderer.send(IPC_CHANNELS.SEND_LS, data),
+
+  // ========== Generic IPC Methods ==========
+  // Generic send for any channel
+  send: (channel: string, data?: unknown) => {
+    ipcRenderer.send(channel, data);
+  },
+  
+  // Generic on for any channel
+  on: (channel: string, callback: (...args: unknown[]) => void) => {
+    ipcRenderer.on(channel, (_event, ...args) => callback(...args));
+  },
+  
+  // Remove listener
+  removeListener: (channel: string, callback: (...args: unknown[]) => void) => {
+    ipcRenderer.removeListener(channel, callback);
+  },
 };
 
 // Expose API to renderer

@@ -3,7 +3,7 @@
  */
 
 import { app, ipcMain, clipboard, shell } from 'electron';
-import { findPython, terminatePythonBackend } from './services/pythonBackend';
+import { findPython, terminatePythonBackend, setupPythonBackendIPC } from './services/pythonBackend';
 import { startWebServer, stopWebServer } from './services/webServer';
 import { setupFlashcardIPC } from './services/flashcardStorage';
 import { setupSettingsIPC } from './services/settings';
@@ -29,6 +29,7 @@ async function initialize(): Promise<void> {
   setupSettingsIPC();
   setupFlashcardIPC();
   setupWindowIPC();
+  setupPythonBackendIPC();
   setupKillHandlers();
 
   // Start Python backend

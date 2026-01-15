@@ -3,12 +3,17 @@
  * Primary video player window
  */
 
-import { Component, Show, createSignal, onMount } from 'solid-js';
+import { Component, Show, createSignal, onMount, onCleanup, createEffect } from 'solid-js';
 import { WindowWrapper } from '../../context';
 import { useSettings } from '../../context';
 import { useIPC, useVideo, useSubtitles } from '../../hooks';
 import { VideoPlayer } from '../../components/video';
 import { GlassPanel, GlassButton, GlassModal } from '../../components/common';
+import { WindowOverlay } from '@renderer/components/common/WindowOverlay';
+import { WindowDragRegion } from '@renderer/components/utils/WindowDragRegion';
+import { SettingsModal } from '../../components/settings';
+import { LiveWordTranslator } from '../../components/subtitle';
+import { IPC_CHANNELS } from '../../../shared/constants';
 
 const MainContent: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -21,6 +26,65 @@ const MainContent: Component = () => {
   const [showDropZone, setShowDropZone] = createSignal(true);
   const [isDragging, setIsDragging] = createSignal(false);
   const [showSettingsModal, setShowSettingsModal] = createSignal(false);
+  const [settingsInitialTab, setSettingsInitialTab] = createSignal<string | undefined>();
+
+  // Setup IPC event listeners for menu actions
+  onMount(() => {
+    if (window.mLearnIPC) {
+      // Settings window
+      window.mLearnIPC.on(IPC_CHANNELS.SHOW_SETTINGS, (tab?: string) => {
+        setSettingsInitialTab(tab);
+        setShowSettingsModal(true);
+      });
+
+      // Show aside (Live Word Translator)
+      window.mLearnIPC.on(IPC_CHANNELS.SHOW_ASIDE, () => {
+        // The LiveWordTranslator component handles this
+        if ((window as any).mLearnLiveTranslator) {
+          (window as any).mLearnLiveTranslator.show();
+        }
+      });
+
+      // Open Kanji Grid
+      window.mLearnIPC.on(IPC_CHANNELS.OPEN_KANJI_GRID, () => {
+        // Open kanji grid window
+        window.mLearnIPC?.send(IPC_CHANNELS.OPEN_WINDOW, { type: 'kanji-grid' });
+      });
+
+      // Open Word DB Editor
+      window.mLearnIPC.on(IPC_CHANNELS.OPEN_WORD_DB_EDITOR, () => {
+        // Open word db editor window
+        window.mLearnIPC?.send(IPC_CHANNELS.OPEN_WINDOW, { type: 'word-db-editor' });
+      });
+
+      // Review flashcards
+      window.mLearnIPC.on(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST, () => {
+        window.mLearnIPC?.send(IPC_CHANNELS.OPEN_WINDOW, { type: 'flashcards' });
+      });
+
+      // Context menu commands
+      window.mLearnIPC.on(IPC_CHANNELS.CTX_MENU_COMMAND, (command: string) => {
+        handleContextMenuCommand(command);
+      });
+    }
+  });
+
+  // Handle context menu commands
+  const handleContextMenuCommand = (command: string) => {
+    switch (command) {
+      case 'sync-subs':
+        // Sync subtitles with video
+        // TODO: Implement subtitle sync
+        break;
+      case 'copy-sub':
+        // Copy current subtitle to clipboard
+        const currentSub = subtitles.getCurrentSubtitle?.();
+        if (currentSub && window.mLearnIPC) {
+          window.mLearnIPC.send(IPC_CHANNELS.WRITE_TO_CLIPBOARD, currentSub);
+        }
+        break;
+    }
+  };
 
   // Handle file drop
   const handleDrop = async (e: DragEvent) => {
@@ -199,6 +263,16 @@ const MainContent: Component = () => {
           style={{ flex: '1' }}
         />
       </Show>
+
+      {/* Live Word Translator Sidebar */}
+      <LiveWordTranslator />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={showSettingsModal()}
+        onClose={() => setShowSettingsModal(false)}
+        initialTab={settingsInitialTab() as any}
+      />
     </div>
   );
 };
@@ -208,6 +282,7 @@ export const MainApp: Component = () => {
   return (
     <WindowWrapper>
       <MainContent />
+      <WindowOverlay />
     </WindowWrapper>
   );
 };

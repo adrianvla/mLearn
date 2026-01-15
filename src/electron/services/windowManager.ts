@@ -48,17 +48,16 @@ function getPreloadPath(): string {
 }
 
 // Get HTML file path for a window type
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getWindowHtmlPath(type: WindowType): string {
   const isDev = process.env.NODE_ENV === 'development';
   
   if (isDev) {
-    // In development, use Vite dev server
+    // In development, use Vite dev server with src/html paths
     const port = 3000;
-    return `http://localhost:${port}/${type}.html`;
+    return `http://localhost:${port}/src/html/${type}.html`;
   }
   
-  // In production, use built files
+  // In production, use built files in dist
   return path.join(__dirname, '..', '..', 'dist', `${type}.html`);
 }
 
@@ -71,7 +70,9 @@ export function createMainWindow(): BrowserWindow {
       preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
+    frame: false,
   };
 
   // macOS-specific title bar
@@ -84,7 +85,7 @@ export function createMainWindow(): BrowserWindow {
 
   const isDev = process.env.NODE_ENV === 'development';
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000/main.html');
+    mainWindow.loadURL('http://localhost:3000/src/html/main.html');
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'main.html'));
@@ -109,14 +110,16 @@ export function createWelcomeWindow(): BrowserWindow {
       preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
+    frame: false,
   });
 
   currentWindow = welcomeWindow;
 
   const isDev = process.env.NODE_ENV === 'development';
   if (isDev) {
-    welcomeWindow.loadURL('http://localhost:3000/welcome.html');
+    welcomeWindow.loadURL('http://localhost:3000/src/html/welcome.html');
   } else {
     welcomeWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'welcome.html'));
   }
@@ -129,6 +132,13 @@ export function createChildWindow(
   type: WindowType,
   options: Partial<Electron.BrowserWindowConstructorOptions> = {}
 ): BrowserWindow {
+  // Check if window already exists and focus it instead of creating duplicate
+  const existingWindow = childWindows.get(type);
+  if (existingWindow && !existingWindow.isDestroyed()) {
+    existingWindow.focus();
+    return existingWindow;
+  }
+
   const defaultOptions: Electron.BrowserWindowConstructorOptions = {
     width: 800,
     height: 600,
@@ -136,6 +146,7 @@ export function createChildWindow(
       preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
     ...options,
   };
@@ -145,7 +156,7 @@ export function createChildWindow(
 
   const isDev = process.env.NODE_ENV === 'development';
   if (isDev) {
-    window.loadURL(`http://localhost:3000/${type}.html`);
+    window.loadURL(`http://localhost:3000/src/html/${type}.html`);
   } else {
     window.loadFile(path.join(__dirname, '..', '..', 'dist', `${type}.html`));
   }
@@ -236,12 +247,12 @@ function setupAppMenu(): void {
   const appMenu: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'About mLearn',
-      click: () => mainWindow?.webContents.send(IPC_CHANNELS.SHOW_SETTINGS, 'About'),
+      click: () => createChildWindow('settings' as WindowType, { width: 800, height: 600 }),
     },
     { type: 'separator' },
     {
       label: 'Settings',
-      click: () => mainWindow?.webContents.send(IPC_CHANNELS.SHOW_SETTINGS),
+      click: () => createChildWindow('settings' as WindowType, { width: 800, height: 600 }),
     },
     { type: 'separator' },
     { role: 'hide' },
@@ -274,7 +285,7 @@ function setupAppMenu(): void {
       submenu: [
         {
           label: 'Settings',
-          click: () => mainWindow?.webContents.send(IPC_CHANNELS.SHOW_SETTINGS),
+          click: () => createChildWindow('settings' as WindowType, { width: 800, height: 600 }),
         },
         { role: 'undo' },
         { role: 'redo' },
@@ -379,7 +390,7 @@ function setupAppMenu(): void {
       submenu: [
         {
           label: 'Review Flashcards',
-          click: () => mainWindow?.webContents.send(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST),
+          click: () => createChildWindow('flashcards' as WindowType, { width: 800, height: 600 }),
         },
         {
           label: 'Force recreate new flashcards for today',
@@ -405,15 +416,15 @@ function setupAppMenu(): void {
       submenu: [
         {
           label: 'Show learning statistics',
-          click: () => mainWindow?.webContents.send(IPC_CHANNELS.SHOW_SETTINGS, 'Stats'),
+          click: () => createChildWindow('settings' as WindowType, { width: 800, height: 600 }),
         },
         {
           label: 'Show Kanji grid',
-          click: () => mainWindow?.webContents.send(IPC_CHANNELS.OPEN_KANJI_GRID),
+          click: () => createChildWindow('kanji-grid' as WindowType, { width: 1200, height: 800 }),
         },
         {
           label: 'Edit word knowledge database',
-          click: () => mainWindow?.webContents.send(IPC_CHANNELS.OPEN_WORD_DB_EDITOR),
+          click: () => createChildWindow('word-db-editor' as WindowType, { width: 1300, height: 800 }),
         },
       ],
     },
