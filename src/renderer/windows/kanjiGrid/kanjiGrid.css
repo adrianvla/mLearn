@@ -168,7 +168,7 @@
   right: 1rem;
   max-width: 800px;
   background: var(--glass-bg);
-  backdrop-filter: blur(20px);
+  backdrop-filter: var(--glass-backdrop-filter);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: 1rem;

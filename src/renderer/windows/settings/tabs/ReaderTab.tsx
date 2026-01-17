@@ -6,6 +6,7 @@ import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
 import { SettingRow } from './components/SettingRow';
 import { SettingGroup } from './components/SettingGroup';
+import { ToggleSwitch } from '../../../components/common';
 
 export const ReaderTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -22,14 +23,10 @@ export const ReaderTab: Component = () => {
           label="Enable OCR"
           description="Enable optical character recognition for images"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.ocrEnabled}
-              onChange={(e) => updateSettings({ ocrEnabled: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.ocrEnabled}
+            onChange={(checked) => updateSettings({ ocrEnabled: checked })}
+          />
         </SettingRow>
 
         <SettingRow
@@ -53,14 +50,10 @@ export const ReaderTab: Component = () => {
           label="Enable LLM Explanations"
           description="Use AI to explain words and grammar"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.llmEnabled}
-              onChange={(e) => updateSettings({ llmEnabled: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.llmEnabled}
+            onChange={(checked) => updateSettings({ llmEnabled: checked })}
+          />
         </SettingRow>
       </SettingGroup>
 

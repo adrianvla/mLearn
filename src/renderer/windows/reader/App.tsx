@@ -4,11 +4,15 @@
  * Ported from reader module in the original mLearn app
  */
 
-import { Component, createSignal, For, Show, onMount } from 'solid-js';
+import { Component, createSignal, For, Show, onMount, createEffect, onCleanup } from 'solid-js';
 import { WindowWrapper, useSettings } from '../../context';
 import { GlassButton } from '../../components/common';
 import { API_ENDPOINTS } from '../../../shared/constants';
 import './reader.css';
+import ReaderWelcomeCard from "../main/routes/components/ReaderWelcomeCard";
+
+// Storage key for reader positions
+const READER_POSITIONS_KEY = 'mlearn_reader_positions';
 
 interface PageImage {
   id: string;
@@ -20,6 +24,31 @@ interface PageImage {
 type FitMode = 'fit-height' | 'fit-width';
 type PageMode = 'double' | 'single';
 
+// Helper to get/set page positions from storage
+function getReaderPositions(): Record<string, number> {
+  try {
+    const stored = localStorage.getItem(READER_POSITIONS_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveReaderPosition(bookKey: string, page: number): void {
+  try {
+    const positions = getReaderPositions();
+    positions[bookKey] = page;
+    localStorage.setItem(READER_POSITIONS_KEY, JSON.stringify(positions));
+  } catch (e) {
+    console.error('Failed to save reader position:', e);
+  }
+}
+
+function getReaderPosition(bookKey: string): number {
+  const positions = getReaderPositions();
+  return positions[bookKey] ?? 0;
+}
+
 const ReaderContent: Component = () => {
   const { settings } = useSettings();
 
@@ -29,10 +58,29 @@ const ReaderContent: Component = () => {
   const [pageMode, setPageMode] = createSignal<PageMode>('double');
   const [showSidebar, setShowSidebar] = createSignal(true);
   const [bookTitle, setBookTitle] = createSignal('Nothing Loaded');
+  const [bookKey, setBookKey] = createSignal<string>(''); // Key for position storage
   const [ocrStatus, setOcrStatus] = createSignal('Ready');
   const [isProcessingOcr, setIsProcessingOcr] = createSignal(false);
   const [isDragging, setIsDragging] = createSignal(false);
   const [ocrProgress, setOcrProgress] = createSignal(0);
+
+  // Save position when page changes (with debounce)
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  createEffect(() => {
+    const key = bookKey();
+    const page = currentPage();
+    if (!key) return;
+    
+    // Debounce saves
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => {
+      saveReaderPosition(key, page);
+    }, 500);
+  });
+  
+  onCleanup(() => {
+    if (saveTimeout) clearTimeout(saveTimeout);
+  });
 
   // Get visible pages based on current page and mode
   const visiblePages = () => {
@@ -101,9 +149,18 @@ const ReaderContent: Component = () => {
       index,
     }));
 
+    // Generate a key based on first file name for position tracking
+    const title = files[0].name.split('/').pop()?.replace(/\.[^.]+$/, '') || 'Imported Book';
+    const key = `reader_${title}_${files.length}`;
+    
     setPages(newPages);
-    setCurrentPage(0);
-    setBookTitle(files[0].name.split('/').pop()?.replace(/\.[^.]+$/, '') || 'Imported Book');
+    setBookTitle(title);
+    setBookKey(key);
+    
+    // Restore saved position for this document
+    const savedPage = getReaderPosition(key);
+    const validPage = Math.min(savedPage, newPages.length - 1);
+    setCurrentPage(validPage >= 0 ? validPage : 0);
   };
 
   const handleDragOver = (e: DragEvent) => {
@@ -279,31 +336,7 @@ const ReaderContent: Component = () => {
         <Show
           when={pages().length > 0}
           fallback={
-            <div class={`welcome-card ${isDragging() ? 'dragging' : ''}`}>
-              <div class="welcome-content">
-                <h2>📖 Settle in, Reader</h2>
-                <p class="welcome-intro">
-                  To get started, drag and drop a folder full of images or a .pdf file anywhere in this window.
-                </p>
-                <div class="dropzone">
-                  Drop files here to import them instantly — we will take care of ordering and progress tracking.
-                </div>
-                <div class="tips-grid">
-                  <div class="tip">
-                    <h3>📐 Shape your view</h3>
-                    <p>Switch between single and double page layouts with the selectors above.</p>
-                  </div>
-                  <div class="tip">
-                    <h3>🔮 Summon OCR magic</h3>
-                    <p>Trigger OCR to hover words, peek at translations, and build flashcards.</p>
-                  </div>
-                  <div class="tip">
-                    <h3>🔖 Never lose your place</h3>
-                    <p>We track your book title and page progress automatically.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <ReaderWelcomeCard isDragging={isDragging}/>
           }
         >
           <div class={`page-container ${pageMode()}`}>

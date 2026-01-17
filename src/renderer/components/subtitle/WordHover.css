@@ -18,13 +18,12 @@
   position: relative;
   height: max-content;
   background: var(--glass-bg-current);
-  backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: var(--glass-backdrop-filter);
   border: 1px solid var(--glass-border-current);
   border-radius: var(--radius-lg);
-  margin-bottom: var(--spacing-2);
   text-align: left;
   font-size: var(--font-size-base);
-  font-weight: var(--font-weight-normal);
+  font-weight: var(--font-weight-medium);
   z-index: var(--z-tooltip);
   box-shadow: var(--shadow-xl);
   /*box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.8);*/
@@ -43,7 +42,7 @@
   -webkit-text-stroke: unset !important;
   width: max-content;
   min-width: 280px;
-  max-width: 600px;
+  /*max-width: 600px;*/
 }
 
 .subtitle_hover.dark,
@@ -61,6 +60,7 @@ body.dark .subtitle_hover {
 .subtitle_hover.show-hover {
   opacity: 1;
   display: flex;
+  pointer-events: auto;
 }
 
 /* Scrollbar styling */
@@ -96,7 +96,7 @@ body.dark .subtitle_hover .pitch,
   position: relative;
   min-width: 100%;
   width:max-content;
-  overflow-y: hidden;
+  overflow: hidden;
   height: 100%;
 }
 
@@ -122,7 +122,7 @@ body.dark .subtitle_hover .pitch,
   padding: 10px;
   box-sizing: border-box;
   background: rgba(184, 184, 184, 0.1);
-  backdrop-filter: blur(20px);
+  backdrop-filter: var(--glass-backdrop-filter);
   border-top: 1px solid #ddd;
   z-index: 1;
   width: max-content;
@@ -346,4 +346,63 @@ body.dark .subtitle_hover hr,
 /* Known status modifier */
 .subtitle_hover.known {
   border-color: rgb(66, 214, 49);
+}
+
+/* LLM Explanation section */
+.subtitle_hover_alt_c {
+  padding: 15px 20px;
+  border-top: 1px solid #ddd;
+  background: rgba(200, 200, 200, 0.1);
+  font-size: 0.9em;
+  line-height: 1.5;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+body.dark .subtitle_hover_alt_c,
+.subtitle_hover.dark .subtitle_hover_alt_c {
+  border-top-color: #333;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.subtitle_hover_alt_c p {
+  margin: 0;
+}
+
+/* Skeleton loading animation */
+.skeleton-c {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.skeleton-c > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  width: 100%;
+}
+
+.skeleton {
+  display: inline-block;
+  height: 14px;
+  background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+body.dark .skeleton,
+.subtitle_hover.dark .skeleton {
+  background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
+  background-size: 200% 100%;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }

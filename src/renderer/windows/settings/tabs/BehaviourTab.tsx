@@ -6,6 +6,7 @@ import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
 import { SettingRow } from './components/SettingRow';
 import { SettingGroup } from './components/SettingGroup';
+import { ToggleSwitch } from '../../../components/common';
 
 export const BehaviourTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -37,14 +38,10 @@ export const BehaviourTab: Component = () => {
           label="Colour Known Words"
           description="Highlight words you've learned"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.do_colour_known}
-              onChange={(e) => updateSettings({ do_colour_known: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.do_colour_known}
+            onChange={(checked) => updateSettings({ do_colour_known: checked })}
+          />
         </SettingRow>
 
         <SettingRow
@@ -66,14 +63,10 @@ export const BehaviourTab: Component = () => {
           label="Colour by Part of Speech"
           description="Colour words based on their grammatical type"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.do_colour_codes}
-              onChange={(e) => updateSettings({ do_colour_codes: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.do_colour_codes}
+            onChange={(checked) => updateSettings({ do_colour_codes: checked })}
+          />
         </SettingRow>
       </SettingGroup>
 
@@ -82,28 +75,20 @@ export const BehaviourTab: Component = () => {
           label="Blur Unknown Words"
           description="Blur words you haven't learned yet"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.blur_words}
-              onChange={(e) => updateSettings({ blur_words: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.blur_words}
+            onChange={(checked) => updateSettings({ blur_words: checked })}
+          />
         </SettingRow>
 
         <SettingRow
           label="Blur Known Subtitles"
           description="Blur subtitles that are mostly known words"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.blur_known_subtitles}
-              onChange={(e) => updateSettings({ blur_known_subtitles: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.blur_known_subtitles}
+            onChange={(checked) => updateSettings({ blur_known_subtitles: checked })}
+          />
         </SettingRow>
 
         <SettingRow
@@ -127,56 +112,40 @@ export const BehaviourTab: Component = () => {
           label="Show Furigana"
           description="Display reading above kanji"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.furigana}
-              onChange={(e) => updateSettings({ furigana: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.furigana}
+            onChange={(checked) => updateSettings({ furigana: checked })}
+          />
         </SettingRow>
 
         <SettingRow
           label="Show Pitch Accent"
           description="Display pitch accent patterns"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.showPitchAccent}
-              onChange={(e) => updateSettings({ showPitchAccent: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.showPitchAccent}
+            onChange={(checked) => updateSettings({ showPitchAccent: checked })}
+          />
         </SettingRow>
 
         <SettingRow
           label="Show Part of Speech"
           description="Display grammatical information in popups"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.show_pos}
-              onChange={(e) => updateSettings({ show_pos: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.show_pos}
+            onChange={(checked) => updateSettings({ show_pos: checked })}
+          />
         </SettingRow>
 
         <SettingRow
           label="Auto-open Word Panel"
           description="Automatically show the live word translator"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.openAside}
-              onChange={(e) => updateSettings({ openAside: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.openAside}
+            onChange={(checked) => updateSettings({ openAside: checked })}
+          />
         </SettingRow>
       </SettingGroup>
 
@@ -185,28 +154,20 @@ export const BehaviourTab: Component = () => {
           label="Immediate Fetch"
           description="Pre-load translations for all words (uses more bandwidth)"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.immediateFetch}
-              onChange={(e) => updateSettings({ immediateFetch: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.immediateFetch}
+            onChange={(checked) => updateSettings({ immediateFetch: checked })}
+          />
         </SettingRow>
 
         <SettingRow
           label="Fetch Dictionary for Known"
           description="Look up known words in dictionary on hover"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.hover_known_get_from_dictionary}
-              onChange={(e) => updateSettings({ hover_known_get_from_dictionary: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.hover_known_get_from_dictionary}
+            onChange={(checked) => updateSettings({ hover_known_get_from_dictionary: checked })}
+          />
         </SettingRow>
       </SettingGroup>
     </div>

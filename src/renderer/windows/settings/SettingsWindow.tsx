@@ -54,7 +54,8 @@ const SettingsContent: Component = () => {
   onMount(() => {
     if (!window.mLearnIPC) return;
 
-    const handler = (section?: string) => {
+    const handler = (...args: unknown[]) => {
+      const section = typeof args[0] === 'string' ? args[0] : undefined;
       setActiveTab(resolveTab(section));
     };
 

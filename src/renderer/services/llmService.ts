@@ -1,0 +1,184 @@
+/**
+ * LLM Service
+ * Handles interactions with the local language model
+ * Ported from llmInteractions.js in the original mLearn app
+ */
+
+import type { LLMResponse, LLMStatus, Settings } from '../../shared/types';
+
+// Cached LLM status
+let cachedLlmStatus: LLMStatus | null = null;
+let cachedLlmCheckedAt: number = 0;
+let llmDownloadApproved: boolean = false;
+
+// Cache TTLs matching old app
+const LLM_STATUS_CACHE_TTL = 30_000; // 30 seconds
+const LLM_STATUS_CACHE_ACTIVE_TTL = 2_000; // 2 seconds while actively downloading
+
+/**
+ * Derive LLM URL from settings
+ */
+function deriveLLMUrl(settings: Settings): string | null {
+  if (settings.llmEnabled === false) return null;
+  if ((settings as any).llmUrl) return (settings as any).llmUrl;
+  if (settings.getTranslationUrl && settings.getTranslationUrl.includes('/translate')) {
+    return settings.getTranslationUrl.replace('/translate', '/llm');
+  }
+  if (settings.tokeniserUrl && settings.tokeniserUrl.includes('/tokenize')) {
+    return settings.tokeniserUrl.replace('/tokenize', '/llm');
+  }
+  // Default fallback
+  return 'http://127.0.0.1:7752/llm';
+}
+
+/**
+ * Derive LLM status URL from LLM URL (like old app)
+ */
+function deriveLLMStatusUrl(llmUrl: string | null): string | null {
+  if (!llmUrl) return null;
+  if (llmUrl.endsWith('/llm/status')) return llmUrl;
+  if (llmUrl.endsWith('/llm')) return `${llmUrl}/status`;
+  return `${llmUrl.replace(/\/$/, '')}/status`;
+}
+
+/**
+ * Check LLM status using GET endpoint (like old app)
+ */
+export async function checkLlmStatus(settings: Settings): Promise<LLMStatus | null> {
+  const now = Date.now();
+  
+  // Use shorter cache TTL when actively downloading
+  const cacheTtl = (cachedLlmStatus && cachedLlmStatus.downloading === true && 
+    (typeof cachedLlmStatus.progress !== 'number' || cachedLlmStatus.progress < 1))
+    ? LLM_STATUS_CACHE_ACTIVE_TTL
+    : LLM_STATUS_CACHE_TTL;
+    
+  if (cachedLlmStatus && now - cachedLlmCheckedAt < cacheTtl) {
+    return cachedLlmStatus;
+  }
+
+  const llmUrl = deriveLLMUrl(settings);
+  const statusUrl = deriveLLMStatusUrl(llmUrl);
+  if (!statusUrl) return null;
+
+  try {
+    // Use GET method like old app (not POST)
+    const response = await fetch(statusUrl, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (typeof data === 'object' && data) {
+        cachedLlmStatus = data;
+        cachedLlmCheckedAt = now;
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to check LLM status:', err);
+  }
+
+  return null;
+}
+
+/**
+ * Get word explanation using LLM
+ */
+export async function getWordExplanation(
+  word: string,
+  contextPhrase: string,
+  settings: Settings
+): Promise<LLMResponse> {
+  if (settings.llmEnabled === false) {
+    return { error: 'LLM disabled' };
+  }
+
+  const llmUrl = deriveLLMUrl(settings);
+  if (!llmUrl) {
+    return { error: 'LLM URL not configured' };
+  }
+
+  // Check status first
+  const status = await checkLlmStatus(settings);
+  const isReady = status?.downloaded === true;
+  const isCached = status?.cached === true;
+
+  if (!isReady && !isCached && !llmDownloadApproved) {
+    // In a real app, show a modal confirmation
+    // For now, proceed anyway
+    llmDownloadApproved = true;
+  }
+
+  const language = 'English';
+  const prompt = `
+You are a ${language}-only language assistant. You must always respond entirely in ${language}.
+
+Task:
+1. Translate the following sentence into ${language}.
+2. Add a blank line.
+3. Explain what the word 「${word}」 means in this sentence, focusing on its nuance in context. Keep it 1-2 sentences.
+4. Add a blank line.
+5. List the main grammar points as bullet points, each explaining its function or nuance in context. Keep bullets short (1-2 sentences each).
+6. STOP after providing translation, word explanation, and grammar points. Do NOT add extra commentary. Do NOT add romaji, nor any reading information.
+
+Sentence:
+`;
+
+  try {
+    // Send payload in the same format as the old app: { prompt: prompt+phrase, max_new_tokens, temperature }
+    const response = await fetch(llmUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: prompt.trim() + '\n' + contextPhrase,
+        max_new_tokens: 256,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) {
+      return { error: `LLM request failed: ${response.status}` };
+    }
+
+    const data = await response.json();
+
+    // Update cached status
+    if (data.downloaded !== undefined) {
+      cachedLlmStatus = {
+        downloaded: true,
+        cached: true,
+        device: data.device ?? null,
+        downloading: false,
+        progress: 1,
+        downloadedBytes: cachedLlmStatus?.downloadedBytes || 0,
+        expectedBytes: cachedLlmStatus?.expectedBytes || 0,
+      };
+      cachedLlmCheckedAt = Date.now();
+    }
+
+    // Clean output by removing the prompt prefix
+    if (data.output) {
+      data.output = data.output.replace(prompt, '');
+    }
+
+    return data;
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+
+/**
+ * Get LLM download status (for progress display)
+ */
+export function getLLMStatus(): LLMStatus | null {
+  return cachedLlmStatus;
+}
+
+/**
+ * Set LLM download approved flag
+ */
+export function approveLLMDownload(): void {
+  llmDownloadApproved = true;
+}

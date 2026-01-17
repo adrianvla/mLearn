@@ -148,7 +148,8 @@ export interface FrequencyLevelNames {
 
 export interface LanguageData {
   name: string;
-  translatable: boolean;
+  name_translated?: string;
+  translatable: string[];  // Array of POS types that should be translated (e.g., ["名詞", "動詞"])
   colour_codes: ColorCodes;
   fixed_settings: Partial<Settings>;
   freq?: [string, string][];

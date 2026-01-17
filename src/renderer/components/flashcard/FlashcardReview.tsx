@@ -3,11 +3,12 @@
  * SRS review interface with rating buttons
  */
 
-import { Component, JSX, Show, createSignal, createMemo } from 'solid-js';
+import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, For } from 'solid-js';
 import { useFlashcards } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { GlassButton } from '../common/GlassButton';
 import { GlassPanel } from '../common/GlassPanel';
+import './FlashcardReview.css';
 
 export interface FlashcardReviewProps {
   onComplete?: () => void;
@@ -46,6 +47,52 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     return Math.round((currentIndex() / total) * 100);
   });
 
+  // Keyboard shortcuts (like old app)
+  onMount(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      if (!isReviewing()) return;
+      
+      // Space or Enter to flip card
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        if (!showAnswer()) {
+          setShowAnswer(true);
+        }
+        return;
+      }
+      
+      // Number keys for rating (only when answer is shown)
+      if (showAnswer()) {
+        switch (e.key) {
+          case '1':
+            e.preventDefault();
+            handleRating('again');
+            break;
+          case '2':
+            e.preventDefault();
+            handleRating('hard');
+            break;
+          case '3':
+            e.preventDefault();
+            handleRating('good');
+            break;
+          case '4':
+            e.preventDefault();
+            handleRating('easy');
+            break;
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
+  });
+
   const handleRating = (quality: 'again' | 'hard' | 'good' | 'easy') => {
     const card = currentCard();
     if (!card) return;
@@ -72,57 +119,60 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     setIsReviewing(true);
   };
 
-  const containerStyle = (): JSX.CSSProperties => ({
-    display: 'flex',
-    'flex-direction': 'column',
-    'align-items': 'center',
-    gap: '2rem',
-    padding: '2rem',
-    height: '100%',
-    ...props.style,
+  // Rating buttons config with time estimates based on SM-2 algorithm with time estimates based on SM-2 algorithm
+  const ratingButtons = createMemo(() => {
+    const card = currentCard();
+    if (!card) {
+      return [
+        { quality: 'again' as const, label: 'Again', className: 'flashcard-rating-btn--again', time: '< 1m' },
+        { quality: 'hard' as const, label: 'Hard', className: 'flashcard-rating-btn--hard', time: '~6m' },
+        { quality: 'good' as const, label: 'Good', className: 'flashcard-rating-btn--good', time: '~10m' },
+        { quality: 'easy' as const, label: 'Easy', className: 'flashcard-rating-btn--easy', time: '~4d' },
+      ];
+    }
+    
+    // Calculate estimated next review times based on current card state
+    const interval = card.interval || 0;
+    const ef = card.easeFactor || 2.5;
+    
+    // Time formatting helper (like old app's dateToInString)
+    const formatInterval = (days: number): string => {
+      if (days < 1 / 1440) return '< 1m';
+      if (days < 1 / 24) return `${Math.round(days * 1440)}m`;
+      if (days < 1) return `${Math.round(days * 24)}h`;
+      if (days < 30) return `${Math.round(days)}d`;
+      if (days < 365) return `${Math.round(days / 30)}mo`;
+      return `${Math.round(days / 365)}y`;
+    };
+    
+    // Calculate intervals for each rating
+    const againInterval = 1 / 1440; // 1 minute
+    const hardInterval = Math.max(interval * 1.2, 1 / 144); // ~10 minutes min
+    const goodInterval = Math.max(interval === 0 ? 1 / 144 : interval * ef, 1 / 144);
+    const easyInterval = Math.max(interval === 0 ? 4 : interval * ef * 1.3, 1);
+    
+    return [
+      { quality: 'again' as const, label: 'Again', className: 'flashcard-rating-btn--again', time: formatInterval(againInterval) },
+      { quality: 'hard' as const, label: 'Hard', className: 'flashcard-rating-btn--hard', time: formatInterval(hardInterval) },
+      { quality: 'good' as const, label: 'Good', className: 'flashcard-rating-btn--good', time: formatInterval(goodInterval) },
+      { quality: 'easy' as const, label: 'Easy', className: 'flashcard-rating-btn--easy', time: formatInterval(easyInterval) },
+    ];
   });
 
-  // Rating buttons config
-  const ratingButtons = [
-    { quality: 'again' as const, label: 'Again', color: 'var(--color-danger)', subtitle: '< 1 min' },
-    { quality: 'hard' as const, label: 'Hard', color: 'var(--color-warning)', subtitle: '~6 min' },
-    { quality: 'good' as const, label: 'Good', color: 'var(--color-success)', subtitle: '~10 min' },
-    { quality: 'easy' as const, label: 'Easy', color: 'var(--color-primary)', subtitle: '~4 days' },
-  ];
-
   return (
-    <div style={containerStyle()}>
+    <div class="flashcard-review-container" style={props.style}>
       {/* Progress */}
-      <div style={{ width: '100%', 'max-width': '500px' }}>
-        <div
-          style={{
-            display: 'flex',
-            'justify-content': 'space-between',
-            'margin-bottom': '0.5rem',
-            'font-size': '0.875rem',
-            color: 'var(--text-secondary)',
-          }}
-        >
+      <div class="flashcard-progress">
+        <div class="flashcard-progress-header">
           <span>Progress</span>
           <span>
             {currentIndex()}/{dueCards().length} cards
           </span>
         </div>
-        <div
-          style={{
-            height: '6px',
-            'background-color': 'var(--glass-bg)',
-            'border-radius': 'var(--radius-full)',
-            overflow: 'hidden',
-          }}
-        >
+        <div class="flashcard-progress-bar">
           <div
-            style={{
-              height: '100%',
-              width: `${progress()}%`,
-              'background-color': 'var(--color-primary)',
-              transition: 'width 0.3s ease',
-            }}
+            class="flashcard-progress-fill"
+            style={{ width: `${progress()}%` }}
           />
         </div>
       </div>
@@ -135,37 +185,15 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             variant="dark"
             blur="lg"
             rounded="xl"
-            style={{
-              display: 'flex',
-              'flex-direction': 'column',
-              'align-items': 'center',
-              'justify-content': 'center',
-              padding: '3rem',
-              'text-align': 'center',
-              'max-width': '500px',
-              width: '100%',
-              height: '300px',
-            }}
+            class="flashcard-completion"
           >
-            <h2
-              style={{
-                'font-size': '1.5rem',
-                'font-weight': '600',
-                color: 'var(--text-primary)',
-                'margin-bottom': '1rem',
-              }}
-            >
+            <h2 class="flashcard-completion-title">
               🎉 Review Complete!
             </h2>
-            <p
-              style={{
-                color: 'var(--text-secondary)',
-                'margin-bottom': '2rem',
-              }}
-            >
+            <p class="flashcard-completion-text">
               You've reviewed all due cards for now.
             </p>
-            <div style={{ display: 'flex', gap: '1rem' }}>
+            <div class="flashcard-completion-actions">
               <Show when={dueCards().length > 0}>
                 <GlassButton variant="primary" onClick={handleStartOver}>
                   Start Over
@@ -184,58 +212,35 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
       {/* Rating buttons */}
       <Show when={isReviewing() && showAnswer()}>
-        <div
-          style={{
-            display: 'flex',
-            gap: '0.75rem',
-            'flex-wrap': 'wrap',
-            'justify-content': 'center',
-          }}
-        >
-          {ratingButtons.map((btn) => (
-            <button
-              style={{
-                display: 'flex',
-                'flex-direction': 'column',
-                'align-items': 'center',
-                gap: '0.25rem',
-                padding: '0.75rem 1.5rem',
-                'min-width': '80px',
-                background: 'var(--glass-bg)',
-                border: `2px solid ${btn.color}`,
-                'border-radius': 'var(--radius-md)',
-                color: btn.color,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              onClick={() => handleRating(btn.quality)}
-            >
-              <span style={{ 'font-weight': '600' }}>{btn.label}</span>
-              <span
-                style={{
-                  'font-size': '0.75rem',
-                  opacity: '0.7',
-                }}
+        <div class="flashcard-rating-buttons">
+          <For each={ratingButtons()}>
+            {(btn) => (
+              <button
+                class={`flashcard-rating-btn ${btn.className}`}
+                onClick={() => handleRating(btn.quality)}
               >
-                {btn.subtitle}
-              </span>
-            </button>
-          ))}
+                <span class="flashcard-rating-label">{btn.label}</span>
+                <span class="flashcard-rating-time">{btn.time}</span>
+              </button>
+            )}
+          </For>
         </div>
       </Show>
 
       {/* Stats */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '2rem',
-          'font-size': '0.875rem',
-          color: 'var(--text-secondary)',
-        }}
-      >
-        <span>New: {stats().new}</span>
-        <span>Learning: {stats().learning}</span>
-        <span>Review: {stats().review}</span>
+      <div class="flashcard-stats">
+        <span class="flashcard-stat">
+          <span class="flashcard-stat-label">New:</span>
+          <span class="flashcard-stat-new">{stats().new}</span>
+        </span>
+        <span class="flashcard-stat">
+          <span class="flashcard-stat-label">Learning:</span>
+          <span class="flashcard-stat-learning">{stats().learning}</span>
+        </span>
+        <span class="flashcard-stat">
+          <span class="flashcard-stat-label">Review:</span>
+          <span class="flashcard-stat-review">{stats().review}</span>
+        </span>
       </div>
     </div>
   );

@@ -1,0 +1,108 @@
+/**
+ * PitchAccent Component Styles
+ * Visual representation of Japanese pitch accent patterns
+ */
+
+.pitch-accent-container {
+  display: inline-flex;
+  align-items: center;
+}
+
+.pitch-accent-word {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: help;
+}
+
+/* Pitch accent diagram container */
+.mLearn-pitch-accent {
+  --pitch-accent-height: 2px;
+  position: absolute;
+  top: -0.5em;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  height: 1em;
+}
+
+/* Pill variation */
+.pill.pitch-accent-pill {
+  padding: 5px 10px;
+}
+
+.pill.pitch-accent-pill .pitch-accent-word {
+  font-weight: normal;
+}
+
+.pill.pitch-accent-pill .mLearn-pitch-accent {
+  --pitch-accent-height: 2px;
+}
+
+/* Pitch accent line segments */
+.mLearn-pitch-accent .pa-segment {
+  flex: 1;
+  min-width: 0.4em;
+  position: relative;
+}
+
+.mLearn-pitch-accent .pa-segment::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--pitch-accent-height, 2px);
+  background: currentColor;
+}
+
+/* High pitch segment */
+.mLearn-pitch-accent .pa-segment.high::after {
+  top: 0;
+}
+
+/* Low pitch segment */
+.mLearn-pitch-accent .pa-segment.low::after {
+  bottom: 0;
+}
+
+/* Transition markers (rise/fall) */
+.mLearn-pitch-accent .pa-segment.rise::before,
+.mLearn-pitch-accent .pa-segment.fall::before {
+  content: '';
+  position: absolute;
+  width: var(--pitch-accent-height, 2px);
+  background: currentColor;
+}
+
+.mLearn-pitch-accent .pa-segment.rise::before {
+  right: 0;
+  bottom: 0;
+  height: calc(1em - var(--pitch-accent-height, 2px));
+}
+
+.mLearn-pitch-accent .pa-segment.fall::before {
+  left: 0;
+  top: 0;
+  height: calc(1em - var(--pitch-accent-height, 2px));
+}
+
+/* Dark mode adjustments */
+body.dark .pitch-accent-container,
+.dark .pitch-accent-container {
+  color: #eee;
+}
+
+/* When inside subtitle hover */
+.subtitle_hover .mLearn-pitch-accent {
+  --pitch-accent-height: 2px;
+}
+
+body.dark .subtitle_hover .mLearn-pitch-accent,
+.subtitle_hover.dark .mLearn-pitch-accent {
+  filter: none;
+  color: #eee;
+}

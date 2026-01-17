@@ -37,7 +37,7 @@ body.hide-cursor .live-word-translator {
 /* Hover state shows glass background like legacy .aside:hover */
 .live-word-translator:hover {
   background: rgba(60, 60, 60, 0.5);
-  backdrop-filter: blur(20px);
+  backdrop-filter: var(--glass-backdrop-filter);
 }
 
 /* Container for cards - horizontal scrollable row like legacy .aside .c */
@@ -59,7 +59,7 @@ body.hide-cursor .live-word-translator {
 /* Individual card styling - matches legacy .aside .mLearn-card */
 .aside-card {
   background-color: rgba(60, 60, 60, 0.60);
-  backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--glass-backdrop-filter);
   padding-inline: 20px;
   width: 300px;
   height: 30px;

@@ -6,6 +6,7 @@ import { Component, createSignal, Show } from 'solid-js';
 import { useSettings } from '../../../context';
 import { SettingRow } from './components/SettingRow';
 import { SettingGroup } from './components/SettingGroup';
+import { ToggleSwitch } from '../../../components/common';
 
 export const SRSTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -39,14 +40,10 @@ export const SRSTab: Component = () => {
           label="Enable Anki"
           description="Send flashcards to Anki via AnkiConnect"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.use_anki}
-              onChange={(e) => updateSettings({ use_anki: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.use_anki}
+            onChange={(checked) => updateSettings({ use_anki: checked })}
+          />
         </SettingRow>
 
         <Show when={settings.use_anki}>
@@ -111,14 +108,10 @@ export const SRSTab: Component = () => {
             label="Add Screenshots"
             description="Include video screenshots in flashcards"
           >
-            <label class="toggle-switch">
-              <input
-                type="checkbox"
-                checked={settings.flashcards_add_picture}
-                onChange={(e) => updateSettings({ flashcards_add_picture: e.currentTarget.checked })}
-              />
-              <span class="toggle-slider" />
-            </label>
+            <ToggleSwitch
+              checked={settings.flashcards_add_picture}
+              onChange={(checked) => updateSettings({ flashcards_add_picture: checked })}
+            />
           </SettingRow>
         </Show>
       </SettingGroup>
@@ -128,14 +121,10 @@ export const SRSTab: Component = () => {
           label="Enable Flashcard Creation"
           description="Allow creating flashcards within mLearn"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.enable_flashcard_creation}
-              onChange={(e) => updateSettings({ enable_flashcard_creation: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.enable_flashcard_creation}
+            onChange={(checked) => updateSettings({ enable_flashcard_creation: checked })}
+          />
         </SettingRow>
 
         <SettingRow
@@ -188,14 +177,10 @@ export const SRSTab: Component = () => {
           label="Create Unseen Cards"
           description="Auto-create cards for new exam-level words"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.createUnseenCards}
-              onChange={(e) => updateSettings({ createUnseenCards: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.createUnseenCards}
+            onChange={(checked) => updateSettings({ createUnseenCards: checked })}
+          />
         </SettingRow>
       </SettingGroup>
 

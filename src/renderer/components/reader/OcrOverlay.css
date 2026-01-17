@@ -13,10 +13,10 @@
 
 .ocr-box {
   position: absolute;
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  background: #ffffff;
+  border: none;
+  background: transparent;
   color: #000000;
-  border-radius: 2px;
+  border-radius: 0;
   cursor: pointer;
   pointer-events: auto;
   opacity: 0;

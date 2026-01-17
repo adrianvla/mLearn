@@ -1,0 +1,82 @@
+/**
+ * Reader Status Bar Component Styles
+ */
+
+.reader-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  height: 40px;
+  border-top: 1px solid var(--glass-border-current);
+  backdrop-filter: var(--glass-backdrop-filter);
+  background: var(--glass-bg-current);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  font-size: 0.85rem;
+}
+
+.reader-status .book-title {
+  color: var(--text-secondary);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reader-status .progress {
+  color: var(--text-secondary);
+}
+
+.reader-status .ocr-section {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.reader-status .ocr-status {
+  color: var(--text-secondary);
+}
+
+.reader-status .ocr-progress-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.reader-status .ocr-progress {
+  width: 100px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.reader-status .ocr-progress .bar {
+  height: 100%;
+  background: var(--accent-primary);
+  transition: width 0.3s;
+}
+
+.reader-status .ocr-progress-text {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  min-width: 35px;
+}
+
+.reader-status .ocr-status.active {
+  color: var(--accent-primary);
+  animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}

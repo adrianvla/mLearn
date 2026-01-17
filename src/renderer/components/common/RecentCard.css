@@ -1,0 +1,78 @@
+/**
+ * RecentCard Component Styles
+ * Card for recently watched/read content
+ */
+
+.recent-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-bg-current);
+  backdrop-filter: var(--glass-backdrop-filter);
+  border: 1px solid var(--glass-border-current);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  text-align: left;
+}
+
+.recent-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-accent);
+}
+
+.recent-thumbnail {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-color: var(--color-bg-elevated, #2a2a2a);
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.recent-thumbnail .recent-type {
+  font-size: 2rem;
+  opacity: 0.5;
+}
+
+.recent-thumbnail[style*="background-image"] .recent-type {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  font-size: 1rem;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  opacity: 1;
+}
+
+.recent-info {
+  padding: 0.75rem;
+}
+
+.recent-info h4 {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  margin: 0 0 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.progress-bar {
+  height: 4px;
+  background: var(--color-border, rgba(255, 255, 255, 0.1));
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--color-accent, #3b82f6);
+  border-radius: 2px;
+  transition: width var(--transition-normal);
+}
