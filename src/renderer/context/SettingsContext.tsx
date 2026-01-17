@@ -100,7 +100,8 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Broadcast settings to other windows
   const broadcastSettingsUpdate = () => {
     if (broadcastChannel) {
-      broadcastChannel.postMessage({ type: 'update', settings });
+      // Must serialize settings to plain object for postMessage (stores aren't cloneable)
+      broadcastChannel.postMessage({ type: 'update', settings: JSON.parse(JSON.stringify(settings)) });
     }
   };
 

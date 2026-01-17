@@ -61,6 +61,22 @@ function getWindowHtmlPath(type: WindowType): string {
   return path.join(__dirname, '..', '..', 'dist', `${type}.html`);
 }
 
+function openSettingsWindow(section?: string): BrowserWindow {
+  const settingsWindow = createChildWindow('settings' as WindowType, { width: 800, height: 600 });
+
+  if (section) {
+    if (settingsWindow.webContents.isLoading()) {
+      settingsWindow.webContents.once('did-finish-load', () => {
+        settingsWindow.webContents.send(IPC_CHANNELS.SHOW_SETTINGS, section);
+      });
+    } else {
+      settingsWindow.webContents.send(IPC_CHANNELS.SHOW_SETTINGS, section);
+    }
+  }
+
+  return settingsWindow;
+}
+
 // Create the main window
 export function createMainWindow(): BrowserWindow {
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
@@ -247,12 +263,12 @@ function setupAppMenu(): void {
   const appMenu: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'About mLearn',
-      click: () => createChildWindow('settings' as WindowType, { width: 800, height: 600 }),
+      click: () => openSettingsWindow('about'),
     },
     { type: 'separator' },
     {
       label: 'Settings',
-      click: () => createChildWindow('settings' as WindowType, { width: 800, height: 600 }),
+      click: () => openSettingsWindow('general'),
     },
     { type: 'separator' },
     { role: 'hide' },
@@ -285,7 +301,7 @@ function setupAppMenu(): void {
       submenu: [
         {
           label: 'Settings',
-          click: () => createChildWindow('settings' as WindowType, { width: 800, height: 600 }),
+          click: () => openSettingsWindow('general'),
         },
         { role: 'undo' },
         { role: 'redo' },
@@ -405,7 +421,7 @@ function setupAppMenu(): void {
         },
         {
           label: 'Open Syncing Window',
-          click: () => mainWindow?.webContents.send(IPC_CHANNELS.FLASHCARD_CONNECT_OPEN),
+          click: () => createChildWindow('connect-qr' as WindowType, { width: 600, height: 700 }),
         },
       ],
     },
@@ -416,7 +432,7 @@ function setupAppMenu(): void {
       submenu: [
         {
           label: 'Show learning statistics',
-          click: () => createChildWindow('settings' as WindowType, { width: 800, height: 600 }),
+          click: () => openSettingsWindow('stats'),
         },
         {
           label: 'Show Kanji grid',
@@ -446,7 +462,7 @@ function setupAppMenu(): void {
         { type: 'separator' },
         {
           label: 'About mLearn',
-          click: () => mainWindow?.webContents.send(IPC_CHANNELS.SHOW_SETTINGS, 'About'),
+          click: () => openSettingsWindow('about'),
         },
       ],
     },
@@ -500,5 +516,10 @@ export function setupWindowIPC(): void {
   // Version
   ipcMain.on(IPC_CHANNELS.GET_VERSION, (event) => {
     event.reply(IPC_CHANNELS.VERSION, app.getVersion());
+  });
+
+  // Flashcard syncing window
+  ipcMain.on(IPC_CHANNELS.FLASHCARD_CONNECT_OPEN, () => {
+    createChildWindow('connect-qr' as WindowType, { width: 600, height: 700 });
   });
 }

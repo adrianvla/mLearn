@@ -1,0 +1,348 @@
+/**
+ * WordHover Component Styles
+ * Matches legacy .subtitle_hover styling exactly
+ */
+
+/* Import shared pill styling */
+@import url('../common/Pill.css');
+
+/* Main container */
+.word-hover-container {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: auto;
+}
+
+/* Hover popup - matches legacy exactly */
+.subtitle_hover {
+  position: relative;
+  height: max-content;
+  background: var(--glass-bg-current);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border-current);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-2);
+  text-align: left;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+  z-index: var(--z-tooltip);
+  box-shadow: var(--shadow-xl);
+  /*box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.8);*/
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-normal);
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  font-family: "Helvetica Neue", "Arial", sans-serif;
+  max-height: 350px;
+  overflow-y: hidden;
+  box-sizing: border-box;
+  text-shadow: none !important;
+  gap: 10px;
+  -webkit-text-stroke: unset !important;
+  width: max-content;
+  min-width: 280px;
+  max-width: 600px;
+}
+
+.subtitle_hover.dark,
+body.dark .subtitle_hover {
+  background-color: rgba(60, 60, 60, 0.5);
+  color: #f3efef;
+}
+
+.subtitle_hover:not(.show-hover) {
+  display: flex;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.subtitle_hover.show-hover {
+  opacity: 1;
+  display: flex;
+}
+
+/* Scrollbar styling */
+.subtitle_hover::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.subtitle_hover::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: auto;
+
+.subtitle_hover:hover::-webkit-scrollbar {
+  opacity: 1;
+}
+
+.subtitle_hover::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+  background-color: #a0a0a080;
+}
+
+body.dark .subtitle_hover .pitch,
+.subtitle_hover.dark .pitch {
+  filter: invert(1);
+}
+
+/* Relative wrapper */
+.subtitle_hover_relative {
+  position: relative;
+  min-width: 100%;
+  width:max-content;
+  overflow-y: hidden;
+  height: 100%;
+}
+
+/* Content area */
+.subtitle_hover_content {
+  padding: 20px;
+  padding-bottom: 65px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  max-height: 350px;
+}
+
+.subtitle_hover .footer {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height:min-content;
+  gap: 10px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  padding: 10px;
+  box-sizing: border-box;
+  background: rgba(184, 184, 184, 0.1);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid #ddd;
+  z-index: 1;
+  width: max-content;
+  min-width: 100%;
+}
+
+body.dark .subtitle_hover .footer,
+.subtitle_hover.dark .footer {
+  border-top: 1px solid #333;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* Pills container in hover */
+.subtitle_hover .pills {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  height:100%;
+  width:100%;
+  min-width: max-content;
+}
+
+/* Pill base style inside hover */
+.subtitle_hover .pill {
+  font-size: 0.8em;
+  font-weight: bold;
+  padding: 5px;
+  text-align: center;
+  padding-inline: 10px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: rgb(255, 60, 170);
+  background-color: rgb(255, 223, 239);
+  box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
+  z-index: 1;
+}
+
+.subtitle_hover .pill .icon {
+  width: max-content;
+  height: max-content;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-right: 5px;
+}
+
+.subtitle_hover .pill .icon img {
+  width: 20px;
+  height: 20px;
+}
+
+/* Pill button */
+.subtitle_hover .pill-btn {
+  cursor: pointer;
+  user-select: none;
+}
+
+.subtitle_hover .pill-btn:hover {
+  filter: brightness(0.9);
+}
+
+body.dark .subtitle_hover .pill,
+.subtitle_hover.dark .pill {
+  box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
+/* Pitch accent pill */
+.subtitle_hover .pill.pitch-accent-pill .mLearn-pitch-accent {
+  --pitch-accent-height: 2px;
+}
+
+.subtitle_hover .pill.pitch-accent-pill .pitch-accent-word {
+  position: relative;
+}
+
+/* Level pills - using attribute selector like legacy */
+.subtitle_hover .pill[level="7"],
+.subtitle_hover .pill.gray {
+  color: rgb(124, 124, 124);
+  background-color: rgb(230, 230, 230);
+}
+
+.subtitle_hover .pill[level="7"] img {
+  filter: hue-rotate(57deg) saturate(0%) brightness(170%);
+  opacity: 0.9;
+}
+
+.subtitle_hover .pill[level="6"],
+.subtitle_hover .pill.yellow {
+  color: rgb(120, 99, 27);
+  background-color: rgb(230, 223, 195);
+}
+
+.subtitle_hover .pill[level="6"] img {
+  filter: hue-rotate(57deg) saturate(200%) brightness(500%);
+  opacity: 0.9;
+}
+
+.subtitle_hover .pill[level="5"] {
+  color: rgb(255, 60, 252);
+  background-color: rgb(254, 223, 255);
+}
+
+.subtitle_hover .pill[level="5"] img {
+  filter: hue-rotate(273deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+.subtitle_hover .pill[level="4"],
+.subtitle_hover .pill.orange {
+  color: rgb(255, 141, 60);
+  background-color: rgb(255, 236, 223);
+}
+
+.subtitle_hover .pill[level="4"] img,
+.subtitle_hover .pill.orange img {
+  filter: hue-rotate(60deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+.subtitle_hover .pill[level="3"],
+.subtitle_hover .pill.green {
+  color: rgb(66, 214, 49);
+  background-color: rgb(219, 243, 213);
+}
+
+.subtitle_hover .pill[level="3"] img,
+.subtitle_hover .pill.green img {
+  filter: hue-rotate(113.82deg) saturate(200%) brightness(150%);
+  opacity: 0.9;
+}
+
+.subtitle_hover .pill[level="2"],
+.subtitle_hover .pill.blue {
+  color: rgb(60, 145, 255);
+  background-color: rgb(223, 244, 255);
+}
+
+.subtitle_hover .pill[level="2"] img,
+.subtitle_hover .pill.blue img {
+  filter: hue-rotate(214deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+.subtitle_hover .pill[level="1"],
+.subtitle_hover .pill.red {
+  color: rgb(255, 60, 89);
+  background-color: rgb(255, 223, 228);
+}
+
+.subtitle_hover .pill[level="1"] img,
+.subtitle_hover .pill.red img {
+  filter: hue-rotate(350deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+/* Dark mode invert */
+body.dark .subtitle_hover .pill,
+.subtitle_hover.dark .pill {
+  filter: invert(1) hue-rotate(180deg) saturate(200%);
+}
+
+/* Reading and translation order */
+.hover_translation {
+  order: 1;
+}
+
+.hover_reading {
+  order: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.hover_loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  color: var(--text-secondary, #888);
+}
+
+/* Horizontal rule */
+.subtitle_hover hr {
+  width: 100%;
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 10px 0;
+}
+
+body.dark .subtitle_hover hr,
+.subtitle_hover.dark hr {
+  border-top-color: #333;
+}
+
+/* Create flashcard button (legacy position) */
+.create_flashcard {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 1em;
+  padding: 5px;
+  border-bottom-left-radius: 5px;
+  background-color: rgba(115, 255, 0, 0.72);
+  border: 0;
+  z-index: -1;
+}
+
+/* Ease indicator */
+.ease-indicator {
+  font-size: 0.8em;
+  color: #888;
+  padding: 5px 10px;
+  background-color: rgba(200, 200, 200, 0.3);
+  border-radius: 10px;
+}
+
+/* Known status modifier */
+.subtitle_hover.known {
+  border-color: rgb(66, 214, 49);
+}

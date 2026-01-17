@@ -8,7 +8,7 @@ import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { Settings, DEFAULT_SETTINGS, LanguageDataMap } from '../../shared/types';
-import { getUserDataPath, getAppPath } from '../utils/platform';
+import { getUserDataPath, getAppPath, getResourcePath } from '../utils/platform';
 
 // Settings file path
 function getSettingsPath(): string {
@@ -49,12 +49,19 @@ export function saveSettings(settings: Settings): void {
 export function loadLangData(): LanguageDataMap {
   const langData: LanguageDataMap = {};
   const appPath = getAppPath();
-  const languagesDir = path.join(appPath, 'languages');
+  const resourcePath = getResourcePath();
+  const candidateDirs = [
+    path.join(appPath, 'languages'),
+    path.join(resourcePath, 'languages'),
+    path.join(appPath, 'root-of-app', 'languages'),
+    path.join(resourcePath, 'root-of-app', 'languages'),
+  ];
+  const languagesDir = candidateDirs.find((dir) => fs.existsSync(dir));
 
   try {
     // Check if languages directory exists
-    if (!fs.existsSync(languagesDir)) {
-      console.warn('Languages directory not found:', languagesDir);
+    if (!languagesDir) {
+      console.warn('Languages directory not found:', candidateDirs.join(', '));
       return getDefaultLangData();
     }
 

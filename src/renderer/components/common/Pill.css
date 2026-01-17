@@ -1,0 +1,258 @@
+/**
+ * Pill Component Styles
+ * Exact match with legacy style.css .pill styling
+ */
+
+/* Base pill style */
+.pill {
+  font-size: 0.8em;
+  font-weight: bold;
+  padding: 5px;
+  text-align: center;
+  padding-inline: 10px;
+  border-radius: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* Default pink/magenta color */
+  color: rgb(255, 60, 170);
+  background-color: rgb(255, 223, 239);
+  box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
+  z-index: 1;
+  position: relative;
+  white-space: nowrap;
+}
+
+/* Pill icon */
+.pill .icon {
+  width: max-content;
+  height: max-content;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-right: 5px;
+}
+
+.pill .icon img {
+  width: 20px;
+  height: 20px;
+}
+
+/* Clickable pill button */
+.pill.pill-btn,
+.pill-btn {
+  cursor: pointer;
+  user-select: none;
+}
+
+.pill.pill-btn:hover {
+  filter: brightness(0.95);
+}
+
+.pill.pill-btn:active {
+  filter: brightness(0.9);
+}
+
+/* Level 1 - Red */
+.pill[data-level="1"],
+.pill[level="1"],
+.pill.red {
+  color: rgb(255, 60, 89);
+  background-color: rgb(255, 223, 228);
+}
+
+.pill[data-level="1"] img,
+.pill[level="1"] img,
+.pill.red img {
+  filter: hue-rotate(350deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+/* Level 2 - Blue */
+.pill[data-level="2"],
+.pill[level="2"],
+.pill.blue {
+  color: rgb(60, 145, 255);
+  background-color: rgb(223, 244, 255);
+}
+
+.pill[data-level="2"] img,
+.pill[level="2"] img,
+.pill.blue img {
+  filter: hue-rotate(214deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+/* Level 3 - Green */
+.pill[data-level="3"],
+.pill[level="3"],
+.pill.green {
+  color: rgb(66, 214, 49);
+  background-color: rgb(219, 243, 213);
+}
+
+.pill[data-level="3"] img,
+.pill[level="3"] img,
+.pill.green img {
+  filter: hue-rotate(113.82deg) saturate(200%) brightness(150%);
+  opacity: 0.9;
+}
+
+/* Level 4 - Orange */
+.pill[data-level="4"],
+.pill[level="4"],
+.pill.orange {
+  color: rgb(255, 141, 60);
+  background-color: rgb(255, 236, 223);
+}
+
+.pill[data-level="4"] img,
+.pill[level="4"] img,
+.pill.orange img {
+  filter: hue-rotate(60deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+/* Level 5 - Purple */
+.pill[data-level="5"],
+.pill[level="5"],
+.pill.purple {
+  color: rgb(255, 60, 252);
+  background-color: rgb(254, 223, 255);
+}
+
+.pill[data-level="5"] img,
+.pill[level="5"] img,
+.pill.purple img {
+  filter: hue-rotate(273deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+/* Level 6 - Yellow */
+.pill[data-level="6"],
+.pill[level="6"],
+.pill.yellow {
+  color: rgb(120, 99, 27);
+  background-color: rgb(230, 223, 195);
+}
+
+.pill[data-level="6"] img,
+.pill[level="6"] img,
+.pill.yellow img {
+  filter: hue-rotate(57deg) saturate(200%) brightness(500%);
+  opacity: 0.9;
+}
+
+/* Level 7 - Gray (unknown/no frequency) */
+.pill[data-level="7"],
+.pill[level="7"],
+.pill.gray {
+  color: rgb(124, 124, 124);
+  background-color: rgb(230, 230, 230);
+}
+
+.pill[data-level="7"] img,
+.pill[level="7"] img,
+.pill.gray img {
+  filter: hue-rotate(57deg) saturate(0%) brightness(170%);
+  opacity: 0.9;
+}
+
+/* Dark mode - invert pills */
+body.dark .pill {
+  filter: invert(1) hue-rotate(180deg) saturate(200%);
+  box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
+/* Pills container */
+.pills {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+/* Smaller pill variant */
+.pill.small {
+  font-size: 0.7em;
+  padding: 3px 8px;
+}
+
+/* Pill group for status indicators */
+.status-pills {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Frequency stars */
+.frequency {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+}
+
+.frequency .star {
+  position: relative;
+  width: 10px;
+  height: 10px;
+}
+
+.frequency .star::before {
+  position: absolute;
+  content: "";
+  width: 10px;
+  height: 10px;
+  background: url(../../assets/icons/star.svg) no-repeat center;
+  background-size: contain;
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0px 0px 10px #ff0000) drop-shadow(1px 1px 0px #100);
+  z-index: -1;
+}
+
+/* Frequency level colors for stars */
+.frequency[data-level="1"] .star,
+.frequency[level="1"] .star {
+  filter: hue-rotate(350deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+.frequency[data-level="2"] .star,
+.frequency[level="2"] .star {
+  filter: hue-rotate(214deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+.frequency[data-level="3"] .star,
+.frequency[level="3"] .star {
+  filter: hue-rotate(113.82deg) saturate(200%) brightness(150%);
+  opacity: 0.9;
+}
+
+.frequency[data-level="4"] .star,
+.frequency[level="4"] .star {
+  filter: hue-rotate(60deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+.frequency[data-level="5"] .star,
+.frequency[level="5"] .star {
+  filter: hue-rotate(273deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+.frequency[data-level="6"] .star,
+.frequency[level="6"] .star {
+  filter: hue-rotate(57deg) saturate(200%) brightness(500%);
+  opacity: 0.9;
+}
+
+.frequency[data-level="7"] .star,
+.frequency[level="7"] .star {
+  filter: hue-rotate(57deg) saturate(0%) brightness(170%);
+  opacity: 0.9;
+}

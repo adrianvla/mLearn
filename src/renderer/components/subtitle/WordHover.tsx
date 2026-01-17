@@ -1,253 +1,371 @@
 /**
  * Word Hover Component
  * Popup that appears when hovering over a word
+ * Matches legacy .subtitle_hover structure exactly from the old app
  */
 
-import { Component, JSX, Show, For, createMemo } from 'solid-js';
-import type { Token, DictionaryEntry } from '../../../shared/types';
-import { GlassPanel } from '../common/GlassPanel';
+import { Component, JSX, Show, For, createMemo, createSignal, createEffect } from 'solid-js';
+import type { Token, DictionaryEntry, TranslationEntry, PitchData } from '../../../shared/types';
 import { useSettings, useFlashcards } from '../../context';
+import './WordHover.css';
+
+// Icon paths - served from static assets
+const ICON_CROSS = 'assets/icons/cross2.svg';
+const ICON_CHECK = 'assets/icons/check.svg';
+const ICON_BOT = 'assets/icons/bot.svg';
+
+export type WordStatus = 'unknown' | 'learning' | 'known';
 
 export interface WordHoverProps {
   token: Token;
+  word: string;
   position: { x: number; y: number };
+  anchorRect?: DOMRect;
   dictionaryEntries?: DictionaryEntry[];
+  translationData?: { data?: (TranslationEntry | PitchData | null | undefined)[] };
+  pitchAccent?: { position?: number; reading?: string };
   isLoading?: boolean;
+  status?: WordStatus;
+  level?: number; // JLPT level (1-5) or frequency level (1-7)
+  isInSRS?: boolean;
+  ease?: number;
+  onStatusChange?: (status: WordStatus) => void;
   onAddFlashcard?: (token: Token, entry?: DictionaryEntry) => void;
+  onAddToSRS?: () => void;
   onPlayAudio?: (word: string) => void;
+  onLLMExplain?: () => void;
   onClose?: () => void;
+  visible?: boolean;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings } = useSettings();
   const { addFlashcard } = useFlashcards();
+  const [placement, setPlacement] = createSignal<'above' | 'below'>('above');
+  const [currentStatus, setCurrentStatus] = createSignal<WordStatus>(props.status || 'unknown');
+  let hoverRef: HTMLDivElement | undefined;
 
   // Helper to get display word
-  const displayWord = () => props.token.surface ?? props.token.word;
+  const displayWord = () => props.word || props.token.surface || props.token.word;
+
+  const isShown = createMemo(() => props.visible !== false);
+
+  // Determine placement (above preferred, flip below if needed)
+  createEffect(() => {
+    const anchor = props.anchorRect;
+    if (!hoverRef || !anchor) return;
+    const run = () => {
+      const h = hoverRef?.offsetHeight || 0;
+      const margin = 12;
+      const shouldPlaceAbove = anchor.top - h - margin >= 0;
+      setPlacement(shouldPlaceAbove ? 'above' : 'below');
+    };
+    requestAnimationFrame(run);
+  });
 
   // Calculate position to keep popup on screen
   const hoverStyle = createMemo((): JSX.CSSProperties => {
-    const padding = 16;
-    const maxWidth = 400;
-    
+    const width = 400;
     let x = props.position.x;
-    let y = props.position.y;
+    const anchor = props.anchorRect;
+    const baseTop = anchor ? anchor.top : props.position.y;
+    const baseBottom = anchor ? anchor.bottom : props.position.y + 16;
+    const y = placement() === 'above' ? baseTop - 8 : baseBottom + 8;
 
     // Adjust if too close to right edge
-    if (typeof window !== 'undefined' && x + maxWidth + padding > window.innerWidth) {
-      x = window.innerWidth - maxWidth - padding;
+    if (typeof window !== 'undefined' && x + width / 2 > window.innerWidth) {
+      x = window.innerWidth - width / 2 - 16;
     }
-
-    // Ensure minimum x
-    if (x < padding) x = padding;
+    if (x - width / 2 < 0) {
+      x = width / 2 + 16;
+    }
 
     return {
       position: 'fixed',
       left: `${x}px`,
       top: `${y}px`,
-      'max-width': `${maxWidth}px`,
-      'min-width': '280px',
+      transform: placement() === 'above' ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
       'z-index': '1000',
-      'pointer-events': 'auto',
     };
   });
+
+  const handleStatusChange = () => {
+    const statusOrder: WordStatus[] = ['unknown', 'learning', 'known'];
+    const currentIdx = statusOrder.indexOf(currentStatus());
+    const nextIdx = (currentIdx + 1) % statusOrder.length;
+    const newStatus = statusOrder[nextIdx];
+    setCurrentStatus(newStatus);
+    props.onStatusChange?.(newStatus);
+  };
 
   const handleAddFlashcard = (entry?: DictionaryEntry) => {
     if (props.onAddFlashcard) {
       props.onAddFlashcard(props.token, entry);
     } else {
-      // Default flashcard creation - pass FlashcardContent
       addFlashcard({
         word: displayWord(),
         pronunciation: props.token.reading || displayWord(),
         translation: entry?.meanings ? [entry.meanings.join('; ')] : undefined,
         definition: props.token.meaning ? [props.token.meaning] : undefined,
-        example: '', // Would need to get from context
+        example: '',
         exampleMeaning: '',
         pos: props.token.partOfSpeech ?? props.token.type ?? '',
-        level: 0,
+        level: props.level ?? 0,
       });
     }
   };
 
-  const AddIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
+  const handleAddToSRS = () => {
+    props.onAddToSRS?.();
+  };
 
-  const SpeakerIcon = () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M11 5L6 9H2v6h4l5 4V5z" />
-      <path d="M15.54 8.46a5 5 0 010 7.07" />
-    </svg>
-  );
+  const handleLLMExplain = () => {
+    props.onLLMExplain?.();
+  };
 
-  return (
-    <div style={hoverStyle()} class="word-hover-container">
-      <GlassPanel variant="dark" blur="lg" rounded="lg" padding="md">
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            'align-items': 'center',
-            'justify-content': 'space-between',
-            'margin-bottom': '0.75rem',
-            'padding-bottom': '0.5rem',
-            'border-bottom': '1px solid var(--glass-border)',
-          }}
-        >
-          <div style={{ display: 'flex', 'align-items': 'center', gap: '0.75rem' }}>
-            <span
-              style={{
-                'font-size': '1.5rem',
-                'font-weight': '600',
-                color: 'var(--text-primary)',
-              }}
-            >
-              {displayWord()}
-            </span>
-            <Show when={props.token.reading && props.token.reading !== displayWord()}>
-              <span style={{ color: 'var(--text-secondary)', 'font-size': '1rem' }}>
-                ({props.token.reading})
-              </span>
-            </Show>
-          </div>
-          
-          <div style={{ display: 'flex', gap: '0.25rem' }}>
-            <Show when={props.onPlayAudio}>
-              <button
-                class="glass-button-ghost"
-                style={{
-                  padding: '0.375rem',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                }}
-                onClick={() => props.onPlayAudio?.(displayWord())}
-                aria-label="Play audio"
-              >
-                <SpeakerIcon />
-              </button>
-            </Show>
-            <button
-              class="glass-button-ghost"
-              style={{
-                padding: '0.375rem',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-              }}
-              onClick={() => handleAddFlashcard()}
-              aria-label="Add flashcard"
-            >
-              <AddIcon />
-            </button>
+  // Translation entries (legacy shows all definitions/readings returned by backend)
+  const translationEntries = createMemo<TranslationEntry[]>(() => {
+    const data = props.translationData?.data || [];
+    const entries: TranslationEntry[] = [];
+    for (const item of data) {
+      if (!item || typeof item !== 'object') continue;
+      const entry = item as TranslationEntry;
+      if (entry.definitions) entries.push(entry);
+    }
+    return entries;
+  });
+
+
+  // Get POS type
+  const posType = () => props.token.partOfSpeech || props.token.type || '';
+
+  // Map legacy JLPT levels to display names
+  const levelDisplayMap: { [key: number]: string } = {
+    1: 'JLPT N1',
+    2: 'JLPT N2',
+    3: 'JLPT N3',
+    4: 'JLPT N4',
+    5: 'JLPT N5',
+    6: 'N0',
+    7: '10K',
+  };
+
+  // Status pill component - matches legacy HTML exactly
+  const StatusPill = () => {
+    const status = currentStatus();
+
+    if (status === 'unknown') {
+      return (
+        <div class="pill pill-btn red" onClick={handleStatusChange}>
+          <span class="icon">
+            <img src={ICON_CROSS} alt="" />
+          </span>
+          <span>Unknown</span>
+        </div>
+      );
+    } else if (status === 'learning') {
+      return (
+        <div class="pill pill-btn orange" onClick={handleStatusChange}>
+          <span class="icon">
+            <img src={ICON_CHECK} alt="" />
+          </span>
+          <span>Learning</span>
+        </div>
+      );
+    } else {
+      return (
+        <div class="pill pill-btn green" onClick={handleStatusChange}>
+          <span class="icon">
+            <img src={ICON_CHECK} alt="" />
+          </span>
+          <span>Known</span>
+        </div>
+      );
+    }
+  };
+
+  // Level pill - matches legacy with level attribute for CSS styling
+  const LevelPill = () => {
+    const level = props.level;
+    if (level === undefined || level < 0) return null;
+
+    const levelName = levelDisplayMap[level] || `${level}`;
+
+    return (
+      <div class="pill" attr:level={level}>
+        {levelName}
+      </div>
+    );
+  };
+
+  // POS pill - matches legacy
+  const POSPill = () => {
+    const pos = posType();
+    if (!pos || !settings.show_pos) return null;
+
+    return <div class="pill">{pos}</div>;
+  };
+
+  // Flashcard pill - matches legacy exactly
+  const FlashcardPill = () => {
+    if (props.isInSRS) {
+      return (
+        <div class="pill pill-btn green">
+          <span class="icon">
+            <img src={ICON_CHECK} alt="" />
+          </span>
+          <span>Tracked</span>
+        </div>
+      );
+    }
+
+    return (
+      <div class="pill pill-btn blue" onClick={handleAddToSRS}>
+        <span class="icon">
+          <img src={ICON_CROSS} alt="" style={{ transform: 'rotate(45deg)' }} />
+        </span>
+        <span>Flashcard</span>
+      </div>
+    );
+  };
+
+  // Ease indicator - matches legacy
+  const EasePill = () => {
+    if (props.ease === undefined) return null;
+
+    return (
+      <div class="ease-indicator">
+        <span>Ease: {Math.round(props.ease * 100) / 100}</span>
+      </div>
+    );
+  };
+
+  // LLM Explain pill - matches legacy
+  const LLMPill = () => {
+    return (
+      <div class="pill pill-btn blue" onClick={handleLLMExplain}>
+        <span class="icon">
+          <img src={ICON_BOT} alt="" />
+        </span>
+        <span>Explain</span>
+      </div>
+    );
+  };
+
+  // Pitch accent pill - matches legacy with visual diagram
+  const PitchAccentPill = () => {
+    const pitch = props.pitchAccent;
+    if (!pitch || !pitch.reading || settings.language !== 'ja') return null;
+    if (!settings.showPitchAccent) return null;
+
+    return (
+      <div class="pill gray pitch-accent-pill">
+        <div class="pitch-accent-word">
+          {pitch.reading}✦
+          <div class="mLearn-pitch-accent" aria-hidden="true">
+            {/* Pitch accent visualization would go here */}
           </div>
         </div>
+      </div>
+    );
+  };
 
-        {/* Part of speech */}
-        <Show when={props.token.partOfSpeech}>
-          <div
-            style={{
-              'font-size': '0.75rem',
-              color: 'var(--text-secondary)',
-              'margin-bottom': '0.5rem',
-              'text-transform': 'capitalize',
-            }}
-          >
-            {props.token.partOfSpeech}
-          </div>
-        </Show>
+  // Frequency stars - matches legacy
+  const FrequencyStars = () => {
+    const level = props.level;
+    if (level === undefined || level < 1 || level > 5) return null;
 
-        {/* Loading state */}
-        <Show when={props.isLoading}>
-          <div
-            style={{
-              display: 'flex',
-              'align-items': 'center',
-              'justify-content': 'center',
-              padding: '1rem',
-              color: 'var(--text-secondary)',
-            }}
-          >
-            Loading...
-          </div>
-        </Show>
+    return (
+      <span class="frequency" attr:level={level}>
+        <For each={Array(level).fill(0)}>
+          {() => <span class="star"></span>}
+        </For>
+      </span>
+    );
+  };
 
-        {/* Dictionary entries */}
-        <Show when={props.dictionaryEntries && props.dictionaryEntries.length > 0}>
-          <div style={{ display: 'flex', 'flex-direction': 'column', gap: '0.75rem' }}>
-            <For each={props.dictionaryEntries}>
-              {(entry, index) => (
-                <div
-                  style={{
-                    'padding-top': index() > 0 ? '0.75rem' : '0',
-                    'border-top': index() > 0 ? '1px solid var(--glass-border)' : 'none',
-                  }}
-                >
-                  {/* Tags */}
-                  <Show when={entry.tags && entry.tags.length > 0}>
-                    <div style={{ display: 'flex', gap: '0.25rem', 'flex-wrap': 'wrap', 'margin-bottom': '0.375rem' }}>
-                      <For each={entry.tags}>
-                        {(tag) => (
-                          <span
-                            class="pill"
-                            style={{
-                              'font-size': '0.625rem',
-                              padding: '0.125rem 0.375rem',
-                            }}
-                          >
-                            {tag}
-                          </span>
-                        )}
-                      </For>
-                    </div>
-                  </Show>
+  return (
+    <div
+      class="word-hover-container"
+      style={hoverStyle()}
+      ref={hoverRef}
+      onMouseEnter={() => props.onMouseEnter?.()}
+      onMouseLeave={() => props.onMouseLeave?.()}
+    >
+      <div class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${settings.dark_mode ? 'dark' : ''}`}>
+        <div class="subtitle_hover_relative">
+          <div class="subtitle_hover_content">
+            {/* Loading state */}
+            <Show when={props.isLoading}>
+              <div class="hover_loading">Loading...</div>
+            </Show>
 
-                  {/* Meanings */}
-                  <div style={{ 'font-size': '0.875rem', color: 'var(--text-primary)' }}>
-                    <For each={entry.meanings}>
-                      {(meaning, mIndex) => (
-                        <div style={{ 'margin-bottom': '0.25rem' }}>
-                          <span style={{ color: 'var(--text-secondary)', 'margin-right': '0.5rem' }}>
-                            {mIndex() + 1}.
-                          </span>
-                          {meaning}
-                        </div>
-                      )}
-                    </For>
-                  </div>
+            {/* Translation content - matches legacy order */}
+            <Show when={!props.isLoading}>
+              <Show when={translationEntries().length > 0}>
+                <For each={translationEntries()}>
+                  {(entry, index) => (
+                    <>
+                      <Show when={index() > 0}>
+                        <hr />
+                      </Show>
+                      <div class="hover_translation">
+                        {Array.isArray(entry.definitions)
+                          ? entry.definitions.join('; ')
+                          : String(entry.definitions)}
+                      </div>
+                      <Show when={entry.reading}>
+                        <div class="hover_reading">{entry.reading}</div>
+                      </Show>
+                    </>
+                  )}
+                </For>
+              </Show>
 
-                  {/* Add this entry button */}
-                  <button
-                    class="glass-button-ghost"
-                    style={{
-                      'font-size': '0.75rem',
-                      padding: '0.25rem 0.5rem',
-                      'margin-top': '0.25rem',
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => handleAddFlashcard(entry)}
-                  >
-                    <AddIcon /> Add with this meaning
-                  </button>
-                </div>
-              )}
-            </For>
-          </div>
-        </Show>
+              {/* Dictionary entries - additional meanings if provided */}
+              <Show when={translationEntries().length === 0 && props.dictionaryEntries && props.dictionaryEntries.length > 0}>
+                <For each={props.dictionaryEntries}>
+                  {(entry, index) => (
+                    <>
+                      <Show when={index() > 0}>
+                        <hr />
+                      </Show>
+                      <div class="hover_translation">
+                        {entry.meanings?.join('; ')}
+                      </div>
+                      <Show when={entry.reading}>
+                        <div class="hover_reading">{entry.reading}</div>
+                      </Show>
+                    </>
+                  )}
+                </For>
+              </Show>
 
-        {/* No results */}
-        <Show when={!props.isLoading && (!props.dictionaryEntries || props.dictionaryEntries.length === 0)}>
-          <div style={{ color: 'var(--text-secondary)', 'font-size': '0.875rem' }}>
-            <Show when={props.token.meaning} fallback="No dictionary entries found">
-              {props.token.meaning}
+              {/* No results fallback */}
+              <Show when={translationEntries().length === 0 && (!props.dictionaryEntries || props.dictionaryEntries.length === 0)}>
+                <div class="hover_translation">No translation found</div>
+              </Show>
             </Show>
           </div>
-        </Show>
-      </GlassPanel>
+
+          {/* Footer with pills - matches legacy .footer structure */}
+          <div class="footer">
+            <div class="pills">
+              <PitchAccentPill />
+              <LevelPill />
+              <POSPill />
+              <StatusPill />
+              <FlashcardPill />
+              <Show when={props.isInSRS}>
+                <EasePill />
+              </Show>
+              <LLMPill />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

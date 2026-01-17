@@ -180,7 +180,7 @@ export interface Token {
 // ============================================================================
 
 export interface TranslationEntry {
-  definitions: string[];
+  definitions: string | string[];  // Backend may return string or array
   reading: string;
   word?: string;
 }

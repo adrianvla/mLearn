@@ -8,3 +8,5 @@ export { GlassButton, IconButton, type GlassButtonProps, type IconButtonProps } 
 export { GlassCard, type GlassCardProps } from './GlassCard';
 export { GlassModal, ConfirmDialog, type GlassModalProps, type ConfirmDialogProps } from './GlassModal';
 export { GlassInput, GlassTextarea, GlassSelect, type GlassInputProps, type GlassTextareaProps, type GlassSelectProps } from './GlassInput';
+export { Pill, type PillProps } from './Pill';
+export { StatusPill, type StatusPillProps } from './StatusPill';

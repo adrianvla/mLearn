@@ -2,20 +2,22 @@
  * Subtitle Styles
  */
 
+/* Import shared pill styling (with legacy level colors) */
+@import url('../components/common/Pill.css');
+
 /* ========== Subtitle Container ========== */
 .subtitles {
   position: fixed;
   bottom: 120px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 90%;
+  width:100%;
   text-align: center;
   font-family: var(--font-family-japanese);
   font-size: var(--subtitle-font-size);
   font-weight: var(--subtitle-font-weight);
   line-height: 1.6;
   z-index: 10;
-  transition: opacity var(--transition-normal);
+  transition: bottom 0.3s, opacity 0.1s;
+  opacity: 1;
   user-select: none;
 }
 
@@ -25,31 +27,45 @@
 }
 
 .subtitles.quick-transition {
-  transition: opacity 0.1s;
+  transition: bottom 0.3s, opacity 0s;
 }
 
-/* ========== Subtitle Themes ========== */
+/* ========== Subtitle Themes - matches legacy exactly ========== */
+
+/* Shadow theme - clean text shadow like legacy */
+.subtitles.theme-shadow {
+  text-shadow: 0 0 1px #000000, 0 0 3px #000000, 0 0 5px #000000, 1px 1px 0 rgba(0, 0, 0, 0.4);
+  font-family: "Helvetica Neue", "Noto Sans JP", sans-serif;
+}
+
 .subtitles.theme-shadow .subtitle_word {
-  text-shadow: 
-    2px 2px 4px rgba(0, 0, 0, 0.8),
-    -1px -1px 2px rgba(0, 0, 0, 0.5),
-    1px -1px 2px rgba(0, 0, 0, 0.5),
-    -1px 1px 2px rgba(0, 0, 0, 0.5);
+  text-shadow: inherit;
+}
+
+/* Background theme - translucent box like legacy */
+.subtitles.theme-background {
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.4);
+  font-family: "Helvetica Neue", "Noto Sans JP", sans-serif;
 }
 
 .subtitles.theme-background .subtitle_word {
-  background: rgba(0, 0, 0, 0.75);
-  padding: 2px 4px;
-  border-radius: 4px;
+  /* No individual styling needed - container handles it */
+}
+
+/* Marker theme - highlighter effect like legacy */
+.subtitles.theme-marker {
+  text-shadow: 0px 0px 10px #000000, rgba(0, 0, 0, 0.8) 0 30px 25px;
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.5);
+  font-weight: bolder;
+  font-family: "Rounded", "Helvetica Neue", sans-serif;
 }
 
 .subtitles.theme-marker .subtitle_word {
-  background: linear-gradient(to top, rgba(255, 230, 0, 0.4) 40%, transparent 40%);
-}
-
-body:not(.dark) .subtitles.theme-marker .subtitle_word {
-  background: linear-gradient(to top, rgba(255, 230, 0, 0.6) 40%, transparent 40%);
-  color: #111;
+  text-shadow: inherit;
+  -webkit-text-stroke: inherit;
 }
 
 /* ========== Subtitle Word ========== */
@@ -157,89 +173,74 @@ body:not(.dark) .subtitles.theme-marker .subtitle_word {
 .frequency[level="1"] .star { color: var(--freq-level-1); }
 
 /* ========== Hover Element ========== */
-.subtitle_hover {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--glass-bg-current);
-  backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border-current);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-4);
-  min-width: 200px;
-  max-width: 400px;
-  margin-bottom: var(--spacing-2);
-  text-align: left;
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-normal);
-  z-index: var(--z-tooltip);
-  box-shadow: var(--shadow-xl);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--transition-normal);
-}
+/*.subtitle_hover {*/
+/*  position: absolute;*/
+/*  bottom: 100%;*/
+/*  left: 50%;*/
+/*  transform: translateX(-50%);*/
+/*  background: var(--glass-bg-current);*/
+/*  backdrop-filter: blur(var(--glass-blur));*/
+/*  border: 1px solid var(--glass-border-current);*/
+/*  border-radius: var(--radius-lg);*/
+/*  min-width: 200px;*/
+/*  max-width: 400px;*/
+/*  margin-bottom: var(--spacing-2);*/
+/*  text-align: left;*/
+/*  font-size: var(--font-size-base);*/
+/*  font-weight: var(--font-weight-normal);*/
+/*  z-index: var(--z-tooltip);*/
+/*  box-shadow: var(--shadow-xl);*/
+/*  opacity: 0;*/
+/*  pointer-events: none;*/
+/*  transition: opacity var(--transition-normal);*/
+/*}*/
 
-.subtitle_word:hover .subtitle_hover,
-.subtitle_hover.visible {
-  opacity: 1;
-  pointer-events: auto;
-}
+/*.subtitle_word:hover .subtitle_hover,*/
+/*.subtitle_hover.visible {*/
+/*  opacity: 1;*/
+/*  pointer-events: auto;*/
+/*}*/
 
-.subtitle_hover_relative {
-  position: relative;
-}
+/*.subtitle_hover_relative {*/
+/*  position: relative;*/
+/*}*/
 
-.subtitle_hover_content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
-}
+/*.subtitle_hover_content {*/
+/*  display: flex;*/
+/*  flex-direction: column;*/
+/*  gap: var(--spacing-2);*/
+/*}*/
 
-.hover_translation {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
+/*.hover_translation {*/
+/*  font-size: var(--font-size-sm);*/
+/*  color: var(--color-text-secondary);*/
+/*}*/
 
-.hover_reading {
-  font-size: var(--font-size-lg);
-  font-family: var(--font-family-japanese);
-}
+/*.hover_reading {*/
+/*  font-size: var(--font-size-lg);*/
+/*  font-family: var(--font-family-japanese);*/
+/*}*/
 
-/* ========== Pills ========== */
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: var(--spacing-1) var(--spacing-2);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
+/*!* ========== Subtitle Pills ========== *!*/
+/*!* Base .pill styles imported from Pill.css *!*/
 
-.pill.primary { background: rgba(74, 144, 217, 0.2); border-color: rgba(74, 144, 217, 0.3); }
-.pill.success { background: rgba(46, 204, 113, 0.2); border-color: rgba(46, 204, 113, 0.3); }
-.pill.warning { background: rgba(241, 196, 15, 0.2); border-color: rgba(241, 196, 15, 0.3); }
-.pill.error { background: rgba(231, 76, 60, 0.2); border-color: rgba(231, 76, 60, 0.3); }
-.pill.gray { background: rgba(150, 150, 150, 0.2); border-color: rgba(150, 150, 150, 0.3); }
+/*!* Pill button with inner button *!*/
+/*.subtitle_hover .pill button,*/
+/*.contains_pills .pill button {*/
+/*  display: flex;*/
+/*  align-items: center;*/
+/*  justify-content: center;*/
+/*  width: 16px;*/
+/*  height: 16px;*/
+/*  padding: 0;*/
+/*  border-radius: 50%;*/
+/*  background: rgba(255, 255, 255, 0.1);*/
+/*  transition: background var(--transition-fast);*/
+/*}*/
 
-.pill button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  transition: background var(--transition-fast);
-}
-
-.pill button:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
+/*.pill button:hover {*/
+/*  background: rgba(255, 255, 255, 0.2);*/
+/*}*/
 
 /* ========== Pitch Accent Pill ========== */
 .pitch-accent-pill {

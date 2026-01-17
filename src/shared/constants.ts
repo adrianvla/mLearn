@@ -124,6 +124,8 @@ export const WINDOW_TYPES = {
   UPDATE: 'update',
   KANJI_GRID: 'kanji-grid',
   WORD_DB_EDITOR: 'word-db-editor',
+  LICENSES: 'licenses',
+  CONNECT_QR: 'connect-qr',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];

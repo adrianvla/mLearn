@@ -1,0 +1,108 @@
+/**
+ * OCR Overlay Styles
+ * Styles for text region overlays on images
+ */
+
+.ocr-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.ocr-box {
+  position: absolute;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #ffffff;
+  color: #000000;
+  border-radius: 2px;
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  overflow: hidden;
+}
+
+.ocr-box:hover,
+.ocr-box.hovered {
+  opacity: 1;
+}
+
+.ocr-text {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1.1;
+  padding: 2px;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.ocr-text.vertical {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.ocr-word {
+  display: inline-block;
+  pointer-events: auto;
+}
+
+/* Loading state for OCR */
+.ocr-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+
+.ocr-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: rgba(100, 200, 255, 0.8);
+  border-radius: 50%;
+  animation: ocr-spin 1s linear infinite;
+}
+
+.ocr-loading-text {
+  margin-top: 12px;
+  color: white;
+  font-size: 14px;
+}
+
+.ocr-progress-bar {
+  width: 200px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.ocr-progress-bar .bar {
+  height: 100%;
+  background: rgba(100, 200, 255, 0.8);
+  transition: width 0.2s ease;
+}
+
+@keyframes ocr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Dark mode adjustments */
+body.dark .ocr-box {
+  background: #ffffff;
+  color: #000000;
+}

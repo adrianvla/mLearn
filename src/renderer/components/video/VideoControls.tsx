@@ -84,6 +84,8 @@ export interface VideoControlsProps {
   video: ReturnType<typeof useVideo>;
   subtitles: ReturnType<typeof useSubtitles>;
   containerRef?: HTMLDivElement;
+  /** Whether controls should be visible (from cursor visibility hook) */
+  isControlsVisible?: boolean;
 }
 
 export const VideoControls: Component<VideoControlsProps> = (props) => {
@@ -95,6 +97,11 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
   const [isDragging, setIsDragging] = createSignal(false);
 
   const state = () => props.video.state();
+  
+  // Controls visible if: mouse moved recently, OR hovering controls, OR video paused
+  const shouldShowControls = () => {
+    return (props.isControlsVisible ?? true) || isHovered() || !state().isPlaying;
+  };
 
   // Volume icon based on level
   const VolumeIcon = createMemo(() => {
@@ -139,9 +146,9 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
     bottom: '0',
     left: '0',
     right: '0',
-    opacity: isHovered() || !state().isPlaying ? '1' : '0',
+    opacity: shouldShowControls() ? '1' : '0',
     transition: 'opacity 0.3s ease',
-    'pointer-events': isHovered() || !state().isPlaying ? 'auto' : 'none',
+    'pointer-events': shouldShowControls() ? 'auto' : 'none',
   });
 
   const buttonStyle: JSX.CSSProperties = {

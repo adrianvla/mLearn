@@ -32,6 +32,7 @@ let serverLoaded = false;
 let installInProgress = false;
 let waitingForInstallChoice = false;
 let pendingInstallOptions: InstallOptions = { includeLLM: true, includeOCR: true };
+let serverLoadCheckInterval: NodeJS.Timeout | null = null;
 
 // Paths
 const resPath = getResourcePath();
@@ -239,6 +240,31 @@ function pingPythonServer(callback: (running: boolean) => void): void {
   req.end();
 }
 
+function startServerReadyPolling(): void {
+  if (serverLoadCheckInterval) {
+    clearInterval(serverLoadCheckInterval);
+  }
+
+  serverLoadCheckInterval = setInterval(() => {
+    if (serverLoaded) {
+      clearInterval(serverLoadCheckInterval!);
+      serverLoadCheckInterval = null;
+      return;
+    }
+
+    pingPythonServer((running) => {
+      if (!running) return;
+
+      serverLoaded = true;
+      getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_LOAD, 'Python server running');
+      if (serverLoadCheckInterval) {
+        clearInterval(serverLoadCheckInterval);
+        serverLoadCheckInterval = null;
+      }
+    });
+  }, 750);
+}
+
 // Start Python backend
 function pythonFound(): void {
   console.log('Python found, starting backend...');
@@ -285,16 +311,15 @@ function pythonFound(): void {
     try {
       getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, 'stderr: ' + data.toString('utf8'));
     } catch (e) { /* ignore */ }
-
-    pingPythonServer((running) => {
-      if (!running) return;
-      getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_LOAD, 'Python server running');
-      serverLoaded = true;
-    });
   };
 
   const handleClose = (code: number | null): void => {
     console.log(`Python process exited with code ${code}`);
+    serverLoaded = false;
+    if (serverLoadCheckInterval) {
+      clearInterval(serverLoadCheckInterval);
+      serverLoadCheckInterval = null;
+    }
     getMainWindow()?.webContents.send(
       IPC_CHANNELS.SERVER_CRITICAL_ERROR,
       `Critical error: Python server stopped (exit code: ${code}). App restart may be required.`
@@ -324,6 +349,8 @@ function pythonFound(): void {
       env: process.env,
     });
   }
+
+  startServerReadyPolling();
 
   pythonChildProcess.stdout?.on('data', handleSTDOUT);
   pythonChildProcess.stderr?.on('data', handleSTDERR);

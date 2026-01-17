@@ -262,12 +262,30 @@ export function useSubtitles() {
     setCurrentIndex(idx);
     setIsTokenizing(true);
 
+    const buildFallbackTokens = (text: string): Token[] => {
+      const trimmed = text.trim();
+      if (!trimmed) return [];
+      return trimmed
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((word) => ({
+          word,
+          actual_word: word,
+          type: '',
+          surface: word,
+        }));
+    };
+
     try {
       const newTokens = await tokenize(sub.text);
-      setTokens(newTokens);
+      if (Array.isArray(newTokens) && newTokens.length > 0) {
+        setTokens(newTokens);
+      } else {
+        setTokens(buildFallbackTokens(sub.text));
+      }
     } catch (e) {
       console.error('Tokenization failed:', e);
-      setTokens([]);
+      setTokens(buildFallbackTokens(sub.text));
     } finally {
       setIsTokenizing(false);
     }

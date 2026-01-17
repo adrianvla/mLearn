@@ -5,27 +5,17 @@
  */
 
 import { Component, createSignal, For, Show } from 'solid-js';
-import { WindowWrapper } from '../../context';
-import { GlassButton } from '../../components/common';
+import { WindowWrapper, useLanguage } from '../../context';
 import {
   getWordsLearnedInApp,
   setWordStatus,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
+import { SearchBar, EntriesHeader, WordEntryRow, type WordEntry } from './components';
 import './wordDbEditor.css';
 
-interface WordEntry {
-  uuid: string;
-  word: string;
-  translation: string;
-  reading: string;
-  level: number;
-  tracker: string;
-  status: number;
-  fullTranslation?: string;
-}
-
 const WordDbEditorContent: Component = () => {
+  const { wordFrequency, isLoading: isLangLoading } = useLanguage();
   const [searchQuery, setSearchQuery] = createSignal('');
   const [entries, setEntries] = createSignal<WordEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = createSignal<WordEntry[]>([]);
@@ -46,33 +36,46 @@ const WordDbEditorContent: Component = () => {
     [-1]: 'Unlisted',
   };
 
-  // Load all words
+  // Load all words from word frequency data
   const loadAllWords = async () => {
     setIsLoading(true);
     setLoadProgress(0);
     
     try {
+      // Get tracked words (uuid -> status)
       const trackedWords = getWordsLearnedInApp();
       const wordEntries: WordEntry[] = [];
-      const uuids = Object.keys(trackedWords);
       
-      for (let i = 0; i < uuids.length; i++) {
-        const uuid = uuids[i];
-        const status = trackedWords[uuid];
+      // Get words from word frequency data (from langData)
+      const freqWords = Object.entries(wordFrequency);
+      const totalWords = freqWords.length;
+      
+      if (totalWords === 0) {
+        console.warn('No word frequency data available');
+        setEntries([]);
+        setFilteredEntries([]);
+        return;
+      }
+      
+      for (let i = 0; i < totalWords; i++) {
+        const [word, freqEntry] = freqWords[i];
+        const uuid = word; // Use word as UUID
+        const status = trackedWords[uuid] ?? WORD_STATUS.UNKNOWN;
         
-        // In a real implementation, we'd fetch word data from the backend
-        // For now, create placeholder entries
         wordEntries.push({
           uuid,
-          word: `Word ${i + 1}`, // Would be actual word from lookup
-          translation: 'Translation', // Would be fetched
-          reading: '',
-          level: -1,
+          word,
+          translation: '', // Would need API call to get translation
+          reading: freqEntry.reading || '',
+          level: freqEntry.raw_level ?? -1,
           tracker: status === WORD_STATUS.KNOWN ? 'flashcards' : 'nothing',
           status,
         });
         
-        setLoadProgress(Math.floor((i / uuids.length) * 100));
+        // Update progress every 100 words
+        if (i % 100 === 0) {
+          setLoadProgress(Math.floor((i / totalWords) * 100));
+        }
       }
       
       setEntries(wordEntries);
@@ -176,61 +179,24 @@ const WordDbEditorContent: Component = () => {
   return (
     <div class="word-db-editor">
       {/* Search Bar */}
-      <div class="search-bar">
-        <input
-          type="text"
-          class="glass-input search-input"
-          placeholder="Search word..."
-          value={searchQuery()}
-          onInput={(e) => setSearchQuery(e.currentTarget.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-        />
-        <GlassButton onClick={handleSearch}>Search</GlassButton>
-        <GlassButton onClick={loadAllWords} disabled={isLoading()}>
-          Load All
-        </GlassButton>
-        
-        <Show when={isLoading()}>
-          <div class="load-progress">
-            <div class="bar" style={{ width: `${loadProgress()}%` }} />
-          </div>
-        </Show>
-        
-        <select
-          class="glass-select level-select"
-          value={selectedLevel() ?? ''}
-          onChange={(e) => {
-            const val = e.currentTarget.value;
-            setSelectedLevel(val ? parseInt(val) : null);
-          }}
-        >
-          <option value="">All Levels</option>
-          <For each={Object.entries(levelNames)}>
-            {([level, name]) => <option value={level}>{name}</option>}
-          </For>
-        </select>
-        
-        <span class="hint">
-          Enter to search; exact matches prioritized. Press Load All first.
-        </span>
-      </div>
+      <SearchBar
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        selectedLevel={selectedLevel}
+        setSelectedLevel={setSelectedLevel}
+        isLoading={isLoading}
+        loadProgress={loadProgress}
+        levelNames={levelNames}
+        onSearch={handleSearch}
+        onLoadAll={loadAllWords}
+      />
 
       {/* Table Header */}
-      <div class="entries-header">
-        <div class="col word" onClick={() => handleSort('word')}>
-          Word {sortKey() === 'word' && (sortDir() === 1 ? '▲' : '▼')}
-        </div>
-        <div class="col translation" onClick={() => handleSort('translation')}>
-          Translation {sortKey() === 'translation' && (sortDir() === 1 ? '▲' : '▼')}
-        </div>
-        <div class="col level" onClick={() => handleSort('level')}>
-          Level {sortKey() === 'level' && (sortDir() === 1 ? '▲' : '▼')}
-        </div>
-        <div class="col tracker">Tracked By</div>
-        <div class="col status" onClick={() => handleSort('status')}>
-          Status {sortKey() === 'status' && (sortDir() === 1 ? '▲' : '▼')}
-        </div>
-      </div>
+      <EntriesHeader
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSort={handleSort}
+      />
 
       {/* Entries List */}
       <div class="entries-list">
@@ -242,68 +208,13 @@ const WordDbEditorContent: Component = () => {
         
         <For each={filteredEntries()}>
           {(entry) => (
-            <div class="entry">
-              <div class="col word">
-                <span>{entry.word}</span>
-                <Show when={entry.reading}>
-                  <span class="reading">{entry.reading}</span>
-                </Show>
-              </div>
-              <div class="col translation" title={entry.fullTranslation}>
-                {entry.translation}
-              </div>
-              <div class="col level">
-                <Show when={entry.level >= 0}>
-                  <span class="pill" data-level={entry.level}>
-                    {levelNames[entry.level] || `Level ${entry.level}`}
-                  </span>
-                </Show>
-                <Show when={entry.level < 0}>-</Show>
-              </div>
-              <div class="col tracker">
-                <span class="tracker-label">{entry.tracker}</span>
-                <Show when={entry.tracker === 'flashcards'}>
-                  <GlassButton
-                    variant="danger"
-                    size="sm"
-                    onClick={() => handleRemoveFlashcard(entry)}
-                  >
-                    Remove
-                  </GlassButton>
-                </Show>
-                <Show when={entry.tracker !== 'flashcards'}>
-                  <GlassButton
-                    variant="primary"
-                    size="sm"
-                    onClick={() => handleAddFlashcard(entry)}
-                  >
-                    Add
-                  </GlassButton>
-                </Show>
-              </div>
-              <div class="col status">
-                <div class="status-pills">
-                  <button
-                    class={`status-pill ${entry.status === WORD_STATUS.UNKNOWN ? 'active' : ''} status-unknown`}
-                    onClick={() => handleStatusChange(entry, WORD_STATUS.UNKNOWN)}
-                  >
-                    Unknown
-                  </button>
-                  <button
-                    class={`status-pill ${entry.status === WORD_STATUS.LEARNING ? 'active' : ''} status-learning`}
-                    onClick={() => handleStatusChange(entry, WORD_STATUS.LEARNING)}
-                  >
-                    Learning
-                  </button>
-                  <button
-                    class={`status-pill ${entry.status === WORD_STATUS.KNOWN ? 'active' : ''} status-learned`}
-                    onClick={() => handleStatusChange(entry, WORD_STATUS.KNOWN)}
-                  >
-                    Learned
-                  </button>
-                </div>
-              </div>
-            </div>
+            <WordEntryRow
+              entry={entry}
+              levelNames={levelNames}
+              onStatusChange={handleStatusChange}
+              onAddFlashcard={handleAddFlashcard}
+              onRemoveFlashcard={handleRemoveFlashcard}
+            />
           )}
         </For>
       </div>
