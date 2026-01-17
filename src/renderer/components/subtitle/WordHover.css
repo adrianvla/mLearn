@@ -74,6 +74,7 @@ body.dark .subtitle_hover {
   opacity: 0;
   transition: opacity 0.3s;
   pointer-events: auto;
+}
 
 .subtitle_hover:hover::-webkit-scrollbar {
   opacity: 1;
@@ -304,7 +305,7 @@ body.dark .subtitle_hover .pill,
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  color: var(--text-secondary, #888);
+  color: #888;
 }
 
 /* Horizontal rule */
