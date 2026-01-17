@@ -3,7 +3,8 @@
  * Top navigation bar for the reader with controls
  */
 
-import { Component, Show, Accessor } from 'solid-js';
+import { Component, Accessor } from 'solid-js';
+import './ReaderNav.css';
 
 interface ReaderNavProps {
   bookTitle: Accessor<string>;
@@ -56,16 +57,6 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
           <option value="double">Double Page</option>
           <option value="single">Single Page</option>
         </select>
-
-        <Show when={props.hasOcrResult()}>
-          <button
-            class={`nav-btn ocr-toggle ${props.showOcrOverlay() ? 'active' : ''}`}
-            onClick={props.onToggleOcrOverlay}
-            title={props.showOcrOverlay() ? 'Hide OCR Overlay' : 'Show OCR Overlay'}
-          >
-            👁
-          </button>
-        </Show>
       </div>
       
       <div class="nav-group nav-arrows">

@@ -3,9 +3,21 @@
  * Individual word/token in a subtitle with hover and click functionality
  */
 
-import { Component, JSX, createMemo, Show } from 'solid-js';
+import { Component, createMemo, Show } from 'solid-js';
 import type { Token } from '../../../shared/types';
 import { useSettings, useLanguage } from '../../context';
+import type { JSX } from 'solid-js/jsx-runtime';
+
+// Check if a word contains kanji (needs furigana)
+function containsKanji(word: string): boolean {
+  // Kanji ranges: CJK Unified Ideographs
+  return /[\u4e00-\u9faf\u3400-\u4dbf]/.test(word);
+}
+
+// Check if word is all kana (no need for furigana)
+function isAllKana(word: string): boolean {
+  return /^[\u3040-\u309f\u30a0-\u30ff\u31f0-\u31ff\s]+$/.test(word);
+}
 
 export interface SubtitleWordProps {
   token: Token;
@@ -17,7 +29,7 @@ export interface SubtitleWordProps {
 
 export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const { settings } = useSettings();
-  const { currentLangData } = useLanguage();
+  const { currentLangData, isTranslatable } = useLanguage();
   let wordRef: HTMLSpanElement | undefined;
   const randomId = (() => {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -32,12 +44,23 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   // Get the part of speech
   const getPos = () => props.token.partOfSpeech ?? props.token.type ?? '';
 
+  // Check if this word should be interactive (translatable POS)
+  const isWordTranslatable = createMemo(() => {
+    const pos = getPos();
+    if (!pos) return false;
+    return isTranslatable(pos);
+  });
+
   // Determine word class based on token type
   const getWordClass = createMemo(() => {
     const classes = ['subtitle-word', 'subtitle_word', `word_${randomId}`];
     
     if (props.token.isKnown) {
       classes.push('known');
+    }
+    
+    if (isWordTranslatable()) {
+      classes.push('has-hover');
     }
     
     // Add part-of-speech class
@@ -55,6 +78,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   });
 
   const handleMouseEnter = () => {
+    // Only trigger hover for translatable words
+    if (!isWordTranslatable()) return;
     if (wordRef && props.onHover) {
       const rect = wordRef.getBoundingClientRect();
       props.onHover(props.token, rect, wordRef);
@@ -62,6 +87,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   };
 
   const handleClick = () => {
+    // Only trigger click for translatable words
+    if (!isWordTranslatable()) return;
     props.onClick?.(props.token);
   };
 
@@ -88,8 +115,9 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   const wordStyle = (): JSX.CSSProperties => {
     const color = getWordColor();
+    const cursor = isWordTranslatable() ? 'pointer' : 'default';
     return {
-      cursor: 'pointer',
+      cursor,
       position: 'relative',
       display: 'inline-block',
       'margin-right': '0.1em',
@@ -97,14 +125,49 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     };
   };
 
-  // For Japanese, show furigana if enabled
+  // For Japanese, show furigana if enabled and word contains kanji
   const showFurigana = createMemo(() => {
     const furiganaEnabled = settings.showFurigana ?? settings.furigana;
     if (!furiganaEnabled) return false;
     if (!props.token.reading) return false;
+    const word = displayWord();
+    // Only show furigana for words with kanji (not all kana)
+    if (isAllKana(word)) return false;
+    if (!containsKanji(word)) return false;
     // Only show if reading differs from surface
-    return props.token.reading !== displayWord();
+    return props.token.reading !== word;
   });
+
+  // Build furigana reading with correction for verb conjugations
+  const getFuriganaReading = createMemo(() => {
+    if (!props.token.reading) return '';
+    const word = displayWord();
+    let reading = props.token.reading;
+    const pos = getPos();
+    
+    // For verbs, adjust reading if last character differs
+    if (pos === '動詞' && word.length > 0 && reading.length > 0) {
+      const lastWordChar = word[word.length - 1];
+      const lastReadingChar = reading[reading.length - 1];
+      if (lastWordChar !== lastReadingChar && word.length === reading.length) {
+        reading = reading.substring(0, reading.length - 1) + lastWordChar;
+      }
+    }
+    
+    // Add padding if reading is shorter than word
+    let correction = '';
+    for (let i = reading.length; i < word.length; i++) {
+      correction += '\u00A0'; // non-breaking space
+    }
+    
+    return reading + correction;
+  });
+
+  // Custom attributes for CSS selectors
+  const customAttrs = createMemo(() => ({
+    known: props.token.isKnown ? 'true' : 'false',
+    grammar: getPos(),
+  }));
 
   return (
     <span
@@ -116,6 +179,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       onClick={handleClick}
       data-token-index={props.index}
       data-word-id={randomId}
+      {...{ known: customAttrs().known, grammar: customAttrs().grammar } as JSX.HTMLAttributes<HTMLSpanElement>}
     >
       <Show
         when={showFurigana()}
@@ -124,7 +188,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
         <ruby>
           {displayWord()}
           <rp>(</rp>
-          <rt style={{ 'font-size': '0.6em' }}>{props.token.reading}</rt>
+          <rt style={{ 'font-size': '0.5em' }}>{getFuriganaReading()}</rt>
           <rp>)</rp>
         </ruby>
       </Show>

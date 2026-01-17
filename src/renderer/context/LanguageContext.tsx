@@ -14,7 +14,11 @@ interface LanguageContextValue {
   currentLangData: () => LanguageData | null;
   wordFrequency: WordFrequencyMap;
   getFrequency: (word: string) => WordFrequencyEntry | null;
+  getLevelName: (level: number) => string;
+  getFreqLevelNames: () => Record<string, string>;
   isLoading: () => boolean;
+  isTranslatable: (pos: string) => boolean;
+  translatableTypes: () => string[];
 }
 
 // Create context
@@ -94,6 +98,32 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     return wordFrequency[word] || null;
   };
 
+  // Get level name from langdata (e.g., "JLPT N5" for level 5)
+  const getLevelName = (level: number): string => {
+    const data = currentLangData();
+    const levelNames = data?.freq_level_names || {};
+    return levelNames[String(level)] || `Level ${level}`;
+  };
+
+  // Get all frequency level names from langdata
+  const getFreqLevelNames = (): Record<string, string> => {
+    const data = currentLangData();
+    return data?.freq_level_names || {};
+  };
+
+  // Check if POS type is translatable
+  const isTranslatable = (pos: string): boolean => {
+    const data = currentLangData();
+    if (!data?.translatable) return true; // Default to translatable if not specified
+    return data.translatable.includes(pos);
+  };
+
+  // Get translatable POS types
+  const translatableTypes = (): string[] => {
+    const data = currentLangData();
+    return data?.translatable || [];
+  };
+
   onMount(() => {
     loadLangData();
   });
@@ -104,7 +134,11 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     currentLangData,
     wordFrequency,
     getFrequency,
+    getLevelName,
+    getFreqLevelNames,
     isLoading,
+    isTranslatable,
+    translatableTypes,
   };
 
   return (

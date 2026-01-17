@@ -3,7 +3,8 @@
  * Page thumbnails sidebar
  */
 
-import { Component, For, Show, Accessor } from 'solid-js';
+import { Component, For, Accessor } from 'solid-js';
+import './ReaderSidebar.css';
 
 interface PageImage {
   id: string;
@@ -32,9 +33,6 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
             >
               <img src={page.src} alt={page.name} />
               <span>{page.index + 1}</span>
-              <Show when={props.hasOcrForPage(page.id)}>
-                <span class="ocr-badge">OCR</span>
-              </Show>
             </div>
           )}
         </For>

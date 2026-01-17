@@ -123,6 +123,34 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   };
 }
 
+// Pre-warm translation cache for a list of words (like old app's warmTokeniseCache)
+export async function warmTranslationCache(
+  words: string[],
+  translationUrl: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _translatableTypes?: string[]
+): Promise<void> {
+  const unique = [...new Set(words)];
+  const promises = unique
+    .filter((w) => w && w.trim())
+    .filter((w) => !translationCache.has(w))
+    .map((word) =>
+      fetch(translationUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          translationCache.set(word, data);
+        })
+        .catch(() => {
+          // Ignore errors during cache warming
+        })
+    );
+  await Promise.all(promises);
+}
+
 export function useTokenizer() {
   const { settings } = useSettings();
 

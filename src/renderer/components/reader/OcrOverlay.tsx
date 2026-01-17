@@ -3,9 +3,10 @@
  * Displays detected text regions as interactive overlays on images
  */
 
-import { Component, For, Show, createSignal, createMemo, createEffect } from 'solid-js';
+import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
 import type { Token } from '../../../shared/types';
-import { useTokenizer } from '../../hooks';
+import { useTokenizer, warmTranslationCache } from '../../hooks';
+import { useLanguage, useSettings } from '../../context';
 import './OcrOverlay.css';
 
 export interface OcrBox {
@@ -24,12 +25,11 @@ export interface OcrResult {
 
 export interface OcrOverlayProps {
   result: OcrResult | null;
-  imageElement: HTMLImageElement | null;
-  containerElement: HTMLElement | null;
+  imageElement?: HTMLImageElement | null;
+  visible?: boolean;
   onBoxClick?: (box: OcrBox, rect: DOMRect) => void;
   onWordHover?: (token: Token, rect: DOMRect) => void;
   onWordLeave?: () => void;
-  visible?: boolean;
 }
 
 /**
@@ -97,29 +97,34 @@ function estimateFontSize(text: string, width: number, height: number, vertical:
 export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const [hoveredBox, setHoveredBox] = createSignal<OcrBox | null>(null);
   const { tokenize } = useTokenizer();
+  const { isTranslatable } = useLanguage();
+  const { settings } = useSettings();
   const [tokenMap, setTokenMap] = createSignal<Map<number, Token[]>>(new Map());
+  const [observedWidth, setObservedWidth] = createSignal(0);
+
+  createEffect(() => {
+    const el = props.imageElement;
+    if (!el) return;
+    
+    // Set initial
+    setObservedWidth(el.clientWidth || el.naturalWidth);
+    
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setObservedWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(el);
+    onCleanup(() => observer.disconnect());
+  });
 
   // Calculate scale factor to map OCR coordinates to displayed image
   const scaleFactor = createMemo(() => {
     if (!props.imageElement || !props.result) return 1;
-    const displayedWidth = props.imageElement.clientWidth || props.imageElement.naturalWidth || 1;
+    // Depend on observedWidth to trigger re-calc on resize
+    const displayedWidth = observedWidth() || props.imageElement.clientWidth || props.imageElement.naturalWidth || 1;
     const sentWidth = props.result.sent_size?.width || (props.result.original_size?.width || 1) * (props.result.client_scale || 1);
     return sentWidth > 0 ? displayedWidth / sentWidth : 1;
-  });
-
-  // Calculate overlay position offset
-  const overlayOffset = createMemo(() => {
-    if (!props.imageElement || !props.containerElement) {
-      return { left: 0, top: 0 };
-    }
-
-    const containerRect = props.containerElement.getBoundingClientRect();
-    const imgRect = props.imageElement.getBoundingClientRect();
-
-    return {
-      left: imgRect.left - containerRect.left,
-      top: imgRect.top - containerRect.top,
-    };
   });
 
   const handleBoxClick = (box: OcrBox, event: MouseEvent) => {
@@ -137,15 +142,27 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     }
     const next = new Map<number, Token[]>();
     setTokenMap(next);
+    
+    // Tokenize all boxes and pre-warm translation cache
     result.boxes.forEach((box, idx) => {
       if (!box?.text || !box.text.trim()) return;
       tokenize(box.text)
-        .then((tokens) => {
+        .then(async (tokens) => {
           setTokenMap((prev) => {
             const updated = new Map(prev);
             updated.set(idx, tokens as Token[]);
             return updated;
           });
+          
+          // Pre-warm translation cache for translatable words (like old app's warmTokeniseCache)
+          // This allows hovering over words before OCR completes
+          const translatableWords = (tokens as Token[])
+            .filter((t) => t.actual_word && isTranslatable(t.type))
+            .map((t) => t.actual_word);
+          
+          if (translatableWords.length > 0) {
+            warmTranslationCache(translatableWords, settings.getTranslationUrl);
+          }
         })
         .catch(() => {
           /* ignore tokenization errors */
@@ -163,6 +180,9 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   };
 
   const handleWordEnter = (token: Token, e: MouseEvent) => {
+    // Only show hover for translatable types (like old app's TRANSLATABLE.includes(pos))
+    if (!isTranslatable(token.type)) return;
+    
     const target = e.currentTarget as HTMLElement;
     props.onWordHover?.(token, target.getBoundingClientRect());
   };
@@ -172,10 +192,11 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
       <div 
         class="ocr-overlay"
         style={{
-          left: `${overlayOffset().left}px`,
-          top: `${overlayOffset().top}px`,
+          left: '0px',
+          top: '0px',
           width: props.imageElement ? `${props.imageElement.clientWidth}px` : '100%',
           height: props.imageElement ? `${props.imageElement.clientHeight}px` : '100%',
+          opacity: 1,
         }}
       >
         <For each={props.result?.boxes || []}>

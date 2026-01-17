@@ -1,0 +1,65 @@
+/**
+ * ActionCard Component Styles
+ * Large action button cards for navigation
+ */
+
+.action-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: var(--glass-bg-current);
+  backdrop-filter: var(--glass-backdrop-filter);
+  border: 1px solid var(--glass-border-current);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  text-align: left;
+  width: 100%;
+}
+
+.action-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-accent);
+}
+
+.action-card:active {
+  transform: translateY(0);
+}
+
+.action-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.action-card.primary {
+  background: linear-gradient(
+    135deg,
+    var(--color-accent-alpha, rgba(59, 130, 246, 0.1)) 0%,
+    var(--glass-bg-current) 100%
+  );
+  border-color: var(--color-accent-alpha, rgba(59, 130, 246, 0.3));
+}
+
+.action-card .action-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.action-card .action-text {
+  flex: 1;
+}
+
+.action-card .action-text h3 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 0.25rem;
+}
+
+.action-card .action-text p {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}

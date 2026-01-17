@@ -179,7 +179,7 @@
 /*  left: 50%;*/
 /*  transform: translateX(-50%);*/
 /*  background: var(--glass-bg-current);*/
-/*  backdrop-filter: blur(var(--glass-blur));*/
+/*  backdrop-filter: var(--glass-backdrop-filter);*/
 /*  border: 1px solid var(--glass-border-current);*/
 /*  border-radius: var(--radius-lg);*/
 /*  min-width: 200px;*/

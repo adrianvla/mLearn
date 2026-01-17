@@ -7,16 +7,81 @@ import { createContext, useContext, ParentComponent, onMount, onCleanup, createS
 import { createStore, reconcile, produce } from 'solid-js/store';
 import type { FlashcardStore, Flashcard, FlashcardContent } from '../../shared/types';
 
-// SRS constants
-const EASE_MULTIPLIERS = {
-  AGAIN: 0.5,
-  HARD: 0.8,
-  GOOD: 1.0,
-  EASY: 1.3,
-};
-
+// SRS constants - SM-2 Algorithm (matching old app)
 const MIN_EASE = 1.3;
 const DEFAULT_EASE = 2.5;
+
+// Time constants
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/**
+ * SM-2 SRS Algorithm - Calculate new due date based on quality rating
+ * @param card - The flashcard being reviewed
+ * @param quality - Rating from 0-5 (0=again/complete failure, 3=good, 5=easy/perfect)
+ */
+function calculateSM2(card: Flashcard, quality: number): Partial<Flashcard> {
+  const now = Date.now();
+  
+  // Normalize ease factor (EF) — default to a sane SM-2 starting value
+  const currentEF = typeof card.ease === 'number' && card.ease > 0 ? card.ease : DEFAULT_EASE;
+  
+  // SM-2 EF update formula based on quality (q in 0..5), clamped to 1.3 minimum
+  let newEF = currentEF + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+  newEF = Math.max(MIN_EASE, newEF);
+
+  // Previous scheduled interval (not elapsed) — avoids minute-scale drift
+  const lastReviewed = card.lastReviewed ? new Date(card.lastReviewed).getTime() : now;
+  const dueDate = card.dueDate ? new Date(card.dueDate).getTime() : lastReviewed;
+  const prevInterval = Math.max(0, dueDate - lastReviewed);
+
+  let interval: number;
+
+  if (quality === 0) {
+    // Complete failure - reset
+    interval = 0;
+  } else if (quality < 3) {
+    // Failed/hard: short retry step (learning)
+    interval = 10 * MINUTE;
+  } else {
+    // Passed: handle first and second reviews with fixed steps, then scale
+    const reviews = typeof card.reviews === 'number' ? card.reviews : 0;
+
+    if (reviews === 0) {
+      // First successful review: 1 day for good, 4 days for easy
+      interval = quality >= 5 ? 4 * DAY : 1 * DAY;
+    } else if (reviews === 1) {
+      // Second successful review: 6 days for good, 10 days for easy
+      interval = quality >= 5 ? 10 * DAY : 6 * DAY;
+    } else {
+      // Subsequent reviews: multiply previous scheduled interval by EF
+      const base = prevInterval > 0 ? prevInterval : 1 * DAY;
+      interval = Math.round(base * newEF);
+    }
+  }
+
+  return {
+    ease: newEF,
+    interval: Math.round(interval / MINUTE), // Store as minutes
+    dueDate: new Date(now + interval).toISOString(),
+    lastReviewed: new Date(now).toISOString(),
+    reviews: quality >= 3 ? (card.reviews || 0) + 1 : card.reviews,
+  };
+}
+
+/**
+ * Convert rating string to SM-2 quality score
+ */
+function ratingToQuality(rating: 'again' | 'hard' | 'good' | 'easy'): number {
+  switch (rating) {
+    case 'again': return 0;
+    case 'hard': return 2;
+    case 'good': return 3;
+    case 'easy': return 5;
+    default: return 3;
+  }
+}
 
 // Context interface
 interface FlashcardContextValue {
@@ -70,16 +135,31 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Save flashcards
   const saveFlashcards = () => {
+    // Must serialize store FIRST to create a plain object from the Solid store proxy
+    // This prevents "An object could not be cloned" errors from BroadcastChannel
+    let serializedStore: FlashcardStore;
+    try {
+      serializedStore = JSON.parse(JSON.stringify(store));
+    } catch (e) {
+      console.error('Failed to serialize flashcard store:', e);
+      return;
+    }
+
     if (typeof window !== 'undefined' && window.mLearnIPC) {
-      window.mLearnIPC.saveFlashcards(store);
+      window.mLearnIPC.saveFlashcards(serializedStore);
     } else {
       try {
-        localStorage.setItem('mlearn-flashcards', JSON.stringify(store));
+        localStorage.setItem('mlearn-flashcards', JSON.stringify(serializedStore));
       } catch (e) {
         console.error('Failed to save flashcards to localStorage:', e);
       }
     }
-    broadcastChannel?.postMessage({ type: 'update', store });
+    // Broadcast serialized data to other windows
+    try {
+      broadcastChannel?.postMessage({ type: 'update', store: serializedStore });
+    } catch (e) {
+      console.error('Failed to broadcast flashcard update:', e);
+    }
   };
 
   // Generate unique ID
@@ -124,39 +204,17 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
-  // Review flashcard with SRS algorithm
+  // Review flashcard with SM-2 SRS algorithm
   const reviewFlashcard = (id: string, rating: 'again' | 'hard' | 'good' | 'easy') => {
     setStore(produce((s) => {
       const card = s.flashcards.find(f => f.id === id);
       if (!card) return;
 
-      const multiplier = EASE_MULTIPLIERS[rating.toUpperCase() as keyof typeof EASE_MULTIPLIERS];
+      const quality = ratingToQuality(rating);
+      const updates = calculateSM2(card, quality);
       
-      // Update ease factor
-      let newEase = card.ease * multiplier;
-      if (newEase < MIN_EASE) newEase = MIN_EASE;
-      card.ease = newEase;
-
-      // Calculate new interval
-      let newInterval: number;
-      if (rating === 'again') {
-        newInterval = 1; // 1 minute
-      } else if (card.interval === 0) {
-        // First review
-        newInterval = rating === 'easy' ? 4 * 24 * 60 : rating === 'good' ? 10 : 1;
-      } else {
-        newInterval = Math.round(card.interval * card.ease);
-      }
-      card.interval = newInterval;
-
-      // Set due date
-      const dueDate = new Date();
-      dueDate.setMinutes(dueDate.getMinutes() + newInterval);
-      card.dueDate = dueDate.toISOString();
-
-      // Update review count and timestamp
-      card.reviews++;
-      card.lastReviewed = new Date().toISOString();
+      // Apply all updates
+      Object.assign(card, updates);
     }));
     saveFlashcards();
   };

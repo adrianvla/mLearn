@@ -25,25 +25,27 @@ export function useWordHover() {
   const [isVisible, setIsVisible] = createSignal(false);
 
   let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
+  let cleanupTimeout: ReturnType<typeof setTimeout> | null = null;
 
   const showHover = (data: HoverData) => {
-    if (hoverTimeout) {
-      clearTimeout(hoverTimeout);
-    }
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+    if (cleanupTimeout) clearTimeout(cleanupTimeout);
     setHoverData(data);
     setIsVisible(true);
   };
 
   const hideHover = () => {
+    if (hoverTimeout) clearTimeout(hoverTimeout); // Ensure single timer
+    
     hoverTimeout = setTimeout(() => {
       setIsVisible(false);
       // Delay clearing data for smooth transitions
-      setTimeout(() => {
+      cleanupTimeout = setTimeout(() => {
         if (!isVisible()) {
           setHoverData(null);
         }
       }, 200);
-    }, 100);
+    }, 50);
   };
 
   const cancelHide = () => {
@@ -51,12 +53,15 @@ export function useWordHover() {
       clearTimeout(hoverTimeout);
       hoverTimeout = null;
     }
+    if (cleanupTimeout) {
+      clearTimeout(cleanupTimeout);
+      cleanupTimeout = null;
+    }
   };
 
   onCleanup(() => {
-    if (hoverTimeout) {
-      clearTimeout(hoverTimeout);
-    }
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+    if (cleanupTimeout) clearTimeout(cleanupTimeout);
   });
 
   return {

@@ -21,7 +21,7 @@
   position: fixed;
   top: 20px;
   right: 20px;
-  backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--glass-backdrop-filter);
   background: rgba(60,60,60,0.5);
   border: 1px solid #444;
   box-sizing: border-box;
@@ -121,7 +121,7 @@
 .mLearn-tooltiptext {
   visibility: hidden;
   width: 260px;
-  backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: var(--glass-backdrop-filter);
   background: rgba(60,60,60,0.5);
   border: 1px solid #444;
   color: #fff;

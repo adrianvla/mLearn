@@ -6,6 +6,7 @@ import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
 import { SettingRow } from './components/SettingRow';
 import { SettingGroup } from './components/SettingGroup';
+import { ToggleSwitch } from '../../../components/common';
 
 export const GeneralTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -38,28 +39,20 @@ export const GeneralTab: Component = () => {
           label="Dark Mode"
           description="Use dark theme for the interface"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.dark_mode}
-              onChange={(e) => updateSettings({ dark_mode: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.dark_mode}
+            onChange={(checked) => updateSettings({ dark_mode: checked })}
+          />
         </SettingRow>
 
         <SettingRow
           label="Developer Mode"
           description="Enable developer tools and debugging"
         >
-          <label class="toggle-switch">
-            <input
-              type="checkbox"
-              checked={settings.devMode}
-              onChange={(e) => updateSettings({ devMode: e.currentTarget.checked })}
-            />
-            <span class="toggle-slider" />
-          </label>
+          <ToggleSwitch
+            checked={settings.devMode}
+            onChange={(checked) => updateSettings({ devMode: checked })}
+          />
         </SettingRow>
       </SettingGroup>
 

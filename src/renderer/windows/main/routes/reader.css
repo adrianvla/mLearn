@@ -15,7 +15,7 @@
   justify-content: space-between;
   padding: 0.5rem 1rem;
   background: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--glass-backdrop-filter);
   border-bottom: 1px solid var(--border-primary);
   gap: 1rem;
   flex-wrap: wrap;
@@ -86,7 +86,7 @@
   bottom: 32px;
   width: 160px;
   background: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--glass-backdrop-filter);
   border-right: 1px solid var(--border-primary);
   padding: 1rem 0.5rem;
   overflow-y: auto;
@@ -168,9 +168,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: auto;
   padding: 1rem;
   background: #1a1a1a;
+}
+.reader-main.fit-height {
+  overflow-y: hidden;
+  overflow-x: auto;
+}
+.reader-main.fit-width {
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .reader-main.with-sidebar {
@@ -203,7 +210,10 @@
   max-width: 100%;
   max-height: calc(100vh - 120px);
   object-fit: contain;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-sm);
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .fit-height .page-image {
@@ -212,8 +222,10 @@
 }
 
 .fit-width .page-image {
-  max-width: 100%;
+  width: 100% !important;
+  max-width: none !important;
   height: auto;
+  max-height: none !important;
 }
 
 /* Welcome Card */
@@ -221,7 +233,7 @@
   max-width: 600px;
   padding: 2rem;
   background: rgba(30, 30, 30, 0.9);
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--glass-backdrop-filter);
   border-radius: 16px;
   border: 2px dashed var(--border-primary);
   transition: border-color 0.3s;
@@ -284,7 +296,7 @@
   justify-content: space-between;
   padding: 0.5rem 1rem;
   background: rgba(30, 30, 30, 0.95);
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--glass-backdrop-filter);
   border-top: 1px solid var(--border-primary);
   font-size: 0.8rem;
 }
@@ -307,6 +319,12 @@
   color: var(--text-secondary);
 }
 
+.ocr-progress-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .ocr-progress {
   width: 100px;
   height: 4px;
@@ -319,6 +337,12 @@
   height: 100%;
   background: var(--accent-primary);
   transition: width 0.3s;
+}
+
+.ocr-progress-text {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  min-width: 35px;
 }
 
 /* OCR Toggle Button */
@@ -379,16 +403,65 @@
   }
 }
 
+/* Page Loader Overlay - shows while OCR is processing */
+.page-loader-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: end;
+  justify-content: end;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.page-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+}
+.page-loader-spinner-c{
+  background: var(--glass-bg);
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-backdrop-filter);
+  padding:8px;
+}
+
+.page-loader-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.page-loader-text {
+  background: var(--glass-bg);
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-backdrop-filter);
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
 /* Responsive */
 @media (max-width: 700px) {
   .reader-sidebar {
     width: 100px;
   }
-  
+
   .reader-main.with-sidebar {
     margin-left: 100px;
   }
-  
+
   .tips-grid {
     grid-template-columns: 1fr;
   }

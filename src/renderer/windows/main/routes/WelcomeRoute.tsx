@@ -7,16 +7,8 @@ import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings } from '../../../context';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
+import { ActionCard, RecentCard, type RecentItem } from '../../../components/common';
 import './welcome.css';
-
-interface RecentItem {
-  type: 'video' | 'book';
-  name: string;
-  path: string;
-  thumbnail?: string;
-  progress: number;
-  lastWatched: number;
-}
 
 export const WelcomeRoute: Component = () => {
   const navigate = useNavigate();
@@ -78,37 +70,35 @@ export const WelcomeRoute: Component = () => {
 
       {/* Main Actions */}
       <section class="welcome-actions">
-        <button class="action-card primary" onClick={openVideoPlayer}>
-          <span class="action-icon">🎬</span>
-          <div class="action-text">
-            <h3>Watch Video</h3>
-            <p>Open a video file with intelligent subtitles</p>
-          </div>
-        </button>
+        <ActionCard
+          icon="🎬"
+          title="Watch Video"
+          description="Open a video file with intelligent subtitles"
+          onClick={openVideoPlayer}
+          primary
+        />
 
-        <button class="action-card primary" onClick={openReader}>
-          <span class="action-icon">📖</span>
-          <div class="action-text">
-            <h3>Open Reader</h3>
-            <p>Read manga or images with OCR</p>
-          </div>
-        </button>
+        <ActionCard
+          icon="📖"
+          title="Open Reader"
+          description="Read manga or images with OCR"
+          onClick={openReader}
+          primary
+        />
 
-        <button class="action-card" onClick={openFlashcards}>
-          <span class="action-icon">🃏</span>
-          <div class="action-text">
-            <h3>Review Flashcards</h3>
-            <p>Practice your vocabulary</p>
-          </div>
-        </button>
+        <ActionCard
+          icon="🃏"
+          title="Review Flashcards"
+          description="Practice your vocabulary"
+          onClick={openFlashcards}
+        />
 
-        <button class="action-card" onClick={openSettings}>
-          <span class="action-icon">⚙️</span>
-          <div class="action-text">
-            <h3>Settings</h3>
-            <p>Customize your experience</p>
-          </div>
-        </button>
+        <ActionCard
+          icon="⚙️"
+          title="Settings"
+          description="Customize your experience"
+          onClick={openSettings}
+        />
       </section>
 
       {/* Recent Items */}
@@ -118,22 +108,10 @@ export const WelcomeRoute: Component = () => {
           <div class="recent-grid">
             <For each={recentItems().slice(0, 4)}>
               {(item) => (
-                <button class="recent-card" onClick={() => openRecent(item)}>
-                  <div 
-                    class="recent-thumbnail"
-                    style={{
-                      "background-image": item.thumbnail ? `url(${item.thumbnail})` : undefined
-                    }}
-                  >
-                    <span class="recent-type">{item.type === 'video' ? '🎬' : '📖'}</span>
-                  </div>
-                  <div class="recent-info">
-                    <h4>{item.name}</h4>
-                    <div class="progress-bar">
-                      <div class="progress-fill" style={{ width: `${item.progress}%` }} />
-                    </div>
-                  </div>
-                </button>
+                <RecentCard 
+                  item={item} 
+                  onClick={() => openRecent(item)} 
+                />
               )}
             </For>
           </div>
