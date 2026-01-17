@@ -1,0 +1,159 @@
+/**
+ * FlashcardReview Component Styles
+ * SRS review interface styling
+ */
+
+/* Main container */
+.flashcard-review-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  padding: 2rem;
+  height: 100%;
+}
+
+/* Progress section */
+.flashcard-progress {
+  width: 100%;
+  max-width: 500px;
+}
+
+.flashcard-progress-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.flashcard-progress-bar {
+  height: 6px;
+  background-color: var(--glass-bg);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.flashcard-progress-fill {
+  height: 100%;
+  background-color: var(--color-primary);
+  transition: width 0.3s ease;
+}
+
+/* Completion screen */
+.flashcard-completion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  text-align: center;
+  max-width: 500px;
+  width: 100%;
+  min-height: 300px;
+}
+
+.flashcard-completion-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.flashcard-completion-text {
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+}
+
+.flashcard-completion-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+/* Rating buttons container */
+.flashcard-rating-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Rating button */
+.flashcard-rating-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 1.5rem;
+  min-width: 80px;
+  background: var(--glass-bg);
+  border: 2px solid var(--btn-color, var(--color-primary));
+  border-radius: var(--radius-md);
+  color: var(--btn-color, var(--color-primary));
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.flashcard-rating-btn:hover {
+  background: color-mix(in srgb, var(--btn-color, var(--color-primary)) 15%, transparent);
+  transform: translateY(-2px);
+}
+
+.flashcard-rating-btn:active {
+  transform: translateY(0);
+}
+
+.flashcard-rating-btn--again {
+  --btn-color: var(--color-danger);
+}
+
+.flashcard-rating-btn--hard {
+  --btn-color: var(--color-warning);
+}
+
+.flashcard-rating-btn--good {
+  --btn-color: var(--color-success);
+}
+
+.flashcard-rating-btn--easy {
+  --btn-color: var(--color-primary);
+}
+
+.flashcard-rating-label {
+  font-weight: 600;
+}
+
+.flashcard-rating-time {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+/* Stats display */
+.flashcard-stats {
+  display: flex;
+  gap: 2rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.flashcard-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.flashcard-stat-label {
+  opacity: 0.8;
+}
+
+.flashcard-stat-new {
+  color: var(--color-primary);
+}
+
+.flashcard-stat-learning {
+  color: var(--color-warning);
+}
+
+.flashcard-stat-review {
+  color: var(--color-success);
+}
