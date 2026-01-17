@@ -3,6 +3,7 @@
  */
 
 import { Component, createSignal, onMount } from 'solid-js';
+import { IPC_CHANNELS } from '../../../../shared/constants';
 
 export const AboutTab: Component = () => {
   const [version, setVersion] = createSignal('1.0.0');
@@ -24,8 +25,10 @@ export const AboutTab: Component = () => {
   };
 
   const openLicenses = () => {
-    // TODO: Open licenses window
-    console.log('Open licenses');
+    window.mLearnIPC?.openWindow({
+      type: 'licenses',
+      options: { width: 900, height: 700 },
+    });
   };
 
   return (

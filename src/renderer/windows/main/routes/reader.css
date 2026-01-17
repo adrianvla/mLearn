@@ -123,6 +123,29 @@
   border-color: var(--accent-primary);
 }
 
+.thumbnail.has-ocr::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 8px;
+  height: 8px;
+  background: var(--accent-primary);
+  border-radius: 50%;
+}
+
+.ocr-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: var(--accent-primary);
+  color: white;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.55rem;
+  font-weight: 600;
+}
+
 .thumbnail img {
   width: 100%;
   display: block;
@@ -173,6 +196,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative; /* For OCR overlay positioning */
 }
 
 .page-image {
@@ -295,6 +319,64 @@
   height: 100%;
   background: var(--accent-primary);
   transition: width 0.3s;
+}
+
+/* OCR Toggle Button */
+.nav-btn.ocr-toggle {
+  font-size: 0.9rem;
+}
+
+.nav-btn.ocr-toggle.active {
+  background: var(--accent-primary);
+  color: white;
+}
+
+/* OCR Loading Overlay */
+.ocr-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 50;
+}
+
+.ocr-loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.ocr-loading-text {
+  margin-top: 16px;
+  color: white;
+  font-size: 0.9rem;
+}
+
+.ocr-progress-bar {
+  width: 200px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.ocr-progress-bar .bar {
+  height: 100%;
+  background: var(--accent-primary);
+  transition: width 0.2s ease;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Responsive */

@@ -1,101 +1,139 @@
 /**
  * Live Word Translator Styles
+ * Matches the legacy .aside styling exactly - horizontal card strip at top-left
  */
 
+/* Main aside container - positioned at top-left like legacy app */
 .live-word-translator {
-  position: fixed;
-  top: 0;
-  right: 0;
-  height: 100%;
-  width: 320px;
-  z-index: 100;
-  pointer-events: none;
-  transform: translateX(100%);
-  transition: transform 0.3s ease;
-}
-
-.live-word-translator.open {
-  transform: translateX(0);
+  position: absolute;
+  left: 10px;
+  top: 38px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  right: 10px;
+  height: 95px;
+  background: transparent;
   pointer-events: auto;
+  transition: background 0.2s, top 0.2s, left 0.2s, opacity 0.2s;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
-.live-word-translator .translator-panel {
-  height: 100%;
+/* Hidden state using opacity like legacy .opacity0 class */
+.live-word-translator.opacity0 {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Move down when cursor is hidden like legacy */
+body.hide-cursor .live-word-translator {
+  top: 10px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Hover state shows glass background like legacy .aside:hover */
+.live-word-translator:hover {
+  background: rgba(60, 60, 60, 0.5);
+  backdrop-filter: blur(20px);
+}
+
+/* Container for cards - horizontal scrollable row like legacy .aside .c */
+.aside-c {
   display: flex;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  gap: 10px;
   flex-direction: column;
-  border-radius: 0;
-  border-left: 1px solid var(--glass-border);
+  flex-wrap: wrap;
+  overflow-x: auto;
+  padding-right: 10px;
 }
 
-.translator-header {
+.aside-c::-webkit-scrollbar {
+  display: none;
+}
+
+/* Individual card styling - matches legacy .aside .mLearn-card */
+.aside-card {
+  background-color: rgba(60, 60, 60, 0.60);
+  backdrop-filter: blur(20px) saturate(180%);
+  padding-inline: 20px;
+  width: 300px;
+  height: 30px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.5);
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--glass-border);
-  margin-bottom: 0.75rem;
+  justify-content: space-between;
+  color: #aaa;
+  font-family: "Helvetica Neue", sans-serif;
+  font-size: 12px;
+  gap: 10px;
+  overflow: hidden;
+  animation: fadeInCard 0.2s ease-out;
 }
 
-.translator-title {
-  font-weight: 600;
-  color: var(--text-primary);
+.aside-card * {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-  transition: color 0.2s;
+.aside-card:hover * {
+  overflow: visible;
 }
 
-.close-btn:hover {
-  color: var(--text-primary);
-}
-
-.translator-cards {
-  flex: 1;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.translation-card {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: var(--radius-md);
-  padding: 0.75rem;
-  animation: slideIn 0.2s ease;
-}
-
-@keyframes slideIn {
+@keyframes fadeInCard {
   from {
     opacity: 0;
-    transform: translateX(20px);
+    transform: translateY(-10px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
 }
 
-.card-translation {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.25rem;
+/* Card content styling - matches legacy .mLearn-card h1, p */
+.aside-card .card-translation {
+  font-size: 20px;
+  font-weight: normal;
+  color: #aaa;
+  margin: 0;
+  max-width: 60%;
 }
 
-.card-reading {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
+.aside-card .card-reading {
+  font-size: 12px;
+  color: #aaa;
+  margin: 0;
+  text-align: center;
 }
 
-.card-reading ruby {
+.aside-card .card-reading ruby {
   ruby-position: over;
+}
+
+.aside-card .card-reading rt {
+  font-size: 0.65em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Empty state - hidden when no cards */
+.empty-state {
+  display: none;
+}
+
+/* Remove old right-panel styles completely */
+.translator-panel,
+.translator-header,
+.translator-title,
+.close-btn,
+.translator-cards {
+  display: none !important;
 }
 
 .card-reading rt {

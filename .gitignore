@@ -2,5 +2,6 @@ node_modules
 dist
 dist-electron
 .idea
-dictionaries
+src/root-of-app/dictionaries
+
 

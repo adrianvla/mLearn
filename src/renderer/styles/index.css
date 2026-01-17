@@ -174,6 +174,60 @@ body {
   overflow: hidden;
 }
 
+/* ========== App Loading Overlay ========== */
+.app-loading-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+}
+
+.app-loading-panel {
+  width: min(420px, 90vw);
+  padding: var(--spacing-8);
+  border-radius: var(--radius-xl);
+  background: rgba(20, 20, 20, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+  box-shadow: var(--shadow-xl);
+}
+
+.app-loading-title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-3);
+}
+
+.app-loading-status {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-4);
+}
+
+.app-loading-progress {
+  position: relative;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.app-loading-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  transition: width 0.3s ease;
+}
+
+.app-loading-percent {
+  margin-top: var(--spacing-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
 #app {
   width: 100%;
   height: 100%;
@@ -252,17 +306,6 @@ img, svg {
   max-width: 100%;
 }
 
-/* ========== macOS Traffic Light Region ========== */
-.drag-region {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 80px;
-  height: 32px;
-  -webkit-app-region: drag;
-  z-index: var(--z-sticky);
-}
-
 /* ========== Hide Cursor Class ========== */
 body.hide-cursor {
   cursor: none;
@@ -271,4 +314,28 @@ body.hide-cursor {
 body.hide-cursor .drag-region {
   opacity: 0;
   pointer-events: none;
+}
+
+body.hide-cursor .video-controls {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.hide-cursor .subtitles {
+  bottom: 10px;
+}
+
+body.hide-cursor .aside {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Video controls visible state */
+.video-controls {
+  transition: opacity 0.3s;
+}
+
+.video-controls.visible {
+  opacity: 1;
+  pointer-events: auto;
 }

@@ -3,8 +3,9 @@
  * Standalone settings window with tabbed navigation
  */
 
-import { Component, createSignal, Show } from 'solid-js';
+import { Component, createSignal, onCleanup, onMount, Show } from 'solid-js';
 import { WindowWrapper } from '../../context';
+import { IPC_CHANNELS } from '../../../shared/constants';
 import {
   GeneralTab,
   BehaviourTab,
@@ -36,6 +37,33 @@ const TABS: Tab[] = [
 
 const SettingsContent: Component = () => {
   const [activeTab, setActiveTab] = createSignal<TabId>('general');
+
+  const resolveTab = (section?: string): TabId => {
+    if (!section) return 'general';
+
+    const normalized = section.toLowerCase();
+    if (normalized.includes('about') || normalized.includes('license')) return 'about';
+    if (normalized.includes('stat')) return 'stats';
+    if (normalized.includes('reader')) return 'reader';
+    if (normalized.includes('srs') || normalized.includes('flashcard')) return 'srs';
+    if (normalized.includes('custom') || normalized.includes('appearance')) return 'customization';
+    if (normalized.includes('behav') || normalized.includes('behavior')) return 'behaviour';
+    return 'general';
+  };
+
+  onMount(() => {
+    if (!window.mLearnIPC) return;
+
+    const handler = (section?: string) => {
+      setActiveTab(resolveTab(section));
+    };
+
+    window.mLearnIPC.onOpenSettings(handler);
+
+    onCleanup(() => {
+      window.mLearnIPC?.removeListener?.(IPC_CHANNELS.SHOW_SETTINGS, handler);
+    });
+  });
 
   return (
     <div class="settings-window">

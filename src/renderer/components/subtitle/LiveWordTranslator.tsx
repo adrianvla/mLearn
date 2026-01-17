@@ -1,11 +1,11 @@
 /**
  * Live Word Translator (Aside Panel)
  * Shows automatic translations for words in subtitles
+ * Matches the legacy .aside-c horizontal card strip behavior
  */
 
 import { Component, createSignal, For, Show, onCleanup, createEffect } from 'solid-js';
 import { useSettings } from '../../context';
-import { GlassPanel } from '../common';
 import { IPC_CHANNELS } from '../../../shared/constants';
 import './LiveWordTranslator.css';
 
@@ -19,7 +19,7 @@ interface TranslationCard {
 
 export const LiveWordTranslator: Component = () => {
   const { settings } = useSettings();
-  const [isOpen, setIsOpen] = createSignal(false);
+  const [isVisible, setIsVisible] = createSignal(false);
   const [cards, setCards] = createSignal<TranslationCard[]>([]);
   const [isHovered, setIsHovered] = createSignal(false);
 
@@ -58,7 +58,8 @@ export const LiveWordTranslator: Component = () => {
       return updated;
     });
 
-    // Reset hide timeout
+    // Show the panel and reset hide timeout
+    setIsVisible(true);
     resetHideTimeout();
   };
 
@@ -73,12 +74,11 @@ export const LiveWordTranslator: Component = () => {
       clearTimeout(hideTimeout);
     }
     
-    setIsOpen(true);
-    
     if (!isHovered()) {
       hideTimeout = setTimeout(() => {
-        setIsOpen(false);
-        setCards([]);
+        setIsVisible(false);
+        // Clear cards after fade out
+        setTimeout(() => setCards([]), 300);
       }, HIDE_DELAY);
     }
   };
@@ -89,7 +89,7 @@ export const LiveWordTranslator: Component = () => {
     if (hideTimeout) {
       clearTimeout(hideTimeout);
     }
-    setIsOpen(true);
+    setIsVisible(true);
   };
 
   const handleMouseLeave = () => {
@@ -102,7 +102,7 @@ export const LiveWordTranslator: Component = () => {
     if (typeof window !== 'undefined' && window.mLearnIPC) {
       // Listen for show-aside event from menu
       const handleShowAside = () => {
-        setIsOpen(true);
+        setIsVisible(true);
         resetHideTimeout();
       };
       
@@ -121,10 +121,10 @@ export const LiveWordTranslator: Component = () => {
         addCard,
         removeCard,
         show: () => {
-          setIsOpen(true);
+          setIsVisible(true);
           resetHideTimeout();
         },
-        hide: () => setIsOpen(false),
+        hide: () => setIsVisible(false),
       };
     }
   });
@@ -142,54 +142,32 @@ export const LiveWordTranslator: Component = () => {
 
   return (
     <div
-      class={`live-word-translator ${isOpen() ? 'open' : ''}`}
+      class={`live-word-translator ${!isVisible() ? 'opacity0' : ''}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <GlassPanel
-        variant="dark"
-        blur="lg"
-        rounded="lg"
-        padding="md"
-        class="translator-panel"
-      >
-        <div class="translator-header">
-          <span class="translator-title">Live Translations</span>
-          <button class="close-btn" onClick={() => setIsOpen(false)}>
-            ×
-          </button>
-        </div>
-        
-        <div class="translator-cards">
-          <Show
-            when={cards().length > 0}
-            fallback={
-              <div class="empty-state">
-                <p>Hover over words in subtitles to see translations here</p>
-              </div>
-            }
-          >
-            <For each={cards()}>
-              {(card) => (
-                <div class="translation-card" id={card.id}>
-                  <div class="card-translation">{card.translation}</div>
-                  <div class="card-reading">
-                    <Show when={card.reading && card.reading !== card.word}>
-                      <ruby>
-                        {card.word}
-                        <rt>{card.reading}</rt>
-                      </ruby>
-                    </Show>
-                    <Show when={!card.reading || card.reading === card.word}>
+      <Show when={cards().length > 0}>
+        <div class="aside-c">
+          <For each={cards()}>
+            {(card) => (
+              <div class="aside-card" id={card.id}>
+                <div class="card-translation">{card.translation}</div>
+                <div class="card-reading">
+                  <Show when={card.reading && card.reading !== card.word}>
+                    <ruby>
                       {card.word}
-                    </Show>
-                  </div>
+                      <rt>{card.reading}</rt>
+                    </ruby>
+                  </Show>
+                  <Show when={!card.reading || card.reading === card.word}>
+                    {card.word}
+                  </Show>
                 </div>
-              )}
-            </For>
-          </Show>
+              </div>
+            )}
+          </For>
         </div>
-      </GlassPanel>
+      </Show>
     </div>
   );
 };

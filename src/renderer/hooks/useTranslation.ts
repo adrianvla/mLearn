@@ -10,6 +10,14 @@ import { useSettings } from '../context';
 // Translation cache
 const translationCache = new Map<string, TranslationResponse>();
 
+// Tokenization cache (promise de-dup + LRU)
+const tokenCache = new Map<string, { tokens: any[]; ts: number }>();
+const tokenInFlight = new Map<string, Promise<any[]>>();
+const TOKEN_CACHE_MAX = 1000;
+
+// Dictionary cache
+const dictionaryCache = new Map<string, DictionaryEntry[]>();
+
 // Local overrides storage key
 const OVERRIDE_KEY = 'ml_translation_overrides';
 
@@ -85,6 +93,10 @@ export function useTranslation(options: UseTranslationOptions = {}) {
     return translation() ?? null;
   };
 
+  const translateWord = async (word: string): Promise<TranslationResponse> => {
+    return fetchTranslation(word, settings.getTranslationUrl);
+  };
+
   const setOverride = (word: string, value: TranslationResponse | null) => {
     const overrides = readOverrides();
     if (value === null) {
@@ -103,6 +115,7 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   return {
     translation,
     translate,
+    translateWord,
     setOverride,
     clearCache,
     isLoading: () => translation.loading,
@@ -114,34 +127,60 @@ export function useTokenizer() {
   const { settings } = useSettings();
 
   const tokenize = async (text: string) => {
-    const response = await fetch(settings.tokeniserUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
+    const key = typeof text === 'string' ? text : String(text);
+    if (!key.trim()) return [{ actual_word: key, word: key, type: '名詞' }];
+    if (tokenCache.has(key)) return tokenCache.get(key)!.tokens;
+    if (tokenInFlight.has(key)) return tokenInFlight.get(key)!;
 
-    if (!response.ok) {
-      throw new Error(`Tokenization failed: ${response.status}`);
+    const p = (async () => {
+      const response = await fetch(settings.tokeniserUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: key }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Tokenization failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const tokens = data.tokens || [];
+      tokenCache.set(key, { tokens, ts: Date.now() });
+      if (tokenCache.size > TOKEN_CACHE_MAX) {
+        const firstKey = tokenCache.keys().next().value as string | undefined;
+        if (firstKey) tokenCache.delete(firstKey);
+      }
+      return tokens;
+    })();
+
+    tokenInFlight.set(key, p);
+    try {
+      return await p;
+    } catch (e) {
+      return [{ actual_word: key, word: key, type: '名詞' }];
+    } finally {
+      tokenInFlight.delete(key);
     }
-
-    const data = await response.json();
-    return data.tokens;
   };
 
   return { tokenize };
 }
 
-import type { DictionaryEntry } from '../../shared/types';
+import type { DictionaryEntry, TranslationEntry } from '../../shared/types';
 
 export function useDictionary() {
   const { settings } = useSettings();
   
   const lookup = async (word: string, reading?: string): Promise<DictionaryEntry[]> => {
     try {
-      const response = await fetch(settings.getCardUrl, {
+      const cacheKey = `${word}::${reading || ''}`;
+      if (dictionaryCache.has(cacheKey)) return dictionaryCache.get(cacheKey)!;
+
+      // Use translation endpoint for dictionary lookup (not getCard which is for Anki)
+      const response = await fetch(settings.getTranslationUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word, reading }),
+        body: JSON.stringify({ word }),
       });
       
       if (!response.ok) {
@@ -150,17 +189,30 @@ export function useDictionary() {
       
       const data = await response.json();
       // Transform backend response to DictionaryEntry array
+      // Response format: { data: [TranslationEntry?, TranslationEntry?, PitchData?] }
       if (data.data && Array.isArray(data.data)) {
-        return data.data
-          .filter((entry: unknown): entry is { definitions?: string[]; reading?: string } => 
-            entry !== null && typeof entry === 'object'
-          )
-          .map((entry: { definitions?: string[]; reading?: string; word?: string }) => ({
-            word: entry.word || word,
-            reading: entry.reading || '',
-            meanings: entry.definitions || [],
-          }));
+        const entries: DictionaryEntry[] = [];
+        
+        for (const entry of data.data) {
+          if (!entry || typeof entry !== 'object') continue;
+          
+          // Check if it has definitions (TranslationEntry)
+          const typedEntry = entry as TranslationEntry;
+          if (typedEntry.definitions) {
+            entries.push({
+              word: word,
+              reading: typedEntry.reading || '',
+              meanings: Array.isArray(typedEntry.definitions) 
+                ? typedEntry.definitions 
+                : [String(typedEntry.definitions)],
+            });
+          }
+        }
+        
+        dictionaryCache.set(cacheKey, entries);
+        return entries;
       }
+      dictionaryCache.set(cacheKey, []);
       return [];
     } catch (e) {
       console.error('Dictionary lookup error:', e);

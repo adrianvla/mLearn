@@ -22,6 +22,8 @@ export default defineConfig({
         'word-db-editor': resolve(__dirname, 'src/html/word-db-editor.html'),
         'kanji-grid': resolve(__dirname, 'src/html/kanji-grid.html'),
         reader: resolve(__dirname, 'src/html/reader.html'),
+        licenses: resolve(__dirname, 'src/html/licenses.html'),
+        'connect-qr': resolve(__dirname, 'src/html/connect-qr.html'),
       },
     },
   },

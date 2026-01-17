@@ -3,14 +3,14 @@
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState } from './types';
+import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload } from './types';
 
 export interface MLearnIPC {
   // Settings
   getSettings: () => void;
   saveSettings: (settings: Settings) => void;
   onSettings: (callback: (settings: Settings) => void) => void;
-  onSettingsSaved: (callback: (message: string) => void) => void;
+  onSettingsSaved: (callback: () => void) => void;
   
   // Flashcards
   getFlashcards: () => void;
@@ -64,8 +64,8 @@ export interface MLearnIPC {
   onOpenPrompt: (callback: (data: { title: string; message: string }) => void) => void;
   
   // Context Menu & UI Events
-  onOpenSettings: (callback: () => void) => void;
-  onOpenAside: (callback: (aside: string) => void) => void;
+  onOpenSettings: (callback: (section?: string) => void) => void;
+  onOpenAside: (callback: () => void) => void;
   onContextMenuCommand: (callback: (command: string) => void) => void;
   onOpenWordDbEditor: (callback: () => void) => void;
   onOpenKanjiGrid: (callback: () => void) => void;
@@ -99,7 +99,7 @@ export interface MLearnIPC {
   removeListener: (channel: string, callback: (...args: unknown[]) => void) => void;
   
   // Window Management
-  openWindow: (payload: { type: string; data?: unknown }) => void;
+  openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
 }
 

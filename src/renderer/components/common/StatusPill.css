@@ -1,0 +1,81 @@
+/**
+ * Status Pill Styles
+ * Styles for word status pill buttons
+ */
+
+/* Import base pill styling */
+@import url('./Pill.css');
+
+/* Status pill - extends .pill */
+.status-pill {
+  /* Uses .pill base styles */
+  cursor: pointer;
+  user-select: none;
+  border: none;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  opacity: 0.6;
+}
+
+.status-pill:hover {
+  filter: brightness(0.92);
+  opacity: 0.85;
+}
+
+.status-pill.active {
+  opacity: 1;
+  transform: scale(1.02);
+}
+
+.status-pill:active {
+  transform: scale(0.98);
+}
+
+/* Status-specific colors (using pill color classes) */
+/* Unknown - red */
+.status-pill.red {
+  /* Inherits from .pill.red */
+}
+
+/* Learning - orange */
+.status-pill.orange {
+  /* Inherits from .pill.orange */
+}
+
+/* Known - green */
+.status-pill.green {
+  /* Inherits from .pill.green */
+}
+
+/* Icon styling */
+.status-pill .icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+}
+
+.status-pill .icon img {
+  width: 14px;
+  height: 14px;
+}
+
+/* Compact variant for tables */
+.status-pill.compact {
+  padding: 3px 8px;
+  font-size: 0.7em;
+}
+
+.status-pill.compact .icon img {
+  width: 12px;
+  height: 12px;
+}
+
+/* Group of status pills */
+.status-pill-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Dark mode already handled by .pill dark mode rules */

@@ -4,8 +4,9 @@
  */
 
 import { render } from 'solid-js/web';
-import { Router, Route } from '@solidjs/router';
+import { HashRouter, Route } from '@solidjs/router';
 import { WindowWrapper } from '../../context';
+import { LoadingOverlay } from './components/LoadingOverlay';
 import { WelcomeRoute } from './routes/WelcomeRoute';
 import { VideoRoute } from './routes/VideoRoute';
 import { ReaderRoute } from './routes/ReaderRoute';
@@ -23,11 +24,12 @@ if (!root) {
 
 const App = () => (
   <WindowWrapper>
-    <Router>
+    <LoadingOverlay />
+    <HashRouter>
       <Route path="/" component={WelcomeRoute} />
       <Route path="/video" component={VideoRoute} />
       <Route path="/reader" component={ReaderRoute} />
-    </Router>
+    </HashRouter>
   </WindowWrapper>
 );
 

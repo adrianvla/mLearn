@@ -2,6 +2,10 @@
  * Word DB Editor Styles
  */
 
+/* Import shared pill styling */
+@import url('../../components/common/Pill.css');
+@import url('../../components/common/StatusPill.css');
+
 .word-db-editor {
   display: flex;
   flex-direction: column;
@@ -132,72 +136,20 @@
   margin-left: 0.5rem;
 }
 
-/* Pills */
-.pill {
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.75rem;
-  font-weight: 500;
+/* Level Pill in Word DB - use shared pill styling from Pill.css */
+.word-db-editor .pill {
+  /* Inherits from Pill.css */
 }
 
-.pill[data-level="5"] { background: #e91e63; color: white; }
-.pill[data-level="4"] { background: #9c27b0; color: white; }
-.pill[data-level="3"] { background: #673ab7; color: white; }
-.pill[data-level="2"] { background: #3f51b5; color: white; }
-.pill[data-level="1"] { background: #2196f3; color: white; }
-.pill[data-level="0"] { background: #009688; color: white; }
-
-/* Status Pills */
-.status-pills {
+/* Status Pills in word DB - use shared StatusPill styles */
+.word-db-editor .status-pill-group {
   display: flex;
-  gap: 0.25rem;
+  gap: 6px;
 }
 
-.status-pill {
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  font-size: 0.7rem;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.status-pill:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.status-pill.active {
-  border-color: currentColor;
-}
-
-.status-pill.status-unknown {
-  color: #9E9E9E;
-}
-
-.status-pill.status-unknown.active {
-  background: #9E9E9E;
-  color: white;
-}
-
-.status-pill.status-learning {
-  color: #FF9800;
-}
-
-.status-pill.status-learning.active {
-  background: #FF9800;
-  color: white;
-}
-
-.status-pill.status-learned {
-  color: #4CAF50;
-}
-
-.status-pill.status-learned.active {
-  background: #4CAF50;
-  color: white;
+.word-db-editor .status-pill {
+  padding: 3px 8px;
+  font-size: 0.7em;
 }
 
 /* Empty State */

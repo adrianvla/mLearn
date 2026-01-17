@@ -9,7 +9,7 @@ export { useIPC, useIsElectron, useIsTethered, useIPCEvent, useBackendStatus, us
 // Media
 export { useVideo, useVideoKeyboard, type VideoState } from './useVideo';
 export { useSubtitles } from './useSubtitles';
-export { useOCR } from './useOCR';
+export { useOCR, sendImageForOCR, prepareBlobForOCR, MAX_OCR_AREA } from './useOCR';
 
 // Language & Learning
 export { useTranslation, useTokenizer, useDictionary } from './useTranslation';
@@ -18,3 +18,6 @@ export type { PitchAccentInfo } from '../../shared/types';
 export { useWordHover, getGlobalHoverManager, useWordHoverTarget, type HoverData } from './useWordHover';
 export { useLLM } from './useLLM';
 export { useAnki } from './useAnki';
+
+// UI
+export { useCursorVisibility } from './useCursorVisibility';

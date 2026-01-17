@@ -12,6 +12,7 @@ export interface HoverData {
   token: Token | null;
   translation: TranslationResponse | null;
   position: { x: number; y: number };
+  anchorRect?: DOMRect;
   element: HTMLElement | null;
 }
 
@@ -105,6 +106,7 @@ export function useWordHoverTarget(
         x: rect.left + rect.width / 2,
         y: rect.top,
       },
+      anchorRect: rect,
       element: target,
     });
   };
