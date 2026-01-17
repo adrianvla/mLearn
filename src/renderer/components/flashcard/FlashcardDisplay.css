@@ -1,0 +1,149 @@
+/**
+ * FlashcardDisplay Component Styles
+ * Single flashcard with flip animation styling
+ */
+
+/* Container with 3D perspective */
+.flashcard-container {
+  perspective: 1000px;
+  cursor: pointer;
+  user-select: none;
+  width: 100%;
+  max-width: 500px;
+  min-height: 300px;
+  margin: 0 auto;
+}
+
+/* Card wrapper with 3D transform */
+.flashcard-card {
+  position: relative;
+  width: 100%;
+  min-height: 300px;
+  transform-style: preserve-3d;
+  transition: transform 0.6s ease;
+}
+
+.flashcard-card.flipped {
+  transform: rotateY(180deg);
+}
+
+/* Face base styles */
+.flashcard-face {
+  width: 100%;
+  min-height: 300px;
+  backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+/* Front face */
+.flashcard-front {
+  position: relative;
+}
+
+/* Back face */
+.flashcard-back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: rotateY(180deg);
+}
+
+/* Level pill */
+.flashcard-level-pill {
+  margin-bottom: 1rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+}
+
+/* Word display */
+.flashcard-word {
+  font-size: 2.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+/* Pronunciation */
+.flashcard-pronunciation {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+/* Example sentence */
+.flashcard-example {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-top: 1rem;
+  line-height: 1.5;
+}
+
+/* Hint text */
+.flashcard-hint {
+  position: absolute;
+  bottom: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Back side word header */
+.flashcard-word-header {
+  margin-bottom: 1rem;
+  position: relative;
+}
+
+.flashcard-word-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.flashcard-word-reading {
+  font-size: 1rem;
+  margin-left: 0.5rem;
+  color: var(--text-secondary);
+}
+
+/* Pitch accent display */
+.flashcard-pitch-container {
+  font-size: 1.5rem;
+  position: relative;
+}
+
+.flashcard-pitch-container rt {
+  --pitch-accent-height: 2px;
+}
+
+/* Translation/definition */
+.flashcard-translation {
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+/* Example meaning */
+.flashcard-example-meaning {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Screenshot image */
+.flashcard-screenshot-container {
+  margin-top: 1rem;
+  max-width: 100%;
+}
+
+.flashcard-screenshot {
+  max-width: 100%;
+  max-height: 150px;
+  border-radius: 8px;
+  object-fit: contain;
+}
