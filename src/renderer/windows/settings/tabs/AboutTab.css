@@ -1,0 +1,115 @@
+/**
+ * About Tab Styles
+ */
+
+.about-tab {
+  align-items: center;
+  text-align: center;
+}
+
+.about-logo {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.about-version {
+  margin-bottom: 1.5rem;
+}
+
+.about-version h2 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.about-version span {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.about-description {
+  max-width: 400px;
+  margin: 0 auto 1.5rem;
+}
+
+.about-description p {
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.7;
+  margin: 0;
+}
+
+.about-links {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.about-link {
+  padding: 0.625rem 1.25rem;
+  background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.about-link:hover {
+  background: var(--glass-bg-hover, rgba(255, 255, 255, 0.1));
+  border-color: var(--glass-border-hover, rgba(255, 255, 255, 0.2));
+}
+
+.about-features,
+.about-shortcuts {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto 1.5rem;
+  text-align: left;
+}
+
+.about-features h3,
+.about-shortcuts h3 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.about-features ul {
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.8;
+  padding-left: 1.25rem;
+  margin: 0;
+}
+
+.shortcuts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.375rem 0;
+}
+
+.shortcut-description {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.875rem;
+}
+
+.shortcut-key {
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}

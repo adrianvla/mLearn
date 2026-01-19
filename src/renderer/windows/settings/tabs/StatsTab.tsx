@@ -5,11 +5,13 @@
 
 import { Component, createSignal, onMount, createEffect, Show } from 'solid-js';
 import { useSettings } from '../../../context';
+import { TabContent, StatCard, EmptyState } from '../../../components/common';
 import {
   getTimeWatchedFormatted,
   getWordsLearnedInAppStats,
   initTimeWatched,
 } from '../../../services/statsService';
+import './StatsTab.css';
 
 export const StatsTab: Component = () => {
   const { settings } = useSettings();
@@ -51,29 +53,27 @@ export const StatsTab: Component = () => {
   };
 
   return (
-    <div class="tab-content">
-      <div class="tab-header">
-        <h2>Learning Statistics</h2>
-        <p>Track your progress and learning journey</p>
-      </div>
-
+    <TabContent
+      header={{
+        title: 'Learning Statistics',
+        description: 'Track your progress and learning journey',
+        icon: '📊',
+      }}
+      padding="lg"
+    >
       {/* Stats Cards */}
       <div class="stats-grid">
-        <div class="stat-card">
-          <p class="stat-value">{timeWatched()}</p>
-          <p class="stat-label">Time Watched</p>
+        <div class="stats-card-wrapper">
+          <StatCard label="Time Watched" value={timeWatched()} icon="⏱️" size="md" variant="glass" />
         </div>
-        <div class="stat-card">
-          <p class="stat-value">{wordStats().total}</p>
-          <p class="stat-label">Words Tracked</p>
+        <div class="stats-card-wrapper">
+          <StatCard label="Words Tracked" value={wordStats().total} icon="📝" size="md" variant="glass" />
         </div>
-        <div class="stat-card">
-          <p class="stat-value">{wordStats().learned}</p>
-          <p class="stat-label">Words Learned</p>
+        <div class="stats-card-wrapper">
+          <StatCard label="Words Learned" value={wordStats().learned} icon="✅" color="success" size="md" variant="glass" />
         </div>
-        <div class="stat-card">
-          <p class="stat-value">{wordStats().learning}</p>
-          <p class="stat-label">Currently Learning</p>
+        <div class="stats-card-wrapper">
+          <StatCard label="Currently Learning" value={wordStats().learning} icon="📚" color="warning" size="md" variant="glass" />
         </div>
       </div>
 
@@ -83,9 +83,12 @@ export const StatsTab: Component = () => {
         <Show
           when={wordStats().total > 0}
           fallback={
-            <p style={{ color: "rgba(255,255,255,0.5)", "text-align": "center" }}>
-              No word data yet. Start watching to track words!
-            </p>
+            <EmptyState
+              icon="📈"
+              title="No Word Data Yet"
+              description="Start watching to track words!"
+              size="sm"
+            />
           }
         >
           <canvas ref={pieCanvasRef} class="chart-canvas" width={300} height={300} />
@@ -121,7 +124,7 @@ export const StatsTab: Component = () => {
           📝 Edit Word Database
         </button>
       </div>
-    </div>
+    </TabContent>
   );
 };
 

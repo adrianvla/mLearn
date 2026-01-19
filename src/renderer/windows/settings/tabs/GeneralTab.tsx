@@ -6,17 +6,20 @@ import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
 import { SettingRow } from './components/SettingRow';
 import { SettingGroup } from './components/SettingGroup';
-import { ToggleSwitch } from '../../../components/common';
+import { ToggleSwitch, TabContent } from '../../../components/common';
 
 export const GeneralTab: Component = () => {
   const { settings, updateSettings } = useSettings();
 
   return (
-    <div class="tab-content">
-      <div class="tab-header">
-        <h2>General Settings</h2>
-        <p>Configure basic application settings</p>
-      </div>
+    <TabContent
+      header={{
+        title: 'General Settings',
+        description: 'Configure basic application settings',
+        icon: '⚙️',
+      }}
+      padding="lg"
+    >
 
       <SettingGroup title="Language">
         <SettingRow
@@ -84,7 +87,7 @@ export const GeneralTab: Component = () => {
           </button>
         </SettingRow>
       </SettingGroup>
-    </div>
+    </TabContent>
   );
 };
 

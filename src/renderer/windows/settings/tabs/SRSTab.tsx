@@ -6,7 +6,7 @@ import { Component, createSignal, Show } from 'solid-js';
 import { useSettings } from '../../../context';
 import { SettingRow } from './components/SettingRow';
 import { SettingGroup } from './components/SettingGroup';
-import { ToggleSwitch } from '../../../components/common';
+import { ToggleSwitch, TabContent } from '../../../components/common';
 
 export const SRSTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -29,11 +29,14 @@ export const SRSTab: Component = () => {
   };
 
   return (
-    <div class="tab-content">
-      <div class="tab-header">
-        <h2>Spaced Repetition</h2>
-        <p>Configure flashcard and Anki settings</p>
-      </div>
+    <TabContent
+      header={{
+        title: 'Spaced Repetition',
+        description: 'Configure flashcard and Anki settings',
+        icon: '🃏',
+      }}
+      padding="lg"
+    >
 
       <SettingGroup title="Anki Integration">
         <SettingRow
@@ -194,7 +197,7 @@ export const SRSTab: Component = () => {
           </button>
         </SettingRow>
       </SettingGroup>
-    </div>
+    </TabContent>
   );
 };
 

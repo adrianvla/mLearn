@@ -7,8 +7,17 @@ import { Component, Show, For, createSignal, createMemo } from 'solid-js';
 import { WindowWrapper } from '../../context';
 import { useFlashcards, useSettings } from '../../context';
 import { FlashcardReview } from '../../components/flashcard';
-import { GlassPanel, GlassButton, GlassCard, GlassModal, GlassInput } from '../../components/common';
+import { 
+  GlassCard, 
+  GlassModal, 
+  GlassInput, 
+  GlassButton,
+  TabButton,
+  EmptyState,
+  StatCard,
+} from '../../components/common';
 import type { Flashcard } from '../../../shared/types';
+import './FlashcardsApp.css';
 
 type TabId = 'review' | 'browse' | 'stats';
 
@@ -37,31 +46,35 @@ const FlashcardsContent: Component = () => {
     const cards = flashcards();
     return {
       new: cards.filter((c: Flashcard) => c.reviews === 0).length,
-      learning: cards.filter((c: Flashcard) => c.reviews > 0 && c.interval < 21).length,
+      learning: cards.filter((c: Flashcard) => c.reviews > 0 && (c.interval ?? 0) < 21 * 24 * 60).length,
       review: dueCount(),
     };
   });
 
-  const handleDeleteCard = () => {
+  const handleDeleteCard = async () => {
     const cardId = selectedCard();
     if (cardId) {
-      removeFlashcard(cardId);
+      // Find the card index by id
+      const idx = flashcards().findIndex(c => c.id === cardId);
+      if (idx !== -1) {
+        await removeFlashcard(idx, false);
+      }
       setShowDeleteConfirm(false);
       setSelectedCard(null);
     }
   };
 
-  const handleAddCard = () => {
+  const handleAddCard = async () => {
     if (!newWord().trim() || !newMeaning().trim()) return;
 
-    addFlashcard({
+    await addFlashcard({
       word: newWord().trim(),
       pronunciation: newReading().trim() || newWord().trim(),
       translation: [newMeaning().trim()],
       example: '',
       exampleMeaning: '',
       pos: '',
-      level: 0,
+      level: -1,
     });
 
     setNewWord('');
@@ -77,55 +90,19 @@ const FlashcardsContent: Component = () => {
   ];
 
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        'flex-direction': 'column',
-        'background-color': 'var(--bg-primary)',
-      }}
-    >
+    <div class="flashcards-window">
       {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          'align-items': 'center',
-          'justify-content': 'space-between',
-          padding: '1rem 1.5rem',
-          'border-bottom': '1px solid var(--glass-border)',
-        }}
-      >
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+      <div class="flashcards-header">
+        <div class="flashcards-tabs">
           <For each={tabs}>
             {(tab) => (
-              <button
-                style={{
-                  padding: '0.5rem 1rem',
-                  background: activeTab() === tab.id ? 'var(--glass-bg)' : 'transparent',
-                  border: 'none',
-                  'border-radius': 'var(--radius-md)',
-                  color: activeTab() === tab.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
+              <TabButton
+                label={tab.label}
+                active={activeTab() === tab.id}
+                badge={tab.id === 'review' && dueCount() > 0 ? dueCount() : undefined}
+                badgeVariant="primary"
                 onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-                <Show when={tab.id === 'review' && dueCount() > 0}>
-                  <span
-                    style={{
-                      'margin-left': '0.5rem',
-                      padding: '0.125rem 0.5rem',
-                      'background-color': 'var(--color-primary)',
-                      'border-radius': 'var(--radius-full)',
-                      'font-size': '0.75rem',
-                    }}
-                  >
-                    {dueCount()}
-                  </span>
-                </Show>
-              </button>
+              />
             )}
           </For>
         </div>
@@ -136,44 +113,20 @@ const FlashcardsContent: Component = () => {
       </div>
 
       {/* Content */}
-      <div style={{ flex: '1', overflow: 'auto' }}>
+      <div class="flashcards-content">
         {/* Review Tab */}
         <Show when={activeTab() === 'review'}>
           <Show
             when={dueCount() > 0}
             fallback={
-              <div
-                style={{
-                  display: 'flex',
-                  'flex-direction': 'column',
-                  'align-items': 'center',
-                  'justify-content': 'center',
-                  height: '100%',
-                  padding: '2rem',
-                }}
-              >
-                <GlassPanel
-                  variant="dark"
-                  blur="lg"
-                  rounded="xl"
-                  padding="xl"
-                  style={{ 'text-align': 'center', 'max-width': '400px' }}
-                >
-                  <div style={{ 'font-size': '3rem', 'margin-bottom': '1rem' }}>✨</div>
-                  <h2
-                    style={{
-                      'font-size': '1.5rem',
-                      'font-weight': '600',
-                      color: 'var(--text-primary)',
-                      'margin-bottom': '0.5rem',
-                    }}
-                  >
-                    All Caught Up!
-                  </h2>
-                  <p style={{ color: 'var(--text-secondary)' }}>
-                    No cards due for review right now. Keep learning!
-                  </p>
-                </GlassPanel>
+              <div class="flashcards-empty-container">
+                <EmptyState
+                  icon="✨"
+                  title="All Caught Up!"
+                  description="No cards due for review right now. Keep learning!"
+                  variant="card"
+                  size="md"
+                />
               </div>
             }
           >
@@ -183,55 +136,41 @@ const FlashcardsContent: Component = () => {
 
         {/* Browse Tab */}
         <Show when={activeTab() === 'browse'}>
-          <div style={{ padding: '1rem' }}>
+          <div class="flashcards-browse">
             <Show
-              when={flashcards.length > 0}
+              when={flashcards().length > 0}
               fallback={
-                <div style={{ 'text-align': 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-                  No flashcards yet. Add words while watching videos!
-                </div>
+                <EmptyState
+                  icon="📚"
+                  title="No Flashcards Yet"
+                  description="Add words while watching videos to start building your vocabulary!"
+                  size="md"
+                  action={{
+                    label: 'Add Card',
+                    onClick: () => setShowAddModal(true),
+                    variant: 'primary',
+                  }}
+                />
               }
             >
-              <div
-                style={{
-                  display: 'grid',
-                  'grid-template-columns': 'repeat(auto-fill, minmax(250px, 1fr))',
-                  gap: '1rem',
-                }}
-              >
+              <div class="flashcards-grid">
                 <For each={flashcards()}>
                   {(card) => (
                     <GlassCard
                       title={card.content.word}
                       subtitle={card.content.pronunciation !== card.content.word ? card.content.pronunciation : undefined}
                     >
-                      <p
-                        style={{
-                          'font-size': '0.875rem',
-                          color: 'var(--text-secondary)',
-                          'margin-bottom': '0.75rem',
-                        }}
-                      >
+                      <p class="flashcard-translation">
                         {card.content.translation?.join(', ') || card.content.definition?.join(', ')}
                       </p>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <span
-                          class="pill"
-                          style={{ 'font-size': '0.75rem' }}
-                        >
+                      <div class="flashcard-footer">
+                        <span class="pill">
                           {card.reviews} reviews
                         </span>
                         <button
-                          style={{
-                            'margin-left': 'auto',
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--color-danger)',
-                            cursor: 'pointer',
-                            'font-size': '0.75rem',
-                          }}
+                          class="flashcard-delete-btn"
                           onClick={() => {
-                            setSelectedCard(card.id);
+                            setSelectedCard(card.id ?? card.content.word);
                             setShowDeleteConfirm(true);
                           }}
                         >
@@ -248,70 +187,48 @@ const FlashcardsContent: Component = () => {
 
         {/* Stats Tab */}
         <Show when={activeTab() === 'stats'}>
-          <div
-            style={{
-              display: 'flex',
-              'flex-direction': 'column',
-              'align-items': 'center',
-              gap: '1.5rem',
-              padding: '2rem',
-            }}
-          >
-            <div
-              style={{
-                display: 'grid',
-                'grid-template-columns': 'repeat(3, 1fr)',
-                gap: '1rem',
-                width: '100%',
-                'max-width': '600px',
-              }}
-            >
-              <GlassCard title="Total Cards">
-                <p
-                  style={{
-                    'font-size': '2rem',
-                    'font-weight': '600',
-                    color: 'var(--color-primary)',
-                  }}
-                >
-                  {flashcards.length}
-                </p>
+          <div class="flashcards-stats">
+            <div class="flashcards-stats-grid">
+              <GlassCard>
+                <StatCard
+                  label="Total Cards"
+                  value={flashcards().length}
+                  icon="📚"
+                  color="primary"
+                  size="lg"
+                />
               </GlassCard>
-              <GlassCard title="Due Today">
-                <p
-                  style={{
-                    'font-size': '2rem',
-                    'font-weight': '600',
-                    color: 'var(--color-warning)',
-                  }}
-                >
-                  {dueCount()}
-                </p>
+              <GlassCard>
+                <StatCard
+                  label="Due Today"
+                  value={dueCount()}
+                  icon="📅"
+                  color="warning"
+                  size="lg"
+                />
               </GlassCard>
-              <GlassCard title="Mature">
-                <p
-                  style={{
-                    'font-size': '2rem',
-                    'font-weight': '600',
-                    color: 'var(--color-success)',
-                  }}
-                >
-                  {flashcards().filter((c: Flashcard) => c.interval > 21).length}
-                </p>
+              <GlassCard>
+                <StatCard
+                  label="Mature"
+                  value={flashcards().filter((c: Flashcard) => (c.interval ?? 0) > 21 * 24 * 60).length}
+                  icon="⭐"
+                  color="success"
+                  size="lg"
+                />
               </GlassCard>
             </div>
 
-            <GlassCard title="Card Breakdown" style={{ width: '100%', 'max-width': '600px' }}>
-              <div style={{ display: 'flex', 'flex-direction': 'column', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', 'justify-content': 'space-between' }}>
+            <GlassCard title="Card Breakdown" class="flashcards-breakdown">
+              <div class="breakdown-rows">
+                <div class="breakdown-row">
                   <span>New</span>
                   <span>{stats().new}</span>
                 </div>
-                <div style={{ display: 'flex', 'justify-content': 'space-between' }}>
+                <div class="breakdown-row">
                   <span>Learning</span>
                   <span>{stats().learning}</span>
                 </div>
-                <div style={{ display: 'flex', 'justify-content': 'space-between' }}>
+                <div class="breakdown-row">
                   <span>Review</span>
                   <span>{stats().review}</span>
                 </div>

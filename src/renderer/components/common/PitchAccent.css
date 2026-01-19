@@ -1,6 +1,7 @@
 /**
  * PitchAccent Component Styles
  * Visual representation of Japanese pitch accent patterns
+ * Matches legacy .mLearn-pitch-accent styling exactly
  */
 
 .pitch-accent-container {
@@ -20,14 +21,98 @@
 .mLearn-pitch-accent {
   --pitch-accent-height: 2px;
   position: absolute;
-  top: -0.5em;
+  bottom: 0;
   left: 0;
   right: 0;
-  pointer-events: none;
+  top: 0;
+  font-size: 0.8em;
   display: flex;
-  align-items: flex-end;
-  gap: 0;
-  height: 1em;
+  pointer-events: none;
+}
+
+/* Pitch accent box - each mora gets one */
+.mLearn-pitch-accent .box {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* Low pitch (bottom line) - blue */
+.mLearn-pitch-accent .box.bottom::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--pitch-accent-height) / -2);
+  right: calc(var(--pitch-accent-height) / -2);
+  bottom: calc(var(--pitch-accent-height) / -2);
+  height: var(--pitch-accent-height);
+  background: #4e86ca;
+  border-radius: 50px;
+  pointer-events: none;
+}
+
+/* High pitch (top line) - red/pink */
+.mLearn-pitch-accent .box.top::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--pitch-accent-height) / -2);
+  right: calc(var(--pitch-accent-height) / -2);
+  top: calc(var(--pitch-accent-height) / -2);
+  height: var(--pitch-accent-height);
+  background: #e8687b;
+  border-radius: 50px;
+  pointer-events: none;
+}
+
+/* Transition marker (left vertical line) - gradient */
+.mLearn-pitch-accent .box.left::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--pitch-accent-height) / -2);
+  bottom: calc(var(--pitch-accent-height) / -2);
+  left: calc(var(--pitch-accent-height) / -2);
+  width: var(--pitch-accent-height);
+  background: linear-gradient(to bottom, #e8687b, #4e86ca);
+  border-radius: 50px;
+  pointer-events: none;
+}
+
+/* Particle box fade effect */
+.mLearn-pitch-accent .particle-box.box.top::before {
+  background: linear-gradient(to right, #e8687b, #e8687b00);
+}
+
+.mLearn-pitch-accent .particle-box.box.bottom::before {
+  background: linear-gradient(to right, #4e86ca, #4e86ca00);
+}
+
+/* Remove left border radius when same-type boxes are adjacent */
+.mLearn-pitch-accent .box.top + .box.top::before {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.mLearn-pitch-accent .box.bottom + .box.bottom::before {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* Default right radius */
+.mLearn-pitch-accent .box.top::before,
+.mLearn-pitch-accent .box.bottom::before {
+  border-top-right-radius: 50px;
+  border-bottom-right-radius: 50px;
+}
+
+/* Remove right radius when followed by same-type */
+.mLearn-pitch-accent .box.top:has(+ .box.top)::before {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.mLearn-pitch-accent .box.bottom:has(+ .box.bottom)::before {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 /* Pill variation */
@@ -37,57 +122,11 @@
 
 .pill.pitch-accent-pill .pitch-accent-word {
   font-weight: normal;
+  position: relative;
 }
 
 .pill.pitch-accent-pill .mLearn-pitch-accent {
   --pitch-accent-height: 2px;
-}
-
-/* Pitch accent line segments */
-.mLearn-pitch-accent .pa-segment {
-  flex: 1;
-  min-width: 0.4em;
-  position: relative;
-}
-
-.mLearn-pitch-accent .pa-segment::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: var(--pitch-accent-height, 2px);
-  background: currentColor;
-}
-
-/* High pitch segment */
-.mLearn-pitch-accent .pa-segment.high::after {
-  top: 0;
-}
-
-/* Low pitch segment */
-.mLearn-pitch-accent .pa-segment.low::after {
-  bottom: 0;
-}
-
-/* Transition markers (rise/fall) */
-.mLearn-pitch-accent .pa-segment.rise::before,
-.mLearn-pitch-accent .pa-segment.fall::before {
-  content: '';
-  position: absolute;
-  width: var(--pitch-accent-height, 2px);
-  background: currentColor;
-}
-
-.mLearn-pitch-accent .pa-segment.rise::before {
-  right: 0;
-  bottom: 0;
-  height: calc(1em - var(--pitch-accent-height, 2px));
-}
-
-.mLearn-pitch-accent .pa-segment.fall::before {
-  left: 0;
-  top: 0;
-  height: calc(1em - var(--pitch-accent-height, 2px));
 }
 
 /* Dark mode adjustments */
@@ -99,6 +138,14 @@ body.dark .pitch-accent-container,
 /* When inside subtitle hover */
 .subtitle_hover .mLearn-pitch-accent {
   --pitch-accent-height: 2px;
+}
+
+.subtitle_hover .pill.pitch-accent-pill .mLearn-pitch-accent {
+  --pitch-accent-height: 2px;
+}
+
+.subtitle_hover .pill.pitch-accent-pill .pitch-accent-word {
+  position: relative;
 }
 
 body.dark .subtitle_hover .mLearn-pitch-accent,

@@ -1,0 +1,30 @@
+/**
+ * Tab Content Component Styles
+ */
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.tab-content-padding-none {
+  padding: 0;
+}
+
+.tab-content-padding-sm {
+  padding: 0.5rem;
+}
+
+.tab-content-padding-md {
+  padding: 1rem;
+}
+
+.tab-content-padding-lg {
+  padding: 1.5rem;
+}
+
+.tab-content-padding-xl {
+  padding: 2rem;
+}

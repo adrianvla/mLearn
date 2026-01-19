@@ -3,7 +3,9 @@
  */
 
 import { Component, createSignal, onMount } from 'solid-js';
+import { TabContent } from '../../../components/common';
 import { IPC_CHANNELS } from '../../../../shared/constants';
+import './AboutTab.css';
 
 export const AboutTab: Component = () => {
   const [version, setVersion] = createSignal('1.0.0');
@@ -32,7 +34,7 @@ export const AboutTab: Component = () => {
   };
 
   return (
-    <div class="tab-content">
+    <TabContent padding="lg" class="about-tab">
       <div class="about-logo">📚</div>
       
       <div class="about-version">
@@ -40,12 +42,8 @@ export const AboutTab: Component = () => {
         <span>Version {version()}</span>
       </div>
 
-      <div class="setting-group">
-        <p style={{ 
-          color: "rgba(255,255,255,0.7)", 
-          "line-height": "1.7",
-          "text-align": "center"
-        }}>
+      <div class="about-description">
+        <p>
           mLearn is a language learning tool that helps you study
           through immersion. Watch videos, read manga, and learn
           vocabulary naturally with intelligent subtitles and
@@ -62,13 +60,9 @@ export const AboutTab: Component = () => {
         </button>
       </div>
 
-      <div class="setting-group" style={{ "margin-top": "30px" }}>
-        <h3 style={{ "margin-bottom": "16px" }}>Features</h3>
-        <ul style={{ 
-          color: "rgba(255,255,255,0.7)", 
-          "line-height": "1.8",
-          "padding-left": "20px"
-        }}>
+      <div class="about-features">
+        <h3>Features</h3>
+        <ul>
           <li>Interactive subtitles with hover translations</li>
           <li>OCR reader for manga and images</li>
           <li>Built-in spaced repetition flashcards</li>
@@ -81,9 +75,9 @@ export const AboutTab: Component = () => {
         </ul>
       </div>
 
-      <div class="setting-group">
-        <h3 style={{ "margin-bottom": "16px" }}>Keyboard Shortcuts</h3>
-        <div style={{ display: "grid", gap: "8px" }}>
+      <div class="about-shortcuts">
+        <h3>Keyboard Shortcuts</h3>
+        <div class="shortcuts-grid">
           <ShortcutRow shortcut="Space" description="Play/Pause video" />
           <ShortcutRow shortcut="←/→" description="Seek 5 seconds" />
           <ShortcutRow shortcut="↑/↓" description="Volume control" />
@@ -93,21 +87,13 @@ export const AboutTab: Component = () => {
           <ShortcutRow shortcut="Cmd/Ctrl+Z" description="Undo flashcard action" />
         </div>
       </div>
-    </div>
+    </TabContent>
   );
 };
 
 const ShortcutRow: Component<{ shortcut: string; description: string }> = (props) => (
-  <div style={{ display: "flex", "justify-content": "space-between", "align-items": "center" }}>
-    <span style={{ color: "rgba(255,255,255,0.6)" }}>{props.description}</span>
-    <kbd style={{
-      padding: "4px 8px",
-      background: "rgba(255,255,255,0.1)",
-      "border-radius": "4px",
-      "font-family": "monospace",
-      "font-size": "0.85rem"
-    }}>
-      {props.shortcut}
-    </kbd>
+  <div class="shortcut-row">
+    <span class="shortcut-description">{props.description}</span>
+    <kbd class="shortcut-key">{props.shortcut}</kbd>
   </div>
 );

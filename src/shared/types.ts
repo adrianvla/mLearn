@@ -221,22 +221,42 @@ export interface FlashcardContent {
   screenshotUrl?: string;
   pos: string;
   level: number;
+  contextPhrase?: string; // The context phrase for OCR or subtitle context
 }
 
 export interface Flashcard {
-  id: string;
+  id?: string; // Optional for compatibility
   content: FlashcardContent;
   ease: number;
-  interval: number;
-  dueDate: string;
+  interval?: number;
+  dueDate: number; // Timestamp in ms (like old app)
   reviews: number;
-  createdAt: string;
-  lastReviewed?: string;
+  createdAt?: string;
+  lastReviewed: number; // Timestamp in ms (like old app)
+  lastUpdated: number; // Timestamp in ms (like old app)
 }
 
+// Word candidate tracking for auto-flashcard creation
+export interface WordCandidate {
+  count: number;
+  lastSeen: number;
+  word: string;
+}
+
+// Flashcard store meta information
+export interface FlashcardMeta {
+  flashcardsCreatedToday: number;
+  lastFlashcardCreatedDate: number;
+}
+
+// Full flashcard store matching old app structure
 export interface FlashcardStore {
   flashcards: Flashcard[];
-  version: number;
+  wordCandidates: Record<string, WordCandidate>;
+  alreadyCreated: Record<string, boolean>;
+  knownUnTracked: Record<string, boolean>;
+  meta: FlashcardMeta;
+  version?: number;
 }
 
 // ============================================================================

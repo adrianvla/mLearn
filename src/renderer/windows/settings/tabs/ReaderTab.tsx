@@ -6,17 +6,20 @@ import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
 import { SettingRow } from './components/SettingRow';
 import { SettingGroup } from './components/SettingGroup';
-import { ToggleSwitch } from '../../../components/common';
+import { ToggleSwitch, TabContent } from '../../../components/common';
 
 export const ReaderTab: Component = () => {
   const { settings, updateSettings } = useSettings();
 
   return (
-    <div class="tab-content">
-      <div class="tab-header">
-        <h2>Reader</h2>
-        <p>Configure OCR and manga reader settings</p>
-      </div>
+    <TabContent
+      header={{
+        title: 'Reader',
+        description: 'Configure OCR and manga reader settings',
+        icon: '📖',
+      }}
+      padding="lg"
+    >
 
       <SettingGroup title="OCR Settings">
         <SettingRow
@@ -73,6 +76,6 @@ export const ReaderTab: Component = () => {
           </p>
         </div>
       </SettingGroup>
-    </div>
+    </TabContent>
   );
 };

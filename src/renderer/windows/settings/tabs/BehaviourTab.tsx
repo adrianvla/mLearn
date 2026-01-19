@@ -6,17 +6,20 @@ import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
 import { SettingRow } from './components/SettingRow';
 import { SettingGroup } from './components/SettingGroup';
-import { ToggleSwitch } from '../../../components/common';
+import { ToggleSwitch, TabContent } from '../../../components/common';
 
 export const BehaviourTab: Component = () => {
   const { settings, updateSettings } = useSettings();
 
   return (
-    <div class="tab-content">
-      <div class="tab-header">
-        <h2>Behaviour</h2>
-        <p>Configure how mLearn interacts with content</p>
-      </div>
+    <TabContent
+      header={{
+        title: 'Behaviour',
+        description: 'Configure how mLearn interacts with content',
+        icon: '🎯',
+      }}
+      padding="lg"
+    >
 
       <SettingGroup title="Word Status">
         <SettingRow
@@ -170,6 +173,6 @@ export const BehaviourTab: Component = () => {
           />
         </SettingRow>
       </SettingGroup>
-    </div>
+    </TabContent>
   );
 };

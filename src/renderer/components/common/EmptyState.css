@@ -1,0 +1,87 @@
+/**
+ * Empty State Component Styles
+ */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+}
+
+.empty-state-sm {
+  padding: 1rem;
+}
+
+.empty-state-sm .empty-state-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state-sm .empty-state-title {
+  font-size: 1rem;
+}
+
+.empty-state-sm .empty-state-description {
+  font-size: 0.8rem;
+}
+
+.empty-state-md {
+  padding: 2rem;
+}
+
+.empty-state-md .empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.empty-state-md .empty-state-title {
+  font-size: 1.25rem;
+}
+
+.empty-state-md .empty-state-description {
+  font-size: 0.875rem;
+}
+
+.empty-state-lg {
+  padding: 3rem;
+}
+
+.empty-state-lg .empty-state-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+}
+
+.empty-state-lg .empty-state-title {
+  font-size: 1.5rem;
+}
+
+.empty-state-lg .empty-state-description {
+  font-size: 1rem;
+}
+
+.empty-state-icon {
+  line-height: 1;
+}
+
+.empty-state-title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.empty-state-description {
+  margin: 0.5rem 0 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 300px;
+}
+
+.empty-state-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}

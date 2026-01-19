@@ -3,7 +3,7 @@
  * Single flashcard with flip animation
  */
 
-import { Component, JSX, Show, createSignal, createMemo } from 'solid-js';
+import { Component, JSX, Show, createMemo } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
 import { GlassPanel } from '../common/GlassPanel';
 import { useSettings, useLanguage } from '../../context';
@@ -20,10 +20,12 @@ export interface FlashcardDisplayProps {
 export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const { settings } = useSettings();
   const { getLevelName } = useLanguage();
-  const [isFlipped, setIsFlipped] = createSignal(props.showAnswer ?? false);
 
   // Access content through the nested structure
   const content = () => props.flashcard.content;
+  
+  // isFlipped is driven by props.showAnswer
+  const isFlipped = createMemo(() => props.showAnswer ?? false);
 
   // Compute pitch accent HTML if available
   const pitchAccentHtml = createMemo(() => {
@@ -47,7 +49,6 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   });
 
   const handleFlip = () => {
-    setIsFlipped(!isFlipped());
     props.onFlip?.();
   };
 

@@ -6,16 +6,20 @@ import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
 import { SettingRow } from './components/SettingRow';
 import { SettingGroup } from './components/SettingGroup';
+import { TabContent } from '../../../components/common';
 
 export const CustomizationTab: Component = () => {
   const { settings, updateSettings } = useSettings();
 
   return (
-    <div class="tab-content">
-      <div class="tab-header">
-        <h2>Customization</h2>
-        <p>Personalize the look and feel</p>
-      </div>
+    <TabContent
+      header={{
+        title: 'Customization',
+        description: 'Personalize the look and feel',
+        icon: '🎨',
+      }}
+      padding="lg"
+    >
 
       <SettingGroup title="Subtitle Appearance">
         <SettingRow
@@ -107,6 +111,6 @@ export const CustomizationTab: Component = () => {
           </p>
         </div>
       </SettingGroup>
-    </div>
+    </TabContent>
   );
 };
