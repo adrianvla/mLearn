@@ -3,6 +3,10 @@
  * Single flashcard with flip animation styling
  */
 
+/* Import pitch accent styles */
+@import url('../common/PitchAccent.css');
+@import url('../common/Pill.css');
+
 /* Container with 3D perspective */
 .flashcard-container {
   perspective: 1000px;

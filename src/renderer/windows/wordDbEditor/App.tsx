@@ -15,7 +15,7 @@ import { SearchBar, EntriesHeader, WordEntryRow, type WordEntry } from './compon
 import './wordDbEditor.css';
 
 const WordDbEditorContent: Component = () => {
-  const { wordFrequency, isLoading: isLangLoading } = useLanguage();
+  const { wordFrequency } = useLanguage();
   const [searchQuery, setSearchQuery] = createSignal('');
   const [entries, setEntries] = createSignal<WordEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = createSignal<WordEntry[]>([]);

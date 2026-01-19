@@ -1,0 +1,123 @@
+/**
+ * CheckboxCard Component Styles
+ */
+
+.checkbox-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--glass-bg, rgba(128, 128, 128, 0.1));
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+  user-select: none;
+}
+
+.checkbox-card:hover:not(.disabled) {
+  background: var(--glass-bg-hover, rgba(128, 128, 128, 0.15));
+}
+
+.checkbox-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkbox-card-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.checkbox-card-check {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border: 2px solid var(--text-muted, #666);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.checkbox-card-check svg {
+  width: 14px;
+  height: 14px;
+  color: white;
+}
+
+.checkbox-card.checked .checkbox-card-check {
+  background: var(--color-primary, #3b82f6);
+  border-color: var(--color-primary, #3b82f6);
+}
+
+.checkbox-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.checkbox-card-title {
+  color: var(--text-primary, #fff);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.checkbox-card-description {
+  color: var(--text-secondary, #888);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.checkbox-card-extra {
+  margin-top: 0.5rem;
+}
+
+/* Variants */
+.checkbox-card--glass {
+  background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+}
+
+.checkbox-card--glass:hover:not(.disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.checkbox-card--bordered {
+  background: transparent;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.2));
+}
+
+.checkbox-card--bordered.checked {
+  border-color: var(--color-primary, #3b82f6);
+}
+
+.checkbox-card--bordered:hover:not(.disabled) {
+  border-color: var(--text-muted, #666);
+}
+
+/* Dark mode is default, light mode adjustments */
+body:not(.dark) .checkbox-card {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+body:not(.dark) .checkbox-card:hover:not(.disabled) {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+body:not(.dark) .checkbox-card-title {
+  color: #333;
+}
+
+body:not(.dark) .checkbox-card-description {
+  color: #666;
+}
+
+body:not(.dark) .checkbox-card-check {
+  border-color: #ccc;
+}

@@ -10,9 +10,16 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import type { FlashcardStore } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 
-// Default flashcard store
+// Default flashcard store (matching old app structure)
 const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
   flashcards: [],
+  wordCandidates: {},
+  alreadyCreated: {},
+  knownUnTracked: {},
+  meta: {
+    flashcardsCreatedToday: 0,
+    lastFlashcardCreatedDate: Date.now(),
+  },
   version: 1,
 };
 
@@ -21,14 +28,25 @@ function getFlashcardsPath(): string {
   return path.join(getUserDataPath(), 'flashcards.json');
 }
 
+// Check and fill missing fields in loaded flashcard store
+function checkFlashcards(fc_to_check: Partial<FlashcardStore>): FlashcardStore {
+  const result = { ...DEFAULT_FLASHCARD_STORE };
+  for (const key of Object.keys(DEFAULT_FLASHCARD_STORE) as (keyof FlashcardStore)[]) {
+    if (fc_to_check[key] !== undefined) {
+      (result as any)[key] = fc_to_check[key];
+    }
+  }
+  return result;
+}
+
 // Load flashcards from disk
 export function loadFlashcards(): FlashcardStore {
   try {
     const filePath = getFlashcardsPath();
     if (fs.existsSync(filePath)) {
       const data = fs.readFileSync(filePath, 'utf-8');
-      const loaded = JSON.parse(data) as FlashcardStore;
-      return { ...DEFAULT_FLASHCARD_STORE, ...loaded };
+      const loaded = JSON.parse(data) as Partial<FlashcardStore>;
+      return checkFlashcards(loaded);
     }
   } catch (error) {
     console.error('Failed to load flashcards:', error);

@@ -1,0 +1,138 @@
+/**
+ * Flashcards Window App Styles
+ */
+
+.flashcards-window {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-primary);
+}
+
+.flashcards-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.flashcards-tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.flashcards-content {
+  flex: 1;
+  overflow: auto;
+}
+
+/* Empty state container */
+.flashcards-empty-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+}
+
+/* Browse tab */
+.flashcards-browse {
+  padding: 1rem;
+}
+
+.flashcards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.flashcard-translation {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.flashcard-footer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.flashcard-footer .pill {
+  font-size: 0.75rem;
+}
+
+.flashcard-delete-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--color-danger, #ef4444);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s ease;
+}
+
+.flashcard-delete-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Stats tab */
+.flashcards-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem;
+}
+
+.flashcards-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  width: 100%;
+  max-width: 600px;
+}
+
+.flashcards-breakdown {
+  width: 100%;
+  max-width: 600px;
+}
+
+.breakdown-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.breakdown-row:last-child {
+  border-bottom: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .flashcards-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .flashcards-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .flashcards-tabs {
+    justify-content: center;
+  }
+}

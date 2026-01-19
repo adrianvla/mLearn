@@ -5,12 +5,14 @@
 
 /* Import shared pill styling */
 @import url('../common/Pill.css');
+@import url('../common/PitchAccent.css');
 
-/* Main container */
+/* Main container - width driven by JS based on max(content, footer) */
 .word-hover-container {
   position: fixed;
   z-index: 1000;
   pointer-events: auto;
+  max-width: 90vw;
 }
 
 /* Hover popup - matches legacy exactly */
@@ -22,11 +24,10 @@
   border: 1px solid var(--glass-border-current);
   border-radius: var(--radius-lg);
   text-align: left;
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-normal);
   z-index: var(--z-tooltip);
   box-shadow: var(--shadow-xl);
-  /*box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.8);*/
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--transition-normal);
@@ -40,9 +41,10 @@
   text-shadow: none !important;
   gap: 10px;
   -webkit-text-stroke: unset !important;
-  width: max-content;
+  /* Width is calculated dynamically based on max(content, footer) */
+  width: 100%;
   min-width: 280px;
-  /*max-width: 600px;*/
+  overflow-x: hidden;
 }
 
 .subtitle_hover.dark,
@@ -102,8 +104,7 @@ body.dark .subtitle_hover .pitch,
 
 /* Content area */
 .subtitle_hover_content {
-  padding: 20px;
-  padding-bottom: 65px;
+  padding: 20px 20px 65px;
   width: 100%;
   box-sizing: border-box;
   overflow-y: auto;

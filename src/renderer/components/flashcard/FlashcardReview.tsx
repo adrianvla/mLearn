@@ -1,50 +1,65 @@
 /**
  * Flashcard Review Component
- * SRS review interface with rating buttons
+ * SRS review interface with rating buttons (matching old app exactly)
  */
 
-import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, For } from 'solid-js';
+import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, For, createEffect } from 'solid-js';
 import { useFlashcards } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { GlassButton } from '../common/GlassButton';
 import { GlassPanel } from '../common/GlassPanel';
+import type { Flashcard } from '../../../shared/types';
 import './FlashcardReview.css';
 
 export interface FlashcardReviewProps {
   onComplete?: () => void;
+  onClose?: () => void;
   style?: JSX.CSSProperties;
 }
 
 export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
-  const { getDueCards, reviewFlashcard, getNewCards, store } = useFlashcards();
+  const { 
+    store, 
+    getDueCards, 
+    reviewFlashcard, 
+    postponeFlashcard,
+    schedulePitchMistake,
+    markAsKnown,
+    removeFlashcard,
+    sortByDueDate,
+    getAnticipatedDueDate,
+    dateToInString,
+    getPostponeDate,
+    getPitchMistakeDate,
+    pushUndoState,
+    undoLastAction,
+    canUndo,
+  } = useFlashcards();
   
-  const [currentIndex, setCurrentIndex] = createSignal(0);
   const [showAnswer, setShowAnswer] = createSignal(false);
-  const [isReviewing, setIsReviewing] = createSignal(true);
-
-  const dueCards = createMemo(() => getDueCards());
+  const [isComplete, setIsComplete] = createSignal(false);
   
-  // Compute stats from store
+  // Current card is always flashcards[0] after sorting by due date
+  const currentCard = createMemo(() => {
+    sortByDueDate();
+    const cards = store.flashcards;
+    if (cards.length === 0) return null;
+    // Only show if due
+    if (cards[0].dueDate > Date.now()) return null;
+    return cards[0];
+  });
+  
+  // Count due cards
+  const dueCount = createMemo(() => getDueCards().length);
+  
+  // Stats
   const stats = createMemo(() => {
     const cards = store.flashcards;
     return {
-      new: cards.filter(c => c.reviews === 0).length,
-      learning: cards.filter(c => c.reviews > 0 && c.interval < 21).length,
-      review: dueCards().length,
+      new: cards.filter((c: Flashcard) => c.reviews === 0).length,
+      learning: cards.filter((c: Flashcard) => c.reviews > 0 && (c.interval ?? 0) < 21 * 24 * 60).length,
+      review: dueCount(),
     };
-  });
-  
-  const currentCard = createMemo(() => {
-    const cards = dueCards();
-    const idx = currentIndex();
-    if (idx >= cards.length) return null;
-    return cards[idx];
-  });
-
-  const progress = createMemo(() => {
-    const total = dueCards().length;
-    if (total === 0) return 100;
-    return Math.round((currentIndex() / total) * 100);
   });
 
   // Keyboard shortcuts (like old app)
@@ -55,9 +70,19 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         return;
       }
       
-      if (!isReviewing()) return;
+      // Check for Ctrl+Z / Cmd+Z for undo
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (canUndo()) {
+          undoLastAction();
+          setShowAnswer(false);
+        }
+        return;
+      }
       
-      // Space or Enter to flip card
+      if (isComplete()) return;
+      
+      // Space to show answer
       if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault();
         if (!showAnswer()) {
@@ -66,7 +91,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         return;
       }
       
-      // Number keys for rating (only when answer is shown)
+      // Rating keys (only when answer is shown)
       if (showAnswer()) {
         switch (e.key) {
           case '1':
@@ -85,6 +110,22 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             e.preventDefault();
             handleRating('easy');
             break;
+          case 'p':
+            e.preventDefault();
+            handlePostpone();
+            break;
+          case 'm':
+            e.preventDefault();
+            handlePitchMistake();
+            break;
+          case '-':
+            e.preventDefault();
+            handleMarkAsKnown();
+            break;
+          case 'x':
+            e.preventDefault();
+            handleRemove();
+            break;
         }
       }
     };
@@ -93,20 +134,51 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
   });
 
+  // Check if all cards are done
+  createEffect(() => {
+    if (dueCount() === 0) {
+      setIsComplete(true);
+    } else {
+      setIsComplete(false);
+    }
+  });
+
   const handleRating = (quality: 'again' | 'hard' | 'good' | 'easy') => {
     const card = currentCard();
     if (!card) return;
 
-    reviewFlashcard(card.id, quality);
+    reviewFlashcard(quality);
     setShowAnswer(false);
     
-    const nextIndex = currentIndex() + 1;
-    if (nextIndex >= dueCards().length) {
-      setIsReviewing(false);
+    if (dueCount() === 0) {
+      setIsComplete(true);
       props.onComplete?.();
-    } else {
-      setCurrentIndex(nextIndex);
     }
+  };
+
+  const handlePostpone = () => {
+    if (!currentCard()) return;
+    postponeFlashcard();
+    setShowAnswer(false);
+  };
+
+  const handlePitchMistake = () => {
+    if (!currentCard()) return;
+    schedulePitchMistake();
+    setShowAnswer(false);
+  };
+
+  const handleMarkAsKnown = async () => {
+    if (!currentCard()) return;
+    await markAsKnown();
+    setShowAnswer(false);
+  };
+
+  const handleRemove = async () => {
+    if (!currentCard()) return;
+    pushUndoState({ type: 'remove' });
+    await removeFlashcard(0, false);
+    setShowAnswer(false);
   };
 
   const handleFlip = () => {
@@ -114,72 +186,109 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   const handleStartOver = () => {
-    setCurrentIndex(0);
+    sortByDueDate();
     setShowAnswer(false);
-    setIsReviewing(true);
+    setIsComplete(false);
   };
 
-  // Rating buttons config with time estimates based on SM-2 algorithm with time estimates based on SM-2 algorithm
+  // Rating buttons config with time estimates
   const ratingButtons = createMemo(() => {
     const card = currentCard();
     if (!card) {
-      return [
-        { quality: 'again' as const, label: 'Again', className: 'flashcard-rating-btn--again', time: '< 1m' },
-        { quality: 'hard' as const, label: 'Hard', className: 'flashcard-rating-btn--hard', time: '~6m' },
-        { quality: 'good' as const, label: 'Good', className: 'flashcard-rating-btn--good', time: '~10m' },
-        { quality: 'easy' as const, label: 'Easy', className: 'flashcard-rating-btn--easy', time: '~4d' },
-      ];
+      return [];
     }
     
-    // Calculate estimated next review times based on current card state
-    const interval = card.interval || 0;
-    const ef = card.easeFactor || 2.5;
-    
-    // Time formatting helper (like old app's dateToInString)
-    const formatInterval = (days: number): string => {
-      if (days < 1 / 1440) return '< 1m';
-      if (days < 1 / 24) return `${Math.round(days * 1440)}m`;
-      if (days < 1) return `${Math.round(days * 24)}h`;
-      if (days < 30) return `${Math.round(days)}d`;
-      if (days < 365) return `${Math.round(days / 30)}mo`;
-      return `${Math.round(days / 365)}y`;
-    };
-    
-    // Calculate intervals for each rating
-    const againInterval = 1 / 1440; // 1 minute
-    const hardInterval = Math.max(interval * 1.2, 1 / 144); // ~10 minutes min
-    const goodInterval = Math.max(interval === 0 ? 1 / 144 : interval * ef, 1 / 144);
-    const easyInterval = Math.max(interval === 0 ? 4 : interval * ef * 1.3, 1);
+    return [
+      { 
+        quality: 'again' as const, 
+        label: 'Again', 
+        className: 'flashcard-rating-btn--again', 
+        time: dateToInString(getAnticipatedDueDate(card, 0).dueDate),
+        key: '1'
+      },
+      { 
+        quality: 'hard' as const, 
+        label: 'Hard', 
+        className: 'flashcard-rating-btn--hard', 
+        time: dateToInString(getAnticipatedDueDate(card, 2).dueDate),
+        key: '2'
+      },
+      { 
+        quality: 'good' as const, 
+        label: 'Ok', 
+        className: 'flashcard-rating-btn--good', 
+        time: dateToInString(getAnticipatedDueDate(card, 3).dueDate),
+        key: '3'
+      },
+      { 
+        quality: 'easy' as const, 
+        label: 'Easy', 
+        className: 'flashcard-rating-btn--easy', 
+        time: dateToInString(getAnticipatedDueDate(card, 5).dueDate),
+        key: '4'
+      },
+    ];
+  });
+
+  // Additional buttons
+  const additionalButtons = createMemo(() => {
+    const card = currentCard();
+    if (!card) return [];
     
     return [
-      { quality: 'again' as const, label: 'Again', className: 'flashcard-rating-btn--again', time: formatInterval(againInterval) },
-      { quality: 'hard' as const, label: 'Hard', className: 'flashcard-rating-btn--hard', time: formatInterval(hardInterval) },
-      { quality: 'good' as const, label: 'Good', className: 'flashcard-rating-btn--good', time: formatInterval(goodInterval) },
-      { quality: 'easy' as const, label: 'Easy', className: 'flashcard-rating-btn--easy', time: formatInterval(easyInterval) },
+      {
+        label: 'Pitch Wrong',
+        className: 'flashcard-action-btn--pitch',
+        time: dateToInString(getPitchMistakeDate()),
+        onClick: handlePitchMistake,
+        key: 'm'
+      },
+      {
+        label: 'Show Later',
+        className: 'flashcard-action-btn--postpone',
+        time: dateToInString(getPostponeDate()),
+        onClick: handlePostpone,
+        key: 'p'
+      },
+      {
+        label: 'Hide',
+        className: 'flashcard-action-btn--known',
+        time: '∞',
+        onClick: handleMarkAsKnown,
+        key: '-'
+      },
     ];
   });
 
   return (
     <div class="flashcard-review-container" style={props.style}>
-      {/* Progress */}
-      <div class="flashcard-progress">
-        <div class="flashcard-progress-header">
-          <span>Progress</span>
-          <span>
-            {currentIndex()}/{dueCards().length} cards
+      {/* Header with stats */}
+      <div class="flashcard-review-header">
+        <div class="flashcard-stats">
+          <span class="flashcard-stat">
+            <span class="flashcard-stat-label">Left:</span>
+            <span class="flashcard-stat-value">{dueCount()}</span>
+          </span>
+          <span class="flashcard-stat">
+            <span class="flashcard-stat-label">New:</span>
+            <span class="flashcard-stat-new">{stats().new}</span>
+          </span>
+          <span class="flashcard-stat">
+            <span class="flashcard-stat-label">Learning:</span>
+            <span class="flashcard-stat-learning">{stats().learning}</span>
           </span>
         </div>
-        <div class="flashcard-progress-bar">
-          <div
-            class="flashcard-progress-fill"
-            style={{ width: `${progress()}%` }}
-          />
-        </div>
+        
+        <Show when={canUndo()}>
+          <button class="flashcard-undo-btn" onClick={undoLastAction} title="Undo (Ctrl+Z)">
+            ↩ Undo
+          </button>
+        </Show>
       </div>
 
       {/* Card or completion screen */}
       <Show
-        when={isReviewing() && currentCard()}
+        when={!isComplete() && currentCard()}
         fallback={
           <GlassPanel
             variant="dark"
@@ -194,9 +303,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               You've reviewed all due cards for now.
             </p>
             <div class="flashcard-completion-actions">
-              <Show when={dueCards().length > 0}>
+              <Show when={store.flashcards.length > 0}>
                 <GlassButton variant="primary" onClick={handleStartOver}>
-                  Start Over
+                  Review More
+                </GlassButton>
+              </Show>
+              <Show when={props.onClose}>
+                <GlassButton onClick={props.onClose}>
+                  Close
                 </GlassButton>
               </Show>
             </div>
@@ -210,37 +324,57 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         />
       </Show>
 
-      {/* Rating buttons */}
-      <Show when={isReviewing() && showAnswer()}>
-        <div class="flashcard-rating-buttons">
-          <For each={ratingButtons()}>
-            {(btn) => (
-              <button
-                class={`flashcard-rating-btn ${btn.className}`}
-                onClick={() => handleRating(btn.quality)}
-              >
-                <span class="flashcard-rating-label">{btn.label}</span>
-                <span class="flashcard-rating-time">{btn.time}</span>
-              </button>
-            )}
-          </For>
-        </div>
-      </Show>
+      {/* Buttons container */}
+      <div class="flashcard-buttons-container">
+        {/* Show answer button */}
+        <Show when={!isComplete() && currentCard() && !showAnswer()}>
+          <button class="flashcard-show-answer-btn" onClick={handleFlip}>
+            Show Answer
+          </button>
+        </Show>
 
-      {/* Stats */}
-      <div class="flashcard-stats">
-        <span class="flashcard-stat">
-          <span class="flashcard-stat-label">New:</span>
-          <span class="flashcard-stat-new">{stats().new}</span>
-        </span>
-        <span class="flashcard-stat">
-          <span class="flashcard-stat-label">Learning:</span>
-          <span class="flashcard-stat-learning">{stats().learning}</span>
-        </span>
-        <span class="flashcard-stat">
-          <span class="flashcard-stat-label">Review:</span>
-          <span class="flashcard-stat-review">{stats().review}</span>
-        </span>
+        {/* Rating buttons */}
+        <Show when={!isComplete() && currentCard() && showAnswer()}>
+          <div class="flashcard-rating-buttons">
+            <For each={ratingButtons()}>
+              {(btn) => (
+                <button
+                  class={`flashcard-rating-btn ${btn.className}`}
+                  onClick={() => handleRating(btn.quality)}
+                  title={`Press ${btn.key}`}
+                >
+                  <span class="flashcard-rating-label">{btn.label}</span>
+                  <span class="flashcard-rating-time">{btn.time}</span>
+                </button>
+              )}
+            </For>
+          </div>
+          
+          {/* Additional action buttons */}
+          <div class="flashcard-action-buttons">
+            <For each={additionalButtons()}>
+              {(btn) => (
+                <button
+                  class={`flashcard-action-btn ${btn.className}`}
+                  onClick={btn.onClick}
+                  title={`Press ${btn.key}`}
+                >
+                  <span class="flashcard-action-label">{btn.label}</span>
+                  <span class="flashcard-action-time">{btn.time}</span>
+                </button>
+              )}
+            </For>
+            
+            {/* Remove button */}
+            <button
+              class="flashcard-action-btn flashcard-action-btn--remove"
+              onClick={handleRemove}
+              title="Press x"
+            >
+              <span class="flashcard-action-label">Remove</span>
+            </button>
+          </div>
+        </Show>
       </div>
     </div>
   );

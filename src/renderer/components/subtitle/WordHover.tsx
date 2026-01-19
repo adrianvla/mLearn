@@ -4,7 +4,7 @@
  * Matches legacy .subtitle_hover structure exactly from the old app
  */
 
-import { Component, JSX, Show, For, createMemo, createSignal, createEffect } from 'solid-js';
+import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import type { Token, DictionaryEntry, TranslationEntry, PitchData, FlashcardContent, LLMResponse } from '../../../shared/types';
 import { WORD_STATUS } from '../../../shared/constants';
 import { useSettings, useFlashcards, useLanguage } from '../../context';
@@ -97,6 +97,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const [isInSRS, setIsInSRS] = createSignal(props.isInSRS ?? false);
   const [llmExplaining, setLlmExplaining] = createSignal(false);
   const [llmExplanation, setLlmExplanation] = createSignal<string | null>(null);
+  const [calculatedWidth, setCalculatedWidth] = createSignal<number>(280);
   let hoverRef: HTMLDivElement | undefined;
 
   // Helper to get display word - track token changes
@@ -106,6 +107,88 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const actualWord = createMemo(() => props.token.actual_word || displayWord());
 
   const isShown = createMemo(() => props.visible !== false);
+
+  // Calculate width based on max of content and footer (like old app)
+  // The hover should be as wide as the wider of: content area or footer pills
+  const calculateWidth = () => {
+    if (!hoverRef) return;
+    
+    const subtitleHover = hoverRef.querySelector('.subtitle_hover') as HTMLElement | null;
+    if (!subtitleHover) return;
+    
+    // Temporarily set width to auto/max-content to measure natural sizes
+    const origWidth = subtitleHover.style.width;
+    subtitleHover.style.width = 'max-content';
+    
+    const footerEl = subtitleHover.querySelector('.footer') as HTMLElement | null;
+    const contentEl = subtitleHover.querySelector('.subtitle_hover_content') as HTMLElement | null;
+    
+    let footerWidth = 280; // minimum
+    let contentWidth = 280; // minimum
+    
+    if (footerEl) {
+      // Get the actual rendered width of footer including its padding
+      footerWidth = footerEl.scrollWidth;
+      // Also check pills container
+      const pillsEl = footerEl.querySelector('.pills') as HTMLElement | null;
+      if (pillsEl) {
+        // Pills have gap:20px between them, add some extra for padding
+        footerWidth = Math.max(footerWidth, pillsEl.scrollWidth + 20);
+      }
+    }
+    
+    if (contentEl) {
+      // Content width with padding
+      contentWidth = contentEl.scrollWidth;
+    }
+    
+    // Restore original width
+    subtitleHover.style.width = origWidth;
+    
+    // Use max of content and footer width, clamped to reasonable bounds
+    // Min 280px, max 600px (or viewport width - 32px)
+    const maxAllowed = Math.min(600, (typeof window !== 'undefined' ? window.innerWidth - 32 : 600));
+    const newWidth = Math.max(280, Math.min(maxAllowed, Math.max(contentWidth, footerWidth)));
+    setCalculatedWidth(newWidth);
+  };
+
+  // Recalculate width when content changes
+  createEffect(() => {
+    // Track dependencies that should trigger recalculation
+    void displayWord();
+    void props.translationData;
+    void llmExplanation();
+    void isShown();
+    void currentStatus();
+    void isInSRS();
+    
+    // Use requestAnimationFrame to ensure DOM is updated
+    if (isShown()) {
+      // Multiple passes to catch late layout changes
+      requestAnimationFrame(() => {
+        calculateWidth();
+        // Second pass after a short delay
+        setTimeout(() => calculateWidth(), 50);
+      });
+    }
+  });
+
+  // Also recalculate on mount and resize
+  onMount(() => {
+    calculateWidth();
+    
+    const resizeObserver = new ResizeObserver(() => {
+      calculateWidth();
+    });
+    
+    if (hoverRef) {
+      resizeObserver.observe(hoverRef);
+    }
+    
+    onCleanup(() => {
+      resizeObserver.disconnect();
+    });
+  });
 
   // Load actual status from storage on mount or when word changes
   createEffect(async () => {
@@ -149,30 +232,41 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     requestAnimationFrame(run);
   });
 
-  // Calculate position to keep popup on screen
   const hoverStyle = createMemo((): JSX.CSSProperties => {
-    const width = 450;
+    const width = calculatedWidth();
+    const height = 120; // adjust or measure if needed
+
     let x = props.position.x;
     const anchor = props.anchorRect;
+
     const baseTop = anchor ? anchor.top : props.position.y;
     const baseBottom = anchor ? anchor.bottom : props.position.y + 16;
-    const y = placement() === 'above' ? baseTop - 8 : baseBottom + 8;
 
-    if (typeof window !== 'undefined' && x + width / 2 > window.innerWidth) {
-      x = window.innerWidth - width / 2 - 16;
-    }
-    if (x - width / 2 < 0) {
-      x = width / 2 + 16;
+    const isAbove = placement() === 'above';
+
+    let left = x - width / 2;
+    let top = isAbove
+        ? baseTop - height - 8
+        : baseBottom + 8;
+
+    if (typeof window !== 'undefined') {
+      if (left + width > window.innerWidth) {
+        left = window.innerWidth - width - 16;
+      }
+      if (left < 16) {
+        left = 16;
+      }
     }
 
     return {
       position: 'fixed',
-      left: `${x}px`,
-      top: `${y}px`,
-      transform: placement() === 'above' ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
+      left: `${left}px`,
+      top: `${top}px`,
+      width: `${width}px`,
       'z-index': '1000',
     };
   });
+
 
   const handleStatusChange = async (e: MouseEvent) => {
     e.preventDefault();
@@ -214,6 +308,120 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     }
   };
 
+  // Extract example HTML from subtitles (like old app's clickAddToFlashcards)
+  // This captures the subtitle sentence with the target word highlighted
+  const extractExampleHtml = (wordUuid: string): string => {
+    try {
+      // Try to find subtitle container and capture its HTML
+      const subtitlesEl = document.querySelector('.subtitles, .subtitle-container, [class*="subtitle"]');
+      if (!subtitlesEl) {
+        // Fallback to context phrase
+        return props.contextPhrase || '-';
+      }
+      
+      // Clone the subtitles to avoid modifying the DOM
+      const clone = subtitlesEl.cloneNode(true) as HTMLElement;
+      
+      // Remove any hover elements from the clone
+      clone.querySelectorAll('.subtitle_hover, .word-hover-container').forEach(el => el.remove());
+      
+      // Highlight the target word
+      const wordEl = clone.querySelector(`.subtitle_word.word_${wordUuid}, [data-uuid="${wordUuid}"]`);
+      if (wordEl) {
+        wordEl.classList.add('defined');
+      }
+      
+      const html = clone.innerHTML;
+      return html || props.contextPhrase || '-';
+    } catch (e) {
+      console.warn('Failed to extract example HTML:', e);
+      return props.contextPhrase || '-';
+    }
+  };
+
+  // Capture OCR region screenshot with highlight box (like old app)
+  const captureOcrScreenshot = (): string => {
+    try {
+      // Check if we're in OCR mode by looking for recognized-text elements
+      const recognizedTextEl = document.querySelector('.recognized-text');
+      if (!recognizedTextEl) return screenshotVideo();
+      
+      // Find the box element associated with our word
+      const targetBox = hoverRef?.closest('.recognized-text') || recognizedTextEl;
+      if (!targetBox) return screenshotVideo();
+      
+      // Find the page container (.page-left or .page-right)
+      const pageContainer = targetBox.closest('.page-left, .page-right, [class*="page"]');
+      if (!pageContainer) return screenshotVideo();
+      
+      // Find the image inside the page
+      const pageImg = pageContainer.querySelector('img') as HTMLImageElement | null;
+      if (!pageImg || !pageImg.naturalWidth || !pageImg.naturalHeight) return screenshotVideo();
+      
+      const imgRect = pageImg.getBoundingClientRect();
+      const boxRect = targetBox.getBoundingClientRect();
+      
+      // Padding around the box (default 200px like old app)
+      const pad = settings.ocr_crop_padding ?? 200;
+      
+      // Calculate crop region with padding
+      const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
+      
+      const sxDom = boxRect.left - pad;
+      const syDom = boxRect.top - pad;
+      const swDom = boxRect.width + pad * 2;
+      const shDom = boxRect.height + pad * 2;
+      
+      // Clamp within image bounds
+      const visLeft = clamp(sxDom, imgRect.left, imgRect.right);
+      const visTop = clamp(syDom, imgRect.top, imgRect.bottom);
+      const visRight = clamp(sxDom + swDom, imgRect.left, imgRect.right);
+      const visBottom = clamp(syDom + shDom, imgRect.top, imgRect.bottom);
+      const visW = Math.max(1, visRight - visLeft);
+      const visH = Math.max(1, visBottom - visTop);
+      
+      // Map to intrinsic image pixels
+      const scaleX = pageImg.naturalWidth / Math.max(1, imgRect.width);
+      const scaleY = pageImg.naturalHeight / Math.max(1, imgRect.height);
+      const srcX = (visLeft - imgRect.left) * scaleX;
+      const srcY = (visTop - imgRect.top) * scaleY;
+      const srcW = visW * scaleX;
+      const srcH = visH * scaleY;
+      
+      // Create canvas and draw cropped region
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.min(4096, Math.max(1, Math.floor(srcW)));
+      canvas.height = Math.min(4096, Math.max(1, Math.floor(srcH)));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return screenshotVideo();
+      
+      ctx.drawImage(pageImg, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+      
+      // Draw highlight box around original selection
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
+      ctx.lineWidth = 6;
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 8;
+      const boxRelX = (boxRect.left - visLeft) * (canvas.width / visW);
+      const boxRelY = (boxRect.top - visTop) * (canvas.height / visH);
+      const boxRelW = boxRect.width * (canvas.width / visW);
+      const boxRelH = boxRect.height * (canvas.height / visH);
+      ctx.strokeRect(boxRelX, boxRelY, boxRelW, boxRelH);
+      ctx.restore();
+      
+      return canvas.toDataURL('image/jpeg', 0.5);
+    } catch (e) {
+      console.warn('Failed to capture OCR screenshot:', e);
+      return screenshotVideo();
+    }
+  };
+
+  // Check if we're in OCR mode
+  const isOcrMode = (): boolean => {
+    return !!document.querySelector('.recognized-text, .ocr-overlay, [class*="ocr"]');
+  };
+
   const handleAddFlashcard = async (entry?: DictionaryEntry, e?: MouseEvent) => {
     if (e) {
       e.preventDefault();
@@ -221,6 +429,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     }
     
     const word = displayWord();
+    const uuid = wordUuid();
     
     // Get translation data
     let translationArr: string[] | undefined = undefined;
@@ -251,8 +460,14 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       }
     }
     
-    // Capture screenshot from video (like old app)
-    const screenshot = screenshotVideo();
+    // Capture screenshot (OCR mode vs video mode like old app)
+    const isOcr = isOcrMode();
+    const screenshot = isOcr ? captureOcrScreenshot() : screenshotVideo();
+    
+    // Extract example HTML (subtitle sentence with highlighted word)
+    const exampleHtml = isOcr 
+      ? (props.contextPhrase || '-')  // OCR uses context phrase
+      : extractExampleHtml(uuid);      // Video uses subtitle HTML
     
     // Get level from frequency data
     const freq = wordFreqEntry();
@@ -267,11 +482,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       definition: props.translationData?.data?.[1] 
         ? [String((props.translationData.data[1] as TranslationEntry)?.definitions || '')]
         : props.token.meaning ? [props.token.meaning] : undefined,
-      example: props.contextPhrase || '-',
+      example: exampleHtml,
       exampleMeaning: '',
       screenshotUrl: screenshot,
       pos: props.token.partOfSpeech ?? props.token.type ?? '',
       level: level,
+      contextPhrase: props.contextPhrase,
     };
     
     if (props.onAddFlashcard) {
