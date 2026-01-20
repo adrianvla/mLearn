@@ -91,7 +91,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings } = useSettings();
   const { addFlashcard, hasWord } = useFlashcards();
   const { getFrequency, getLevelName } = useLanguage();
-  const [placement, setPlacement] = createSignal<'above' | 'below'>('above');
   const [currentStatus, setCurrentStatus] = createSignal<WordStatus>('unknown');
   const [wordUuid, setWordUuid] = createSignal<string>('');
   const [isInSRS, setIsInSRS] = createSignal(props.isInSRS ?? false);
@@ -219,50 +218,59 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     setLlmExplaining(false);
   });
 
-  // Determine placement (above preferred, flip below if needed)
-  createEffect(() => {
-    const anchor = props.anchorRect;
-    if (!hoverRef || !anchor) return;
-    const run = () => {
-      const h = hoverRef?.offsetHeight || 0;
-      const margin = 12;
-      const shouldPlaceAbove = anchor.top - h - margin >= 0;
-      setPlacement(shouldPlaceAbove ? 'above' : 'below');
-    };
-    requestAnimationFrame(run);
-  });
-
   const hoverStyle = createMemo((): JSX.CSSProperties => {
     const width = calculatedWidth();
-    const height = 120; // adjust or measure if needed
-
-    let x = props.position.x;
     const anchor = props.anchorRect;
-
-    const baseTop = anchor ? anchor.top : props.position.y;
-    const baseBottom = anchor ? anchor.bottom : props.position.y + 16;
-
-    const isAbove = placement() === 'above';
-
-    let left = x - width / 2;
-    let top = isAbove
-        ? baseTop - height - 8
-        : baseBottom + 8;
-
-    if (typeof window !== 'undefined') {
-      if (left + width > window.innerWidth) {
-        left = window.innerWidth - width - 16;
-      }
-      if (left < 16) {
-        left = 16;
-      }
+    
+    // Get viewport dimensions
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 600;
+    
+    // Calculate centered position relative to anchor
+    const anchorCenterX = anchor ? (anchor.left + anchor.right) / 2 : props.position.x;
+    const anchorTop = anchor ? anchor.top : props.position.y;
+    const anchorBottom = anchor ? anchor.bottom : props.position.y + 16;
+    
+    // Start with centered position
+    let left = anchorCenterX - width / 2;
+    
+    // Determine if we should place above or below
+    const hoverHeight = hoverRef?.offsetHeight || 200;
+    const margin = 8;
+    const spaceAbove = anchorTop - margin;
+    const spaceBelow = vh - anchorBottom - margin;
+    const placeAbove = spaceAbove >= hoverHeight || spaceAbove > spaceBelow;
+    
+    let top = placeAbove
+      ? anchorTop - hoverHeight - margin
+      : anchorBottom + margin;
+    
+    // Horizontal clamping with proper margins (minimum 8px from edges)
+    const horizontalMargin = 8;
+    if (left < horizontalMargin) {
+      left = horizontalMargin;
+    } else if (left + width > vw - horizontalMargin) {
+      left = vw - width - horizontalMargin;
+    }
+    
+    // Vertical clamping
+    if (top < horizontalMargin) {
+      top = horizontalMargin;
+    } else if (top + hoverHeight > vh - horizontalMargin) {
+      top = vh - hoverHeight - horizontalMargin;
+    }
+    
+    // If still too wide for viewport, constrain width
+    const effectiveWidth = Math.min(width, vw - horizontalMargin * 2);
+    if (effectiveWidth !== width) {
+      left = horizontalMargin;
     }
 
     return {
       position: 'fixed',
-      left: `${left}px`,
-      top: `${top}px`,
-      width: `${width}px`,
+      left: `${Math.round(left)}px`,
+      top: `${Math.round(top)}px`,
+      width: `${effectiveWidth}px`,
       'z-index': '1000',
     };
   });
@@ -492,10 +500,14 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     if (props.onAddFlashcard) {
       props.onAddFlashcard(props.token, entry);
+      // Still update local state even if external handler is provided
+      setIsInSRS(true);
     } else {
       try {
-        addFlashcard(content);
+        await addFlashcard(content);
+        // Immediately update local state to show "Tracked" pill
         setIsInSRS(true);
+        console.log(`%cCreated flashcard for word: ${word}`, 'color: aqua; font-weight: bold;');
       } catch (err) {
         console.error('Failed to add flashcard:', err);
         alert('Failed to add flashcard: ' + String(err));

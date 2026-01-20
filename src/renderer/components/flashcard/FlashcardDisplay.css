@@ -116,12 +116,54 @@
 
 /* Pitch accent display */
 .flashcard-pitch-container {
-  font-size: 1.5rem;
+  font-size: 2rem;
+  position: relative;
+  display: inline-block;
+}
+
+.flashcard-pitch-container ruby {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
   position: relative;
 }
 
 .flashcard-pitch-container rt {
-  --pitch-accent-height: 2px;
+  --pitch-accent-height: 3px;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  font-size: 0.6em;
+  padding-bottom: 8px;
+}
+
+.flashcard-pitch-container .mLearn-pitch-accent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  pointer-events: none;
+}
+
+/* Kana-only display (no furigana) */
+.flashcard-pitch-kana {
+  position: relative;
+  display: inline-block;
+  --pitch-accent-height: 5px;
+  padding-bottom: 8px;
+}
+
+.flashcard-pitch-kana .mLearn-pitch-accent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  display: flex;
+  pointer-events: none;
 }
 
 /* Translation/definition */
@@ -150,4 +192,37 @@
   max-height: 150px;
   border-radius: 8px;
   object-fit: contain;
+}
+
+/* Example sentence styling - matches old app's flashcard_style.css */
+.flashcard-example {
+  font-size: 1.5rem;
+  text-align: center;
+  line-height: 1.6;
+  color: var(--text-primary);
+  margin-top: 1rem;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* Highlighted word in example (the word being studied) */
+.flashcard-example .defined {
+  color: #ff5ec7;
+  font-weight: bold;
+}
+
+body:not(.dark) .flashcard-example .defined {
+  color: #356ee8;
+}
+
+/* Dictionary definition HTML styling */
+.flashcard-translation ul,
+.flashcard-translation ol {
+  text-align: left;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.flashcard-translation li {
+  margin: 0.25rem 0;
 }
