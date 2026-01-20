@@ -8,7 +8,8 @@ import { Component, Show, For, createSignal, createEffect, onMount } from 'solid
 import { WindowWrapper } from '../../context';
 import { useSettings } from '../../context';
 import type { Settings, InstallOptions, InstallerState } from '../../../shared/types';
-import { GlassPanel, GlassButton } from '../../components/common';
+import { GlassPanel, GlassButton, SelectableCard, AlertBanner, LogConsole, CheckboxCard, ProgressBar } from '../../components/common';
+import type { LogEntry } from '../../components/common/LogConsole';
 
 interface LanguageOption {
   code: string;
@@ -37,7 +38,7 @@ const WelcomeContent: Component = () => {
   const [installationStarted, setInstallationStarted] = createSignal(false);
   const [installationCompleted, setInstallationCompleted] = createSignal(false);
   const [progress, setProgress] = createSignal(0);
-  const [statusLogs, setStatusLogs] = createSignal<string[]>(['Click Install to begin.']);
+  const [statusLogs, setStatusLogs] = createSignal<LogEntry[]>([{ message: 'Click Install to begin.', level: 'info' }]);
   const [overallStatus, setOverallStatus] = createSignal('Waiting to start installation...');
   const [networkError, setNetworkError] = createSignal<string | null>(null);
 
@@ -54,7 +55,9 @@ const WelcomeContent: Component = () => {
 
   // Log a message to the status console
   const logInfo = (message: string) => {
-    setStatusLogs(prev => [...prev, message]);
+    const level = message.toLowerCase().includes('error') ? 'error' as const : 
+                  message.toLowerCase().includes('complete') ? 'success' as const : 'info' as const;
+    setStatusLogs(prev => [...prev, { message, level }]);
   };
 
   // Handle installation completion
@@ -72,7 +75,7 @@ const WelcomeContent: Component = () => {
     setInstallationStarted(false);
     setProgress(0);
     setOverallStatus('Waiting to start installation...');
-    setStatusLogs(['Click Install to begin.']);
+    setStatusLogs([{ message: 'Click Install to begin.', level: 'info' }]);
     if (opts) {
       setIncludeLLM(opts.includeLLM ?? true);
       setIncludeOCR(opts.includeOCR ?? true);
@@ -274,26 +277,11 @@ const WelcomeContent: Component = () => {
       </h1>
 
       {/* Progress bar */}
-      <div
-        style={{
-          width: '100%',
-          'max-width': '500px',
-          height: '8px',
-          'background-color': 'var(--glass-bg)',
-          'border-radius': 'var(--radius-full)',
-          overflow: 'hidden',
-          'margin-bottom': '1rem',
-        }}
-      >
-        <div
-          style={{
-            height: '100%',
-            width: `${progress()}%`,
-            'background-color': 'var(--color-primary)',
-            transition: 'width 0.3s ease',
-          }}
-        />
-      </div>
+      <ProgressBar 
+        value={progress()} 
+        max={100} 
+        style={{ width: '100%', 'max-width': '500px', 'margin-bottom': '1rem' }}
+      />
 
       <GlassPanel
         variant="dark"
@@ -334,59 +322,19 @@ const WelcomeContent: Component = () => {
 
         {/* Install options - only shown before installation */}
         <Show when={!installationStarted() && !installationCompleted()}>
-          <div style={{ 'margin-bottom': '1.5rem' }}>
-            <label
-              style={{
-                display: 'flex',
-                'align-items': 'flex-start',
-                gap: '0.75rem',
-                padding: '0.75rem',
-                background: 'var(--glass-bg)',
-                'border-radius': 'var(--radius-md)',
-                cursor: 'pointer',
-                'margin-bottom': '0.5rem',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={includeLLM()}
-                onChange={(e) => setIncludeLLM(e.currentTarget.checked)}
-                style={{ 'margin-top': '4px' }}
-              />
-              <span>
-                <strong style={{ color: 'var(--text-primary)' }}>Install mLearn Explain AI Module</strong>
-                <br />
-                <small style={{ color: 'var(--text-secondary)' }}>
-                  Installs a local LLM Neural Network. Skips ~3 GB of dependencies if left unchecked.
-                </small>
-              </span>
-            </label>
-            <label
-              style={{
-                display: 'flex',
-                'align-items': 'flex-start',
-                gap: '0.75rem',
-                padding: '0.75rem',
-                background: 'var(--glass-bg)',
-                'border-radius': 'var(--radius-md)',
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={includeOCR()}
-                onChange={(e) => setIncludeOCR(e.currentTarget.checked)}
-                style={{ 'margin-top': '4px' }}
-              />
-              <span>
-                <strong style={{ color: 'var(--text-primary)' }}>Install mLearn Reader Module</strong>
-                <br />
-                <small style={{ color: 'var(--text-secondary)' }}>
-                  Will install text recognition neural networks. Skip to save download size
-                  if you do not plan on using the manga/comic reader right now.
-                </small>
-              </span>
-            </label>
+          <div style={{ 'margin-bottom': '1.5rem', display: 'flex', 'flex-direction': 'column', gap: '0.5rem' }}>
+            <CheckboxCard
+              checked={includeLLM()}
+              onChange={setIncludeLLM}
+              title="Install mLearn Explain AI Module"
+              description="Installs a local LLM Neural Network. Skips ~3 GB of dependencies if left unchecked."
+            />
+            <CheckboxCard
+              checked={includeOCR()}
+              onChange={setIncludeOCR}
+              title="Install mLearn Reader Module"
+              description="Will install text recognition neural networks. Skip to save download size if you do not plan on using the manga/comic reader right now."
+            />
           </div>
         </Show>
 
@@ -402,40 +350,14 @@ const WelcomeContent: Component = () => {
           >
             <For each={LANGUAGES}>
               {(lang) => (
-                <button
+                <SelectableCard
+                  selected={selectedLanguage() === lang.code}
                   disabled={!lang.available}
                   onClick={() => setSelectedLanguage(lang.code)}
-                  style={{
-                    display: 'flex',
-                    'align-items': 'center',
-                    gap: '0.75rem',
-                    padding: '1rem',
-                    background: selectedLanguage() === lang.code ? 'var(--color-primary-alpha)' : 'var(--glass-bg)',
-                    border: selectedLanguage() === lang.code ? '2px solid var(--color-primary)' : '2px solid transparent',
-                    'border-radius': 'var(--radius-md)',
-                    cursor: lang.available ? 'pointer' : 'not-allowed',
-                    opacity: lang.available ? '1' : '0.5',
-                    transition: 'all 0.2s ease',
-                    'text-align': 'left',
-                  }}
-                >
-                  <span style={{ 'font-size': '1.5rem' }}>{lang.flag}</span>
-                  <div>
-                    <div style={{ 'font-weight': '500', color: 'var(--text-primary)' }}>{lang.name}</div>
-                    <div style={{ 'font-size': '0.875rem', color: 'var(--text-secondary)' }}>{lang.nativeName}</div>
-                  </div>
-                  <Show when={!lang.available}>
-                    <span
-                      style={{
-                        'margin-left': 'auto',
-                        'font-size': '0.75rem',
-                        color: 'var(--text-muted)',
-                      }}
-                    >
-                      Coming soon
-                    </span>
-                  </Show>
-                </button>
+                  icon={lang.flag}
+                  title={lang.name}
+                  description={lang.available ? lang.nativeName : 'Coming soon'}
+                />
               )}
             </For>
           </div>
@@ -443,66 +365,25 @@ const WelcomeContent: Component = () => {
 
         {/* Installation log - shown during/after installation */}
         <Show when={installationStarted() || installationCompleted()}>
-          <div style={{ 'margin-bottom': '1rem' }}>
-            <p
-              style={{
-                'font-weight': '600',
-                color: 'var(--text-primary)',
-                'margin-bottom': '0.5rem',
-              }}
-            >
-              {overallStatus()}
-            </p>
-            <div
-              style={{
-                height: '150px',
-                overflow: 'auto',
-                background: 'rgba(0,0,0,0.3)',
-                'border-radius': 'var(--radius-md)',
-                padding: '0.75rem',
-                'font-family': 'monospace',
-                'font-size': '0.75rem',
-                color: 'var(--text-secondary)',
-              }}
-              ref={(el) => {
-                // Auto-scroll to bottom when logs update
-                createEffect(() => {
-                  statusLogs();
-                  if (el) el.scrollTop = el.scrollHeight;
-                });
-              }}
-            >
-              <For each={statusLogs()}>
-                {(log) => (
-                  <p
-                    style={{
-                      margin: '0.25rem 0',
-                      color: log.toLowerCase().includes('error') ? 'var(--color-danger)' : 'inherit',
-                    }}
-                  >
-                    {log}
-                  </p>
-                )}
-              </For>
-            </div>
-          </div>
+          <LogConsole
+            logs={statusLogs()}
+            title={overallStatus()}
+            size="md"
+            autoScroll={true}
+            showTimestamps={false}
+            maxHeight="150px"
+          />
         </Show>
 
         {/* Network error alert */}
         <Show when={networkError()}>
-          <div
-            style={{
-              padding: '1rem',
-              background: 'rgba(255, 100, 100, 0.2)',
-              border: '1px solid var(--color-danger)',
-              'border-radius': 'var(--radius-md)',
-              'margin-bottom': '1rem',
-              color: 'var(--color-danger)',
-            }}
-          >
-            <strong>Network Error</strong>
-            <p style={{ 'margin-top': '0.5rem', 'font-size': '0.875rem' }}>{networkError()}</p>
-          </div>
+          <AlertBanner
+            type="error"
+            title="Network Error"
+            message={networkError()!}
+            dismissible
+            onDismiss={() => setNetworkError(null)}
+          />
         </Show>
 
         {/* Action button */}
@@ -510,7 +391,7 @@ const WelcomeContent: Component = () => {
           variant="primary"
           onClick={installationCompleted() ? handleContinue : handleInstall}
           disabled={installationStarted() && !installationCompleted()}
-          style={{ width: '100%' }}
+          style={{ width: '100%', 'margin-top': '1rem' }}
         >
           <Show when={!installationStarted() && !installationCompleted()}>Start Installation</Show>
           <Show when={installationStarted() && !installationCompleted()}>Installing...</Show>

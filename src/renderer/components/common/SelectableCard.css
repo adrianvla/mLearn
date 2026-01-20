@@ -1,0 +1,141 @@
+/**
+ * SelectableCard Component Styles
+ * A card that can be selected/deselected, used for language selection, options, etc.
+ */
+
+.selectable-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  min-width: 120px;
+  min-height: 100px;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+  backdrop-filter: blur(10px);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  user-select: none;
+}
+
+.selectable-card:hover:not(.disabled) {
+  background: var(--glass-bg-hover, rgba(255, 255, 255, 0.15));
+  border-color: var(--color-border-hover, rgba(255, 255, 255, 0.3));
+  transform: translateY(-2px);
+}
+
+.selectable-card.selected {
+  border-color: var(--color-primary, #3b82f6);
+  background: var(--glass-bg-selected, rgba(59, 130, 246, 0.1));
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.selectable-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Icon */
+.selectable-card__icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.selectable-card__icon img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+/* Title */
+.selectable-card__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  text-align: center;
+  margin: 0;
+}
+
+/* Subtitle */
+.selectable-card__subtitle {
+  font-size: 0.75rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  text-align: center;
+  margin: 0;
+}
+
+/* Badge (e.g., "Coming soon") */
+.selectable-card__badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  background: var(--color-warning, #f59e0b);
+  color: #000;
+}
+
+/* Checkmark indicator for selected state */
+.selectable-card__check {
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-primary, #3b82f6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.2s ease;
+}
+
+.selectable-card.selected .selectable-card__check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.selectable-card__check svg {
+  width: 12px;
+  height: 12px;
+  color: #fff;
+}
+
+/* Size variants */
+.selectable-card--sm {
+  padding: 1rem;
+  min-width: 80px;
+  min-height: 70px;
+}
+
+.selectable-card--sm .selectable-card__icon {
+  font-size: 1.5rem;
+}
+
+.selectable-card--sm .selectable-card__title {
+  font-size: 0.875rem;
+}
+
+.selectable-card--lg {
+  padding: 2rem;
+  min-width: 160px;
+  min-height: 140px;
+}
+
+.selectable-card--lg .selectable-card__icon {
+  font-size: 3rem;
+}
+
+.selectable-card--lg .selectable-card__title {
+  font-size: 1.25rem;
+}

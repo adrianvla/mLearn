@@ -10,6 +10,13 @@ import { useSettings, useLanguage } from '../../context';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import './FlashcardDisplay.css';
 
+// Check if word is all kana (no kanji) - like old app's isNotAllKana but inverted
+function isAllKana(word: string): boolean {
+  if (!word) return true;
+  // Hiragana range: \u3040-\u309F, Katakana range: \u30A0-\u30FF
+  return /^[\u3040-\u309F\u30A0-\u30FF\u30FC\u30FBー・]+$/.test(word);
+}
+
 export interface FlashcardDisplayProps {
   flashcard: Flashcard;
   showAnswer?: boolean;
@@ -27,17 +34,28 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   // isFlipped is driven by props.showAnswer
   const isFlipped = createMemo(() => props.showAnswer ?? false);
 
+  // Check if word needs furigana (contains kanji)
+  const needsFurigana = createMemo(() => {
+    const word = content().word;
+    const pronunciation = content().pronunciation;
+    if (!word || !pronunciation) return false;
+    return !isAllKana(word) && word !== pronunciation;
+  });
+
   // Compute pitch accent HTML if available
   const pitchAccentHtml = createMemo(() => {
     const c = content();
-    if (!c.pitchAccent || !c.pronunciation) return null;
+    if (c.pitchAccent === undefined || c.pitchAccent === null) return null;
+    if (!c.pronunciation) return null;
     if (settings.language !== 'ja' || !settings.showPitchAccent) return null;
     
     const info = getPitchAccentInfo(c.pitchAccent, c.pronunciation);
     if (!info) return null;
     
+    // Don't include particle box for verbs (like old app)
+    const isVerb = c.pos === '動詞';
     return buildPitchAccentHtml(info, c.pronunciation.length, {
-      includeParticleBox: true,
+      includeParticleBox: !isVerb,
     });
   });
 
@@ -50,6 +68,47 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
 
   const handleFlip = () => {
     props.onFlip?.();
+  };
+
+  // Render pitch accent display based on whether word has kanji
+  const PitchAccentDisplay = () => {
+    const html = pitchAccentHtml();
+    if (!html) {
+      // No pitch accent - show plain word with optional reading
+      return (
+        <div class="flashcard-word-title">
+          {content().word}
+          <Show when={content().pronunciation && content().pronunciation !== content().word}>
+            <span class="flashcard-word-reading">
+              ({content().pronunciation})
+            </span>
+          </Show>
+        </div>
+      );
+    }
+    
+    if (needsFurigana()) {
+      // Word has kanji - use ruby with pitch accent in rt
+      return (
+        <div class="flashcard-pitch-container">
+          <ruby>
+            {content().word}
+            <rt>
+              {content().pronunciation}
+              <div class="mLearn-pitch-accent" innerHTML={html} />
+            </rt>
+          </ruby>
+        </div>
+      );
+    } else {
+      // Kana-only word - pitch accent overlays the word itself
+      return (
+        <div class="flashcard-pitch-kana">
+          {content().word}
+          <div class="mLearn-pitch-accent" innerHTML={html} />
+        </div>
+      );
+    }
   };
 
   return (
@@ -87,9 +146,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           </Show>
 
           <Show when={content().example && content().example !== '-'}>
-            <div class="flashcard-example">
-              {content().example}
-            </div>
+            <div class="flashcard-example" innerHTML={content().example} />
           </Show>
 
           <div class="flashcard-hint">
@@ -106,34 +163,19 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
         >
           {/* Word with pitch accent */}
           <div class="flashcard-word-header">
-            <Show
-              when={pitchAccentHtml()}
-              fallback={
-                <div class="flashcard-word-title">
-                  {content().word}
-                  <Show when={content().pronunciation && content().pronunciation !== content().word}>
-                    <span class="flashcard-word-reading">
-                      ({content().pronunciation})
-                    </span>
-                  </Show>
-                </div>
-              }
-            >
-              <div class="flashcard-pitch-container">
-                <ruby>
-                  {content().word}
-                  <rt>
-                    {content().pronunciation}
-                    <div class="mLearn-pitch-accent" innerHTML={pitchAccentHtml()!} />
-                  </rt>
-                </ruby>
-              </div>
-            </Show>
+            <PitchAccentDisplay />
           </div>
           
-          <div class="flashcard-translation">
-            {content().translation?.join(', ') || content().definition?.join(', ')}
-          </div>
+          <div 
+            class="flashcard-translation" 
+            innerHTML={
+              Array.isArray(content().translation) 
+                ? content().translation?.join(', ') 
+                : (Array.isArray(content().definition) 
+                  ? content().definition?.join(', ') 
+                  : (content().translation || content().definition || ''))
+            } 
+          />
 
           <Show when={content().exampleMeaning}>
             <div class="flashcard-example-meaning">
