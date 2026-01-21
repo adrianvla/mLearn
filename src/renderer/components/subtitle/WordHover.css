@@ -37,14 +37,14 @@
   font-family: "Helvetica Neue", "Arial", sans-serif;
   max-height: 350px;
   overflow-y: hidden;
+  overflow-x: visible;
   box-sizing: border-box;
   text-shadow: none !important;
   gap: 10px;
   -webkit-text-stroke: unset !important;
   /* Width is calculated dynamically based on max(content, footer) */
-  width: 100%;
+  width: max-content;
   min-width: 280px;
-  overflow-x: hidden;
 }
 
 .subtitle_hover.dark,
@@ -97,9 +97,11 @@ body.dark .subtitle_hover .pitch,
 .subtitle_hover_relative {
   position: relative;
   min-width: 100%;
-  width:max-content;
+  width: 100%;
   overflow: hidden;
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Content area */
@@ -109,17 +111,19 @@ body.dark .subtitle_hover .pitch,
   box-sizing: border-box;
   overflow-y: auto;
   max-height: 350px;
+  flex: 1;
 }
 
 .subtitle_hover .footer {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  height:min-content;
+  height: min-content;
   gap: 10px;
   position: absolute;
   bottom: 0;
   left: 0;
+  right: 0;
   padding: 10px;
   box-sizing: border-box;
   background: rgba(184, 184, 184, 0.1);
@@ -136,14 +140,14 @@ body.dark .subtitle_hover .footer,
   background: rgba(0, 0, 0, 0.1);
 }
 
-/* Pills container in hover */
+/* Pills container in hover - no wrap to keep all pills in one line */
 .subtitle_hover .pills {
   display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-  height:100%;
-  width:100%;
-  min-width: max-content;
+  gap: 10px;
+  flex-wrap: nowrap;
+  height: 100%;
+  width: max-content;
+  align-items: center;
 }
 
 /* Pill base style inside hover */
@@ -193,12 +197,25 @@ body.dark .subtitle_hover .pill,
 }
 
 /* Pitch accent pill */
+.subtitle_hover .pill.pitch-accent-pill {
+  flex-shrink: 0;
+  position: relative;
+}
+
 .subtitle_hover .pill.pitch-accent-pill .mLearn-pitch-accent {
   --pitch-accent-height: 2px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .subtitle_hover .pill.pitch-accent-pill .pitch-accent-word {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-bottom: 2px;
 }
 
 /* Level pills - using attribute selector like legacy */
@@ -349,61 +366,70 @@ body.dark .subtitle_hover hr,
   border-color: rgb(66, 214, 49);
 }
 
-/* LLM Explanation section */
+/* LLM Explanation section - absolute positioned overlay like old app */
 .subtitle_hover_alt_c {
-  padding: 15px 20px;
-  border-top: 1px solid #ddd;
-  background: rgba(200, 200, 200, 0.1);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px);
+  padding: 20px;
+  padding-bottom: 65px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  max-height: 350px;
   font-size: 0.9em;
   line-height: 1.5;
-  max-height: 200px;
-  overflow-y: auto;
+  z-index: 2;
 }
 
 body.dark .subtitle_hover_alt_c,
 .subtitle_hover.dark .subtitle_hover_alt_c {
-  border-top-color: #333;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.5);
 }
 
 .subtitle_hover_alt_c p {
   margin: 0;
+  color: #fff;
 }
 
-/* Skeleton loading animation */
+/* Skeleton loading animation - matches old app */
 .skeleton-c {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 12px;
 }
 
 .skeleton-c > div {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 12px;
   width: 100%;
 }
 
 .skeleton {
   display: inline-block;
-  height: 14px;
-  background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #707070a0 25%, #a0a0a0a0 50%, #707070a0 75%);
   background-size: 200% 100%;
-  animation: skeleton-shimmer 1.5s infinite;
-  border-radius: 4px;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
 }
 
 body.dark .skeleton,
 .subtitle_hover.dark .skeleton {
-  background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
+  background: linear-gradient(90deg, #707070a0 25%, #a0a0a0a0 50%, #707070a0 75%);
   background-size: 200% 100%;
 }
 
-@keyframes skeleton-shimmer {
+/* Animation for pulsating effect */
+@keyframes skeleton-pulse {
   0% {
-    background-position: -200% 0;
+    background-position: 200% 0;
   }
   100% {
-    background-position: 200% 0;
+    background-position: -200% 0;
   }
 }

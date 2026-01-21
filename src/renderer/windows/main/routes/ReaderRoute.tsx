@@ -586,6 +586,15 @@ export const ReaderRoute: Component = () => {
           dictionaryEntries={ocrDictionaryEntries()}
           translationData={ocrTranslationData() || undefined}
           status={ocrWordStatus()}
+          isOCR={true}
+          ocrImageElement={(() => {
+            // Get the first visible page's image element for OCR screenshot
+            const visible = visiblePages();
+            if (visible.length > 0) {
+              return imageRefs()[visible[0].id] || null;
+            }
+            return null;
+          })()}
           onStatusChange={setOcrWordStatus}
           onClose={hideOcrHover}
           visible={isOcrHoverVisible()}

@@ -12,7 +12,14 @@ export { useSubtitles } from './useSubtitles';
 export { useOCR, sendImageForOCR, prepareBlobForOCR, MAX_OCR_AREA } from './useOCR';
 
 // Language & Learning
-export { useTranslation, useTokenizer, useDictionary, warmTranslationCache } from './useTranslation';
+export { 
+  useTranslation, 
+  useTokenizer, 
+  useDictionary, 
+  warmTranslationCache,
+  getCachedTranslation,
+  getCachedReading 
+} from './useTranslation';
 export { usePitchAccent, getPitchAccentInfo, buildPitchAccentHtml } from './usePitchAccent';
 export type { PitchAccentInfo } from '../../shared/types';
 export { useWordHover, getGlobalHoverManager, useWordHoverTarget, type HoverData } from './useWordHover';

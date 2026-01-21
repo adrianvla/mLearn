@@ -3,9 +3,11 @@
  * Individual word/token in a subtitle with hover and click functionality
  */
 
-import { Component, createMemo, Show } from 'solid-js';
+import { Component, createMemo, createSignal, createEffect, Show, For } from 'solid-js';
 import type { Token } from '../../../shared/types';
 import { useSettings, useLanguage } from '../../context';
+import { getCachedReading, getCachedTranslation } from '../../hooks/useTranslation';
+import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import type { JSX } from 'solid-js/jsx-runtime';
 
 // Check if a word contains kanji (needs furigana)
@@ -22,6 +24,7 @@ function isAllKana(word: string): boolean {
 export interface SubtitleWordProps {
   token: Token;
   index: number;
+  lookAheadPos?: string; // POS of the next token (for pitch accent rendering)
   onClick?: (token: Token) => void;
   onHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
   onLeave?: () => void;
@@ -29,7 +32,7 @@ export interface SubtitleWordProps {
 
 export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const { settings } = useSettings();
-  const { currentLangData, isTranslatable } = useLanguage();
+  const { currentLangData, isTranslatable, getFrequency, getLanguageFeatures } = useLanguage();
   let wordRef: HTMLSpanElement | undefined;
   const randomId = (() => {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -125,42 +128,94 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     };
   };
 
+  // Get reading from token or cached translation
+  // This signal will update when cache is populated (e.g., after hover)
+  const [cachedReadingVal, setCachedReadingVal] = createSignal<string | null>(null);
+  
+  // Check for cached reading - poll frequently until cache is populated
+  // The old app updates readings immediately; we need aggressive polling
+  createEffect(() => {
+    const word = props.token.actual_word ?? displayWord();
+    if (!word) return;
+    
+    // Initial check
+    const checkCache = () => {
+      const cached = getCachedReading(word);
+      if (cached) {
+        setCachedReadingVal(cached);
+        return true;
+      }
+      return false;
+    };
+    
+    if (checkCache()) return; // Already cached
+    
+    // Poll rapidly at first (every 50ms for first 500ms), then slower
+    let attempts = 0;
+    const maxAttempts = 20; // 20 * 50ms = 1000ms total
+    
+    const poll = () => {
+      if (checkCache()) return;
+      attempts++;
+      if (attempts < maxAttempts) {
+        const delay = attempts < 10 ? 50 : 100; // Faster for first 500ms
+        setTimeout(poll, delay);
+      }
+    };
+    
+    // Start polling immediately
+    const timer = setTimeout(poll, 50);
+    
+    return () => clearTimeout(timer);
+  });
+
+  // Get effective reading (token.reading takes precedence, then cached)
+  const effectiveReading = createMemo(() => {
+    return props.token.reading || cachedReadingVal() || null;
+  });
+
   // For Japanese, show furigana if enabled and word contains kanji
   const showFurigana = createMemo(() => {
+    // Check if language supports readings first
+    const features = getLanguageFeatures();
+    if (!features.supportsReadings) return false;
+    
     const furiganaEnabled = settings.showFurigana ?? settings.furigana;
     if (!furiganaEnabled) return false;
-    if (!props.token.reading) return false;
+    const reading = effectiveReading();
+    if (!reading) return false;
     const word = displayWord();
     // Only show furigana for words with kanji (not all kana)
     if (isAllKana(word)) return false;
     if (!containsKanji(word)) return false;
     // Only show if reading differs from surface
-    return props.token.reading !== word;
+    return reading !== word;
   });
 
   // Build furigana reading with correction for verb conjugations
   const getFuriganaReading = createMemo(() => {
-    if (!props.token.reading) return '';
+    const reading = effectiveReading();
+    if (!reading) return '';
     const word = displayWord();
-    let reading = props.token.reading;
+    let result = reading;
     const pos = getPos();
     
     // For verbs, adjust reading if last character differs
-    if (pos === '動詞' && word.length > 0 && reading.length > 0) {
+    if (pos === '動詞' && word.length > 0 && result.length > 0) {
       const lastWordChar = word[word.length - 1];
-      const lastReadingChar = reading[reading.length - 1];
-      if (lastWordChar !== lastReadingChar && word.length === reading.length) {
-        reading = reading.substring(0, reading.length - 1) + lastWordChar;
+      const lastReadingChar = result[result.length - 1];
+      if (lastWordChar !== lastReadingChar && word.length === result.length) {
+        result = result.substring(0, result.length - 1) + lastWordChar;
       }
     }
     
     // Add padding if reading is shorter than word
     let correction = '';
-    for (let i = reading.length; i < word.length; i++) {
+    for (let i = result.length; i < word.length; i++) {
       correction += '\u00A0'; // non-breaking space
     }
     
-    return reading + correction;
+    return result + correction;
   });
 
   // Custom attributes for CSS selectors
@@ -169,11 +224,127 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     grammar: getPos(),
   }));
 
+  // Get word frequency (like old app's wordFreq[word])
+  const wordFreqEntry = createMemo(() => {
+    const word = props.token.actual_word ?? displayWord();
+    return word ? getFrequency(word) : null;
+  });
+
+  // Generate stars array for frequency level display (like old app)
+  const frequencyStars = createMemo(() => {
+    const freq = wordFreqEntry();
+    if (!freq || freq.raw_level === undefined) return [];
+    const level = freq.raw_level;
+    return Array.from({ length: level }, (_, i) => i);
+  });
+
+  // Cached translation data (for pitch accent)
+  const [cachedTranslation, setCachedTranslation] = createSignal<any>(null);
+  
+  // Check for cached translation - poll frequently like reading cache
+  createEffect(() => {
+    const word = props.token.actual_word ?? displayWord();
+    if (!word) return;
+    
+    const checkCache = () => {
+      const cached = getCachedTranslation(word);
+      if (cached) {
+        setCachedTranslation(cached);
+        return true;
+      }
+      return false;
+    };
+    
+    if (checkCache()) return; // Already cached
+    
+    // Poll rapidly at first
+    let attempts = 0;
+    const maxAttempts = 20;
+    
+    const poll = () => {
+      if (checkCache()) return;
+      attempts++;
+      if (attempts < maxAttempts) {
+        const delay = attempts < 10 ? 50 : 100;
+        setTimeout(poll, delay);
+      }
+    };
+    
+    const timer = setTimeout(poll, 50);
+    
+    return () => clearTimeout(timer);
+  });
+
+  // Extract pitch accent info from cached translation
+  const pitchAccentHtml = createMemo(() => {
+    // Use language features to check if pitch accent is supported
+    const features = getLanguageFeatures();
+    if (!features.supportsPitchAccent || !settings.showPitchAccent) return '';
+    
+    const translation = cachedTranslation();
+    if (!translation?.data) return '';
+    
+    const word = displayWord();
+    const reading = effectiveReading() || word;
+    if (!reading || reading.length <= 1) return '';
+    
+    // Find pitch position from data[2]
+    // Format: data[2] = ["word", "pitch", { pitches: [{ position: N }] }] or { pitches: [...] }
+    let pitchPosition: number | null = null;
+    const pitchEntry = translation.data[2];
+    if (pitchEntry) {
+      if (Array.isArray(pitchEntry) && pitchEntry[2]?.pitches?.[0]?.position !== undefined) {
+        pitchPosition = pitchEntry[2].pitches[0].position;
+      } else if ((pitchEntry as any)?.pitches?.[0]?.position !== undefined) {
+        pitchPosition = (pitchEntry as any).pitches[0].position;
+      } else if (typeof pitchEntry === 'object') {
+        // Recursively search for pitches
+        const findPitch = (obj: any): number | null => {
+          if (!obj || typeof obj !== 'object') return null;
+          if (obj.pitches?.[0]?.position !== undefined) return obj.pitches[0].position;
+          for (const val of Object.values(obj)) {
+            if (val && typeof val === 'object') {
+              const found = findPitch(val);
+              if (found !== null) return found;
+            }
+          }
+          return null;
+        };
+        pitchPosition = findPitch(pitchEntry);
+      }
+    }
+    
+    if (pitchPosition === null) return '';
+    
+    const info = getPitchAccentInfo(pitchPosition, reading);
+    if (!info) return '';
+    
+    // Check if next token is also a verb (like old app's look_ahead_token check)
+    const pos = getPos();
+    const includeParticleBox = !(pos === '動詞' && props.lookAheadPos === '動詞');
+    
+    return buildPitchAccentHtml(info, word.length, {
+      includeParticleBox,
+    });
+  });
+
+  // Determine if word is all kana (for pitch accent positioning)
+  const isWordAllKana = createMemo(() => isAllKana(displayWord()));
+
+  // CSS variable for pitch accent height
+  const pitchAccentHeight = createMemo(() => {
+    if (!pitchAccentHtml()) return undefined;
+    return isWordAllKana() ? '5px' : '2px';
+  });
+
   return (
     <span
       ref={wordRef}
       class={getWordClass()}
-      style={wordStyle()}
+      style={{
+        ...wordStyle(),
+        ...(pitchAccentHeight() ? { '--pitch-accent-height': pitchAccentHeight() } as JSX.CSSProperties : {}),
+      }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={props.onLeave}
       onClick={handleClick}
@@ -183,14 +354,36 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     >
       <Show
         when={showFurigana()}
-        fallback={displayWord()}
+        fallback={
+          <>
+            {displayWord()}
+            {/* Pitch accent for all-kana words (no furigana) - appended to word */}
+            <Show when={pitchAccentHtml() && isWordAllKana()}>
+              <div class="mLearn-pitch-accent" innerHTML={pitchAccentHtml()} />
+            </Show>
+          </>
+        }
       >
         <ruby>
           {displayWord()}
           <rp>(</rp>
-          <rt style={{ 'font-size': '0.5em' }}>{getFuriganaReading()}</rt>
+          <rt style={{ 'font-size': '0.5em', position: 'relative' }}>
+            {getFuriganaReading()}
+            {/* Pitch accent inside furigana for kanji words */}
+            <Show when={pitchAccentHtml()}>
+              <div class="mLearn-pitch-accent" innerHTML={pitchAccentHtml()} />
+            </Show>
+          </rt>
           <rp>)</rp>
         </ruby>
+      </Show>
+      {/* Frequency stars (like old app's addFrequencyStars) */}
+      <Show when={frequencyStars().length > 0}>
+        <span class="frequency" data-level={wordFreqEntry()?.raw_level}>
+          <For each={frequencyStars()}>
+            {() => <span class="star" />}
+          </For>
+        </span>
       </Show>
     </span>
   );

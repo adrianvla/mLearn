@@ -1,0 +1,104 @@
+/**
+ * FrequencyStars Component Styles
+ * Star icons for displaying word frequency levels
+ * Matches legacy .frequency styling exactly
+ */
+
+/* Base frequency container */
+.frequency {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+/* Individual star */
+.frequency .star {
+  position: relative;
+  width: 10px;
+  height: 10px;
+}
+
+.frequency .star::before {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: url(../../html/assets/icons/star.svg) no-repeat center;
+  background-size: contain;
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0px 0px 10px #ff0000) drop-shadow(1px 1px 0px #100);
+  z-index: -1;
+}
+
+/* Small size variant */
+.frequency.frequency-small .star {
+  width: 6px;
+  height: 6px;
+}
+
+.frequency.frequency-small .star::before {
+  width: 6px;
+  height: 6px;
+}
+
+/* Large size variant */
+.frequency.frequency-large .star {
+  width: 14px;
+  height: 14px;
+}
+
+.frequency.frequency-large .star::before {
+  width: 14px;
+  height: 14px;
+}
+
+/* Level-based star colors (matches old app exactly) */
+.frequency[data-level="7"] .star::before {
+  filter: hue-rotate(57deg) saturate(0%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.frequency[data-level="6"] .star::before {
+  filter: hue-rotate(57deg) saturate(200%) brightness(500%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.frequency[data-level="5"] .star::before {
+  filter: hue-rotate(273deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.frequency[data-level="4"] .star::before {
+  filter: hue-rotate(60deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.frequency[data-level="3"] .star::before {
+  filter: hue-rotate(113.82deg) saturate(200%) brightness(150%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.frequency[data-level="2"] .star::before {
+  filter: hue-rotate(214deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.frequency[data-level="1"] .star::before {
+  filter: hue-rotate(350deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+/* When inside subtitle words - positioned below */
+.subtitle_word .frequency {
+  position: absolute;
+  bottom: -10px;
+  left: 0;
+  right: 0;
+  font-size: 0.8em;
+  padding: 5px;
+  text-align: center;
+}

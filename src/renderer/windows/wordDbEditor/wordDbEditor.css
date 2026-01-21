@@ -2,9 +2,10 @@
  * Word DB Editor Styles
  */
 
-/* Import shared pill styling */
+/* Import shared styling */
 @import url('../../components/common/Pill.css');
 @import url('../../components/common/StatusPill.css');
+@import url('../../components/common/PitchAccent.css');
 
 .word-db-editor {
   display: flex;
@@ -194,4 +195,52 @@
 .tracker-label {
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+/* Edit button in word column */
+.word-db-editor .col.word {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.word-db-editor .col.word .word-text {
+  position: relative;
+  display: inline-block;
+}
+
+.word-db-editor .col.word .word-text .mLearn-pitch-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.word-db-editor .edit-btn {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.word-db-editor .edit-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary);
+}
+
+/* Initialize loading state */
+.init-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: var(--text-secondary);
+  font-size: 1.2rem;
 }

@@ -2,8 +2,9 @@
  * Subtitle Styles
  */
 
-/* Import shared pill styling (with legacy level colors) */
+/* Import shared styling */
 @import url('../components/common/Pill.css');
+@import url('../components/common/PitchAccent.css');
 
 /* ========== Subtitle Container ========== */
 .subtitles {
@@ -113,64 +114,10 @@
 }
 
 /* ========== Pitch Accent ========== */
-.mLearn-pitch-accent {
-  display: inline-flex;
-  align-items: flex-end;
-  height: var(--pitch-accent-height);
-  margin-left: 2px;
-  vertical-align: super;
-  font-size: 0.6em;
-}
-
-.mLearn-pitch-accent .box {
-  width: 0.8em;
-  height: 0.6em;
-  border: 1px solid currentColor;
-  border-top: none;
-  border-left: none;
-  margin-right: -1px;
-}
-
-.mLearn-pitch-accent .box.top {
-  border-top: 1px solid currentColor;
-  border-bottom: none;
-}
-
-.mLearn-pitch-accent .box.bottom {
-  border-top: none;
-  border-bottom: 1px solid currentColor;
-}
-
-.mLearn-pitch-accent .box.left {
-  border-left: 1px solid currentColor;
-}
-
-.mLearn-pitch-accent .box.particle-box {
-  opacity: 0.5;
-  border-style: dashed;
-}
+/* The actual .mLearn-pitch-accent styles are in PitchAccent.css - do not duplicate here */
 
 /* ========== Frequency Stars ========== */
-.frequency {
-  display: inline-flex;
-  gap: 1px;
-  margin-left: 4px;
-  vertical-align: super;
-  font-size: 0.5em;
-}
-
-.frequency .star {
-  width: 8px;
-  height: 8px;
-  background: currentColor;
-  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
-}
-
-.frequency[level="5"] .star { color: var(--freq-level-5); }
-.frequency[level="4"] .star { color: var(--freq-level-4); }
-.frequency[level="3"] .star { color: var(--freq-level-3); }
-.frequency[level="2"] .star { color: var(--freq-level-2); }
-.frequency[level="1"] .star { color: var(--freq-level-1); }
+/* The actual .frequency styles are defined in subtitle.css under .subtitle_word - see below */
 
 /* ========== Hover Element ========== */
 /*.subtitle_hover {*/
@@ -256,4 +203,77 @@
 .pitch-accent-pill .mLearn-pitch-accent {
   height: auto;
   margin-left: var(--spacing-1);
+}
+
+/* ========== Frequency Stars ========== */
+/* Matches old app's .subtitle_word .frequency styling exactly */
+.subtitle_word .frequency {
+  position: absolute;
+  bottom: -10px;
+  left: 0;
+  right: 0;
+  font-size: 0.8em;
+  padding: 5px;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.subtitle_word .frequency .star {
+  position: relative;
+  width: 10px;
+  height: 10px;
+}
+
+.subtitle_word .frequency .star::before {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: url(assets/icons/star.svg) no-repeat center;
+  background-size: contain;
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0px 0px 10px #ff0000) drop-shadow(1px 1px 0px #100);
+  z-index: -1;
+}
+
+/* Level-based star colors (matches old app exactly) */
+.subtitle_word .frequency[data-level="7"] .star::before {
+  filter: hue-rotate(57deg) saturate(0%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.subtitle_word .frequency[data-level="6"] .star::before {
+  filter: hue-rotate(57deg) saturate(200%) brightness(500%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.subtitle_word .frequency[data-level="5"] .star::before {
+  filter: hue-rotate(273deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.subtitle_word .frequency[data-level="4"] .star::before {
+  filter: hue-rotate(60deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.subtitle_word .frequency[data-level="3"] .star::before {
+  filter: hue-rotate(113.82deg) saturate(200%) brightness(150%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.subtitle_word .frequency[data-level="2"] .star::before {
+  filter: hue-rotate(214deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
+}
+
+.subtitle_word .frequency[data-level="1"] .star::before {
+  filter: hue-rotate(350deg) saturate(200%) brightness(170%) drop-shadow(0px 0px 10px currentColor);
+  opacity: 0.9;
 }

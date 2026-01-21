@@ -359,10 +359,13 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }
     
     const now = Date.now();
+    // Use passed ease value, or DEFAULT_EASE if not provided (old app uses 0 as default)
+    // When ease is explicitly passed (e.g. from knownStatusToEaseFunction), use that value
+    const finalEase = ease > 0 ? ease : DEFAULT_EASE;
     const newCard: Flashcard = {
       id: generateId(),
       content,
-      ease: ease || DEFAULT_EASE,
+      ease: finalEase,
       interval: 0,
       dueDate: now,
       reviews: 0,

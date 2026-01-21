@@ -6,7 +6,8 @@
 export { GlassPanel, type GlassPanelProps } from './GlassPanel';
 export { GlassButton, IconButton, type GlassButtonProps, type IconButtonProps } from './GlassButton';
 export { GlassCard, type GlassCardProps } from './GlassCard';
-export { GlassModal, ConfirmDialog, type GlassModalProps, type ConfirmDialogProps } from './GlassModal';
+export { GlassModal, ConfirmDialog as BasicConfirmDialog, type GlassModalProps, type ConfirmDialogProps as BasicConfirmDialogProps } from './GlassModal';
+export { ConfirmDialog, useConfirmDialog, type ConfirmDialogProps, type ConfirmVariant, type ConfirmOptions } from './ConfirmDialog';
 export { GlassInput, GlassTextarea, GlassSelect, type GlassInputProps, type GlassTextareaProps, type GlassSelectProps } from './GlassInput';
 export { Pill, type PillProps } from './Pill';
 export { StatusPill, type StatusPillProps } from './StatusPill';
@@ -28,3 +29,10 @@ export { CheckboxCard, type CheckboxCardProps } from './CheckboxCard';
 export { SelectableCard, type SelectableCardProps } from './SelectableCard';
 export { AlertBanner, type AlertBannerProps, type AlertBannerType } from './AlertBanner';
 export { LogConsole, type LogConsoleProps } from './LogConsole';
+export { WindowLayout, WindowHeader, type WindowLayoutProps, type WindowHeaderProps } from './WindowLayout';
+export { TabContainer, TabPanel, type TabContainerProps, type TabPanelProps, type TabItem } from './TabContainer';
+export { RubyText, type RubyTextProps } from './RubyText';
+export { FrequencyStars, type FrequencyStarsProps } from './FrequencyStars';
+export { WordStatusPill, type WordStatusPillProps, type WordStatusType, numericToWordStatus, wordStatusToNumeric, getNextStatus } from './WordStatusPill';
+export { ModalFooter, type ModalFooterProps } from './ModalFooter';
+

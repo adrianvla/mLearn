@@ -4,18 +4,21 @@
  * Ported from adjustWordsByLevel in stats.js
  */
 
-import { Component, createSignal, For, Show } from 'solid-js';
-import { WindowWrapper, useLanguage } from '../../context';
+import { Component, createSignal, For, Show, onMount } from 'solid-js';
+import { WindowWrapper, useLanguage, useFlashcards } from '../../context';
 import {
   getWordsLearnedInApp,
   setWordStatus,
+  loadWordsFromStorage,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
-import { SearchBar, EntriesHeader, WordEntryRow, type WordEntry } from './components';
+import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, type WordEntry, type TranslationOverride } from './components';
 import './wordDbEditor.css';
 
 const WordDbEditorContent: Component = () => {
-  const { wordFrequency } = useLanguage();
+  const { wordFrequency, getLevelName } = useLanguage();
+  const { addFlashcard, hasWord, removeFlashcard, findFlashcardIndex } = useFlashcards();
+  // useTranslation imported but translateWord used via EditTranslationDialog
   const [searchQuery, setSearchQuery] = createSignal('');
   const [entries, setEntries] = createSignal<WordEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = createSignal<WordEntry[]>([]);
@@ -24,17 +27,34 @@ const WordDbEditorContent: Component = () => {
   const [selectedLevel, setSelectedLevel] = createSignal<number | null>(null);
   const [sortKey, setSortKey] = createSignal<string>('word');
   const [sortDir, setSortDir] = createSignal<1 | -1>(1);
+  const [isInitialized, setIsInitialized] = createSignal(false);
+  
+  // Edit dialog state
+  const [editDialogOpen, setEditDialogOpen] = createSignal(false);
+  const [editingEntry, setEditingEntry] = createSignal<WordEntry | null>(null);
 
-  // Level names for Japanese (would come from langData)
-  const levelNames: Record<number, string> = {
-    5: 'N1',
-    4: 'N2',
-    3: 'N3',
-    2: 'N4',
-    1: 'N5',
+  // Level names for Japanese - use dynamic level names from langData
+  const getLevelNames = (): Record<number, string> => ({
+    5: getLevelName(5) || 'N1',
+    4: getLevelName(4) || 'N2',
+    3: getLevelName(3) || 'N3',
+    2: getLevelName(2) || 'N4',
+    1: getLevelName(1) || 'N5',
     0: 'Common',
     [-1]: 'Unlisted',
-  };
+  });
+
+  // Load words from storage on mount
+  onMount(async () => {
+    try {
+      await loadWordsFromStorage();
+      setIsInitialized(true);
+      console.log('Word DB Editor: Loaded words from storage');
+    } catch (e) {
+      console.error('Word DB Editor: Failed to load words:', e);
+      setIsInitialized(true);
+    }
+  });
 
   // Load all words from word frequency data
   const loadAllWords = async () => {
@@ -42,7 +62,10 @@ const WordDbEditorContent: Component = () => {
     setLoadProgress(0);
     
     try {
-      // Get tracked words (uuid -> status)
+      // Ensure storage is loaded first
+      await loadWordsFromStorage();
+      
+      // Get tracked words (word -> status)
       const trackedWords = getWordsLearnedInApp();
       const wordEntries: WordEntry[] = [];
       
@@ -59,8 +82,10 @@ const WordDbEditorContent: Component = () => {
       
       for (let i = 0; i < totalWords; i++) {
         const [word, freqEntry] = freqWords[i];
-        const uuid = word; // Use word as UUID
-        const status = trackedWords[uuid] ?? WORD_STATUS.UNKNOWN;
+        const uuid = word; // Use word as UUID for consistency
+        const status = trackedWords[word] ?? WORD_STATUS.UNKNOWN;
+        // Check if word is actually tracked as a flashcard
+        const isTracked = hasWord(word);
         
         wordEntries.push({
           uuid,
@@ -68,7 +93,7 @@ const WordDbEditorContent: Component = () => {
           translation: '', // Would need API call to get translation
           reading: freqEntry.reading || '',
           level: freqEntry.raw_level ?? -1,
-          tracker: status === WORD_STATUS.KNOWN ? 'flashcards' : 'nothing',
+          tracker: isTracked ? 'flashcards' : 'nothing',
           status,
         });
         
@@ -138,25 +163,50 @@ const WordDbEditorContent: Component = () => {
 
   // Change word status
   const handleStatusChange = async (entry: WordEntry, newStatus: number) => {
-    setWordStatus(entry.uuid, newStatus);
-    setEntries(prev => prev.map(e =>
-      e.uuid === entry.uuid ? { ...e, status: newStatus } : e
-    ));
-    setFilteredEntries(prev => prev.map(e =>
-      e.uuid === entry.uuid ? { ...e, status: newStatus } : e
-    ));
+    try {
+      // Update status in storage using word (not uuid)
+      setWordStatus(entry.word, newStatus);
+      // saveWordsToStorage is called automatically by setWordStatus
+      
+      // Update local state
+      setEntries(prev => prev.map(e =>
+        e.uuid === entry.uuid ? { ...e, status: newStatus } : e
+      ));
+      setFilteredEntries(prev => prev.map(e =>
+        e.uuid === entry.uuid ? { ...e, status: newStatus } : e
+      ));
+      console.log(`%cUpdated status for word "${entry.word}" to ${newStatus}`, 'color: lime;');
+    } catch (e) {
+      console.error('Failed to update word status:', e);
+    }
   };
 
   // Add flashcard for word
   const handleAddFlashcard = async (entry: WordEntry) => {
     try {
-      // In real implementation, would call flashcard creation API
+      // Create a basic flashcard for this word
+      const content = {
+        word: entry.word,
+        pronunciation: entry.reading || entry.word,
+        translation: entry.translation ? [entry.translation] : [],
+        definition: entry.fullTranslation ? [entry.fullTranslation] : [],
+        example: '-',
+        exampleMeaning: '',
+        pos: '',
+        level: entry.level,
+      };
+      
+      // Add to flashcard store using context
+      await addFlashcard(content, 1.3); // Default ease
+      
+      // Update local state
       setEntries(prev => prev.map(e =>
         e.uuid === entry.uuid ? { ...e, tracker: 'flashcards' } : e
       ));
       setFilteredEntries(prev => prev.map(e =>
         e.uuid === entry.uuid ? { ...e, tracker: 'flashcards' } : e
       ));
+      console.log(`%cAdded flashcard for word "${entry.word}"`, 'color: cyan;');
     } catch (e) {
       console.error('Failed to add flashcard:', e);
     }
@@ -165,68 +215,138 @@ const WordDbEditorContent: Component = () => {
   // Remove flashcard for word
   const handleRemoveFlashcard = async (entry: WordEntry) => {
     try {
+      // Find flashcard index by word
+      const index = await findFlashcardIndex(entry.word);
+      
+      if (index >= 0) {
+        await removeFlashcard(index, true);
+      }
+      
+      // Update local state
       setEntries(prev => prev.map(e =>
         e.uuid === entry.uuid ? { ...e, tracker: 'nothing' } : e
       ));
       setFilteredEntries(prev => prev.map(e =>
         e.uuid === entry.uuid ? { ...e, tracker: 'nothing' } : e
       ));
+      console.log(`%cRemoved flashcard for word "${entry.word}"`, 'color: orange;');
     } catch (e) {
       console.error('Failed to remove flashcard:', e);
     }
   };
 
+  // Dynamic level names from langData
+  const levelNames = getLevelNames();
+  
+  // Edit entry handler
+  const handleEdit = (entry: WordEntry) => {
+    setEditingEntry(entry);
+    setEditDialogOpen(true);
+  };
+  
+  // Handle save from edit dialog
+  const handleEditSave = async (data: TranslationOverride) => {
+    const entry = editingEntry();
+    if (!entry) return;
+    
+    // Update local state with new data
+    const updatedEntry: WordEntry = {
+      ...entry,
+      reading: data.reading || entry.reading,
+      pitch: data.pitch,
+      translation: data.definitions.slice(0, 3).join(', '),
+      fullTranslation: data.definitions.join('\n'),
+    };
+    
+    setEntries(prev => prev.map(e =>
+      e.uuid === entry.uuid ? updatedEntry : e
+    ));
+    setFilteredEntries(prev => prev.map(e =>
+      e.uuid === entry.uuid ? updatedEntry : e
+    ));
+    
+    setEditDialogOpen(false);
+    setEditingEntry(null);
+    console.log(`%cUpdated translation data for word "${entry.word}"`, 'color: lime;');
+  };
+
   return (
     <div class="word-db-editor">
-      {/* Search Bar */}
-      <SearchBar
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        selectedLevel={selectedLevel}
-        setSelectedLevel={setSelectedLevel}
-        isLoading={isLoading}
-        loadProgress={loadProgress}
-        levelNames={levelNames}
-        onSearch={handleSearch}
-        onLoadAll={loadAllWords}
-      />
+      {/* Loading indicator while initializing */}
+      <Show when={!isInitialized()}>
+        <div class="init-loading">Loading word database...</div>
+      </Show>
+      
+      <Show when={isInitialized()}>
+        {/* Search Bar */}
+        <SearchBar
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          selectedLevel={selectedLevel}
+          setSelectedLevel={setSelectedLevel}
+          isLoading={isLoading}
+          loadProgress={loadProgress}
+          levelNames={levelNames}
+          onSearch={handleSearch}
+          onLoadAll={loadAllWords}
+        />
 
-      {/* Table Header */}
-      <EntriesHeader
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onSort={handleSort}
-      />
+        {/* Table Header */}
+        <EntriesHeader
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={handleSort}
+        />
 
-      {/* Entries List */}
-      <div class="entries-list">
-        <Show when={!isLoading() && filteredEntries().length === 0}>
-          <div class="empty-state">
-            <p>No words found. Click "Load All" to load your word database.</p>
+        {/* Entries List */}
+        <div class="entries-list">
+          <Show when={!isLoading() && filteredEntries().length === 0}>
+            <div class="empty-state">
+              <p>No words found. Click "Load All" to load your word database.</p>
+            </div>
+          </Show>
+          
+          <For each={filteredEntries()}>
+            {(entry) => (
+              <WordEntryRow
+                entry={entry}
+                levelNames={levelNames}
+                onStatusChange={handleStatusChange}
+                onAddFlashcard={handleAddFlashcard}
+                onRemoveFlashcard={handleRemoveFlashcard}
+                onEdit={handleEdit}
+              />
+            )}
+          </For>
+        </div>
+
+        {/* Loading Overlay */}
+        <Show when={isLoading()}>
+          <div class="loading-overlay">
+            <div class="loading-content">
+              <div class="spinner" />
+              <p>Loading... {loadProgress()}%</p>
+            </div>
           </div>
         </Show>
         
-        <For each={filteredEntries()}>
-          {(entry) => (
-            <WordEntryRow
-              entry={entry}
-              levelNames={levelNames}
-              onStatusChange={handleStatusChange}
-              onAddFlashcard={handleAddFlashcard}
-              onRemoveFlashcard={handleRemoveFlashcard}
-            />
-          )}
-        </For>
-      </div>
-
-      {/* Loading Overlay */}
-      <Show when={isLoading()}>
-        <div class="loading-overlay">
-          <div class="loading-content">
-            <div class="spinner" />
-            <p>Loading... {loadProgress()}%</p>
-          </div>
-        </div>
+        {/* Edit Translation Dialog */}
+        <Show when={editDialogOpen() && editingEntry()}>
+          <EditTranslationDialog
+            word={editingEntry()!.word}
+            isOpen={editDialogOpen()}
+            onClose={() => {
+              setEditDialogOpen(false);
+              setEditingEntry(null);
+            }}
+            onSave={handleEditSave}
+            initialData={editingEntry()?.pitch !== undefined ? {
+              reading: editingEntry()!.reading || '',
+              pitch: editingEntry()!.pitch ?? null,
+              definitions: editingEntry()!.fullTranslation?.split('\n') || [],
+            } : null}
+          />
+        </Show>
       </Show>
     </div>
   );
