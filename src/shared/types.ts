@@ -78,6 +78,10 @@ export interface Settings {
   showTranslation?: boolean; // Show translation line
   videoFit?: 'contain' | 'cover' | 'fill'; // Video object fit
   
+  // Subtitle processing
+  removeParentheses?: boolean; // Remove content in parentheses from subtitles
+  removeSpeakerNames?: boolean; // Remove speaker name prefixes from subtitles
+  
   // Feature flags
   llmEnabled: boolean;
   ocrEnabled: boolean;

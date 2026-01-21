@@ -35,4 +35,7 @@ export { RubyText, type RubyTextProps } from './RubyText';
 export { FrequencyStars, type FrequencyStarsProps } from './FrequencyStars';
 export { WordStatusPill, type WordStatusPillProps, type WordStatusType, numericToWordStatus, wordStatusToNumeric, getNextStatus } from './WordStatusPill';
 export { ModalFooter, type ModalFooterProps } from './ModalFooter';
+export { IconRenderer, type IconRendererProps } from './IconRenderer';
+export { DropZone, type DropZoneProps } from './DropZone';
+export { Flex, Row, Column, Center, Spacer, type FlexProps } from './Flex';
 

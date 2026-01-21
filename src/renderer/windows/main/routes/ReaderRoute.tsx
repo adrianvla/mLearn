@@ -421,11 +421,17 @@ export const ReaderRoute: Component = () => {
 
   // OCR hover handlers (legacy-style hover popup)
   let ocrHoverRequestId = 0;
-  const handleOcrWordHover = async (token: Token, rect: DOMRect) => {
+  // Store current context phrase for use in WordHover
+  const [ocrContextPhrase, setOcrContextPhrase] = createSignal('');
+  
+  const handleOcrWordHover = async (token: Token, rect: DOMRect, contextPhrase: string = '') => {
     const requestId = ++ocrHoverRequestId;
     // Use actual_word (dictionary form) for translation lookup, fallback to surface
     const lookupWord = token.actual_word ?? token.surface ?? token.word;
     const displayWord = token.surface ?? token.word;
+    
+    // Store context phrase for LLM explain and flashcard example
+    setOcrContextPhrase(contextPhrase);
     
     // Check if translation is already cached (from pre-warm)
     // This ensures pitch accent pill shows immediately on first hover
@@ -597,6 +603,7 @@ export const ReaderRoute: Component = () => {
           translationData={ocrTranslationData() || undefined}
           status={ocrWordStatus()}
           isOCR={true}
+          contextPhrase={ocrContextPhrase()}
           ocrImageElement={(() => {
             // Get the first visible page's image element for OCR screenshot
             const visible = visiblePages();

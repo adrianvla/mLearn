@@ -20,8 +20,8 @@
   cursor: pointer;
   pointer-events: auto;
   opacity: 0;
-  transition: opacity 0.2s ease;
-  overflow: hidden;
+  transition: opacity 0.15s ease;
+  overflow: visible;
 }
 
 .ocr-box:hover,
@@ -41,6 +41,7 @@
   padding: 2px;
   box-sizing: border-box;
   user-select: none;
+  position: relative;
 }
 
 .ocr-text.vertical {
@@ -51,6 +52,18 @@
 .ocr-word {
   display: inline-block;
   pointer-events: auto;
+  cursor: pointer;
+  position: relative;
+  /* Expand clickable area for small text */
+  padding: 2px;
+  margin: -2px;
+  /* Subtle highlight on hover */
+  border-radius: 2px;
+  transition: background-color 0.1s ease;
+}
+
+.ocr-word:hover {
+  background-color: rgba(100, 180, 255, 0.3);
 }
 
 /* Loading state for OCR */

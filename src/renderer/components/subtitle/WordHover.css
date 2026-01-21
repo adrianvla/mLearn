@@ -130,8 +130,10 @@ body.dark .subtitle_hover .pitch,
   backdrop-filter: var(--glass-backdrop-filter);
   border-top: 1px solid #ddd;
   z-index: 1;
+  /* Allow footer to expand beyond parent for measurement */
   width: max-content;
   min-width: 100%;
+  overflow: visible;
 }
 
 body.dark .subtitle_hover .footer,
@@ -148,6 +150,9 @@ body.dark .subtitle_hover .footer,
   height: 100%;
   width: max-content;
   align-items: center;
+  /* Ensure pills don't get clipped */
+  overflow: visible;
+  white-space: nowrap;
 }
 
 /* Pill base style inside hover */

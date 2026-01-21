@@ -7,6 +7,7 @@ import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup
 import type { Token } from '../../../shared/types';
 import { useTokenizer, warmTranslationCache } from '../../hooks';
 import { useLanguage, useSettings } from '../../context';
+import { buildOcrContextMap } from '../../utils/ocrUtils';
 import './OcrOverlay.css';
 
 export interface OcrBox {
@@ -28,7 +29,8 @@ export interface OcrOverlayProps {
   imageElement?: HTMLImageElement | null;
   visible?: boolean;
   onBoxClick?: (box: OcrBox, rect: DOMRect) => void;
-  onWordHover?: (token: Token, rect: DOMRect) => void;
+  /** Called when hovering over a word. Includes context phrase from neighboring boxes. */
+  onWordHover?: (token: Token, rect: DOMRect, contextPhrase: string) => void;
   onWordLeave?: () => void;
 }
 
@@ -100,6 +102,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const { isTranslatable } = useLanguage();
   const { settings } = useSettings();
   const [tokenMap, setTokenMap] = createSignal<Map<number, Token[]>>(new Map());
+  const [contextMap, setContextMap] = createSignal<Map<number, string>>(new Map());
   const [observedWidth, setObservedWidth] = createSignal(0);
 
   createEffect(() => {
@@ -133,6 +136,19 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
       props.onBoxClick(box, target.getBoundingClientRect());
     }
   };
+
+  // Build context map when OCR result changes
+  createEffect(() => {
+    const result = props.result;
+    if (!result || !Array.isArray(result.boxes)) {
+      setContextMap(new Map());
+      return;
+    }
+    
+    // Build context map for neighboring text boxes
+    const ctx = buildOcrContextMap(result.boxes);
+    setContextMap(ctx);
+  });
 
   createEffect(() => {
     const result = props.result;
@@ -179,12 +195,14 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     props.onWordLeave?.();
   };
 
-  const handleWordEnter = (token: Token, e: MouseEvent) => {
+  const handleWordEnter = (token: Token, boxIndex: number, e: MouseEvent) => {
     // Only show hover for translatable types (like old app's TRANSLATABLE.includes(pos))
     if (!isTranslatable(token.type)) return;
     
     const target = e.currentTarget as HTMLElement;
-    props.onWordHover?.(token, target.getBoundingClientRect());
+    // Get context phrase from context map (stitched from neighboring boxes)
+    const context = contextMap().get(boxIndex) || '';
+    props.onWordHover?.(token, target.getBoundingClientRect(), context);
   };
 
   return (
@@ -235,7 +253,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                       {(token) => (
                         <span
                           class="ocr-word"
-                          onMouseEnter={(e) => handleWordEnter(token, e)}
+                          onMouseEnter={(e) => handleWordEnter(token, index(), e)}
                           onMouseLeave={props.onWordLeave}
                         >
                           {token.surface ?? token.word}

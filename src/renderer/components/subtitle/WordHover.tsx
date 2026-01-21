@@ -126,7 +126,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     // Temporarily set width to auto/max-content to measure natural sizes
     const origWidth = subtitleHover.style.width;
+    const origMaxWidth = subtitleHover.style.maxWidth;
     subtitleHover.style.width = 'max-content';
+    subtitleHover.style.maxWidth = 'none';
     
     const footerEl = subtitleHover.querySelector('.footer') as HTMLElement | null;
     const contentEl = subtitleHover.querySelector('.subtitle_hover_content') as HTMLElement | null;
@@ -140,8 +142,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       // Also check pills container
       const pillsEl = footerEl.querySelector('.pills') as HTMLElement | null;
       if (pillsEl) {
-        // Pills have gap:20px between them, add some extra for padding
-        footerWidth = Math.max(footerWidth, pillsEl.scrollWidth + 20);
+        // Measure all pills and add padding (10px on each side + 10px gap)
+        const pills = pillsEl.querySelectorAll('.pill');
+        let totalPillWidth = 20; // Initial padding
+        pills.forEach(pill => {
+          totalPillWidth += (pill as HTMLElement).offsetWidth + 10; // Add pill width + gap
+        });
+        footerWidth = Math.max(footerWidth, totalPillWidth);
       }
     }
     
@@ -150,12 +157,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       contentWidth = contentEl.scrollWidth;
     }
     
-    // Restore original width
+    // Restore original styles
     subtitleHover.style.width = origWidth;
+    subtitleHover.style.maxWidth = origMaxWidth;
     
     // Use max of content and footer width, clamped to reasonable bounds
-    // Min 280px, max 600px (or viewport width - 32px)
-    const maxAllowed = Math.min(600, (typeof window !== 'undefined' ? window.innerWidth - 32 : 600));
+    // Min 280px, max 700px (increased to accommodate more pills) or viewport width - 32px
+    const maxAllowed = Math.min(700, (typeof window !== 'undefined' ? window.innerWidth - 32 : 700));
     const newWidth = Math.max(280, Math.min(maxAllowed, Math.max(contentWidth, footerWidth)));
     setCalculatedWidth(newWidth);
     
