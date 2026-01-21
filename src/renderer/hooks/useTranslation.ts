@@ -4,10 +4,10 @@
  */
 
 import { createSignal, createResource } from 'solid-js';
-import type { TranslationResponse } from '../../shared/types';
+import type { TranslationResponse, TranslationEntry } from '../../shared/types';
 import { useSettings } from '../context';
 
-// Translation cache
+// Translation cache - globally accessible for all components
 const translationCache = new Map<string, TranslationResponse>();
 
 // Tokenization cache (promise de-dup + LRU)
@@ -20,6 +20,33 @@ const dictionaryCache = new Map<string, DictionaryEntry[]>();
 
 // Local overrides storage key
 const OVERRIDE_KEY = 'ml_translation_overrides';
+
+/**
+ * Get cached translation for a word (without fetching)
+ * Returns null if not cached
+ */
+export function getCachedTranslation(word: string): TranslationResponse | null {
+  return translationCache.get(word) || null;
+}
+
+/**
+ * Get reading from cached translation
+ */
+export function getCachedReading(word: string): string | null {
+  const cached = translationCache.get(word);
+  if (!cached?.data) return null;
+  
+  const firstEntry = cached.data[0] as TranslationEntry | undefined;
+  if (firstEntry?.reading) {
+    // Strip HTML and accent markers from reading
+    let reading = firstEntry.reading;
+    const markerIdx = reading.indexOf('<!-- accent_start -->');
+    if (markerIdx !== -1) reading = reading.substring(0, markerIdx);
+    reading = reading.replace(/<[^>]*>/g, '').trim();
+    return reading || null;
+  }
+  return null;
+}
 
 // Read overrides from localStorage
 function readOverrides(): Record<string, TranslationResponse> {

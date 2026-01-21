@@ -15,6 +15,74 @@ let llmDownloadApproved: boolean = false;
 const LLM_STATUS_CACHE_TTL = 30_000; // 30 seconds
 const LLM_STATUS_CACHE_ACTIVE_TTL = 2_000; // 2 seconds while actively downloading
 
+// LLM explanation cache - stores explanations by word+context combination
+// Key format: `${word}|||${context}` where context is truncated/normalized
+interface LLMExplanationCacheEntry {
+  explanation: string;
+  timestamp: number;
+}
+const llmExplanationCache = new Map<string, LLMExplanationCacheEntry>();
+const LLM_EXPLANATION_CACHE_MAX = 500; // Max entries to prevent memory bloat
+const LLM_EXPLANATION_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Generate cache key for LLM explanation
+ */
+function getLLMCacheKey(word: string, context: string): string {
+  // Normalize context: trim, lowercase first 100 chars to handle slight variations
+  const normalizedContext = (context || '').trim().substring(0, 100).toLowerCase();
+  return `${word}|||${normalizedContext}`;
+}
+
+/**
+ * Get cached LLM explanation if available
+ */
+export function getCachedExplanation(word: string, context: string): string | null {
+  const key = getLLMCacheKey(word, context);
+  const entry = llmExplanationCache.get(key);
+  
+  if (!entry) return null;
+  
+  // Check if expired
+  if (Date.now() - entry.timestamp > LLM_EXPLANATION_CACHE_TTL) {
+    llmExplanationCache.delete(key);
+    return null;
+  }
+  
+  return entry.explanation;
+}
+
+/**
+ * Cache an LLM explanation
+ */
+export function cacheExplanation(word: string, context: string, explanation: string): void {
+  const key = getLLMCacheKey(word, context);
+  
+  // Simple LRU: if at max, delete oldest entries
+  if (llmExplanationCache.size >= LLM_EXPLANATION_CACHE_MAX) {
+    // Delete first 10% of entries (FIFO since Map maintains insertion order)
+    const toDelete = Math.ceil(LLM_EXPLANATION_CACHE_MAX * 0.1);
+    let deleted = 0;
+    for (const k of llmExplanationCache.keys()) {
+      if (deleted >= toDelete) break;
+      llmExplanationCache.delete(k);
+      deleted++;
+    }
+  }
+  
+  llmExplanationCache.set(key, {
+    explanation,
+    timestamp: Date.now(),
+  });
+}
+
+/**
+ * Clear all cached explanations
+ */
+export function clearExplanationCache(): void {
+  llmExplanationCache.clear();
+}
+
 /**
  * Derive LLM URL from settings
  */
@@ -95,6 +163,13 @@ export async function getWordExplanation(
     return { error: 'LLM disabled' };
   }
 
+  // Check cache first - this implements the "memory" for LLM explanations
+  const cachedExplanation = getCachedExplanation(word, contextPhrase);
+  if (cachedExplanation) {
+    console.log(`%cUsing cached LLM explanation for "${word}"`, 'color: cyan;');
+    return { output: cachedExplanation };
+  }
+
   const llmUrl = deriveLLMUrl(settings);
   if (!llmUrl) {
     return { error: 'LLM URL not configured' };
@@ -161,6 +236,10 @@ Sentence:
     // Clean output by removing the prompt prefix
     if (data.output) {
       data.output = data.output.replace(prompt, '');
+      
+      // Cache the successful explanation for future use (this is the "memory" feature)
+      cacheExplanation(word, contextPhrase, data.output);
+      console.log(`%cCached LLM explanation for "${word}"`, 'color: lime;');
     }
 
     return data;

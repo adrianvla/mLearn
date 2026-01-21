@@ -6,7 +6,7 @@
 import { Component, JSX, Show, For, createSignal, createMemo, createEffect } from 'solid-js';
 import type { Token, DictionaryEntry, TranslationResponse } from '../../../shared/types';
 import { useSettings, useLanguage } from '../../context';
-import { useWordHover, useDictionary, useTranslation } from '../../hooks';
+import { useWordHover, useDictionary, useTranslation, getCachedTranslation } from '../../hooks';
 import { SubtitleWord } from './SubtitleWord';
 import { WordHover, WordStatus } from './WordHover';
 
@@ -55,8 +55,12 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     const lookupWord = token.actual_word ?? token.surface ?? token.word;
     const displayWord = token.surface ?? token.word;
     
-    // Clear previous data and set current token
-    setTranslationData(null);
+    // Check if translation is already cached (from pre-fetch)
+    // This ensures pitch accent, JLPT level, etc. show immediately on first hover
+    const cachedTranslation = getCachedTranslation(lookupWord);
+    
+    // Set cached data if available, otherwise clear
+    setTranslationData(cachedTranslation);
     setDictionaryEntries([]);
     setIsLoadingDict(false);
     setCurrentHoverToken(token);
@@ -70,18 +74,26 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       element: el 
     });
 
-    try {
-      // Use dictionary form (actual_word) for translation lookup
-      const translation = await translateWord(lookupWord);
-      
-      // Check if this request is still current (race condition protection)
-      if (requestId !== hoverRequestId) return;
-      if (currentHoverToken() !== token) return;
-      
-      setTranslationData(translation);
-      
-      // Live word translator
-      if (settings.openAside && typeof window !== 'undefined' && (window as any).mLearnLiveTranslator) {
+    // If not cached, fetch translation
+    if (!cachedTranslation) {
+      try {
+        // Use dictionary form (actual_word) for translation lookup
+        const translation = await translateWord(lookupWord);
+        
+        // Check if this request is still current (race condition protection)
+        if (requestId !== hoverRequestId) return;
+        if (currentHoverToken() !== token) return;
+        
+        setTranslationData(translation);
+      } catch (e) {
+        console.error('Translation failed:', e);
+      }
+    }
+    
+    // Live word translator
+    {
+      const translation = translationData();
+      if (settings.openAside && typeof window !== 'undefined' && (window as any).mLearnLiveTranslator && translation) {
         const first = translation?.data?.[0] as { definitions?: string | string[]; reading?: string } | undefined;
         let translationText = '';
         if (first?.definitions) {
@@ -96,8 +108,6 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
           (window as any).mLearnLiveTranslator.addCard(displayWord, reading, translationText);
         }
       }
-    } catch (e) {
-      console.error('Translation failed:', e);
     }
 
     // Look up dictionary entry
@@ -159,6 +169,32 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     return classes.join(' ');
   };
 
+  // Pre-fetch translations for all translatable words when subtitle appears
+  // This populates the translation cache for furigana display and faster hover
+  createEffect(() => {
+    const tokens = props.tokens || [];
+    if (!tokens.length) return;
+
+    const subtitleKey = tokens.map((t) => t.surface ?? t.word).join('|');
+    if (subtitleKey === lastSubtitleKey) return; // Already processed
+    
+    lastSubtitleKey = subtitleKey;
+    liveTranslatorSeen = new Set();
+
+    // Pre-fetch translations for all translatable words
+    // This runs in the background and populates the cache
+    for (const token of tokens) {
+      const pos = token.partOfSpeech ?? token.type ?? '';
+      if (!isTranslatable(pos)) continue;
+      
+      const lookupWord = token.actual_word ?? token.surface ?? token.word;
+      if (!lookupWord) continue;
+      
+      // Fire and forget - this populates the translation cache
+      translateWord(lookupWord).catch(() => {/* ignore prefetch errors */});
+    }
+  });
+
   // Append live translator entries as subtitles appear (not just on hover)
   // Only for translatable words
   createEffect(() => {
@@ -168,12 +204,6 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     if (!translator || typeof translator.addCard !== 'function') return;
     const tokens = props.tokens || [];
     if (!tokens.length) return;
-
-    const subtitleKey = tokens.map((t) => t.surface ?? t.word).join('|');
-    if (subtitleKey !== lastSubtitleKey) {
-      lastSubtitleKey = subtitleKey;
-      liveTranslatorSeen = new Set();
-    }
 
     for (const token of tokens) {
       const pos = token.partOfSpeech ?? token.type ?? '';
@@ -229,6 +259,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
                   <SubtitleWord
                     token={token}
                     index={index()}
+                    lookAheadPos={index() < props.tokens.length - 1 ? (props.tokens[index() + 1].partOfSpeech ?? props.tokens[index() + 1].type) : undefined}
                     onClick={handleWordClick}
                     onHover={handleWordHover}
                     onLeave={handleWordLeave}

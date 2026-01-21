@@ -274,6 +274,25 @@
   margin-right: auto;
 }
 
+/* Disabled setting row (fixed by language data) */
+.setting-row.disabled {
+  opacity: 0.5;
+}
+
+.setting-row.disabled label {
+  color: var(--text-secondary);
+}
+
+.setting-row.disabled input {
+  cursor: not-allowed;
+}
+
+.setting-row.disabled .hint {
+  color: var(--color-warning, #f59e0b);
+  font-style: italic;
+  opacity: 1;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .settings-container {

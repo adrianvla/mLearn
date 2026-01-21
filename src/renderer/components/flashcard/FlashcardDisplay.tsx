@@ -54,7 +54,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     
     // Don't include particle box for verbs (like old app)
     const isVerb = c.pos === '動詞';
-    return buildPitchAccentHtml(info, c.pronunciation.length, {
+    return buildPitchAccentHtml(info, c.word.length, {
       includeParticleBox: !isVerb,
     });
   });
@@ -73,14 +73,16 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   // Render pitch accent display based on whether word has kanji
   const PitchAccentDisplay = () => {
     const html = pitchAccentHtml();
+    const c = content();
+    
     if (!html) {
       // No pitch accent - show plain word with optional reading
       return (
         <div class="flashcard-word-title">
-          {content().word}
-          <Show when={content().pronunciation && content().pronunciation !== content().word}>
+          {c.word}
+          <Show when={c.pronunciation && c.pronunciation !== c.word}>
             <span class="flashcard-word-reading">
-              ({content().pronunciation})
+              ({c.pronunciation})
             </span>
           </Show>
         </div>
@@ -90,12 +92,14 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     if (needsFurigana()) {
       // Word has kanji - use ruby with pitch accent in rt
       return (
-        <div class="flashcard-pitch-container">
+        <div class="flashcard-pitch-container" style={{"--pitch-accent-height": "2px"}}>
           <ruby>
-            {content().word}
+            {c.word}
             <rt>
-              {content().pronunciation}
-              <div class="mLearn-pitch-accent" innerHTML={html} />
+              <span class="flashcard-rt-content">
+                {c.pronunciation}
+                <div class="mLearn-pitch-accent" innerHTML={html} />
+              </span>
             </rt>
           </ruby>
         </div>
@@ -103,9 +107,11 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     } else {
       // Kana-only word - pitch accent overlays the word itself
       return (
-        <div class="flashcard-pitch-kana">
-          {content().word}
-          <div class="mLearn-pitch-accent" innerHTML={html} />
+        <div class="flashcard-pitch-kana" style={{"--pitch-accent-height": "5px"}}>
+          <span class="flashcard-kana-content">
+            {c.word}
+            <div class="mLearn-pitch-accent" innerHTML={html} />
+          </span>
         </div>
       );
     }
@@ -166,16 +172,27 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             <PitchAccentDisplay />
           </div>
           
+          {/* Translation (answer) */}
           <div 
             class="flashcard-translation" 
             innerHTML={
               Array.isArray(content().translation) 
                 ? content().translation?.join(', ') 
-                : (Array.isArray(content().definition) 
-                  ? content().definition?.join(', ') 
-                  : (content().translation || content().definition || ''))
+                : (content().translation || '')
             } 
           />
+          
+          {/* Definition (more detailed, shown below translation like old app) */}
+          <Show when={content().definition && content().definition !== content().translation}>
+            <div 
+              class="flashcard-definition" 
+              innerHTML={
+                Array.isArray(content().definition) 
+                  ? content().definition?.join('<br/>') 
+                  : (content().definition || '')
+              } 
+            />
+          </Show>
 
           <Show when={content().exampleMeaning}>
             <div class="flashcard-example-meaning">

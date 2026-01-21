@@ -4,7 +4,7 @@
  */
 
 import { Component, createSignal, Show, For, onMount, createEffect } from 'solid-js';
-import { useSettings } from '../../context';
+import { useSettings, useLanguage } from '../../context';
 import { GlassModal, GlassButton, GlassInput, GlassPanel } from '../common';
 import type { Settings } from '../../../shared/types';
 import { SUBTITLE_THEMES, type SubtitleTheme } from '../../../shared/constants';
@@ -81,6 +81,7 @@ interface SettingsModalProps {
 
 export const SettingsModal: Component<SettingsModalProps> = (props) => {
   const { settings, updateSettings, updateSetting, saveSettings } = useSettings();
+  const { isSettingFixed, getLanguageFeatures } = useLanguage();
   const [activeTab, setActiveTab] = createSignal<CategoryName>(props.initialTab || 'General');
   const [localSettings, setLocalSettings] = createSignal<Partial<Settings>>({});
   const [requiresRestart, setRequiresRestart] = createSignal(false);
@@ -411,13 +412,17 @@ export const SettingsModal: Component<SettingsModalProps> = (props) => {
 
       case 'furigana':
         return (
-          <div class="setting-row toggle">
+          <div class={`setting-row toggle ${isSettingFixed('furigana') ? 'disabled' : ''}`}>
             <label>Show Furigana</label>
             <input
               type="checkbox"
               checked={value ?? true}
               onChange={(e) => updateLocal('furigana', e.currentTarget.checked)}
+              disabled={isSettingFixed('furigana')}
             />
+            <Show when={isSettingFixed('furigana')}>
+              <span class="hint">Not available for this language</span>
+            </Show>
           </div>
         );
 
@@ -436,13 +441,17 @@ export const SettingsModal: Component<SettingsModalProps> = (props) => {
 
       case 'showPitchAccent':
         return (
-          <div class="setting-row toggle">
+          <div class={`setting-row toggle ${isSettingFixed('showPitchAccent') ? 'disabled' : ''}`}>
             <label>Show Pitch Accent</label>
             <input
               type="checkbox"
               checked={value ?? true}
               onChange={(e) => updateLocal('showPitchAccent', e.currentTarget.checked)}
+              disabled={isSettingFixed('showPitchAccent')}
             />
+            <Show when={isSettingFixed('showPitchAccent')}>
+              <span class="hint">Not available for this language</span>
+            </Show>
           </div>
         );
 

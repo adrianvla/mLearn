@@ -127,19 +127,44 @@ export function getWordsLearnedFormatted(): {
 
 /**
  * Set a word's learning status
+ * Now stores by actual word (like old app) for consistency
  */
-export function setWordStatus(uuid: string, status: number): void {
+export function setWordStatus(word: string, status: number): void {
   setWordsLearnedInApp((prev) => ({
     ...prev,
-    [uuid]: status,
+    [word]: status,
   }));
+  // Auto-save after status change (like old app's changeKnownStatus)
+  saveWordsToStorage();
+  console.log(`Set and saved known status for word: ${word} to ${status}`);
+}
+
+/**
+ * Change known status by word (legacy compatible)
+ */
+export function changeKnownStatus(word: string, status: number): void {
+  setWordStatus(word, status);
 }
 
 /**
  * Get a word's learning status
+ * Now checks by actual word (like old app)
  */
-export function getWordStatus(uuid: string): number {
-  return wordsLearnedInApp()[uuid] ?? WORD_STATUS.UNKNOWN;
+export function getWordStatus(word: string): number {
+  return wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN;
+}
+
+/**
+ * Get known status with SRS query (like old app's getKnownStatus)
+ * Combines local adjustments with SRS status
+ */
+export async function getKnownStatus(word: string, srsCheck?: (word: string) => Promise<number>): Promise<number> {
+  let status = wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN;
+  if (srsCheck) {
+    const srsStatus = await srsCheck(word);
+    status = Math.max(status, srsStatus);
+  }
+  return status;
 }
 
 /**

@@ -5,7 +5,19 @@
 
 import { createContext, useContext, ParentComponent, onMount, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import type { LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry } from '../../shared/types';
+import type { LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings } from '../../shared/types';
+
+// Language feature capabilities - derived from fixed_settings
+export interface LanguageFeatures {
+  /** Whether the language supports readings/furigana */
+  supportsReadings: boolean;
+  /** Whether the language has pitch accent data */
+  supportsPitchAccent: boolean;
+  /** Whether settings are overridden by language data */
+  hasFixedSettings: boolean;
+  /** The list of fixed settings keys that are overridden */
+  fixedSettingKeys: (keyof Settings)[];
+}
 
 // Context interface
 interface LanguageContextValue {
@@ -19,6 +31,12 @@ interface LanguageContextValue {
   isLoading: () => boolean;
   isTranslatable: (pos: string) => boolean;
   translatableTypes: () => string[];
+  /** Get language feature capabilities */
+  getLanguageFeatures: () => LanguageFeatures;
+  /** Get effective settings with language overrides applied */
+  getEffectiveSettings: <T extends Partial<Settings>>(baseSettings: T) => T;
+  /** Check if a setting is fixed by language data */
+  isSettingFixed: (key: keyof Settings) => boolean;
 }
 
 // Create context
@@ -28,8 +46,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const [langData, setLangData] = createStore<LanguageDataMap>({});
   const [wordFrequency, setWordFrequency] = createStore<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [currentLang, setCurrentLang] = createSignal<string>(props.language || 'ja');
+  const [currentLang] = createSignal<string>(props.language || 'ja');
 
   // Load language data
   const loadLangData = () => {
@@ -124,6 +141,38 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     return data?.translatable || [];
   };
 
+  // Get language feature capabilities based on fixed_settings
+  const getLanguageFeatures = (): LanguageFeatures => {
+    const data = currentLangData();
+    const fixedSettings = data?.fixed_settings || {};
+    const fixedKeys = Object.keys(fixedSettings) as (keyof Settings)[];
+    
+    return {
+      // Check if furigana is NOT explicitly disabled
+      supportsReadings: fixedSettings.furigana !== false,
+      // Check if pitch accent is NOT explicitly disabled
+      supportsPitchAccent: fixedSettings.showPitchAccent !== false,
+      hasFixedSettings: fixedKeys.length > 0,
+      fixedSettingKeys: fixedKeys,
+    };
+  };
+
+  // Get effective settings with language overrides applied
+  const getEffectiveSettings = <T extends Partial<Settings>>(baseSettings: T): T => {
+    const data = currentLangData();
+    if (!data?.fixed_settings) return baseSettings;
+    
+    // Merge base settings with language-fixed settings (fixed_settings take precedence)
+    return { ...baseSettings, ...data.fixed_settings } as T;
+  };
+
+  // Check if a specific setting is fixed by language data
+  const isSettingFixed = (key: keyof Settings): boolean => {
+    const data = currentLangData();
+    if (!data?.fixed_settings) return false;
+    return key in data.fixed_settings;
+  };
+
   onMount(() => {
     loadLangData();
   });
@@ -139,6 +188,9 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     isLoading,
     isTranslatable,
     translatableTypes,
+    getLanguageFeatures,
+    getEffectiveSettings,
+    isSettingFixed,
   };
 
   return (

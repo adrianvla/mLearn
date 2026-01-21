@@ -3,9 +3,11 @@
  * Single row in the word database editor
  */
 
-import { Component, Show } from 'solid-js';
+import { Component, Show, createMemo } from 'solid-js';
 import { GlassButton, Pill, StatusPill } from '../../../components/common';
 import { WORD_STATUS } from '../../../../shared/constants';
+import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
+import { useSettings } from '../../../context';
 
 export interface WordEntry {
   uuid: string;
@@ -16,6 +18,7 @@ export interface WordEntry {
   tracker: string;
   status: number;
   fullTranslation?: string;
+  pitch?: number | null;
 }
 
 export interface WordEntryRowProps {
@@ -24,30 +27,58 @@ export interface WordEntryRowProps {
   onStatusChange: (entry: WordEntry, newStatus: number) => void;
   onAddFlashcard: (entry: WordEntry) => void;
   onRemoveFlashcard: (entry: WordEntry) => void;
+  onEdit?: (entry: WordEntry) => void;
 }
 
-const getStatusType = (status: number): 'unknown' | 'learning' | 'known' => {
-  switch (status) {
-    case WORD_STATUS.LEARNING:
-      return 'learning';
-    case WORD_STATUS.KNOWN:
-      return 'known';
-    default:
-      return 'unknown';
-  }
-};
-
 export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
+  const { settings } = useSettings();
+  
+  // Generate pitch accent HTML
+  const pitchAccentHtml = createMemo(() => {
+    if (settings.language !== 'ja' || !settings.showPitchAccent) return '';
+    const pitch = props.entry.pitch;
+    const reading = props.entry.reading || props.entry.word;
+    
+    if (pitch === null || pitch === undefined) return '';
+    if (!reading || reading.length <= 1) return '';
+    
+    const info = getPitchAccentInfo(pitch, reading);
+    if (!info) return '';
+    
+    return buildPitchAccentHtml(info, reading.length, {
+      includeParticleBox: true,
+      homogenous: true,
+    });
+  });
+  
   return (
     <div class="entry">
       <div class="col word">
-        <span>{props.entry.word}</span>
-        <Show when={props.entry.reading}>
+        <span class="word-text" style={{ position: 'relative' }}>
+          {props.entry.word}
+          <Show when={pitchAccentHtml()}>
+            <div
+              class="mLearn-pitch-accent"
+              style={{ '--pitch-accent-height': '3px' } as any}
+              innerHTML={pitchAccentHtml()}
+            />
+          </Show>
+        </span>
+        <Show when={props.entry.reading && props.entry.reading !== props.entry.word}>
           <span class="reading">{props.entry.reading}</span>
+        </Show>
+        <Show when={props.onEdit}>
+          <button
+            class="edit-btn"
+            onClick={() => props.onEdit?.(props.entry)}
+            title="Edit translation"
+          >
+            Edit
+          </button>
         </Show>
       </div>
       <div class="col translation" title={props.entry.fullTranslation}>
-        {props.entry.translation}
+        {props.entry.translation || '-'}
       </div>
       <div class="col level">
         <Show when={props.entry.level >= 0}>

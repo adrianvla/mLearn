@@ -97,7 +97,59 @@
   border-bottom-left-radius: 0;
 }
 
-/* Default right radius */
+/* Drop marker - when transitioning from high to low at end */
+.mLearn-pitch-accent .box.top.left::after {
+  /* Gradient from top (red) to bottom (blue) */
+  background: linear-gradient(to bottom, #e8687b, #4e86ca);
+}
+
+.mLearn-pitch-accent .box.bottom.left::after {
+  /* Gradient from bottom (blue) to top (red) */
+  background: linear-gradient(to top, #4e86ca, #e8687b);
+}
+
+/* Pitch accent pill styling */
+.pitch-accent-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  gap: 4px;
+}
+
+.pitch-accent-pill .pitch-accent-word {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  position: relative;
+  padding-bottom: 2px;
+}
+
+/* Variant sizes for pitch accent */
+ruby .mLearn-pitch-accent {
+  --pitch-accent-height: 2px;
+}
+
+span:not(ruby) .mLearn-pitch-accent {
+  --pitch-accent-height: 3px;
+}
+
+/* For flashcards, larger pitch accent */
+.flashcard-pitch-container .mLearn-pitch-accent {
+  --pitch-accent-height: 3px;
+}
+
+.flashcard-pitch-kana .mLearn-pitch-accent {
+  --pitch-accent-height: 5px;
+}
+
+/* Ensure visibility */
+.mLearn-pitch-accent .box::before,
+.mLearn-pitch-accent .box::after {
+  z-index: 1;
+}
 .mLearn-pitch-accent .box.top::before,
 .mLearn-pitch-accent .box.bottom::before {
   border-top-right-radius: 50px;

@@ -8,8 +8,8 @@ import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onMo
 import type { Token, DictionaryEntry, TranslationEntry, PitchData, FlashcardContent, LLMResponse } from '../../../shared/types';
 import { WORD_STATUS } from '../../../shared/constants';
 import { useSettings, useFlashcards, useLanguage } from '../../context';
-import { getWordStatus, setWordStatus, toUniqueIdentifier, saveWordsToStorage } from '../../services/statsService';
-import { getWordExplanation } from '../../services/llmService';
+import { getWordStatus, setWordStatus, toUniqueIdentifier } from '../../services/statsService';
+import { getWordExplanation, getCachedExplanation } from '../../services/llmService';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import { PillButton, SkeletonLoader } from '../common';
 import './WordHover.css';
@@ -76,6 +76,8 @@ export interface WordHoverProps {
   isInSRS?: boolean;
   ease?: number;
   contextPhrase?: string; // The subtitle text for context
+  isOCR?: boolean; // Whether in OCR mode (reader) vs video mode
+  ocrImageElement?: HTMLImageElement | null; // The page image element for OCR screenshot capture
   onStatusChange?: (status: WordStatus) => void;
   onAddFlashcard?: (token: Token, entry?: DictionaryEntry) => void;
   onAddToSRS?: () => void;
@@ -89,14 +91,21 @@ export interface WordHoverProps {
 
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings } = useSettings();
-  const { addFlashcard, hasWord } = useFlashcards();
-  const { getFrequency, getLevelName } = useLanguage();
+  const { addFlashcard, hasWord, getByWord } = useFlashcards();
+  const { getFrequency, getLevelName, getLanguageFeatures } = useLanguage();
   const [currentStatus, setCurrentStatus] = createSignal<WordStatus>('unknown');
   const [wordUuid, setWordUuid] = createSignal<string>('');
   const [isInSRS, setIsInSRS] = createSignal(props.isInSRS ?? false);
+  const [currentEase, setCurrentEase] = createSignal<number | undefined>(props.ease);
   const [llmExplaining, setLlmExplaining] = createSignal(false);
   const [llmExplanation, setLlmExplanation] = createSignal<string | null>(null);
   const [calculatedWidth, setCalculatedWidth] = createSignal<number>(280);
+  // Stable height for positioning - only updated when content changes significantly, not on status changes
+  const [stableHeight, setStableHeight] = createSignal<number>(200);
+  // Flag to prevent effect from overwriting local isInSRS state during flashcard creation
+  const [isAddingFlashcard, setIsAddingFlashcard] = createSignal(false);
+  // Flag to lock position during state changes to prevent jumps
+  const [positionLocked, setPositionLocked] = createSignal(false);
   let hoverRef: HTMLDivElement | undefined;
 
   // Helper to get display word - track token changes
@@ -149,17 +158,22 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const maxAllowed = Math.min(600, (typeof window !== 'undefined' ? window.innerWidth - 32 : 600));
     const newWidth = Math.max(280, Math.min(maxAllowed, Math.max(contentWidth, footerWidth)));
     setCalculatedWidth(newWidth);
+    
+    // Also update stable height for positioning (only when not locked)
+    if (!positionLocked() && subtitleHover.offsetHeight > 0) {
+      setStableHeight(subtitleHover.offsetHeight);
+    }
   };
 
-  // Recalculate width when content changes
+  // Recalculate width when content changes, but NOT when status/isInSRS changes
+  // (those changes don't affect width significantly and cause unwanted position jumps)
   createEffect(() => {
-    // Track dependencies that should trigger recalculation
+    // Only track dependencies that actually affect width/layout
     void displayWord();
     void props.translationData;
     void llmExplanation();
     void isShown();
-    void currentStatus();
-    void isInSRS();
+    // Intentionally NOT tracking: currentStatus(), isInSRS()
     
     // Use requestAnimationFrame to ensure DOM is updated
     if (isShown()) {
@@ -191,31 +205,53 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   // Load actual status from storage on mount or when word changes
   createEffect(async () => {
-    const word = displayWord();
+    const word = actualWord(); // Use actualWord for status lookup (like old app)
     if (!word) return;
+    
+    // Don't overwrite isInSRS if we're currently adding a flashcard
+    if (isAddingFlashcard()) return;
     
     try {
       const uuid = await toUniqueIdentifier(word);
       setWordUuid(uuid);
       
-      // Get status from storage
-      const storedStatus = getWordStatus(uuid);
+      // Get status from storage using word (not uuid) - matches old app
+      const storedStatus = getWordStatus(word);
       setCurrentStatus(numericToWordStatus(storedStatus));
       
-      // Check if in SRS
-      setIsInSRS(hasWord(word));
+      // Check if in SRS and get ease
+      const inSRS = hasWord(word);
+      setIsInSRS(inSRS);
+      if (inSRS) {
+        const flashcard = getByWord(word);
+        if (flashcard) {
+          setCurrentEase(flashcard.ease);
+        }
+      }
     } catch (e) {
       console.error('Failed to load word status:', e);
       setCurrentStatus(props.status || 'unknown');
     }
   });
 
-  // Reset LLM explanation when word changes
+  // Reset LLM explanation when word changes, but restore from cache if available
+  // This implements the "memory" feature - previously requested explanations persist
   createEffect(() => {
-    // Track word changes to reset LLM state
-    void displayWord();
-    setLlmExplanation(null);
-    setLlmExplaining(false);
+    const word = displayWord();
+    const context = props.contextPhrase || '';
+    
+    // Check if we have a cached explanation for this word+context
+    const cached = getCachedExplanation(word, context);
+    if (cached) {
+      // Restore the cached explanation immediately
+      setLlmExplanation(cached);
+      setLlmExplaining(false);
+      console.log(`%cRestored cached LLM explanation for "${word}"`, 'color: cyan;');
+    } else {
+      // No cache - reset to null
+      setLlmExplanation(null);
+      setLlmExplaining(false);
+    }
   });
 
   const hoverStyle = createMemo((): JSX.CSSProperties => {
@@ -234,11 +270,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     // Start with centered position
     let left = anchorCenterX - width / 2;
     
-    // Determine if we should place above or below
-    const hoverHeight = hoverRef?.offsetHeight || 200;
+    // Use stable height for positioning to prevent jumps when content changes slightly
+    // Only use actual offsetHeight if stableHeight hasn't been set yet
+    const hoverHeight = stableHeight() || hoverRef?.offsetHeight || 200;
     const margin = 8;
     const spaceAbove = anchorTop - margin;
     const spaceBelow = vh - anchorBottom - margin;
+    // In video mode (subtitles at bottom), prefer positioning above the word
     const placeAbove = spaceAbove >= hoverHeight || spaceAbove > spaceBelow;
     
     let top = placeAbove
@@ -287,10 +325,11 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     setCurrentStatus(newStatus);
     
-    const uuid = wordUuid();
-    if (uuid) {
-      setWordStatus(uuid, wordStatusToNumeric(newStatus));
-      await saveWordsToStorage();
+    // Use actualWord (the dictionary form) for status storage - matches old app
+    const word = actualWord();
+    if (word) {
+      setWordStatus(word, wordStatusToNumeric(newStatus));
+      // saveWordsToStorage is called inside setWordStatus now
     }
     
     props.onStatusChange?.(newStatus);
@@ -300,16 +339,54 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const screenshotVideo = (): string => {
     try {
       const video = document.querySelector('video') as HTMLVideoElement | null;
-      if (!video || video.paused === undefined) return '';
+      if (!video) {
+        console.warn('screenshotVideo: No video element found');
+        return '';
+      }
+      
+      // Check if video has loaded enough data
+      if (video.readyState < 2) {
+        console.warn('screenshotVideo: Video not ready yet (readyState:', video.readyState, ')');
+        return '';
+      }
+      
+      // Use fixed width of 480 and scale height proportionally (like old app)
+      const targetWidth = 480;
+      const videoWidth = video.videoWidth || video.clientWidth || 640;
+      const videoHeight = video.videoHeight || video.clientHeight || 360;
+      
+      if (videoWidth === 0 || videoHeight === 0) {
+        console.warn('screenshotVideo: Video dimensions are zero');
+        return '';
+      }
+      
+      const targetHeight = Math.round(videoHeight * (targetWidth / videoWidth));
       
       const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || video.clientWidth || 640;
-      canvas.height = video.videoHeight || video.clientHeight || 360;
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return '';
+      if (!ctx) {
+        console.warn('screenshotVideo: Failed to get canvas context');
+        return '';
+      }
       
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL('image/jpeg', 0.5);
+      
+      // Try to get the data URL - this might fail with cross-origin videos
+      try {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+        if (dataUrl && dataUrl.length > 100) {
+          console.log(`%cCaptured screenshot: ${dataUrl.length} bytes`, 'color: lime;');
+          return dataUrl;
+        } else {
+          console.warn('screenshotVideo: toDataURL returned empty or tiny result');
+          return '';
+        }
+      } catch (securityError) {
+        console.warn('screenshotVideo: Canvas tainted by cross-origin video, cannot capture screenshot:', securityError);
+        return '';
+      }
     } catch (e) {
       console.warn('Failed to capture video screenshot:', e);
       return '';
@@ -348,86 +425,115 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   };
 
   // Capture OCR region screenshot with highlight box (like old app)
+  // Uses the provided ocrImageElement prop or searches DOM for the page image
   const captureOcrScreenshot = (): string => {
     try {
-      // Check if we're in OCR mode by looking for recognized-text elements
-      const recognizedTextEl = document.querySelector('.recognized-text');
-      if (!recognizedTextEl) return screenshotVideo();
+      // Use provided image element directly if available
+      let pageImg = props.ocrImageElement;
       
-      // Find the box element associated with our word
-      const targetBox = hoverRef?.closest('.recognized-text') || recognizedTextEl;
-      if (!targetBox) return screenshotVideo();
+      // Fallback: search DOM for OCR page image
+      if (!pageImg) {
+        // Try to find the ocr-box we're hovering over
+        const ocrBox = document.querySelector('.ocr-box.hovered, .ocr-box:hover');
+        const pageContainer = ocrBox?.closest('.page');
+        pageImg = pageContainer?.querySelector('img.page-image') as HTMLImageElement | null;
+      }
       
-      // Find the page container (.page-left or .page-right)
-      const pageContainer = targetBox.closest('.page-left, .page-right, [class*="page"]');
-      if (!pageContainer) return screenshotVideo();
+      // If still no image, try any page image
+      if (!pageImg) {
+        pageImg = document.querySelector('.page img.page-image, .page-container img') as HTMLImageElement | null;
+      }
       
-      // Find the image inside the page
-      const pageImg = pageContainer.querySelector('img') as HTMLImageElement | null;
-      if (!pageImg || !pageImg.naturalWidth || !pageImg.naturalHeight) return screenshotVideo();
+      if (!pageImg || !pageImg.naturalWidth || !pageImg.naturalHeight) {
+        console.warn('captureOcrScreenshot: No valid page image found');
+        return '';
+      }
       
       const imgRect = pageImg.getBoundingClientRect();
-      const boxRect = targetBox.getBoundingClientRect();
       
-      // Padding around the box (default 200px like old app)
-      const pad = settings.ocr_crop_padding ?? 200;
+      // Get anchor rect for the hovered word
+      const anchorRect = props.anchorRect;
       
-      // Calculate crop region with padding
-      const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
-      
-      const sxDom = boxRect.left - pad;
-      const syDom = boxRect.top - pad;
-      const swDom = boxRect.width + pad * 2;
-      const shDom = boxRect.height + pad * 2;
-      
-      // Clamp within image bounds
-      const visLeft = clamp(sxDom, imgRect.left, imgRect.right);
-      const visTop = clamp(syDom, imgRect.top, imgRect.bottom);
-      const visRight = clamp(sxDom + swDom, imgRect.left, imgRect.right);
-      const visBottom = clamp(syDom + shDom, imgRect.top, imgRect.bottom);
-      const visW = Math.max(1, visRight - visLeft);
-      const visH = Math.max(1, visBottom - visTop);
-      
-      // Map to intrinsic image pixels
-      const scaleX = pageImg.naturalWidth / Math.max(1, imgRect.width);
-      const scaleY = pageImg.naturalHeight / Math.max(1, imgRect.height);
-      const srcX = (visLeft - imgRect.left) * scaleX;
-      const srcY = (visTop - imgRect.top) * scaleY;
-      const srcW = visW * scaleX;
-      const srcH = visH * scaleY;
-      
-      // Create canvas and draw cropped region
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.min(4096, Math.max(1, Math.floor(srcW)));
-      canvas.height = Math.min(4096, Math.max(1, Math.floor(srcH)));
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return screenshotVideo();
-      
-      ctx.drawImage(pageImg, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
-      
-      // Draw highlight box around original selection
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
-      ctx.lineWidth = 6;
-      ctx.shadowColor = 'rgba(0,0,0,0.6)';
-      ctx.shadowBlur = 8;
-      const boxRelX = (boxRect.left - visLeft) * (canvas.width / visW);
-      const boxRelY = (boxRect.top - visTop) * (canvas.height / visH);
-      const boxRelW = boxRect.width * (canvas.width / visW);
-      const boxRelH = boxRect.height * (canvas.height / visH);
-      ctx.strokeRect(boxRelX, boxRelY, boxRelW, boxRelH);
-      ctx.restore();
-      
-      return canvas.toDataURL('image/jpeg', 0.5);
+      // If we have anchor rect, crop around it; otherwise capture full image at reduced size
+      if (anchorRect) {
+        // Padding around the word box (default 200px like old app)
+        const pad = settings.ocr_crop_padding ?? 200;
+        
+        const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
+        
+        const sxDom = anchorRect.left - pad;
+        const syDom = anchorRect.top - pad;
+        const swDom = anchorRect.width + pad * 2;
+        const shDom = anchorRect.height + pad * 2;
+        
+        // Clamp within image bounds
+        const visLeft = clamp(sxDom, imgRect.left, imgRect.right);
+        const visTop = clamp(syDom, imgRect.top, imgRect.bottom);
+        const visRight = clamp(sxDom + swDom, imgRect.left, imgRect.right);
+        const visBottom = clamp(syDom + shDom, imgRect.top, imgRect.bottom);
+        const visW = Math.max(1, visRight - visLeft);
+        const visH = Math.max(1, visBottom - visTop);
+        
+        // Map to intrinsic image pixels
+        const scaleX = pageImg.naturalWidth / Math.max(1, imgRect.width);
+        const scaleY = pageImg.naturalHeight / Math.max(1, imgRect.height);
+        const srcX = (visLeft - imgRect.left) * scaleX;
+        const srcY = (visTop - imgRect.top) * scaleY;
+        const srcW = visW * scaleX;
+        const srcH = visH * scaleY;
+        
+        // Create canvas and draw cropped region
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.min(4096, Math.max(1, Math.floor(srcW)));
+        canvas.height = Math.min(4096, Math.max(1, Math.floor(srcH)));
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return '';
+        
+        ctx.drawImage(pageImg, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+        
+        // Draw highlight box around original selection
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
+        ctx.lineWidth = 6;
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowBlur = 8;
+        const boxRelX = (anchorRect.left - visLeft) * (canvas.width / visW);
+        const boxRelY = (anchorRect.top - visTop) * (canvas.height / visH);
+        const boxRelW = anchorRect.width * (canvas.width / visW);
+        const boxRelH = anchorRect.height * (canvas.height / visH);
+        ctx.strokeRect(boxRelX, boxRelY, boxRelW, boxRelH);
+        ctx.restore();
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+        console.log('%cCaptured OCR screenshot (cropped):', 'color: lime;', dataUrl.length, 'bytes');
+        return dataUrl;
+      } else {
+        // No anchor rect - capture full image at reasonable size
+        const targetWidth = 480;
+        const scale = targetWidth / pageImg.naturalWidth;
+        const targetHeight = Math.round(pageImg.naturalHeight * scale);
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return '';
+        
+        ctx.drawImage(pageImg, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+        console.log('%cCaptured OCR screenshot (full):', 'color: lime;', dataUrl.length, 'bytes');
+        return dataUrl;
+      }
     } catch (e) {
       console.warn('Failed to capture OCR screenshot:', e);
-      return screenshotVideo();
+      return '';
     }
   };
 
-  // Check if we're in OCR mode
+  // Check if we're in OCR mode - prefer prop, fallback to DOM detection
   const isOcrMode = (): boolean => {
-    return !!document.querySelector('.recognized-text, .ocr-overlay, [class*="ocr"]');
+    if (props.isOCR !== undefined) return props.isOCR;
+    return !!document.querySelector('.ocr-overlay, .ocr-box, [class*="page-image"]');
   };
 
   const handleAddFlashcard = async (entry?: DictionaryEntry, e?: MouseEvent) => {
@@ -436,35 +542,76 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       e.stopPropagation();
     }
     
-    const word = displayWord();
+    const word = actualWord(); // Use dictionary form (like old app)
     const uuid = wordUuid();
     
-    // Get translation data
+    // Get translation/definition from translation data - preserve HTML like old app
+    // The old app stores definitions as HTML strings
     let translationArr: string[] | undefined = undefined;
-    if (entry?.meanings) {
-      translationArr = [entry.meanings.join('; ')];
-    } else {
-      const firstEntry = props.translationData?.data?.[0] as TranslationEntry | undefined;
-      const defs = firstEntry?.definitions;
-      if (Array.isArray(defs)) {
-        translationArr = defs;
-      } else if (typeof defs === 'string') {
-        translationArr = [defs];
+    let definitionHtml: string[] | undefined = undefined;
+    
+    const data = props.translationData?.data;
+    if (data && Array.isArray(data)) {
+      // First entry typically has primary translation
+      const firstEntry = data[0] as TranslationEntry | undefined;
+      if (firstEntry?.definitions) {
+        if (Array.isArray(firstEntry.definitions)) {
+          translationArr = firstEntry.definitions;
+        } else if (typeof firstEntry.definitions === 'string') {
+          // Preserve HTML content as-is (like old app)
+          translationArr = [firstEntry.definitions];
+        }
+      }
+      
+      // Second entry may have detailed definition HTML
+      const secondEntry = data[1] as TranslationEntry | undefined;
+      if (secondEntry?.definitions) {
+        if (Array.isArray(secondEntry.definitions)) {
+          definitionHtml = secondEntry.definitions;
+        } else if (typeof secondEntry.definitions === 'string') {
+          definitionHtml = [secondEntry.definitions];
+        }
       }
     }
     
+    // Fallback to dictionary entry if no translation data
+    if (!translationArr && entry?.meanings) {
+      translationArr = [entry.meanings.join('; ')];
+    }
+    
     // Get reading from translation data
-    const firstEntry = props.translationData?.data?.[0] as TranslationEntry | undefined;
-    const reading = firstEntry?.reading || props.token.reading || '';
+    const firstEntry = data?.[0] as TranslationEntry | undefined;
+    const reading = normalizeReading(firstEntry?.reading || props.token.reading || '');
     
     // Get pitch accent from translation data (like old app)
-    const pitchEntry = props.translationData?.data?.[2];
+    // Format: data[2] contains pitch info in various structures
     let pitchAccent: number | undefined = undefined;
-    if (pitchEntry) {
-      if (Array.isArray(pitchEntry) && pitchEntry[2]?.pitches) {
-        pitchAccent = pitchEntry[2].pitches[0]?.position;
-      } else if ((pitchEntry as any).pitches) {
-        pitchAccent = (pitchEntry as any).pitches[0]?.position;
+    if (data && data.length > 2) {
+      const pitchEntry = data[2];
+      if (pitchEntry) {
+        // Handle array format: ["word", "type", { pitches: [...] }]
+        if (Array.isArray(pitchEntry) && pitchEntry[2]?.pitches) {
+          pitchAccent = pitchEntry[2].pitches[0]?.position;
+        } 
+        // Handle object format: { pitches: [...] }
+        else if ((pitchEntry as any)?.pitches) {
+          pitchAccent = (pitchEntry as any).pitches[0]?.position;
+        }
+        // Handle nested format - recursively search for pitches
+        else if (typeof pitchEntry === 'object') {
+          const findPitch = (obj: any): number | undefined => {
+            if (!obj || typeof obj !== 'object') return undefined;
+            if (obj.pitches?.[0]?.position !== undefined) return obj.pitches[0].position;
+            for (const val of Object.values(obj)) {
+              if (val && typeof val === 'object') {
+                const found = findPitch(val);
+                if (found !== undefined) return found;
+              }
+            }
+            return undefined;
+          };
+          pitchAccent = findPitch(pitchEntry);
+        }
       }
     }
     
@@ -475,21 +622,19 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     // Extract example HTML (subtitle sentence with highlighted word)
     const exampleHtml = isOcr 
       ? (props.contextPhrase || '-')  // OCR uses context phrase
-      : extractExampleHtml(uuid);      // Video uses subtitle HTML
+      : extractExampleHtml(uuid);      // Video uses subtitle HTML with word highlighted
     
     // Get level from frequency data
     const freq = wordFreqEntry();
     const level = freq?.raw_level ?? props.level ?? -1;
     
-    // Build fully serializable flashcard content (matching old app's structure)
+    // Build fully serializable flashcard content (matching old app's structure exactly)
     const content: FlashcardContent = {
       word: word,
       pitchAccent: pitchAccent,
       pronunciation: reading || word,
       translation: translationArr,
-      definition: props.translationData?.data?.[1] 
-        ? [String((props.translationData.data[1] as TranslationEntry)?.definitions || '')]
-        : props.token.meaning ? [props.token.meaning] : undefined,
+      definition: definitionHtml ?? (props.token.meaning ? [props.token.meaning] : undefined),
       example: exampleHtml,
       exampleMeaning: '',
       screenshotUrl: screenshot,
@@ -498,19 +643,44 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       contextPhrase: props.contextPhrase,
     };
     
+    console.log('%cFlashcard content prepared:', 'color: cyan; font-weight: bold;', {
+      word,
+      pitchAccent,
+      screenshot: screenshot ? `${screenshot.substring(0, 50)}... (${screenshot.length} bytes)` : 'EMPTY',
+      example: exampleHtml ? `${exampleHtml.substring(0, 50)}...` : 'EMPTY',
+    });
+    
+    // CRITICAL: Lock position and set flag to prevent effects from causing position jumps
+    setPositionLocked(true);
+    setIsAddingFlashcard(true);
+    
+    // CRITICAL: Update isInSRS state BEFORE calling addFlashcard
+    // This ensures the UI updates immediately (like old app's el.outerHTML = checkMarkFlashcardPillHTML())
+    console.log('%cSetting isInSRS to true...', 'color: yellow;');
+    setIsInSRS(true);
+    // Set default ease (like old app's knownStatusToEaseFunction)
+    // UNKNOWN (0) → 1.3, LEARNING (1) → 1.55, KNOWN (2) → 1.8
+    const statusNum = wordStatusToNumeric(currentStatus());
+    const newEase = Math.max((statusNum - 1) * 0.25, 0) + 1.3;
+    setCurrentEase(newEase);
+    console.log('%cState updated - isInSRS:', 'color: yellow;', isInSRS(), 'ease:', newEase);
+    
     if (props.onAddFlashcard) {
       props.onAddFlashcard(props.token, entry);
-      // Still update local state even if external handler is provided
-      setIsInSRS(true);
+      setIsAddingFlashcard(false);
     } else {
       try {
-        await addFlashcard(content);
-        // Immediately update local state to show "Tracked" pill
-        setIsInSRS(true);
-        console.log(`%cCreated flashcard for word: ${word}`, 'color: aqua; font-weight: bold;');
+        // Pass ease to addFlashcard (like old app's knownStatusToEaseFunction)
+        await addFlashcard(content, newEase);
+        console.log(`%cCreated flashcard for word: ${word} with ease: ${newEase}`, 'color: aqua; font-weight: bold;');
       } catch (err) {
         console.error('Failed to add flashcard:', err);
+        // Revert isInSRS on error
+        setIsInSRS(false);
         alert('Failed to add flashcard: ' + String(err));
+      } finally {
+        // Always clear the flag when done
+        setIsAddingFlashcard(false);
       }
     }
   };
@@ -579,7 +749,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   // Extract pitch accent info from translation data
   // Server returns: data[2] = ["word", "pitch_type", { pitches: [{ position: N }] }]
   const pitchAccentFromData = createMemo(() => {
-    if (settings.language !== 'ja' || !settings.showPitchAccent) return null;
+    const features = getLanguageFeatures();
+    if (!features.supportsPitchAccent || !settings.showPitchAccent) return null;
     
     const data = props.translationData?.data;
     if (!data || !Array.isArray(data)) return null;
@@ -684,34 +855,15 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return <div class="pill">{pos}</div>;
   };
 
-  // Flashcard pill using PillButton component
-  const FlashcardPill = () => {
-    if (isInSRS() || props.isInSRS) {
-      return (
-        <PillButton
-          variant="green"
-          icon={ICON_CHECK}
-          label="Tracked"
-        />
-      );
-    }
-
-    return (
-      <PillButton
-        variant="blue"
-        icon={ICON_CROSS}
-        iconRotation={45}
-        label="Flashcard"
-        onClick={handleAddToSRS}
-      />
-    );
-  };
+  // Flashcard pill - computed values for reactivity
+  const isTracked = createMemo(() => isInSRS() || props.isInSRS === true);
 
   const EasePill = () => {
-    if (props.ease === undefined) return null;
+    const ease = currentEase() ?? props.ease;
+    if (ease === undefined) return null;
     return (
       <div class="ease-indicator">
-        <span>Ease: {Math.round(props.ease * 100) / 100}</span>
+        <span>Ease: {Math.round(ease * 100) / 100}</span>
       </div>
     );
   };
@@ -732,7 +884,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const PitchAccentPill = () => {
     const pitch = effectivePitchAccent();
     if (!pitch || !pitch.reading) return null;
-    if (settings.language !== 'ja' || !settings.showPitchAccent) return null;
+    const features = getLanguageFeatures();
+    if (!features.supportsPitchAccent || !settings.showPitchAccent) return null;
 
     const info = getPitchAccentInfo(pitch.position, pitch.reading);
     if (!info) return null;
@@ -836,8 +989,23 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 label={statusLabel()}
                 onClick={handleStatusChange}
               />
-              <FlashcardPill />
-              <Show when={isInSRS() || props.isInSRS}>
+              {/* Flashcard pill - uses Show for proper Solid.js reactivity */}
+              <Show when={isTracked()} fallback={
+                <PillButton
+                  variant="blue"
+                  icon={ICON_CROSS}
+                  iconRotation={45}
+                  label="Flashcard"
+                  onClick={handleAddToSRS}
+                />
+              }>
+                <PillButton
+                  variant="green"
+                  icon={ICON_CHECK}
+                  label="Tracked"
+                />
+              </Show>
+              <Show when={isTracked()}>
                 <EasePill />
               </Show>
               <LLMPill />

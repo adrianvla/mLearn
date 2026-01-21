@@ -1,0 +1,102 @@
+/**
+ * ModalFooter Component Styles
+ */
+
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-top: 1px solid var(--glass-border-current, rgba(255, 255, 255, 0.1));
+  background: rgba(0, 0, 0, 0.1);
+  gap: 12px;
+}
+
+.modal-footer-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.modal-footer-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Button base styles */
+.modal-footer-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-footer-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Cancel button */
+.modal-footer-btn-cancel {
+  background: transparent;
+  color: var(--text-secondary, #a0a0a0);
+  border-color: var(--glass-border-current, rgba(255, 255, 255, 0.1));
+}
+
+.modal-footer-btn-cancel:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary, #f0f0f0);
+}
+
+/* Primary button */
+.modal-footer-btn-primary {
+  background: var(--color-primary, #4a90d9);
+  color: white;
+}
+
+.modal-footer-btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover, #5a9de9);
+}
+
+/* Danger button */
+.modal-footer-btn-danger {
+  background: var(--color-error, #e74c3c);
+  color: white;
+}
+
+.modal-footer-btn-danger:hover:not(:disabled) {
+  background: #c0392b;
+}
+
+/* Success button */
+.modal-footer-btn-success {
+  background: var(--color-success, #2ecc71);
+  color: white;
+}
+
+.modal-footer-btn-success:hover:not(:disabled) {
+  background: #27ae60;
+}
+
+/* Loading spinner */
+.modal-footer-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: modal-footer-spin 0.8s linear infinite;
+}
+
+@keyframes modal-footer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
