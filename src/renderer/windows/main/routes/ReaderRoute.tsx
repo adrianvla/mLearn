@@ -9,7 +9,7 @@ import { useNavigate } from '@solidjs/router';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { OcrOverlay, type OcrResult } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
-import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover } from '../../../hooks';
+import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation } from '../../../hooks';
 import { useSettings } from '../../../context';
 import type { Token, TranslationResponse, DictionaryEntry } from '../../../../shared/types';
 import { API_ENDPOINTS } from '../../../../shared/constants';
@@ -426,8 +426,15 @@ export const ReaderRoute: Component = () => {
     // Use actual_word (dictionary form) for translation lookup, fallback to surface
     const lookupWord = token.actual_word ?? token.surface ?? token.word;
     const displayWord = token.surface ?? token.word;
-    setOcrTranslationData(null);
+    
+    // Check if translation is already cached (from pre-warm)
+    // This ensures pitch accent pill shows immediately on first hover
+    const cachedTranslation = getCachedTranslation(lookupWord);
+    
+    // Set cached data if available, otherwise clear
+    setOcrTranslationData(cachedTranslation);
     setOcrDictionaryEntries([]);
+    
     showOcrHover({
       word: displayWord,
       token,
@@ -437,13 +444,16 @@ export const ReaderRoute: Component = () => {
       element: null,
     });
 
-    try {
-      // Use dictionary form for translation lookup (handles conjugations like 屈して -> 屈する)
-      const translation = await translateWord(lookupWord);
-      if (requestId !== ocrHoverRequestId) return;
-      setOcrTranslationData(translation);
-    } catch (_e) {
-      /* ignore */
+    // If not cached, fetch translation
+    if (!cachedTranslation) {
+      try {
+        // Use dictionary form for translation lookup (handles conjugations like 屈して -> 屈する)
+        const translation = await translateWord(lookupWord);
+        if (requestId !== ocrHoverRequestId) return;
+        setOcrTranslationData(translation);
+      } catch (_e) {
+        /* ignore */
+      }
     }
 
     if (settings.showDictionary) {
