@@ -880,16 +880,21 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     );
   };
 
-  // Pitch accent pill with visual diagram
-  const PitchAccentPill = () => {
-    const pitch = effectivePitchAccent();
-    if (!pitch || !pitch.reading) return null;
+  // Pitch accent pill - computed values for proper reactivity
+  // Using createMemo to ensure the HTML is reactive to translation data changes
+  const pitchAccentPillData = createMemo(() => {
     const features = getLanguageFeatures();
     if (!features.supportsPitchAccent || !settings.showPitchAccent) return null;
+    
+    const pitch = effectivePitchAccent();
+    if (!pitch || !pitch.reading) return null;
 
     const info = getPitchAccentInfo(pitch.position, pitch.reading);
     if (!info) return null;
     
+    // Check if this is a verb followed by another verb (don't show particle box)
+    // The old app uses: includeParticleBox: !(pos === "動詞" && look_ahead_token === "動詞")
+    // But in the hover pill, we always show the particle box since we're showing standalone
     const html = buildPitchAccentHtml(info, pitch.reading.length, {
       includeParticleBox: true,
       padTo: pitch.reading.length,
@@ -898,15 +903,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     if (!html) return null;
 
-    return (
-      <div class="pill gray pitch-accent-pill">
-        <div class="pitch-accent-word">
-          {pitch.reading}✦
-          <div class="mLearn-pitch-accent" aria-hidden="true" innerHTML={html} />
-        </div>
-      </div>
-    );
-  };
+    return { reading: pitch.reading, html };
+  });
 
   return (
     <div
@@ -979,7 +977,17 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           {/* Footer with pills */}
           <div class="footer">
             <div class="pills">
-              <PitchAccentPill />
+              {/* Pitch accent pill - using Show for proper reactivity */}
+              <Show when={pitchAccentPillData()}>
+                {(data) => (
+                  <div class="pill gray pitch-accent-pill">
+                    <div class="pitch-accent-word">
+                      {data().reading}✦
+                      <div class="mLearn-pitch-accent" aria-hidden="true" innerHTML={data().html} />
+                    </div>
+                  </div>
+                )}
+              </Show>
               <LevelPill />
               <POSPill />
               {/* Status pill - directly reactive using memos */}
