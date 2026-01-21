@@ -111,8 +111,27 @@ body.hide-cursor .live-word-translator {
   color: #aaa;
   margin: 0;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
+/* Word display - the kanji/text */
+.aside-card .card-word {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+
+/* Kana reading display - shown below the word */
+.aside-card .card-kana {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.05em;
+}
+
+/* Legacy ruby support (fallback) */
 .aside-card .card-reading ruby {
   ruby-position: over;
 }

@@ -7,16 +7,26 @@ import { createContext, useContext, ParentComponent, onMount, createSignal } fro
 import { createStore, reconcile } from 'solid-js/store';
 import type { LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings } from '../../shared/types';
 
-// Language feature capabilities - derived from fixed_settings
+// Language feature capabilities - derived from fixed_settings and language properties
 export interface LanguageFeatures {
-  /** Whether the language supports readings/furigana */
+  /** Whether the language supports readings/furigana (different pronunciation from writing) */
   supportsReadings: boolean;
   /** Whether the language has pitch accent data */
   supportsPitchAccent: boolean;
+  /** Whether the language uses logographic characters (CJK) that may need readings */
+  isLogographic: boolean;
+  /** Whether the language is written right-to-left */
+  isRTL: boolean;
+  /** Whether the language supports color-coded parts of speech */
+  supportsColorCodes: boolean;
+  /** Whether the language supports frequency/JLPT-style level indicators */
+  supportsFrequencyLevels: boolean;
   /** Whether settings are overridden by language data */
   hasFixedSettings: boolean;
   /** The list of fixed settings keys that are overridden */
   fixedSettingKeys: (keyof Settings)[];
+  /** Whether the language supports character name detection in subtitles */
+  supportsCharacterNames: boolean;
 }
 
 // Context interface
@@ -141,19 +151,41 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     return data?.translatable || [];
   };
 
-  // Get language feature capabilities based on fixed_settings
+  // Get language feature capabilities based on fixed_settings and language code
   const getLanguageFeatures = (): LanguageFeatures => {
     const data = currentLangData();
+    const lang = currentLang();
     const fixedSettings = data?.fixed_settings || {};
     const fixedKeys = Object.keys(fixedSettings) as (keyof Settings)[];
     
+    // Language-specific defaults
+    const isJapanese = lang === 'ja';
+    const isChinese = lang === 'zh' || lang === 'zh-CN' || lang === 'zh-TW';
+    const isKorean = lang === 'ko';
+    const isArabic = lang === 'ar';
+    const isHebrew = lang === 'he';
+    
+    // CJK languages are logographic (use characters that may need readings)
+    const isLogographic = isJapanese || isChinese || isKorean;
+    
+    // RTL languages
+    const isRTL = isArabic || isHebrew;
+    
     return {
-      // Check if furigana is NOT explicitly disabled
-      supportsReadings: fixedSettings.furigana !== false,
-      // Check if pitch accent is NOT explicitly disabled
-      supportsPitchAccent: fixedSettings.showPitchAccent !== false,
+      // Japanese and Chinese support readings (furigana/pinyin)
+      supportsReadings: fixedSettings.furigana !== false && (isJapanese || isChinese),
+      // Only Japanese has pitch accent data in this app
+      supportsPitchAccent: fixedSettings.showPitchAccent !== false && isJapanese,
+      isLogographic,
+      isRTL,
+      // All languages can potentially have color codes if defined
+      supportsColorCodes: Boolean(data?.colour_codes && Object.keys(data.colour_codes).length > 0),
+      // Frequency levels are usually for Japanese (JLPT) but can be configured for any language
+      supportsFrequencyLevels: Boolean(data?.freq && data.freq.length > 0),
       hasFixedSettings: fixedKeys.length > 0,
       fixedSettingKeys: fixedKeys,
+      // Character name detection primarily for Japanese anime subtitles
+      supportsCharacterNames: isJapanese,
     };
   };
 

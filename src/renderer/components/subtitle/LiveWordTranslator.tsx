@@ -7,6 +7,7 @@
 import { Component, createSignal, For, Show, onCleanup, createEffect } from 'solid-js';
 import { useSettings } from '../../context';
 import { IPC_CHANNELS } from '../../../shared/constants';
+import { extractKanaReading } from '../../utils/subtitleParsing';
 import './LiveWordTranslator.css';
 
 interface TranslationCard {
@@ -149,22 +150,24 @@ export const LiveWordTranslator: Component = () => {
       <Show when={cards().length > 0}>
         <div class="aside-c">
           <For each={cards()}>
-            {(card) => (
-              <div class="aside-card" id={card.id}>
-                <div class="card-translation">{card.translation}</div>
-                <div class="card-reading">
-                  <Show when={card.reading && card.reading !== card.word}>
-                    <ruby>
-                      {card.word}
-                      <rt>{card.reading}</rt>
-                    </ruby>
-                  </Show>
-                  <Show when={!card.reading || card.reading === card.word}>
-                    {card.word}
-                  </Show>
+            {(card) => {
+              // Extract only kana reading (not kanji with ruby)
+              const kanaReading = () => extractKanaReading(card.reading);
+              const hasDistinctReading = () => kanaReading() && kanaReading() !== card.word;
+              
+              return (
+                <div class="aside-card" id={card.id}>
+                  <div class="card-translation">{card.translation}</div>
+                  <div class="card-reading">
+                    {/* Show word and reading separately (not as ruby) */}
+                    <span class="card-word">{card.word}</span>
+                    <Show when={hasDistinctReading()}>
+                      <span class="card-kana">{kanaReading()}</span>
+                    </Show>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            }}
           </For>
         </div>
       </Show>
