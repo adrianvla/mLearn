@@ -1,0 +1,65 @@
+/**
+ * Breakdown Row Styles
+ * Simple label-value row for statistics display
+ */
+
+.breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0;
+}
+
+.breakdown-row:not(:last-child) {
+  border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.05));
+}
+
+.breakdown-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+.breakdown-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.breakdown-icon {
+  font-size: 1em;
+  opacity: 0.8;
+}
+
+.breakdown-value {
+  font-weight: 600;
+  color: var(--text-primary, white);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Size variants */
+.breakdown-row.size-sm {
+  font-size: 0.8rem;
+  padding: 0.25rem 0;
+}
+
+.breakdown-row.size-sm .breakdown-color {
+  width: 8px;
+  height: 8px;
+}
+
+.breakdown-row.size-md {
+  font-size: 0.85rem;
+}
+
+.breakdown-row.size-lg {
+  font-size: 0.95rem;
+  padding: 0.5rem 0;
+}
+
+.breakdown-row.size-lg .breakdown-color {
+  width: 12px;
+  height: 12px;
+}

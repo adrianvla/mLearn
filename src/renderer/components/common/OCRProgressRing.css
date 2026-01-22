@@ -28,7 +28,7 @@
 
 .ocr-progress-ring-track {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.15);
 }
 
 .ocr-progress-ring-progress {
@@ -40,14 +40,20 @@
 
 /* Indeterminate spinning animation */
 .ocr-progress-ring.indeterminate {
-  animation: ocr-ring-spin 1.2s linear infinite;
+  animation: ocr-ring-spin 1s linear infinite;
 }
 
 .ocr-progress-ring.indeterminate .ocr-progress-ring-progress {
+  /* White color for indeterminate spinner */
+  stroke: rgba(255, 255, 255, 0.95);
   /* Show about 1/4 of the circumference visible for indeterminate */
   stroke-dasharray: 25% 75%;
   stroke-dashoffset: 0;
   transition: none;
+}
+
+.ocr-progress-ring.indeterminate .ocr-progress-ring-track {
+  stroke: rgba(255, 255, 255, 0.2);
 }
 
 @keyframes ocr-ring-spin {

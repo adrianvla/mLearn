@@ -26,8 +26,9 @@ export interface OCRProgressRingProps {
 }
 
 export const OCRProgressRing: Component<OCRProgressRingProps> = (props) => {
-  const size = () => props.size ?? 40;
-  const strokeWidth = () => props.strokeWidth ?? 3;
+  const size = () => props.size ?? 48;
+  // Use thicker stroke for indeterminate mode if not explicitly set
+  const strokeWidth = () => props.strokeWidth ?? (props.indeterminate ? 4 : 3);
   const radius = createMemo(() => (size() - strokeWidth()) / 2);
   const circumference = createMemo(() => 2 * Math.PI * radius());
   
