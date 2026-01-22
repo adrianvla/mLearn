@@ -89,6 +89,12 @@ export interface Settings {
   
   // OCR settings
   ocr_crop_padding: number;
+  /** Width ratio threshold for filtering narrow furigana boxes (default 1.5) */
+  ocrFuriganaWidthRatio?: number;
+  /** Window multiplier for neighbor detection (default 2.4) */
+  ocrFuriganaNeighborWindowMultiplier?: number;
+  /** Number of boxes to look ahead when detecting furigana neighbors (default 3) */
+  ocrFuriganaNeighborLookahead?: number;
   
   // Stats
   timeWatched: number;
@@ -136,6 +142,9 @@ export const DEFAULT_SETTINGS: Settings = {
   createUnseenCards: true,
   devMode: false,
   ocr_crop_padding: 200,
+  ocrFuriganaWidthRatio: 1.5,
+  ocrFuriganaNeighborWindowMultiplier: 2.4,
+  ocrFuriganaNeighborLookahead: 3,
   anki_field_expression: 'Expression',
   anki_field_reading: 'Reading',
   anki_field_meaning: 'Meaning',

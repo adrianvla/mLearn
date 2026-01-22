@@ -9,7 +9,7 @@ import { useIPC, useSubtitles } from '../../../hooks';
 import { VideoPlayer } from '../../../components/video';
 import { GlassPanel, GlassButton } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { LiveWordTranslator } from '../../../components/subtitle';
+import { LiveWordTranslator, SubtitleSync } from '../../../components/subtitle';
 import { IPC_CHANNELS } from '../../../../shared/constants';
 import './video.css';
 
@@ -22,6 +22,10 @@ export const VideoRoute: Component = () => {
   const [subtitleContent, setSubtitleContent] = createSignal<string>('');
   const [showDropZone, setShowDropZone] = createSignal(true);
   const [isDragging, setIsDragging] = createSignal(false);
+  const [currentVideoTime, setCurrentVideoTime] = createSignal(0);
+
+  // Reference to get video element time
+  let videoPlayerRef: { getCurrentTime?: () => number } | undefined;
 
   onMount(() => {
     // Check if we have a video to open from session storage
@@ -53,12 +57,24 @@ export const VideoRoute: Component = () => {
   const handleContextMenuCommand = (command: string) => {
     switch (command) {
       case 'sync-subs':
-        // TODO: Implement subtitle sync
+        // Show the subtitle sync panel
+        if ((window as any).mLearnSubtitleSync) {
+          (window as any).mLearnSubtitleSync.show();
+        }
         break;
       case 'copy-sub':
         const currentSub = subtitles.currentSubtitle();
-        if (currentSub && window.mLearnIPC) {
-          window.mLearnIPC.send(IPC_CHANNELS.WRITE_TO_CLIPBOARD, currentSub.text);
+        if (currentSub) {
+          const textToCopy = currentSub.text || '';
+          // Try IPC first for Electron
+          if (window.mLearnIPC?.send) {
+            window.mLearnIPC.send(IPC_CHANNELS.WRITE_TO_CLIPBOARD, textToCopy);
+          } else {
+            // Fallback to browser clipboard API
+            navigator.clipboard.writeText(textToCopy).catch(err => {
+              console.error('Failed to copy subtitle:', err);
+            });
+          }
         }
         break;
     }
@@ -221,10 +237,15 @@ export const VideoRoute: Component = () => {
           src={videoSrc()}
           subtitleContent={subtitleContent()}
           style={{ flex: '1' }}
+          onTimeUpdate={(time) => setCurrentVideoTime(time)}
         />
       </Show>
 
       <LiveWordTranslator />
+      <SubtitleSync 
+        currentVideoTime={currentVideoTime}
+        subtitles={subtitles.subtitles()}
+      />
     </div>
   );
 };

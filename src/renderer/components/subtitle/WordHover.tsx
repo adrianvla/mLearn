@@ -11,6 +11,8 @@ import { useSettings, useFlashcards, useLanguage } from '../../context';
 import { getWordStatus, setWordStatus, toUniqueIdentifier } from '../../services/statsService';
 import { getWordExplanation, getCachedExplanation } from '../../services/llmService';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
+import { tokensToColoredHtml } from '../../utils/subtitleParsing';
+import { useTokenizer } from '../../hooks/useTranslation';
 import { PillButton, SkeletonLoader } from '../common';
 import './WordHover.css';
 
@@ -92,7 +94,8 @@ export interface WordHoverProps {
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings } = useSettings();
   const { addFlashcard, hasWord, getByWord } = useFlashcards();
-  const { getFrequency, getLevelName, getLanguageFeatures } = useLanguage();
+  const { getFrequency, getLevelName, getLanguageFeatures, currentLangData } = useLanguage();
+  const { tokenize } = useTokenizer();
   const [currentStatus, setCurrentStatus] = createSignal<WordStatus>('unknown');
   const [wordUuid, setWordUuid] = createSignal<string>('');
   const [isInSRS, setIsInSRS] = createSignal(props.isInSRS ?? false);
@@ -433,21 +436,41 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   };
 
   // Capture OCR region screenshot with highlight box (like old app)
-  // Uses the provided ocrImageElement prop or searches DOM for the page image
+  // Uses the provided ocrImageElement prop or finds the correct page image based on anchor position
   const captureOcrScreenshot = (): string => {
     try {
       // Use provided image element directly if available
       let pageImg = props.ocrImageElement;
       
-      // Fallback: search DOM for OCR page image
+      // Fallback: search DOM for the correct OCR page image
+      // We need to find which page image contains our anchor rect
+      if (!pageImg && props.anchorRect) {
+        const anchorRect = props.anchorRect;
+        const anchorCenterX = (anchorRect.left + anchorRect.right) / 2;
+        const anchorCenterY = (anchorRect.top + anchorRect.bottom) / 2;
+        
+        // Find all page images and check which one contains our anchor point
+        const pageImages = Array.from(document.querySelectorAll('.page img.page-image, .page-container img.page-image'));
+        for (const img of pageImages) {
+          const imgRect = img.getBoundingClientRect();
+          if (
+            anchorCenterX >= imgRect.left && anchorCenterX <= imgRect.right &&
+            anchorCenterY >= imgRect.top && anchorCenterY <= imgRect.bottom
+          ) {
+            pageImg = img as HTMLImageElement;
+            break;
+          }
+        }
+      }
+      
+      // Fallback: Try to find the ocr-box we're hovering over
       if (!pageImg) {
-        // Try to find the ocr-box we're hovering over
         const ocrBox = document.querySelector('.ocr-box.hovered, .ocr-box:hover');
         const pageContainer = ocrBox?.closest('.page');
         pageImg = pageContainer?.querySelector('img.page-image') as HTMLImageElement | null;
       }
       
-      // If still no image, try any page image
+      // Last resort: try any page image
       if (!pageImg) {
         pageImg = document.querySelector('.page img.page-image, .page-container img') as HTMLImageElement | null;
       }
@@ -464,6 +487,18 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       
       // If we have anchor rect, crop around it; otherwise capture full image at reduced size
       if (anchorRect) {
+        // Check if anchor is within this image's bounds
+        const anchorCenterX = (anchorRect.left + anchorRect.right) / 2;
+        const anchorCenterY = (anchorRect.top + anchorRect.bottom) / 2;
+        
+        if (
+          anchorCenterX < imgRect.left || anchorCenterX > imgRect.right ||
+          anchorCenterY < imgRect.top || anchorCenterY > imgRect.bottom
+        ) {
+          console.warn('captureOcrScreenshot: Anchor rect is outside page image bounds');
+          // Still try to capture but the highlight might be off
+        }
+        
         // Padding around the word box (default 200px like old app)
         const pad = settings.ocr_crop_padding ?? 200;
         
@@ -628,9 +663,26 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const screenshot = isOcr ? captureOcrScreenshot() : screenshotVideo();
     
     // Extract example HTML (subtitle sentence with highlighted word)
-    const exampleHtml = isOcr 
-      ? (props.contextPhrase || '-')  // OCR uses context phrase
-      : extractExampleHtml(uuid);      // Video uses subtitle HTML with word highlighted
+    let exampleHtml: string;
+    if (isOcr) {
+      // OCR mode: tokenize context phrase and generate colored HTML
+      const contextPhrase = props.contextPhrase || '';
+      if (contextPhrase && contextPhrase !== '-') {
+        try {
+          const tokens = await tokenize(contextPhrase);
+          const colourCodes = settings.colour_codes || currentLangData()?.colour_codes || {};
+          exampleHtml = tokensToColoredHtml(tokens, colourCodes, word);
+        } catch (e) {
+          console.warn('Failed to tokenize OCR context phrase:', e);
+          exampleHtml = contextPhrase;
+        }
+      } else {
+        exampleHtml = '-';
+      }
+    } else {
+      // Video mode: use subtitle HTML with word highlighted
+      exampleHtml = extractExampleHtml(uuid);
+    }
     
     // Get level from frequency data
     const freq = wordFreqEntry();
@@ -658,36 +710,35 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       example: exampleHtml ? `${exampleHtml.substring(0, 50)}...` : 'EMPTY',
     });
     
-    // CRITICAL: Lock position and set flag to prevent effects from causing position jumps
+    // CRITICAL: Lock position and set adding flag to show "Adding..." state
     setPositionLocked(true);
     setIsAddingFlashcard(true);
     
-    // CRITICAL: Update isInSRS state BEFORE calling addFlashcard
-    // This ensures the UI updates immediately (like old app's el.outerHTML = checkMarkFlashcardPillHTML())
-    console.log('%cSetting isInSRS to true...', 'color: yellow;');
-    setIsInSRS(true);
-    // Set default ease (like old app's knownStatusToEaseFunction)
+    // Calculate ease for flashcard (like old app's knownStatusToEaseFunction)
     // UNKNOWN (0) → 1.3, LEARNING (1) → 1.55, KNOWN (2) → 1.8
     const statusNum = wordStatusToNumeric(currentStatus());
     const newEase = Math.max((statusNum - 1) * 0.25, 0) + 1.3;
-    setCurrentEase(newEase);
-    console.log('%cState updated - isInSRS:', 'color: yellow;', isInSRS(), 'ease:', newEase);
     
     if (props.onAddFlashcard) {
       props.onAddFlashcard(props.token, entry);
+      // Update state after callback completes
+      setIsInSRS(true);
+      setCurrentEase(newEase);
       setIsAddingFlashcard(false);
     } else {
       try {
         // Pass ease to addFlashcard (like old app's knownStatusToEaseFunction)
         await addFlashcard(content, newEase);
         console.log(`%cCreated flashcard for word: ${word} with ease: ${newEase}`, 'color: aqua; font-weight: bold;');
+        // CRITICAL: Update isInSRS state AFTER flashcard is added successfully
+        // This ensures the "Adding..." state is visible during the async operation
+        setIsInSRS(true);
+        setCurrentEase(newEase);
       } catch (err) {
         console.error('Failed to add flashcard:', err);
-        // Revert isInSRS on error
-        setIsInSRS(false);
         alert('Failed to add flashcard: ' + String(err));
       } finally {
-        // Always clear the flag when done
+        // Always clear the adding flag when done
         setIsAddingFlashcard(false);
       }
     }
@@ -838,24 +889,25 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   });
 
   // Level pill showing JLPT/frequency level from langdata (not hardcoded!)
-  // Must reactively update when word changes
-  const LevelPill = () => {
+  // Must reactively update when word changes - use createMemo for full reactivity
+  const levelPillData = createMemo(() => {
     // Force reactive tracking of the current word by accessing actualWord()
-    // This ensures the pill re-renders when the word changes
-    void actualWord();
+    const word = actualWord();
+    if (!word) return null;
+    
     // Try to get level from word frequency data first (like old app's wordFreq[word].level)
-    const freq = wordFreqEntry();
+    const freq = getFrequency(word);
     if (freq) {
       // freq.level already contains the name from langdata (set in LanguageContext.parseWordFrequency)
-      return <div class="pill" data-level={freq.raw_level}>{freq.level}</div>;
+      return { level: freq.raw_level, name: freq.level };
     }
     
     // Fallback to props.level if provided - use getLevelName from langdata
     const level = props.level;
     if (level === undefined || level < 0) return null;
     const levelName = getLevelName(level);
-    return <div class="pill" data-level={level}>{levelName}</div>;
-  };
+    return { level, name: levelName };
+  });
 
   const POSPill = () => {
     const pos = posType();
@@ -996,7 +1048,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                   </div>
                 )}
               </Show>
-              <LevelPill />
+              {/* Level pill - reactive via Show + createMemo */}
+              <Show when={levelPillData()}>
+                {(data) => (
+                  <div class="pill" data-level={data().level}>{data().name}</div>
+                )}
+              </Show>
               <POSPill />
               {/* Status pill - directly reactive using memos */}
               <PillButton
@@ -1007,13 +1064,21 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               />
               {/* Flashcard pill - uses Show for proper Solid.js reactivity */}
               <Show when={isTracked()} fallback={
-                <PillButton
-                  variant="blue"
-                  icon={ICON_CROSS}
-                  iconRotation={45}
-                  label="Flashcard"
-                  onClick={handleAddToSRS}
-                />
+                <Show when={isAddingFlashcard()} fallback={
+                  <PillButton
+                    variant="blue"
+                    icon={ICON_CROSS}
+                    iconRotation={45}
+                    label="Flashcard"
+                    onClick={handleAddToSRS}
+                  />
+                }>
+                  <PillButton
+                    variant="yellow"
+                    icon="⏳"
+                    label="Adding..."
+                  />
+                </Show>
               }>
                 <PillButton
                   variant="green"

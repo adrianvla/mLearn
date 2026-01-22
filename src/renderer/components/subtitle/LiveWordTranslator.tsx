@@ -1,25 +1,26 @@
 /**
  * Live Word Translator (Aside Panel)
  * Shows automatic translations for words in subtitles
- * Matches the legacy .aside-c horizontal card strip behavior
+ * Matches the legacy .aside card strip behavior exactly
+ * 
+ * Layout: Translation/definition (h1) on left, Reading (p) on right
  */
 
 import { Component, createSignal, For, Show, onCleanup, createEffect } from 'solid-js';
 import { useSettings } from '../../context';
+import { PanelHeader } from '../common';
 import { IPC_CHANNELS } from '../../../shared/constants';
-import { extractKanaReading } from '../../utils/subtitleParsing';
 import './LiveWordTranslator.css';
 
 interface TranslationCard {
   id: string;
-  word: string;
-  reading: string;
-  translation: string;
+  translation: string; // The definition/meaning (English) - shown on left
+  reading: string;     // The kana reading - shown on right
   timestamp: number;
 }
 
 export const LiveWordTranslator: Component = () => {
-  const { settings } = useSettings();
+  const { settings, updateSetting } = useSettings();
   const [isVisible, setIsVisible] = createSignal(false);
   const [cards, setCards] = createSignal<TranslationCard[]>([]);
   const [isHovered, setIsHovered] = createSignal(false);
@@ -28,31 +29,45 @@ export const LiveWordTranslator: Component = () => {
   const MAX_CARDS = 6;
   const HIDE_DELAY = 5000;
 
-  // Generate unique ID for a word
-  const generateCardId = (word: string): string => {
-    return `card_${btoa(encodeURIComponent(word)).replace(/[^a-zA-Z0-9]/g, '')}`;
+  // Generate unique ID for a word based on reading
+  const generateCardId = (reading: string): string => {
+    return `card_${btoa(encodeURIComponent(reading)).replace(/[^a-zA-Z0-9]/g, '')}`;
   };
 
-  // Add a translation card
-  const addCard = (word: string, reading: string, translation: string) => {
-    const cardId = generateCardId(word);
+  // Add a translation card - matches old addTranslationCard(translation, reading)
+  // In old app: h1 = translation (English definition), p = reading (original word)
+  // But looking at old code: addTranslationCard(first_meaning.definitions, first_meaning.reading)
+  // So the params are: translation = definitions, reading = kana/word reading
+  // The card shows: h1 = translation (definition), p = reading (word reading)
+  const addCard = (word: string, reading: string, translationDef?: string) => {
+    // Generate ID from reading (word reading) to dedupe
+    const cardId = generateCardId(reading || word);
     
-    // Check if already displaying
+    // Check if already displaying this reading
     if (cards().some(c => c.id === cardId)) {
+      return;
+    }
+
+    // Use provided translation, or word as fallback
+    const displayTranslation = translationDef || word;
+    const displayReading = reading || word;
+
+    // Only add if we have something to show
+    if (!displayTranslation) {
       return;
     }
 
     const newCard: TranslationCard = {
       id: cardId,
-      word,
-      reading,
-      translation,
+      translation: displayTranslation, // The definition/meaning
+      reading: displayReading,         // The kana reading
       timestamp: Date.now(),
     };
 
     setCards((prev) => {
+      // Add new card at the beginning (like old app's prepend behavior)
       const updated = [newCard, ...prev];
-      // Limit to MAX_CARDS
+      // Limit to MAX_CARDS (old app limited to 6)
       if (updated.length > MAX_CARDS) {
         return updated.slice(0, MAX_CARDS);
       }
@@ -69,7 +84,7 @@ export const LiveWordTranslator: Component = () => {
     setCards((prev) => prev.filter(c => c.id !== cardId));
   };
 
-  // Reset the hide timeout
+  // Reset the hide timeout - matches old asideTimeout behavior
   const resetHideTimeout = () => {
     if (hideTimeout) {
       clearTimeout(hideTimeout);
@@ -78,13 +93,13 @@ export const LiveWordTranslator: Component = () => {
     if (!isHovered()) {
       hideTimeout = setTimeout(() => {
         setIsVisible(false);
-        // Clear cards after fade out
+        // Clear cards after fade out (like old alreadyDisplayingCards = {})
         setTimeout(() => setCards([]), 300);
       }, HIDE_DELAY);
     }
   };
 
-  // Handle mouse hover to keep panel visible
+  // Handle mouse hover to keep panel visible (like old aside mouseover handler)
   const handleMouseEnter = () => {
     setIsHovered(true);
     if (hideTimeout) {
@@ -123,9 +138,17 @@ export const LiveWordTranslator: Component = () => {
         removeCard,
         show: () => {
           setIsVisible(true);
+          // Also update settings to persist that the user wants it open
+          // Matches old app: settings.openAside = true
+          updateSetting('openAside', true);
           resetHideTimeout();
         },
-        hide: () => setIsVisible(false),
+        hide: () => {
+          setIsVisible(false);
+          // Matches old app: settings.openAside = false
+          updateSetting('openAside', false);
+        },
+        isVisible: () => isVisible(),
       };
     }
   });
@@ -136,41 +159,29 @@ export const LiveWordTranslator: Component = () => {
     }
   });
 
-  // Only render if enabled in settings
-  if (!settings.openAside) {
-    return null;
-  }
+  // Always render the container (can be shown via menu even if disabled)
+  // Settings check happens at addCard level
 
   return (
     <div
-      class={`live-word-translator ${!isVisible() ? 'opacity0' : ''}`}
+      class={`live-word-translator aside ${!isVisible() ? 'opacity0' : ''}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <Show when={cards().length > 0}>
-        <div class="aside-c">
-          <For each={cards()}>
-            {(card) => {
-              // Extract only kana reading (not kanji with ruby)
-              const kanaReading = () => extractKanaReading(card.reading);
-              const hasDistinctReading = () => kanaReading() && kanaReading() !== card.word;
-              
-              return (
-                <div class="aside-card" id={card.id}>
-                  <div class="card-translation">{card.translation}</div>
-                  <div class="card-reading">
-                    {/* Show word and reading separately (not as ruby) */}
-                    <span class="card-word">{card.word}</span>
-                    <Show when={hasDistinctReading()}>
-                      <span class="card-kana">{kanaReading()}</span>
-                    </Show>
-                  </div>
-                </div>
-              );
-            }}
-          </For>
-        </div>
-      </Show>
+      {/* Header with close button - matches old aside .header */}
+      <PanelHeader onClose={() => setIsVisible(false)} />
+      {/* Card container - matches old aside .c */}
+      <div class="c aside-c">
+        <For each={cards()}>
+          {(card) => (
+            <div class="card aside-card" id={card.id}>
+              {/* Translation/definition on left (h1), reading on right (p) */}
+              <h1 innerHTML={card.translation}></h1>
+              <p innerHTML={card.reading}></p>
+            </div>
+          )}
+        </For>
+      </div>
     </div>
   );
 };

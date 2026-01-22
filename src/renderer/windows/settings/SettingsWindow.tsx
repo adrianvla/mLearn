@@ -1,9 +1,9 @@
 /**
  * Settings Window
- * Standalone settings window with tabbed navigation
+ * Standalone settings window with top tabbed navigation
  */
 
-import { Component, createSignal, onCleanup, onMount, Show } from 'solid-js';
+import { Component, createSignal, onCleanup, onMount, Show, For } from 'solid-js';
 import { WindowWrapper } from '../../context';
 import { IPC_CHANNELS } from '../../../shared/constants';
 import {
@@ -22,17 +22,18 @@ type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'sta
 interface Tab {
   id: TabId;
   label: string;
-  icon: string;
+  icon: string; // SVG icon path
 }
 
+// Icon paths for each tab (using existing icons)
 const TABS: Tab[] = [
-  { id: 'general', label: 'General', icon: '⚙️' },
-  { id: 'behaviour', label: 'Behaviour', icon: '🧠' },
-  { id: 'customization', label: 'Customization', icon: '🎨' },
-  { id: 'srs', label: 'SRS', icon: '📚' },
-  { id: 'reader', label: 'Reader', icon: '📖' },
-  { id: 'stats', label: 'Stats', icon: '📊' },
-  { id: 'about', label: 'About', icon: 'ℹ️' },
+  { id: 'general', label: 'General', icon: 'assets/icons/cog.svg' },
+  { id: 'behaviour', label: 'Behaviour', icon: 'assets/icons/bot.svg' },
+  { id: 'customization', label: 'Appearance', icon: 'assets/icons/palette.svg' },
+  { id: 'srs', label: 'SRS', icon: 'assets/icons/cards.svg' },
+  { id: 'reader', label: 'Reader', icon: 'assets/icons/book.svg' },
+  { id: 'stats', label: 'Stats', icon: 'assets/icons/stats.svg' },
+  { id: 'about', label: 'About', icon: 'assets/icons/star.svg' },
 ];
 
 const SettingsContent: Component = () => {
@@ -67,24 +68,25 @@ const SettingsContent: Component = () => {
   });
 
   return (
-    <div class="settings-window">
-      {/* Sidebar */}
-      <nav class="settings-sidebar">
+    <div class="settings-window top-nav-layout">
+      {/* Top Navigation Bar */}
+      <header class="settings-header">
         <h1 class="settings-title">Settings</h1>
-        <ul class="settings-nav">
-          {TABS.map((tab) => (
-            <li>
+        <nav class="settings-tabs">
+          <For each={TABS}>
+            {(tab) => (
               <button
-                class={`nav-item ${activeTab() === tab.id ? 'active' : ''}`}
+                class={`settings-tab ${activeTab() === tab.id ? 'active' : ''}`}
                 onClick={() => setActiveTab(tab.id)}
+                title={tab.label}
               >
-                <span class="nav-icon">{tab.icon}</span>
-                <span class="nav-label">{tab.label}</span>
+                <img src={tab.icon} alt="" class="tab-icon" />
+                <span class="tab-label">{tab.label}</span>
               </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
+            )}
+          </For>
+        </nav>
+      </header>
 
       {/* Content */}
       <main class="settings-content">

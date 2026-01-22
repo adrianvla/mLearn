@@ -1,98 +1,184 @@
 /**
  * Settings Modal Styles
+ * Matches the legacy mLearn settings window exactly
  */
+
+/* Outer wrapper for vertical layout (nav on top, content below) */
+.settings-outer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--settings-bg, #2a2a2a);
+  overflow: hidden;
+}
+
+body:not(.dark) .settings-outer {
+  --settings-bg: #ddd;
+}
 
 .settings-container {
   display: flex;
-  gap: 1.5rem;
-  min-height: 500px;
-  max-height: 70vh;
+  flex: 1;
+  min-height: 0; /* Critical for flex child scrolling */
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--settings-bg, #2a2a2a);
 }
 
-/* Navigation sidebar */
+body:not(.dark) .settings-container {
+  --settings-bg: #ddd;
+}
+
+/* Navigation bar at top - matches .nav from old app exactly */
 .settings-nav {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 160px;
-  padding-right: 1rem;
-  border-right: 1px solid var(--glass-border);
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  padding: 2px;
+  padding-inline: 20px;
+  gap: 10px;
+  background: var(--nav-bg, #333);
+  border-bottom: 1px solid #000;
+  width: 100%;
+  flex-shrink: 0;
+  font-family: "Helvetica Neue", sans-serif;
+  font-size: 12px;
+}
+
+body:not(.dark) .settings-nav {
+  --nav-bg: #eee;
+  border-bottom-color: #999;
 }
 
 .settings-nav .nav-item {
+  height: 45px;
+  width: max-content;
   display: flex;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  padding: 20px;
+  padding-top: 2px;
+  padding-bottom: 5px;
+  border-radius: 5px;
   background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  font-size: 0.9rem;
+  color: var(--nav-item-color, #aaa);
+  font-size: 12px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: left;
+  transition: background 0.05s;
+  user-select: none;
+  border: none;
+}
+
+body:not(.dark) .settings-nav .nav-item {
+  --nav-item-color: #888;
+  background: transparent;
 }
 
 .settings-nav .nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-primary);
+  background: var(--nav-hover-bg, #444);
+}
+
+body:not(.dark) .settings-nav .nav-item:hover {
+  --nav-hover-bg: #ddd;
 }
 
 .settings-nav .nav-item.selected {
-  background: rgba(var(--color-primary-rgb), 0.15);
-  color: var(--color-primary);
+  background: var(--nav-selected-bg, #2a2a2a);
 }
 
+body:not(.dark) .settings-nav .nav-item.selected {
+  --nav-selected-bg: #ccc;
+}
+
+/* Nav icon is now an img element */
 .settings-nav .nav-icon {
-  font-size: 1.1rem;
+  width: 35px;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
 }
 
 .settings-nav .nav-label {
   font-weight: 500;
+  pointer-events: none;
+  user-select: none;
 }
 
-/* Content area */
+/* Content area - matches old .settingsMenuContent */
 .settings-content {
+  display: flex;
   flex: 1;
+  width: 100%;
+  height: 100%;
   overflow-y: auto;
-  padding-right: 0.5rem;
+  overflow-x: hidden;
+  padding: 20px;
+  gap: 0;
+  flex-direction: row; /* Two columns like old app _1 and _2 */
+  box-sizing: border-box;
 }
 
-.settings-content .content-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--glass-border);
-}
-
-/* Settings list */
+/* Settings list - two column layout like old _1 and _2 divs */
 .settings-list {
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  width: 100%;
 }
 
-/* Setting row */
+/* Column 1 (labels) - right aligned */
+.settings-list .setting-row:nth-child(odd) {
+  width: 50%;
+  box-sizing: border-box;
+  padding: 5px;
+  text-align: right;
+  padding-right: 0;
+  justify-content: flex-end;
+}
+
+/* Column 2 (inputs) - left aligned */
+.settings-list .setting-row:nth-child(even) {
+  width: 50%;
+  box-sizing: border-box;
+  padding: 5px;
+  text-align: left;
+  padding-left: 0;
+  justify-content: flex-start;
+}
+
+.content-title {
+  display: none; /* Hide in new layout, nav tab shows current section */
+}
+
+/* Setting row - matches old layout */
 .setting-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.5rem;
+  height: 25px;
 }
 
 .setting-row.toggle {
   flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  justify-content: flex-end;
 }
 
 .setting-row label {
-  color: var(--text-primary);
-  font-size: 0.9rem;
+  color: var(--label-color, #ddd);
+  font-size: 15px;
+  font-family: "Helvetica Neue", sans-serif;
+  padding: 5px;
+  height: 15px;
+}
+
+body:not(.dark) .setting-row label {
+  --label-color: rgb(110, 110, 110);
 }
 
 .setting-row .hint {
@@ -101,29 +187,136 @@
   opacity: 0.8;
 }
 
+/* Checkbox styling - matches old app */
 .setting-row input[type="checkbox"] {
-  width: 1.25rem;
-  height: 1.25rem;
-  accent-color: var(--color-primary);
+  width: 20px;
+  height: 20px;
+  margin: 2.5px;
+  margin-inline: 10px;
+  accent-color: #32d520;
   cursor: pointer;
+  background: var(--checkbox-bg, #333);
+  border: 1px solid #444;
+  border-radius: 3px;
+  position: relative;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
+body:not(.dark) .setting-row input[type="checkbox"] {
+  --checkbox-bg: #ccc;
+  border-color: #bbb;
+}
+
+.setting-row input[type="checkbox"]:hover {
+  background: var(--checkbox-hover-bg, #444);
+  border-color: #555;
+}
+
+body:not(.dark) .setting-row input[type="checkbox"]:hover {
+  --checkbox-hover-bg: #aaa;
+  border-color: #999;
+}
+
+.setting-row input[type="checkbox"]:checked {
+  background: #32d520 !important;
+  border-color: #2ec31d !important;
+}
+
+.setting-row input[type="checkbox"]:checked::before {
+  content: '✔';
+  color: white;
+  font-size: 15px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Color input */
 .setting-row input[type="color"] {
-  width: 3rem;
-  height: 2rem;
+  width: 20px;
+  height: 20px;
+  margin: 2.5px;
+  margin-left: 10px;
   padding: 0;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
+  border: 1px solid #444;
+  border-radius: 5px;
   cursor: pointer;
 }
 
+.setting-row input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.setting-row input[type="color"]::-webkit-color-swatch {
+  border: none;
+}
+
+/* Number/text inputs */
 .setting-row input[type="number"],
 .setting-row input[type="text"] {
-  max-width: 200px;
+  background: var(--input-bg, #333);
+  color: var(--input-color, #fff);
+  border: 1px solid #444;
+  padding: 5px;
+  border-radius: 5px;
+  width: max-content;
+  max-width: 150px;
+  font-family: "Helvetica Neue", sans-serif;
+  font-size: 12px;
+  height: 15px;
 }
 
-.setting-row select {
-  max-width: 250px;
+body:not(.dark) .setting-row input[type="number"],
+body:not(.dark) .setting-row input[type="text"] {
+  --input-bg: #ccc;
+  --input-color: rgb(110, 110, 110);
+  border-color: #bbb;
+}
+
+/* Select dropdown */
+.setting-row select,
+.glass-select {
+  background: var(--select-bg, #333);
+  border: 1px solid #444;
+  color: var(--select-color, #fff);
+  border-radius: 5px;
+  width: max-content;
+  font-family: "Helvetica Neue", sans-serif;
+  font-size: 14px;
+  height: 25px;
+  margin-inline: 10px;
+  padding: 2px 8px;
+}
+
+body:not(.dark) .setting-row select,
+body:not(.dark) .glass-select {
+  --select-bg: #ccc;
+  --select-color: rgb(110, 110, 110);
+  border-color: #bbb;
+}
+
+/* Button styling */
+.setting-row .glass-button,
+.settings-content input[type="button"] {
+  background: #32d520;
+  border: 1px solid #2ec31d;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 5px;
+  width: max-content;
+  font-family: "Helvetica Neue", sans-serif;
+  font-size: 12px;
+  height: 25px;
+  cursor: pointer;
+  transition: background 0.1s, border 0.1s;
+}
+
+.setting-row .glass-button:hover,
+.settings-content input[type="button"]:hover {
+  background: #4eec3c;
+  border-color: #32d520;
 }
 
 .setting-row .glass-button.small {
@@ -132,14 +325,25 @@
   margin-top: 0.25rem;
 }
 
-/* Subtitle preview */
+/* Subtitle preview - matches old preview */
 .subtitle-preview {
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: var(--radius-lg);
-  padding: 2rem;
-  margin-bottom: 1.5rem;
   display: flex;
+  gap: 10px;
+  padding: 20px;
+  width: 100%;
+  max-width: 300px;
+  left: 50%;
+  transform: translateX(-50%);
+  overflow: auto;
+  align-items: center;
   justify-content: center;
+  position: relative;
+  height: 200px;
+  border: 3px solid #aaa;
+  border-radius: 25px;
+  box-sizing: border-box;
+  background: url('assets/img/pattern.svg');
+  margin: 0 auto 20px;
 }
 
 .subtitle-preview .subtitles {

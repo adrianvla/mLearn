@@ -147,11 +147,24 @@
   font-size: 0.8rem;
   cursor: pointer;
   transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
-.level-pills .pill:hover {
-  background: rgba(255, 255, 255, 0.1);
+.level-pills .pill:hover,
+.level-pills .pill.active {
+  background: rgba(99, 102, 241, 0.2);
   border-color: var(--color-primary);
+}
+
+.level-pills .pill.active {
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+}
+
+.level-pills .pill .pill-count {
+  opacity: 0.7;
+  font-size: 0.75rem;
 }
 
 .level-pills .pill[data-level="5"] { color: #e91e63; }

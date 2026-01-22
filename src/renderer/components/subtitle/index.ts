@@ -5,4 +5,6 @@
 
 export { SubtitleWord, type SubtitleWordProps } from './SubtitleWord';
 export { WordHover, type WordHoverProps } from './WordHover';
-export { SubtitleContainer, type SubtitleContainerProps } from './SubtitleContainer';export { LiveWordTranslator } from './LiveWordTranslator';
+export { SubtitleContainer, type SubtitleContainerProps } from './SubtitleContainer';
+export { LiveWordTranslator } from './LiveWordTranslator';
+export { SubtitleSync, type SubtitleSyncProps } from './SubtitleSync';

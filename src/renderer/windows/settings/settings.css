@@ -10,7 +10,92 @@
   color: white;
 }
 
-/* Sidebar */
+/* Top Navigation Layout */
+.settings-window.top-nav-layout {
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Header with top navigation */
+.settings-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 24px;
+  flex-shrink: 0;
+}
+
+.settings-header .settings-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+  padding: 0;
+  border: none;
+  white-space: nowrap;
+}
+
+/* Tab navigation */
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  overflow-x: auto;
+}
+
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.settings-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.settings-tab.active {
+  background: rgba(99, 102, 241, 0.2);
+  color: white;
+}
+
+.settings-tab .tab-icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.7;
+  filter: invert(1);
+}
+
+.settings-tab.active .tab-icon {
+  opacity: 1;
+}
+
+.settings-tab .tab-label {
+  display: inline;
+}
+
+/* Responsive: hide labels on smaller screens */
+@media (max-width: 900px) {
+  .settings-tab .tab-label {
+    display: none;
+  }
+  .settings-tab {
+    padding: 8px 12px;
+  }
+}
+
+/* Legacy Sidebar (kept for backwards compatibility) */
 .settings-sidebar {
   width: 200px;
   background: rgba(255, 255, 255, 0.03);
@@ -67,12 +152,16 @@
 .settings-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 30px;
+  min-height: 0; /* Crucial for flexbox overflow scrolling */
+  max-height: calc(100vh - 60px); /* Account for header height */
 }
 
 /* Tab Containers */
 .tab-content {
-  max-width: 600px;
+  max-width: 700px;
+  min-height: 0; /* Allow scrolling */
 }
 
 .tab-header {

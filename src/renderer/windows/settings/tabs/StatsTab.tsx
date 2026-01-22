@@ -4,7 +4,7 @@
  */
 
 import { Component, createSignal, onMount, createEffect, Show } from 'solid-js';
-import { useSettings } from '../../../context';
+import { useSettings, useLanguage } from '../../../context';
 import { TabContent, StatCard, EmptyState } from '../../../components/common';
 import {
   getTimeWatchedFormatted,
@@ -15,6 +15,7 @@ import './StatsTab.css';
 
 export const StatsTab: Component = () => {
   const { settings } = useSettings();
+  const { getFreqLevelNames } = useLanguage();
   
   const [timeWatched, setTimeWatched] = createSignal('0h 0m');
   const [wordStats, setWordStats] = createSignal({ total: 0, learned: 0, learning: 0, unknown: 0 });
@@ -27,6 +28,15 @@ export const StatsTab: Component = () => {
     setTimeWatched(getTimeWatchedFormatted());
     setWordStats(getWordsLearnedInAppStats());
   });
+  
+  // Get dynamic level names
+  const getLevelLabels = () => {
+    const names = getFreqLevelNames();
+    // Convert to array sorted by level (descending)
+    const entries = Object.entries(names).map(([k, v]) => ({ level: parseInt(k), name: v }));
+    entries.sort((a, b) => b.level - a.level);
+    return entries.map(e => e.name || `Level ${e.level}`);
+  };
 
   // Draw pie chart when stats change
   createEffect(() => {
@@ -40,7 +50,7 @@ export const StatsTab: Component = () => {
   createEffect(() => {
     const stats = wordStats();
     if (barCanvasRef) {
-      drawBarChart(barCanvasRef, stats);
+      drawBarChart(barCanvasRef, stats, getLevelLabels());
     }
   });
 
@@ -111,7 +121,7 @@ export const StatsTab: Component = () => {
 
       {/* Bar Chart */}
       <div class="chart-container">
-        <h3 class="chart-title">Words by JLPT Level</h3>
+        <h3 class="chart-title">Words by Exam Level</h3>
         <canvas ref={barCanvasRef} class="chart-canvas" width={400} height={200} />
       </div>
 
@@ -203,19 +213,20 @@ function drawPieChart(
 }
 
 /**
- * Draw bar chart showing words by JLPT level
+ * Draw bar chart showing words by exam level
  */
 function drawBarChart(
   canvas: HTMLCanvasElement,
-  stats: { learned: number; learning: number; unknown: number }
+  stats: { learned: number; learning: number; unknown: number },
+  levelLabels: string[] = []
 ) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Mock data by level - in real app, this would come from word tracking
-  const levels = ['N5', 'N4', 'N3', 'N2', 'N1'];
+  // Use dynamic level labels, or fallback to generic levels
+  const levels = levelLabels.length > 0 ? levelLabels : ['Level 5', 'Level 4', 'Level 3', 'Level 2', 'Level 1'];
   const levelData = levels.map((_, i) => ({
     learned: Math.floor(Math.random() * 50),
     learning: Math.floor(Math.random() * 30),

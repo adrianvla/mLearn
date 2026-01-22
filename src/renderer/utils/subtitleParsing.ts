@@ -1,21 +1,14 @@
 /**
  * Subtitle Parsing Utilities
- * Handles Japanese furigana extraction, character name storage, and subtitle processing
+ * Handles furigana extraction and subtitle processing
+ * 
+ * NOTE: This is simplified - we no longer store/parse character names.
+ * Parentheses are only used for temporary reading overrides in the current subtitle.
  */
 
 // ============================================================================
 // Constants
 // ============================================================================
-
-// Japanese full-width parentheses
-const JP_OPEN_PAREN = '（';
-const JP_CLOSE_PAREN = '）';
-// Normal ASCII parentheses
-const ASCII_OPEN_PAREN = '(';
-const ASCII_CLOSE_PAREN = ')';
-
-// Storage key for character names
-const CHARACTER_NAMES_KEY = 'mlearn_character_names';
 
 // Kanji detection regex
 const KANJI_REGEX = /[\u3400-\u9FFF\uF900-\uFAFF]/;
@@ -25,31 +18,10 @@ const KANA_REGEX = /^[\u3040-\u309f\u30a0-\u30ff\u31f0-\u31ff]+$/;
 // Types
 // ============================================================================
 
-export interface CharacterName {
-  /** Full name in kanji (e.g., "百夜優一郎") */
-  name: string;
-  /** Full reading in kana (e.g., "ひゃくやゆういちろう") */
-  reading: string;
-  /** First name in kanji (e.g., "優一郎") if split was possible */
-  firstName?: string;
-  /** First name reading (e.g., "ゆういちろう") */
-  firstNameReading?: string;
-  /** Last name in kanji (e.g., "百夜") */
-  lastName?: string;
-  /** Last name reading (e.g., "ひゃくや") */
-  lastNameReading?: string;
-  /** Timestamp when this name was saved */
-  savedAt: number;
-}
-
 export interface ParsedSubtitle {
-  /** The subtitle text with speaker name removed (if setting enabled) */
+  /** The subtitle text (optionally cleaned) */
   text: string;
-  /** Speaker name if detected (e.g., "百夜優一郎") */
-  speaker?: string;
-  /** Speaker reading if detected (e.g., "ひゃくやゆういちろう") */
-  speakerReading?: string;
-  /** Whether furigana was extracted from the speaker name */
+  /** Whether furigana annotations were found in the text */
   hasFurigana: boolean;
 }
 
@@ -60,193 +32,11 @@ export interface FuriganaSegment {
   reading?: string;
 }
 
-// ============================================================================
-// Character Name Storage
-// ============================================================================
-
-/**
- * Load all stored character names from localStorage
- */
-export function loadCharacterNames(): Map<string, CharacterName> {
-  try {
-    const stored = localStorage.getItem(CHARACTER_NAMES_KEY);
-    if (!stored) return new Map();
-    
-    const parsed = JSON.parse(stored);
-    const map = new Map<string, CharacterName>();
-    
-    for (const entry of parsed) {
-      if (entry.name) {
-        map.set(entry.name, entry);
-        // Also store partial names for lookup
-        if (entry.firstName) map.set(entry.firstName, entry);
-        if (entry.lastName) map.set(entry.lastName, entry);
-      }
-    }
-    
-    return map;
-  } catch (e) {
-    console.error('Failed to load character names:', e);
-    return new Map();
-  }
-}
-
-/**
- * Save character names to localStorage
- */
-function saveCharacterNames(names: Map<string, CharacterName>): void {
-  try {
-    // Deduplicate by full name
-    const uniqueNames = new Map<string, CharacterName>();
-    for (const entry of names.values()) {
-      if (entry.name && !uniqueNames.has(entry.name)) {
-        uniqueNames.set(entry.name, entry);
-      }
-    }
-    
-    localStorage.setItem(CHARACTER_NAMES_KEY, JSON.stringify(Array.from(uniqueNames.values())));
-  } catch (e) {
-    console.error('Failed to save character names:', e);
-  }
-}
-
-// In-memory cache
-let characterNamesCache: Map<string, CharacterName> | null = null;
-
-/**
- * Get the character names cache, loading from storage if needed
- */
-function getCharacterNamesCache(): Map<string, CharacterName> {
-  if (!characterNamesCache) {
-    characterNamesCache = loadCharacterNames();
-  }
-  return characterNamesCache;
-}
-
-/**
- * Store a character name with its reading
- * Automatically attempts to split into first/last names
- */
-export function storeCharacterName(name: string, reading: string): void {
-  if (!name || !reading) return;
-  
-  const cache = getCharacterNamesCache();
-  
-  // Try to split the name into first and last names
-  const split = splitJapaneseName(name, reading);
-  
-  const entry: CharacterName = {
-    name,
-    reading,
-    firstName: split.firstName,
-    firstNameReading: split.firstNameReading,
-    lastName: split.lastName,
-    lastNameReading: split.lastNameReading,
-    savedAt: Date.now(),
-  };
-  
-  // Store by full name
-  cache.set(name, entry);
-  
-  // Also store by partial names for quick lookup
-  if (split.firstName) cache.set(split.firstName, entry);
-  if (split.lastName) cache.set(split.lastName, entry);
-  
-  // Persist to storage
-  saveCharacterNames(cache);
-  
-  console.log(`%cStored character name: ${name} (${reading})`, 'color: cyan;');
-}
-
-/**
- * Look up a character name to get its reading
- * Handles partial matches (first name only, last name only)
- */
-export function lookupCharacterName(name: string): CharacterName | undefined {
-  if (!name) return undefined;
-  return getCharacterNamesCache().get(name);
-}
-
-/**
- * Get reading for a character name (full or partial)
- */
-export function getCharacterReading(name: string): string | undefined {
-  const entry = lookupCharacterName(name);
-  if (!entry) return undefined;
-  
-  // If exact match to full name, return full reading
-  if (entry.name === name) return entry.reading;
-  
-  // If match to first name, return first name reading
-  if (entry.firstName === name) return entry.firstNameReading;
-  
-  // If match to last name, return last name reading
-  if (entry.lastName === name) return entry.lastNameReading;
-  
-  // Otherwise return what we have
-  return entry.reading;
-}
-
-// ============================================================================
-// Japanese Name Splitting
-// ============================================================================
-
-/**
- * Attempt to split a Japanese name into first and last name
- * This is heuristic-based since Japanese names don't have spaces
- * 
- * Common patterns:
- * - 2 kanji last name + 3 kanji first name (e.g., 百夜優一郎)
- * - 2 kanji last name + 2 kanji first name (e.g., 百夜ミカエラ -> but this has katakana)
- * - etc.
- */
-function splitJapaneseName(name: string, reading: string): {
-  firstName?: string;
-  firstNameReading?: string;
-  lastName?: string;
-  lastNameReading?: string;
-} {
-  if (!name || !reading) return {};
-  
-  // Heuristics for common Japanese name patterns
-  // Most family names are 1-3 characters, most given names are 2-4 characters
-  
-  const nameChars = Array.from(name);
-  const readingChars = Array.from(reading);
-  
-  if (nameChars.length < 3 || readingChars.length < 3) {
-    // Name too short to split reliably
-    return {};
-  }
-  
-  // Try common split positions (2-char last name is most common)
-  const splitPositions = [2, 3, 1];
-  
-  for (const splitPos of splitPositions) {
-    if (splitPos >= nameChars.length) continue;
-    
-    const lastName = nameChars.slice(0, splitPos).join('');
-    const firstName = nameChars.slice(splitPos).join('');
-    
-    // Try to split reading proportionally
-    // This is rough - we assume reading length roughly correlates with kanji count
-    // For more accuracy, we'd need a dictionary
-    const readingSplitPos = Math.round((splitPos / nameChars.length) * readingChars.length);
-    const lastNameReading = readingChars.slice(0, readingSplitPos).join('');
-    const firstNameReading = readingChars.slice(readingSplitPos).join('');
-    
-    // Validate that both parts have content
-    if (lastName && firstName && lastNameReading && firstNameReading) {
-      return {
-        firstName,
-        firstNameReading,
-        lastName,
-        lastNameReading,
-      };
-    }
-  }
-  
-  return {};
+export interface ReadingOverride {
+  /** The word/text to override */
+  word: string;
+  /** The reading to use */
+  reading: string;
 }
 
 // ============================================================================
@@ -254,76 +44,46 @@ function splitJapaneseName(name: string, reading: string): {
 // ============================================================================
 
 /**
- * Parse a subtitle line to extract speaker name and furigana
+ * Parse a subtitle line to extract any temporary reading overrides from parentheses
  * 
- * Handles formats like:
- * - （百夜優一郎(ひゃくやゆういちろう)）あっ
- * - （優一郎）あっ
- * - 「百夜優一郎(ひゃくやゆういちろう)」あっ
+ * Format: 漢字(かんじ) - the parentheses provide a temporary reading
+ * This reading is used for the current subtitle only, not stored permanently.
+ * 
+ * @returns The cleaned text and any reading overrides found
  */
-export function parseSubtitle(text: string, language: string, options: {
-  removeParentheses?: boolean;
-  removeSpeakerNames?: boolean;
-} = {}): ParsedSubtitle {
-  const { removeParentheses = false, removeSpeakerNames = false } = options;
-  
-  // Determine which parentheses to use based on language
-  const isJapanese = language === 'ja';
-  const openParen = isJapanese ? JP_OPEN_PAREN : ASCII_OPEN_PAREN;
-  const closeParen = isJapanese ? JP_CLOSE_PAREN : ASCII_CLOSE_PAREN;
-  
-  let result: ParsedSubtitle = {
-    text,
-    hasFurigana: false,
-  };
-  
-  // Try to extract speaker name from the beginning of the subtitle
-  // Pattern: （名前）text or （名前(よみかた)）text
-  const speakerMatch = text.match(new RegExp(
-    `^${escapeRegex(openParen)}([^${escapeRegex(closeParen)}]+)${escapeRegex(closeParen)}(.*)$`
-  ));
-  
-  if (speakerMatch) {
-    const speakerPart = speakerMatch[1];
-    const textPart = speakerMatch[2];
-    
-    // Check if speaker part contains furigana: 名前(よみかた)
-    const furiganaMatch = speakerPart.match(/^([^(（]+)\(([^)）]+)\)$/);
-    
-    if (furiganaMatch) {
-      const speakerName = furiganaMatch[1];
-      const speakerReading = furiganaMatch[2];
-      
-      result.speaker = speakerName;
-      result.speakerReading = speakerReading;
-      result.hasFurigana = true;
-      
-      // Store the character name for future reference
-      storeCharacterName(speakerName, speakerReading);
-    } else {
-      // No furigana in the speaker name, try to look up from stored names
-      result.speaker = speakerPart;
-      const storedReading = getCharacterReading(speakerPart);
-      if (storedReading) {
-        result.speakerReading = storedReading;
-        result.hasFurigana = true;
-      }
-    }
-    
-    // Apply removal settings
-    if (removeSpeakerNames || removeParentheses) {
-      result.text = textPart.trim();
-    }
-  } else if (removeParentheses) {
-    // Remove all parenthesized content
-    const parenRegex = new RegExp(
-      `${escapeRegex(openParen)}[^${escapeRegex(closeParen)}]*${escapeRegex(closeParen)}`,
-      'g'
-    );
-    result.text = text.replace(parenRegex, '').trim();
+export function parseSubtitle(text: string, _language: string = 'ja'): {
+  text: string;
+  readingOverrides: ReadingOverride[];
+} {
+  if (!text) {
+    return { text: '', readingOverrides: [] };
   }
   
-  return result;
+  const readingOverrides: ReadingOverride[] = [];
+  
+  // Pattern: word(reading) - captures the word before parens and reading inside
+  // Handles both ASCII and Japanese parentheses
+  const furiganaPattern = /([^\s(（]+)\(([^)）]+)\)|([^\s(（]+)（([^)）]+)）/g;
+  
+  let match;
+  while ((match = furiganaPattern.exec(text)) !== null) {
+    const word = match[1] || match[3];
+    const reading = match[2] || match[4];
+    if (word && reading && containsKanji(word)) {
+      readingOverrides.push({ word, reading });
+    }
+  }
+  
+  // Clean the text by removing the furigana annotations, keeping just the kanji
+  // 漢字(かんじ) -> 漢字
+  let cleanedText = text
+    .replace(/([^\s(（]+)\([^)）]+\)/g, '$1')
+    .replace(/([^\s(（]+)（[^)）]+）/g, '$1');
+  
+  return {
+    text: cleanedText,
+    readingOverrides,
+  };
 }
 
 /**
@@ -338,21 +98,26 @@ export function extractFurigana(text: string): FuriganaSegment[] {
   const segments: FuriganaSegment[] = [];
   
   // Pattern: kanji(reading) or text without parentheses
-  // Match: kanji followed by (reading) OR any other text
-  const regex = /([^(（]+)\(([^)）]+)\)|([^(（]+)/g;
+  const regex = /([^(（\s]+)\(([^)）]+)\)|([^(（\s]+)（([^)）]+)）|([^(（\s]+)/g;
   
   let match;
   while ((match = regex.exec(text)) !== null) {
     if (match[1] && match[2]) {
-      // Kanji with furigana
+      // Kanji with ASCII-paren furigana
       segments.push({
         text: match[1],
         reading: match[2],
       });
-    } else if (match[3]) {
-      // Text without furigana
+    } else if (match[3] && match[4]) {
+      // Kanji with JP-paren furigana
       segments.push({
         text: match[3],
+        reading: match[4],
+      });
+    } else if (match[5]) {
+      // Text without furigana
+      segments.push({
+        text: match[5],
       });
     }
   }
@@ -387,14 +152,8 @@ export function containsKanji(text: string): boolean {
  * Check if text is all kana (hiragana or katakana)
  */
 export function isAllKana(text: string): boolean {
+  if (!text) return false;
   return KANA_REGEX.test(text);
-}
-
-/**
- * Escape special regex characters in a string
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
@@ -414,9 +173,23 @@ export function normalizeReading(raw: string): string {
 /**
  * Extract only the kana reading from a translation entry
  * This is for the LiveWordTranslator which should show only kana, not kanji with ruby
+ * 
+ * Handles multiple formats:
+ * - Plain kana: "かんじ" -> "かんじ"
+ * - Ruby markup: "<ruby>漢字<rt>かんじ</rt></ruby>" -> "かんじ"
+ * - Mixed content: "漢字かな" -> extracts only kana portions
  */
 export function extractKanaReading(reading: string | undefined): string {
   if (!reading) return '';
+  
+  // First try to extract from ruby <rt> tags - this is the most reliable
+  const rtMatches = reading.match(/<rt>([^<]+)<\/rt>/g);
+  if (rtMatches && rtMatches.length > 0) {
+    // Extract content from all <rt> tags and join
+    return rtMatches
+      .map(m => m.replace(/<\/?rt>/g, ''))
+      .join('');
+  }
   
   // Remove HTML tags and normalize
   let normalized = normalizeReading(reading);
@@ -424,10 +197,117 @@ export function extractKanaReading(reading: string | undefined): string {
   // If the reading is already all kana, return it
   if (isAllKana(normalized)) return normalized;
   
-  // If it contains kanji, we need to extract the kana from ruby markup or return as-is
-  // Try to extract from ruby: <ruby>漢字<rt>かんじ</rt></ruby>
-  const rtMatch = reading.match(/<rt>([^<]+)<\/rt>/);
-  if (rtMatch) return rtMatch[1];
+  // Try to extract just the kana characters
+  const kanaOnly = normalized.replace(/[^\u3040-\u309f\u30a0-\u30ff]/g, '');
+  if (kanaOnly) return kanaOnly;
   
   return normalized;
+}
+
+/**
+ * Strip furigana from text to get clean kanji/text only
+ * Used for OCR context phrase stitching where we don't want ruby readings
+ * 
+ * Example: "<ruby>主<rt>おも</rt></ruby>に" -> "主に"
+ */
+export function stripFurigana(text: string): string {
+  if (!text) return '';
+  
+  // Remove <rt>...</rt> tags and their content
+  let result = text.replace(/<rt[^>]*>.*?<\/rt>/gi, '');
+  
+  // Remove <ruby> and </ruby> tags but keep content
+  result = result.replace(/<\/?ruby>/gi, '');
+  
+  // Remove <rp> tags (ruby parentheses)
+  result = result.replace(/<\/?rp>/gi, '');
+  
+  // Remove parenthesized readings: 漢字(かんじ) -> 漢字
+  result = result.replace(/\([ぁ-んァ-ン]+\)/g, '');
+  result = result.replace(/（[ぁ-んァ-ン]+）/g, '');
+  
+  return result.trim();
+}
+
+/**
+ * Clean text for use as context phrase by stripping furigana and normalizing
+ */
+export function cleanContextPhrase(text: string): string {
+  if (!text) return '';
+  
+  // Strip furigana first
+  let cleaned = stripFurigana(text);
+  
+  // Normalize whitespace
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  return cleaned;
+}
+
+// ============================================================================
+// Token Coloring
+// ============================================================================
+
+/**
+ * Token interface for coloring (matches Token from types.ts)
+ */
+export interface ColorToken {
+  word: string;
+  surface?: string;
+  type?: string;
+  partOfSpeech?: string;
+  actual_word?: string;
+}
+
+/**
+ * Generate colored HTML from tokens based on part-of-speech
+ * Used for OCR context phrases to match subtitle styling
+ * 
+ * @param tokens Array of tokens from tokenizer
+ * @param colourCodes POS-to-color mapping from settings/langData
+ * @param targetWord Optional word to highlight with 'defined' class
+ * @returns HTML string with colored spans
+ */
+export function tokensToColoredHtml(
+  tokens: ColorToken[],
+  colourCodes: Record<string, string> = {},
+  targetWord?: string
+): string {
+  if (!tokens || tokens.length === 0) return '';
+  
+  const parts: string[] = [];
+  
+  for (const token of tokens) {
+    const word = token.surface ?? token.word ?? '';
+    if (!word) continue;
+    
+    const pos = token.partOfSpeech ?? token.type ?? '';
+    const color = pos ? colourCodes[pos] : undefined;
+    const isTarget = targetWord && (token.actual_word === targetWord || word === targetWord);
+    
+    // Build class list
+    const classes = ['subtitle_word'];
+    if (isTarget) classes.push('defined');
+    
+    // Build style
+    const style = color ? `color: ${color};` : '';
+    
+    parts.push(
+      `<span class="${classes.join(' ')}"${style ? ` style="${style}"` : ''}>${escapeHtml(word)}</span>`
+    );
+  }
+  
+  return parts.join('');
+}
+
+/**
+ * Escape HTML special characters
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }

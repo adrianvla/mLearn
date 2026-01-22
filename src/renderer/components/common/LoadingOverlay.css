@@ -1,0 +1,36 @@
+/**
+ * Loading Overlay Component Styles
+ */
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.loading-overlay.fullscreen {
+  position: fixed;
+}
+
+.loading-overlay.with-backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.loading-overlay.with-blur {
+  backdrop-filter: blur(4px);
+}
+
+.loading-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem;
+  background: var(--glass-bg, rgba(30, 30, 30, 0.9));
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  backdrop-filter: var(--glass-backdrop-filter, blur(10px));
+}

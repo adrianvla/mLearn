@@ -65,8 +65,28 @@
   font-size: 0.75rem;
 }
 
-.flashcard-delete-btn {
+.flashcard-actions {
+  display: flex;
+  gap: 0.5rem;
   margin-left: auto;
+}
+
+.flashcard-edit-btn {
+  background: none;
+  border: none;
+  color: var(--color-primary, #3b82f6);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s ease;
+}
+
+.flashcard-edit-btn:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.flashcard-delete-btn {
   background: none;
   border: none;
   color: var(--color-danger, #ef4444);

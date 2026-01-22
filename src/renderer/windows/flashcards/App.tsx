@@ -6,7 +6,7 @@
 import { Component, Show, For, createSignal, createMemo } from 'solid-js';
 import { WindowWrapper } from '../../context';
 import { useFlashcards, useSettings } from '../../context';
-import { FlashcardReview } from '../../components/flashcard';
+import { FlashcardReview, FlashcardEditor } from '../../components/flashcard';
 import { 
   GlassCard, 
   GlassModal, 
@@ -16,13 +16,13 @@ import {
   EmptyState,
   StatCard,
 } from '../../components/common';
-import type { Flashcard } from '../../../shared/types';
+import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import './FlashcardsApp.css';
 
 type TabId = 'review' | 'browse' | 'stats';
 
 const FlashcardsContent: Component = () => {
-  const { store, getDueCards, removeFlashcard, addFlashcard } = useFlashcards();
+  const { store, getDueCards, removeFlashcard, addFlashcard, updateFlashcard } = useFlashcards();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { settings } = useSettings();
 
@@ -30,8 +30,10 @@ const FlashcardsContent: Component = () => {
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
   const [showAddModal, setShowAddModal] = createSignal(false);
+  const [showEditModal, setShowEditModal] = createSignal(false);
+  const [editingCard, setEditingCard] = createSignal<Flashcard | null>(null);
   
-  // Add card form state
+  // Add card form state (simple mode)
   const [newWord, setNewWord] = createSignal('');
   const [newReading, setNewReading] = createSignal('');
   const [newMeaning, setNewMeaning] = createSignal('');
@@ -81,6 +83,29 @@ const FlashcardsContent: Component = () => {
     setNewReading('');
     setNewMeaning('');
     setShowAddModal(false);
+  };
+
+  const openEditModal = (card: Flashcard) => {
+    setEditingCard(card);
+    setShowEditModal(true);
+  };
+
+  const handleEditCardSave = (content: FlashcardContent) => {
+    const card = editingCard();
+    if (!card) return;
+    
+    const idx = flashcards().findIndex(c => c.id === card.id);
+    if (idx === -1) return;
+    
+    updateFlashcard(idx, { content });
+    
+    setShowEditModal(false);
+    setEditingCard(null);
+  };
+
+  const handleEditCardCancel = () => {
+    setShowEditModal(false);
+    setEditingCard(null);
   };
 
   const tabs: { id: TabId; label: string }[] = [
@@ -167,15 +192,23 @@ const FlashcardsContent: Component = () => {
                         <span class="pill">
                           {card.reviews} reviews
                         </span>
-                        <button
-                          class="flashcard-delete-btn"
-                          onClick={() => {
-                            setSelectedCard(card.id ?? card.content.word);
-                            setShowDeleteConfirm(true);
-                          }}
-                        >
-                          Delete
-                        </button>
+                        <div class="flashcard-actions">
+                          <button
+                            class="flashcard-edit-btn"
+                            onClick={() => openEditModal(card)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            class="flashcard-delete-btn"
+                            onClick={() => {
+                              setSelectedCard(card.id ?? card.content.word);
+                              setShowDeleteConfirm(true);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </GlassCard>
                   )}
@@ -289,6 +322,23 @@ const FlashcardsContent: Component = () => {
             fullWidth
           />
         </div>
+      </GlassModal>
+
+      {/* Edit card modal - uses full FlashcardEditor */}
+      <GlassModal
+        isOpen={showEditModal()}
+        onClose={handleEditCardCancel}
+        title={`Edit Flashcard – ${editingCard()?.content.word || ''}`}
+        size="lg"
+      >
+        <Show when={editingCard()}>
+          <FlashcardEditor
+            flashcard={editingCard()!}
+            onSave={handleEditCardSave}
+            onCancel={handleEditCardCancel}
+            showStats={true}
+          />
+        </Show>
       </GlassModal>
     </div>
   );
