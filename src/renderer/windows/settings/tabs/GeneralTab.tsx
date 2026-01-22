@@ -4,9 +4,7 @@
 
 import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
-import { SettingRow } from './components/SettingRow';
-import { SettingGroup } from './components/SettingGroup';
-import { ToggleSwitch, TabContent } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent } from '../../../components/common';
 
 export const GeneralTab: Component = () => {
   const { settings, updateSettings } = useSettings();

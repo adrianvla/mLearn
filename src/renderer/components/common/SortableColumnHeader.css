@@ -1,0 +1,75 @@
+/**
+ * Sortable Column Header Styles
+ * Clickable table headers with sort indicators
+ */
+
+.sortable-column-header {
+  cursor: pointer;
+  user-select: none;
+  padding: 0.75rem 1rem;
+  background: var(--glass-bg-light, rgba(255, 255, 255, 0.03));
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  transition: background 0.15s ease;
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+.sortable-column-header:hover {
+  background: var(--glass-bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary, white);
+}
+
+.sortable-column-header.sorted {
+  color: var(--accent-primary, #6366f1);
+  background: var(--glass-bg-active, rgba(99, 102, 241, 0.1));
+}
+
+/* Alignment */
+.sortable-column-header.align-left {
+  text-align: left;
+}
+
+.sortable-column-header.align-center {
+  text-align: center;
+}
+
+.sortable-column-header.align-right {
+  text-align: right;
+}
+
+.sortable-column-header.align-right .column-content {
+  justify-content: flex-end;
+}
+
+.sortable-column-header.align-center .column-content {
+  justify-content: center;
+}
+
+/* Content layout */
+.column-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.column-label {
+  white-space: nowrap;
+}
+
+.sort-indicator {
+  font-size: 0.65rem;
+  opacity: 0.8;
+  min-width: 0.75rem;
+  display: inline-block;
+}
+
+/* Hide indicator when not sorted */
+.sortable-column-header:not(.sorted) .sort-indicator {
+  opacity: 0;
+}
+
+.sortable-column-header:hover:not(.sorted) .sort-indicator::after {
+  content: '↕';
+  opacity: 0.4;
+}

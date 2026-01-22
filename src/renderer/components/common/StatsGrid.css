@@ -1,0 +1,54 @@
+/**
+ * Stats Grid Styles
+ * Responsive grid for StatCard components
+ */
+
+.stats-grid {
+  display: grid;
+  width: 100%;
+}
+
+/* Column configurations */
+.stats-grid.cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.stats-grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.stats-grid.cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* Gap sizes */
+.stats-grid.gap-sm {
+  gap: 0.5rem;
+}
+
+.stats-grid.gap-md {
+  gap: 0.75rem;
+}
+
+.stats-grid.gap-lg {
+  gap: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .stats-grid.cols-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .stats-grid.cols-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid.cols-4,
+  .stats-grid.cols-3,
+  .stats-grid.cols-2 {
+    grid-template-columns: 1fr;
+  }
+}

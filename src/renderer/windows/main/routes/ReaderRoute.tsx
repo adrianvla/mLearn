@@ -3,7 +3,7 @@
  * Manga/Image OCR reader integrated into main window via router
  */
 
-import { Component, createSignal, For, Show, onMount, onCleanup, createEffect } from 'solid-js';
+import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, batch } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
@@ -33,8 +33,12 @@ const [ocrResults, setOcrResults] = createStore<Record<string, OcrResult>>({});
 
 // Queue system for OCR to ensure serial processing (1 at a time)
 // and allow cancellation of pending tasks by simply removing them from queue.
-const [ocrQueue, setOcrQueue] = createSignal<PageImage[]>([]);
-const [processingPageId, setProcessingPageId] = createSignal<string | null>(null);
+interface OcrTask {
+  page: PageImage;
+  isCaching: boolean; // true if this is a background caching task, not visible
+}
+const [ocrQueue, setOcrQueue] = createSignal<OcrTask[]>([]);
+const [processingTask, setProcessingTask] = createSignal<OcrTask | null>(null);
 
 export const ReaderRoute: Component = () => {
   const navigate = useNavigate();
@@ -140,31 +144,50 @@ export const ReaderRoute: Component = () => {
     const base = currentPage();
     const isDouble = pageMode() === 'double';
     
-    // Determine priority pages (Visible + Cache)
-    const targetIndices: number[] = []; 
-    // Visible
-    targetIndices.push(base);
-    if (isDouble) targetIndices.push(base + 1);
-    // Cache next 2
+    // Determine visible pages
+    const visibleIndices: number[] = [base];
+    if (isDouble) visibleIndices.push(base + 1);
+    
+    // Determine caching pages (next 2)
     const nextStart = base + (isDouble ? 2 : 1);
-    targetIndices.push(nextStart);
-    targetIndices.push(nextStart + 1);
+    const cacheIndices: number[] = [nextStart, nextStart + 1];
+    
+    // Get the currently processing task's page id (if any)
+    // We must not add this to the queue again to avoid duplicate processing checks
+    const currentlyProcessingId = processingTask()?.page.id ?? null;
+    
+    // Build task queue with visible pages first, then caching pages
+    const tasks: OcrTask[] = [];
+    
+    // Visible pages (high priority)
+    for (const idx of visibleIndices) {
+      const page = allPages[idx];
+      // Skip if already cached, or currently being processed
+      if (page && !ocrResults[page.id] && page.id !== currentlyProcessingId) {
+        tasks.push({ page, isCaching: false });
+      }
+    }
+    
+    // Caching pages (lower priority)
+    for (const idx of cacheIndices) {
+      const page = allPages[idx];
+      // Skip if already cached, or currently being processed
+      if (page && !ocrResults[page.id] && page.id !== currentlyProcessingId) {
+        tasks.push({ page, isCaching: true });
+      }
+    }
 
-    // Filter to pages that exist and need OCR
-    const neededPages = targetIndices
-      .map(idx => allPages[idx])
-      .filter(p => p && !ocrResults[p.id]);
-
-    // Reset batch metrics for the new view
-    if (neededPages.length > 0) {
-      setOcrBatchTotal(neededPages.length);
+    // Reset batch metrics for the new view (only count visible pages)
+    const visibleTasks = tasks.filter(t => !t.isCaching);
+    if (visibleTasks.length > 0) {
+      setOcrBatchTotal(visibleTasks.length);
       setOcrBatchDone(0);
       setOcrProgress(0);
     }
     
     // Update Queue: Replace entire queue with new priorities
     // This effectively "cancels" any pending tasks that are not in the new target set.
-    setOcrQueue(neededPages);
+    setOcrQueue(tasks);
     
     // Trigger processing
     processQueue();
@@ -172,12 +195,11 @@ export const ReaderRoute: Component = () => {
 
   // Serial Queue Processor
   const processQueue = async () => {
-    if (processingPageId()) return; // Already working
+    if (processingTask()) return; // Already working
     
     const queue = ocrQueue();
     if (queue.length === 0) {
-      setOcrBatchDone(prev => prev + 1);
-      
+      // Queue is empty - update status
       const total = ocrBatchTotal();
       if (total > 0) {
          setOcrProgress((ocrBatchDone() / total) * 100);
@@ -186,23 +208,36 @@ export const ReaderRoute: Component = () => {
       return;
     }
 
-    const page = queue[0];
+    const task = queue[0];
     setOcrQueue(q => q.slice(1)); // Pop
-    setProcessingPageId(page.id);
+    setProcessingTask(task);
     updateOverallStatus();
 
     try {
-      await performOcr(page);
+      await performOcr(task.page);
     } finally {
-      setProcessingPageId(null);
+      // Reset server OCR progress for next page
+      setServerOcrProgress(null);
+      setServerOcrMessage('');
+      
+      // Update batch done count only for visible (non-caching) tasks
+      if (!task.isCaching) {
+        setOcrBatchDone(prev => prev + 1);
+      }
+      
+      setProcessingTask(null);
       // Process next
       processQueue();
     }
   };
 
   const performOcr = async (page: PageImage) => {
+    // Reset server progress at start of each page
+    setServerOcrProgress(null);
+    setServerOcrMessage('');
+    
     // Silent background process - only update status bar text
-    // Note: status bar text is handled by updateOverallStatus based on processingPageId
+    // Note: status bar text is handled by updateOverallStatus based on processingTask
     
     try {
       let imageBlob: Blob;
@@ -249,32 +284,36 @@ export const ReaderRoute: Component = () => {
   };
 
   const updateOverallStatus = () => {
-    const currentId = processingPageId();
+    const currentTask = processingTask();
     const queue = ocrQueue();
     const visible = visiblePages();
     
     const done = ocrBatchDone();
     const total = ocrBatchTotal();
-    const progressStr = total > 0 ? ` Recognizing ${done + 1}/${total}` : '';
 
     // 1. Is a visible page processing?
-    const processingVisible = visible.find(p => p.id === currentId);
-    if (processingVisible) {
-      setOcrStatus(`OCR:${progressStr}...`);
-      return;
+    if (currentTask && !currentTask.isCaching) {
+      const processingVisible = visible.find(p => p.id === currentTask.page.id);
+      if (processingVisible) {
+        const progressStr = total > 0 ? ` ${done + 1}/${total}` : '';
+        setOcrStatus(`OCR:${progressStr}...`);
+        return;
+      }
     }
 
     // 2. Is a visible page pending in queue?
-    const pendingVisible = visible.find(p => queue.some(q => q.id === p.id));
-    if (pendingVisible) {
-      setOcrStatus(`OCR: Pending${progressStr ? progressStr : ''}...`);
+    const pendingVisibleTask = queue.find(t => !t.isCaching && visible.some(v => v.id === t.page.id));
+    if (pendingVisibleTask) {
+      const progressStr = total > 0 ? ` ${done + 1}/${total}` : '';
+      setOcrStatus(`OCR: Pending${progressStr}...`);
       return;
     }
 
-    // 3. Check if any pages are still being processed (background processing)
-    // Only show "Ready" when ALL processing is truly done
-    if (currentId || queue.length > 0) {
-      setOcrStatus(`OCR:${progressStr}...`);
+    // 3. Is caching happening in background?
+    const isCaching = (currentTask?.isCaching) || queue.some(t => t.isCaching);
+    if (isCaching) {
+      const cachingCount = queue.filter(t => t.isCaching).length + (currentTask?.isCaching ? 1 : 0);
+      setOcrStatus(`Caching ${cachingCount} page${cachingCount > 1 ? 's' : ''}...`);
       return;
     }
 
@@ -293,7 +332,7 @@ export const ReaderRoute: Component = () => {
      // Add to front of queue if not there?
      // Actually manual run usually implies "do it now".
      // We can just add to queue and trigger.
-     setOcrQueue(prev => [page, ...prev.filter(p => p.id !== page.id)]);
+     setOcrQueue(prev => [{ page, isCaching: false }, ...prev.filter(p => p.page.id !== page.id)]);
      processQueue();
   };
   // Prevent "unused" warnings - used for manual page OCR triggering
@@ -303,8 +342,10 @@ export const ReaderRoute: Component = () => {
     const visible = visiblePages();
     // Prioritize visible pages in queue
     setOcrQueue(prev => {
-        const others = prev.filter(p => !visible.find(v => v.id === p.id));
-        return [...visible, ...others];
+        const visibleIds = visible.map(v => v.id);
+        const others = prev.filter(p => !visibleIds.includes(p.page.id));
+        const visibleTasks: OcrTask[] = visible.map(p => ({ page: p, isCaching: false }));
+        return [...visibleTasks, ...others];
     });
     processQueue();
   };
@@ -325,16 +366,41 @@ export const ReaderRoute: Component = () => {
     const handleOcrStatus = (message: string) => {
       setServerOcrMessage(message);
       
+      // Parse "Recognition progress X/Y" format from Python backend
+      // Example: "Recognition progress 13/65" should become ~20%
+      const progressFractionMatch = message.match(/progress\s+(\d+)\s*\/\s*(\d+)/i);
+      if (progressFractionMatch) {
+        const current = parseInt(progressFractionMatch[1], 10);
+        const total = parseInt(progressFractionMatch[2], 10);
+        if (total > 0) {
+          const percent = Math.round((current / total) * 100);
+          setServerOcrProgress(percent);
+          return;
+        }
+      }
+      
       // Parse percentage from message like "Processing 45%" or similar
       const percentMatch = message.match(/(\d+(?:\.\d+)?)\s*%/);
       if (percentMatch) {
         setServerOcrProgress(parseFloat(percentMatch[1]));
-      } else if (message.toLowerCase().includes('loading') || message.toLowerCase().includes('starting')) {
-        // Model loading phase - show indeterminate
-        setServerOcrProgress(null);
-      } else if (message.toLowerCase().includes('done') || message.toLowerCase().includes('complete')) {
-        setServerOcrProgress(100);
+        return;
       }
+      
+      // Model loading/init phase - show indeterminate
+      if (message.toLowerCase().includes('loading') || 
+          message.toLowerCase().includes('starting') ||
+          message.toLowerCase().includes('initializing')) {
+        setServerOcrProgress(null);
+        return;
+      }
+      
+      // Done/complete - full progress
+      if (message.toLowerCase().includes('done') || message.toLowerCase().includes('complete')) {
+        setServerOcrProgress(100);
+        return;
+      }
+      
+      // Unknown message type - keep previous state
     };
     
     window.mLearnIPC.onOcrStatusUpdate(handleOcrStatus);
@@ -373,19 +439,7 @@ export const ReaderRoute: Component = () => {
 
     files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-    const newPages: PageImage[] = files.map((file, index) => ({
-      id: `page-${index}-${file.name}`,
-      src: URL.createObjectURL(file),
-      name: file.name,
-      index,
-      blob: file,
-    }));
-
-    // Clear OCR cache when loading new book
-    setOcrResults({});
-    setPages(newPages);
-
-    // Check for saved progress
+    // Check for saved progress BEFORE creating pages
     const bookName = files[0].name;
     const saved = localStorage.getItem('mlearn_recent_items');
     let startPage = 0;
@@ -402,7 +456,23 @@ export const ReaderRoute: Component = () => {
         }
     }
 
-    setCurrentPage(startPage);
+    const newPages: PageImage[] = files.map((file, index) => ({
+      id: `page-${index}-${file.name}`,
+      src: URL.createObjectURL(file),
+      name: file.name,
+      index,
+      blob: file,
+    }));
+
+    // Clear OCR cache when loading new book
+    setOcrResults({});
+    
+    // Use batch to ensure currentPage and pages update atomically
+    // This prevents the createEffect from running with stale currentPage
+    batch(() => {
+      setCurrentPage(startPage);
+      setPages(newPages);
+    });
     
     // Determine title more robustly
     const title = files[0].name.split('/').pop()?.replace(/\.[^.]+$/, '') || 'Imported Book';
@@ -564,14 +634,20 @@ export const ReaderRoute: Component = () => {
           <div class={`page-container ${pageMode()}`} ref={pageContainerRef}>
             <For each={visiblePages()}>
               {(page) => {
-                // Check if this page is being processed or is pending
-                const isProcessing = () => processingPageId() === page.id;
-                const isPending = () => ocrQueue().some(q => q.id === page.id);
+                // Check if this page is being processed or is pending (for VISIBLE pages only)
+                const currentTask = () => processingTask();
+                const isProcessing = () => {
+                  const task = currentTask();
+                  return task !== null && !task.isCaching && task.page.id === page.id;
+                };
+                const isPending = () => {
+                  return ocrQueue().some(q => !q.isCaching && q.page.id === page.id);
+                };
                 const isWaitingForOcr = () => !ocrResults[page.id] && (isProcessing() || isPending());
                 
                 // Get progress for the ring
                 // For pending: indeterminate spinning
-                // For processing: show server-side OCR progress if available, else batch progress
+                // For processing: show server-side OCR progress if available
                 const getOcrProgress = () => {
                   if (isPending()) return null; // Indeterminate
                   if (isProcessing()) {
@@ -579,12 +655,6 @@ export const ReaderRoute: Component = () => {
                     const serverProg = serverOcrProgress();
                     if (serverProg !== null) {
                       return serverProg;
-                    }
-                    // Fallback to batch progress
-                    const total = ocrBatchTotal();
-                    const done = ocrBatchDone();
-                    if (total > 0) {
-                      return Math.round((done / total) * 100);
                     }
                   }
                   return null;
@@ -598,6 +668,12 @@ export const ReaderRoute: Component = () => {
                   if (isProcessing()) {
                     const serverMsg = serverOcrMessage();
                     if (serverMsg) {
+                      // Clean up the server message for display
+                      // "Recognition progress 13/65" -> "Recognizing 13/65"
+                      const progressMatch = serverMsg.match(/progress\s+(\d+\s*\/\s*\d+)/i);
+                      if (progressMatch) {
+                        return `Recognizing ${progressMatch[1]}`;
+                      }
                       return serverMsg;
                     }
                     const total = ocrBatchTotal();
