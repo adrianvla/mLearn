@@ -1,0 +1,85 @@
+/**
+ * Subtitle Sync Component Styles
+ */
+
+.sync-subs {
+  position: fixed;
+  top: 38px;
+  right: 10px;
+  font-size: 1.5em;
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  height: 50px;
+  width: max-content;
+  background: rgba(60, 60, 60, 0.85);
+  backdrop-filter: blur(20px);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: background 0.2s, top 0.2s, right 0.2s, gap 0.2s, opacity 0.2s;
+  opacity: 1;
+  z-index: 10000; /* Above live word translator (z-index: 100) */
+}
+
+body.hide-cursor .sync-subs {
+  top: 10px;
+}
+
+.sync-subs .controls {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  padding: 10px;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.sync-subs .controls button {
+  background: transparent;
+  border: none;
+  color: #aaa;
+  font-size: 20px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-radius: 10px;
+  padding: 5px;
+  user-select: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.sync-subs .controls button:hover {
+  background: #333;
+}
+
+.sync-subs .controls button img {
+  width: 30px;
+  height: 30px;
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+}
+
+.sync-subs .controls input[type="text"] {
+  background: transparent;
+  color: #aaa;
+  border: none;
+  padding: 5px;
+  border-radius: 5px;
+  width: 100%;
+  max-width: 100px;
+  font-family: "Helvetica Neue", sans-serif;
+  font-size: 25px;
+  height: max-content;
+  text-align: center;
+}
+
+.sync-subs .controls input[type="text"]:focus {
+  outline: none;
+}
+
+.sync-subs .backward {
+  transform: rotate(180deg);
+}

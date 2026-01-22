@@ -44,9 +44,18 @@
   position: relative;
 }
 
+/* Vertical text - no wrap, proper reading order */
 .ocr-text.vertical {
   writing-mode: vertical-rl;
   text-orientation: mixed;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  overflow: visible;
+}
+
+/* Vertical box container - ensure proper sizing */
+.ocr-box.vertical-box {
+  overflow: visible;
 }
 
 .ocr-word {

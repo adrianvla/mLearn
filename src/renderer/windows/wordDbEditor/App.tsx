@@ -13,6 +13,7 @@ import {
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, type WordEntry, type TranslationOverride } from './components';
+import { SpinnerLoader } from '../../components/common';
 import './wordDbEditor.css';
 
 const WordDbEditorContent: Component = () => {
@@ -324,8 +325,7 @@ const WordDbEditorContent: Component = () => {
         <Show when={isLoading()}>
           <div class="loading-overlay">
             <div class="loading-content">
-              <div class="spinner" />
-              <p>Loading... {loadProgress()}%</p>
+              <SpinnerLoader size={40} text={`Loading... ${loadProgress()}%`} />
             </div>
           </div>
         </Show>

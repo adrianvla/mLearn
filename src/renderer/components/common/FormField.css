@@ -1,0 +1,65 @@
+/**
+ * Form Field Component Styles
+ */
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-field--horizontal {
+  flex-direction: row;
+  align-items: center;
+}
+
+.form-field--horizontal .form-field-label {
+  min-width: 100px;
+  margin-bottom: 0;
+}
+
+.form-field.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.form-field-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary, white);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.required-indicator {
+  color: var(--color-error, #ef4444);
+}
+
+.form-field-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.form-field--horizontal .form-field-control {
+  flex: 1;
+}
+
+.form-field-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+  line-height: 1.4;
+}
+
+.form-field-error {
+  font-size: 0.75rem;
+  color: var(--color-error, #ef4444);
+  line-height: 1.4;
+}
+
+.form-field.has-error .form-field-control input,
+.form-field.has-error .form-field-control textarea,
+.form-field.has-error .form-field-control select {
+  border-color: var(--color-error, #ef4444);
+}

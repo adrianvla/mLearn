@@ -27,6 +27,8 @@ export interface LanguageFeatures {
   fixedSettingKeys: (keyof Settings)[];
   /** Whether the language supports character name detection in subtitles */
   supportsCharacterNames: boolean;
+  /** Whether the language can be written vertically (CJK vertical text) */
+  supportsVerticalText: boolean;
 }
 
 // Context interface
@@ -186,6 +188,8 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       fixedSettingKeys: fixedKeys,
       // Character name detection primarily for Japanese anime subtitles
       supportsCharacterNames: isJapanese,
+      // Vertical text support for CJK languages (Japanese, Chinese, Korean)
+      supportsVerticalText: isJapanese || isChinese || isKorean,
     };
   };
 

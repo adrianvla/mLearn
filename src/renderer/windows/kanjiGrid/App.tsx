@@ -2,14 +2,21 @@
  * Kanji Grid Window
  * Displays a visual grid of kanji with learning status colors
  * Ported from showKnownKanjiGrid in stats.js
+ * 
+ * Features:
+ * - Shows all kanji from tracked words
+ * - Color-coded by learning status (known/learning/unknown)
+ * - Level pills from language data (not hardcoded)
+ * - Hover highlighting for kanji by level
  */
 
-import { Component, createSignal, For, Show, onMount, createMemo } from 'solid-js';
-import { WindowWrapper, useSettings } from '../../context';
+import { Component, createSignal, For, Show, onMount, createMemo, createEffect } from 'solid-js';
+import { WindowWrapper, useSettings, useLanguage } from '../../context';
 import {
   getWordsLearnedInApp,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
+import { SpinnerLoader } from '../../components/common';
 import './kanjiGrid.css';
 
 interface KanjiData {
@@ -21,6 +28,7 @@ interface KanjiData {
   wordsKnown: string[];
   wordsLearning: string[];
   wordsUnknown: string[];
+  level?: number; // The frequency level (e.g., 5 = N5)
 }
 
 // Check if character is kanji
@@ -67,6 +75,7 @@ function mixHex(c1: string, c2: string, t: number): string {
 
 const KanjiGridContent: Component = () => {
   const { settings } = useSettings();
+  const { wordFrequency, getFreqLevelNames, getFrequency, currentLangData } = useLanguage();
   
   const [kanjiData, setKanjiData] = createSignal<KanjiData[]>([]);
   const [hoveredKanji, setHoveredKanji] = createSignal<KanjiData | null>(null);
@@ -74,14 +83,22 @@ const KanjiGridContent: Component = () => {
   const [isLoading, setIsLoading] = createSignal(true);
   const [levelKanji, setLevelKanji] = createSignal<Record<number, Set<string>>>({});
 
-  // Level names
-  const levelNames: Record<number, string> = {
-    5: 'N1',
-    4: 'N2',
-    3: 'N3',
-    2: 'N4',
-    1: 'N5',
-  };
+  // Get dynamic level names from language data
+  const levelNames = createMemo(() => {
+    const names = getFreqLevelNames();
+    // Convert to Record<number, string> for easier iteration
+    const result: Record<number, string> = {};
+    for (const [key, value] of Object.entries(names)) {
+      result[parseInt(key)] = value;
+    }
+    return result;
+  });
+
+  // Get sorted level keys (descending, so higher levels like N1 appear first)
+  const sortedLevelKeys = createMemo(() => {
+    const keys = Object.keys(levelNames()).map(Number).filter(n => !isNaN(n));
+    return keys.sort((a, b) => b - a);
+  });
 
   // Calculate stats
   const stats = createMemo(() => {
@@ -119,10 +136,14 @@ const KanjiGridContent: Component = () => {
             '先生', '学生', '会社', '病院', '駅', '空港', '公園', '図書館',
           ].map(word => ({ word, status: Math.floor(Math.random() * 3) }));
 
-      // Process words
+      // Process words and build level-kanji mapping
       for (const { word, status } of wordsToProcess) {
         const chars = Array.from(word) as string[];
         const uniqueKanji = new Set(chars.filter(ch => isKanjiChar(ch)));
+        
+        // Get word level from frequency data
+        const freqData = getFrequency(word);
+        const wordLevel = freqData?.raw_level;
 
         for (const k of uniqueKanji) {
           if (!kanjiMap.has(k)) {
@@ -135,10 +156,23 @@ const KanjiGridContent: Component = () => {
               wordsKnown: [],
               wordsLearning: [],
               wordsUnknown: [],
+              level: wordLevel,
             });
           }
 
           const item = kanjiMap.get(k)!;
+          
+          // Track kanji by level for hover highlighting
+          if (wordLevel !== undefined) {
+            if (!levels[wordLevel]) {
+              levels[wordLevel] = new Set();
+            }
+            levels[wordLevel].add(k);
+            // Keep the highest level (lowest number = more advanced)
+            if (item.level === undefined || wordLevel < item.level) {
+              item.level = wordLevel;
+            }
+          }
           
           if (status === WORD_STATUS.KNOWN) {
             item.score += 1;
@@ -150,6 +184,41 @@ const KanjiGridContent: Component = () => {
             item.wordsLearning.push(word);
           } else {
             item.wordsUnknown.push(word);
+          }
+        }
+      }
+      
+      // Also add kanji from the frequency data (words not yet tracked)
+      // This ensures we show all kanji that exist in the language's frequency list
+      if (wordFrequency) {
+        for (const [word, data] of Object.entries(wordFrequency)) {
+          const level = data.raw_level;
+          if (level === undefined) continue;
+          
+          const chars = Array.from(word) as string[];
+          const uniqueKanji = chars.filter(ch => isKanjiChar(ch));
+          
+          for (const k of uniqueKanji) {
+            // Add to level mapping
+            if (!levels[level]) {
+              levels[level] = new Set();
+            }
+            levels[level].add(k);
+            
+            // Add kanji to map if not already present
+            if (!kanjiMap.has(k)) {
+              kanjiMap.set(k, {
+                kanji: k,
+                category: 'unknown',
+                score: 0,
+                knownCount: 0,
+                learnCount: 0,
+                wordsKnown: [],
+                wordsLearning: [],
+                wordsUnknown: [word],
+                level,
+              });
+            }
           }
         }
       }
@@ -201,8 +270,26 @@ const KanjiGridContent: Component = () => {
     return settings.dark_mode ? '#616161' : '#9E9E9E';
   };
 
+  // Check if kanji should be dimmed (not in hovered level)
+  const isKanjiDimmed = (item: KanjiData) => {
+    const level = hoveredLevel();
+    if (level === null) return false;
+    
+    const kanjiInLevel = levelKanji()[level];
+    if (!kanjiInLevel) return true;
+    
+    return !kanjiInLevel.has(item.kanji);
+  };
+
   onMount(() => {
     buildKanjiStats();
+  });
+
+  // Rebuild when language data changes
+  createEffect(() => {
+    if (currentLangData()) {
+      buildKanjiStats();
+    }
   });
 
   return (
@@ -221,7 +308,7 @@ const KanjiGridContent: Component = () => {
             <For each={kanjiData()}>
               {(item) => (
                 <div
-                  class={`kg-cell ${hoveredLevel() !== null && !levelKanji()[hoveredLevel()!]?.has(item.kanji) ? 'dimmed' : ''}`}
+                  class={`kg-cell ${isKanjiDimmed(item) ? 'dimmed' : ''}`}
                   style={{
                     background: getColorForKanji(item),
                     color: item.category !== 'unknown' ? '#111' : (settings.dark_mode ? '#ddd' : '#222'),
@@ -236,7 +323,7 @@ const KanjiGridContent: Component = () => {
           </Show>
           
           <Show when={isLoading()}>
-            <div class="loading">Loading kanji data...</div>
+            <SpinnerLoader size={40} text="Loading kanji data..." />
           </Show>
         </div>
 
@@ -269,24 +356,32 @@ const KanjiGridContent: Component = () => {
             <div>· Total Found: <b>{stats().total}</b></div>
           </div>
 
-          {/* Level Pills */}
-          <div class="kg-levels">
-            <p>Kanji contained in words per levels:</p>
-            <div class="level-pills">
-              <For each={Object.entries(levelNames)}>
-                {([level, name]) => (
-                  <button
-                    class="pill"
-                    data-level={level}
-                    onMouseEnter={() => setHoveredLevel(parseInt(level))}
-                    onMouseLeave={() => setHoveredLevel(null)}
-                  >
-                    {name}
-                  </button>
-                )}
-              </For>
+          {/* Level Pills - dynamically loaded from language data */}
+          <Show when={sortedLevelKeys().length > 0}>
+            <div class="kg-levels">
+              <p>Characters by exam level:</p>
+              <div class="level-pills">
+                <For each={sortedLevelKeys()}>
+                  {(level) => {
+                    const count = () => levelKanji()[level]?.size || 0;
+                    return (
+                      <button
+                        class={`pill ${hoveredLevel() === level ? 'active' : ''}`}
+                        data-level={level}
+                        onMouseEnter={() => setHoveredLevel(level)}
+                        onMouseLeave={() => setHoveredLevel(null)}
+                      >
+                        {levelNames()[level] || `Level ${level}`}
+                        <Show when={count() > 0}>
+                          <span class="pill-count">({count()})</span>
+                        </Show>
+                      </button>
+                    );
+                  }}
+                </For>
+              </div>
             </div>
-          </div>
+          </Show>
         </div>
       </div>
 

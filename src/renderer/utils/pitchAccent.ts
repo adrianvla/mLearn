@@ -115,3 +115,26 @@ export function buildPitchAccentHtml(info: PitchAccentInfo | null, realWordLengt
 
   return html;
 }
+
+/**
+ * Get the pitch accent pattern name (heiban, atamadaka, etc.)
+ * @param accentType The accent drop position (0 = heiban, 1 = atamadaka, etc.)
+ * @param moraCount The number of mora in the word
+ * @returns The name of the pitch accent pattern
+ */
+export function getPitchAccentName(accentType: number | undefined | null, moraCount: number): string {
+  if (accentType === undefined || accentType === null || moraCount <= 0) return '';
+  
+  switch (accentType) {
+    case 0:
+      return '平板 (Heiban)';
+    case 1:
+      return '頭高 (Atamadaka)';
+    default:
+      if (accentType === moraCount) {
+        return '尾高 (Odaka)';
+      }
+      return `中高 (Nakadaka ${accentType})`;
+  }
+}
+

@@ -230,15 +230,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return word ? getFrequency(word) : null;
   });
 
-  // Generate stars array for frequency level display (like old app)
-  const frequencyStars = createMemo(() => {
-    const freq = wordFreqEntry();
-    if (!freq || freq.raw_level === undefined) return [];
-    const level = freq.raw_level;
-    return Array.from({ length: level }, (_, i) => i);
-  });
-
-  // Cached translation data (for pitch accent)
+  // Cached translation data (for pitch accent and determining if word has hover)
   const [cachedTranslation, setCachedTranslation] = createSignal<any>(null);
   
   // Check for cached translation - poll frequently like reading cache
@@ -335,6 +327,18 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const pitchAccentHeight = createMemo(() => {
     if (!pitchAccentHtml()) return undefined;
     return isWordAllKana() ? '5px' : '2px';
+  });
+
+  // Generate stars array for frequency level display
+  // Only show when word has dictionary data (cachedTranslation exists)
+  const frequencyStars = createMemo(() => {
+    // Don't show stars unless dictionary data is available
+    if (!cachedTranslation()) return [];
+    
+    const freq = wordFreqEntry();
+    if (!freq || freq.raw_level === undefined) return [];
+    const level = freq.raw_level;
+    return Array.from({ length: level }, (_, i) => i);
   });
 
   return (

@@ -1,0 +1,82 @@
+/**
+ * OCR Progress Ring Styles
+ * Circular progress indicator with indeterminate and determinate modes
+ */
+
+.ocr-progress-ring-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ocr-progress-ring-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--glass-bg, rgba(30, 30, 30, 0.9));
+  border-radius: 12px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  backdrop-filter: var(--glass-backdrop-filter, blur(10px));
+  padding: 8px;
+}
+
+.ocr-progress-ring {
+  transform: rotate(-90deg);
+}
+
+.ocr-progress-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+.ocr-progress-ring-progress {
+  fill: none;
+  stroke: var(--accent-primary, #6366f1);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+/* Indeterminate spinning animation */
+.ocr-progress-ring.indeterminate {
+  animation: ocr-ring-spin 1.2s linear infinite;
+}
+
+.ocr-progress-ring.indeterminate .ocr-progress-ring-progress {
+  /* Show about 1/4 of the circumference visible for indeterminate */
+  stroke-dasharray: 25% 75%;
+  stroke-dashoffset: 0;
+  transition: none;
+}
+
+@keyframes ocr-ring-spin {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(270deg);
+  }
+}
+
+/* Center percentage text */
+.ocr-progress-ring-percent {
+  position: absolute;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--text-primary, white);
+  pointer-events: none;
+}
+
+/* Status text below ring */
+.ocr-progress-ring-text {
+  background: var(--glass-bg, rgba(30, 30, 30, 0.9));
+  border-radius: 12px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  backdrop-filter: var(--glass-backdrop-filter, blur(10px));
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  font-weight: 500;
+  white-space: nowrap;
+}

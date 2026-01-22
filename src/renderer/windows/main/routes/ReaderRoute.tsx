@@ -14,6 +14,7 @@ import { useSettings } from '../../../context';
 import type { Token, TranslationResponse, DictionaryEntry } from '../../../../shared/types';
 import { API_ENDPOINTS } from '../../../../shared/constants';
 import { ReaderNav, ReaderSidebar, ReaderWelcomeCard, ReaderStatusBar } from './components';
+import { OCRProgressRing } from '../../../components/common';
 import './reader.css';
 
 interface PageImage {
@@ -65,6 +66,11 @@ export const ReaderRoute: Component = () => {
   // OCR Progress Tracking
   const [ocrBatchTotal, setOcrBatchTotal] = createSignal(0);
   const [ocrBatchDone, setOcrBatchDone] = createSignal(0);
+  
+  // Server-side OCR progress (MangaOCR processing status from backend)
+  // e.g. "Processing 23%" or "Loading model..."
+  const [serverOcrProgress, setServerOcrProgress] = createSignal<number | null>(null);
+  const [serverOcrMessage, setServerOcrMessage] = createSignal<string>('');
 
   // References for OCR overlay positioning
   let pageContainerRef: HTMLDivElement | undefined;
@@ -249,26 +255,26 @@ export const ReaderRoute: Component = () => {
     
     const done = ocrBatchDone();
     const total = ocrBatchTotal();
-    const progressStr = total > 0 ? ` (${done}/${total})` : '';
+    const progressStr = total > 0 ? ` Recognizing ${done + 1}/${total}` : '';
 
     // 1. Is a visible page processing?
     const processingVisible = visible.find(p => p.id === currentId);
     if (processingVisible) {
-      setOcrStatus(`OCR: Processing${progressStr}...`);
+      setOcrStatus(`OCR:${progressStr}...`);
       return;
     }
 
     // 2. Is a visible page pending in queue?
     const pendingVisible = visible.find(p => queue.some(q => q.id === p.id));
     if (pendingVisible) {
-      setOcrStatus(`OCR: Pending${progressStr}...`);
+      setOcrStatus(`OCR: Pending${progressStr ? progressStr : ''}...`);
       return;
     }
 
     // 3. Check if any pages are still being processed (background processing)
     // Only show "Ready" when ALL processing is truly done
     if (currentId || queue.length > 0) {
-      setOcrStatus(`OCR: Background Processing${progressStr}...`);
+      setOcrStatus(`OCR:${progressStr}...`);
       return;
     }
 
@@ -283,14 +289,15 @@ export const ReaderRoute: Component = () => {
   };
 
   // Helper for manual run (force) - kept for potential future use
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _requestOcrForPage = (page: PageImage) => {
+  const requestOcrForPage = (page: PageImage) => {
      // Add to front of queue if not there?
      // Actually manual run usually implies "do it now".
      // We can just add to queue and trigger.
      setOcrQueue(prev => [page, ...prev.filter(p => p.id !== page.id)]);
      processQueue();
   };
+  // Prevent "unused" warnings - used for manual page OCR triggering
+  void requestOcrForPage;
 
   const runOcr = async () => {
     const visible = visiblePages();
@@ -309,6 +316,28 @@ export const ReaderRoute: Component = () => {
       sessionStorage.removeItem('mlearn_open_book');
       // TODO: Load book from path
     }
+  });
+  
+  // Listen to MangaOCR server status updates
+  onMount(() => {
+    if (!window.mLearnIPC?.onOcrStatusUpdate) return;
+    
+    const handleOcrStatus = (message: string) => {
+      setServerOcrMessage(message);
+      
+      // Parse percentage from message like "Processing 45%" or similar
+      const percentMatch = message.match(/(\d+(?:\.\d+)?)\s*%/);
+      if (percentMatch) {
+        setServerOcrProgress(parseFloat(percentMatch[1]));
+      } else if (message.toLowerCase().includes('loading') || message.toLowerCase().includes('starting')) {
+        // Model loading phase - show indeterminate
+        setServerOcrProgress(null);
+      } else if (message.toLowerCase().includes('done') || message.toLowerCase().includes('complete')) {
+        setServerOcrProgress(100);
+      }
+    };
+    
+    window.mLearnIPC.onOcrStatusUpdate(handleOcrStatus);
   });
 
   // Keyboard navigation
@@ -540,6 +569,47 @@ export const ReaderRoute: Component = () => {
                 const isPending = () => ocrQueue().some(q => q.id === page.id);
                 const isWaitingForOcr = () => !ocrResults[page.id] && (isProcessing() || isPending());
                 
+                // Get progress for the ring
+                // For pending: indeterminate spinning
+                // For processing: show server-side OCR progress if available, else batch progress
+                const getOcrProgress = () => {
+                  if (isPending()) return null; // Indeterminate
+                  if (isProcessing()) {
+                    // Use server-side MangaOCR progress if available
+                    const serverProg = serverOcrProgress();
+                    if (serverProg !== null) {
+                      return serverProg;
+                    }
+                    // Fallback to batch progress
+                    const total = ocrBatchTotal();
+                    const done = ocrBatchDone();
+                    if (total > 0) {
+                      return Math.round((done / total) * 100);
+                    }
+                  }
+                  return null;
+                };
+                
+                // Generate status text
+                const getStatusText = () => {
+                  if (isPending()) {
+                    return 'Pending...';
+                  }
+                  if (isProcessing()) {
+                    const serverMsg = serverOcrMessage();
+                    if (serverMsg) {
+                      return serverMsg;
+                    }
+                    const total = ocrBatchTotal();
+                    const done = ocrBatchDone();
+                    if (total > 0) {
+                      return `Processing ${done + 1}/${total}`;
+                    }
+                    return 'Processing...';
+                  }
+                  return '';
+                };
+                
                 return (
                   <div class="page">
                     <img
@@ -551,14 +621,14 @@ export const ReaderRoute: Component = () => {
                     {/* Page Processing Loader - shown while OCR is pending/processing */}
                     <Show when={isWaitingForOcr()}>
                       <div class="page-loader-overlay">
-                        <div class="page-loader">
-                          <div class="page-loader-spinner-c">
-                            <div class="page-loader-spinner"></div>
-                          </div>
-                          <span class="page-loader-text">
-                            {isProcessing() ? 'Processing...' : 'Pending...'}
-                          </span>
-                        </div>
+                        <OCRProgressRing
+                          progress={getOcrProgress() ?? 0}
+                          indeterminate={isPending() || getOcrProgress() === null}
+                          size={40}
+                          strokeWidth={3}
+                          statusText={getStatusText()}
+                          showPercent={isProcessing() && getOcrProgress() !== null}
+                        />
                       </div>
                     </Show>
                     {/* OCR Overlay for each visible page */}
@@ -593,7 +663,7 @@ export const ReaderRoute: Component = () => {
         onRunOcr={runOcr}
       />
 
-      <Show when={ocrHoverData()}>
+      <Show when={ocrHoverData() && ocrHoverData()!.token}>
         <WordHover
           token={ocrHoverData()!.token!}
           word={ocrHoverData()!.word || ocrHoverData()!.token?.surface || ocrHoverData()!.token?.word || ''}
@@ -605,7 +675,30 @@ export const ReaderRoute: Component = () => {
           isOCR={true}
           contextPhrase={ocrContextPhrase()}
           ocrImageElement={(() => {
-            // Get the first visible page's image element for OCR screenshot
+            // Find the correct page image based on anchor position
+            // This is crucial for double-page mode where words could be on either page
+            const anchorRect = ocrHoverData()!.anchorRect;
+            if (anchorRect) {
+              const anchorCenterX = (anchorRect.left + anchorRect.right) / 2;
+              const anchorCenterY = (anchorRect.top + anchorRect.bottom) / 2;
+              
+              // Check each visible page's image to find the one containing the anchor
+              const visible = visiblePages();
+              for (const page of visible) {
+                const imgEl = imageRefs()[page.id];
+                if (imgEl) {
+                  const imgRect = imgEl.getBoundingClientRect();
+                  if (
+                    anchorCenterX >= imgRect.left && anchorCenterX <= imgRect.right &&
+                    anchorCenterY >= imgRect.top && anchorCenterY <= imgRect.bottom
+                  ) {
+                    return imgEl;
+                  }
+                }
+              }
+            }
+            
+            // Fallback to first visible page
             const visible = visiblePages();
             if (visible.length > 0) {
               return imageRefs()[visible[0].id] || null;

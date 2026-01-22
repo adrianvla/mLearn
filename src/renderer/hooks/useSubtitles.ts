@@ -7,6 +7,7 @@ import { createSignal, createMemo } from 'solid-js';
 import type { Subtitle, Token } from '../../shared/types';
 import { useSettings } from '../context';
 import { useTokenizer } from './useTranslation';
+import { parseSubtitle } from '../utils/subtitleParsing';
 
 // Parse SRT format subtitles
 function parseSRT(content: string): Subtitle[] {
@@ -277,11 +278,28 @@ export function useSubtitles() {
     };
 
     try {
-      const newTokens = await tokenize(sub.text);
+      // Parse subtitle for inline furigana annotations like 百夜優一郎(ひゃくやゆういちろう)
+      // This extracts reading overrides and cleans the text
+      const { text: cleanedText, readingOverrides } = parseSubtitle(sub.text);
+      
+      const newTokens = await tokenize(cleanedText);
       if (Array.isArray(newTokens) && newTokens.length > 0) {
+        // Apply reading overrides from inline annotations
+        if (readingOverrides.length > 0) {
+          for (const token of newTokens) {
+            const override = readingOverrides.find(o => 
+              o.word === token.word || 
+              o.word === token.surface || 
+              o.word === token.actual_word
+            );
+            if (override) {
+              token.reading = override.reading;
+            }
+          }
+        }
         setTokens(newTokens);
       } else {
-        setTokens(buildFallbackTokens(sub.text));
+        setTokens(buildFallbackTokens(cleanedText));
       }
     } catch (e) {
       console.error('Tokenization failed:', e);

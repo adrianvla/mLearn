@@ -151,6 +151,17 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             </div>
           </Show>
 
+          {/* Screenshot image - ALWAYS shown, even before reveal (like old app) */}
+          <Show when={content().screenshotUrl && content().screenshotUrl !== '-' && content().screenshotUrl !== ''}>
+            <div class="flashcard-screenshot-container flashcard-screenshot-front">
+              <img 
+                src={content().screenshotUrl} 
+                alt="Screenshot" 
+                class="flashcard-screenshot"
+              />
+            </div>
+          </Show>
+
           <Show when={content().example && content().example !== '-'}>
             <div class="flashcard-example" innerHTML={content().example} />
           </Show>
@@ -200,7 +211,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             </div>
           </Show>
 
-          {/* Screenshot image */}
+          {/* Screenshot image - also on back for reference */}
           <Show when={content().screenshotUrl && content().screenshotUrl !== '-' && content().screenshotUrl !== ''}>
             <div class="flashcard-screenshot-container">
               <img 

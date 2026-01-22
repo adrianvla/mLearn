@@ -1,22 +1,25 @@
 /**
  * Settings Modal Component
  * Comprehensive settings dialog with 7 tabs ported from the original mLearn app
+ * Matches legacy layout: navbar on top with icons, scrollable content below
  */
 
-import { Component, createSignal, Show, For, onMount, createEffect } from 'solid-js';
+import { Component, createSignal, Show, For, onMount, createEffect, onCleanup } from 'solid-js';
 import { useSettings, useLanguage } from '../../context';
 import { GlassModal, GlassButton, GlassInput, GlassPanel } from '../common';
 import type { Settings } from '../../../shared/types';
 import { SUBTITLE_THEMES, type SubtitleTheme } from '../../../shared/constants';
 import './settings.css';
 
-// Settings categories with their fields
+// Settings categories with their fields - matches old IN_SETTINGS_CATEGORY
 const SETTINGS_CATEGORIES = {
   General: [
     'language',
+    'stats',
     'install_languages',
-    'restoreDefaults',
+    'activate_license',
     'save',
+    'restoreDefaults',
   ],
   Behaviour: [
     'known_ease_threshold',
@@ -33,12 +36,16 @@ const SETTINGS_CATEGORIES = {
     'openAside',
     'showPitchAccent',
     'devMode',
+    'save',
+    'restoreDefaults',
   ],
   Customization: [
     'dark_mode',
     'subtitleTheme',
     'subtitle_font_size',
     'subtitle_font_weight',
+    'save',
+    'restoreDefaults',
   ],
   SRS: [
     'use_anki',
@@ -46,6 +53,7 @@ const SETTINGS_CATEGORIES = {
     'enable_flashcard_creation',
     'flashcards_add_picture',
     'flashcard_deck',
+    'anki_model_display',
     'anki_field_expression',
     'anki_field_reading',
     'anki_field_meaning',
@@ -54,23 +62,36 @@ const SETTINGS_CATEGORIES = {
     'preparedExam',
     'createUnseenCards',
     'resetSRS',
+    'save',
+    'restoreDefaults',
   ],
-  Reader: ['ocr_crop_padding'],
+  Reader: ['ocr_crop_padding', 'save', 'restoreDefaults'],
   Stats: [],
   About: [],
 } as const;
 
 type CategoryName = keyof typeof SETTINGS_CATEGORIES;
 
-// Icons for categories
+// Icon paths for categories - using actual SVG icons instead of emojis
 const CATEGORY_ICONS: Record<CategoryName, string> = {
-  General: '⚙️',
-  Behaviour: '📝',
-  Customization: '🎨',
-  SRS: '📚',
-  Reader: '📖',
-  Stats: '📊',
-  About: 'ℹ️',
+  General: 'assets/icons/cog.svg',
+  Behaviour: 'assets/icons/subtitles.svg',
+  Customization: 'assets/icons/palette.svg',
+  SRS: 'assets/icons/cards.svg',
+  Reader: 'assets/icons/book.svg',
+  Stats: 'assets/icons/stats.svg',
+  About: 'assets/icons/document.svg',
+};
+
+// Display names for categories (can differ from key)
+const CATEGORY_NAMES: Record<CategoryName, string> = {
+  General: 'General',
+  Behaviour: 'Behaviour',
+  Customization: 'Appearance',
+  SRS: 'Flashcards',
+  Reader: 'Reader',
+  Stats: 'Stats',
+  About: 'About',
 };
 
 interface SettingsModalProps {
@@ -754,10 +775,11 @@ export const SettingsModal: Component<SettingsModalProps> = (props) => {
       );
     }
 
-    // Default category rendering
+    // Default category rendering - two column layout like old app
+    const categoryKeys = SETTINGS_CATEGORIES[category];
     return (
       <div class="settings-list">
-        <For each={SETTINGS_CATEGORIES[category]}>
+        <For each={categoryKeys}>
           {(key) => renderSettingInput(key)}
         </For>
       </div>
@@ -770,9 +792,10 @@ export const SettingsModal: Component<SettingsModalProps> = (props) => {
       onClose={props.onClose}
       title="Settings"
       size="xl"
+      fullHeight
     >
-      <div class="settings-container">
-        {/* Navigation sidebar */}
+      <div class="settings-outer">
+        {/* Navigation bar at top - matches old .nav style with icons */}
         <nav class="settings-nav">
           <For each={Object.keys(SETTINGS_CATEGORIES) as CategoryName[]}>
             {(category) => (
@@ -780,17 +803,18 @@ export const SettingsModal: Component<SettingsModalProps> = (props) => {
                 class={`nav-item ${activeTab() === category ? 'selected' : ''}`}
                 onClick={() => setActiveTab(category)}
               >
-                <span class="nav-icon">{CATEGORY_ICONS[category]}</span>
-                <span class="nav-label">{category}</span>
+                <img class="nav-icon" src={CATEGORY_ICONS[category]} alt={category} />
+                <span class="nav-label">{CATEGORY_NAMES[category]}</span>
               </button>
             )}
           </For>
         </nav>
 
-        {/* Content area */}
-        <div class="settings-content">
-          <h3 class="content-title">{activeTab()}</h3>
-          {renderCategoryContent(activeTab())}
+        {/* Content area with scrolling */}
+        <div class="settings-container">
+          <div class="settings-content">
+            {renderCategoryContent(activeTab())}
+          </div>
         </div>
       </div>
 

@@ -7,13 +7,14 @@ import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup
 import type { Token } from '../../../shared/types';
 import { useTokenizer, warmTranslationCache } from '../../hooks';
 import { useLanguage, useSettings } from '../../context';
-import { buildOcrContextMap } from '../../utils/ocrUtils';
+import { buildOcrContextMap, filterNarrowBoxes } from '../../utils/ocrUtils';
 import './OcrOverlay.css';
 
 export interface OcrBox {
   box: number[][];  // [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
   text: string;
   score?: number;
+  __originalIdx?: number; // Added to track original index after filtering
 }
 
 export interface OcrResult {
@@ -99,11 +100,12 @@ function estimateFontSize(text: string, width: number, height: number, vertical:
 export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const [hoveredBox, setHoveredBox] = createSignal<OcrBox | null>(null);
   const { tokenize } = useTokenizer();
-  const { isTranslatable } = useLanguage();
+  const { isTranslatable, getLanguageFeatures } = useLanguage();
   const { settings } = useSettings();
   const [tokenMap, setTokenMap] = createSignal<Map<number, Token[]>>(new Map());
   const [contextMap, setContextMap] = createSignal<Map<number, string>>(new Map());
   const [observedWidth, setObservedWidth] = createSignal(0);
+  const [observedHeight, setObservedHeight] = createSignal(0);
 
   createEffect(() => {
     const el = props.imageElement;
@@ -111,10 +113,12 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     
     // Set initial
     setObservedWidth(el.clientWidth || el.naturalWidth);
+    setObservedHeight(el.clientHeight || el.naturalHeight);
     
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setObservedWidth(entry.contentRect.width);
+        setObservedHeight(entry.contentRect.height);
       }
     });
     observer.observe(el);
@@ -130,6 +134,43 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     return sentWidth > 0 ? displayedWidth / sentWidth : 1;
   });
 
+  // Filter boxes to remove furigana - this is the main list to render
+  // Add __originalIdx to track indices for context map lookup
+  const filteredBoxes = createMemo(() => {
+    const result = props.result;
+    if (!result || !Array.isArray(result.boxes)) return [];
+    
+    // Add original index tracking before filtering
+    const boxesWithIdx: OcrBox[] = result.boxes.map((box, idx) => ({
+      ...box,
+      __originalIdx: idx,
+    }));
+    
+    // Filter out narrow furigana boxes (like old app does)
+    // This prevents furigana from being hoverable
+    const filtered = filterNarrowBoxes(boxesWithIdx, {
+      ratio: settings.ocrFuriganaWidthRatio,
+      neighborWindowMultiplier: settings.ocrFuriganaNeighborWindowMultiplier,
+      neighborLookahead: settings.ocrFuriganaNeighborLookahead,
+    });
+    
+    return filtered;
+  });
+
+  // Build context map from filtered boxes
+  createEffect(() => {
+    const boxes = filteredBoxes();
+    if (!boxes || boxes.length === 0) {
+      setContextMap(new Map());
+      return;
+    }
+    
+    // Build context map for neighboring text boxes
+    // The map is indexed by position in filteredBoxes array
+    const ctx = buildOcrContextMap(boxes);
+    setContextMap(ctx);
+  });
+
   const handleBoxClick = (box: OcrBox, event: MouseEvent) => {
     const target = event.currentTarget as HTMLElement;
     if (props.onBoxClick) {
@@ -137,22 +178,10 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     }
   };
 
-  // Build context map when OCR result changes
+  // Tokenize filtered boxes and build token map
   createEffect(() => {
-    const result = props.result;
-    if (!result || !Array.isArray(result.boxes)) {
-      setContextMap(new Map());
-      return;
-    }
-    
-    // Build context map for neighboring text boxes
-    const ctx = buildOcrContextMap(result.boxes);
-    setContextMap(ctx);
-  });
-
-  createEffect(() => {
-    const result = props.result;
-    if (!result || !Array.isArray(result.boxes)) {
+    const boxes = filteredBoxes();
+    if (!boxes || boxes.length === 0) {
       setTokenMap(new Map());
       return;
     }
@@ -160,7 +189,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     setTokenMap(next);
     
     // Tokenize all boxes and pre-warm translation cache
-    result.boxes.forEach((box, idx) => {
+    boxes.forEach((box, idx) => {
       if (!box?.text || !box.text.trim()) return;
       tokenize(box.text)
         .then(async (tokens) => {
@@ -170,8 +199,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
             return updated;
           });
           
-          // Pre-warm translation cache for translatable words (like old app's warmTokeniseCache)
-          // This allows hovering over words before OCR completes
+          // Pre-warm translation cache for translatable words
           const translatableWords = (tokens as Token[])
             .filter((t) => t.actual_word && isTranslatable(t.type))
             .map((t) => t.actual_word);
@@ -201,34 +229,41 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     
     const target = e.currentTarget as HTMLElement;
     // Get context phrase from context map (stitched from neighboring boxes)
+    // boxIndex is the index in filteredBoxes array
     const context = contextMap().get(boxIndex) || '';
     props.onWordHover?.(token, target.getBoundingClientRect(), context);
   };
 
+  // Check if vertical text is supported by the current language
+  const langFeatures = createMemo(() => getLanguageFeatures());
+
   return (
-    <Show when={props.visible !== false && props.result && props.result.boxes.length > 0}>
+    <Show when={props.visible !== false && filteredBoxes().length > 0}>
       <div 
         class="ocr-overlay"
         style={{
           left: '0px',
           top: '0px',
-          width: props.imageElement ? `${props.imageElement.clientWidth}px` : '100%',
-          height: props.imageElement ? `${props.imageElement.clientHeight}px` : '100%',
+          width: `${observedWidth() || (props.imageElement?.clientWidth ?? 0)}px`,
+          height: `${observedHeight() || (props.imageElement?.clientHeight ?? 0)}px`,
           opacity: 1,
         }}
       >
-        <For each={props.result?.boxes || []}>
+        <For each={filteredBoxes()}>
           {(box, index) => {
             const rect = getBoundingRect(box.box);
             const scale = scaleFactor();
             const isHovered = hoveredBox() === box;
+            // Detect vertical text based on aspect ratio
             const isVertical = rect.height > rect.width * 1.2;
+            // Only use vertical styling if language supports it
+            const useVerticalLayout = isVertical && langFeatures().supportsVerticalText;
             const tokens = () => tokenMap().get(index()) || [];
-            const fontSize = () => estimateFontSize(box.text || '', rect.width * scale, rect.height * scale, isVertical);
+            const fontSize = () => estimateFontSize(box.text || '', rect.width * scale, rect.height * scale, useVerticalLayout);
             
             return (
               <div
-                class={`ocr-box ${isHovered ? 'hovered' : ''}`}
+                class={`ocr-box ${isHovered ? 'hovered' : ''} ${useVerticalLayout ? 'vertical-box' : ''}`}
                 style={{
                   left: `${rect.x * scale}px`,
                   top: `${rect.y * scale}px`,
@@ -241,11 +276,13 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                 title={box.text}
               >
                 <div
-                  class={`ocr-text ${isVertical ? 'vertical' : ''}`}
+                  class={`ocr-text ${useVerticalLayout ? 'vertical' : ''}`}
                   style={{
-                    'writing-mode': isVertical ? 'vertical-rl' : 'horizontal-tb',
-                    'text-orientation': isVertical ? 'mixed' : 'initial',
+                    'writing-mode': useVerticalLayout ? 'vertical-rl' : 'horizontal-tb',
+                    'text-orientation': useVerticalLayout ? 'mixed' : 'initial',
                     'font-size': `${fontSize()}px`,
+                    // Prevent text wrapping for vertical text
+                    'white-space': useVerticalLayout ? 'nowrap' : 'normal',
                   }}
                 >
                   <Show when={tokens().length > 0} fallback={box.text}>

@@ -6,7 +6,7 @@
 
 import { Component, createSignal, onMount, Show, createEffect } from 'solid-js';
 import { useTranslation } from '../../../hooks/useTranslation';
-import { GlassButton, GlassInput, GlassModal } from '../../../components/common';
+import { GlassButton, GlassInput, GlassModal, SpinnerLoader } from '../../../components/common';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
 import './EditTranslationDialog.css';
 
@@ -239,7 +239,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
       title={`Edit translation – ${props.word}`}
     >
       <Show when={isLoading()}>
-        <div class="loading-state">Loading...</div>
+        <SpinnerLoader size={32} text="Loading..." />
       </Show>
       
       <Show when={!isLoading()}>

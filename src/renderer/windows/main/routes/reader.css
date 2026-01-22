@@ -411,10 +411,11 @@
   right: 0;
   bottom: 0;
   display: flex;
-  align-items: end;
-  justify-content: end;
+  align-items: flex-end;
+  justify-content: flex-end;
   z-index: 5;
   pointer-events: none;
+  padding: 1rem;
 }
 
 .page-loader {
@@ -430,8 +431,53 @@
   border: 1px solid var(--glass-border);
   backdrop-filter: var(--glass-backdrop-filter);
   padding:8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
+/* Progress Ring - SVG-based circular progress */
+.page-loader-ring {
+  width: 40px;
+  height: 40px;
+  transform: rotate(-90deg);
+}
+
+.page-loader-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 3;
+}
+
+.page-loader-ring-progress {
+  fill: none;
+  stroke: var(--accent-primary);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+/* Indeterminate spinning animation */
+.page-loader-ring.indeterminate {
+  animation: ring-spin 1.2s linear infinite;
+}
+
+.page-loader-ring.indeterminate .page-loader-ring-progress {
+  stroke-dasharray: 31.4 94.2; /* ~1/4 of the circumference visible */
+  stroke-dashoffset: 0;
+  transition: none;
+}
+
+@keyframes ring-spin {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(270deg);
+  }
+}
+
+/* Legacy spinner fallback - kept for compatibility */
 .page-loader-spinner {
   width: 32px;
   height: 32px;
