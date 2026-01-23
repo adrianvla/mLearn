@@ -167,11 +167,11 @@
   font-size: 0.75rem;
 }
 
-.level-pills .pill[data-level="5"] { color: #e91e63; }
-.level-pills .pill[data-level="4"] { color: #9c27b0; }
-.level-pills .pill[data-level="3"] { color: #673ab7; }
-.level-pills .pill[data-level="2"] { color: #3f51b5; }
-.level-pills .pill[data-level="1"] { color: #2196f3; }
+.level-pills .pill[data-level="5"] { color: var(--pill-level-5-text); }
+.level-pills .pill[data-level="4"] { color: var(--pos-adverb); }
+.level-pills .pill[data-level="3"] { color: var(--pos-auxiliary); }
+.level-pills .pill[data-level="2"] { color: var(--color-primary); }
+.level-pills .pill[data-level="1"] { color: var(--color-info); }
 
 /* Tooltip */
 .kg-tooltip {
@@ -213,17 +213,17 @@
 }
 
 .word-pill.known {
-  background: #4CAF50;
+  background: var(--color-success);
   color: white;
 }
 
 .word-pill.learning {
-  background: #FF9800;
+  background: var(--color-warning);
   color: white;
 }
 
 .word-pill.unknown {
-  background: #9E9E9E;
+  background: var(--pos-particle);
   color: white;
 }
 

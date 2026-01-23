@@ -101,7 +101,7 @@ body.hide-cursor .live-word-translator {
 
 /* Individual card styling - matches legacy .aside .card exactly */
 .live-word-translator .card {
-  background-color: rgba(60, 60, 60, 0.60);
+  background-color: var(--glass-bg);
   backdrop-filter: blur(20px) saturate(180%);
   padding-inline: 20px;
   width: 300px;
@@ -111,7 +111,7 @@ body.hide-cursor .live-word-translator {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: #aaa;
+  color: var(--text-secondary);
   font-family: "Helvetica Neue", sans-serif;
   font-size: 12px;
   gap: 10px;
@@ -140,7 +140,7 @@ body.hide-cursor .live-word-translator {
   text-align: center;
   font-family: "Helvetica Neue", sans-serif;
   font-size: 12px;
-  color: #aaa;
+  color: var(--text-secondary);
 }
 
 /* Translation h1 styling - left side */
@@ -179,7 +179,7 @@ body.hide-cursor .live-word-translator {
 }
 .aside-card .card-reading {
   font-size: 12px;
-  color: #aaa;
+  color: var(--text-secondary);
   margin: 0;
   text-align: center;
   display: flex;
@@ -193,7 +193,7 @@ body.hide-cursor .live-word-translator {
 .aside-card .card-word {
   font-size: 18px;
   font-weight: 500;
-  color: #fff;
+  color: var(--text-primary);
 }
 
 /* Kana reading display - shown below the word */

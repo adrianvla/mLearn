@@ -6,7 +6,7 @@
 .ocr-progress-ring-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: end;
   gap: 0.5rem;
 }
 
@@ -15,10 +15,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--glass-bg, rgba(30, 30, 30, 0.9));
+  background: var(--glass-bg);
   border-radius: 12px;
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-  backdrop-filter: var(--glass-backdrop-filter, blur(10px));
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-backdrop-filter);
   padding: 8px;
 }
 
@@ -28,12 +28,12 @@
 
 .ocr-progress-ring-track {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.15);
+  stroke: var(--glass-accent-bg);
 }
 
 .ocr-progress-ring-progress {
   fill: none;
-  stroke: var(--accent-primary, #6366f1);
+  stroke: var(--glass-accent);
   stroke-linecap: round;
   transition: stroke-dashoffset 0.3s ease;
 }
@@ -45,7 +45,7 @@
 
 .ocr-progress-ring.indeterminate .ocr-progress-ring-progress {
   /* White color for indeterminate spinner */
-  stroke: rgba(255, 255, 255, 0.95);
+  stroke: var(--glass-accent);
   /* Show about 1/4 of the circumference visible for indeterminate */
   stroke-dasharray: 25% 75%;
   stroke-dashoffset: 0;
@@ -65,24 +65,15 @@
   }
 }
 
-/* Center percentage text */
-.ocr-progress-ring-percent {
-  position: absolute;
-  font-size: 0.6rem;
-  font-weight: 600;
-  color: var(--text-primary, white);
-  pointer-events: none;
-}
-
 /* Status text below ring */
 .ocr-progress-ring-text {
-  background: var(--glass-bg, rgba(30, 30, 30, 0.9));
+  background: var(--glass-bg);
   border-radius: 12px;
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-  backdrop-filter: var(--glass-backdrop-filter, blur(10px));
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-backdrop-filter);
   padding: 4px 8px;
   font-size: 0.85rem;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  color: var(--text-secondary);
   font-weight: 500;
   white-space: nowrap;
 }

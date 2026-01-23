@@ -1,5 +1,6 @@
 /**
  * Reader Navigation Component Styles
+ * Uses CSS variables from index.css for consistent theming
  */
 
 .reader-nav {
@@ -22,8 +23,8 @@
 
 .reader-nav .nav-btn {
   padding: 0.5rem 0.75rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--glass-button-bg);
+  border: 1px solid var(--glass-button-border);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   cursor: pointer;
@@ -32,8 +33,8 @@
 }
 
 .reader-nav .nav-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: var(--glass-button-bg-hover);
+  border-color: var(--glass-button-border-hover);
 }
 
 .reader-nav .sidebar-btn {
@@ -61,8 +62,8 @@
 
 .reader-nav .glass-select {
   padding: 0.4rem 0.75rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--glass-button-bg);
+  border: 1px solid var(--glass-button-border);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: 0.85rem;
@@ -70,7 +71,7 @@
 }
 
 .reader-nav .glass-select:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--glass-button-bg-hover);
 }
 
 .reader-nav .nav-arrows {
