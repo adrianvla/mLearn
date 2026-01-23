@@ -4,7 +4,7 @@
  */
 
 import { createSignal, createResource } from 'solid-js';
-import type { TranslationResponse, TranslationEntry } from '../../shared/types';
+import type { TranslationResponse, TranslationEntry, DictionaryEntry } from '../../shared/types';
 import { useSettings } from '../context';
 
 // Translation cache - globally accessible for all components
@@ -220,8 +220,6 @@ export function useTokenizer() {
 
   return { tokenize };
 }
-
-import type { DictionaryEntry, TranslationEntry } from '../../shared/types';
 
 export function useDictionary() {
   const { settings } = useSettings();

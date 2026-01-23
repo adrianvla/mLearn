@@ -19,6 +19,8 @@ export interface GlassModalProps {
   showCloseButton?: boolean;
   footer?: JSX.Element;
   children?: JSX.Element;
+  /** Whether the modal should take full viewport height (minus padding) */
+  fullHeight?: boolean;
 }
 
 export const GlassModal: Component<GlassModalProps> = (props) => {
@@ -28,6 +30,7 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
       closeOnEscape: true,
       closeOnOverlay: true,
       showCloseButton: true,
+      fullHeight: false,
     },
     props
   );
@@ -43,6 +46,7 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
     'showCloseButton',
     'footer',
     'children',
+    'fullHeight',
   ]);
 
   // Handle escape key
@@ -103,7 +107,8 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
   const modalStyle = (): JSX.CSSProperties => ({
     'max-width': getMaxWidth(),
     width: '100%',
-    'max-height': local.size === 'full' ? 'calc(100vh - 2rem)' : '90vh',
+    'max-height': local.fullHeight ? 'calc(100vh - 2rem)' : local.size === 'full' ? 'calc(100vh - 2rem)' : '90vh',
+    height: local.fullHeight ? 'calc(100vh - 2rem)' : 'auto',
     display: 'flex',
     'flex-direction': 'column',
     animation: 'slideUp 0.2s ease',

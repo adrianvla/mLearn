@@ -278,8 +278,7 @@ const WelcomeContent: Component = () => {
 
       {/* Progress bar */}
       <ProgressBar 
-        value={progress()} 
-        max={100} 
+        progress={progress()} 
         style={{ width: '100%', 'max-width': '500px', 'margin-bottom': '1rem' }}
       />
 
@@ -356,7 +355,7 @@ const WelcomeContent: Component = () => {
                   onClick={() => setSelectedLanguage(lang.code)}
                   icon={lang.flag}
                   title={lang.name}
-                  description={lang.available ? lang.nativeName : 'Coming soon'}
+                  subtitle={lang.available ? lang.nativeName : 'Coming soon'}
                 />
               )}
             </For>
@@ -371,18 +370,18 @@ const WelcomeContent: Component = () => {
             size="md"
             autoScroll={true}
             showTimestamps={false}
-            maxHeight="150px"
+            height="150px"
           />
         </Show>
 
         {/* Network error alert */}
         <Show when={networkError()}>
           <AlertBanner
-            type="error"
+            variant="error"
             title="Network Error"
             message={networkError()!}
-            dismissible
-            onDismiss={() => setNetworkError(null)}
+            closable
+            onClose={() => setNetworkError(null)}
           />
         </Show>
 

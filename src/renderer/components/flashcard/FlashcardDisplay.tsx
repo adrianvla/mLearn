@@ -186,22 +186,22 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           {/* Translation (answer) */}
           <div 
             class="flashcard-translation" 
-            innerHTML={
-              Array.isArray(content().translation) 
-                ? content().translation?.join(', ') 
-                : (content().translation || '')
-            } 
+            innerHTML={(() => {
+              const trans = content().translation;
+              if (Array.isArray(trans)) return trans.join(', ');
+              return trans || '';
+            })()} 
           />
           
           {/* Definition (more detailed, shown below translation like old app) */}
           <Show when={content().definition && content().definition !== content().translation}>
             <div 
               class="flashcard-definition" 
-              innerHTML={
-                Array.isArray(content().definition) 
-                  ? content().definition?.join('<br/>') 
-                  : (content().definition || '')
-              } 
+              innerHTML={(() => {
+                const def = content().definition;
+                if (Array.isArray(def)) return def.join('<br/>');
+                return def || '';
+              })()} 
             />
           </Show>
 

@@ -4,7 +4,6 @@
 
 import { Component, createSignal, onMount } from 'solid-js';
 import { TabContent } from '../../../components/common';
-import { IPC_CHANNELS } from '../../../../shared/constants';
 import './AboutTab.css';
 
 export const AboutTab: Component = () => {

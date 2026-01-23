@@ -6,7 +6,7 @@
  * Layout: Translation/definition (h1) on left, Reading (p) on right
  */
 
-import { Component, createSignal, For, Show, onCleanup, createEffect } from 'solid-js';
+import { Component, createSignal, For, onCleanup, createEffect } from 'solid-js';
 import { useSettings } from '../../context';
 import { PanelHeader } from '../common';
 import { IPC_CHANNELS } from '../../../shared/constants';
@@ -20,7 +20,7 @@ interface TranslationCard {
 }
 
 export const LiveWordTranslator: Component = () => {
-  const { settings, updateSetting } = useSettings();
+  const { updateSetting } = useSettings();
   const [isVisible, setIsVisible] = createSignal(false);
   const [cards, setCards] = createSignal<TranslationCard[]>([]);
   const [isHovered, setIsHovered] = createSignal(false);
