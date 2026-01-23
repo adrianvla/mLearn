@@ -221,12 +221,12 @@
 
 /* Highlighted word in example (the word being studied) */
 .flashcard-example .defined {
-  color: #ff5ec7;
+  color: var(--flashcard-highlight-dark);
   font-weight: bold;
 }
 
 body:not(.dark) .flashcard-example .defined {
-  color: #356ee8;
+  color: var(--flashcard-highlight-light);
 }
 
 /* Dictionary definition HTML styling */

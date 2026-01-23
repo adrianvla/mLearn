@@ -1,6 +1,6 @@
 /**
  * Pill Component Styles
- * Exact match with legacy style.css .pill styling
+ * Uses CSS variables from index.css for consistent theming
  */
 
 /* Base pill style */
@@ -14,9 +14,9 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  /* Default pink/magenta color */
-  color: rgb(255, 60, 170);
-  background-color: rgb(255, 223, 239);
+  /* Default pink/magenta color - uses CSS variable */
+  color: var(--pill-default-text);
+  background-color: var(--pill-default-bg);
   box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset,
     rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
   z-index: 1;
@@ -59,8 +59,8 @@
 .pill[data-level="1"],
 .pill[level="1"],
 .pill.red {
-  color: rgb(255, 60, 89);
-  background-color: rgb(255, 223, 228);
+  color: var(--pill-level-1-text);
+  background-color: var(--pill-level-1-bg);
 }
 
 .pill[data-level="1"] img,
@@ -74,8 +74,8 @@
 .pill[data-level="2"],
 .pill[level="2"],
 .pill.blue {
-  color: rgb(60, 145, 255);
-  background-color: rgb(223, 244, 255);
+  color: var(--pill-level-2-text);
+  background-color: var(--pill-level-2-bg);
 }
 
 .pill[data-level="2"] img,
@@ -89,8 +89,8 @@
 .pill[data-level="3"],
 .pill[level="3"],
 .pill.green {
-  color: rgb(66, 214, 49);
-  background-color: rgb(219, 243, 213);
+  color: var(--pill-level-3-text);
+  background-color: var(--pill-level-3-bg);
 }
 
 .pill[data-level="3"] img,
@@ -104,8 +104,8 @@
 .pill[data-level="4"],
 .pill[level="4"],
 .pill.orange {
-  color: rgb(255, 141, 60);
-  background-color: rgb(255, 236, 223);
+  color: var(--pill-level-4-text);
+  background-color: var(--pill-level-4-bg);
 }
 
 .pill[data-level="4"] img,
@@ -119,8 +119,8 @@
 .pill[data-level="5"],
 .pill[level="5"],
 .pill.purple {
-  color: rgb(255, 60, 252);
-  background-color: rgb(254, 223, 255);
+  color: var(--pill-level-5-text);
+  background-color: var(--pill-level-5-bg);
 }
 
 .pill[data-level="5"] img,
@@ -134,8 +134,8 @@
 .pill[data-level="6"],
 .pill[level="6"],
 .pill.yellow {
-  color: rgb(120, 99, 27);
-  background-color: rgb(230, 223, 195);
+  color: var(--pill-level-6-text);
+  background-color: var(--pill-level-6-bg);
 }
 
 .pill[data-level="6"] img,
@@ -149,8 +149,8 @@
 .pill[data-level="7"],
 .pill[level="7"],
 .pill.gray {
-  color: rgb(124, 124, 124);
-  background-color: rgb(230, 230, 230);
+  color: var(--pill-level-7-text);
+  background-color: var(--pill-level-7-bg);
 }
 
 .pill[data-level="7"] img,
@@ -211,7 +211,7 @@ body.dark .pill {
   top: 0;
   left: 0;
   transform: translate(-50%, -50%);
-  filter: drop-shadow(0px 0px 10px #ff0000) drop-shadow(1px 1px 0px #100);
+  filter: drop-shadow(0px 0px 10px var(--color-error)) drop-shadow(1px 1px 0px rgba(16, 0, 0, 1));
   z-index: -1;
 }
 

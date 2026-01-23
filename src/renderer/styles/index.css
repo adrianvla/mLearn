@@ -33,6 +33,8 @@
   /* ========== Glassmorphism ========== */
   --glass-bg: rgba(60, 60, 60, 0.5);
   --glass-bg-light: rgba(255, 255, 255, 0.7);
+  --glass-accent-bg: rgba(255, 255, 255, 0.2);
+  --glass-accent: rgba(255, 255, 255, 0.8);
   --glass-blur: 10px;
   --glass-backdrop-filter: blur(var(--glass-blur)) saturate(2) brightness(0.8);
   --glass-border: rgba(255, 255, 255, 0.1);
@@ -141,6 +143,66 @@
   --freq-level-3: #cd7f32;
   --freq-level-2: #4a90d9;
   --freq-level-1: #9b59b6;
+
+  /* ========== Pill Level Colors (Light/Default) ========== */
+  /* Level 1 - Red */
+  --pill-level-1-text: rgb(255, 60, 89);
+  --pill-level-1-bg: rgb(255, 223, 228);
+  /* Level 2 - Blue */
+  --pill-level-2-text: rgb(60, 145, 255);
+  --pill-level-2-bg: rgb(223, 244, 255);
+  /* Level 3 - Green */
+  --pill-level-3-text: rgb(66, 214, 49);
+  --pill-level-3-bg: rgb(219, 243, 213);
+  /* Level 4 - Orange */
+  --pill-level-4-text: rgb(255, 141, 60);
+  --pill-level-4-bg: rgb(255, 236, 223);
+  /* Level 5 - Purple */
+  --pill-level-5-text: rgb(255, 60, 252);
+  --pill-level-5-bg: rgb(254, 223, 255);
+  /* Level 6 - Yellow */
+  --pill-level-6-text: rgb(120, 99, 27);
+  --pill-level-6-bg: rgb(230, 223, 195);
+  /* Level 7 - Gray */
+  --pill-level-7-text: rgb(124, 124, 124);
+  --pill-level-7-bg: rgb(230, 230, 230);
+  /* Default - Pink/Magenta */
+  --pill-default-text: rgb(255, 60, 170);
+  --pill-default-bg: rgb(255, 223, 239);
+
+  /* ========== Pitch Accent Colors ========== */
+  --pitch-accent-high: #e8687b;
+  --pitch-accent-low: #4e86ca;
+
+  /* ========== Toggle Switch Colors ========== */
+  --toggle-bg: #ccc;
+  --toggle-bg-checked: var(--color-success);
+  --toggle-bg-hover: #bbb;
+  --toggle-bg-checked-hover: #45a049;
+  --toggle-bg-dark: #555;
+  --toggle-bg-dark-hover: #666;
+
+  /* ========== Skeleton Loader ========== */
+  --skeleton-base: rgba(112, 112, 112, 0.63);
+  --skeleton-highlight: rgba(160, 160, 160, 0.63);
+
+  /* ========== Glass Button Helpers ========== */
+  --glass-button-bg: rgba(255, 255, 255, 0.1);
+  --glass-button-bg-hover: rgba(255, 255, 255, 0.15);
+  --glass-button-border: rgba(255, 255, 255, 0.15);
+  --glass-button-border-hover: rgba(255, 255, 255, 0.25);
+
+  /* ========== Accent Colors ========== */
+  --accent-primary: var(--color-primary);
+  --accent-primary-rgb: 74, 144, 217;
+
+  /* ========== Scrollbar Colors ========== */
+  --scrollbar-thumb: rgba(160, 160, 160, 0.5);
+  --scrollbar-thumb-hover: rgba(160, 160, 160, 0.7);
+
+  /* ========== Flashcard Highlight ========== */
+  --flashcard-highlight-dark: #ff5ec7;
+  --flashcard-highlight-light: #356ee8;
 }
 
 /* ========== Theme Classes ========== */

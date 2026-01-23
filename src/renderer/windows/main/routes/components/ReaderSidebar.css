@@ -6,20 +6,20 @@
   position: fixed;
   left: 0;
   top: 48px;
-  width: 200px;
+  width: 160px;
   height: calc(100vh - 48px - 40px);
   overflow-y: auto;
   background: var(--glass-bg-current);
   backdrop-filter: var(--glass-backdrop-filter);
   border-right: 1px solid var(--glass-border-current);
+  padding: 1rem 0.5rem;
   z-index: 90;
-  padding: 1rem 0;
 }
 
 .reader-sidebar h2 {
-  padding: 0 1rem;
-  margin-bottom: 1rem;
-  font-size: 1rem;
+  padding: 0 var(--spacing-4);
+  margin-bottom: var(--spacing-4);
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
@@ -34,7 +34,7 @@
   width: 100%;
   aspect-ratio: 3/4;
   padding: 0;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-border);
   border: 2px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -44,7 +44,7 @@
 }
 
 .reader-sidebar .page-thumb:hover {
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--glass-button-border-hover);
   transform: scale(1.02);
 }
 

@@ -1,6 +1,6 @@
 /**
  * Toggle Switch Styles
- * Matches legacy toggle switch styling from settings
+ * Uses CSS variables from index.css for consistent theming
  */
 
 .toggle-switch {
@@ -28,7 +28,7 @@
   position: relative;
   width: 50px;
   height: 26px;
-  background-color: #ccc;
+  background-color: var(--toggle-bg);
   border-radius: 26px;
   transition: background-color 0.3s ease;
   flex-shrink: 0;
@@ -49,7 +49,7 @@
 
 /* Checked state */
 .toggle-switch input:checked + .toggle-slider {
-  background-color: #4caf50;
+  background-color: var(--toggle-bg-checked);
 }
 
 .toggle-switch input:checked + .toggle-slider::before {
@@ -58,16 +58,16 @@
 
 /* Focus state */
 .toggle-switch input:focus + .toggle-slider {
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
+  box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.3);
 }
 
 /* Hover state */
 .toggle-switch:not(.disabled):hover .toggle-slider {
-  background-color: #bbb;
+  background-color: var(--toggle-bg-hover);
 }
 
 .toggle-switch:not(.disabled) input:checked:hover + .toggle-slider {
-  background-color: #45a049;
+  background-color: var(--toggle-bg-checked-hover);
 }
 
 /* Label styling */
@@ -78,13 +78,13 @@
 
 /* Dark mode */
 body.dark .toggle-slider {
-  background-color: #555;
+  background-color: var(--toggle-bg-dark);
 }
 
 body.dark .toggle-switch:not(.disabled):hover .toggle-slider {
-  background-color: #666;
+  background-color: var(--toggle-bg-dark-hover);
 }
 
 body.dark .toggle-switch input:checked + .toggle-slider {
-  background-color: #4caf50;
+  background-color: var(--toggle-bg-checked);
 }

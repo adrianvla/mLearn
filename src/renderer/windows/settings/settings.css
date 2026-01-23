@@ -6,7 +6,7 @@
   display: flex;
   height: 100vh;
   width: 100vw;
-  background: linear-gradient(135deg, #0a0a12 0%, #1a1a2e 50%, #0d0d1a 100%);
+  background: linear-gradient(135deg, var(--color-bg-dark) 0%, var(--color-surface-dark) 50%, var(--color-bg-dark) 100%);
   color: white;
 }
 
@@ -141,7 +141,7 @@
 .nav-item.active {
   background: rgba(99, 102, 241, 0.2);
   color: white;
-  border-right: 3px solid #6366f1;
+  border-right: 3px solid var(--accent-primary);
 }
 
 .nav-icon {
@@ -268,7 +268,7 @@
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background: #6366f1;
+  background: var(--accent-primary);
 }
 
 .toggle-switch input:checked + .toggle-slider::before {
@@ -287,7 +287,7 @@
 }
 
 .setting-select option {
-  background: #1a1a2e;
+  background: var(--color-surface-dark);
 }
 
 /* Number Input */
@@ -304,7 +304,7 @@
 
 .setting-input:focus {
   outline: none;
-  border-color: #6366f1;
+  border-color: var(--accent-primary);
 }
 
 /* Color Input */
@@ -333,7 +333,7 @@
 /* Range Input */
 .setting-range {
   width: 120px;
-  accent-color: #6366f1;
+  accent-color: var(--accent-primary);
 }
 
 /* Buttons */
@@ -353,18 +353,18 @@
 }
 
 .setting-btn.primary {
-  background: #6366f1;
-  border-color: #6366f1;
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
 }
 
 .setting-btn.primary:hover {
-  background: #5558e3;
+  background: var(--color-primary-active);
 }
 
 .setting-btn.danger {
   background: rgba(239, 68, 68, 0.2);
   border-color: rgba(239, 68, 68, 0.4);
-  color: #ef4444;
+  color: var(--color-error);
 }
 
 .setting-btn.danger:hover {
@@ -390,7 +390,7 @@
 .stat-value {
   font-size: 2rem;
   font-weight: 700;
-  color: #6366f1;
+  color: var(--accent-primary);
   margin: 0;
 }
 

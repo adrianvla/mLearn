@@ -296,7 +296,7 @@ export const ReaderRoute: Component = () => {
       const processingVisible = visible.find(p => p.id === currentTask.page.id);
       if (processingVisible) {
         const progressStr = total > 0 ? ` ${done + 1}/${total}` : '';
-        setOcrStatus(`OCR:${progressStr}...`);
+        setOcrStatus(`Recognizing${progressStr}...`);
         return;
       }
     }
@@ -305,7 +305,7 @@ export const ReaderRoute: Component = () => {
     const pendingVisibleTask = queue.find(t => !t.isCaching && visible.some(v => v.id === t.page.id));
     if (pendingVisibleTask) {
       const progressStr = total > 0 ? ` ${done + 1}/${total}` : '';
-      setOcrStatus(`OCR: Pending${progressStr}...`);
+      setOcrStatus(`Pending${progressStr}...`);
       return;
     }
 
@@ -323,7 +323,7 @@ export const ReaderRoute: Component = () => {
       setOcrStatus('Ready');
     } else {
       // Visible pages don't have OCR yet but nothing is processing - show waiting
-      setOcrStatus('Waiting for OCR...');
+      setOcrStatus('Loading Neural Network...');
     }
   };
 
@@ -670,16 +670,11 @@ export const ReaderRoute: Component = () => {
                     if (serverMsg) {
                       // Clean up the server message for display
                       // "Recognition progress 13/65" -> "Recognizing 13/65"
-                      const progressMatch = serverMsg.match(/progress\s+(\d+\s*\/\s*\d+)/i);
-                      if (progressMatch) {
-                        return `Recognizing ${progressMatch[1]}`;
-                      }
-                      return serverMsg;
-                    }
-                    const total = ocrBatchTotal();
-                    const done = ocrBatchDone();
-                    if (total > 0) {
-                      return `Processing ${done + 1}/${total}`;
+                      // const progressMatch = serverMsg.match(/progress\s+(\d+\s*\/\s*\d+)/i);
+                      // if (progressMatch) {
+                      // }
+                      // return serverMsg;
+                      return `Recognizing...`;
                     }
                     return 'Processing...';
                   }

@@ -38,7 +38,7 @@ export const OCRProgressRing: Component<OCRProgressRingProps> = (props) => {
     const progress = Math.max(0, Math.min(100, props.progress ?? 0));
     return circumference() - (progress / 100) * circumference();
   });
-  
+
   const progressValue = createMemo(() => Math.round(props.progress ?? 0));
   
   return (
@@ -70,13 +70,6 @@ export const OCRProgressRing: Component<OCRProgressRingProps> = (props) => {
             stroke-dashoffset={props.indeterminate ? undefined : String(strokeDashoffset())}
           />
         </svg>
-        
-        {/* Center percentage text */}
-        <Show when={props.showPercent && !props.indeterminate}>
-          <span class="ocr-progress-ring-percent">
-            {progressValue()}%
-          </span>
-        </Show>
       </div>
       
       {/* Status text below */}

@@ -33,7 +33,7 @@
 }
 
 .glass-button:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--glass-button-bg-hover);
   transform: translateY(-1px);
 }
 
@@ -193,7 +193,7 @@ body:not(.dark) .glass-select {
 /* ========== Glass Progress Bar ========== */
 .glass-progress {
   height: 4px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--glass-border);
   border-radius: var(--radius-full);
   overflow: hidden;
 }
@@ -211,7 +211,7 @@ body:not(.dark) .glass-select {
   -webkit-appearance: none;
   width: 100%;
   height: 4px;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--glass-accent-bg);
   border-radius: var(--radius-full);
   outline: none;
 }
