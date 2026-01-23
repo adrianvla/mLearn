@@ -4,7 +4,7 @@
 
 import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent } from '../../../components/common';
+import { SettingRow, SettingGroup, TabContent } from '../../../components/common';
 
 export const CustomizationTab: Component = () => {
   const { settings, updateSettings } = useSettings();

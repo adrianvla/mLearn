@@ -4,7 +4,7 @@
  * Ported from stats.js in the original mLearn app
  */
 
-import { createSignal, createMemo } from 'solid-js';
+import { createSignal } from 'solid-js';
 import type { Settings } from '../../shared/types';
 import { WORD_STATUS } from '../../shared/constants';
 

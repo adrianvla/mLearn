@@ -3,7 +3,7 @@
  * Reusable tab navigation with consistent styling
  */
 
-import { Component, JSX, For, Show, createMemo, splitProps, mergeProps } from 'solid-js';
+import { Component, JSX, For, Show, splitProps, mergeProps } from 'solid-js';
 import './TabContainer.css';
 
 export interface TabItem {

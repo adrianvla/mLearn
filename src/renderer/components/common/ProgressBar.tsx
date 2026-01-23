@@ -3,7 +3,7 @@
  * Reusable progress bar for various loading states
  */
 
-import { Component, Show, createMemo } from 'solid-js';
+import { Component, Show, createMemo, JSX } from 'solid-js';
 import './ProgressBar.css';
 
 export interface ProgressBarProps {
@@ -21,6 +21,8 @@ export interface ProgressBarProps {
   class?: string;
   /** Custom color */
   color?: string;
+  /** Custom inline styles */
+  style?: JSX.CSSProperties;
 }
 
 export const ProgressBar: Component<ProgressBarProps> = (props) => {
@@ -31,6 +33,7 @@ export const ProgressBar: Component<ProgressBarProps> = (props) => {
   return (
     <div 
       class={`progress-bar-container progress-bar--${variant()} ${props.class || ''}`}
+      style={props.style}
     >
       <Show when={props.label}>
         <span class="progress-bar-label">{props.label}</span>

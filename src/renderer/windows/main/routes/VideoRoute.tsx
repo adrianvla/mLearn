@@ -25,6 +25,7 @@ export const VideoRoute: Component = () => {
   const [currentVideoTime, setCurrentVideoTime] = createSignal(0);
 
   // Reference to get video element time
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let videoPlayerRef: { getCurrentTime?: () => number } | undefined;
 
   onMount(() => {

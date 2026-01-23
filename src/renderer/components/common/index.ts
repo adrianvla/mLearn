@@ -27,7 +27,7 @@ export { ConnectionStatus, type ConnectionStatusProps, type ConnectionState } fr
 export { LegendItem, type LegendItemProps } from './LegendItem';
 export { CheckboxCard, type CheckboxCardProps } from './CheckboxCard';
 export { SelectableCard, type SelectableCardProps } from './SelectableCard';
-export { AlertBanner, type AlertBannerProps, type AlertBannerType } from './AlertBanner';
+export { AlertBanner, type AlertBannerProps, type AlertVariant } from './AlertBanner';
 export { LogConsole, type LogConsoleProps } from './LogConsole';
 export { WindowLayout, WindowHeader, type WindowLayoutProps, type WindowHeaderProps } from './WindowLayout';
 export { TabContainer, TabPanel, type TabContainerProps, type TabPanelProps, type TabItem } from './TabContainer';

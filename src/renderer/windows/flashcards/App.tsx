@@ -23,8 +23,6 @@ type TabId = 'review' | 'browse' | 'stats';
 
 const FlashcardsContent: Component = () => {
   const { store, getDueCards, removeFlashcard, addFlashcard, updateFlashcard } = useFlashcards();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { settings } = useSettings();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null);

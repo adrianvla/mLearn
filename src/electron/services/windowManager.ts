@@ -48,6 +48,7 @@ function getPreloadPath(): string {
 }
 
 // Get HTML file path for a window type
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getWindowHtmlPath(type: WindowType): string {
   const isDev = process.env.NODE_ENV === 'development';
   

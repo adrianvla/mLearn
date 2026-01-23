@@ -217,7 +217,7 @@ function drawPieChart(
  */
 function drawBarChart(
   canvas: HTMLCanvasElement,
-  stats: { learned: number; learning: number; unknown: number },
+  _stats: { learned: number; learning: number; unknown: number },
   levelLabels: string[] = []
 ) {
   const ctx = canvas.getContext('2d');
@@ -227,7 +227,7 @@ function drawBarChart(
 
   // Use dynamic level labels, or fallback to generic levels
   const levels = levelLabels.length > 0 ? levelLabels : ['Level 5', 'Level 4', 'Level 3', 'Level 2', 'Level 1'];
-  const levelData = levels.map((_, i) => ({
+  const levelData = levels.map(() => ({
     learned: Math.floor(Math.random() * 50),
     learning: Math.floor(Math.random() * 30),
     unknown: Math.floor(Math.random() * 100),

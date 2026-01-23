@@ -22,7 +22,6 @@ let wss: WebSocketServer | null = null;
 const connectedClients: Set<WebSocket> = new Set();
 
 // LocalStorage sync data
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 let localStorageData: Record<string, unknown> = {};
 
 // Queued updates for main window

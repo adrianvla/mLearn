@@ -4,9 +4,9 @@
  * Matches legacy layout: navbar on top with icons, scrollable content below
  */
 
-import { Component, createSignal, Show, For, onMount, createEffect, onCleanup } from 'solid-js';
+import { Component, createSignal, Show, For, onMount, createEffect } from 'solid-js';
 import { useSettings, useLanguage } from '../../context';
-import { GlassModal, GlassButton, GlassInput, GlassPanel } from '../common';
+import { GlassModal, GlassButton } from '../common';
 import type { Settings } from '../../../shared/types';
 import { SUBTITLE_THEMES, type SubtitleTheme } from '../../../shared/constants';
 import './settings.css';
@@ -101,18 +101,20 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: Component<SettingsModalProps> = (props) => {
-  const { settings, updateSettings, updateSetting, saveSettings } = useSettings();
-  const { isSettingFixed, getLanguageFeatures } = useLanguage();
+  const { settings, updateSettings, saveSettings } = useSettings();
+  const { isSettingFixed } = useLanguage();
   const [activeTab, setActiveTab] = createSignal<CategoryName>(props.initialTab || 'General');
   const [localSettings, setLocalSettings] = createSignal<Partial<Settings>>({});
   const [requiresRestart, setRequiresRestart] = createSignal(false);
   const [ankiDecks, setAnkiDecks] = createSignal<string[]>([]);
-  const [ankiFields, setAnkiFields] = createSignal<string[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [ankiFields, _setAnkiFields] = createSignal<string[]>([]);
   const [version, setVersion] = createSignal('');
   
   // Time watched and stats
   const [timeWatched, setTimeWatched] = createSignal('0h 0m');
-  const [wordsLearned, setWordsLearned] = createSignal(0);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [wordsLearned, _setWordsLearned] = createSignal(0);
 
   // Initialize local settings from current settings
   onMount(() => {
