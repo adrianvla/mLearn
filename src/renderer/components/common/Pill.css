@@ -45,14 +45,15 @@
 .pill-btn {
   cursor: pointer;
   user-select: none;
+  transition: opacity var(--transition-fast);
 }
 
 .pill.pill-btn:hover {
-  filter: brightness(0.95);
+  opacity:0.7;
 }
 
 .pill.pill-btn:active {
-  filter: brightness(0.9);
+  opacity:0.5;
 }
 
 /* Level 1 - Red */
@@ -211,7 +212,7 @@ body.dark .pill {
   top: 0;
   left: 0;
   transform: translate(-50%, -50%);
-  filter: drop-shadow(0px 0px 10px var(--color-error)) drop-shadow(1px 1px 0px rgba(16, 0, 0, 1));
+  filter: drop-shadow(0px 0px 10px var(--base-hue)) drop-shadow(1px 1px 0px rgba(16, 0, 0, 1));
   z-index: -1;
 }
 

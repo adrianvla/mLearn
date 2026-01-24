@@ -97,12 +97,16 @@
   --transition-slower: 0.5s ease;
 
   /* ========== Z-Index Scale ========== */
+  --z-0: 0;
+  --z-backdrop: 0;
+  --z-foreground: 10;
   --z-dropdown: 100;
   --z-sticky: 200;
   --z-modal-backdrop: 300;
   --z-modal: 400;
   --z-popover: 500;
   --z-tooltip: 600;
+  --z-overlay: 700;
 
   /* ========== Text Color Aliases ========== */
   /* Used by components for consistency */
@@ -116,6 +120,8 @@
   --color-blue: var(--color-primary);
   --color-orange: var(--color-warning);
   --color-red: var(--color-error);
+
+  --base-hue: #f00;
 
   /* ========== Subtitle Specific ========== */
   --subtitle-font-size: 40px;

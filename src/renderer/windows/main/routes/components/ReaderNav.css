@@ -13,6 +13,15 @@
   backdrop-filter: var(--glass-backdrop-filter);
   background: var(--glass-bg-current);
   z-index: 100;
+  -webkit-app-region: drag; /* make the nav draggable for the Electron window */
+  position: relative;
+}
+
+/* Remove the previous pseudo-element approach and instead mark interactive
+   areas as no-drag so they remain clickable while the rest of the nav is draggable. */
+
+.reader-nav * *{
+  -webkit-app-region: no-drag; /* interactive elements must be no-drag */
 }
 
 .reader-nav .nav-group {
