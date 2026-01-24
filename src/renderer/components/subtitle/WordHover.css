@@ -171,15 +171,15 @@ body.dark .subtitle_hover .footer,
   height: 20px;
 }
 
-/* Pill button */
-.subtitle_hover .pill-btn {
-  cursor: pointer;
-  user-select: none;
-}
+/*!* Pill button *!*/
+/*.subtitle_hover .pill-btn {*/
+/*  cursor: pointer;*/
+/*  user-select: none;*/
+/*}*/
 
-.subtitle_hover .pill-btn:hover {
-  filter: brightness(0.9);
-}
+/*.subtitle_hover .pill-btn:hover {*/
+/*  filter: brightness(0.9);*/
+/*}*/
 
 /* Pitch accent pill */
 .subtitle_hover .pill.pitch-accent-pill {

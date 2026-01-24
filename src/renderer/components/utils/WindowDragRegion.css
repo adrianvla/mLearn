@@ -10,8 +10,8 @@
     border-bottom-right-radius: 10px;
     opacity:1;
     transition:opacity 0.3s;
+    z-index:var(--z-overlay);
 }
-
 .hidden {
     opacity:0;
     pointer-events:none;

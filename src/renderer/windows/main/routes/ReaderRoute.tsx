@@ -6,7 +6,6 @@
 import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, batch } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
-import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { OcrOverlay, type OcrResult } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
 import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation } from '../../../hooks';
@@ -596,7 +595,6 @@ export const ReaderRoute: Component = () => {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
     >
-      <WindowDragRegion />
 
       {/* Navigation Bar */}
       <ReaderNav
@@ -613,6 +611,7 @@ export const ReaderRoute: Component = () => {
         onToggleOcrOverlay={toggleOcrOverlay}
         onPrevPage={prevPage}
         onNextPage={nextPage}
+        marginLeft={"60px"}
       />
 
       {/* Sidebar */}
@@ -696,7 +695,7 @@ export const ReaderRoute: Component = () => {
                           progress={getOcrProgress() ?? 0}
                           indeterminate={isPending() || getOcrProgress() === null}
                           size={40}
-                          strokeWidth={3}
+                          strokeWidth={5}
                           statusText={getStatusText()}
                           showPercent={isProcessing() && getOcrProgress() !== null}
                         />

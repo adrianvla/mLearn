@@ -3,7 +3,7 @@
  * Top navigation bar for the reader with controls
  */
 
-import { Component, Accessor } from 'solid-js';
+import {Component, Accessor} from 'solid-js';
 import './ReaderNav.css';
 
 interface ReaderNavProps {
@@ -20,12 +20,17 @@ interface ReaderNavProps {
   onToggleOcrOverlay: () => void;
   onPrevPage: () => void;
   onNextPage: () => void;
+  marginLeft?: string;
 }
 
 export const ReaderNav: Component<ReaderNavProps> = (props) => {
+
   return (
-    <nav class="reader-nav glass">
-      <div class="nav-group">
+    <nav class={`reader-nav glass`}>
+      <div
+        class="nav-group"
+        style={`${props.marginLeft ? `margin-left: ${props.marginLeft}` : ''}`}
+      >
         <button class="nav-btn" onClick={props.onGoHome} title="Back to Home">
           ← Home
         </button>
