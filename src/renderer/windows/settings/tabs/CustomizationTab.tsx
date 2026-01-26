@@ -4,7 +4,7 @@
 
 import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
-import { SettingRow, SettingGroup, TabContent } from '../../../components/common';
+import { SettingRow, SettingGroup, TabContent, Select } from '../../../components/common';
 
 export const CustomizationTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -24,7 +24,7 @@ export const CustomizationTab: Component = () => {
           label="Subtitle Theme"
           description="How subtitles are displayed on video"
         >
-          <select
+          <Select
             class="setting-select"
             value={settings.subtitleTheme}
             onChange={(e) => updateSettings({ subtitleTheme: e.currentTarget.value as any })}
@@ -32,7 +32,7 @@ export const CustomizationTab: Component = () => {
             <option value="shadow">Shadow</option>
             <option value="background">Background</option>
             <option value="marker">Marker</option>
-          </select>
+          </Select>
         </SettingRow>
 
         <SettingRow
@@ -53,21 +53,21 @@ export const CustomizationTab: Component = () => {
           label="Font Weight"
           description="Thickness of subtitle text"
         >
-          <select
+          <Select
             class="setting-select"
-            value={settings.subtitle_font_weight}
+            value={settings.subtitle_font_weight.toString()}
             onChange={(e) => updateSettings({ subtitle_font_weight: parseInt(e.currentTarget.value) })}
           >
-            <option value={100}>Thin (100)</option>
-            <option value={200}>Extra Light (200)</option>
-            <option value={300}>Light (300)</option>
-            <option value={400}>Normal (400)</option>
-            <option value={500}>Medium (500)</option>
-            <option value={600}>Semi Bold (600)</option>
-            <option value={700}>Bold (700)</option>
-            <option value={800}>Extra Bold (800)</option>
-            <option value={900}>Black (900)</option>
-          </select>
+            <option value="100">Thin (100)</option>
+            <option value="200">Extra Light (200)</option>
+            <option value="300">Light (300)</option>
+            <option value="400">Normal (400)</option>
+            <option value="500">Medium (500)</option>
+            <option value="600">Semi Bold (600)</option>
+            <option value="700">Bold (700)</option>
+            <option value="800">Extra Bold (800)</option>
+            <option value="900">Black (900)</option>
+          </Select>
         </SettingRow>
       </SettingGroup>
 

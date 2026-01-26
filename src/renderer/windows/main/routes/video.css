@@ -16,8 +16,8 @@
   z-index: 100;
   padding: 0.5rem 1rem;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: var(--glass-backdrop-filter);
-  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--theme-backdrop-filter);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: 0.9rem;
@@ -44,7 +44,7 @@
   max-width: 500px;
   width: 100%;
   text-align: center;
-  border: 2px dashed var(--glass-border);
+  border: 2px dashed var(--border-color);
   transition: border-color 0.2s ease;
 }
 

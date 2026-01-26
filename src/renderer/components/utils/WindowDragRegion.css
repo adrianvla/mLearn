@@ -5,8 +5,8 @@
     width:100px;
     height:28px; /*Hardcoded because adjusted to MacOS' traffic lights width*/
     -webkit-app-region: drag; /*Electron specific*/
-    background-color: var(--glass-bg);
-    backdrop-filter: var(--glass-backdrop-filter);
+    background-color: var(--bg);
+    backdrop-filter: var(--theme-backdrop-filter);
     border-bottom-right-radius: 10px;
     opacity:1;
     transition:opacity 0.3s;

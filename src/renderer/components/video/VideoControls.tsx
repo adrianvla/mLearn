@@ -7,7 +7,7 @@ import { Component, JSX, Show, createSignal, createMemo } from 'solid-js';
 import type { useVideo, useSubtitles } from '../../hooks';
 import { useSettings } from '../../context';
 import { useIPC } from '../../hooks';
-import { GlassPanel } from '../common';
+import { GlassPanel, RangeInput } from '../common';
 
 // Icons as components
 const PlayIcon = () => (
@@ -223,13 +223,12 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
               >
                 {VolumeIcon()()}
               </button>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
+              <RangeInput
+                min={0}
+                max={1}
+                step={0.05}
                 value={state().isMuted ? 0 : state().volume}
-                onInput={handleVolumeChange}
+                onChange={(value) => props.video.setVolume(value)}
                 style={{
                   width: '80px',
                   'accent-color': 'var(--color-primary)',

@@ -4,7 +4,7 @@
 
 import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, RangeInput } from '../../../components/common';
 
 export const BehaviourTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -96,13 +96,12 @@ export const BehaviourTab: Component = () => {
           label="Blur Amount"
           description="Intensity of the blur effect (pixels)"
         >
-          <input
-            type="range"
-            class="setting-range"
+          <RangeInput
             min={1}
             max={20}
             value={settings.blur_amount}
-            onChange={(e) => updateSettings({ blur_amount: parseInt(e.currentTarget.value) })}
+            onChange={(value) => updateSettings({ blur_amount: value })}
+            class="setting-range"
           />
           <span style={{ "margin-left": "8px" }}>{settings.blur_amount}px</span>
         </SettingRow>

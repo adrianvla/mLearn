@@ -146,7 +146,7 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
                   'align-items': 'flex-start',
                   'justify-content': 'space-between',
                   padding: '1rem 1.5rem',
-                  'border-bottom': '1px solid var(--glass-border)',
+                  'border-bottom': '1px solid var(--border-color)',
                 }}
               >
                 <div style={{ display: 'flex', 'flex-direction': 'column', gap: '0.25rem' }}>
@@ -208,7 +208,7 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
                   'justify-content': 'flex-end',
                   gap: '0.75rem',
                   padding: '1rem 1.5rem',
-                  'border-top': '1px solid var(--glass-border)',
+                  'border-top': '1px solid var(--border-color)',
                 }}
               >
                 {local.footer}

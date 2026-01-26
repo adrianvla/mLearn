@@ -13,7 +13,6 @@ import { ReaderRoute } from './routes/ReaderRoute';
 
 // Import global styles
 import '../../styles/index.css';
-import '../../styles/glass.css';
 import '../../styles/subtitle.css';
 
 const root = document.getElementById('root');

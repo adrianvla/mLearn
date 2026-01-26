@@ -32,7 +32,7 @@
 }
 
 .tab-button-active {
-  background: var(--glass-bg);
+  background: var(--bg);
   color: var(--text-primary);
 }
 
@@ -66,7 +66,7 @@
 /* Badge */
 .tab-button-badge {
   padding: 0.125rem 0.5rem;
-  background-color: var(--glass-bg);
+  background-color: var(--bg);
   border-radius: var(--radius-full);
   font-size: 0.75rem;
   font-weight: 600;

@@ -330,16 +330,16 @@ const KanjiGridContent: Component = () => {
         <div class="kg-sidebar">
           {/* Legend */}
           <div class="kg-legend">
-            <LegendItem label="learning:" color="#E65100" secondaryColor="#FFEB3B" showArrow />
-            <LegendItem label="known:" color="#2E7D32" secondaryColor="#81C784" showArrow />
-            <LegendItem label="unknown:" color="#616161" />
+            <LegendItem label="Learning:" color="#E65100" secondaryColor="#FFEB3B" showArrow />
+            <LegendItem label="Known:" color="#2E7D32" secondaryColor="#81C784" showArrow />
+            <LegendItem label="Unknown:" color="#616161" />
           </div>
 
           {/* Stats */}
           <div class="kg-stats">
-            <div>· Known: <b>{stats().known}</b> ({stats().total ? Math.round(stats().known / stats().total * 1000) / 10 : 0}%)</div>
-            <div>· Learning: <b>{stats().learning}</b> ({stats().total ? Math.round(stats().learning / stats().total * 1000) / 10 : 0}%)</div>
-            <div>· Unknown: <b>{stats().unknown}</b> ({stats().total ? Math.round(stats().unknown / stats().total * 1000) / 10 : 0}%)</div>
+            <div>· Known: <b>{stats().known}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().known / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· Learning: <b>{stats().learning}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().learning / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· Unknown: <b>{stats().unknown}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().unknown / stats().total * 1000) / 10 : 0}%)</span></div>
             <div>· Total Found: <b>{stats().total}</b></div>
           </div>
 

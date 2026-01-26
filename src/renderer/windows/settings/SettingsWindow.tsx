@@ -15,6 +15,7 @@ import {
   StatsTab,
   AboutTab
 } from './tabs';
+import Icon from '../../components/common/Icons/Icon';
 import './settings.css';
 
 type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'stats' | 'about';
@@ -27,13 +28,13 @@ interface Tab {
 
 // Icon paths for each tab (using existing icons)
 const TABS: Tab[] = [
-  { id: 'general', label: 'General', icon: 'assets/icons/cog.svg' },
-  { id: 'behaviour', label: 'Behaviour', icon: 'assets/icons/bot.svg' },
-  { id: 'customization', label: 'Appearance', icon: 'assets/icons/palette.svg' },
-  { id: 'srs', label: 'SRS', icon: 'assets/icons/cards.svg' },
-  { id: 'reader', label: 'Reader', icon: 'assets/icons/book.svg' },
-  { id: 'stats', label: 'Stats', icon: 'assets/icons/stats.svg' },
-  { id: 'about', label: 'About', icon: 'assets/icons/star.svg' },
+  { id: 'general', label: 'General', icon: 'cog' },
+  { id: 'behaviour', label: 'Behaviour', icon: 'bot' },
+  { id: 'customization', label: 'Appearance', icon: 'palette' },
+  { id: 'srs', label: 'SRS', icon: 'cards' },
+  { id: 'reader', label: 'Reader', icon: 'book' },
+  { id: 'stats', label: 'Stats', icon: 'stats' },
+  { id: 'about', label: 'About', icon: 'star' },
 ];
 
 const SettingsContent: Component = () => {
@@ -80,7 +81,7 @@ const SettingsContent: Component = () => {
                 onClick={() => setActiveTab(tab.id)}
                 title={tab.label}
               >
-                <img src={tab.icon} alt="" class="tab-icon" />
+                <Icon icon={tab.icon} color="currentColor" class="tab-icon" />
                 <span class="tab-label">{tab.label}</span>
               </button>
             )}

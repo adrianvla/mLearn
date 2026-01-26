@@ -59,21 +59,6 @@ export const AboutTab: Component = () => {
         </GlassBtn>
       </div>
 
-      <div class="about-features">
-        <h3>Features</h3>
-        <ul>
-          <li>Interactive subtitles with hover translations</li>
-          <li>OCR reader for manga and images</li>
-          <li>Built-in spaced repetition flashcards</li>
-          <li>Anki integration</li>
-          <li>Pitch accent visualization</li>
-          <li>Part-of-speech color coding</li>
-          <li>Watch party sync</li>
-          <li>Mobile flashcard sync</li>
-          <li>HLS streaming support</li>
-        </ul>
-      </div>
-
       <div class="about-shortcuts">
         <h3>Keyboard Shortcuts</h3>
         <div class="shortcuts-grid">

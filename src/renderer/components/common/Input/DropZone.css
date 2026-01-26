@@ -37,7 +37,7 @@
 
 /* When used as an inline drop zone with border */
 .drop-zone.bordered {
-  border: 2px dashed var(--color-border, #e5e7eb);
+  border: 2px dashed var(--border-color, #e5e7eb);
   border-radius: 8px;
   padding: 2rem;
 }
@@ -59,7 +59,7 @@
 /* Drop zone icon */
 .drop-zone-icon {
   font-size: 3rem;
-  color: var(--color-text-secondary, #9ca3af);
+  color: var(--text-secondary, #9ca3af);
 }
 
 .drop-zone.dragging .drop-zone-icon {
@@ -68,7 +68,7 @@
 
 /* Drop zone text */
 .drop-zone-text {
-  color: var(--color-text-secondary, #9ca3af);
+  color: var(--text-secondary, #9ca3af);
   font-size: 1rem;
 }
 

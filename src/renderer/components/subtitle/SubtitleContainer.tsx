@@ -283,7 +283,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
                 'text-align': 'center',
                 'margin-top': '0.5rem',
                 'padding-top': '0.5rem',
-                'border-top': '1px solid var(--glass-border)',
+                'border-top': '1px solid var(--border-color)',
               }}
             >
               {props.translation}

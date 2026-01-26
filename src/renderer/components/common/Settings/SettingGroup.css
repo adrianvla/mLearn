@@ -11,7 +11,7 @@
 }
 
 .setting-group:not(:last-child) {
-  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 1.5rem;
   margin-bottom: 0.5rem;
 }
@@ -23,7 +23,7 @@
 .setting-group-title {
   font-size: 0.95rem;
   font-weight: 600;
-  color: var(--text-primary, white);
+  color: var(--text-primary);
   margin: 0;
   padding: 0;
   display: flex;
@@ -33,15 +33,15 @@
 
 .setting-group-title::before {
   content: '';
-  width: 3px;
+  width: 2px;
   height: 1em;
-  background: var(--accent-primary, #6366f1);
-  border-radius: 2px;
+  background: var(--border-color-intense);
+  border-radius: var(--radius-sm);
 }
 
 .setting-group-description {
   font-size: 0.8rem;
-  color: var(--text-tertiary, rgba(255, 255, 255, 0.5));
+  color: var(--text-secondary);
   margin: 0.25rem 0 0 0;
   padding-left: calc(3px + 0.5rem);
 }

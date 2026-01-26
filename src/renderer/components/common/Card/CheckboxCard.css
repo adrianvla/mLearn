@@ -7,7 +7,7 @@
   align-items: flex-start;
   gap: 0.75rem;
   padding: 0.75rem;
-  background: var(--glass-bg, rgba(128, 128, 128, 0.1));
+  background: var(--bg, rgba(128, 128, 128, 0.1));
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   transition: background-color 0.2s, border-color 0.2s;
@@ -79,9 +79,9 @@
 
 /* Variants */
 .checkbox-card--glass {
-  background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+  background: var(--bg, rgba(255, 255, 255, 0.05));
   backdrop-filter: blur(10px);
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
 }
 
 .checkbox-card--glass:hover:not(.disabled) {
@@ -99,25 +99,4 @@
 
 .checkbox-card--bordered:hover:not(.disabled) {
   border-color: var(--text-muted, #666);
-}
-
-/* Dark mode is default, light mode adjustments */
-body:not(.dark) .checkbox-card {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-body:not(.dark) .checkbox-card:hover:not(.disabled) {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-body:not(.dark) .checkbox-card-title {
-  color: #333;
-}
-
-body:not(.dark) .checkbox-card-description {
-  color: #666;
-}
-
-body:not(.dark) .checkbox-card-check {
-  border-color: #ccc;
 }

@@ -19,7 +19,7 @@
 .ruby-text rt {
   font-size: 0.5em;
   font-weight: var(--font-weight-normal, 400);
-  color: var(--color-text-secondary, #a0a0a0);
+  color: var(--text-secondary, #a0a0a0);
   letter-spacing: 0.05em;
   position: relative;
 }
