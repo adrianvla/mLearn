@@ -35,6 +35,8 @@
   --glass-bg-light: rgba(255, 255, 255, 0.7);
   --glass-accent-bg: rgba(255, 255, 255, 0.2);
   --glass-accent: rgba(255, 255, 255, 0.8);
+  --glass-text-color-faint: var(--text-secondary);
+  --glass-text-color: var(--text-primary);
   --glass-blur: 10px;
   --glass-backdrop-filter: blur(var(--glass-blur)) saturate(2) brightness(0.8);
   --glass-border: rgba(255, 255, 255, 0.1);

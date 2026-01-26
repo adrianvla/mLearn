@@ -7,7 +7,7 @@ import { Component, Show, createSignal, onMount } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useIPC, useSubtitles } from '../../../hooks';
 import { VideoPlayer } from '../../../components/video';
-import { GlassPanel, GlassButton } from '../../../components/common';
+import { GlassPanel, GlassBtn, NavBtn } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { LiveWordTranslator, SubtitleSync } from '../../../components/subtitle';
 import { IPC_CHANNELS } from '../../../../shared/constants';
@@ -23,10 +23,6 @@ export const VideoRoute: Component = () => {
   const [showDropZone, setShowDropZone] = createSignal(true);
   const [isDragging, setIsDragging] = createSignal(false);
   const [currentVideoTime, setCurrentVideoTime] = createSignal(0);
-
-  // Reference to get video element time
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let videoPlayerRef: { getCurrentTime?: () => number } | undefined;
 
   onMount(() => {
     // Check if we have a video to open from session storage
@@ -204,9 +200,9 @@ export const VideoRoute: Component = () => {
       <WindowDragRegion />
       
       {/* Back button */}
-      <button class="back-button" onClick={goHome} title="Back to Home">
+      <NavBtn class="back-button" onClick={goHome} title="Back to Home">
         ← Home
-      </button>
+      </NavBtn>
 
       <Show
         when={!showDropZone()}
@@ -223,12 +219,12 @@ export const VideoRoute: Component = () => {
               <h2>Drop video file here</h2>
               <p>Or click below to browse</p>
               <div class="drop-actions">
-                <GlassButton variant="primary" onClick={handleSelectVideo}>
+                <GlassBtn variant="primary" onClick={handleSelectVideo}>
                   Open Video
-                </GlassButton>
-                <GlassButton onClick={handleSelectSubtitle}>
+                </GlassBtn>
+                <GlassBtn onClick={handleSelectSubtitle}>
                   Open Subtitles
-                </GlassButton>
+                </GlassBtn>
               </div>
             </GlassPanel>
           </div>

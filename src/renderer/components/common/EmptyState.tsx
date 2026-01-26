@@ -5,7 +5,7 @@
 
 import { Component, JSX, Show } from 'solid-js';
 import { GlassPanel } from './GlassPanel';
-import { GlassButton } from './GlassButton';
+import { GlassBtn } from './Button';
 import './EmptyState.css';
 
 export interface EmptyStateAction {
@@ -58,12 +58,12 @@ export const EmptyState: Component<EmptyStateProps> = (props) => {
       <Show when={allActions().length > 0}>
         <div class="empty-state-actions">
           {allActions().map(action => (
-            <GlassButton
+            <GlassBtn
               variant={action.variant ?? 'primary'}
               onClick={action.onClick}
             >
               {action.label}
-            </GlassButton>
+            </GlassBtn>
           ))}
         </div>
       </Show>

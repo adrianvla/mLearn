@@ -1,0 +1,346 @@
+/**
+ * Unified Button Component Styles
+ * Consolidated styles for all button variants
+ */
+
+/* ============ Spinner Animation ============ */
+@keyframes btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.btn-spinner {
+  animation: btn-spin 1s linear infinite;
+}
+
+/* ============ Base Button Styles ============ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  user-select: none;
+  position: relative;
+}
+
+.btn:disabled,
+.btn.btn-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn.btn-loading {
+  cursor: wait;
+}
+
+/* ============ Icon Styling ============ */
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  height: max-content;
+}
+
+.btn-icon img {
+  width: 1em;
+  height: 1em;
+}
+
+/* ============ Size Variants ============ */
+.btn-xs {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  min-height: 1.5rem;
+}
+
+.btn-sm {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  min-height: 2rem;
+}
+
+.btn-md {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  min-height: 2.5rem;
+}
+
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1.125rem;
+  min-height: 3rem;
+}
+
+/* ============ GLASS Button Type ============ */
+.btn-glass {
+  background: var(--glass-button-bg, rgba(255, 255, 255, 0.1));
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-button-border, rgba(255, 255, 255, 0.15));
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-primary, #f0f0f0);
+}
+
+.btn-glass:hover:not(:disabled) {
+  background: var(--glass-button-bg-hover, rgba(255, 255, 255, 0.15));
+  border-color: var(--glass-button-border-hover, rgba(255, 255, 255, 0.25));
+}
+
+.btn-glass:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Glass color variants */
+.btn-glass.btn-primary {
+  background: rgba(74, 144, 217, 0.3);
+  border-color: rgba(74, 144, 217, 0.4);
+}
+
+.btn-glass.btn-primary:hover:not(:disabled) {
+  background: rgba(74, 144, 217, 0.4);
+}
+
+.btn-glass.btn-secondary {
+  background: rgba(128, 128, 128, 0.2);
+  border-color: rgba(128, 128, 128, 0.3);
+}
+
+.btn-glass.btn-danger {
+  background: rgba(231, 76, 60, 0.3);
+  border-color: rgba(231, 76, 60, 0.4);
+}
+
+.btn-glass.btn-danger:hover:not(:disabled) {
+  background: rgba(231, 76, 60, 0.4);
+}
+
+.btn-glass.btn-success {
+  background: rgba(46, 204, 113, 0.3);
+  border-color: rgba(46, 204, 113, 0.4);
+}
+
+.btn-glass.btn-success:hover:not(:disabled) {
+  background: rgba(46, 204, 113, 0.4);
+}
+
+.btn-glass.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.btn-glass.btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ============ PILL Button Type ============ */
+.btn-pill {
+  font-weight: bold;
+  padding: 5px 10px;
+  border-radius: 10px;
+  /* Default pink/magenta */
+  color: var(--pill-default-text);
+  background-color: var(--pill-default-bg);
+  box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
+}
+
+.btn-pill:hover:not(:disabled) {
+  opacity: 0.7;
+}
+
+.btn-pill:active:not(:disabled) {
+  opacity: 0.5;
+}
+
+.btn-pill .btn-icon img {
+  width: 20px;
+  height: 20px;
+}
+
+/* Pill color variants */
+.btn-pill.btn-red {
+  color: var(--pill-level-1-text);
+  background-color: var(--pill-level-1-bg);
+}
+
+.btn-pill.btn-blue {
+  color: var(--pill-level-2-text);
+  background-color: var(--pill-level-2-bg);
+}
+
+.btn-pill.btn-green {
+  color: var(--pill-level-3-text);
+  background-color: var(--pill-level-3-bg);
+}
+
+.btn-pill.btn-orange {
+  color: var(--pill-level-4-text);
+  background-color: var(--pill-level-4-bg);
+}
+
+.btn-pill.btn-purple {
+  color: var(--pill-level-5-text);
+  background-color: var(--pill-level-5-bg);
+}
+
+.btn-pill.btn-yellow {
+  color: var(--pill-level-6-text);
+  background-color: var(--pill-level-6-bg);
+}
+
+.btn-pill.btn-gray {
+  color: var(--pill-level-7-text);
+  background-color: var(--pill-level-7-bg);
+}
+
+/* ============ ICON Button Type ============ */
+.btn-icon {
+  padding: 0;
+  border-radius: var(--radius-md, 8px);
+  background: var(--glass-button-bg, rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--glass-button-border, rgba(255, 255, 255, 0.15));
+  color: var(--text-primary, #f0f0f0);
+}
+
+/* Icon button sizes (square) */
+.btn-icon.btn-xs {
+  width: 1.5rem;
+  height: 1.5rem;
+  min-height: unset;
+}
+
+.btn-icon.btn-sm {
+  width: 2rem;
+  height: 2rem;
+  min-height: unset;
+}
+
+.btn-icon.btn-md {
+  width: 2.5rem;
+  height: 2.5rem;
+  min-height: unset;
+}
+
+.btn-icon.btn-lg {
+  width: 3rem;
+  height: 3rem;
+  min-height: unset;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: var(--glass-button-bg-hover, rgba(255, 255, 255, 0.15));
+}
+
+/* ============ NAV Button Type ============ */
+.btn-nav {
+  background: var(--glass-bg, rgba(60, 60, 60, 0.5));
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-md, 8px);
+  color: var(--text-primary, #f0f0f0);
+  padding: 0.5rem;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+}
+
+.btn-nav:hover:not(:disabled) {
+  background: var(--glass-button-bg-hover, rgba(255, 255, 255, 0.15));
+}
+
+.btn-nav.btn-active {
+  background: var(--accent-primary, #4a90d9);
+  border-color: var(--accent-primary, #4a90d9);
+}
+
+/* ============ TAB Button Type ============ */
+.btn-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.75rem 1rem;
+  color: var(--text-secondary, #888);
+  font-weight: 500;
+}
+
+.btn-tab:hover:not(:disabled) {
+  color: var(--text-primary, #f0f0f0);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-tab.btn-active {
+  color: var(--accent-primary, #4a90d9);
+  border-bottom-color: var(--accent-primary, #4a90d9);
+}
+
+/* Tab badge */
+.btn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: var(--glass-bg, rgba(60, 60, 60, 0.5));
+  color: var(--text-secondary, #888);
+  margin-left: 0.25rem;
+}
+
+.btn-badge-primary {
+  background: rgba(74, 144, 217, 0.2);
+  color: var(--color-primary, #4a90d9);
+}
+
+.btn-badge-success {
+  background: rgba(46, 204, 113, 0.2);
+  color: var(--color-success, #2ecc71);
+}
+
+.btn-badge-warning {
+  background: rgba(241, 196, 15, 0.2);
+  color: var(--color-warning, #f1c40f);
+}
+
+.btn-badge-error {
+  background: rgba(231, 76, 60, 0.2);
+  color: var(--color-error, #e74c3c);
+}
+
+/* ============ Light Mode Support ============ */
+:root:not(.dark) .btn-glass,
+body:not(.dark) .btn-glass {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: var(--text-primary);
+}
+
+:root:not(.dark) .btn-glass:hover:not(:disabled),
+body:not(.dark) .btn-glass:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+:root:not(.dark) .btn-nav,
+body:not(.dark) .btn-nav {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: var(--color-text-light);
+}
+
+:root:not(.dark) .btn-tab,
+body:not(.dark) .btn-tab {
+  color: var(--color-text-secondary-light);
+}
+
+:root:not(.dark) .btn-tab:hover:not(:disabled),
+body:not(.dark) .btn-tab:hover:not(:disabled) {
+  color: var(--color-text-light);
+  background: rgba(0, 0, 0, 0.03);
+}

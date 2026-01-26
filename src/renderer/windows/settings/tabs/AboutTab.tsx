@@ -3,7 +3,7 @@
  */
 
 import { Component, createSignal, onMount } from 'solid-js';
-import { TabContent } from '../../../components/common';
+import { TabContent, GlassBtn } from '../../../components/common';
 import './AboutTab.css';
 
 export const AboutTab: Component = () => {
@@ -51,12 +51,12 @@ export const AboutTab: Component = () => {
       </div>
 
       <div class="about-links">
-        <button class="about-link" onClick={openContact}>
+        <GlassBtn variant="ghost" onClick={openContact}>
           🌐 Website
-        </button>
-        <button class="about-link" onClick={openLicenses}>
+        </GlassBtn>
+        <GlassBtn variant="ghost" onClick={openLicenses}>
           📄 Licenses
-        </button>
+        </GlassBtn>
       </div>
 
       <div class="about-features">

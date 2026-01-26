@@ -13,7 +13,7 @@ import { useSettings } from '../../../context';
 import type { Token, TranslationResponse, DictionaryEntry } from '../../../../shared/types';
 import { API_ENDPOINTS } from '../../../../shared/constants';
 import { ReaderNav, ReaderSidebar, ReaderWelcomeCard, ReaderStatusBar } from './components';
-import { OCRProgressRing } from '../../../components/common';
+import { ProgressRing } from '../../../components/common';
 import './reader.css';
 
 interface PageImage {
@@ -39,6 +39,41 @@ interface OcrTask {
 const [ocrQueue, setOcrQueue] = createSignal<OcrTask[]>([]);
 const [processingTask, setProcessingTask] = createSignal<OcrTask | null>(null);
 
+// Per-book page memory (like old app's sequencer.js)
+const STORAGE_KEY_PREFIX = 'reader:last-page:';
+const makeStorageKey = (bookId: string) => `${STORAGE_KEY_PREFIX}${bookId}`;
+
+const loadSavedPageIndex = (bookId: string | null): number | null => {
+  if (!bookId) return null;
+  try {
+    const raw = localStorage.getItem(makeStorageKey(bookId));
+    if (raw === null) return null;
+    const val = parseInt(raw, 10);
+    return Number.isFinite(val) ? val : null;
+  } catch (err) {
+    console.warn('[Reader] Failed to read saved page index', err);
+    return null;
+  }
+};
+
+const persistPageIndex = (bookId: string | null, pageIndex: number, totalPages: number) => {
+  if (!bookId || totalPages === 0) return;
+  const normalized = Math.min(Math.max(pageIndex, 0), totalPages - 1);
+  try {
+    localStorage.setItem(makeStorageKey(bookId), String(normalized));
+  } catch (err) {
+    console.warn('[Reader] Failed to persist page index', err);
+  }
+};
+
+// Extract book ID from file name (removing extension and path)
+const extractBookId = (fileName: string): string => {
+  // Get just the filename without path
+  const baseName = fileName.split('/').pop() || fileName;
+  // Remove file extension
+  return baseName.replace(/\.[^.]+$/, '').trim();
+};
+
 export const ReaderRoute: Component = () => {
   const navigate = useNavigate();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -50,6 +85,7 @@ export const ReaderRoute: Component = () => {
 
   const [pages, setPages] = createSignal<PageImage[]>([]);
   const [currentPage, setCurrentPage] = createSignal(0);
+  const [currentBookId, setCurrentBookId] = createSignal<string | null>(null);
   const [fitMode, setFitMode] = createSignal<FitMode>('fit-height');
   const [pageMode, setPageMode] = createSignal<PageMode>('double');
   const [showSidebar, setShowSidebar] = createSignal(true);
@@ -438,21 +474,17 @@ export const ReaderRoute: Component = () => {
 
     files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-    // Check for saved progress BEFORE creating pages
-    const bookName = files[0].name;
-    const saved = localStorage.getItem('mlearn_recent_items');
+    // Determine book ID from first file (folder/book name)
+    const bookId = extractBookId(files[0].name);
+    setCurrentBookId(bookId);
+    
+    // Check for saved page position using the per-book storage key
+    const savedPageIndex = loadSavedPageIndex(bookId);
     let startPage = 0;
     
-    if (saved) {
-        try {
-            const items = JSON.parse(saved);
-            const match = items.find((i: any) => i.name === bookName || i.name === bookName.replace(/\.[^.]+$/, ''));
-            if (match && typeof match.progress === 'number') {
-                startPage = match.progress;
-            }
-        } catch (e) {
-            console.error('Error loading saved progress', e);
-        }
+    if (savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < files.length) {
+      startPage = savedPageIndex;
+      console.log(`[Reader] Restored page position ${startPage} for book "${bookId}"`);
     }
 
     const newPages: PageImage[] = files.map((file, index) => ({
@@ -474,7 +506,7 @@ export const ReaderRoute: Component = () => {
     });
     
     // Determine title more robustly
-    const title = files[0].name.split('/').pop()?.replace(/\.[^.]+$/, '') || 'Imported Book';
+    const title = bookId || 'Imported Book';
     setBookTitle(title);
     saveToRecent(title, 'book', startPage);
   };
@@ -504,6 +536,12 @@ export const ReaderRoute: Component = () => {
     if (total === 0) return;
     const newPage = Math.max(0, Math.min(index, total - 1));
     setCurrentPage(newPage);
+    
+    // Persist per-book page position
+    const bookId = currentBookId();
+    persistPageIndex(bookId, newPage, total);
+    
+    // Also update recent items for display purposes
     saveToRecent(bookTitle(), 'book', newPage);
   };
 
@@ -691,7 +729,7 @@ export const ReaderRoute: Component = () => {
                     {/* Page Processing Loader - shown while OCR is pending/processing */}
                     <Show when={isWaitingForOcr()}>
                       <div class="page-loader-overlay">
-                        <OCRProgressRing
+                        <ProgressRing
                           progress={getOcrProgress() ?? 0}
                           indeterminate={isPending() || getOcrProgress() === null}
                           size={40}

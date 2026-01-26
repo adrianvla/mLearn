@@ -1,0 +1,330 @@
+/**
+ * Unified Label Component Styles
+ * Consolidated styles for all label/badge variants
+ */
+
+/* ============ Base Label Styles ============ */
+.label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  font-weight: 600;
+  white-space: nowrap;
+  user-select: none;
+  position: relative;
+}
+
+.label-clickable {
+  cursor: pointer;
+  transition: opacity var(--transition-fast, 0.1s ease);
+}
+
+.label-clickable:hover {
+  opacity: 0.7;
+}
+
+.label-clickable:active {
+  opacity: 0.5;
+}
+
+/* ============ Active State ============ */
+.label-active {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3),
+    0 0 12px rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+/* ============ Icon Styling ============ */
+.label-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  height: max-content;
+}
+
+.label-icon img {
+  width: 1em;
+  height: 1em;
+}
+
+/* ============ Size Variants ============ */
+.label-xs {
+  font-size: 0.625rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 6px;
+}
+
+.label-sm {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+}
+
+.label-md {
+  font-size: 0.875rem;
+  padding: 0.3125rem 0.625rem;
+  border-radius: 10px;
+}
+
+.label-lg {
+  font-size: 1rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 12px;
+}
+
+/* ============ PILL Type ============ */
+.label-pill {
+  /* Default pink/magenta */
+  color: var(--pill-default-text);
+  background-color: var(--pill-default-bg);
+  box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
+}
+
+.label-pill .label-icon img {
+  width: 1.25em;
+  height: 1.25em;
+}
+
+/* Level-based colors (via data-level attribute) */
+.label-pill[data-level="1"] {
+  color: var(--pill-level-1-text);
+  background-color: var(--pill-level-1-bg);
+}
+
+.label-pill[data-level="2"] {
+  color: var(--pill-level-2-text);
+  background-color: var(--pill-level-2-bg);
+}
+
+.label-pill[data-level="3"] {
+  color: var(--pill-level-3-text);
+  background-color: var(--pill-level-3-bg);
+}
+
+.label-pill[data-level="4"] {
+  color: var(--pill-level-4-text);
+  background-color: var(--pill-level-4-bg);
+}
+
+.label-pill[data-level="5"] {
+  color: var(--pill-level-5-text);
+  background-color: var(--pill-level-5-bg);
+}
+
+.label-pill[data-level="6"] {
+  color: var(--pill-level-6-text);
+  background-color: var(--pill-level-6-bg);
+}
+
+.label-pill[data-level="7"] {
+  color: var(--pill-level-7-text);
+  background-color: var(--pill-level-7-bg);
+}
+
+/* ============ STATUS Type ============ */
+.label-status {
+  font-weight: bold;
+  box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
+}
+
+.label-status .label-icon img {
+  width: 1.25em;
+  height: 1.25em;
+}
+
+/* ============ BADGE Type ============ */
+.label-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  background: var(--glass-bg, rgba(60, 60, 60, 0.5));
+  color: var(--text-secondary, #888);
+}
+
+/* ============ TAG Type ============ */
+.label-tag {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--glass-bg, rgba(60, 60, 60, 0.5));
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  color: var(--text-primary, #f0f0f0);
+}
+
+/* ============ INDICATOR Type ============ */
+.label-indicator {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--accent-primary, #4a90d9);
+}
+
+.label-indicator .label-content,
+.label-indicator .label-icon {
+  display: none;
+}
+
+/* ============ Color Variants ============ */
+/* Red */
+.label-red {
+  color: var(--pill-level-1-text);
+  background-color: var(--pill-level-1-bg);
+}
+
+.label-red.label-indicator {
+  background-color: var(--pill-level-1-text);
+}
+
+.label-red .label-icon img {
+  filter: hue-rotate(350deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+/* Orange */
+.label-orange {
+  color: var(--pill-level-4-text);
+  background-color: var(--pill-level-4-bg);
+}
+
+.label-orange.label-indicator {
+  background-color: var(--pill-level-4-text);
+}
+
+.label-orange .label-icon img {
+  filter: hue-rotate(30deg) saturate(200%) brightness(150%);
+  opacity: 0.9;
+}
+
+/* Yellow */
+.label-yellow {
+  color: var(--pill-level-6-text);
+  background-color: var(--pill-level-6-bg);
+}
+
+.label-yellow.label-indicator {
+  background-color: var(--pill-level-6-text);
+}
+
+/* Green */
+.label-green {
+  color: var(--pill-level-3-text);
+  background-color: var(--pill-level-3-bg);
+}
+
+.label-green.label-indicator {
+  background-color: var(--pill-level-3-text);
+}
+
+.label-green .label-icon img {
+  filter: hue-rotate(113.82deg) saturate(200%) brightness(150%);
+  opacity: 0.9;
+}
+
+/* Blue */
+.label-blue {
+  color: var(--pill-level-2-text);
+  background-color: var(--pill-level-2-bg);
+}
+
+.label-blue.label-indicator {
+  background-color: var(--pill-level-2-text);
+}
+
+.label-blue .label-icon img {
+  filter: hue-rotate(214deg) saturate(200%) brightness(170%);
+  opacity: 0.9;
+}
+
+/* Purple */
+.label-purple {
+  color: var(--pill-level-5-text);
+  background-color: var(--pill-level-5-bg);
+}
+
+.label-purple.label-indicator {
+  background-color: var(--pill-level-5-text);
+}
+
+.label-purple .label-icon img {
+  filter: hue-rotate(287deg) saturate(200%) brightness(150%);
+  opacity: 0.9;
+}
+
+/* Gray */
+.label-gray {
+  color: var(--pill-level-7-text);
+  background-color: var(--pill-level-7-bg);
+}
+
+.label-gray.label-indicator {
+  background-color: var(--pill-level-7-text);
+}
+
+/* Primary */
+.label-primary {
+  color: var(--color-primary, #4a90d9);
+  background-color: rgba(74, 144, 217, 0.15);
+}
+
+.label-primary.label-indicator {
+  background-color: var(--color-primary, #4a90d9);
+}
+
+/* Success */
+.label-success {
+  color: var(--color-success, #2ecc71);
+  background-color: rgba(46, 204, 113, 0.15);
+}
+
+.label-success.label-indicator {
+  background-color: var(--color-success, #2ecc71);
+}
+
+/* Warning */
+.label-warning {
+  color: var(--color-warning, #f1c40f);
+  background-color: rgba(241, 196, 15, 0.15);
+}
+
+.label-warning.label-indicator {
+  background-color: var(--color-warning, #f1c40f);
+}
+
+/* Error */
+.label-error {
+  color: var(--color-error, #e74c3c);
+  background-color: rgba(231, 76, 60, 0.15);
+}
+
+.label-error.label-indicator {
+  background-color: var(--color-error, #e74c3c);
+}
+
+/* ============ Count Styling ============ */
+.label-count {
+  font-size: 0.85em;
+  opacity: 0.8;
+  margin-left: 0.25em;
+}
+
+/* ============ Light Mode Support ============ */
+:root:not(.dark) .label-badge,
+body:not(.dark) .label-badge {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--color-text-secondary-light);
+}
+
+:root:not(.dark) .label-tag,
+body:not(.dark) .label-tag {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: var(--color-text-light);
+}

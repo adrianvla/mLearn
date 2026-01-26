@@ -13,7 +13,7 @@ import {
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, type WordEntry, type TranslationOverride } from './components';
-import { SpinnerLoader } from '../../components/common';
+import { Spinner } from '../../components/common';
 import './wordDbEditor.css';
 
 const WordDbEditorContent: Component = () => {
@@ -45,12 +45,15 @@ const WordDbEditorContent: Component = () => {
     [-1]: 'Unlisted',
   });
 
-  // Load words from storage on mount
+  // Load words from storage on mount and auto-load all words
   onMount(async () => {
     try {
       await loadWordsFromStorage();
       setIsInitialized(true);
       console.log('Word DB Editor: Loaded words from storage');
+      
+      // Auto-load all words after storage is initialized
+      await loadAllWords();
     } catch (e) {
       console.error('Word DB Editor: Failed to load words:', e);
       setIsInitialized(true);
@@ -275,7 +278,9 @@ const WordDbEditorContent: Component = () => {
     <div class="word-db-editor">
       {/* Loading indicator while initializing */}
       <Show when={!isInitialized()}>
-        <div class="init-loading">Loading word database...</div>
+        <div class="init-loading">
+          <Spinner size={40} text="Loading word database..." />
+        </div>
       </Show>
       
       <Show when={isInitialized()}>
@@ -325,7 +330,7 @@ const WordDbEditorContent: Component = () => {
         <Show when={isLoading()}>
           <div class="loading-overlay">
             <div class="loading-content">
-              <SpinnerLoader size={40} text={`Loading... ${loadProgress()}%`} />
+              <Spinner size={40} text={`Loading... ${loadProgress()}%`} />
             </div>
           </div>
         </Show>

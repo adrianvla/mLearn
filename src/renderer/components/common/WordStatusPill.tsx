@@ -5,7 +5,7 @@
  */
 
 import { Component, createMemo } from 'solid-js';
-import { PillButton } from './PillButton';
+import { PillBtn } from './Button';
 
 export type WordStatusType = 'unknown' | 'learning' | 'known';
 
@@ -59,7 +59,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   });
 
   return (
-    <PillButton
+    <PillBtn
       variant={variant()}
       icon={icon()}
       label={label()}

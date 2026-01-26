@@ -7,7 +7,7 @@ import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings } from '../../../context';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { ActionCard, RecentCard, type RecentItem } from '../../../components/common';
+import { ActionCard, RecentCard, GlassBtn, type RecentItem } from '../../../components/common';
 import './welcome.css';
 
 export const WelcomeRoute: Component = () => {
@@ -134,7 +134,7 @@ export const WelcomeRoute: Component = () => {
       <footer class="welcome-footer">
         <span>Learning {settings.language === 'ja' ? 'Japanese' : 'German'}</span>
         <span>•</span>
-        <button class="footer-link" onClick={openSettings}>Change Language</button>
+        <GlassBtn variant="ghost" size="sm" onClick={openSettings}>Change Language</GlassBtn>
       </footer>
     </div>
   );

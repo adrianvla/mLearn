@@ -6,7 +6,7 @@
 import { Component, JSX, Show, createEffect, onCleanup, splitProps, mergeProps } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { GlassPanel } from './GlassPanel';
-import { IconButton } from './GlassButton';
+import { IconBtn } from './Button';
 
 export interface GlassModalProps {
   isOpen: boolean;
@@ -175,7 +175,7 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
                   </Show>
                 </div>
                 <Show when={local.showCloseButton}>
-                  <IconButton
+                  <IconBtn
                     variant="ghost"
                     size="sm"
                     aria-label="Close modal"
@@ -183,7 +183,7 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
                     style={{ 'margin-left': '1rem', 'flex-shrink': 0 }}
                   >
                     <CloseIcon />
-                  </IconButton>
+                  </IconBtn>
                 </Show>
               </div>
             </Show>

@@ -46,22 +46,7 @@
   margin-bottom: 2rem;
 }
 
-.about-link {
-  padding: 0.625rem 1.25rem;
-  background: var(--glass-bg, rgba(255, 255, 255, 0.05));
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-  border-radius: var(--radius-md, 8px);
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: inherit;
-  font-size: 0.875rem;
-}
-
-.about-link:hover {
-  background: var(--glass-bg-hover, rgba(255, 255, 255, 0.1));
-  border-color: var(--glass-border-hover, rgba(255, 255, 255, 0.2));
-}
+/* Note: .about-link class removed in favor of GlassButton with ghost variant */
 
 .about-features,
 .about-shortcuts {

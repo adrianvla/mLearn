@@ -8,7 +8,7 @@ import { Component, createSignal, createEffect, createMemo, Show, onMount } from
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { useSettings, useLanguage } from '../../context';
 import { buildPitchAccentHtml, getPitchAccentInfo, getPitchAccentName } from '../../utils/pitchAccent';
-import { GlassInput, GlassButton } from '../common';
+import { GlassInput, GlassBtn } from '../common';
 import './FlashcardEditor.css';
 
 export interface FlashcardEditorProps {
@@ -342,10 +342,10 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
       {/* Footer Actions */}
       <div class="editor-footer">
-        <GlassButton onClick={props.onCancel}>Cancel</GlassButton>
-        <GlassButton variant="primary" onClick={handleSave}>
+        <GlassBtn onClick={props.onCancel}>Cancel</GlassBtn>
+        <GlassBtn variant="primary" onClick={handleSave}>
           Save Changes
-        </GlassButton>
+        </GlassBtn>
       </div>
     </div>
   );

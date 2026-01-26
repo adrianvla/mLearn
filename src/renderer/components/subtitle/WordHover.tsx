@@ -13,7 +13,7 @@ import { getWordExplanation, getCachedExplanation } from '../../services/llmServ
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillButton, SkeletonLoader } from '../common';
+import { PillBtn, Skeleton } from '../common';
 import './WordHover.css';
 
 // Icon paths - served from static assets
@@ -928,10 +928,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     );
   };
 
-  // LLM Explain pill using PillButton component
+  // LLM Explain pill using PillBtn component
   const LLMPill = () => {
     return (
-      <PillButton
+      <PillBtn
         variant="blue"
         icon={ICON_BOT}
         label="Explain"
@@ -1025,7 +1025,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           {/* LLM Explanation section */}
           <Show when={llmExplaining()}>
             <div class="subtitle_hover_alt_c skeleton-c">
-              <SkeletonLoader />
+              <Skeleton />
             </div>
           </Show>
           <Show when={llmExplanation()}>
@@ -1056,7 +1056,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               </Show>
               <POSPill />
               {/* Status pill - directly reactive using memos */}
-              <PillButton
+              <PillBtn
                 variant={statusVariant()}
                 icon={statusIcon()}
                 label={statusLabel()}
@@ -1065,7 +1065,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               {/* Flashcard pill - uses Show for proper Solid.js reactivity */}
               <Show when={isTracked()} fallback={
                 <Show when={isAddingFlashcard()} fallback={
-                  <PillButton
+                  <PillBtn
                     variant="blue"
                     icon={ICON_CROSS}
                     iconRotation={45}
@@ -1073,14 +1073,14 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                     onClick={handleAddToSRS}
                   />
                 }>
-                  <PillButton
+                  <PillBtn
                     variant="yellow"
                     icon="⏳"
                     label="Adding..."
                   />
                 </Show>
               }>
-                <PillButton
+                <PillBtn
                   variant="green"
                   icon={ICON_CHECK}
                   label="Tracked"

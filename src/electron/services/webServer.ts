@@ -21,9 +21,6 @@ let wss: WebSocketServer | null = null;
 // Connected WebSocket clients
 const connectedClients: Set<WebSocket> = new Set();
 
-// LocalStorage sync data
-let localStorageData: Record<string, unknown> = {};
-
 // Queued updates for main window
 let pillQueuedUpdates: unknown[] = [];
 let wordAppearanceQueuedUpdates: unknown[] = [];
@@ -354,8 +351,8 @@ export function startWebServer(): void {
   });
 
   // Setup IPC handlers
-  ipcMain.on(IPC_CHANNELS.SEND_LS, (_event, data) => {
-    localStorageData = data;
+  ipcMain.on(IPC_CHANNELS.SEND_LS, (_event, _data) => {
+    // LocalStorage data received from renderer (currently unused)
   });
 
   ipcMain.on(IPC_CHANNELS.WATCH_TOGETHER_SEND, (_event, message) => {

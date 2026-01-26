@@ -154,8 +154,8 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 30px;
+  padding-bottom: 80px; /* Extra padding at bottom to ensure content isn't cut off */
   min-height: 0; /* Crucial for flexbox overflow scrolling */
-  max-height: calc(100vh - 60px); /* Account for header height */
 }
 
 /* Tab Containers */
@@ -336,40 +336,7 @@
   accent-color: var(--accent-primary);
 }
 
-/* Buttons */
-.setting-btn {
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.9rem;
-}
-
-.setting-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.setting-btn.primary {
-  background: var(--accent-primary);
-  border-color: var(--accent-primary);
-}
-
-.setting-btn.primary:hover {
-  background: var(--color-primary-active);
-}
-
-.setting-btn.danger {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: rgba(239, 68, 68, 0.4);
-  color: var(--color-error);
-}
-
-.setting-btn.danger:hover {
-  background: rgba(239, 68, 68, 0.3);
-}
+/* Note: setting-btn classes removed in favor of unified GlassButton component */
 
 /* Stats Specific */
 .stats-grid {
@@ -456,19 +423,7 @@
   margin-top: 20px;
 }
 
-.about-link {
-  padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.8);
-  text-decoration: none;
-  transition: all 0.2s;
-}
-
-.about-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-}
+/* Note: .about-link class removed in favor of GlassButton with ghost variant */
 
 /* Scrollbar */
 .settings-content::-webkit-scrollbar {

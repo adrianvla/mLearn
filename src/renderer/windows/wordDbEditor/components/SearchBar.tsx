@@ -3,7 +3,7 @@
  */
 
 import { Component, For, Show, Accessor, Setter } from 'solid-js';
-import { GlassButton } from '../../../components/common';
+import { GlassBtn, Progress, HintText } from '../../../components/common';
 
 export interface SearchBarProps {
   searchQuery: Accessor<string>;
@@ -28,15 +28,17 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
         onInput={(e) => props.setSearchQuery(e.currentTarget.value)}
         onKeyPress={(e) => e.key === 'Enter' && props.onSearch()}
       />
-      <GlassButton onClick={props.onSearch}>Search</GlassButton>
-      <GlassButton onClick={props.onLoadAll} disabled={props.isLoading()}>
+      <GlassBtn onClick={props.onSearch}>Search</GlassBtn>
+      <GlassBtn onClick={props.onLoadAll} disabled={props.isLoading()}>
         Load All
-      </GlassButton>
+      </GlassBtn>
       
       <Show when={props.isLoading()}>
-        <div class="load-progress">
-          <div class="bar" style={{ width: `${props.loadProgress()}%` }} />
-        </div>
+        <Progress 
+          progress={props.loadProgress()} 
+          variant="thin" 
+          class="load-progress"
+        />
       </Show>
       
       <select
@@ -53,9 +55,9 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
         </For>
       </select>
       
-      <span class="hint">
+      <HintText>
         Enter to search; exact matches prioritized. Press Load All first.
-      </span>
+      </HintText>
     </div>
   );
 };

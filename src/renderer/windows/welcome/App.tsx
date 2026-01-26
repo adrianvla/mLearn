@@ -8,7 +8,7 @@ import { Component, Show, For, createSignal, createEffect, onMount } from 'solid
 import { WindowWrapper } from '../../context';
 import { useSettings } from '../../context';
 import type { Settings, InstallOptions, InstallerState } from '../../../shared/types';
-import { GlassPanel, GlassButton, SelectableCard, AlertBanner, LogConsole, CheckboxCard, ProgressBar } from '../../components/common';
+import { GlassPanel, GlassBtn, SelectableCard, AlertBanner, LogConsole, CheckboxCard, Progress } from '../../components/common';
 import type { LogEntry } from '../../components/common/LogConsole';
 
 interface LanguageOption {
@@ -277,7 +277,7 @@ const WelcomeContent: Component = () => {
       </h1>
 
       {/* Progress bar */}
-      <ProgressBar 
+      <Progress 
         progress={progress()} 
         style={{ width: '100%', 'max-width': '500px', 'margin-bottom': '1rem' }}
       />
@@ -386,7 +386,7 @@ const WelcomeContent: Component = () => {
         </Show>
 
         {/* Action button */}
-        <GlassButton
+        <GlassBtn
           variant="primary"
           onClick={installationCompleted() ? handleContinue : handleInstall}
           disabled={installationStarted() && !installationCompleted()}
@@ -395,7 +395,7 @@ const WelcomeContent: Component = () => {
           <Show when={!installationStarted() && !installationCompleted()}>Start Installation</Show>
           <Show when={installationStarted() && !installationCompleted()}>Installing...</Show>
           <Show when={installationCompleted()}>Continue</Show>
-        </GlassButton>
+        </GlassBtn>
       </GlassPanel>
     </div>
   );

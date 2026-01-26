@@ -6,7 +6,7 @@
 
 import { Component, createSignal, Show, For, onMount, createEffect } from 'solid-js';
 import { useSettings, useLanguage } from '../../context';
-import { GlassModal, GlassButton } from '../common';
+import { GlassModal, GlassBtn } from '../common';
 import type { Settings } from '../../../shared/types';
 import { SUBTITLE_THEMES, type SubtitleTheme } from '../../../shared/constants';
 import './settings.css';
@@ -626,9 +626,9 @@ export const SettingsModal: Component<SettingsModalProps> = (props) => {
                   {(deck) => <option value={deck}>{deck}</option>}
                 </For>
               </select>
-              <button class="glass-button small" onClick={fetchAnkiDecks}>
+              <GlassBtn size="sm" onClick={fetchAnkiDecks}>
                 Refresh Decks
-              </button>
+              </GlassBtn>
             </div>
           </Show>
         );
@@ -659,36 +659,36 @@ export const SettingsModal: Component<SettingsModalProps> = (props) => {
       case 'install_languages':
         return (
           <div class="setting-row">
-            <GlassButton onClick={handleInstallLanguages}>
+            <GlassBtn onClick={handleInstallLanguages}>
               Install Additional Languages...
-            </GlassButton>
+            </GlassBtn>
           </div>
         );
 
       case 'restoreDefaults':
         return (
           <div class="setting-row">
-            <GlassButton variant="danger" onClick={handleRestoreDefaults}>
+            <GlassBtn variant="danger" onClick={handleRestoreDefaults}>
               Restore Defaults
-            </GlassButton>
+            </GlassBtn>
           </div>
         );
 
       case 'save':
         return (
           <div class="setting-row">
-            <GlassButton variant="primary" onClick={handleSave}>
+            <GlassBtn variant="primary" onClick={handleSave}>
               Save Settings
-            </GlassButton>
+            </GlassBtn>
           </div>
         );
 
       case 'resetSRS':
         return (
           <div class="setting-row">
-            <GlassButton variant="danger" onClick={handleResetSRS}>
+            <GlassBtn variant="danger" onClick={handleResetSRS}>
               Reset Flashcard SRS Data
-            </GlassButton>
+            </GlassBtn>
           </div>
         );
 
@@ -717,12 +717,12 @@ export const SettingsModal: Component<SettingsModalProps> = (props) => {
           </div>
           
           <div class="stats-actions">
-            <GlassButton onClick={() => window.mLearnIPC?.send(IPC_CHANNELS.OPEN_WORD_DB_EDITOR, {})}>
+            <GlassBtn onClick={() => window.mLearnIPC?.send(IPC_CHANNELS.OPEN_WORD_DB_EDITOR, {})}>
               Edit Word Database
-            </GlassButton>
-            <GlassButton onClick={() => window.mLearnIPC?.send(IPC_CHANNELS.OPEN_KANJI_GRID, {})}>
+            </GlassBtn>
+            <GlassBtn onClick={() => window.mLearnIPC?.send(IPC_CHANNELS.OPEN_KANJI_GRID, {})}>
               Open Kanji Grid
-            </GlassButton>
+            </GlassBtn>
           </div>
         </div>
       );
@@ -825,10 +825,10 @@ export const SettingsModal: Component<SettingsModalProps> = (props) => {
         <Show when={requiresRestart()}>
           <span class="restart-warning">⚠️ Some changes require restart</span>
         </Show>
-        <GlassButton onClick={props.onClose}>Cancel</GlassButton>
-        <GlassButton variant="primary" onClick={handleSave}>
+        <GlassBtn onClick={props.onClose}>Cancel</GlassBtn>
+        <GlassBtn variant="primary" onClick={handleSave}>
           Save
-        </GlassButton>
+        </GlassBtn>
       </div>
     </GlassModal>
   );

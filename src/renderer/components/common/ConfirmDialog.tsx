@@ -6,7 +6,7 @@
 
 import { Component, Show, createSignal, JSX } from 'solid-js';
 import { GlassModal } from './GlassModal';
-import { GlassButton } from './GlassButton';
+import { GlassBtn } from './Button';
 
 export type ConfirmVariant = 'danger' | 'warning' | 'info';
 
@@ -63,14 +63,14 @@ export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
   
   const footer = (
     <div style={{ display: 'flex', gap: '0.75rem', 'justify-content': 'flex-end' }}>
-      <GlassButton
+      <GlassBtn
         variant="ghost"
         onClick={props.onClose}
         disabled={isLoading()}
       >
         {props.cancelText ?? 'Cancel'}
-      </GlassButton>
-      <GlassButton
+      </GlassBtn>
+      <GlassBtn
         variant={config().confirmVariant}
         onClick={handleConfirm}
         disabled={isLoading()}
@@ -79,7 +79,7 @@ export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
           <span style={{ 'margin-right': '0.5rem' }}>⏳</span>
         </Show>
         {props.confirmText ?? config().defaultConfirmText}
-      </GlassButton>
+      </GlassBtn>
     </div>
   );
   

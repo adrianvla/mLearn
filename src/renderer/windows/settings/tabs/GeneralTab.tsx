@@ -4,7 +4,7 @@
 
 import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, GlassBtn } from '../../../components/common';
 
 export const GeneralTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -62,27 +62,27 @@ export const GeneralTab: Component = () => {
           label="Export Settings"
           description="Save your settings to a file"
         >
-          <button class="setting-btn" onClick={() => exportSettings()}>
+          <GlassBtn size="sm" onClick={() => exportSettings()}>
             Export
-          </button>
+          </GlassBtn>
         </SettingRow>
 
         <SettingRow
           label="Import Settings"
           description="Load settings from a file"
         >
-          <button class="setting-btn" onClick={() => importSettings()}>
+          <GlassBtn size="sm" onClick={() => importSettings()}>
             Import
-          </button>
+          </GlassBtn>
         </SettingRow>
 
         <SettingRow
           label="Reset to Defaults"
           description="Restore all settings to their default values"
         >
-          <button class="setting-btn danger" onClick={() => resetSettings()}>
+          <GlassBtn size="sm" variant="danger" onClick={() => resetSettings()}>
             Reset
-          </button>
+          </GlassBtn>
         </SettingRow>
       </SettingGroup>
     </TabContent>
