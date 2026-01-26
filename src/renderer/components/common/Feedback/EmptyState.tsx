@@ -4,8 +4,8 @@
  */
 
 import { Component, JSX, Show } from 'solid-js';
-import { GlassPanel } from './GlassPanel';
-import { GlassBtn } from './Button';
+import { GlassPanel } from '../Panel';
+import { GlassBtn } from '../Button';
 import './EmptyState.css';
 
 export interface EmptyStateAction {

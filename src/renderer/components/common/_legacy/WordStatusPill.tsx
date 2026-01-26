@@ -5,7 +5,7 @@
  */
 
 import { Component, createMemo } from 'solid-js';
-import { PillBtn } from './Button';
+import { PillBtn } from '../Button';
 
 export type WordStatusType = 'unknown' | 'learning' | 'known';
 

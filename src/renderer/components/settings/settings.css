@@ -9,11 +9,11 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
-  background: var(--settings-bg, #2a2a2a);
+  background: var(--settings-bg);
   overflow: hidden;
 }
 
-body:not(.dark) .settings-outer {
+body .settings-outer {
   --settings-bg: #ddd;
 }
 
@@ -23,11 +23,7 @@ body:not(.dark) .settings-outer {
   min-height: 0; /* Critical for flex child scrolling */
   overflow-y: auto;
   overflow-x: hidden;
-  background: var(--settings-bg, #2a2a2a);
-}
-
-body:not(.dark) .settings-container {
-  --settings-bg: #ddd;
+  background: var(--settings-bg);
 }
 
 /* Navigation bar at top - matches .nav from old app exactly */
@@ -40,7 +36,7 @@ body:not(.dark) .settings-container {
   padding: 2px;
   padding-inline: 20px;
   gap: 10px;
-  background: var(--nav-bg, #333);
+  background: var(--nav-bg);
   border-bottom: 1px solid #000;
   width: 100%;
   flex-shrink: 0;
@@ -48,7 +44,7 @@ body:not(.dark) .settings-container {
   font-size: 12px;
 }
 
-body:not(.dark) .settings-nav {
+body .settings-nav {
   --nav-bg: #eee;
   border-bottom-color: #999;
 }
@@ -65,7 +61,7 @@ body:not(.dark) .settings-nav {
   padding-bottom: 5px;
   border-radius: 5px;
   background: transparent;
-  color: var(--nav-item-color, #aaa);
+  color: var(--nav-item-color);
   font-size: 12px;
   cursor: pointer;
   transition: background 0.05s;
@@ -73,24 +69,24 @@ body:not(.dark) .settings-nav {
   border: none;
 }
 
-body:not(.dark) .settings-nav .nav-item {
+body .settings-nav .nav-item {
   --nav-item-color: #888;
   background: transparent;
 }
 
 .settings-nav .nav-item:hover {
-  background: var(--nav-hover-bg, #444);
+  background: var(--nav-hover-bg);
 }
 
-body:not(.dark) .settings-nav .nav-item:hover {
+body .settings-nav .nav-item:hover {
   --nav-hover-bg: #ddd;
 }
 
 .settings-nav .nav-item.selected {
-  background: var(--nav-selected-bg, #2a2a2a);
+  background: var(--nav-selected-bg);
 }
 
-body:not(.dark) .settings-nav .nav-item.selected {
+body .settings-nav .nav-item.selected {
   --nav-selected-bg: #ccc;
 }
 
@@ -170,14 +166,14 @@ body:not(.dark) .settings-nav .nav-item.selected {
 }
 
 .setting-row label {
-  color: var(--label-color, #ddd);
+  color: var(--label-color);
   font-size: 15px;
   font-family: "Helvetica Neue", sans-serif;
   padding: 5px;
   height: 15px;
 }
 
-body:not(.dark) .setting-row label {
+body .setting-row label {
   --label-color: rgb(110, 110, 110);
 }
 
@@ -195,7 +191,7 @@ body:not(.dark) .setting-row label {
   margin-inline: 10px;
   accent-color: #32d520;
   cursor: pointer;
-  background: var(--checkbox-bg, #333);
+  background: var(--checkbox-bg);
   border: 1px solid #444;
   border-radius: 3px;
   position: relative;
@@ -203,19 +199,10 @@ body:not(.dark) .setting-row label {
   -webkit-appearance: none;
 }
 
-body:not(.dark) .setting-row input[type="checkbox"] {
-  --checkbox-bg: #ccc;
-  border-color: #bbb;
-}
 
 .setting-row input[type="checkbox"]:hover {
   background: var(--checkbox-hover-bg, #444);
   border-color: #555;
-}
-
-body:not(.dark) .setting-row input[type="checkbox"]:hover {
-  --checkbox-hover-bg: #aaa;
-  border-color: #999;
 }
 
 .setting-row input[type="checkbox"]:checked {
@@ -256,7 +243,7 @@ body:not(.dark) .setting-row input[type="checkbox"]:hover {
 /* Number/text inputs */
 .setting-row input[type="number"],
 .setting-row input[type="text"] {
-  background: var(--input-bg, #333);
+  background: var(--input-bg);
   color: var(--input-color, #fff);
   border: 1px solid #444;
   padding: 5px;
@@ -268,17 +255,10 @@ body:not(.dark) .setting-row input[type="checkbox"]:hover {
   height: 15px;
 }
 
-body:not(.dark) .setting-row input[type="number"],
-body:not(.dark) .setting-row input[type="text"] {
-  --input-bg: #ccc;
-  --input-color: rgb(110, 110, 110);
-  border-color: #bbb;
-}
-
 /* Select dropdown */
 .setting-row select,
 .glass-select {
-  background: var(--select-bg, #333);
+  background: var(--select-bg);
   border: 1px solid #444;
   color: var(--select-color, #fff);
   border-radius: 5px;
@@ -288,13 +268,6 @@ body:not(.dark) .setting-row input[type="text"] {
   height: 25px;
   margin-inline: 10px;
   padding: 2px 8px;
-}
-
-body:not(.dark) .setting-row select,
-body:not(.dark) .glass-select {
-  --select-bg: #ccc;
-  --select-color: rgb(110, 110, 110);
-  border-color: #bbb;
 }
 
 /* Button styling */

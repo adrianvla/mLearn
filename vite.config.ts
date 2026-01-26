@@ -9,6 +9,10 @@ export default defineConfig({
     port: 3000,
     strictPort: true,
   },
+  // Define global for browser compatibility (needed for simple-peer)
+  define: {
+    global: 'globalThis',
+  },
   build: {
     target: 'esnext',
     outDir: 'dist',

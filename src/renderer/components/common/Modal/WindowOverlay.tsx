@@ -1,7 +1,7 @@
 import { createSignal, onCleanup, Show, JSX } from "solid-js";
 import {WindowDragRegion} from "@renderer/components/utils/WindowDragRegion";
 
-type WindowOverlayProps = {
+export type WindowOverlayProps = {
     children?: JSX.Element;
     idleTimeout?: number;
 };

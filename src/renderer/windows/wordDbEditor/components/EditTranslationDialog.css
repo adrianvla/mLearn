@@ -2,7 +2,7 @@
  * Edit Translation Dialog Styles
  */
 
-@import url('../../../components/common/PitchAccent.css');
+@import url('../../../components/common/Text/PitchAccent.css');
 
 .edit-translation-dialog {
   max-width: 600px;

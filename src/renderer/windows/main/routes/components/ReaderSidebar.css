@@ -9,9 +9,9 @@
   width: 160px;
   height: calc(100vh - 48px - 40px);
   overflow-y: auto;
-  background: var(--glass-bg-current);
+  background: var(--glass-bg);
   backdrop-filter: var(--glass-backdrop-filter);
-  border-right: 1px solid var(--glass-border-current);
+  border-right: 1px solid var(--glass-border);
   padding: 1rem 0.5rem;
   z-index: 90;
   user-select: none;

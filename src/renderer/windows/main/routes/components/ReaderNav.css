@@ -9,9 +9,9 @@
   align-items: center;
   padding: 0.5rem 1rem;
   height: 48px;
-  border-bottom: 1px solid var(--glass-border-current);
+  border-bottom: 1px solid var(--glass-border);
   backdrop-filter: var(--glass-backdrop-filter);
-  background: var(--glass-bg-current);
+  background: var(--glass-bg);
   z-index: 100;
   -webkit-app-region: drag; /* make the nav draggable for the Electron window */
   position: relative;

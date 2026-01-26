@@ -3,8 +3,8 @@
  */
 
 /* Import shared styling */
-@import url('../components/common/Pill.css');
-@import url('../components/common/PitchAccent.css');
+@import url('../components/common/Label/Label.css');
+@import url('../components/common/Text/PitchAccent.css');
 
 /* ========== Subtitle Container ========== */
 .subtitles {
@@ -125,9 +125,9 @@
 /*  bottom: 100%;*/
 /*  left: 50%;*/
 /*  transform: translateX(-50%);*/
-/*  background: var(--glass-bg-current);*/
+/*  background: var(--glass-bg);*/
 /*  backdrop-filter: var(--glass-backdrop-filter);*/
-/*  border: 1px solid var(--glass-border-current);*/
+/*  border: 1px solid var(--glass-border);*/
 /*  border-radius: var(--radius-lg);*/
 /*  min-width: 200px;*/
 /*  max-width: 400px;*/

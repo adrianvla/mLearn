@@ -4,7 +4,7 @@
  */
 
 import { Component, Show, JSX } from 'solid-js';
-import { Button } from './Button';
+import { Button } from '../Button';
 import './ModalFooter.css';
 
 export interface ModalFooterProps {

@@ -6,7 +6,7 @@
 
 import { Component, Show, createSignal, JSX } from 'solid-js';
 import { GlassModal } from './GlassModal';
-import { GlassBtn } from './Button';
+import { GlassBtn } from '../Button';
 
 export type ConfirmVariant = 'danger' | 'warning' | 'info';
 

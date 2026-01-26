@@ -4,8 +4,8 @@
  */
 
 /* Import pitch accent styles */
-@import url('../common/PitchAccent.css');
-@import url('../common/Pill.css');
+@import url('../common/Text/PitchAccent.css');
+@import url('../common/Label/Label.css');
 
 /* Container with 3D perspective */
 .flashcard-container {

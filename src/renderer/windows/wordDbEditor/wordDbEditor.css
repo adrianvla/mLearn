@@ -3,9 +3,8 @@
  */
 
 /* Import shared styling */
-@import url('../../components/common/Pill.css');
-@import url('../../components/common/StatusPill.css');
-@import url('../../components/common/PitchAccent.css');
+@import url('../../components/common/Label/Label.css');
+@import url('../../components/common/Text/PitchAccent.css');
 
 .word-db-editor {
   display: flex;
@@ -123,12 +122,12 @@
   display: flex;
   align-items: center;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--color-border-dark);
+  border-bottom: 1px solid var(--color-border);
   transition: background 0.15s ease;
 }
 
 .entry:hover {
-  background: var(--color-border-dark);
+  background: var(--color-border);
 }
 
 .entry .reading {

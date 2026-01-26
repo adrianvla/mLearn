@@ -9,7 +9,7 @@ import { WindowWrapper } from '../../context';
 import { useSettings } from '../../context';
 import type { Settings, InstallOptions, InstallerState } from '../../../shared/types';
 import { GlassPanel, GlassBtn, SelectableCard, AlertBanner, LogConsole, CheckboxCard, Progress } from '../../components/common';
-import type { LogEntry } from '../../components/common/LogConsole';
+import type { LogEntry } from '../../components/common/Text/LogConsole';
 
 interface LanguageOption {
   code: string;
