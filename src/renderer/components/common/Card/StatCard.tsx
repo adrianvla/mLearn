@@ -4,7 +4,7 @@
  */
 
 import { Component, JSX, Show } from 'solid-js';
-import { GlassPanel } from './GlassPanel';
+import { GlassPanel } from '../Panel';
 import './StatCard.css';
 
 export interface StatCardProps {

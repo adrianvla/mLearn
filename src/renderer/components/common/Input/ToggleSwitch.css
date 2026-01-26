@@ -75,16 +75,3 @@
   font-size: 0.9em;
   color: inherit;
 }
-
-/* Dark mode */
-body.dark .toggle-slider {
-  background-color: var(--toggle-bg-dark);
-}
-
-body.dark .toggle-switch:not(.disabled):hover .toggle-slider {
-  background-color: var(--toggle-bg-dark-hover);
-}
-
-body.dark .toggle-switch input:checked + .toggle-slider {
-  background-color: var(--toggle-bg-checked);
-}

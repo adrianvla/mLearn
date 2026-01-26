@@ -1,0 +1,81 @@
+/* This file contains patches and overrides for the dark theme */
+
+/* === Start WordHover.css === */
+.subtitle_hover.dark,
+body.dark .subtitle_hover {
+    background-color: var(--glass-bg);
+    color: var(--text-primary);
+}
+body.dark .subtitle_hover .pitch,
+.subtitle_hover.dark .pitch {
+    filter: invert(1);
+}
+
+body.dark .subtitle_hover .footer,
+.subtitle_hover.dark .footer {
+    border-top: 1px solid var(--color-border);
+    background: rgba(0, 0, 0, 0.1);
+}
+
+body.dark .subtitle_hover hr,
+.subtitle_hover.dark hr {
+    border-top-color: var(--color-border);
+}
+
+body.dark .subtitle_hover_alt_c,
+.subtitle_hover.dark .subtitle_hover_alt_c {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* === End WordHover.css === */
+
+
+/* === Start index.css === */
+body.dark {
+    --glass-bg: rgba(60, 60, 60, 0.5);
+    --glass-border: rgba(255, 255, 255, 0.1);
+
+    --color-bg: #0a0a0a;
+    --color-surface: #1a1a1a;
+    --color-text: #f0f0f0;
+    --color-text-secondary: #a0a0a0;
+    --color-border: rgba(255, 255, 255, 0.1);
+
+    --text-primary: #f0f0f0;
+    --text-secondary: #a0a0a0;
+    --text-muted: rgba(255, 255, 255, 0.4);
+
+    --toggle-bg: #555;
+    --toggle-bg-hover: #666;
+}
+
+/* === End index.css === */
+
+/* === Start settings.css === */
+body.dark .settings-outer{
+    --settings-bg: #2a2a2a;
+}
+
+body.dark .settings-nav{
+    --nav-bg: #333;
+}
+
+body.dark .settings-nav .nav-item{
+    --nav-item-color: #aaa;
+}
+
+body.dark .settings-nav .nav-item:hover{
+    --nav-hover-bg: #444;
+}
+
+body.dark .settings-nav .nav-item.selected {
+    --nav-selected-bg: #444;
+}
+body:not(.dark) .setting-row label {
+    --label-color: rgb(110, 110, 110);
+}
+
+body:not(.dark) .setting-row label {
+    --label-color: #ddd;
+}
+/* === End settings.css === */

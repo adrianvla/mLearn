@@ -4,7 +4,7 @@
  */
 
 import { Component, Show } from 'solid-js';
-import { Spinner } from './Loader';
+import { Spinner } from '../Loader';
 import './LoadingOverlay.css';
 
 export interface LoadingOverlayProps {

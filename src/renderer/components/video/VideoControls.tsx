@@ -7,7 +7,7 @@ import { Component, JSX, Show, createSignal, createMemo } from 'solid-js';
 import type { useVideo, useSubtitles } from '../../hooks';
 import { useSettings } from '../../context';
 import { useIPC } from '../../hooks';
-import { GlassPanel } from '../common/GlassPanel';
+import { GlassPanel } from '../common';
 
 // Icons as components
 const PlayIcon = () => (

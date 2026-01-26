@@ -6,9 +6,9 @@
 .recent-card {
   display: flex;
   flex-direction: column;
-  background: var(--glass-bg-current);
+  background: var(--glass-bg);
   backdrop-filter: var(--glass-backdrop-filter);
-  border: 1px solid var(--glass-border-current);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;

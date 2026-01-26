@@ -12,7 +12,8 @@ import {
   GlassModal, 
   GlassInput, 
   GlassBtn,
-  TabButton,
+  TabBtn,
+  Badge,
   EmptyState,
   StatCard,
 } from '../../components/common';
@@ -120,7 +121,7 @@ const FlashcardsContent: Component = () => {
         <div class="flashcards-tabs">
           <For each={tabs}>
             {(tab) => (
-              <TabButton
+              <TabBtn
                 label={tab.label}
                 active={activeTab() === tab.id}
                 badge={tab.id === 'review' && dueCount() > 0 ? dueCount() : undefined}
@@ -193,9 +194,7 @@ const FlashcardsContent: Component = () => {
                         {card.content.translation?.join(', ') || card.content.definition?.join(', ')}
                       </p>
                       <div class="flashcard-footer">
-                        <span class="pill">
-                          {card.reviews} reviews
-                        </span>
+                        <Badge>{card.reviews} reviews</Badge>
                         <div class="flashcard-actions">
                           <button
                             class="flashcard-edit-btn"

@@ -4,7 +4,7 @@
  */
 
 import { Component, JSX, Show, splitProps, mergeProps } from 'solid-js';
-import { GlassPanel, type GlassPanelProps } from './GlassPanel';
+import { GlassPanel, type GlassPanelProps } from '../Panel';
 
 export interface GlassCardProps extends GlassPanelProps {
   title?: string;

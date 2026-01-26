@@ -4,8 +4,8 @@
  */
 
 /* Import shared pill and pitch accent styling */
-@import url('../common/Pill.css');
-@import url('../common/PitchAccent.css');
+@import url('../common/Label/Label.css');
+@import url('../common/Text/PitchAccent.css');
 
 /* Main container - width driven by JS based on max(content, footer) */
 .word-hover-container {
@@ -19,9 +19,9 @@
 .subtitle_hover {
   position: relative;
   height: max-content;
-  background: var(--glass-bg-current);
+  background: var(--glass-bg);
   backdrop-filter: var(--glass-backdrop-filter);
-  border: 1px solid var(--glass-border-current);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   text-align: left;
   font-size: var(--font-size-xl);
@@ -46,11 +46,6 @@
   min-width: 280px;
 }
 
-.subtitle_hover.dark,
-body.dark .subtitle_hover {
-  background-color: var(--glass-bg);
-  color: var(--text-primary);
-}
 
 .subtitle_hover:not(.show-hover) {
   display: flex;
@@ -87,10 +82,6 @@ body.dark .subtitle_hover {
   background-color: var(--scrollbar-thumb);
 }
 
-body.dark .subtitle_hover .pitch,
-.subtitle_hover.dark .pitch {
-  filter: invert(1);
-}
 
 /* Relative wrapper */
 .subtitle_hover_relative {
@@ -127,18 +118,13 @@ body.dark .subtitle_hover .pitch,
   box-sizing: border-box;
   background: var(--glass-accent-bg);
   backdrop-filter: var(--glass-backdrop-filter);
-  border-top: 1px solid var(--color-border-light);
+  border-top: 1px solid var(--color-border);
   z-index: 1;
   width: max-content;
   min-width: 100%;
   overflow: visible;
 }
 
-body.dark .subtitle_hover .footer,
-.subtitle_hover.dark .footer {
-  border-top: 1px solid var(--color-border-dark);
-  background: rgba(0, 0, 0, 0.1);
-}
 
 /* Pills container in hover - no wrap to keep all pills in one line */
 .subtitle_hover .pills {
@@ -228,14 +214,10 @@ body.dark .subtitle_hover .footer,
 .subtitle_hover hr {
   width: 100%;
   border: none;
-  border-top: 1px solid var(--color-border-light);
+  border-top: 1px solid var(--color-border);
   margin: 10px 0;
 }
 
-body.dark .subtitle_hover hr,
-.subtitle_hover.dark hr {
-  border-top-color: var(--color-border-dark);
-}
 
 /* Create flashcard button (legacy position) */
 .create_flashcard {
@@ -283,10 +265,6 @@ body.dark .subtitle_hover hr,
   z-index: 2;
 }
 
-body.dark .subtitle_hover_alt_c,
-.subtitle_hover.dark .subtitle_hover_alt_c {
-  background: rgba(0, 0, 0, 0.5);
-}
 
 .subtitle_hover_alt_c p {
   margin: 0;

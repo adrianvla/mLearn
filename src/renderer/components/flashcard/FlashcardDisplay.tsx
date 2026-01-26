@@ -5,7 +5,7 @@
 
 import { Component, JSX, Show, createMemo } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
-import { GlassPanel } from '../common/GlassPanel';
+import { GlassPanel } from '../common';
 import { useSettings, useLanguage } from '../../context';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import './FlashcardDisplay.css';

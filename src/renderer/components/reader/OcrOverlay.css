@@ -14,7 +14,7 @@
 .ocr-box {
   position: absolute;
   border: none;
-  background: transparent;
+  background: #fff;
   color: #000000;
   border-radius: 0;
   cursor: pointer;
@@ -121,10 +121,4 @@
   to {
     transform: rotate(360deg);
   }
-}
-
-/* Dark mode adjustments */
-body.dark .ocr-box {
-  background: #ffffff;
-  color: #000000;
 }

@@ -6,8 +6,7 @@
 import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, For, createEffect } from 'solid-js';
 import { useFlashcards } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
-import { GlassBtn, Button, Badge } from '../common';
-import { GlassPanel } from '../common/GlassPanel';
+import { GlassBtn, Button, Badge, GlassPanel } from '../common';
 import type { Flashcard } from '../../../shared/types';
 import './FlashcardReview.css';
 

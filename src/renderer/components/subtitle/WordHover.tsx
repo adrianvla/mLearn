@@ -13,7 +13,7 @@ import { getWordExplanation, getCachedExplanation } from '../../services/llmServ
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillBtn, Skeleton } from '../common';
+import { PillBtn, PillLabel, Skeleton } from '../common';
 import './WordHover.css';
 
 // Icon paths - served from static assets
@@ -912,7 +912,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const POSPill = () => {
     const pos = posType();
     if (!pos || !settings.show_pos) return null;
-    return <div class="pill">{pos}</div>;
+    return <PillLabel>{pos}</PillLabel>;
   };
 
   // Flashcard pill - computed values for reactivity
@@ -1051,7 +1051,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               {/* Level pill - reactive via Show + createMemo */}
               <Show when={levelPillData()}>
                 {(data) => (
-                  <div class="pill" data-level={data().level}>{data().name}</div>
+                  <PillLabel level={data().level}>{data().name}</PillLabel>
                 )}
               </Show>
               <POSPill />

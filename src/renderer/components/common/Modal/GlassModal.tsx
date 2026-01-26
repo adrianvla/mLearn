@@ -5,8 +5,8 @@
 
 import { Component, JSX, Show, createEffect, onCleanup, splitProps, mergeProps } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import { GlassPanel } from './GlassPanel';
-import { IconBtn } from './Button';
+import { GlassPanel } from '../Panel';
+import { IconBtn } from '../Button';
 
 export interface GlassModalProps {
   isOpen: boolean;

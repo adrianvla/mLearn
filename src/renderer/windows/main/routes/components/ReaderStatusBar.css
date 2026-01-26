@@ -8,9 +8,9 @@
   align-items: center;
   padding: 0.5rem 1rem;
   height: 40px;
-  border-top: 1px solid var(--glass-border-current);
+  border-top: 1px solid var(--glass-border);
   backdrop-filter: var(--glass-backdrop-filter);
-  background: var(--glass-bg-current);
+  background: var(--glass-bg);
   position: fixed;
   bottom: 0;
   left: 0;

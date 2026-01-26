@@ -7,7 +7,7 @@
   cursor: pointer;
   user-select: none;
   padding: 0.75rem 1rem;
-  background: var(--glass-bg-light, rgba(255, 255, 255, 0.03));
+  background: var(--glass-bg, rgba(255, 255, 255, 0.03));
   border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
   transition: background 0.15s ease;
   font-weight: 500;

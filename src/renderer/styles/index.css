@@ -2,6 +2,7 @@
  * Global CSS Variables and Base Styles
  * Unified theming system for the entire application
  */
+@import "./themes/dark.css";
 
 :root {
   /* ========== Color Palette ========== */
@@ -16,31 +17,21 @@
   --color-error: #e74c3c;
   --color-info: #3498db;
 
-  /* Neutral colors - Light theme */
-  --color-bg-light: #f5f5f5;
-  --color-surface-light: #ffffff;
-  --color-text-light: #1a1a1a;
-  --color-text-secondary-light: #666666;
-  --color-border-light: rgba(0, 0, 0, 0.1);
-
-  /* Neutral colors - Dark theme */
-  --color-bg-dark: #0a0a0a;
-  --color-surface-dark: #1a1a1a;
-  --color-text-dark: #f0f0f0;
-  --color-text-secondary-dark: #a0a0a0;
-  --color-border-dark: rgba(255, 255, 255, 0.1);
+  --color-bg: #f5f5f5;
+  --color-surface: #ffffff;
+  --color-text: #1a1a1a;
+  --color-text-secondary: #666666;
+  --color-border: rgba(0, 0, 0, 0.1);
 
   /* ========== Glassmorphism ========== */
-  --glass-bg: rgba(60, 60, 60, 0.5);
-  --glass-bg-light: rgba(255, 255, 255, 0.7);
+  --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-accent-bg: rgba(255, 255, 255, 0.2);
   --glass-accent: rgba(255, 255, 255, 0.8);
   --glass-text-color-faint: var(--text-secondary);
   --glass-text-color: var(--text-primary);
   --glass-blur: 10px;
   --glass-backdrop-filter: blur(var(--glass-blur)) saturate(2) brightness(0.8);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-border-light: rgba(0, 0, 0, 0.1);
+  --glass-border: rgba(0, 0, 0, 0.1);
 
   /* ========== Typography ========== */
   --font-family-sans: 'Helvetica Neue',-apple-system, BlinkMacSystemFont, Arial, sans-serif;
@@ -112,8 +103,8 @@
 
   /* ========== Text Color Aliases ========== */
   /* Used by components for consistency */
-  --text-primary: var(--color-text-dark);
-  --text-secondary: var(--color-text-secondary-dark);
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
   --text-muted: rgba(255, 255, 255, 0.4);
   
   /* ========== Additional Color Aliases ========== */
@@ -187,8 +178,6 @@
   --toggle-bg-checked: var(--color-success);
   --toggle-bg-hover: #bbb;
   --toggle-bg-checked-hover: #45a049;
-  --toggle-bg-dark: #555;
-  --toggle-bg-dark-hover: #666;
 
   /* ========== Skeleton Loader ========== */
   --skeleton-base: rgba(112, 112, 112, 0.63);
@@ -211,28 +200,6 @@
   /* ========== Flashcard Highlight ========== */
   --flashcard-highlight-dark: #ff5ec7;
   --flashcard-highlight-light: #356ee8;
-}
-
-/* ========== Theme Classes ========== */
-body,
-body.dark {
-  --color-bg: var(--color-bg-dark);
-  --color-surface: var(--color-surface-dark);
-  --color-text: var(--color-text-dark);
-  --color-text-secondary: var(--color-text-secondary-dark);
-  --color-border: var(--color-border-dark);
-  --glass-bg-current: var(--glass-bg);
-  --glass-border-current: var(--glass-border);
-}
-
-body:not(.dark) {
-  --color-bg: var(--color-bg-light);
-  --color-surface: var(--color-surface-light);
-  --color-text: var(--color-text-light);
-  --color-text-secondary: var(--color-text-secondary-light);
-  --color-border: var(--color-border-light);
-  --glass-bg-current: var(--glass-bg-light);
-  --glass-border-current: var(--glass-border-light);
 }
 
 /* ========== Reset & Base Styles ========== */

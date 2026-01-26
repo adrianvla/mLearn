@@ -49,71 +49,159 @@ export {
   type StatusLabelProps,
 } from './Label';
 
-// ============ Panels, Cards & Layout ============
+// ============ Cards ============
 
-export { GlassPanel, type GlassPanelProps } from './GlassPanel';
-export { GlassCard, type GlassCardProps } from './GlassCard';
-export { GlassModal, ConfirmDialog as BasicConfirmDialog, type GlassModalProps, type ConfirmDialogProps as BasicConfirmDialogProps } from './GlassModal';
-export { ConfirmDialog, useConfirmDialog, type ConfirmDialogProps, type ConfirmVariant, type ConfirmOptions } from './ConfirmDialog';
-export { ActionCard, type ActionCardProps } from './ActionCard';
-export { RecentCard, type RecentCardProps, type RecentItem } from './RecentCard';
-export { CheckboxCard, type CheckboxCardProps } from './CheckboxCard';
-export { SelectableCard, type SelectableCardProps } from './SelectableCard';
-export { WindowLayout, WindowHeader, type WindowLayoutProps, type WindowHeaderProps } from './WindowLayout';
-export { Flex, Row, Column, Center, Spacer, type FlexProps } from './Flex';
-export { PanelHeader, type PanelHeaderProps } from './PanelHeader';
-export { DropZone, type DropZoneProps } from './DropZone';
+export { 
+  ActionCard, 
+  type ActionCardProps,
+  GlassCard, 
+  type GlassCardProps,
+  CheckboxCard, 
+  type CheckboxCardProps,
+  SelectableCard, 
+  type SelectableCardProps,
+  RecentCard, 
+  type RecentCardProps, 
+  type RecentItem,
+  StatCard, 
+  type StatCardProps,
+} from './Card';
+
+// ============ Modals & Dialogs ============
+
+export { 
+  GlassModal, 
+  BasicConfirmDialog, 
+  type GlassModalProps, 
+  type BasicConfirmDialogProps,
+  ConfirmDialog, 
+  useConfirmDialog, 
+  type ConfirmDialogProps, 
+  type ConfirmVariant, 
+  type ConfirmOptions,
+  WindowOverlay,
+} from './Modal';
 
 // ============ Inputs & Controls ============
 
-export { GlassInput, GlassTextarea, GlassSelect, type GlassInputProps, type GlassTextareaProps, type GlassSelectProps } from './GlassInput';
-export { ToggleSwitch, type ToggleSwitchProps } from './ToggleSwitch';
-export { ContentEditable, type ContentEditableProps } from './ContentEditable';
+export { 
+  GlassInput, 
+  GlassTextarea, 
+  GlassSelect, 
+  type GlassInputProps, 
+  type GlassTextareaProps, 
+  type GlassSelectProps,
+  ContentEditable, 
+  type ContentEditableProps,
+  ToggleSwitch, 
+  type ToggleSwitchProps,
+  FormField, 
+  type FormFieldProps,
+  DropZone, 
+  type DropZoneProps,
+} from './Input';
+
+// ============ Panels & Layout ============
+
+export { 
+  GlassPanel, 
+  type GlassPanelProps,
+  PanelHeader, 
+  type PanelHeaderProps,
+  WindowLayout, 
+  WindowHeader, 
+  type WindowLayoutProps, 
+  type WindowHeaderProps,
+} from './Panel';
 
 // ============ Tabs & Navigation ============
 
-export { TabHeader, type TabHeaderProps } from './TabHeader';
-export { TabContent, type TabContentProps } from './TabContent';
-export { TabContainer, TabPanel, type TabContainerProps, type TabPanelProps, type TabItem } from './TabContainer';
-export { TabButton, type TabButtonProps } from './TabButton';
+export { 
+  TabHeader, 
+  type TabHeaderProps,
+  TabContent, 
+  type TabContentProps,
+  TabContainer, 
+  TabPanel, 
+  type TabContainerProps, 
+  type TabPanelProps, 
+  type TabItem,
+} from './Tabs';
 
-// ============ Stats & Feedback ============
+// ============ Feedback ============
 
-export { EmptyState, type EmptyStateProps, type EmptyStateAction } from './EmptyState';
-export { StatCard, type StatCardProps } from './StatCard';
-export { StatsGrid, type StatsGridProps } from './StatsGrid';
-export { ConnectionStatus, type ConnectionStatusProps, type ConnectionState } from './ConnectionStatus';
-export { AlertBanner, type AlertBannerProps, type AlertVariant } from './AlertBanner';
-export { LoadingOverlay, type LoadingOverlayProps } from './LoadingOverlay';
+export { 
+  EmptyState, 
+  type EmptyStateProps, 
+  type EmptyStateAction,
+  AlertBanner, 
+  type AlertBannerProps, 
+  type AlertVariant,
+  ConnectionStatus, 
+  type ConnectionStatusProps, 
+  type ConnectionState,
+  LoadingOverlay, 
+  type LoadingOverlayProps,
+} from './Feedback';
 
 // ============ Text & Display ============
 
-export { PitchAccent, type PitchAccentProps } from './PitchAccent';
-export { RubyText, type RubyTextProps } from './RubyText';
-export { FrequencyStars, type FrequencyStarsProps } from './FrequencyStars';
-export { HintText, type HintTextProps } from './HintText';
-export { LegendItem, type LegendItemProps } from './LegendItem';
-export { BreakdownRow, type BreakdownRowProps } from './BreakdownRow';
-export { LogConsole, type LogConsoleProps } from './LogConsole';
-export { IconRenderer, type IconRendererProps } from './IconRenderer';
+export { 
+  PitchAccent, 
+  type PitchAccentProps,
+  RubyText, 
+  type RubyTextProps,
+  FrequencyStars, 
+  type FrequencyStarsProps,
+  HintText, 
+  type HintTextProps,
+  BreakdownRow, 
+  type BreakdownRowProps,
+  LogConsole, 
+  type LogConsoleProps,
+} from './Text';
 
 // ============ Settings Components ============
 
-export { SettingRow, type SettingRowProps } from './SettingRow';
-export { SettingGroup, type SettingGroupProps } from './SettingGroup';
-export { FormField, type FormFieldProps } from './FormField';
-export { KeyboardShortcut, ShortcutsList, type KeyboardShortcutProps, type ShortcutsListProps } from './KeyboardShortcut';
+export { 
+  SettingRow, 
+  type SettingRowProps,
+  SettingGroup, 
+  type SettingGroupProps,
+} from './Settings';
 
-// ============ Table & Sorting ============
+// ============ Layout Utilities ============
 
-export { SortableColumnHeader, type SortableColumnHeaderProps, type SortDirection } from './SortableColumnHeader';
-export { ModalFooter, type ModalFooterProps } from './ModalFooter';
+export { 
+  Flex, 
+  Row, 
+  Column, 
+  Center, 
+  Spacer, 
+  type FlexProps,
+} from './Layout';
 
-// ============ Specialized Status Components ============
+// ============ Miscellaneous ============
 
-export { WordStatusPill, type WordStatusPillProps, type WordStatusType, numericToWordStatus, wordStatusToNumeric, getNextStatus } from './WordStatusPill';
+export { 
+  IconRenderer, 
+  type IconRendererProps,
+  LegendItem, 
+  type LegendItemProps,
+  KeyboardShortcut, 
+  ShortcutsList, 
+  type KeyboardShortcutProps, 
+  type ShortcutsListProps,
+  SortableColumnHeader, 
+  type SortableColumnHeaderProps, 
+  type SortDirection,
+  ModalFooter, 
+  type ModalFooterProps,
+  StatsGrid, 
+  type StatsGridProps,
+} from './Misc';
 
-// ============ Legacy Components (Deprecated - use unified variants) ============
+// ============ Legacy Components (Deprecated) ============
 // These are kept for backwards compatibility but should not be used in new code
 // GlassButton → GlassBtn, IconButton → IconBtn
 // PillButton → PillBtn
@@ -122,10 +210,32 @@ export { WordStatusPill, type WordStatusPillProps, type WordStatusType, numericT
 // OCRProgressRing → ProgressRing
 // Pill → PillLabel, StatusPill → StatusLabel
 
-export { GlassButton, IconButton, type GlassButtonProps, type IconButtonProps } from './GlassButton';
-export { PillButton, type PillButtonProps, type PillVariant } from './PillButton';
-export { Pill, type PillProps } from './Pill';
-export { StatusPill, type StatusPillProps } from './StatusPill';
-export { SkeletonLoader, SpinnerLoader, type SkeletonLoaderProps, type SpinnerLoaderProps } from './SkeletonLoader';
-export { ProgressBar, type ProgressBarProps } from './ProgressBar';
-export { OCRProgressRing, type OCRProgressRingProps } from './OCRProgressRing';
+export { 
+  GlassButton, 
+  IconButton, 
+  type GlassButtonProps, 
+  type IconButtonProps,
+  PillButton, 
+  type PillButtonProps, 
+  type PillVariant,
+  Pill, 
+  type PillProps,
+  StatusPill, 
+  type StatusPillProps,
+  TabButton, 
+  type TabButtonProps,
+  WordStatusPill, 
+  type WordStatusPillProps, 
+  type WordStatusType, 
+  numericToWordStatus, 
+  wordStatusToNumeric, 
+  getNextStatus,
+  SkeletonLoader, 
+  SpinnerLoader, 
+  type SkeletonLoaderProps, 
+  type SpinnerLoaderProps,
+  ProgressBar, 
+  type ProgressBarProps,
+  OCRProgressRing, 
+  type OCRProgressRingProps,
+} from './_legacy';
