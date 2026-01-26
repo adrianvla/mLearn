@@ -14,9 +14,8 @@
 .reader-welcome-card {
   max-width: 600px;
   padding: 2rem;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  border: 1px solid var(--glass-border);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: center;
 }
@@ -34,7 +33,7 @@
 
 .reader-welcome-dropzone {
   padding: 2rem;
-  border: 2px dashed var(--glass-accent-bg);
+  border: 2px dashed var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-secondary);
   margin-bottom: 1.5rem;
@@ -55,9 +54,10 @@
 
 .reader-welcome-tip {
   padding: 1rem;
-  background: var(--glass-border);
+  background: var(--bg);
   border-radius: var(--radius-md);
   text-align: left;
+  border: 1px solid var(--border-color);
 }
 
 .reader-welcome-tip h3 {

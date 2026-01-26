@@ -3,7 +3,7 @@
 /* === Start WordHover.css === */
 .subtitle_hover.dark,
 body.dark .subtitle_hover {
-    background-color: var(--glass-bg);
+    background-color: var(--bg);
     color: var(--text-primary);
 }
 body.dark .subtitle_hover .pitch,
@@ -13,13 +13,13 @@ body.dark .subtitle_hover .pitch,
 
 body.dark .subtitle_hover .footer,
 .subtitle_hover.dark .footer {
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid var(--border-color);
     background: rgba(0, 0, 0, 0.1);
 }
 
 body.dark .subtitle_hover hr,
 .subtitle_hover.dark hr {
-    border-top-color: var(--color-border);
+    border-top-color: var(--border-color);
 }
 
 body.dark .subtitle_hover_alt_c,
@@ -32,50 +32,63 @@ body.dark .subtitle_hover_alt_c,
 
 /* === Start index.css === */
 body.dark {
-    --glass-bg: rgba(60, 60, 60, 0.5);
-    --glass-border: rgba(255, 255, 255, 0.1);
-
-    --color-bg: #0a0a0a;
-    --color-surface: #1a1a1a;
-    --color-text: #f0f0f0;
-    --color-text-secondary: #a0a0a0;
-    --color-border: rgba(255, 255, 255, 0.1);
-
+    --bg-opaque: #0a0a0a;
     --text-primary: #f0f0f0;
     --text-secondary: #a0a0a0;
+
     --text-muted: rgba(255, 255, 255, 0.4);
 
     --toggle-bg: #555;
     --toggle-bg-hover: #666;
+
+    --bg: rgba(130, 130, 130, 0.2);
+    --bg-intense: rgba(255, 255, 255, 0.15);
+    --border-color: rgba(255, 255, 255, 0.15);
+    --border-color-intense: rgba(255, 255, 255, 0.25);
+
+    --theme-backdrop-filter: blur(10px) saturate(2) brightness(0.8);
 }
 
 /* === End index.css === */
 
-/* === Start settings.css === */
-body.dark .settings-outer{
-    --settings-bg: #2a2a2a;
+
+/* === PitchAccent.css === */
+body.dark .pitch-accent-container,
+.dark .pitch-accent-container {
+    color: var(--text-primary);
 }
 
-body.dark .settings-nav{
-    --nav-bg: #333;
+/* When inside subtitle hover */
+.subtitle_hover .mLearn-pitch-accent {
+    --pitch-accent-height: 2px;
 }
 
-body.dark .settings-nav .nav-item{
-    --nav-item-color: #aaa;
+.subtitle_hover .pill.pitch-accent-pill .mLearn-pitch-accent {
+    --pitch-accent-height: 2px;
 }
 
-body.dark .settings-nav .nav-item:hover{
-    --nav-hover-bg: #444;
+.subtitle_hover .pill.pitch-accent-pill .pitch-accent-word {
+    position: relative;
 }
 
-body.dark .settings-nav .nav-item.selected {
-    --nav-selected-bg: #444;
-}
-body:not(.dark) .setting-row label {
-    --label-color: rgb(110, 110, 110);
+body.dark .subtitle_hover .mLearn-pitch-accent,
+.subtitle_hover.dark .mLearn-pitch-accent {
+    filter: none;
+    color: var(--text-primary);
 }
 
-body:not(.dark) .setting-row label {
-    --label-color: #ddd;
+/* === End PitchAccent.css === */
+
+/* === Start Pill.css === */
+body.dark .pill, body.dark .pill-btn, body.dark .label-pill {
+    filter: invert(1) hue-rotate(180deg) saturate(200%);
+    box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
 }
-/* === End settings.css === */
+/* === End Pill.css === */
+
+/* === ProgressBar.css === */
+body.dark .progress-bar-track {
+    background: rgba(255, 255, 255, 0.1);
+}
+/* === End ProgressBar.css === */

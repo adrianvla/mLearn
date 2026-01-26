@@ -4,7 +4,7 @@
  */
 
 import {Component, Accessor} from 'solid-js';
-import { NavBtn, Tag } from '../../../../components/common';
+import { NavBtn, Tag, Select } from '../../../../components/common';
 import './ReaderNav.css';
 
 interface ReaderNavProps {
@@ -38,31 +38,31 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar}>
           📑
         </NavBtn>
-        <Tag class="book-title-nav">{props.bookTitle()}</Tag>
+        <Tag class="book-title-nav label-secondary" headless>{props.bookTitle()}</Tag>
       </div>
       
       <div class="nav-group">
-        <Tag class="progress">{props.progressString()}</Tag>
+        <Tag class="progress label-secondary">{props.progressString()}</Tag>
       </div>
       
       <div class="nav-group">
-        <select
-          class="glass-select"
+        <Select
+          options={[
+            { value: 'fit-height', label: 'Fit Height ↕' },
+            { value: 'fit-width', label: 'Fit Width ↔' },
+          ]}
           value={props.fitMode()}
           onChange={(e) => props.onFitModeChange(e.currentTarget.value)}
-        >
-          <option value="fit-height">Fit Height ↕</option>
-          <option value="fit-width">Fit Width ↔</option>
-        </select>
+        />
         
-        <select
-          class="glass-select"
+        <Select
+          options={[
+            { value: 'double', label: 'Double Page' },
+            { value: 'single', label: 'Single Page' },
+          ]}
           value={props.pageMode()}
           onChange={(e) => props.onPageModeChange(e.currentTarget.value)}
-        >
-          <option value="double">Double Page</option>
-          <option value="single">Single Page</option>
-        </select>
+        />
       </div>
       
       <div class="nav-group nav-arrows">

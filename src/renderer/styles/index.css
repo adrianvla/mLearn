@@ -12,26 +12,21 @@
   --color-primary-active: #3a80c9;
 
   /* Semantic colors */
-  --color-success: #2ecc71;
+  --color-success: #58c333;
+  --color-success-lighter: #66e13c;
   --color-warning: #f1c40f;
   --color-error: #e74c3c;
   --color-info: #3498db;
 
-  --color-bg: #f5f5f5;
-  --color-surface: #ffffff;
-  --color-text: #1a1a1a;
-  --color-text-secondary: #666666;
-  --color-border: rgba(0, 0, 0, 0.1);
+  --bg-opaque: #f5f5f5;
 
-  /* ========== Glassmorphism ========== */
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-accent-bg: rgba(255, 255, 255, 0.2);
-  --glass-accent: rgba(255, 255, 255, 0.8);
-  --glass-text-color-faint: var(--text-secondary);
-  --glass-text-color: var(--text-primary);
-  --glass-blur: 10px;
-  --glass-backdrop-filter: blur(var(--glass-blur)) saturate(2) brightness(0.8);
-  --glass-border: rgba(0, 0, 0, 0.1);
+  --bg: rgba(85, 85, 85, 0.1);
+  --accent-bg: rgba(255, 255, 255, 0.2);
+  --accent: rgba(255, 255, 255, 0.8);
+  --theme-backdrop-filter: blur(10px) saturate(2) brightness(1.1);
+  --border-color: rgba(85, 85, 85, 0.15);
+  --bg-intense: rgba(85, 85, 85, 0.15);
+  --border-color-intense: rgba(85, 85, 85, 0.25);
 
   /* ========== Typography ========== */
   --font-family-sans: 'Helvetica Neue',-apple-system, BlinkMacSystemFont, Arial, sans-serif;
@@ -46,6 +41,11 @@
   --font-size-2xl: 1.5rem;
   --font-size-3xl: 2rem;
   --font-size-4xl: 2.5rem;
+
+  --size-sm: 26px;
+  --size-md: 32px;
+  --size-lg: 40px;
+
 
   --font-weight-normal: 400;
   --font-weight-medium: 500;
@@ -136,13 +136,6 @@
   --pos-suffix: #00bcd4;
   --pos-symbol: #607d8b;
 
-  /* ========== Frequency Level Colors ========== */
-  --freq-level-5: #ffd700;
-  --freq-level-4: #c0c0c0;
-  --freq-level-3: #cd7f32;
-  --freq-level-2: #4a90d9;
-  --freq-level-1: #9b59b6;
-
   /* ========== Pill Level Colors (Light/Default) ========== */
   /* Level 1 - Red */
   --pill-level-1-text: rgb(255, 60, 89);
@@ -173,29 +166,13 @@
   --pitch-accent-high: #e8687b;
   --pitch-accent-low: #4e86ca;
 
-  /* ========== Toggle Switch Colors ========== */
-  --toggle-bg: #ccc;
-  --toggle-bg-checked: var(--color-success);
-  --toggle-bg-hover: #bbb;
-  --toggle-bg-checked-hover: #45a049;
-
   /* ========== Skeleton Loader ========== */
   --skeleton-base: rgba(112, 112, 112, 0.63);
   --skeleton-highlight: rgba(160, 160, 160, 0.63);
 
-  /* ========== Glass Button Helpers ========== */
-  --glass-button-bg: rgba(255, 255, 255, 0.1);
-  --glass-button-bg-hover: rgba(255, 255, 255, 0.15);
-  --glass-button-border: rgba(255, 255, 255, 0.15);
-  --glass-button-border-hover: rgba(255, 255, 255, 0.25);
-
-  /* ========== Accent Colors ========== */
-  --accent-primary: var(--color-primary);
-  --accent-primary-rgb: 74, 144, 217;
-
   /* ========== Scrollbar Colors ========== */
-  --scrollbar-thumb: rgba(160, 160, 160, 0.5);
-  --scrollbar-thumb-hover: rgba(160, 160, 160, 0.7);
+  --scrollbar-thumb: var(--bg);
+  --scrollbar-thumb-hover: var(--accent-bg);
 
   /* ========== Flashcard Highlight ========== */
   --flashcard-highlight-dark: #ff5ec7;
@@ -215,8 +192,8 @@ html, body {
   font-family: var(--font-family-sans);
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
-  background-color: var(--color-bg);
-  color: var(--color-text);
+  background-color: var(--bg-opaque);
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -233,7 +210,7 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: var(--glass-backdrop-filter);
+  backdrop-filter: var(--theme-backdrop-filter);
   z-index: 1000;
 }
 
@@ -255,7 +232,7 @@ body {
 
 .app-loading-status {
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   margin-bottom: var(--spacing-4);
 }
 
@@ -276,7 +253,7 @@ body {
 .app-loading-percent {
   margin-top: var(--spacing-2);
   font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 #app {
@@ -295,12 +272,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-text-secondary);
+  background: var(--text-secondary);
   border-radius: var(--radius-full);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text);
+  background: var(--text-primary);
 }
 
 /* ========== Selection ========== */
@@ -313,42 +290,6 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
-}
-
-/* ========== Link Reset ========== */
-a {
-  color: var(--color-primary);
-  text-decoration: none;
-}
-
-a:hover {
-  text-decoration: underline;
-}
-
-/* ========== Button Reset ========== */
-button {
-  font-family: inherit;
-  font-size: inherit;
-  cursor: pointer;
-  border: none;
-  background: none;
-  color: inherit;
-}
-
-/* ========== Input Reset ========== */
-input, textarea, select {
-  font-family: inherit;
-  font-size: inherit;
-  color: inherit;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-2) var(--spacing-3);
-}
-
-input:focus, textarea:focus, select:focus {
-  outline: none;
-  border-color: var(--color-primary);
 }
 
 /* ========== Image Reset ========== */

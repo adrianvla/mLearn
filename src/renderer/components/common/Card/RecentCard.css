@@ -6,9 +6,9 @@
 .recent-card {
   display: flex;
   flex-direction: column;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  border: 1px solid var(--glass-border);
+  background: var(--bg);
+  backdrop-filter: var(--theme-backdrop-filter);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
@@ -65,7 +65,7 @@
 
 .progress-bar {
   height: 4px;
-  background: var(--color-border, rgba(255, 255, 255, 0.1));
+  background: var(--border-color, rgba(255, 255, 255, 0.1));
   border-radius: 2px;
   overflow: hidden;
 }

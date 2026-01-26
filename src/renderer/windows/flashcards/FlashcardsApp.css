@@ -15,7 +15,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .flashcards-tabs {
@@ -139,7 +139,7 @@
   display: flex;
   justify-content: space-between;
   padding: 0.5rem 0;
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .breakdown-row:last-child {

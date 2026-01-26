@@ -74,8 +74,8 @@ export const GlassInput: Component<GlassInputProps> = (props) => {
 
   const inputStyle = (): JSX.CSSProperties => ({
     width: '100%',
-    'background-color': 'var(--glass-bg)',
-    border: `1px solid ${local.error ? 'var(--color-danger)' : 'var(--glass-border)'}`,
+    'background-color': 'var(--bg)',
+    border: `1px solid ${local.error ? 'var(--color-danger)' : 'var(--border-color)'}`,
     'border-radius': 'var(--radius-md)',
     color: 'var(--text-primary)',
     'font-family': 'inherit',
@@ -180,8 +180,8 @@ export const GlassTextarea: Component<GlassTextareaProps> = (props) => {
   const textareaStyle = (): JSX.CSSProperties => ({
     width: '100%',
     'min-height': '6rem',
-    'background-color': 'var(--glass-bg)',
-    border: `1px solid ${local.error ? 'var(--color-danger)' : 'var(--glass-border)'}`,
+    'background-color': 'var(--bg)',
+    border: `1px solid ${local.error ? 'var(--color-danger)' : 'var(--border-color)'}`,
     'border-radius': 'var(--radius-md)',
     color: 'var(--text-primary)',
     'font-family': 'inherit',
@@ -284,8 +284,8 @@ export const GlassSelect: Component<GlassSelectProps> = (props) => {
 
   const selectStyle = (): JSX.CSSProperties => ({
     width: '100%',
-    'background-color': 'var(--glass-bg)',
-    border: `1px solid ${local.error ? 'var(--color-danger)' : 'var(--glass-border)'}`,
+    'background-color': 'var(--bg)',
+    border: `1px solid ${local.error ? 'var(--color-danger)' : 'var(--border-color)'}`,
     'border-radius': 'var(--radius-md)',
     color: 'var(--text-primary)',
     'font-family': 'inherit',

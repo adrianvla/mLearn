@@ -29,8 +29,8 @@
   align-items: center;
   gap: 1rem;
   padding: 2rem;
-  background: var(--glass-bg, rgba(30, 30, 30, 0.9));
+  background: var(--bg, rgba(30, 30, 30, 0.9));
   border-radius: var(--radius-lg, 12px);
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-  backdrop-filter: var(--glass-backdrop-filter, blur(10px));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  backdrop-filter: var(--theme-backdrop-filter, blur(10px));
 }

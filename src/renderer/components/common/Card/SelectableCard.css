@@ -13,7 +13,7 @@
   min-width: 120px;
   min-height: 100px;
   border-radius: var(--radius-lg, 12px);
-  background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+  background: var(--bg, rgba(255, 255, 255, 0.1));
   backdrop-filter: blur(10px);
   border: 2px solid transparent;
   cursor: pointer;

@@ -66,6 +66,8 @@ export interface LabelProps {
   class?: string;
   /** Children content */
   children?: JSX.Element;
+
+  headless?: boolean;
 }
 
 // ============ Icon Paths ============
@@ -161,6 +163,8 @@ export const Label: Component<LabelProps> = (props) => {
     if (props.class) {
       classes.push(props.class);
     }
+
+    if(props.headless) classes.push('label-headless');
     
     return classes.join(' ');
   };

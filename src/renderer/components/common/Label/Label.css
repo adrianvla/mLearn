@@ -142,7 +142,7 @@
   font-weight: 600;
   padding: 0.125rem 0.5rem;
   border-radius: var(--radius-full);
-  background: var(--glass-bg);
+  background: var(--bg);
   color: var(--text-secondary);
 }
 
@@ -152,9 +152,9 @@
   font-weight: var(--font-weight-medium);
   padding: 0.125rem 0.375rem;
   border-radius: var(--radius-sm);
-  background: var(--glass-bg);
+  background: var(--bg);
   backdrop-filter: blur(8px);
-  border: 1px solid var(--glass-border);
+  border: 1px solid var(--border-color);
   color: var(--text-primary);
 }
 
@@ -313,4 +313,14 @@
   font-size: 0.85em;
   opacity: 0.8;
   margin-left: 0.25em;
+}
+
+.label-secondary{
+  color: var(--text-secondary);
+}
+
+.label-headless{
+  background: transparent;
+  border:none;
+  padding:0;
 }

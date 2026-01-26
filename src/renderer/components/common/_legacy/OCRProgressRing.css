@@ -15,10 +15,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--glass-bg);
+  background: var(--bg);
   border-radius: 12px;
-  border: 1px solid var(--glass-border);
-  backdrop-filter: var(--glass-backdrop-filter);
+  border: 1px solid var(--border-color);
+  backdrop-filter: var(--theme-backdrop-filter);
   padding: 8px;
 }
 
@@ -28,12 +28,12 @@
 
 .ocr-progress-ring-track {
   fill: none;
-  stroke: var(--glass-accent-bg);
+  stroke: var(--accent-bg);
 }
 
 .ocr-progress-ring-progress {
   fill: none;
-  stroke: var(--glass-accent);
+  stroke: var(--accent);
   stroke-linecap: round;
   transition: stroke-dashoffset 0.3s ease;
 }
@@ -45,7 +45,7 @@
 
 .ocr-progress-ring.indeterminate .ocr-progress-ring-progress {
   /* White color for indeterminate spinner */
-  stroke: var(--glass-accent);
+  stroke: var(--accent);
   /* Show about 1/4 of the circumference visible for indeterminate */
   stroke-dasharray: 25% 75%;
   stroke-dashoffset: 0;
@@ -67,13 +67,13 @@
 
 /* Status text below ring */
 .ocr-progress-ring-text {
-  background: var(--glass-bg);
+  background: var(--bg);
   border-radius: 12px;
-  border: 1px solid var(--glass-border);
-  backdrop-filter: var(--glass-backdrop-filter);
+  border: 1px solid var(--border-color);
+  backdrop-filter: var(--theme-backdrop-filter);
   padding: 4px 8px;
   font-size: 0.85rem;
-  color: var(--glass-text-color-faint);
+  color: var(--text-secondary);
   font-weight: 500;
   white-space: nowrap;
 }

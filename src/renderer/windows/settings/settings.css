@@ -3,26 +3,11 @@
  */
 
 .settings-window {
-  /* scoped aliases to map legacy values to theme tokens */
-  /* Prefer canonical theme text variables from index.css. Provide safe dark
-     fallbacks so components don't render white-on-white if a theme leaves
-     older tokens set to light colors. */
-  --s-foreground: var(--color-text, #111111);
-  --s-muted: var(--color-text-secondary, rgba(0,0,0,0.6));
-  --s-muted-2: var(--color-text-secondary, var(--text-secondary, rgba(0,0,0,0.6)));
-  --s-surface: var(--glass-accent-bg); /* subtle surface */
-  --s-surface-strong: var(--glass-button-bg); /* slightly stronger */
-  --s-border: var(--glass-button-border);
-  --s-primary: var(--accent-primary);
-  --s-primary-rgb: var(--accent-primary-rgb);
-  --s-scroll-thumb: var(--scrollbar-thumb);
-  --s-scroll-thumb-hover: var(--scrollbar-thumb-hover);
-
   display: flex;
   height: 100vh;
   width: 100vw;
-  background: var(--color-bg);
-  color: var(--s-foreground);
+  background: var(--bg);
+  color: var(--text-primary);
 }
 
 /* Top Navigation Layout */
@@ -37,10 +22,11 @@
   display: flex;
   align-items: center;
   padding: 12px 24px;
-  background: var(--s-surface);
-  border-bottom: 1px solid var(--s-border);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-color);
   gap: 24px;
   flex-shrink: 0;
+  user-select: none;
 }
 
 .settings-header .settings-title {
@@ -55,7 +41,7 @@
 /* Tab navigation */
 .settings-tabs {
   display: flex;
-  gap: 4px;
+  gap: 8px;
   flex: 1;
   overflow-x: auto;
 }
@@ -63,105 +49,41 @@
 .settings-tab {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 8px;
   background: transparent;
-  border: none;
+  border: 1px solid transparent; /* to prevent size changes */
   border-radius: 8px;
-  color: var(--s-muted);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
   font-size: 0.85rem;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .settings-tab:hover {
-  background: var(--s-surface-strong);
-  color: var(--s-foreground);
+  background: var(--accent-bg);
+  color: var(--text-primary);
 }
 
 .settings-tab.active {
-  /* use accent rgb for translucent active background */
-  background: rgba(var(--s-primary-rgb), 0.2);
-  color: var(--s-foreground);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+  border: 1px solid var(--border-color);
 }
 
 .settings-tab .tab-icon {
-  width: 18px;
-  height: 18px;
-  opacity: 0.7;
-  filter: invert(1);
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: block;
 }
 
 .settings-tab.active .tab-icon {
   opacity: 1;
-}
-
-.settings-tab .tab-label {
-  display: inline;
-}
-
-/* Responsive: hide labels on smaller screens */
-@media (max-width: 900px) {
-  .settings-tab .tab-label {
-    display: none;
-  }
-  .settings-tab {
-    padding: 8px 12px;
-  }
-}
-
-/* Legacy Sidebar (kept for backwards compatibility) */
-.settings-sidebar {
-  width: 200px;
-  background: var(--s-surface);
-  border-right: 1px solid var(--s-border);
-  padding: 20px 0;
-  flex-shrink: 0;
-}
-
-.settings-title {
-  font-size: 1.2rem;
-  font-weight: 600;
-  padding: 0 20px 20px;
-  margin: 0;
-  border-bottom: 1px solid var(--s-border);
-}
-
-.settings-nav {
-  list-style: none;
-  padding: 10px 0;
-  margin: 0;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 20px;
-  background: transparent;
-  border: none;
-  color: var(--s-muted-2);
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: left;
-  font-size: 0.9rem;
-}
-
-.nav-item:hover {
-  background: var(--s-surface-strong);
-  color: var(--s-foreground);
-}
-
-.nav-item.active {
-  background: rgba(var(--s-primary-rgb), 0.12);
-  color: var(--s-foreground);
-  border-right: 3px solid var(--s-primary);
-}
-
-.nav-icon {
-  font-size: 1.1em;
 }
 
 /* Content */
@@ -172,22 +94,9 @@
   min-height: 0; /* Crucial for flexbox overflow scrolling */
 }
 
-/* Tab Containers */
-.tab-content {
-  min-height: 0; /* Allow scrolling */
-}
-
-.tab-header {
-  margin-bottom: 30px;
-}
-
-.tab-header h2 {
-  font-size: 1.5rem;
-  margin: 0 0 8px;
-}
 
 .tab-header p {
-  color: var(--s-muted);
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -195,16 +104,16 @@
 .setting-group {
   margin-bottom: 24px;
   padding: 20px;
-  background: var(--s-surface);
+  background: var(--bg);
   border-radius: 12px;
-  border: 1px solid var(--s-border);
+  border: 1px solid var(--border-color);
 }
 
 .setting-group h3 {
   font-size: 0.9rem;
   font-weight: 600;
   margin: 0 0 16px;
-  color: var(--s-foreground);
+  color: var(--text-primary);
 }
 
 /* Setting Row */
@@ -213,7 +122,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .setting-row:last-child {
@@ -231,85 +140,41 @@
 
 .setting-label {
   font-size: 0.9rem;
-  color: var(--s-foreground);
+  color: var(--text-primary);
   display: block;
   margin-bottom: 2px;
 }
 
 .setting-description {
   font-size: 0.8rem;
-  color: var(--s-muted);
+  color: var(--text-secondary);
 }
 
 .setting-control {
   flex-shrink: 0;
   margin-left: 16px;
-}
-
-/* Toggle Switch */
-.toggle-switch {
-  position: relative;
-  width: 44px;
-  height: 24px;
-}
-
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  inset: 0;
-  background: var(--s-surface-strong);
-  border-radius: 24px;
-  transition: 0.3s;
-}
-
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  left: 3px;
-  bottom: 3px;
-  background: var(--s-foreground);
-  border-radius: 50%;
-  transition: 0.3s;
-}
-
-.toggle-switch input:checked + .toggle-slider {
-  background: var(--s-primary);
-}
-
-.toggle-switch input:checked + .toggle-slider::before {
-  transform: translateX(20px);
+  color:var(--text-secondary);
 }
 
 /* Select Input */
 .setting-select {
   padding: 8px 12px;
-  background: var(--s-surface-strong);
-  border: 1px solid var(--s-border);
-  border-radius: 8px;
-  color: var(--s-foreground);
+  border-radius: var(--radius-md);
   font-size: 0.9rem;
   min-width: 140px;
 }
 
 .setting-select option {
-  background: var(--s-surface);
+  background: var(--bg);
 }
 
 /* Number Input */
 .setting-input {
   padding: 8px 12px;
-  background: var(--s-surface-strong);
-  border: 1px solid var(--s-border);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  color: var(--s-foreground);
+  color: var(--text-primary);
   font-size: 0.9rem;
   width: 80px;
   text-align: right;
@@ -317,7 +182,7 @@
 
 .setting-input:focus {
   outline: none;
-  border-color: var(--s-primary);
+  border-color: var(--border-color-intense);
 }
 
 /* Color Input */
@@ -330,9 +195,8 @@
 .setting-color {
   width: 36px;
   height: 36px;
-  padding: 2px;
-  background: var(--s-surface-strong);
-  border: 1px solid var(--s-border);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
 }
@@ -340,13 +204,13 @@
 .color-value {
   font-family: monospace;
   font-size: 0.85rem;
-  color: var(--s-muted-2);
+  color: var(--text-secondary);
 }
 
 /* Range Input */
 .setting-range {
   width: 120px;
-  accent-color: var(--s-primary);
+  accent-color: var(--color-primary);
 }
 
 /* Note: setting-btn classes removed in favor of unified GlassButton component */
@@ -361,30 +225,30 @@
 
 .stat-card {
   padding: 20px;
-  background: var(--s-surface);
+  background: var(--bg);
   border-radius: 12px;
-  border: 1px solid var(--s-border);
+  border: 1px solid var(--border);
   text-align: center;
 }
 
 .stat-value {
   font-size: 2rem;
   font-weight: 700;
-  color: var(--s-primary);
+  color: var(--text-primary);
   margin: 0;
 }
 
 .stat-label {
   font-size: 0.85rem;
-  color: var(--s-muted);
+  color: var(--text-secondary);
   margin-top: 4px;
 }
 
 .chart-container {
   padding: 20px;
-  background: var(--s-surface);
+  background: var(--bg);
   border-radius: 12px;
-  border: 1px solid var(--s-border);
+  border: 1px solid var(--border-color);
   margin-bottom: 24px;
 }
 
@@ -426,7 +290,7 @@
 }
 
 .about-version span {
-  color: var(--s-muted);
+  color: var(--text-secondary);
 }
 
 .about-links {
@@ -448,10 +312,10 @@
 }
 
 .settings-content::-webkit-scrollbar-thumb {
-  background: var(--s-scroll-thumb);
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 .settings-content::-webkit-scrollbar-thumb:hover {
-  background: var(--s-scroll-thumb-hover);
+  background: var(--scrollbar-thumb-hover);
 }

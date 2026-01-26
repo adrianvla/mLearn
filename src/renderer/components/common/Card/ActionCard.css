@@ -8,9 +8,9 @@
   align-items: center;
   gap: 1rem;
   padding: 1.5rem;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  border: 1px solid var(--glass-border);
+  background: var(--bg);
+  backdrop-filter: var(--theme-backdrop-filter);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   cursor: pointer;
   transition: all var(--transition-normal);
@@ -38,7 +38,7 @@
   background: linear-gradient(
     135deg,
     var(--color-accent-alpha, rgba(59, 130, 246, 0.1)) 0%,
-    var(--glass-bg) 100%
+    var(--bg) 100%
   );
   border-color: var(--color-accent-alpha, rgba(59, 130, 246, 0.3));
 }

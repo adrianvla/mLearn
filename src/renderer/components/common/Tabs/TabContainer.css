@@ -33,7 +33,7 @@
 .tab-container.vertical .tab-list {
   flex-direction: column;
   min-width: 200px;
-  border-right: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-right: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
   padding-right: 0.5rem;
 }
 
@@ -76,7 +76,7 @@
 
 /* Underline variant */
 .tab-container.underline .tab-list {
-  border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
   gap: 0;
 }
 
@@ -103,7 +103,7 @@
 }
 
 .tab-container.segment .tab-item.active {
-  background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+  background: var(--bg, rgba(255, 255, 255, 0.1));
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
@@ -149,7 +149,6 @@
 .tab-content {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
 }
 
 .tab-container.vertical .tab-content {

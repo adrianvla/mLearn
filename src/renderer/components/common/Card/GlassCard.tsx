@@ -44,7 +44,7 @@ export const GlassCard: Component<GlassCardProps> = (props) => {
             'align-items': 'flex-start',
             'justify-content': 'space-between',
             padding: '1rem',
-            'border-bottom': '1px solid var(--glass-border)',
+            'border-bottom': '1px solid var(--border-color)',
           }}
         >
           <div style={{ display: 'flex', 'flex-direction': 'column', gap: '0.25rem' }}>
@@ -89,7 +89,7 @@ export const GlassCard: Component<GlassCardProps> = (props) => {
         <div
           style={{
             padding: '1rem',
-            'border-top': '1px solid var(--glass-border)',
+            'border-top': '1px solid var(--border-color)',
           }}
         >
           {local.footer}

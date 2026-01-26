@@ -109,7 +109,7 @@
 .subtitle_word ruby rt {
   font-size: 0.45em;
   font-weight: var(--font-weight-normal);
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   letter-spacing: 0.05em;
 }
 
@@ -125,9 +125,9 @@
 /*  bottom: 100%;*/
 /*  left: 50%;*/
 /*  transform: translateX(-50%);*/
-/*  background: var(--glass-bg);*/
-/*  backdrop-filter: var(--glass-backdrop-filter);*/
-/*  border: 1px solid var(--glass-border);*/
+/*  background: var(--bg);*/
+/*  backdrop-filter: var(--theme-backdrop-filter);*/
+/*  border: 1px solid var(--border-color);*/
 /*  border-radius: var(--radius-lg);*/
 /*  min-width: 200px;*/
 /*  max-width: 400px;*/
@@ -160,7 +160,7 @@
 
 /*.hover_translation {*/
 /*  font-size: var(--font-size-sm);*/
-/*  color: var(--color-text-secondary);*/
+/*  color: var(--text-primary-secondary);*/
 /*}*/
 
 /*.hover_reading {*/

@@ -5,6 +5,5 @@
 import { render } from 'solid-js/web';
 import { KanjiGridApp } from './App';
 import '../../styles/index.css';
-import '../../styles/glass.css';
 
 render(() => <KanjiGridApp />, document.getElementById('root')!);

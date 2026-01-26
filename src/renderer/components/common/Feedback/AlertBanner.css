@@ -10,7 +10,7 @@
   padding: 1rem;
   border-radius: var(--radius-md, 8px);
   border: 1px solid;
-  background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+  background: var(--bg, rgba(255, 255, 255, 0.1));
   backdrop-filter: blur(10px);
 }
 

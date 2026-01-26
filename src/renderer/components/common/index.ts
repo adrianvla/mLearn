@@ -20,6 +20,12 @@ export {
 } from './Button';
 
 export {
+  Select,
+  type SelectProps,
+  type SelectOption,
+} from './Select';
+
+export {
   Loader,
   Spinner,
   Skeleton,
@@ -99,6 +105,8 @@ export {
   type FormFieldProps,
   DropZone, 
   type DropZoneProps,
+  RangeInput,
+  type RangeInputProps,
 } from './Input';
 
 // ============ Panels & Layout ============

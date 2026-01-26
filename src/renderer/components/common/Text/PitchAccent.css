@@ -180,28 +180,3 @@ span:not(ruby) .mLearn-pitch-accent {
 .pill.pitch-accent-pill .mLearn-pitch-accent {
   --pitch-accent-height: 2px;
 }
-
-/* Dark mode adjustments */
-body.dark .pitch-accent-container,
-.dark .pitch-accent-container {
-  color: var(--text-primary);
-}
-
-/* When inside subtitle hover */
-.subtitle_hover .mLearn-pitch-accent {
-  --pitch-accent-height: 2px;
-}
-
-.subtitle_hover .pill.pitch-accent-pill .mLearn-pitch-accent {
-  --pitch-accent-height: 2px;
-}
-
-.subtitle_hover .pill.pitch-accent-pill .pitch-accent-word {
-  position: relative;
-}
-
-body.dark .subtitle_hover .mLearn-pitch-accent,
-.subtitle_hover.dark .mLearn-pitch-accent {
-  filter: none;
-  color: var(--text-primary);
-}

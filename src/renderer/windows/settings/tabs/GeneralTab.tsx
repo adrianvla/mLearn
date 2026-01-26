@@ -4,7 +4,7 @@
 
 import { Component } from 'solid-js';
 import { useSettings } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, GlassBtn } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, GlassBtn, Select } from '../../../components/common';
 
 export const GeneralTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -24,14 +24,14 @@ export const GeneralTab: Component = () => {
           label="Target Language"
           description="The language you're learning"
         >
-          <select
+          <Select
             class="setting-select"
             value={settings.language}
             onChange={(e) => updateSettings({ language: e.currentTarget.value })}
           >
             <option value="ja">Japanese</option>
             <option value="de">German</option>
-          </select>
+          </Select>
         </SettingRow>
       </SettingGroup>
 

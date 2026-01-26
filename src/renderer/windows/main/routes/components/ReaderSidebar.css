@@ -9,9 +9,8 @@
   width: 160px;
   height: calc(100vh - 48px - 40px);
   overflow-y: auto;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  border-right: 1px solid var(--glass-border);
+  background: var(--bg);
+  border-right: 1px solid var(--border-color);
   padding: 1rem 0.5rem;
   z-index: 90;
   user-select: none;
@@ -34,7 +33,7 @@
   width: 100%;
   aspect-ratio: 3/4;
   padding: 0;
-  background: var(--glass-border);
+  background: var(--border-color);
   border: 2px solid transparent;
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -44,7 +43,7 @@
 }
 
 .reader-sidebar .page-thumb:hover {
-  border-color: var(--glass-button-border-hover);
+  border-color: var(--border-color-intense);
   transform: scale(1.02);
 }
 
@@ -64,12 +63,12 @@
   bottom: 4px;
   right: 4px;
   font-size: var(--spacing-3);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  border: 1px solid var(--glass-border);
+  background: var(--bg);
+  backdrop-filter: var(--theme-backdrop-filter);
+  border: 1px solid var(--border-color);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
-  color: var(--glass-text-color);
+  color: var(--text-primary);
 }
 
 .reader-sidebar .page-thumb .ocr-indicator {

@@ -12,7 +12,7 @@
 .progress-bar-track {
   flex: 1;
   height: 8px;
-  background: var(--glass-bg, rgba(128, 128, 128, 0.2));
+  background: var(--bg, rgba(128, 128, 128, 0.2));
   border-radius: var(--radius-sm, 4px);
   overflow: hidden;
 }
@@ -72,9 +72,4 @@
 
 .progress-bar--gradient .progress-bar-fill {
   background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
-}
-
-/* Dark mode */
-body.dark .progress-bar-track {
-  background: rgba(255, 255, 255, 0.1);
 }

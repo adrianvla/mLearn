@@ -4,7 +4,7 @@
 
 import { Component, createSignal, Show } from 'solid-js';
 import { useSettings } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, GlassBtn } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, GlassBtn, Select } from '../../../components/common';
 
 export const SRSTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -161,17 +161,17 @@ export const SRSTab: Component = () => {
           label="Prepared Exam Level"
           description="Target JLPT level (5=N5, 1=N1)"
         >
-          <select
+          <Select
             class="setting-select"
-            value={settings.preparedExam}
+            value={settings.preparedExam.toString()}
             onChange={(e) => updateSettings({ preparedExam: parseInt(e.currentTarget.value) })}
           >
-            <option value={5}>N5 (Beginner)</option>
-            <option value={4}>N4</option>
-            <option value={3}>N3</option>
-            <option value={2}>N2</option>
-            <option value={1}>N1 (Advanced)</option>
-          </select>
+            <option value="5">N5 (Beginner)</option>
+            <option value="4">N4</option>
+            <option value="3">N3</option>
+            <option value="2">N2</option>
+            <option value="1">N1 (Advanced)</option>
+          </Select>
         </SettingRow>
 
         <SettingRow

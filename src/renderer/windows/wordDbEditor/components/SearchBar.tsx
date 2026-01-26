@@ -3,7 +3,7 @@
  */
 
 import { Component, For, Show, Accessor, Setter } from 'solid-js';
-import { GlassBtn, Progress, HintText } from '../../../components/common';
+import { GlassBtn, Progress, HintText, Select } from '../../../components/common';
 
 export interface SearchBarProps {
   searchQuery: Accessor<string>;
@@ -41,19 +41,19 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
         />
       </Show>
       
-      <select
-        class="glass-select level-select"
-        value={props.selectedLevel() ?? ''}
+      <Select
+        class="level-select"
+        placeholder="All Levels"
+        value={props.selectedLevel()?.toString() ?? ''}
         onChange={(e) => {
           const val = e.currentTarget.value;
           props.setSelectedLevel(val ? parseInt(val) : null);
         }}
       >
-        <option value="">All Levels</option>
         <For each={Object.entries(props.levelNames)}>
           {([level, name]) => <option value={level}>{name}</option>}
         </For>
-      </select>
+      </Select>
       
       <HintText>
         Enter to search; exact matches prioritized. Press Load All first.

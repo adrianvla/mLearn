@@ -22,7 +22,7 @@
 /* Header area */
 .window-layout__header {
   flex-shrink: 0;
-  border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
   background: var(--bg-secondary, rgba(0, 0, 0, 0.3));
   backdrop-filter: blur(10px);
   -webkit-app-region: drag;
@@ -40,7 +40,7 @@
 /* Sidebar */
 .window-layout__sidebar {
   flex-shrink: 0;
-  border-right: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-right: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
   background: var(--bg-secondary, rgba(0, 0, 0, 0.2));
   overflow-y: auto;
 }
@@ -56,7 +56,7 @@
 /* Footer area */
 .window-layout__footer {
   flex-shrink: 0;
-  border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
   background: var(--bg-secondary, rgba(0, 0, 0, 0.3));
   backdrop-filter: blur(10px);
 }
