@@ -4,7 +4,7 @@
  */
 
 import { Component, Show, createMemo } from 'solid-js';
-import { GlassButton, Pill, StatusPill } from '../../../components/common';
+import { GlassBtn, PillLabel, StatusLabel } from '../../../components/common';
 import { WORD_STATUS } from '../../../../shared/constants';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
 import { useSettings } from '../../../context';
@@ -82,48 +82,48 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
       </div>
       <div class="col level">
         <Show when={props.entry.level >= 0}>
-          <Pill level={props.entry.level}>
+          <PillLabel level={props.entry.level}>
             {props.levelNames[props.entry.level] || `Level ${props.entry.level}`}
-          </Pill>
+          </PillLabel>
         </Show>
         <Show when={props.entry.level < 0}>-</Show>
       </div>
       <div class="col tracker">
         <span class="tracker-label">{props.entry.tracker}</span>
         <Show when={props.entry.tracker === 'flashcards'}>
-          <GlassButton
+          <GlassBtn
             variant="danger"
             size="sm"
             onClick={() => props.onRemoveFlashcard(props.entry)}
           >
             Remove
-          </GlassButton>
+          </GlassBtn>
         </Show>
         <Show when={props.entry.tracker !== 'flashcards'}>
-          <GlassButton
+          <GlassBtn
             variant="primary"
             size="sm"
             onClick={() => props.onAddFlashcard(props.entry)}
           >
             Add
-          </GlassButton>
+          </GlassBtn>
         </Show>
       </div>
       <div class="col status">
         <div class="status-pill-group">
-          <StatusPill
+          <StatusLabel
             status="unknown"
             active={props.entry.status === WORD_STATUS.UNKNOWN}
             onClick={() => props.onStatusChange(props.entry, WORD_STATUS.UNKNOWN)}
             showIcon={false}
           />
-          <StatusPill
+          <StatusLabel
             status="learning"
             active={props.entry.status === WORD_STATUS.LEARNING}
             onClick={() => props.onStatusChange(props.entry, WORD_STATUS.LEARNING)}
             showIcon={false}
           />
-          <StatusPill
+          <StatusLabel
             status="known"
             active={props.entry.status === WORD_STATUS.KNOWN}
             onClick={() => props.onStatusChange(props.entry, WORD_STATUS.KNOWN)}

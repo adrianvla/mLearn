@@ -4,7 +4,7 @@
 
 import { Component, createSignal, Show } from 'solid-js';
 import { useSettings } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, GlassBtn } from '../../../components/common';
 
 export const SRSTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -66,9 +66,9 @@ export const SRSTab: Component = () => {
             description="Test your AnkiConnect connection"
           >
             <div style={{ display: "flex", gap: "8px", "align-items": "center" }}>
-              <button class="setting-btn" onClick={checkAnkiConnection}>
+              <GlassBtn size="sm" onClick={checkAnkiConnection}>
                 Test
-              </button>
+              </GlassBtn>
               <Show when={ankiStatus() === 'connected'}>
                 <span style={{ color: "#4ade80" }}>✓ Connected</span>
               </Show>
@@ -190,9 +190,9 @@ export const SRSTab: Component = () => {
           label="Reset SRS Data"
           description="Clear all flashcard progress (cannot be undone!)"
         >
-          <button class="setting-btn danger" onClick={() => resetSRS()}>
+          <GlassBtn size="sm" variant="danger" onClick={() => resetSRS()}>
             Reset SRS
-          </button>
+          </GlassBtn>
         </SettingRow>
       </SettingGroup>
     </TabContent>

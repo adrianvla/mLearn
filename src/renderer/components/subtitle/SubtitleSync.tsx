@@ -5,7 +5,7 @@
 
 import { Component, createSignal, createEffect, Show } from 'solid-js';
 import { useSettings } from '../../context';
-import { PanelHeader } from '../common';
+import { PanelHeader, NavBtn } from '../common';
 import './SubtitleSync.css';
 
 export interface SubtitleSyncProps {
@@ -123,9 +123,9 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
       <div class="sync-subs">
         <PanelHeader onClose={hide} />
         <div class="controls">
-          <button class="backward" onClick={handleBackward} title="Sync to previous subtitle">
+          <NavBtn class="backward" onClick={handleBackward} title="Sync to previous subtitle">
             <img src="assets/icons/fast-forward.svg" alt="Backward" />
-          </button>
+          </NavBtn>
           <input
             type="text"
             value={inputValue()}
@@ -133,9 +133,9 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
             onKeyDown={handleKeyDown}
             onBlur={applyInputValue}
           />
-          <button class="forward" onClick={handleForward} title="Sync to next subtitle">
+          <NavBtn class="forward" onClick={handleForward} title="Sync to next subtitle">
             <img src="assets/icons/fast-forward.svg" alt="Forward" />
-          </button>
+          </NavBtn>
         </div>
       </div>
     </Show>

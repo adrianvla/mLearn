@@ -6,7 +6,7 @@
 import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, For, createEffect } from 'solid-js';
 import { useFlashcards } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
-import { GlassButton } from '../common/GlassButton';
+import { GlassBtn, Button, Badge } from '../common';
 import { GlassPanel } from '../common/GlassPanel';
 import type { Flashcard } from '../../../shared/types';
 import './FlashcardReview.css';
@@ -265,24 +265,24 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       {/* Header with stats */}
       <div class="flashcard-review-header">
         <div class="flashcard-stats">
-          <span class="flashcard-stat">
+          <Badge class="flashcard-stat">
             <span class="flashcard-stat-label">Left:</span>
             <span class="flashcard-stat-value">{dueCount()}</span>
-          </span>
-          <span class="flashcard-stat">
+          </Badge>
+          <Badge class="flashcard-stat" variant="primary">
             <span class="flashcard-stat-label">New:</span>
             <span class="flashcard-stat-new">{stats().new}</span>
-          </span>
-          <span class="flashcard-stat">
+          </Badge>
+          <Badge class="flashcard-stat" variant="warning">
             <span class="flashcard-stat-label">Learning:</span>
             <span class="flashcard-stat-learning">{stats().learning}</span>
-          </span>
+          </Badge>
         </div>
         
         <Show when={canUndo()}>
-          <button class="flashcard-undo-btn" onClick={undoLastAction} title="Undo (Ctrl+Z)">
+          <Button buttonType="glass" variant="ghost" size="sm" onClick={undoLastAction} title="Undo (Ctrl+Z)">
             ↩ Undo
-          </button>
+          </Button>
         </Show>
       </div>
 
@@ -304,14 +304,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             </p>
             <div class="flashcard-completion-actions">
               <Show when={store.flashcards.length > 0}>
-                <GlassButton variant="primary" onClick={handleStartOver}>
+                <GlassBtn variant="primary" onClick={handleStartOver}>
                   Review More
-                </GlassButton>
+                </GlassBtn>
               </Show>
               <Show when={props.onClose}>
-                <GlassButton onClick={props.onClose}>
+                <GlassBtn onClick={props.onClose}>
                   Close
-                </GlassButton>
+                </GlassBtn>
               </Show>
             </div>
           </GlassPanel>
@@ -328,9 +328,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       <div class="flashcard-buttons-container">
         {/* Show answer button */}
         <Show when={!isComplete() && currentCard() && !showAnswer()}>
-          <button class="flashcard-show-answer-btn" onClick={handleFlip}>
+          <Button buttonType="glass" variant="primary" size="lg" class="flashcard-show-answer-btn" onClick={handleFlip}>
             Show Answer
-          </button>
+          </Button>
         </Show>
 
         {/* Rating buttons */}
@@ -338,14 +338,15 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           <div class="flashcard-rating-buttons">
             <For each={ratingButtons()}>
               {(btn) => (
-                <button
+                <Button
+                  buttonType="glass"
                   class={`flashcard-rating-btn ${btn.className}`}
                   onClick={() => handleRating(btn.quality)}
                   title={`Press ${btn.key}`}
                 >
                   <span class="flashcard-rating-label">{btn.label}</span>
                   <span class="flashcard-rating-time">{btn.time}</span>
-                </button>
+                </Button>
               )}
             </For>
           </div>
@@ -354,25 +355,29 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           <div class="flashcard-action-buttons">
             <For each={additionalButtons()}>
               {(btn) => (
-                <button
+                <Button
+                  buttonType="glass"
+                  variant="ghost"
                   class={`flashcard-action-btn ${btn.className}`}
                   onClick={btn.onClick}
                   title={`Press ${btn.key}`}
                 >
                   <span class="flashcard-action-label">{btn.label}</span>
                   <span class="flashcard-action-time">{btn.time}</span>
-                </button>
+                </Button>
               )}
             </For>
             
             {/* Remove button */}
-            <button
+            <Button
+              buttonType="glass"
+              variant="danger"
               class="flashcard-action-btn flashcard-action-btn--remove"
               onClick={handleRemove}
               title="Press x"
             >
               <span class="flashcard-action-label">Remove</span>
-            </button>
+            </Button>
           </div>
         </Show>
       </div>

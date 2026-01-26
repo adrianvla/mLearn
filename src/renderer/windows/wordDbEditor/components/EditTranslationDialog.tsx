@@ -6,7 +6,7 @@
 
 import { Component, createSignal, onMount, Show, createEffect } from 'solid-js';
 import { useTranslation } from '../../../hooks/useTranslation';
-import { GlassButton, GlassInput, GlassModal, SpinnerLoader } from '../../../components/common';
+import { GlassBtn, GlassInput, GlassModal, Spinner } from '../../../components/common';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
 import './EditTranslationDialog.css';
 
@@ -239,7 +239,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
       title={`Edit translation – ${props.word}`}
     >
       <Show when={isLoading()}>
-        <SpinnerLoader size={32} text="Loading..." />
+        <Spinner size={32} text="Loading..." />
       </Show>
       
       <Show when={!isLoading()}>
@@ -306,15 +306,15 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
         </div>
         
         <div class="dialog-footer">
-          <GlassButton variant="danger" onClick={handleRevert}>
+          <GlassBtn variant="danger" onClick={handleRevert}>
             Remove Override
-          </GlassButton>
-          <GlassButton variant="ghost" onClick={props.onClose}>
+          </GlassBtn>
+          <GlassBtn variant="ghost" onClick={props.onClose}>
             Cancel
-          </GlassButton>
-          <GlassButton variant="primary" onClick={handleSave}>
+          </GlassBtn>
+          <GlassBtn variant="primary" onClick={handleSave}>
             Save
-          </GlassButton>
+          </GlassBtn>
         </div>
       </Show>
     </GlassModal>

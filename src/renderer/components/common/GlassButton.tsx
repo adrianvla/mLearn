@@ -6,7 +6,7 @@
 import { Component, JSX, splitProps, mergeProps } from 'solid-js';
 
 export interface GlassButtonProps extends JSX.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'primary' | 'danger' | 'ghost';
+  variant?: 'default' | 'primary' | 'secondary' | 'danger' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   icon?: JSX.Element;
   iconPosition?: 'left' | 'right';
@@ -41,6 +41,8 @@ export const GlassButton: Component<GlassButtonProps> = (props) => {
     switch (local.variant) {
       case 'primary':
         return 'glass-button-primary';
+      case 'secondary':
+        return 'glass-button-secondary';
       case 'danger':
         return 'glass-button-danger';
       case 'ghost':

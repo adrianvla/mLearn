@@ -4,6 +4,7 @@
  */
 
 import { Component, Show, JSX } from 'solid-js';
+import { Button } from './Button';
 import './ModalFooter.css';
 
 export interface ModalFooterProps {
@@ -41,9 +42,9 @@ export interface ModalFooterProps {
  * />
  */
 export const ModalFooter: Component<ModalFooterProps> = (props) => {
-  const confirmClass = () => {
+  const confirmVariant = () => {
     const variant = props.confirmVariant || 'primary';
-    return `modal-footer-btn modal-footer-btn-${variant}`;
+    return variant;
   };
 
   return (
@@ -56,26 +57,25 @@ export const ModalFooter: Component<ModalFooterProps> = (props) => {
       
       <div class="modal-footer-actions">
         <Show when={!props.hideCancel}>
-          <button
-            type="button"
-            class="modal-footer-btn modal-footer-btn-cancel"
+          <Button
+            buttonType="glass"
+            variant="secondary"
             onClick={props.onCancel}
+            class="modal-footer-btn-cancel"
           >
             {props.cancelText || 'Cancel'}
-          </button>
+          </Button>
         </Show>
         
-        <button
-          type="button"
-          class={confirmClass()}
+        <Button
+          buttonType="glass"
+          variant={confirmVariant()}
           onClick={props.onConfirm}
-          disabled={props.confirmDisabled || props.loading}
+          disabled={props.confirmDisabled}
+          loading={props.loading}
         >
-          <Show when={props.loading}>
-            <span class="modal-footer-spinner" />
-          </Show>
           {props.confirmText || 'Confirm'}
-        </button>
+        </Button>
       </div>
     </div>
   );

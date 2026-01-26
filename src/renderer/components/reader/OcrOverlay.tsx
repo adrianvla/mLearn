@@ -111,25 +111,48 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     const el = props.imageElement;
     if (!el) return;
     
-    // Set initial
-    setObservedWidth(el.clientWidth || el.naturalWidth);
-    setObservedHeight(el.clientHeight || el.naturalHeight);
+    // Helper to update dimensions only when they're valid
+    const updateDimensions = () => {
+      const width = el.clientWidth || el.naturalWidth || 0;
+      const height = el.clientHeight || el.naturalHeight || 0;
+      if (width > 0 && height > 0) {
+        setObservedWidth(width);
+        setObservedHeight(height);
+      }
+    };
+    
+    // Set initial dimensions
+    updateDimensions();
+    
+    // Also listen for image load event in case dimensions aren't available yet
+    const handleLoad = () => updateDimensions();
+    el.addEventListener('load', handleLoad);
     
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setObservedWidth(entry.contentRect.width);
-        setObservedHeight(entry.contentRect.height);
+        const width = entry.contentRect.width;
+        const height = entry.contentRect.height;
+        if (width > 0 && height > 0) {
+          setObservedWidth(width);
+          setObservedHeight(height);
+        }
       }
     });
     observer.observe(el);
-    onCleanup(() => observer.disconnect());
+    onCleanup(() => {
+      observer.disconnect();
+      el.removeEventListener('load', handleLoad);
+    });
   });
 
   // Calculate scale factor to map OCR coordinates to displayed image
   const scaleFactor = createMemo(() => {
     if (!props.imageElement || !props.result) return 1;
     // Depend on observedWidth to trigger re-calc on resize
-    const displayedWidth = observedWidth() || props.imageElement.clientWidth || props.imageElement.naturalWidth || 1;
+    // Use observedWidth/Height which are guaranteed to be > 0 once set properly
+    const displayedWidth = observedWidth();
+    if (displayedWidth <= 0) return 1; // Not ready yet, use identity scale
+    
     const sentWidth = props.result.sent_size?.width || (props.result.original_size?.width || 1) * (props.result.client_scale || 1);
     return sentWidth > 0 ? displayedWidth / sentWidth : 1;
   });
@@ -236,16 +259,19 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
 
   // Check if vertical text is supported by the current language
   const langFeatures = createMemo(() => getLanguageFeatures());
+  
+  // Only render when we have valid dimensions to calculate positions correctly
+  const isReady = () => observedWidth() > 0 && observedHeight() > 0;
 
   return (
-    <Show when={props.visible !== false && filteredBoxes().length > 0}>
+    <Show when={props.visible !== false && filteredBoxes().length > 0 && isReady()}>
       <div 
         class="ocr-overlay"
         style={{
           left: '0px',
           top: '0px',
-          width: `${observedWidth() || (props.imageElement?.clientWidth ?? 0)}px`,
-          height: `${observedHeight() || (props.imageElement?.clientHeight ?? 0)}px`,
+          width: `${observedWidth()}px`,
+          height: `${observedHeight()}px`,
           opacity: 1,
         }}
       >

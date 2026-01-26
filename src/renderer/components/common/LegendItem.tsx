@@ -9,6 +9,10 @@ import './LegendItem.css';
 export interface LegendItemProps {
   /** Color for the legend box */
   color: string;
+  /** Secondary color (for gradient legends) */
+  secondaryColor?: string;
+  /** Show arrow between colors (for gradient legends) */
+  showArrow?: boolean;
   /** Label text */
   label: string;
   /** Optional count/value */
@@ -36,11 +40,18 @@ export const LegendItem: Component<LegendItemProps> = (props) => {
       class={`legend-item legend-item--${size()} ${props.active ? 'active' : ''} ${props.onClick ? 'clickable' : ''} ${props.class || ''}`}
       onClick={props.onClick}
     >
+      <span class="legend-label">{props.label}</span>
       <span 
         class={`legend-color legend-color--${shape()}`}
         style={{ background: props.color }}
       />
-      <span class="legend-label">{props.label}</span>
+      <Show when={props.showArrow && props.secondaryColor}>
+        <span class="legend-arrow">→</span>
+        <span 
+          class={`legend-color legend-color--${shape()}`}
+          style={{ background: props.secondaryColor }}
+        />
+      </Show>
       <Show when={props.count !== undefined}>
         <span class="legend-count">{props.count}</span>
       </Show>

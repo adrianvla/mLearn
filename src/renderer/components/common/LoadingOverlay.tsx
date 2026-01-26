@@ -4,7 +4,7 @@
  */
 
 import { Component, Show } from 'solid-js';
-import { SpinnerLoader } from './SkeletonLoader';
+import { Spinner } from './Loader';
 import './LoadingOverlay.css';
 
 export interface LoadingOverlayProps {
@@ -36,7 +36,7 @@ export const LoadingOverlay: Component<LoadingOverlayProps> = (props) => {
         class={`loading-overlay ${hasBackdrop() ? 'with-backdrop' : ''} ${hasBlur() ? 'with-blur' : ''} ${isFullscreen() ? 'fullscreen' : ''} ${props.class || ''}`}
       >
         <div class="loading-overlay-content">
-          <SpinnerLoader size={props.size ?? 40} text={props.text} />
+          <Spinner size={props.size ?? 40} text={props.text} />
         </div>
       </div>
     </Show>

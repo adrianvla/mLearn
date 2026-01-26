@@ -4,6 +4,7 @@
  */
 
 import {Component, Accessor} from 'solid-js';
+import { NavBtn, Tag } from '../../../../components/common';
 import './ReaderNav.css';
 
 interface ReaderNavProps {
@@ -31,17 +32,17 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         class="nav-group"
         style={`${props.marginLeft ? `margin-left: ${props.marginLeft}` : ''}`}
       >
-        <button class="nav-btn" onClick={props.onGoHome} title="Back to Home">
+        <NavBtn onClick={props.onGoHome} title="Back to Home">
           ← Home
-        </button>
-        <button class="nav-btn sidebar-btn" onClick={props.onToggleSidebar}>
+        </NavBtn>
+        <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar}>
           📑
-        </button>
-        <span class="book-title-nav">{props.bookTitle()}</span>
+        </NavBtn>
+        <Tag class="book-title-nav">{props.bookTitle()}</Tag>
       </div>
       
       <div class="nav-group">
-        <span class="progress">{props.progressString()}</span>
+        <Tag class="progress">{props.progressString()}</Tag>
       </div>
       
       <div class="nav-group">
@@ -65,8 +66,8 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       </div>
       
       <div class="nav-group nav-arrows">
-        <button class="nav-btn" onClick={props.onPrevPage}>◀</button>
-        <button class="nav-btn" onClick={props.onNextPage}>▶</button>
+        <NavBtn onClick={props.onPrevPage}>◀</NavBtn>
+        <NavBtn onClick={props.onNextPage}>▶</NavBtn>
       </div>
     </nav>
   );

@@ -73,7 +73,7 @@
   backdrop-filter: var(--glass-backdrop-filter);
   padding: 4px 8px;
   font-size: 0.85rem;
-  color: var(--text-secondary);
+  color: var(--glass-text-color-faint);
   font-weight: 500;
   white-space: nowrap;
 }

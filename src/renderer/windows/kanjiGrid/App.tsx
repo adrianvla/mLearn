@@ -16,7 +16,7 @@ import {
   getWordsLearnedInApp,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
-import { SpinnerLoader } from '../../components/common';
+import { Spinner, PillLabel, LegendItem } from '../../components/common';
 import './kanjiGrid.css';
 
 interface KanjiData {
@@ -323,29 +323,16 @@ const KanjiGridContent: Component = () => {
           </Show>
           
           <Show when={isLoading()}>
-            <SpinnerLoader size={40} text="Loading kanji data..." />
+            <Spinner size={40} text="Loading kanji data..." />
           </Show>
         </div>
 
         <div class="kg-sidebar">
           {/* Legend */}
           <div class="kg-legend">
-            <div class="legend-item">
-              <span class="label">learning:</span>
-              <span class="box" style={{ background: '#E65100' }} />
-              <span class="arrow">→</span>
-              <span class="box" style={{ background: '#FFEB3B' }} />
-            </div>
-            <div class="legend-item">
-              <span class="label">known:</span>
-              <span class="box" style={{ background: '#2E7D32' }} />
-              <span class="arrow">→</span>
-              <span class="box" style={{ background: '#81C784' }} />
-            </div>
-            <div class="legend-item">
-              <span class="label">unknown:</span>
-              <span class="box" style={{ background: '#616161' }} />
-            </div>
+            <LegendItem label="learning:" color="#E65100" secondaryColor="#FFEB3B" showArrow />
+            <LegendItem label="known:" color="#2E7D32" secondaryColor="#81C784" showArrow />
+            <LegendItem label="unknown:" color="#616161" />
           </div>
 
           {/* Stats */}
@@ -365,17 +352,17 @@ const KanjiGridContent: Component = () => {
                   {(level) => {
                     const count = () => levelKanji()[level]?.size || 0;
                     return (
-                      <button
-                        class={`pill ${hoveredLevel() === level ? 'active' : ''}`}
-                        data-level={level}
+                      <PillLabel
+                        level={level}
+                        clickable
+                        class={hoveredLevel() === level ? 'active' : ''}
+                        onClick={() => {}}
                         onMouseEnter={() => setHoveredLevel(level)}
                         onMouseLeave={() => setHoveredLevel(null)}
+                        count={count() > 0 ? count() : undefined}
                       >
                         {levelNames()[level] || `Level ${level}`}
-                        <Show when={count() > 0}>
-                          <span class="pill-count">({count()})</span>
-                        </Show>
-                      </button>
+                      </PillLabel>
                     );
                   }}
                 </For>
@@ -397,13 +384,13 @@ const KanjiGridContent: Component = () => {
           </div>
           <div class="tooltip-words">
             <For each={hoveredKanji()!.wordsKnown.slice(0, 10)}>
-              {(word) => <span class="word-pill known">{word}</span>}
+              {(word) => <PillLabel variant="green" size="sm">{word}</PillLabel>}
             </For>
             <For each={hoveredKanji()!.wordsLearning.slice(0, 10)}>
-              {(word) => <span class="word-pill learning">{word}</span>}
+              {(word) => <PillLabel variant="orange" size="sm">{word}</PillLabel>}
             </For>
             <For each={hoveredKanji()!.wordsUnknown.slice(0, 10)}>
-              {(word) => <span class="word-pill unknown">{word}</span>}
+              {(word) => <PillLabel variant="gray" size="sm">{word}</PillLabel>}
             </For>
           </div>
         </div>

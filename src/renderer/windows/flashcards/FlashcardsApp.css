@@ -23,6 +23,12 @@
   gap: 0.5rem;
 }
 
+.flashcards-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
 .flashcards-content {
   flex: 1;
   overflow: auto;

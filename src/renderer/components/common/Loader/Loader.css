@@ -1,0 +1,255 @@
+/**
+ * Unified Loader Component Styles
+ * Consolidated styles for all loader variants
+ */
+
+/* ============ Animations ============ */
+@keyframes loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loader-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes loader-ring-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============ Base Loader ============ */
+.loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.loader-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #888);
+  font-weight: 500;
+  margin-top: 0.5rem;
+}
+
+/* ============ Spinner ============ */
+.loader-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.loader-spinner-circle {
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--accent-primary, #3498db);
+  border-radius: 50%;
+  animation: loader-spin 0.8s linear infinite;
+}
+
+/* ============ Skeleton ============ */
+.loader-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  margin-top: 0.5rem;
+}
+
+.loader-skeleton-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.loader-skeleton-line {
+  display: inline-block;
+  height: 14px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.1) 25%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.1) 75%
+  );
+  background-size: 200% 100%;
+  animation: loader-shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* ============ Progress Bar ============ */
+.loader-progress {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.loader-progress-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #888);
+}
+
+.loader-progress-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.loader-progress-fill {
+  height: 100%;
+  background: var(--accent-primary, #4a90d9);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.loader-progress-fill.animated {
+  transition: width 0.5s ease;
+}
+
+.loader-progress-percent {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #888);
+  text-align: right;
+}
+
+/* Progress bar variants */
+.loader-progress--thin .loader-progress-track {
+  height: 4px;
+}
+
+.loader-progress--thick .loader-progress-track {
+  height: 12px;
+}
+
+.loader-progress--gradient .loader-progress-fill {
+  background: linear-gradient(90deg, var(--color-primary, #4a90d9), var(--color-success, #2ecc71));
+}
+
+/* ============ Progress Ring ============ */
+.loader-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.loader-ring-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loader-ring-svg {
+  transform: rotate(-90deg);
+}
+
+.loader-ring-svg.indeterminate {
+  animation: loader-ring-spin 1.5s linear infinite;
+}
+
+.loader-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+}
+
+.loader-ring-progress {
+  fill: none;
+  stroke: var(--accent-primary, #4a90d9);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+.loader-ring-svg.indeterminate .loader-ring-progress {
+  stroke-dasharray: 60 180;
+}
+
+.loader-ring-percent {
+  position: absolute;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary, #f0f0f0);
+}
+
+/* ============ Overlay ============ */
+.loader-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-overlay, 700);
+}
+
+.loader-overlay.with-backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.loader-overlay.with-blur {
+  backdrop-filter: blur(4px);
+}
+
+.loader-overlay.fullscreen {
+  position: fixed;
+}
+
+.loader-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* ============ Light Mode Support ============ */
+:root:not(.dark) .loader-spinner-circle,
+body:not(.dark) .loader-spinner-circle {
+  border-color: rgba(0, 0, 0, 0.1);
+  border-top-color: var(--accent-primary, #3498db);
+}
+
+:root:not(.dark) .loader-skeleton,
+body:not(.dark) .loader-skeleton {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+:root:not(.dark) .loader-skeleton-line,
+body:not(.dark) .loader-skeleton-line {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.08) 25%,
+    rgba(0, 0, 0, 0.12) 50%,
+    rgba(0, 0, 0, 0.08) 75%
+  );
+  background-size: 200% 100%;
+}
+
+:root:not(.dark) .loader-progress-track,
+body:not(.dark) .loader-progress-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+:root:not(.dark) .loader-ring-track,
+body:not(.dark) .loader-ring-track {
+  stroke: rgba(0, 0, 0, 0.1);
+}
+
+:root:not(.dark) .loader-overlay.with-backdrop,
+body:not(.dark) .loader-overlay.with-backdrop {
+  background: rgba(255, 255, 255, 0.7);
+}

@@ -47,21 +47,6 @@ function getPreloadPath(): string {
   return path.join(__dirname, '..', 'preload.js');
 }
 
-// Get HTML file path for a window type
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function getWindowHtmlPath(type: WindowType): string {
-  const isDev = process.env.NODE_ENV === 'development';
-  
-  if (isDev) {
-    // In development, use Vite dev server with src/html paths
-    const port = 3000;
-    return `http://localhost:${port}/src/html/${type}.html`;
-  }
-  
-  // In production, use built files in dist
-  return path.join(__dirname, '..', '..', 'dist', `${type}.html`);
-}
-
 function openSettingsWindow(section?: string): BrowserWindow {
   const settingsWindow = createChildWindow('settings' as WindowType, { width: 800, height: 600 });
 

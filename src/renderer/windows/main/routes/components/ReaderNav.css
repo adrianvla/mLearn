@@ -56,9 +56,9 @@
 }
 
 .reader-nav .book-title-nav {
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
-  max-width: 200px;
+  max-width: 400px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

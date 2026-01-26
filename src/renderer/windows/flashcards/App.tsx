@@ -5,13 +5,13 @@
 
 import { Component, Show, For, createSignal, createMemo } from 'solid-js';
 import { WindowWrapper } from '../../context';
-import { useFlashcards, useSettings } from '../../context';
-import { FlashcardReview, FlashcardEditor } from '../../components/flashcard';
+import { useFlashcards } from '../../context';
+import { FlashcardReview, FlashcardEditor, FlashcardSyncModal } from '../../components/flashcard';
 import { 
   GlassCard, 
   GlassModal, 
   GlassInput, 
-  GlassButton,
+  GlassBtn,
   TabButton,
   EmptyState,
   StatCard,
@@ -29,6 +29,7 @@ const FlashcardsContent: Component = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
   const [showAddModal, setShowAddModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
+  const [showSyncModal, setShowSyncModal] = createSignal(false);
   const [editingCard, setEditingCard] = createSignal<Flashcard | null>(null);
   
   // Add card form state (simple mode)
@@ -130,9 +131,14 @@ const FlashcardsContent: Component = () => {
           </For>
         </div>
 
-        <GlassButton size="sm" onClick={() => setShowAddModal(true)}>
-          + Add Card
-        </GlassButton>
+        <div class="flashcards-header-actions">
+          <GlassBtn size="sm" variant="secondary" onClick={() => setShowSyncModal(true)}>
+            🔄 Sync
+          </GlassBtn>
+          <GlassBtn size="sm" onClick={() => setShowAddModal(true)}>
+            + Add Card
+          </GlassBtn>
+        </div>
       </div>
 
       {/* Content */}
@@ -277,8 +283,8 @@ const FlashcardsContent: Component = () => {
         size="sm"
         footer={
           <>
-            <GlassButton onClick={() => setShowDeleteConfirm(false)}>Cancel</GlassButton>
-            <GlassButton variant="danger" onClick={handleDeleteCard}>Delete</GlassButton>
+            <GlassBtn onClick={() => setShowDeleteConfirm(false)}>Cancel</GlassBtn>
+            <GlassBtn variant="danger" onClick={handleDeleteCard}>Delete</GlassBtn>
           </>
         }
       >
@@ -292,8 +298,8 @@ const FlashcardsContent: Component = () => {
         title="Add Flashcard"
         footer={
           <>
-            <GlassButton onClick={() => setShowAddModal(false)}>Cancel</GlassButton>
-            <GlassButton variant="primary" onClick={handleAddCard}>Add Card</GlassButton>
+            <GlassBtn onClick={() => setShowAddModal(false)}>Cancel</GlassBtn>
+            <GlassBtn variant="primary" onClick={handleAddCard}>Add Card</GlassBtn>
           </>
         }
       >
@@ -338,6 +344,12 @@ const FlashcardsContent: Component = () => {
           />
         </Show>
       </GlassModal>
+
+      {/* Sync Modal */}
+      <FlashcardSyncModal
+        isOpen={showSyncModal()}
+        onClose={() => setShowSyncModal(false)}
+      />
     </div>
   );
 };

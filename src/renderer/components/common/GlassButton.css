@@ -98,6 +98,40 @@
   opacity: 0.6;
 }
 
+/* Secondary variant - subtle outline style */
+.glass-button-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--text-primary);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.glass-button-secondary:hover {
+  background: var(--glass-bg);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.glass-button-secondary:active {
+  background: var(--glass-bg-hover);
+}
+
+.glass-button-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 /* Ghost variant */
 .glass-button-ghost {
   display: inline-flex;

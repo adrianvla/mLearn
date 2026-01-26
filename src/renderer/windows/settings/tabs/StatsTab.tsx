@@ -5,7 +5,7 @@
 
 import { Component, createSignal, onMount, createEffect, Show } from 'solid-js';
 import { useSettings, useLanguage } from '../../../context';
-import { TabContent, StatCard, EmptyState } from '../../../components/common';
+import { TabContent, StatCard, EmptyState, GlassBtn } from '../../../components/common';
 import {
   getTimeWatchedFormatted,
   getWordsLearnedInAppStats,
@@ -127,12 +127,12 @@ export const StatsTab: Component = () => {
 
       {/* Action Buttons */}
       <div class="action-buttons">
-        <button class="setting-btn primary" onClick={openKanjiGrid}>
+        <GlassBtn variant="primary" onClick={openKanjiGrid}>
           📊 View Kanji Grid
-        </button>
-        <button class="setting-btn primary" onClick={openWordDbEditor}>
+        </GlassBtn>
+        <GlassBtn variant="primary" onClick={openWordDbEditor}>
           📝 Edit Word Database
-        </button>
+        </GlassBtn>
       </div>
     </TabContent>
   );
@@ -255,7 +255,6 @@ function drawBarChart(
   // Draw bars
   levelData.forEach((data, i) => {
     const x = padding.left + (barWidth + gap) * i + gap / 2;
-    const total = data.learned + data.learning + data.unknown;
     
     let y = padding.top + chartHeight;
     
