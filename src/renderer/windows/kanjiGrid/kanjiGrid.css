@@ -203,3 +203,40 @@
   padding: 2rem;
   color: var(--text-secondary);
 }
+
+/* Empty State */
+.kg-empty-state {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  text-align: center;
+}
+
+.kg-empty-state .empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.8;
+}
+
+.kg-empty-state h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.kg-empty-state p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  max-width: 400px;
+  margin-bottom: 0.5rem;
+}
+
+.kg-empty-state .hint {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  opacity: 0.8;
+}

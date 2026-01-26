@@ -32,8 +32,8 @@
 
 
 .reader-nav .sidebar-btn {
-  width: 36px;
-  height: 36px;
+  width: var(--size-md);
+  height: var(--size-md);
   display: flex;
   align-items: center;
   justify-content: center;

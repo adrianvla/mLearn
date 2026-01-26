@@ -150,12 +150,15 @@
 .label-tag {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
-  padding: 0.125rem 0.375rem;
+  padding: 0 0.5rem;
   border-radius: var(--radius-sm);
   background: var(--bg);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
+  height: var(--size-md);
+  min-height: var(--size-md);
+  box-sizing: border-box;
 }
 
 /* ============ INDICATOR Type ============ */
