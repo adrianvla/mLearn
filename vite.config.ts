@@ -12,6 +12,17 @@ export default defineConfig({
   // Define global for browser compatibility (needed for simple-peer)
   define: {
     global: 'globalThis',
+    'process.env': {},
+  },
+  optimizeDeps: {
+    // Include simple-peer and its dependencies for proper bundling
+    include: ['simple-peer', 'buffer', 'process'],
+    esbuildOptions: {
+      // Node.js global to browser globalThis
+      define: {
+        global: 'globalThis',
+      },
+    },
   },
   build: {
     target: 'esnext',

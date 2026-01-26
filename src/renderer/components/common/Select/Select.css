@@ -10,8 +10,11 @@ select {
   font-size: 0.85rem;
   cursor: pointer;
   color: var(--text-primary);
-  padding: 0.4rem 0 0.4rem 0.75rem;
+  padding: 0 0.75rem;
   transition: all var(--transition-fast);
+  height: var(--size-md);
+  min-height: var(--size-md);
+  box-sizing: border-box;
 }
 
 select:hover {

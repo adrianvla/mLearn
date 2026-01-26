@@ -3,7 +3,7 @@
  * Video player with subtitle display and all video-related functionality
  */
 
-import { Component, Show, createSignal, onMount } from 'solid-js';
+import { Component, Show, createSignal, onMount, onCleanup } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useIPC, useSubtitles } from '../../../hooks';
 import { VideoPlayer } from '../../../components/video';
@@ -11,6 +11,7 @@ import { GlassPanel, GlassBtn, NavBtn } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { LiveWordTranslator, SubtitleSync } from '../../../components/subtitle';
 import { IPC_CHANNELS } from '../../../../shared/constants';
+import { captureVideoThumbnail, saveToRecentItems, updateRecentItemThumbnail } from '../../../services/thumbnailService';
 import './video.css';
 
 export const VideoRoute: Component = () => {
@@ -23,6 +24,9 @@ export const VideoRoute: Component = () => {
   const [showDropZone, setShowDropZone] = createSignal(true);
   const [isDragging, setIsDragging] = createSignal(false);
   const [currentVideoTime, setCurrentVideoTime] = createSignal(0);
+  const [currentVideoName, setCurrentVideoName] = createSignal('');
+  
+  let thumbnailInterval: number | null = null;
 
   onMount(() => {
     // Check if we have a video to open from session storage
@@ -49,7 +53,31 @@ export const VideoRoute: Component = () => {
         }
       });
     }
+    
+    // Set up thumbnail capture interval
+    thumbnailInterval = window.setInterval(() => {
+      captureThumbnailIfReady();
+    }, 30000); // Capture thumbnail every 30 seconds while watching
   });
+  
+  onCleanup(() => {
+    if (thumbnailInterval !== null) {
+      clearInterval(thumbnailInterval);
+    }
+    // Capture final thumbnail on cleanup
+    captureThumbnailIfReady();
+  });
+  
+  const captureThumbnailIfReady = () => {
+    const videoEl = document.querySelector('video');
+    const name = currentVideoName();
+    if (videoEl && name && !videoEl.paused && videoEl.readyState >= 2) {
+      const thumbnail = captureVideoThumbnail(videoEl);
+      if (thumbnail) {
+        updateRecentItemThumbnail(name, thumbnail);
+      }
+    }
+  };
 
   const handleContextMenuCommand = (command: string) => {
     switch (command) {
@@ -90,32 +118,19 @@ export const VideoRoute: Component = () => {
         const url = URL.createObjectURL(file);
         setVideoSrc(url);
         setShowDropZone(false);
-        saveToRecent(file.name, 'video');
+        setCurrentVideoName(file.name);
+        saveToRecentItems({
+          type: 'video',
+          name: file.name,
+          path: '',
+          progress: 0,
+        });
       }
       
       if (['srt', 'vtt', 'ass', 'ssa'].includes(ext || '')) {
         const content = await file.text();
         setSubtitleContent(content);
       }
-    }
-  };
-
-  const saveToRecent = (name: string, type: 'video' | 'book') => {
-    try {
-      const stored = localStorage.getItem('mlearn_recent_items');
-      const items = stored ? JSON.parse(stored) : [];
-      const newItem = {
-        type,
-        name,
-        path: '',
-        progress: 0,
-        lastWatched: Date.now()
-      };
-      const filtered = items.filter((i: any) => i.name !== name);
-      const updated = [newItem, ...filtered].slice(0, 10);
-      localStorage.setItem('mlearn_recent_items', JSON.stringify(updated));
-    } catch (e) {
-      console.error('Failed to save recent:', e);
     }
   };
 
@@ -139,7 +154,13 @@ export const VideoRoute: Component = () => {
           const url = URL.createObjectURL(file);
           setVideoSrc(url);
           setShowDropZone(false);
-          saveToRecent(file.name, 'video');
+          setCurrentVideoName(file.name);
+          saveToRecentItems({
+            type: 'video',
+            name: file.name,
+            path: '',
+            progress: 0,
+          });
         }
       };
       input.click();

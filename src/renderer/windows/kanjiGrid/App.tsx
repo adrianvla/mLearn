@@ -126,18 +126,17 @@ const KanjiGridContent: Component = () => {
         return { word, status };
       });
 
-      // Check if we have real tracked words, otherwise use sample data
-      const wordsToProcess = trackedWordsArray.length > 0 
-        ? trackedWordsArray
-        : [
-            // Sample words for demo
-            '日本', '言語', '学習', '漢字', '勉強', '読書', '映画', '音楽',
-            '食事', '旅行', '仕事', '生活', '電話', '時間', '天気', '友達',
-            '先生', '学生', '会社', '病院', '駅', '空港', '公園', '図書館',
-          ].map(word => ({ word, status: Math.floor(Math.random() * 3) }));
+      // Only process if we have tracked words - no sample/demo data
+      if (trackedWordsArray.length === 0) {
+        // No tracked words yet - show empty state
+        setKanjiData([]);
+        setLevelKanji({});
+        setIsLoading(false);
+        return;
+      }
 
-      // Process words and build level-kanji mapping
-      for (const { word, status } of wordsToProcess) {
+      // Process real tracked words and build level-kanji mapping
+      for (const { word, status } of trackedWordsArray) {
         const chars = Array.from(word) as string[];
         const uniqueKanji = new Set(chars.filter(ch => isKanjiChar(ch)));
         
@@ -304,7 +303,7 @@ const KanjiGridContent: Component = () => {
 
       <div class="kg-main">
         <div class="kg-grid">
-          <Show when={!isLoading()}>
+          <Show when={!isLoading() && kanjiData().length > 0}>
             <For each={kanjiData()}>
               {(item) => (
                 <div
@@ -320,6 +319,15 @@ const KanjiGridContent: Component = () => {
                 </div>
               )}
             </For>
+          </Show>
+          
+          <Show when={!isLoading() && kanjiData().length === 0}>
+            <div class="kg-empty-state">
+              <div class="empty-icon">📚</div>
+              <h3>No tracked characters yet</h3>
+              <p>Start watching videos or reading content with mLearn to build your character knowledge map.</p>
+              <p class="hint">Words you mark as known or learning will appear here, color-coded by your progress.</p>
+            </div>
           </Show>
           
           <Show when={isLoading()}>

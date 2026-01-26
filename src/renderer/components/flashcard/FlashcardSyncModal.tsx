@@ -56,10 +56,16 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       setPhase('init');
       setStatusText('Loading libraries...');
       
-      // Load SimplePeer
+      // Load SimplePeer from pre-bundled browser-compatible version
+      // The npm version has issues with Vite's externalization of Node.js modules
       if (!SimplePeer) {
-        const module = await import('simple-peer');
-        SimplePeer = module.default || module;
+        // Import the browser-bundled version that doesn't depend on Node.js streams/events
+        // @ts-ignore - Dynamic import of bundled JS file
+        await import('../../services/simplepeer.min.js');
+        SimplePeer = (window as any).SimplePeer;
+        if (!SimplePeer) {
+          throw new Error('SimplePeer failed to load');
+        }
       }
       
       // Load QRCode library
@@ -78,7 +84,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       await startConnection();
     } catch (e) {
       console.error('Failed to load sync libraries:', e);
-      setError('Failed to load required libraries');
+      setError(`Failed to load required libraries: ${e instanceof Error ? e.message : String(e)}`);
       setPhase('error');
     }
   });

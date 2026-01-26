@@ -248,6 +248,9 @@
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
   font-size: 0.9rem;
+  height: var(--size-md);
+  min-height: var(--size-md);
+  box-sizing: border-box;
 }
 
 .btn-nav:hover:not(:disabled) {

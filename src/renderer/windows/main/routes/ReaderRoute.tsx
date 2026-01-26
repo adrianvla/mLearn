@@ -14,6 +14,8 @@ import type { Token, TranslationResponse, DictionaryEntry } from '../../../../sh
 import { API_ENDPOINTS } from '../../../../shared/constants';
 import { ReaderNav, ReaderSidebar, ReaderWelcomeCard, ReaderStatusBar } from './components';
 import { ProgressRing } from '../../../components/common';
+import { isPdfFile, pdfToImages } from '../../../services/pdfService';
+import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumbnailService';
 import './reader.css';
 
 interface PageImage {
@@ -461,6 +463,58 @@ export const ReaderRoute: Component = () => {
     setIsDragging(false);
 
     const droppedFiles = await getDroppedFiles(e.dataTransfer || null);
+    
+    // Check for PDF file first
+    const pdfFile = droppedFiles.find(f => isPdfFile(f));
+    
+    if (pdfFile) {
+      // Handle PDF file
+      setOcrStatus('Loading PDF...');
+      try {
+        const pdfImages = await pdfToImages(pdfFile);
+        
+        const bookId = extractBookId(pdfFile.name);
+        setCurrentBookId(bookId);
+        
+        // Check for saved page position
+        const savedPageIndex = loadSavedPageIndex(bookId);
+        let startPage = 0;
+        
+        if (savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pdfImages.length) {
+          startPage = savedPageIndex;
+          console.log(`[Reader] Restored page position ${startPage} for PDF "${bookId}"`);
+        }
+
+        const newPages: PageImage[] = pdfImages.map((img, index) => ({
+          id: `page-${index}-${img.name}`,
+          src: img.url,
+          name: img.name,
+          index,
+          blob: img.blob,
+        }));
+
+        // Clear OCR cache when loading new book
+        setOcrResults({});
+        
+        batch(() => {
+          setCurrentPage(startPage);
+          setPages(newPages);
+          
+          // Save to recent with the first page as thumbnail
+          const title = bookId || 'PDF Document';
+          setBookTitle(title);
+          saveToRecent(title, 'book', startPage, newPages[0]?.blob);
+        });
+        setOcrStatus('Ready');
+        return;
+      } catch (error) {
+        console.error('Failed to load PDF:', error);
+        setOcrStatus('Failed to load PDF');
+        return;
+      }
+    }
+    
+    // Handle image files
     const files: File[] = [];
     for (const file of droppedFiles) {
       const isImage = file.type.startsWith('image/');
@@ -508,17 +562,23 @@ export const ReaderRoute: Component = () => {
     // Determine title more robustly
     const title = bookId || 'Imported Book';
     setBookTitle(title);
-    saveToRecent(title, 'book', startPage);
+    saveToRecent(title, 'book', startPage, newPages[0]?.blob);
   };
 
-  const saveToRecent = (name: string, type: 'video' | 'book', progress: number = 0) => {
+  const saveToRecent = async (name: string, type: 'video' | 'book', progress: number = 0, coverBlob?: Blob) => {
     try {
-      const stored = localStorage.getItem('mlearn_recent_items');
-      const items = stored ? JSON.parse(stored) : [];
-      const newItem = { type, name, path: '', progress, lastWatched: Date.now() };
-      const filtered = items.filter((i: any) => i.name !== name);
-      const updated = [newItem, ...filtered].slice(0, 10);
-      localStorage.setItem('mlearn_recent_items', JSON.stringify(updated));
+      // Capture thumbnail from the first page if available
+      let thumbnail: string | undefined;
+      if (coverBlob) {
+        thumbnail = await captureBlobThumbnail(coverBlob);
+      }
+      
+      saveToRecentItems({
+        type,
+        name,
+        path: '',
+        progress,
+      }, thumbnail);
     } catch (e) {
       console.error('Failed to save recent:', e);
     }
@@ -541,8 +601,10 @@ export const ReaderRoute: Component = () => {
     const bookId = currentBookId();
     persistPageIndex(bookId, newPage, total);
     
-    // Also update recent items for display purposes
-    saveToRecent(bookTitle(), 'book', newPage);
+    // Update recent items with current page thumbnail (every 10 pages or on last page)
+    const currentPages = pages();
+    const shouldUpdateThumbnail = newPage % 10 === 0 || newPage === total - 1;
+    saveToRecent(bookTitle(), 'book', newPage, shouldUpdateThumbnail ? currentPages[newPage]?.blob : undefined);
   };
 
   const prevPage = () => {
