@@ -162,6 +162,7 @@
   border-radius: var(--radius-md);
   font-size: 0.9rem;
   min-width: 140px;
+  height:unset !important;
 }
 
 .setting-select option {

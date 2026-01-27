@@ -105,8 +105,12 @@ export const ReaderRoute: Component = () => {
   const [ocrWordStatus, setOcrWordStatus] = createSignal<'unknown' | 'learning' | 'known'>('unknown');
   
   // OCR Progress Tracking
+  // Total pages that need OCR in the current book (set once when book loads)
   const [ocrBatchTotal, setOcrBatchTotal] = createSignal(0);
+  // Pages that have been OCR'd so far
   const [ocrBatchDone, setOcrBatchDone] = createSignal(0);
+  // Track which page IDs have been counted as "done" to avoid double counting
+  const [ocrCompletedIds, setOcrCompletedIds] = createSignal<Set<string>>(new Set());
   
   // Server-side OCR progress (MangaOCR processing status from backend)
   // e.g. "Processing 23%" or "Loading model..."
@@ -214,13 +218,8 @@ export const ReaderRoute: Component = () => {
       }
     }
 
-    // Reset batch metrics for the new view (only count visible pages)
-    const visibleTasks = tasks.filter(t => !t.isCaching);
-    if (visibleTasks.length > 0) {
-      setOcrBatchTotal(visibleTasks.length);
-      setOcrBatchDone(0);
-      setOcrProgress(0);
-    }
+    // Don't reset batch metrics on navigation - they're set once when book loads
+    // Progress is tracked via ocrCompletedIds
     
     // Update Queue: Replace entire queue with new priorities
     // This effectively "cancels" any pending tasks that are not in the new target set.
@@ -238,8 +237,9 @@ export const ReaderRoute: Component = () => {
     if (queue.length === 0) {
       // Queue is empty - update status
       const total = ocrBatchTotal();
+      const done = ocrCompletedIds().size;
       if (total > 0) {
-         setOcrProgress((ocrBatchDone() / total) * 100);
+         setOcrProgress((done / total) * 100);
       }
       updateOverallStatus();
       return;
@@ -257,9 +257,15 @@ export const ReaderRoute: Component = () => {
       setServerOcrProgress(null);
       setServerOcrMessage('');
       
-      // Update batch done count only for visible (non-caching) tasks
-      if (!task.isCaching) {
-        setOcrBatchDone(prev => prev + 1);
+      // Track completed page (only count each page once)
+      const pageId = task.page.id;
+      if (!ocrCompletedIds().has(pageId)) {
+        setOcrCompletedIds(prev => {
+          const next = new Set(prev);
+          next.add(pageId);
+          return next;
+        });
+        setOcrBatchDone(ocrCompletedIds().size + 1); // +1 because set hasn't updated yet
       }
       
       setProcessingTask(null);
@@ -325,14 +331,17 @@ export const ReaderRoute: Component = () => {
     const queue = ocrQueue();
     const visible = visiblePages();
     
-    const done = ocrBatchDone();
+    // Use completed IDs set for accurate count
+    const done = ocrCompletedIds().size;
     const total = ocrBatchTotal();
 
     // 1. Is a visible page processing?
     if (currentTask && !currentTask.isCaching) {
       const processingVisible = visible.find(p => p.id === currentTask.page.id);
       if (processingVisible) {
-        const progressStr = total > 0 ? ` ${done + 1}/${total}` : '';
+        // Only show page progress if there's meaningful total (>1)
+        // Don't show "1/1" - just show "Recognizing..."
+        const progressStr = total > 1 ? ` (page ${done + 1}/${total})` : '';
         setOcrStatus(`Recognizing${progressStr}...`);
         return;
       }
@@ -341,8 +350,7 @@ export const ReaderRoute: Component = () => {
     // 2. Is a visible page pending in queue?
     const pendingVisibleTask = queue.find(t => !t.isCaching && visible.some(v => v.id === t.page.id));
     if (pendingVisibleTask) {
-      const progressStr = total > 0 ? ` ${done + 1}/${total}` : '';
-      setOcrStatus(`Pending${progressStr}...`);
+      setOcrStatus('Pending...');
       return;
     }
 
@@ -499,11 +507,16 @@ export const ReaderRoute: Component = () => {
         batch(() => {
           setCurrentPage(startPage);
           setPages(newPages);
+          // Initialize OCR batch tracking for the new book
+          setOcrBatchTotal(newPages.length);
+          setOcrBatchDone(0);
+          setOcrCompletedIds(new Set());
           
           // Save to recent with the first page as thumbnail
           const title = bookId || 'PDF Document';
           setBookTitle(title);
-          saveToRecent(title, 'book', startPage, newPages[0]?.blob);
+          const pdfPath = droppedFiles[0]?.name || '';
+          saveToRecent(title, 'book', startPage, pdfPath, newPages[0]?.blob);
         });
         setOcrStatus('Ready');
         return;
@@ -557,15 +570,21 @@ export const ReaderRoute: Component = () => {
     batch(() => {
       setCurrentPage(startPage);
       setPages(newPages);
+      // Initialize OCR batch tracking for the new book
+      setOcrBatchTotal(newPages.length);
+      setOcrBatchDone(0);
+      setOcrCompletedIds(new Set());
     });
     
     // Determine title more robustly
     const title = bookId || 'Imported Book';
     setBookTitle(title);
-    saveToRecent(title, 'book', startPage, newPages[0]?.blob);
+    // Pass the book path (first file's name) for recent items
+    const bookPath = newPages[0]?.name || '';
+    saveToRecent(title, 'book', startPage, bookPath, newPages[0]?.blob);
   };
 
-  const saveToRecent = async (name: string, type: 'video' | 'book', progress: number = 0, coverBlob?: Blob) => {
+  const saveToRecent = async (name: string, type: 'video' | 'book', progress: number = 0, path: string = '', coverBlob?: Blob) => {
     try {
       // Capture thumbnail from the first page if available
       let thumbnail: string | undefined;
@@ -576,7 +595,7 @@ export const ReaderRoute: Component = () => {
       saveToRecentItems({
         type,
         name,
-        path: '',
+        path,
         progress,
       }, thumbnail);
     } catch (e) {
@@ -788,19 +807,17 @@ export const ReaderRoute: Component = () => {
                       alt={page.name}
                       ref={(el) => setImageRefs(prev => ({ ...prev, [page.id]: el }))}
                     />
-                    {/* Page Processing Loader - shown while OCR is pending/processing */}
-                    <Show when={isWaitingForOcr()}>
-                      <div class="page-loader-overlay">
-                        <ProgressRing
-                          progress={getOcrProgress() ?? 0}
-                          indeterminate={isPending() || getOcrProgress() === null}
-                          size={40}
-                          strokeWidth={5}
-                          statusText={getStatusText()}
-                          showPercent={isProcessing() && getOcrProgress() !== null}
-                        />
-                      </div>
-                    </Show>
+                    {/* Page Processing Loader - uses CSS fade animation instead of Show */}
+                    <div class={`page-loader-overlay ${isWaitingForOcr() ? 'visible' : 'hidden'}`}>
+                      <ProgressRing
+                        progress={getOcrProgress() ?? 0}
+                        indeterminate={isPending() || getOcrProgress() === null}
+                        size={40}
+                        strokeWidth={5}
+                        statusText={getStatusText()}
+                        showPercent={false}
+                      />
+                    </div>
                     {/* OCR Overlay for each visible page */}
                     <Show when={imageRefs()[page.id] && ocrResults[page.id]}>
                       <OcrOverlay

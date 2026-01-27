@@ -3,10 +3,13 @@
 .welcome-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   padding: 2rem;
-  background: linear-gradient(145deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  background: var(--bg-opaque);
   color: var(--text-primary);
+  user-select: none;
+  min-height:0;
 }
 
 /* Header */
@@ -31,7 +34,7 @@
   font-size: 2.5rem;
   font-weight: 700;
   margin: 0;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -58,26 +61,19 @@
   align-items: center;
   gap: 1rem;
   padding: 1.25rem;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-primary);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
   text-align: left;
 }
 
 .action-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border-color: var(--accent-primary);
-}
-
-.action-card.primary {
-  background: linear-gradient(145deg, var(--bg-tertiary) 0%, rgba(var(--accent-primary-rgb), 0.1) 100%);
-}
-
-.action-card.primary:hover {
-  background: linear-gradient(145deg, var(--bg-tertiary) 0%, rgba(var(--accent-primary-rgb), 0.2) 100%);
+  background: var(--bg-intense);
+  border-color: var(--border-color-intense);
 }
 
 .action-icon {
@@ -101,8 +97,12 @@
 /* Recent Items */
 .welcome-recent {
   max-width: 600px;
-  margin: 0 auto 2rem;
+  margin: 0 auto 0;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto; /* Don't stretch */
+  min-height: 0;
 }
 
 .welcome-recent h2 {
@@ -116,68 +116,7 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 0.75rem;
-}
-
-.recent-card {
-  display: flex;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-primary);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: left;
-}
-
-.recent-card:hover {
-  border-color: var(--accent-primary);
-  background: var(--bg-secondary);
-}
-
-.recent-thumbnail {
-  width: 48px;
-  height: 48px;
-  background: var(--bg-secondary);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background-size: cover;
-  background-position: center;
-}
-
-.recent-type {
-  font-size: 1.5rem;
-}
-
-.recent-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.recent-info h4 {
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin: 0 0 0.5rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.progress-bar {
-  height: 4px;
-  background: var(--bg-primary);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--accent-primary);
-  border-radius: 2px;
-  transition: width 0.3s ease;
+  align-content: start; /* Prevent vertical stretching */
 }
 
 /* Tips */
@@ -195,7 +134,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  background: rgba(var(--accent-primary-rgb), 0.1);
+  background: var(--bg);
   border-radius: 8px;
   font-size: 0.85rem;
   color: var(--text-secondary);
@@ -216,7 +155,7 @@
   justify-content: center;
   gap: 0.5rem;
   padding-top: 1rem;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
   font-size: 0.8rem;
 }
 

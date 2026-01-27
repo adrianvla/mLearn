@@ -16,10 +16,10 @@ import { useTokenizer } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, Skeleton } from '../common';
 import './WordHover.css';
 
-// Icon paths - served from static assets
-const ICON_CROSS = 'assets/icons/cross2.svg';
-const ICON_CHECK = 'assets/icons/check.svg';
-const ICON_BOT = 'assets/icons/bot.svg';
+// Icon names for the Icon component - enables proper SVG coloring
+const ICON_CROSS2 = 'cross2';
+const ICON_CHECK = 'check';
+const ICON_BOT = 'bot';
 
 export type WordStatus = 'unknown' | 'learning' | 'known';
 
@@ -165,8 +165,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     subtitleHover.style.maxWidth = origMaxWidth;
     
     // Use max of content and footer width, clamped to reasonable bounds
-    // Min 280px, max 700px (increased to accommodate more pills) or viewport width - 32px
-    const maxAllowed = Math.min(700, (typeof window !== 'undefined' ? window.innerWidth - 32 : 700));
+    // Min 280px, max 400px or viewport width - 32px
+    // Note: 400px is chosen to fit typical pill layouts while remaining compact
+    const maxAllowed = Math.min(400, (typeof window !== 'undefined' ? window.innerWidth - 32 : 400));
     const newWidth = Math.max(280, Math.min(maxAllowed, Math.max(contentWidth, footerWidth)));
     setCalculatedWidth(newWidth);
     
@@ -880,7 +881,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   
   const statusIcon = createMemo(() => {
     const status = currentStatus();
-    return status === 'unknown' ? ICON_CROSS : ICON_CHECK;
+    return status === 'unknown' ? ICON_CROSS2 : ICON_CHECK;
   });
   
   const statusLabel = createMemo(() => {
@@ -1037,15 +1038,15 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           {/* Footer with pills */}
           <div class="footer">
             <div class="pills">
-              {/* Pitch accent pill - using Show for proper reactivity */}
+              {/* Pitch accent pill - using PillLabel for consistent theming */}
               <Show when={pitchAccentPillData()}>
                 {(data) => (
-                  <div class="pill gray pitch-accent-pill">
-                    <div class="pitch-accent-word">
+                  <PillLabel variant="gray" class="pitch-accent-pill">
+                    <span class="pitch-accent-word">
                       {data().reading}✦
-                      <div class="mLearn-pitch-accent" aria-hidden="true" innerHTML={data().html} />
-                    </div>
-                  </div>
+                      <span class="mLearn-pitch-accent" aria-hidden="true" innerHTML={data().html} />
+                    </span>
+                  </PillLabel>
                 )}
               </Show>
               {/* Level pill - reactive via Show + createMemo */}
@@ -1067,7 +1068,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 <Show when={isAddingFlashcard()} fallback={
                   <PillBtn
                     variant="blue"
-                    icon={ICON_CROSS}
+                    icon={ICON_CROSS2}
                     iconRotation={45}
                     label="Flashcard"
                     onClick={handleAddToSRS}

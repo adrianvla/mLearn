@@ -11,9 +11,13 @@
   height: 48px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg);
+  backdrop-filter: var(--theme-backdrop-filter-nodim);
   z-index: 100;
   -webkit-app-region: drag; /* make the nav draggable for the Electron window */
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   color: var(--text-secondary);
 }
 
@@ -35,6 +39,7 @@
   width: var(--size-md);
   height: var(--size-md);
   display: flex;
+  color:var(--text-primary);
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -44,11 +49,11 @@
   gap: 0;
 }
 
-.reader-nav .nav-arrows .nav-btn:first-child {
+.reader-nav .nav-arrows .btn-nav:first-child {
   border-radius: var(--radius-md) 0 0 var(--radius-md);
   border-right: none;
 }
 
-.reader-nav .nav-arrows .nav-btn:last-child {
+.reader-nav .nav-arrows .btn-nav:last-child {
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
 }

@@ -157,36 +157,36 @@ const RingContent: Component<{
         class="loader-ring-wrapper"
         style={{ width: `${props.size}px`, height: `${props.size}px` }}
       >
-        <svg 
-          class={`loader-ring-svg ${props.indeterminate ? 'indeterminate' : ''}`}
-          viewBox={`0 0 ${props.size} ${props.size}`}
-        >
-          {/* Background track */}
-          <circle 
-            class="loader-ring-track"
-            cx={props.size / 2} 
-            cy={props.size / 2} 
-            r={radius()}
-            stroke-width={props.strokeWidth}
-          />
-          {/* Progress arc */}
-          <circle 
-            class="loader-ring-progress"
-            cx={props.size / 2} 
-            cy={props.size / 2} 
-            r={radius()}
-            stroke-width={props.strokeWidth}
-            stroke-dasharray={String(circumference())}
-            stroke-dashoffset={props.indeterminate ? undefined : String(strokeDashoffset())}
-          />
-        </svg>
-        <Show when={props.showPercent && !props.indeterminate}>
-          <span class="loader-ring-percent">{progressValue()}%</span>
-        </Show>
+          <svg
+              class={`loader-ring-svg ${props.indeterminate ? 'indeterminate' : ''}`}
+              viewBox={`0 0 ${props.size} ${props.size}`}
+          >
+              {/* Background track */}
+              <circle
+                  class={"loader-ring-track"}
+                  cx={props.size / 2}
+                  cy={props.size / 2}
+                  r={radius()}
+                  stroke-width={props.strokeWidth}
+              />
+              {/* Progress arc */}
+              <circle
+                  class={"loader-ring-progress"}
+                  cx={props.size / 2}
+                  cy={props.size / 2}
+                  r={radius()}
+                  stroke-width={props.strokeWidth}
+                  stroke-dasharray={props.indeterminate ? undefined : String(circumference())}
+                  stroke-dashoffset={props.indeterminate ? undefined : String(strokeDashoffset())}
+              />
+          </svg>
+          <Show when={props.showPercent && !props.indeterminate}>
+              <span class="loader-ring-percent">{progressValue()}%</span>
+          </Show>
       </div>
-      <Show when={props.statusText || props.text}>
-        <span class="loader-text">{props.statusText || props.text}</span>
-      </Show>
+        <Show when={props.statusText || props.text}>
+            <span class="loader-text">{props.statusText || props.text}</span>
+        </Show>
     </div>
   );
 };

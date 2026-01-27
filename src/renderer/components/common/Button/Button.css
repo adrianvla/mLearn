@@ -164,6 +164,12 @@
   height: 20px;
 }
 
+/* SVG icons in pill buttons - sized consistently */
+.btn-pill .btn-svg-icon {
+  width: 20px;
+  height: 20px;
+}
+
 /* Pill color variants */
 .btn-pill.btn-red {
   color: var(--pill-level-1-text);
@@ -247,7 +253,7 @@
   color: var(--text-primary);
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
   height: var(--size-md);
   min-height: var(--size-md);
   box-sizing: border-box;
