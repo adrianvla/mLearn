@@ -111,7 +111,7 @@
 
 .stat-card-description {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
   line-height: 1.4;
 }
 

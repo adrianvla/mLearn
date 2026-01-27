@@ -6,6 +6,7 @@
 import {Component, Accessor} from 'solid-js';
 import { NavBtn, Tag, Select } from '../../../../components/common';
 import './ReaderNav.css';
+import Icon from "@renderer/components/common/Icons/Icon";
 
 interface ReaderNavProps {
   bookTitle: Accessor<string>;
@@ -36,13 +37,13 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
           ← Home
         </NavBtn>
         <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar}>
-          📑
+          <Icon icon="sidebar" color={"currentColor"} class={""}/>
         </NavBtn>
-        <Tag class="book-title-nav label-secondary" headless>{props.bookTitle()}</Tag>
+        <Tag class="book-title-nav label-secondary" headless size={"sm"}>{props.bookTitle()}</Tag>
       </div>
       
       <div class="nav-group">
-        <Tag class="progress label-secondary">{props.progressString()}</Tag>
+        <Tag class="progress label-secondary" headless size={"sm"}>{props.progressString()}</Tag>
       </div>
       
       <div class="nav-group">

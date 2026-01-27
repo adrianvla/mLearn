@@ -15,13 +15,26 @@ export interface PageImage {
   index: number;
 }
 
+// Flag to track if pdf.js has been configured
+let pdfJsConfigured = false;
+
 /**
- * Get the pdf.js library instance
+ * Get the pdf.js library instance and configure it
  */
 async function getPdfJs(): Promise<any> {
   // pdf.js attaches to window.pdfjsLib
   if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
-    return (window as any).pdfjsLib;
+    const pdfjsLib = (window as any).pdfjsLib;
+    
+    // Configure worker only once
+    // In Electron we can disable the worker since we're not in a web context
+    // This avoids the "No GlobalWorkerOptions.workerSrc specified" error
+    if (!pdfJsConfigured) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+      pdfJsConfigured = true;
+    }
+    
+    return pdfjsLib;
   }
   throw new Error('pdf.js library not loaded');
 }
@@ -57,7 +70,13 @@ export async function pdfToImages(
   const pdfjsLib = await getPdfJs();
   const data = await file.arrayBuffer();
   
-  const loadingTask = pdfjsLib.getDocument({ data, useWorkerFetch: false });
+  // Disable worker and use main thread for PDF processing in Electron
+  const loadingTask = pdfjsLib.getDocument({ 
+    data, 
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    disableAutoFetch: true,
+  });
   const pdf = await loadingTask.promise;
   
   const images: PageImage[] = [];

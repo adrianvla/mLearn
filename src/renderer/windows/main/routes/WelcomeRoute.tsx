@@ -9,6 +9,7 @@ import { useSettings } from '../../../context';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { ActionCard, RecentCard, GlassBtn, type RecentItem } from '../../../components/common';
 import './welcome.css';
+import AppLogo from "@renderer/components/common/Misc/AppLogo";
 
 export const WelcomeRoute: Component = () => {
   const navigate = useNavigate();
@@ -62,7 +63,7 @@ export const WelcomeRoute: Component = () => {
       {/* Header */}
       <header class="welcome-header">
         <div class="welcome-logo">
-          <span class="logo-icon">📚</span>
+          <AppLogo size={"2.5rem"}/>
           <h1>mLearn</h1>
         </div>
         <p class="welcome-subtitle">Learn languages through immersion</p>
@@ -117,18 +118,6 @@ export const WelcomeRoute: Component = () => {
           </div>
         </section>
       </Show>
-
-      {/* Tips Section */}
-      <section class="welcome-tips">
-        <div class="tip">
-          <span class="tip-icon">💡</span>
-          <p>Drag and drop video files anywhere to start watching</p>
-        </div>
-        <div class="tip">
-          <span class="tip-icon">⌨️</span>
-          <p>Use keyboard shortcuts for faster navigation</p>
-        </div>
-      </section>
 
       {/* Footer */}
       <footer class="welcome-footer">

@@ -7,7 +7,7 @@ select {
   background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   cursor: pointer;
   color: var(--text-primary);
   padding: 0 0.75rem;
@@ -25,5 +25,5 @@ select:hover {
 select:focus {
   outline: none;
   border-color: var(--border-color-intense);
-  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.2);
+  /*box-shadow: 0 0 0 1px var(--border-color-intense);*/
 }

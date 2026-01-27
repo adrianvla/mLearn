@@ -1,9 +1,9 @@
 /**
  * Reader Status Bar Component
- * Bottom status bar with OCR controls and progress
+ * Bottom status bar with OCR status
  */
 
-import { Component, Show, Accessor, createMemo } from 'solid-js';
+import { Component, Accessor, createMemo } from 'solid-js';
 import './ReaderStatusBar.css';
 
 interface ReaderStatusBarProps {
@@ -20,12 +20,6 @@ interface ReaderStatusBarProps {
 }
 
 export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
-  // Show progress when there's any OCR activity (progress > 0 and < 100)
-  const showProgress = () => {
-    const progress = props.ocrProgress();
-    return progress > 0 && progress < 100;
-  };
-
   // Combined status that shows all activities
   const displayStatus = createMemo(() => {
     const statuses: string[] = [];
@@ -54,14 +48,6 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
       <span class="book-title">{props.bookTitle()}</span>
       <span class="progress">{props.progressString()}</span>
       <div class="ocr-section">
-        <Show when={showProgress()}>
-          <div class="ocr-progress-container">
-            <div class="ocr-progress">
-              <div class="bar" style={{ width: `${props.ocrProgress()}%` }} />
-            </div>
-            <span class="ocr-progress-text">{Math.round(props.ocrProgress())}%</span>
-          </div>
-        </Show>
         <span class={`ocr-status ${displayStatus() !== 'Ready' ? 'active' : ''}`}>
           {displayStatus()}
         </span>

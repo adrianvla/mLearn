@@ -196,21 +196,23 @@ const FlashcardsContent: Component = () => {
                       <div class="flashcard-footer">
                         <Badge>{card.reviews} reviews</Badge>
                         <div class="flashcard-actions">
-                          <button
-                            class="flashcard-edit-btn"
+                          <GlassBtn
+                            variant="ghost"
+                            size="xs"
                             onClick={() => openEditModal(card)}
                           >
                             Edit
-                          </button>
-                          <button
-                            class="flashcard-delete-btn"
+                          </GlassBtn>
+                          <GlassBtn
+                            variant="danger"
+                            size="xs"
                             onClick={() => {
                               setSelectedCard(card.id ?? card.content.word);
                               setShowDeleteConfirm(true);
                             }}
                           >
                             Delete
-                          </button>
+                          </GlassBtn>
                         </div>
                       </div>
                     </GlassCard>

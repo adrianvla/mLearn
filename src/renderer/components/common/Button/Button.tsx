@@ -9,6 +9,7 @@
  */
 
 import { Component, JSX, splitProps, mergeProps, Show } from 'solid-js';
+import Icon from '../Icons/Icon';
 import './Button.css';
 
 // ============ Types ============
@@ -32,6 +33,32 @@ export type ButtonVariant =
 
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
+// Map of icon names available in the Icon component
+const ICON_NAMES = [
+  'book', 'bot', 'cards', 'check', 'chevron', 'cog', 'cross', 'cross2',
+  'document', 'fast-forward', 'palette', 'pause', 'pin', 'pip', 'play',
+  'sidebar', 'star', 'stars', 'stats', 'subtitles', 'volume'
+] as const;
+
+type IconName = typeof ICON_NAMES[number];
+
+// Color mapping for pill button variants
+const VARIANT_COLORS: Record<ButtonVariant, string> = {
+  default: 'var(--pill-default-text)',
+  primary: 'var(--color-primary)',
+  secondary: 'var(--text-secondary)',
+  danger: 'var(--color-error)',
+  success: 'var(--color-success)',
+  ghost: 'var(--text-primary)',
+  red: 'var(--pill-level-1-text)',
+  orange: 'var(--pill-level-4-text)',
+  yellow: 'var(--pill-level-6-text)',
+  green: 'var(--pill-level-3-text)',
+  blue: 'var(--pill-level-2-text)',
+  purple: 'var(--pill-level-5-text)',
+  gray: 'var(--pill-level-7-text)',
+};
+
 export interface ButtonProps extends JSX.ButtonHTMLAttributes<HTMLButtonElement> {
   /** Button type - determines overall styling approach */
   buttonType?: ButtonType;
@@ -39,12 +66,14 @@ export interface ButtonProps extends JSX.ButtonHTMLAttributes<HTMLButtonElement>
   variant?: ButtonVariant;
   /** Size of the button */
   size?: ButtonSize;
-  /** Icon element or path - displayed based on iconPosition */
+  /** Icon element, path, or icon name (e.g., 'check', 'cross2') - displayed based on iconPosition */
   icon?: JSX.Element | string;
   /** Position of icon relative to text */
   iconPosition?: 'left' | 'right';
   /** Icon rotation in degrees (for pill buttons with cross->plus effect) */
   iconRotation?: number;
+  /** Override icon color (useful for custom coloring) */
+  iconColor?: string;
   /** Label text (alternative to children for pill buttons) */
   label?: string;
   /** Show loading spinner */
@@ -94,14 +123,41 @@ const LoadingSpinner: Component<{ size?: string }> = (props) => (
   </svg>
 );
 
+// ============ Icon Helper ============
+
+/**
+ * Check if a string is a valid icon name for the Icon component
+ */
+const isIconName = (value: string): value is IconName => {
+  return ICON_NAMES.includes(value as IconName);
+};
+
 // ============ Icon Renderer ============
 
 const ButtonIcon: Component<{ 
   icon: JSX.Element | string; 
   rotation?: number;
+  color?: string;
   class?: string;
 }> = (props) => {
   if (typeof props.icon === 'string') {
+    // Check if it's a named icon that we can render with the Icon component
+    if (isIconName(props.icon)) {
+      const style: JSX.CSSProperties = props.rotation 
+        ? { transform: `rotate(${props.rotation}deg)` } 
+        : {};
+      return (
+        <span class={`btn-icon ${props.class || ''}`} style={style}>
+          <Icon 
+            icon={props.icon} 
+            color={props.color || 'currentColor'} 
+            class="btn-svg-icon"
+          />
+        </span>
+      );
+    }
+    
+    // Otherwise treat it as an image path (legacy support)
     const style: JSX.CSSProperties = props.rotation 
       ? { transform: `rotate(${props.rotation}deg)` } 
       : {};
@@ -136,6 +192,7 @@ export const Button: Component<ButtonProps> = (props) => {
     'icon',
     'iconPosition',
     'iconRotation',
+    'iconColor',
     'label',
     'loading',
     'badge',
@@ -145,6 +202,20 @@ export const Button: Component<ButtonProps> = (props) => {
     'class',
     'disabled',
   ]);
+
+  // Compute icon color based on button type and variant
+  const computedIconColor = () => {
+    // If explicit iconColor is provided, use it
+    if (local.iconColor) return local.iconColor;
+    
+    // For pill buttons, use the variant color
+    if (local.buttonType === 'pill') {
+      return VARIANT_COLORS[local.variant || 'default'];
+    }
+    
+    // For other button types, use currentColor to inherit from text color
+    return 'currentColor';
+  };
 
   // Build class name based on button type and props
   const buttonClass = () => {
@@ -206,7 +277,7 @@ export const Button: Component<ButtonProps> = (props) => {
 
       {/* Left icon */}
       <Show when={!local.loading && local.icon && local.iconPosition === 'left'}>
-        <ButtonIcon icon={local.icon!} rotation={local.iconRotation} />
+        <ButtonIcon icon={local.icon!} rotation={local.iconRotation} color={computedIconColor()} />
       </Show>
 
       {/* Content */}
@@ -216,7 +287,7 @@ export const Button: Component<ButtonProps> = (props) => {
 
       {/* Right icon */}
       <Show when={!local.loading && local.icon && local.iconPosition === 'right'}>
-        <ButtonIcon icon={local.icon!} rotation={local.iconRotation} />
+        <ButtonIcon icon={local.icon!} rotation={local.iconRotation} color={computedIconColor()} />
       </Show>
 
       {/* Badge (for tab buttons) */}

@@ -20,7 +20,7 @@
   position: relative;
   height: max-content;
   background: var(--bg);
-  backdrop-filter: var(--theme-backdrop-filter);
+  backdrop-filter: var(--theme-backdrop-filter-nodim);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: left;
@@ -117,7 +117,7 @@
   padding: 10px;
   box-sizing: border-box;
   background: var(--accent-bg);
-  backdrop-filter: var(--theme-backdrop-filter);
+  backdrop-filter: var(--theme-backdrop-filter-nodim);
   border-top: 1px solid var(--border-color);
   z-index: 1;
   width: max-content;
@@ -131,62 +131,66 @@
   display: flex;
   gap: 10px;
   flex-wrap: nowrap;
-  height: 100%;
   width: max-content;
   align-items: center;
   overflow: visible;
   white-space: nowrap;
 }
 
-/* Pill sizing inside hover - inherits colors from Pill.css */
-.subtitle_hover .pill {
+/* Pill sizing inside hover - inherits colors from Label.css */
+.subtitle_hover .label-pill {
   font-size: 0.8em;
+  height: auto; /* Let height be determined by content + padding */
+  padding: 5px 10px;
 }
 
-.subtitle_hover .pill .icon {
+/* PillBtn sizing inside hover - match label-pill height exactly */
+.subtitle_hover .btn-pill {
+  font-size: 0.8em;
+  padding: 5px 10px;
+  height: auto;
+  min-height: unset;
+}
+
+/* Icon styling inside pills - consistent for both label and btn */
+.subtitle_hover .label-icon,
+.subtitle_hover .btn-icon {
   width: max-content;
   height: max-content;
   display: flex;
   justify-content: center;
   align-items: center;
   margin-right: 5px;
+  background: none !important;
 }
 
-.subtitle_hover .pill .icon img {
+.subtitle_hover .label-icon img,
+.subtitle_hover .btn-icon img {
   width: 20px;
   height: 20px;
+  background: none !important; /* Remove any background from icons */
 }
 
-/*!* Pill button *!*/
-/*.subtitle_hover .pill-btn {*/
-/*  cursor: pointer;*/
-/*  user-select: none;*/
-/*}*/
-
-/*.subtitle_hover .pill-btn:hover {*/
-/*  filter: brightness(0.9);*/
-/*}*/
-
-/* Pitch accent pill */
-.subtitle_hover .pill.pitch-accent-pill {
+/* Pitch accent pill - uses PillLabel component now */
+.subtitle_hover .pitch-accent-pill {
   flex-shrink: 0;
   position: relative;
 }
+.subtitle_hover .pitch-accent-pill .pitch-accent-word {
+  font-weight: var(--font-weight-bold);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-bottom: 2px;
+}
 
-.subtitle_hover .pill.pitch-accent-pill .mLearn-pitch-accent {
+.subtitle_hover .pitch-accent-pill .mLearn-pitch-accent {
   --pitch-accent-height: 2px;
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-}
-
-.subtitle_hover .pill.pitch-accent-pill .pitch-accent-word {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding-bottom: 2px;
 }
 
 /* Reading and translation order */

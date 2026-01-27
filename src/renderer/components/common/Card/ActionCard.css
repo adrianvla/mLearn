@@ -21,7 +21,7 @@
 .action-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
-  border-color: var(--color-accent);
+  border-color: var(--border-color-intense);
 }
 
 .action-card:active {
@@ -32,15 +32,6 @@
   opacity: 0.5;
   cursor: not-allowed;
   pointer-events: none;
-}
-
-.action-card.primary {
-  background: linear-gradient(
-    135deg,
-    var(--color-accent-alpha, rgba(59, 130, 246, 0.1)) 0%,
-    var(--bg) 100%
-  );
-  border-color: var(--color-accent-alpha, rgba(59, 130, 246, 0.3));
 }
 
 .action-card .action-icon {
@@ -60,6 +51,6 @@
 
 .action-card .action-text p {
   font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
+  color: var(--text-secondary);
   margin: 0;
 }

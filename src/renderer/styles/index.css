@@ -105,8 +105,7 @@
   /* Used by components for consistency */
   --text-primary: #1a1a1a;
   --text-secondary: #666666;
-  --text-muted: rgba(255, 255, 255, 0.4);
-  --text-tertiary:var(--text-muted);
+  --text-tertiary: rgba(0, 0, 0, 0.4);
   
   /* ========== Additional Color Aliases ========== */
   --color-danger: var(--color-error);

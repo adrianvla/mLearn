@@ -56,7 +56,7 @@
 }
 
 .legend-percent {
-  color: var(--text-muted, #666);
+  color: var(--text-tertiary, #666);
   font-size: 0.75rem;
 }
 

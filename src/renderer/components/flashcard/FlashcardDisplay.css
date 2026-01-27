@@ -93,7 +93,7 @@
   position: absolute;
   bottom: 1rem;
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--text-tertiary);
 }
 
 /* Back side word header */

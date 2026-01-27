@@ -34,7 +34,7 @@
   width: 20px;
   height: 20px;
   margin-top: 2px;
-  border: 2px solid var(--text-muted, #666);
+  border: 2px solid var(--text-tertiary, #666);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -98,5 +98,5 @@
 }
 
 .checkbox-card--bordered:hover:not(.disabled) {
-  border-color: var(--text-muted, #666);
+  border-color: var(--text-tertiary, #666);
 }

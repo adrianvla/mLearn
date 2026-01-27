@@ -5,53 +5,57 @@
 
 .recent-card {
   display: flex;
-  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
   background: var(--bg);
-  backdrop-filter: var(--theme-backdrop-filter);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  overflow: hidden;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all var(--transition-normal);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   text-align: left;
+  height: 75px;
 }
 
 .recent-card:hover {
-  transform: translateY(-2px);
   box-shadow: var(--shadow-md);
-  border-color: var(--color-accent);
+  background: var(--bg-intense);
+  border-color: var(--border-color-intense);
 }
 
 .recent-thumbnail {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  background-color: var(--color-bg-elevated, #2a2a2a);
-  background-size: cover;
-  background-position: center;
+  width: 48px;
+  height: 48px;
+  background: var(--bg);
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  background-size: cover;
+  background-position: center;
+  position: relative;
 }
 
 .recent-thumbnail .recent-type {
   font-size: 2rem;
   opacity: 0.5;
+  transition: none; /* Prevent any transforms on hover */
 }
 
 .recent-thumbnail[style*="background-image"] .recent-type {
   position: absolute;
-  bottom: 0.5rem;
-  right: 0.5rem;
+  bottom: 4px;
+  right: 4px;
   font-size: 1rem;
   background: rgba(0, 0, 0, 0.7);
-  padding: 0.25rem 0.5rem;
+  padding: 0.125rem 0.375rem;
   border-radius: var(--radius-sm);
   opacity: 1;
 }
 
 .recent-info {
   padding: 0.75rem;
+  width:100%;
 }
 
 .recent-info h4 {
@@ -61,18 +65,19 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color:var(--text-secondary);
 }
 
 .progress-bar {
-  height: 4px;
-  background: var(--border-color, rgba(255, 255, 255, 0.1));
+  height: 10px;
+  background: var(--bg);
   border-radius: 2px;
   overflow: hidden;
+  border:1px solid var(--border-color);
 }
 
 .progress-fill {
   height: 100%;
-  background: var(--color-accent, #3b82f6);
-  border-radius: 2px;
-  transition: width var(--transition-normal);
+  background: var(--color-primary);
+  transition: width var(--transition-slow);
 }

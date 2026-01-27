@@ -8,7 +8,8 @@
  * - indicator: Dot indicator for status
  */
 
-import { Component, JSX, Show, createMemo } from 'solid-js';
+import { Component, JSX, Show, createMemo, mergeProps } from 'solid-js';
+import Icon from '../Icons/Icon';
 import './Label.css';
 
 // ============ Types ============
@@ -33,6 +34,31 @@ export type StatusType = 'unknown' | 'learning' | 'known';
 
 export type LabelSize = 'xs' | 'sm' | 'md' | 'lg';
 
+// Map of icon names available in the Icon component
+const ICON_NAMES = [
+  'book', 'bot', 'cards', 'check', 'chevron', 'cog', 'cross', 'cross2',
+  'document', 'fast-forward', 'palette', 'pause', 'pin', 'pip', 'play',
+  'sidebar', 'star', 'stars', 'stats', 'subtitles', 'volume'
+] as const;
+
+type IconName = typeof ICON_NAMES[number];
+
+// Color mapping for label variants
+const VARIANT_COLORS: Record<LabelVariant, string> = {
+  default: 'var(--pill-default-text)',
+  primary: 'var(--color-primary)',
+  success: 'var(--color-success)',
+  warning: 'var(--color-warning)',
+  error: 'var(--color-error)',
+  red: 'var(--pill-level-1-text)',
+  orange: 'var(--pill-level-4-text)',
+  yellow: 'var(--pill-level-6-text)',
+  green: 'var(--pill-level-3-text)',
+  blue: 'var(--pill-level-2-text)',
+  purple: 'var(--pill-level-5-text)',
+  gray: 'var(--pill-level-7-text)',
+};
+
 export interface LabelProps {
   /** Type of label to display */
   type?: LabelType;
@@ -44,12 +70,14 @@ export interface LabelProps {
   size?: LabelSize;
   /** Frequency/JLPT level (1-7) - determines color for pills */
   level?: number;
-  /** Icon element or path */
+  /** Icon element, path, or icon name (e.g., 'check', 'cross2') */
   icon?: JSX.Element | string;
   /** Whether to show only icon (no text) */
   iconOnly?: boolean;
   /** Whether to show icon at all (true by default) */
   showIcon?: boolean;
+  /** Override icon color (useful for custom coloring) */
+  iconColor?: string;
   /** Whether the label is clickable */
   clickable?: boolean;
   /** Whether this label is in an active/selected state */
@@ -70,17 +98,41 @@ export interface LabelProps {
   headless?: boolean;
 }
 
-// ============ Icon Paths ============
-const ICON_CROSS = 'assets/icons/cross2.svg';
-const ICON_CHECK = 'assets/icons/check.svg';
+// ============ Icon Names ============
+const ICON_NAME_CROSS2 = 'cross2';
+const ICON_NAME_CHECK = 'check';
+
+// ============ Icon Helper ============
+
+/**
+ * Check if a string is a valid icon name for the Icon component
+ */
+const isIconName = (value: string): value is IconName => {
+  return ICON_NAMES.includes(value as IconName);
+};
 
 // ============ Icon Renderer ============
 
 const LabelIcon: Component<{ 
   icon: JSX.Element | string;
+  color?: string;
   class?: string;
 }> = (props) => {
   if (typeof props.icon === 'string') {
+    // Check if it's a named icon that we can render with the Icon component
+    if (isIconName(props.icon)) {
+      return (
+        <span class={`label-icon ${props.class || ''}`}>
+          <Icon 
+            icon={props.icon} 
+            color={props.color || 'currentColor'} 
+            class="label-svg-icon"
+          />
+        </span>
+      );
+    }
+    
+    // Otherwise treat it as an image path (legacy support)
     return (
       <span class={`label-icon ${props.class || ''}`}>
         <img src={props.icon} alt="" />
@@ -95,11 +147,11 @@ const LabelIcon: Component<{
 const getStatusConfig = (status: StatusType) => {
   switch (status) {
     case 'unknown':
-      return { variant: 'red' as const, icon: ICON_CROSS, label: 'Unknown' };
+      return { variant: 'red' as const, icon: ICON_NAME_CROSS2, label: 'Unknown' };
     case 'learning':
-      return { variant: 'orange' as const, icon: ICON_CHECK, label: 'Learning' };
+      return { variant: 'orange' as const, icon: ICON_NAME_CHECK, label: 'Learning' };
     case 'known':
-      return { variant: 'green' as const, icon: ICON_CHECK, label: 'Known' };
+      return { variant: 'green' as const, icon: ICON_NAME_CHECK, label: 'Known' };
     default:
       return { variant: 'gray' as const, icon: '', label: '' };
   }
@@ -133,6 +185,15 @@ export const Label: Component<LabelProps> = (props) => {
     if (statusConfig() && !props.icon) return statusConfig()!.icon;
     return props.icon;
   });
+
+  // Compute icon color based on variant
+  const computedIconColor = () => {
+    // If explicit iconColor is provided, use it
+    if (props.iconColor) return props.iconColor;
+    
+    // Use the variant color
+    return VARIANT_COLORS[variant() || 'default'];
+  };
   
   // Build class name
   const labelClass = () => {
@@ -196,7 +257,7 @@ export const Label: Component<LabelProps> = (props) => {
     >
       {/* Icon */}
       <Show when={icon()}>
-        <LabelIcon icon={icon()!} />
+        <LabelIcon icon={icon()!} color={computedIconColor()} />
       </Show>
       
       {/* Content */}
@@ -215,9 +276,10 @@ export const Label: Component<LabelProps> = (props) => {
 // ============ Convenience Exports ============
 
 /** Pill label - colored badge */
-export const PillLabel: Component<Omit<LabelProps, 'type'>> = (props) => (
-  <Label type="pill" {...props} />
-);
+export const PillLabel: Component<Omit<LabelProps, 'type'>> = (props) => {
+  const merged = mergeProps({ type: 'pill' as const }, props);
+  return <Label {...merged} />;
+};
 
 /** Status label - word status indicator */
 export interface StatusLabelProps extends Omit<LabelProps, 'type' | 'status'> {
@@ -228,24 +290,28 @@ export interface StatusLabelProps extends Omit<LabelProps, 'type' | 'status'> {
   showIcon?: boolean;
 }
 
-export const StatusLabel: Component<StatusLabelProps> = (props) => (
-  <Label type="status" {...props} />
-);
+export const StatusLabel: Component<StatusLabelProps> = (props) => {
+  const merged = mergeProps({ type: 'status' as const }, props);
+  return <Label {...merged} />;
+};
 
 /** Badge - small inline badge */
-export const Badge: Component<Omit<LabelProps, 'type'>> = (props) => (
-  <Label type="badge" {...props} />
-);
+export const Badge: Component<Omit<LabelProps, 'type'>> = (props) => {
+  const merged = mergeProps({ type: 'badge' as const }, props);
+  return <Label {...merged} />;
+};
 
 /** Tag - inline tag for metadata */
-export const Tag: Component<Omit<LabelProps, 'type'>> = (props) => (
-  <Label type="tag" {...props} />
-);
+export const Tag: Component<Omit<LabelProps, 'type'>> = (props) => {
+  const merged = mergeProps({ type: 'tag' as const }, props);
+  return <Label {...merged} />;
+};
 
 /** Indicator - dot indicator */
-export const Indicator: Component<Omit<LabelProps, 'type'>> = (props) => (
-  <Label type="indicator" {...props} />
-);
+export const Indicator: Component<Omit<LabelProps, 'type'>> = (props) => {
+  const merged = mergeProps({ type: 'indicator' as const }, props);
+  return <Label {...merged} />;
+};
 
 // ============ Helper Functions ============
 

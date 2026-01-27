@@ -19,6 +19,11 @@
   justify-content: center;
   padding: 1rem;
   background: var(--bg-opaque);
+  /* Account for fixed nav (48px) and status bar (30px) */
+  height: calc(100vh - 48px - 30px);
+  margin-top: 48px; /* Push below fixed nav */
+  margin-bottom: 30px; /* Push above fixed status bar */
+  box-sizing: border-box;
 }
 
 .reader-main.fit-height {
@@ -61,7 +66,7 @@
 
 .page-image {
   max-width: 100%;
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 48px - 30px - 2rem); /* nav + status + padding */
   object-fit: contain;
   box-shadow: var(--shadow-lg);
   border-radius: var(--radius-sm);
@@ -70,7 +75,7 @@
 }
 
 .fit-height .page-image {
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 48px - 30px - 2rem);
   width: auto;
 }
 
@@ -142,93 +147,20 @@
   z-index: 5;
   pointer-events: none;
   padding: 1rem;
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
 }
 
-.page-loader {
-  display: flex;
-  flex-direction: column;
-  align-items: end;
-  gap: 0.75rem;
-  padding: 1rem 1.5rem;
+.page-loader-overlay.visible {
+  opacity: 1;
 }
 
-.page-loader-spinner-c {
-  background: var(--bg);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
-  backdrop-filter: var(--theme-backdrop-filter);
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.page-loader-overlay.hidden {
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
 }
 
-/* Progress Ring - SVG-based circular progress */
-.page-loader-ring {
-  width: 40px;
-  height: 40px;
-  transform: rotate(-90deg);
+.page-loader-overlay .loader-ring{
+  gap:0;
+  align-items:end;
 }
-
-.page-loader-ring-track {
-  fill: none;
-  stroke: var(--border-color);
-  stroke-width: 3;
-}
-
-.page-loader-ring-progress {
-  fill: none;
-  stroke: var(--accent-primary);
-  stroke-width: 3;
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.3s ease;
-}
-
-/* Indeterminate spinning animation */
-.page-loader-ring.indeterminate {
-  animation: ring-spin 1.2s linear infinite;
-}
-
-.page-loader-ring.indeterminate .page-loader-ring-progress {
-  stroke-dasharray: 31.4 94.2; /* ~1/4 of the circumference visible */
-  stroke-dashoffset: 0;
-  transition: none;
-}
-
-@keyframes ring-spin {
-  from {
-    transform: rotate(-90deg);
-  }
-  to {
-    transform: rotate(270deg);
-  }
-}
-
-/* Legacy spinner fallback - kept for compatibility */
-.page-loader-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--accent-primary);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-.page-loader-text {
-  background: var(--bg);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
-  backdrop-filter: var(--theme-backdrop-filter);
-  padding: 4px 8px;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-/* Responsive */
-@media (max-width: 700px) {
-  .reader-main.with-sidebar {
-    margin-left: 100px;
-  }
-}
-
