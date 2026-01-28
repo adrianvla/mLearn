@@ -8,6 +8,7 @@ import { startWebServer, stopWebServer } from './services/webServer';
 import { setupFlashcardIPC } from './services/flashcardStorage';
 import { setupSettingsIPC } from './services/settings';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
+import { setupFileOperationsIPC } from './services/fileOperations';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 
@@ -30,6 +31,7 @@ async function initialize(): Promise<void> {
   setupFlashcardIPC();
   setupWindowIPC();
   setupPythonBackendIPC();
+  setupFileOperationsIPC();
   setupKillHandlers();
 
   // Start Python backend

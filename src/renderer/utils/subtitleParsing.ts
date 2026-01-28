@@ -6,13 +6,14 @@
  * Parentheses are only used for temporary reading overrides in the current subtitle.
  */
 
-// ============================================================================
-// Constants
-// ============================================================================
-
-// Kanji detection regex
-const KANJI_REGEX = /[\u3400-\u9FFF\uF900-\uFAFF]/;
-const KANA_REGEX = /^[\u3040-\u309f\u30a0-\u30ff\u31f0-\u31ff]+$/;
+import { 
+  containsKanji, 
+  isAllKana, 
+  normalizeReading, 
+  escapeHtml,
+  stripFurigana 
+} from '../../shared/utils/textUtils';
+import type { Token } from '../../shared/types';
 
 // ============================================================================
 // Types
@@ -138,37 +139,10 @@ export function buildFuriganaHtml(segments: FuriganaSegment[]): string {
 }
 
 // ============================================================================
-// Helper Functions
+// Re-export shared text utilities for backwards compatibility
 // ============================================================================
 
-/**
- * Check if text contains kanji
- */
-export function containsKanji(text: string): boolean {
-  return KANJI_REGEX.test(text);
-}
-
-/**
- * Check if text is all kana (hiragana or katakana)
- */
-export function isAllKana(text: string): boolean {
-  if (!text) return false;
-  return KANA_REGEX.test(text);
-}
-
-/**
- * Normalize reading by removing HTML and accent markers
- */
-export function normalizeReading(raw: string): string {
-  if (typeof raw !== 'string') return '';
-  let text = raw;
-  const markerIdx = text.indexOf('<!-- accent_start -->');
-  if (markerIdx !== -1) text = text.substring(0, markerIdx);
-  // Strip HTML tags
-  text = text.replace(/<[^>]*>/g, '');
-  text = text.replace(/\u00a0/g, ' ').trim();
-  return text.replace(/\s+/g, '');
-}
+export { containsKanji, isAllKana, normalizeReading, escapeHtml, stripFurigana } from '../../shared/utils/textUtils';
 
 /**
  * Extract only the kana reading from a translation entry
@@ -205,31 +179,6 @@ export function extractKanaReading(reading: string | undefined): string {
 }
 
 /**
- * Strip furigana from text to get clean kanji/text only
- * Used for OCR context phrase stitching where we don't want ruby readings
- * 
- * Example: "<ruby>主<rt>おも</rt></ruby>に" -> "主に"
- */
-export function stripFurigana(text: string): string {
-  if (!text) return '';
-  
-  // Remove <rt>...</rt> tags and their content
-  let result = text.replace(/<rt[^>]*>.*?<\/rt>/gi, '');
-  
-  // Remove <ruby> and </ruby> tags but keep content
-  result = result.replace(/<\/?ruby>/gi, '');
-  
-  // Remove <rp> tags (ruby parentheses)
-  result = result.replace(/<\/?rp>/gi, '');
-  
-  // Remove parenthesized readings: 漢字(かんじ) -> 漢字
-  result = result.replace(/\([ぁ-んァ-ン]+\)/g, '');
-  result = result.replace(/（[ぁ-んァ-ン]+）/g, '');
-  
-  return result.trim();
-}
-
-/**
  * Clean text for use as context phrase by stripping furigana and normalizing
  */
 export function cleanContextPhrase(text: string): string {
@@ -248,16 +197,8 @@ export function cleanContextPhrase(text: string): string {
 // Token Coloring
 // ============================================================================
 
-/**
- * Token interface for coloring (matches Token from types.ts)
- */
-export interface ColorToken {
-  word: string;
-  surface?: string;
-  type?: string;
-  partOfSpeech?: string;
-  actual_word?: string;
-}
+/** @deprecated Use Token from shared/types instead */
+export type ColorToken = Token;
 
 /**
  * Generate colored HTML from tokens based on part-of-speech
@@ -269,7 +210,7 @@ export interface ColorToken {
  * @returns HTML string with colored spans
  */
 export function tokensToColoredHtml(
-  tokens: ColorToken[],
+  tokens: Token[],
   colourCodes: Record<string, string> = {},
   targetWord?: string
 ): string {
@@ -300,14 +241,40 @@ export function tokensToColoredHtml(
   return parts.join('');
 }
 
+// ============================================================================
+// Work Name Parsing
+// ============================================================================
+
 /**
- * Escape HTML special characters
+ * Parse and clean a work name (manga/book/video title) from filename or folder name.
+ * Strips common release tags, codecs, sources, language codes, and bracketed junk.
+ * Preserves season/episode identifiers like S01E02.
+ * 
+ * @param name The raw filename or folder name
+ * @returns Cleaned, human-readable title
  */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+export function parseWorkName(name: string): string {
+  if (!name) return '';
+
+  // Step 1: Remove only short extensions (like .srt, .ass, .sub, .pdf, .cbz, .cbr)
+  let cleaned = name.replace(/\.[^.]{1,4}$/, '');
+
+  // Step 2: Normalize separators (replace . and _ with spaces)
+  cleaned = cleaned.replace(/[._]/g, ' ');
+
+  // Step 3: Remove junk tags (common release tags, codecs, sources, etc.)
+  cleaned = cleaned.replace(/\b(WEBRip|BluRay|HDTV|Netflix|AMZN|x264|x265|HEVC|AVC|AAC|DDP|1080p|720p|480p|2160p|4K|Subtitles|REPACK|PROPER|WEB-DL|BDRip|DVDRip|HDRip)\b/gi, '');
+
+  // Step 4: Keep season/episode identifiers like S01E02 intact
+  // Normalize "S01E02" to "S01E2" (remove leading 0 in episode number)
+  cleaned = cleaned.replace(/S(\d{1,2})E0?(\d{1,2})/gi, (_m, s, e) => `S${s}E${parseInt(e)}`);
+
+  // Step 5: Remove common language codes as standalone words
+  cleaned = cleaned.replace(/\b(ja|en|fr|es|de|it|pt|ru|zh|ko|jpn|eng|jap|deu|fra|spa|ita|por|rus|kor|chi)\b/gi, '');
+
+  // Step 6: Remove bracketed/parenthesized junk (e.g. [720p], (BD), {WEB})
+  cleaned = cleaned.replace(/\[[^\]]*\]|\{[^}]*\}|\([^)]*\)/g, '');
+
+  // Step 7: Collapse multiple spaces, trim
+  return cleaned.replace(/ {2,}/g, ' ').trim();
 }

@@ -17,15 +17,19 @@
 
 .label-clickable {
   cursor: pointer;
-  transition: opacity var(--transition-fast, 0.1s ease);
+  transition: opacity var(--transition-fast, 0.1s ease), transform var(--transition-fast, 0.1s ease);
+  /* Prevent blur from transform */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .label-clickable:hover {
-  opacity: 0.7;
+  /* Use opacity instead of filter to prevent blur */
+  opacity: 0.85;
 }
 
 .label-clickable:active {
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 /* ============ Active State ============ */

@@ -177,6 +177,67 @@
   /* ========== Flashcard Highlight ========== */
   --flashcard-highlight-dark: #ff5ec7;
   --flashcard-highlight-light: #356ee8;
+
+  /* ========== Additional Theming Variables ========== */
+  /* Glass effect hover states */
+  --glass-bg: var(--bg);
+  --glass-bg-hover: var(--bg-intense);
+  --glass-border: var(--border-color);
+  --glass-border-hover: var(--border-color-intense);
+  
+  /* Accent primary (alias for consistency) */
+  --accent-primary: var(--color-primary);
+  
+  /* Background aliases for common patterns */
+  --bg-primary: var(--bg);
+  --bg-secondary: var(--bg-intense);
+  
+  /* Color border hover */
+  --color-border-hover: var(--border-color-intense);
+  
+  /* Overlay backgrounds */
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+  --overlay-bg-light: rgba(0, 0, 0, 0.4);
+}
+
+/* ========== Shared Animations ========== */
+/* Spin animation - used by loaders, buttons, etc. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Shimmer/pulse animation - used by skeleton loaders */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Slide up animation */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ========== Reset & Base Styles ========== */
@@ -330,4 +391,102 @@ body.hide-cursor .aside {
 .video-controls.visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* ========== Utility Classes ========== */
+
+/* Disabled state - universal */
+.disabled,
+[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Glass panel - glassmorphism effect */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--theme-backdrop-filter);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+}
+
+.glass-panel:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+}
+
+/* Overlay - modal/popup backgrounds */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(8px);
+  z-index: var(--z-modal-backdrop);
+}
+
+.overlay-light {
+  background: var(--overlay-bg-light);
+}
+
+/* Card hover effect - shared pattern */
+.card-hover {
+  transition: all var(--transition-normal);
+}
+
+.card-hover:hover {
+  background: var(--bg-intense);
+  border-color: var(--border-color-intense);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Visually hidden - accessible hiding */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Truncate text with ellipsis */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Flex utilities */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Animation utilities */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--transition-normal);
+}
+
+.animate-slide-up {
+  animation: slideUp var(--transition-normal);
 }

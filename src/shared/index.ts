@@ -3,6 +3,7 @@
  */
 
 export * from './constants';
+export * from './utils/textUtils';
 export { 
   // Re-export types but not WindowType (already exported from constants)
   type ColorCodes,

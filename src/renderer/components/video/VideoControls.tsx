@@ -126,12 +126,6 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
     props.video.seek(newTime);
   };
 
-  // Handle volume change
-  const handleVolumeChange = (e: Event) => {
-    const input = e.target as HTMLInputElement;
-    props.video.setVolume(parseFloat(input.value));
-  };
-
   const controlsStyle = (): JSX.CSSProperties => ({
     position: 'absolute',
     bottom: '0',

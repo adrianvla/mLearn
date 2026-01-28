@@ -7,6 +7,7 @@
 import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import type { Token, DictionaryEntry, TranslationEntry, PitchData, FlashcardContent, LLMResponse } from '../../../shared/types';
 import { WORD_STATUS } from '../../../shared/constants';
+import { normalizeReading } from '../../../shared/utils/textUtils';
 import { useSettings, useFlashcards, useLanguage } from '../../context';
 import { getWordStatus, setWordStatus, toUniqueIdentifier } from '../../services/statsService';
 import { getWordExplanation, getCachedExplanation } from '../../services/llmService';
@@ -50,18 +51,6 @@ function extractReadingFromEntries(entries: any[]): string {
     }
   }
   return '';
-}
-
-// Normalize reading by stripping HTML and accent markers
-function normalizeReading(raw: string): string {
-  if (typeof raw !== 'string') return '';
-  let text = raw;
-  const markerIdx = text.indexOf('<!-- accent_start -->');
-  if (markerIdx !== -1) text = text.substring(0, markerIdx);
-  // Strip HTML tags
-  text = text.replace(/<[^>]*>/g, '');
-  text = text.replace(/\u00a0/g, ' ').trim();
-  return text.replace(/\s+/g, '');
 }
 
 export interface WordHoverProps {
@@ -119,8 +108,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   const isShown = createMemo(() => props.visible !== false);
 
-  // Calculate width based on max of content and footer (like old app)
-  // The hover should be as wide as the wider of: content area or footer pills
+  // Calculate width based on footer pills (like old app)
+  // Width should be min(footer pills width, 400px) - enough to fit pills on one line if possible
+  // Pills will wrap if they exceed 400px
   const calculateWidth = () => {
     if (!hoverRef) return;
     
@@ -134,41 +124,29 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     subtitleHover.style.maxWidth = 'none';
     
     const footerEl = subtitleHover.querySelector('.footer') as HTMLElement | null;
-    const contentEl = subtitleHover.querySelector('.subtitle_hover_content') as HTMLElement | null;
+    const pillsEl = footerEl?.querySelector('.pills') as HTMLElement | null;
     
-    let footerWidth = 280; // minimum
-    let contentWidth = 280; // minimum
+    let footerWidth = 300; // default minimum
     
-    if (footerEl) {
-      // Get the actual rendered width of footer including its padding
-      footerWidth = footerEl.scrollWidth;
-      // Also check pills container
-      const pillsEl = footerEl.querySelector('.pills') as HTMLElement | null;
-      if (pillsEl) {
-        // Measure all pills and add padding (10px on each side + 10px gap)
-        const pills = pillsEl.querySelectorAll('.pill');
-        let totalPillWidth = 20; // Initial padding
-        pills.forEach(pill => {
-          totalPillWidth += (pill as HTMLElement).offsetWidth + 10; // Add pill width + gap
-        });
-        footerWidth = Math.max(footerWidth, totalPillWidth);
-      }
-    }
-    
-    if (contentEl) {
-      // Content width with padding
-      contentWidth = contentEl.scrollWidth;
+    if (pillsEl) {
+      // Measure all pills and add padding (10px on each side + 8px gaps)
+      const pills = pillsEl.querySelectorAll('.label-pill, .btn-pill');
+      let totalPillWidth = 20; // padding (10px each side)
+      pills.forEach(pill => {
+        totalPillWidth += (pill as HTMLElement).offsetWidth + 8; // pill width + gap
+      });
+      totalPillWidth -= 8; // Remove last gap
+      footerWidth = Math.max(footerWidth, totalPillWidth);
     }
     
     // Restore original styles
     subtitleHover.style.width = origWidth;
     subtitleHover.style.maxWidth = origMaxWidth;
     
-    // Use max of content and footer width, clamped to reasonable bounds
-    // Min 280px, max 400px or viewport width - 32px
-    // Note: 400px is chosen to fit typical pill layouts while remaining compact
+    // Width is min(footerWidth, 400px) - capped at 400px, pills wrap if needed
+    // Also respect viewport constraints
     const maxAllowed = Math.min(400, (typeof window !== 'undefined' ? window.innerWidth - 32 : 400));
-    const newWidth = Math.max(280, Math.min(maxAllowed, Math.max(contentWidth, footerWidth)));
+    const newWidth = Math.min(maxAllowed, Math.max(300, footerWidth));
     setCalculatedWidth(newWidth);
     
     // Also update stable height for positioning (only when not locked)

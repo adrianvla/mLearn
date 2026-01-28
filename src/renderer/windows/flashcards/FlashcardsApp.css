@@ -144,33 +144,32 @@
   .flashcards-stats-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .flashcards-header {
     flex-direction: column;
     gap: 1rem;
     align-items: stretch;
     padding: 1rem;
   }
-  
+
   .flashcards-tabs {
     justify-content: center;
   }
-  
+
   .flashcards-header-actions {
     justify-content: center;
   }
 }
-  .flashcards-stats-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .flashcards-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
-  }
-  
-  .flashcards-tabs {
-    justify-content: center;
-  }
+.flashcards-stats-grid {
+  grid-template-columns: 1fr;
+}
+
+.flashcards-header {
+  flex-direction: column;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.flashcards-tabs {
+  justify-content: center;
 }

@@ -109,7 +109,7 @@
   flex-direction: column;
   justify-content: center;
   height: min-content;
-  gap: 10px;
+  gap: 8px;
   position: absolute;
   bottom: 0;
   left: 0;
@@ -120,21 +120,20 @@
   backdrop-filter: var(--theme-backdrop-filter-nodim);
   border-top: 1px solid var(--border-color);
   z-index: 1;
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
   overflow: visible;
 }
 
 
-/* Pills container in hover - no wrap to keep all pills in one line */
+/* Pills container in hover - wrap if needed to fit within max width */
 .subtitle_hover .pills {
   display: flex;
-  gap: 10px;
-  flex-wrap: nowrap;
-  width: max-content;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
   align-items: center;
   overflow: visible;
-  white-space: nowrap;
+  justify-content: flex-start;
 }
 
 /* Pill sizing inside hover - inherits colors from Label.css */
@@ -153,6 +152,7 @@
 }
 
 /* Icon styling inside pills - consistent for both label and btn */
+/* GPU acceleration and anti-blur fixes */
 .subtitle_hover .label-icon,
 .subtitle_hover .btn-icon {
   width: max-content;
@@ -162,13 +162,25 @@
   align-items: center;
   margin-right: 5px;
   background: none !important;
+  /* Prevent blur from parent transforms/filters */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: subpixel-antialiased;
 }
 
 .subtitle_hover .label-icon img,
-.subtitle_hover .btn-icon img {
+.subtitle_hover .btn-icon img,
+.subtitle_hover .label-icon svg,
+.subtitle_hover .btn-icon svg,
+.subtitle_hover .label-svg-icon,
+.subtitle_hover .btn-svg-icon {
   width: 20px;
   height: 20px;
   background: none !important; /* Remove any background from icons */
+  /* Crisp rendering for icons */
+  image-rendering: crisp-edges;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 /* Pitch accent pill - uses PillLabel component now */
@@ -294,15 +306,5 @@
   border-radius: 8px;
   background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
   background-size: 200% 100%;
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
-}
-
-/* Animation for pulsating effect */
-@keyframes skeleton-pulse {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
+  animation: shimmer 1.5s ease-in-out infinite;
 }

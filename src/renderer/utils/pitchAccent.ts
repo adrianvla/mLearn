@@ -1,9 +1,10 @@
+import type { PitchAccentInfo } from '../../shared/types';
+import { SMALL_KANA } from '../../shared/utils/textUtils';
 
-const SMALL_KANA_CHARS = new Set([
-  "ゃ", "ゅ", "ょ", "ャ", "ュ", "ョ",
-  "ぁ", "ぃ", "ぅ", "ぇ", "ぉ", "ァ", "ィ", "ゥ", "ェ", "ォ",
-  "ゎ", "ゕ", "ゖ"
-]);
+export type { PitchAccentInfo };
+
+/** @deprecated Use SMALL_KANA from shared/utils/textUtils instead */
+export const SMALL_KANA_CHARS = SMALL_KANA;
 
 function buildAccentPattern(accentType: number, reading: string): boolean[] {
   const chars = Array.from(reading || "");
@@ -33,10 +34,10 @@ function buildAccentPattern(accentType: number, reading: string): boolean[] {
     const nextIndex = i + 1;
     if (pattern[nextIndex] === undefined) break;
     if (pattern[i] === pattern[nextIndex]) continue;
-    if (!SMALL_KANA_CHARS.has(chars[nextIndex])) continue;
+    if (!SMALL_KANA.has(chars[nextIndex])) continue;
     const desiredValue = pattern[nextIndex];
     let shiftIndex = nextIndex;
-    while (shiftIndex < count && SMALL_KANA_CHARS.has(chars[shiftIndex])) {
+    while (shiftIndex < count && SMALL_KANA.has(chars[shiftIndex])) {
       pattern[shiftIndex] = pattern[i];
       shiftIndex++;
     }
@@ -46,13 +47,6 @@ function buildAccentPattern(accentType: number, reading: string): boolean[] {
     }
   }
   return pattern;
-}
-
-export interface PitchAccentInfo {
-  accentType: number;
-  pattern: boolean[];
-  particleAccent: boolean;
-  length: number;
 }
 
 export function getPitchAccentInfo(accentType: number | undefined | null, reading: string): PitchAccentInfo | null {

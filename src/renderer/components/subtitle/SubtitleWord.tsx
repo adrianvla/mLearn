@@ -5,21 +5,11 @@
 
 import { Component, createMemo, createSignal, createEffect, Show, For } from 'solid-js';
 import type { Token } from '../../../shared/types';
+import { containsKanji, isAllKana } from '../../../shared/utils/textUtils';
 import { useSettings, useLanguage } from '../../context';
 import { getCachedReading, getCachedTranslation } from '../../hooks/useTranslation';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import type { JSX } from 'solid-js/jsx-runtime';
-
-// Check if a word contains kanji (needs furigana)
-function containsKanji(word: string): boolean {
-  // Kanji ranges: CJK Unified Ideographs
-  return /[\u4e00-\u9faf\u3400-\u4dbf]/.test(word);
-}
-
-// Check if word is all kana (no need for furigana)
-function isAllKana(word: string): boolean {
-  return /^[\u3040-\u309f\u30a0-\u30ff\u31f0-\u31ff\s]+$/.test(word);
-}
 
 export interface SubtitleWordProps {
   token: Token;

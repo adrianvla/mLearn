@@ -5,6 +5,7 @@
  */
 
 import type { OcrBox } from '../components/reader/OcrOverlay';
+import { containsKanji } from '../../shared/utils/textUtils';
 
 // ============================================================================
 // Constants
@@ -13,7 +14,6 @@ import type { OcrBox } from '../components/reader/OcrOverlay';
 const DEFAULT_FURIGANA_RATIO = 1.5;
 const DEFAULT_NEIGHBOR_WINDOW_MULT = 2.4;
 const DEFAULT_NEIGHBOR_LOOKAHEAD = 3;
-const KANJI_REGEX = /[\u3400-\u9FFF\uF900-\uFAFF]/;
 
 // ============================================================================
 // Box Metrics
@@ -84,11 +84,6 @@ export function computeBoxMetrics(box: OcrBox, idx: number): BoxMetrics {
 // ============================================================================
 // Geometry Helpers
 // ============================================================================
-
-function containsKanji(str: string): boolean {
-  if (typeof str !== 'string') return false;
-  return KANJI_REGEX.test(str);
-}
 
 function overlapAmount(aMin: number, aMax: number, bMin: number, bMax: number): number {
   const top = Math.max(aMin, bMin);

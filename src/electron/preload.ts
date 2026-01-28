@@ -161,6 +161,12 @@ const mLearnIPC = {
   // ========== LocalStorage Sync ==========
   sendLS: (data: Record<string, unknown>) => ipcRenderer.send(IPC_CHANNELS.SEND_LS, data),
 
+  // ========== File Operations ==========
+  readDirectoryImages: (directoryPath: string): Promise<{ files: Array<{ name: string; path: string; data: ArrayBuffer }> }> => 
+    ipcRenderer.invoke(IPC_CHANNELS.READ_DIRECTORY_IMAGES, directoryPath),
+  readPdfFile: (filePath: string): Promise<{ data: ArrayBuffer }> => 
+    ipcRenderer.invoke(IPC_CHANNELS.READ_PDF_FILE, filePath),
+
   // ========== Generic IPC Methods ==========
   // Generic send for any channel
   send: (channel: string, data?: unknown) => {

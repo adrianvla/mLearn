@@ -1,17 +1,11 @@
 /**
  * Unified Button Component Styles
  * Consolidated styles for all button variants
+ * Note: Spin animation is defined globally in index.css
  */
 
-/* ============ Spinner Animation ============ */
-@keyframes btn-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .btn-spinner {
-  animation: btn-spin 1s linear infinite;
+  animation: spin 1s linear infinite;
 }
 
 /* ============ Base Button Styles ============ */
@@ -149,14 +143,18 @@
   background-color: var(--pill-default-bg);
   box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset,
     rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
+  /* GPU acceleration to prevent blur */
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .btn-pill:hover:not(:disabled) {
-  opacity: 0.7;
+  /* Use opacity instead of filter to prevent icon blur */
+  opacity: 0.85;
 }
 
 .btn-pill:active:not(:disabled) {
-  opacity: 0.5;
+  opacity: 0.7;
 }
 
 .btn-pill .btn-icon img {
