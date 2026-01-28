@@ -46,6 +46,18 @@ export const WelcomeRoute: Component = () => {
   };
 
   const openRecent = (item: RecentItem) => {
+    // Don't try to open items with no path (legacy items or failed saves)
+    if (!item.path || !item.path.trim()) {
+      console.warn('[Welcome] Cannot open recent item - no path saved:', item.name);
+      // Navigate to the appropriate route without a path - user can then drag/drop
+      if (item.type === 'video') {
+        navigate('/video');
+      } else {
+        navigate('/reader');
+      }
+      return;
+    }
+    
     if (item.type === 'video') {
       // Store the path and navigate
       sessionStorage.setItem('mlearn_open_video', item.path);

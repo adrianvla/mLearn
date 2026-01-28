@@ -69,23 +69,20 @@ const persistPageIndex = (bookId: string | null, pageIndex: number, totalPages: 
   }
 };
 
-// Extract book ID from file name (removing extension and path)
-// For PDF: use the filename
-// For images/folders: use the folder name (parent directory)
-const extractBookId = (fileName: string, isPdf: boolean = false): string => {
-  // Get just the filename without path
-  const parts = fileName.split('/').filter(Boolean);
+// Extract folder name from a path or first file
+// Used when drag-n-dropping a folder - we want the folder name
+const extractFolderName = (filePath: string): string => {
+  // filePath could be "folder/image.png" or just "folder" from webkitGetAsEntry
+  // We want the directory part
+  const parts = filePath.split('/').filter(Boolean);
   
-  if (isPdf || parts.length <= 1) {
-    // For PDF or single file: use filename
-    const baseName = parts.pop() || fileName;
-    return parseWorkName(baseName);
+  // If it looks like a file path (has extension), get parent dir
+  if (parts.length >= 2 && /\.[^.]+$/.test(parts[parts.length - 1])) {
+    return parts[parts.length - 2];
   }
   
-  // For images dropped from a folder: use the folder name (second-to-last part)
-  // This handles paths like "folder/image.png" -> "folder"
-  const folderName = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
-  return parseWorkName(folderName || fileName);
+  // Otherwise it's likely the folder name itself
+  return parts[parts.length - 1] || filePath;
 };
 
 export const ReaderRoute: Component = () => {
@@ -100,6 +97,9 @@ export const ReaderRoute: Component = () => {
   const [pages, setPages] = createSignal<PageImage[]>([]);
   const [currentPage, setCurrentPage] = createSignal(0);
   const [currentBookId, setCurrentBookId] = createSignal<string | null>(null);
+  // Track the filesystem path of the current book (PDF file or directory)
+  // Used for persisting to recent items so users can click to re-open
+  const [currentBookPath, setCurrentBookPath] = createSignal<string>('');
   const [fitMode, setFitMode] = createSignal<FitMode>('fit-height');
   const [pageMode, setPageMode] = createSignal<PageMode>('double');
   const [showSidebar, setShowSidebar] = createSignal(true);
@@ -125,20 +125,24 @@ export const ReaderRoute: Component = () => {
   // Server-side OCR progress (MangaOCR processing status from backend)
   // e.g. "Processing 23%" or "Loading model..."
   const [serverOcrProgress, setServerOcrProgress] = createSignal<number | null>(null);
-  const [serverOcrMessage, setServerOcrMessage] = createSignal<string>('');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_serverOcrMessage, setServerOcrMessage] = createSignal<string>('');
 
   // References for OCR overlay positioning
   let pageContainerRef: HTMLDivElement | undefined;
   const [imageRefs, setImageRefs] = createSignal<Record<string, HTMLImageElement>>({});
 
-  const getDroppedFiles = async (dataTransfer: DataTransfer | null): Promise<File[]> => {
-    if (!dataTransfer) return [];
+  // Returns files and the name of the dropped folder (if a folder was dropped)
+  const getDroppedFiles = async (dataTransfer: DataTransfer | null): Promise<{ files: File[], droppedFolderName: string | null }> => {
+    if (!dataTransfer) return { files: [], droppedFolderName: null };
     const items = Array.from(dataTransfer.items || []);
 
     const hasEntries = items.some((item) => typeof (item as any).webkitGetAsEntry === 'function');
     if (!hasEntries) {
-      return Array.from(dataTransfer.files || []);
+      return { files: Array.from(dataTransfer.files || []), droppedFolderName: null };
     }
+
+    let droppedFolderName: string | null = null;
 
     const readEntry = async (entry: any): Promise<File[]> => {
       if (!entry) return [];
@@ -148,6 +152,10 @@ export const ReaderRoute: Component = () => {
         });
       }
       if (entry.isDirectory) {
+        // Capture the folder name from the top-level directory entry
+        if (!droppedFolderName) {
+          droppedFolderName = entry.name;
+        }
         const reader = entry.createReader();
         const entries: any[] = [];
         const readAll = (): Promise<void> => new Promise((resolve) => {
@@ -171,7 +179,7 @@ export const ReaderRoute: Component = () => {
         .map((entry) => readEntry(entry))
     );
 
-    return entryFiles.flat();
+    return { files: entryFiles.flat(), droppedFolderName };
   };
 
   const visiblePages = () => {
@@ -234,6 +242,10 @@ export const ReaderRoute: Component = () => {
     // Update Queue: Replace entire queue with new priorities
     // This effectively "cancels" any pending tasks that are not in the new target set.
     setOcrQueue(tasks);
+    
+    // Update status immediately when page/queue changes
+    // This ensures "Cleaning Up…" shows when user navigates while processing
+    updateOverallStatus();
     
     // Trigger processing
     processQueue();
@@ -346,8 +358,8 @@ export const ReaderRoute: Component = () => {
     const visibleStart = currPageIdx;
     const visibleEnd = isDouble ? currPageIdx + 1 : currPageIdx;
     
-    // Count visible pages that need processing (for X/Y display)
-    const visibleCount = isDouble ? 2 : 1;
+    // Maximum visible pages based on layout mode - this is the Y in "X/Y"
+    const maxVisibleCount = isDouble ? 2 : 1;
     
     // Check if we're actively processing something
     if (currentTask) {
@@ -356,41 +368,37 @@ export const ReaderRoute: Component = () => {
       // Determine relationship of processing page to current view
       if (taskPageIdx < visibleStart) {
         // Processing a page BEFORE current view (user navigated forward)
-        // Show "Cleaning Up…" without X/Y since we're abandoning old work
+        // Show "Cleaning Up…" without any fraction
         setOcrStatus('Cleaning Up…');
         return;
       }
       
       if (taskPageIdx >= visibleStart && taskPageIdx <= visibleEnd) {
-        // Processing a VISIBLE page - show "Recognizing X/Y" or "Processing X/Y"
-        // X = which visible page (1 or 2), Y = total visible pages needing OCR
-        const visibleNeedingOcr = visible.filter(p => !ocrResults[p.id]);
-        const processingVisibleIdx = visible.findIndex(p => p.id === currentTask.page.id);
+        // Processing a VISIBLE page
+        // If single page mode: just "Recognizing..." (no fraction)
+        // If double page mode: "Processing X/Y" where Y is always maxVisibleCount (1 or 2)
         
-        // Only show X/Y if there are multiple visible pages needing OCR
-        let progressStr = '';
-        if (visibleNeedingOcr.length > 1 && processingVisibleIdx >= 0) {
-          progressStr = ` ${processingVisibleIdx + 1}/${visibleNeedingOcr.length}`;
-        }
-        
-        const serverMsg = serverOcrMessage().toLowerCase();
-        if (serverMsg.includes('load') || serverMsg.includes('init')) {
-          setOcrStatus('Loading Neural Network...');
-        } else if (serverMsg.includes('recogni')) {
-          setOcrStatus(`Recognizing${progressStr}...`);
-        } else if (serverMsg.includes('process')) {
-          setOcrStatus(`Processing${progressStr}...`);
+        if (maxVisibleCount === 1) {
+          // Single page mode - just show "Recognizing..." without fraction
+          setOcrStatus('Recognizing...');
         } else {
-          // Default to Processing when actively working on visible page
-          setOcrStatus(`Processing${progressStr}...`);
+          // Double page mode - show "Processing X/Y"
+          // X = which visible page we're processing (1 or 2)
+          // Find position of current task in visible pages
+          const visiblePageIds = visible.map(p => p.id);
+          const processingIdx = visiblePageIds.indexOf(currentTask.page.id);
+          const xValue = processingIdx >= 0 ? processingIdx + 1 : 1;
+          setOcrStatus(`Processing ${xValue}/${maxVisibleCount}`);
         }
         return;
       }
       
       // Processing a page AFTER current view (caching ahead)
-      // Count how many caching tasks are in progress/queued
-      const cachingPages = queue.filter(t => t.page.index > visibleEnd).length + 1; // +1 for current
-      setOcrStatus(`Caching ${cachingPages}/${visibleCount}...`);
+      // Show "Caching X/Y" where Y is maxVisibleCount (same as visible layout)
+      const cachePageIndices = [visibleEnd + 1, visibleEnd + 2].filter(idx => idx < pages().length);
+      const processingCacheIdx = cachePageIndices.indexOf(taskPageIdx);
+      const xValue = processingCacheIdx >= 0 ? processingCacheIdx + 1 : 1;
+      setOcrStatus(`Caching ${xValue}/${maxVisibleCount}`);
       return;
     }
     
@@ -406,17 +414,14 @@ export const ReaderRoute: Component = () => {
       }
       
       if (nextPageIdx >= visibleStart && nextPageIdx <= visibleEnd) {
-        // Visible page is queued but not yet processing
-        setOcrStatus('Pending...');
+        // Visible page is queued but not yet processing - waiting to start
+        setOcrStatus('Loading Neural Network...');
         return;
       }
       
-      // Caching pages are queued
-      const cachingCount = queue.filter(t => t.page.index > visibleEnd).length;
-      if (cachingCount > 0) {
-        setOcrStatus(`Caching ${cachingCount}/${visibleCount}...`);
-        return;
-      }
+      // Caching pages are queued - show caching status
+      setOcrStatus(`Caching 1/${maxVisibleCount}`);
+      return;
     }
 
     // No tasks - check if all visible pages are done
@@ -469,14 +474,18 @@ export const ReaderRoute: Component = () => {
         // Load PDF file
         const result = await window.mLearnIPC.readPdfFile(bookPath);
         const blob = new Blob([result.data], { type: 'application/pdf' });
-        const file = new File([blob], bookPath.split('/').pop() || 'document.pdf', { type: 'application/pdf' });
+        const fileName = bookPath.split('/').pop() || 'document.pdf';
+        const file = new File([blob], fileName, { type: 'application/pdf' });
         
         const pdfImages = await pdfToImages(file);
-        const bookId = extractBookId(bookPath.split('/').pop() || '', true);
+        // For PDF: use filename only (stripped)
+        const bookId = parseWorkName(fileName);
         setCurrentBookId(bookId);
+        // Store the path for recent items persistence
+        setCurrentBookPath(bookPath);
         
         const savedPageIndex = loadSavedPageIndex(bookId);
-        let startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pdfImages.length
+        const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pdfImages.length
           ? savedPageIndex : 0;
 
         const newPages: PageImage[] = pdfImages.map((img, index) => ({
@@ -495,6 +504,9 @@ export const ReaderRoute: Component = () => {
           setOcrCompletedIds(new Set<string>());
           setBookTitle(bookId || 'PDF Document');
         });
+        
+        // Save to recent with the correct path
+        saveToRecent(bookId || 'PDF Document', 'book', startPage, bookPath, newPages[0]?.blob);
       } else {
         // Load directory of images
         const result = await window.mLearnIPC.readDirectoryImages(bookPath);
@@ -504,12 +516,15 @@ export const ReaderRoute: Component = () => {
           return;
         }
 
-        const folderName = bookPath.split('/').pop() || '';
-        const bookId = extractBookId(folderName, false);
+        // For folders: use folder name only (stripped)
+        const folderName = bookPath.split('/').filter(Boolean).pop() || '';
+        const bookId = parseWorkName(folderName);
         setCurrentBookId(bookId);
+        // Store the path for recent items persistence
+        setCurrentBookPath(bookPath);
         
         const savedPageIndex = loadSavedPageIndex(bookId);
-        let startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < result.files.length
+        const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < result.files.length
           ? savedPageIndex : 0;
 
         const newPages: PageImage[] = result.files.map((file, index) => {
@@ -531,6 +546,9 @@ export const ReaderRoute: Component = () => {
           setOcrCompletedIds(new Set<string>());
           setBookTitle(bookId || 'Imported Book');
         });
+        
+        // Save to recent with the correct path
+        saveToRecent(bookId || 'Imported Book', 'book', startPage, bookPath, newPages[0]?.blob);
       }
       
       setOcrStatus('Ready');
@@ -615,7 +633,7 @@ export const ReaderRoute: Component = () => {
     e.preventDefault();
     setIsDragging(false);
 
-    const droppedFiles = await getDroppedFiles(e.dataTransfer || null);
+    const { files: droppedFiles, droppedFolderName } = await getDroppedFiles(e.dataTransfer || null);
     
     // Check for PDF file first
     const pdfFile = droppedFiles.find(f => isPdfFile(f));
@@ -626,8 +644,13 @@ export const ReaderRoute: Component = () => {
       try {
         const pdfImages = await pdfToImages(pdfFile);
         
-        const bookId = extractBookId(pdfFile.name, true);
+        // For PDF: use filename only (stripped)
+        const bookId = parseWorkName(pdfFile.name);
         setCurrentBookId(bookId);
+        
+        // In Electron, File objects have a .path property with the full filesystem path
+        const pdfPath = (pdfFile as File & { path?: string }).path || '';
+        setCurrentBookPath(pdfPath);
         
         // Check for saved page position
         const savedPageIndex = loadSavedPageIndex(bookId);
@@ -659,8 +682,6 @@ export const ReaderRoute: Component = () => {
           // Save to recent with the first page as thumbnail
           const title = bookId || 'PDF Document';
           setBookTitle(title);
-          // In Electron, File objects have a .path property with the full filesystem path
-          const pdfPath = (pdfFile as File & { path?: string }).path || pdfFile.name;
           saveToRecent(title, 'book', startPage, pdfPath, newPages[0]?.blob);
         });
         setOcrStatus('Ready');
@@ -686,9 +707,28 @@ export const ReaderRoute: Component = () => {
 
     files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-    // Determine book ID from first file - for folders, use folder name (isPdf=false)
-    const bookId = extractBookId(files[0].name, false);
+    // Determine book ID from dropped folder name, or extract from file path
+    // When a folder is drag-n-dropped, use its name directly
+    let bookId: string;
+    if (droppedFolderName) {
+      bookId = parseWorkName(droppedFolderName);
+    } else {
+      // Fallback: extract from first file's path
+      const firstFile = files[0] as File & { path?: string };
+      const rawFolderName = firstFile?.path 
+        ? extractFolderName(firstFile.path)
+        : files[0].name;
+      bookId = parseWorkName(rawFolderName);
+    }
     setCurrentBookId(bookId);
+    
+    // In Electron, File objects have a .path property with the full filesystem path
+    // For folders, use the folder path (directory containing the images)
+    const firstFile = files[0] as File & { path?: string };
+    const bookPath = firstFile?.path 
+      ? firstFile.path.split('/').slice(0, -1).join('/') 
+      : '';
+    setCurrentBookPath(bookPath);
     
     // Check for saved page position using the per-book storage key
     const savedPageIndex = loadSavedPageIndex(bookId);
@@ -720,15 +760,9 @@ export const ReaderRoute: Component = () => {
       setOcrCompletedIds(new Set<string>());
     });
     
-    // Determine title more robustly
+    // Determine title: use the folder name (stripped)
     const title = bookId || 'Imported Book';
     setBookTitle(title);
-    // In Electron, File objects have a .path property with the full filesystem path
-    // For folders, use the folder path (directory containing the images)
-    const firstFile = files[0] as File & { path?: string };
-    const bookPath = firstFile?.path 
-      ? firstFile.path.split('/').slice(0, -1).join('/') 
-      : firstFile?.name || '';
     saveToRecent(title, 'book', startPage, bookPath, newPages[0]?.blob);
   };
 
@@ -769,10 +803,11 @@ export const ReaderRoute: Component = () => {
     persistPageIndex(bookId, newPage, total);
     
     // Update recent items with current page thumbnail (every 10 pages or on last page)
+    // Use the tracked book path to preserve the filesystem path for re-opening
     const currentPages = pages();
     const shouldUpdateThumbnail = newPage % 10 === 0 || newPage === total - 1;
     const coverBlob = shouldUpdateThumbnail ? currentPages[newPage]?.blob : undefined;
-    saveToRecent(bookTitle(), 'book', newPage, '', coverBlob);
+    saveToRecent(bookTitle(), 'book', newPage, currentBookPath(), coverBlob);
   };
 
   const prevPage = () => {
@@ -905,10 +940,10 @@ export const ReaderRoute: Component = () => {
                 const currentTask = () => processingTask();
                 const isProcessing = () => {
                   const task = currentTask();
-                  return task !== null && !task.isCaching && task.page.id === page.id;
+                  return task !== null && task.page.id === page.id;
                 };
                 const isPending = () => {
-                  return ocrQueue().some(q => !q.isCaching && q.page.id === page.id);
+                  return ocrQueue().some(q => q.page.id === page.id);
                 };
                 const isWaitingForOcr = () => !ocrResults[page.id] && (isProcessing() || isPending());
                 
@@ -927,24 +962,56 @@ export const ReaderRoute: Component = () => {
                   return null;
                 };
                 
-                // Generate status text
+                // Generate status text based on page relationship to current view
+                // Follows the OCR status logic from updateOverallStatus()
                 const getStatusText = () => {
-                  if (isPending()) {
-                    return 'Pending...';
-                  }
+                  const currPageIdx = currentPage();
+                  const isDouble = pageMode() === 'double';
+                  const visibleStart = currPageIdx;
+                  const visibleEnd = isDouble ? currPageIdx + 1 : currPageIdx;
+                  const maxVisibleCount = isDouble ? 2 : 1;
+                  
                   if (isProcessing()) {
-                    const serverMsg = serverOcrMessage();
-                    if (serverMsg) {
-                      // Clean up the server message for display
-                      // "Recognition progress 13/65" -> "Recognizing 13/65"
-                      // const progressMatch = serverMsg.match(/progress\s+(\d+\s*\/\s*\d+)/i);
-                      // if (progressMatch) {
-                      // }
-                      // return serverMsg;
-                      return `Recognizing...`;
+                    const taskPageIdx = page.index;
+                    
+                    // Processing a page BEFORE current view - cleaning up old work
+                    if (taskPageIdx < visibleStart) {
+                      return 'Cleaning Up…';
                     }
-                    return 'Processing...';
+                    
+                    // Processing a VISIBLE page
+                    if (taskPageIdx >= visibleStart && taskPageIdx <= visibleEnd) {
+                      if (maxVisibleCount === 1) {
+                        // Single page mode - just show "Recognizing..."
+                        return 'Recognizing...';
+                      } else {
+                        // Double page mode - show "Processing X/Y"
+                        // const xValue = taskPageIdx - visibleStart + 1;
+                        // return `Processing ${xValue}/${maxVisibleCount}`;
+                        return `Processing...`;
+                      }
+                    }
+                    
+                    // Processing a page AFTER current view - caching
+                    const cachePageIndices = [visibleEnd + 1, visibleEnd + 2].filter(idx => idx < pages().length);
+                    const processingCacheIdx = cachePageIndices.indexOf(taskPageIdx);
+                    // const xValue = processingCacheIdx >= 0 ? processingCacheIdx + 1 : 1;
+                    // return `Caching ${xValue}/${maxVisibleCount}`;
+                    return `Caching...`;
                   }
+                  
+                  // Pending in queue - show appropriate message based on position
+                  if (isPending()) {
+                    const taskPageIdx = page.index;
+                    if (taskPageIdx < visibleStart) {
+                      return 'Cleaning Up...';
+                    }
+                    if (taskPageIdx >= visibleStart && taskPageIdx <= visibleEnd) {
+                      return 'Loading...';
+                    }
+                    return 'Queued...';
+                  }
+                  
                   return '';
                 };
                 

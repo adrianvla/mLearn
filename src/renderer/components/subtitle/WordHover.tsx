@@ -109,44 +109,42 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const isShown = createMemo(() => props.visible !== false);
 
   // Calculate width based on footer pills (like old app)
-  // Width should be min(footer pills width, 400px) - enough to fit pills on one line if possible
-  // Pills will wrap if they exceed 400px
+  // Width should be min(footer pills natural width, 400px)
+  // Pills are set to flex-wrap: nowrap, so they stay on one line
   const calculateWidth = () => {
     if (!hoverRef) return;
     
     const subtitleHover = hoverRef.querySelector('.subtitle_hover') as HTMLElement | null;
     if (!subtitleHover) return;
     
-    // Temporarily set width to auto/max-content to measure natural sizes
-    const origWidth = subtitleHover.style.width;
-    const origMaxWidth = subtitleHover.style.maxWidth;
-    subtitleHover.style.width = 'max-content';
-    subtitleHover.style.maxWidth = 'none';
+    const pillsEl = subtitleHover.querySelector('.pills') as HTMLElement | null;
     
-    const footerEl = subtitleHover.querySelector('.footer') as HTMLElement | null;
-    const pillsEl = footerEl?.querySelector('.pills') as HTMLElement | null;
-    
-    let footerWidth = 300; // default minimum
+    let pillsNaturalWidth = 280; // default minimum
     
     if (pillsEl) {
-      // Measure all pills and add padding (10px on each side + 8px gaps)
+      // Get all pill elements and sum their widths plus gaps
       const pills = pillsEl.querySelectorAll('.label-pill, .btn-pill');
-      let totalPillWidth = 20; // padding (10px each side)
-      pills.forEach(pill => {
-        totalPillWidth += (pill as HTMLElement).offsetWidth + 8; // pill width + gap
+      const gap = 4; // Matches the CSS gap: 4px
+      let totalPillWidth = 0;
+      
+      pills.forEach((pill) => {
+        const pillEl = pill as HTMLElement;
+        // Use getBoundingClientRect for accurate measurements
+        const rect = pillEl.getBoundingClientRect();
+        totalPillWidth += rect.width;
       });
-      totalPillWidth -= 8; // Remove last gap
-      footerWidth = Math.max(footerWidth, totalPillWidth);
+      
+      // Add gaps between pills (n-1 gaps for n pills)
+      const totalGaps = pills.length > 1 ? (pills.length - 1) * gap : 0;
+      
+      // Add footer padding (10px each side = 20px total)
+      pillsNaturalWidth = Math.ceil(totalPillWidth + totalGaps + 20);
     }
     
-    // Restore original styles
-    subtitleHover.style.width = origWidth;
-    subtitleHover.style.maxWidth = origMaxWidth;
-    
-    // Width is min(footerWidth, 400px) - capped at 400px, pills wrap if needed
+    // Width is min(pillsNaturalWidth, 400px) - capped at 400px
     // Also respect viewport constraints
     const maxAllowed = Math.min(400, (typeof window !== 'undefined' ? window.innerWidth - 32 : 400));
-    const newWidth = Math.min(maxAllowed, Math.max(300, footerWidth));
+    const newWidth = Math.min(maxAllowed, Math.max(280, pillsNaturalWidth));
     setCalculatedWidth(newWidth);
     
     // Also update stable height for positioning (only when not locked)

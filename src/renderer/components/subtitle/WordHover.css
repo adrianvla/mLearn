@@ -7,15 +7,15 @@
 @import url('../common/Label/Label.css');
 @import url('../common/Text/PitchAccent.css');
 
-/* Main container - width driven by JS based on max(content, footer) */
+/* Main container - width driven by JS based on min(pills width, 400px) */
 .word-hover-container {
   position: fixed;
   z-index: 1000;
   pointer-events: auto;
-  max-width: 90vw;
+  /* Width is set by JS, no need for max-width here */
 }
 
-/* Hover popup */
+/* Hover popup - fills the container width set by JS */
 .subtitle_hover {
   position: relative;
   height: max-content;
@@ -42,7 +42,8 @@
   text-shadow: none !important;
   gap: 10px;
   -webkit-text-stroke: unset !important;
-  width: max-content;
+  /* Take full width of container - JS controls the container width */
+  width: 100%;
   min-width: 280px;
 }
 
@@ -125,12 +126,12 @@
 }
 
 
-/* Pills container in hover - wrap if needed to fit within max width */
+/* Pills container in hover - no wrap, container width expands to fit */
 .subtitle_hover .pills {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  width: 100%;
+  gap: 4px; /* Compact gap to save space */
+  flex-wrap: nowrap;
+  width: max-content;
   align-items: center;
   overflow: visible;
   justify-content: flex-start;
@@ -138,17 +139,23 @@
 
 /* Pill sizing inside hover - inherits colors from Label.css */
 .subtitle_hover .label-pill {
-  font-size: 0.8em;
+  font-size: 0.7em; /* Compact size for hover footer */
   height: auto; /* Let height be determined by content + padding */
-  padding: 5px 10px;
+  padding: 3px 6px; /* Compact padding */
+  border-radius: 6px;
+  white-space: nowrap; /* Prevent wrapping inside pills */
+  flex-shrink: 0;
 }
 
 /* PillBtn sizing inside hover - match label-pill height exactly */
 .subtitle_hover .btn-pill {
-  font-size: 0.8em;
-  padding: 5px 10px;
+  font-size: 0.7em; /* Match label-pill */
+  padding: 3px 6px; /* Match label-pill */
   height: auto;
   min-height: unset;
+  border-radius: 6px;
+  white-space: nowrap; /* Prevent wrapping inside pills */
+  flex-shrink: 0;
 }
 
 /* Icon styling inside pills - consistent for both label and btn */
@@ -160,7 +167,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-right: 5px;
+  margin-right: 3px; /* Compact margin */
   background: none !important;
   /* Prevent blur from parent transforms/filters */
   transform: translateZ(0);
@@ -174,8 +181,8 @@
 .subtitle_hover .btn-icon svg,
 .subtitle_hover .label-svg-icon,
 .subtitle_hover .btn-svg-icon {
-  width: 20px;
-  height: 20px;
+  width: 12px; /* Compact icons for hover pills */
+  height: 12px;
   background: none !important; /* Remove any background from icons */
   /* Crisp rendering for icons */
   image-rendering: crisp-edges;

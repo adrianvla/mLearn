@@ -151,6 +151,11 @@ const RingContent: Component<{
   });
   const progressValue = createMemo(() => Math.round(props.progress));
   
+  // Keep the status text element in the DOM but hide it when empty
+  // This prevents layout jumps during fade animations
+  const displayText = () => props.statusText || props.text || '';
+  const hasText = () => !!(props.statusText || props.text);
+  
   return (
     <div class="loader-ring">
       <div 
@@ -184,9 +189,18 @@ const RingContent: Component<{
               <span class="loader-ring-percent">{progressValue()}%</span>
           </Show>
       </div>
-        <Show when={props.statusText || props.text}>
-            <span class="loader-text">{props.statusText || props.text}</span>
-        </Show>
+      {/* Keep statusText in DOM but use visibility to hide it when empty */}
+      {/* This prevents layout jumps during fade-out animations */}
+      <span 
+        class="loader-text"
+        style={{ 
+          visibility: hasText() ? 'visible' : 'hidden',
+          opacity: hasText() ? 1 : 0,
+          transition: 'opacity 0.3s ease-out'
+        }}
+      >
+        {displayText() || '\u00A0'} {/* Non-breaking space to maintain height when empty */}
+      </span>
     </div>
   );
 };

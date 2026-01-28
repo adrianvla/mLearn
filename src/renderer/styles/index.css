@@ -24,6 +24,7 @@
   --accent-bg: rgba(255, 255, 255, 0.2);
   --accent: rgba(255, 255, 255, 0.8);
   --theme-backdrop-filter: blur(10px) saturate(2) brightness(1.1);
+  --theme-backdrop-filter-nodim: blur(10px) saturate(2) brightness(1.1);
   --border-color: rgba(85, 85, 85, 0.15);
   --bg-intense: rgba(85, 85, 85, 0.15);
   --border-color-intense: rgba(85, 85, 85, 0.25);

@@ -33,8 +33,14 @@ export const VideoRoute: Component = () => {
     const pendingVideo = sessionStorage.getItem('mlearn_open_video');
     if (pendingVideo) {
       sessionStorage.removeItem('mlearn_open_video');
-      setVideoSrc(`file://${pendingVideo}`);
-      setShowDropZone(false);
+      // Only load if we have an actual path
+      if (pendingVideo.trim()) {
+        setVideoSrc(`file://${pendingVideo}`);
+        setShowDropZone(false);
+        // Extract video name from path
+        const videoName = pendingVideo.split('/').pop() || pendingVideo.split('\\').pop() || 'Video';
+        setCurrentVideoName(videoName);
+      }
     }
 
     // Setup IPC listeners
@@ -115,14 +121,16 @@ export const VideoRoute: Component = () => {
       const ext = file.name.split('.').pop()?.toLowerCase();
       
       if (['mp4', 'webm', 'mkv', 'avi', 'mov'].includes(ext || '')) {
-        const url = URL.createObjectURL(file);
+        // In Electron, File objects have a .path property with the full filesystem path
+        const filePath = (file as File & { path?: string }).path || '';
+        const url = filePath ? `file://${filePath}` : URL.createObjectURL(file);
         setVideoSrc(url);
         setShowDropZone(false);
         setCurrentVideoName(file.name);
         saveToRecentItems({
           type: 'video',
           name: file.name,
-          path: '',
+          path: filePath,
           progress: 0,
         });
       }
@@ -151,14 +159,16 @@ export const VideoRoute: Component = () => {
       input.onchange = async () => {
         const file = input.files?.[0];
         if (file) {
-          const url = URL.createObjectURL(file);
+          // In Electron, File objects have a .path property with the full filesystem path
+          const filePath = (file as File & { path?: string }).path || '';
+          const url = filePath ? `file://${filePath}` : URL.createObjectURL(file);
           setVideoSrc(url);
           setShowDropZone(false);
           setCurrentVideoName(file.name);
           saveToRecentItems({
             type: 'video',
             name: file.name,
-            path: '',
+            path: filePath,
             progress: 0,
           });
         }
@@ -174,8 +184,16 @@ export const VideoRoute: Component = () => {
     });
 
     if (path) {
+      const videoName = path.split('/').pop() || path.split('\\').pop() || 'Video';
       setVideoSrc(`file://${path}`);
       setShowDropZone(false);
+      setCurrentVideoName(videoName);
+      saveToRecentItems({
+        type: 'video',
+        name: videoName,
+        path: path,
+        progress: 0,
+      });
     }
   };
 
