@@ -6,7 +6,7 @@ interface Cross2Props {
 }
 
 const Cross2: Component<Cross2Props> = (props) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class={props.class} xmlns="http://www.w3.org/2000/svg" transform="rotate(45)">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class={props.class} xmlns="http://www.w3.org/2000/svg" style={{ transform: 'rotate(45deg)' }}>
     <g id="SVGRepo_bgCarrier" stroke-width="0"/>
     <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"/>
     <g id="SVGRepo_iconCarrier">

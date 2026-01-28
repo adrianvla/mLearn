@@ -111,6 +111,10 @@ export const IPC_CHANNELS = {
   
   // LocalStorage sync
   SEND_LS: 'send-ls',
+  
+  // File operations
+  READ_DIRECTORY_IMAGES: 'read-directory-images',
+  READ_PDF_FILE: 'read-pdf-file',
 } as const;
 
 // Window types

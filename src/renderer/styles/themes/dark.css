@@ -88,9 +88,13 @@ body.dark .btn-pill {
     rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
 }
 
-/* Ensure icons inside pills are not double-inverted */
+/* Ensure icons inside pills are not double-inverted (applies to both img and SVG) */
 body.dark .label-pill .label-icon img,
-body.dark .btn-pill .btn-icon img {
+body.dark .btn-pill .btn-icon img,
+body.dark .label-pill .label-icon svg,
+body.dark .btn-pill .btn-icon svg,
+body.dark .label-pill .label-svg-icon,
+body.dark .btn-pill .btn-svg-icon {
     filter: invert(1) hue-rotate(180deg); /* counter the parent invert */
     background: transparent;
 }

@@ -1,7 +1,7 @@
 import { Component } from 'solid-js';
 import './RangeInput.css';
 
-interface RangeInputProps {
+export interface RangeInputProps {
   min?: number;
   max?: number;
   value: number;
@@ -9,6 +9,7 @@ interface RangeInputProps {
   step?: number;
   disabled?: boolean;
   class?: string;
+  style?: import('solid-js').JSX.CSSProperties;
 }
 
 export const RangeInput: Component<RangeInputProps> = (props) => {
@@ -27,6 +28,7 @@ export const RangeInput: Component<RangeInputProps> = (props) => {
       step={props.step ?? 1}
       disabled={props.disabled ?? false}
       class={`range-input ${props.class ?? ''}`}
+      style={props.style}
     />
   );
 };

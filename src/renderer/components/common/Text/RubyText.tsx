@@ -6,17 +6,8 @@
 
 import { Component, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js/jsx-runtime';
+import { containsKanji, isAllKana } from '../../../../shared/utils/textUtils';
 import './RubyText.css';
-
-// Check if a word contains kanji (needs furigana)
-function containsKanji(word: string): boolean {
-  return /[\u4e00-\u9faf\u3400-\u4dbf]/.test(word);
-}
-
-// Check if word is all kana (no need for furigana)
-function isAllKana(word: string): boolean {
-  return /^[\u3040-\u309f\u30a0-\u30ff\u31f0-\u31ff\s]+$/.test(word);
-}
 
 export interface RubyTextProps {
   /** The word to display (kanji or mixed) */

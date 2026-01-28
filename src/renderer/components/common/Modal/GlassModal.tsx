@@ -7,6 +7,7 @@ import { Component, JSX, Show, createEffect, onCleanup, splitProps, mergeProps }
 import { Portal } from 'solid-js/web';
 import { GlassPanel } from '../Panel';
 import { IconBtn } from '../Button';
+import { CloseIcon } from '../Misc/Icons';
 
 export interface GlassModalProps {
   isOpen: boolean;
@@ -95,30 +96,24 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
     left: '0',
     right: '0',
     bottom: '0',
-    'background-color': 'rgba(0, 0, 0, 0.6)',
+    'background-color': 'var(--overlay-bg)',
     display: 'flex',
     'align-items': 'center',
     'justify-content': 'center',
-    padding: '1rem',
-    'z-index': '1000',
-    animation: 'fadeIn 0.2s ease',
+    padding: 'var(--spacing-4)',
+    'z-index': 'var(--z-modal)',
+    animation: 'fadeIn var(--transition-normal)',
   });
 
   const modalStyle = (): JSX.CSSProperties => ({
     'max-width': getMaxWidth(),
     width: '100%',
-    'max-height': local.fullHeight ? 'calc(100vh - 2rem)' : local.size === 'full' ? 'calc(100vh - 2rem)' : '90vh',
-    height: local.fullHeight ? 'calc(100vh - 2rem)' : 'auto',
+    'max-height': local.fullHeight ? 'calc(100vh - var(--spacing-8))' : local.size === 'full' ? 'calc(100vh - var(--spacing-8))' : '90vh',
+    height: local.fullHeight ? 'calc(100vh - var(--spacing-8))' : 'auto',
     display: 'flex',
     'flex-direction': 'column',
-    animation: 'slideUp 0.2s ease',
+    animation: 'slideUp var(--transition-normal)',
   });
-
-  const CloseIcon = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
-  );
 
   return (
     <Show when={local.isOpen}>
@@ -145,17 +140,17 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
                   display: 'flex',
                   'align-items': 'flex-start',
                   'justify-content': 'space-between',
-                  padding: '1rem 1.5rem',
+                  padding: 'var(--spacing-4) var(--spacing-6)',
                   'border-bottom': '1px solid var(--border-color)',
                 }}
               >
-                <div style={{ display: 'flex', 'flex-direction': 'column', gap: '0.25rem' }}>
+                <div style={{ display: 'flex', 'flex-direction': 'column', gap: 'var(--spacing-1)' }}>
                   <Show when={local.title}>
                     <h2
                       style={{
                         margin: '0',
-                        'font-size': '1.25rem',
-                        'font-weight': '600',
+                        'font-size': 'var(--font-size-xl)',
+                        'font-weight': 'var(--font-weight-semibold)',
                         color: 'var(--text-primary)',
                       }}
                     >
@@ -166,7 +161,7 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
                     <p
                       style={{
                         margin: '0',
-                        'font-size': '0.875rem',
+                        'font-size': 'var(--font-size-sm)',
                         color: 'var(--text-secondary)',
                       }}
                     >
@@ -180,7 +175,7 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
                     size="sm"
                     aria-label="Close modal"
                     onClick={local.onClose}
-                    style={{ 'margin-left': '1rem', 'flex-shrink': 0 }}
+                    style={{ 'margin-left': 'var(--spacing-4)', 'flex-shrink': 0 }}
                   >
                     <CloseIcon />
                   </IconBtn>
@@ -193,7 +188,7 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
               style={{
                 flex: '1',
                 overflow: 'auto',
-                padding: '1.5rem',
+                padding: 'var(--spacing-6)',
               }}
             >
               {local.children}
@@ -206,8 +201,8 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
                   display: 'flex',
                   'align-items': 'center',
                   'justify-content': 'flex-end',
-                  gap: '0.75rem',
-                  padding: '1rem 1.5rem',
+                  gap: 'var(--spacing-3)',
+                  padding: 'var(--spacing-4) var(--spacing-6)',
                   'border-top': '1px solid var(--border-color)',
                 }}
               >
@@ -221,64 +216,5 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
   );
 };
 
-// Confirmation dialog helper
-export interface ConfirmDialogProps {
-  isOpen: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-  title: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-  variant?: 'default' | 'danger';
-}
-
-export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
-  const merged = mergeProps(
-    {
-      confirmText: 'Confirm',
-      cancelText: 'Cancel',
-      variant: 'default' as const,
-    },
-    props
-  );
-
-  return (
-    <GlassModal
-      isOpen={merged.isOpen}
-      onClose={merged.onCancel}
-      title={merged.title}
-      size="sm"
-      footer={
-        <>
-          <button
-            class="glass-button"
-            onClick={merged.onCancel}
-            style={{
-              padding: '0.5rem 1rem',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            {merged.cancelText}
-          </button>
-          <button
-            class={merged.variant === 'danger' ? 'glass-button-danger' : 'glass-button-primary'}
-            onClick={merged.onConfirm}
-            style={{
-              padding: '0.5rem 1rem',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            {merged.confirmText}
-          </button>
-        </>
-      }
-    >
-      <p style={{ margin: '0', color: 'var(--text-secondary)' }}>
-        {merged.message}
-      </p>
-    </GlassModal>
-  );
-};
+// Note: ConfirmDialog has been moved to ./ConfirmDialog.tsx for better modularity
+// Import it from there: import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';

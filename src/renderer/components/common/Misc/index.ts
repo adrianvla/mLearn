@@ -3,6 +3,39 @@
  */
 
 export { IconRenderer, type IconRendererProps } from './IconRenderer';
+export {
+  CloseIcon,
+  CrossIcon,
+  CheckIcon,
+  CheckCircleIcon,
+  WarningIcon,
+  InfoIcon,
+  ErrorIcon,
+  PlusIcon,
+  MinusIcon,
+  EditIcon,
+  TrashIcon,
+  SettingsIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  PlayIcon,
+  PauseIcon,
+  VolumeIcon,
+  BotIcon,
+  FolderIcon,
+  FileIcon,
+  SearchIcon,
+  RefreshIcon,
+  ExternalLinkIcon,
+  CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
+  type IconProps,
+} from './Icons';
 export { LegendItem, type LegendItemProps } from './LegendItem';
 export { 
   KeyboardShortcut, 

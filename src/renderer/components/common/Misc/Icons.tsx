@@ -1,0 +1,238 @@
+/**
+ * Shared SVG Icons
+ * Common icons used across the application
+ * Reduces duplication and ensures consistent styling
+ */
+
+import { Component, JSX, splitProps } from 'solid-js';
+
+export interface IconProps extends JSX.SvgSVGAttributes<SVGSVGElement> {
+  /** Size in pixels (applies to both width and height) */
+  size?: number;
+  /** Stroke color */
+  color?: string;
+}
+
+const createIcon = (
+  paths: string | string[],
+  defaultProps?: Partial<JSX.SvgSVGAttributes<SVGSVGElement>>
+): Component<IconProps> => {
+  return (props) => {
+    const [local, svgProps] = splitProps(props, ['size', 'color']);
+    const pathsArray = Array.isArray(paths) ? paths : [paths];
+    
+    return (
+      <svg
+        width={local.size ?? 20}
+        height={local.size ?? 20}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={local.color ?? 'currentColor'}
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        {...defaultProps}
+        {...svgProps}
+      >
+        {pathsArray.map((d) => <path d={d} />)}
+      </svg>
+    );
+  };
+};
+
+// ============ Close/Remove Icons ============
+
+/** X icon - close, remove, cancel */
+export const CloseIcon = createIcon('M18 6L6 18M6 6l12 12');
+
+/** X icon (alternative) - thinner */
+export const CrossIcon = createIcon(['M6 6l12 12', 'M6 18L18 6']);
+
+// ============ Status Icons ============
+
+/** Checkmark - success, complete, done */
+export const CheckIcon = createIcon('M20 6L9 17l-5-5');
+
+/** Circle with checkmark */
+export const CheckCircleIcon = createIcon([
+  'M22 11.08V12a10 10 0 1 1-5.93-9.14',
+  'M22 4L12 14.01l-3-3',
+]);
+
+/** Warning triangle */
+export const WarningIcon = createIcon([
+  'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z',
+  'M12 9v4',
+  'M12 17h.01',
+]);
+
+/** Info circle */
+export const InfoIcon = createIcon([
+  'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z',
+  'M12 16v-4',
+  'M12 8h.01',
+]);
+
+/** Error/Alert circle */
+export const ErrorIcon = createIcon([
+  'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z',
+  'M15 9l-6 6',
+  'M9 9l6 6',
+]);
+
+// ============ Action Icons ============
+
+/** Plus icon - add, new */
+export const PlusIcon = createIcon(['M12 5v14', 'M5 12h14']);
+
+/** Minus icon - remove, subtract */
+export const MinusIcon = createIcon('M5 12h14');
+
+/** Edit/Pencil icon */
+export const EditIcon = createIcon([
+  'M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z',
+]);
+
+/** Trash/Delete icon */
+export const TrashIcon = createIcon([
+  'M3 6h18',
+  'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2',
+]);
+
+/** Settings/Gear icon */
+export const SettingsIcon = createIcon([
+  'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z',
+]);
+
+// ============ Navigation Icons ============
+
+/** Chevron left - back, previous */
+export const ChevronLeftIcon = createIcon('M15 18l-6-6 6-6');
+
+/** Chevron right - next, forward */
+export const ChevronRightIcon = createIcon('M9 18l6-6-6-6');
+
+/** Chevron up */
+export const ChevronUpIcon = createIcon('M18 15l-6-6-6 6');
+
+/** Chevron down */
+export const ChevronDownIcon = createIcon('M6 9l6 6 6-6');
+
+/** Arrow left */
+export const ArrowLeftIcon = createIcon(['M19 12H5', 'M12 19l-7-7 7-7']);
+
+/** Arrow right */
+export const ArrowRightIcon = createIcon(['M5 12h14', 'M12 5l7 7-7 7']);
+
+// ============ Media Icons ============
+
+/** Play icon */
+export const PlayIcon = createIcon('M5 3l14 9-14 9V3z');
+
+/** Pause icon */
+export const PauseIcon = createIcon(['M6 4h4v16H6z', 'M14 4h4v16h-4z']);
+
+/** Volume/Speaker icon */
+export const VolumeIcon = createIcon([
+  'M11 5L6 9H2v6h4l5 4V5z',
+  'M19.07 4.93a10 10 0 0 1 0 14.14',
+  'M15.54 8.46a5 5 0 0 1 0 7.07',
+]);
+
+// ============ AI/Bot Icons ============
+
+/** Bot/AI icon */
+export const BotIcon = createIcon([
+  'M12 8V4H8',
+  'M4.93 11.48l4.36-2.17L12 12l-2.71 2.69-4.36-2.17 2.34-4.64',
+  'M2.19 16.7l4.36 2.17L12 12l2.71-2.69 4.36 2.17-2.34 4.64',
+  'M12 12l5.29 2.63 1.58 4.64-4.36 2.17L12 16.9V12z',
+  'M12 12L6.71 9.37l-1.58-4.64 4.36-2.17L12 7.1V12z',
+]);
+
+// ============ File/Folder Icons ============
+
+/** Folder icon */
+export const FolderIcon = createIcon(
+  'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'
+);
+
+/** File icon */
+export const FileIcon = createIcon([
+  'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z',
+  'M14 2v6h6',
+]);
+
+// ============ Utility Icons ============
+
+/** Search/Magnifying glass */
+export const SearchIcon = createIcon([
+  'M11 17a6 6 0 1 0 0-12 6 6 0 0 0 0 12z',
+  'M21 21l-4.35-4.35',
+]);
+
+/** Refresh/Reload */
+export const RefreshIcon = createIcon([
+  'M23 4v6h-6',
+  'M1 20v-6h6',
+  'M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15',
+]);
+
+/** External link */
+export const ExternalLinkIcon = createIcon([
+  'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6',
+  'M15 3h6v6',
+  'M10 14L21 3',
+]);
+
+/** Copy/Clipboard */
+export const CopyIcon = createIcon([
+  'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2',
+  'M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z',
+]);
+
+/** Eye/View */
+export const EyeIcon = createIcon([
+  'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z',
+  'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+]);
+
+/** Eye off/Hide */
+export const EyeOffIcon = createIcon([
+  'M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24',
+  'M1 1l22 22',
+]);
+
+export default {
+  CloseIcon,
+  CrossIcon,
+  CheckIcon,
+  CheckCircleIcon,
+  WarningIcon,
+  InfoIcon,
+  ErrorIcon,
+  PlusIcon,
+  MinusIcon,
+  EditIcon,
+  TrashIcon,
+  SettingsIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  PlayIcon,
+  PauseIcon,
+  VolumeIcon,
+  BotIcon,
+  FolderIcon,
+  FileIcon,
+  SearchIcon,
+  RefreshIcon,
+  ExternalLinkIcon,
+  CopyIcon,
+  EyeIcon,
+  EyeOffIcon,
+};

@@ -27,18 +27,23 @@ const SETTINGS_CHANNEL = 'mlearn-settings';
 export const SettingsProvider: ParentComponent = (props) => {
   const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS });
   const [isLoading, setIsLoading] = createSignal(true);
+  // Track whether settings have been loaded from disk at least once
+  // This prevents saving default values before real settings are loaded
+  const [hasLoaded, setHasLoaded] = createSignal(false);
   
   let broadcastChannel: BroadcastChannel | null = null;
 
   // Load settings from main process
   const loadSettings = () => {
     if (typeof window !== 'undefined' && window.mLearnIPC) {
-      window.mLearnIPC.getSettings();
+      // Set up listener BEFORE sending request to avoid race condition
       window.mLearnIPC.onSettings((loadedSettings) => {
         setSettings(reconcile(loadedSettings));
         setIsLoading(false);
+        setHasLoaded(true);
         applySettingsToDOM(loadedSettings);
       });
+      window.mLearnIPC.getSettings();
     } else {
       // In tethered mode, load from API
       fetch('/api/settings')
@@ -46,10 +51,12 @@ export const SettingsProvider: ParentComponent = (props) => {
         .then(loadedSettings => {
           setSettings(reconcile(loadedSettings));
           setIsLoading(false);
+          setHasLoaded(true);
           applySettingsToDOM(loadedSettings);
         })
         .catch(() => {
           setIsLoading(false);
+          setHasLoaded(true);
         });
     }
   };
@@ -77,7 +84,8 @@ export const SettingsProvider: ParentComponent = (props) => {
       (s as any)[key] = value;
     }));
     applySettingsToDOM(settings);
-    broadcastSettingsUpdate();
+    // Auto-save after update
+    saveSettings();
   };
 
   // Update multiple settings
@@ -86,13 +94,24 @@ export const SettingsProvider: ParentComponent = (props) => {
       Object.assign(s, partial);
     }));
     applySettingsToDOM(settings);
-    broadcastSettingsUpdate();
+    // Auto-save after update
+    saveSettings();
   };
 
   // Save settings to main process
   const saveSettings = () => {
+    // CRITICAL: Don't save until we've loaded settings from disk
+    // This prevents overwriting user settings with defaults during app startup
+    if (!hasLoaded()) {
+      console.warn('[Settings] Skipping save - settings not yet loaded from disk');
+      return;
+    }
+    
     if (typeof window !== 'undefined' && window.mLearnIPC) {
-      window.mLearnIPC.saveSettings(settings);
+      // Must serialize the store to a plain object before sending via IPC
+      // SolidJS stores are proxies that can't be cloned directly
+      const serializedSettings = JSON.parse(JSON.stringify(settings)) as Settings;
+      window.mLearnIPC.saveSettings(serializedSettings);
     }
     broadcastSettingsUpdate();
   };
