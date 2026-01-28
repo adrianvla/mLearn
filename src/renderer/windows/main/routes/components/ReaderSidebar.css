@@ -62,11 +62,14 @@
   position: absolute;
   bottom: 4px;
   right: 4px;
-  font-size: var(--spacing-3);
+  font-size: var(--font-size-xs);
   background: var(--bg);
   backdrop-filter: var(--theme-backdrop-filter);
   border: 1px solid var(--border-color);
-  padding: 2px 6px;
+  padding: 0.125rem 0.375rem;
+  min-height:0;
+  height:unset;
+  box-sizing: border-box;
   border-radius: var(--radius-sm);
   color: var(--text-primary);
 }
@@ -79,4 +82,8 @@
   height: 8px;
   background: var(--accent-primary);
   border-radius: var(--radius-full);
+  box-sizing: border-box;
+  display:block;
+  padding:0;
+  box-shadow: var(--shadow-2xl);
 }

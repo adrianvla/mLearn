@@ -16,6 +16,7 @@
   right: 0;
   z-index: 100;
   font-size: var(--font-size-sm);
+  user-select: none;
 }
 
 .reader-status .book-title {
@@ -54,12 +55,6 @@
   overflow: hidden;
 }
 
-.reader-status .ocr-progress .bar {
-  height: 100%;
-  background: var(--accent-primary);
-  transition: width 0.3s;
-}
-
 .reader-status .ocr-progress-text {
   font-size: 0.75rem;
   color: var(--text-secondary);
@@ -67,7 +62,6 @@
 }
 
 .reader-status .ocr-status.active {
-  color: var(--accent-primary);
   animation: status-pulse 1.5s ease-in-out infinite;
 }
 
