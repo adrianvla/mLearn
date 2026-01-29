@@ -21,13 +21,16 @@ const LONG_HOVER_DELAY = 500;
 export const OcrWord: Component<OcrWordProps> = (props) => {
   const { settings } = useSettings();
   
+  // Reference to the word span element - used to get stable getBoundingClientRect
+  // This is necessary because event.currentTarget becomes null after event handlers return,
+  // but we need the rect for delayed triggers (long-hover timeout, key-hover on keydown)
+  let wordRef: HTMLSpanElement | undefined;
+  
   // For long-hover mode: track timeout
   let longHoverTimeout: ReturnType<typeof setTimeout> | null = null;
   // For key-hover mode: track if key is held and mouse is over word
   const [isMouseOver, setIsMouseOver] = createSignal(false);
   const [isKeyHeld, setIsKeyHeld] = createSignal(false);
-  // Track the event for key-hover mode
-  let lastMouseEvent: MouseEvent | null = null;
   
   const clearLongHoverTimeout = () => {
     if (longHoverTimeout) {
@@ -36,28 +39,35 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     }
   };
   
-  const triggerHover = (e: MouseEvent) => {
-    props.onWordEnter?.(props.token, e);
+  // Trigger hover using the stable element reference
+  // Creates a synthetic event-like object with the element as currentTarget
+  const triggerHoverFromElement = () => {
+    if (!wordRef) return;
+    // Create a minimal event-like object with currentTarget set to our stable reference
+    // We only need currentTarget for getBoundingClientRect() in the handler
+    const syntheticEvent = {
+      currentTarget: wordRef,
+    } as unknown as MouseEvent;
+    props.onWordEnter?.(props.token, syntheticEvent);
   };
   
   const handleMouseEnter = (e: MouseEvent) => {
-    lastMouseEvent = e;
     setIsMouseOver(true);
     
     const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
     
     switch (triggerMode) {
       case 'hover':
-        // Immediate hover - trigger right away
-        triggerHover(e);
+        // Immediate hover - trigger right away using the live event
+        props.onWordEnter?.(props.token, e);
         break;
         
       case 'long-hover':
-        // Long hover - trigger after delay
+        // Long hover - trigger after delay using element reference
         clearLongHoverTimeout();
         longHoverTimeout = setTimeout(() => {
           if (isMouseOver()) {
-            triggerHover(e);
+            triggerHoverFromElement();
           }
         }, LONG_HOVER_DELAY);
         break;
@@ -65,25 +75,22 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
       case 'key-hover':
         // Key hover - only trigger if key is already held
         if (isKeyHeld()) {
-          triggerHover(e);
+          props.onWordEnter?.(props.token, e);
         }
         break;
     }
   };
   
   const handleMouseMove = (e: MouseEvent) => {
-    lastMouseEvent = e;
-    
     // In key-hover mode with key held, behave like normal hover
     const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
     if (triggerMode === 'key-hover' && isKeyHeld() && isMouseOver()) {
-      triggerHover(e);
+      props.onWordEnter?.(props.token, e);
     }
   };
   
   const handleMouseLeave = () => {
     setIsMouseOver(false);
-    lastMouseEvent = null;
     clearLongHoverTimeout();
     props.onWordLeave?.();
   };
@@ -96,9 +103,9 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     const targetKey = settings.readerWordHoverKey ?? 'Shift';
     if (e.key === targetKey && !isKeyHeld()) {
       setIsKeyHeld(true);
-      // If mouse is already over this word, trigger hover
-      if (isMouseOver() && lastMouseEvent) {
-        triggerHover(lastMouseEvent);
+      // If mouse is already over this word, trigger hover using element reference
+      if (isMouseOver()) {
+        triggerHoverFromElement();
       }
     }
   };
@@ -131,6 +138,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   
   return (
     <span
+      ref={wordRef}
       class="ocr-word"
       onMouseEnter={handleMouseEnter}
       onMouseMove={handleMouseMove}

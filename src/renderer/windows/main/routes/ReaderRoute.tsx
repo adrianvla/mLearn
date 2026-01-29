@@ -668,7 +668,6 @@ export const ReaderRoute: Component = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') prevPage();
       if (e.key === 'ArrowRight') nextPage();
-      if (e.key === 'Escape') navigate('/');
       if (e.key === 'o' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         runOcr();
