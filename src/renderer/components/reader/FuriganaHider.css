@@ -1,0 +1,28 @@
+/**
+ * Furigana Hider Styles
+ * White rectangles that cover furigana and reveal on hover
+ */
+
+.furigana-hider-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 15; /* Above OCR overlay boxes */
+}
+
+.furigana-hider-box {
+  position: absolute;
+  background-color: white;
+  pointer-events: auto;
+  cursor: default;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+  border-radius: 1px;
+  /* Slight shadow to make it stand out on white backgrounds */
+  box-shadow: 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.furigana-hider-box:hover {
+  opacity: 0;
+}
