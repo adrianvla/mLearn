@@ -48,28 +48,26 @@
 }
 
 .reader-status .hover-trigger-select {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0;
+  color: var(--text-primary);
   font-size: 0.75rem;
   padding: 2px 6px;
   cursor: pointer;
   outline: none;
-  transition: border-color 0.2s;
+  transition: all var(--transition-fast);
+  box-sizing: border-box;
 }
 
 .reader-status .hover-trigger-select:hover {
-  border-color: var(--accent);
-}
-
-.reader-status .hover-trigger-select:focus {
-  border-color: var(--accent);
+  border-color: var(--border-color);
+  background: var(--bg);
 }
 
 .reader-status .hover-trigger-select option {
   background: var(--bg);
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .reader-status .ocr-section {

@@ -21,11 +21,14 @@ interface ReaderStatusBarProps {
   onRunOcr: () => void;
 }
 
-/** Labels for hover trigger modes - language agnostic */
-const HOVER_TRIGGER_LABELS: Record<WordHoverTriggerMode, string> = {
-  'hover': 'Hover',
-  'long-hover': 'Long Hover',
-  'key-hover': 'Key + Hover',
+/** Get label for hover trigger mode - dynamically includes the configured key for key-hover mode */
+const getHoverTriggerLabel = (mode: WordHoverTriggerMode, key: string): string => {
+  switch (mode) {
+    case 'hover': return 'Hover';
+    case 'long-hover': return 'Long Hover';
+    case 'key-hover': return `${key} + Hover`;
+    default: return mode;
+  }
 };
 
 export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
@@ -69,16 +72,16 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
       
       {/* Word Hover Trigger Mode Select */}
       <div class="hover-trigger-section">
-        <label class="hover-trigger-label">Select:</label>
+        <label class="hover-trigger-label">Show Tooltip On:</label>
         <select 
           class="hover-trigger-select"
           value={currentTriggerMode()}
           onChange={handleTriggerModeChange}
           title="How word hover is triggered"
         >
-          <option value="hover">{HOVER_TRIGGER_LABELS['hover']}</option>
-          <option value="long-hover">{HOVER_TRIGGER_LABELS['long-hover']}</option>
-          <option value="key-hover">{`${currentKey()} + Hover`}</option>
+          <option value="hover">{getHoverTriggerLabel('hover', currentKey())}</option>
+          <option value="long-hover">{getHoverTriggerLabel('long-hover', currentKey())}</option>
+          <option value="key-hover">{getHoverTriggerLabel('key-hover', currentKey())}</option>
         </select>
       </div>
       

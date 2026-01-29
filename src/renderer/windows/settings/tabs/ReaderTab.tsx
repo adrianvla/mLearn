@@ -104,7 +104,7 @@ export const ReaderTab: Component = () => {
           >
             <option value="hover">Hover (immediate)</option>
             <option value="long-hover">Long Hover (500ms delay)</option>
-            <option value="key-hover">Key + Hover</option>
+            <option value="key-hover">{`${settings.readerWordHoverKey ?? 'Shift'} + Hover`}</option>
           </select>
         </SettingRow>
         

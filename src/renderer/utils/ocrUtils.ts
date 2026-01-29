@@ -106,6 +106,92 @@ function verticalGap(infoA: BoxMetrics, infoB: BoxMetrics): number {
 }
 
 // ============================================================================
+// Zone Detection (Spatial Clustering)
+// ============================================================================
+
+/**
+ * Cluster boxes into spatially connected zones based on proximity and orientation.
+ * Boxes in the same zone are likely part of the same speech bubble or text block.
+ * This enables zone-local processing (e.g., furigana detection) that doesn't get
+ * confused by boxes in other parts of the page with very different sizes.
+ * 
+ * @param metrics Array of box metrics
+ * @returns Array of zones, where each zone is an array of metrics indices
+ */
+function clusterBoxesIntoZones(metrics: BoxMetrics[]): number[][] {
+  if (metrics.length === 0) return [];
+  
+  // Build adjacency graph based on spatial proximity and orientation
+  const neighbors = new Map<number, number[]>();
+  
+  for (let i = 0; i < metrics.length; i++) {
+    const info = metrics[i];
+    const adj: number[] = [];
+    
+    for (let j = 0; j < metrics.length; j++) {
+      if (i === j) continue;
+      const other = metrics[j];
+      
+      // Skip if different orientations
+      if (info.orientation !== other.orientation) continue;
+      
+      if (info.orientation === 'vertical') {
+        // For vertical text: check horizontal overlap and vertical gap
+        const overlapRatio = overlapAmount(info.minY, info.maxY, other.minY, other.maxY) 
+          / Math.max(1, Math.min(info.height, other.height));
+        const gapRatio = horizontalGap(info, other) 
+          / Math.max(1, (info.width + other.width) / 2);
+        
+        if (overlapRatio >= 0.3 && gapRatio <= 1.8) {
+          adj.push(j);
+        }
+      } else {
+        // For horizontal text: check vertical overlap and horizontal gap
+        const overlapRatio = overlapAmount(info.minX, info.maxX, other.minX, other.maxX) 
+          / Math.max(1, Math.min(info.width, other.width));
+        const gapRatio = verticalGap(info, other) 
+          / Math.max(1, (info.height + other.height) / 2);
+        
+        if (overlapRatio >= 0.25 && gapRatio <= 1.5) {
+          adj.push(j);
+        }
+      }
+    }
+    
+    neighbors.set(i, adj);
+  }
+  
+  // Find connected components using DFS
+  const visited = new Set<number>();
+  const zones: number[][] = [];
+  
+  for (let i = 0; i < metrics.length; i++) {
+    if (visited.has(i)) continue;
+    
+    const zone: number[] = [];
+    const stack = [i];
+    
+    while (stack.length) {
+      const idx = stack.pop()!;
+      if (visited.has(idx)) continue;
+      visited.add(idx);
+      zone.push(idx);
+      
+      const adj = neighbors.get(idx) || [];
+      for (const neigh of adj) {
+        if (!visited.has(neigh)) stack.push(neigh);
+      }
+    }
+    
+    if (zone.length > 0) {
+      zones.push(zone);
+    }
+  }
+  
+  return zones;
+}
+
+// ============================================================================
 // Filter Furigana-sized Boxes
 // ============================================================================
 
@@ -116,8 +202,14 @@ export interface FilterNarrowBoxesOptions {
 }
 
 /**
- * Filter out narrow boxes that are likely furigana annotations
- * These are small boxes positioned above/beside larger kanji boxes
+ * Filter out narrow boxes that are likely furigana annotations within each text zone.
+ * 
+ * This works by first clustering boxes into spatially connected zones (e.g., speech bubbles),
+ * then applying furigana detection locally within each zone. This prevents the algorithm
+ * from being confused by boxes in other parts of the page with very different sizes
+ * (e.g., large screaming text vs. regular dialogue).
+ * 
+ * Within each zone, narrow boxes positioned beside larger kanji boxes are identified as furigana.
  */
 export function filterNarrowBoxes(
   boxes: OcrBox[],
@@ -134,88 +226,111 @@ export function filterNarrowBoxes(
   const windowMultiplier = clampPositive(options.neighborWindowMultiplier, DEFAULT_NEIGHBOR_WINDOW_MULT);
   const lookahead = Math.max(1, Math.floor(clampPositive(options.neighborLookahead, DEFAULT_NEIGHBOR_LOOKAHEAD)));
 
+  // Compute metrics for all boxes
   const metrics = boxes.map((box, idx) => computeBoxMetrics(box, idx));
+  
+  // Cluster boxes into zones (spatially connected groups)
+  const zones = clusterBoxesIntoZones(metrics);
+  
   const indicesToRemove = new Set<number>();
 
-  const considerOrientation = (orientation: 'vertical' | 'horizontal') => {
-    const filtered = metrics.filter(m => m.orientation === orientation);
-    if (filtered.length < 2) return;
+  /**
+   * Process a single zone to detect furigana within it.
+   * This compares boxes only within the same zone, not globally.
+   */
+  const processZone = (zoneIndices: number[]) => {
+    if (zoneIndices.length < 2) return;
+    
+    const zoneMetrics = zoneIndices.map(idx => metrics[idx]);
+    
+    const considerOrientation = (orientation: 'vertical' | 'horizontal') => {
+      const filtered = zoneMetrics.filter(m => m.orientation === orientation);
+      if (filtered.length < 2) return;
 
-    // Sort by position for neighbor finding
-    const sorted = [...filtered].sort((a, b) => {
-      if (orientation === 'vertical') {
-        // For vertical text, sort right-to-left then top-to-bottom
-        const deltaX = Math.abs(a.centerX - b.centerX);
-        if (deltaX < Math.min(a.width, b.width) * 0.5) {
-          return a.centerY - b.centerY;
+      // Sort by position for neighbor finding
+      const sorted = [...filtered].sort((a, b) => {
+        if (orientation === 'vertical') {
+          // For vertical text, sort right-to-left then top-to-bottom
+          const deltaX = Math.abs(a.centerX - b.centerX);
+          if (deltaX < Math.min(a.width, b.width) * 0.5) {
+            return a.centerY - b.centerY;
+          }
+          return b.centerX - a.centerX;
         }
-        return b.centerX - a.centerX;
-      }
-      // For horizontal text, sort top-to-bottom then left-to-right
-      const deltaY = Math.abs(a.centerY - b.centerY);
-      if (deltaY < Math.min(a.height, b.height) * 0.5) {
-        return a.centerX - b.centerX;
-      }
-      return a.centerY - b.centerY;
-    });
+        // For horizontal text, sort top-to-bottom then left-to-right
+        const deltaY = Math.abs(a.centerY - b.centerY);
+        if (deltaY < Math.min(a.height, b.height) * 0.5) {
+          return a.centerX - b.centerX;
+        }
+        return a.centerY - b.centerY;
+      });
 
-    for (let i = 0; i < sorted.length; i++) {
-      const curr = sorted[i];
-      const mainDim = orientation === 'vertical' ? curr.width : curr.height;
-      const crossDim = orientation === 'vertical' ? curr.height : curr.width;
+      for (let i = 0; i < sorted.length; i++) {
+        const curr = sorted[i];
+        const mainDim = orientation === 'vertical' ? curr.width : curr.height;
+        const crossDim = orientation === 'vertical' ? curr.height : curr.width;
 
-      // Skip if already marked for removal or if it's not narrow
-      if (indicesToRemove.has(curr.idx)) continue;
-      if (mainDim >= crossDim / effectiveRatio) continue;
+        // Skip if already marked for removal or if it's not narrow
+        if (indicesToRemove.has(curr.idx)) continue;
+        if (mainDim >= crossDim / effectiveRatio) continue;
 
-      // Check if this narrow box has a larger kanji neighbor
-      const windowSize = mainDim * windowMultiplier;
-      let hasLargerNeighborWithKanji = false;
+        // Check if this narrow box has a larger kanji neighbor within the same zone
+        const windowSize = mainDim * windowMultiplier;
+        let hasLargerNeighborWithKanji = false;
 
-      for (let j = 1; j <= lookahead && i + j < sorted.length; j++) {
-        const neighbor = sorted[i + j];
-        if (indicesToRemove.has(neighbor.idx)) continue;
+        // Check subsequent boxes in sorted order
+        for (let j = 1; j <= lookahead && i + j < sorted.length; j++) {
+          const neighbor = sorted[i + j];
+          if (indicesToRemove.has(neighbor.idx)) continue;
 
-        const neighborMain = orientation === 'vertical' ? neighbor.width : neighbor.height;
-        if (neighborMain <= mainDim * 1.2) continue;
+          const neighborMain = orientation === 'vertical' ? neighbor.width : neighbor.height;
+          if (neighborMain <= mainDim * 1.2) continue;
 
-        // Check if neighbor is within window and contains kanji
-        const gap = orientation === 'vertical' 
-          ? horizontalGap(curr, neighbor) 
-          : verticalGap(curr, neighbor);
-        
-        if (gap <= windowSize && containsKanji(neighbor.text)) {
-          hasLargerNeighborWithKanji = true;
-          break;
+          // Check if neighbor is within window and contains kanji
+          const gap = orientation === 'vertical' 
+            ? horizontalGap(curr, neighbor) 
+            : verticalGap(curr, neighbor);
+          
+          if (gap <= windowSize && containsKanji(neighbor.text)) {
+            hasLargerNeighborWithKanji = true;
+            break;
+          }
+        }
+
+        // Also check previous boxes in sorted order
+        for (let j = 1; j <= lookahead && i - j >= 0; j++) {
+          if (hasLargerNeighborWithKanji) break;
+          
+          const neighbor = sorted[i - j];
+          if (indicesToRemove.has(neighbor.idx)) continue;
+
+          const neighborMain = orientation === 'vertical' ? neighbor.width : neighbor.height;
+          if (neighborMain <= mainDim * 1.2) continue;
+
+          const gap = orientation === 'vertical' 
+            ? horizontalGap(curr, neighbor) 
+            : verticalGap(curr, neighbor);
+          
+          if (gap <= windowSize && containsKanji(neighbor.text)) {
+            hasLargerNeighborWithKanji = true;
+            break;
+          }
+        }
+
+        if (hasLargerNeighborWithKanji) {
+          indicesToRemove.add(curr.idx);
         }
       }
+    };
 
-      // Also check previous boxes
-      for (let j = 1; j <= lookahead && i - j >= 0; j++) {
-        const neighbor = sorted[i - j];
-        if (indicesToRemove.has(neighbor.idx)) continue;
-
-        const neighborMain = orientation === 'vertical' ? neighbor.width : neighbor.height;
-        if (neighborMain <= mainDim * 1.2) continue;
-
-        const gap = orientation === 'vertical' 
-          ? horizontalGap(curr, neighbor) 
-          : verticalGap(curr, neighbor);
-        
-        if (gap <= windowSize && containsKanji(neighbor.text)) {
-          hasLargerNeighborWithKanji = true;
-          break;
-        }
-      }
-
-      if (hasLargerNeighborWithKanji) {
-        indicesToRemove.add(curr.idx);
-      }
-    }
+    considerOrientation('vertical');
+    considerOrientation('horizontal');
   };
 
-  considerOrientation('vertical');
-  considerOrientation('horizontal');
+  // Process each zone independently
+  for (const zone of zones) {
+    processZone(zone);
+  }
 
   if (indicesToRemove.size === 0) return boxes;
 
@@ -230,6 +345,9 @@ export function filterNarrowBoxes(
  * Build a context map that associates each OCR box with its neighboring text
  * This is used to provide context phrases for LLM explanations and flashcard examples
  * 
+ * Uses the same zone detection algorithm as furigana filtering to ensure consistent
+ * grouping of boxes into speech bubbles / text blocks.
+ * 
  * @param boxes Array of OCR boxes
  * @returns Map from box index to context phrase string
  */
@@ -240,67 +358,11 @@ export function buildOcrContextMap(boxes: OcrBox[]): Map<number, string> {
     if (!Array.isArray(boxes) || boxes.length === 0) return contextMap;
     
     const infos = boxes.map((box, idx) => computeBoxMetrics(box, idx));
-    const neighbors = new Map<number, number[]>();
     
-    // Build adjacency graph based on spatial proximity and orientation
-    for (let i = 0; i < infos.length; i++) {
-      const info = infos[i];
-      const adj: number[] = [];
-      
-      for (let j = 0; j < infos.length; j++) {
-        if (i === j) continue;
-        const other = infos[j];
-        
-        // Skip if different orientations
-        if (info.orientation !== other.orientation) continue;
-        
-        if (info.orientation === 'vertical') {
-          // For vertical text: check horizontal overlap and vertical gap
-          const overlapRatio = overlapAmount(info.minY, info.maxY, other.minY, other.maxY) 
-            / Math.max(1, Math.min(info.height, other.height));
-          const gapRatio = horizontalGap(info, other) 
-            / Math.max(1, (info.width + other.width) / 2);
-          
-          if (overlapRatio >= 0.3 && gapRatio <= 1.8) {
-            adj.push(j);
-          }
-        } else {
-          // For horizontal text: check vertical overlap and horizontal gap
-          const overlapRatio = overlapAmount(info.minX, info.maxX, other.minX, other.maxX) 
-            / Math.max(1, Math.min(info.width, other.width));
-          const gapRatio = verticalGap(info, other) 
-            / Math.max(1, (info.height + other.height) / 2);
-          
-          if (overlapRatio >= 0.25 && gapRatio <= 1.5) {
-            adj.push(j);
-          }
-        }
-      }
-      
-      neighbors.set(i, adj);
-    }
+    // Use the shared zone clustering algorithm
+    const zones = clusterBoxesIntoZones(infos);
     
-    // Find connected components (clusters of related text boxes)
-    const visited = new Set<number>();
-    
-    for (let i = 0; i < infos.length; i++) {
-      if (visited.has(i)) continue;
-      
-      const cluster: number[] = [];
-      const stack = [i];
-      
-      while (stack.length) {
-        const idx = stack.pop()!;
-        if (visited.has(idx)) continue;
-        visited.add(idx);
-        cluster.push(idx);
-        
-        const adj = neighbors.get(idx) || [];
-        for (const neigh of adj) {
-          if (!visited.has(neigh)) stack.push(neigh);
-        }
-      }
-      
+    for (const cluster of zones) {
       if (cluster.length === 0) continue;
       
       const orient = infos[cluster[0]].orientation;
