@@ -130,12 +130,18 @@ const MAX_ITEMS = 10;
 
 /**
  * Save an item to recent items with optional thumbnail
+ * Note: Items without a path will be saved but cannot be reopened from the welcome screen
  */
 export function saveToRecentItems(
   item: Omit<RecentItem, 'lastWatched'>,
   thumbnail?: string
 ): void {
   try {
+    // Warn if saving without path - these items won't be openable
+    if (!item.path || !item.path.trim()) {
+      console.warn(`[Recent] Saving item "${item.name}" without path - it cannot be reopened from welcome screen`);
+    }
+    
     const stored = localStorage.getItem(STORAGE_KEY);
     const items: RecentItem[] = stored ? JSON.parse(stored) : [];
     

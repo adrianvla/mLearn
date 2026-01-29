@@ -3,5 +3,5 @@ dist
 dist-electron
 .idea
 src/root-of-app/dictionaries
-
-
+.github
+__pycache__

@@ -49,7 +49,9 @@ export const WelcomeRoute: Component = () => {
     // Don't try to open items with no path (legacy items or failed saves)
     if (!item.path || !item.path.trim()) {
       console.warn('[Welcome] Cannot open recent item - no path saved:', item.name);
-      // Navigate to the appropriate route without a path - user can then drag/drop
+      // Show alert and navigate to the appropriate route - user can then drag/drop
+      const targetRoute = item.type === 'video' ? 'video player' : 'reader';
+      alert(`Unable to open "${item.name}" - the file path was not saved.\n\nPlease open the ${targetRoute} and drag the file again.`);
       if (item.type === 'video') {
         navigate('/video');
       } else {

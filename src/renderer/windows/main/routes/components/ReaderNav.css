@@ -24,7 +24,7 @@
 /* Remove the previous pseudo-element approach and instead mark interactive
    areas as no-drag so they remain clickable while the rest of the nav is draggable. */
 
-.reader-nav * *{
+.reader-nav * *:not(span){
   -webkit-app-region: no-drag; /* interactive elements must be no-drag */
 }
 

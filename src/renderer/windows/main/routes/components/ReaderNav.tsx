@@ -13,12 +13,14 @@ interface ReaderNavProps {
   progressString: Accessor<string>;
   fitMode: Accessor<string>;
   pageMode: Accessor<string>;
+  firstPageSingle: Accessor<boolean>;
   showOcrOverlay: Accessor<boolean>;
   hasOcrResult: Accessor<boolean>;
   onGoHome: () => void;
   onToggleSidebar: () => void;
   onFitModeChange: (mode: string) => void;
   onPageModeChange: (mode: string) => void;
+  onToggleFirstPageSingle: () => void;
   onToggleOcrOverlay: () => void;
   onPrevPage: () => void;
   onNextPage: () => void;
@@ -64,6 +66,16 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
           value={props.pageMode()}
           onChange={(e) => props.onPageModeChange(e.currentTarget.value)}
         />
+        
+        {props.pageMode() === 'double' && (
+          <NavBtn
+            onClick={props.onToggleFirstPageSingle}
+            title={props.firstPageSingle() ? 'First page is single (click to pair)' : 'First page is paired (click to make single)'}
+            class={props.firstPageSingle() ? 'active' : ''}
+          >
+            {props.firstPageSingle() ? '1|2+3' : '1+2|3+4'}
+          </NavBtn>
+        )}
       </div>
       
       <div class="nav-group nav-arrows">

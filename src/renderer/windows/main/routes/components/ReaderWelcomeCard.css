@@ -41,8 +41,8 @@
 }
 
 .reader-welcome-dropzone.dragging {
-  border-color: var(--accent-primary);
-  background: rgba(var(--accent-primary-rgb), 0.1);
+  border-color: var(--border-color-intense);
+  background: var(--bg-intense);
 }
 
 .reader-welcome-grid {

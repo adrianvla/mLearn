@@ -102,6 +102,28 @@ export const ReaderRoute: Component = () => {
   const [currentBookPath, setCurrentBookPath] = createSignal<string>('');
   const [fitMode, setFitMode] = createSignal<FitMode>('fit-height');
   const [pageMode, setPageMode] = createSignal<PageMode>('double');
+  // When true and in double-page mode, first page displays alone (cover page)
+  // This offsets the pairing: [0], [1,2], [3,4]... instead of [0,1], [2,3]...
+  const [firstPageSingle, setFirstPageSingle] = createSignal(true);
+  
+  // Helper: get the valid spread-start index for a given page in double-page mode
+  // firstSingle=true:  valid starts are 0, 1, 3, 5, 7... (0 alone, then odd numbers)
+  // firstSingle=false: valid starts are 0, 2, 4, 6...    (even numbers)
+  // Rounds UP to prevent backward drift when toggling modes
+  const getSpreadStart = (pageIdx: number, firstSingle: boolean): number => {
+    if (pageIdx <= 0) return 0;
+    if (firstSingle) {
+      // After page 0, spreads start at odd indices: 1, 3, 5...
+      if (pageIdx % 2 === 1) return pageIdx; // already odd, valid
+      // Even page - round UP to next odd to prevent backward drift
+      return pageIdx + 1;
+    } else {
+      // Spreads start at even indices: 0, 2, 4, 6...
+      if (pageIdx % 2 === 0) return pageIdx; // already even, valid
+      // Odd page - round UP to next even to prevent backward drift
+      return pageIdx + 1;
+    }
+  };
   const [showSidebar, setShowSidebar] = createSignal(true);
   const [bookTitle, setBookTitle] = createSignal('Nothing Loaded');
   const [ocrStatus, setOcrStatus] = createSignal('Ready');
@@ -128,18 +150,40 @@ export const ReaderRoute: Component = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_serverOcrMessage, setServerOcrMessage] = createSignal<string>('');
 
+  // Latched status text per page - holds the last visible status during fade-out
+  // This prevents text from changing while the overlay is fading out
+  const [latchedStatusByPage, setLatchedStatusByPage] = createSignal<Record<string, string>>({});
+
   // References for OCR overlay positioning
   let pageContainerRef: HTMLDivElement | undefined;
   const [imageRefs, setImageRefs] = createSignal<Record<string, HTMLImageElement>>({});
 
-  // Returns files and the name of the dropped folder (if a folder was dropped)
-  const getDroppedFiles = async (dataTransfer: DataTransfer | null): Promise<{ files: File[], droppedFolderName: string | null }> => {
-    if (!dataTransfer) return { files: [], droppedFolderName: null };
+  // Returns files, the name of the dropped folder, and the full filesystem path (if available)
+  // In Electron, dropped items have a .path property on the dataTransfer.files entries
+  const getDroppedFiles = async (dataTransfer: DataTransfer | null): Promise<{ 
+    files: File[], 
+    droppedFolderName: string | null,
+    droppedFolderPath: string | null 
+  }> => {
+    if (!dataTransfer) return { files: [], droppedFolderName: null, droppedFolderPath: null };
+    
     const items = Array.from(dataTransfer.items || []);
+    const rawFiles = Array.from(dataTransfer.files || []);
+    
+    // In Electron, the raw files from dataTransfer.files have a .path property
+    // This is the full filesystem path - capture it before using webkit entries API
+    // (which creates new File objects without the path property)
+    let droppedFolderPath: string | null = null;
+    if (rawFiles.length > 0) {
+      const firstRawFile = rawFiles[0] as File & { path?: string };
+      if (firstRawFile.path) {
+        droppedFolderPath = firstRawFile.path;
+      }
+    }
 
     const hasEntries = items.some((item) => typeof (item as any).webkitGetAsEntry === 'function');
     if (!hasEntries) {
-      return { files: Array.from(dataTransfer.files || []), droppedFolderName: null };
+      return { files: rawFiles, droppedFolderName: null, droppedFolderPath };
     }
 
     let droppedFolderName: string | null = null;
@@ -179,7 +223,7 @@ export const ReaderRoute: Component = () => {
         .map((entry) => readEntry(entry))
     );
 
-    return { files: entryFiles.flat(), droppedFolderName };
+    return { files: entryFiles.flat(), droppedFolderName, droppedFolderPath };
   };
 
   const visiblePages = () => {
@@ -189,6 +233,11 @@ export const ReaderRoute: Component = () => {
     if (pageMode() === 'single') {
       return p[curr] ? [p[curr]] : [];
     } else {
+      // Double page mode
+      // If firstPageSingle is true and we're on page 0, show only page 0
+      if (firstPageSingle() && curr === 0) {
+        return p[0] ? [p[0]] : [];
+      }
       const result: PageImage[] = [];
       if (p[curr]) result.push(p[curr]);
       if (p[curr + 1]) result.push(p[curr + 1]);
@@ -633,7 +682,7 @@ export const ReaderRoute: Component = () => {
     e.preventDefault();
     setIsDragging(false);
 
-    const { files: droppedFiles, droppedFolderName } = await getDroppedFiles(e.dataTransfer || null);
+    const { files: droppedFiles, droppedFolderName, droppedFolderPath } = await getDroppedFiles(e.dataTransfer || null);
     
     // Check for PDF file first
     const pdfFile = droppedFiles.find(f => isPdfFile(f));
@@ -649,7 +698,9 @@ export const ReaderRoute: Component = () => {
         setCurrentBookId(bookId);
         
         // In Electron, File objects have a .path property with the full filesystem path
-        const pdfPath = (pdfFile as File & { path?: string }).path || '';
+        // For PDFs dropped directly, use the path from the file
+        // If coming from folder entry API, use droppedFolderPath (which would be the PDF path)
+        const pdfPath = (pdfFile as File & { path?: string }).path || droppedFolderPath || '';
         setCurrentBookPath(pdfPath);
         
         // Check for saved page position
@@ -722,12 +773,12 @@ export const ReaderRoute: Component = () => {
     }
     setCurrentBookId(bookId);
     
-    // In Electron, File objects have a .path property with the full filesystem path
-    // For folders, use the folder path (directory containing the images)
+    // Use droppedFolderPath from dataTransfer.files (has Electron's .path property)
+    // Fallback: try to get path from first file and extract directory
     const firstFile = files[0] as File & { path?: string };
-    const bookPath = firstFile?.path 
+    const bookPath = droppedFolderPath || (firstFile?.path 
       ? firstFile.path.split('/').slice(0, -1).join('/') 
-      : '';
+      : '');
     setCurrentBookPath(bookPath);
     
     // Check for saved page position using the per-book storage key
@@ -795,7 +846,15 @@ export const ReaderRoute: Component = () => {
   const goToPage = (index: number) => {
     const total = pages().length;
     if (total === 0) return;
-    const newPage = Math.max(0, Math.min(index, total - 1));
+    let newPage = Math.max(0, Math.min(index, total - 1));
+    
+    // In double-page mode, snap to valid spread boundary
+    if (pageMode() === 'double') {
+      newPage = getSpreadStart(newPage, firstPageSingle());
+      // Clamp again in case rounding up went past the end
+      newPage = Math.min(newPage, total - 1);
+    }
+    
     setCurrentPage(newPage);
     
     // Persist per-book page position
@@ -811,13 +870,34 @@ export const ReaderRoute: Component = () => {
   };
 
   const prevPage = () => {
-    const step = pageMode() === 'double' ? 2 : 1;
-    goToPage(currentPage() - step);
+    const curr = currentPage();
+    if (pageMode() === 'single') {
+      goToPage(curr - 1);
+    } else {
+      // Double page mode - step back by 2, goToPage will snap correctly
+      // Special case: from page 1 with firstPageSingle, go to 0
+      if (firstPageSingle() && curr === 1) {
+        goToPage(0);
+      } else {
+        goToPage(curr - 2);
+      }
+    }
   };
 
   const nextPage = () => {
-    const step = pageMode() === 'double' ? 2 : 1;
-    goToPage(currentPage() + step);
+    const curr = currentPage();
+    if (pageMode() === 'single') {
+      goToPage(curr + 1);
+    } else {
+      // Double page mode - step forward
+      // From page 0 with firstPageSingle, go to 1
+      // Otherwise step by 2, goToPage will snap
+      if (firstPageSingle() && curr === 0) {
+        goToPage(1);
+      } else {
+        goToPage(curr + 2);
+      }
+    }
   };
 
   // OCR hover handlers (legacy-style hover popup)
@@ -905,12 +985,32 @@ export const ReaderRoute: Component = () => {
         progressString={progressString}
         fitMode={fitMode}
         pageMode={pageMode}
+        firstPageSingle={firstPageSingle}
         showOcrOverlay={showOcrOverlay}
         hasOcrResult={hasOcrResult}
         onGoHome={goHome}
         onToggleSidebar={() => setShowSidebar(!showSidebar())}
         onFitModeChange={(mode) => setFitMode(mode as FitMode)}
         onPageModeChange={(mode) => setPageMode(mode as PageMode)}
+        onToggleFirstPageSingle={() => {
+          const wasFirstSingle = firstPageSingle();
+          const newFirstSingle = !wasFirstSingle;
+          const curr = currentPage();
+          setFirstPageSingle(newFirstSingle);
+          
+          // Check if current page is valid in the new mode
+          const isValidInNewMode = curr === 0 || 
+            (newFirstSingle ? curr % 2 === 1 : curr % 2 === 0);
+          
+          if (!isValidInNewMode && curr > 0) {
+            // To prevent drift, alternate direction based on which mode we're entering:
+            // Going TO odd starts (firstSingle=true): round DOWN (curr - 1)
+            // Going TO even starts (firstSingle=false): round UP (curr + 1)
+            const snapped = newFirstSingle ? curr - 1 : curr + 1;
+            const total = pages().length;
+            setCurrentPage(Math.max(0, Math.min(snapped, total - 1)));
+          }
+        }}
         onToggleOcrOverlay={toggleOcrOverlay}
         onPrevPage={prevPage}
         onNextPage={nextPage}
@@ -963,56 +1063,55 @@ export const ReaderRoute: Component = () => {
                 };
                 
                 // Generate status text based on page relationship to current view
-                // Follows the OCR status logic from updateOverallStatus()
+                // Uses latched status from signal to prevent text changes during fade-out
                 const getStatusText = () => {
+                  const waiting = isWaitingForOcr();
                   const currPageIdx = currentPage();
                   const isDouble = pageMode() === 'double';
                   const visibleStart = currPageIdx;
                   const visibleEnd = isDouble ? currPageIdx + 1 : currPageIdx;
-                  const maxVisibleCount = isDouble ? 2 : 1;
-                  
+
+                  // Compute a fresh status if possible; otherwise use latched status
+                  let computed: string | null = null;
+
                   if (isProcessing()) {
                     const taskPageIdx = page.index;
-                    
+
                     // Processing a page BEFORE current view - cleaning up old work
                     if (taskPageIdx < visibleStart) {
-                      return 'Cleaning Up…';
+                      computed = 'Cleaning Up…';
+                    } else if (taskPageIdx >= visibleStart && taskPageIdx <= visibleEnd) {
+                      // Processing a VISIBLE page
+                      computed = 'Processing...';
+                    } else {
+                      // Processing a page AFTER current view - caching
+                      computed = 'Caching...';
                     }
-                    
-                    // Processing a VISIBLE page
-                    if (taskPageIdx >= visibleStart && taskPageIdx <= visibleEnd) {
-                      if (maxVisibleCount === 1) {
-                        // Single page mode - just show "Recognizing..."
-                        return 'Recognizing...';
-                      } else {
-                        // Double page mode - show "Processing X/Y"
-                        // const xValue = taskPageIdx - visibleStart + 1;
-                        // return `Processing ${xValue}/${maxVisibleCount}`;
-                        return `Processing...`;
-                      }
-                    }
-                    
-                    // Processing a page AFTER current view - caching
-                    const cachePageIndices = [visibleEnd + 1, visibleEnd + 2].filter(idx => idx < pages().length);
-                    const processingCacheIdx = cachePageIndices.indexOf(taskPageIdx);
-                    // const xValue = processingCacheIdx >= 0 ? processingCacheIdx + 1 : 1;
-                    // return `Caching ${xValue}/${maxVisibleCount}`;
-                    return `Caching...`;
-                  }
-                  
-                  // Pending in queue - show appropriate message based on position
-                  if (isPending()) {
+                  } else if (isPending()) {
                     const taskPageIdx = page.index;
                     if (taskPageIdx < visibleStart) {
-                      return 'Cleaning Up...';
+                      computed = 'Cleaning Up...';
+                    } else if (taskPageIdx >= visibleStart && taskPageIdx <= visibleEnd) {
+                      computed = 'Pending...';
+                    } else {
+                      computed = 'Queued...';
                     }
-                    if (taskPageIdx >= visibleStart && taskPageIdx <= visibleEnd) {
-                      return 'Loading...';
-                    }
-                    return 'Queued...';
+                  } else {
+                    // No active or pending work for this page.
+                    // If OCR result exists, it's ready; otherwise no new status to compute
+                    computed = ocrResults[page.id] ? 'Ready' : null;
                   }
-                  
-                  return '';
+
+                  // If we have a computed status and overlay is visible, update the latch
+                  if (computed !== null && waiting) {
+                    setLatchedStatusByPage(prev => ({ ...prev, [page.id]: computed! }));
+                    return computed;
+                  }
+
+                  // If overlay is fading out (not waiting) or no new status, return latched status
+                  // This prevents text from changing during the CSS fade-out animation
+                  const latched = latchedStatusByPage()[page.id];
+                  return latched ?? computed ?? '';
                 };
                 
                 return (
@@ -1049,8 +1148,6 @@ export const ReaderRoute: Component = () => {
               }}
             </For>
           </div>
-
-          {/* OCR Processing Overlay - Removed */}
         </Show>
       </main>
 

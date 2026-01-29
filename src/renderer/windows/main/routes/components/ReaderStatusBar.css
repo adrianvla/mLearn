@@ -17,6 +17,7 @@
   z-index: 100;
   font-size: var(--font-size-sm);
   user-select: none;
+  gap: 1rem;
 }
 
 .reader-status .book-title {
@@ -25,16 +26,57 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
 }
 
 .reader-status .progress {
   color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+/* Hover Trigger Select Section */
+.reader-status .hover-trigger-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.reader-status .hover-trigger-label {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.reader-status .hover-trigger-select {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.reader-status .hover-trigger-select:hover {
+  border-color: var(--accent);
+}
+
+.reader-status .hover-trigger-select:focus {
+  border-color: var(--accent);
+}
+
+.reader-status .hover-trigger-select option {
+  background: var(--bg);
+  color: var(--text);
 }
 
 .reader-status .ocr-section {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .reader-status .ocr-status {

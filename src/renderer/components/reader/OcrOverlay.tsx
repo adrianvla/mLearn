@@ -8,6 +8,8 @@ import type { Token } from '../../../shared/types';
 import { useTokenizer, warmTranslationCache } from '../../hooks';
 import { useLanguage, useSettings } from '../../context';
 import { buildOcrContextMap, filterNarrowBoxes } from '../../utils/ocrUtils';
+import { OcrWord } from './OcrWord';
+import { FuriganaHider } from './FuriganaHider';
 import './OcrOverlay.css';
 
 export interface OcrBox {
@@ -106,26 +108,32 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const [contextMap, setContextMap] = createSignal<Map<number, string>>(new Map());
   const [observedWidth, setObservedWidth] = createSignal(0);
   const [observedHeight, setObservedHeight] = createSignal(0);
+  // Track the image's offset position within its parent container
+  const [imageOffsetLeft, setImageOffsetLeft] = createSignal(0);
+  const [imageOffsetTop, setImageOffsetTop] = createSignal(0);
 
   createEffect(() => {
     const el = props.imageElement;
     if (!el) return;
     
-    // Helper to update dimensions only when they're valid
-    const updateDimensions = () => {
+    // Helper to update dimensions and position only when they're valid
+    const updateDimensionsAndPosition = () => {
       const width = el.clientWidth || el.naturalWidth || 0;
       const height = el.clientHeight || el.naturalHeight || 0;
       if (width > 0 && height > 0) {
         setObservedWidth(width);
         setObservedHeight(height);
+        // Get the image's offset relative to its offset parent (the .page container)
+        setImageOffsetLeft(el.offsetLeft);
+        setImageOffsetTop(el.offsetTop);
       }
     };
     
-    // Set initial dimensions
-    updateDimensions();
+    // Set initial dimensions and position
+    updateDimensionsAndPosition();
     
     // Also listen for image load event in case dimensions aren't available yet
-    const handleLoad = () => updateDimensions();
+    const handleLoad = () => updateDimensionsAndPosition();
     el.addEventListener('load', handleLoad);
     
     const observer = new ResizeObserver((entries) => {
@@ -135,6 +143,10 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
         if (width > 0 && height > 0) {
           setObservedWidth(width);
           setObservedHeight(height);
+          // Update position on resize as flexbox centering may change
+          const target = entry.target as HTMLElement;
+          setImageOffsetLeft(target.offsetLeft);
+          setImageOffsetTop(target.offsetTop);
         }
       }
     });
@@ -178,6 +190,19 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     });
     
     return filtered;
+  });
+  
+  // Compute the furigana boxes (boxes that were filtered out)
+  // These are used by FuriganaHider to overlay white rectangles
+  const furiganaBoxes = createMemo(() => {
+    const result = props.result;
+    if (!result || !Array.isArray(result.boxes)) return [];
+    
+    const filtered = filteredBoxes();
+    const filteredIdxSet = new Set(filtered.map(b => b.__originalIdx));
+    
+    // Return boxes that were filtered out (furigana)
+    return result.boxes.filter((_, idx) => !filteredIdxSet.has(idx));
   });
 
   // Build context map from filtered boxes
@@ -262,74 +287,94 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   
   // Only render when we have valid dimensions to calculate positions correctly
   const isReady = () => observedWidth() > 0 && observedHeight() > 0;
+  
+  // Check if furigana hider is enabled
+  const furiganaHiderEnabled = () => settings.readerFuriganaHider ?? false;
 
   return (
-    <Show when={props.visible !== false && filteredBoxes().length > 0 && isReady()}>
-      <div 
-        class="ocr-overlay"
-        style={{
-          left: '0px',
-          top: '0px',
-          width: `${observedWidth()}px`,
-          height: `${observedHeight()}px`,
-          opacity: 1,
-        }}
-      >
-        <For each={filteredBoxes()}>
-          {(box, index) => {
-            const rect = getBoundingRect(box.box);
-            const scale = scaleFactor();
-            const isHovered = hoveredBox() === box;
-            // Detect vertical text based on aspect ratio
-            const isVertical = rect.height > rect.width * 1.2;
-            // Only use vertical styling if language supports it
-            const useVerticalLayout = isVertical && langFeatures().supportsVerticalText;
-            const tokens = () => tokenMap().get(index()) || [];
-            const fontSize = () => estimateFontSize(box.text || '', rect.width * scale, rect.height * scale, useVerticalLayout);
-            
-            return (
-              <div
-                class={`ocr-box ${isHovered ? 'hovered' : ''} ${useVerticalLayout ? 'vertical-box' : ''}`}
-                style={{
-                  left: `${rect.x * scale}px`,
-                  top: `${rect.y * scale}px`,
-                  width: `${rect.width * scale}px`,
-                  height: `${rect.height * scale}px`,
-                }}
-                onClick={(e) => handleBoxClick(box, e)}
-                onMouseEnter={() => handleBoxHover(box)}
-                onMouseLeave={handleBoxLeave}
-                title={box.text}
-              >
-                <div
-                  class={`ocr-text ${useVerticalLayout ? 'vertical' : ''}`}
-                  style={{
-                    'writing-mode': useVerticalLayout ? 'vertical-rl' : 'horizontal-tb',
-                    'text-orientation': useVerticalLayout ? 'mixed' : 'initial',
-                    'font-size': `${fontSize()}px`,
-                    // Prevent text wrapping for vertical text
-                    'white-space': useVerticalLayout ? 'nowrap' : 'normal',
-                  }}
-                >
-                  <Show when={tokens().length > 0} fallback={box.text}>
-                    <For each={tokens()}>
-                      {(token) => (
-                        <span
-                          class="ocr-word"
-                          onMouseEnter={(e) => handleWordEnter(token, index(), e)}
-                          onMouseLeave={props.onWordLeave}
-                        >
-                          {token.surface ?? token.word}
-                        </span>
-                      )}
-                    </For>
-                  </Show>
-                </div>
-              </div>
-            );
+    <Show when={props.visible !== false && isReady()}>
+      {/* Furigana Hider - white rectangles over furigana that fade on hover */}
+      <FuriganaHider
+        furiganaBoxes={furiganaBoxes()}
+        scaleFactor={scaleFactor()}
+        enabled={furiganaHiderEnabled()}
+        width={observedWidth()}
+        height={observedHeight()}
+        offsetLeft={imageOffsetLeft()}
+        offsetTop={imageOffsetTop()}
+      />
+      
+      <Show when={filteredBoxes().length > 0}>
+        <div 
+          class="ocr-overlay"
+          style={{
+            left: `${imageOffsetLeft()}px`,
+            top: `${imageOffsetTop()}px`,
+            width: `${observedWidth()}px`,
+            height: `${observedHeight()}px`,
+            opacity: 1,
           }}
-        </For>
-      </div>
+        >
+          <For each={filteredBoxes()}>
+            {(box, index) => {
+              const rect = getBoundingRect(box.box);
+              // Use getter function to ensure reactivity when scaleFactor changes on resize
+              const getScale = () => scaleFactor();
+              const isHovered = () => hoveredBox() === box;
+              // Detect vertical text based on aspect ratio
+              const isVertical = rect.height > rect.width * 1.2;
+              // Only use vertical styling if language supports it
+              const useVerticalLayout = () => isVertical && langFeatures().supportsVerticalText;
+              const tokens = () => tokenMap().get(index()) || [];
+              const fontSize = () => estimateFontSize(box.text || '', rect.width * getScale(), rect.height * getScale(), useVerticalLayout());
+              
+              return (
+                <div
+                  class="ocr-box"
+                  classList={{
+                    'hovered': isHovered(),
+                    'vertical-box': useVerticalLayout(),
+                  }}
+                  style={{
+                    left: `${rect.x * getScale()}px`,
+                    top: `${rect.y * getScale()}px`,
+                    width: `${rect.width * getScale()}px`,
+                    height: `${rect.height * getScale()}px`,
+                  }}
+                  onClick={(e) => handleBoxClick(box, e)}
+                  onMouseEnter={() => handleBoxHover(box)}
+                  onMouseLeave={handleBoxLeave}
+                  title={box.text}
+                >
+                  <div
+                    class="ocr-text"
+                    classList={{ 'vertical': useVerticalLayout() }}
+                    style={{
+                      'writing-mode': useVerticalLayout() ? 'vertical-rl' : 'horizontal-tb',
+                      'text-orientation': useVerticalLayout() ? 'mixed' : 'initial',
+                      'font-size': `${fontSize()}px`,
+                      // Prevent text wrapping for vertical text
+                      'white-space': useVerticalLayout() ? 'nowrap' : 'normal',
+                    }}
+                  >
+                    <Show when={tokens().length > 0} fallback={box.text}>
+                      <For each={tokens()}>
+                        {(token) => (
+                          <OcrWord
+                            token={token}
+                            onWordEnter={(t, e) => handleWordEnter(t, index(), e)}
+                            onWordLeave={props.onWordLeave}
+                          />
+                        )}
+                      </For>
+                    </Show>
+                  </div>
+                </div>
+              );
+            }}
+          </For>
+        </div>
+      </Show>
     </Show>
   );
 };
