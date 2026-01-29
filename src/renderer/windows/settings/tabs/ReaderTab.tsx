@@ -2,12 +2,58 @@
  * Reader Settings Tab
  */
 
-import { Component } from 'solid-js';
+import { Component, createSignal, Show } from 'solid-js';
 import { useSettings } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent } from '../../../components/common';
+import type { WordHoverTriggerMode } from '../../../../shared/constants';
+
+/** Key options for hover trigger keybind */
+const KEY_OPTIONS = ['Shift', 'Control', 'Alt', 'Meta'] as const;
 
 export const ReaderTab: Component = () => {
   const { settings, updateSettings } = useSettings();
+  
+  // Recording state for key capture
+  const [isRecording, setIsRecording] = createSignal(false);
+
+  const handleTriggerModeChange = (e: Event) => {
+    const value = (e.target as HTMLSelectElement).value as WordHoverTriggerMode;
+    updateSettings({ readerWordHoverTrigger: value });
+  };
+  
+  const handleKeyChange = (e: Event) => {
+    const value = (e.target as HTMLSelectElement).value;
+    updateSettings({ readerWordHoverKey: value });
+  };
+  
+  // Allow user to press a key to set the keybind
+  const startRecording = () => {
+    setIsRecording(true);
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Only accept modifier keys for simplicity
+      const key = e.key;
+      if (['Shift', 'Control', 'Alt', 'Meta'].includes(key)) {
+        updateSettings({ readerWordHoverKey: key });
+      }
+      
+      setIsRecording(false);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Cancel recording after 5 seconds
+    setTimeout(() => {
+      if (isRecording()) {
+        setIsRecording(false);
+        window.removeEventListener('keydown', handleKeyDown);
+      }
+    }, 5000);
+  };
 
   return (
     <TabContent
@@ -42,6 +88,69 @@ export const ReaderTab: Component = () => {
             max={500}
             step={10}
             onChange={(e) => updateSettings({ ocr_crop_padding: parseInt(e.currentTarget.value) })}
+          />
+        </SettingRow>
+      </SettingGroup>
+      
+      <SettingGroup title="Word Hover Behavior">
+        <SettingRow
+          label="Hover Trigger Mode"
+          description="How word translation popup is triggered in the reader"
+        >
+          <select
+            class="setting-input"
+            value={settings.readerWordHoverTrigger ?? 'hover'}
+            onChange={handleTriggerModeChange}
+          >
+            <option value="hover">Hover (immediate)</option>
+            <option value="long-hover">Long Hover (500ms delay)</option>
+            <option value="key-hover">Key + Hover</option>
+          </select>
+        </SettingRow>
+        
+        <Show when={settings.readerWordHoverTrigger === 'key-hover'}>
+          <SettingRow
+            label="Hover Key"
+            description="Key to hold while hovering to show word popup"
+          >
+            <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+              <select
+                class="setting-input"
+                value={settings.readerWordHoverKey ?? 'Shift'}
+                onChange={handleKeyChange}
+              >
+                {KEY_OPTIONS.map((key) => (
+                  <option value={key}>{key}</option>
+                ))}
+              </select>
+              <button
+                class="setting-button"
+                onClick={startRecording}
+                style={{
+                  padding: '4px 8px',
+                  'font-size': '0.85rem',
+                  background: isRecording() ? 'var(--accent)' : 'rgba(255,255,255,0.1)',
+                  border: '1px solid var(--border-color)',
+                  'border-radius': '4px',
+                  color: 'var(--text)',
+                  cursor: 'pointer',
+                }}
+              >
+                {isRecording() ? 'Press a key...' : 'Record Key'}
+              </button>
+            </div>
+          </SettingRow>
+        </Show>
+      </SettingGroup>
+      
+      <SettingGroup title="Furigana">
+        <SettingRow
+          label="Hide Furigana"
+          description="Cover detected furigana with white boxes that reveal on hover (for reading practice)"
+        >
+          <ToggleSwitch
+            checked={settings.readerFuriganaHider ?? false}
+            onChange={(checked) => updateSettings({ readerFuriganaHider: checked })}
           />
         </SettingRow>
       </SettingGroup>

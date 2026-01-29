@@ -150,6 +150,10 @@ export const WORD_STATUS = {
 } as const;
 export type WordStatus = typeof WORD_STATUS[keyof typeof WORD_STATUS];
 
+// Word hover trigger modes for Reader
+export const WORD_HOVER_TRIGGER_MODES = ['hover', 'long-hover', 'key-hover'] as const;
+export type WordHoverTriggerMode = typeof WORD_HOVER_TRIGGER_MODES[number];
+
 // Python download URLs
 export const PYTHON_DOWNLOAD_BASE = 'https://github.com/adrianvla/packaged-python/raw/refs/heads/main/';
 

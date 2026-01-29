@@ -2,7 +2,7 @@
  * Shared TypeScript types between main and renderer processes
  */
 
-import type { SubtitleTheme, WordStatus, WindowType as ConstWindowType } from './constants';
+import type { SubtitleTheme, WordStatus, WindowType as ConstWindowType, WordHoverTriggerMode } from './constants';
 
 // Re-export WindowType
 export type WindowType = ConstWindowType;
@@ -96,6 +96,14 @@ export interface Settings {
   /** Number of boxes to look ahead when detecting furigana neighbors (default 3) */
   ocrFuriganaNeighborLookahead?: number;
   
+  // Reader word hover settings
+  /** How word hover is triggered: 'hover', 'long-hover', 'key-hover' */
+  readerWordHoverTrigger?: WordHoverTriggerMode;
+  /** Key to hold for 'key-hover' mode (e.g., 'Shift', 'Control', 'Alt') */
+  readerWordHoverKey?: string;
+  /** Whether to hide furigana with white boxes that reveal on hover */
+  readerFuriganaHider?: boolean;
+  
   // Stats
   timeWatched: number;
   
@@ -145,6 +153,9 @@ export const DEFAULT_SETTINGS: Settings = {
   ocrFuriganaWidthRatio: 1.5,
   ocrFuriganaNeighborWindowMultiplier: 2.4,
   ocrFuriganaNeighborLookahead: 3,
+  readerWordHoverTrigger: 'hover',
+  readerWordHoverKey: 'Shift',
+  readerFuriganaHider: false,
   anki_field_expression: 'Expression',
   anki_field_reading: 'Reading',
   anki_field_meaning: 'Meaning',

@@ -49,25 +49,26 @@
 }
 
 /* ============ Size Variants ============ */
-.btn-xs {
+/* Note: Pill buttons don't use size-based min-height - their height is content-driven */
+.btn-xs:not(.btn-pill) {
   padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
   min-height: 1.5rem;
 }
 
-.btn-sm {
+.btn-sm:not(.btn-pill) {
   padding: 0.375rem 0.75rem;
   font-size: 0.875rem;
   min-height: 2rem;
 }
 
-.btn-md {
+.btn-md:not(.btn-pill) {
   padding: 0.5rem 1rem;
   font-size: 1rem;
   min-height: 2.5rem;
 }
 
-.btn-lg {
+.btn-lg:not(.btn-pill) {
   padding: 0.75rem 1.5rem;
   font-size: 1.125rem;
   min-height: 3rem;
@@ -146,6 +147,9 @@
   /* GPU acceleration to prevent blur */
   transform: translateZ(0);
   backface-visibility: hidden;
+}
+.btn-pill{
+  gap:5px;
 }
 
 .btn-pill:hover:not(:disabled) {

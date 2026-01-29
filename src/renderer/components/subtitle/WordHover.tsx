@@ -4,7 +4,7 @@
  * Matches legacy .subtitle_hover structure exactly from the old app
  */
 
-import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
+import { Component, JSX, Show, For, createMemo, createSignal, createEffect } from 'solid-js';
 import type { Token, DictionaryEntry, TranslationEntry, PitchData, FlashcardContent, LLMResponse } from '../../../shared/types';
 import { WORD_STATUS } from '../../../shared/constants';
 import { normalizeReading } from '../../../shared/utils/textUtils';
@@ -21,6 +21,12 @@ import './WordHover.css';
 const ICON_CROSS2 = 'cross2';
 const ICON_CHECK = 'check';
 const ICON_BOT = 'bot';
+
+// UI element dimensions for boundary calculations (actual CSS values from reader components)
+const UI_NAVBAR_HEIGHT = 48;  // .reader-nav height: 48px
+const UI_SIDEBAR_WIDTH = 160; // .reader-sidebar width: 160px
+const UI_STATUSBAR_HEIGHT = 30; // .reader-status height: 30px
+const UI_BOUNDARY_PADDING = 12; // Small padding from UI elements
 
 export type WordStatus = 'unknown' | 'learning' | 'known';
 
@@ -91,13 +97,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const [currentEase, setCurrentEase] = createSignal<number | undefined>(props.ease);
   const [llmExplaining, setLlmExplaining] = createSignal(false);
   const [llmExplanation, setLlmExplanation] = createSignal<string | null>(null);
-  const [calculatedWidth, setCalculatedWidth] = createSignal<number>(280);
-  // Stable height for positioning - only updated when content changes significantly, not on status changes
-  const [stableHeight, setStableHeight] = createSignal<number>(200);
   // Flag to prevent effect from overwriting local isInSRS state during flashcard creation
   const [isAddingFlashcard, setIsAddingFlashcard] = createSignal(false);
   // Flag to lock position during state changes to prevent jumps
-  const [positionLocked, setPositionLocked] = createSignal(false);
+  const [, setPositionLocked] = createSignal(false);
   let hoverRef: HTMLDivElement | undefined;
 
   // Helper to get display word - track token changes
@@ -107,89 +110,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const actualWord = createMemo(() => props.token.actual_word || displayWord());
 
   const isShown = createMemo(() => props.visible !== false);
-
-  // Calculate width based on footer pills (like old app)
-  // Width should be min(footer pills natural width, 400px)
-  // Pills are set to flex-wrap: nowrap, so they stay on one line
-  const calculateWidth = () => {
-    if (!hoverRef) return;
-    
-    const subtitleHover = hoverRef.querySelector('.subtitle_hover') as HTMLElement | null;
-    if (!subtitleHover) return;
-    
-    const pillsEl = subtitleHover.querySelector('.pills') as HTMLElement | null;
-    
-    let pillsNaturalWidth = 280; // default minimum
-    
-    if (pillsEl) {
-      // Get all pill elements and sum their widths plus gaps
-      const pills = pillsEl.querySelectorAll('.label-pill, .btn-pill');
-      const gap = 4; // Matches the CSS gap: 4px
-      let totalPillWidth = 0;
-      
-      pills.forEach((pill) => {
-        const pillEl = pill as HTMLElement;
-        // Use getBoundingClientRect for accurate measurements
-        const rect = pillEl.getBoundingClientRect();
-        totalPillWidth += rect.width;
-      });
-      
-      // Add gaps between pills (n-1 gaps for n pills)
-      const totalGaps = pills.length > 1 ? (pills.length - 1) * gap : 0;
-      
-      // Add footer padding (10px each side = 20px total)
-      pillsNaturalWidth = Math.ceil(totalPillWidth + totalGaps + 20);
-    }
-    
-    // Width is min(pillsNaturalWidth, 400px) - capped at 400px
-    // Also respect viewport constraints
-    const maxAllowed = Math.min(400, (typeof window !== 'undefined' ? window.innerWidth - 32 : 400));
-    const newWidth = Math.min(maxAllowed, Math.max(280, pillsNaturalWidth));
-    setCalculatedWidth(newWidth);
-    
-    // Also update stable height for positioning (only when not locked)
-    if (!positionLocked() && subtitleHover.offsetHeight > 0) {
-      setStableHeight(subtitleHover.offsetHeight);
-    }
-  };
-
-  // Recalculate width when content changes, but NOT when status/isInSRS changes
-  // (those changes don't affect width significantly and cause unwanted position jumps)
-  createEffect(() => {
-    // Only track dependencies that actually affect width/layout
-    void displayWord();
-    void props.translationData;
-    void llmExplanation();
-    void isShown();
-    // Intentionally NOT tracking: currentStatus(), isInSRS()
-    
-    // Use requestAnimationFrame to ensure DOM is updated
-    if (isShown()) {
-      // Multiple passes to catch late layout changes
-      requestAnimationFrame(() => {
-        calculateWidth();
-        // Second pass after a short delay
-        setTimeout(() => calculateWidth(), 50);
-      });
-    }
-  });
-
-  // Also recalculate on mount and resize
-  onMount(() => {
-    calculateWidth();
-    
-    const resizeObserver = new ResizeObserver(() => {
-      calculateWidth();
-    });
-    
-    if (hoverRef) {
-      resizeObserver.observe(hoverRef);
-    }
-    
-    onCleanup(() => {
-      resizeObserver.disconnect();
-    });
-  });
 
   // Load actual status from storage on mount or when word changes
   createEffect(async () => {
@@ -242,13 +162,59 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     }
   });
 
-  const hoverStyle = createMemo((): JSX.CSSProperties => {
-    const width = calculatedWidth();
-    const anchor = props.anchorRect;
-    
-    // Get viewport dimensions
+  // Computed position signal - updated after render when dimensions are known
+  const [computedPosition, setComputedPosition] = createSignal<{ left: number; top: number }>({ left: 0, top: 0 });
+
+  // Get the actual rendered dimensions from CSS (width is fit-content, capped at 400px)
+  const getHoverDimensions = (): { width: number; height: number } => {
+    const subtitleHover = hoverRef?.querySelector('.subtitle_hover') as HTMLElement | null;
+    if (!subtitleHover) return { width: 280, height: 200 };
+    return {
+      width: subtitleHover.offsetWidth || 280,
+      height: subtitleHover.offsetHeight || 200,
+    };
+  };
+
+  // Detect UI elements present in the DOM to calculate safe boundaries
+  // Returns the actual pixel boundaries of the content area
+  const getUIBounds = (): { 
+    minX: number; maxX: number; minY: number; maxY: number; 
+    vw: number; vh: number; 
+    hasNavbar: boolean; hasSidebar: boolean; hasStatusbar: boolean;
+    sidebarWidth: number; navbarHeight: number; statusbarHeight: number;
+  } => {
     const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
     const vh = typeof window !== 'undefined' ? window.innerHeight : 600;
+    
+    // Check for navbar - look for actual reader-nav element
+    const navbarEl = document.querySelector('.reader-nav, .video-nav');
+    const hasNavbar = !!navbarEl;
+    const navbarHeight = navbarEl ? (navbarEl as HTMLElement).offsetHeight || UI_NAVBAR_HEIGHT : 0;
+    
+    // Check for sidebar - it's rendered via <Show> so we check for the element directly
+    const sidebarEl = document.querySelector('.reader-sidebar');
+    const hasSidebar = !!sidebarEl;
+    const sidebarWidth = sidebarEl ? (sidebarEl as HTMLElement).offsetWidth || UI_SIDEBAR_WIDTH : 0;
+    
+    // Check for statusbar - look for actual reader-status element
+    const statusbarEl = document.querySelector('.reader-status, .reader-status-bar');
+    const hasStatusbar = !!statusbarEl;
+    const statusbarHeight = statusbarEl ? (statusbarEl as HTMLElement).offsetHeight || UI_STATUSBAR_HEIGHT : 0;
+    
+    // Calculate safe bounds with small padding
+    const minX = (hasSidebar ? sidebarWidth : 0) + UI_BOUNDARY_PADDING;
+    const maxX = vw - UI_BOUNDARY_PADDING;
+    const minY = (hasNavbar ? navbarHeight : 0) + UI_BOUNDARY_PADDING;
+    const maxY = vh - (hasStatusbar ? statusbarHeight : 0) - UI_BOUNDARY_PADDING;
+    
+    return { minX, maxX, minY, maxY, vw, vh, hasNavbar, hasSidebar, hasStatusbar, sidebarWidth, navbarHeight, statusbarHeight };
+  };
+
+  // Calculate position with boundary constraints
+  const calculateBoundedPosition = (width: number, hoverHeight: number): { left: number; top: number } => {
+    const anchor = props.anchorRect;
+    const bounds = getUIBounds();
+    const { minX, maxX, minY, maxY, vh, navbarHeight, statusbarHeight } = bounds;
     
     // Calculate centered position relative to anchor
     const anchorCenterX = anchor ? (anchor.left + anchor.right) / 2 : props.position.x;
@@ -258,12 +224,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     // Start with centered position
     let left = anchorCenterX - width / 2;
     
-    // Use stable height for positioning to prevent jumps when content changes slightly
-    // Only use actual offsetHeight if stableHeight hasn't been set yet
-    const hoverHeight = stableHeight() || hoverRef?.offsetHeight || 200;
     const margin = 8;
-    const spaceAbove = anchorTop - margin;
-    const spaceBelow = vh - anchorBottom - margin;
+    // Calculate available space above/below accounting for UI elements
+    const effectiveTop = navbarHeight + UI_BOUNDARY_PADDING;
+    const effectiveBottom = vh - statusbarHeight - UI_BOUNDARY_PADDING;
+    
+    const spaceAbove = anchorTop - effectiveTop - margin;
+    const spaceBelow = effectiveBottom - anchorBottom - margin;
     // In video mode (subtitles at bottom), prefer positioning above the word
     const placeAbove = spaceAbove >= hoverHeight || spaceAbove > spaceBelow;
     
@@ -271,32 +238,69 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       ? anchorTop - hoverHeight - margin
       : anchorBottom + margin;
     
-    // Horizontal clamping with proper margins (minimum 8px from edges)
-    const horizontalMargin = 8;
-    if (left < horizontalMargin) {
-      left = horizontalMargin;
-    } else if (left + width > vw - horizontalMargin) {
-      left = vw - width - horizontalMargin;
+    // Horizontal clamping within safe bounds
+    // First, clamp to right edge (maxX is the rightmost position the right edge of hover can be)
+    if (left + width > maxX) {
+      left = maxX - width;
+    }
+    // Then, clamp to left edge (ensure left doesn't go below minX)
+    if (left < minX) {
+      left = minX;
     }
     
-    // Vertical clamping
-    if (top < horizontalMargin) {
-      top = horizontalMargin;
-    } else if (top + hoverHeight > vh - horizontalMargin) {
-      top = vh - hoverHeight - horizontalMargin;
+    // Vertical clamping within safe bounds
+    // First, clamp to bottom edge (maxY is the bottommost position the bottom edge of hover can be)
+    if (top + hoverHeight > maxY) {
+      top = maxY - hoverHeight;
+    }
+    // Then, clamp to top edge (ensure top doesn't go below minY)
+    if (top < minY) {
+      top = minY;
     }
     
-    // If still too wide for viewport, constrain width
-    const effectiveWidth = Math.min(width, vw - horizontalMargin * 2);
-    if (effectiveWidth !== width) {
-      left = horizontalMargin;
-    }
+    return { left: Math.round(left), top: Math.round(top) };
+  };
+
+  // Effect to update position after render when dimensions are available
+  createEffect(() => {
+    // Track dependencies: when these change, recalculate position
+    const visible = isShown();
+    // Access props to establish reactive dependencies
+    void props.anchorRect;
+    void props.position.x;
+    void props.position.y;
+    
+    if (!visible) return;
+    
+    // Use requestAnimationFrame to ensure DOM has painted
+    requestAnimationFrame(() => {
+      const { width, height } = getHoverDimensions();
+      const bounds = getUIBounds();
+      const newPos = calculateBoundedPosition(width, height);
+      
+      // Debug logging
+      console.log(
+        `%c[WordHover] Position Debug:%c\n` +
+        `  Hover size: ${width}×${height}px\n` +
+        `  Position: (${newPos.left}, ${newPos.top})\n` +
+        `  Bounds: minX=${bounds.minX}, maxX=${bounds.maxX}, minY=${bounds.minY}, maxY=${bounds.maxY}\n` +
+        `  UI: navbar=${bounds.hasNavbar}(${bounds.navbarHeight}px), sidebar=${bounds.hasSidebar}(${bounds.sidebarWidth}px), statusbar=${bounds.hasStatusbar}(${bounds.statusbarHeight}px)\n` +
+        `  Viewport: ${bounds.vw}×${bounds.vh}`,
+        'color: #00bcd4; font-weight: bold;',
+        'color: #aaa;'
+      );
+      
+      setComputedPosition(newPos);
+    });
+  });
+
+  const hoverStyle = createMemo((): JSX.CSSProperties => {
+    const pos = computedPosition();
 
     return {
       position: 'fixed',
-      left: `${Math.round(left)}px`,
-      top: `${Math.round(top)}px`,
-      width: `${effectiveWidth}px`,
+      left: `${pos.left}px`,
+      top: `${pos.top}px`,
       'z-index': '1000',
     };
   });
