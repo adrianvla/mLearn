@@ -6,7 +6,7 @@
 
 import { Component, Show, For, createSignal, createEffect, onMount } from 'solid-js';
 import { WindowWrapper } from '../../context';
-import { useSettings } from '../../context';
+import { useSettings, useLocalization } from '../../context';
 import type { Settings, InstallOptions, InstallerState } from '../../../shared/types';
 import { GlassPanel, GlassBtn, SelectableCard, AlertBanner, LogConsole, CheckboxCard, Progress } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
@@ -33,13 +33,14 @@ const WELCOME_TEXTS = ['Welcome!', 'ようこそ！', 'Wilkommen!', 'Bienvenue!'
 
 const WelcomeContent: Component = () => {
   const { updateSettings } = useSettings();
+  const { t } = useLocalization();
 
   // Installation state
   const [installationStarted, setInstallationStarted] = createSignal(false);
   const [installationCompleted, setInstallationCompleted] = createSignal(false);
   const [progress, setProgress] = createSignal(0);
   const [statusLogs, setStatusLogs] = createSignal<LogEntry[]>([{ message: 'Click Install to begin.', level: 'info' }]);
-  const [overallStatus, setOverallStatus] = createSignal('Waiting to start installation...');
+  const [overallStatus, setOverallStatus] = createSignal(t('mlearn.Installer.Status.NotStarted'));
   const [networkError, setNetworkError] = createSignal<string | null>(null);
 
   // Install options
@@ -65,8 +66,8 @@ const WelcomeContent: Component = () => {
     setInstallationCompleted(true);
     setInstallationStarted(false);
     setProgress(100);
-    setOverallStatus('Installation complete!');
-    logInfo('Installation complete!');
+    setOverallStatus(t('mlearn.Installer.Status.Complete'));
+    logInfo(t('mlearn.Installer.Status.Complete'));
   };
 
   // Reset to waiting state (for retries)
@@ -74,7 +75,7 @@ const WelcomeContent: Component = () => {
     if (installationCompleted()) return;
     setInstallationStarted(false);
     setProgress(0);
-    setOverallStatus('Waiting to start installation...');
+    setOverallStatus(t('mlearn.Installer.Status.NotStarted'));
     setStatusLogs([{ message: 'Click Install to begin.', level: 'info' }]);
     if (opts) {
       setIncludeLLM(opts.includeLLM ?? true);
@@ -89,7 +90,7 @@ const WelcomeContent: Component = () => {
     setInstallationStarted(true);
     setNetworkError(null);
     setProgress(5);
-    setOverallStatus('Installing...');
+    setOverallStatus(t('mlearn.Installer.Status.Installing'));
     setStatusLogs([]);
     logInfo(includeLLM() ? 'Local AI model dependencies will be installed.' : 'Skipping local AI model dependencies.');
     logInfo(includeOCR() ? 'OCR reader dependencies will be installed.' : 'Skipping OCR reader dependencies.');
@@ -303,19 +304,19 @@ const WelcomeContent: Component = () => {
           }}
         >
           <Show when={!installationStarted() && !installationCompleted()}>
-            Choose the components you want to install, then click Install.
+            {t('mlearn.Installer.Instructions.ChooseComponents')}
             <br />
-            Language selection unlocks after setup finishes.
+            {t('mlearn.Installer.Instructions.LanguageUnlocks')}
             <br />
-            If you forget to install something, delete mLearn and restart the installer again.
+            {t('mlearn.Installer.Instructions.ForgetSomething')}
             <br />
-            You will <strong>not</strong> lose your data.
+            <strong>{t('mlearn.Installer.Instructions.DownloadNote')}</strong>
           </Show>
           <Show when={installationStarted() && !installationCompleted()}>
-            Installing required components. This can take several minutes—please keep this window open.
+            {t('mlearn.Installer.Status.Installing')}
           </Show>
           <Show when={installationCompleted()}>
-            Installation complete! Choose your language to finish setup.
+            {t('mlearn.Installer.Status.Complete')}
           </Show>
         </p>
 
@@ -325,14 +326,14 @@ const WelcomeContent: Component = () => {
             <CheckboxCard
               checked={includeLLM()}
               onChange={setIncludeLLM}
-              title="Install mLearn Explain AI Module"
-              description="Installs a local LLM Neural Network. Skips ~3 GB of dependencies if left unchecked."
+              title={t('mlearn.Installer.Components.ExplainAi.Title')}
+              description={t('mlearn.Installer.Components.ExplainAi.Description')}
             />
             <CheckboxCard
               checked={includeOCR()}
               onChange={setIncludeOCR}
-              title="Install mLearn Reader Module"
-              description="Will install text recognition neural networks. Skip to save download size if you do not plan on using the manga/comic reader right now."
+              title={t('mlearn.Installer.Components.Reader.Title')}
+              description={t('mlearn.Installer.Components.Reader.Description')}
             />
           </div>
         </Show>
@@ -378,7 +379,7 @@ const WelcomeContent: Component = () => {
         <Show when={networkError()}>
           <AlertBanner
             variant="error"
-            title="Network Error"
+            title={t('mlearn.Installer.Alerts.NetworkError')}
             message={networkError()!}
             closable
             onClose={() => setNetworkError(null)}
@@ -392,9 +393,9 @@ const WelcomeContent: Component = () => {
           disabled={installationStarted() && !installationCompleted()}
           style={{ width: '100%', 'margin-top': '1rem' }}
         >
-          <Show when={!installationStarted() && !installationCompleted()}>Start Installation</Show>
-          <Show when={installationStarted() && !installationCompleted()}>Installing...</Show>
-          <Show when={installationCompleted()}>Continue</Show>
+          <Show when={!installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.StartInstallation')}</Show>
+          <Show when={installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.Installing')}</Show>
+          <Show when={installationCompleted()}>{t('mlearn.Installer.Buttons.Continue')}</Show>
         </GlassBtn>
       </GlassPanel>
     </div>

@@ -11,7 +11,7 @@
  */
 
 import { Component, createSignal, For, Show, onMount, createMemo, createEffect } from 'solid-js';
-import { WindowWrapper, useSettings, useLanguage } from '../../context';
+import { WindowWrapper, useSettings, useLanguage, useLocalization } from '../../context';
 import {
   getWordsLearnedInApp,
 } from '../../services/statsService';
@@ -76,6 +76,7 @@ function mixHex(c1: string, c2: string, t: number): string {
 const KanjiGridContent: Component = () => {
   const { settings } = useSettings();
   const { wordFrequency, getFreqLevelNames, getFrequency, currentLangData } = useLanguage();
+  const { t } = useLocalization();
   
   const [kanjiData, setKanjiData] = createSignal<KanjiData[]>([]);
   const [hoveredKanji, setHoveredKanji] = createSignal<KanjiData | null>(null);
@@ -294,10 +295,9 @@ const KanjiGridContent: Component = () => {
   return (
     <div class="kanji-grid-window">
       <div class="kg-header">
-        <h1>Character Knowledge Overview</h1>
+        <h1>{t('mlearn.KanjiGrid.Title')}</h1>
         <p class="kg-subtitle">
-          Colors: learning (orange→yellow), known (green→light-green); unknown (gray).
-          Hover a level to highlight expected characters.
+          {t('mlearn.KanjiGrid.Description')}
         </p>
       </div>
 
@@ -324,31 +324,31 @@ const KanjiGridContent: Component = () => {
           <Show when={!isLoading() && kanjiData().length === 0}>
             <div class="kg-empty-state">
               <div class="empty-icon">📚</div>
-              <h3>No tracked characters yet</h3>
-              <p>Start watching videos or reading content with mLearn to build your character knowledge map.</p>
-              <p class="hint">Words you mark as known or learning will appear here, color-coded by your progress.</p>
+              <h3>{t('mlearn.KanjiGrid.EmptyState.Title')}</h3>
+              <p>{t('mlearn.KanjiGrid.EmptyState.Description')}</p>
+              <p class="hint">{t('mlearn.KanjiGrid.EmptyState.Hint')}</p>
             </div>
           </Show>
           
           <Show when={isLoading()}>
-            <Spinner size={40} text="Loading kanji data..." />
+            <Spinner size={40} text={t('mlearn.KanjiGrid.Loading')} />
           </Show>
         </div>
 
         <div class="kg-sidebar">
           {/* Legend */}
           <div class="kg-legend">
-            <LegendItem label="Learning:" color="#E65100" secondaryColor="#FFEB3B" showArrow />
-            <LegendItem label="Known:" color="#2E7D32" secondaryColor="#81C784" showArrow />
-            <LegendItem label="Unknown:" color="#616161" />
+            <LegendItem label={t('mlearn.KanjiGrid.Legend.Learning')} color="#E65100" secondaryColor="#FFEB3B" showArrow />
+            <LegendItem label={t('mlearn.KanjiGrid.Legend.Known')} color="#2E7D32" secondaryColor="#81C784" showArrow />
+            <LegendItem label={t('mlearn.KanjiGrid.Legend.Unknown')} color="#616161" />
           </div>
 
           {/* Stats */}
           <div class="kg-stats">
-            <div>· Known: <b>{stats().known}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().known / stats().total * 1000) / 10 : 0}%)</span></div>
-            <div>· Learning: <b>{stats().learning}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().learning / stats().total * 1000) / 10 : 0}%)</span></div>
-            <div>· Unknown: <b>{stats().unknown}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().unknown / stats().total * 1000) / 10 : 0}%)</span></div>
-            <div>· Total Found: <b>{stats().total}</b></div>
+            <div>· {t('mlearn.KanjiGrid.Stats.Known')} <b>{stats().known}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().known / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· {t('mlearn.KanjiGrid.Stats.Learning')} <b>{stats().learning}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().learning / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· {t('mlearn.KanjiGrid.Stats.Unknown')} <b>{stats().unknown}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().unknown / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· {t('mlearn.KanjiGrid.Stats.TotalFound')} <b>{stats().total}</b></div>
           </div>
 
           {/* Level Pills - dynamically loaded from language data */}

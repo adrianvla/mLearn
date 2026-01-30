@@ -3,41 +3,42 @@
  */
 
 import { Component } from 'solid-js';
-import { useSettings } from '../../../context';
+import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, TabContent, Select } from '../../../components/common';
 
 export const CustomizationTab: Component = () => {
   const { settings, updateSettings } = useSettings();
+  const { t } = useLocalization();
 
   return (
     <TabContent
       header={{
-        title: 'Customization',
-        description: 'Personalize the look and feel',
+        title: t('mlearn.Settings.Groups.SubtitleAppearance'),
+        description: t('mlearn.Settings.UI.Description'),
         icon: '🎨',
       }}
       padding="lg"
     >
 
-      <SettingGroup title="Subtitle Appearance">
+      <SettingGroup title={t('mlearn.Settings.Groups.SubtitleAppearance')}>
         <SettingRow
-          label="Subtitle Theme"
-          description="How subtitles are displayed on video"
+          label={t('mlearn.Settings.Subtitle.Theme.Label')}
+          description={t('mlearn.Settings.Subtitle.Theme.Description')}
         >
           <Select
             class="setting-select"
             value={settings.subtitleTheme}
             onChange={(e) => updateSettings({ subtitleTheme: e.currentTarget.value as any })}
           >
-            <option value="shadow">Shadow</option>
-            <option value="background">Background</option>
-            <option value="marker">Marker</option>
+            <option value="shadow">{t('mlearn.Settings.Subtitle.Themes.Shadow')}</option>
+            <option value="background">{t('mlearn.Settings.Subtitle.Themes.Background')}</option>
+            <option value="marker">{t('mlearn.Settings.Subtitle.Themes.Marker')}</option>
           </Select>
         </SettingRow>
 
         <SettingRow
-          label="Font Size"
-          description="Size of subtitle text"
+          label={t('mlearn.Settings.Subtitle.FontSize.Label')}
+          description={t('mlearn.Settings.Subtitle.FontSize.Description')}
         >
           <input
             type="number"
@@ -50,31 +51,31 @@ export const CustomizationTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Font Weight"
-          description="Thickness of subtitle text"
+          label={t('mlearn.Settings.Subtitle.FontWeight.Label')}
+          description={t('mlearn.Settings.Subtitle.FontWeight.Description')}
         >
           <Select
             class="setting-select"
             value={settings.subtitle_font_weight.toString()}
             onChange={(e) => updateSettings({ subtitle_font_weight: parseInt(e.currentTarget.value) })}
           >
-            <option value="100">Thin (100)</option>
-            <option value="200">Extra Light (200)</option>
-            <option value="300">Light (300)</option>
-            <option value="400">Normal (400)</option>
-            <option value="500">Medium (500)</option>
-            <option value="600">Semi Bold (600)</option>
-            <option value="700">Bold (700)</option>
-            <option value="800">Extra Bold (800)</option>
-            <option value="900">Black (900)</option>
+            <option value="100">{t('mlearn.Settings.Subtitle.FontWeights.Thin')}</option>
+            <option value="200">{t('mlearn.Settings.Subtitle.FontWeights.ExtraLight')}</option>
+            <option value="300">{t('mlearn.Settings.Subtitle.FontWeights.Light')}</option>
+            <option value="400">{t('mlearn.Settings.Subtitle.FontWeights.Normal')}</option>
+            <option value="500">{t('mlearn.Settings.Subtitle.FontWeights.Medium')}</option>
+            <option value="600">{t('mlearn.Settings.Subtitle.FontWeights.SemiBold')}</option>
+            <option value="700">{t('mlearn.Settings.Subtitle.FontWeights.Bold')}</option>
+            <option value="800">{t('mlearn.Settings.Subtitle.FontWeights.ExtraBold')}</option>
+            <option value="900">{t('mlearn.Settings.Subtitle.FontWeights.Black')}</option>
           </Select>
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title="Subtitle Timing">
+      <SettingGroup title={t('mlearn.Settings.Groups.SubtitleTiming')}>
         <SettingRow
-          label="Subtitle Offset"
-          description="Adjust subtitle timing (milliseconds)"
+          label={t('mlearn.Settings.Subtitle.Offset.Label')}
+          description={t('mlearn.Settings.Subtitle.Offset.Description')}
         >
           <input
             type="number"
@@ -86,7 +87,7 @@ export const CustomizationTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title="Theme Preview">
+      <SettingGroup title={t('mlearn.Settings.Groups.ThemePreview')}>
         <div style={{ padding: "20px", background: "#000", "border-radius": "8px" }}>
           <p
             style={{

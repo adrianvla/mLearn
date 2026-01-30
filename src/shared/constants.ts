@@ -39,6 +39,11 @@ export const IPC_CHANNELS = {
   LANG_INSTALLED: 'lang-installed',
   LANG_INSTALL_ERROR: 'lang-install-error',
   
+  // Localization
+  GET_LOCALIZATION: 'get-localization',
+  LOCALIZATION: 'localization',
+  CHANGE_UI_LANGUAGE: 'change-ui-language',
+  
   // Flashcards
   GET_FLASHCARDS: 'get-flashcards',
   SAVE_FLASHCARDS: 'save-flashcards',

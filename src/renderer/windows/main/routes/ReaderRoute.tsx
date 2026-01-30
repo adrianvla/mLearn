@@ -9,7 +9,7 @@ import { useNavigate } from '@solidjs/router';
 import { OcrOverlay, type OcrResult } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
 import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation } from '../../../hooks';
-import { useSettings } from '../../../context';
+import { useSettings, useLocalization } from '../../../context';
 import type { Token, TranslationResponse, DictionaryEntry } from '../../../../shared/types';
 import { API_ENDPOINTS } from '../../../../shared/constants';
 import { ReaderNav, ReaderSidebar, ReaderWelcomeCard, ReaderStatusBar } from './components';
@@ -90,6 +90,7 @@ export const ReaderRoute: Component = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { isProcessing: _ocrHookProcessing } = useOCR();
   const { settings } = useSettings();
+  const { t } = useLocalization();
   const { translateWord } = useTranslation({ immediate: true });
   const { lookup } = useDictionary();
   const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
@@ -125,8 +126,8 @@ export const ReaderRoute: Component = () => {
     }
   };
   const [showSidebar, setShowSidebar] = createSignal(true);
-  const [bookTitle, setBookTitle] = createSignal('Nothing Loaded');
-  const [ocrStatus, setOcrStatus] = createSignal('Ready');
+  const [bookTitle, setBookTitle] = createSignal('');
+  const [ocrStatus, setOcrStatus] = createSignal('');
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isProcessingOcr, _setIsProcessingOcr] = createSignal(false);
   const [isDragging, setIsDragging] = createSignal(false);
@@ -418,7 +419,7 @@ export const ReaderRoute: Component = () => {
       if (taskPageIdx < visibleStart) {
         // Processing a page BEFORE current view (user navigated forward)
         // Show "Cleaning Up…" without any fraction
-        setOcrStatus('Cleaning Up…');
+        setOcrStatus(t('mlearn.Reader.Status.CleaningUp'));
         return;
       }
       
@@ -429,7 +430,7 @@ export const ReaderRoute: Component = () => {
         
         if (maxVisibleCount === 1) {
           // Single page mode - just show "Recognizing..." without fraction
-          setOcrStatus('Recognizing...');
+          setOcrStatus(t('mlearn.Reader.Status.Recognizing'));
         } else {
           // Double page mode - show "Processing X/Y"
           // X = which visible page we're processing (1 or 2)
@@ -437,7 +438,7 @@ export const ReaderRoute: Component = () => {
           const visiblePageIds = visible.map(p => p.id);
           const processingIdx = visiblePageIds.indexOf(currentTask.page.id);
           const xValue = processingIdx >= 0 ? processingIdx + 1 : 1;
-          setOcrStatus(`Processing ${xValue}/${maxVisibleCount}`);
+          setOcrStatus(t('mlearn.Reader.Status.Processing', { x: xValue, y: maxVisibleCount }));
         }
         return;
       }
@@ -447,7 +448,7 @@ export const ReaderRoute: Component = () => {
       const cachePageIndices = [visibleEnd + 1, visibleEnd + 2].filter(idx => idx < pages().length);
       const processingCacheIdx = cachePageIndices.indexOf(taskPageIdx);
       const xValue = processingCacheIdx >= 0 ? processingCacheIdx + 1 : 1;
-      setOcrStatus(`Caching ${xValue}/${maxVisibleCount}`);
+      setOcrStatus(t('mlearn.Reader.Status.Caching', { x: xValue, y: maxVisibleCount }));
       return;
     }
     
@@ -458,28 +459,28 @@ export const ReaderRoute: Component = () => {
       
       if (nextPageIdx < visibleStart) {
         // Next in queue is before current view - cleaning up
-        setOcrStatus('Cleaning Up…');
+        setOcrStatus(t('mlearn.Reader.Status.CleaningUp'));
         return;
       }
       
       if (nextPageIdx >= visibleStart && nextPageIdx <= visibleEnd) {
         // Visible page is queued but not yet processing - waiting to start
-        setOcrStatus('Loading Neural Network...');
+        setOcrStatus(t('mlearn.Reader.Status.LoadingNeuralNetwork'));
         return;
       }
       
       // Caching pages are queued - show caching status
-      setOcrStatus(`Caching 1/${maxVisibleCount}`);
+      setOcrStatus(t('mlearn.Reader.Status.Caching', { x: 1, y: maxVisibleCount }));
       return;
     }
 
     // No tasks - check if all visible pages are done
     const allVisibleDone = visible.every(p => ocrResults[p.id]);
     if (allVisibleDone) {
-      setOcrStatus('Ready');
+      setOcrStatus(t('mlearn.Reader.Status.Ready'));
     } else {
       // Visible pages don't have OCR yet but nothing is processing - show waiting
-      setOcrStatus('Loading Neural Network...');
+      setOcrStatus(t('mlearn.Reader.Status.LoadingNeuralNetwork'));
     }
   };
 
@@ -513,7 +514,7 @@ export const ReaderRoute: Component = () => {
       return;
     }
 
-    setOcrStatus('Loading...');
+    setOcrStatus(t('mlearn.Reader.Status.Loading'));
     
     try {
       // Check if it's a PDF file or a directory
@@ -551,17 +552,17 @@ export const ReaderRoute: Component = () => {
           setPages(newPages);
           setOcrBatchTotal(newPages.length);
           setOcrCompletedIds(new Set<string>());
-          setBookTitle(bookId || 'PDF Document');
+          setBookTitle(bookId || t('mlearn.Reader.Status.PdfDocument'));
         });
         
         // Save to recent with the correct path
-        saveToRecent(bookId || 'PDF Document', 'book', startPage, bookPath, newPages[0]?.blob);
+        saveToRecent(bookId || t('mlearn.Reader.Status.PdfDocument'), 'book', startPage, bookPath, newPages[0]?.blob);
       } else {
         // Load directory of images
         const result = await window.mLearnIPC.readDirectoryImages(bookPath);
         
         if (result.files.length === 0) {
-          setOcrStatus('No images found');
+          setOcrStatus(t('mlearn.Reader.Status.NoImagesFound'));
           return;
         }
 
@@ -593,17 +594,17 @@ export const ReaderRoute: Component = () => {
           setPages(newPages);
           setOcrBatchTotal(newPages.length);
           setOcrCompletedIds(new Set<string>());
-          setBookTitle(bookId || 'Imported Book');
+          setBookTitle(bookId || t('mlearn.Reader.Status.ImportedBook'));
         });
         
         // Save to recent with the correct path
-        saveToRecent(bookId || 'Imported Book', 'book', startPage, bookPath, newPages[0]?.blob);
+        saveToRecent(bookId || t('mlearn.Reader.Status.ImportedBook'), 'book', startPage, bookPath, newPages[0]?.blob);
       }
       
-      setOcrStatus('Ready');
+      setOcrStatus(t('mlearn.Reader.Status.Ready'));
     } catch (error) {
       console.error('[Reader] Failed to load from path:', error);
-      setOcrStatus('Failed to load');
+      setOcrStatus(t('mlearn.Reader.Status.FailedToLoad'));
     }
   };
 
@@ -688,7 +689,7 @@ export const ReaderRoute: Component = () => {
     
     if (pdfFile) {
       // Handle PDF file
-      setOcrStatus('Loading PDF...');
+      setOcrStatus(t('mlearn.Reader.Status.LoadingPdf'));
       try {
         const pdfImages = await pdfToImages(pdfFile);
         
@@ -730,15 +731,15 @@ export const ReaderRoute: Component = () => {
           setOcrCompletedIds(new Set<string>());
           
           // Save to recent with the first page as thumbnail
-          const title = bookId || 'PDF Document';
+          const title = bookId || t('mlearn.Reader.Status.PdfDocument');
           setBookTitle(title);
           saveToRecent(title, 'book', startPage, pdfPath, newPages[0]?.blob);
         });
-        setOcrStatus('Ready');
+        setOcrStatus(t('mlearn.Reader.Status.Ready'));
         return;
       } catch (error) {
         console.error('Failed to load PDF:', error);
-        setOcrStatus('Failed to load PDF');
+        setOcrStatus(t('mlearn.Reader.Status.FailedToLoadPdf'));
         return;
       }
     }
@@ -811,7 +812,7 @@ export const ReaderRoute: Component = () => {
     });
     
     // Determine title: use the folder name (stripped)
-    const title = bookId || 'Imported Book';
+    const title = bookId || t('mlearn.Reader.Status.ImportedBook');
     setBookTitle(title);
     saveToRecent(title, 'book', startPage, bookPath, newPages[0]?.blob);
   };
@@ -1078,27 +1079,27 @@ export const ReaderRoute: Component = () => {
 
                     // Processing a page BEFORE current view - cleaning up old work
                     if (taskPageIdx < visibleStart) {
-                      computed = 'Cleaning Up…';
+                      computed = t('mlearn.Reader.Status.CleaningUp');
                     } else if (taskPageIdx >= visibleStart && taskPageIdx <= visibleEnd) {
                       // Processing a VISIBLE page
-                      computed = 'Processing...';
+                      computed = t('mlearn.Reader.Status.Recognizing');
                     } else {
                       // Processing a page AFTER current view - caching
-                      computed = 'Caching...';
+                      computed = t('mlearn.Reader.Status.Caching', { x: 1, y: 2 });
                     }
                   } else if (isPending()) {
                     const taskPageIdx = page.index;
                     if (taskPageIdx < visibleStart) {
-                      computed = 'Cleaning Up...';
+                      computed = t('mlearn.Reader.Status.CleaningUp');
                     } else if (taskPageIdx >= visibleStart && taskPageIdx <= visibleEnd) {
-                      computed = 'Pending...';
+                      computed = t('mlearn.Reader.Status.Pending');
                     } else {
-                      computed = 'Queued...';
+                      computed = t('mlearn.Reader.Status.Queued');
                     }
                   } else {
                     // No active or pending work for this page.
                     // If OCR result exists, it's ready; otherwise no new status to compute
-                    computed = ocrResults[page.id] ? 'Ready' : null;
+                    computed = ocrResults[page.id] ? t('mlearn.Reader.Status.Ready') : null;
                   }
 
                   // If we have a computed status and overlay is visible, update the latch

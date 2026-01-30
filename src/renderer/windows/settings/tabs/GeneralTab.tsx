@@ -3,12 +3,13 @@
  */
 
 import { Component, createSignal } from 'solid-js';
-import { useSettings } from '../../../context';
+import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, GlassBtn, Select } from '../../../components/common';
 import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/types';
 
 export const GeneralTab: Component = () => {
   const { settings, updateSettings, saveSettings } = useSettings();
+  const { t } = useLocalization();
   const [exportError, setExportError] = createSignal<string | null>(null);
   const [importError, setImportError] = createSignal<string | null>(null);
 
@@ -28,7 +29,7 @@ export const GeneralTab: Component = () => {
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error('Failed to export settings:', e);
-      setExportError('Failed to export settings');
+      setExportError(t('mlearn.Settings.UI.SaveError'));
     }
   };
 
@@ -64,53 +65,53 @@ export const GeneralTab: Component = () => {
         updateSettings(filteredSettings);
         saveSettings();
         
-        alert('Settings imported successfully!');
+        alert(t('mlearn.Global.Success'));
       } catch (e) {
         console.error('Failed to import settings:', e);
-        setImportError('Failed to import settings. Make sure the file is valid.');
+        setImportError(t('mlearn.Settings.UI.SaveError'));
       }
     };
     input.click();
   };
 
   const handleResetSettings = () => {
-    if (confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) {
+    if (confirm(t('mlearn.Settings.UI.ResetConfirm'))) {
       updateSettings(DEFAULT_SETTINGS);
       saveSettings();
-      alert('Settings have been reset to defaults.');
+      alert(t('mlearn.Settings.UI.ResetSuccess'));
     }
   };
 
   return (
     <TabContent
       header={{
-        title: 'General Settings',
-        description: 'Configure basic application settings',
+        title: t('mlearn.Settings.UI.Title'),
+        description: t('mlearn.Settings.UI.Description'),
         icon: '⚙️',
       }}
       padding="lg"
     >
 
-      <SettingGroup title="Language">
+      <SettingGroup title={t('mlearn.Settings.Groups.Language')}>
         <SettingRow
-          label="Target Language"
-          description="The language you're learning"
+          label={t('mlearn.Settings.Language.LearningLanguage.Label')}
+          description={t('mlearn.Settings.Language.LearningLanguage.Description')}
         >
           <Select
             class="setting-select"
             value={settings.language}
             onChange={(e) => updateSettings({ language: e.currentTarget.value })}
           >
-            <option value="ja">Japanese</option>
-            <option value="de">German</option>
+            <option value="ja">{t('mlearn.Languages.ja')}</option>
+            <option value="de">{t('mlearn.Languages.de')}</option>
           </Select>
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title="Appearance">
+      <SettingGroup title={t('mlearn.Settings.Groups.Appearance')}>
         <SettingRow
-          label="Dark Mode"
-          description="Use dark theme for the interface"
+          label={t('mlearn.Settings.Appearance.DarkMode.Label')}
+          description={t('mlearn.Settings.Appearance.DarkMode.Description')}
         >
           <ToggleSwitch
             checked={settings.dark_mode}
@@ -119,8 +120,8 @@ export const GeneralTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Developer Mode"
-          description="Enable developer tools and debugging"
+          label={t('mlearn.Settings.Performance.DevMode.Label')}
+          description={t('mlearn.Settings.Performance.DevMode.Description')}
         >
           <ToggleSwitch
             checked={settings.devMode}
@@ -129,33 +130,33 @@ export const GeneralTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title="Data">
+      <SettingGroup title={t('mlearn.Settings.Groups.Data')}>
         <SettingRow
-          label="Export Settings"
-          description="Save your settings to a file"
+          label={t('mlearn.Settings.Data.ExportData.Label')}
+          description={t('mlearn.Settings.Data.ExportData.Description')}
         >
           <GlassBtn size="sm" onClick={handleExportSettings}>
-            Export
+            {t('mlearn.Global.Export')}
           </GlassBtn>
           {exportError() && <span class="setting-error">{exportError()}</span>}
         </SettingRow>
 
         <SettingRow
-          label="Import Settings"
-          description="Load settings from a file"
+          label={t('mlearn.Settings.Data.ImportData.Label')}
+          description={t('mlearn.Settings.Data.ImportData.Description')}
         >
           <GlassBtn size="sm" onClick={handleImportSettings}>
-            Import
+            {t('mlearn.Global.Import')}
           </GlassBtn>
           {importError() && <span class="setting-error">{importError()}</span>}
         </SettingRow>
 
         <SettingRow
-          label="Reset to Defaults"
-          description="Restore all settings to their default values"
+          label={t('mlearn.Settings.Data.ResetSettings.Label')}
+          description={t('mlearn.Settings.Data.ResetSettings.Description')}
         >
           <GlassBtn size="sm" variant="danger" onClick={handleResetSettings}>
-            Reset
+            {t('mlearn.Global.Reset')}
           </GlassBtn>
         </SettingRow>
       </SettingGroup>

@@ -5,6 +5,7 @@
  */
 
 import { Component, Show, createSignal, JSX } from 'solid-js';
+import { useLocalization } from '../../../context';
 import { GlassModal } from './GlassModal';
 import { GlassBtn } from '../Button';
 
@@ -23,26 +24,27 @@ export interface ConfirmDialogProps {
   showLoading?: boolean;
 }
 
-const variantConfig = {
-  danger: {
-    confirmVariant: 'danger' as const,
-    icon: '⚠️',
-    defaultConfirmText: 'Delete',
-  },
-  warning: {
-    confirmVariant: 'primary' as const,
-    icon: '⚠️',
-    defaultConfirmText: 'Continue',
-  },
-  info: {
-    confirmVariant: 'primary' as const,
-    icon: 'ℹ️',
-    defaultConfirmText: 'OK',
-  },
-};
-
 export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
+  const { t } = useLocalization();
   const [isLoading, setIsLoading] = createSignal(false);
+  
+  const variantConfig = {
+    danger: {
+      confirmVariant: 'danger' as const,
+      icon: '⚠️',
+      defaultConfirmText: t('mlearn.Global.Delete'),
+    },
+    warning: {
+      confirmVariant: 'primary' as const,
+      icon: '⚠️',
+      defaultConfirmText: t('mlearn.Global.Continue'),
+    },
+    info: {
+      confirmVariant: 'primary' as const,
+      icon: 'ℹ️',
+      defaultConfirmText: t('mlearn.Global.Ok'),
+    },
+  };
   
   const variant = () => props.variant ?? 'info';
   const config = () => variantConfig[variant()];
@@ -68,7 +70,7 @@ export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
         onClick={props.onClose}
         disabled={isLoading()}
       >
-        {props.cancelText ?? 'Cancel'}
+        {props.cancelText ?? t('mlearn.Global.Cancel')}
       </GlassBtn>
       <GlassBtn
         variant={config().confirmVariant}
@@ -87,7 +89,7 @@ export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
     <GlassModal
       isOpen={props.isOpen}
       onClose={props.onClose}
-      title={props.title ?? 'Confirm'}
+      title={props.title ?? t('mlearn.ConfirmDialog.Title')}
       size="sm"
       footer={footer}
       closeOnOverlay={!isLoading()}

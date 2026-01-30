@@ -5,7 +5,7 @@
 
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { useSettings } from '../../../context';
+import { useSettings, useLocalization } from '../../../context';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { ActionCard, RecentCard, GlassBtn, type RecentItem } from '../../../components/common';
 import './welcome.css';
@@ -14,6 +14,7 @@ import AppLogo from "@renderer/components/common/Misc/AppLogo";
 export const WelcomeRoute: Component = () => {
   const navigate = useNavigate();
   const { settings } = useSettings();
+  const { t } = useLocalization();
   
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
 
@@ -50,8 +51,7 @@ export const WelcomeRoute: Component = () => {
     if (!item.path || !item.path.trim()) {
       console.warn('[Welcome] Cannot open recent item - no path saved:', item.name);
       // Show alert and navigate to the appropriate route - user can then drag/drop
-      const targetRoute = item.type === 'video' ? 'video player' : 'reader';
-      alert(`Unable to open "${item.name}" - the file path was not saved.\n\nPlease open the ${targetRoute} and drag the file again.`);
+      alert(t('mlearn.Home.Errors.UnableToOpen'));
       if (item.type === 'video') {
         navigate('/video');
       } else {
@@ -70,6 +70,12 @@ export const WelcomeRoute: Component = () => {
     }
   };
 
+  // Get the language name from the localization system
+  const getLanguageName = () => {
+    const langKey = `mlearn.Languages.${settings.language}`;
+    return t(langKey);
+  };
+
   return (
     <div class="welcome-container">
       <WindowDragRegion />
@@ -78,40 +84,40 @@ export const WelcomeRoute: Component = () => {
       <header class="welcome-header">
         <div class="welcome-logo">
           <AppLogo size={"2.5rem"}/>
-          <h1>mLearn</h1>
+          <h1>{t('mlearn.Home.UI.Title')}</h1>
         </div>
-        <p class="welcome-subtitle">Learn languages through immersion</p>
+        <p class="welcome-subtitle">{t('mlearn.Home.UI.TitleDescription')}</p>
       </header>
 
       {/* Main Actions */}
       <section class="welcome-actions">
         <ActionCard
           icon="🎬"
-          title="Watch Video"
-          description="Open a video file with intelligent subtitles"
+          title={t('mlearn.Home.Cards.Video.Title')}
+          description={t('mlearn.Home.Cards.Video.Description')}
           onClick={openVideoPlayer}
           primary
         />
 
         <ActionCard
           icon="📖"
-          title="Open Reader"
-          description="Read manga or images with OCR"
+          title={t('mlearn.Home.Cards.Reader.Title')}
+          description={t('mlearn.Home.Cards.Reader.Description')}
           onClick={openReader}
           primary
         />
 
         <ActionCard
           icon="🃏"
-          title="Review Flashcards"
-          description="Practice your vocabulary"
+          title={t('mlearn.Home.Cards.Flashcards.Title')}
+          description={t('mlearn.Home.Cards.Flashcards.Description')}
           onClick={openFlashcards}
         />
 
         <ActionCard
           icon="⚙️"
-          title="Settings"
-          description="Customize your experience"
+          title={t('mlearn.Home.Cards.Settings.Title')}
+          description={t('mlearn.Home.Cards.Settings.Description')}
           onClick={openSettings}
         />
       </section>
@@ -119,7 +125,7 @@ export const WelcomeRoute: Component = () => {
       {/* Recent Items */}
       <Show when={recentItems().length > 0}>
         <section class="welcome-recent">
-          <h2>Continue Learning</h2>
+          <h2>{t('mlearn.Home.UI.ContinueLearning')}</h2>
           <div class="recent-grid">
             <For each={recentItems().slice(0, 4)}>
               {(item) => (
@@ -135,9 +141,9 @@ export const WelcomeRoute: Component = () => {
 
       {/* Footer */}
       <footer class="welcome-footer">
-        <span>Learning {settings.language === 'ja' ? 'Japanese' : 'German'}</span>
+        <span>{t('mlearn.Home.UI.LearningLanguage', { language: getLanguageName() })}</span>
         <span>•</span>
-        <GlassBtn variant="ghost" size="sm" onClick={openSettings}>Change Language</GlassBtn>
+        <GlassBtn variant="ghost" size="sm" onClick={openSettings}>{t('mlearn.Home.UI.ChangeLanguage')}</GlassBtn>
       </footer>
     </div>
   );

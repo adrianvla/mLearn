@@ -3,26 +3,27 @@
  */
 
 import { Component } from 'solid-js';
-import { useSettings } from '../../../context';
+import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, RangeInput } from '../../../components/common';
 
 export const BehaviourTab: Component = () => {
   const { settings, updateSettings } = useSettings();
+  const { t } = useLocalization();
 
   return (
     <TabContent
       header={{
-        title: 'Behaviour',
-        description: 'Configure how mLearn interacts with content',
+        title: t('mlearn.Settings.Groups.WordStatus'),
+        description: t('mlearn.Settings.UI.Description'),
         icon: '🎯',
       }}
       padding="lg"
     >
 
-      <SettingGroup title="Word Status">
+      <SettingGroup title={t('mlearn.Settings.Groups.WordStatus')}>
         <SettingRow
-          label="Known Ease Threshold"
-          description="Minimum ease factor to consider a word 'known' from SRS"
+          label={t('mlearn.Settings.WordStatus.KnownThreshold.Label')}
+          description={t('mlearn.Settings.WordStatus.KnownThreshold.Description')}
         >
           <input
             type="number"
@@ -36,8 +37,8 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Colour Known Words"
-          description="Highlight words you've learned"
+          label={t('mlearn.Settings.WordStatus.ColourKnown.Label')}
+          description={t('mlearn.Settings.WordStatus.ColourKnown.Description')}
         >
           <ToggleSwitch
             checked={settings.do_colour_known}
@@ -46,8 +47,8 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Known Word Colour"
-          description="Colour used to highlight known words"
+          label={t('mlearn.Settings.WordStatus.KnownColour.Label')}
+          description={t('mlearn.Settings.WordStatus.KnownColour.Description')}
         >
           <div class="color-input-wrapper">
             <input
@@ -61,8 +62,8 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Colour by Part of Speech"
-          description="Colour words based on their grammatical type"
+          label={t('mlearn.Settings.WordStatus.ColourCodes.Label')}
+          description={t('mlearn.Settings.WordStatus.ColourCodes.Description')}
         >
           <ToggleSwitch
             checked={settings.do_colour_codes}
@@ -71,10 +72,10 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title="Blur Effect">
+      <SettingGroup title={t('mlearn.Settings.Groups.BlurEffect')}>
         <SettingRow
-          label="Blur Unknown Words"
-          description="Blur words you haven't learned yet"
+          label={t('mlearn.Settings.BlurEffect.BlurWords.Label')}
+          description={t('mlearn.Settings.BlurEffect.BlurWords.Description')}
         >
           <ToggleSwitch
             checked={settings.blur_words}
@@ -83,8 +84,8 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Blur Known Subtitles"
-          description="Blur subtitles that are mostly known words"
+          label={t('mlearn.Settings.BlurEffect.BlurKnownSubtitles.Label')}
+          description={t('mlearn.Settings.BlurEffect.BlurKnownSubtitles.Description')}
         >
           <ToggleSwitch
             checked={settings.blur_known_subtitles}
@@ -93,8 +94,8 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Blur Amount"
-          description="Intensity of the blur effect (pixels)"
+          label={t('mlearn.Settings.BlurEffect.BlurAmount.Label')}
+          description={t('mlearn.Settings.BlurEffect.BlurAmount.Description')}
         >
           <RangeInput
             min={1}
@@ -107,10 +108,10 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title="Display Options">
+      <SettingGroup title={t('mlearn.Settings.Groups.DisplayOptions')}>
         <SettingRow
-          label="Show Furigana"
-          description="Display reading above kanji"
+          label={t('mlearn.Settings.DisplayOptions.ShowFurigana.Label')}
+          description={t('mlearn.Settings.DisplayOptions.ShowFurigana.Description')}
         >
           <ToggleSwitch
             checked={settings.furigana}
@@ -119,8 +120,8 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Show Pitch Accent"
-          description="Display pitch accent patterns"
+          label={t('mlearn.Settings.DisplayOptions.ShowPitchAccent.Label')}
+          description={t('mlearn.Settings.DisplayOptions.ShowPitchAccent.Description')}
         >
           <ToggleSwitch
             checked={settings.showPitchAccent}
@@ -129,8 +130,8 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Show Part of Speech"
-          description="Display grammatical information in popups"
+          label={t('mlearn.Settings.DisplayOptions.ShowPos.Label')}
+          description={t('mlearn.Settings.DisplayOptions.ShowPos.Description')}
         >
           <ToggleSwitch
             checked={settings.show_pos}
@@ -139,8 +140,8 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Auto-open Word Panel"
-          description="Automatically show the live word translator"
+          label={t('mlearn.Settings.DisplayOptions.ImmediateFetch.Label')}
+          description={t('mlearn.Settings.DisplayOptions.ImmediateFetch.Description')}
         >
           <ToggleSwitch
             checked={settings.openAside}
@@ -149,10 +150,10 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title="Performance">
+      <SettingGroup title={t('mlearn.Settings.Groups.Performance')}>
         <SettingRow
-          label="Immediate Fetch"
-          description="Pre-load translations for all words (uses more bandwidth)"
+          label={t('mlearn.Settings.DisplayOptions.ImmediateFetch.Label')}
+          description={t('mlearn.Settings.DisplayOptions.ImmediateFetch.Description')}
         >
           <ToggleSwitch
             checked={settings.immediateFetch}
@@ -161,8 +162,8 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Fetch Dictionary for Known"
-          description="Look up known words in dictionary on hover"
+          label={t('mlearn.Settings.Performance.HoverKnownGetFromDictionary.Label')}
+          description={t('mlearn.Settings.Performance.HoverKnownGetFromDictionary.Description')}
         >
           <ToggleSwitch
             checked={settings.hover_known_get_from_dictionary}

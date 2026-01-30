@@ -5,7 +5,7 @@
  */
 
 import { Component, createSignal, For, Show, onMount } from 'solid-js';
-import { WindowWrapper, useLanguage, useFlashcards } from '../../context';
+import { WindowWrapper, useLanguage, useFlashcards, useLocalization } from '../../context';
 import {
   getWordsLearnedInApp,
   setWordStatus,
@@ -19,6 +19,7 @@ import './wordDbEditor.css';
 const WordDbEditorContent: Component = () => {
   const { wordFrequency, getLevelName } = useLanguage();
   const { addFlashcard, hasWord, removeFlashcard, findFlashcardIndex } = useFlashcards();
+  const { t } = useLocalization();
   // useTranslation imported but translateWord used via EditTranslationDialog
   const [searchQuery, setSearchQuery] = createSignal('');
   const [entries, setEntries] = createSignal<WordEntry[]>([]);
@@ -279,7 +280,7 @@ const WordDbEditorContent: Component = () => {
       {/* Loading indicator while initializing */}
       <Show when={!isInitialized()}>
         <div class="init-loading">
-          <Spinner size={40} text="Loading word database..." />
+          <Spinner size={40} text={t('mlearn.WordDbEditor.Loading')} />
         </div>
       </Show>
       
@@ -308,7 +309,7 @@ const WordDbEditorContent: Component = () => {
         <div class="entries-list">
           <Show when={!isLoading() && filteredEntries().length === 0}>
             <div class="empty-state">
-              <p>No words found. Click "Load All" to load your word database.</p>
+              <p>{t('mlearn.WordDbEditor.EmptyState')}</p>
             </div>
           </Show>
           
@@ -330,7 +331,7 @@ const WordDbEditorContent: Component = () => {
         <Show when={isLoading()}>
           <div class="loading-overlay">
             <div class="loading-content">
-              <Spinner size={40} text={`Loading... ${loadProgress()}%`} />
+              <Spinner size={40} text={`${t('mlearn.WordDbEditor.LoadingMore')} ${loadProgress()}%`} />
             </div>
           </div>
         </Show>

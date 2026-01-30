@@ -27,6 +27,11 @@ export interface MLearnIPC {
   onLanguageInstalled: (callback: (lang: string) => void) => void;
   onLanguageInstallError: (callback: (error: string) => void) => void;
   
+  // Localization
+  getLocalization: () => void;
+  onLocalization: (callback: (data: { locale: string; strings: Record<string, unknown> }) => void) => void;
+  changeUILanguage: (langCode: string) => void;
+  
   // Window Management
   changeTrafficLights: (visibility: boolean) => void;
   resizeWindow: (size: { width: number; height: number }) => void;

@@ -8,7 +8,7 @@ import { Component, JSX, Show, For, createMemo, createSignal, createEffect } fro
 import type { Token, DictionaryEntry, TranslationEntry, PitchData, FlashcardContent, LLMResponse } from '../../../shared/types';
 import { WORD_STATUS } from '../../../shared/constants';
 import { normalizeReading } from '../../../shared/utils/textUtils';
-import { useSettings, useFlashcards, useLanguage } from '../../context';
+import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { getWordStatus, setWordStatus, toUniqueIdentifier } from '../../services/statsService';
 import { getWordExplanation, getCachedExplanation } from '../../services/llmService';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
@@ -91,6 +91,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const { addFlashcard, hasWord, getByWord } = useFlashcards();
   const { getFrequency, getLevelName, getLanguageFeatures, currentLangData } = useLanguage();
   const { tokenize } = useTokenizer();
+  const { t } = useLocalization();
   const [currentStatus, setCurrentStatus] = createSignal<WordStatus>('unknown');
   const [wordUuid, setWordUuid] = createSignal<string>('');
   const [isInSRS, setIsInSRS] = createSignal(props.isInSRS ?? false);
@@ -747,7 +748,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     // Check if LLM is enabled (like old app's clickLLMExplain)
     if (!settings.llmEnabled) {
-      alert('The explain feature requires the local AI language model. Re-run the setup and enable "Install local AI language model support" to use it.');
+      alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
       return;
     }
     
@@ -765,7 +766,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       } else if (response.output) {
         setLlmExplanation(response.output);
       } else {
-        setLlmExplanation('No explanation available.');
+        setLlmExplanation(t('mlearn.WordHover.NoExplanationAvailable'));
       }
     } catch (e) {
       setLlmExplanation(`Error: ${String(e)}`);
@@ -866,7 +867,11 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   
   const statusLabel = createMemo(() => {
     const status = currentStatus();
-    return status === 'unknown' ? 'Unknown' : status === 'learning' ? 'Learning' : 'Known';
+    return status === 'unknown' 
+      ? t('mlearn.WordHover.Status.Unknown') 
+      : status === 'learning' 
+        ? t('mlearn.WordHover.Status.Learning') 
+        : t('mlearn.WordHover.Status.Known');
   });
 
   // Level pill showing JLPT/frequency level from langdata (not hardcoded!)
@@ -904,7 +909,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     if (ease === undefined) return null;
     return (
       <div class="ease-indicator">
-        <span>Ease: {Math.round(ease * 100) / 100}</span>
+        <span>{t('mlearn.Flashcards.Card.Ease')} {Math.round(ease * 100) / 100}</span>
       </div>
     );
   };
@@ -915,7 +920,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       <PillBtn
         variant="blue"
         icon={ICON_BOT}
-        label="Explain"
+        label={t('mlearn.WordHover.Explain')}
         onClick={handleLLMExplain}
       />
     );
@@ -960,7 +965,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           <div class="subtitle_hover_content">
             {/* Loading state */}
             <Show when={props.isLoading}>
-              <div class="hover_loading">Loading...</div>
+              <div class="hover_loading">{t('mlearn.WordHover.Loading')}</div>
             </Show>
 
             {/* Translation content */}
@@ -998,7 +1003,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               </Show>
 
               <Show when={translationEntries().length === 0 && (!props.dictionaryEntries || props.dictionaryEntries.length === 0)}>
-                <div class="hover_translation">No translation found</div>
+                <div class="hover_translation">{t('mlearn.WordHover.NoTranslation')}</div>
               </Show>
             </Show>
           </div>
@@ -1057,14 +1062,14 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                   <PillBtn
                     variant="yellow"
                     icon="⏳"
-                    label="Adding..."
+                    label={t('mlearn.Global.Status.Adding')}
                   />
                 </Show>
               }>
                 <PillBtn
                   variant="green"
                   icon={ICON_CHECK}
-                  label="Tracked"
+                  label={t('mlearn.Flashcards.Card.Tracked')}
                 />
               </Show>
               <Show when={isTracked()}>

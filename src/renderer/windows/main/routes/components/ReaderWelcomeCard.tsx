@@ -4,6 +4,7 @@
  */
 
 import { Component, Accessor } from 'solid-js';
+import { useLocalization } from '../../../../context';
 import './ReaderWelcomeCard.css';
 
 interface ReaderWelcomeCardProps {
@@ -11,31 +12,33 @@ interface ReaderWelcomeCardProps {
 }
 
 export const ReaderWelcomeCard: Component<ReaderWelcomeCardProps> = (props) => {
+  const { t } = useLocalization();
+  
   return (
     <div class="reader-welcome">
       <div class={`reader-welcome-card ${props.isDragging() ? 'dragging' : ''}`}>
-        <h2>📖 Settle in, Reader</h2>
+        <h2>{t('mlearn.Reader.UI.WelcomeSplash.Title')}</h2>
         <p class="reader-welcome-intro">
-          Drag and drop a folder of images or a .pdf file anywhere in this window.
+          {t('mlearn.Reader.UI.WelcomeSplash.TitleDescription')}
         </p>
         <div class={`reader-welcome-dropzone ${props.isDragging() ? 'dragging' : ''}`}>
-          Drop files here to import them instantly
+          {t('mlearn.Reader.UI.WelcomeSplash.DropZone')}
         </div>
         <div class="reader-welcome-grid">
           <div class="reader-welcome-tip">
-            <h3>Shape your view</h3>
-            <p>Switch between single and double page layouts with the selectors above to match manga spreads or textbook pages.</p>
+            <h3>{t('mlearn.Reader.UI.Tips.ShapeView.Title')}</h3>
+            <p>{t('mlearn.Reader.UI.Tips.ShapeView.Description')}</p>
           </div>
           <div class="reader-welcome-tip">
-            <h3>Summon OCR magic</h3>
-            <p>Once a page is visible, trigger OCR to hover words, peek at translations, and build flashcards as you read.</p>
+            <h3>{t('mlearn.Reader.UI.Tips.SummonOcr.Title')}</h3>
+            <p>{t('mlearn.Reader.UI.Tips.SummonOcr.Description')}</p>
           </div>
           <div class="reader-welcome-tip">
-            <h3>Never lose your place</h3>
-            <p>We will keep your book title and page progress in the header so you always know where to dive back in.</p>
+            <h3>{t('mlearn.Reader.UI.Tips.NeverLosePlace.Title')}</h3>
+            <p>{t('mlearn.Reader.UI.Tips.NeverLosePlace.Description')}</p>
           </div>
         </div>
-        <p class="reader-welcome-footer">Drop something in to begin — this welcome screen will make room for your story.</p>
+        <p class="reader-welcome-footer">{t('mlearn.Reader.UI.WelcomeSplash.Footer')}</p>
       </div>
     </div>
   );

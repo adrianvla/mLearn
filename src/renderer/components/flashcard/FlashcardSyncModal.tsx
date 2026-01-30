@@ -5,7 +5,7 @@
 
 import { Component, createSignal, Show, onCleanup, createEffect } from 'solid-js';
 import { GlassModal, GlassBtn, Progress, Spinner } from '../../components/common';
-import { useFlashcards } from '../../context';
+import { useFlashcards, useLocalization } from '../../context';
 import {
   splitTextIntoChunks,
   splitForQR,
@@ -29,9 +29,10 @@ type SyncPhase = 'init' | 'showing-qr' | 'scanning' | 'connecting' | 'syncing' |
 
 export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) => {
   const { store } = useFlashcards();
+  const { t } = useLocalization();
   
   const [phase, setPhase] = createSignal<SyncPhase>('init');
-  const [statusText, setStatusText] = createSignal('Initializing...');
+  const [statusText, setStatusText] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [qrChunks, setQrChunks] = createSignal<string[]>([]);
   const [currentQrIndex, setCurrentQrIndex] = createSignal(0);
@@ -54,7 +55,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     
     try {
       setPhase('init');
-      setStatusText('Loading libraries...');
+      setStatusText(t('mlearn.Flashcards.Sync.LoadingLibraries'));
       
       // Load SimplePeer from pre-bundled browser-compatible version
       // The npm version has issues with Vite's externalization of Node.js modules
@@ -84,7 +85,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       await startConnection();
     } catch (e) {
       console.error('Failed to load sync libraries:', e);
-      setError(`Failed to load required libraries: ${e instanceof Error ? e.message : String(e)}`);
+      setError(t('mlearn.Flashcards.Sync.Error.LoadLibraries', { error: e instanceof Error ? e.message : String(e) }));
       setPhase('error');
     }
   });
@@ -122,7 +123,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     try {
       cleanup();
       setPhase('showing-qr');
-      setStatusText('Generating connection code...');
+      setStatusText(t('mlearn.Flashcards.Sync.GeneratingCode'));
       
       // Create peer as initiator
       peer = new SimplePeer({ initiator: true, trickle: false });
@@ -141,13 +142,13 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         
         // Start displaying QR codes
         startQRDisplay();
-        setStatusText(`Enter ${numChunks} in mLearn app, then scan this QR code`);
+        setStatusText(t('mlearn.Flashcards.Sync.ScanInstructions', { numChunks }));
       });
       
       peer.on('connect', () => {
         console.log('Peer connected!');
         setPhase('syncing');
-        setStatusText('Connected! Syncing...');
+        setStatusText(t('mlearn.Flashcards.Sync.ConnectedSyncing'));
         stopScanning();
         
         // Send our flashcards
@@ -166,7 +167,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       
     } catch (e) {
       console.error('Connection error:', e);
-      setError('Failed to start connection');
+      setError(t('mlearn.Flashcards.Sync.Error.Connection'));
       setPhase('error');
     }
   };
@@ -215,7 +216,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
 
   const startScanning = async () => {
     setPhase('scanning');
-    setStatusText('Point camera at QR code...');
+    setStatusText(t('mlearn.Flashcards.Sync.PointCamera'));
     stopQRDisplay();
     
     try {
@@ -255,7 +256,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       }
     } catch (e) {
       console.error('Camera access error:', e);
-      setError('Camera access denied');
+      setError(t('mlearn.Flashcards.Sync.Error.CameraAccess'));
       setPhase('error');
     }
   };
@@ -287,7 +288,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         peer?.signal(signal);
         stopScanning();
         setPhase('connecting');
-        setStatusText('Establishing connection...');
+        setStatusText(t('mlearn.Flashcards.Sync.EstablishingConnection'));
       }
     } catch (e) {
       // Ignore invalid QR codes
@@ -318,8 +319,8 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       if (parsed.type === 'sync-chunk') {
         const [index, chunk, total] = parsed.data;
         const isComplete = receivedChunkCollector.addChunk(index, chunk, total);
-        const { current, total: t } = receivedChunkCollector.getProgress();
-        setProgress((current / t) * 100);
+        const { current, total: totalChunks } = receivedChunkCollector.getProgress();
+        setProgress((current / totalChunks) * 100);
         
         if (isComplete) {
           const assembled = receivedChunkCollector.assemble();
@@ -334,7 +335,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
           }
           
           setPhase('complete');
-          setStatusText('Sync complete!');
+          setStatusText(t('mlearn.Flashcards.Sync.Complete'));
           
           // Auto-close after 2 seconds
           setTimeout(() => {
@@ -356,7 +357,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     <GlassModal
       isOpen={props.isOpen}
       onClose={handleClose}
-      title="Sync Flashcards"
+      title={t('mlearn.Flashcards.Sync.Title')}
       size="md"
     >
       <div class="flashcard-sync-modal">
@@ -371,10 +372,10 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
               <Spinner size={40} />
             </div>
             <p class="qr-hint">
-              Scan with mLearn mobile app to sync flashcards
+              {t('mlearn.Flashcards.Sync.QRHint')}
             </p>
             <GlassBtn onClick={startScanning}>
-              Scan QR Instead
+              {t('mlearn.Flashcards.Sync.ScanQRInstead')}
             </GlassBtn>
           </div>
         </Show>
@@ -392,7 +393,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
             <canvas ref={canvasEl} class="scan-canvas" />
             <Progress progress={progress()} showPercent />
             <GlassBtn onClick={() => { stopScanning(); startConnection(); }}>
-              Show QR Instead
+              {t('mlearn.Flashcards.Sync.ShowQRInstead')}
             </GlassBtn>
           </div>
         </Show>
@@ -400,7 +401,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         {/* Syncing */}
         <Show when={phase() === 'syncing' || phase() === 'connecting'}>
           <div class="sync-progress">
-            <Spinner size={48} text="Syncing flashcards..." />
+            <Spinner size={48} text={t('mlearn.Flashcards.Sync.SyncingFlashcards')} />
             <Progress progress={progress()} showPercent animated />
           </div>
         </Show>
@@ -409,7 +410,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         <Show when={phase() === 'complete'}>
           <div class="sync-complete">
             <div class="complete-icon">✓</div>
-            <p>Flashcards synced successfully!</p>
+            <p>{t('mlearn.Flashcards.Sync.SyncedSuccessfully')}</p>
           </div>
         </Show>
         
@@ -419,7 +420,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
             <div class="error-icon">✕</div>
             <p>{error()}</p>
             <GlassBtn onClick={startConnection}>
-              Try Again
+              {t('mlearn.Global.TryAgain')}
             </GlassBtn>
           </div>
         </Show>

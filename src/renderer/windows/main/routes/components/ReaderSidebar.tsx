@@ -5,6 +5,7 @@
 
 import {Component, For, Accessor, Show} from 'solid-js';
 import { Tag, Indicator } from '../../../../components/common';
+import { useLocalization } from '../../../../context';
 import './ReaderSidebar.css';
 
 interface PageImage {
@@ -22,9 +23,11 @@ interface ReaderSidebarProps {
 }
 
 export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
+  const { t } = useLocalization();
+
   return (
     <aside class="reader-sidebar glass">
-      <h2>Pages</h2>
+      <h2>{t('mlearn.Reader.Sidebar.Pages')}</h2>
       <div class="page-list">
         <For each={props.pages()}>
           {(page) => (

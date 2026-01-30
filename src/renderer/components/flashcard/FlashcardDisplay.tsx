@@ -6,7 +6,7 @@
 import { Component, JSX, Show, createMemo } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
 import { GlassPanel } from '../common';
-import { useSettings, useLanguage } from '../../context';
+import { useSettings, useLanguage, useLocalization } from '../../context';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import './FlashcardDisplay.css';
 
@@ -27,6 +27,7 @@ export interface FlashcardDisplayProps {
 export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const { settings } = useSettings();
   const { getLevelName } = useLanguage();
+  const { t } = useLocalization();
 
   // Access content through the nested structure
   const content = () => props.flashcard.content;
@@ -156,7 +157,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             <div class="flashcard-screenshot-container flashcard-screenshot-front">
               <img 
                 src={content().screenshotUrl} 
-                alt="Screenshot" 
+                alt={t('mlearn.Flashcards.Card.ScreenshotAlt')} 
                 class="flashcard-screenshot"
               />
             </div>
@@ -167,7 +168,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           </Show>
 
           <div class="flashcard-hint">
-            Click or press Space to reveal answer
+            {t('mlearn.Flashcards.Card.RevealHint')}
           </div>
         </GlassPanel>
 
@@ -216,14 +217,14 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             <div class="flashcard-screenshot-container">
               <img 
                 src={content().screenshotUrl} 
-                alt="Screenshot" 
+                alt={t('mlearn.Flashcards.Card.ScreenshotAlt')} 
                 class="flashcard-screenshot"
               />
             </div>
           </Show>
 
           <div class="flashcard-hint">
-            Press 1-4 to rate • Click to flip back
+            {t('mlearn.Flashcards.Card.RateHint')}
           </div>
         </GlassPanel>
       </div>

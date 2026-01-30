@@ -7,7 +7,7 @@ import { Component, Show, createMemo } from 'solid-js';
 import { GlassBtn, PillLabel, StatusLabel } from '../../../components/common';
 import { WORD_STATUS } from '../../../../shared/constants';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
-import { useSettings } from '../../../context';
+import { useSettings, useLocalization } from '../../../context';
 
 export interface WordEntry {
   uuid: string;
@@ -32,6 +32,7 @@ export interface WordEntryRowProps {
 
 export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { settings } = useSettings();
+  const { t } = useLocalization();
   
   // Generate pitch accent HTML
   const pitchAccentHtml = createMemo(() => {
@@ -71,9 +72,9 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           <button
             class="edit-btn"
             onClick={() => props.onEdit?.(props.entry)}
-            title="Edit translation"
+            title={t('mlearn.WordDbEditor.EditTranslation.Tooltip')}
           >
-            Edit
+            {t('mlearn.Global.Edit')}
           </button>
         </Show>
       </div>
@@ -96,7 +97,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             size="sm"
             onClick={() => props.onRemoveFlashcard(props.entry)}
           >
-            Remove
+            {t('mlearn.Global.Remove')}
           </GlassBtn>
         </Show>
         <Show when={props.entry.tracker !== 'flashcards'}>
@@ -105,7 +106,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             size="sm"
             onClick={() => props.onAddFlashcard(props.entry)}
           >
-            Add
+            {t('mlearn.Global.Add')}
           </GlassBtn>
         </Show>
       </div>

@@ -58,11 +58,10 @@
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   white-space: nowrap;
   box-sizing: border-box;
 }
-
 .settings-tab:hover {
   background: var(--accent-bg);
   color: var(--text-primary);

@@ -6,6 +6,7 @@
 
 import { Component, createSignal, onMount, Show, createEffect } from 'solid-js';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { useLocalization } from '../../../context';
 import { GlassBtn, GlassInput, GlassModal, Spinner } from '../../../components/common';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
 import './EditTranslationDialog.css';
@@ -27,6 +28,7 @@ export interface TranslationOverride {
 
 export const EditTranslationDialog: Component<EditTranslationDialogProps> = (props) => {
   const { translateWord, setOverride } = useTranslation();
+  const { t } = useLocalization();
   
   const [reading, setReading] = createSignal('');
   const [pitch, setPitch] = createSignal<string>('');
@@ -109,11 +111,11 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
   // Get pitch type name
   const pitchTypeName = (p: number | null): string => {
     if (p === null || p === undefined || Number.isNaN(p)) return '—';
-    if (p === 0) return 'Heiban (平板)';
-    if (p === 1) return 'Atamadaka (頭高)';
-    if (p === 2) return 'Nakadaka (中高)';
-    if (p === 3) return 'Odaka (尾高)';
-    if (typeof p === 'number' && Number.isFinite(p) && p >= 4) return `Drop after mora ${p}`;
+    if (p === 0) return t('mlearn.PitchAccent.Heiban');
+    if (p === 1) return t('mlearn.PitchAccent.Atamadaka');
+    if (p === 2) return t('mlearn.PitchAccent.Nakadaka');
+    if (p === 3) return t('mlearn.PitchAccent.Odaka');
+    if (typeof p === 'number' && Number.isFinite(p) && p >= 4) return t('mlearn.PitchAccent.DropAfterMora', { mora: p });
     return '—';
   };
   
@@ -236,30 +238,30 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
     <GlassModal
       isOpen={props.isOpen}
       onClose={props.onClose}
-      title={`Edit translation – ${props.word}`}
+      title={t('mlearn.WordDbEditor.EditTranslation.Title', { word: props.word })}
     >
       <Show when={isLoading()}>
-        <Spinner size={32} text="Loading..." />
+        <Spinner size={32} text={t('mlearn.Global.Loading')} />
       </Show>
       
       <Show when={!isLoading()}>
         <div class="dialog-content">
           <div class="form-field">
-            <label>Word</label>
+            <label>{t('mlearn.CardEditor.Fields.Word')}</label>
             <GlassInput value={props.word} disabled />
           </div>
           
           <div class="form-field">
-            <label>Reading (furigana)</label>
+            <label>{t('mlearn.CardEditor.Fields.Reading')}</label>
             <GlassInput
               value={reading()}
               onInput={(e) => setReading((e.target as HTMLInputElement).value)}
-              placeholder="かな / reading"
+              placeholder={t('mlearn.CardEditor.Fields.ReadingPlaceholder')}
             />
           </div>
           
           <div class="form-field">
-            <label>Pitch accent</label>
+            <label>{t('mlearn.CardEditor.Fields.PitchAccent')}</label>
             <div class="pitch-row">
               <GlassInput
                 type="number"
@@ -267,7 +269,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
                 min={0}
                 value={pitch()}
                 onInput={handlePitchChange}
-                placeholder="0 (Heiban), 1, 2, 3…"
+                placeholder={t('mlearn.CardEditor.Fields.PitchPlaceholder')}
                 class="pitch-input"
               />
               <span class="pitch-name">{pitchTypeName(pitch() === '' ? null : Number(pitch()))}</span>
@@ -281,17 +283,17 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
           </div>
           
           <div class="form-field">
-            <label>Definitions (one per line)</label>
+            <label>{t('mlearn.CardEditor.Fields.Definitions')}</label>
             <textarea
               value={definitions()}
               onInput={(e) => setDefinitions((e.target as HTMLTextAreaElement).value)}
-              placeholder="Definition per line"
+              placeholder={t('mlearn.CardEditor.Fields.DefinitionsPlaceholder')}
               rows={6}
             />
           </div>
           
           <div class="form-field">
-            <label>Structured content (optional HTML)</label>
+            <label>{t('mlearn.CardEditor.Fields.StructuredContent')}</label>
             <div
               class="structured-content-editor"
               contentEditable
@@ -307,13 +309,13 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
         
         <div class="dialog-footer">
           <GlassBtn variant="danger" onClick={handleRevert}>
-            Remove Override
+            {t('mlearn.WordDbEditor.EditTranslation.RemoveOverride')}
           </GlassBtn>
           <GlassBtn variant="ghost" onClick={props.onClose}>
-            Cancel
+            {t('mlearn.Global.Cancel')}
           </GlassBtn>
           <GlassBtn variant="primary" onClick={handleSave}>
-            Save
+            {t('mlearn.Global.Save')}
           </GlassBtn>
         </div>
       </Show>

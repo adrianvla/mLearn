@@ -5,6 +5,7 @@
 
 import {Component, Accessor} from 'solid-js';
 import { NavBtn, Tag, Select } from '../../../../components/common';
+import { useLocalization } from '../../../../context';
 import './ReaderNav.css';
 import Icon from "@renderer/components/common/Icons/Icon";
 
@@ -28,6 +29,7 @@ interface ReaderNavProps {
 }
 
 export const ReaderNav: Component<ReaderNavProps> = (props) => {
+  const { t } = useLocalization();
 
   return (
     <nav class={`reader-nav glass`}>
@@ -35,8 +37,8 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         class="nav-group"
         style={`${props.marginLeft ? `margin-left: ${props.marginLeft}` : ''}`}
       >
-        <NavBtn onClick={props.onGoHome} title="Back to Home">
-          ← Home
+        <NavBtn onClick={props.onGoHome} title={t('mlearn.Reader.Toolbar.BackToHome')}>
+          {t('mlearn.Reader.Toolbar.Home')}
         </NavBtn>
         <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar}>
           <Icon icon="sidebar" color={"currentColor"} class={""}/>
@@ -51,8 +53,8 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       <div class="nav-group">
         <Select
           options={[
-            { value: 'fit-height', label: 'Fit Height ↕' },
-            { value: 'fit-width', label: 'Fit Width ↔' },
+            { value: 'fit-height', label: t('mlearn.Reader.Toolbar.FitHeight') },
+            { value: 'fit-width', label: t('mlearn.Reader.Toolbar.FitWidth') },
           ]}
           value={props.fitMode()}
           onChange={(e) => props.onFitModeChange(e.currentTarget.value)}
@@ -60,8 +62,8 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         
         <Select
           options={[
-            { value: 'double', label: 'Double Page' },
-            { value: 'single', label: 'Single Page' },
+            { value: 'double', label: t('mlearn.Reader.Toolbar.DoublePage') },
+            { value: 'single', label: t('mlearn.Reader.Toolbar.SinglePage') },
           ]}
           value={props.pageMode()}
           onChange={(e) => props.onPageModeChange(e.currentTarget.value)}
@@ -70,10 +72,10 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         {props.pageMode() === 'double' && (
           <NavBtn
             onClick={props.onToggleFirstPageSingle}
-            title={props.firstPageSingle() ? 'First page is single (click to pair)' : 'First page is paired (click to make single)'}
+            title={props.firstPageSingle() ? t('mlearn.Reader.Toolbar.FirstPageSingleTooltip') : t('mlearn.Reader.Toolbar.FirstPagePairedTooltip')}
             class={props.firstPageSingle() ? 'active' : ''}
           >
-            {props.firstPageSingle() ? '1|2+3' : '1+2|3+4'}
+            {props.firstPageSingle() ? t('mlearn.Reader.Toolbar.PageLayoutSingle') : t('mlearn.Reader.Toolbar.PageLayoutPaired')}
           </NavBtn>
         )}
       </div>

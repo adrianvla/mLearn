@@ -4,7 +4,7 @@
  */
 
 import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, For, createEffect } from 'solid-js';
-import { useFlashcards } from '../../context';
+import { useFlashcards, useLocalization } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { GlassBtn, Button, Badge, GlassPanel } from '../common';
 import type { Flashcard } from '../../../shared/types';
@@ -17,6 +17,7 @@ export interface FlashcardReviewProps {
 }
 
 export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
+  const { t } = useLocalization();
   const { 
     store, 
     getDueCards, 
@@ -200,28 +201,28 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     return [
       { 
         quality: 'again' as const, 
-        label: 'Again', 
+        label: t('mlearn.Flashcards.Review.Again'), 
         className: 'flashcard-rating-btn--again', 
         time: dateToInString(getAnticipatedDueDate(card, 0).dueDate),
         key: '1'
       },
       { 
         quality: 'hard' as const, 
-        label: 'Hard', 
+        label: t('mlearn.Flashcards.Review.Hard'), 
         className: 'flashcard-rating-btn--hard', 
         time: dateToInString(getAnticipatedDueDate(card, 2).dueDate),
         key: '2'
       },
       { 
         quality: 'good' as const, 
-        label: 'Ok', 
+        label: t('mlearn.Flashcards.Review.Ok'), 
         className: 'flashcard-rating-btn--good', 
         time: dateToInString(getAnticipatedDueDate(card, 3).dueDate),
         key: '3'
       },
       { 
         quality: 'easy' as const, 
-        label: 'Easy', 
+        label: t('mlearn.Flashcards.Review.Easy'), 
         className: 'flashcard-rating-btn--easy', 
         time: dateToInString(getAnticipatedDueDate(card, 5).dueDate),
         key: '4'
@@ -236,21 +237,21 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     
     return [
       {
-        label: 'Pitch Wrong',
+        label: t('mlearn.Flashcards.Review.PitchWrong'),
         className: 'flashcard-action-btn--pitch',
         time: dateToInString(getPitchMistakeDate()),
         onClick: handlePitchMistake,
         key: 'm'
       },
       {
-        label: 'Show Later',
+        label: t('mlearn.Flashcards.Review.ShowLater'),
         className: 'flashcard-action-btn--postpone',
         time: dateToInString(getPostponeDate()),
         onClick: handlePostpone,
         key: 'p'
       },
       {
-        label: 'Hide',
+        label: t('mlearn.Flashcards.Review.Hide'),
         className: 'flashcard-action-btn--known',
         time: '∞',
         onClick: handleMarkAsKnown,
@@ -265,22 +266,22 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       <div class="flashcard-review-header">
         <div class="flashcard-stats">
           <Badge class="flashcard-stat">
-            <span class="flashcard-stat-label">Left:</span>
+            <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.Left')}</span>
             <span class="flashcard-stat-value">{dueCount()}</span>
           </Badge>
           <Badge class="flashcard-stat" variant="primary">
-            <span class="flashcard-stat-label">New:</span>
+            <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.New')}</span>
             <span class="flashcard-stat-new">{stats().new}</span>
           </Badge>
           <Badge class="flashcard-stat" variant="warning">
-            <span class="flashcard-stat-label">Learning:</span>
+            <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.LearningLabel')}</span>
             <span class="flashcard-stat-learning">{stats().learning}</span>
           </Badge>
         </div>
         
         <Show when={canUndo()}>
-          <Button buttonType="glass" variant="ghost" size="sm" onClick={undoLastAction} title="Undo (Ctrl+Z)">
-            ↩ Undo
+          <Button buttonType="glass" variant="ghost" size="sm" onClick={undoLastAction} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
+            {t('mlearn.Flashcards.Review.Undo')} {t('mlearn.Flashcards.Review.UndoTooltip')}
           </Button>
         </Show>
       </div>
@@ -296,20 +297,20 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             class="flashcard-completion"
           >
             <h2 class="flashcard-completion-title">
-              🎉 Review Complete!
+              {t('mlearn.Flashcards.Review.Complete')}
             </h2>
             <p class="flashcard-completion-text">
-              You've reviewed all due cards for now.
+              {t('mlearn.Flashcards.Review.CompleteDescription')}
             </p>
             <div class="flashcard-completion-actions">
               <Show when={store.flashcards.length > 0}>
                 <GlassBtn variant="primary" onClick={handleStartOver}>
-                  Review More
+                  {t('mlearn.Flashcards.Review.ReviewMore')}
                 </GlassBtn>
               </Show>
               <Show when={props.onClose}>
                 <GlassBtn onClick={props.onClose}>
-                  Close
+                  {t('mlearn.Global.Close')}
                 </GlassBtn>
               </Show>
             </div>
@@ -328,7 +329,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         {/* Show answer button */}
         <Show when={!isComplete() && currentCard() && !showAnswer()}>
           <Button buttonType="glass" variant="primary" size="lg" class="flashcard-show-answer-btn" onClick={handleFlip}>
-            Show Answer
+            {t('mlearn.Flashcards.Review.ShowAnswer')}
           </Button>
         </Show>
 
@@ -375,7 +376,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               onClick={handleRemove}
               title="Press x"
             >
-              <span class="flashcard-action-label">Remove</span>
+              <span class="flashcard-action-label">{t('mlearn.Flashcards.Review.Remove')}</span>
             </Button>
           </div>
         </Show>
