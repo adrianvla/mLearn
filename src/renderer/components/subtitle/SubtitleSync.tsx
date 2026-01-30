@@ -4,7 +4,7 @@
  */
 
 import { Component, createSignal, createEffect, Show } from 'solid-js';
-import { useSettings } from '../../context';
+import { useSettings, useLocalization } from '../../context';
 import { PanelHeader, NavBtn } from '../common';
 import './SubtitleSync.css';
 
@@ -19,6 +19,7 @@ export interface SubtitleSyncProps {
 
 export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
   const { settings, updateSetting } = useSettings();
+  const { t } = useLocalization();
   const [isVisible, setIsVisible] = createSignal(false);
   const [inputValue, setInputValue] = createSignal('0.00');
 
@@ -123,8 +124,8 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
       <div class="sync-subs">
         <PanelHeader onClose={hide} />
         <div class="controls">
-          <NavBtn class="backward" onClick={handleBackward} title="Sync to previous subtitle">
-            <img src="assets/icons/fast-forward.svg" alt="Backward" />
+          <NavBtn class="backward" onClick={handleBackward} title={t('mlearn.SubtitleSync.PreviousTooltip')}>
+            <img src="assets/icons/fast-forward.svg" alt={t('mlearn.SubtitleSync.Backward')} />
           </NavBtn>
           <input
             type="text"
@@ -133,8 +134,8 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
             onKeyDown={handleKeyDown}
             onBlur={applyInputValue}
           />
-          <NavBtn class="forward" onClick={handleForward} title="Sync to next subtitle">
-            <img src="assets/icons/fast-forward.svg" alt="Forward" />
+          <NavBtn class="forward" onClick={handleForward} title={t('mlearn.SubtitleSync.NextTooltip')}>
+            <img src="assets/icons/fast-forward.svg" alt={t('mlearn.SubtitleSync.Forward')} />
           </NavBtn>
         </div>
       </div>

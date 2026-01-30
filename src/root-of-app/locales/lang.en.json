@@ -1,0 +1,929 @@
+{
+  "mlearn": {
+    "Global": {
+      "AppName": "mLearn",
+      "Loading": "Loading...",
+      "Ready": "Ready",
+      "Cancel": "Cancel",
+      "Save": "Save",
+      "Delete": "Delete",
+      "Edit": "Edit",
+      "Add": "Add",
+      "Remove": "Remove",
+      "Close": "Close",
+      "Search": "Search",
+      "Test": "Test",
+      "Export": "Export",
+      "Import": "Import",
+      "Reset": "Reset",
+      "Back": "Back",
+      "Continue": "Continue",
+      "TryAgain": "Try Again",
+      "Yes": "Yes",
+      "No": "No",
+      "Ok": "OK",
+      "Error": "Error",
+      "Success": "Success",
+      "Warning": "Warning",
+      "Info": "Info",
+      "Unknown": "Unknown",
+      "None": "None",
+      "All": "All",
+      "Default": "Default",
+      "Aria": {
+        "CloseModal": "Close modal",
+        "PlayPause": "Play/Pause",
+        "PictureInPicture": "Picture in picture"
+      },
+      "Status": {
+        "StartingBackend": "Starting backend...",
+        "LoadingModels": "Loading models...",
+        "WaitingForBackend": "Waiting for backend...",
+        "Tokenizing": "Tokenizing...",
+        "Translating": "Translating...",
+        "Adding": "Adding...",
+        "Installing": "Installing...",
+        "Syncing": "Syncing...",
+        "LoadingDatabase": "Loading word database...",
+        "LoadingSettings": "Loading settings...",
+        "LoadingLanguageData": "Loading language data..."
+      },
+      "Actions": {
+        "SaveChanges": "Save Changes",
+        "RemoveOverride": "Remove Override",
+        "LoadAll": "Load All"
+      },
+      "Remove": "Remove"
+    },
+    "ConnectionStatus": {
+      "Connected": "Connected",
+      "Disconnected": "Disconnected",
+      "Connecting": "Connecting...",
+      "Error": "Error"
+    },
+    "ConfirmDialog": {
+      "Title": "Confirm"
+    },
+    "SubtitleSync": {
+      "SyncToPrevious": "Sync subtitle to previous audio",
+      "SyncToNext": "Sync subtitle to next audio",
+      "Backward": "← {ms}ms",
+      "Forward": "{ms}ms →"
+    },
+    "Video": {
+      "Controls": {
+        "Unmute": "Unmute",
+        "Mute": "Mute"
+      }
+    },
+    "Home": {
+      "UI": {
+        "Title": "mLearn",
+        "TitleDescription": "Learn languages through immersion",
+        "ContinueLearning": "Continue Learning",
+        "ChangeLanguage": "Change Language",
+        "LearningLanguage": "Learning {language}"
+      },
+      "Cards": {
+        "Video": {
+          "Title": "Video",
+          "Description": "Watch videos with interactive subtitles"
+        },
+        "Reader": {
+          "Title": "Reader",
+          "Description": "Read manga or other documents with OCR"
+        },
+        "Flashcards": {
+          "Title": "Flashcards",
+          "Description": "Review your vocabulary with spaced repetition"
+        },
+        "Settings": {
+          "Title": "Settings",
+          "Description": "Configure mLearn to your liking"
+        }
+      },
+      "Errors": {
+        "UnableToOpen": "Unable to open the file. The file path was not saved correctly."
+      }
+    },
+    "Video": {
+      "UI": {
+        "DropVideoHere": "Drop video file here",
+        "OrClickToBrowse": "Or click below to browse",
+        "OpenVideo": "Open Video",
+        "OpenSubtitles": "Open Subtitles",
+        "GoHome": "← Home"
+      },
+      "Tooltip": {
+        "GoHome": "Go back to home"
+      }
+    },
+    "SubtitleSync": {
+      "PreviousTooltip": "Sync to previous subtitle",
+      "NextTooltip": "Sync to next subtitle",
+      "Backward": "Backward",
+      "Forward": "Forward"
+    },
+    "Reader": {
+      "UI": {
+        "WelcomeSplash": {
+          "Title": "📖 Settle in, Reader",
+          "TitleDescription": "Drag and drop a folder of images or a .pdf file anywhere in this window.",
+          "DropZone": "Drop files here to import them instantly",
+          "Footer": "Drop something in to begin — this welcome screen will make room for your story."
+        },
+        "Tips": {
+          "ShapeView": {
+            "Title": "Shape your view",
+            "Description": "Switch between single and double page layouts using the sidebar or keyboard shortcuts."
+          },
+          "SummonOcr": {
+            "Title": "Summon OCR magic",
+            "Description": "Once a page is visible, trigger OCR to turn images into interactive text."
+          },
+          "NeverLosePlace": {
+            "Title": "Never lose your place",
+            "Description": "Your page position is automatically saved for when you return."
+          }
+        },
+        "NothingLoaded": "Nothing Loaded"
+      },
+      "Controls": {
+        "OcrStatus": "OCR Status",
+        "ModeLabels": {
+          "Hover": "Hover",
+          "LongHover": "Long Hover",
+          "KeyHover": "{key} + Hover"
+        }
+      },
+      "Toolbar": {
+        "FitHeight": "Fit Height ↕",
+        "FitWidth": "Fit Width ↔",
+        "DoublePage": "Double Page",
+        "SinglePage": "Single Page",
+        "BackToHome": "Back to Home",
+        "Home": "← Home",
+        "FirstPageSingleTooltip": "First page is single (cover page)",
+        "FirstPagePairedTooltip": "First page is paired",
+        "PageLayoutSingle": "1|2+3",
+        "PageLayoutPaired": "1+2|3+4"
+      },
+      "Sidebar": {
+        "Pages": "Pages"
+      },
+      "StatusBar": {
+        "ShowTooltipOn": "Show Tooltip On:",
+        "TriggerTitle": "How word hover is triggered",
+        "TriggerHover": "Hover",
+        "TriggerLongHover": "Long Hover",
+        "TriggerKeyHover": "{key} + Hover",
+        "Ready": "Ready",
+        "Tokenizing": "Tokenizing...",
+        "Translating": "Translating..."
+      },
+      "Status": {
+        "NothingLoaded": "Nothing Loaded",
+        "Loading": "Loading...",
+        "LoadingPdf": "Loading PDF...",
+        "Ready": "Ready",
+        "Recognizing": "Recognizing...",
+        "Processing": "Processing {x}/{y}",
+        "Caching": "Caching {x}/{y}",
+        "CleaningUp": "Cleaning Up…",
+        "LoadingNeuralNetwork": "Loading Neural Network...",
+        "NoImagesFound": "No images found",
+        "FailedToLoad": "Failed to load",
+        "FailedToLoadPdf": "Failed to load PDF",
+        "Pending": "Pending...",
+        "Queued": "Queued...",
+        "PdfDocument": "PDF Document",
+        "ImportedBook": "Imported Book"
+      },
+      "Tooltip": {
+        "SelectionMode": "Selection mode"
+      }
+    },
+    "Flashcards": {
+      "UI": {
+        "Title": "Flashcards",
+        "Tabs": {
+          "Review": "Review",
+          "Browse": "Browse",
+          "Statistics": "Statistics"
+        },
+        "Sync": "🔄 Sync",
+        "AddCard": "+ Add Card"
+      },
+      "EmptyState": {
+        "NoCardsTitle": "No flashcards yet",
+        "NoCardsDescription": "Start learning words while watching videos or reading, and they'll appear here for review!",
+        "NoCardsDueTitle": "All caught up!",
+        "NoCardsDueDescription": "No cards are due for review right now. Great job!",
+        "NoCardsDueAction": "Come back later or add new cards"
+      },
+      "Browse": {
+        "NoWordsFound": "No words found. Click 'Load All' to load your word database.",
+        "SearchPlaceholder": "Search words...",
+        "AllLevels": "All Levels",
+        "ShowingCount": "Showing {count} of {total} words"
+      },
+      "Statistics": {
+        "TotalCards": "Total Cards",
+        "DueToday": "Due Today",
+        "Mature": "Mature",
+        "CardBreakdown": "Card Breakdown",
+        "New": "New",
+        "Learning": "Learning",
+        "Review": "Review"
+      },
+      "Modals": {
+        "DeleteCard": {
+          "Title": "Delete Flashcard",
+          "Confirm": "Are you sure you want to delete this flashcard? This action cannot be undone."
+        },
+        "AddCard": {
+          "Title": "Add New Flashcard",
+          "Submit": "Add Card",
+          "WordLabel": "Word",
+          "WordPlaceholder": "Enter word...",
+          "ReadingLabel": "Reading (optional)",
+          "ReadingPlaceholder": "Pronunciation...",
+          "MeaningLabel": "Meaning",
+          "MeaningPlaceholder": "Definition..."
+        },
+        "EditCard": {
+          "Title": "Edit Flashcard"
+        }
+      },
+      "SyncStatus": {
+        "Success": "Flashcards synced successfully!",
+        "Syncing": "Syncing..."
+      },
+      "Review": {
+        "Again": "Again",
+        "Hard": "Hard",
+        "Ok": "Ok",
+        "Easy": "Easy",
+        "PitchWrong": "Pitch Wrong",
+        "ShowLater": "Show Later",
+        "Hide": "Hide",
+        "Left": "Left:",
+        "New": "New:",
+        "LearningLabel": "Learning:",
+        "Undo": "↩",
+        "UndoTooltip": "Undo",
+        "Complete": "🎉 Review Complete!",
+        "CompleteDescription": "You've reviewed all cards for now. Great job!",
+        "ReviewMore": "Review More",
+        "ShowAnswer": "Show Answer",
+        "Remove": "Remove"
+      },
+      "Sync": {
+        "Title": "Sync Flashcards",
+        "Initializing": "Initializing...",
+        "LoadingLibraries": "Loading libraries...",
+        "GeneratingCode": "Generating connection code...",
+        "ScanInstructions": "Enter {numChunks} in mLearn app, then scan this QR code",
+        "ConnectedSyncing": "Connected! Syncing...",
+        "PointCamera": "Point camera at QR code...",
+        "EstablishingConnection": "Establishing connection...",
+        "Complete": "Sync complete!",
+        "QRHint": "Scan with mLearn mobile app to sync flashcards",
+        "ScanQRInstead": "Scan QR Instead",
+        "ShowQRInstead": "Show QR Instead",
+        "SyncingFlashcards": "Syncing flashcards...",
+        "SyncedSuccessfully": "Flashcards synced successfully!",
+        "Error": {
+          "LoadLibraries": "Failed to load required libraries: {error}",
+          "Connection": "Failed to start connection",
+          "CameraAccess": "Camera access denied"
+        }
+      },
+      "Card": {
+        "Tracked": "Tracked",
+        "Ease": "Ease:",
+        "ScreenshotAlt": "Screenshot",
+        "RevealHint": "Click or press Space to reveal answer",
+        "RateHint": "Press 1-4 to rate • Click to flip back",
+        "ReviewsCount": "{count} reviews"
+      },
+      "Table": {
+        "Word": "Word",
+        "Translation": "Translation",
+        "Level": "Level",
+        "TrackedBy": "Tracked By",
+        "Status": "Status"
+      }
+    },
+    "WordHover": {
+      "NoTranslation": "No translation found",
+      "Explain": "Explain",
+      "Loading": "Loading...",
+      "NoExplanationAvailable": "No explanation available",
+      "Status": {
+        "Unknown": "Unknown",
+        "Learning": "Learning",
+        "Known": "Known"
+      },
+      "Alerts": {
+        "CopiedToClipboard": "Copied to clipboard!",
+        "ExplainRequiresLlm": "The explain feature requires the local AI language model. Please enable LLM in settings and restart the app."
+      }
+    },
+    "Settings": {
+      "UI": {
+        "Title": "Settings",
+        "Description": "Configure mLearn to your preferences",
+        "ResetConfirm": "Are you sure you want to reset all settings to defaults? This cannot be undone.",
+        "ResetSuccess": "Settings reset to defaults",
+        "SaveError": "Failed to save settings"
+      },
+      "Tabs" : {
+        "General": "General",
+        "Behaviour": "Behaviour",
+        "Appearance": "Appearance",
+        "SRS": "Flashcards",
+        "Reader": "Reader",
+        "Statistics": "Stats",
+        "About": "About"
+      },
+      "Groups": {
+        "Language": "Language",
+        "Appearance": "Appearance",
+        "Data": "Data",
+        "WordStatus": "Word Status",
+        "BlurEffect": "Blur Effect",
+        "DisplayOptions": "Display Options",
+        "Performance": "Performance",
+        "AnkiIntegration": "Anki Integration",
+        "BuiltInFlashcards": "Built-in Flashcards",
+        "DataManagement": "Data Management",
+        "Tokenizer": "Tokenizer",
+        "WordHoverBehavior": "Word Hover Behavior",
+        "Furigana": "Furigana",
+        "LlmIntegration": "LLM Integration",
+        "SubtitleAppearance": "Subtitle Appearance",
+        "SubtitleTiming": "Subtitle Timing",
+        "ThemePreview": "Theme Preview"
+      },
+      "Language": {
+        "LearningLanguage": {
+          "Label": "Learning Language",
+          "Description": "Select the language you are learning"
+        }
+      },
+      "Appearance": {
+        "DarkMode": {
+          "Label": "Dark Mode",
+          "Description": "Enable dark theme for the application"
+        },
+        "SubtitleFontSize": {
+          "Label": "Subtitle Font Size",
+          "Description": "Size of subtitle text in pixels"
+        }
+      },
+      "Data": {
+        "ExportData": {
+          "Label": "Export Data",
+          "Description": "Export your learning data to a file"
+        },
+        "ImportData": {
+          "Label": "Import Data",
+          "Description": "Import learning data from a file"
+        },
+        "ResetSettings": {
+          "Label": "Reset Settings",
+          "Description": "Reset all settings to their default values"
+        }
+      },
+      "WordStatus": {
+        "ColourKnown": {
+          "Label": "Colour Known Words",
+          "Description": "Highlight words you've learned with a distinct colour"
+        },
+        "KnownColour": {
+          "Label": "Known Word Colour",
+          "Description": "Colour used to highlight known words"
+        },
+        "ColourCodes": {
+          "Label": "Part of Speech Colours",
+          "Description": "Colour code words based on their grammatical role"
+        },
+        "KnownThreshold": {
+          "Label": "Known Threshold",
+          "Description": "Ease value at which a word is considered known"
+        }
+      },
+      "BlurEffect": {
+        "BlurWords": {
+          "Label": "Blur Unknown Words",
+          "Description": "Blur words you haven't learned yet"
+        },
+        "BlurKnownSubtitles": {
+          "Label": "Blur Known Subtitles",
+          "Description": "Blur subtitles when all words are known"
+        },
+        "BlurAmount": {
+          "Label": "Blur Amount",
+          "Description": "Intensity of the blur effect"
+        }
+      },
+      "DisplayOptions": {
+        "ShowPos": {
+          "Label": "Show Part of Speech",
+          "Description": "Display grammatical information for words"
+        },
+        "ShowFurigana": {
+          "Label": "Show Furigana",
+          "Description": "Display readings above words"
+        },
+        "ShowPitchAccent": {
+          "Label": "Show Pitch Accent",
+          "Description": "Display pitch accent information for words"
+        },
+        "ImmediateFetch": {
+          "Label": "Immediate Fetch",
+          "Description": "Fetch word data when subtitles appear"
+        }
+      },
+      "Performance": {
+        "HoverKnownGetFromDictionary": {
+          "Label": "Lookup Known Words",
+          "Description": "Fetch dictionary data even for known words"
+        },
+        "DevMode": {
+          "Label": "Developer Mode",
+          "Description": "Enable developer tools and debugging features"
+        }
+      },
+      "Anki": {
+        "UseAnki": {
+          "Label": "Enable Anki",
+          "Description": "Connect to Anki for flashcard creation"
+        },
+        "AnkiConnectUrl": {
+          "Label": "AnkiConnect URL",
+          "Description": "URL for the AnkiConnect plugin"
+        },
+        "AnkiDeck": {
+          "Label": "Anki Deck",
+          "Description": "Deck to add new cards to"
+        },
+        "TestConnection": "Test",
+        "Connected": "✓ Connected",
+        "Failed": "✗ Failed",
+        "AnkiModel": {
+          "Label": "Note Type",
+          "Description": "Anki note type to use for new cards"
+        },
+        "ExpressionField": {
+          "Label": "Expression Field",
+          "Description": "Anki field for the word/expression"
+        },
+        "ReadingField": {
+          "Label": "Reading Field",
+          "Description": "Anki field for the reading/pronunciation"
+        },
+        "MeaningField": {
+          "Label": "Meaning Field",
+          "Description": "Anki field for the meaning/definition"
+        }
+      },
+      "BuiltInFlashcards": {
+        "EnableFlashcardCreation": {
+          "Label": "Enable Flashcard Creation",
+          "Description": "Allow creating flashcards while learning"
+        },
+        "MaxNewCardsPerDay": {
+          "Label": "Max New Cards Per Day",
+          "Description": "Maximum number of new cards to introduce daily"
+        },
+        "ProportionOfExamCards": {
+          "Label": "Exam Card Proportion",
+          "Description": "Proportion of exam-style cards in reviews"
+        },
+        "PreparedExam": {
+          "Label": "Prepared Exam Level",
+          "Description": "Target proficiency level for exam preparation"
+        },
+        "CreateUnseenCards": {
+          "Label": "Create Unseen Cards",
+          "Description": "Automatically create cards for new words"
+        },
+        "ResetSrs": {
+          "Label": "Reset SRS Data",
+          "Description": "Clear all spaced repetition progress"
+        },
+        "ResetSrsConfirm": "Are you sure you want to reset all SRS data? This cannot be undone!",
+        "ResetSrsConfirm2": "This will delete all your flashcard progress. Really continue?"
+      },
+      "Tokenizer": {
+        "OcrEnabled": {
+          "Label": "Enable OCR",
+          "Description": "Enable optical character recognition for images"
+        },
+        "LlmEnabled": {
+          "Label": "Enable LLM",
+          "Description": "Enable AI-powered explanations and features"
+        }
+      },
+      "WordHover": {
+        "TriggerMode": {
+          "Label": "Hover Trigger Mode",
+          "Description": "How the word hover popup is activated"
+        },
+        "TriggerModes": {
+          "Hover": "Hover (immediate)",
+          "LongHover": "Long Hover (500ms delay)",
+          "KeyHover": "Key + Hover (hold key)"
+        },
+        "HoverKey": {
+          "Label": "Hover Key",
+          "Description": "Key to hold for 'Key + Hover' mode"
+        },
+        "TestPopup": "Test popup",
+        "HidePopup": "Hide popup"
+      },
+      "FuriganaSettings": {
+        "FuriganaHider": {
+          "Label": "Furigana Hider",
+          "Description": "Hide furigana behind white boxes until hover"
+        }
+      },
+      "Subtitle": {
+        "Theme": {
+          "Label": "Subtitle Style",
+          "Description": "Visual style for subtitle background"
+        },
+        "Themes": {
+          "Shadow": "Shadow",
+          "Background": "Background",
+          "Marker": "Marker"
+        },
+        "FontSize": {
+          "Label": "Font Size",
+          "Description": "Size of subtitle text"
+        },
+        "FontWeight": {
+          "Label": "Font Weight",
+          "Description": "Thickness of subtitle text"
+        },
+        "FontWeights": {
+          "Thin": "Thin (100)",
+          "ExtraLight": "Extra Light (200)",
+          "Light": "Light (300)",
+          "Normal": "Normal (400)",
+          "Medium": "Medium (500)",
+          "SemiBold": "Semi Bold (600)",
+          "Bold": "Bold (700)",
+          "ExtraBold": "Extra Bold (800)",
+          "Black": "Black (900)"
+        },
+        "Offset": {
+          "Label": "Subtitle Offset",
+          "Description": "Time offset for subtitle timing (ms)"
+        }
+      },
+      "ReaderTips": {
+        "Title": "Reader Tips",
+        "OcrTip": "🔍 OCR: Press the OCR button or use the keyboard shortcut to extract text from the current page.",
+        "TextLayerTip": "📝 Text Layer: The extracted text will appear as an overlay you can interact with.",
+        "NavigationTip": "📚 Navigation: Use arrow keys or click thumbnails in the sidebar to navigate pages.",
+        "DoublePageTip": "💡 Tip: Double-page mode works great for manga spreads!"
+      },
+      "Reader": {
+        "Title": "Reader",
+        "Description": "Configure OCR and manga reader settings",
+        "OcrSettings": {
+          "Title": "OCR Settings",
+          "Enable": {
+            "Label": "Enable OCR",
+            "Description": "Enable optical character recognition for images"
+          },
+          "CropPadding": {
+            "Label": "OCR Crop Padding",
+            "Description": "Extra pixels around text when cropping for flashcards"
+          }
+        },
+        "WordHoverBehavior": {
+          "Title": "Word Hover Behavior",
+          "TriggerMode": {
+            "Label": "Hover Trigger Mode",
+            "Description": "How word translation popup is triggered in the reader"
+          },
+          "Modes": {
+            "Hover": "Hover (immediate)",
+            "LongHover": "Long Hover (500ms delay)",
+            "KeyHover": "{key} + Hover"
+          },
+          "HoverKey": {
+            "Label": "Hover Key",
+            "Description": "Key to hold while hovering to show word popup"
+          },
+          "RecordKey": "Record Key",
+          "PressAKey": "Press a key..."
+        },
+        "Furigana": {
+          "Title": "Furigana",
+          "Hide": {
+            "Label": "Hide Furigana",
+            "Description": "Cover detected furigana with white boxes that reveal on hover (for reading practice)"
+          }
+        },
+        "LlmIntegration": {
+          "Title": "LLM Integration",
+          "Enable": {
+            "Label": "Enable LLM Explanations",
+            "Description": "Use AI to explain words and grammar"
+          }
+        },
+        "Tips": {
+          "Title": "Reader Tips",
+          "GettingStarted": "📖 Getting Started: Drag and drop a folder of images or a PDF file onto the reader window.",
+          "OcrMode": "🔍 OCR Mode: Click \"Run OCR\" to extract text from the current page. Hover over detected text to see translations.",
+          "Navigation": "📚 Navigation: Use arrow keys or click thumbnails in the sidebar to navigate pages.",
+          "DoublePage": "💡 Tip: Double-page mode works great for manga spreads!"
+        }
+      },
+      "SRS": {
+        "Title": "Spaced Repetition",
+        "Description": "Configure flashcard and Anki settings",
+        "AnkiIntegration": {
+          "Title": "Anki Integration",
+          "Enable": {
+            "Label": "Enable Anki",
+            "Description": "Send flashcards to Anki via AnkiConnect"
+          },
+          "ConnectUrl": {
+            "Label": "AnkiConnect URL",
+            "Description": "URL of your AnkiConnect server"
+          },
+          "ConnectionStatus": {
+            "Label": "Connection Status",
+            "Description": "Test your AnkiConnect connection"
+          },
+          "Test": "Test",
+          "Connected": "✓ Connected",
+          "Failed": "✗ Failed",
+          "DeckName": {
+            "Label": "Deck Name",
+            "Description": "Anki deck for new cards",
+            "Placeholder": "Default"
+          },
+          "ModelName": {
+            "Label": "Model Name",
+            "Description": "Anki note type to use"
+          },
+          "AddScreenshots": {
+            "Label": "Add Screenshots",
+            "Description": "Include video screenshots in flashcards"
+          }
+        },
+        "BuiltInFlashcards": {
+          "Title": "Built-in Flashcards",
+          "Enable": {
+            "Label": "Enable Flashcard Creation",
+            "Description": "Allow creating flashcards within mLearn"
+          },
+          "MaxNewCards": {
+            "Label": "Max New Cards Per Day",
+            "Description": "Limit for auto-created flashcards"
+          },
+          "ExamCardProportion": {
+            "Label": "Exam Card Proportion",
+            "Description": "Percentage of cards from exam levels (0-1)"
+          },
+          "PreparedExamLevel": {
+            "Label": "Prepared Exam Level",
+            "Description": "Target JLPT level (5=N5, 1=N1)"
+          },
+          "ExamLevels": {
+            "N5": "N5 (Beginner)",
+            "N4": "N4",
+            "N3": "N3",
+            "N2": "N2",
+            "N1": "N1 (Advanced)"
+          },
+          "CreateUnseenCards": {
+            "Label": "Create Unseen Cards",
+            "Description": "Auto-create cards for new exam-level words"
+          }
+        },
+        "DataManagement": {
+          "Title": "Data Management",
+          "ResetSRS": {
+            "Label": "Reset SRS Data",
+            "Description": "Clear all flashcard progress (cannot be undone!)"
+          },
+          "ResetButton": "Reset SRS"
+        }
+      }
+    },
+    "Installer": {
+      "Instructions": {
+        "ChooseComponents": "Choose the components you want to install, then click Install.",
+        "LanguageUnlocks": "Language selection unlocks after setup finishes.",
+        "ForgetSomething": "If you forget to install something, delete mLearn and restart the installer again.",
+        "DownloadNote": "All downloads are handled automatically. A stable connection is recommended.",
+        "ClickToBegin": "Click Install to begin."
+      },
+      "Status": {
+        "Installing": "Installing, please wait...",
+        "NotStarted": "Waiting to start installation...",
+        "Complete": "Installation complete! Choose your language to finish setup.",
+        "LlmWillInstall": "Local AI model dependencies will be installed.",
+        "LlmSkip": "Skipping local AI model dependencies.",
+        "OcrWillInstall": "OCR reader dependencies will be installed.",
+        "OcrSkip": "Skipping OCR reader dependencies.",
+        "CouldNotStart": "Could not start the installation process.",
+        "LanguageInstalledRestarting": "Language installed! Restarting..."
+      },
+      "Components": {
+        "ExplainAi": {
+          "Title": "Install mLearn Explain AI Module",
+          "Description": "Installs a local LLM Neural Network. Skips ~3 GB of dependencies if left unchecked."
+        },
+        "Reader": {
+          "Title": "Install mLearn Reader Module",
+          "Description": "Installs OCR capabilities for reading manga/images. Skips ~2 GB of dependencies if left unchecked."
+        }
+      },
+      "Buttons": {
+        "StartInstallation": "Start Installation",
+        "Installing": "Installing...",
+        "Continue": "Continue"
+      },
+      "Alerts": {
+        "NetworkError": "Network error occurred. Please check your connection and try again."
+      }
+    },
+    "Statistics": {
+      "Title": "Learning Statistics",
+      "Description": "Track your progress and learning journey",
+      "TimeWatched": "Time Watched",
+      "WordsTracked": "Words Tracked",
+      "WordsLearned": "Words Learned",
+      "CurrentlyLearning": "Currently Learning",
+      "WordsByStatus": "Words by Status",
+      "WordsByExamLevel": "Words by Exam Level",
+      "EmptyState": {
+        "Title": "No Word Data Yet",
+        "Description": "Start watching to track words!"
+      },
+      "Legend": {
+        "Learned": "Learned",
+        "Learning": "Learning",
+        "Viewed": "Viewed"
+      },
+      "Actions": {
+        "ViewKanjiGrid": "📊 View Kanji Grid",
+        "EditWordDatabase": "📝 Edit Word Database"
+      }
+    },
+    "About": {
+      "Title": "mLearn",
+      "VersionLabel": "Version {version}",
+      "Description": "mLearn is a language learning tool that helps you study through immersion. Watch videos, read manga, and learn vocabulary naturally with intelligent subtitles and spaced repetition.",
+      "Website": "🌐 Website",
+      "Licenses": "📄 Licenses",
+      "KeyboardShortcuts": {
+        "Title": "Keyboard Shortcuts",
+        "Space": "Play/Pause video",
+        "LeftRight": "Seek 5 seconds",
+        "UpDown": "Volume control",
+        "F": "Toggle fullscreen",
+        "M": "Mute/Unmute",
+        "Numbers": "Flashcard review grades",
+        "Undo": "Undo flashcard action"
+      }
+    },
+    "KanjiGrid": {
+      "Title": "Character Knowledge Overview",
+      "Description": "Colors: learning (orange→yellow), known (green→light-green); unknown (gray). Hover for details.",
+      "EmptyState": {
+        "Title": "No tracked characters yet",
+        "Description": "Characters will appear here as you encounter them in videos and texts.",
+        "Hint": "Start watching or reading content to begin tracking!"
+      },
+      "Loading": "Loading character data...",
+      "Legend": {
+        "Learning": "Learning:",
+        "Known": "Known:",
+        "Unknown": "Unknown:"
+      },
+      "Stats": {
+        "Known": "Known:",
+        "Learning": "Learning:",
+        "Unknown": "Unknown:",
+        "TotalFound": "Total Found:"
+      },
+      "Filter": "Filter characters..."
+    },
+    "WordDbEditor": {
+      "Title": "Word Database Editor",
+      "Loading": "Loading word database...",
+      "EmptyState": "No words found. Click 'Load All' to load your word database.",
+      "LoadingMore": "Loading more...",
+      "SearchPlaceholder": "Search word...",
+      "AllLevels": "All Levels",
+      "LoadAll": "Load All",
+      "SearchHint": "Type at least 2 characters to search, or click 'Load All'",
+      "SearchHintDetailed": "Enter to search; exact matches prioritized. Press Load All first.",
+      "EditTranslation": {
+        "Title": "Edit translation – {word}",
+        "Tooltip": "Edit word overrides",
+        "RemoveOverride": "Remove Override"
+      },
+      "Fields": {
+        "Word": "Word",
+        "Reading": "Reading",
+        "ReadingPlaceholder": "Reading (kana)...",
+        "PitchAccent": "Pitch accent",
+        "PitchAccentPlaceholder": "0 (Heiban), 1, 2, 3…",
+        "Translation": "Translation",
+        "TranslationPlaceholder": "Comma-separated translations...",
+        "StructuredContent": "Structured content (optional HTML)",
+        "PartOfSpeech": "Part of Speech",
+        "PosPlaceholder": "n, v, adj, etc."
+      },
+      "Columns": {
+        "Word": "Word",
+        "Translation": "Translation",
+        "Level": "Level",
+        "TrackedBy": "Tracked By",
+        "Status": "Status"
+      },
+      "LevelNames": {
+        "Common": "Common",
+        "Unlisted": "Unlisted"
+      },
+      "Tooltip": {
+        "EditWord": "Edit word overrides"
+      }
+    },
+    "CardEditor": {
+      "Title": "Edit Flashcard",
+      "Fields": {
+        "Word": "Word",
+        "WordPlaceholder": "Enter word...",
+        "Reading": "Reading (furigana)",
+        "ReadingPlaceholder": "かな / reading",
+        "PitchAccent": "Pitch accent",
+        "PitchAccentPlaceholder": "0 (Heiban), 1, 2, 3…",
+        "PitchPlaceholder": "0 (Heiban), 1, 2, 3…",
+        "Surface": "Surface form",
+        "SurfaceNote": "(Word)",
+        "PartOfSpeech": "Part of Speech",
+        "PosPlaceholder": "n, v, adj, etc.",
+        "Translation": "Translation (comma or newline separated)",
+        "ExampleSentence": "Example Sentence (HTML allowed)",
+        "ExampleTranslation": "Example Translation",
+        "Definition": "Definition (HTML allowed)",
+        "Definitions": "Definitions (one per line)",
+        "DefinitionsPlaceholder": "Definition per line",
+        "StructuredContent": "Structured content (optional HTML)"
+      },
+      "Statistics": {
+        "Title": "Statistics",
+        "Ease": "Ease:",
+        "Reviews": "Reviews:",
+        "LastReviewed": "Last Reviewed:",
+        "Never": "Never",
+        "Interval": "Interval:"
+      },
+      "Hint": "Translations: comma or newline separated. Pitch accent is mora drop position (0=heiban)."
+    },
+    "PitchAccent": {
+      "Heiban": "Heiban (平板)",
+      "Atamadaka": "Atamadaka (頭高)",
+      "Nakadaka": "Nakadaka (中高)",
+      "Odaka": "Odaka (尾高)",
+      "DropAfterMora": "Drop after mora {mora}"
+    },
+    "Components": {
+      "LogConsole": {
+        "DefaultTitle": "Console",
+        "ClearTooltip": "Clear logs",
+        "NoLogs": "No logs to display"
+      }
+    },
+    "Languages": {
+      "ja": "Japanese",
+      "de": "German",
+      "zh": "Chinese",
+      "ko": "Korean",
+      "es": "Spanish",
+      "fr": "French",
+      "it": "Italian",
+      "pt": "Portuguese",
+      "ru": "Russian"
+    },
+    "Errors": {
+      "FirstArgumentMustBeString": "First argument must be a string",
+      "ChunkSizeMustBePositive": "Chunk size must be a positive number",
+      "InvalidLanguage": "Invalid language",
+      "FailedToLoad": "Failed to load",
+      "NetworkError": "Network error"
+    }
+  }
+}

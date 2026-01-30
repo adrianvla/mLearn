@@ -6,7 +6,7 @@
 
 import { Component, createSignal, createEffect, createMemo, Show, onMount } from 'solid-js';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
-import { useSettings, useLanguage } from '../../context';
+import { useSettings, useLanguage, useLocalization } from '../../context';
 import { buildPitchAccentHtml, getPitchAccentInfo, getPitchAccentName } from '../../utils/pitchAccent';
 import { GlassInput, GlassBtn } from '../common';
 import './FlashcardEditor.css';
@@ -27,6 +27,7 @@ export interface FlashcardEditorProps {
 export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   const { settings } = useSettings();
   const { getLanguageFeatures } = useLanguage();
+  const { t } = useLocalization();
 
   // Form state
   const [word, setWord] = createSignal('');
@@ -194,20 +195,20 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
       <div class="editor-section">
         <div class="editor-row">
           <GlassInput
-            label="Word"
+            label={t('mlearn.CardEditor.Fields.Word')}
             value={word()}
             onInput={(e) => setWord(e.currentTarget.value)}
-            placeholder="Word..."
+            placeholder={t('mlearn.CardEditor.Fields.WordPlaceholder')}
             fullWidth
           />
         </div>
 
         <div class="editor-row">
           <GlassInput
-            label="Reading / Pronunciation"
+            label={t('mlearn.CardEditor.Fields.Reading')}
             value={pronunciation()}
             onInput={(e) => setPronunciation(e.currentTarget.value)}
-            placeholder="Pronunciation..."
+            placeholder={t('mlearn.CardEditor.Fields.ReadingPlaceholder')}
             fullWidth
           />
         </div>
@@ -216,7 +217,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
         <Show when={supportsPitchAccent()}>
           <div class="editor-row pitch-row">
             <div class="pitch-input-group">
-              <label>Pitch Accent</label>
+              <label>{t('mlearn.CardEditor.Fields.PitchAccent')}</label>
               <input
                 type="number"
                 min="0"
@@ -225,7 +226,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
                   const val = e.currentTarget.value;
                   setPitchAccent(val ? parseInt(val, 10) : undefined);
                 }}
-                placeholder="0 (Heiban), 1, 2, 3…"
+                placeholder={t('mlearn.CardEditor.Fields.PitchAccentPlaceholder')}
                 class="pitch-input"
               />
             </div>
@@ -241,10 +242,10 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
         <div class="editor-row">
           <GlassInput
-            label="Part of Speech"
+            label={t('mlearn.WordDbEditor.Fields.PartOfSpeech')}
             value={pos()}
             onInput={(e) => setPos(e.currentTarget.value)}
-            placeholder="Noun, Verb, etc..."
+            placeholder={t('mlearn.WordDbEditor.Fields.PosPlaceholder')}
             fullWidth
           />
         </div>
@@ -252,11 +253,11 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
       {/* Main Card Content */}
       <div class="editor-section card-preview">
-        <div class="card-word">{word() || '(Word)'}</div>
+        <div class="card-word">{word() || t('mlearn.CardEditor.Fields.SurfaceNote')}</div>
         
         {/* Translation - contentEditable */}
         <div class="editor-field">
-          <label>Translation (comma or newline separated)</label>
+          <label>{t('mlearn.CardEditor.Fields.Translation')}</label>
           <div
             contentEditable
             class="content-editable translation-edit"
@@ -268,7 +269,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
         {/* Example sentence - contentEditable with HTML */}
         <div class="editor-field">
-          <label>Example Sentence (HTML allowed)</label>
+          <label>{t('mlearn.CardEditor.Fields.ExampleSentence')}</label>
           <div
             ref={exampleRef}
             contentEditable
@@ -279,7 +280,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
         {/* Example meaning - contentEditable */}
         <div class="editor-field">
-          <label>Example Translation</label>
+          <label>{t('mlearn.CardEditor.Fields.ExampleTranslation')}</label>
           <div
             ref={exampleMeaningRef}
             contentEditable
@@ -290,7 +291,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
         {/* Definition - contentEditable with HTML support */}
         <div class="editor-field">
-          <label>Definition (HTML allowed)</label>
+          <label>{t('mlearn.CardEditor.Fields.Definition')}</label>
           <div
             ref={definitionRef}
             contentEditable
@@ -302,7 +303,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
         {/* Screenshot preview */}
         <Show when={screenshotUrl()}>
           <div class="screenshot-preview">
-            <img src={screenshotUrl()} alt="Screenshot" />
+            <img src={screenshotUrl()} alt={t('mlearn.Flashcards.Card.ScreenshotAlt')} />
           </div>
         </Show>
       </div>
@@ -310,26 +311,22 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
       {/* Stats Section - only for existing cards */}
       <Show when={props.showStats && cardStats()}>
         <div class="editor-section stats-section">
-          <h3>Statistics</h3>
+          <h3>{t('mlearn.CardEditor.Statistics.Title')}</h3>
           <div class="stats-grid">
             <div class="stat-item">
-              <span class="stat-label">Ease:</span>
+              <span class="stat-label">{t('mlearn.CardEditor.Statistics.Ease')}</span>
               <span class="stat-value">{cardStats()!.ease}</span>
             </div>
             <div class="stat-item">
-              <span class="stat-label">Reviews:</span>
+              <span class="stat-label">{t('mlearn.CardEditor.Statistics.Reviews')}</span>
               <span class="stat-value">{cardStats()!.reviews}</span>
             </div>
             <div class="stat-item">
-              <span class="stat-label">Last Reviewed:</span>
+              <span class="stat-label">{t('mlearn.CardEditor.Statistics.LastReviewed')}</span>
               <span class="stat-value">{cardStats()!.lastReviewed}</span>
             </div>
             <div class="stat-item">
-              <span class="stat-label">Due Date:</span>
-              <span class="stat-value">{cardStats()!.dueDate}</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Interval:</span>
+              <span class="stat-label">{t('mlearn.CardEditor.Statistics.Interval')}</span>
               <span class="stat-value">{cardStats()!.interval}</span>
             </div>
           </div>
@@ -337,14 +334,14 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
       </Show>
 
       <div class="editor-hint">
-        Translations: comma or newline separated. Pitch accent is mora drop position (0=heiban).
+        {t('mlearn.CardEditor.Hint')}
       </div>
 
       {/* Footer Actions */}
       <div class="editor-footer">
-        <GlassBtn onClick={props.onCancel}>Cancel</GlassBtn>
+        <GlassBtn onClick={props.onCancel}>{t('mlearn.Global.Cancel')}</GlassBtn>
         <GlassBtn variant="primary" onClick={handleSave}>
-          Save Changes
+          {t('mlearn.Global.Actions.SaveChanges')}
         </GlassBtn>
       </div>
     </div>

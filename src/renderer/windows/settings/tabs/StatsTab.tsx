@@ -4,7 +4,7 @@
  */
 
 import { Component, createSignal, onMount, createEffect, Show } from 'solid-js';
-import { useSettings, useLanguage } from '../../../context';
+import { useSettings, useLanguage, useLocalization } from '../../../context';
 import { TabContent, StatCard, EmptyState, GlassBtn } from '../../../components/common';
 import {
   getTimeWatchedFormatted,
@@ -16,6 +16,7 @@ import './StatsTab.css';
 export const StatsTab: Component = () => {
   const { settings } = useSettings();
   const { getFreqLevelNames } = useLanguage();
+  const { t } = useLocalization();
   
   const [timeWatched, setTimeWatched] = createSignal('0h 0m');
   const [wordStats, setWordStats] = createSignal({ total: 0, learned: 0, learning: 0, unknown: 0 });
@@ -65,8 +66,8 @@ export const StatsTab: Component = () => {
   return (
     <TabContent
       header={{
-        title: 'Learning Statistics',
-        description: 'Track your progress and learning journey',
+        title: t('mlearn.Statistics.Title'),
+        description: t('mlearn.Statistics.Description'),
         icon: '📊',
       }}
       padding="lg"
@@ -74,29 +75,29 @@ export const StatsTab: Component = () => {
       {/* Stats Cards */}
       <div class="stats-grid">
         <div class="stats-card-wrapper">
-          <StatCard label="Time Watched" value={timeWatched()} icon="⏱️" size="md" variant="glass" />
+          <StatCard label={t('mlearn.Statistics.TimeWatched')} value={timeWatched()} icon="⏱️" size="md" variant="glass" />
         </div>
         <div class="stats-card-wrapper">
-          <StatCard label="Words Tracked" value={wordStats().total} icon="📝" size="md" variant="glass" />
+          <StatCard label={t('mlearn.Statistics.WordsTracked')} value={wordStats().total} icon="📝" size="md" variant="glass" />
         </div>
         <div class="stats-card-wrapper">
-          <StatCard label="Words Learned" value={wordStats().learned} icon="✅" color="success" size="md" variant="glass" />
+          <StatCard label={t('mlearn.Statistics.WordsLearned')} value={wordStats().learned} icon="✅" color="success" size="md" variant="glass" />
         </div>
         <div class="stats-card-wrapper">
-          <StatCard label="Currently Learning" value={wordStats().learning} icon="📚" color="warning" size="md" variant="glass" />
+          <StatCard label={t('mlearn.Statistics.CurrentlyLearning')} value={wordStats().learning} icon="📚" color="warning" size="md" variant="glass" />
         </div>
       </div>
 
       {/* Pie Chart */}
       <div class="chart-container">
-        <h3 class="chart-title">Words by Status</h3>
+        <h3 class="chart-title">{t('mlearn.Statistics.WordsByStatus')}</h3>
         <Show
           when={wordStats().total > 0}
           fallback={
             <EmptyState
               icon="📈"
-              title="No Word Data Yet"
-              description="Start watching to track words!"
+              title={t('mlearn.Statistics.EmptyState.Title')}
+              description={t('mlearn.Statistics.EmptyState.Description')}
               size="sm"
             />
           }
@@ -105,15 +106,15 @@ export const StatsTab: Component = () => {
           <div class="chart-legend">
             <div class="legend-item">
               <span class="legend-color" style={{ background: "#4ade80" }} />
-              <span>Learned ({wordStats().learned})</span>
+              <span>{t('mlearn.Statistics.Legend.Learned')} ({wordStats().learned})</span>
             </div>
             <div class="legend-item">
               <span class="legend-color" style={{ background: "#fb923c" }} />
-              <span>Learning ({wordStats().learning})</span>
+              <span>{t('mlearn.Statistics.Legend.Learning')} ({wordStats().learning})</span>
             </div>
             <div class="legend-item">
               <span class="legend-color" style={{ background: "#64748b" }} />
-              <span>Viewed ({wordStats().unknown})</span>
+              <span>{t('mlearn.Statistics.Legend.Viewed')} ({wordStats().unknown})</span>
             </div>
           </div>
         </Show>
@@ -121,17 +122,17 @@ export const StatsTab: Component = () => {
 
       {/* Bar Chart */}
       <div class="chart-container">
-        <h3 class="chart-title">Words by Exam Level</h3>
+        <h3 class="chart-title">{t('mlearn.Statistics.WordsByExamLevel')}</h3>
         <canvas ref={barCanvasRef} class="chart-canvas" width={400} height={200} />
       </div>
 
       {/* Action Buttons */}
       <div class="action-buttons">
         <GlassBtn variant="primary" onClick={openKanjiGrid}>
-          📊 View Kanji Grid
+          {t('mlearn.Statistics.Actions.ViewKanjiGrid')}
         </GlassBtn>
         <GlassBtn variant="primary" onClick={openWordDbEditor}>
-          📝 Edit Word Database
+          {t('mlearn.Statistics.Actions.EditWordDatabase')}
         </GlassBtn>
       </div>
     </TabContent>

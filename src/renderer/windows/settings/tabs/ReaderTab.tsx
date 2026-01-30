@@ -3,7 +3,7 @@
  */
 
 import { Component, createSignal, Show } from 'solid-js';
-import { useSettings } from '../../../context';
+import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
 
@@ -12,6 +12,7 @@ const KEY_OPTIONS = ['Shift', 'Control', 'Alt', 'Meta'] as const;
 
 export const ReaderTab: Component = () => {
   const { settings, updateSettings } = useSettings();
+  const { t } = useLocalization();
   
   // Recording state for key capture
   const [isRecording, setIsRecording] = createSignal(false);
@@ -58,17 +59,17 @@ export const ReaderTab: Component = () => {
   return (
     <TabContent
       header={{
-        title: 'Reader',
-        description: 'Configure OCR and manga reader settings',
+        title: t('mlearn.Settings.Reader.Title'),
+        description: t('mlearn.Settings.Reader.Description'),
         icon: '📖',
       }}
       padding="lg"
     >
 
-      <SettingGroup title="OCR Settings">
+      <SettingGroup title={t('mlearn.Settings.Reader.OcrSettings.Title')}>
         <SettingRow
-          label="Enable OCR"
-          description="Enable optical character recognition for images"
+          label={t('mlearn.Settings.Reader.OcrSettings.Enable.Label')}
+          description={t('mlearn.Settings.Reader.OcrSettings.Enable.Description')}
         >
           <ToggleSwitch
             checked={settings.ocrEnabled}
@@ -77,8 +78,8 @@ export const ReaderTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="OCR Crop Padding"
-          description="Extra pixels around text when cropping for flashcards"
+          label={t('mlearn.Settings.Reader.OcrSettings.CropPadding.Label')}
+          description={t('mlearn.Settings.Reader.OcrSettings.CropPadding.Description')}
         >
           <input
             type="number"
@@ -92,26 +93,26 @@ export const ReaderTab: Component = () => {
         </SettingRow>
       </SettingGroup>
       
-      <SettingGroup title="Word Hover Behavior">
+      <SettingGroup title={t('mlearn.Settings.Reader.WordHoverBehavior.Title')}>
         <SettingRow
-          label="Hover Trigger Mode"
-          description="How word translation popup is triggered in the reader"
+          label={t('mlearn.Settings.Reader.WordHoverBehavior.TriggerMode.Label')}
+          description={t('mlearn.Settings.Reader.WordHoverBehavior.TriggerMode.Description')}
         >
           <select
             class="setting-input"
             value={settings.readerWordHoverTrigger ?? 'hover'}
             onChange={handleTriggerModeChange}
           >
-            <option value="hover">Hover (immediate)</option>
-            <option value="long-hover">Long Hover (500ms delay)</option>
-            <option value="key-hover">{`${settings.readerWordHoverKey ?? 'Shift'} + Hover`}</option>
+            <option value="hover">{t('mlearn.Settings.Reader.WordHoverBehavior.Modes.Hover')}</option>
+            <option value="long-hover">{t('mlearn.Settings.Reader.WordHoverBehavior.Modes.LongHover')}</option>
+            <option value="key-hover">{t('mlearn.Settings.Reader.WordHoverBehavior.Modes.KeyHover', { key: settings.readerWordHoverKey ?? 'Shift' })}</option>
           </select>
         </SettingRow>
         
         <Show when={settings.readerWordHoverTrigger === 'key-hover'}>
           <SettingRow
-            label="Hover Key"
-            description="Key to hold while hovering to show word popup"
+            label={t('mlearn.Settings.Reader.WordHoverBehavior.HoverKey.Label')}
+            description={t('mlearn.Settings.Reader.WordHoverBehavior.HoverKey.Description')}
           >
             <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
               <select
@@ -136,17 +137,17 @@ export const ReaderTab: Component = () => {
                   cursor: 'pointer',
                 }}
               >
-                {isRecording() ? 'Press a key...' : 'Record Key'}
+                {isRecording() ? t('mlearn.Settings.Reader.WordHoverBehavior.PressAKey') : t('mlearn.Settings.Reader.WordHoverBehavior.RecordKey')}
               </button>
             </div>
           </SettingRow>
         </Show>
       </SettingGroup>
       
-      <SettingGroup title="Furigana">
+      <SettingGroup title={t('mlearn.Settings.Reader.Furigana.Title')}>
         <SettingRow
-          label="Hide Furigana"
-          description="Cover detected furigana with white boxes that reveal on hover (for reading practice)"
+          label={t('mlearn.Settings.Reader.Furigana.Hide.Label')}
+          description={t('mlearn.Settings.Reader.Furigana.Hide.Description')}
         >
           <ToggleSwitch
             checked={settings.readerFuriganaHider ?? false}
@@ -155,10 +156,10 @@ export const ReaderTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title="LLM Integration">
+      <SettingGroup title={t('mlearn.Settings.Reader.LlmIntegration.Title')}>
         <SettingRow
-          label="Enable LLM Explanations"
-          description="Use AI to explain words and grammar"
+          label={t('mlearn.Settings.Reader.LlmIntegration.Enable.Label')}
+          description={t('mlearn.Settings.Reader.LlmIntegration.Enable.Description')}
         >
           <ToggleSwitch
             checked={settings.llmEnabled}
@@ -167,19 +168,19 @@ export const ReaderTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title="Reader Tips">
+      <SettingGroup title={t('mlearn.Settings.Reader.Tips.Title')}>
         <div style={{ color: "rgba(255,255,255,0.7)", "font-size": "0.9rem", "line-height": "1.6" }}>
           <p style={{ "margin-bottom": "12px" }}>
-            📖 <strong>Getting Started:</strong> Drag and drop a folder of images or a PDF file onto the reader window.
+            {t('mlearn.Settings.Reader.Tips.GettingStarted')}
           </p>
           <p style={{ "margin-bottom": "12px" }}>
-            🔍 <strong>OCR Mode:</strong> Click "Run OCR" to extract text from the current page. Hover over detected text to see translations.
+            {t('mlearn.Settings.Reader.Tips.OcrMode')}
           </p>
           <p style={{ "margin-bottom": "12px" }}>
-            📚 <strong>Navigation:</strong> Use arrow keys or click thumbnails in the sidebar to navigate pages.
+            {t('mlearn.Settings.Reader.Tips.Navigation')}
           </p>
           <p>
-            💡 <strong>Tip:</strong> Double-page mode works great for manga spreads!
+            {t('mlearn.Settings.Reader.Tips.DoublePage')}
           </p>
         </div>
       </SettingGroup>

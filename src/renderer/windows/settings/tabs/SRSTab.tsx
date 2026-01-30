@@ -3,11 +3,12 @@
  */
 
 import { Component, createSignal, Show } from 'solid-js';
-import { useSettings } from '../../../context';
+import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, GlassBtn, Select } from '../../../components/common';
 
 export const SRSTab: Component = () => {
   const { settings, updateSettings } = useSettings();
+  const { t } = useLocalization();
   const [ankiStatus, setAnkiStatus] = createSignal<'unchecked' | 'connected' | 'error'>('unchecked');
 
   const checkAnkiConnection = async () => {
@@ -29,17 +30,17 @@ export const SRSTab: Component = () => {
   return (
     <TabContent
       header={{
-        title: 'Spaced Repetition',
-        description: 'Configure flashcard and Anki settings',
+        title: t('mlearn.Settings.SRS.Title'),
+        description: t('mlearn.Settings.SRS.Description'),
         icon: '🃏',
       }}
       padding="lg"
     >
 
-      <SettingGroup title="Anki Integration">
+      <SettingGroup title={t('mlearn.Settings.SRS.AnkiIntegration.Title')}>
         <SettingRow
-          label="Enable Anki"
-          description="Send flashcards to Anki via AnkiConnect"
+          label={t('mlearn.Settings.SRS.AnkiIntegration.Enable.Label')}
+          description={t('mlearn.Settings.SRS.AnkiIntegration.Enable.Description')}
         >
           <ToggleSwitch
             checked={settings.use_anki}
@@ -49,8 +50,8 @@ export const SRSTab: Component = () => {
 
         <Show when={settings.use_anki}>
           <SettingRow
-            label="AnkiConnect URL"
-            description="URL of your AnkiConnect server"
+            label={t('mlearn.Settings.SRS.AnkiIntegration.ConnectUrl.Label')}
+            description={t('mlearn.Settings.SRS.AnkiIntegration.ConnectUrl.Description')}
           >
             <input
               type="text"
@@ -62,25 +63,25 @@ export const SRSTab: Component = () => {
           </SettingRow>
 
           <SettingRow
-            label="Connection Status"
-            description="Test your AnkiConnect connection"
+            label={t('mlearn.Settings.SRS.AnkiIntegration.ConnectionStatus.Label')}
+            description={t('mlearn.Settings.SRS.AnkiIntegration.ConnectionStatus.Description')}
           >
             <div style={{ display: "flex", gap: "8px", "align-items": "center" }}>
               <GlassBtn size="sm" onClick={checkAnkiConnection}>
-                Test
+                {t('mlearn.Settings.SRS.AnkiIntegration.Test')}
               </GlassBtn>
               <Show when={ankiStatus() === 'connected'}>
-                <span style={{ color: "#4ade80" }}>✓ Connected</span>
+                <span style={{ color: "#4ade80" }}>{t('mlearn.Settings.SRS.AnkiIntegration.Connected')}</span>
               </Show>
               <Show when={ankiStatus() === 'error'}>
-                <span style={{ color: "#ef4444" }}>✗ Failed</span>
+                <span style={{ color: "#ef4444" }}>{t('mlearn.Settings.SRS.AnkiIntegration.Failed')}</span>
               </Show>
             </div>
           </SettingRow>
 
           <SettingRow
-            label="Deck Name"
-            description="Anki deck for new cards"
+            label={t('mlearn.Settings.SRS.AnkiIntegration.DeckName.Label')}
+            description={t('mlearn.Settings.SRS.AnkiIntegration.DeckName.Description')}
           >
             <input
               type="text"
@@ -88,13 +89,13 @@ export const SRSTab: Component = () => {
               style={{ width: "150px" }}
               value={settings.flashcard_deck || ''}
               onChange={(e) => updateSettings({ flashcard_deck: e.currentTarget.value })}
-              placeholder="Default"
+              placeholder={t('mlearn.Settings.SRS.AnkiIntegration.DeckName.Placeholder')}
             />
           </SettingRow>
 
           <SettingRow
-            label="Model Name"
-            description="Anki note type to use"
+            label={t('mlearn.Settings.SRS.AnkiIntegration.ModelName.Label')}
+            description={t('mlearn.Settings.SRS.AnkiIntegration.ModelName.Description')}
           >
             <input
               type="text"
@@ -106,8 +107,8 @@ export const SRSTab: Component = () => {
           </SettingRow>
 
           <SettingRow
-            label="Add Screenshots"
-            description="Include video screenshots in flashcards"
+            label={t('mlearn.Settings.SRS.AnkiIntegration.AddScreenshots.Label')}
+            description={t('mlearn.Settings.SRS.AnkiIntegration.AddScreenshots.Description')}
           >
             <ToggleSwitch
               checked={settings.flashcards_add_picture}
@@ -117,10 +118,10 @@ export const SRSTab: Component = () => {
         </Show>
       </SettingGroup>
 
-      <SettingGroup title="Built-in Flashcards">
+      <SettingGroup title={t('mlearn.Settings.SRS.BuiltInFlashcards.Title')}>
         <SettingRow
-          label="Enable Flashcard Creation"
-          description="Allow creating flashcards within mLearn"
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.Enable.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.Enable.Description')}
         >
           <ToggleSwitch
             checked={settings.enable_flashcard_creation}
@@ -129,8 +130,8 @@ export const SRSTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Max New Cards Per Day"
-          description="Limit for auto-created flashcards"
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.MaxNewCards.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.MaxNewCards.Description')}
         >
           <input
             type="number"
@@ -143,8 +144,8 @@ export const SRSTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Exam Card Proportion"
-          description="Percentage of cards from exam levels (0-1)"
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.ExamCardProportion.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.ExamCardProportion.Description')}
         >
           <input
             type="number"
@@ -158,25 +159,25 @@ export const SRSTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Prepared Exam Level"
-          description="Target JLPT level (5=N5, 1=N1)"
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.PreparedExamLevel.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.PreparedExamLevel.Description')}
         >
           <Select
             class="setting-select"
             value={settings.preparedExam.toString()}
             onChange={(e) => updateSettings({ preparedExam: parseInt(e.currentTarget.value) })}
           >
-            <option value="5">N5 (Beginner)</option>
-            <option value="4">N4</option>
-            <option value="3">N3</option>
-            <option value="2">N2</option>
-            <option value="1">N1 (Advanced)</option>
+            <option value="5">{t('mlearn.Settings.SRS.BuiltInFlashcards.ExamLevels.N5')}</option>
+            <option value="4">{t('mlearn.Settings.SRS.BuiltInFlashcards.ExamLevels.N4')}</option>
+            <option value="3">{t('mlearn.Settings.SRS.BuiltInFlashcards.ExamLevels.N3')}</option>
+            <option value="2">{t('mlearn.Settings.SRS.BuiltInFlashcards.ExamLevels.N2')}</option>
+            <option value="1">{t('mlearn.Settings.SRS.BuiltInFlashcards.ExamLevels.N1')}</option>
           </Select>
         </SettingRow>
 
         <SettingRow
-          label="Create Unseen Cards"
-          description="Auto-create cards for new exam-level words"
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.CreateUnseenCards.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.CreateUnseenCards.Description')}
         >
           <ToggleSwitch
             checked={settings.createUnseenCards}
@@ -185,13 +186,13 @@ export const SRSTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title="Data Management">
+      <SettingGroup title={t('mlearn.Settings.SRS.DataManagement.Title')}>
         <SettingRow
-          label="Reset SRS Data"
-          description="Clear all flashcard progress (cannot be undone!)"
+          label={t('mlearn.Settings.SRS.DataManagement.ResetSRS.Label')}
+          description={t('mlearn.Settings.SRS.DataManagement.ResetSRS.Description')}
         >
           <GlassBtn size="sm" variant="danger" onClick={() => resetSRS()}>
-            Reset SRS
+            {t('mlearn.Settings.SRS.DataManagement.ResetButton')}
           </GlassBtn>
         </SettingRow>
       </SettingGroup>

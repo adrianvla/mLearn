@@ -34,6 +34,13 @@ const mLearnIPC = {
     ipcRenderer.on(IPC_CHANNELS.LANG_INSTALL_ERROR, (_event, error) => callback(error));
   },
 
+  // ========== Localization ==========
+  getLocalization: () => ipcRenderer.send(IPC_CHANNELS.GET_LOCALIZATION),
+  onLocalization: (callback: (data: { locale: string; strings: Record<string, unknown> }) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.LOCALIZATION, (_event, data) => callback(data));
+  },
+  changeUILanguage: (langCode: string) => ipcRenderer.send(IPC_CHANNELS.CHANGE_UI_LANGUAGE, langCode),
+
   // ========== Flashcards ==========
   getFlashcards: () => ipcRenderer.send(IPC_CHANNELS.GET_FLASHCARDS),
   saveFlashcards: (flashcards: FlashcardStore) => ipcRenderer.send(IPC_CHANNELS.SAVE_FLASHCARDS, flashcards),

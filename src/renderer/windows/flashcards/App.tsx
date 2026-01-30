@@ -4,7 +4,7 @@
  */
 
 import { Component, Show, For, createSignal, createMemo } from 'solid-js';
-import { WindowWrapper } from '../../context';
+import { WindowWrapper, useLocalization } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditor, FlashcardSyncModal } from '../../components/flashcard';
 import { 
@@ -24,6 +24,7 @@ type TabId = 'review' | 'browse' | 'stats';
 
 const FlashcardsContent: Component = () => {
   const { store, getDueCards, removeFlashcard, addFlashcard, updateFlashcard } = useFlashcards();
+  const { t } = useLocalization();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null);
@@ -109,9 +110,9 @@ const FlashcardsContent: Component = () => {
   };
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: 'review', label: 'Review' },
-    { id: 'browse', label: 'Browse' },
-    { id: 'stats', label: 'Statistics' },
+    { id: 'review', label: t('mlearn.Flashcards.UI.Tabs.Review') },
+    { id: 'browse', label: t('mlearn.Flashcards.UI.Tabs.Browse') },
+    { id: 'stats', label: t('mlearn.Flashcards.UI.Tabs.Statistics') },
   ];
 
   return (
@@ -134,10 +135,10 @@ const FlashcardsContent: Component = () => {
 
         <div class="flashcards-header-actions">
           <GlassBtn size="sm" variant="secondary" onClick={() => setShowSyncModal(true)}>
-            🔄 Sync
+            {t('mlearn.Flashcards.UI.Sync')}
           </GlassBtn>
           <GlassBtn size="sm" onClick={() => setShowAddModal(true)}>
-            + Add Card
+            {t('mlearn.Flashcards.UI.AddCard')}
           </GlassBtn>
         </div>
       </div>
@@ -152,8 +153,8 @@ const FlashcardsContent: Component = () => {
               <div class="flashcards-empty-container">
                 <EmptyState
                   icon="✨"
-                  title="All Caught Up!"
-                  description="No cards due for review right now. Keep learning!"
+                  title={t('mlearn.Flashcards.EmptyState.NoCardsDueTitle')}
+                  description={t('mlearn.Flashcards.EmptyState.NoCardsDueDescription')}
                   variant="card"
                   size="md"
                 />
@@ -172,11 +173,11 @@ const FlashcardsContent: Component = () => {
               fallback={
                 <EmptyState
                   icon="📚"
-                  title="No Flashcards Yet"
-                  description="Add words while watching videos to start building your vocabulary!"
+                  title={t('mlearn.Flashcards.EmptyState.NoCardsTitle')}
+                  description={t('mlearn.Flashcards.EmptyState.NoCardsDescription')}
                   size="md"
                   action={{
-                    label: 'Add Card',
+                    label: t('mlearn.Flashcards.UI.AddCard'),
                     onClick: () => setShowAddModal(true),
                     variant: 'primary',
                   }}
@@ -201,7 +202,7 @@ const FlashcardsContent: Component = () => {
                             size="xs"
                             onClick={() => openEditModal(card)}
                           >
-                            Edit
+                            {t('mlearn.Global.Edit')}
                           </GlassBtn>
                           <GlassBtn
                             variant="danger"
@@ -211,7 +212,7 @@ const FlashcardsContent: Component = () => {
                               setShowDeleteConfirm(true);
                             }}
                           >
-                            Delete
+                            {t('mlearn.Global.Delete')}
                           </GlassBtn>
                         </div>
                       </div>
@@ -229,7 +230,7 @@ const FlashcardsContent: Component = () => {
             <div class="flashcards-stats-grid">
               <GlassCard>
                 <StatCard
-                  label="Total Cards"
+                  label={t('mlearn.Flashcards.Statistics.TotalCards')}
                   value={flashcards().length}
                   icon="📚"
                   color="primary"
@@ -238,7 +239,7 @@ const FlashcardsContent: Component = () => {
               </GlassCard>
               <GlassCard>
                 <StatCard
-                  label="Due Today"
+                  label={t('mlearn.Flashcards.Statistics.DueToday')}
                   value={dueCount()}
                   icon="📅"
                   color="warning"
@@ -247,7 +248,7 @@ const FlashcardsContent: Component = () => {
               </GlassCard>
               <GlassCard>
                 <StatCard
-                  label="Mature"
+                  label={t('mlearn.Flashcards.Statistics.Mature')}
                   value={flashcards().filter((c: Flashcard) => (c.interval ?? 0) > 21 * 24 * 60).length}
                   icon="⭐"
                   color="success"
@@ -256,18 +257,18 @@ const FlashcardsContent: Component = () => {
               </GlassCard>
             </div>
 
-            <GlassCard title="Card Breakdown" class="flashcards-breakdown">
+            <GlassCard title={t('mlearn.Flashcards.Statistics.CardBreakdown')} class="flashcards-breakdown">
               <div class="breakdown-rows">
                 <div class="breakdown-row">
-                  <span>New</span>
+                  <span>{t('mlearn.Flashcards.Statistics.New')}</span>
                   <span>{stats().new}</span>
                 </div>
                 <div class="breakdown-row">
-                  <span>Learning</span>
+                  <span>{t('mlearn.Flashcards.Statistics.Learning')}</span>
                   <span>{stats().learning}</span>
                 </div>
                 <div class="breakdown-row">
-                  <span>Review</span>
+                  <span>{t('mlearn.Flashcards.Statistics.Review')}</span>
                   <span>{stats().review}</span>
                 </div>
               </div>
@@ -280,50 +281,50 @@ const FlashcardsContent: Component = () => {
       <GlassModal
         isOpen={showDeleteConfirm()}
         onClose={() => setShowDeleteConfirm(false)}
-        title="Delete Card"
+        title={t('mlearn.Flashcards.Modals.DeleteCard.Title')}
         size="sm"
         footer={
           <>
-            <GlassBtn onClick={() => setShowDeleteConfirm(false)}>Cancel</GlassBtn>
-            <GlassBtn variant="danger" onClick={handleDeleteCard}>Delete</GlassBtn>
+            <GlassBtn onClick={() => setShowDeleteConfirm(false)}>{t('mlearn.Global.Cancel')}</GlassBtn>
+            <GlassBtn variant="danger" onClick={handleDeleteCard}>{t('mlearn.Global.Delete')}</GlassBtn>
           </>
         }
       >
-        <p>Are you sure you want to delete this flashcard? This action cannot be undone.</p>
+        <p>{t('mlearn.Flashcards.Modals.DeleteCard.Confirm')}</p>
       </GlassModal>
 
       {/* Add card modal */}
       <GlassModal
         isOpen={showAddModal()}
         onClose={() => setShowAddModal(false)}
-        title="Add Flashcard"
+        title={t('mlearn.Flashcards.Modals.AddCard.Title')}
         footer={
           <>
-            <GlassBtn onClick={() => setShowAddModal(false)}>Cancel</GlassBtn>
-            <GlassBtn variant="primary" onClick={handleAddCard}>Add Card</GlassBtn>
+            <GlassBtn onClick={() => setShowAddModal(false)}>{t('mlearn.Global.Cancel')}</GlassBtn>
+            <GlassBtn variant="primary" onClick={handleAddCard}>{t('mlearn.Flashcards.Modals.AddCard.Submit')}</GlassBtn>
           </>
         }
       >
         <div style={{ display: 'flex', 'flex-direction': 'column', gap: '1rem' }}>
           <GlassInput
-            label="Word"
+            label={t('mlearn.Flashcards.Modals.AddCard.WordLabel')}
             value={newWord()}
             onInput={(e) => setNewWord(e.currentTarget.value)}
-            placeholder="Enter word..."
+            placeholder={t('mlearn.Flashcards.Modals.AddCard.WordPlaceholder')}
             fullWidth
           />
           <GlassInput
-            label="Reading (optional)"
+            label={t('mlearn.Flashcards.Modals.AddCard.ReadingLabel')}
             value={newReading()}
             onInput={(e) => setNewReading(e.currentTarget.value)}
-            placeholder="Pronunciation..."
+            placeholder={t('mlearn.Flashcards.Modals.AddCard.ReadingPlaceholder')}
             fullWidth
           />
           <GlassInput
-            label="Meaning"
+            label={t('mlearn.Flashcards.Modals.AddCard.MeaningLabel')}
             value={newMeaning()}
             onInput={(e) => setNewMeaning(e.currentTarget.value)}
-            placeholder="Definition..."
+            placeholder={t('mlearn.Flashcards.Modals.AddCard.MeaningPlaceholder')}
             fullWidth
           />
         </div>
@@ -333,7 +334,7 @@ const FlashcardsContent: Component = () => {
       <GlassModal
         isOpen={showEditModal()}
         onClose={handleEditCardCancel}
-        title={`Edit Flashcard – ${editingCard()?.content.word || ''}`}
+        title={`${t('mlearn.Flashcards.Modals.EditCard.Title')} – ${editingCard()?.content.word || ''}`}
         size="lg"
       >
         <Show when={editingCard()}>

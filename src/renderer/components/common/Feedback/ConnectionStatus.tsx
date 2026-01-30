@@ -4,6 +4,7 @@
  */
 
 import { Component, Show } from 'solid-js';
+import { useLocalization } from '../../../context';
 import './ConnectionStatus.css';
 
 export type ConnectionState = 'connected' | 'disconnected' | 'loading' | 'error';
@@ -21,14 +22,16 @@ export interface ConnectionStatusProps {
   class?: string;
 }
 
-const statusConfig: Record<ConnectionState, { icon: string; color: string; label: string }> = {
-  connected: { icon: '✓', color: '#4ade80', label: 'Connected' },
-  disconnected: { icon: '✗', color: '#ef4444', label: 'Disconnected' },
-  loading: { icon: '◌', color: '#f59e0b', label: 'Connecting...' },
-  error: { icon: '!', color: '#ef4444', label: 'Error' },
-};
-
 export const ConnectionStatus: Component<ConnectionStatusProps> = (props) => {
+  const { t } = useLocalization();
+  
+  const statusConfig: Record<ConnectionState, { icon: string; color: string; labelKey: string }> = {
+    connected: { icon: '✓', color: '#4ade80', labelKey: 'mlearn.ConnectionStatus.Connected' },
+    disconnected: { icon: '✗', color: '#ef4444', labelKey: 'mlearn.ConnectionStatus.Disconnected' },
+    loading: { icon: '◌', color: '#f59e0b', labelKey: 'mlearn.ConnectionStatus.Connecting' },
+    error: { icon: '!', color: '#ef4444', labelKey: 'mlearn.ConnectionStatus.Error' },
+  };
+  
   const config = () => statusConfig[props.status] || statusConfig.disconnected;
   const size = () => props.size || 'md';
   
@@ -42,7 +45,7 @@ export const ConnectionStatus: Component<ConnectionStatusProps> = (props) => {
       </span>
       <Show when={props.showLabel !== false}>
         <span class="connection-status-label">
-          {props.label || config().label}
+          {props.label || t(config().labelKey)}
         </span>
       </Show>
     </span>

@@ -3,6 +3,7 @@
  */
 
 import { Component, Accessor } from 'solid-js';
+import { useLocalization } from '../../../context';
 
 export interface EntriesHeaderProps {
   sortKey: Accessor<string>;
@@ -11,6 +12,8 @@ export interface EntriesHeaderProps {
 }
 
 export const EntriesHeader: Component<EntriesHeaderProps> = (props) => {
+  const { t } = useLocalization();
+  
   const getSortIndicator = (key: string) => {
     if (props.sortKey() !== key) return '';
     return props.sortDir() === 1 ? ' ▲' : ' ▼';
@@ -19,17 +22,17 @@ export const EntriesHeader: Component<EntriesHeaderProps> = (props) => {
   return (
     <div class="entries-header">
       <div class="col word" onClick={() => props.onSort('word')}>
-        Word{getSortIndicator('word')}
+        {t('mlearn.WordDbEditor.Columns.Word')}{getSortIndicator('word')}
       </div>
       <div class="col translation" onClick={() => props.onSort('translation')}>
-        Translation{getSortIndicator('translation')}
+        {t('mlearn.WordDbEditor.Columns.Translation')}{getSortIndicator('translation')}
       </div>
       <div class="col level" onClick={() => props.onSort('level')}>
-        Level{getSortIndicator('level')}
+        {t('mlearn.WordDbEditor.Columns.Level')}{getSortIndicator('level')}
       </div>
-      <div class="col tracker">Tracked By</div>
+      <div class="col tracker">{t('mlearn.WordDbEditor.Columns.TrackedBy')}</div>
       <div class="col status" onClick={() => props.onSort('status')}>
-        Status{getSortIndicator('status')}
+        {t('mlearn.WordDbEditor.Columns.Status')}{getSortIndicator('status')}
       </div>
     </div>
   );

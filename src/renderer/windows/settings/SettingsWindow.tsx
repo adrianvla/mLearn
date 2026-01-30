@@ -4,7 +4,7 @@
  */
 
 import { Component, createSignal, onCleanup, onMount, Show, For } from 'solid-js';
-import { WindowWrapper } from '../../context';
+import { WindowWrapper, useLocalization } from '../../context';
 import { IPC_CHANNELS } from '../../../shared/constants';
 import {
   GeneralTab,
@@ -22,23 +22,24 @@ type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'sta
 
 interface Tab {
   id: TabId;
-  label: string;
+  labelKey: string;
   icon: string; // SVG icon path
 }
 
 // Icon paths for each tab (using existing icons)
 const TABS: Tab[] = [
-  { id: 'general', label: 'General', icon: 'cog' },
-  { id: 'behaviour', label: 'Behaviour', icon: 'bot' },
-  { id: 'customization', label: 'Appearance', icon: 'palette' },
-  { id: 'srs', label: 'SRS', icon: 'cards' },
-  { id: 'reader', label: 'Reader', icon: 'book' },
-  { id: 'stats', label: 'Stats', icon: 'stats' },
-  { id: 'about', label: 'About', icon: 'star' },
+  { id: 'general', labelKey: 'mlearn.Settings.Tabs.General', icon: 'cog' },
+  { id: 'behaviour', labelKey: 'mlearn.Settings.Tabs.Behaviour', icon: 'bot' },
+  { id: 'customization', labelKey: 'mlearn.Settings.Tabs.Appearance', icon: 'palette' },
+  { id: 'srs', labelKey: 'mlearn.Settings.Tabs.SRS', icon: 'cards' },
+  { id: 'reader', labelKey: 'mlearn.Settings.Tabs.Reader', icon: 'book' },
+  { id: 'stats', labelKey: 'mlearn.Settings.Tabs.Statistics', icon: 'stats' },
+  { id: 'about', labelKey: 'mlearn.Settings.Tabs.About', icon: 'star' },
 ];
 
 const SettingsContent: Component = () => {
   const [activeTab, setActiveTab] = createSignal<TabId>('general');
+  const { t } = useLocalization();
 
   const resolveTab = (section?: string): TabId => {
     if (!section) return 'general';
@@ -72,17 +73,17 @@ const SettingsContent: Component = () => {
     <div class="settings-window top-nav-layout">
       {/* Top Navigation Bar */}
       <header class="settings-header">
-        <h1 class="settings-title">Settings</h1>
+        <h1 class="settings-title">{t('mlearn.Settings.UI.Title')}</h1>
         <nav class="settings-tabs">
           <For each={TABS}>
             {(tab) => (
               <button
                 class={`settings-tab ${activeTab() === tab.id ? 'active' : ''}`}
                 onClick={() => setActiveTab(tab.id)}
-                title={tab.label}
+                title={t(tab.labelKey)}
               >
                 <Icon icon={tab.icon} color="currentColor" class="tab-icon" />
-                <span class="tab-label">{tab.label}</span>
+                <span class="tab-label">{t(tab.labelKey)}</span>
               </button>
             )}
           </For>

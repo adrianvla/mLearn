@@ -7,6 +7,7 @@ import { findPython, terminatePythonBackend, setupPythonBackendIPC } from './ser
 import { startWebServer, stopWebServer } from './services/webServer';
 import { setupFlashcardIPC } from './services/flashcardStorage';
 import { setupSettingsIPC } from './services/settings';
+import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
 import { setupFileOperationsIPC } from './services/fileOperations';
 import { IPC_CHANNELS } from '../shared/constants';
@@ -28,6 +29,7 @@ async function initialize(): Promise<void> {
   // Setup all IPC handlers
   setupBaseIPC();
   setupSettingsIPC();
+  setupLocalizationIPC();
   setupFlashcardIPC();
   setupWindowIPC();
   setupPythonBackendIPC();

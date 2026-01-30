@@ -6,6 +6,7 @@
 import { Component, Show, createSignal, onMount, onCleanup } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useIPC, useSubtitles } from '../../../hooks';
+import { useLocalization } from '../../../context';
 import { VideoPlayer } from '../../../components/video';
 import { GlassPanel, GlassBtn, NavBtn } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
@@ -17,6 +18,7 @@ import './video.css';
 export const VideoRoute: Component = () => {
   const navigate = useNavigate();
   const { isElectron, selectFile, readFile } = useIPC();
+  const { t } = useLocalization();
   const subtitles = useSubtitles();
 
   const [videoSrc, setVideoSrc] = createSignal<string>('');
@@ -239,8 +241,8 @@ export const VideoRoute: Component = () => {
       <WindowDragRegion />
       
       {/* Back button */}
-      <NavBtn class="back-button" onClick={goHome} title="Back to Home">
-        ← Home
+      <NavBtn class="back-button" onClick={goHome} title={t('mlearn.Video.Tooltip.GoHome')}>
+        {t('mlearn.Video.UI.GoHome')}
       </NavBtn>
 
       <Show
@@ -255,14 +257,14 @@ export const VideoRoute: Component = () => {
               class={`drop-zone ${isDragging() ? 'dragging' : ''}`}
             >
               <div class="drop-icon">🎬</div>
-              <h2>Drop video file here</h2>
-              <p>Or click below to browse</p>
+              <h2>{t('mlearn.Video.UI.DropVideoHere')}</h2>
+              <p>{t('mlearn.Video.UI.OrClickToBrowse')}</p>
               <div class="drop-actions">
                 <GlassBtn variant="primary" onClick={handleSelectVideo}>
-                  Open Video
+                  {t('mlearn.Video.UI.OpenVideo')}
                 </GlassBtn>
                 <GlassBtn onClick={handleSelectSubtitle}>
-                  Open Subtitles
+                  {t('mlearn.Video.UI.OpenSubtitles')}
                 </GlassBtn>
               </div>
             </GlassPanel>

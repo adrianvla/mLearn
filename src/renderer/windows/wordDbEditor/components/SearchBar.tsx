@@ -4,6 +4,7 @@
 
 import { Component, For, Show, Accessor, Setter } from 'solid-js';
 import { GlassBtn, Progress, HintText, Select } from '../../../components/common';
+import { useLocalization } from '../../../context';
 
 export interface SearchBarProps {
   searchQuery: Accessor<string>;
@@ -18,19 +19,21 @@ export interface SearchBarProps {
 }
 
 export const SearchBar: Component<SearchBarProps> = (props) => {
+  const { t } = useLocalization();
+  
   return (
     <div class="search-bar">
       <input
         type="text"
         class="glass-input search-input"
-        placeholder="Search word..."
+        placeholder={t('mlearn.WordDbEditor.SearchPlaceholder')}
         value={props.searchQuery()}
         onInput={(e) => props.setSearchQuery(e.currentTarget.value)}
         onKeyPress={(e) => e.key === 'Enter' && props.onSearch()}
       />
-      <GlassBtn onClick={props.onSearch}>Search</GlassBtn>
+      <GlassBtn onClick={props.onSearch}>{t('mlearn.Global.Search')}</GlassBtn>
       <GlassBtn onClick={props.onLoadAll} disabled={props.isLoading()}>
-        Load All
+        {t('mlearn.WordDbEditor.LoadAll')}
       </GlassBtn>
       
       <Show when={props.isLoading()}>
@@ -43,7 +46,7 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
       
       <Select
         class="level-select"
-        placeholder="All Levels"
+        placeholder={t('mlearn.WordDbEditor.AllLevels')}
         value={props.selectedLevel()?.toString() ?? ''}
         onChange={(e) => {
           const val = e.currentTarget.value;
@@ -56,7 +59,7 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
       </Select>
       
       <HintText>
-        Enter to search; exact matches prioritized. Press Load All first.
+        {t('mlearn.WordDbEditor.SearchHintDetailed')}
       </HintText>
     </div>
   );

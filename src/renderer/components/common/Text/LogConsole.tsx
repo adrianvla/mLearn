@@ -4,6 +4,7 @@
  */
 
 import { Component, JSX, Show, For, createEffect } from 'solid-js';
+import { useLocalization } from '../../../context';
 import './LogConsole.css';
 
 export type LogLevel = 'info' | 'success' | 'warning' | 'error' | 'debug';
@@ -91,6 +92,7 @@ function parseLogEntry(entry: string | LogEntry): LogEntry {
  * LogConsole - A console-like display for showing log output
  */
 export const LogConsole: Component<LogConsoleProps> = (props) => {
+  const { t } = useLocalization();
   let contentRef: HTMLDivElement | undefined;
   
   // Auto-scroll to bottom when logs change
@@ -127,13 +129,13 @@ export const LogConsole: Component<LogConsoleProps> = (props) => {
       {/* Header */}
       <Show when={props.title || props.showClear}>
         <div class="log-console__header">
-          <h4 class="log-console__title">{props.title || 'Console'}</h4>
+          <h4 class="log-console__title">{props.title || t('mlearn.Components.LogConsole.DefaultTitle')}</h4>
           <div class="log-console__actions">
             <Show when={props.showClear}>
               <button
                 class="log-console__action-btn"
                 onClick={handleClear}
-                title="Clear logs"
+                title={t('mlearn.Components.LogConsole.ClearTooltip')}
               >
                 <ClearIcon />
               </button>
@@ -152,7 +154,7 @@ export const LogConsole: Component<LogConsoleProps> = (props) => {
           when={props.logs.length > 0}
           fallback={
             <div class="log-console__empty">
-              No logs to display
+              {t('mlearn.Components.LogConsole.NoLogs')}
             </div>
           }
         >

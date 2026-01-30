@@ -4,10 +4,12 @@
 
 import { Component, createSignal, onMount } from 'solid-js';
 import { TabContent, GlassBtn } from '../../../components/common';
+import { useLocalization } from '../../../context';
 import './AboutTab.css';
 
 export const AboutTab: Component = () => {
   const [version, setVersion] = createSignal('1.0.0');
+  const { t } = useLocalization();
 
   onMount(() => {
     // Get version from IPC
@@ -37,38 +39,35 @@ export const AboutTab: Component = () => {
       <div class="about-logo">📚</div>
       
       <div class="about-version">
-        <h2>mLearn</h2>
-        <span>Version {version()}</span>
+        <h2>{t('mlearn.About.Title')}</h2>
+        <span>{t('mlearn.About.VersionLabel', { version: version() })}</span>
       </div>
 
       <div class="about-description">
         <p>
-          mLearn is a language learning tool that helps you study
-          through immersion. Watch videos, read manga, and learn
-          vocabulary naturally with intelligent subtitles and
-          spaced repetition.
+          {t('mlearn.About.Description')}
         </p>
       </div>
 
       <div class="about-links">
         <GlassBtn variant="ghost" onClick={openContact}>
-          🌐 Website
+          {t('mlearn.About.Website')}
         </GlassBtn>
         <GlassBtn variant="ghost" onClick={openLicenses}>
-          📄 Licenses
+          {t('mlearn.About.Licenses')}
         </GlassBtn>
       </div>
 
       <div class="about-shortcuts">
-        <h3>Keyboard Shortcuts</h3>
+        <h3>{t('mlearn.About.KeyboardShortcuts.Title')}</h3>
         <div class="shortcuts-grid">
-          <ShortcutRow shortcut="Space" description="Play/Pause video" />
-          <ShortcutRow shortcut="←/→" description="Seek 5 seconds" />
-          <ShortcutRow shortcut="↑/↓" description="Volume control" />
-          <ShortcutRow shortcut="F" description="Toggle fullscreen" />
-          <ShortcutRow shortcut="M" description="Mute/Unmute" />
-          <ShortcutRow shortcut="1-4" description="Flashcard review grades" />
-          <ShortcutRow shortcut="Cmd/Ctrl+Z" description="Undo flashcard action" />
+          <ShortcutRow shortcut="Space" description={t('mlearn.About.KeyboardShortcuts.Space')} />
+          <ShortcutRow shortcut="←/→" description={t('mlearn.About.KeyboardShortcuts.LeftRight')} />
+          <ShortcutRow shortcut="↑/↓" description={t('mlearn.About.KeyboardShortcuts.UpDown')} />
+          <ShortcutRow shortcut="F" description={t('mlearn.About.KeyboardShortcuts.F')} />
+          <ShortcutRow shortcut="M" description={t('mlearn.About.KeyboardShortcuts.M')} />
+          <ShortcutRow shortcut="1-4" description={t('mlearn.About.KeyboardShortcuts.Numbers')} />
+          <ShortcutRow shortcut="Cmd/Ctrl+Z" description={t('mlearn.About.KeyboardShortcuts.Undo')} />
         </div>
       </div>
     </TabContent>

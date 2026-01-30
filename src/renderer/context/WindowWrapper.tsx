@@ -8,6 +8,7 @@ import { SettingsProvider } from './SettingsContext';
 import { LanguageProvider } from './LanguageContext';
 import { FlashcardProvider } from './FlashcardContext';
 import { ServerProvider } from './ServerContext';
+import { LocalizationProvider } from './LocalizationContext';
 
 /**
  * WindowWrapper wraps all window entry points with necessary providers
@@ -16,13 +17,15 @@ import { ServerProvider } from './ServerContext';
 export const WindowWrapper: ParentComponent = (props) => {
   return (
     <ServerProvider>
-      <SettingsProvider>
-        <LanguageProvider>
-          <FlashcardProvider>
-            {props.children}
-          </FlashcardProvider>
-        </LanguageProvider>
-      </SettingsProvider>
+      <LocalizationProvider>
+        <SettingsProvider>
+          <LanguageProvider>
+            <FlashcardProvider>
+              {props.children}
+            </FlashcardProvider>
+          </LanguageProvider>
+        </SettingsProvider>
+      </LocalizationProvider>
     </ServerProvider>
   );
 };
