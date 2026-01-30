@@ -4,6 +4,7 @@
  */
 
 import { Component, JSX, Show } from 'solid-js';
+import { useLocalization } from '../../../context';
 import './AlertBanner.css';
 
 export type AlertVariant = 'error' | 'warning' | 'info' | 'success';
@@ -80,6 +81,8 @@ const defaultIcons: Record<AlertVariant, () => JSX.Element> = {
  * AlertBanner - A banner for displaying alerts, errors, warnings, and info messages
  */
 export const AlertBanner: Component<AlertBannerProps> = (props) => {
+  const { t } = useLocalization();
+  
   const getIcon = () => {
     if (props.icon) return props.icon;
     const IconComponent = defaultIcons[props.variant];
@@ -107,7 +110,7 @@ export const AlertBanner: Component<AlertBannerProps> = (props) => {
         <button
           class="alert-banner__close"
           onClick={() => props.onClose?.()}
-          aria-label="Close alert"
+          aria-label={t('mlearn.Global.Aria.CloseAlert')}
         >
           <CloseIcon />
         </button>

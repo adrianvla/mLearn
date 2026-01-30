@@ -15,7 +15,7 @@
 }
 
 .checkbox-card:hover:not(.disabled) {
-  background: var(--glass-bg-hover, rgba(128, 128, 128, 0.15));
+  background: var(--panel-bg-hover, rgba(128, 128, 128, 0.15));
 }
 
 .checkbox-card.disabled {

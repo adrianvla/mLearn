@@ -718,7 +718,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         setCurrentEase(newEase);
       } catch (err) {
         console.error('Failed to add flashcard:', err);
-        alert('Failed to add flashcard: ' + String(err));
+        alert(t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }));
       } finally {
         // Always clear the adding flag when done
         setIsAddingFlashcard(false);
@@ -960,7 +960,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       onMouseEnter={() => props.onMouseEnter?.()}
       onMouseLeave={() => props.onMouseLeave?.()}
     >
-      <div class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${settings.dark_mode ? 'dark' : ''}`}>
+      <div class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${(settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent') ? 'dark' : ''}`}>
         <div class="subtitle_hover_relative">
           <div class="subtitle_hover_content">
             {/* Loading state */}
@@ -1055,7 +1055,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                     variant="blue"
                     icon={ICON_CROSS2}
                     iconRotation={45}
-                    label="Flashcard"
+                    label={t('mlearn.Global.Flashcard')}
                     onClick={handleAddToSRS}
                   />
                 }>

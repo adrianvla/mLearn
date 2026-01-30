@@ -1,12 +1,15 @@
 /**
- * Glass Panel Component
- * Base glassmorphism container with various styles
+ * Panel Component
+ * Base container with optional glassmorphism styling
+ * 
+ * The glassmorphism effect is applied via the variant prop.
+ * For theming, use CSS variables that get overridden by theme classes.
  */
 
 import { Component, JSX, splitProps, mergeProps } from 'solid-js';
 
-export interface GlassPanelProps extends JSX.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'light' | 'dark' | 'solid';
+export interface PanelProps extends JSX.HTMLAttributes<HTMLDivElement> {
+  variant?: 'default' | 'elevated' | 'outlined' | 'solid';
   blur?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
   rounded?: 'none' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
   border?: boolean;
@@ -15,7 +18,7 @@ export interface GlassPanelProps extends JSX.HTMLAttributes<HTMLDivElement> {
   children?: JSX.Element;
 }
 
-export const GlassPanel: Component<GlassPanelProps> = (props) => {
+export const Panel: Component<PanelProps> = (props) => {
   const merged = mergeProps(
     {
       variant: 'default' as const,
@@ -40,16 +43,16 @@ export const GlassPanel: Component<GlassPanelProps> = (props) => {
     'style',
   ]);
 
-  const getBackgroundClass = () => {
+  const getVariantClass = () => {
     switch (local.variant) {
-      case 'light':
-        return 'glass-light';
-      case 'dark':
-        return 'glass-dark';
+      case 'elevated':
+        return 'panel panel-elevated';
+      case 'outlined':
+        return 'panel panel-outlined';
       case 'solid':
-        return 'glass-solid';
+        return 'panel panel-solid';
       default:
-        return 'glass';
+        return 'panel';
     }
   };
 
@@ -131,7 +134,7 @@ export const GlassPanel: Component<GlassPanelProps> = (props) => {
 
   return (
     <div
-      class={`${getBackgroundClass()} ${getRoundedClass()} ${local.class || ''}`}
+      class={`${getVariantClass()} ${getRoundedClass()} ${local.class || ''}`}
       style={combinedStyle()}
       {...rest}
     >

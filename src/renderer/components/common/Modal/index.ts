@@ -2,7 +2,7 @@
  * Modal Components Barrel Export
  */
 
-export { GlassModal, type GlassModalProps } from './GlassModal';
+export { Modal, type ModalProps } from './Modal';
 export { 
   ConfirmDialog, 
   useConfirmDialog, 

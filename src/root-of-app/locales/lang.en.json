@@ -30,10 +30,19 @@
       "None": "None",
       "All": "All",
       "Default": "Default",
+      "Flashcard": "Flashcard",
+      "RequiresRestart": "Requires restart",
+      "ComingSoon": "Coming soon",
       "Aria": {
         "CloseModal": "Close modal",
+        "CloseAlert": "Close alert",
         "PlayPause": "Play/Pause",
-        "PictureInPicture": "Picture in picture"
+        "Play": "Play",
+        "Pause": "Pause",
+        "ToggleSubtitles": "Toggle subtitles",
+        "PictureInPicture": "Picture in picture",
+        "Fullscreen": "Fullscreen",
+        "ExitFullscreen": "Exit fullscreen"
       },
       "Status": {
         "StartingBackend": "Starting backend...",
@@ -276,7 +285,8 @@
         "CompleteDescription": "You've reviewed all cards for now. Great job!",
         "ReviewMore": "Review More",
         "ShowAnswer": "Show Answer",
-        "Remove": "Remove"
+        "Remove": "Remove",
+        "PressKeyTooltip": "Press {key}"
       },
       "Sync": {
         "Title": "Sync Flashcards",
@@ -328,6 +338,9 @@
       "Alerts": {
         "CopiedToClipboard": "Copied to clipboard!",
         "ExplainRequiresLlm": "The explain feature requires the local AI language model. Please enable LLM in settings and restart the app."
+      },
+      "Errors": {
+        "FailedToAddFlashcard": "Failed to add flashcard: {error}"
       }
     },
     "Settings": {
@@ -373,9 +386,14 @@
         }
       },
       "Appearance": {
-        "DarkMode": {
-          "Label": "Dark Mode",
-          "Description": "Enable dark theme for the application"
+        "Theme": {
+          "Label": "Theme",
+          "Description": "Select the visual theme for the application",
+          "Light": "Light",
+          "Dark": "Dark",
+          "GlassTransparent": "Glass Transparent",
+          "GlassLight": "Glass Light",
+          "GlassDark": "Glass Dark"
         },
         "SubtitleFontSize": {
           "Label": "Subtitle Font Size",
@@ -800,6 +818,8 @@
     "KanjiGrid": {
       "Title": "Character Knowledge Overview",
       "Description": "Colors: learning (orange→yellow), known (green→light-green); unknown (gray). Hover for details.",
+      "CharactersByExamLevel": "Characters by exam level:",
+      "LevelFallback": "Level {level}",
       "EmptyState": {
         "Title": "No tracked characters yet",
         "Description": "Characters will appear here as you encounter them in videos and texts.",
@@ -817,7 +837,14 @@
         "Unknown": "Unknown:",
         "TotalFound": "Total Found:"
       },
-      "Filter": "Filter characters..."
+      "Filter": "Filter characters...",
+      "Tooltip": {
+        "WordsContaining": "Words containing {char}",
+        "Category": "category",
+        "Score": "score",
+        "KnownCount": "known",
+        "LearningCount": "learning"
+      }
     },
     "WordDbEditor": {
       "Title": "Word Database Editor",

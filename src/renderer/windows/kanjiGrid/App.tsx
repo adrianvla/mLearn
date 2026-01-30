@@ -267,7 +267,8 @@ const KanjiGridContent: Component = () => {
       const t = maxLearn > 0.5 ? (item.score - 0.5) / (maxLearn - 0.5) : 0;
       return mixHex('#E65100', '#FFEB3B', t);
     }
-    return settings.dark_mode ? '#616161' : '#9E9E9E';
+    const isDark = settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent';
+    return isDark ? '#616161' : '#9E9E9E';
   };
 
   // Check if kanji should be dimmed (not in hovered level)
@@ -310,7 +311,7 @@ const KanjiGridContent: Component = () => {
                   class={`kg-cell ${isKanjiDimmed(item) ? 'dimmed' : ''}`}
                   style={{
                     background: getColorForKanji(item),
-                    color: item.category !== 'unknown' ? '#111' : (settings.dark_mode ? '#ddd' : '#222'),
+                    color: item.category !== 'unknown' ? '#111' : ((settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent') ? '#ddd' : '#222'),
                   }}
                   onMouseEnter={() => setHoveredKanji(item)}
                   onMouseLeave={() => setHoveredKanji(null)}
@@ -354,7 +355,7 @@ const KanjiGridContent: Component = () => {
           {/* Level Pills - dynamically loaded from language data */}
           <Show when={sortedLevelKeys().length > 0}>
             <div class="kg-levels">
-              <p>Characters by exam level:</p>
+              <p>{t('mlearn.KanjiGrid.CharactersByExamLevel')}</p>
               <div class="level-pills">
                 <For each={sortedLevelKeys()}>
                   {(level) => {
@@ -369,7 +370,7 @@ const KanjiGridContent: Component = () => {
                         onMouseLeave={() => setHoveredLevel(null)}
                         count={count() > 0 ? count() : undefined}
                       >
-                        {levelNames()[level] || `Level ${level}`}
+                        {levelNames()[level] || t('mlearn.KanjiGrid.LevelFallback', { level })}
                       </PillLabel>
                     );
                   }}
@@ -384,10 +385,10 @@ const KanjiGridContent: Component = () => {
       <Show when={hoveredKanji()}>
         <div class="kg-tooltip">
           <div class="tooltip-title">
-            Words containing {hoveredKanji()!.kanji}
+            {t('mlearn.KanjiGrid.Tooltip.WordsContaining', { char: hoveredKanji()!.kanji })}
             <span class="tooltip-meta">
-              {hoveredKanji()!.category} (score {Math.round(hoveredKanji()!.score * 10) / 10},
-              known: {hoveredKanji()!.knownCount}, learning: {hoveredKanji()!.learnCount})
+              {hoveredKanji()!.category} ({t('mlearn.KanjiGrid.Tooltip.Score')} {Math.round(hoveredKanji()!.score * 10) / 10},
+              {t('mlearn.KanjiGrid.Tooltip.KnownCount')}: {hoveredKanji()!.knownCount}, {t('mlearn.KanjiGrid.Tooltip.LearningCount')}: {hoveredKanji()!.learnCount})
             </span>
           </div>
           <div class="tooltip-words">

@@ -1,11 +1,11 @@
 /**
- * Glass Input Component
- * Form input with glassmorphism styling
+ * Input Components
+ * Form inputs with consistent styling
  */
 
 import { Component, JSX, Show, splitProps, mergeProps } from 'solid-js';
 
-export interface GlassInputProps extends Omit<JSX.InputHTMLAttributes<HTMLInputElement>, 'size'> {
+export interface InputProps extends Omit<JSX.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string;
   error?: string;
   hint?: string;
@@ -15,7 +15,7 @@ export interface GlassInputProps extends Omit<JSX.InputHTMLAttributes<HTMLInputE
   fullWidth?: boolean;
 }
 
-export const GlassInput: Component<GlassInputProps> = (props) => {
+export const Input: Component<InputProps> = (props) => {
   const merged = mergeProps(
     {
       size: 'md' as const,
@@ -143,7 +143,7 @@ export const GlassInput: Component<GlassInputProps> = (props) => {
 };
 
 // Textarea variant
-export interface GlassTextareaProps extends JSX.TextareaHTMLAttributes<HTMLTextAreaElement> {
+export interface TextareaProps extends JSX.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
   error?: string;
   hint?: string;
@@ -151,7 +151,7 @@ export interface GlassTextareaProps extends JSX.TextareaHTMLAttributes<HTMLTextA
   resize?: 'none' | 'vertical' | 'horizontal' | 'both';
 }
 
-export const GlassTextarea: Component<GlassTextareaProps> = (props) => {
+export const Textarea: Component<TextareaProps> = (props) => {
   const merged = mergeProps(
     {
       fullWidth: false,
@@ -229,7 +229,7 @@ export const GlassTextarea: Component<GlassTextareaProps> = (props) => {
 };
 
 // Select variant
-export interface GlassSelectProps extends Omit<JSX.SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
+export interface SelectInputProps extends Omit<JSX.SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
   label?: string;
   error?: string;
   hint?: string;
@@ -238,7 +238,7 @@ export interface GlassSelectProps extends Omit<JSX.SelectHTMLAttributes<HTMLSele
   options: Array<{ value: string; label: string; disabled?: boolean }>;
 }
 
-export const GlassSelect: Component<GlassSelectProps> = (props) => {
+export const SelectInput: Component<SelectInputProps> = (props) => {
   const merged = mergeProps(
     {
       size: 'md' as const,

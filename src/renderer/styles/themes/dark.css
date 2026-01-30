@@ -2,27 +2,32 @@
 
 /* === Start WordHover.css === */
 .subtitle_hover.dark,
-body.dark .subtitle_hover {
+body.dark .subtitle_hover,
+body.theme-dark .subtitle_hover {
     background-color: rgba(60,60,60, 0.5);
     color: var(--text-primary);
 }
 body.dark .subtitle_hover .pitch,
+body.theme-dark .subtitle_hover .pitch,
 .subtitle_hover.dark .pitch {
     filter: invert(1);
 }
 
 body.dark .subtitle_hover .footer,
+body.theme-dark .subtitle_hover .footer,
 .subtitle_hover.dark .footer {
     border-top: 1px solid var(--border-color);
     background: rgba(0, 0, 0, 0.1);
 }
 
 body.dark .subtitle_hover hr,
+body.theme-dark .subtitle_hover hr,
 .subtitle_hover.dark hr {
     border-top-color: var(--border-color);
 }
 
 body.dark .subtitle_hover_alt_c,
+body.theme-dark .subtitle_hover_alt_c,
 .subtitle_hover.dark .subtitle_hover_alt_c {
     background: rgba(0, 0, 0, 0.5);
 }
@@ -31,7 +36,8 @@ body.dark .subtitle_hover_alt_c,
 
 
 /* === Start index.css === */
-body.dark {
+body.dark,
+body.theme-dark {
     /*--bg-opaque: #0a0a0a;*/
     --bg-opaque: #000;
     --text-primary: #f0f0f0;
@@ -46,8 +52,11 @@ body.dark {
     --border-color: rgba(255, 255, 255, 0.15);
     --border-color-intense: rgba(255, 255, 255, 0.25);
 
-    --theme-backdrop-filter: blur(20px) saturate(2) brightness(0.8);
-    --theme-backdrop-filter-nodim: blur(20px) saturate(2);
+    --backdrop-blur: blur(20px) saturate(2) brightness(0.8);
+    --backdrop-blur-nodim: blur(20px) saturate(2);
+    
+    /* Dark mode flashcard highlight */
+    --flashcard-highlight: #ff5ec7;
 }
 
 /* === End index.css === */
@@ -55,6 +64,7 @@ body.dark {
 
 /* === PitchAccent.css === */
 body.dark .pitch-accent-container,
+body.theme-dark .pitch-accent-container,
 .dark .pitch-accent-container {
     color: var(--text-primary);
 }
@@ -73,6 +83,7 @@ body.dark .pitch-accent-container,
 }
 
 body.dark .subtitle_hover .mLearn-pitch-accent,
+body.theme-dark .subtitle_hover .mLearn-pitch-accent,
 .subtitle_hover.dark .mLearn-pitch-accent {
     filter: none;
     color: var(--text-primary);
@@ -82,7 +93,9 @@ body.dark .subtitle_hover .mLearn-pitch-accent,
 
 /* === Start Pill.css === */
 body.dark .label-pill,
-body.dark .btn-pill {
+body.dark .btn-pill,
+body.theme-dark .label-pill,
+body.theme-dark .btn-pill {
     filter: invert(1) hue-rotate(180deg) saturate(200%);
     box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
     rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
@@ -94,14 +107,21 @@ body.dark .btn-pill .btn-icon img,
 body.dark .label-pill .label-icon svg,
 body.dark .btn-pill .btn-icon svg,
 body.dark .label-pill .label-svg-icon,
-body.dark .btn-pill .btn-svg-icon {
+body.dark .btn-pill .btn-svg-icon,
+body.theme-dark .label-pill .label-icon img,
+body.theme-dark .btn-pill .btn-icon img,
+body.theme-dark .label-pill .label-icon svg,
+body.theme-dark .btn-pill .btn-icon svg,
+body.theme-dark .label-pill .label-svg-icon,
+body.theme-dark .btn-pill .btn-svg-icon {
     filter: invert(1) hue-rotate(180deg); /* counter the parent invert */
     background: transparent;
 }
 /* === End Pill.css === */
 
 /* === ProgressBar.css === */
-body.dark .progress-bar-track {
+body.dark .progress-bar-track,
+body.theme-dark .progress-bar-track {
     background: rgba(255, 255, 255, 0.1);
 }
 /* === End ProgressBar.css === */

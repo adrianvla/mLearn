@@ -32,5 +32,5 @@
   background: var(--bg, rgba(30, 30, 30, 0.9));
   border-radius: var(--radius-lg, 12px);
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-  backdrop-filter: var(--theme-backdrop-filter, blur(10px));
+  backdrop-filter: var(--backdrop-blur, blur(10px));
 }

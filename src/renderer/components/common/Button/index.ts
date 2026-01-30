@@ -4,7 +4,7 @@
 
 export { 
   Button, 
-  GlassBtn, 
+  Btn,
   PillBtn, 
   IconBtn, 
   NavBtn, 

@@ -4,7 +4,7 @@
 
 import { Component, createSignal, Show } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, GlassBtn, Select } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select } from '../../../components/common';
 
 export const SRSTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -67,9 +67,9 @@ export const SRSTab: Component = () => {
             description={t('mlearn.Settings.SRS.AnkiIntegration.ConnectionStatus.Description')}
           >
             <div style={{ display: "flex", gap: "8px", "align-items": "center" }}>
-              <GlassBtn size="sm" onClick={checkAnkiConnection}>
+              <Btn size="sm" onClick={checkAnkiConnection}>
                 {t('mlearn.Settings.SRS.AnkiIntegration.Test')}
-              </GlassBtn>
+              </Btn>
               <Show when={ankiStatus() === 'connected'}>
                 <span style={{ color: "#4ade80" }}>{t('mlearn.Settings.SRS.AnkiIntegration.Connected')}</span>
               </Show>
@@ -191,20 +191,18 @@ export const SRSTab: Component = () => {
           label={t('mlearn.Settings.SRS.DataManagement.ResetSRS.Label')}
           description={t('mlearn.Settings.SRS.DataManagement.ResetSRS.Description')}
         >
-          <GlassBtn size="sm" variant="danger" onClick={() => resetSRS()}>
+          <Btn size="sm" variant="danger" onClick={() => {
+            if (confirm(t('mlearn.Settings.BuiltInFlashcards.ResetSrsConfirm'))) {
+              if (confirm(t('mlearn.Settings.BuiltInFlashcards.ResetSrsConfirm2'))) {
+                // TODO: Implement SRS reset
+                console.log('Reset SRS');
+              }
+            }
+          }}>
             {t('mlearn.Settings.SRS.DataManagement.ResetButton')}
-          </GlassBtn>
+          </Btn>
         </SettingRow>
       </SettingGroup>
     </TabContent>
   );
 };
-
-function resetSRS() {
-  if (confirm('Are you sure you want to reset all SRS data? This cannot be undone!')) {
-    if (confirm('This will delete all your flashcard progress. Really continue?')) {
-      // TODO: Implement SRS reset
-      console.log('Reset SRS');
-    }
-  }
-}

@@ -2,7 +2,7 @@
  * Shared TypeScript types between main and renderer processes
  */
 
-import type { SubtitleTheme, WordStatus, WindowType as ConstWindowType, WordHoverTriggerMode } from './constants';
+import type { SubtitleTheme, WordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme } from './constants';
 
 // Re-export WindowType
 export type WindowType = ConstWindowType;
@@ -27,7 +27,7 @@ export interface Settings {
   do_colour_known: boolean;
   do_colour_codes: boolean;
   colour_codes: ColorCodes;
-  dark_mode: boolean;
+  theme: AppTheme;
   
   // Language settings
   language: string;
@@ -120,7 +120,7 @@ export const DEFAULT_SETTINGS: Settings = {
   do_colour_known: true,
   do_colour_codes: true,
   colour_codes: {},
-  dark_mode: true,
+  theme: 'light',
   hover_known_get_from_dictionary: false,
   show_pos: true,
   language: 'ja',

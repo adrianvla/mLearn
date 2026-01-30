@@ -31,7 +31,7 @@
   background: var(--bg);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
-  backdrop-filter: var(--theme-backdrop-filter);
+  backdrop-filter: var(--backdrop-blur);
   padding: 4px 12px;
 }
 
@@ -70,7 +70,7 @@
   background: var(--bg);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
-  backdrop-filter: var(--theme-backdrop-filter);
+  backdrop-filter: var(--backdrop-blur);
   padding: 8px;
 }
 

@@ -84,12 +84,14 @@ export const LocalizationProvider: ParentComponent = (props) => {
     const value = getNestedValue(strings as Record<string, unknown>, path);
     
     if (value === null) {
-      // Log warning if string not found (only in development)
-      if (process.env.NODE_ENV !== 'production') {
+      // Only log warning if strings are loaded but the key is missing
+      // Don't warn during initial load when strings haven't been fetched yet
+      if (process.env.NODE_ENV !== 'production' && isLoaded() && Object.keys(strings).length > 0) {
         console.warn(`[Localization] String not found: ${path}`);
       }
-      // Return the path as fallback
-      return path;
+      // Return the last part of the path as fallback for better UX
+      const fallback = path.split('.').pop() || path;
+      return fallback;
     }
     
     return interpolate(value, params);

@@ -3,7 +3,7 @@
  */
 
 export { ActionCard, type ActionCardProps } from './ActionCard';
-export { GlassCard, type GlassCardProps } from './GlassCard';
+export { Card, type CardProps } from './Card';
 export { CheckboxCard, type CheckboxCardProps } from './CheckboxCard';
 export { SelectableCard, type SelectableCardProps } from './SelectableCard';
 export { RecentCard, type RecentCardProps, type RecentItem } from './RecentCard';

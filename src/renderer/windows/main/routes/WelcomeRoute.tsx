@@ -7,7 +7,7 @@ import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization } from '../../../context';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { ActionCard, RecentCard, GlassBtn, type RecentItem } from '../../../components/common';
+import { ActionCard, RecentCard, Btn, type RecentItem } from '../../../components/common';
 import './welcome.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
 
@@ -143,7 +143,7 @@ export const WelcomeRoute: Component = () => {
       <footer class="welcome-footer">
         <span>{t('mlearn.Home.UI.LearningLanguage', { language: getLanguageName() })}</span>
         <span>•</span>
-        <GlassBtn variant="ghost" size="sm" onClick={openSettings}>{t('mlearn.Home.UI.ChangeLanguage')}</GlassBtn>
+        <Btn variant="ghost" size="sm" onClick={openSettings}>{t('mlearn.Home.UI.ChangeLanguage')}</Btn>
       </footer>
     </div>
   );

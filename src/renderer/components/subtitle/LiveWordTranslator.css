@@ -37,7 +37,7 @@ body.hide-cursor .live-word-translator {
 /* Hover state shows glass background like legacy .aside:hover */
 .live-word-translator:hover {
   background: rgba(60, 60, 60, 0.5);
-  backdrop-filter: var(--theme-backdrop-filter);
+  backdrop-filter: var(--backdrop-blur);
 }
 
 /* Header with close button - matches old .aside .header */
@@ -64,7 +64,7 @@ body.hide-cursor .live-word-translator {
   height: 25px;
   border-radius: 5px;
   background: rgba(60, 60, 60, 0.5);
-  backdrop-filter: var(--theme-backdrop-filter);
+  backdrop-filter: var(--backdrop-blur);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -102,7 +102,7 @@ body.hide-cursor .live-word-translator {
 /* Individual card styling - matches legacy .aside .card exactly */
 .live-word-translator .card {
   background-color: var(--bg);
-  backdrop-filter: var(--theme-backdrop-filter);
+  backdrop-filter: var(--backdrop-blur);
   padding-inline: 20px;
   width: 300px;
   height: 30px;

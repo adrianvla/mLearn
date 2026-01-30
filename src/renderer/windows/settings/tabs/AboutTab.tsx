@@ -3,7 +3,7 @@
  */
 
 import { Component, createSignal, onMount } from 'solid-js';
-import { TabContent, GlassBtn } from '../../../components/common';
+import { TabContent, Btn } from '../../../components/common';
 import { useLocalization } from '../../../context';
 import './AboutTab.css';
 
@@ -50,12 +50,12 @@ export const AboutTab: Component = () => {
       </div>
 
       <div class="about-links">
-        <GlassBtn variant="ghost" onClick={openContact}>
+        <Btn variant="ghost" onClick={openContact}>
           {t('mlearn.About.Website')}
-        </GlassBtn>
-        <GlassBtn variant="ghost" onClick={openLicenses}>
+        </Btn>
+        <Btn variant="ghost" onClick={openLicenses}>
           {t('mlearn.About.Licenses')}
-        </GlassBtn>
+        </Btn>
       </div>
 
       <div class="about-shortcuts">

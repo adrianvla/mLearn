@@ -1,15 +1,16 @@
 /**
- * Glass Modal Component
+ * Modal Component
  * Modal dialog with glassmorphism styling
  */
 
 import { Component, JSX, Show, createEffect, onCleanup, splitProps, mergeProps } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import { GlassPanel } from '../Panel';
+import { Panel } from '../Panel';
 import { IconBtn } from '../Button';
 import { CloseIcon } from '../Misc/Icons';
+import { useLocalization } from '../../../context';
 
-export interface GlassModalProps {
+export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
@@ -24,7 +25,8 @@ export interface GlassModalProps {
   fullHeight?: boolean;
 }
 
-export const GlassModal: Component<GlassModalProps> = (props) => {
+export const Modal: Component<ModalProps> = (props) => {
+  const { t } = useLocalization();
   const merged = mergeProps(
     {
       size: 'md' as const,
@@ -126,8 +128,8 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
             }
           }}
         >
-          <GlassPanel
-            variant="dark"
+          <Panel
+            variant="elevated"
             blur="lg"
             rounded="lg"
             padding="none"
@@ -173,7 +175,7 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
                   <IconBtn
                     variant="ghost"
                     size="sm"
-                    aria-label="Close modal"
+                    aria-label={t('mlearn.Global.Aria.CloseModal')}
                     onClick={local.onClose}
                     style={{ 'margin-left': 'var(--spacing-4)', 'flex-shrink': 0 }}
                   >
@@ -209,12 +211,9 @@ export const GlassModal: Component<GlassModalProps> = (props) => {
                 {local.footer}
               </div>
             </Show>
-          </GlassPanel>
+          </Panel>
         </div>
       </Portal>
     </Show>
   );
 };
-
-// Note: ConfirmDialog has been moved to ./ConfirmDialog.tsx for better modularity
-// Import it from there: import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';

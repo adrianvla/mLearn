@@ -4,7 +4,7 @@
  */
 
 import { Component, Show, createMemo } from 'solid-js';
-import { GlassBtn, PillLabel, StatusLabel } from '../../../components/common';
+import { Btn, PillLabel, StatusLabel } from '../../../components/common';
 import { WORD_STATUS } from '../../../../shared/constants';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
 import { useSettings, useLocalization } from '../../../context';
@@ -92,22 +92,22 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
       <div class="col tracker">
         <span class="tracker-label">{props.entry.tracker}</span>
         <Show when={props.entry.tracker === 'flashcards'}>
-          <GlassBtn
+          <Btn
             variant="danger"
             size="sm"
             onClick={() => props.onRemoveFlashcard(props.entry)}
           >
             {t('mlearn.Global.Remove')}
-          </GlassBtn>
+          </Btn>
         </Show>
         <Show when={props.entry.tracker !== 'flashcards'}>
-          <GlassBtn
+          <Btn
             variant="primary"
             size="sm"
             onClick={() => props.onAddFlashcard(props.entry)}
           >
             {t('mlearn.Global.Add')}
-          </GlassBtn>
+          </Btn>
         </Show>
       </div>
       <div class="col status">

@@ -4,7 +4,7 @@
  * ⚠️ DEPRECATED: These components are kept for backwards compatibility.
  * Do not use in new code. Use the unified variants instead:
  * 
- * - GlassButton → Button/GlassBtn
+ * - GlassButton → Button/Btn
  * - IconButton → Button/IconBtn
  * - PillButton → Button/PillBtn
  * - TabButton → Button/TabBtn

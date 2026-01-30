@@ -1,14 +1,16 @@
 /**
- * Common Components Index
- * Export all common UI components
+ * Common Components Barrel Export
+ * 
+ * This file re-exports all common UI components for easy importing.
+ * 
+ * Note: Glass-prefixed aliases have been removed.
+ * Use Btn, Modal, Panel, Input, Card etc. directly.
  */
 
-// ============ Unified Components (Preferred) ============
-// Use these for all new code - they replace the legacy variants
-
+// Button Components
 export { 
   Button, 
-  GlassBtn, 
+  Btn,
   PillBtn, 
   IconBtn, 
   NavBtn, 
@@ -19,25 +21,73 @@ export {
   type ButtonSize,
 } from './Button';
 
-export {
-  Select,
-  type SelectProps,
-  type SelectOption,
-} from './Select';
+// Modal Components
+export { 
+  Modal, 
+  ConfirmDialog, 
+  useConfirmDialog,
+  WindowOverlay,
+  type ModalProps,
+  type ConfirmDialogProps, 
+  type ConfirmVariant, 
+  type ConfirmOptions,
+  type WindowOverlayProps,
+} from './Modal';
 
-export {
-  Loader,
-  Spinner,
-  Skeleton,
-  Progress,
-  ProgressRing,
-  LoadingOverlay as UnifiedLoadingOverlay,
-  type LoaderProps,
-  type LoaderType,
-  type ProgressVariant,
-} from './Loader';
+// Panel Components
+export { 
+  Panel,
+  PanelHeader,
+  WindowLayout, 
+  WindowHeader,
+  type PanelProps,
+  type PanelHeaderProps,
+  type WindowLayoutProps, 
+  type WindowHeaderProps,
+} from './Panel';
 
-export {
+// Input Components
+export { 
+  Input,
+  Textarea,
+  SelectInput,
+  ContentEditable,
+  ToggleSwitch,
+  FormField,
+  DropZone,
+  RangeInput,
+  type InputProps,
+  type TextareaProps,
+  type SelectInputProps,
+  type ContentEditableProps,
+  type ToggleSwitchProps,
+  type FormFieldProps,
+  type DropZoneProps,
+  type RangeInputProps,
+} from './Input';
+
+// Card Components
+export { 
+  ActionCard,
+  Card,
+  CheckboxCard,
+  SelectableCard,
+  RecentCard,
+  StatCard,
+  type ActionCardProps,
+  type CardProps,
+  type CheckboxCardProps,
+  type SelectableCardProps,
+  type RecentCardProps,
+  type RecentItem,
+  type StatCardProps,
+} from './Card';
+
+// Select Components
+export { Select, type SelectProps, type SelectOption } from './Select';
+
+// Label Components
+export { 
   Label,
   PillLabel,
   StatusLabel,
@@ -46,7 +96,7 @@ export {
   Indicator,
   numericToStatus,
   statusToNumeric,
-  getNextStatus as getNextLabelStatus,
+  getNextStatus,
   type LabelProps,
   type LabelType,
   type LabelVariant,
@@ -55,145 +105,100 @@ export {
   type StatusLabelProps,
 } from './Label';
 
-// ============ Cards ============
-
+// Loader Components
 export { 
-  ActionCard, 
-  type ActionCardProps,
-  GlassCard, 
-  type GlassCardProps,
-  CheckboxCard, 
-  type CheckboxCardProps,
-  SelectableCard, 
-  type SelectableCardProps,
-  RecentCard, 
-  type RecentCardProps, 
-  type RecentItem,
-  StatCard, 
-  type StatCardProps,
-} from './Card';
+  Loader,
+  Spinner,
+  Skeleton,
+  Progress,
+  ProgressRing,
+  LoadingOverlay,
+  type LoaderProps,
+  type LoaderType,
+  type ProgressVariant,
+} from './Loader';
 
-// ============ Modals & Dialogs ============
-
+// Feedback Components
 export { 
-  GlassModal, 
-  type GlassModalProps,
-  ConfirmDialog, 
-  useConfirmDialog, 
-  type ConfirmDialogProps, 
-  type ConfirmVariant, 
-  type ConfirmOptions,
-  WindowOverlay,
-  type WindowOverlayProps,
-} from './Modal';
-
-// ============ Inputs & Controls ============
-
-export { 
-  GlassInput, 
-  GlassTextarea, 
-  GlassSelect, 
-  type GlassInputProps, 
-  type GlassTextareaProps, 
-  type GlassSelectProps,
-  ContentEditable, 
-  type ContentEditableProps,
-  ToggleSwitch, 
-  type ToggleSwitchProps,
-  FormField, 
-  type FormFieldProps,
-  DropZone, 
-  type DropZoneProps,
-  RangeInput,
-  type RangeInputProps,
-} from './Input';
-
-// ============ Panels & Layout ============
-
-export { 
-  GlassPanel, 
-  type GlassPanelProps,
-  PanelHeader, 
-  type PanelHeaderProps,
-  WindowLayout, 
-  WindowHeader, 
-  type WindowLayoutProps, 
-  type WindowHeaderProps,
-} from './Panel';
-
-// ============ Tabs & Navigation ============
-
-export { 
-  TabHeader, 
-  type TabHeaderProps,
-  TabContent, 
-  type TabContentProps,
-  TabContainer, 
-  TabPanel, 
-  type TabContainerProps, 
-  type TabPanelProps, 
-  type TabItem,
-} from './Tabs';
-
-// ============ Feedback ============
-
-export { 
-  EmptyState, 
-  type EmptyStateProps, 
+  EmptyState,
+  AlertBanner,
+  ConnectionStatus,
+  type EmptyStateProps,
   type EmptyStateAction,
-  AlertBanner, 
-  type AlertBannerProps, 
+  type AlertBannerProps,
   type AlertVariant,
-  ConnectionStatus, 
-  type ConnectionStatusProps, 
+  type ConnectionStatusProps,
   type ConnectionState,
-  LoadingOverlay, 
-  type LoadingOverlayProps,
 } from './Feedback';
 
-// ============ Text & Display ============
-
+// Text Components
 export { 
-  PitchAccent, 
+  PitchAccent,
+  RubyText,
+  FrequencyStars,
+  HintText,
+  BreakdownRow,
+  LogConsole,
   type PitchAccentProps,
-  RubyText, 
   type RubyTextProps,
-  FrequencyStars, 
   type FrequencyStarsProps,
-  HintText, 
   type HintTextProps,
-  BreakdownRow, 
   type BreakdownRowProps,
-  LogConsole, 
   type LogConsoleProps,
 } from './Text';
 
-// ============ Settings Components ============
-
+// Layout Components
 export { 
-  SettingRow, 
-  type SettingRowProps,
-  SettingGroup, 
-  type SettingGroupProps,
-} from './Settings';
-
-// ============ Layout Utilities ============
-
-export { 
-  Flex, 
-  Row, 
-  Column, 
-  Center, 
-  Spacer, 
+  Flex,
+  Row,
+  Column,
+  Center,
+  Spacer,
   type FlexProps,
 } from './Layout';
 
-// ============ Miscellaneous ============
-
+// Tabs Components
 export { 
-  IconRenderer, 
+  TabHeader,
+  TabContent,
+  TabContainer,
+  TabPanel,
+  type TabHeaderProps,
+  type TabContentProps,
+  type TabContainerProps,
+  type TabPanelProps,
+  type TabItem,
+} from './Tabs';
+
+// Settings Components
+export { 
+  SettingRow,
+  SettingGroup,
+  type SettingRowProps,
+  type SettingGroupProps,
+} from './Settings';
+
+// Misc Components
+export { 
+  IconRenderer,
+  LegendItem,
+  KeyboardShortcut,
+  ShortcutsList,
+  SortableColumnHeader,
+  ModalFooter,
+  StatsGrid,
   type IconRendererProps,
-  // Common SVG Icons
+  type LegendItemProps,
+  type KeyboardShortcutProps,
+  type ShortcutsListProps,
+  type SortableColumnHeaderProps,
+  type SortDirection,
+  type ModalFooterProps,
+  type StatsGridProps,
+} from './Misc';
+
+// Icons (re-exported from Misc)
+export {
   CloseIcon,
   CrossIcon,
   CheckIcon,
@@ -225,56 +230,4 @@ export {
   EyeIcon,
   EyeOffIcon,
   type IconProps,
-  LegendItem, 
-  type LegendItemProps,
-  KeyboardShortcut, 
-  ShortcutsList, 
-  type KeyboardShortcutProps, 
-  type ShortcutsListProps,
-  SortableColumnHeader, 
-  type SortableColumnHeaderProps, 
-  type SortDirection,
-  ModalFooter, 
-  type ModalFooterProps,
-  StatsGrid, 
-  type StatsGridProps,
 } from './Misc';
-
-// ============ Legacy Components (Deprecated) ============
-// These are kept for backwards compatibility but should not be used in new code
-// GlassButton → GlassBtn, IconButton → IconBtn
-// PillButton → PillBtn
-// SkeletonLoader → Skeleton, SpinnerLoader → Spinner
-// ProgressBar → Progress
-// OCRProgressRing → ProgressRing
-// Pill → PillLabel, StatusPill → StatusLabel
-
-export { 
-  GlassButton, 
-  IconButton, 
-  type GlassButtonProps, 
-  type IconButtonProps,
-  PillButton, 
-  type PillButtonProps, 
-  type PillVariant,
-  Pill, 
-  type PillProps,
-  StatusPill, 
-  type StatusPillProps,
-  TabButton, 
-  type TabButtonProps,
-  WordStatusPill, 
-  type WordStatusPillProps, 
-  type WordStatusType, 
-  numericToWordStatus, 
-  wordStatusToNumeric, 
-  getNextStatus,
-  SkeletonLoader, 
-  SpinnerLoader, 
-  type SkeletonLoaderProps, 
-  type SpinnerLoaderProps,
-  ProgressBar, 
-  type ProgressBarProps,
-  OCRProgressRing, 
-  type OCRProgressRingProps,
-} from './_legacy';

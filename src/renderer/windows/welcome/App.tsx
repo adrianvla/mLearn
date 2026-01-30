@@ -8,7 +8,7 @@ import { Component, Show, For, createSignal, createEffect, onMount } from 'solid
 import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization } from '../../context';
 import type { Settings, InstallOptions, InstallerState } from '../../../shared/types';
-import { GlassPanel, GlassBtn, SelectableCard, AlertBanner, LogConsole, CheckboxCard, Progress } from '../../components/common';
+import { Panel, Btn, SelectableCard, AlertBanner, LogConsole, CheckboxCard, Progress } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
 
 interface LanguageOption {
@@ -39,7 +39,7 @@ const WelcomeContent: Component = () => {
   const [installationStarted, setInstallationStarted] = createSignal(false);
   const [installationCompleted, setInstallationCompleted] = createSignal(false);
   const [progress, setProgress] = createSignal(0);
-  const [statusLogs, setStatusLogs] = createSignal<LogEntry[]>([{ message: 'Click Install to begin.', level: 'info' }]);
+  const [statusLogs, setStatusLogs] = createSignal<LogEntry[]>([{ message: t('mlearn.Installer.Instructions.ClickToBegin'), level: 'info' }]);
   const [overallStatus, setOverallStatus] = createSignal(t('mlearn.Installer.Status.NotStarted'));
   const [networkError, setNetworkError] = createSignal<string | null>(null);
 
@@ -76,7 +76,7 @@ const WelcomeContent: Component = () => {
     setInstallationStarted(false);
     setProgress(0);
     setOverallStatus(t('mlearn.Installer.Status.NotStarted'));
-    setStatusLogs([{ message: 'Click Install to begin.', level: 'info' }]);
+    setStatusLogs([{ message: t('mlearn.Installer.Instructions.ClickToBegin'), level: 'info' }]);
     if (opts) {
       setIncludeLLM(opts.includeLLM ?? true);
       setIncludeOCR(opts.includeOCR ?? true);
@@ -92,8 +92,8 @@ const WelcomeContent: Component = () => {
     setProgress(5);
     setOverallStatus(t('mlearn.Installer.Status.Installing'));
     setStatusLogs([]);
-    logInfo(includeLLM() ? 'Local AI model dependencies will be installed.' : 'Skipping local AI model dependencies.');
-    logInfo(includeOCR() ? 'OCR reader dependencies will be installed.' : 'Skipping OCR reader dependencies.');
+    logInfo(includeLLM() ? t('mlearn.Installer.Status.LlmWillInstall') : t('mlearn.Installer.Status.LlmSkip'));
+    logInfo(includeOCR() ? t('mlearn.Installer.Status.OcrWillInstall') : t('mlearn.Installer.Status.OcrSkip'));
 
     // Save preferences and start install via IPC
     try {
@@ -121,7 +121,7 @@ const WelcomeContent: Component = () => {
     if (mLearnIPC) {
       mLearnIPC.saveSettings({ language: selectedLanguage() } as Settings);
       mLearnIPC.onSettingsSaved(() => {
-        setOverallStatus('Language installed! Restarting in 5 seconds...');
+        setOverallStatus(t('mlearn.Installer.Status.LanguageInstalledRestarting'));
         setTimeout(() => {
           // Send quit request to proxy server
           fetch('http://127.0.0.1:7753/quit', {
@@ -283,8 +283,8 @@ const WelcomeContent: Component = () => {
         style={{ width: '100%', 'max-width': '500px', 'margin-bottom': '1rem' }}
       />
 
-      <GlassPanel
-        variant="dark"
+      <Panel
+        variant="elevated"
         blur="lg"
         rounded="xl"
         padding="xl"
@@ -356,7 +356,7 @@ const WelcomeContent: Component = () => {
                   onClick={() => setSelectedLanguage(lang.code)}
                   icon={lang.flag}
                   title={lang.name}
-                  subtitle={lang.available ? lang.nativeName : 'Coming soon'}
+                  subtitle={lang.available ? lang.nativeName : t('mlearn.Global.ComingSoon')}
                 />
               )}
             </For>
@@ -387,7 +387,7 @@ const WelcomeContent: Component = () => {
         </Show>
 
         {/* Action button */}
-        <GlassBtn
+        <Btn
           variant="primary"
           onClick={installationCompleted() ? handleContinue : handleInstall}
           disabled={installationStarted() && !installationCompleted()}
@@ -396,8 +396,8 @@ const WelcomeContent: Component = () => {
           <Show when={!installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.StartInstallation')}</Show>
           <Show when={installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.Installing')}</Show>
           <Show when={installationCompleted()}>{t('mlearn.Installer.Buttons.Continue')}</Show>
-        </GlassBtn>
-      </GlassPanel>
+        </Btn>
+      </Panel>
     </div>
   );
 };
