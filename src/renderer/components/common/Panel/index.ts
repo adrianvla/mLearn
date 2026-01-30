@@ -2,7 +2,7 @@
  * Panel Components Barrel Export
  */
 
-export { GlassPanel, type GlassPanelProps } from './GlassPanel';
+export { Panel, type PanelProps } from './Panel';
 export { PanelHeader, type PanelHeaderProps } from './PanelHeader';
 export { 
   WindowLayout, 

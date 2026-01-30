@@ -5,7 +5,7 @@
 
 import { Component, JSX, Show, createMemo } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
-import { GlassPanel } from '../common';
+import { Panel } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import './FlashcardDisplay.css';
@@ -126,8 +126,8 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     >
       <div class={`flashcard-card ${isFlipped() ? 'flipped' : ''}`}>
         {/* Front */}
-        <GlassPanel 
-          variant="dark" 
+        <Panel 
+          variant="elevated" 
           blur="lg" 
           rounded="xl" 
           class="flashcard-face flashcard-front"
@@ -170,11 +170,11 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           <div class="flashcard-hint">
             {t('mlearn.Flashcards.Card.RevealHint')}
           </div>
-        </GlassPanel>
+        </Panel>
 
         {/* Back */}
-        <GlassPanel 
-          variant="dark" 
+        <Panel 
+          variant="elevated" 
           blur="lg" 
           rounded="xl" 
           class="flashcard-face flashcard-back"
@@ -226,7 +226,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           <div class="flashcard-hint">
             {t('mlearn.Flashcards.Card.RateHint')}
           </div>
-        </GlassPanel>
+        </Panel>
       </div>
     </div>
   );

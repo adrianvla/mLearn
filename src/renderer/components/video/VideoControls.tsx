@@ -5,9 +5,9 @@
 
 import { Component, JSX, Show, createSignal, createMemo } from 'solid-js';
 import type { useVideo, useSubtitles } from '../../hooks';
-import { useSettings } from '../../context';
+import { useSettings, useLocalization } from '../../context';
 import { useIPC } from '../../hooks';
-import { GlassPanel, RangeInput } from '../common';
+import { Panel, RangeInput } from '../common';
 
 // Icons as components
 const PlayIcon = () => (
@@ -81,6 +81,7 @@ export interface VideoControlsProps {
 
 export const VideoControls: Component<VideoControlsProps> = (props) => {
   const { settings, updateSettings } = useSettings();
+  const { t } = useLocalization();
   const { isTethered } = useIPC();
   
   const [isHovered, setIsHovered] = createSignal(false);
@@ -157,7 +158,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <GlassPanel variant="dark" blur="md" rounded="none" padding="none">
+      <Panel variant="elevated" blur="md" rounded="none" padding="none">
         {/* Progress bar */}
         <div
           class="progress-bar"
@@ -201,7 +202,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
             <button
               style={buttonStyle}
               onClick={() => props.video.togglePlay()}
-              aria-label={state().isPlaying ? 'Pause' : 'Play'}
+              aria-label={state().isPlaying ? t('mlearn.Global.Aria.Pause') : t('mlearn.Global.Aria.Play')}
             >
               <Show when={state().isPlaying} fallback={<PlayIcon />}>
                 <PauseIcon />
@@ -213,7 +214,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
               <button
                 style={buttonStyle}
                 onClick={() => props.video.toggleMute()}
-                aria-label={state().isMuted ? 'Unmute' : 'Mute'}
+                aria-label={state().isMuted ? t('mlearn.Video.Controls.Unmute') : t('mlearn.Video.Controls.Mute')}
               >
                 {VolumeIcon()()}
               </button>
@@ -304,7 +305,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                 opacity: settings.showSubtitles ? '1' : '0.5',
               }}
               onClick={() => updateSettings({ showSubtitles: !settings.showSubtitles })}
-              aria-label="Toggle subtitles"
+              aria-label={t('mlearn.Global.Aria.ToggleSubtitles')}
             >
               <SubtitleIcon />
             </button>
@@ -317,7 +318,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                   opacity: state().isPiP ? '1' : '0.7',
                 }}
                 onClick={() => props.video.togglePiP()}
-                aria-label="Picture in picture"
+                aria-label={t('mlearn.Global.Aria.PictureInPicture')}
               >
                 <PiPIcon />
               </button>
@@ -327,13 +328,13 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
             <button
               style={buttonStyle}
               onClick={() => props.video.toggleFullscreen()}
-              aria-label={state().isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              aria-label={state().isFullscreen ? t('mlearn.Global.Aria.ExitFullscreen') : t('mlearn.Global.Aria.Fullscreen')}
             >
               {FullscreenBtn()()}
             </button>
           </div>
         </div>
-      </GlassPanel>
+      </Panel>
     </div>
   );
 };

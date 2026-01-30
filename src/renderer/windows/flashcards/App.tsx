@@ -8,10 +8,10 @@ import { WindowWrapper, useLocalization } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditor, FlashcardSyncModal } from '../../components/flashcard';
 import { 
-  GlassCard, 
-  GlassModal, 
-  GlassInput, 
-  GlassBtn,
+  Card, 
+  Modal, 
+  Input, 
+  Btn,
   TabBtn,
   Badge,
   EmptyState,
@@ -134,12 +134,12 @@ const FlashcardsContent: Component = () => {
         </div>
 
         <div class="flashcards-header-actions">
-          <GlassBtn size="sm" variant="secondary" onClick={() => setShowSyncModal(true)}>
+          <Btn size="sm" variant="secondary" onClick={() => setShowSyncModal(true)}>
             {t('mlearn.Flashcards.UI.Sync')}
-          </GlassBtn>
-          <GlassBtn size="sm" onClick={() => setShowAddModal(true)}>
+          </Btn>
+          <Btn size="sm" onClick={() => setShowAddModal(true)}>
             {t('mlearn.Flashcards.UI.AddCard')}
-          </GlassBtn>
+          </Btn>
         </div>
       </div>
 
@@ -187,7 +187,7 @@ const FlashcardsContent: Component = () => {
               <div class="flashcards-grid">
                 <For each={flashcards()}>
                   {(card) => (
-                    <GlassCard
+                    <Card
                       title={card.content.word}
                       subtitle={card.content.pronunciation !== card.content.word ? card.content.pronunciation : undefined}
                     >
@@ -195,16 +195,16 @@ const FlashcardsContent: Component = () => {
                         {card.content.translation?.join(', ') || card.content.definition?.join(', ')}
                       </p>
                       <div class="flashcard-footer">
-                        <Badge>{card.reviews} reviews</Badge>
+                        <Badge>{t('mlearn.Flashcards.Card.ReviewsCount', { count: card.reviews })}</Badge>
                         <div class="flashcard-actions">
-                          <GlassBtn
+                          <Btn
                             variant="ghost"
                             size="xs"
                             onClick={() => openEditModal(card)}
                           >
                             {t('mlearn.Global.Edit')}
-                          </GlassBtn>
-                          <GlassBtn
+                          </Btn>
+                          <Btn
                             variant="danger"
                             size="xs"
                             onClick={() => {
@@ -213,10 +213,10 @@ const FlashcardsContent: Component = () => {
                             }}
                           >
                             {t('mlearn.Global.Delete')}
-                          </GlassBtn>
+                          </Btn>
                         </div>
                       </div>
-                    </GlassCard>
+                    </Card>
                   )}
                 </For>
               </div>
@@ -228,7 +228,7 @@ const FlashcardsContent: Component = () => {
         <Show when={activeTab() === 'stats'}>
           <div class="flashcards-stats">
             <div class="flashcards-stats-grid">
-              <GlassCard>
+              <Card>
                 <StatCard
                   label={t('mlearn.Flashcards.Statistics.TotalCards')}
                   value={flashcards().length}
@@ -236,8 +236,8 @@ const FlashcardsContent: Component = () => {
                   color="primary"
                   size="lg"
                 />
-              </GlassCard>
-              <GlassCard>
+              </Card>
+              <Card>
                 <StatCard
                   label={t('mlearn.Flashcards.Statistics.DueToday')}
                   value={dueCount()}
@@ -245,8 +245,8 @@ const FlashcardsContent: Component = () => {
                   color="warning"
                   size="lg"
                 />
-              </GlassCard>
-              <GlassCard>
+              </Card>
+              <Card>
                 <StatCard
                   label={t('mlearn.Flashcards.Statistics.Mature')}
                   value={flashcards().filter((c: Flashcard) => (c.interval ?? 0) > 21 * 24 * 60).length}
@@ -254,10 +254,10 @@ const FlashcardsContent: Component = () => {
                   color="success"
                   size="lg"
                 />
-              </GlassCard>
+              </Card>
             </div>
 
-            <GlassCard title={t('mlearn.Flashcards.Statistics.CardBreakdown')} class="flashcards-breakdown">
+            <Card title={t('mlearn.Flashcards.Statistics.CardBreakdown')} class="flashcards-breakdown">
               <div class="breakdown-rows">
                 <div class="breakdown-row">
                   <span>{t('mlearn.Flashcards.Statistics.New')}</span>
@@ -272,55 +272,55 @@ const FlashcardsContent: Component = () => {
                   <span>{stats().review}</span>
                 </div>
               </div>
-            </GlassCard>
+            </Card>
           </div>
         </Show>
       </div>
 
       {/* Delete confirmation modal */}
-      <GlassModal
+      <Modal
         isOpen={showDeleteConfirm()}
         onClose={() => setShowDeleteConfirm(false)}
         title={t('mlearn.Flashcards.Modals.DeleteCard.Title')}
         size="sm"
         footer={
           <>
-            <GlassBtn onClick={() => setShowDeleteConfirm(false)}>{t('mlearn.Global.Cancel')}</GlassBtn>
-            <GlassBtn variant="danger" onClick={handleDeleteCard}>{t('mlearn.Global.Delete')}</GlassBtn>
+            <Btn onClick={() => setShowDeleteConfirm(false)}>{t('mlearn.Global.Cancel')}</Btn>
+            <Btn variant="danger" onClick={handleDeleteCard}>{t('mlearn.Global.Delete')}</Btn>
           </>
         }
       >
         <p>{t('mlearn.Flashcards.Modals.DeleteCard.Confirm')}</p>
-      </GlassModal>
+      </Modal>
 
       {/* Add card modal */}
-      <GlassModal
+      <Modal
         isOpen={showAddModal()}
         onClose={() => setShowAddModal(false)}
         title={t('mlearn.Flashcards.Modals.AddCard.Title')}
         footer={
           <>
-            <GlassBtn onClick={() => setShowAddModal(false)}>{t('mlearn.Global.Cancel')}</GlassBtn>
-            <GlassBtn variant="primary" onClick={handleAddCard}>{t('mlearn.Flashcards.Modals.AddCard.Submit')}</GlassBtn>
+            <Btn onClick={() => setShowAddModal(false)}>{t('mlearn.Global.Cancel')}</Btn>
+            <Btn variant="primary" onClick={handleAddCard}>{t('mlearn.Flashcards.Modals.AddCard.Submit')}</Btn>
           </>
         }
       >
         <div style={{ display: 'flex', 'flex-direction': 'column', gap: '1rem' }}>
-          <GlassInput
+          <Input
             label={t('mlearn.Flashcards.Modals.AddCard.WordLabel')}
             value={newWord()}
             onInput={(e) => setNewWord(e.currentTarget.value)}
             placeholder={t('mlearn.Flashcards.Modals.AddCard.WordPlaceholder')}
             fullWidth
           />
-          <GlassInput
+          <Input
             label={t('mlearn.Flashcards.Modals.AddCard.ReadingLabel')}
             value={newReading()}
             onInput={(e) => setNewReading(e.currentTarget.value)}
             placeholder={t('mlearn.Flashcards.Modals.AddCard.ReadingPlaceholder')}
             fullWidth
           />
-          <GlassInput
+          <Input
             label={t('mlearn.Flashcards.Modals.AddCard.MeaningLabel')}
             value={newMeaning()}
             onInput={(e) => setNewMeaning(e.currentTarget.value)}
@@ -328,10 +328,10 @@ const FlashcardsContent: Component = () => {
             fullWidth
           />
         </div>
-      </GlassModal>
+      </Modal>
 
       {/* Edit card modal - uses full FlashcardEditor */}
-      <GlassModal
+      <Modal
         isOpen={showEditModal()}
         onClose={handleEditCardCancel}
         title={`${t('mlearn.Flashcards.Modals.EditCard.Title')} – ${editingCard()?.content.word || ''}`}
@@ -345,7 +345,7 @@ const FlashcardsContent: Component = () => {
             showStats={true}
           />
         </Show>
-      </GlassModal>
+      </Modal>
 
       {/* Sync Modal */}
       <FlashcardSyncModal

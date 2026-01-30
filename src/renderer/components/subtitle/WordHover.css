@@ -19,7 +19,7 @@
 .subtitle_hover {
   position: relative;
   background: var(--bg);
-  backdrop-filter: var(--theme-backdrop-filter-nodim);
+  backdrop-filter: var(--backdrop-blur-nodim);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: left;
@@ -109,7 +109,7 @@
   padding: 10px; /* 10px left + 10px right = 20px total */
   box-sizing: border-box;
   background: var(--accent-bg);
-  backdrop-filter: var(--theme-backdrop-filter-nodim);
+  backdrop-filter: var(--backdrop-blur-nodim);
   border-top: 1px solid var(--border-color);
   flex-shrink: 0; /* Don't shrink footer */
   /* width determined by pills (fit-content flows up) */

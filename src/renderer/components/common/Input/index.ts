@@ -3,13 +3,13 @@
  */
 
 export { 
-  GlassInput, 
-  GlassTextarea, 
-  GlassSelect, 
-  type GlassInputProps, 
-  type GlassTextareaProps, 
-  type GlassSelectProps 
-} from './GlassInput';
+  Input,
+  Textarea,
+  SelectInput,
+  type InputProps,
+  type TextareaProps,
+  type SelectInputProps,
+} from './Input';
 export { ContentEditable, type ContentEditableProps } from './ContentEditable';
 export { ToggleSwitch, type ToggleSwitchProps } from './ToggleSwitch';
 export { FormField, type FormFieldProps } from './FormField';

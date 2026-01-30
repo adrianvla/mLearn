@@ -3,7 +3,7 @@
  */
 
 import { Component, For, Show, Accessor, Setter } from 'solid-js';
-import { GlassBtn, Progress, HintText, Select } from '../../../components/common';
+import { Btn, Progress, HintText, Select } from '../../../components/common';
 import { useLocalization } from '../../../context';
 
 export interface SearchBarProps {
@@ -31,10 +31,10 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
         onInput={(e) => props.setSearchQuery(e.currentTarget.value)}
         onKeyPress={(e) => e.key === 'Enter' && props.onSearch()}
       />
-      <GlassBtn onClick={props.onSearch}>{t('mlearn.Global.Search')}</GlassBtn>
-      <GlassBtn onClick={props.onLoadAll} disabled={props.isLoading()}>
+      <Btn onClick={props.onSearch}>{t('mlearn.Global.Search')}</Btn>
+      <Btn onClick={props.onLoadAll} disabled={props.isLoading()}>
         {t('mlearn.WordDbEditor.LoadAll')}
-      </GlassBtn>
+      </Btn>
       
       <Show when={props.isLoading()}>
         <Progress 

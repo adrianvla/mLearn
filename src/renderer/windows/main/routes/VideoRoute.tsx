@@ -8,7 +8,7 @@ import { useNavigate } from '@solidjs/router';
 import { useIPC, useSubtitles } from '../../../hooks';
 import { useLocalization } from '../../../context';
 import { VideoPlayer } from '../../../components/video';
-import { GlassPanel, GlassBtn, NavBtn } from '../../../components/common';
+import { Panel, Btn, NavBtn } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { LiveWordTranslator, SubtitleSync } from '../../../components/subtitle';
 import { IPC_CHANNELS } from '../../../../shared/constants';
@@ -249,8 +249,8 @@ export const VideoRoute: Component = () => {
         when={!showDropZone()}
         fallback={
           <div class="drop-zone-container">
-            <GlassPanel
-              variant="dark"
+            <Panel
+              variant="elevated"
               blur="lg"
               rounded="xl"
               padding="xl"
@@ -260,14 +260,14 @@ export const VideoRoute: Component = () => {
               <h2>{t('mlearn.Video.UI.DropVideoHere')}</h2>
               <p>{t('mlearn.Video.UI.OrClickToBrowse')}</p>
               <div class="drop-actions">
-                <GlassBtn variant="primary" onClick={handleSelectVideo}>
+                <Btn variant="primary" onClick={handleSelectVideo}>
                   {t('mlearn.Video.UI.OpenVideo')}
-                </GlassBtn>
-                <GlassBtn onClick={handleSelectSubtitle}>
+                </Btn>
+                <Btn onClick={handleSelectSubtitle}>
                   {t('mlearn.Video.UI.OpenSubtitles')}
-                </GlassBtn>
+                </Btn>
               </div>
-            </GlassPanel>
+            </Panel>
           </div>
         }
       >

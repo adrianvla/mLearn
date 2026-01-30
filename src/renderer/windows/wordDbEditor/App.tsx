@@ -42,8 +42,8 @@ const WordDbEditorContent: Component = () => {
     3: getLevelName(3) || 'N3',
     2: getLevelName(2) || 'N4',
     1: getLevelName(1) || 'N5',
-    0: 'Common',
-    [-1]: 'Unlisted',
+    0: t('mlearn.WordDbEditor.LevelNames.Common'),
+    [-1]: t('mlearn.WordDbEditor.LevelNames.Unlisted'),
   });
 
   // Load words from storage on mount and auto-load all words

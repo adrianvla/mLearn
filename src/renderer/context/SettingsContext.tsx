@@ -7,7 +7,8 @@ import { createContext, useContext, ParentComponent, onMount, onCleanup, createS
 import { createStore, reconcile, produce } from 'solid-js/store';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
-import type { SubtitleTheme } from '../../shared/constants';
+import type { SubtitleTheme, AppTheme } from '../../shared/constants';
+import { APP_THEMES } from '../../shared/constants';
 
 // Context interface
 interface SettingsContextValue {
@@ -70,11 +71,22 @@ export const SettingsProvider: ParentComponent = (props) => {
     root.style.setProperty('--subtitle-font-weight', `${s.subtitle_font_weight}`);
     root.style.setProperty('--word-blur-amount', `${s.blur_amount}px`);
     
-    // Theme
-    if (s.dark_mode) {
+    // Theme - remove all theme classes first, then apply the current one
+    APP_THEMES.forEach(theme => {
+      document.body.classList.remove(`theme-${theme}`);
+    });
+    // Also remove legacy 'dark' class
+    document.body.classList.remove('dark');
+    
+    // Apply current theme class (light is default, no class needed)
+    if (s.theme !== 'light') {
+      document.body.classList.add(`theme-${s.theme}`);
+    }
+    
+    // For backwards compatibility with components using 'dark' class
+    const isDarkTheme = s.theme === 'dark' || s.theme === 'glass-dark' || s.theme === 'glass-transparent';
+    if (isDarkTheme) {
       document.body.classList.add('dark');
-    } else {
-      document.body.classList.remove('dark');
     }
   };
 
@@ -176,9 +188,9 @@ export function useTheme() {
   const { settings, updateSetting } = useSettings();
   
   return {
-    isDark: () => settings.dark_mode,
-    toggle: () => updateSetting('dark_mode', !settings.dark_mode),
-    setDark: (dark: boolean) => updateSetting('dark_mode', dark),
+    theme: () => settings.theme,
+    isDark: () => settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent',
+    setTheme: (theme: AppTheme) => updateSetting('theme', theme),
   };
 }
 

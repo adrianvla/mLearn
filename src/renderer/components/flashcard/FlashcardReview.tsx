@@ -6,7 +6,7 @@
 import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, For, createEffect } from 'solid-js';
 import { useFlashcards, useLocalization } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
-import { GlassBtn, Button, Badge, GlassPanel } from '../common';
+import { Btn, Button, Badge, Panel } from '../common';
 import type { Flashcard } from '../../../shared/types';
 import './FlashcardReview.css';
 
@@ -290,8 +290,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       <Show
         when={!isComplete() && currentCard()}
         fallback={
-          <GlassPanel
-            variant="dark"
+          <Panel
+            variant="elevated"
             blur="lg"
             rounded="xl"
             class="flashcard-completion"
@@ -304,17 +304,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             </p>
             <div class="flashcard-completion-actions">
               <Show when={store.flashcards.length > 0}>
-                <GlassBtn variant="primary" onClick={handleStartOver}>
+                <Btn variant="primary" onClick={handleStartOver}>
                   {t('mlearn.Flashcards.Review.ReviewMore')}
-                </GlassBtn>
+                </Btn>
               </Show>
               <Show when={props.onClose}>
-                <GlassBtn onClick={props.onClose}>
+                <Btn onClick={props.onClose}>
                   {t('mlearn.Global.Close')}
-                </GlassBtn>
+                </Btn>
               </Show>
             </div>
-          </GlassPanel>
+          </Panel>
         }
       >
         <FlashcardDisplay
@@ -342,7 +342,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   buttonType="glass"
                   class={`flashcard-rating-btn ${btn.className}`}
                   onClick={() => handleRating(btn.quality)}
-                  title={`Press ${btn.key}`}
+                  title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: btn.key })}
                 >
                   <span class="flashcard-rating-label">{btn.label}</span>
                   <span class="flashcard-rating-time">{btn.time}</span>
@@ -360,7 +360,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   variant="ghost"
                   class={`flashcard-action-btn ${btn.className}`}
                   onClick={btn.onClick}
-                  title={`Press ${btn.key}`}
+                  title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: btn.key })}
                 >
                   <span class="flashcard-action-label">{btn.label}</span>
                   <span class="flashcard-action-time">{btn.time}</span>
@@ -374,7 +374,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               variant="danger"
               class="flashcard-action-btn flashcard-action-btn--remove"
               onClick={handleRemove}
-              title="Press x"
+              title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'x' })}
             >
               <span class="flashcard-action-label">{t('mlearn.Flashcards.Review.Remove')}</span>
             </Button>

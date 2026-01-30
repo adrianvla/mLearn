@@ -16,13 +16,13 @@
 }
 
 .sortable-column-header:hover {
-  background: var(--glass-bg-hover, rgba(255, 255, 255, 0.08));
+  background: var(--panel-bg-hover, rgba(255, 255, 255, 0.08));
   color: var(--text-primary, white);
 }
 
 .sortable-column-header.sorted {
   color: var(--accent-primary, #6366f1);
-  background: var(--glass-bg-active, rgba(99, 102, 241, 0.1));
+  background: var(--panel-bg-active, rgba(99, 102, 241, 0.1));
 }
 
 /* Alignment */

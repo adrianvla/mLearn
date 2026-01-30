@@ -4,8 +4,9 @@
 
 import { Component, createSignal } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, GlassBtn, Select } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select } from '../../../components/common';
 import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/types';
+import { type AppTheme } from '../../../../shared/constants';
 
 export const GeneralTab: Component = () => {
   const { settings, updateSettings, saveSettings } = useSettings();
@@ -110,13 +111,20 @@ export const GeneralTab: Component = () => {
 
       <SettingGroup title={t('mlearn.Settings.Groups.Appearance')}>
         <SettingRow
-          label={t('mlearn.Settings.Appearance.DarkMode.Label')}
-          description={t('mlearn.Settings.Appearance.DarkMode.Description')}
+          label={t('mlearn.Settings.Appearance.Theme.Label')}
+          description={t('mlearn.Settings.Appearance.Theme.Description')}
         >
-          <ToggleSwitch
-            checked={settings.dark_mode}
-            onChange={(checked) => updateSettings({ dark_mode: checked })}
-          />
+          <Select
+            class="setting-select"
+            value={settings.theme}
+            onChange={(e) => updateSettings({ theme: e.currentTarget.value as AppTheme })}
+          >
+            <option value="light">{t('mlearn.Settings.Appearance.Theme.Light')}</option>
+            <option value="dark">{t('mlearn.Settings.Appearance.Theme.Dark')}</option>
+            <option value="glass-transparent">{t('mlearn.Settings.Appearance.Theme.GlassTransparent')}</option>
+            <option value="glass-light">{t('mlearn.Settings.Appearance.Theme.GlassLight')}</option>
+            <option value="glass-dark">{t('mlearn.Settings.Appearance.Theme.GlassDark')}</option>
+          </Select>
         </SettingRow>
 
         <SettingRow
@@ -135,9 +143,9 @@ export const GeneralTab: Component = () => {
           label={t('mlearn.Settings.Data.ExportData.Label')}
           description={t('mlearn.Settings.Data.ExportData.Description')}
         >
-          <GlassBtn size="sm" onClick={handleExportSettings}>
+          <Btn size="sm" onClick={handleExportSettings}>
             {t('mlearn.Global.Export')}
-          </GlassBtn>
+          </Btn>
           {exportError() && <span class="setting-error">{exportError()}</span>}
         </SettingRow>
 
@@ -145,9 +153,9 @@ export const GeneralTab: Component = () => {
           label={t('mlearn.Settings.Data.ImportData.Label')}
           description={t('mlearn.Settings.Data.ImportData.Description')}
         >
-          <GlassBtn size="sm" onClick={handleImportSettings}>
+          <Btn size="sm" onClick={handleImportSettings}>
             {t('mlearn.Global.Import')}
-          </GlassBtn>
+          </Btn>
           {importError() && <span class="setting-error">{importError()}</span>}
         </SettingRow>
 
@@ -155,9 +163,9 @@ export const GeneralTab: Component = () => {
           label={t('mlearn.Settings.Data.ResetSettings.Label')}
           description={t('mlearn.Settings.Data.ResetSettings.Description')}
         >
-          <GlassBtn size="sm" variant="danger" onClick={handleResetSettings}>
+          <Btn size="sm" variant="danger" onClick={handleResetSettings}>
             {t('mlearn.Global.Reset')}
-          </GlassBtn>
+          </Btn>
         </SettingRow>
       </SettingGroup>
     </TabContent>

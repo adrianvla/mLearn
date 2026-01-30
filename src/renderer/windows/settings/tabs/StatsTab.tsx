@@ -5,7 +5,7 @@
 
 import { Component, createSignal, onMount, createEffect, Show } from 'solid-js';
 import { useSettings, useLanguage, useLocalization } from '../../../context';
-import { TabContent, StatCard, EmptyState, GlassBtn } from '../../../components/common';
+import { TabContent, StatCard, EmptyState, Btn } from '../../../components/common';
 import {
   getTimeWatchedFormatted,
   getWordsLearnedInAppStats,
@@ -128,12 +128,12 @@ export const StatsTab: Component = () => {
 
       {/* Action Buttons */}
       <div class="action-buttons">
-        <GlassBtn variant="primary" onClick={openKanjiGrid}>
+        <Btn variant="primary" onClick={openKanjiGrid}>
           {t('mlearn.Statistics.Actions.ViewKanjiGrid')}
-        </GlassBtn>
-        <GlassBtn variant="primary" onClick={openWordDbEditor}>
+        </Btn>
+        <Btn variant="primary" onClick={openWordDbEditor}>
           {t('mlearn.Statistics.Actions.EditWordDatabase')}
-        </GlassBtn>
+        </Btn>
       </div>
     </TabContent>
   );

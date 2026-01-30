@@ -4,7 +4,7 @@
  */
 
 import { Component, createSignal, Show, onCleanup, createEffect } from 'solid-js';
-import { GlassModal, GlassBtn, Progress, Spinner } from '../../components/common';
+import { Modal, Btn, Progress, Spinner } from '../../components/common';
 import { useFlashcards, useLocalization } from '../../context';
 import {
   splitTextIntoChunks,
@@ -354,7 +354,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
   };
 
   return (
-    <GlassModal
+    <Modal
       isOpen={props.isOpen}
       onClose={handleClose}
       title={t('mlearn.Flashcards.Sync.Title')}
@@ -374,9 +374,9 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
             <p class="qr-hint">
               {t('mlearn.Flashcards.Sync.QRHint')}
             </p>
-            <GlassBtn onClick={startScanning}>
+            <Btn onClick={startScanning}>
               {t('mlearn.Flashcards.Sync.ScanQRInstead')}
-            </GlassBtn>
+            </Btn>
           </div>
         </Show>
         
@@ -392,9 +392,9 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
             />
             <canvas ref={canvasEl} class="scan-canvas" />
             <Progress progress={progress()} showPercent />
-            <GlassBtn onClick={() => { stopScanning(); startConnection(); }}>
+            <Btn onClick={() => { stopScanning(); startConnection(); }}>
               {t('mlearn.Flashcards.Sync.ShowQRInstead')}
-            </GlassBtn>
+            </Btn>
           </div>
         </Show>
         
@@ -419,13 +419,13 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
           <div class="sync-error">
             <div class="error-icon">✕</div>
             <p>{error()}</p>
-            <GlassBtn onClick={startConnection}>
+            <Btn onClick={startConnection}>
               {t('mlearn.Global.TryAgain')}
-            </GlassBtn>
+            </Btn>
           </div>
         </Show>
       </div>
-    </GlassModal>
+    </Modal>
   );
 };
 

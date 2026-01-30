@@ -5,6 +5,7 @@
  */
 
 import { ParentComponent, Show, JSX } from 'solid-js';
+import { useLocalization } from '../../../context';
 import './SettingRow.css';
 
 export interface SettingRowProps {
@@ -25,6 +26,8 @@ export interface SettingRowProps {
 }
 
 export const SettingRow: ParentComponent<SettingRowProps> = (props) => {
+  const { t } = useLocalization();
+  
   return (
     <div 
       class={`setting-row ${props.disabled ? 'disabled' : ''} ${props.class || ''}`}
@@ -37,7 +40,7 @@ export const SettingRow: ParentComponent<SettingRowProps> = (props) => {
           </Show>
           {props.label}
           <Show when={props.requiresRestart}>
-            <span class="restart-indicator" title="Requires restart">⟳</span>
+            <span class="restart-indicator" title={t('mlearn.Global.RequiresRestart')}>⟳</span>
           </Show>
         </span>
         <Show when={props.description}>

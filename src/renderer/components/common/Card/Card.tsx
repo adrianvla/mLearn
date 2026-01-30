@@ -1,12 +1,12 @@
 /**
- * Glass Card Component
- * Card container with glassmorphism styling
+ * Card Component
+ * Card container with panel styling
  */
 
 import { Component, JSX, Show, splitProps, mergeProps } from 'solid-js';
-import { GlassPanel, type GlassPanelProps } from '../Panel';
+import { Panel, type PanelProps } from '../Panel';
 
-export interface GlassCardProps extends GlassPanelProps {
+export interface CardProps extends PanelProps {
   title?: string;
   subtitle?: string;
   header?: JSX.Element;
@@ -15,7 +15,7 @@ export interface GlassCardProps extends GlassPanelProps {
   noPadding?: boolean;
 }
 
-export const GlassCard: Component<GlassCardProps> = (props) => {
+export const Card: Component<CardProps> = (props) => {
   const merged = mergeProps(
     {
       padding: 'none' as const,
@@ -36,7 +36,7 @@ export const GlassCard: Component<GlassCardProps> = (props) => {
   const hasHeader = () => local.title || local.subtitle || local.header || local.headerActions;
 
   return (
-    <GlassPanel {...rest}>
+    <Panel {...rest}>
       <Show when={hasHeader()}>
         <div
           style={{
@@ -95,6 +95,6 @@ export const GlassCard: Component<GlassCardProps> = (props) => {
           {local.footer}
         </div>
       </Show>
-    </GlassPanel>
+    </Panel>
   );
 };

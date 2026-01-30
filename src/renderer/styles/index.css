@@ -1,8 +1,14 @@
 /**
  * Global CSS Variables and Base Styles
  * Unified theming system for the entire application
+ * 
+ * Light theme is the default (defined in :root below).
+ * Other themes override these base styles.
  */
 @import "./themes/dark.css";
+@import "./themes/glass-transparent.css";
+@import "./themes/glass-light.css";
+@import "./themes/glass-dark.css";
 
 :root {
   /* ========== Color Palette ========== */
@@ -23,8 +29,8 @@
   --bg: rgba(85, 85, 85, 0.1);
   --accent-bg: rgba(255, 255, 255, 0.2);
   --accent: rgba(255, 255, 255, 0.8);
-  --theme-backdrop-filter: blur(10px) saturate(2) brightness(1.1);
-  --theme-backdrop-filter-nodim: blur(10px) saturate(2) brightness(1.1);
+  --backdrop-blur: blur(10px) saturate(2) brightness(1.1);
+  --backdrop-blur-nodim: blur(10px) saturate(2) brightness(1.1);
   --border-color: rgba(85, 85, 85, 0.15);
   --bg-intense: rgba(85, 85, 85, 0.15);
   --border-color-intense: rgba(85, 85, 85, 0.25);
@@ -176,15 +182,14 @@
   --scrollbar-thumb-hover: var(--accent-bg);
 
   /* ========== Flashcard Highlight ========== */
-  --flashcard-highlight-dark: #ff5ec7;
-  --flashcard-highlight-light: #356ee8;
+  --flashcard-highlight: #356ee8;
 
   /* ========== Additional Theming Variables ========== */
-  /* Glass effect hover states */
-  --glass-bg: var(--bg);
-  --glass-bg-hover: var(--bg-intense);
-  --glass-border: var(--border-color);
-  --glass-border-hover: var(--border-color-intense);
+  /* Panel/surface hover states */
+  --panel-bg: var(--bg);
+  --panel-bg-hover: var(--bg-intense);
+  --panel-border: var(--border-color);
+  --panel-border-hover: var(--border-color-intense);
   
   /* Accent primary (alias for consistency) */
   --accent-primary: var(--color-primary);
@@ -198,7 +203,7 @@
   
   /* Overlay backgrounds */
   --overlay-bg: rgba(0, 0, 0, 0.6);
-  --overlay-bg-light: rgba(0, 0, 0, 0.4);
+  --overlay-bg-soft: rgba(0, 0, 0, 0.4);
 }
 
 /* ========== Shared Animations ========== */
@@ -272,7 +277,7 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: var(--theme-backdrop-filter);
+  backdrop-filter: var(--backdrop-blur);
   z-index: 1000;
 }
 
@@ -404,18 +409,6 @@ body.hide-cursor .aside {
   pointer-events: none;
 }
 
-/* Glass panel - glassmorphism effect */
-.glass-panel {
-  background: var(--glass-bg);
-  backdrop-filter: var(--theme-backdrop-filter);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-}
-
-.glass-panel:hover {
-  background: var(--glass-bg-hover);
-  border-color: var(--glass-border-hover);
-}
 
 /* Overlay - modal/popup backgrounds */
 .overlay {
@@ -427,7 +420,7 @@ body.hide-cursor .aside {
 }
 
 .overlay-light {
-  background: var(--overlay-bg-light);
+  background: var(--overlay-bg-soft);
 }
 
 /* Card hover effect - shared pattern */
@@ -491,3 +484,39 @@ body.hide-cursor .aside {
 .animate-slide-up {
   animation: slideUp var(--transition-normal);
 }
+
+/* ========== Panel Component Styles ========== */
+/* Base panel with glassmorphism effect */
+.panel,
+.glass {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: var(--backdrop-blur);
+  -webkit-backdrop-filter: var(--backdrop-blur);
+}
+
+.panel-elevated {
+  background: var(--bg-intense);
+  box-shadow: var(--shadow-lg);
+}
+
+.panel-outlined {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  box-shadow: none;
+}
+
+.panel-solid {
+  background: var(--bg-opaque);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ========== Border Radius Utilities ========== */
+.rounded-none { border-radius: 0; }
+.rounded-sm { border-radius: var(--radius-sm); }
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+.rounded-xl { border-radius: var(--radius-xl); }
+.rounded-full { border-radius: var(--radius-full); }

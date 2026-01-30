@@ -7,7 +7,7 @@
 import { Component, createSignal, onMount, Show, createEffect } from 'solid-js';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useLocalization } from '../../../context';
-import { GlassBtn, GlassInput, GlassModal, Spinner } from '../../../components/common';
+import { Btn, Input, Modal, Spinner } from '../../../components/common';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
 import './EditTranslationDialog.css';
 
@@ -235,7 +235,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
   };
   
   return (
-    <GlassModal
+    <Modal
       isOpen={props.isOpen}
       onClose={props.onClose}
       title={t('mlearn.WordDbEditor.EditTranslation.Title', { word: props.word })}
@@ -248,12 +248,12 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
         <div class="dialog-content">
           <div class="form-field">
             <label>{t('mlearn.CardEditor.Fields.Word')}</label>
-            <GlassInput value={props.word} disabled />
+            <Input value={props.word} disabled />
           </div>
           
           <div class="form-field">
             <label>{t('mlearn.CardEditor.Fields.Reading')}</label>
-            <GlassInput
+            <Input
               value={reading()}
               onInput={(e) => setReading((e.target as HTMLInputElement).value)}
               placeholder={t('mlearn.CardEditor.Fields.ReadingPlaceholder')}
@@ -263,7 +263,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
           <div class="form-field">
             <label>{t('mlearn.CardEditor.Fields.PitchAccent')}</label>
             <div class="pitch-row">
-              <GlassInput
+              <Input
                 type="number"
                 inputMode="numeric"
                 min={0}
@@ -308,18 +308,18 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
         </div>
         
         <div class="dialog-footer">
-          <GlassBtn variant="danger" onClick={handleRevert}>
+          <Btn variant="danger" onClick={handleRevert}>
             {t('mlearn.WordDbEditor.EditTranslation.RemoveOverride')}
-          </GlassBtn>
-          <GlassBtn variant="ghost" onClick={props.onClose}>
+          </Btn>
+          <Btn variant="ghost" onClick={props.onClose}>
             {t('mlearn.Global.Cancel')}
-          </GlassBtn>
-          <GlassBtn variant="primary" onClick={handleSave}>
+          </Btn>
+          <Btn variant="primary" onClick={handleSave}>
             {t('mlearn.Global.Save')}
-          </GlassBtn>
+          </Btn>
         </div>
       </Show>
-    </GlassModal>
+    </Modal>
   );
 };
 

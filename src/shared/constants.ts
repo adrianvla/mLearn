@@ -143,9 +143,9 @@ export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];
 export const SUBTITLE_THEMES = ['marker', 'background', 'shadow'] as const;
 export type SubtitleTheme = typeof SUBTITLE_THEMES[number];
 
-// Theme modes
-export const THEME_MODES = ['light', 'dark'] as const;
-export type ThemeMode = typeof THEME_MODES[number];
+// App themes
+export const APP_THEMES = ['light', 'dark', 'glass-transparent', 'glass-light', 'glass-dark'] as const;
+export type AppTheme = typeof APP_THEMES[number];
 
 // Word status (for SRS)
 export const WORD_STATUS = {

@@ -8,7 +8,7 @@ import { Component, createSignal, createEffect, createMemo, Show, onMount } from
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { buildPitchAccentHtml, getPitchAccentInfo, getPitchAccentName } from '../../utils/pitchAccent';
-import { GlassInput, GlassBtn } from '../common';
+import { Input, Btn } from '../common';
 import './FlashcardEditor.css';
 
 export interface FlashcardEditorProps {
@@ -194,7 +194,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
     <div class="flashcard-editor">
       <div class="editor-section">
         <div class="editor-row">
-          <GlassInput
+          <Input
             label={t('mlearn.CardEditor.Fields.Word')}
             value={word()}
             onInput={(e) => setWord(e.currentTarget.value)}
@@ -204,7 +204,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
         </div>
 
         <div class="editor-row">
-          <GlassInput
+          <Input
             label={t('mlearn.CardEditor.Fields.Reading')}
             value={pronunciation()}
             onInput={(e) => setPronunciation(e.currentTarget.value)}
@@ -241,7 +241,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
         </Show>
 
         <div class="editor-row">
-          <GlassInput
+          <Input
             label={t('mlearn.WordDbEditor.Fields.PartOfSpeech')}
             value={pos()}
             onInput={(e) => setPos(e.currentTarget.value)}
@@ -339,10 +339,10 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
       {/* Footer Actions */}
       <div class="editor-footer">
-        <GlassBtn onClick={props.onCancel}>{t('mlearn.Global.Cancel')}</GlassBtn>
-        <GlassBtn variant="primary" onClick={handleSave}>
+        <Btn onClick={props.onCancel}>{t('mlearn.Global.Cancel')}</Btn>
+        <Btn variant="primary" onClick={handleSave}>
           {t('mlearn.Global.Actions.SaveChanges')}
-        </GlassBtn>
+        </Btn>
       </div>
     </div>
   );

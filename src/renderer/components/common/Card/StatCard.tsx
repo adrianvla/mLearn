@@ -4,7 +4,7 @@
  */
 
 import { Component, JSX, Show } from 'solid-js';
-import { GlassPanel } from '../Panel';
+import { Panel } from '../Panel';
 import './StatCard.css';
 
 export interface StatCardProps {
@@ -87,9 +87,9 @@ export const StatCard: Component<StatCardProps> = (props) => {
 
   if (props.variant === 'glass') {
     return (
-      <GlassPanel variant="dark" blur="md" rounded="lg" padding="md">
+      <Panel variant="elevated" blur="md" rounded="lg" padding="md">
         {content}
-      </GlassPanel>
+      </Panel>
     );
   }
 

@@ -238,7 +238,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   return (
     <>
       <div class={getContainerClass()}>
-        {/*<GlassPanel variant="dark" blur="md" rounded="lg" padding="sm">*/}
+        {/*<GlassPanel variant="elevated" blur="md" rounded="lg" padding="sm">*/}
           {/* Loading state */}
           <Show when={props.isLoading}>
             <div

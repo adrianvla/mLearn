@@ -11,7 +11,7 @@
   height: 48px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg);
-  backdrop-filter: var(--theme-backdrop-filter-nodim);
+  backdrop-filter: var(--backdrop-blur-nodim);
   z-index: 100;
   -webkit-app-region: drag; /* make the nav draggable for the Electron window */
   position: fixed;

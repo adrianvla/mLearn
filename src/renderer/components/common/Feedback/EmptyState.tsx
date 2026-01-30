@@ -4,8 +4,8 @@
  */
 
 import { Component, JSX, Show } from 'solid-js';
-import { GlassPanel } from '../Panel';
-import { GlassBtn } from '../Button';
+import { Panel } from '../Panel';
+import { Btn } from '../Button';
 import './EmptyState.css';
 
 export interface EmptyStateAction {
@@ -58,12 +58,12 @@ export const EmptyState: Component<EmptyStateProps> = (props) => {
       <Show when={allActions().length > 0}>
         <div class="empty-state-actions">
           {allActions().map(action => (
-            <GlassBtn
+            <Btn
               variant={action.variant ?? 'primary'}
               onClick={action.onClick}
             >
               {action.label}
-            </GlassBtn>
+            </Btn>
           ))}
         </div>
       </Show>
@@ -73,15 +73,15 @@ export const EmptyState: Component<EmptyStateProps> = (props) => {
   // Wrap in card if variant is 'card'
   if (props.variant === 'card') {
     return (
-      <GlassPanel
-        variant="dark"
+      <Panel
+        variant="elevated"
         blur="lg"
         rounded="xl"
         padding="xl"
         style={{ 'max-width': '400px', margin: '0 auto' }}
       >
         {content}
-      </GlassPanel>
+      </Panel>
     );
   }
 

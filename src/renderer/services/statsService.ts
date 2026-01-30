@@ -281,7 +281,8 @@ export function drawWordsLearnedPieChart(
   });
 
   // Title
-  ctx.fillStyle = settings.dark_mode ? '#ddd' : '#333';
+  const isDark = settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent';
+  ctx.fillStyle = isDark ? '#ddd' : '#333';
   ctx.font = '14px sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
@@ -297,7 +298,7 @@ export function drawWordsLearnedPieChart(
     const pct = Math.round((seg.value / total) * 1000) / 10;
     ctx.fillStyle = seg.color;
     ctx.fillRect(legendX, legendY, 14, 14);
-    ctx.fillStyle = settings.dark_mode ? '#ccc' : '#444';
+    ctx.fillStyle = isDark ? '#ccc' : '#444';
     ctx.fillText(`${seg.label} – ${seg.value} (${pct}%)`, legendX + 20, legendY);
     legendY += 20;
   });

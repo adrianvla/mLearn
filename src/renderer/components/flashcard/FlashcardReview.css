@@ -39,7 +39,7 @@
 }
 
 .flashcard-undo-btn:hover {
-  background: var(--glass-bg-hover);
+  background: var(--panel-bg-hover);
   color: var(--text-primary);
 }
 
@@ -211,7 +211,7 @@
 }
 
 .flashcard-action-btn:hover {
-  background: var(--glass-bg-hover);
+  background: var(--panel-bg-hover);
   color: var(--text-primary);
 }
 

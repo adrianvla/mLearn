@@ -300,8 +300,8 @@ export const Button: Component<ButtonProps> = (props) => {
 
 // ============ Convenience Exports ============
 
-/** Glass button - default variant */
-export const GlassBtn: Component<Omit<ButtonProps, 'buttonType'>> = (props) => (
+/** Standard button - default variant */
+export const Btn: Component<Omit<ButtonProps, 'buttonType'>> = (props) => (
   <Button buttonType="glass" {...props} />
 );
 
