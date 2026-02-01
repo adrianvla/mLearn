@@ -4,7 +4,7 @@
  * Ported from adjustWordsByLevel in stats.js
  */
 
-import { Component, createSignal, For, Show, onMount } from 'solid-js';
+import { Component, createSignal, For, Show, onMount, createEffect } from 'solid-js';
 import { WindowWrapper, useLanguage, useFlashcards, useLocalization } from '../../context';
 import {
   getWordsLearnedInApp,
@@ -30,6 +30,8 @@ const WordDbEditorContent: Component = () => {
   const [sortKey, setSortKey] = createSignal<string>('word');
   const [sortDir, setSortDir] = createSignal<1 | -1>(1);
   const [isInitialized, setIsInitialized] = createSignal(false);
+  // Track if we've already loaded words (prevent re-loading on every frequency change)
+  const [hasLoadedWords, setHasLoadedWords] = createSignal(false);
 
   // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = createSignal(false);
@@ -52,18 +54,28 @@ const WordDbEditorContent: Component = () => {
     return result;
   };
 
-  // Load words from storage on mount and auto-load all words
+  // Load words from storage on mount
   onMount(async () => {
     try {
       await loadWordsFromStorage();
       setIsInitialized(true);
       console.log('Word DB Editor: Loaded words from storage');
-
-      // Auto-load all words after storage is initialized
-      await loadAllWords();
     } catch (e) {
       console.error('Word DB Editor: Failed to load words:', e);
       setIsInitialized(true);
+    }
+  });
+  
+  // Auto-load words when wordFrequency data becomes available
+  // This handles the case where langData loads asynchronously
+  createEffect(() => {
+    const freqWords = Object.keys(wordFrequency);
+    const totalWords = freqWords.length;
+    
+    // Only auto-load once when we have data and haven't loaded yet
+    if (isInitialized() && totalWords > 0 && !hasLoadedWords() && !isLoading()) {
+      console.log(`Word DB Editor: Auto-loading ${totalWords} words from frequency data`);
+      loadAllWords();
     }
   });
 
@@ -71,6 +83,7 @@ const WordDbEditorContent: Component = () => {
   const loadAllWords = async () => {
     setIsLoading(true);
     setLoadProgress(0);
+    setHasLoadedWords(true);
 
     try {
       // Ensure storage is loaded first
