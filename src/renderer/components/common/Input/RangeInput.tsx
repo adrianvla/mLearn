@@ -10,6 +10,7 @@ export interface RangeInputProps {
   disabled?: boolean;
   class?: string;
   style?: import('solid-js').JSX.CSSProperties;
+  tabIndex?: number;
 }
 
 export const RangeInput: Component<RangeInputProps> = (props) => {
@@ -29,6 +30,7 @@ export const RangeInput: Component<RangeInputProps> = (props) => {
       disabled={props.disabled ?? false}
       class={`range-input ${props.class ?? ''}`}
       style={props.style}
+      tabIndex={props.tabIndex}
     />
   );
 };

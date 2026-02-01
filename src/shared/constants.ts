@@ -59,7 +59,9 @@ export const IPC_CHANNELS = {
   MAKE_NORMAL: 'make-normal',
   SHOW_CTX_MENU: 'show-ctx-menu',
   CTX_MENU_COMMAND: 'ctx-menu-command',
-  
+  SHOW_READER_CTX_MENU: 'show-reader-ctx-menu',
+  READER_CTX_MENU_COMMAND: 'reader-ctx-menu-command',
+
   // App lifecycle
   RESTART_APP: 'restart-app',
   RESTART_APP_FORCE: 'restart-app-force',
@@ -120,6 +122,11 @@ export const IPC_CHANNELS = {
   // File operations
   READ_DIRECTORY_IMAGES: 'read-directory-images',
   READ_PDF_FILE: 'read-pdf-file',
+  SELECT_VIDEO_FILE: 'select-video-file',
+  SELECT_SUBTITLE_FILE: 'select-subtitle-file',
+  SELECT_BOOK_FOLDER: 'select-book-folder',
+  SELECT_PDF_FILE: 'select-pdf-file',
+  GET_LOCAL_MEDIA_URL: 'get-local-media-url',
 } as const;
 
 // Window types

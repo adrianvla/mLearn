@@ -29,8 +29,8 @@
   --bg: rgba(85, 85, 85, 0.1);
   --accent-bg: rgba(255, 255, 255, 0.2);
   --accent: rgba(255, 255, 255, 0.8);
-  --backdrop-blur: blur(10px) saturate(2) brightness(1.1);
-  --backdrop-blur-nodim: blur(10px) saturate(2) brightness(1.1);
+  --backdrop-filter: blur(10px) saturate(2) brightness(1.1);
+  --backdrop-filter-nodim: blur(10px) saturate(2) brightness(1.1);
   --border-color: rgba(85, 85, 85, 0.15);
   --bg-intense: rgba(85, 85, 85, 0.15);
   --border-color-intense: rgba(85, 85, 85, 0.25);
@@ -84,11 +84,12 @@
   --radius-full: 9999px;
 
   /* ========== Shadows ========== */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
-  --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.25);
+  --shadow-sm: 0 3px 5px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 10px 50px rgba(0, 0, 0, 0.1);
+  --shadow-lg: rgba(0, 0, 0, 0.2) 0px 18px 50px -10px;
+  --shadow-lg-intense: rgba(0, 0, 0, 0.3) 0px 19px 38px, rgba(0, 0, 0, 0.22) 0px 15px 12px;
+  --shadow-special: rgba(50, 50, 93, 0.25) 0px 50px 100px -20px, rgba(0, 0, 0, 0.3) 0px 30px 60px -30px, rgba(10, 37, 64, 0.35) 0px -2px 6px 0px inset;
+  --shadow-inset: rgba(50, 50, 93, 0.25) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
 
   /* ========== Transitions ========== */
   --transition-fast: 0.1s ease;
@@ -202,8 +203,9 @@
   --color-border-hover: var(--border-color-intense);
   
   /* Overlay backgrounds */
-  --overlay-bg: rgba(0, 0, 0, 0.6);
-  --overlay-bg-soft: rgba(0, 0, 0, 0.4);
+  /* Should only be used for modals or stuff that floats on top and not for normal UI components*/
+  --overlay-bg: rgba(255,255,255, 0.6);
+  --overlay-bg-soft: rgba(255,255,255, 0.4);
 }
 
 /* ========== Shared Animations ========== */
@@ -277,7 +279,7 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: var(--backdrop-blur);
+  backdrop-filter: var(--backdrop-filter);
   z-index: 1000;
 }
 
@@ -384,11 +386,6 @@ body.hide-cursor .subtitles {
   bottom: 10px;
 }
 
-body.hide-cursor .aside {
-  opacity: 0;
-  pointer-events: none;
-}
-
 /* Video controls visible state */
 .video-controls {
   transition: opacity 0.3s;
@@ -487,13 +484,12 @@ body.hide-cursor .aside {
 
 /* ========== Panel Component Styles ========== */
 /* Base panel with glassmorphism effect */
-.panel,
-.glass {
+.panel {
   background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow-md);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
+  /*border: 1px solid var(--panel-border);*/ /*commented out cuz looks bad when no spacing between panels*/
+  /*box-shadow: var(--shadow-md);*/
+  backdrop-filter: var(--backdrop-filter);
+  -webkit-backdrop-filter: var(--backdrop-filter);
 }
 
 .panel-elevated {

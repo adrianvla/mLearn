@@ -13,20 +13,25 @@
   z-index: 1000;
   pointer-events: auto;
   /* CSS handles width: fit-content flows up from .subtitle_hover */
+  transition: opacity var(--transition-normal);
+}
+/* autohide when there's a magnifying-glass */
+body:has(.magnifying-glass.visible) .word-hover-container{
+  opacity:0;
 }
 
 /* Hover popup - width driven by footer pills + padding + border */
 .subtitle_hover {
   position: relative;
   background: var(--bg);
-  backdrop-filter: var(--backdrop-blur-nodim);
+  backdrop-filter: var(--backdrop-filter-nodim);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: left;
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-normal);
   z-index: var(--z-tooltip);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--shadow-lg);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--transition-normal);
@@ -87,11 +92,13 @@
   width: 100%;
   min-height: 0; /* Allow shrinking for scroll */
   flex: 1;
+  justify-content: center;
+  align-items: center;
 }
 
 /* Content area - scrollable, takes remaining space above footer */
 .subtitle_hover_content {
-  padding: 40px;
+  padding: 20px;
   width: 100%;
   box-sizing: border-box;
   overflow-y: auto;
@@ -102,6 +109,7 @@
 
 /* Footer - NOT absolute, so pills width + padding (20px) drives parent's fit-content width */
 .subtitle_hover .footer {
+  width:100%;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -109,7 +117,7 @@
   padding: 10px; /* 10px left + 10px right = 20px total */
   box-sizing: border-box;
   background: var(--accent-bg);
-  backdrop-filter: var(--backdrop-blur-nodim);
+  backdrop-filter: var(--backdrop-filter-nodim);
   border-top: 1px solid var(--border-color);
   flex-shrink: 0; /* Don't shrink footer */
   /* width determined by pills (fit-content flows up) */

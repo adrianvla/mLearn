@@ -3,6 +3,7 @@
  */
 
 .reader-status {
+  --font-size: var(--font-size-sm);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -15,7 +16,7 @@
   left: 0;
   right: 0;
   z-index: 100;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size);
   user-select: none;
   gap: 1rem;
 }
@@ -44,7 +45,7 @@
 
 .reader-status .hover-trigger-label {
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: var(--font-size);
 }
 
 .reader-status .hover-trigger-select {
@@ -52,7 +53,7 @@
   border: 1px solid transparent;
   border-radius: 0;
   color: var(--text-primary);
-  font-size: 0.75rem;
+  font-size: var(--font-size);
   padding: 2px 6px;
   cursor: pointer;
   outline: none;
@@ -103,6 +104,12 @@
 
 .reader-status .ocr-status.active {
   animation: status-pulse 1.5s ease-in-out infinite;
+}
+
+.reader-status .magnifier-hint {
+  color: var(--text-tertiary);
+  font-size: var(--font-size);
+  flex-shrink: 0;
 }
 
 @keyframes status-pulse {

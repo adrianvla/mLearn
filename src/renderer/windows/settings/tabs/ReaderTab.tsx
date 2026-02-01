@@ -156,6 +156,72 @@ export const ReaderTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
+      <SettingGroup title={t('mlearn.Settings.Reader.Magnifier.Title')}>
+        <SettingRow
+          label={t('mlearn.Settings.Reader.Magnifier.Hotkey.Label')}
+          description={t('mlearn.Settings.Reader.Magnifier.Hotkey.Description')}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+            <input
+              type="text"
+              class="setting-input"
+              value={settings.readerMagnifierHotkey ?? 'z'}
+              maxLength={1}
+              style={{ width: '60px', 'text-align': 'center' }}
+              onInput={(e) => {
+                const value = e.currentTarget.value.slice(-1).toLowerCase();
+                if (value) {
+                  updateSettings({ readerMagnifierHotkey: value });
+                }
+              }}
+            />
+            <span style={{ color: 'var(--text-secondary)', 'font-size': '0.85rem' }}>
+              {t('mlearn.Settings.Reader.Magnifier.Hotkey.Hint')}
+            </span>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Reader.Magnifier.Zoom.Label')}
+          description={t('mlearn.Settings.Reader.Magnifier.Zoom.Description')}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+            <input
+              type="range"
+              min="1.5"
+              max="5"
+              step="0.5"
+              value={settings.readerMagnifierZoom ?? 2}
+              style={{ width: '120px' }}
+              onInput={(e) => updateSettings({ readerMagnifierZoom: parseFloat(e.currentTarget.value) })}
+            />
+            <span style={{ color: 'var(--text-primary)', 'font-size': '0.9rem', 'min-width': '40px' }}>
+              {settings.readerMagnifierZoom ?? 2}x
+            </span>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Reader.Magnifier.Size.Label')}
+          description={t('mlearn.Settings.Reader.Magnifier.Size.Description')}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+            <input
+              type="range"
+              min="100"
+              max="400"
+              step="25"
+              value={settings.readerMagnifierSize ?? 200}
+              style={{ width: '120px' }}
+              onInput={(e) => updateSettings({ readerMagnifierSize: parseInt(e.currentTarget.value) })}
+            />
+            <span style={{ color: 'var(--text-primary)', 'font-size': '0.9rem', 'min-width': '50px' }}>
+              {settings.readerMagnifierSize ?? 200}px
+            </span>
+          </div>
+        </SettingRow>
+      </SettingGroup>
+
       <SettingGroup title={t('mlearn.Settings.Reader.LlmIntegration.Title')}>
         <SettingRow
           label={t('mlearn.Settings.Reader.LlmIntegration.Enable.Label')}

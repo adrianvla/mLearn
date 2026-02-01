@@ -68,6 +68,12 @@ const mLearnIPC = {
   onContextMenuCommand: (callback: (command: string) => void) => {
     ipcRenderer.on(IPC_CHANNELS.CTX_MENU_COMMAND, (_event, command) => callback(command));
   },
+  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean }) => {
+    ipcRenderer.send(IPC_CHANNELS.SHOW_READER_CTX_MENU, options);
+  },
+  onReaderContextMenuCommand: (callback: (command: string) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.READER_CTX_MENU_COMMAND, (_event, command) => callback(command));
+  },
   openWindow: (payload: OpenWindowPayload) => ipcRenderer.send(IPC_CHANNELS.OPEN_WINDOW, payload),
   closeWindow: () => ipcRenderer.send(IPC_CHANNELS.CLOSE_WINDOW),
 

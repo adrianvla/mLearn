@@ -1,89 +1,51 @@
 /**
  * Live Word Translator Styles
- * Matches the legacy .aside styling from the old app exactly
+ * Aside panel for displaying automatic word translations
+ * Matches the legacy .aside styling from the old JS version
  */
 
-/* Main aside container - positioned at top-left like legacy app */
-.live-word-translator.aside {
+/* Main container - matches .aside */
+.live-word-translator {
   position: absolute;
   left: 10px;
   top: 38px;
-  z-index: 10000;
+  right: 10px;
+  z-index: var(--z-popover);
   display: flex;
   flex-direction: row;
   gap: 10px;
-  right: 10px;
   height: 95px;
   background: transparent;
-  pointer-events: auto;
-  transition: background 0.2s, top 0.2s, left 0.2s, opacity 0.2s;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  transition: background var(--transition-normal),
+  top var(--transition-normal),
+  left var(--transition-normal),
+  opacity var(--transition-normal);
 }
 
-/* Hidden state using opacity like legacy .opacity0 class */
-.live-word-translator.opacity0 {
+/* Hidden state - matches .opacity0 */
+.live-word-translator.hidden {
   opacity: 0;
   pointer-events: none;
 }
 
-/* Move down when cursor is hidden like legacy */
+/* Move down and hide when cursor is hidden */
 body.hide-cursor .live-word-translator {
   top: 10px;
   opacity: 0;
   pointer-events: none;
 }
 
-/* Hover state shows glass background like legacy .aside:hover */
+/* Hover state shows glass background - matches .aside:hover */
 .live-word-translator:hover {
   background: rgba(60, 60, 60, 0.5);
-  backdrop-filter: var(--backdrop-blur);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
-/* Header with close button - matches old .aside .header */
-.live-word-translator .header {
-  display: flex;
-  flex-direction: row;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 5px;
-  position: absolute;
-  top: 5px;
-  left: 5px;
-  opacity: 0;
-  transition: opacity 0.2s;
-  z-index: 10;
-}
-
-.live-word-translator:hover .header {
-  opacity: 1;
-}
-
-.live-word-translator .header .btn {
-  width: 25px;
-  height: 25px;
-  border-radius: 5px;
-  background: rgba(60, 60, 60, 0.5);
-  backdrop-filter: var(--backdrop-blur);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-
-.live-word-translator .header .btn:hover {
-  background: rgba(100, 100, 100, 0.5);
-}
-
-.live-word-translator .header .btn img {
-  width: 15px;
-  height: 15px;
-  filter: invert(1);
-}
-
-/* Container for cards - matches old .aside .c */
-.live-word-translator .c {
+/* Container for cards - matches .aside .c */
+.translator-cards-container {
   display: flex;
   padding-top: 10px;
   padding-bottom: 10px;
@@ -95,62 +57,72 @@ body.hide-cursor .live-word-translator {
   height: 75px;
 }
 
-.live-word-translator .c::-webkit-scrollbar {
+.translator-cards-container::-webkit-scrollbar {
   display: none;
 }
 
-/* Individual card styling - matches legacy .aside .card exactly */
-.live-word-translator .card {
-  background-color: var(--bg);
-  backdrop-filter: var(--backdrop-blur);
+/* Individual card styling - matches .aside .card */
+.translator-card {
+  background-color: rgba(60, 60, 60, 0.60);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   padding-inline: 20px;
   width: 300px;
   height: 30px;
-  border-radius: 10px;
-  box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   display: flex;
   align-items: center;
   justify-content: space-between;
   color: var(--text-secondary);
-  font-family: "Helvetica Neue", sans-serif;
-  font-size: 12px;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
   gap: 10px;
   overflow: hidden;
-  animation: fadeInCard 0.2s ease-out;
+  animation: fadeInCard var(--transition-normal) ease-out;
 }
 
-.live-word-translator .card * {
+/* Text truncation - matches .aside .card * */
+.translator-card * {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.live-word-translator .card:hover * {
+/* Show full text on hover - matches .aside .card:hover * */
+.translator-card:hover * {
   overflow: visible;
 }
 
-/* Hide anything beyond 2 children (translation + reading) */
-.live-word-translator .card *:nth-child(n+3) {
+/* Hide extra children (3rd+) - matches .aside .card *:nth-child(n+3) */
+.translator-card *:nth-child(n+3) {
   display: none;
 }
 
-/* Reading paragraph styling - right side */
-.live-word-translator .card p {
-  margin: 0;
-  text-align: center;
-  font-family: "Helvetica Neue", sans-serif;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-/* Translation h1 styling - left side */
-.live-word-translator .card h1 {
-  font-size: 20px;
-  font-weight: normal;
+/* Translation (h1) styling - left side, matches .card h1 */
+.translator-card-translation {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-normal);
   max-width: 60%;
   margin: 0;
 }
 
+/* Reading (p) styling - right side, matches .card p */
+.translator-card-reading {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+/* Ruby text support */
+.translator-card-reading rt {
+  font-size: 0.7em;
+  color: var(--color-primary);
+}
+
+/* Animation for cards appearing */
 @keyframes fadeInCard {
   from {
     opacity: 0;
@@ -159,105 +131,5 @@ body.hide-cursor .live-word-translator {
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-/* Animation for cards fading out */
-.live-word-translator .card.removing {
-  animation: slideOut 0.2s ease forwards;
-}
-
-@keyframes slideOut {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-}
-.aside-card .card-reading {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: 0;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
-}
-
-/* Word display - the kanji/text, centered and larger */
-.aside-card .card-word {
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-/* Kana reading display - shown below the word */
-.aside-card .card-kana {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-  letter-spacing: 0.05em;
-}
-
-/* Legacy ruby support (fallback) */
-.aside-card .card-reading ruby {
-  ruby-position: over;
-}
-
-.aside-card .card-reading rt {
-  font-size: 0.65em;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* Empty state - hidden when no cards */
-.empty-state {
-  display: none;
-}
-
-/* Remove old right-panel styles completely */
-.translator-panel,
-.translator-header,
-.translator-title,
-.close-btn,
-.translator-cards {
-  display: none !important;
-}
-
-.card-reading rt {
-  font-size: 0.7em;
-  color: var(--color-primary);
-}
-
-.empty-state {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 2rem;
-}
-
-.empty-state p {
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-/* Animation for cards fading out */
-.translation-card.removing {
-  animation: slideOut 0.2s ease forwards;
-}
-
-@keyframes slideOut {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(20px);
   }
 }

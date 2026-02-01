@@ -2,7 +2,7 @@
  * Subtitle Sync Component Styles
  */
 
-.sync-subs {
+.subtitle-sync {
   position: fixed;
   top: 38px;
   right: 10px;
@@ -13,19 +13,15 @@
   height: 50px;
   width: max-content;
   background: rgba(60, 60, 60, 0.85);
-  backdrop-filter: blur(20px);
-  border-radius: 10px;
-  overflow: hidden;
-  transition: background 0.2s, top 0.2s, right 0.2s, gap 0.2s, opacity 0.2s;
-  opacity: 1;
-  z-index: 10000; /* Above live word translator (z-index: 100) */
+  z-index: 10000;
+  transition: top 0.2s, opacity 0.2s;
 }
 
-body.hide-cursor .sync-subs {
+body.hide-cursor .subtitle-sync {
   top: 10px;
 }
 
-.sync-subs .controls {
+.subtitle-sync-controls {
   display: flex;
   flex-direction: row;
   gap: 10px;
@@ -35,34 +31,40 @@ body.hide-cursor .sync-subs {
   width: 100%;
 }
 
-.sync-subs .controls button {
+/* Override IconBtn defaults for subtitle sync context */
+.subtitle-sync-btn.btn-icon {
   background: transparent;
   border: none;
   color: #aaa;
-  font-size: 20px;
   cursor: pointer;
   transition: background 0.1s;
   border-radius: 10px;
   padding: 5px;
+  width: auto;
+  height: auto;
+  min-height: unset;
   user-select: none;
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
-.sync-subs .controls button:hover {
+.subtitle-sync-btn.btn-icon:hover {
   background: #333;
 }
 
-.sync-subs .controls button img {
+.subtitle-sync-btn.btn-icon .btn-icon-wrapper svg,
+.subtitle-sync-btn.btn-icon svg {
   width: 30px;
   height: 30px;
   opacity: 0.6;
-  pointer-events: none;
-  user-select: none;
 }
 
-.sync-subs .controls input[type="text"] {
+.subtitle-sync-btn.backward {
+  transform: rotate(180deg);
+}
+
+.subtitle-sync-input {
   background: transparent;
   color: #aaa;
   border: none;
@@ -76,9 +78,10 @@ body.hide-cursor .sync-subs {
   text-align: center;
 }
 
-.sync-subs .controls input[type="text"]:focus {
+.subtitle-sync-input:focus {
   outline: none;
 }
+
 
 .sync-subs .backward {
   transform: rotate(180deg);

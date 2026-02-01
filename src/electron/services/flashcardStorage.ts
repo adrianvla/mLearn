@@ -10,17 +10,26 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import type { FlashcardStore } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 
-// Default flashcard store (matching old app structure)
+// Default flashcard store (matching new UUID-keyed structure)
 const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
-  flashcards: [],
+  flashcards: {},
   wordCandidates: {},
-  alreadyCreated: {},
-  knownUnTracked: {},
+  wordToCardMap: {},
+  knownUntracked: {},
   meta: {
-    flashcardsCreatedToday: 0,
-    lastFlashcardCreatedDate: Date.now(),
+    newCardsToday: 0,
+    newCardsDate: new Date().toISOString().split('T')[0],
+    maxNewCardsPerDay: 10,
+    learningSteps: [1, 10],
+    relearnSteps: [10],
+    graduatingInterval: 1,
+    easyInterval: 4,
+    newIntervalModifier: 100,
+    reviewIntervalModifier: 100,
+    maxInterval: 36500,
   },
-  version: 1,
+  dailyStats: {},
+  version: 2,
 };
 
 // Get flashcard storage path
@@ -73,9 +82,9 @@ export function getFlashcardEaseMap(): Record<string, number> {
   const store = loadFlashcards();
   const map: Record<string, number> = {};
   
-  for (const flashcard of store.flashcards) {
-    if (flashcard.content?.word) {
-      map[flashcard.content.word] = flashcard.ease;
+  for (const [, flashcard] of Object.entries(store.flashcards)) {
+    if (flashcard.content?.front) {
+      map[flashcard.content.front] = flashcard.ease;
     }
   }
   

@@ -1,17 +1,15 @@
 /**
  * Subtitle Parsing Utilities
  * Handles furigana extraction and subtitle processing
- * 
+ *
  * NOTE: This is simplified - we no longer store/parse character names.
  * Parentheses are only used for temporary reading overrides in the current subtitle.
  */
 
-import { 
-  containsKanji, 
-  isAllKana, 
-  normalizeReading, 
-  escapeHtml,
-  stripFurigana 
+import {
+  containsKanji,
+  isAllKana,
+  normalizeReading,
 } from '../../shared/utils/textUtils';
 import type { Token } from '../../shared/types';
 
@@ -46,10 +44,10 @@ export interface ReadingOverride {
 
 /**
  * Parse a subtitle line to extract any temporary reading overrides from parentheses
- * 
+ *
  * Format: 漢字(かんじ) - the parentheses provide a temporary reading
  * This reading is used for the current subtitle only, not stored permanently.
- * 
+ *
  * @returns The cleaned text and any reading overrides found
  */
 export function parseSubtitle(text: string, _language: string = 'ja'): {
@@ -59,13 +57,13 @@ export function parseSubtitle(text: string, _language: string = 'ja'): {
   if (!text) {
     return { text: '', readingOverrides: [] };
   }
-  
+
   const readingOverrides: ReadingOverride[] = [];
-  
+
   // Pattern: word(reading) - captures the word before parens and reading inside
   // Handles both ASCII and Japanese parentheses
   const furiganaPattern = /([^\s(（]+)\(([^)）]+)\)|([^\s(（]+)（([^)）]+)）/g;
-  
+
   let match;
   while ((match = furiganaPattern.exec(text)) !== null) {
     const word = match[1] || match[3];
@@ -74,13 +72,13 @@ export function parseSubtitle(text: string, _language: string = 'ja'): {
       readingOverrides.push({ word, reading });
     }
   }
-  
+
   // Clean the text by removing the furigana annotations, keeping just the kanji
   // 漢字(かんじ) -> 漢字
   let cleanedText = text
-    .replace(/([^\s(（]+)\([^)）]+\)/g, '$1')
-    .replace(/([^\s(（]+)（[^)）]+）/g, '$1');
-  
+      .replace(/([^\s(（]+)\([^)）]+\)/g, '$1')
+      .replace(/([^\s(（]+)（[^)）]+）/g, '$1');
+
   return {
     text: cleanedText,
     readingOverrides,
@@ -90,17 +88,17 @@ export function parseSubtitle(text: string, _language: string = 'ja'): {
 /**
  * Extract furigana annotations from text
  * Handles patterns like: 百夜(ひゃくや)優一郎(ゆういちろう)
- * 
+ *
  * @returns Array of segments with text and optional reading
  */
 export function extractFurigana(text: string): FuriganaSegment[] {
   if (!text) return [];
-  
+
   const segments: FuriganaSegment[] = [];
-  
+
   // Pattern: kanji(reading) or text without parentheses
   const regex = /([^(（\s]+)\(([^)）]+)\)|([^(（\s]+)（([^)）]+)）|([^(（\s]+)/g;
-  
+
   let match;
   while ((match = regex.exec(text)) !== null) {
     if (match[1] && match[2]) {
@@ -122,7 +120,7 @@ export function extractFurigana(text: string): FuriganaSegment[] {
       });
     }
   }
-  
+
   return segments;
 }
 
@@ -147,7 +145,7 @@ export { containsKanji, isAllKana, normalizeReading, escapeHtml, stripFurigana }
 /**
  * Extract only the kana reading from a translation entry
  * This is for the LiveWordTranslator which should show only kana, not kanji with ruby
- * 
+ *
  * Handles multiple formats:
  * - Plain kana: "かんじ" -> "かんじ"
  * - Ruby markup: "<ruby>漢字<rt>かんじ</rt></ruby>" -> "かんじ"
@@ -155,42 +153,27 @@ export { containsKanji, isAllKana, normalizeReading, escapeHtml, stripFurigana }
  */
 export function extractKanaReading(reading: string | undefined): string {
   if (!reading) return '';
-  
+
   // First try to extract from ruby <rt> tags - this is the most reliable
   const rtMatches = reading.match(/<rt>([^<]+)<\/rt>/g);
   if (rtMatches && rtMatches.length > 0) {
     // Extract content from all <rt> tags and join
     return rtMatches
-      .map(m => m.replace(/<\/?rt>/g, ''))
-      .join('');
+        .map(m => m.replace(/<\/?rt>/g, ''))
+        .join('');
   }
-  
+
   // Remove HTML tags and normalize
   let normalized = normalizeReading(reading);
-  
+
   // If the reading is already all kana, return it
   if (isAllKana(normalized)) return normalized;
-  
+
   // Try to extract just the kana characters
   const kanaOnly = normalized.replace(/[^\u3040-\u309f\u30a0-\u30ff]/g, '');
   if (kanaOnly) return kanaOnly;
-  
-  return normalized;
-}
 
-/**
- * Clean text for use as context phrase by stripping furigana and normalizing
- */
-export function cleanContextPhrase(text: string): string {
-  if (!text) return '';
-  
-  // Strip furigana first
-  let cleaned = stripFurigana(text);
-  
-  // Normalize whitespace
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
-  
-  return cleaned;
+  return normalized;
 }
 
 // ============================================================================
@@ -200,46 +183,9 @@ export function cleanContextPhrase(text: string): string {
 /** @deprecated Use Token from shared/types instead */
 export type ColorToken = Token;
 
-/**
- * Generate colored HTML from tokens based on part-of-speech
- * Used for OCR context phrases to match subtitle styling
- * 
- * @param tokens Array of tokens from tokenizer
- * @param colourCodes POS-to-color mapping from settings/langData
- * @param targetWord Optional word to highlight with 'defined' class
- * @returns HTML string with colored spans
- */
-export function tokensToColoredHtml(
-  tokens: Token[],
-  colourCodes: Record<string, string> = {},
-  targetWord?: string
-): string {
-  if (!tokens || tokens.length === 0) return '';
-  
-  const parts: string[] = [];
-  
-  for (const token of tokens) {
-    const word = token.surface ?? token.word ?? '';
-    if (!word) continue;
-    
-    const pos = token.partOfSpeech ?? token.type ?? '';
-    const color = pos ? colourCodes[pos] : undefined;
-    const isTarget = targetWord && (token.actual_word === targetWord || word === targetWord);
-    
-    // Build class list
-    const classes = ['subtitle_word'];
-    if (isTarget) classes.push('defined');
-    
-    // Build style
-    const style = color ? `color: ${color};` : '';
-    
-    parts.push(
-      `<span class="${classes.join(' ')}"${style ? ` style="${style}"` : ''}>${escapeHtml(word)}</span>`
-    );
-  }
-  
-  return parts.join('');
-}
+// Re-export tokensToColoredHtml from phraseExtraction to avoid duplication
+// All phrase-related utilities are now centralized in phraseExtraction.ts
+export { tokensToColoredHtml, cleanContextPhrase, formatForClipboard } from './phraseExtraction';
 
 // ============================================================================
 // Work Name Parsing
@@ -249,7 +195,7 @@ export function tokensToColoredHtml(
  * Parse and clean a work name (manga/book/video title) from filename or folder name.
  * Strips common release tags, codecs, sources, language codes, and bracketed junk.
  * Preserves season/episode identifiers like S01E02.
- * 
+ *
  * @param name The raw filename or folder name
  * @returns Cleaned, human-readable title
  */

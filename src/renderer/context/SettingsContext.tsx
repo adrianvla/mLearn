@@ -31,7 +31,7 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Track whether settings have been loaded from disk at least once
   // This prevents saving default values before real settings are loaded
   const [hasLoaded, setHasLoaded] = createSignal(false);
-  
+
   let broadcastChannel: BroadcastChannel | null = null;
 
   // Load settings from main process
@@ -48,45 +48,37 @@ export const SettingsProvider: ParentComponent = (props) => {
     } else {
       // In tethered mode, load from API
       fetch('/api/settings')
-        .then(res => res.json())
-        .then(loadedSettings => {
-          setSettings(reconcile(loadedSettings));
-          setIsLoading(false);
-          setHasLoaded(true);
-          applySettingsToDOM(loadedSettings);
-        })
-        .catch(() => {
-          setIsLoading(false);
-          setHasLoaded(true);
-        });
+          .then(res => res.json())
+          .then(loadedSettings => {
+            setSettings(reconcile(loadedSettings));
+            setIsLoading(false);
+            setHasLoaded(true);
+            applySettingsToDOM(loadedSettings);
+          })
+          .catch(() => {
+            setIsLoading(false);
+            setHasLoaded(true);
+          });
     }
   };
 
   // Apply settings to DOM (CSS variables, classes)
   const applySettingsToDOM = (s: Settings) => {
     const root = document.documentElement;
-    
+
     // Subtitle settings
     root.style.setProperty('--subtitle-font-size', `${s.subtitle_font_size}px`);
     root.style.setProperty('--subtitle-font-weight', `${s.subtitle_font_weight}`);
     root.style.setProperty('--word-blur-amount', `${s.blur_amount}px`);
-    
+
     // Theme - remove all theme classes first, then apply the current one
     APP_THEMES.forEach(theme => {
       document.body.classList.remove(`theme-${theme}`);
     });
-    // Also remove legacy 'dark' class
-    document.body.classList.remove('dark');
-    
+
     // Apply current theme class (light is default, no class needed)
     if (s.theme !== 'light') {
       document.body.classList.add(`theme-${s.theme}`);
-    }
-    
-    // For backwards compatibility with components using 'dark' class
-    const isDarkTheme = s.theme === 'dark' || s.theme === 'glass-dark' || s.theme === 'glass-transparent';
-    if (isDarkTheme) {
-      document.body.classList.add('dark');
     }
   };
 
@@ -118,7 +110,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       console.warn('[Settings] Skipping save - settings not yet loaded from disk');
       return;
     }
-    
+
     if (typeof window !== 'undefined' && window.mLearnIPC) {
       // Must serialize the store to a plain object before sending via IPC
       // SolidJS stores are proxies that can't be cloned directly
@@ -168,9 +160,9 @@ export const SettingsProvider: ParentComponent = (props) => {
   };
 
   return (
-    <SettingsContext.Provider value={value}>
-      {props.children}
-    </SettingsContext.Provider>
+      <SettingsContext.Provider value={value}>
+        {props.children}
+      </SettingsContext.Provider>
   );
 };
 
@@ -186,7 +178,7 @@ export function useSettings(): SettingsContextValue {
 // Specialized hooks for common operations
 export function useTheme() {
   const { settings, updateSetting } = useSettings();
-  
+
   return {
     theme: () => settings.theme,
     isDark: () => settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent',
@@ -196,7 +188,7 @@ export function useTheme() {
 
 export function useSubtitleSettings() {
   const { settings, updateSetting } = useSettings();
-  
+
   return {
     fontSize: () => settings.subtitle_font_size,
     fontWeight: () => settings.subtitle_font_weight,
@@ -215,7 +207,7 @@ export function useSubtitleSettings() {
 
 export function useLanguageSettings() {
   const { settings, updateSetting } = useSettings();
-  
+
   return {
     language: () => settings.language,
     setLanguage: (lang: string) => updateSetting('language', lang),

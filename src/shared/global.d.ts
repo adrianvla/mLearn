@@ -72,6 +72,8 @@ export interface MLearnIPC {
   onOpenSettings: (callback: (section?: string) => void) => void;
   onOpenAside: (callback: () => void) => void;
   onContextMenuCommand: (callback: (command: string) => void) => void;
+  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean }) => void;
+  onReaderContextMenuCommand: (callback: (command: string) => void) => void;
   onOpenWordDbEditor: (callback: () => void) => void;
   onOpenKanjiGrid: (callback: () => void) => void;
   
@@ -101,7 +103,23 @@ export interface MLearnIPC {
   // File Operations
   readDirectoryImages: (directoryPath: string) => Promise<{ files: Array<{ name: string; path: string; data: ArrayBuffer }> }>;
   readPdfFile: (filePath: string) => Promise<{ data: ArrayBuffer }>;
-  
+  selectVideoFile: () => Promise<string | null>;
+  selectSubtitleFile: () => Promise<string | null>;
+  selectBookFolder: () => Promise<string | null>;
+  selectPdfFile: () => Promise<string | null>;
+  /**
+   * Convert a local file path to a local-media:// URL for secure media playback.
+   * Use this for video/audio files to bypass Electron's file:// restrictions.
+   */
+  getLocalMediaUrl: (filePath: string) => Promise<string | null>;
+
+  /**
+   * Get filesystem path for a File object.
+   * Required for Electron v32+ where File.path was removed.
+   * Use this when handling drag-dropped files to get their filesystem path.
+   */
+  getPathForFile: (file: File) => string;
+
   // Generic IPC Methods
   send: (channel: string, data?: unknown) => void;
   on: (channel: string, callback: (...args: unknown[]) => void) => void;

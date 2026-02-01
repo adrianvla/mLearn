@@ -2,6 +2,8 @@
  * Flashcard Sync Service
  * Handles peer-to-peer flashcard syncing via WebRTC (like the old app's connect module)
  * Uses QR codes for connection establishment
+ *
+ * Updated to work with new UUID-keyed FlashcardStore format (v2)
  */
 
 import type { FlashcardStore, Flashcard, WordCandidate } from '../../shared/types';
@@ -70,94 +72,131 @@ export async function toUniqueIdentifier(word: string): Promise<string> {
 
 /**
  * Merge incoming flashcards with local flashcards
- * Uses the same merge logic as the old app's sync.js
+ * Updated for new UUID-keyed Record format (v2)
+ *
+ * Merge strategy:
+ * - Flashcards: Use wordToCardMap for deduplication, keep card with more reviews or higher lastUpdated
+ * - wordCandidates: Keep max counts and latest lastSeen
+ * - knownUntracked: Union of both sets
+ * - meta: Preserve local settings, update date if remote is today
  */
 export async function mergeFlashcards(
-  localStore: FlashcardStore,
-  remoteStore: FlashcardStore
+    localStore: FlashcardStore,
+    remoteStore: FlashcardStore
 ): Promise<FlashcardStore> {
+  // Start with a deep copy of local store
   const merged: FlashcardStore = JSON.parse(JSON.stringify(localStore));
-  
-  // Merge alreadyCreated
-  for (const [key, value] of Object.entries(remoteStore.alreadyCreated || {})) {
-    merged.alreadyCreated[key] = value;
+
+  // Merge knownUntracked (union)
+  if (remoteStore.knownUntracked) {
+    for (const [wordHash, value] of Object.entries(remoteStore.knownUntracked)) {
+      if (value) {
+        merged.knownUntracked[wordHash] = true;
+      }
+    }
   }
-  
-  // Merge wordCandidates (keep max count)
-  // Note: Old app sometimes stored wordCandidates as raw numbers, new app uses WordCandidate objects
-  for (const [key, value] of Object.entries(remoteStore.wordCandidates || {})) {
-    const myValue = merged.wordCandidates[key];
-    const remoteCandidate = typeof value === 'number' 
-      ? { count: value, lastSeen: Date.now(), word: key }
-      : value as WordCandidate;
-    
-    if (!myValue) {
-      merged.wordCandidates[key] = remoteCandidate;
+
+  // Merge wordCandidates (keep max count and latest lastSeen)
+  if (remoteStore.wordCandidates) {
+    for (const [key, value] of Object.entries(remoteStore.wordCandidates)) {
+      const myValue = merged.wordCandidates[key];
+      const remoteCandidate = typeof value === 'number'
+          ? { count: value, lastSeen: Date.now(), word: key }
+          : value as WordCandidate;
+
+      if (!myValue) {
+        merged.wordCandidates[key] = remoteCandidate;
+      } else {
+        // Both exist - merge by taking max values
+        merged.wordCandidates[key] = {
+          word: myValue.word || remoteCandidate.word || key,
+          count: Math.max(myValue.count || 0, remoteCandidate.count || 0),
+          lastSeen: Math.max(myValue.lastSeen || 0, remoteCandidate.lastSeen || 0),
+          reading: myValue.reading || remoteCandidate.reading,
+        };
+      }
+    }
+  }
+
+  // Merge flashcards using new Record format
+  // Build reverse lookup from wordToCardMap
+  const remoteWordToCard: Record<string, string> = remoteStore.wordToCardMap || {};
+  const localWordToCard: Record<string, string> = merged.wordToCardMap || {};
+
+  for (const [wordHash, remoteCardId] of Object.entries(remoteWordToCard)) {
+    const remoteCard = remoteStore.flashcards[remoteCardId];
+    if (!remoteCard) continue;
+
+    const localCardId = localWordToCard[wordHash];
+
+    if (!localCardId) {
+      // Card doesn't exist locally - add it with a new local UUID
+      // Keep the remote card's ID to avoid conflicts if it comes from same source
+      merged.flashcards[remoteCardId] = remoteCard;
+      merged.wordToCardMap[wordHash] = remoteCardId;
     } else {
-      // Both exist - merge by taking max values
-      merged.wordCandidates[key] = {
-        word: myValue.word || remoteCandidate.word || key,
-        count: Math.max(myValue.count || 0, remoteCandidate.count || 0),
-        lastSeen: Math.max(myValue.lastSeen || 0, remoteCandidate.lastSeen || 0),
-      };
+      // Card exists in both - merge based on review history
+      const localCard = merged.flashcards[localCardId];
+      if (!localCard) {
+        // Local map points to non-existent card, use remote
+        merged.flashcards[remoteCardId] = remoteCard;
+        merged.wordToCardMap[wordHash] = remoteCardId;
+        continue;
+      }
+
+      // Decide which card to keep:
+      // 1. Prefer card with more reviews (more learning data)
+      // 2. If same reviews, prefer more recent lastUpdated
+      // 3. Merge content if one has more data
+      const localReviews = localCard.reviews || 0;
+      const remoteReviews = remoteCard.reviews || 0;
+      const localUpdated = localCard.lastUpdated || 0;
+      const remoteUpdated = remoteCard.lastUpdated || 0;
+
+      if (remoteReviews > localReviews ||
+          (remoteReviews === localReviews && remoteUpdated > localUpdated)) {
+        // Use remote card's SRS data but merge content
+        const mergedCard: Flashcard = {
+          ...remoteCard,
+          content: {
+            ...localCard.content,
+            ...remoteCard.content,
+            // Keep longer example/image data
+            example: (remoteCard.content.example?.length || 0) > (localCard.content.example?.length || 0)
+                ? remoteCard.content.example
+                : localCard.content.example,
+            imageUrl: remoteCard.content.imageUrl || localCard.content.imageUrl,
+          },
+        };
+        merged.flashcards[localCardId] = mergedCard;
+      } else {
+        // Keep local card's SRS data but potentially update content
+        if (remoteUpdated > localUpdated) {
+          merged.flashcards[localCardId].content = {
+            ...localCard.content,
+            ...remoteCard.content,
+          };
+          merged.flashcards[localCardId].lastUpdated = remoteUpdated;
+        }
+      }
     }
   }
-  
-  // Build hash maps for flashcard lookup
-  const otherHashMap: Record<string, number> = {};
-  const myHashMap: Record<string, number> = {};
-  
-  for (let i = 0; i < (remoteStore.flashcards || []).length; i++) {
-    const word = remoteStore.flashcards[i]?.content?.word;
-    if (word) {
-      const uuid = await toUniqueIdentifier(word);
-      otherHashMap[uuid] = i;
+
+  // Also add any remote cards not in wordToCardMap (orphaned cards)
+  for (const [cardId, remoteCard] of Object.entries(remoteStore.flashcards)) {
+    if (!merged.flashcards[cardId]) {
+      merged.flashcards[cardId] = remoteCard;
+      // Try to add to wordToCardMap
+      const word = remoteCard.content.front;
+      if (word) {
+        const wordHash = await toUniqueIdentifier(word);
+        if (!merged.wordToCardMap[wordHash]) {
+          merged.wordToCardMap[wordHash] = cardId;
+        }
+      }
     }
   }
-  
-  for (let i = 0; i < merged.flashcards.length; i++) {
-    const word = merged.flashcards[i]?.content?.word;
-    if (word) {
-      const uuid = await toUniqueIdentifier(word);
-      myHashMap[uuid] = i;
-    }
-  }
-  
-  // Add cards that don't exist locally
-  for (const [key, remoteIndex] of Object.entries(otherHashMap)) {
-    if (!(key in myHashMap)) {
-      merged.flashcards.push(remoteStore.flashcards[remoteIndex]);
-    }
-  }
-  
-  // Update hash map with new cards
-  for (let i = 0; i < merged.flashcards.length; i++) {
-    const word = merged.flashcards[i]?.content?.word;
-    if (word) {
-      const uuid = await toUniqueIdentifier(word);
-      myHashMap[uuid] = i;
-    }
-  }
-  
-  // Update cards that exist in both based on lastUpdated timestamp
-  for (const [key, remoteIndex] of Object.entries(otherHashMap)) {
-    if (!(key in myHashMap)) continue;
-    
-    const localIndex = myHashMap[key];
-    const otherCard = remoteStore.flashcards[remoteIndex];
-    const myCard = merged.flashcards[localIndex];
-    
-    if (otherCard?.content?.word !== myCard?.content?.word) {
-      console.error('Word mismatch during merge', myCard, otherCard);
-      continue;
-    }
-    
-    // Use the more recently updated card
-    if ((myCard.lastUpdated || 0) < (otherCard.lastUpdated || 0)) {
-      merged.flashcards[localIndex] = otherCard;
-    }
-  }
-  
+
   return merged;
 }
 
@@ -167,21 +206,21 @@ export async function mergeFlashcards(
 export class ChunkCollector {
   private chunks: Record<number, string> = {};
   private totalChunks: number = 0;
-  
+
   addChunk(index: number, data: string, total: number): boolean {
     this.totalChunks = total;
     this.chunks[index] = data;
     return this.isComplete();
   }
-  
+
   isComplete(): boolean {
     return Object.keys(this.chunks).length === this.totalChunks && this.totalChunks > 0;
   }
-  
+
   getProgress(): { current: number; total: number } {
     return { current: Object.keys(this.chunks).length, total: this.totalChunks };
   }
-  
+
   assemble(): string {
     let data = '';
     for (let i = 0; i < this.totalChunks; i++) {
@@ -192,7 +231,7 @@ export class ChunkCollector {
     }
     return data;
   }
-  
+
   reset(): void {
     this.chunks = {};
     this.totalChunks = 0;

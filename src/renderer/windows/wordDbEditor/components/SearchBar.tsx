@@ -3,7 +3,7 @@
  */
 
 import { Component, For, Show, Accessor, Setter } from 'solid-js';
-import { Btn, Progress, HintText, Select } from '../../../components/common';
+import { Btn, Progress, HintText, Select, Input } from '../../../components/common';
 import { useLocalization } from '../../../context';
 
 export interface SearchBarProps {
@@ -15,7 +15,6 @@ export interface SearchBarProps {
   loadProgress: Accessor<number>;
   levelNames: Record<number, string>;
   onSearch: () => void;
-  onLoadAll: () => void;
 }
 
 export const SearchBar: Component<SearchBarProps> = (props) => {
@@ -23,18 +22,15 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
   
   return (
     <div class="search-bar">
-      <input
-        type="text"
-        class="glass-input search-input"
+      <Input
+        class="search-input"
         placeholder={t('mlearn.WordDbEditor.SearchPlaceholder')}
         value={props.searchQuery()}
         onInput={(e) => props.setSearchQuery(e.currentTarget.value)}
         onKeyPress={(e) => e.key === 'Enter' && props.onSearch()}
+        size="md"
       />
       <Btn onClick={props.onSearch}>{t('mlearn.Global.Search')}</Btn>
-      <Btn onClick={props.onLoadAll} disabled={props.isLoading()}>
-        {t('mlearn.WordDbEditor.LoadAll')}
-      </Btn>
       
       <Show when={props.isLoading()}>
         <Progress 
