@@ -167,9 +167,10 @@ export const ReaderRoute: Component = () => {
   const getDroppedFiles = async (dataTransfer: DataTransfer | null): Promise<{ 
     files: File[], 
     droppedFolderName: string | null,
-    droppedFolderPath: string | null 
+    droppedFolderPath: string | null,
+    rawFilePaths: Map<string, string> // Map of filename to path for preserving paths
   }> => {
-    if (!dataTransfer) return { files: [], droppedFolderName: null, droppedFolderPath: null };
+    if (!dataTransfer) return { files: [], droppedFolderName: null, droppedFolderPath: null, rawFilePaths: new Map() };
     
     const items = Array.from(dataTransfer.items || []);
     const rawFiles = Array.from(dataTransfer.files || []);
@@ -177,13 +178,18 @@ export const ReaderRoute: Component = () => {
     // In Electron, the raw files from dataTransfer.files have a .path property
     // This is the full filesystem path - capture it before using webkit entries API
     // (which creates new File objects without the path property)
-    // In Electron, the raw files from dataTransfer.files have a .path property
-    // Capture it for potential use later
+    // Build a map of filename -> path to preserve paths for all dropped files
     let rawFilePath: string | null = null;
-    if (rawFiles.length > 0) {
-      const firstRawFile = rawFiles[0] as File & { path?: string };
-      if (firstRawFile.path) {
-        rawFilePath = firstRawFile.path;
+    const rawFilePaths = new Map<string, string>();
+    
+    for (const rawFile of rawFiles) {
+      const fileWithPath = rawFile as File & { path?: string };
+      if (fileWithPath.path) {
+        rawFilePaths.set(rawFile.name, fileWithPath.path);
+        // Keep first path for folder path fallback
+        if (!rawFilePath) {
+          rawFilePath = fileWithPath.path;
+        }
       }
     }
 
@@ -194,7 +200,7 @@ export const ReaderRoute: Component = () => {
       const droppedFolderPath = rawFilePath 
         ? rawFilePath.split('/').slice(0, -1).join('/') 
         : null;
-      return { files: rawFiles, droppedFolderName: null, droppedFolderPath };
+      return { files: rawFiles, droppedFolderName: null, droppedFolderPath, rawFilePaths };
     }
 
     let droppedFolderName: string | null = null;
@@ -244,7 +250,7 @@ export const ReaderRoute: Component = () => {
       droppedFolderPath = rawFilePath.split('/').slice(0, -1).join('/');
     }
 
-    return { files: entryFiles.flat(), droppedFolderName, droppedFolderPath };
+    return { files: entryFiles.flat(), droppedFolderName, droppedFolderPath, rawFilePaths };
   };
 
   const visiblePages = () => {
@@ -662,7 +668,7 @@ export const ReaderRoute: Component = () => {
     });
   });
   
-  // Handler for right-click context menu in reader
+  // Handler for right-click context menu in reader on OCR boxes (has phrase to copy)
   const handleOcrContextMenu = (contextPhrase: string, _boxIndex: number) => {
     // Store the context phrase for copy functionality
     setOcrContextPhrase(contextPhrase);
@@ -671,6 +677,23 @@ export const ReaderRoute: Component = () => {
       window.mLearnIPC.showReaderCtxMenu({
         furiganaHiderEnabled: furiganaHiderEnabled(),
         hasContextPhrase: !!contextPhrase && contextPhrase !== '-',
+      });
+    }
+  };
+  
+  // Handler for right-click context menu on image (no OCR box selected)
+  // Shows limited menu with only furigana toggle
+  const handleImageContextMenu = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Clear context phrase since we're not on an OCR box
+    setOcrContextPhrase('');
+    
+    if (window.mLearnIPC?.showReaderCtxMenu) {
+      window.mLearnIPC.showReaderCtxMenu({
+        furiganaHiderEnabled: furiganaHiderEnabled(),
+        hasContextPhrase: false, // No phrase to copy when clicking on image
       });
     }
   };
@@ -760,7 +783,7 @@ export const ReaderRoute: Component = () => {
     e.preventDefault();
     setIsDragging(false);
 
-    const { files: droppedFiles, droppedFolderName, droppedFolderPath } = await getDroppedFiles(e.dataTransfer || null);
+    const { files: droppedFiles, droppedFolderName, droppedFolderPath, rawFilePaths } = await getDroppedFiles(e.dataTransfer || null);
     
     // Check for PDF file first
     const pdfFile = droppedFiles.find(f => isPdfFile(f));
@@ -776,9 +799,12 @@ export const ReaderRoute: Component = () => {
         setCurrentBookId(bookId);
         
         // In Electron, File objects have a .path property with the full filesystem path
-        // For PDFs dropped directly, use the path from the file
-        // If coming from folder entry API, use droppedFolderPath (which would be the PDF path)
-        const pdfPath = (pdfFile as File & { path?: string }).path || droppedFolderPath || '';
+        // For PDFs dropped directly, look up the path from rawFilePaths map
+        // If coming from folder entry API, use droppedFolderPath (which would be the folder path)
+        const pdfPath = (pdfFile as File & { path?: string }).path 
+          || rawFilePaths.get(pdfFile.name) 
+          || droppedFolderPath 
+          || '';
         setCurrentBookPath(pdfPath);
         
         // Check for saved page position
@@ -1200,6 +1226,7 @@ export const ReaderRoute: Component = () => {
                       src={page.src}
                       alt={page.name}
                       ref={(el) => setImageRefs(prev => ({ ...prev, [page.id]: el }))}
+                      onContextMenu={handleImageContextMenu}
                     />
                     {/* Page Processing Loader - uses CSS fade animation instead of Show */}
                     <div class={`page-loader-overlay ${isWaitingForOcr() ? 'visible' : 'hidden'}`}>
