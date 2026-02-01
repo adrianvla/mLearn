@@ -6,9 +6,9 @@
 import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, batch } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
-import { OcrOverlay, type OcrResult } from '../../../components/reader';
+import { OcrOverlay, MagnifyingGlass, type OcrResult } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
-import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation } from '../../../hooks';
+import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation, getGlobalHoverManager } from '../../../hooks';
 import { useSettings, useLocalization } from '../../../context';
 import type { Token, TranslationResponse, DictionaryEntry } from '../../../../shared/types';
 import { API_ENDPOINTS } from '../../../../shared/constants';
@@ -89,7 +89,7 @@ export const ReaderRoute: Component = () => {
   const navigate = useNavigate();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { isProcessing: _ocrHookProcessing } = useOCR();
-  const { settings } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const { translateWord } = useTranslation({ immediate: true });
   const { lookup } = useDictionary();
@@ -139,6 +139,9 @@ export const ReaderRoute: Component = () => {
   const [ocrTranslationData, setOcrTranslationData] = createSignal<TranslationResponse | null>(null);
   const [ocrWordStatus, setOcrWordStatus] = createSignal<'unknown' | 'learning' | 'known'>('unknown');
   
+  // Magnifying glass state
+  const [magnifierActive, setMagnifierActive] = createSignal(false);
+  
   // OCR Progress Tracking
   // Total pages that need OCR in the current book (set once when book loads)
   const [ocrBatchTotal, setOcrBatchTotal] = createSignal(0);
@@ -174,22 +177,30 @@ export const ReaderRoute: Component = () => {
     // In Electron, the raw files from dataTransfer.files have a .path property
     // This is the full filesystem path - capture it before using webkit entries API
     // (which creates new File objects without the path property)
-    let droppedFolderPath: string | null = null;
+    // In Electron, the raw files from dataTransfer.files have a .path property
+    // Capture it for potential use later
+    let rawFilePath: string | null = null;
     if (rawFiles.length > 0) {
       const firstRawFile = rawFiles[0] as File & { path?: string };
       if (firstRawFile.path) {
-        droppedFolderPath = firstRawFile.path;
+        rawFilePath = firstRawFile.path;
       }
     }
 
     const hasEntries = items.some((item) => typeof (item as any).webkitGetAsEntry === 'function');
     if (!hasEntries) {
+      // No webkit entries - just regular files dropped
+      // Extract folder path from first file's parent directory
+      const droppedFolderPath = rawFilePath 
+        ? rawFilePath.split('/').slice(0, -1).join('/') 
+        : null;
       return { files: rawFiles, droppedFolderName: null, droppedFolderPath };
     }
 
     let droppedFolderName: string | null = null;
+    let droppedFolderPath: string | null = null;
 
-    const readEntry = async (entry: any): Promise<File[]> => {
+    const readEntry = async (entry: any, isTopLevel: boolean = false): Promise<File[]> => {
       if (!entry) return [];
       if (entry.isFile) {
         return new Promise((resolve) => {
@@ -197,9 +208,12 @@ export const ReaderRoute: Component = () => {
         });
       }
       if (entry.isDirectory) {
-        // Capture the folder name from the top-level directory entry
-        if (!droppedFolderName) {
+        // Capture the folder name and path from the top-level directory entry
+        if (isTopLevel && !droppedFolderName) {
           droppedFolderName = entry.name;
+          // When dropping a folder, rawFilePath from Electron's dataTransfer.files
+          // contains the folder's full filesystem path
+          droppedFolderPath = rawFilePath;
         }
         const reader = entry.createReader();
         const entries: any[] = [];
@@ -211,7 +225,7 @@ export const ReaderRoute: Component = () => {
           });
         });
         await readAll();
-        const nested = await Promise.all(entries.map((child) => readEntry(child)));
+        const nested = await Promise.all(entries.map((child) => readEntry(child, false)));
         return nested.flat();
       }
       return [];
@@ -221,8 +235,14 @@ export const ReaderRoute: Component = () => {
       items
         .map((item) => (item as any).webkitGetAsEntry?.())
         .filter(Boolean)
-        .map((entry) => readEntry(entry))
+        .map((entry) => readEntry(entry, true))
     );
+
+    // If no folder was dropped but we have a file path from Electron,
+    // extract the parent directory as the folder path
+    if (!droppedFolderPath && rawFilePath) {
+      droppedFolderPath = rawFilePath.split('/').slice(0, -1).join('/');
+    }
 
     return { files: entryFiles.flat(), droppedFolderName, droppedFolderPath };
   };
@@ -617,6 +637,44 @@ export const ReaderRoute: Component = () => {
     }
   });
   
+  // Furigana hider state comes from settings
+  // Access it via settings context so changes propagate to OcrOverlay
+  const furiganaHiderEnabled = () => settings.readerFuriganaHider ?? false;
+  
+  // Listen to reader context menu commands
+  onMount(() => {
+    if (!window.mLearnIPC?.onReaderContextMenuCommand) return;
+    
+    window.mLearnIPC.onReaderContextMenuCommand((command: string) => {
+      switch (command) {
+        case 'toggle-furigana':
+          // Toggle through settings so FuriganaHider component gets updated
+          updateSettings({ readerFuriganaHider: !furiganaHiderEnabled() });
+          break;
+        case 'copy-phrase':
+          // Copy the current context phrase to clipboard
+          const phrase = ocrContextPhrase();
+          if (phrase && window.mLearnIPC?.writeToClipboard) {
+            window.mLearnIPC.writeToClipboard(phrase);
+          }
+          break;
+      }
+    });
+  });
+  
+  // Handler for right-click context menu in reader
+  const handleOcrContextMenu = (contextPhrase: string, _boxIndex: number) => {
+    // Store the context phrase for copy functionality
+    setOcrContextPhrase(contextPhrase);
+    
+    if (window.mLearnIPC?.showReaderCtxMenu) {
+      window.mLearnIPC.showReaderCtxMenu({
+        furiganaHiderEnabled: furiganaHiderEnabled(),
+        hasContextPhrase: !!contextPhrase && contextPhrase !== '-',
+      });
+    }
+  };
+  
   // Listen to MangaOCR server status updates
   onMount(() => {
     if (!window.mLearnIPC?.onOcrStatusUpdate) return;
@@ -664,8 +722,10 @@ export const ReaderRoute: Component = () => {
     window.mLearnIPC.onOcrStatusUpdate(handleOcrStatus);
   });
 
-  // Keyboard navigation
+  // Keyboard navigation and magnifier hotkey
   onMount(() => {
+    const magnifierHotkey = settings.readerMagnifierHotkey?.toLowerCase() || 'z';
+    
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') prevPage();
       if (e.key === 'ArrowRight') nextPage();
@@ -673,9 +733,27 @@ export const ReaderRoute: Component = () => {
         e.preventDefault();
         runOcr();
       }
+      // Magnifier hotkey (press and hold)
+      if (e.key.toLowerCase() === magnifierHotkey && !e.repeat) {
+        setMagnifierActive(true);
+        // Hide all word hovers when magnifying glass is activated
+        getGlobalHoverManager().forceHide();
+      }
     };
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Release magnifier when hotkey is released
+      if (e.key.toLowerCase() === magnifierHotkey) {
+        setMagnifierActive(false);
+      }
+    };
+    
     document.addEventListener('keydown', handleKeyDown);
-    onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
+    document.addEventListener('keyup', handleKeyUp);
+    onCleanup(() => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    });
   });
 
   const handleDrop = async (e: DragEvent) => {
@@ -1022,6 +1100,7 @@ export const ReaderRoute: Component = () => {
         <ReaderSidebar
           pages={pages}
           currentPage={currentPage}
+          pageMode={pageMode}
           hasOcrForPage={hasOcrForPage}
           onGoToPage={goToPage}
         />
@@ -1141,6 +1220,7 @@ export const ReaderRoute: Component = () => {
                         visible={showOcrOverlay()}
                         onWordHover={handleOcrWordHover}
                         onWordLeave={handleOcrWordLeave}
+                        onContextMenu={handleOcrContextMenu}
                       />
                     </Show>
                   </div>
@@ -1212,6 +1292,12 @@ export const ReaderRoute: Component = () => {
           onMouseLeave={hideOcrHover}
         />
       </Show>
+      
+      {/* Magnifying Glass */}
+      <MagnifyingGlass
+        imageElements={Object.values(imageRefs())}
+        active={magnifierActive()}
+      />
     </div>
   );
 };

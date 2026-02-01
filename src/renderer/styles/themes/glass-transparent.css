@@ -20,8 +20,8 @@ body.theme-glass-transparent {
   --border-color-intense: rgba(255, 255, 255, 0.15);
 
   /* Strong blur for frosted glass effect */
-  --backdrop-blur: blur(20px) saturate(1.8);
-  --backdrop-blur-nodim: blur(20px) saturate(1.8);
+  --backdrop-filter: blur(20px) saturate(1.8);
+  --backdrop-filter-nodim: blur(20px) saturate(1.8);
 
   /* Panel-specific overrides for glassmorphism */
   --panel-bg: rgba(0, 0, 0, 0.3);
@@ -33,8 +33,8 @@ body.theme-glass-transparent {
 /* Panel styling for glass effect */
 body.theme-glass-transparent .panel {
   background: var(--panel-bg);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
+  backdrop-filter: var(--backdrop-filter);
+  -webkit-backdrop-filter: var(--backdrop-filter);
   border: 1px solid var(--panel-border);
   box-shadow: var(--panel-shadow);
 }
@@ -47,8 +47,8 @@ body.theme-glass-transparent .panel-elevated {
 /* Modal styling */
 body.theme-glass-transparent .modal-container {
   background: var(--panel-bg-elevated);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
+  backdrop-filter: var(--backdrop-filter);
+  -webkit-backdrop-filter: var(--backdrop-filter);
   border: 1px solid var(--panel-border);
   box-shadow: 0 16px 48px rgba(0, 0, 20, 0.4);
 }
@@ -56,8 +56,8 @@ body.theme-glass-transparent .modal-container {
 /* Card styling */
 body.theme-glass-transparent .card {
   background: var(--panel-bg);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
+  backdrop-filter: var(--backdrop-filter);
+  -webkit-backdrop-filter: var(--backdrop-filter);
   border: 1px solid var(--panel-border);
   box-shadow: var(--panel-shadow);
 }

@@ -20,8 +20,8 @@ body.theme-glass-light {
   --border-color-intense: rgba(255, 255, 255, 0.2);
 
   /* Glass blur with brightness boost */
-  --backdrop-blur: blur(12px) saturate(1.8) brightness(1.05);
-  --backdrop-blur-nodim: blur(12px) saturate(1.8) brightness(1.05);
+  --backdrop-filter: blur(12px) saturate(1.8) brightness(1.05);
+  --backdrop-filter-nodim: blur(12px) saturate(1.8) brightness(1.05);
 
   /* Panel-specific overrides */
   --panel-bg: rgba(255, 255, 255, 0.6);
@@ -33,8 +33,8 @@ body.theme-glass-light {
 /* Panel styling */
 body.theme-glass-light .panel {
   background: var(--panel-bg);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
+  backdrop-filter: var(--backdrop-filter);
+  -webkit-backdrop-filter: var(--backdrop-filter);
   border: 1px solid var(--panel-border);
   box-shadow: var(--panel-shadow);
 }
@@ -47,8 +47,8 @@ body.theme-glass-light .panel-elevated {
 /* Modal styling */
 body.theme-glass-light .modal-container {
   background: var(--panel-bg-elevated);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
+  backdrop-filter: var(--backdrop-filter);
+  -webkit-backdrop-filter: var(--backdrop-filter);
   border: 1px solid var(--panel-border);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
 }
@@ -56,8 +56,8 @@ body.theme-glass-light .modal-container {
 /* Card styling */
 body.theme-glass-light .card {
   background: var(--panel-bg);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
+  backdrop-filter: var(--backdrop-filter);
+  -webkit-backdrop-filter: var(--backdrop-filter);
   border: 1px solid var(--panel-border);
   box-shadow: var(--panel-shadow);
 }

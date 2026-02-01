@@ -246,6 +246,43 @@
   background: var(--bg-intense);
 }
 
+/* Icon button ghost variant - transparent, no border, flexible size */
+.btn-icon.btn-ghost {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  width: auto;
+  height: auto;
+  padding: 0.5rem;
+  transition: color 0.2s ease;
+}
+
+.btn-icon.btn-ghost:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+/* SVG icons in icon buttons - inherit color and size properly */
+.btn.btn-icon svg,
+.btn.btn-icon .btn-svg-icon {
+  width: 20px;
+  height: 20px;
+  color: inherit;
+}
+
+.btn-icon.btn-ghost.btn-active {
+  color: var(--text-primary);
+}
+
+/* Inactive state - already uses secondary color, just ensure hover works */
+.btn-icon.btn-ghost.inactive {
+  color: var(--text-secondary);
+}
+
+.btn-icon.btn-ghost.inactive:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
 /* ============ NAV Button Type ============ */
 .btn-nav {
   padding: 0.5rem 0.75rem;

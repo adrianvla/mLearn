@@ -1,13 +1,14 @@
 /**
  * Flashcard Review Component
- * SRS review interface with rating buttons (matching old app exactly)
+ * SRS review interface with Anki-like rating buttons
  */
 
-import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, For, createEffect } from 'solid-js';
+import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect } from 'solid-js';
 import { useFlashcards, useLocalization } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
-import { Btn, Button, Badge, Panel } from '../common';
+import { Button, Badge, Panel } from '../common';
 import type { Flashcard } from '../../../shared/types';
+import type { Rating } from '../../services/srsAlgorithm';
 import './FlashcardReview.css';
 
 export interface FlashcardReviewProps {
@@ -18,58 +19,40 @@ export interface FlashcardReviewProps {
 
 export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const { t } = useLocalization();
-  const { 
-    store, 
-    getDueCards, 
-    reviewFlashcard, 
-    postponeFlashcard,
-    schedulePitchMistake,
-    markAsKnown,
+  const {
+    store,
+    queueCounts,
+    getCurrentCard,
+    getPreviewDueDates,
+    answerCard,
+    buryCard,
     removeFlashcard,
-    sortByDueDate,
-    getAnticipatedDueDate,
-    dateToInString,
-    getPostponeDate,
-    getPitchMistakeDate,
-    pushUndoState,
     undoLastAction,
     canUndo,
+    refreshQueue,
+    dueDateToString,
   } = useFlashcards();
-  
+
   const [showAnswer, setShowAnswer] = createSignal(false);
   const [isComplete, setIsComplete] = createSignal(false);
-  
-  // Current card is always flashcards[0] after sorting by due date
-  const currentCard = createMemo(() => {
-    sortByDueDate();
-    const cards = store.flashcards;
-    if (cards.length === 0) return null;
-    // Only show if due
-    if (cards[0].dueDate > Date.now()) return null;
-    return cards[0];
-  });
-  
-  // Count due cards
-  const dueCount = createMemo(() => getDueCards().length);
-  
-  // Stats
-  const stats = createMemo(() => {
-    const cards = store.flashcards;
-    return {
-      new: cards.filter((c: Flashcard) => c.reviews === 0).length,
-      learning: cards.filter((c: Flashcard) => c.reviews > 0 && (c.interval ?? 0) < 21 * 24 * 60).length,
-      review: dueCount(),
-    };
-  });
 
-  // Keyboard shortcuts (like old app)
+  // Current card
+  const currentCard = createMemo(() => getCurrentCard());
+
+  // Preview due dates for buttons
+  const previewDates = createMemo(() => getPreviewDueDates());
+
+  // Counts
+  const counts = createMemo(() => queueCounts());
+
+  // Keyboard shortcuts
   onMount(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
-      
+
       // Check for Ctrl+Z / Cmd+Z for undo
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -79,9 +62,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         }
         return;
       }
-      
+
       if (isComplete()) return;
-      
+
       // Space to show answer
       if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault();
@@ -90,7 +73,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         }
         return;
       }
-      
+
       // Rating keys (only when answer is shown)
       if (showAnswer()) {
         switch (e.key) {
@@ -110,17 +93,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             e.preventDefault();
             handleRating('easy');
             break;
-          case 'p':
+          case 'b':
             e.preventDefault();
-            handlePostpone();
-            break;
-          case 'm':
-            e.preventDefault();
-            handlePitchMistake();
-            break;
-          case '-':
-            e.preventDefault();
-            handleMarkAsKnown();
+            handleBury();
             break;
           case 'x':
             e.preventDefault();
@@ -129,55 +104,48 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         }
       }
     };
-    
+
     document.addEventListener('keydown', handleKeyDown);
     onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
   });
 
-  // Check if all cards are done
+  // Check if session is complete
   createEffect(() => {
-    if (dueCount() === 0) {
+    const card = currentCard();
+    if (!card && counts().total === 0) {
       setIsComplete(true);
     } else {
       setIsComplete(false);
     }
   });
 
-  const handleRating = (quality: 'again' | 'hard' | 'good' | 'easy') => {
+  const handleRating = (quality: Rating) => {
     const card = currentCard();
     if (!card) return;
 
-    reviewFlashcard(quality);
+    answerCard(quality);
     setShowAnswer(false);
-    
-    if (dueCount() === 0) {
-      setIsComplete(true);
-      props.onComplete?.();
-    }
+
+    // Check completion after state update
+    setTimeout(() => {
+      if (counts().total === 0) {
+        setIsComplete(true);
+        props.onComplete?.();
+      }
+    }, 0);
   };
 
-  const handlePostpone = () => {
-    if (!currentCard()) return;
-    postponeFlashcard();
-    setShowAnswer(false);
-  };
-
-  const handlePitchMistake = () => {
-    if (!currentCard()) return;
-    schedulePitchMistake();
-    setShowAnswer(false);
-  };
-
-  const handleMarkAsKnown = async () => {
-    if (!currentCard()) return;
-    await markAsKnown();
+  const handleBury = () => {
+    const card = currentCard();
+    if (!card) return;
+    buryCard(card.id);
     setShowAnswer(false);
   };
 
   const handleRemove = async () => {
-    if (!currentCard()) return;
-    pushUndoState({ type: 'remove' });
-    await removeFlashcard(0, false);
+    const card = currentCard();
+    if (!card) return;
+    await removeFlashcard(card.id, true);
     setShowAnswer(false);
   };
 
@@ -186,201 +154,186 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   const handleStartOver = () => {
-    sortByDueDate();
+    refreshQueue();
     setShowAnswer(false);
     setIsComplete(false);
   };
 
   // Rating buttons config with time estimates
   const ratingButtons = createMemo(() => {
-    const card = currentCard();
-    if (!card) {
-      return [];
-    }
-    
+    const dates = previewDates();
+    if (!dates) return [];
+
     return [
-      { 
-        quality: 'again' as const, 
-        label: t('mlearn.Flashcards.Review.Again'), 
-        className: 'flashcard-rating-btn--again', 
-        time: dateToInString(getAnticipatedDueDate(card, 0).dueDate),
+      {
+        quality: 'again' as Rating,
+        label: t('mlearn.Flashcards.Review.Again'),
+        className: 'flashcard-rating-btn--again',
+        time: dueDateToString(dates.again),
         key: '1'
       },
-      { 
-        quality: 'hard' as const, 
-        label: t('mlearn.Flashcards.Review.Hard'), 
-        className: 'flashcard-rating-btn--hard', 
-        time: dateToInString(getAnticipatedDueDate(card, 2).dueDate),
+      {
+        quality: 'hard' as Rating,
+        label: t('mlearn.Flashcards.Review.Hard'),
+        className: 'flashcard-rating-btn--hard',
+        time: dueDateToString(dates.hard),
         key: '2'
       },
-      { 
-        quality: 'good' as const, 
-        label: t('mlearn.Flashcards.Review.Ok'), 
-        className: 'flashcard-rating-btn--good', 
-        time: dateToInString(getAnticipatedDueDate(card, 3).dueDate),
+      {
+        quality: 'good' as Rating,
+        label: t('mlearn.Flashcards.Review.Ok'),
+        className: 'flashcard-rating-btn--good',
+        time: dueDateToString(dates.good),
         key: '3'
       },
-      { 
-        quality: 'easy' as const, 
-        label: t('mlearn.Flashcards.Review.Easy'), 
-        className: 'flashcard-rating-btn--easy', 
-        time: dateToInString(getAnticipatedDueDate(card, 5).dueDate),
+      {
+        quality: 'easy' as Rating,
+        label: t('mlearn.Flashcards.Review.Easy'),
+        className: 'flashcard-rating-btn--easy',
+        time: dueDateToString(dates.easy),
         key: '4'
       },
     ];
   });
 
-  // Additional buttons
-  const additionalButtons = createMemo(() => {
-    const card = currentCard();
-    if (!card) return [];
-    
-    return [
-      {
-        label: t('mlearn.Flashcards.Review.PitchWrong'),
-        className: 'flashcard-action-btn--pitch',
-        time: dateToInString(getPitchMistakeDate()),
-        onClick: handlePitchMistake,
-        key: 'm'
-      },
-      {
-        label: t('mlearn.Flashcards.Review.ShowLater'),
-        className: 'flashcard-action-btn--postpone',
-        time: dateToInString(getPostponeDate()),
-        onClick: handlePostpone,
-        key: 'p'
-      },
-      {
-        label: t('mlearn.Flashcards.Review.Hide'),
-        className: 'flashcard-action-btn--known',
-        time: '∞',
-        onClick: handleMarkAsKnown,
-        key: '-'
-      },
-    ];
-  });
+  // Get state color class
+  const getStateClass = (card: Flashcard) => {
+    switch (card.state) {
+      case 'new': return 'flashcard-state--new';
+      case 'learning': return 'flashcard-state--learning';
+      case 'relearning': return 'flashcard-state--relearning';
+      case 'review': return 'flashcard-state--review';
+      default: return '';
+    }
+  };
 
   return (
-    <div class="flashcard-review-container" style={props.style}>
-      {/* Header with stats */}
-      <div class="flashcard-review-header">
-        <div class="flashcard-stats">
-          <Badge class="flashcard-stat">
-            <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.Left')}</span>
-            <span class="flashcard-stat-value">{dueCount()}</span>
-          </Badge>
-          <Badge class="flashcard-stat" variant="primary">
-            <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.New')}</span>
-            <span class="flashcard-stat-new">{stats().new}</span>
-          </Badge>
-          <Badge class="flashcard-stat" variant="warning">
-            <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.LearningLabel')}</span>
-            <span class="flashcard-stat-learning">{stats().learning}</span>
-          </Badge>
-        </div>
-        
-        <Show when={canUndo()}>
-          <Button buttonType="glass" variant="ghost" size="sm" onClick={undoLastAction} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
-            {t('mlearn.Flashcards.Review.Undo')} {t('mlearn.Flashcards.Review.UndoTooltip')}
-          </Button>
-        </Show>
-      </div>
-
-      {/* Card or completion screen */}
-      <Show
-        when={!isComplete() && currentCard()}
-        fallback={
-          <Panel
-            variant="elevated"
-            blur="lg"
-            rounded="xl"
-            class="flashcard-completion"
-          >
-            <h2 class="flashcard-completion-title">
-              {t('mlearn.Flashcards.Review.Complete')}
-            </h2>
-            <p class="flashcard-completion-text">
-              {t('mlearn.Flashcards.Review.CompleteDescription')}
-            </p>
-            <div class="flashcard-completion-actions">
-              <Show when={store.flashcards.length > 0}>
-                <Btn variant="primary" onClick={handleStartOver}>
-                  {t('mlearn.Flashcards.Review.ReviewMore')}
-                </Btn>
-              </Show>
-              <Show when={props.onClose}>
-                <Btn onClick={props.onClose}>
-                  {t('mlearn.Global.Close')}
-                </Btn>
-              </Show>
-            </div>
-          </Panel>
-        }
-      >
-        <FlashcardDisplay
-          flashcard={currentCard()!}
-          showAnswer={showAnswer()}
-          onFlip={handleFlip}
-        />
-      </Show>
-
-      {/* Buttons container */}
-      <div class="flashcard-buttons-container">
-        {/* Show answer button */}
-        <Show when={!isComplete() && currentCard() && !showAnswer()}>
-          <Button buttonType="glass" variant="primary" size="lg" class="flashcard-show-answer-btn" onClick={handleFlip}>
-            {t('mlearn.Flashcards.Review.ShowAnswer')}
-          </Button>
-        </Show>
-
-        {/* Rating buttons */}
-        <Show when={!isComplete() && currentCard() && showAnswer()}>
-          <div class="flashcard-rating-buttons">
-            <For each={ratingButtons()}>
-              {(btn) => (
-                <Button
-                  buttonType="glass"
-                  class={`flashcard-rating-btn ${btn.className}`}
-                  onClick={() => handleRating(btn.quality)}
-                  title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: btn.key })}
-                >
-                  <span class="flashcard-rating-label">{btn.label}</span>
-                  <span class="flashcard-rating-time">{btn.time}</span>
-                </Button>
-              )}
-            </For>
+      <div class="flashcard-review-container" style={props.style}>
+        {/* Header with stats */}
+        <div class="flashcard-review-header">
+          <div class="flashcard-stats">
+            <Badge class="flashcard-stat flashcard-stat--new">
+              <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.New')}</span>
+              <span class="flashcard-stat-value">{counts().new}</span>
+            </Badge>
+            <Badge class="flashcard-stat flashcard-stat--learning" variant="warning">
+              <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.LearningLabel')}</span>
+              <span class="flashcard-stat-value">{counts().learning}</span>
+            </Badge>
+            <Badge class="flashcard-stat flashcard-stat--review" variant="success">
+              <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.Review')}</span>
+              <span class="flashcard-stat-value">{counts().review}</span>
+            </Badge>
           </div>
-          
-          {/* Additional action buttons */}
-          <div class="flashcard-action-buttons">
-            <For each={additionalButtons()}>
-              {(btn) => (
-                <Button
+
+          <Show when={canUndo()}>
+            <Button buttonType="glass" variant="ghost" size="sm" onClick={undoLastAction} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
+              {t('mlearn.Flashcards.Review.Undo')}
+            </Button>
+          </Show>
+        </div>
+
+        {/* Card or completion screen */}
+        <Show
+            when={!isComplete() && currentCard()}
+            fallback={
+              <Panel
+                  variant="elevated"
+                  blur="lg"
+                  rounded="xl"
+                  class="flashcard-completion"
+              >
+                <h2 class="flashcard-completion-title">
+                  {t('mlearn.Flashcards.Review.Complete')}
+                </h2>
+                <p class="flashcard-completion-text">
+                  {t('mlearn.Flashcards.Review.CompleteDescription')}
+                </p>
+                <div class="flashcard-completion-actions">
+                  <Show when={Object.keys(store.flashcards).length > 0}>
+                    <Button buttonType="glass" variant="primary" onClick={handleStartOver}>
+                      {t('mlearn.Flashcards.Review.ReviewMore')}
+                    </Button>
+                  </Show>
+                  <Show when={props.onClose}>
+                    <Button buttonType="glass" onClick={props.onClose}>
+                      {t('mlearn.Global.Close')}
+                    </Button>
+                  </Show>
+                </div>
+              </Panel>
+            }
+        >
+          {/* Card state indicator */}
+          <Show when={currentCard()}>
+            <div class={`flashcard-state-indicator ${getStateClass(currentCard()!)}`}>
+              {currentCard()!.state === 'new' && t('mlearn.Flashcards.Review.NewCard')}
+              {currentCard()!.state === 'learning' && t('mlearn.Flashcards.Review.LearningCard')}
+              {currentCard()!.state === 'relearning' && t('mlearn.Flashcards.Review.RelearningCard')}
+              {currentCard()!.state === 'review' && t('mlearn.Flashcards.Review.ReviewCard')}
+            </div>
+          </Show>
+
+          <FlashcardDisplay
+              flashcard={currentCard()!}
+              showAnswer={showAnswer()}
+              onFlip={handleFlip}
+          />
+        </Show>
+
+        {/* Buttons container */}
+        <div class="flashcard-buttons-container">
+          {/* Show answer button */}
+          <Show when={!isComplete() && currentCard() && !showAnswer()}>
+            <Button buttonType="glass" variant="primary" size="lg" class="flashcard-show-answer-btn" onClick={handleFlip}>
+              {t('mlearn.Flashcards.Review.ShowAnswer')}
+            </Button>
+          </Show>
+
+          {/* Rating buttons */}
+          <Show when={!isComplete() && currentCard() && showAnswer()}>
+            <div class="flashcard-rating-buttons">
+              <For each={ratingButtons()}>
+                {(btn) => (
+                    <Button
+                        buttonType="glass"
+                        class={`flashcard-rating-btn ${btn.className}`}
+                        onClick={() => handleRating(btn.quality)}
+                        title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: btn.key })}
+                    >
+                      <span class="flashcard-rating-label">{btn.label}</span>
+                      <span class="flashcard-rating-time">{btn.time}</span>
+                    </Button>
+                )}
+              </For>
+            </div>
+
+            {/* Additional action buttons */}
+            <div class="flashcard-action-buttons">
+              {/* Bury button */}
+              <Button
                   buttonType="glass"
                   variant="ghost"
-                  class={`flashcard-action-btn ${btn.className}`}
-                  onClick={btn.onClick}
-                  title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: btn.key })}
-                >
-                  <span class="flashcard-action-label">{btn.label}</span>
-                  <span class="flashcard-action-time">{btn.time}</span>
-                </Button>
-              )}
-            </For>
-            
-            {/* Remove button */}
-            <Button
-              buttonType="glass"
-              variant="danger"
-              class="flashcard-action-btn flashcard-action-btn--remove"
-              onClick={handleRemove}
-              title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'x' })}
-            >
-              <span class="flashcard-action-label">{t('mlearn.Flashcards.Review.Remove')}</span>
-            </Button>
-          </div>
-        </Show>
+                  class="flashcard-action-btn flashcard-action-btn--bury"
+                  onClick={handleBury}
+                  title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'b' })}
+              >
+                <span class="flashcard-action-label">{t('mlearn.Flashcards.Review.Bury')}</span>
+              </Button>
+
+              {/* Remove button */}
+              <Button
+                  buttonType="glass"
+                  variant="danger"
+                  class="flashcard-action-btn flashcard-action-btn--remove"
+                  onClick={handleRemove}
+                  title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'x' })}
+              >
+                <span class="flashcard-action-label">{t('mlearn.Flashcards.Review.Remove')}</span>
+              </Button>
+            </div>
+          </Show>
+        </div>
       </div>
-    </div>
   );
 };

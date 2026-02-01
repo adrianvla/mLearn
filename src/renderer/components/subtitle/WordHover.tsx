@@ -88,7 +88,7 @@ export interface WordHoverProps {
 
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings } = useSettings();
-  const { addFlashcard, hasWord, getByWord } = useFlashcards();
+  const { addFlashcard, hasWord, getCardByWord } = useFlashcards();
   const { getFrequency, getLevelName, getLanguageFeatures, currentLangData } = useLanguage();
   const { tokenize } = useTokenizer();
   const { t } = useLocalization();
@@ -113,34 +113,37 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const isShown = createMemo(() => props.visible !== false);
 
   // Load actual status from storage on mount or when word changes
-  createEffect(async () => {
+  createEffect(() => {
     const word = actualWord(); // Use actualWord for status lookup (like old app)
     if (!word) return;
     
     // Don't overwrite isInSRS if we're currently adding a flashcard
     if (isAddingFlashcard()) return;
     
-    try {
-      const uuid = await toUniqueIdentifier(word);
-      setWordUuid(uuid);
-      
-      // Get status from storage using word (not uuid) - matches old app
-      const storedStatus = getWordStatus(word);
-      setCurrentStatus(numericToWordStatus(storedStatus));
-      
-      // Check if in SRS and get ease
-      const inSRS = hasWord(word);
-      setIsInSRS(inSRS);
-      if (inSRS) {
-        const flashcard = getByWord(word);
-        if (flashcard) {
-          setCurrentEase(flashcard.ease);
+    // Async IIFE to handle async operations within createEffect
+    (async () => {
+      try {
+        const uuid = await toUniqueIdentifier(word);
+        setWordUuid(uuid);
+        
+        // Get status from storage using word (not uuid) - matches old app
+        const storedStatus = getWordStatus(word);
+        setCurrentStatus(numericToWordStatus(storedStatus));
+        
+        // Check if in SRS and get ease (hasWord and getCardByWord are async)
+        const inSRS = await hasWord(word);
+        setIsInSRS(inSRS);
+        if (inSRS) {
+          const flashcard = await getCardByWord(word);
+          if (flashcard) {
+            setCurrentEase(flashcard.ease);
+          }
         }
+      } catch (e) {
+        console.error('Failed to load word status:', e);
+        setCurrentStatus(props.status || 'unknown');
       }
-    } catch (e) {
-      console.error('Failed to load word status:', e);
-      setCurrentStatus(props.status || 'unknown');
-    }
+    })();
   });
 
   // Reset LLM explanation when word changes, but restore from cache if available
@@ -670,18 +673,25 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const freq = wordFreqEntry();
     const level = freq?.raw_level ?? props.level ?? -1;
     
-    // Build fully serializable flashcard content (matching old app's structure exactly)
+    // Build fully serializable flashcard content (using new structure with legacy compatibility)
     const content: FlashcardContent = {
-      word: word,
+      type: 'word',
+      front: word,
+      back: translationArr?.join('; ') || '-',
+      reading: reading || word,
       pitchAccent: pitchAccent,
+      pos: props.token.partOfSpeech ?? props.token.type ?? '',
+      level: level,
+      example: exampleHtml,
+      exampleMeaning: '',
+      imageUrl: screenshot,
+      context: props.contextPhrase,
+      // Legacy fields for backwards compatibility
+      word: word,
       pronunciation: reading || word,
       translation: translationArr,
       definition: definitionHtml ?? (props.token.meaning ? [props.token.meaning] : undefined),
-      example: exampleHtml,
-      exampleMeaning: '',
       screenshotUrl: screenshot,
-      pos: props.token.partOfSpeech ?? props.token.type ?? '',
-      level: level,
       contextPhrase: props.contextPhrase,
     };
     

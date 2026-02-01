@@ -75,6 +75,7 @@ export function createMainWindow(): BrowserWindow {
       sandbox: false,
     },
     frame: false,
+    backgroundColor: '#000000',
   };
 
   // macOS-specific title bar
@@ -115,6 +116,7 @@ export function createWelcomeWindow(): BrowserWindow {
       sandbox: false,
     },
     frame: false,
+    backgroundColor: '#000000',
   });
 
   currentWindow = welcomeWindow;
@@ -150,6 +152,7 @@ export function createChildWindow(
       nodeIntegration: false,
       sandbox: false,
     },
+    backgroundColor: '#000000',
     ...options,
   };
 
@@ -234,6 +237,30 @@ function showVideoContextMenu(sender: Electron.WebContents): void {
     {
       label: 'Copy Subtitle',
       click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'copy-sub'),
+    },
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  menu.popup({ window: BrowserWindow.fromWebContents(sender) || undefined });
+}
+
+// Context menu for reader (OCR overlay)
+interface ReaderContextMenuOptions {
+  furiganaHiderEnabled: boolean;
+  hasContextPhrase: boolean;
+}
+
+function showReaderContextMenu(sender: Electron.WebContents, options: ReaderContextMenuOptions): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: options.furiganaHiderEnabled ? 'Show Furigana' : 'Hide Furigana',
+      click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-furigana'),
+    },
+    { type: 'separator' },
+    {
+      label: 'Copy Phrase',
+      enabled: options.hasContextPhrase,
+      click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'copy-phrase'),
     },
   ];
 
@@ -486,6 +513,11 @@ export function setupWindowIPC(): void {
   // Context menu
   ipcMain.on(IPC_CHANNELS.SHOW_CTX_MENU, (event) => {
     showVideoContextMenu(event.sender);
+  });
+
+  // Reader context menu (OCR overlay)
+  ipcMain.on(IPC_CHANNELS.SHOW_READER_CTX_MENU, (event, options: ReaderContextMenuOptions) => {
+    showReaderContextMenu(event.sender, options);
   });
 
   // Open child window from renderer

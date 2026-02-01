@@ -24,14 +24,14 @@
 
 /* Progress bar */
 .video-progress-bar {
-  height: 4px;
-  background-color: rgba(255, 255, 255, 0.2);
+  height: 8px;
+  background-color: var(--bg);
   cursor: pointer;
   position: relative;
 }
 
 .video-progress-bar:hover {
-  height: 6px;
+  height: 10px;
 }
 
 .video-progress-fill {
@@ -40,9 +40,10 @@
   top: 0;
   height: 100%;
   background-color: var(--color-primary);
-  transition: width 0.1s linear;
+  transition: width 0.25s ease-out;
 }
 
+.video-progress-bar:hover .video-progress-fill,
 .video-progress-fill.dragging {
   transition: none;
 }
@@ -63,36 +64,6 @@
   gap: 0.25rem;
 }
 
-/* Base button style */
-.video-control-btn {
-  background: none;
-  border: none;
-  color: white;
-  cursor: pointer;
-  padding: 0.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.9;
-  transition: opacity 0.2s;
-}
-
-.video-control-btn:hover {
-  opacity: 1;
-}
-
-.video-control-btn.active {
-  opacity: 1;
-}
-
-.video-control-btn.dimmed {
-  opacity: 0.5;
-}
-
-.video-control-btn.dimmed:hover {
-  opacity: 0.7;
-}
-
 /* Volume control */
 .video-volume-control {
   display: flex;
@@ -107,47 +78,41 @@
 /* Time display */
 .video-time-display {
   font-size: 0.75rem;
-  color: white;
-  opacity: 0.9;
+  color: var(--text-secondary);
   margin-left: 0.5rem;
   font-variant-numeric: tabular-nums;
 }
 
-/* Speed button */
-.video-speed-btn {
-  font-size: 0.75rem;
-  min-width: 3rem;
-}
-
-/* Speed menu */
-.video-speed-menu {
-  position: absolute;
-  bottom: 100%;
-  right: 0;
-  margin-bottom: 0.25rem;
-  background-color: rgba(0, 0, 0, 0.9);
-  border-radius: var(--radius-md);
-  padding: 0.25rem;
-  min-width: 80px;
-}
-
-.video-speed-option {
-  display: block;
-  width: 100%;
-  padding: 0.375rem 0.5rem;
-  background: none;
+/* Speed select */
+.video-speed-select {
+  background: transparent;
   border: none;
-  color: white;
+  color: var(--text-secondary);
   cursor: pointer;
-  text-align: center;
+  padding: 0.25rem 0.5rem;
   font-size: 0.75rem;
-  border-radius: var(--radius-sm);
+  min-width: 3.5rem;
+  transition: color 0.2s ease;
 }
 
-.video-speed-option:hover {
-  background: rgba(255, 255, 255, 0.1);
+.video-speed-select:hover {
+  color: var(--text-primary);
 }
 
-.video-speed-option.active {
-  background: var(--color-primary);
+.video-speed-select:focus {
+  outline: none;
+}
+
+.video-speed-select option {
+  background: var(--bg-intense);
+  color: var(--text-primary);
+}
+
+/* Inactive control buttons - use secondary text color */
+.video-controls .btn-icon.btn-ghost.inactive {
+  color: var(--text-secondary);
+}
+
+.video-controls .btn-icon.btn-ghost.inactive:hover:not(:disabled) {
+  color: var(--text-primary);
 }

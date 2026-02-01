@@ -2,11 +2,12 @@
  * Flashcard Editor Component
  * Full-featured editor for flashcards with pitch accent, contentEditable fields,
  * and all the features from the old word database editor
+ * Updated for the new UUID-keyed flashcard format
  */
 
 import { Component, createSignal, createEffect, createMemo, Show, onMount } from 'solid-js';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
-import { useSettings, useLanguage, useLocalization } from '../../context';
+import { useSettings, useLanguage, useLocalization, useFlashcards } from '../../context';
 import { buildPitchAccentHtml, getPitchAccentInfo, getPitchAccentName } from '../../utils/pitchAccent';
 import { Input, Btn } from '../common';
 import './FlashcardEditor.css';
@@ -28,21 +29,21 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   const { settings } = useSettings();
   const { getLanguageFeatures } = useLanguage();
   const { t } = useLocalization();
+  const { intervalToString } = useFlashcards();
 
   // Form state
-  const [word, setWord] = createSignal('');
-  const [pronunciation, setPronunciation] = createSignal('');
+  const [front, setFront] = createSignal('');
+  const [back, setBack] = createSignal('');
+  const [reading, setReading] = createSignal('');
   const [pitchAccent, setPitchAccent] = createSignal<number | undefined>(undefined);
   const [pos, setPos] = createSignal('');
-  const [definition, setDefinition] = createSignal('');
-  const [translation, setTranslation] = createSignal('');
   const [example, setExample] = createSignal('');
   const [exampleMeaning, setExampleMeaning] = createSignal('');
-  const [level, setLevel] = createSignal(-1);
-  const [screenshotUrl, setScreenshotUrl] = createSignal('');
-  
+  const [level, setLevel] = createSignal<number | undefined>(undefined);
+  const [imageUrl, setImageUrl] = createSignal('');
+  const [context, setContext] = createSignal('');
+
   // ContentEditable refs
-  let definitionRef: HTMLDivElement | undefined;
   let exampleRef: HTMLDivElement | undefined;
   let exampleMeaningRef: HTMLDivElement | undefined;
 
@@ -50,41 +51,20 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   onMount(() => {
     const content = props.flashcard?.content ?? props.initialContent;
     if (content) {
-      setWord(content.word || '');
-      setPronunciation(content.pronunciation || '');
+      setFront(content.front || '');
+      setBack(content.back || '');
+      setReading(content.reading || '');
       setPitchAccent(content.pitchAccent);
       setPos(content.pos || '');
-      
-      // Handle definition - could be array or string
-      const def = content.definition;
-      if (Array.isArray(def)) {
-        setDefinition(def.join('<br/>'));
-      } else {
-        setDefinition(def || '');
-      }
-      
-      // Handle translation - could be array or string
-      const trans = content.translation;
-      if (Array.isArray(trans)) {
-        setTranslation(trans.join(', '));
-      } else {
-        setTranslation(trans || '');
-      }
-      
       setExample(content.example || '');
       setExampleMeaning(content.exampleMeaning || '');
-      setLevel(content.level ?? -1);
-      setScreenshotUrl(content.screenshotUrl || '');
+      setLevel(content.level);
+      setImageUrl(content.imageUrl || '');
+      setContext(content.context || '');
     }
   });
 
   // Sync contentEditable values
-  createEffect(() => {
-    if (definitionRef) {
-      definitionRef.innerHTML = definition();
-    }
-  });
-
   createEffect(() => {
     if (exampleRef) {
       exampleRef.innerHTML = example();
@@ -105,15 +85,15 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   const pitchPreviewHtml = createMemo(() => {
     if (!supportsPitchAccent()) return null;
     const pa = pitchAccent();
-    const reading = pronunciation() || word();
-    if (pa === undefined || pa < 0 || !reading) return null;
-    
-    const info = getPitchAccentInfo(pa, reading);
+    const readingVal = reading() || front();
+    if (pa === undefined || pa < 0 || !readingVal) return null;
+
+    const info = getPitchAccentInfo(pa, readingVal);
     if (!info) return null;
-    
-    return buildPitchAccentHtml(info, reading.length, {
+
+    return buildPitchAccentHtml(info, readingVal.length, {
       includeParticleBox: true,
-      padTo: reading.length,
+      padTo: readingVal.length,
     });
   });
 
@@ -121,17 +101,12 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   const pitchName = createMemo(() => {
     if (!supportsPitchAccent()) return '';
     const pa = pitchAccent();
-    const reading = pronunciation() || word();
-    if (pa === undefined || pa < 0 || !reading) return '';
-    return getPitchAccentName(pa, reading.length);
+    const readingVal = reading() || front();
+    if (pa === undefined || pa < 0 || !readingVal) return '';
+    return getPitchAccentName(pa, readingVal.length);
   });
 
   // Handle contentEditable input
-  const handleDefinitionInput = (e: Event) => {
-    const el = e.target as HTMLDivElement;
-    setDefinition(el.innerHTML);
-  };
-
   const handleExampleInput = (e: Event) => {
     const el = e.target as HTMLDivElement;
     setExample(el.innerHTML);
@@ -144,30 +119,18 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
   // Handle save
   const handleSave = () => {
-    // Parse translation into array
-    const translationArr = translation()
-      .split(/[,\n]/)
-      .map(s => s.trim())
-      .filter(Boolean);
-    
-    // Parse definition - it's stored as string but type expects array
-    const definitionArr = definition()
-      .split(/<br\s*\/?>/i)
-      .map(s => s.trim())
-      .filter(Boolean);
-
     const content: FlashcardContent = {
-      word: word(),
-      pronunciation: pronunciation() || word(),
+      type: props.flashcard?.content.type || 'word',
+      front: front(),
+      back: back(),
+      reading: reading() || undefined,
       pitchAccent: pitchAccent(),
-      pos: pos(),
-      definition: definitionArr,
-      translation: translationArr,
-      example: example(),
-      exampleMeaning: exampleMeaning(),
+      pos: pos() || undefined,
       level: level(),
-      screenshotUrl: screenshotUrl(),
-      contextPhrase: props.flashcard?.content.contextPhrase || '',
+      example: example() || undefined,
+      exampleMeaning: exampleMeaning() || undefined,
+      imageUrl: imageUrl() || undefined,
+      context: context() || undefined,
     };
 
     props.onSave(content);
@@ -177,16 +140,15 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   const cardStats = createMemo(() => {
     const fc = props.flashcard;
     if (!fc) return null;
-    
-    const intervalMs = fc.interval ?? 0;
-    const intervalDays = intervalMs > 0 ? Math.round(intervalMs / 1000 / 60 / 60 / 24 * 10) / 10 : 0;
-    
+
     return {
-      ease: fc.ease,
+      ease: fc.ease.toFixed(2),
       reviews: fc.reviews,
+      lapses: fc.lapses,
+      state: fc.state,
       lastReviewed: fc.lastReviewed ? new Date(fc.lastReviewed).toLocaleString() : '—',
       dueDate: fc.dueDate ? new Date(fc.dueDate).toLocaleString() : '—',
-      interval: intervalDays > 0 ? `${intervalDays}d` : '—',
+      interval: fc.interval > 0 ? intervalToString(fc.interval) : '—',
     };
   });
 
@@ -196,8 +158,8 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
         <div class="editor-row">
           <Input
             label={t('mlearn.CardEditor.Fields.Word')}
-            value={word()}
-            onInput={(e) => setWord(e.currentTarget.value)}
+            value={front()}
+            onInput={(e) => setFront(e.currentTarget.value)}
             placeholder={t('mlearn.CardEditor.Fields.WordPlaceholder')}
             fullWidth
           />
@@ -206,8 +168,8 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
         <div class="editor-row">
           <Input
             label={t('mlearn.CardEditor.Fields.Reading')}
-            value={pronunciation()}
-            onInput={(e) => setPronunciation(e.currentTarget.value)}
+            value={reading()}
+            onInput={(e) => setReading(e.currentTarget.value)}
             placeholder={t('mlearn.CardEditor.Fields.ReadingPlaceholder')}
             fullWidth
           />
@@ -232,7 +194,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
             </div>
             <div class="pitch-name">{pitchName()}</div>
             <div class="pitch-preview">
-              <span class="pronunciation-preview">{pronunciation() || word()}</span>
+              <span class="pronunciation-preview">{reading() || front()}</span>
               <Show when={pitchPreviewHtml()}>
                 <div class="mLearn-pitch-accent" innerHTML={pitchPreviewHtml()!} />
               </Show>
@@ -253,17 +215,17 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
       {/* Main Card Content */}
       <div class="editor-section card-preview">
-        <div class="card-word">{word() || t('mlearn.CardEditor.Fields.SurfaceNote')}</div>
-        
-        {/* Translation - contentEditable */}
+        <div class="card-word">{front() || t('mlearn.CardEditor.Fields.SurfaceNote')}</div>
+
+        {/* Meaning/Translation - contentEditable */}
         <div class="editor-field">
           <label>{t('mlearn.CardEditor.Fields.Translation')}</label>
           <div
             contentEditable
             class="content-editable translation-edit"
-            onInput={(e) => setTranslation((e.target as HTMLDivElement).innerText)}
+            onInput={(e) => setBack((e.target as HTMLDivElement).innerText)}
           >
-            {translation()}
+            {back()}
           </div>
         </div>
 
@@ -289,21 +251,21 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
           />
         </div>
 
-        {/* Definition - contentEditable with HTML support */}
+        {/* Context where the word was found */}
         <div class="editor-field">
-          <label>{t('mlearn.CardEditor.Fields.Definition')}</label>
-          <div
-            ref={definitionRef}
-            contentEditable
-            class="content-editable definition-edit"
-            onInput={handleDefinitionInput}
+          <label>{t('mlearn.CardEditor.Fields.Context')}</label>
+          <Input
+            value={context()}
+            onInput={(e) => setContext(e.currentTarget.value)}
+            placeholder={t('mlearn.CardEditor.Fields.ContextPlaceholder')}
+            fullWidth
           />
         </div>
 
         {/* Screenshot preview */}
-        <Show when={screenshotUrl()}>
+        <Show when={imageUrl()}>
           <div class="screenshot-preview">
-            <img src={screenshotUrl()} alt={t('mlearn.Flashcards.Card.ScreenshotAlt')} />
+            <img src={imageUrl()} alt={t('mlearn.Flashcards.Card.ScreenshotAlt')} />
           </div>
         </Show>
       </div>
@@ -314,12 +276,20 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
           <h3>{t('mlearn.CardEditor.Statistics.Title')}</h3>
           <div class="stats-grid">
             <div class="stat-item">
+              <span class="stat-label">{t('mlearn.CardEditor.Statistics.State')}</span>
+              <span class="stat-value">{cardStats()!.state}</span>
+            </div>
+            <div class="stat-item">
               <span class="stat-label">{t('mlearn.CardEditor.Statistics.Ease')}</span>
               <span class="stat-value">{cardStats()!.ease}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">{t('mlearn.CardEditor.Statistics.Reviews')}</span>
               <span class="stat-value">{cardStats()!.reviews}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">{t('mlearn.CardEditor.Statistics.Lapses')}</span>
+              <span class="stat-value">{cardStats()!.lapses}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">{t('mlearn.CardEditor.Statistics.LastReviewed')}</span>

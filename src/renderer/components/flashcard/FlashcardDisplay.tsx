@@ -1,6 +1,7 @@
 /**
  * Flashcard Component
  * Single flashcard with flip animation
+ * Supports new UUID-keyed flashcard format
  */
 
 import { Component, JSX, Show, createMemo } from 'solid-js';
@@ -29,33 +30,43 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const { getLevelName } = useLanguage();
   const { t } = useLocalization();
 
-  // Access content through the nested structure
+  // Access content through the nested structure (new format)
   const content = () => props.flashcard.content;
-  
+
+  // Get display word (front of card)
+  const displayWord = () => content().front;
+
+  // Get reading/pronunciation
+  const pronunciation = () => content().reading || content().front;
+
+  // Get meaning (back of card)
+  const meaning = () => content().back;
+
   // isFlipped is driven by props.showAnswer
   const isFlipped = createMemo(() => props.showAnswer ?? false);
 
   // Check if word needs furigana (contains kanji)
   const needsFurigana = createMemo(() => {
-    const word = content().word;
-    const pronunciation = content().pronunciation;
-    if (!word || !pronunciation) return false;
-    return !isAllKana(word) && word !== pronunciation;
+    const word = displayWord();
+    const reading = pronunciation();
+    if (!word || !reading) return false;
+    return !isAllKana(word) && word !== reading;
   });
 
   // Compute pitch accent HTML if available
   const pitchAccentHtml = createMemo(() => {
     const c = content();
     if (c.pitchAccent === undefined || c.pitchAccent === null) return null;
-    if (!c.pronunciation) return null;
+    const reading = pronunciation();
+    if (!reading) return null;
     if (settings.language !== 'ja' || !settings.showPitchAccent) return null;
-    
-    const info = getPitchAccentInfo(c.pitchAccent, c.pronunciation);
+
+    const info = getPitchAccentInfo(c.pitchAccent, reading);
     if (!info) return null;
-    
+
     // Don't include particle box for verbs (like old app)
     const isVerb = c.pos === '動詞';
-    return buildPitchAccentHtml(info, c.word.length, {
+    return buildPitchAccentHtml(info, displayWord().length, {
       includeParticleBox: !isVerb,
     });
   });
@@ -63,7 +74,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   // Get level display name from langdata
   const levelDisplay = createMemo(() => {
     const level = content().level;
-    if (level === undefined || level < 0) return null;
+    if (level === undefined || level === null || level < 0) return null;
     return getLevelName(level);
   });
 
@@ -74,160 +85,149 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   // Render pitch accent display based on whether word has kanji
   const PitchAccentDisplay = () => {
     const html = pitchAccentHtml();
-    const c = content();
-    
+    const word = displayWord();
+    const reading = pronunciation();
+
     if (!html) {
       // No pitch accent - show plain word with optional reading
       return (
-        <div class="flashcard-word-title">
-          {c.word}
-          <Show when={c.pronunciation && c.pronunciation !== c.word}>
+          <div class="flashcard-word-title">
+            {word}
+            <Show when={reading && reading !== word}>
             <span class="flashcard-word-reading">
-              ({c.pronunciation})
+              ({reading})
             </span>
-          </Show>
-        </div>
+            </Show>
+          </div>
       );
     }
-    
+
     if (needsFurigana()) {
       // Word has kanji - use ruby with pitch accent in rt
       return (
-        <div class="flashcard-pitch-container" style={{"--pitch-accent-height": "2px"}}>
-          <ruby>
-            {c.word}
-            <rt>
+          <div class="flashcard-pitch-container" style={{"--pitch-accent-height": "2px"}}>
+            <ruby>
+              {word}
+              <rt>
               <span class="flashcard-rt-content">
-                {c.pronunciation}
+                {reading}
                 <div class="mLearn-pitch-accent" innerHTML={html} />
               </span>
-            </rt>
-          </ruby>
-        </div>
+              </rt>
+            </ruby>
+          </div>
       );
     } else {
       // Kana-only word - pitch accent overlays the word itself
       return (
-        <div class="flashcard-pitch-kana" style={{"--pitch-accent-height": "5px"}}>
+          <div class="flashcard-pitch-kana" style={{"--pitch-accent-height": "5px"}}>
           <span class="flashcard-kana-content">
-            {c.word}
+            {word}
             <div class="mLearn-pitch-accent" innerHTML={html} />
           </span>
-        </div>
+          </div>
       );
     }
   };
 
   return (
-    <div 
-      class="flashcard-container" 
-      style={props.style}
-      onClick={handleFlip}
-    >
-      <div class={`flashcard-card ${isFlipped() ? 'flipped' : ''}`}>
-        {/* Front */}
-        <Panel 
-          variant="elevated" 
-          blur="lg" 
-          rounded="xl" 
-          class="flashcard-face flashcard-front"
-        >
-          {/* Level pill */}
-          <Show when={levelDisplay()}>
-            <div 
-              class="pill flashcard-level-pill" 
-              data-level={content().level}
-            >
-              {levelDisplay()}
+      <div
+          class="flashcard-container"
+          style={props.style}
+          onClick={handleFlip}
+      >
+        <div class={`flashcard-card ${isFlipped() ? 'flipped' : ''}`}>
+          {/* Front */}
+          <Panel
+              variant="elevated"
+              blur="lg"
+              rounded="xl"
+              class="flashcard-face flashcard-front"
+          >
+            {/* Level pill */}
+            <Show when={levelDisplay()}>
+              <div
+                  class="pill flashcard-level-pill"
+                  data-level={content().level}
+              >
+                {levelDisplay()}
+              </div>
+            </Show>
+
+            <div class="flashcard-word">
+              {displayWord()}
             </div>
-          </Show>
-          
-          <div class="flashcard-word">
-            {content().word}
-          </div>
-          
-          <Show when={content().pronunciation && content().pronunciation !== content().word}>
-            <div class="flashcard-pronunciation">
-              {content().pronunciation}
+
+            <Show when={pronunciation() && pronunciation() !== displayWord()}>
+              <div class="flashcard-pronunciation">
+                {pronunciation()}
+              </div>
+            </Show>
+
+            {/* Screenshot/image - ALWAYS shown, even before reveal (like old app) */}
+            <Show when={content().imageUrl && content().imageUrl !== '-' && content().imageUrl !== ''}>
+              <div class="flashcard-screenshot-container flashcard-screenshot-front">
+                <img
+                    src={content().imageUrl}
+                    alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
+                    class="flashcard-screenshot"
+                />
+              </div>
+            </Show>
+
+            <Show when={content().example && content().example !== '-'}>
+              <div class="flashcard-example" innerHTML={content().example} />
+            </Show>
+
+            <div class="flashcard-hint">
+              {t('mlearn.Flashcards.Card.RevealHint')}
             </div>
-          </Show>
+          </Panel>
 
-          {/* Screenshot image - ALWAYS shown, even before reveal (like old app) */}
-          <Show when={content().screenshotUrl && content().screenshotUrl !== '-' && content().screenshotUrl !== ''}>
-            <div class="flashcard-screenshot-container flashcard-screenshot-front">
-              <img 
-                src={content().screenshotUrl} 
-                alt={t('mlearn.Flashcards.Card.ScreenshotAlt')} 
-                class="flashcard-screenshot"
-              />
+          {/* Back */}
+          <Panel
+              variant="elevated"
+              blur="lg"
+              rounded="xl"
+              class="flashcard-face flashcard-back"
+          >
+            {/* Word with pitch accent */}
+            <div class="flashcard-word-header">
+              <PitchAccentDisplay />
             </div>
-          </Show>
 
-          <Show when={content().example && content().example !== '-'}>
-            <div class="flashcard-example" innerHTML={content().example} />
-          </Show>
+            {/* Meaning (answer) */}
+            <div class="flashcard-translation" innerHTML={meaning()} />
 
-          <div class="flashcard-hint">
-            {t('mlearn.Flashcards.Card.RevealHint')}
-          </div>
-        </Panel>
+            <Show when={content().exampleMeaning}>
+              <div class="flashcard-example-meaning">
+                {content().exampleMeaning}
+              </div>
+            </Show>
 
-        {/* Back */}
-        <Panel 
-          variant="elevated" 
-          blur="lg" 
-          rounded="xl" 
-          class="flashcard-face flashcard-back"
-        >
-          {/* Word with pitch accent */}
-          <div class="flashcard-word-header">
-            <PitchAccentDisplay />
-          </div>
-          
-          {/* Translation (answer) */}
-          <div 
-            class="flashcard-translation" 
-            innerHTML={(() => {
-              const trans = content().translation;
-              if (Array.isArray(trans)) return trans.join(', ');
-              return trans || '';
-            })()} 
-          />
-          
-          {/* Definition (more detailed, shown below translation like old app) */}
-          <Show when={content().definition && content().definition !== content().translation}>
-            <div 
-              class="flashcard-definition" 
-              innerHTML={(() => {
-                const def = content().definition;
-                if (Array.isArray(def)) return def.join('<br/>');
-                return def || '';
-              })()} 
-            />
-          </Show>
+            {/* Context where word was found */}
+            <Show when={content().context}>
+              <div class="flashcard-context">
+                {content().context}
+              </div>
+            </Show>
 
-          <Show when={content().exampleMeaning}>
-            <div class="flashcard-example-meaning">
-              {content().exampleMeaning}
+            {/* Screenshot/image - also on back for reference */}
+            <Show when={content().imageUrl && content().imageUrl !== '-' && content().imageUrl !== ''}>
+              <div class="flashcard-screenshot-container">
+                <img
+                    src={content().imageUrl}
+                    alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
+                    class="flashcard-screenshot"
+                />
+              </div>
+            </Show>
+
+            <div class="flashcard-hint">
+              {t('mlearn.Flashcards.Card.RateHint')}
             </div>
-          </Show>
-
-          {/* Screenshot image - also on back for reference */}
-          <Show when={content().screenshotUrl && content().screenshotUrl !== '-' && content().screenshotUrl !== ''}>
-            <div class="flashcard-screenshot-container">
-              <img 
-                src={content().screenshotUrl} 
-                alt={t('mlearn.Flashcards.Card.ScreenshotAlt')} 
-                class="flashcard-screenshot"
-              />
-            </div>
-          </Show>
-
-          <div class="flashcard-hint">
-            {t('mlearn.Flashcards.Card.RateHint')}
-          </div>
-        </Panel>
+          </Panel>
+        </div>
       </div>
-    </div>
   );
 };

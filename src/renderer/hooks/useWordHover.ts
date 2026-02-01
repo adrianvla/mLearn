@@ -59,6 +59,16 @@ export function useWordHover() {
     }
   };
 
+  // Force hide immediately (e.g., when magnifying glass is activated)
+  const forceHide = () => {
+    if (hoverTimeout) clearTimeout(hoverTimeout);
+    if (cleanupTimeout) clearTimeout(cleanupTimeout);
+    hoverTimeout = null;
+    cleanupTimeout = null;
+    setIsVisible(false);
+    setHoverData(null);
+  };
+
   onCleanup(() => {
     if (hoverTimeout) clearTimeout(hoverTimeout);
     if (cleanupTimeout) clearTimeout(cleanupTimeout);
@@ -70,6 +80,7 @@ export function useWordHover() {
     showHover,
     hideHover,
     cancelHide,
+    forceHide,
   };
 }
 

@@ -16,7 +16,7 @@
   z-index: 100;
   padding: 0.5rem 1rem;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: var(--backdrop-blur);
+  backdrop-filter: var(--backdrop-filter);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   color: var(--text-primary);

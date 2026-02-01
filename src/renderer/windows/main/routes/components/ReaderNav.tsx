@@ -32,7 +32,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
   const { t } = useLocalization();
 
   return (
-    <nav class={`reader-nav glass`}>
+    <nav class={`reader-nav panel`}>
       <div
         class="nav-group"
         style={`${props.marginLeft ? `margin-left: ${props.marginLeft}` : ''}`}

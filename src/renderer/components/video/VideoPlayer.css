@@ -13,26 +13,22 @@
 }
 
 /* Video element */
-.video-player video {
+.video-element {
   width: 100%;
   height: 100%;
 }
 
-.video-player video.fit-contain {
+/* Video fit variants */
+.video-fit-contain {
   object-fit: contain;
 }
 
-.video-player video.fit-cover {
+.video-fit-cover {
   object-fit: cover;
 }
 
-.video-player video.fit-fill {
+.video-fit-fill {
   object-fit: fill;
-}
-
-/* Hide cursor when inactive */
-.video-player.cursor-hidden {
-  cursor: none;
 }
 
 /* Subtitle overlay positioning */
