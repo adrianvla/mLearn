@@ -285,7 +285,6 @@ const WelcomeContent: Component = () => {
 
       <Panel
         variant="elevated"
-        blur="lg"
         rounded="xl"
         padding="xl"
         style={{

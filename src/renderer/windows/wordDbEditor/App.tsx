@@ -13,7 +13,7 @@ import {
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, type WordEntry, type TranslationOverride } from './components';
-import { Spinner } from '../../components/common';
+import { ModalLoadingOverlay, Spinner } from '../../components/common';
 import './wordDbEditor.css';
 
 const WordDbEditorContent: Component = () => {
@@ -345,13 +345,13 @@ const WordDbEditorContent: Component = () => {
           </div>
 
           {/* Loading Overlay */}
-          <Show when={isLoading()}>
-            <div class="loading-overlay">
-              <div class="loading-content">
-                <Spinner size={40} text={`${t('mlearn.WordDbEditor.LoadingMore')} ${loadProgress()}%`} />
-              </div>
-            </div>
-          </Show>
+          <ModalLoadingOverlay
+            isOpen={isLoading()}
+            message={`${t('mlearn.WordDbEditor.LoadingMore')} ${loadProgress()}%`}
+            progress={loadProgress()}
+            showProgress={true}
+            showPercent={false}
+          />
 
           {/* Edit Translation Dialog */}
           <Show when={editDialogOpen() && editingEntry()}>

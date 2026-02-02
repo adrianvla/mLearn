@@ -73,6 +73,25 @@
     "ConfirmDialog": {
       "Title": "Confirm"
     },
+    "ErrorModal": {
+      "Title": {
+        "Error": "Error",
+        "Fatal": "Critical Error",
+        "Warning": "Warning",
+        "StartupError": "Startup Error"
+      },
+      "Messages": {
+        "PortInUse": "Another application is using the required port. Please close other instances of mLearn or restart your computer.",
+        "PermissionDenied": "Permission denied. Please check your system permissions or run the application with elevated privileges.",
+        "FileNotFound": "A required file was not found. Please try reinstalling the application.",
+        "BackendStopped": "The backend server stopped unexpectedly. Please restart the application."
+      },
+      "ShowDetails": "Show details",
+      "HideDetails": "Hide details",
+      "CopyError": "Copy error",
+      "Copied": "Copied!",
+      "Quit": "Quit"
+    },
     "SubtitleSync": {
       "SyncToPrevious": "Sync subtitle to previous audio",
       "SyncToNext": "Sync subtitle to next audio",

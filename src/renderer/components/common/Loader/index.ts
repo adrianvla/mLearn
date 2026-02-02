@@ -8,7 +8,7 @@ export {
   Skeleton, 
   Progress, 
   ProgressRing, 
-  LoadingOverlay,
+  LoadingOverlay as InlineLoadingOverlay,
   type LoaderProps,
   type LoaderType,
   type ProgressVariant,

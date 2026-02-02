@@ -250,11 +250,10 @@ export const VideoRoute: Component = () => {
         fallback={
           <div class="drop-zone-container">
             <Panel
-              variant="elevated"
-              blur="lg"
+              variant="default"
               rounded="xl"
               padding="xl"
-              class={`drop-zone ${isDragging() ? 'dragging' : ''}`}
+              class={`drop-zone bordered ${isDragging() ? 'dragging' : ''}`}
             >
               <div class="drop-icon">🎬</div>
               <h2>{t('mlearn.Video.UI.DropVideoHere')}</h2>

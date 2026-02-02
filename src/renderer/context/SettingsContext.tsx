@@ -181,7 +181,6 @@ export function useTheme() {
 
   return {
     theme: () => settings.theme,
-    isDark: () => settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent',
     setTheme: (theme: AppTheme) => updateSetting('theme', theme),
   };
 }

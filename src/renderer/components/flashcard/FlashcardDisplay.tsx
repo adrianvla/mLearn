@@ -140,7 +140,6 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           {/* Front */}
           <Panel
               variant="elevated"
-              blur="lg"
               rounded="xl"
               class="flashcard-face flashcard-front"
           >
@@ -187,7 +186,6 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           {/* Back */}
           <Panel
               variant="elevated"
-              blur="lg"
               rounded="xl"
               class="flashcard-face flashcard-back"
           >
