@@ -126,8 +126,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // Check if session is complete
   createEffect(() => {
     const card = currentCard();
-    if (!card && counts().total === 0) {
+    const total = counts().total;
+    if (!card && total === 0) {
       setIsComplete(true);
+      props.onComplete?.();
     } else {
       setIsComplete(false);
     }
@@ -140,14 +142,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     answerCard(quality);
     setCardsAnswered(prev => prev + 1);
     setShowAnswer(false);
-
-    // Check completion after state update
-    setTimeout(() => {
-      if (counts().total === 0) {
-        setIsComplete(true);
-        props.onComplete?.();
-      }
-    }, 0);
   };
 
   const handleBury = () => {
@@ -309,11 +303,16 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             </div>
           </Show>
 
-          <FlashcardDisplay
-              flashcard={currentCard()!}
-              showAnswer={showAnswer()}
-              onFlip={handleFlip}
-          />
+          {/* Keyed Show forces remount when card ID changes - fixes stale innerHTML */}
+          <Show when={currentCard()?.id} keyed>
+            {(_id) => (
+              <FlashcardDisplay
+                  flashcard={currentCard()!}
+                  showAnswer={showAnswer()}
+                  onFlip={handleFlip}
+              />
+            )}
+          </Show>
         </Show>
 
         {/* Buttons container */}

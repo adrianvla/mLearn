@@ -252,6 +252,12 @@
         "NoCardsDueDescription": "No cards are due for review right now. Great job!",
         "NoCardsDueAction": "Come back later or add new cards"
       },
+      "State": {
+        "New": "New",
+        "Learning": "Learning",
+        "Relearning": "Relearning",
+        "Review": "Review"
+      },
       "Browse": {
         "NoWordsFound": "No words found. Click 'Load All' to load your word database.",
         "SearchPlaceholder": "Search words...",
@@ -265,7 +271,10 @@
         "CardBreakdown": "Card Breakdown",
         "New": "New",
         "Learning": "Learning",
-        "Review": "Review"
+        "Review": "Review",
+        "Suspended": "Suspended",
+        "TodayProgress": "Today's Progress",
+        "NewCardsStudied": "New Cards Studied"
       },
       "Modals": {
         "DeleteCard": {
@@ -308,6 +317,11 @@
         "ReviewMore": "Review More",
         "ShowAnswer": "Show Answer",
         "Remove": "Remove",
+        "Bury": "Bury",
+        "NewCard": "New Card",
+        "LearningCard": "Learning Card",
+        "RelearningCard": "Relearning Card",
+        "ReviewCard": "Review Card",
         "PressKeyTooltip": "Press {key}"
       },
       "Sync": {
