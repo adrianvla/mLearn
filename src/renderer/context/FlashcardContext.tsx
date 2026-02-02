@@ -185,6 +185,21 @@ export const FlashcardProvider: ParentComponent = (props) => {
         refreshQueue();
         setIsLoading(false);
       });
+      
+      // Listen for migration complete notification
+      window.mLearnIPC.on?.(
+        'flashcard-migration-complete',
+        (...args: unknown[]) => {
+          const info = args[0] as { occurred: boolean; backupPath: string | null; fromVersion: number | null } | undefined;
+          if (info?.occurred) {
+            console.log('Flashcard migration completed from v', info.fromVersion);
+            // Dispatch custom event for components to show notification
+            window.dispatchEvent(new CustomEvent('mlearn-flashcard-migration', { 
+              detail: info 
+            }));
+          }
+        }
+      );
     } else {
       // Try localStorage for tethered mode
       try {

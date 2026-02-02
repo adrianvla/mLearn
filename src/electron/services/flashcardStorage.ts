@@ -7,11 +7,18 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import type { FlashcardStore, WordStats, Flashcard, FlashcardState } from '../../shared/types';
+import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 
 // Current store version - increment when making breaking changes
 const CURRENT_VERSION = 3;
+
+// Migration tracking - sent to renderer to notify user
+let migrationInfo: { occurred: boolean; backupPath: string | null; fromVersion: number | null } = {
+  occurred: false,
+  backupPath: null,
+  fromVersion: null,
+};
 
 // Default flashcard store (matching new UUID-keyed structure)
 const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
@@ -140,9 +147,258 @@ function migrateV2ToV3(store: any): FlashcardStore {
   };
 }
 
+/**
+ * Generate a simple UUID-like string
+ */
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+/**
+ * Synchronous word hash using Node's crypto (for migration)
+ */
+function generateWordHashSync(word: string): string {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const crypto = require('crypto');
+  const hash = crypto.createHash('sha256').update(word).digest('hex');
+  return hash.substring(0, 16);
+}
+
+/**
+ * V1 flashcard content structure (from old app)
+ */
+interface V1FlashcardContent {
+  word: string;
+  pitchAccent?: number;
+  pronunciation?: string;
+  translation?: string | string[];
+  definition?: string | string[];
+  example?: string;
+  exampleMeaning?: string;
+  screenshotUrl?: string;
+  pos?: string;
+  level?: number;
+}
+
+/**
+ * V1 flashcard structure (from old app)
+ */
+interface V1Flashcard {
+  content: V1FlashcardContent;
+  dueDate: number;
+  lastReviewed: number;
+  lastUpdated?: number;
+  ease: number;
+  reviews: number;
+}
+
+/**
+ * V1 store structure (from old app)
+ */
+interface V1FlashcardStore {
+  flashcards: V1Flashcard[];  // Array in v1, object in v2+
+  wordCandidates: Record<string, number | { count: number; lastSeen: number; word: string }>;
+  alreadyCreated: Record<string, boolean>;
+  knownUnTracked: Record<string, boolean>;  // Capital T in v1
+  meta: {
+    flashcardsCreatedToday: number;
+    lastFlashcardCreatedDate: number;
+  };
+}
+
+/**
+ * Detect if the store is v1 format (old app)
+ */
+function isV1Store(store: any): store is V1FlashcardStore {
+  // V1 has flashcards as an array, not an object
+  // V1 also has knownUnTracked (capital T) and alreadyCreated
+  return Array.isArray(store.flashcards) || 
+         store.alreadyCreated !== undefined || 
+         store.knownUnTracked !== undefined;
+}
+
+/**
+ * Create backup of old flashcards file
+ */
+function createBackup(originalPath: string): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupPath = originalPath.replace('.json', `-backup-v1-${timestamp}.json`);
+  
+  if (fs.existsSync(originalPath)) {
+    const data = fs.readFileSync(originalPath, 'utf-8');
+    fs.writeFileSync(backupPath, data);
+    console.log(`Created backup at: ${backupPath}`);
+  }
+  
+  return backupPath;
+}
+
+/**
+ * Migrate from v1 (old app format) to v3 (new format)
+ */
+function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardStore {
+  console.log('Migrating flashcard store from v1 (old app) to v3...');
+  
+  // Track migration for notification
+  migrationInfo = {
+    occurred: true,
+    backupPath,
+    fromVersion: 1,
+  };
+  
+  const newFlashcards: Record<string, Flashcard> = {};
+  const wordToCardMap: Record<string, string[]> = {};
+  const wordStatsMap: Record<string, WordStats> = {};
+  const newWordCandidates: Record<string, WordCandidate> = {};
+  
+  // Convert array of flashcards to UUID-keyed object
+  for (const v1Card of store.flashcards || []) {
+    if (!v1Card.content?.word) continue;
+    
+    const word = v1Card.content.word;
+    const wordHash = generateWordHashSync(word);
+    const cardId = generateUUID();
+    
+    // Convert v1 ease (0-10 scale roughly) to v3 ease (2.5 default, min 1.3)
+    // Old app ease was based on countToEase and knownStatusToEaseFunction
+    // countToEase: Math.atan(x/10)+1.01 (roughly 1-2.5 range)
+    // knownStatusToEaseFunction: Math.max((status-1)*0.25,0) + 1.3 (1.3-1.8 range)
+    const v1Ease = v1Card.ease || 0;
+    let newEase = 2.5;
+    if (v1Ease > 0) {
+      // Scale from v1 range (roughly 1-3) to v3 range (1.3-3.0)
+      newEase = Math.max(1.3, Math.min(3.0, v1Ease * 1.2));
+    }
+    
+    // Determine state based on ease and reviews
+    let state: FlashcardState = 'new';
+    if (v1Card.reviews > 0) {
+      if (newEase >= 2.5) {
+        state = 'review';
+      } else {
+        state = 'learning';
+      }
+    }
+    
+    // Convert v1 content to v3 content
+    const newContent: FlashcardContent = {
+      type: 'word',
+      front: word,
+      back: Array.isArray(v1Card.content.translation) 
+        ? v1Card.content.translation.join('; ') 
+        : v1Card.content.translation || '',
+      reading: v1Card.content.pronunciation,
+      pitchAccent: v1Card.content.pitchAccent,
+      pos: v1Card.content.pos,
+      level: v1Card.content.level,
+      example: v1Card.content.example !== '-' ? v1Card.content.example : undefined,
+      exampleMeaning: v1Card.content.exampleMeaning || undefined,
+      imageUrl: v1Card.content.screenshotUrl || undefined,
+      // Legacy fields for backwards compatibility
+      word: word,
+      pronunciation: v1Card.content.pronunciation,
+      translation: Array.isArray(v1Card.content.translation) 
+        ? v1Card.content.translation 
+        : v1Card.content.translation ? [v1Card.content.translation] : undefined,
+      definition: Array.isArray(v1Card.content.definition)
+        ? v1Card.content.definition
+        : v1Card.content.definition ? [v1Card.content.definition] : undefined,
+      screenshotUrl: v1Card.content.screenshotUrl,
+    };
+    
+    // Calculate interval from due date and last reviewed
+    const interval = Math.max(0, v1Card.dueDate - v1Card.lastReviewed);
+    
+    const newCard: Flashcard = {
+      id: cardId,
+      content: newContent,
+      state,
+      ease: newEase,
+      interval,
+      dueDate: v1Card.dueDate,
+      reviews: v1Card.reviews || 0,
+      lapses: 0,
+      learningStep: 0,
+      createdAt: v1Card.lastUpdated || v1Card.lastReviewed || Date.now(),
+      lastReviewed: v1Card.lastReviewed,
+      lastUpdated: v1Card.lastUpdated || v1Card.lastReviewed || Date.now(),
+    };
+    
+    newFlashcards[cardId] = newCard;
+    
+    // Map word to card
+    if (!wordToCardMap[wordHash]) {
+      wordToCardMap[wordHash] = [];
+    }
+    wordToCardMap[wordHash].push(cardId);
+  }
+  
+  // Build word stats
+  for (const [wordHash, cardIds] of Object.entries(wordToCardMap)) {
+    const cards = cardIds.map(id => newFlashcards[id]).filter(Boolean);
+    wordStatsMap[wordHash] = calculateWordStats(cards);
+  }
+  
+  // Convert word candidates
+  for (const [key, value] of Object.entries(store.wordCandidates || {})) {
+    if (typeof value === 'number') {
+      // Old format: just a count
+      newWordCandidates[key] = {
+        count: value,
+        lastSeen: Date.now(),
+        word: '', // We don't have the word text in this case
+      };
+    } else if (typeof value === 'object' && value !== null) {
+      newWordCandidates[key] = {
+        count: value.count || 0,
+        lastSeen: value.lastSeen || Date.now(),
+        word: value.word || '',
+      };
+    }
+  }
+  
+  // Convert knownUnTracked (capital T) to knownUntracked (lowercase)
+  const knownUntracked: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(store.knownUnTracked || {})) {
+    knownUntracked[key] = value;
+  }
+  
+  // Convert meta
+  const today = new Date().toISOString().split('T')[0];
+  const meta = {
+    ...DEFAULT_FLASHCARD_STORE.meta,
+    newCardsToday: store.meta?.flashcardsCreatedToday || 0,
+    newCardsDate: today,
+  };
+  
+  console.log(`Migrated ${Object.keys(newFlashcards).length} flashcards from v1 to v3`);
+  
+  return {
+    flashcards: newFlashcards,
+    wordCandidates: newWordCandidates,
+    wordToCardMap,
+    wordStatsMap,
+    knownUntracked,
+    meta,
+    dailyStats: {},
+    version: CURRENT_VERSION,
+  };
+}
+
 // Check and fill missing fields in loaded flashcard store, with migrations
 function checkFlashcards(fc_to_check: any): FlashcardStore {
-  // Handle version migrations
+  // Detect v1 (old app format) first
+  if (isV1Store(fc_to_check)) {
+    const backupPath = createBackup(getFlashcardsPath());
+    fc_to_check = migrateV1ToV3(fc_to_check as V1FlashcardStore, backupPath);
+    return fc_to_check;
+  }
+  
+  // Handle version migrations for v2+
   const version = fc_to_check.version || 1;
   
   if (version < 3) {
@@ -212,9 +468,28 @@ export function setupFlashcardIPC(): void {
   ipcMain.on(IPC_CHANNELS.GET_FLASHCARDS, (event) => {
     const flashcards = loadFlashcards();
     event.reply(IPC_CHANNELS.FLASHCARDS_LOADED, flashcards);
+    
+    // If migration occurred, notify the renderer
+    if (migrationInfo.occurred) {
+      event.reply(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, migrationInfo);
+      // Reset after sending to prevent multiple notifications
+      migrationInfo = { occurred: false, backupPath: null, fromVersion: null };
+    }
   });
 
   ipcMain.on(IPC_CHANNELS.SAVE_FLASHCARDS, (_event, store: FlashcardStore) => {
     saveFlashcards(store);
   });
+  
+  // Handler to get migration info if needed
+  ipcMain.on(IPC_CHANNELS.GET_FLASHCARD_MIGRATION_INFO, (event) => {
+    event.reply(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, migrationInfo);
+  });
+}
+
+/**
+ * Get migration info (for testing or checking status)
+ */
+export function getMigrationInfo() {
+  return migrationInfo;
 }

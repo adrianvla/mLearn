@@ -1,5 +1,5 @@
 {
-  "name": "mlearn-ts",
+  "name": "mlearn",
   "version": "2.0.0",
   "description": "Language learning through immersion - SolidJS + TypeScript + Electron",
   "main": "dist-electron/electron/main.js",

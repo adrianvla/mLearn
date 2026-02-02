@@ -51,6 +51,10 @@ export const IPC_CHANNELS = {
   FORCE_NEWDAY_FLASHCARDS: 'force-newday-flashcards',
   FLASHCARD_CONNECT_OPEN: 'flashcard-connect-open',
   REVIEW_FLASHCARDS_REQUEST: 'review-flashcards-request',
+  // Migration
+  FLASHCARD_MIGRATION_COMPLETE: 'flashcard-migration-complete',
+  GET_FLASHCARD_MIGRATION_INFO: 'get-flashcard-migration-info',
+  LOCALSTORAGE_MIGRATION_COMPLETE: 'localstorage-migration-complete',
   
   // Window management
   TRAFFIC_LIGHTS: 'traffic-lights',
