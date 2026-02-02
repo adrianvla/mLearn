@@ -100,6 +100,15 @@ export interface MLearnIPC {
   // Local Storage Sync
   sendLS: (data: Record<string, unknown>) => void;
   
+  // Migration APIs
+  getMigratedLocalStorage: () => Promise<Record<string, unknown> | null>;
+  getMigratedItem: (key: string) => Promise<unknown>;
+  hasMigrationOccurred: () => Promise<boolean>;
+  triggerMigration: () => Promise<{ success: boolean; migratedKeys: string[]; error?: string }>;
+  onLocalStorageMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null }) => void) => void;
+  onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) => void;
+  getFlashcardMigrationInfo: () => void;
+  
   // File Operations
   readDirectoryImages: (directoryPath: string) => Promise<{ files: Array<{ name: string; path: string; data: ArrayBuffer }> }>;
   readPdfFile: (filePath: string) => Promise<{ data: ArrayBuffer }>;

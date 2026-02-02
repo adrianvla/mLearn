@@ -10,30 +10,34 @@ import { FlashcardProvider } from './FlashcardContext';
 import { ServerProvider } from './ServerContext';
 import { LocalizationProvider } from './LocalizationContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
-import { loadWordsFromStorage, getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
+import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
+import { setMigrationListenerReady } from './migrationSignals';
 
 /**
  * MigrationHandler - Handles showing notifications for v1 data migration
+ * Must be placed OUTSIDE FlashcardProvider so listener is ready before flashcards load
+ * 
+ * Note: Word statuses are loaded automatically at statsService module init time.
+ * This handler only shows the migration toast notification.
  */
 const MigrationHandler: ParentComponent = (props) => {
   onMount(() => {
-    // Load word statuses from localStorage (will migrate v1 data if present)
-    loadWordsFromStorage().then(() => {
-      const lsInfo = getLocalStorageMigrationInfo();
-      if (lsInfo.occurred) {
-        showToast({
-          variant: 'info',
-          title: 'Data Migration Complete',
-          message: `Migrated ${lsInfo.migratedWordCount} word statuses from v1. A backup has been created.`,
-          duration: 8000,
-        });
-        resetLocalStorageMigrationInfo();
-      }
-    });
+    // Check if localStorage migration occurred (word statuses already loaded by statsService)
+    const lsInfo = getLocalStorageMigrationInfo();
+    if (lsInfo.occurred) {
+      showToast({
+        variant: 'info',
+        title: 'Data Migration Complete',
+        message: `Migrated ${lsInfo.migratedWordCount} word statuses from v1. A backup has been created.`,
+        duration: 8000,
+      });
+      resetLocalStorageMigrationInfo();
+    }
     
     // Listen for flashcard migration events from electron
     const handleFlashcardMigration = (e: Event) => {
       const info = (e as CustomEvent).detail;
+      console.log('[MigrationHandler] Received flashcard migration event:', info);
       if (info?.occurred) {
         showToast({
           variant: 'success',
@@ -48,6 +52,10 @@ const MigrationHandler: ParentComponent = (props) => {
     
     window.addEventListener('mlearn-flashcard-migration', handleFlashcardMigration);
     
+    // Signal that listener is ready
+    setMigrationListenerReady(true);
+    console.log('[MigrationHandler] Migration listener registered');
+    
     onCleanup(() => {
       window.removeEventListener('mlearn-flashcard-migration', handleFlashcardMigration);
     });
@@ -59,6 +67,9 @@ const MigrationHandler: ParentComponent = (props) => {
 /**
  * WindowWrapper wraps all window entry points with necessary providers
  * This ensures consistent context availability across all windows
+ * 
+ * IMPORTANT: MigrationHandler is placed BEFORE FlashcardProvider so that
+ * the migration event listener is registered before flashcards are loaded
  */
 export const WindowWrapper: ParentComponent = (props) => {
   return (
@@ -66,12 +77,12 @@ export const WindowWrapper: ParentComponent = (props) => {
       <LocalizationProvider>
         <SettingsProvider>
           <LanguageProvider>
-            <FlashcardProvider>
-              <MigrationHandler>
+            <MigrationHandler>
+              <FlashcardProvider>
                 {props.children}
-                <ToastContainer />
-              </MigrationHandler>
-            </FlashcardProvider>
+              </FlashcardProvider>
+              <ToastContainer />
+            </MigrationHandler>
           </LanguageProvider>
         </SettingsProvider>
       </LocalizationProvider>

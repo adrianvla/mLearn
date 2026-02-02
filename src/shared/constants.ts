@@ -55,6 +55,10 @@ export const IPC_CHANNELS = {
   FLASHCARD_MIGRATION_COMPLETE: 'flashcard-migration-complete',
   GET_FLASHCARD_MIGRATION_INFO: 'get-flashcard-migration-info',
   LOCALSTORAGE_MIGRATION_COMPLETE: 'localstorage-migration-complete',
+  GET_MIGRATED_LOCALSTORAGE: 'get-migrated-localstorage',
+  GET_MIGRATED_ITEM: 'get-migrated-item',
+  HAS_MIGRATION_OCCURRED: 'has-migration-occurred',
+  TRIGGER_MIGRATION: 'trigger-migration',
   
   // Window management
   TRAFFIC_LIGHTS: 'traffic-lights',
