@@ -124,6 +124,14 @@ interface FlashcardContextValue {
   getWordStats: (word: string) => Promise<WordStats | null>;
   getDueCount: () => number;
   getNewCount: () => number;
+  
+  // Synchronous query operations (for reactive SolidJS usage)
+  /** Synchronous check if word has a flashcard - iterates cards directly, O(n) but reactive */
+  hasWordSync: (word: string) => boolean;
+  /** Synchronous get card by word - iterates cards directly, O(n) but reactive */
+  getCardByWordSync: (word: string) => Flashcard | null;
+  /** Synchronous get all cards for a word - iterates cards directly, O(n) but reactive */
+  getCardsByWordSync: (word: string) => Flashcard[];
 
   // Settings
   updateMeta: (updates: Partial<FlashcardMeta>) => void;
@@ -700,6 +708,39 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return SRS.getNewCards(store.flashcards).length;
   };
 
+  // =========== Synchronous Lookup Methods ===========
+  // These iterate through cards directly by checking content.front
+  // They're O(n) but fully reactive with SolidJS, unlike async methods
+  // TODO: instead of O(n), maybe using a Map of word to card IDs would be better for performance
+  // Synchronous check if word has flashcard
+  const hasWordSync = (word: string): boolean => {
+    if (!word) return false;
+    const allCards = Object.values(store.flashcards);
+    return allCards.some(card => card.content.front === word);
+  };
+  
+  // Synchronous get all cards for a word
+  const getCardsByWordSync = (word: string): Flashcard[] => {
+    if (!word) return [];
+    const allCards = Object.values(store.flashcards);
+    return allCards.filter(card => card.content.front === word);
+  };
+  
+  // Synchronous get the best card for a word (highest state/ease)
+  const getCardByWordSync = (word: string): Flashcard | null => {
+    if (!word) return null;
+    const cards = getCardsByWordSync(word);
+    if (cards.length === 0) return null;
+    if (cards.length === 1) return cards[0];
+    
+    // Sort by state (review > relearning > learning > new), then by ease
+    return cards.sort((a, b) => {
+      const stateCompare = compareStates(b.state, a.state);
+      if (stateCompare !== 0) return stateCompare;
+      return b.ease - a.ease;
+    })[0];
+  };
+
   // Update metadata
   const updateMeta = (updates: Partial<FlashcardMeta>) => {
     setStore(produce((s) => {
@@ -774,6 +815,24 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
+  // Handle window focus - reload flashcards to sync changes from other windows
+  // This ensures we get updates even if BroadcastChannel messages were missed
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      console.log('[FlashcardContext] Window became visible, reloading flashcards to sync...');
+      // Reload flashcards from disk to get any changes made in other windows
+      if (typeof window !== 'undefined' && window.mLearnIPC) {
+        window.mLearnIPC.getFlashcards();
+        window.mLearnIPC.onFlashcards((loaded) => {
+          const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
+          setStore(reconcile(checked));
+          refreshQueue();
+          console.log('[FlashcardContext] Flashcards reloaded and synced');
+        });
+      }
+    }
+  };
+
   onMount(() => {
     if (typeof BroadcastChannel !== 'undefined') {
       broadcastChannel = new BroadcastChannel(FLASHCARD_CHANNEL);
@@ -784,6 +843,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (typeof window !== 'undefined' && window.mLearnIPC) {
       window.mLearnIPC.onNewDayFlashcards(handleNewDay);
     }
+    
+    // Listen for visibility changes to reload on window focus
+    // This ensures sync when returning from other windows (like flashcard review)
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     loadFlashcards();
     startSession();
@@ -791,6 +854,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   onCleanup(() => {
     broadcastChannel?.close();
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
   });
 
   const value: FlashcardContextValue = {
@@ -816,6 +880,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
     getWordStats,
     getDueCount,
     getNewCount,
+    // Synchronous lookup methods (for reactive SolidJS usage)
+    hasWordSync,
+    getCardByWordSync,
+    getCardsByWordSync,
     updateMeta,
     pushUndoState,
     undoLastAction,
