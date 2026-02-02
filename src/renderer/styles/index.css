@@ -6,9 +6,11 @@
  * Other themes override these base styles.
  */
 @import "./themes/dark.css";
-@import "./themes/glass-transparent.css";
+@import "./themes/darker.css";
 @import "./themes/glass-light.css";
 @import "./themes/glass-dark.css";
+@import "./themes/light-high-contrast.css";
+@import "./themes/dark-high-contrast.css";
 
 :root {
   /* ========== Color Palette ========== */
@@ -27,12 +29,12 @@
   --bg-opaque: #f5f5f5;
 
   --bg: rgba(85, 85, 85, 0.1);
+  --bg-intense: rgba(85, 85, 85, 0.15);
   --accent-bg: rgba(255, 255, 255, 0.2);
   --accent: rgba(255, 255, 255, 0.8);
   --backdrop-filter: blur(10px) saturate(2) brightness(1.1);
   --backdrop-filter-nodim: blur(10px) saturate(2) brightness(1.1);
   --border-color: rgba(85, 85, 85, 0.15);
-  --bg-intense: rgba(85, 85, 85, 0.15);
   --border-color-intense: rgba(85, 85, 85, 0.25);
 
   /* ========== Typography ========== */
@@ -49,6 +51,8 @@
   --font-size-2xl: 1.5rem;
   --font-size-3xl: 2rem;
   --font-size-4xl: 2.5rem;
+  --font-size-5xl: 3rem;
+  --font-size-6xl: 4rem;
 
   --size-sm: 26px;
   --size-md: 32px;

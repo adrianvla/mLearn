@@ -43,8 +43,10 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar}>
           <Icon icon="sidebar" color={"currentColor"} class={""}/>
         </NavBtn>
-        <Tag class="book-title-nav label-secondary" headless size={"sm"}>{props.bookTitle()}</Tag>
       </div>
+        <div class="nav-group">
+            <Tag class="book-title-nav label-secondary" headless size={"sm"}>{props.bookTitle()}</Tag>
+        </div>
       
       <div class="nav-group">
         <Tag class="progress label-secondary" headless size={"sm"}>{props.progressString()}</Tag>

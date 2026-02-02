@@ -6,6 +6,7 @@ import { Component, createSignal, onMount } from 'solid-js';
 import { TabContent, Btn } from '../../../components/common';
 import { useLocalization } from '../../../context';
 import './AboutTab.css';
+import AppLogo from "@renderer/components/common/Misc/AppLogo";
 
 export const AboutTab: Component = () => {
   const [version, setVersion] = createSignal('1.0.0');
@@ -36,7 +37,7 @@ export const AboutTab: Component = () => {
 
   return (
     <TabContent padding="lg" class="about-tab">
-      <div class="about-logo">📚</div>
+      <div class="about-logo"><AppLogo/></div>
       
       <div class="about-version">
         <h2>{t('mlearn.About.Title')}</h2>

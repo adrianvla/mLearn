@@ -27,6 +27,8 @@ export const VideoRoute: Component = () => {
   const [isDragging, setIsDragging] = createSignal(false);
   const [currentVideoTime, setCurrentVideoTime] = createSignal(0);
   const [currentVideoName, setCurrentVideoName] = createSignal('');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_currentVideoPath, setCurrentVideoPath] = createSignal<string>('');
   
   let thumbnailInterval: number | null = null;
 
@@ -38,6 +40,7 @@ export const VideoRoute: Component = () => {
       // Only load if we have an actual path
       if (pendingVideo.trim()) {
         setVideoSrc(`file://${pendingVideo}`);
+        setCurrentVideoPath(pendingVideo);
         setShowDropZone(false);
         // Extract video name from path
         const videoName = pendingVideo.split('/').pop() || pendingVideo.split('\\').pop() || 'Video';
@@ -127,14 +130,18 @@ export const VideoRoute: Component = () => {
         const filePath = (file as File & { path?: string }).path || '';
         const url = filePath ? `file://${filePath}` : URL.createObjectURL(file);
         setVideoSrc(url);
+        setCurrentVideoPath(filePath);
         setShowDropZone(false);
         setCurrentVideoName(file.name);
-        saveToRecentItems({
-          type: 'video',
-          name: file.name,
-          path: filePath,
-          progress: 0,
-        });
+        // Only save to recent items if we have a valid path (can be reopened)
+        if (filePath) {
+          saveToRecentItems({
+            type: 'video',
+            name: file.name,
+            path: filePath,
+            progress: 0,
+          });
+        }
       }
       
       if (['srt', 'vtt', 'ass', 'ssa'].includes(ext || '')) {
@@ -165,14 +172,18 @@ export const VideoRoute: Component = () => {
           const filePath = (file as File & { path?: string }).path || '';
           const url = filePath ? `file://${filePath}` : URL.createObjectURL(file);
           setVideoSrc(url);
+          setCurrentVideoPath(filePath);
           setShowDropZone(false);
           setCurrentVideoName(file.name);
-          saveToRecentItems({
-            type: 'video',
-            name: file.name,
-            path: filePath,
-            progress: 0,
-          });
+          // Only save to recent items if we have a valid path (can be reopened)
+          if (filePath) {
+            saveToRecentItems({
+              type: 'video',
+              name: file.name,
+              path: filePath,
+              progress: 0,
+            });
+          }
         }
       };
       input.click();
@@ -188,6 +199,7 @@ export const VideoRoute: Component = () => {
     if (path) {
       const videoName = path.split('/').pop() || path.split('\\').pop() || 'Video';
       setVideoSrc(`file://${path}`);
+      setCurrentVideoPath(path);
       setShowDropZone(false);
       setCurrentVideoName(videoName);
       saveToRecentItems({

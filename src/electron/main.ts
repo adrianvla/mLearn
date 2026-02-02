@@ -39,15 +39,16 @@ async function initialize(): Promise<void> {
   // Start Python backend
   const pythonFound = await findPython();
   
-  // Start web server for tethered mode
-  startWebServer();
-
-  // Create appropriate window
+  // Create appropriate window FIRST so it can receive error messages
   if (!pythonFound) {
     createWelcomeWindow();
   } else {
     createMainWindow();
   }
+
+  // Start web server for tethered mode AFTER window is created
+  // This ensures any errors (like EADDRINUSE) can be displayed to the user
+  startWebServer();
 }
 
 // App lifecycle

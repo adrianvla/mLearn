@@ -8,6 +8,7 @@ import { Component, Show, JSX, mergeProps } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { Panel } from '../Panel';
 import { Spinner } from '../Loader';
+import { ProgressBar } from '../Feedback/ProgressBar';
 import './LoadingOverlay.css';
 
 export interface LoadingOverlayProps {
@@ -75,19 +76,14 @@ export const LoadingOverlay: Component<LoadingOverlayProps> = (props) => {
               </Show>
               
               <Show when={merged.showProgress && typeof merged.progress === 'number'}>
-                <div class="loading-overlay-progress">
-                  <div class="loading-overlay-progress-track">
-                    <div 
-                      class="loading-overlay-progress-bar"
-                      style={{ width: `${Math.min(100, Math.max(0, merged.progress!))}%` }}
-                    />
-                  </div>
-                  <Show when={merged.showPercent}>
-                    <span class="loading-overlay-percent">
-                      {Math.round(merged.progress!)}%
-                    </span>
-                  </Show>
-                </div>
+                <ProgressBar
+                  value={merged.progress!}
+                  size="md"
+                  variant="primary"
+                  showPercent={merged.showPercent}
+                  percentPosition="below"
+                  class="loading-overlay-progress"
+                />
               </Show>
               
               {merged.children}

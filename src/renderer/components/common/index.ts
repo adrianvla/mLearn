@@ -133,12 +133,14 @@ export {
   EmptyState,
   AlertBanner,
   ConnectionStatus,
+  ProgressBar,
   type EmptyStateProps,
   type EmptyStateAction,
   type AlertBannerProps,
   type AlertVariant,
   type ConnectionStatusProps,
   type ConnectionState,
+  type ProgressBarProps,
 } from './Feedback';
 
 // Text Components

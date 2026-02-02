@@ -10,9 +10,23 @@
   left: 0;
   right: 0;
   transition: opacity var(--transition-slow);
+  /*
+  The following values are hardcoded for contrast purposes.
+  Those have the same exact values as for the dark theme dark.css, except for the backdrop-filter,
+  which has brightness(0.3) instead of brightness(0.8).
+  */
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: rgba(255, 255, 255, 0.4);
+  --bg: rgba(130, 130, 130, 0.2);
+  --bg-intense: rgba(255, 255, 255, 0.15);
+  --border-color: rgba(255, 255, 255, 0.15);
+  --border-color-intense: rgba(255, 255, 255, 0.25);
+  --backdrop-filter: blur(20px) saturate(2) brightness(0.3);
 }
 .video-controls .panel{
   background:var(--bg);
+  backdrop-filter:var(--backdrop-filter);
 }
 
 .video-controls.visible {
@@ -37,43 +51,43 @@ body.hide-cursor .video-controls {
   pointer-events: auto;
 }
 
-/* Progress bar */
-.video-progress-bar {
-  height: 8px;
-  background-color: var(--bg);
-  cursor: pointer;
-  position: relative;
-  transition: height var(--transition-slow);
-  border-top:1px solid var(--border-color);
-  border-bottom:1px solid var(--border-color);
-}
+/*!* Progress bar *!*/
+/*.video-progress-bar {*/
+/*  height: 8px;*/
+/*  background-color: var(--bg);*/
+/*  cursor: pointer;*/
+/*  position: relative;*/
+/*  transition: height var(--transition-slow);*/
+/*  border-top:1px solid var(--border-color);*/
+/*  border-bottom:1px solid var(--border-color);*/
+/*}*/
 
-.video-progress-bar:hover {
-  height: 15px;
-}
+/*.video-progress-bar:hover {*/
+/*  height: 15px;*/
+/*}*/
 
-.video-progress-bar:active {
-  height: 20px;
-}
+/*.video-progress-bar:active {*/
+/*  height: 20px;*/
+/*}*/
 
-.video-progress-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  background: var(--text-secondary);
-  border:1px solid var(--border-color);
-  box-shadow:var(--shadow-special);
-  transition: all var(--transition-slow);
-}
-.video-progress-bar:active .video-progress-fill {
-  background: var(--text-primary);
-}
+/*.video-progress-fill {*/
+/*  position: absolute;*/
+/*  left: 0;*/
+/*  top: 0;*/
+/*  height: 100%;*/
+/*  background: var(--text-secondary);*/
+/*  border:1px solid var(--border-color);*/
+/*  box-shadow:var(--shadow-special);*/
+/*  transition: all var(--transition-slow);*/
+/*}*/
+/*.video-progress-bar:active .video-progress-fill {*/
+/*  background: var(--text-primary);*/
+/*}*/
 
 
 .video-progress-bar:hover .video-progress-fill,
 .video-progress-fill.dragging {
-  transition: background var(--transition-slow);
+  transition: background var(--transition-slow), border-radius var(--transition-slow);
 }
 
 /* Control buttons container */

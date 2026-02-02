@@ -5,23 +5,25 @@
 
 .keybind-input {
   padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.15));
-  background: var(--input-bg, rgba(255, 255, 255, 0.05));
-  color: var(--text-primary, #fff);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg);
+  color: var(--text-primary);
   transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
   outline: none;
+  user-select: none;
 }
 
-.keybind-input:hover:not(:disabled) {
-  border-color: var(--border-hover, rgba(255, 255, 255, 0.25));
-  background: var(--input-bg-hover, rgba(255, 255, 255, 0.08));
+.keybind-input:hover:not(:disabled):not(:focus) {
+  border-color: var(--border-color-intense);
+  background: var(--bg-intense);
 }
 
 .keybind-input:focus {
-  border-color: var(--accent, #6366f1);
-  box-shadow: 0 0 0 3px var(--accent-alpha, rgba(99, 102, 241, 0.25));
-  background: var(--input-bg-focus, rgba(99, 102, 241, 0.1));
+  box-shadow: 0 0 0 3px var(--color-primary);
+  background: var(--bg-intense, rgba(99, 102, 241, 0.1));
+}
+.keybind-input:focus:hover{
 }
 
 .keybind-input:disabled {

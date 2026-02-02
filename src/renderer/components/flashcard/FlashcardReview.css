@@ -14,6 +14,27 @@
   overflow-y: auto;
 }
 
+/* Session progress bar */
+.flashcard-session-progress {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 600px;
+  padding: 0.5rem 1rem;
+}
+
+.flashcard-progress-bar {
+  flex: 1;
+}
+
+.flashcard-progress-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* Header with stats */
 .flashcard-review-header {
   display: flex;
