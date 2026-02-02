@@ -80,6 +80,20 @@ export const SettingsProvider: ParentComponent = (props) => {
     if (s.theme !== 'light') {
       document.body.classList.add(`theme-${s.theme}`);
     }
+
+    // Apply custom color overrides (these override theme colors)
+    const customColors = s.customColors || {};
+    const cssVars = ['bg-opaque', 'text-primary', 'text-secondary', 'text-tertiary', 'bg', 'bg-intense', 'border-color', 'border-color-intense'] as const;
+    
+    for (const varName of cssVars) {
+      const customValue = customColors[varName];
+      if (customValue) {
+        root.style.setProperty(`--${varName}`, customValue);
+      } else {
+        // Remove custom override to let theme default apply
+        root.style.removeProperty(`--${varName}`);
+      }
+    }
   };
 
   // Update a single setting

@@ -267,7 +267,7 @@ const KanjiGridContent: Component = () => {
       const t = maxLearn > 0.5 ? (item.score - 0.5) / (maxLearn - 0.5) : 0;
       return mixHex('#E65100', '#FFEB3B', t);
     }
-    const isDark = settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent';
+    const isDark = settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker';
     return isDark ? '#616161' : '#9E9E9E';
   };
 
@@ -311,7 +311,7 @@ const KanjiGridContent: Component = () => {
                   class={`kg-cell ${isKanjiDimmed(item) ? 'dimmed' : ''}`}
                   style={{
                     background: getColorForKanji(item),
-                    color: item.category !== 'unknown' ? '#111' : ((settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent') ? '#ddd' : '#222'),
+                    color: item.category !== 'unknown' ? '#111' : ((settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker') ? '#ddd' : '#222'),
                   }}
                   onMouseEnter={() => setHoveredKanji(item)}
                   onMouseLeave={() => setHoveredKanji(null)}

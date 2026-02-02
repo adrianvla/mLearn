@@ -641,7 +641,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     // Capture screenshot (OCR mode vs video mode like old app)
     const isOcr = isOcrMode();
+    console.log('%cHandleAddFlashcard: Starting screenshot capture, isOcr:', 'color: orange;', isOcr);
     const screenshot = isOcr ? captureOcrScreenshot() : screenshotVideo();
+    console.log('%cHandleAddFlashcard: Screenshot captured, length:', 'color: orange;', screenshot?.length || 0);
     
     // Extract example HTML (subtitle sentence with highlighted word)
     let exampleHtml: string;
@@ -650,7 +652,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       const contextPhrase = props.contextPhrase || '';
       if (contextPhrase && contextPhrase !== '-') {
         try {
+          console.log('%cHandleAddFlashcard: Tokenizing context phrase...', 'color: orange;');
           const tokens = await tokenize(contextPhrase);
+          console.log('%cHandleAddFlashcard: Tokenization complete, tokens:', 'color: orange;', tokens?.length || 0);
           const colourCodes = settings.colour_codes || currentLangData()?.colour_codes || {};
           exampleHtml = tokensToColoredHtml(tokens, colourCodes, word);
         } catch (e) {
@@ -664,6 +668,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       // Video mode: use subtitle HTML with word highlighted
       exampleHtml = extractExampleHtml(uuid);
     }
+    console.log('%cHandleAddFlashcard: exampleHtml built', 'color: orange;');
     
     // Get level from frequency data
     const freq = wordFreqEntry();
@@ -739,7 +744,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     if (props.onAddToSRS) {
       props.onAddToSRS();
     } else {
-      handleAddFlashcard(undefined, e);
+      // Await the async function and catch any errors
+      handleAddFlashcard(undefined, e).catch((err) => {
+        console.error('handleAddFlashcard failed:', err);
+      });
     }
   };
 
@@ -966,7 +974,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       onMouseEnter={() => props.onMouseEnter?.()}
       onMouseLeave={() => props.onMouseLeave?.()}
     >
-      <div class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${(settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent') ? 'dark' : ''}`}>
+      <div class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${(settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker') ? 'dark' : ''}`}>
         <div class="subtitle_hover_relative">
           <div class="subtitle_hover_content">
             {/* Loading state */}

@@ -15,6 +15,30 @@ export interface ColorCodes {
   [pos: string]: string;
 }
 
+/** Custom CSS color overrides that apply globally regardless of theme */
+export interface CustomColorOverrides {
+  'bg-opaque'?: string;
+  'text-primary'?: string;
+  'text-secondary'?: string;
+  'text-tertiary'?: string;
+  'bg'?: string;
+  'bg-intense'?: string;
+  'border-color'?: string;
+  'border-color-intense'?: string;
+}
+
+/** List of CSS variables that can be customized */
+export const CUSTOMIZABLE_CSS_VARS = [
+  'bg-opaque',
+  'text-primary',
+  'text-secondary',
+  'text-tertiary',
+  'bg',
+  'bg-intense',
+  'border-color',
+  'border-color-intense',
+] as const;
+
 export interface Settings {
   // Knowledge thresholds
   known_ease_threshold: number;
@@ -28,6 +52,8 @@ export interface Settings {
   do_colour_codes: boolean;
   colour_codes: ColorCodes;
   theme: AppTheme;
+  /** Custom CSS color overrides that apply globally regardless of theme */
+  customColors?: CustomColorOverrides;
 
   // Language settings
   language: string;
@@ -129,12 +155,13 @@ export const DEFAULT_SETTINGS: Settings = {
   do_colour_codes: true,
   colour_codes: {},
   theme: 'light',
+  customColors: {},  // Empty = no custom color overrides
   hover_known_get_from_dictionary: false,
   show_pos: true,
   language: 'ja',
   use_anki: false,
   furigana: true,
-  enable_flashcard_creation: false,
+  enable_flashcard_creation: true,  // Enable flashcard creation by default
   flashcard_deck: null,
   flashcards_add_picture: true,
   getCardUrl: 'http://127.0.0.1:7752/getCard',

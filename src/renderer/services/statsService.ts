@@ -281,7 +281,7 @@ export function drawWordsLearnedPieChart(
   });
 
   // Title
-  const isDark = settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent';
+  const isDark = settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker';
   ctx.fillStyle = isDark ? '#ddd' : '#333';
   ctx.font = '14px sans-serif';
   ctx.textAlign = 'left';

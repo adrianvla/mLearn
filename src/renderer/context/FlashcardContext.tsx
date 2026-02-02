@@ -250,8 +250,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Add new flashcard
   const addFlashcard = async (content: Partial<FlashcardContent> & { front: string; back: string }, initialEase?: number): Promise<string> => {
+    console.log('%caddFlashcard called with:', 'color: magenta; font-weight: bold;', content.front);
     const word = content.front;
     const wordHash = await SRS.hashWord(word);
+    console.log('%caddFlashcard: wordHash generated:', 'color: magenta;', wordHash);
 
     // Check if already exists
     if (store.wordToCardMap[wordHash]) {

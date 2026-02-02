@@ -50,14 +50,28 @@ export function generateUUID(): string {
 }
 
 /**
- * Generate SHA-256 hash for word lookups
+ * Generate hash for word lookups using SHA-256 with fallback to simple hash
  */
 export async function hashWord(word: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(word);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    try {
+        // Try Web Crypto API first
+        if (typeof crypto !== 'undefined' && crypto.subtle) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(word);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+    } catch (e) {
+        console.warn('crypto.subtle not available, using fallback hash:', e);
+    }
+    
+    // Fallback: simple djb2 hash for environments without crypto.subtle
+    let hash = 5381;
+    for (let i = 0; i < word.length; i++) {
+        hash = ((hash << 5) + hash) ^ word.charCodeAt(i);
+    }
+    return 'djb2_' + Math.abs(hash).toString(16);
 }
 
 /**
