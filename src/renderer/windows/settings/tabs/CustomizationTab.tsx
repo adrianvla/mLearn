@@ -2,13 +2,51 @@
  * Customization Settings Tab
  */
 
-import { Component } from 'solid-js';
+import { Component, For, Show } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, TabContent, Select } from '../../../components/common';
+import { CUSTOMIZABLE_CSS_VARS, CustomColorOverrides } from '@shared/types';
+
+/** Labels for CSS variables (user-friendly names) */
+const CSS_VAR_LABELS: Record<string, { label: string; description: string }> = {
+  'bg-opaque': { label: 'Background (Opaque)', description: 'Main solid background color' },
+  'text-primary': { label: 'Text Primary', description: 'Primary text color' },
+  'text-secondary': { label: 'Text Secondary', description: 'Secondary text color (muted)' },
+  'text-tertiary': { label: 'Text Tertiary', description: 'Tertiary text color (more muted)' },
+  'bg': { label: 'Background', description: 'Semi-transparent background color' },
+  'bg-intense': { label: 'Background (Intense)', description: 'More opaque background color' },
+  'border-color': { label: 'Border Color', description: 'Standard border color' },
+  'border-color-intense': { label: 'Border Color (Intense)', description: 'More visible border color' },
+};
 
 export const CustomizationTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
+
+  /** Update a single custom color */
+  const updateCustomColor = (varName: keyof CustomColorOverrides, value: string | null) => {
+    const currentColors = settings.customColors || {};
+    const newColors = { ...currentColors };
+    
+    if (value === null || value === '') {
+      delete newColors[varName];
+    } else {
+      newColors[varName] = value;
+    }
+    
+    updateSettings({ customColors: newColors });
+  };
+
+  /** Reset all custom colors */
+  const resetAllCustomColors = () => {
+    updateSettings({ customColors: {} });
+  };
+
+  /** Check if any custom colors are set */
+  const hasCustomColors = () => {
+    const colors = settings.customColors || {};
+    return Object.keys(colors).length > 0;
+  };
 
   return (
     <TabContent
@@ -109,6 +147,77 @@ export const CustomizationTab: Component = () => {
             日本語を勉強しています
           </p>
         </div>
+      </SettingGroup>
+
+      <SettingGroup title="Custom Color Overrides">
+        <p style={{ 
+          "font-size": "0.85em", 
+          color: "var(--text-secondary)", 
+          "margin-bottom": "16px",
+          "line-height": "1.5"
+        }}>
+          Override specific colors that apply globally regardless of theme. 
+          Leave empty to use the theme's default color.
+        </p>
+
+        <For each={[...CUSTOMIZABLE_CSS_VARS]}>
+          {(varName) => {
+            const info = CSS_VAR_LABELS[varName] || { label: varName, description: '' };
+            const currentValue = () => (settings.customColors || {})[varName as keyof CustomColorOverrides] || '';
+            
+            return (
+              <SettingRow
+                label={info.label}
+                description={info.description}
+              >
+                <div style={{ display: 'flex', gap: '8px', "align-items": 'center' }}>
+                  <input
+                    type="color"
+                    value={currentValue() || '#000000'}
+                    onChange={(e) => updateCustomColor(varName as keyof CustomColorOverrides, e.currentTarget.value)}
+                    style={{
+                      width: '40px',
+                      height: '32px',
+                      padding: '2px',
+                      border: '1px solid var(--border-color)',
+                      "border-radius": '4px',
+                      cursor: 'pointer',
+                      background: 'var(--bg-opaque)',
+                    }}
+                  />
+                  <input
+                    type="text"
+                    class="setting-input"
+                    placeholder="#000000"
+                    value={currentValue()}
+                    onChange={(e) => updateCustomColor(varName as keyof CustomColorOverrides, e.currentTarget.value || null)}
+                    style={{ width: '100px' }}
+                  />
+                  <Show when={currentValue()}>
+                    <button
+                      class="btn-secondary"
+                      onClick={() => updateCustomColor(varName as keyof CustomColorOverrides, null)}
+                      style={{ padding: '4px 8px', "font-size": '0.8em' }}
+                    >
+                      Reset
+                    </button>
+                  </Show>
+                </div>
+              </SettingRow>
+            );
+          }}
+        </For>
+
+        <Show when={hasCustomColors()}>
+          <div style={{ "margin-top": "16px", "text-align": "right" }}>
+            <button
+              class="btn-secondary"
+              onClick={resetAllCustomColors}
+            >
+              Reset All Colors
+            </button>
+          </div>
+        </Show>
       </SettingGroup>
     </TabContent>
   );
