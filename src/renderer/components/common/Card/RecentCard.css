@@ -62,16 +62,7 @@
   color:var(--text-secondary);
 }
 
-.progress-bar {
-  height: 10px;
-  background: var(--bg);
-  border-radius: 2px;
-  overflow: hidden;
-  border:1px solid var(--border-color);
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--color-primary);
-  transition: width var(--transition-slow);
+/* Progress bar styling for recent cards */
+.recent-progress {
+  margin-top: auto;
 }

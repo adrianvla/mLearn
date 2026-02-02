@@ -6,7 +6,7 @@
 import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect } from 'solid-js';
 import { useFlashcards, useLocalization } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
-import { Button, Badge, Panel } from '../common';
+import { Button, Badge, Panel, ProgressBar } from '../common';
 import type { Flashcard } from '../../../shared/types';
 import type { Rating } from '../../services/srsAlgorithm';
 import './FlashcardReview.css';
@@ -35,6 +35,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const [showAnswer, setShowAnswer] = createSignal(false);
   const [isComplete, setIsComplete] = createSignal(false);
+  const [initialTotal, setInitialTotal] = createSignal(0);
+  const [cardsAnswered, setCardsAnswered] = createSignal(0);
 
   // Current card
   const currentCard = createMemo(() => getCurrentCard());
@@ -44,6 +46,18 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   // Counts
   const counts = createMemo(() => queueCounts());
+
+  // Calculate session progress percentage
+  const sessionProgress = createMemo(() => {
+    const total = initialTotal();
+    if (total === 0) return 100;
+    return Math.round((cardsAnswered() / total) * 100);
+  });
+
+  // Initialize session total on mount
+  onMount(() => {
+    setInitialTotal(counts().total);
+  });
 
   // Keyboard shortcuts
   onMount(() => {
@@ -124,6 +138,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     if (!card) return;
 
     answerCard(quality);
+    setCardsAnswered(prev => prev + 1);
     setShowAnswer(false);
 
     // Check completion after state update
@@ -157,6 +172,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     refreshQueue();
     setShowAnswer(false);
     setIsComplete(false);
+    // Reset progress tracking for new session
+    setCardsAnswered(0);
+    setTimeout(() => {
+      setInitialTotal(counts().total);
+    }, 0);
   };
 
   // Rating buttons config with time estimates
@@ -209,6 +229,22 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   return (
       <div class="flashcard-review-container" style={props.style}>
+        {/* Session progress bar */}
+        <Show when={initialTotal() > 0}>
+          <div class="flashcard-session-progress">
+            <ProgressBar
+              value={sessionProgress()}
+              size="sm"
+              variant="primary"
+              showPercent={true}
+              class="flashcard-progress-bar"
+            />
+            <span class="flashcard-progress-text">
+              {cardsAnswered()} / {initialTotal()}
+            </span>
+          </div>
+        </Show>
+
         {/* Header with stats */}
         <div class="flashcard-review-header">
           <div class="flashcard-stats">

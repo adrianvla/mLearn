@@ -350,19 +350,33 @@ export function startWebServer(): void {
   httpServer.on('error', (error: NodeJS.ErrnoException) => {
     console.error('Web server error:', error);
     
-    // Send critical error to renderer
-    const mainWindow = getMainWindow();
-    if (mainWindow) {
-      let errorMessage = `Web server error: ${error.message}`;
-      
-      if (error.code === 'EADDRINUSE') {
-        errorMessage = `Error: listen EADDRINUSE: address already in use :::${PROXY_SERVER_PORT}`;
-      } else if (error.code === 'EACCES') {
-        errorMessage = `Error: Permission denied to use port ${PROXY_SERVER_PORT}`;
-      }
-      
-      mainWindow.webContents.send(IPC_CHANNELS.SERVER_CRITICAL_ERROR, errorMessage);
+    let errorMessage = `Web server error: ${error.message}`;
+    
+    if (error.code === 'EADDRINUSE') {
+      errorMessage = `Error: listen EADDRINUSE: address already in use :::${PROXY_SERVER_PORT}`;
+    } else if (error.code === 'EACCES') {
+      errorMessage = `Error: Permission denied to use port ${PROXY_SERVER_PORT}`;
     }
+    
+    // Send critical error to renderer - use a small delay to ensure renderer is ready
+    const sendError = () => {
+      const mainWindow = getMainWindow();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.webContents.isLoading()) {
+          // Wait for the window to finish loading
+          mainWindow.webContents.once('did-finish-load', () => {
+            mainWindow.webContents.send(IPC_CHANNELS.SERVER_CRITICAL_ERROR, errorMessage);
+          });
+        } else {
+          mainWindow.webContents.send(IPC_CHANNELS.SERVER_CRITICAL_ERROR, errorMessage);
+        }
+      } else {
+        // Window not ready yet, retry after a short delay
+        setTimeout(sendError, 500);
+      }
+    };
+    
+    sendError();
   });
 
   httpServer.listen(PROXY_SERVER_PORT, () => {

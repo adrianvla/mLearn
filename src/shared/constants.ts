@@ -151,7 +151,7 @@ export const SUBTITLE_THEMES = ['marker', 'background', 'shadow'] as const;
 export type SubtitleTheme = typeof SUBTITLE_THEMES[number];
 
 // App themes
-export const APP_THEMES = ['light', 'dark', 'glass-transparent', 'glass-light', 'glass-dark'] as const;
+export const APP_THEMES = ['light', 'dark', 'glass-light', 'glass-dark', 'light-high-contrast', 'dark-high-contrast', 'darker'] as const;
 export type AppTheme = typeof APP_THEMES[number];
 
 // Word status (for SRS)

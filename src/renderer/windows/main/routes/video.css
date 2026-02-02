@@ -17,6 +17,7 @@
   background:var(--bg);
   color:var(--text-secondary);
   transition:all var(--transition-slow);
+  backdrop-filter: var(--backdrop-filter);
 }
 body.hide-cursor .back-button {
   opacity: 0;

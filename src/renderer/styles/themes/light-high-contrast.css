@@ -1,0 +1,91 @@
+
+/* === Start index.css === */
+body.theme-light-high-contrast {
+    /*--bg-opaque: #0a0a0a;*/
+    --bg-opaque: white;
+    --text-primary: black;
+    --text-secondary: black;
+    --text-tertiary: black;
+
+    --bg: rgba(85, 85, 85, 0.1);
+    --bg-intense: rgba(85, 85, 85, 0.15);
+    --border-color: black;
+    --border-color-intense: black;
+
+    --backdrop-filter: none;
+    --backdrop-filter-nodim: none;
+
+    /* Dark mode flashcard highlight */
+    --flashcard-highlight: #ff5ec7;
+
+    --panel-bg: var(--bg);
+    --panel-bg-hover: var(--bg-intense);
+    --panel-border: var(--border-color);
+    --panel-border-hover: var(--border-color-intense);
+    --bg-primary: var(--bg);
+    --bg-secondary: var(--bg-intense);
+
+    --overlay-bg: rgba(0, 0, 0, 0.6);
+    --overlay-bg-soft: rgba(0, 0, 0, 0.4);
+}
+
+/* === End index.css === */
+body.theme-light-high-contrast .loader{
+    --bg: white;
+    --border-color:white;
+}
+body.theme-light-high-contrast .loader .loader-ring > *{
+    border: 1px solid black;
+}
+
+
+body.theme-light-high-contrast .drag-region{
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+
+body.theme-light-high-contrast button{
+    border:1px solid black !important;
+}
+
+/* === Start VideoControls.css === */
+body.theme-light-high-contrast .video-controls {
+    --text-primary: blue;
+    --text-secondary: black;
+    --text-tertiary: black;
+    --bg: white;
+    --bg-intense: white;
+    --border-color: black;
+    --border-color-intense: black;
+    --backdrop-filter: none;
+}
+/* === End VideoControls.css === */
+body.theme-light-high-contrast .back-button{
+    border: 1px solid var(--border-color);
+    background: white !important;
+}
+
+/* === Start WordHover.css === */
+.subtitle_hover.theme-light-high-contrast,
+body.theme-light-high-contrast .subtitle_hover {
+    background-color: white;
+    color: var(--text-primary);
+}
+body.theme-light-high-contrast .subtitle_hover .footer,
+.subtitle_hover.theme-light-high-contrast .footer {
+    border-top: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.1);
+}
+
+body.theme-light-high-contrast .subtitle_hover hr,
+.subtitle_hover.theme-light-high-contrast hr {
+    border-top-color: var(--border-color);
+}
+/* === End WordHover.css === */
+
+body.theme-light-high-contrast .label-pill,
+body.theme-light-high-contrast .btn-pill,
+body.theme-light-high-contrast .label-status{
+    border: 1px solid var(--border-color);
+}

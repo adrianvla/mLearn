@@ -1,0 +1,101 @@
+
+/* === Start index.css === */
+body.theme-dark-high-contrast {
+    /*--bg-opaque: #0a0a0a;*/
+    --bg-opaque: #000;
+    --text-primary: white;
+    --text-secondary: white;
+    --text-tertiary: white;
+
+    --bg: rgba(130, 130, 130, 0.2);
+    --bg-intense: rgba(255, 255, 255, 0.15);
+    --border-color: white;
+    --border-color-intense: white;
+
+    --backdrop-filter: none;
+    --backdrop-filter-nodim: none;
+
+    /* Dark mode flashcard highlight */
+    --flashcard-highlight: #ff5ec7;
+
+    --panel-bg: var(--bg);
+    --panel-bg-hover: var(--bg-intense);
+    --panel-border: var(--border-color);
+    --panel-border-hover: var(--border-color-intense);
+    --bg-primary: var(--bg);
+    --bg-secondary: var(--bg-intense);
+
+    --overlay-bg: rgba(0, 0, 0, 0.6);
+    --overlay-bg-soft: rgba(0, 0, 0, 0.4);
+}
+
+/* === End index.css === */
+body.theme-dark-high-contrast .loader{
+    --bg: black;
+    --border-color:black;
+}
+body.theme-dark-high-contrast .loader .loader-ring > *{
+    border: 1px solid white;
+}
+body.theme-dark-high-contrast .drag-region{
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+body.theme-dark-high-contrast button{
+    border:1px solid white !important;
+}
+
+/* === Start VideoControls.css === */
+body.theme-dark-high-contrast .video-controls {
+    --text-primary: blue;
+    --text-secondary: white;
+    --text-tertiary: white;
+    --bg: black;
+    --bg-intense: black;
+    --border-color: white;
+    --border-color-intense: white;
+    --backdrop-filter: none;
+}
+/* === End VideoControls.css === */
+body.theme-dark-high-contrast .back-button{
+    border: 1px solid var(--border-color);
+    background: black !important;
+}
+
+/* === Start WordHover.css === */
+.subtitle_hover.theme-dark-high-contrast,
+body.theme-dark-high-contrast .subtitle_hover {
+    background-color: black;
+    color: var(--text-primary);
+}
+body.theme-dark-high-contrast .subtitle_hover .pitch,
+.subtitle_hover.theme-dark-high-contrast .pitch {
+    filter: invert(1);
+}
+
+body.theme-dark-high-contrast .subtitle_hover .footer,
+.subtitle_hover.theme-dark-high-contrast .footer {
+    border-top: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.1);
+}
+
+body.theme-dark-high-contrast .subtitle_hover hr,
+.subtitle_hover.theme-dark-high-contrast hr {
+    border-top-color: var(--border-color);
+}
+
+body.theme-dark-high-contrast .subtitle_hover_alt_c,
+.subtitle_hover.theme-dark-high-contrast .subtitle_hover_alt_c {
+    background: rgba(0, 0, 0, 0.5);
+}
+/* === End WordHover.css === */
+
+body.theme-dark-high-contrast .label-pill,
+body.theme-dark-high-contrast .btn-pill,
+body.theme-dark-high-contrast .label-status{
+    border: 1px solid var(--border-color);
+    filter: invert(1) hue-rotate(180deg) saturate(200%);
+    box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}

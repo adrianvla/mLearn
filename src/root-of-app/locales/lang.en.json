@@ -439,7 +439,9 @@
           "Description": "Select the visual theme for the application",
           "Light": "Light",
           "Dark": "Dark",
-          "GlassTransparent": "Glass Transparent",
+          "Darker": "Darker",
+          "LightHighContrast": "Light High Contrast",
+          "DarkHighContrast": "Dark High Contrast",
           "GlassLight": "Glass Light",
           "GlassDark": "Glass Dark"
         },

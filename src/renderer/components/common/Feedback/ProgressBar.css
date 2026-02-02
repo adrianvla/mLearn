@@ -1,0 +1,130 @@
+/**
+ * ProgressBar Component Styles
+ * Universal progress bar styles for various UI contexts
+ */
+
+/* ========== Container ========== */
+.progress-bar-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  --border-radius:0px;
+}
+
+.progress-bar-container--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-1);
+}
+
+/* ========== Track (Background) ========== */
+.progress-bar-track {
+  position: relative;
+  width: 100%;
+  background: var(--bg);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+/* Size variants */
+.progress-bar--xs {
+  height: 4px;
+}
+
+.progress-bar--sm {
+  height: 6px;
+}
+
+.progress-bar--md {
+  height: 8px;
+}
+
+.progress-bar--lg {
+  height: 12px;
+}
+
+
+/* Interactive variant */
+.progress-bar--interactive {
+  cursor: pointer;
+  transition: height var(--transition-normal);
+}
+
+.progress-bar--interactive:hover {
+  height: 15px;
+}
+
+.progress-bar--interactive:active {
+  height: 20px;
+}
+
+/* Rounded variant */
+.progress-bar--rounded {
+  --border-radius: var(--radius-full);
+  border-radius:var(--border-radius);
+}
+
+/* ========== Fill (Progress Indicator) ========== */
+.progress-bar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  min-width: 0;
+  border-top-right-radius: var(--border-radius);
+  border-bottom-right-radius: var(--border-radius);
+  border:1px solid var(--border-color);
+  transition: border-radius var(--transition-normal);
+  box-shadow: var(--shadow-special);
+}
+
+/* Animated transition */
+.progress-bar-fill--animated {
+  transition: width var(--transition-slow);
+}
+
+/* Color variants */
+.progress-bar-fill--default {
+  background: var(--text-secondary);
+}
+
+.progress-bar-fill--primary {
+  background: var(--accent-primary);
+}
+
+.progress-bar-fill--success {
+  background: var(--color-success);
+}
+
+.progress-bar-fill--warning {
+  background: var(--color-warning);
+}
+
+.progress-bar-fill--error {
+  background: var(--color-error);
+}
+
+/* Interactive hover effects */
+/*.progress-bar--interactive:hover .progress-bar-fill--default {*/
+/*  background: var(--text-primary);*/
+/*}*/
+
+.progress-bar--interactive:active .progress-bar-fill--default {
+  background: var(--text-primary);
+}
+
+/* ========== Percentage Text ========== */
+.progress-bar-percent {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  min-width: 3ch;
+  text-align: center;
+}
+
+.progress-bar-container--stacked .progress-bar-percent {
+  text-align: center;
+  width: 100%;
+}

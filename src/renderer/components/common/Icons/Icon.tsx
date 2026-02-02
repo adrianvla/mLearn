@@ -1,4 +1,5 @@
-import {Component} from 'solid-js';
+import {Component, createMemo, Show} from 'solid-js';
+import {Dynamic} from 'solid-js/web';
 
 import Book from './raw/Book';
 import Bot from './raw/Bot';
@@ -28,34 +29,39 @@ interface IconProps {
     class: string;
 }
 
+const iconMap = {
+    book: Book,
+    bot: Bot,
+    cards: Cards,
+    check: Check,
+    chevron: Chevron,
+    cog: Cog,
+    cross: Cross,
+    cross2: Cross2,
+    document: Document,
+    'fast-forward': FastForward,
+    palette: Palette,
+    pause: Pause,
+    pin: Pin,
+    pip: Pip,
+    play: Play,
+    sidebar: Sidebar,
+    star: Star,
+    stars: Stars,
+    stats: Stats,
+    subtitles: Subtitles,
+    volume: Volume,
+};
+
 const Icon: Component<IconProps> = (props) => {
-    const iconMap = {
-        book: Book,
-        bot: Bot,
-        cards: Cards,
-        check: Check,
-        chevron: Chevron,
-        cog: Cog,
-        cross: Cross,
-        cross2: Cross2,
-        document: Document,
-        'fast-forward': FastForward,
-        palette: Palette,
-        pause: Pause,
-        pin: Pin,
-        pip: Pip,
-        play: Play,
-        sidebar: Sidebar,
-        star: Star,
-        stars: Stars,
-        stats: Stats,
-        subtitles: Subtitles,
-        volume: Volume,
-    };
+    // Use createMemo to make the icon selection reactive
+    const IconComponent = createMemo(() => iconMap[props.icon as keyof typeof iconMap]);
 
-    const IconComponent = iconMap[props.icon as keyof typeof iconMap];
-
-    return IconComponent ? <IconComponent color={props.color} class={props.class}/> : null;
+    return (
+        <Show when={IconComponent()}>
+            <Dynamic component={IconComponent()!} color={props.color} class={props.class} />
+        </Show>
+    );
 };
 
 export default Icon;

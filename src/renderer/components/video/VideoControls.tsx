@@ -7,7 +7,7 @@ import { Component, Show, createSignal, createMemo } from 'solid-js';
 import type { useVideo, useSubtitles } from '../../hooks';
 import { useSettings, useLocalization } from '../../context';
 import { useIPC } from '../../hooks';
-import { Panel, IconBtn, RangeInput, Select } from '../common';
+import { Panel, IconBtn, RangeInput, Select, ProgressBar } from '../common';
 import type { SelectOption } from '../common/Select/Select';
 import './VideoControls.css';
 
@@ -113,20 +113,10 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
         return 'high';
     });
 
-    // Handle progress bar click
-    const handleProgressClick = (e: MouseEvent) => {
-        const bar = e.currentTarget as HTMLDivElement;
-        const rect = bar.getBoundingClientRect();
-        const percent = (e.clientX - rect.left) / rect.width;
-        const newTime = percent * state().duration;
-        props.video.seek(newTime);
-    };
-
     // Handle progress bar drag
     const handleProgressDrag = (e: MouseEvent) => {
         if (!isDragging()) return;
-        const bar = (e.currentTarget as HTMLElement).closest('.video-progress-bar') as HTMLDivElement;
-        if (!bar) return;
+        const bar = e.currentTarget as HTMLDivElement;
         const rect = bar.getBoundingClientRect();
         const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
         const newTime = percent * state().duration;
@@ -151,19 +141,20 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
         >
             <Panel variant="default" rounded="none" padding="none" border={false}>
                 {/* Progress bar */}
-                <div
-                    class={`video-progress-bar ${isDragging() ? 'dragging' : ''}`}
-                    onClick={handleProgressClick}
+                <ProgressBar
+                    value={props.video.progress()}
+                    size="md"
+                    variant="default"
+                    interactive
+                    trackClass="video-progress-bar"
+                    fillClass={`video-progress-fill ${isDragging() ? 'dragging' : ''}`}
+                    onClick={(percent) => props.video.seek((percent / 100) * state().duration)}
                     onMouseDown={() => setIsDragging(true)}
                     onMouseUp={() => setIsDragging(false)}
                     onMouseMove={handleProgressDrag}
                     onMouseLeave={() => setIsDragging(false)}
-                >
-                    <div
-                        class={`video-progress-fill ${isDragging() ? 'dragging' : ''}`}
-                        style={{ width: `${props.video.progress()}%` }}
-                    />
-                </div>
+                    rounded={false}
+                />
 
                 {/* Control buttons */}
                 <div class="video-controls-bar">
@@ -217,6 +208,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                         {/* Subtitles toggle */}
                         <IconBtn
                             variant="ghost"
+                            active={settings.showSubtitles}
                             class={settings.showSubtitles ? '' : 'inactive'}
                             onClick={() => updateSettings({ showSubtitles: !settings.showSubtitles })}
                             aria-label={t('mlearn.Global.Aria.ToggleSubtitles')}
@@ -228,6 +220,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                         <Show when={!isTethered}>
                             <IconBtn
                                 variant="ghost"
+                                active={state().isPiP}
                                 class={state().isPiP ? '' : 'inactive'}
                                 onClick={() => props.video.togglePiP()}
                                 aria-label={t('mlearn.Global.Aria.PictureInPicture')}

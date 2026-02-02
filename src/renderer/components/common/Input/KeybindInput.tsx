@@ -199,14 +199,9 @@ export const KeybindInput: Component<KeybindInputProps> = (props) => {
       type="text"
       class={`keybind-input ${props.class || ''}`}
       style={{
-        width: 'auto',
-        'min-width': '80px',
         'text-align': 'center',
         cursor: 'pointer',
         'user-select': 'none',
-        'font-family': 'inherit',
-        'font-size': '0.95rem',
-        'font-weight': '500',
         ...props.style,
       }}
       value={displayValue()}

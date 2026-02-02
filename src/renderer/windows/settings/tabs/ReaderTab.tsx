@@ -166,9 +166,9 @@ export const ReaderTab: Component = () => {
               value={settings.readerMagnifierHotkey ?? 'z'}
               onChange={(key) => updateSettings({ readerMagnifierHotkey: key.length === 1 ? key.toLowerCase() : key })}
             />
-            <span style={{ color: 'var(--text-secondary)', 'font-size': '0.85rem' }}>
-              {t('mlearn.Settings.Reader.Magnifier.Hotkey.Hint')}
-            </span>
+            {/*<span style={{ color: 'var(--text-secondary)', 'font-size': '0.85rem' }}>*/}
+            {/*  {t('mlearn.Settings.Reader.Magnifier.Hotkey.Hint')}*/}
+            {/*</span>*/}
           </div>
         </SettingRow>
 
@@ -191,6 +191,7 @@ export const ReaderTab: Component = () => {
               min={1.5}
               max={5}
               step={0.5}
+              ghost={true}
               style={{ width: '70px', 'text-align': 'center' }}
               onChange={(e) => {
                 const val = parseFloat(e.currentTarget.value);
@@ -199,7 +200,8 @@ export const ReaderTab: Component = () => {
                 }
               }}
             />
-            <span style={{ color: 'var(--text-secondary)', 'font-size': '0.9rem' }}>x</span>
+            {/*TODO: make actual layout because hardcoding the width is meh*/}
+            <span style={{ color: 'var(--text-secondary)', 'font-size': '0.9rem' , 'width': '16px'}}>x</span>
           </div>
         </SettingRow>
 
@@ -222,6 +224,7 @@ export const ReaderTab: Component = () => {
               min={100}
               max={400}
               step={25}
+              ghost={true}
               style={{ width: '70px', 'text-align': 'center' }}
               onChange={(e) => {
                 const val = parseInt(e.currentTarget.value);
