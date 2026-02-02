@@ -9,7 +9,7 @@ import type { Token, DictionaryEntry, TranslationEntry, PitchData, FlashcardCont
 import { WORD_STATUS } from '../../../shared/constants';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
-import { getWordStatus, setWordStatus, toUniqueIdentifier } from '../../services/statsService';
+import { setWordStatus, toUniqueIdentifier, wordsLearnedInApp } from '../../services/statsService';
 import { getWordExplanation, getCachedExplanation } from '../../services/llmService';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
@@ -113,12 +113,16 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const isShown = createMemo(() => props.visible !== false);
 
   // Load actual status from storage on mount or when word changes
+  // Access wordsLearnedInApp() directly to make this reactive when data loads
   createEffect(() => {
     const word = actualWord(); // Use actualWord for status lookup (like old app)
     if (!word) return;
     
     // Don't overwrite isInSRS if we're currently adding a flashcard
     if (isAddingFlashcard()) return;
+    
+    // Access the signal to make this effect reactive to word status changes
+    const allWordStatuses = wordsLearnedInApp();
     
     // Async IIFE to handle async operations within createEffect
     (async () => {
@@ -127,7 +131,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         setWordUuid(uuid);
         
         // Get status from storage using word (not uuid) - matches old app
-        const storedStatus = getWordStatus(word);
+        // Using the tracked signal value for reactivity
+        const storedStatus = allWordStatuses[word] ?? WORD_STATUS.UNKNOWN;
         setCurrentStatus(numericToWordStatus(storedStatus));
         
         // Check if in SRS and get ease (hasWord and getCardByWord are async)

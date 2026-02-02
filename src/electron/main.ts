@@ -10,6 +10,7 @@ import { setupSettingsIPC } from './services/settings';
 import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
 import { setupFileOperationsIPC } from './services/fileOperations';
+import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageMigration';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 
@@ -34,7 +35,12 @@ async function initialize(): Promise<void> {
   setupWindowIPC();
   setupPythonBackendIPC();
   setupFileOperationsIPC();
+  setupMigrationIPC();
   setupKillHandlers();
+
+  // Perform localStorage migration before creating windows
+  // This migrates data from the old app's file:// localStorage to file-based storage
+  await migrateLocalStorage();
 
   // Start Python backend
   const pythonFound = await findPython();

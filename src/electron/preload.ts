@@ -65,6 +65,18 @@ const mLearnIPC = {
   onLocalStorageMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null }) => void) => {
     ipcRenderer.on(IPC_CHANNELS.LOCALSTORAGE_MIGRATION_COMPLETE, (_event, info) => callback(info));
   },
+  // Get all migrated localStorage data
+  getMigratedLocalStorage: (): Promise<Record<string, unknown> | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_MIGRATED_LOCALSTORAGE),
+  // Get specific migrated item by key
+  getMigratedItem: (key: string): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_MIGRATED_ITEM, key),
+  // Check if migration has occurred
+  hasMigrationOccurred: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.HAS_MIGRATION_OCCURRED),
+  // Trigger manual migration (useful for re-migration)
+  triggerMigration: (): Promise<{ success: boolean; migratedKeys: string[]; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TRIGGER_MIGRATION),
 
   // ========== Window Management ==========
   changeTrafficLights: (visibility: boolean) => {

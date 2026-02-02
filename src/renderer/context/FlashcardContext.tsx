@@ -9,6 +9,7 @@ import { createContext, useContext, ParentComponent, onMount, onCleanup, createS
 import { createStore, reconcile, produce } from 'solid-js/store';
 import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, WordStats, FlashcardState } from '../../shared/types';
 import * as SRS from '../services/srsAlgorithm';
+import { migrationListenerReady } from './migrationSignals';
 
 // Current store version
 const CURRENT_VERSION = 3;
@@ -178,6 +179,47 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Load flashcards
   const loadFlashcards = () => {
     if (typeof window !== 'undefined' && window.mLearnIPC) {
+      // Set up migration listener FIRST before requesting flashcards
+      window.mLearnIPC.on(
+        'flashcard-migration-complete',
+        (...args: unknown[]) => {
+          const info = args[0] as { occurred: boolean; backupPath: string | null; fromVersion: number | null } | undefined;
+          console.log('[FlashcardContext] Received migration IPC:', info);
+          if (info?.occurred) {
+            console.log('[FlashcardContext] Flashcard migration completed from v', info.fromVersion);
+            // Dispatch event when listener is ready, or immediately if already ready
+            const dispatchMigrationEvent = () => {
+              console.log('[FlashcardContext] Dispatching migration event to window');
+              window.dispatchEvent(new CustomEvent('mlearn-flashcard-migration', { 
+                detail: info 
+              }));
+            };
+            
+            if (migrationListenerReady()) {
+              // Listener is already ready, dispatch immediately
+              dispatchMigrationEvent();
+            } else {
+              // Wait for listener to be ready with polling
+              const checkReady = setInterval(() => {
+                if (migrationListenerReady()) {
+                  clearInterval(checkReady);
+                  dispatchMigrationEvent();
+                }
+              }, 50);
+              // Safety timeout - don't wait forever
+              setTimeout(() => {
+                clearInterval(checkReady);
+                if (!migrationListenerReady()) {
+                  console.warn('[FlashcardContext] Migration listener not ready after timeout, dispatching anyway');
+                  dispatchMigrationEvent();
+                }
+              }, 2000);
+            }
+          }
+        }
+      );
+      
+      // Now request flashcards
       window.mLearnIPC.getFlashcards();
       window.mLearnIPC.onFlashcards((loaded) => {
         const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
@@ -185,21 +227,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
         refreshQueue();
         setIsLoading(false);
       });
-      
-      // Listen for migration complete notification
-      window.mLearnIPC.on?.(
-        'flashcard-migration-complete',
-        (...args: unknown[]) => {
-          const info = args[0] as { occurred: boolean; backupPath: string | null; fromVersion: number | null } | undefined;
-          if (info?.occurred) {
-            console.log('Flashcard migration completed from v', info.fromVersion);
-            // Dispatch custom event for components to show notification
-            window.dispatchEvent(new CustomEvent('mlearn-flashcard-migration', { 
-              detail: info 
-            }));
-          }
-        }
-      );
     } else {
       // Try localStorage for tethered mode
       try {
