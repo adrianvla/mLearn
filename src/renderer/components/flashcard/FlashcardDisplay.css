@@ -57,11 +57,11 @@
   transform: rotateY(180deg);
 }
 
-/* Level pill */
+/* Level pill - positioned in upper left corner like WordHover */
 .flashcard-level-pill {
-  margin-bottom: 1rem;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
   font-size: 0.75rem;
 }
 
@@ -199,13 +199,23 @@
 .flashcard-screenshot-container {
   margin-top: 1rem;
   max-width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.flashcard-screenshot-front {
+  margin-top: 0.75rem;
 }
 
 .flashcard-screenshot {
   max-width: 100%;
-  max-height: 150px;
-  border-radius: 8px;
+  max-height: 200px;
+  width: auto;
+  height: auto;
+  border-radius: var(--radius-md, 8px);
   object-fit: contain;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* Example sentence styling - matches old app's flashcard_style.css */
