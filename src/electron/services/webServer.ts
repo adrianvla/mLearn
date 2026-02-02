@@ -346,6 +346,25 @@ export function startWebServer(): void {
 
   wss.on('connection', handleWebSocketConnection);
 
+  // Handle server errors
+  httpServer.on('error', (error: NodeJS.ErrnoException) => {
+    console.error('Web server error:', error);
+    
+    // Send critical error to renderer
+    const mainWindow = getMainWindow();
+    if (mainWindow) {
+      let errorMessage = `Web server error: ${error.message}`;
+      
+      if (error.code === 'EADDRINUSE') {
+        errorMessage = `Error: listen EADDRINUSE: address already in use :::${PROXY_SERVER_PORT}`;
+      } else if (error.code === 'EACCES') {
+        errorMessage = `Error: Permission denied to use port ${PROXY_SERVER_PORT}`;
+      }
+      
+      mainWindow.webContents.send(IPC_CHANNELS.SERVER_CRITICAL_ERROR, errorMessage);
+    }
+  });
+
   httpServer.listen(PROXY_SERVER_PORT, () => {
     console.log(`Web server listening on http://127.0.0.1:${PROXY_SERVER_PORT}`);
   });

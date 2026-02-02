@@ -123,7 +123,6 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
         <Panel
             class="subtitle-sync"
             variant="default"
-            blur="lg"
             rounded="lg"
             padding="none"
             border={false}

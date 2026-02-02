@@ -6,11 +6,12 @@
   position: relative;
   width: 100%;
   height: 100%;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
+  transition: all var(--transition-slow);
+  background: var(--bg);
 }
 
 .drop-zone.dragging {
-  background-color: var(--color-primary-alpha, rgba(59, 130, 246, 0.1));
+  background: var(--bg-intense);
   border-color: var(--color-primary, #3b82f6);
 }
 
@@ -18,17 +19,6 @@
   pointer-events: none;
   opacity: 0.5;
 }
-
-/* Optional overlay when dragging */
-.drop-zone.dragging::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--color-primary-alpha, rgba(59, 130, 246, 0.05));
-  pointer-events: none;
-  z-index: 100;
-}
-
 /* When used as a full-page drop zone */
 .drop-zone.full-page {
   position: fixed;
@@ -37,8 +27,8 @@
 
 /* When used as an inline drop zone with border */
 .drop-zone.bordered {
-  border: 2px dashed var(--border-color, #e5e7eb);
-  border-radius: 8px;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-2xl);
   padding: 2rem;
 }
 
@@ -59,25 +49,25 @@
 /* Drop zone icon */
 .drop-zone-icon {
   font-size: 3rem;
-  color: var(--text-secondary, #9ca3af);
+  color: var(--text-secondary);
 }
 
 .drop-zone.dragging .drop-zone-icon {
-  color: var(--color-primary, #3b82f6);
+  color: var(--color-primary);
 }
 
 /* Drop zone text */
 .drop-zone-text {
-  color: var(--text-secondary, #9ca3af);
+  color: var(--text-secondary);
   font-size: 1rem;
 }
 
 .drop-zone.dragging .drop-zone-text {
-  color: var(--color-primary, #3b82f6);
+  color: var(--color-primary);
 }
 
 /* Drop zone hint */
 .drop-zone-hint {
-  color: var(--color-text-tertiary, #d1d5db);
+  color: var(--text-tertiary);
   font-size: 0.875rem;
 }

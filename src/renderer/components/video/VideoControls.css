@@ -9,8 +9,23 @@
   bottom: 0;
   left: 0;
   right: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity var(--transition-slow);
 }
+.video-controls .panel{
+  background:var(--bg);
+}
+
+.video-controls.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+
+body.hide-cursor .video-controls {
+  opacity: 0;
+  pointer-events: none;
+}
+
 
 .video-controls.hidden {
   opacity: 0;
@@ -28,10 +43,17 @@
   background-color: var(--bg);
   cursor: pointer;
   position: relative;
+  transition: height var(--transition-slow);
+  border-top:1px solid var(--border-color);
+  border-bottom:1px solid var(--border-color);
 }
 
 .video-progress-bar:hover {
-  height: 10px;
+  height: 15px;
+}
+
+.video-progress-bar:active {
+  height: 20px;
 }
 
 .video-progress-fill {
@@ -39,13 +61,19 @@
   left: 0;
   top: 0;
   height: 100%;
-  background-color: var(--color-primary);
-  transition: width 0.25s ease-out;
+  background: var(--text-secondary);
+  border:1px solid var(--border-color);
+  box-shadow:var(--shadow-special);
+  transition: all var(--transition-slow);
 }
+.video-progress-bar:active .video-progress-fill {
+  background: var(--text-primary);
+}
+
 
 .video-progress-bar:hover .video-progress-fill,
 .video-progress-fill.dragging {
-  transition: none;
+  transition: background var(--transition-slow);
 }
 
 /* Control buttons container */
@@ -77,10 +105,11 @@
 
 /* Time display */
 .video-time-display {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   margin-left: 0.5rem;
   font-variant-numeric: tabular-nums;
+  user-select: none;
 }
 
 /* Speed select */
@@ -90,9 +119,8 @@
   color: var(--text-secondary);
   cursor: pointer;
   padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
+  font-size:var(--font-size-xs);
   min-width: 3.5rem;
-  transition: color 0.2s ease;
 }
 
 .video-speed-select:hover {

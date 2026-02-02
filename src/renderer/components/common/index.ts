@@ -27,11 +27,16 @@ export {
   ConfirmDialog, 
   useConfirmDialog,
   WindowOverlay,
+  LoadingOverlay as ModalLoadingOverlay,
+  ErrorModal,
   type ModalProps,
   type ConfirmDialogProps, 
   type ConfirmVariant, 
   type ConfirmOptions,
   type WindowOverlayProps,
+  type LoadingOverlayProps,
+  type ErrorModalProps,
+  type ErrorSeverity,
 } from './Modal';
 
 // Panel Components
@@ -117,7 +122,7 @@ export {
   Skeleton,
   Progress,
   ProgressRing,
-  LoadingOverlay,
+  InlineLoadingOverlay,
   type LoaderProps,
   type LoaderType,
   type ProgressVariant,

@@ -149,7 +149,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            <Panel variant="default" blur="md" rounded="none" padding="none" border={false}>
+            <Panel variant="default" rounded="none" padding="none" border={false}>
                 {/* Progress bar */}
                 <div
                     class={`video-progress-bar ${isDragging() ? 'dragging' : ''}`}

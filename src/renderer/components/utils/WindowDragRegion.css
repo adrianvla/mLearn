@@ -9,10 +9,16 @@
     backdrop-filter: var(--backdrop-filter);
     border-bottom-right-radius: 10px;
     opacity:1;
-    transition:opacity 0.3s;
+    transition:opacity var(--transition-slow);
     z-index:var(--z-overlay);
 }
 .hidden {
     opacity:0;
     pointer-events:none;
+}
+
+
+body.hide-cursor .drag-region {
+    opacity: 0;
+    pointer-events: none;
 }

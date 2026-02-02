@@ -87,7 +87,7 @@ export const StatCard: Component<StatCardProps> = (props) => {
 
   if (props.variant === 'glass') {
     return (
-      <Panel variant="elevated" blur="md" rounded="lg" padding="md">
+      <Panel variant="elevated" rounded="lg" padding="md">
         {content}
       </Panel>
     );

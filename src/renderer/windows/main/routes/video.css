@@ -5,30 +5,26 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-opaque);
   position: relative;
 }
 
 .back-button {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
+  top: 0.5rem;
+  left: calc(100px + 1rem);
   z-index: 100;
-  padding: 0.5rem 1rem;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: var(--backdrop-filter);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  opacity: 0.7;
+  background:var(--bg);
+  color:var(--text-secondary);
+  transition:all var(--transition-slow);
+}
+body.hide-cursor .back-button {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .back-button:hover {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.8);
+  color:var(--text-primary);
 }
 
 .drop-zone-container {
@@ -43,9 +39,8 @@
 .drop-zone {
   max-width: 500px;
   width: 100%;
+  height:unset;
   text-align: center;
-  border: 2px dashed var(--border-color);
-  transition: border-color 0.2s ease;
 }
 
 .drop-zone.dragging {

@@ -239,7 +239,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             fallback={
               <Panel
                   variant="elevated"
-                  blur="lg"
                   rounded="xl"
                   class="flashcard-completion"
               >
