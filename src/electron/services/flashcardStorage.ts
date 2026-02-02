@@ -7,14 +7,18 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import type { FlashcardStore } from '../../shared/types';
+import type { FlashcardStore, WordStats, Flashcard, FlashcardState } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
+
+// Current store version - increment when making breaking changes
+const CURRENT_VERSION = 3;
 
 // Default flashcard store (matching new UUID-keyed structure)
 const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
   flashcards: {},
   wordCandidates: {},
   wordToCardMap: {},
+  wordStatsMap: {},
   knownUntracked: {},
   meta: {
     newCardsToday: 0,
@@ -29,7 +33,7 @@ const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
     maxInterval: 36500,
   },
   dailyStats: {},
-  version: 2,
+  version: CURRENT_VERSION,
 };
 
 // Get flashcard storage path
@@ -37,14 +41,126 @@ function getFlashcardsPath(): string {
   return path.join(getUserDataPath(), 'flashcards.json');
 }
 
-// Check and fill missing fields in loaded flashcard store
-function checkFlashcards(fc_to_check: Partial<FlashcardStore>): FlashcardStore {
-  const result = { ...DEFAULT_FLASHCARD_STORE };
-  for (const key of Object.keys(DEFAULT_FLASHCARD_STORE) as (keyof FlashcardStore)[]) {
-    if (fc_to_check[key] !== undefined) {
-      (result as any)[key] = fc_to_check[key];
+/**
+ * Compare flashcard states - returns positive if a is "better" than b
+ */
+function compareStates(a: FlashcardState, b: FlashcardState): number {
+  const order: Record<FlashcardState, number> = { 'new': 0, 'learning': 1, 'relearning': 2, 'review': 3 };
+  return order[a] - order[b];
+}
+
+/**
+ * Calculate aggregated word stats from all cards for a word
+ */
+function calculateWordStats(cards: Flashcard[]): WordStats {
+  if (cards.length === 0) {
+    return {
+      cardCount: 0,
+      bestEase: 2.5,
+      totalReviews: 0,
+      totalLapses: 0,
+      lastReviewed: 0,
+      bestInterval: 0,
+      bestState: 'new',
+    };
+  }
+
+  let bestEase = 0;
+  let totalReviews = 0;
+  let totalLapses = 0;
+  let lastReviewed = 0;
+  let bestInterval = 0;
+  let bestState: FlashcardState = 'new';
+
+  for (const card of cards) {
+    if (card.ease > bestEase) bestEase = card.ease;
+    totalReviews += card.reviews || 0;
+    totalLapses += card.lapses || 0;
+    if (card.lastReviewed > lastReviewed) lastReviewed = card.lastReviewed;
+    if (card.interval > bestInterval) bestInterval = card.interval;
+    if (compareStates(card.state, bestState) > 0) bestState = card.state;
+  }
+
+  return {
+    cardCount: cards.length,
+    bestEase,
+    totalReviews,
+    totalLapses,
+    lastReviewed,
+    bestInterval,
+    bestState,
+  };
+}
+
+/**
+ * Migrate from v2 (single card per word) to v3 (multiple cards per word)
+ */
+function migrateV2ToV3(store: any): FlashcardStore {
+  console.log('Migrating flashcard store from v2 to v3...');
+  
+  const newWordToCardMap: Record<string, string[]> = {};
+  const wordStatsMap: Record<string, WordStats> = {};
+  
+  // Convert wordToCardMap from Record<string, string> to Record<string, string[]>
+  if (store.wordToCardMap) {
+    for (const [wordHash, cardId] of Object.entries(store.wordToCardMap)) {
+      if (typeof cardId === 'string') {
+        newWordToCardMap[wordHash] = [cardId];
+      } else if (Array.isArray(cardId)) {
+        // Already an array (shouldn't happen but handle gracefully)
+        newWordToCardMap[wordHash] = cardId as string[];
+      }
     }
   }
+  
+  // Build wordStatsMap from flashcards
+  const wordToCards: Record<string, Flashcard[]> = {};
+  for (const [wordHash, cardIds] of Object.entries(newWordToCardMap)) {
+    const cards: Flashcard[] = [];
+    for (const cardId of cardIds) {
+      const card = store.flashcards?.[cardId];
+      if (card) cards.push(card);
+    }
+    wordToCards[wordHash] = cards;
+  }
+  
+  for (const [wordHash, cards] of Object.entries(wordToCards)) {
+    wordStatsMap[wordHash] = calculateWordStats(cards);
+  }
+  
+  return {
+    flashcards: store.flashcards || {},
+    wordCandidates: store.wordCandidates || {},
+    wordToCardMap: newWordToCardMap,
+    wordStatsMap,
+    knownUntracked: store.knownUntracked || {},
+    meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...store.meta },
+    dailyStats: store.dailyStats || {},
+    version: CURRENT_VERSION,
+  };
+}
+
+// Check and fill missing fields in loaded flashcard store, with migrations
+function checkFlashcards(fc_to_check: any): FlashcardStore {
+  // Handle version migrations
+  const version = fc_to_check.version || 1;
+  
+  if (version < 3) {
+    fc_to_check = migrateV2ToV3(fc_to_check);
+  }
+  
+  // Ensure all required fields exist
+  const result: FlashcardStore = {
+    flashcards: fc_to_check.flashcards || {},
+    wordCandidates: fc_to_check.wordCandidates || {},
+    wordToCardMap: fc_to_check.wordToCardMap || {},
+    wordStatsMap: fc_to_check.wordStatsMap || {},
+    knownUntracked: fc_to_check.knownUntracked || {},
+    meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...fc_to_check.meta },
+    dailyStats: fc_to_check.dailyStats || {},
+    version: CURRENT_VERSION,
+  };
+  
   return result;
 }
 
