@@ -88,20 +88,18 @@ export interface WordHoverProps {
 
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings } = useSettings();
-  const { addFlashcard, hasWord, getCardByWord } = useFlashcards();
+  const { addFlashcard, hasWordSync, getCardByWordSync } = useFlashcards();
   const { getFrequency, getLevelName, getLanguageFeatures, currentLangData } = useLanguage();
   const { tokenize } = useTokenizer();
   const { t } = useLocalization();
   const [currentStatus, setCurrentStatus] = createSignal<WordStatus>('unknown');
   const [wordUuid, setWordUuid] = createSignal<string>('');
-  const [isInSRS, setIsInSRS] = createSignal(props.isInSRS ?? false);
-  const [currentEase, setCurrentEase] = createSignal<number | undefined>(props.ease);
-  const [llmExplaining, setLlmExplaining] = createSignal(false);
-  const [llmExplanation, setLlmExplanation] = createSignal<string | null>(null);
   // Flag to prevent effect from overwriting local isInSRS state during flashcard creation
   const [isAddingFlashcard, setIsAddingFlashcard] = createSignal(false);
   // Flag to lock position during state changes to prevent jumps
   const [, setPositionLocked] = createSignal(false);
+  const [llmExplaining, setLlmExplaining] = createSignal(false);
+  const [llmExplanation, setLlmExplanation] = createSignal<string | null>(null);
   let hoverRef: HTMLDivElement | undefined;
 
   // Helper to get display word - track token changes
@@ -111,39 +109,77 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const actualWord = createMemo(() => props.token.actual_word || displayWord());
 
   const isShown = createMemo(() => props.visible !== false);
+  
+  // REACTIVE: Check if word is in SRS using synchronous method
+  // This properly integrates with SolidJS's reactive system
+  const isInSRS = createMemo(() => {
+    // Early exit if we're adding a flashcard (show tracked state optimistically)
+    if (isAddingFlashcard()) return true;
+    
+    const word = actualWord();
+    if (!word) return props.isInSRS ?? false;
+    
+    // Use sync method for proper reactivity with store
+    return hasWordSync(word) || (props.isInSRS ?? false);
+  });
+  
+  // REACTIVE: Get flashcard for the word (if tracked)
+  const currentFlashcard = createMemo(() => {
+    const word = actualWord();
+    if (!word) return null;
+    return getCardByWordSync(word);
+  });
+  
+  // REACTIVE: Get current ease from flashcard if tracked
+  const currentEase = createMemo(() => {
+    const card = currentFlashcard();
+    if (card) {
+      return card.ease;
+    }
+    return props.ease;
+  });
+  
+  // REACTIVE: Compute effective status by combining manual status and flashcard state
+  // If word has a flashcard in learning/relearning state → Learning
+  // If word has a flashcard in review state → Known
+  // Otherwise, use manually set status from wordsLearnedInApp
+  const effectiveStatus = createMemo((): WordStatus => {
+    const card = currentFlashcard();
+    
+    // If we have a flashcard, derive status from its state
+    if (card) {
+      if (card.state === 'new' || card.state === 'learning' || card.state === 'relearning') {
+        return 'learning';
+      }
+      if (card.state === 'review') {
+        // Mature cards (large intervals) are "known"
+        return 'known';
+      }
+    }
+    
+    // Fall back to manually-set status
+    return currentStatus();
+  });
 
-  // Load actual status from storage on mount or when word changes
-  // Access wordsLearnedInApp() directly to make this reactive when data loads
+  // Load word status from storage on mount or when word changes
+  // This loads the manual status (separate from flashcard-derived status)
   createEffect(() => {
     const word = actualWord(); // Use actualWord for status lookup (like old app)
     if (!word) return;
     
-    // Don't overwrite isInSRS if we're currently adding a flashcard
-    if (isAddingFlashcard()) return;
-    
     // Access the signal to make this effect reactive to word status changes
     const allWordStatuses = wordsLearnedInApp();
     
-    // Async IIFE to handle async operations within createEffect
+    // Async IIFE to generate UUID (only needed for extractExampleHtml)
     (async () => {
       try {
         const uuid = await toUniqueIdentifier(word);
         setWordUuid(uuid);
         
-        // Get status from storage using word (not uuid) - matches old app
-        // Using the tracked signal value for reactivity
+        // Get manual status from storage using word (not uuid) - matches old app
+        // This is the base status before considering flashcard state
         const storedStatus = allWordStatuses[word] ?? WORD_STATUS.UNKNOWN;
         setCurrentStatus(numericToWordStatus(storedStatus));
-        
-        // Check if in SRS and get ease (hasWord and getCardByWord are async)
-        const inSRS = await hasWord(word);
-        setIsInSRS(inSRS);
-        if (inSRS) {
-          const flashcard = await getCardByWord(word);
-          if (flashcard) {
-            setCurrentEase(flashcard.ease);
-          }
-        }
       } catch (e) {
         console.error('Failed to load word status:', e);
         setCurrentStatus(props.status || 'unknown');
@@ -726,19 +762,16 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     if (props.onAddFlashcard) {
       props.onAddFlashcard(props.token, entry);
-      // Update state after callback completes
-      setIsInSRS(true);
-      setCurrentEase(newEase);
+      // isInSRS and currentEase are now reactive memos that will update automatically
+      // when the flashcard is added to the store
       setIsAddingFlashcard(false);
     } else {
       try {
         // Pass ease to addFlashcard (like old app's knownStatusToEaseFunction)
         await addFlashcard(content, newEase);
         console.log(`%cCreated flashcard for word: ${word} with ease: ${newEase}`, 'color: aqua; font-weight: bold;');
-        // CRITICAL: Update isInSRS state AFTER flashcard is added successfully
-        // This ensures the "Adding..." state is visible during the async operation
-        setIsInSRS(true);
-        setCurrentEase(newEase);
+        // isInSRS and currentEase are now reactive memos that will update automatically
+        // when the flashcard is added to the store via BroadcastChannel sync
       } catch (err) {
         console.error('Failed to add flashcard:', err);
         alert(t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }));
@@ -881,18 +914,19 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   });
 
   // Status pill derived values - fully reactive
+  // Uses effectiveStatus which combines flashcard state with manual status
   const statusVariant = createMemo(() => {
-    const status = currentStatus();
+    const status = effectiveStatus();
     return status === 'unknown' ? 'red' : status === 'learning' ? 'orange' : 'green';
   });
   
   const statusIcon = createMemo(() => {
-    const status = currentStatus();
+    const status = effectiveStatus();
     return status === 'unknown' ? ICON_CROSS2 : ICON_CHECK;
   });
   
   const statusLabel = createMemo(() => {
-    const status = currentStatus();
+    const status = effectiveStatus();
     return status === 'unknown' 
       ? t('mlearn.WordHover.Status.Unknown') 
       : status === 'learning' 

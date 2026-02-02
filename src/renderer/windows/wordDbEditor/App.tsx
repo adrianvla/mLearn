@@ -18,7 +18,7 @@ import './wordDbEditor.css';
 
 const WordDbEditorContent: Component = () => {
   const { wordFrequency, getFreqLevelNames } = useLanguage();
-  const { addFlashcard, hasWord, removeFlashcard, getCardByWord } = useFlashcards();
+  const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord } = useFlashcards();
   const { t } = useLocalization();
   // useTranslation imported but translateWord used via EditTranslationDialog
   const [searchQuery, setSearchQuery] = createSignal('');
@@ -108,8 +108,8 @@ const WordDbEditorContent: Component = () => {
         const [word, freqEntry] = freqWords[i];
         const uuid = word; // Use word as UUID for consistency
         const status = trackedWords[word] ?? WORD_STATUS.UNKNOWN;
-        // Check if word is actually tracked as a flashcard (async now)
-        const isTracked = await hasWord(word);
+        // Check if word is actually tracked as a flashcard (sync for better performance)
+        const isTracked = hasWordSync(word);
 
         wordEntries.push({
           uuid,
