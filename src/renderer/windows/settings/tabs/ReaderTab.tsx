@@ -4,7 +4,7 @@
 
 import { Component, createSignal, Show } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
 
 /** Key options for hover trigger keybind */
@@ -162,18 +162,9 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.Magnifier.Hotkey.Description')}
         >
           <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
-            <input
-              type="text"
-              class="setting-input"
+            <KeybindInput
               value={settings.readerMagnifierHotkey ?? 'z'}
-              maxLength={1}
-              style={{ width: '60px', 'text-align': 'center' }}
-              onInput={(e) => {
-                const value = e.currentTarget.value.slice(-1).toLowerCase();
-                if (value) {
-                  updateSettings({ readerMagnifierHotkey: value });
-                }
-              }}
+              onChange={(key) => updateSettings({ readerMagnifierHotkey: key.length === 1 ? key.toLowerCase() : key })}
             />
             <span style={{ color: 'var(--text-secondary)', 'font-size': '0.85rem' }}>
               {t('mlearn.Settings.Reader.Magnifier.Hotkey.Hint')}
@@ -186,18 +177,29 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.Magnifier.Zoom.Description')}
         >
           <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
-            <input
-              type="range"
-              min="1.5"
-              max="5"
-              step="0.5"
+            <RangeInput
+              min={1.5}
+              max={5}
+              step={0.5}
               value={settings.readerMagnifierZoom ?? 2}
               style={{ width: '120px' }}
-              onInput={(e) => updateSettings({ readerMagnifierZoom: parseFloat(e.currentTarget.value) })}
+              onChange={(value) => updateSettings({ readerMagnifierZoom: value })}
             />
-            <span style={{ color: 'var(--text-primary)', 'font-size': '0.9rem', 'min-width': '40px' }}>
-              {settings.readerMagnifierZoom ?? 2}x
-            </span>
+            <Input
+              type="number"
+              value={settings.readerMagnifierZoom ?? 2}
+              min={1.5}
+              max={5}
+              step={0.5}
+              style={{ width: '70px', 'text-align': 'center' }}
+              onChange={(e) => {
+                const val = parseFloat(e.currentTarget.value);
+                if (!isNaN(val) && val >= 1.5 && val <= 5) {
+                  updateSettings({ readerMagnifierZoom: val });
+                }
+              }}
+            />
+            <span style={{ color: 'var(--text-secondary)', 'font-size': '0.9rem' }}>x</span>
           </div>
         </SettingRow>
 
@@ -206,18 +208,29 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.Magnifier.Size.Description')}
         >
           <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
-            <input
-              type="range"
-              min="100"
-              max="400"
-              step="25"
+            <RangeInput
+              min={100}
+              max={400}
+              step={25}
               value={settings.readerMagnifierSize ?? 200}
               style={{ width: '120px' }}
-              onInput={(e) => updateSettings({ readerMagnifierSize: parseInt(e.currentTarget.value) })}
+              onChange={(value) => updateSettings({ readerMagnifierSize: value })}
             />
-            <span style={{ color: 'var(--text-primary)', 'font-size': '0.9rem', 'min-width': '50px' }}>
-              {settings.readerMagnifierSize ?? 200}px
-            </span>
+            <Input
+              type="number"
+              value={settings.readerMagnifierSize ?? 200}
+              min={100}
+              max={400}
+              step={25}
+              style={{ width: '70px', 'text-align': 'center' }}
+              onChange={(e) => {
+                const val = parseInt(e.currentTarget.value);
+                if (!isNaN(val) && val >= 100 && val <= 400) {
+                  updateSettings({ readerMagnifierSize: val });
+                }
+              }}
+            />
+            <span style={{ color: 'var(--text-secondary)', 'font-size': '0.9rem' }}>px</span>
           </div>
         </SettingRow>
       </SettingGroup>

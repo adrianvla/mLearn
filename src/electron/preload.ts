@@ -3,7 +3,7 @@
  * Exposes a safe IPC bridge to renderer processes
  */
 
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload } from '../shared/types';
 
@@ -179,6 +179,19 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.READ_DIRECTORY_IMAGES, directoryPath),
   readPdfFile: (filePath: string): Promise<{ data: ArrayBuffer }> => 
     ipcRenderer.invoke(IPC_CHANNELS.READ_PDF_FILE, filePath),
+    
+  /**
+   * Get filesystem path for a File object.
+   * Required for Electron v32+ where File.path was removed.
+   * Use this when handling drag-dropped files to get their filesystem path.
+   */
+  getPathForFile: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return '';
+    }
+  },
 
   // ========== Generic IPC Methods ==========
   // Generic send for any channel

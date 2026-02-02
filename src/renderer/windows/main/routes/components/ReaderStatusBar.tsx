@@ -5,6 +5,7 @@
 
 import { Component, Accessor, createMemo } from 'solid-js';
 import { useSettings, useLocalization } from '../../../../context';
+import { formatKeybindDisplay } from '../../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../../shared/constants';
 import './ReaderStatusBar.css';
 
@@ -87,7 +88,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
         </div>
 
         <span class="magnifier-hint">
-          {t('mlearn.Reader.StatusBar.MagnifierHint', {key: settings.readerMagnifierHotkey ?? 'Z'})}
+          {t('mlearn.Reader.StatusBar.MagnifierHint', {key: formatKeybindDisplay(settings.readerMagnifierHotkey ?? 'z', t)})}
         </span>
 
         <div class="ocr-section">

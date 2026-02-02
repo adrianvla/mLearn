@@ -354,6 +354,32 @@
         "ResetSuccess": "Settings reset to defaults",
         "SaveError": "Failed to save settings"
       },
+      "Keybind": {
+        "PressKey": "Press a key...",
+        "Tooltip": "Click to record, then press a key to set the keybind",
+        "Keys": {
+          "Ctrl": "Ctrl",
+          "Alt": "Alt",
+          "Shift": "Shift",
+          "Meta": "Cmd",
+          "Space": "Space",
+          "Enter": "Enter",
+          "Escape": "Esc",
+          "Backspace": "Backspace",
+          "Delete": "Delete",
+          "Tab": "Tab",
+          "CapsLock": "CapsLock",
+          "ArrowUp": "↑",
+          "ArrowDown": "↓",
+          "ArrowLeft": "←",
+          "ArrowRight": "→",
+          "Home": "Home",
+          "End": "End",
+          "PageUp": "PageUp",
+          "PageDown": "PageDown",
+          "Insert": "Insert"
+        }
+      },
       "Tabs" : {
         "General": "General",
         "Behaviour": "Behaviour",

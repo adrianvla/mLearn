@@ -279,20 +279,16 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     // Use requestAnimationFrame to ensure DOM has painted
     requestAnimationFrame(() => {
       const { width, height } = getHoverDimensions();
-      const bounds = getUIBounds();
       const newPos = calculateBoundedPosition(width, height);
       
-      // Debug logging
-      console.log(
-        `%c[WordHover] Position Debug:%c\n` +
-        `  Hover size: ${width}×${height}px\n` +
-        `  Position: (${newPos.left}, ${newPos.top})\n` +
-        `  Bounds: minX=${bounds.minX}, maxX=${bounds.maxX}, minY=${bounds.minY}, maxY=${bounds.maxY}\n` +
-        `  UI: navbar=${bounds.hasNavbar}(${bounds.navbarHeight}px), sidebar=${bounds.hasSidebar}(${bounds.sidebarWidth}px), statusbar=${bounds.hasStatusbar}(${bounds.statusbarHeight}px)\n` +
-        `  Viewport: ${bounds.vw}×${bounds.vh}`,
-        'color: #00bcd4; font-weight: bold;',
-        'color: #aaa;'
-      );
+      // Debug logging (uncomment and add `const bounds = getUIBounds();` to enable)
+      // console.log(
+      //   `%c[WordHover] Position Debug:%c\n` +
+      //   `  Hover size: ${width}×${height}px\n` +
+      //   `  Position: (${newPos.left}, ${newPos.top})`,
+      //   'color: #00bcd4; font-weight: bold;',
+      //   'color: #aaa;'
+      // );
       
       setComputedPosition(newPos);
     });
