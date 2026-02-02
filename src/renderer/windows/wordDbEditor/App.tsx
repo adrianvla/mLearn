@@ -4,7 +4,7 @@
  * Ported from adjustWordsByLevel in stats.js
  */
 
-import { Component, createSignal, For, Show, onMount, createEffect } from 'solid-js';
+import { Component, createSignal, For, Show, onMount, createEffect, createMemo } from 'solid-js';
 import { WindowWrapper, useLanguage, useFlashcards, useLocalization } from '../../context';
 import {
   getWordsLearnedInApp,
@@ -257,8 +257,9 @@ const WordDbEditorContent: Component = () => {
     }
   };
 
-  // Dynamic level names from langData
-  const levelNames = getLevelNames();
+  // Reactive level names from langData - uses createMemo for reactivity
+  // This ensures the level names update when langData loads asynchronously
+  const levelNames = createMemo(() => getLevelNames());
 
   // Edit entry handler
   const handleEdit = (entry: WordEntry) => {
@@ -310,7 +311,7 @@ const WordDbEditorContent: Component = () => {
               setSelectedLevel={setSelectedLevel}
               isLoading={isLoading}
               loadProgress={loadProgress}
-              levelNames={levelNames}
+              levelNames={levelNames()}
               onSearch={handleSearch}
           />
 
@@ -333,7 +334,7 @@ const WordDbEditorContent: Component = () => {
               {(entry) => (
                   <WordEntryRow
                       entry={entry}
-                      levelNames={levelNames}
+                      levelNames={levelNames()}
                       onStatusChange={handleStatusChange}
                       onAddFlashcard={handleAddFlashcard}
                       onRemoveFlashcard={handleRemoveFlashcard}

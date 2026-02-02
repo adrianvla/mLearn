@@ -56,6 +56,10 @@ export {
   FormField,
   DropZone,
   RangeInput,
+  KeybindInput,
+  parseKeybind,
+  formatKeybindDisplay,
+  getLocalizedKeyName,
   type InputProps,
   type TextareaProps,
   type SelectInputProps,
@@ -64,6 +68,7 @@ export {
   type FormFieldProps,
   type DropZoneProps,
   type RangeInputProps,
+  type KeybindInputProps,
 } from './Input';
 
 // Card Components

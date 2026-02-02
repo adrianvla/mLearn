@@ -10,6 +10,7 @@ import { OcrOverlay, MagnifyingGlass, type OcrResult } from '../../../components
 import { WordHover } from '../../../components/subtitle/WordHover';
 import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation, getGlobalHoverManager } from '../../../hooks';
 import { useSettings, useLocalization } from '../../../context';
+import { parseKeybind } from '../../../components/common';
 import type { Token, TranslationResponse, DictionaryEntry } from '../../../../shared/types';
 import { API_ENDPOINTS } from '../../../../shared/constants';
 import { ReaderNav, ReaderSidebar, ReaderWelcomeCard, ReaderStatusBar } from './components';
@@ -162,8 +163,21 @@ export const ReaderRoute: Component = () => {
   let pageContainerRef: HTMLDivElement | undefined;
   const [imageRefs, setImageRefs] = createSignal<Record<string, HTMLImageElement>>({});
 
+  // Helper function to get file path using Electron's webUtils API (Electron 32+)
+  // Falls back to legacy File.path property for older Electron versions
+  const getFilePath = (file: File): string => {
+    // Try the new webUtils API first (Electron 32+)
+    if (window.mLearnIPC?.getPathForFile) {
+      const path = window.mLearnIPC.getPathForFile(file);
+      if (path) return path;
+    }
+    // Fallback to legacy File.path property
+    const fileWithPath = file as File & { path?: string };
+    return fileWithPath.path || '';
+  };
+
   // Returns files, the name of the dropped folder, and the full filesystem path (if available)
-  // In Electron, dropped items have a .path property on the dataTransfer.files entries
+  // Uses webUtils.getPathForFile (Electron 32+) to get filesystem paths
   const getDroppedFiles = async (dataTransfer: DataTransfer | null): Promise<{ 
     files: File[], 
     droppedFolderName: string | null,
@@ -175,20 +189,18 @@ export const ReaderRoute: Component = () => {
     const items = Array.from(dataTransfer.items || []);
     const rawFiles = Array.from(dataTransfer.files || []);
     
-    // In Electron, the raw files from dataTransfer.files have a .path property
-    // This is the full filesystem path - capture it before using webkit entries API
-    // (which creates new File objects without the path property)
-    // Build a map of filename -> path to preserve paths for all dropped files
+    // Build a map of filename -> path using webUtils.getPathForFile (Electron 32+)
+    // This preserves paths before webkit entries API creates new File objects
     let rawFilePath: string | null = null;
     const rawFilePaths = new Map<string, string>();
     
     for (const rawFile of rawFiles) {
-      const fileWithPath = rawFile as File & { path?: string };
-      if (fileWithPath.path) {
-        rawFilePaths.set(rawFile.name, fileWithPath.path);
+      const path = getFilePath(rawFile);
+      if (path) {
+        rawFilePaths.set(rawFile.name, path);
         // Keep first path for folder path fallback
         if (!rawFilePath) {
-          rawFilePath = fileWithPath.path;
+          rawFilePath = path;
         }
       }
     }
@@ -746,8 +758,33 @@ export const ReaderRoute: Component = () => {
   });
 
   // Keyboard navigation and magnifier hotkey
+  // Note: We access settings.readerMagnifierHotkey directly inside handlers 
+  // to ensure changes take effect immediately without requiring a restart
   onMount(() => {
-    const magnifierHotkey = settings.readerMagnifierHotkey?.toLowerCase() || 'z';
+    /**
+     * Check if the current keyboard event matches the configured magnifier hotkey.
+     * Supports both simple keys (e.g., "z") and modifier combinations (e.g., "shift+c", "ctrl+alt+m")
+     */
+    const matchesHotkey = (e: KeyboardEvent): boolean => {
+      const hotkeySetting = settings.readerMagnifierHotkey?.toLowerCase() || 'z';
+      const { modifiers, key } = parseKeybind(hotkeySetting);
+      
+      // Check if pressed key matches the main key
+      if (e.key.toLowerCase() !== key) return false;
+      
+      // Check modifiers match exactly
+      const hasCtrl = modifiers.includes('ctrl');
+      const hasAlt = modifiers.includes('alt');
+      const hasShift = modifiers.includes('shift');
+      const hasMeta = modifiers.includes('meta');
+      
+      return (
+        e.ctrlKey === hasCtrl &&
+        e.altKey === hasAlt &&
+        e.shiftKey === hasShift &&
+        e.metaKey === hasMeta
+      );
+    };
     
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') prevPage();
@@ -757,7 +794,8 @@ export const ReaderRoute: Component = () => {
         runOcr();
       }
       // Magnifier hotkey (press and hold)
-      if (e.key.toLowerCase() === magnifierHotkey && !e.repeat) {
+      // Access settings directly for reactivity
+      if (matchesHotkey(e) && !e.repeat) {
         setMagnifierActive(true);
         // Hide all word hovers when magnifying glass is activated
         getGlobalHoverManager().forceHide();
@@ -766,7 +804,8 @@ export const ReaderRoute: Component = () => {
     
     const handleKeyUp = (e: KeyboardEvent) => {
       // Release magnifier when hotkey is released
-      if (e.key.toLowerCase() === magnifierHotkey) {
+      // Access settings directly for reactivity
+      if (matchesHotkey(e)) {
         setMagnifierActive(false);
       }
     };
@@ -798,11 +837,10 @@ export const ReaderRoute: Component = () => {
         const bookId = parseWorkName(pdfFile.name);
         setCurrentBookId(bookId);
         
-        // In Electron, File objects have a .path property with the full filesystem path
-        // For PDFs dropped directly, look up the path from rawFilePaths map
-        // If coming from folder entry API, use droppedFolderPath (which would be the folder path)
-        const pdfPath = (pdfFile as File & { path?: string }).path 
-          || rawFilePaths.get(pdfFile.name) 
+        // Get PDF path from rawFilePaths map (populated using webUtils.getPathForFile)
+        // Fallback to getFilePath for the file, or droppedFolderPath
+        const pdfPath = rawFilePaths.get(pdfFile.name)
+          || getFilePath(pdfFile)
           || droppedFolderPath 
           || '';
         setCurrentBookPath(pdfPath);
@@ -868,20 +906,20 @@ export const ReaderRoute: Component = () => {
     if (droppedFolderName) {
       bookId = parseWorkName(droppedFolderName);
     } else {
-      // Fallback: extract from first file's path
-      const firstFile = files[0] as File & { path?: string };
-      const rawFolderName = firstFile?.path 
-        ? extractFolderName(firstFile.path)
+      // Fallback: extract from first file's path using rawFilePaths map
+      const firstFilePath = rawFilePaths.get(files[0].name) || getFilePath(files[0]);
+      const rawFolderName = firstFilePath
+        ? extractFolderName(firstFilePath)
         : files[0].name;
       bookId = parseWorkName(rawFolderName);
     }
     setCurrentBookId(bookId);
     
-    // Use droppedFolderPath from dataTransfer.files (has Electron's .path property)
-    // Fallback: try to get path from first file and extract directory
-    const firstFile = files[0] as File & { path?: string };
-    const bookPath = droppedFolderPath || (firstFile?.path 
-      ? firstFile.path.split('/').slice(0, -1).join('/') 
+    // Use droppedFolderPath or extract from first file's path
+    // rawFilePaths is populated using webUtils.getPathForFile (Electron 32+)
+    const firstFilePath = rawFilePaths.get(files[0].name) || getFilePath(files[0]);
+    const bookPath = droppedFolderPath || (firstFilePath
+      ? firstFilePath.split('/').slice(0, -1).join('/') 
       : '');
     setCurrentBookPath(bookPath);
     
