@@ -566,6 +566,17 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       e.stopPropagation();
     }
     
+    // Prevent duplicate requests - early return if already adding
+    if (isAddingFlashcard()) {
+      console.log('%cFlashcard add request blocked - already adding', 'color: orange;');
+      return;
+    }
+    
+    // CRITICAL: Set adding flag immediately BEFORE any async operations
+    // This prevents duplicate flashcards when clicking multiple times while backend is busy
+    setIsAddingFlashcard(true);
+    setPositionLocked(true);
+    
     const word = actualWord(); // Use dictionary form (like old app)
     const uuid = wordUuid();
     
@@ -702,10 +713,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       screenshot: screenshot ? `${screenshot.substring(0, 50)}... (${screenshot.length} bytes)` : 'EMPTY',
       example: exampleHtml ? `${exampleHtml.substring(0, 50)}...` : 'EMPTY',
     });
-    
-    // CRITICAL: Lock position and set adding flag to show "Adding..." state
-    setPositionLocked(true);
-    setIsAddingFlashcard(true);
     
     // Calculate ease for flashcard (like old app's knownStatusToEaseFunction)
     // UNKNOWN (0) → 1.3, LEARNING (1) → 1.55, KNOWN (2) → 1.8
@@ -1077,6 +1084,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                     variant="yellow"
                     icon="⏳"
                     label={t('mlearn.Global.Status.Adding')}
+                    disabled={true}
                   />
                 </Show>
               }>

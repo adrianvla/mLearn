@@ -400,6 +400,27 @@ export interface DailyStudyStats {
 }
 
 /**
+ * Aggregated word statistics for O(1) lookup
+ * Calculated from all flashcards containing this word
+ */
+export interface WordStats {
+  /** Number of flashcards for this word */
+  cardCount: number;
+  /** Best (highest) ease factor among all cards */
+  bestEase: number;
+  /** Total reviews across all cards */
+  totalReviews: number;
+  /** Total lapses across all cards */
+  totalLapses: number;
+  /** Most recent review timestamp */
+  lastReviewed: number;
+  /** Best (longest) interval in ms */
+  bestInterval: number;
+  /** Best card state: 'review' > 'relearning' > 'learning' > 'new' */
+  bestState: FlashcardState;
+}
+
+/**
  * Flashcard store meta information
  */
 export interface FlashcardMeta {
@@ -433,8 +454,10 @@ export interface FlashcardStore {
   flashcards: Record<string, Flashcard>;
   /** Word candidates for auto-creation, keyed by word hash */
   wordCandidates: Record<string, WordCandidate>;
-  /** Tracks which words have already been created as flashcards (word hash -> card UUID) */
-  wordToCardMap: Record<string, string>;
+  /** Tracks which words have flashcards (word hash -> array of card UUIDs) */
+  wordToCardMap: Record<string, string[]>;
+  /** Aggregated word statistics for O(1) lookup (word hash -> stats) */
+  wordStatsMap: Record<string, WordStats>;
   /** Words marked as known but not tracked as flashcards (word hash -> true) */
   knownUntracked: Record<string, boolean>;
   /** Store metadata */
