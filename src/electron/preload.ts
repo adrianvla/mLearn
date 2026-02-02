@@ -56,6 +56,15 @@ const mLearnIPC = {
   onReviewFlashcardRequest: (callback: () => void) => {
     ipcRenderer.on(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST, () => callback());
   },
+  
+  // ========== Migration ==========
+  onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, (_event, info) => callback(info));
+  },
+  getFlashcardMigrationInfo: () => ipcRenderer.send(IPC_CHANNELS.GET_FLASHCARD_MIGRATION_INFO),
+  onLocalStorageMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null }) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.LOCALSTORAGE_MIGRATION_COMPLETE, (_event, info) => callback(info));
+  },
 
   // ========== Window Management ==========
   changeTrafficLights: (visibility: boolean) => {

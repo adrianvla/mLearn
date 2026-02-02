@@ -15,6 +15,33 @@ const LOOKUP_STATUS: Record<number, string> = {
   [WORD_STATUS.KNOWN]: 'Learned',
 };
 
+// Migration tracking
+interface LocalStorageMigrationInfo {
+  occurred: boolean;
+  backupData: Record<string, unknown> | null;
+  migratedWordCount: number;
+}
+
+let localStorageMigrationInfo: LocalStorageMigrationInfo = {
+  occurred: false,
+  backupData: null,
+  migratedWordCount: 0,
+};
+
+/**
+ * Get migration info for notifications
+ */
+export function getLocalStorageMigrationInfo(): LocalStorageMigrationInfo {
+  return localStorageMigrationInfo;
+}
+
+/**
+ * Reset migration info after notification
+ */
+export function resetLocalStorageMigrationInfo(): void {
+  localStorageMigrationInfo = { occurred: false, backupData: null, migratedWordCount: 0 };
+}
+
 // Stats signals
 const [timeWatchedSeconds, setTimeWatchedSeconds] = createSignal<number>(0);
 const [wordsLearnedInApp, setWordsLearnedInApp] = createSignal<Record<string, number>>({});
@@ -169,12 +196,79 @@ export async function getKnownStatus(word: string, srsCheck?: (word: string) => 
 
 /**
  * Load words from storage (localStorage or IPC)
+ * Also handles migration from v1 (old app) localStorage format
  */
 export async function loadWordsFromStorage(): Promise<void> {
   try {
+    // Check for existing v2 data first
     const stored = localStorage.getItem('mlearn_words_learned');
     if (stored) {
       setWordsLearnedInApp(JSON.parse(stored));
+      return;
+    }
+    
+    // Check for v1 data (knownAdjustment from old app)
+    const v1KnownAdjustment = localStorage.getItem('knownAdjustment');
+    if (v1KnownAdjustment) {
+      console.log('Detected v1 localStorage data, starting migration...');
+      
+      // Create backup of all v1 localStorage items
+      const backupData: Record<string, unknown> = {};
+      const v1Keys = [
+        'knownAdjustment',
+        'alreadyUpdatedInAnki',
+        'currentVideo',
+        'settings',
+        // Also backup any video timestamps
+      ];
+      
+      // Find all video timestamp keys
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (v1Keys.includes(key) || key.startsWith('videoCurrentTime_'))) {
+          try {
+            const value = localStorage.getItem(key);
+            if (value) {
+              try {
+                backupData[key] = JSON.parse(value);
+              } catch {
+                backupData[key] = value;
+              }
+            }
+          } catch (e) {
+            console.warn(`Failed to backup key ${key}:`, e);
+          }
+        }
+      }
+      
+      // Store backup
+      const backupKey = `mlearn_v1_backup_${Date.now()}`;
+      localStorage.setItem(backupKey, JSON.stringify(backupData));
+      console.log(`Created localStorage backup: ${backupKey}`);
+      
+      // Migrate knownAdjustment to new format
+      try {
+        const knownAdjustment = JSON.parse(v1KnownAdjustment) as Record<string, number>;
+        setWordsLearnedInApp(knownAdjustment);
+        
+        // Save in new format
+        localStorage.setItem('mlearn_words_learned', JSON.stringify(knownAdjustment));
+        
+        // Track migration
+        localStorageMigrationInfo = {
+          occurred: true,
+          backupData,
+          migratedWordCount: Object.keys(knownAdjustment).length,
+        };
+        
+        console.log(`Migrated ${Object.keys(knownAdjustment).length} word statuses from v1 to v2`);
+        
+        // Clean up old keys (optional - keep for safety for now)
+        // localStorage.removeItem('knownAdjustment');
+        // localStorage.removeItem('alreadyUpdatedInAnki');
+      } catch (e) {
+        console.error('Failed to parse v1 knownAdjustment:', e);
+      }
     }
   } catch (e) {
     console.error('Failed to load words from storage:', e);
@@ -330,4 +424,5 @@ export {
   wordsLearnedInApp,
   isTrackingTime,
   LOOKUP_STATUS,
+  localStorageMigrationInfo,
 };
