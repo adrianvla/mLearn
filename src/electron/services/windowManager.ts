@@ -390,7 +390,25 @@ function setupAppMenu(): void {
           label: 'Copy Page Injector Script',
           click: () => {
             try {
-              const scriptPath = path.join(appPath, 'scripts', 'injector.js');
+              // Try multiple candidate paths for the injector script
+              const candidatePaths = [
+                path.join(appPath, 'scripts', 'injector.js'),
+                path.join(__dirname, '..', '..', '..', 'scripts', 'injector.js'),
+                path.join(__dirname, '..', '..', 'scripts', 'injector.js'),
+              ];
+              
+              let scriptPath: string | null = null;
+              for (const p of candidatePaths) {
+                if (fs.existsSync(p)) {
+                  scriptPath = p;
+                  break;
+                }
+              }
+              
+              if (!scriptPath) {
+                throw new Error('Injector script not found');
+              }
+              
               let text = fs.readFileSync(scriptPath, 'utf-8');
               text = text.replace(/ISMLEARNTETHERED_TO_REPLACE/g, 'true');
               clipboard.writeText(text);
