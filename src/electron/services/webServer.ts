@@ -1,18 +1,27 @@
 /**
  * Web Server Service
  * Provides HTTP/WebSocket server for tethered mode and watch-together functionality
+ * 
+ * This server handles:
+ * - Serving tethered mode scripts (core.js, settings.js, quick-lookup.js)
+ * - Serving the userscript for mobile tethered mode
+ * - API endpoints for flashcard creation, pills, word appearance tracking
+ * - Proxy forwarding to Python backend
+ * - WebSocket for watch-together functionality
+ * - Serving static assets (CSS, fonts, icons)
  */
 
 import http from 'http';
+import https from 'https';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import fs from 'fs';
 import { ipcMain } from 'electron';
-import { PROXY_SERVER_PORT, IPC_CHANNELS } from '../../shared/constants';
-import { getAppPath } from '../utils/platform';
-import { loadSettings } from './settings';
-import { loadLangData } from './settings';
+import { PROXY_SERVER_PORT, PYTHON_BACKEND_PORT, IPC_CHANNELS } from '../../shared/constants';
+import { getAppPath, getResourcePath } from '../utils/platform';
+import { loadSettings, loadLangData } from './settings';
 import { getMainWindow } from './windowManager';
+import { getFlashcardEaseMap } from './flashcardStorage';
 
 // Server instances
 let httpServer: http.Server | null = null;
@@ -22,17 +31,21 @@ let wss: WebSocketServer | null = null;
 const connectedClients: Set<WebSocket> = new Set();
 
 // Queued updates for main window
-let pillQueuedUpdates: unknown[] = [];
-let wordAppearanceQueuedUpdates: unknown[] = [];
-let attemptFlashcardCreationQueuedUpdates: unknown[] = [];
-let createFlashcardQueuedUpdates: unknown[] = [];
-let lastWatchedQueuedUpdates: unknown[] = [];
+let pillQueuedUpdates: Array<{ word: string; status: number }> = [];
+let wordAppearanceQueuedUpdates: string[] = [];
+let attemptFlashcardCreationQueuedUpdates: Array<{ word: string; content: unknown }> = [];
+let createFlashcardQueuedUpdates: Array<{ content: unknown }> = [];
+let lastWatchedQueuedUpdates: Array<{ name: string; screenshotUrl: string; videoUrl: string }> = [];
+
+// LocalStorage data received from renderer
+let localStorageData: Record<string, unknown> = {};
 
 // CORS headers
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Max-Age': '86400',
 };
 
 // Send message to all connected WebSocket clients
@@ -44,244 +57,110 @@ export function broadcastToClients(message: string): void {
   }
 }
 
+// Set local storage data
+export function setLocalStorage(data: Record<string, unknown>): void {
+  localStorageData = data;
+}
+
 // Flush queued updates to main window
-function flushQueuedUpdates(): void {
+function flushPillUpdates(): void {
   const mainWindow = getMainWindow();
-  if (!mainWindow) return;
-
-  if (pillQueuedUpdates.length > 0) {
-    mainWindow.webContents.send(IPC_CHANNELS.UPDATE_PILLS, JSON.stringify(pillQueuedUpdates));
-    pillQueuedUpdates = [];
-  }
-
-  if (wordAppearanceQueuedUpdates.length > 0) {
-    mainWindow.webContents.send(IPC_CHANNELS.UPDATE_WORD_APPEARANCE, JSON.stringify(wordAppearanceQueuedUpdates));
-    wordAppearanceQueuedUpdates = [];
-  }
-
-  if (attemptFlashcardCreationQueuedUpdates.length > 0) {
-    mainWindow.webContents.send(IPC_CHANNELS.UPDATE_ATTEMPT_FLASHCARD_CREATION, JSON.stringify(attemptFlashcardCreationQueuedUpdates));
-    attemptFlashcardCreationQueuedUpdates = [];
-  }
-
-  if (createFlashcardQueuedUpdates.length > 0) {
-    mainWindow.webContents.send(IPC_CHANNELS.UPDATE_CREATE_FLASHCARD, JSON.stringify(createFlashcardQueuedUpdates));
-    createFlashcardQueuedUpdates = [];
-  }
-
-  if (lastWatchedQueuedUpdates.length > 0) {
-    mainWindow.webContents.send(IPC_CHANNELS.UPDATE_LAST_WATCHED, JSON.stringify(lastWatchedQueuedUpdates));
-    lastWatchedQueuedUpdates = [];
-  }
+  if (!mainWindow || mainWindow.isDestroyed() || pillQueuedUpdates.length === 0) return;
+  console.log('Sending queued pill updates to main window:', pillQueuedUpdates);
+  mainWindow.webContents.send(IPC_CHANNELS.UPDATE_PILLS, JSON.stringify(pillQueuedUpdates));
+  pillQueuedUpdates = [];
 }
 
-// HTTP request handler
-function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
-  const url = new URL(req.url || '/', `http://localhost:${PROXY_SERVER_PORT}`);
-  const pathname = url.pathname;
-
-  // Handle OPTIONS (CORS preflight)
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204, corsHeaders);
-    res.end();
-    return;
-  }
-
-  // Serve userscript
-  if (pathname === '/mLearn.user.js') {
-    const appPath = getAppPath();
-    const scriptPath = path.join(appPath, 'scripts', 'userscript.js');
-    
-    try {
-      let script = fs.readFileSync(scriptPath, 'utf-8');
-      script = script.replace(/MLEARN_SERVER_URL/g, `http://127.0.0.1:${PROXY_SERVER_PORT}`);
-      
-      res.writeHead(200, {
-        ...corsHeaders,
-        'Content-Type': 'application/javascript',
-      });
-      res.end(script);
-    } catch (e) {
-      res.writeHead(404);
-      res.end('Script not found');
-    }
-    return;
-  }
-
-  // Serve tethered frontend assets
-  if (pathname.startsWith('/tethered/') || pathname === '/tethered') {
-    const appPath = getAppPath();
-    const assetPath = pathname === '/tethered' 
-      ? path.join(appPath, 'dist', 'tethered', 'index.html')
-      : path.join(appPath, 'dist', 'tethered', pathname.replace('/tethered/', ''));
-    
-    try {
-      const content = fs.readFileSync(assetPath);
-      const ext = path.extname(assetPath);
-      const contentType = getContentType(ext);
-      
-      res.writeHead(200, {
-        ...corsHeaders,
-        'Content-Type': contentType,
-      });
-      res.end(content);
-    } catch (e) {
-      res.writeHead(404);
-      res.end('Not found');
-    }
-    return;
-  }
-
-  // API endpoints
-  if (pathname.startsWith('/api/')) {
-    handleApiRequest(req, res, pathname);
-    return;
-  }
-
-  // Serve light_style.css for tethered mode
-  if (pathname === '/light_style.css') {
-    const appPath = getAppPath();
-    const cssPath = path.join(appPath, 'dist', 'tethered', 'light_style.css');
-    
-    try {
-      const css = fs.readFileSync(cssPath, 'utf-8');
-      res.writeHead(200, {
-        ...corsHeaders,
-        'Content-Type': 'text/css',
-      });
-      res.end(css);
-    } catch (e) {
-      res.writeHead(404);
-      res.end('CSS not found');
-    }
-    return;
-  }
-
-  // Default 404
-  res.writeHead(404, corsHeaders);
-  res.end('Not found');
+function flushWordAppearanceUpdates(): void {
+  const mainWindow = getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed() || wordAppearanceQueuedUpdates.length === 0) return;
+  console.log('Sending queued word appearance updates to main window:', wordAppearanceQueuedUpdates);
+  mainWindow.webContents.send(IPC_CHANNELS.UPDATE_WORD_APPEARANCE, JSON.stringify(wordAppearanceQueuedUpdates));
+  wordAppearanceQueuedUpdates = [];
 }
 
-// Handle API requests
-function handleApiRequest(
-  req: http.IncomingMessage, 
-  res: http.ServerResponse, 
-  pathname: string
-): void {
-  if (req.method !== 'POST') {
-    res.writeHead(405, corsHeaders);
-    res.end('Method not allowed');
-    return;
-  }
-
-  let body = '';
-  req.on('data', (chunk) => { body += chunk; });
-  req.on('end', () => {
-    try {
-      const data = body ? JSON.parse(body) : {};
-      
-      switch (pathname) {
-        case '/api/settings':
-          const settings = loadSettings();
-          sendJsonResponse(res, settings);
-          break;
-          
-        case '/api/lang-data':
-          const langData = loadLangData();
-          sendJsonResponse(res, langData);
-          break;
-          
-        case '/api/update-pills':
-          pillQueuedUpdates.push(data);
-          flushQueuedUpdates();
-          sendJsonResponse(res, { success: true });
-          break;
-          
-        case '/api/update-word-appearance':
-          wordAppearanceQueuedUpdates.push(data);
-          flushQueuedUpdates();
-          sendJsonResponse(res, { success: true });
-          break;
-          
-        case '/api/attempt-flashcard-creation':
-          attemptFlashcardCreationQueuedUpdates.push(data);
-          flushQueuedUpdates();
-          sendJsonResponse(res, { success: true });
-          break;
-          
-        case '/api/create-flashcard':
-          createFlashcardQueuedUpdates.push(data);
-          flushQueuedUpdates();
-          sendJsonResponse(res, { success: true });
-          break;
-          
-        case '/api/update-last-watched':
-          lastWatchedQueuedUpdates.push(data);
-          flushQueuedUpdates();
-          sendJsonResponse(res, { success: true });
-          break;
-          
-        case '/api/fwd-to-anki':
-          // Forward request to Anki Connect
-          forwardToAnki(data, res);
-          break;
-          
-        default:
-          res.writeHead(404, corsHeaders);
-          res.end('API endpoint not found');
-      }
-    } catch (e) {
-      console.error('API error:', e);
-      res.writeHead(500, corsHeaders);
-      res.end('Internal server error');
-    }
-  });
+function flushAttemptFlashcardCreationUpdates(): void {
+  const mainWindow = getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed() || attemptFlashcardCreationQueuedUpdates.length === 0) return;
+  console.log('Sending queued flashcard creation attempts to main window:', attemptFlashcardCreationQueuedUpdates);
+  mainWindow.webContents.send(IPC_CHANNELS.UPDATE_ATTEMPT_FLASHCARD_CREATION, JSON.stringify(attemptFlashcardCreationQueuedUpdates));
+  attemptFlashcardCreationQueuedUpdates = [];
 }
 
-// Send JSON response
-function sendJsonResponse(res: http.ServerResponse, data: unknown): void {
-  res.writeHead(200, {
-    ...corsHeaders,
-    'Content-Type': 'application/json',
-  });
-  res.end(JSON.stringify(data));
+function flushCreateFlashcardUpdates(): void {
+  const mainWindow = getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed() || createFlashcardQueuedUpdates.length === 0) return;
+  console.log('Sending queued flashcard creation updates to main window:', createFlashcardQueuedUpdates);
+  mainWindow.webContents.send(IPC_CHANNELS.UPDATE_CREATE_FLASHCARD, JSON.stringify(createFlashcardQueuedUpdates));
+  createFlashcardQueuedUpdates = [];
 }
 
-// Forward request to Anki Connect
-function forwardToAnki(data: unknown, res: http.ServerResponse): void {
-  const settings = loadSettings();
-  const url = new URL(settings.ankiConnectUrl);
+function flushLastWatchedUpdates(): void {
+  const mainWindow = getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed() || lastWatchedQueuedUpdates.length === 0) return;
+  console.log('Sending queued last watched updates to main window:', lastWatchedQueuedUpdates);
+  mainWindow.webContents.send(IPC_CHANNELS.UPDATE_LAST_WATCHED, JSON.stringify(lastWatchedQueuedUpdates));
+  lastWatchedQueuedUpdates = [];
+}
+
+// Get the base directory for static files
+function getStaticBasePath(): string {
+  const appPath = getAppPath();
+  const resourcePath = getResourcePath();
   
-  const options = {
-    hostname: url.hostname,
-    port: url.port || 8765,
-    path: '/',
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  };
+  // In dev, files are in src/html. In prod, they're copied to dist or resources
+  const candidatePaths = [
+    path.join(appPath, 'src', 'html'),
+    path.join(appPath, 'dist'),
+    path.join(resourcePath, 'html'),
+    path.join(resourcePath, 'dist'),
+    // In dev mode, go from dist-electron/electron/services to project root
+    path.join(__dirname, '..', '..', '..', 'src', 'html'),
+    path.join(__dirname, '..', '..', '..', 'dist'),
+  ];
+  
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  
+  return path.join(appPath, 'src', 'html');
+}
 
-  const ankiReq = http.request(options, (ankiRes) => {
-    let body = '';
-    ankiRes.on('data', (chunk) => { body += chunk; });
-    ankiRes.on('end', () => {
-      try {
-        sendJsonResponse(res, JSON.parse(body));
-      } catch (e) {
-        res.writeHead(500, corsHeaders);
-        res.end('Failed to parse Anki response');
-      }
-    });
-  });
+// Get the scripts directory
+function getScriptsPath(): string {
+  const appPath = getAppPath();
+  const resourcePath = getResourcePath();
+  
+  // In dev, __dirname is dist-electron/electron/services, so we need to go up more levels
+  // to find the project root scripts directory
+  const candidatePaths = [
+    path.join(appPath, 'scripts'),
+    path.join(resourcePath, 'scripts'),
+    // In dev mode, go from dist-electron/electron/services to project root
+    path.join(__dirname, '..', '..', '..', 'scripts'),
+    // Alternative: from dist-electron to project root
+    path.join(__dirname, '..', '..', 'scripts'),
+  ];
+  
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  
+  return path.join(appPath, 'scripts');
+}
 
-  ankiReq.on('error', (e) => {
-    res.writeHead(502, corsHeaders);
-    res.end(`Failed to connect to Anki: ${e.message}`);
-  });
-
-  ankiReq.write(JSON.stringify(data));
-  ankiReq.end();
+// Parse URL with host and port
+function getHostAndPort(urlString: string): [string | null, string | null] {
+  try {
+    const parsed = new URL(urlString);
+    return [parsed.hostname, parsed.port || (parsed.protocol === 'https:' ? '443' : '80')];
+  } catch {
+    return [null, null];
+  }
 }
 
 // Get content type from file extension
@@ -294,12 +173,364 @@ function getContentType(ext: string): string {
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
     '.svg': 'image/svg+xml',
     '.woff': 'font/woff',
     '.woff2': 'font/woff2',
     '.ttf': 'font/ttf',
+    '.otf': 'font/otf',
+    '.eot': 'application/vnd.ms-fontobject',
   };
-  return types[ext] || 'application/octet-stream';
+  return types[ext.toLowerCase()] || 'application/octet-stream';
+}
+
+// Send JSON response
+function sendJsonResponse(res: http.ServerResponse, data: unknown, statusCode = 200): void {
+  res.writeHead(statusCode, {
+    ...corsHeaders,
+    'Content-Type': 'application/json',
+  });
+  res.end(JSON.stringify(data));
+}
+
+// Serve static file
+function serveStaticFile(res: http.ServerResponse, filePath: string): void {
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    res.writeHead(404, corsHeaders);
+    res.end('File not found');
+    return;
+  }
+  
+  const ext = path.extname(filePath);
+  const contentType = getContentType(ext);
+  
+  res.writeHead(200, {
+    ...corsHeaders,
+    'Content-Type': contentType,
+  });
+  
+  fs.createReadStream(filePath).pipe(res);
+}
+
+// HTTP request handler
+function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+  const urlObj = new URL(req.url || '/', `http://localhost:${PROXY_SERVER_PORT}`);
+  const pathname = urlObj.pathname;
+  const query = Object.fromEntries(urlObj.searchParams);
+
+  // Handle OPTIONS (CORS preflight)
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, corsHeaders);
+    res.end();
+    return;
+  }
+
+  // Root path - info page
+  if (pathname === '/' && !query.url) {
+    res.writeHead(200, {
+      'Content-Type': 'text/html',
+      ...corsHeaders,
+    });
+    res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mLearn Backend</title>
+  <style>
+    body { background: #222; color: #ccc; font-family: "Helvetica Neue", sans-serif; padding: 20px; }
+    a { color: #ff0; }
+    code { background: #333; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>mLearn Backend</h1>
+  <p>Hi, this is the mLearn Backend server.</p>
+  <p>This server responds to HTTP requests made by the Injected mLearn Application, as well as by the Tethered version of mLearn for Mobile.</p>
+  <p>This server also responds to WebSockets, a feature used by mLearn's Watch Together feature.</p>
+  <hr>
+  <p>If you want to install the mLearn Mobile UserScript for use in Tethered Mode, please click <a href="/mLearn.user.js">here</a>.</p>
+  <script>document.getElementById("current_url") && (document.getElementById("current_url").innerText = window.location.href);</script>
+</body>
+</html>`);
+    return;
+  }
+
+  // Serve userscript
+  if (pathname === '/mLearn.user.js') {
+    const scriptsPath = getScriptsPath();
+    const scriptPath = path.join(scriptsPath, 'userscript.js');
+    
+    if (fs.existsSync(scriptPath)) {
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript',
+        ...corsHeaders,
+      });
+      fs.createReadStream(scriptPath).pipe(res);
+    } else {
+      res.writeHead(404, corsHeaders);
+      res.end('Script not found');
+    }
+    return;
+  }
+
+  // Serve core.js for tethered mode
+  if (pathname === '/core.js') {
+    const basePath = getStaticBasePath();
+    const filePath = path.join(basePath, 'tethered', 'core.js');
+    serveStaticFile(res, filePath);
+    return;
+  }
+
+  // Serve quick-lookup.js for tethered mode
+  if (pathname === '/quick-lookup.js') {
+    const basePath = getStaticBasePath();
+    const filePath = path.join(basePath, 'tethered', 'quick-lookup.js');
+    serveStaticFile(res, filePath);
+    return;
+  }
+
+  // Serve settings.js - dynamic JavaScript with settings, lang data, localStorage, and ease hashmap
+  if (pathname === '/settings.js') {
+    const settings = loadSettings();
+    const langData = loadLangData();
+    const easeHashmap = getFlashcardEaseMap();
+    
+    let js = '';
+    js += `globalThis.lang_data = ${JSON.stringify(langData)};\n`;
+    js += `globalThis.settings = ${JSON.stringify(settings)};\n`;
+    js += `globalThis.lS = ${JSON.stringify(localStorageData)};\n`;
+    js += `globalThis.easeHashmap = ${JSON.stringify(easeHashmap)};\n`;
+    js += `globalThis.serverProtocol = 'http';\n`;
+    
+    res.writeHead(200, {
+      'Content-Type': 'application/javascript',
+      ...corsHeaders,
+    });
+    res.end(js);
+    return;
+  }
+
+  // Serve light_style.css
+  if (pathname === '/light_style.css' || pathname === '/pages/assets/light_style.css') {
+    const basePath = getStaticBasePath();
+    const filePath = path.join(basePath, 'assets', 'light_style.css');
+    serveStaticFile(res, filePath);
+    return;
+  }
+
+  // Serve assets from /pages/assets/ path (for compatibility with old core.js)
+  if (pathname.startsWith('/pages/assets/')) {
+    const assetPath = pathname.replace('/pages/assets/', '');
+    const basePath = getStaticBasePath();
+    const filePath = path.join(basePath, 'assets', assetPath);
+    serveStaticFile(res, filePath);
+    return;
+  }
+
+  // Serve assets from /assets/ path
+  if (pathname.startsWith('/assets/')) {
+    const assetPath = pathname.replace('/assets/', '');
+    const basePath = getStaticBasePath();
+    const filePath = path.join(basePath, 'assets', assetPath);
+    serveStaticFile(res, filePath);
+    return;
+  }
+
+  // Forward proxy to Python backend
+  if (pathname.startsWith('/forward/')) {
+    const forwardPath = pathname.replace('/forward', '');
+    const settings = loadSettings();
+    const tokeniserUrl = settings.tokeniserUrl || `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
+    const [hostname, port] = getHostAndPort(tokeniserUrl);
+    
+    if (!hostname || !port) {
+      res.writeHead(502, corsHeaders);
+      res.end('Invalid tokeniser URL');
+      return;
+    }
+
+    const options: http.RequestOptions = {
+      hostname,
+      port: parseInt(port, 10),
+      path: forwardPath,
+      method: req.method,
+      headers: {
+        ...req.headers,
+        host: `${hostname}:${port}`,
+      },
+    };
+
+    const proxyClient = tokeniserUrl.startsWith('https') ? https : http;
+    const proxyReq = proxyClient.request(options, (proxyRes) => {
+      res.writeHead(proxyRes.statusCode || 200, {
+        ...proxyRes.headers,
+        ...corsHeaders,
+      });
+      proxyRes.pipe(res, { end: true });
+    });
+
+    proxyReq.on('error', (err) => {
+      res.writeHead(502, corsHeaders);
+      res.end(`Proxy error: ${err.message}`);
+    });
+
+    req.pipe(proxyReq, { end: true });
+    return;
+  }
+
+  // API: Forward to Anki Connect
+  if (pathname === '/api/fwd-to-anki') {
+    if (req.method !== 'POST') {
+      res.writeHead(405, corsHeaders);
+      res.end('Method not allowed');
+      return;
+    }
+
+    let body = '';
+    req.on('data', (chunk) => { body += chunk.toString(); });
+    req.on('end', async () => {
+      try {
+        const settings = loadSettings();
+        const ankiUrl = settings.ankiConnectUrl || 'http://127.0.0.1:8765';
+        
+        const response = await fetch(ankiUrl, {
+          method: 'POST',
+          body: body,
+        });
+        const data = await response.json();
+        sendJsonResponse(res, data);
+      } catch (e) {
+        console.error('Error forwarding to Anki:', e);
+        sendJsonResponse(res, { error: (e as Error).message }, 500);
+      }
+    });
+    return;
+  }
+
+  // API: Pills update (GET for compatibility with script injection)
+  if (pathname === '/api/pills') {
+    const word = query.key;
+    const status = parseInt(query.value || '0', 10);
+    
+    if (word) {
+      console.log('Received pill update:', word, status);
+      pillQueuedUpdates.push({ word, status });
+      flushPillUpdates();
+    }
+    
+    sendJsonResponse(res, { status: 'ok' });
+    return;
+  }
+
+  // API: Word appearance tracking (GET for compatibility)
+  if (pathname === '/api/word-appearance') {
+    const word = query.word;
+    
+    if (word) {
+      wordAppearanceQueuedUpdates.push(word);
+      flushWordAppearanceUpdates();
+    }
+    
+    sendJsonResponse(res, { status: 'ok' });
+    return;
+  }
+
+  // API: Attempt flashcard creation (GET for compatibility)
+  if (pathname === '/api/attempt-flashcard-creation') {
+    const word = query.word;
+    let content = query.content;
+    
+    if (word) {
+      try {
+        if (content && typeof content === 'string') {
+          content = JSON.parse(content);
+        }
+      } catch {
+        // Content might not be JSON
+      }
+      
+      attemptFlashcardCreationQueuedUpdates.push({ word, content });
+      flushAttemptFlashcardCreationUpdates();
+    }
+    
+    sendJsonResponse(res, { status: 'ok' });
+    return;
+  }
+
+  // API: Update last watched (GET with base64 payload)
+  if (pathname === '/api/update-last-watched') {
+    const payload = query.payload;
+    
+    if (payload) {
+      try {
+        const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'));
+        if (decoded && decoded.action === 'update-last-watched') {
+          lastWatchedQueuedUpdates.push({
+            name: decoded.name,
+            screenshotUrl: decoded.screenshotUrl,
+            videoUrl: decoded.videoUrl,
+          });
+          flushLastWatchedUpdates();
+          sendJsonResponse(res, { status: 'ok' });
+          return;
+        }
+      } catch {
+        // Invalid payload
+      }
+    }
+    
+    sendJsonResponse(res, { status: 'error', error: 'Invalid payload' }, 400);
+    return;
+  }
+
+  // API: Watch together (GET with base64 message)
+  if (pathname === '/api/watch-together') {
+    const message = query.message;
+    
+    if (message) {
+      try {
+        const decoded = Buffer.from(message, 'base64').toString('utf8');
+        const parsedMessage = JSON.parse(decoded);
+        console.log('Received watch-together message:', parsedMessage);
+        broadcastToClients(JSON.stringify(parsedMessage));
+        sendJsonResponse(res, { status: 'ok' });
+      } catch {
+        sendJsonResponse(res, { status: 'error', error: 'Invalid message format' }, 400);
+      }
+    } else {
+      sendJsonResponse(res, { status: 'error', error: 'Missing message parameter' }, 400);
+    }
+    return;
+  }
+
+  // Proxy for external URLs (CORS bypass)
+  if (pathname === '/' && query.url) {
+    let targetUrl = query.url;
+    
+    // Add protocol if missing
+    if (!/^https?:\/\//i.test(targetUrl)) {
+      targetUrl = 'https://' + targetUrl;
+    }
+
+    const client = targetUrl.startsWith('https') ? https : http;
+
+    client.get(targetUrl, (targetRes) => {
+      res.writeHead(targetRes.statusCode || 200, {
+        ...corsHeaders,
+        'Content-Type': targetRes.headers['content-type'] || 'application/octet-stream',
+      });
+      targetRes.pipe(res);
+    }).on('error', (err) => {
+      res.writeHead(500, corsHeaders);
+      res.end(`Error: ${err.message}`);
+    });
+    return;
+  }
+
+  // Default 404
+  res.writeHead(404, corsHeaders);
+  res.end('Not found');
 }
 
 // Handle WebSocket connection
@@ -311,6 +542,26 @@ function handleWebSocketConnection(ws: WebSocket): void {
     try {
       const data = JSON.parse(message.toString());
       
+      // Handle create-new-flashcard action from tethered mode
+      if (data && data.action === 'create-new-flashcard') {
+        createFlashcardQueuedUpdates.push({ content: data.content });
+        console.log('Create new flashcard:', data.content);
+        flushCreateFlashcardUpdates();
+        return;
+      }
+      
+      // Handle update-last-watched action
+      if (data && data.action === 'update-last-watched') {
+        lastWatchedQueuedUpdates.push({
+          name: data.name,
+          screenshotUrl: data.screenshotUrl,
+          videoUrl: data.videoUrl,
+        });
+        console.log('Last watched update:', data);
+        flushLastWatchedUpdates();
+        return;
+      }
+      
       // Handle watch-together messages
       if (data.type === 'watch-together') {
         getMainWindow()?.webContents.send(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, JSON.stringify(data));
@@ -320,7 +571,11 @@ function handleWebSocketConnection(ws: WebSocket): void {
             client.send(message.toString());
           }
         }
+        return;
       }
+      
+      // Default: forward to main window
+      getMainWindow()?.webContents.send(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, message.toString());
     } catch (e) {
       console.error('WebSocket message error:', e);
     }
