@@ -3,12 +3,13 @@
  */
 
 import { Component, createSignal, Show } from 'solid-js';
-import { useSettings, useLocalization } from '../../../context';
+import { useSettings, useLocalization, useFlashcards } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select } from '../../../components/common';
 
 export const SRSTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
+  const { store, updateMeta } = useFlashcards();
   const [ankiStatus, setAnkiStatus] = createSignal<'unchecked' | 'connected' | 'error'>('unchecked');
 
   const checkAnkiConnection = async () => {
@@ -27,6 +28,13 @@ export const SRSTab: Component = () => {
     }
   };
 
+  // Parse input value for limit settings
+  const parseLimitInput = (value: string): number => {
+    const parsed = parseInt(value);
+    if (isNaN(parsed) || parsed < -1) return -1;
+    return parsed;
+  };
+
   return (
     <TabContent
       header={{
@@ -36,6 +44,43 @@ export const SRSTab: Component = () => {
       }}
       padding="lg"
     >
+
+      {/* Learning Limits - New Section */}
+      <SettingGroup title={t('mlearn.Settings.SRS.LearningLimits.Title')}>
+        <SettingRow
+          label={t('mlearn.Settings.SRS.LearningLimits.MaxNewCardsLearning.Label')}
+          description={t('mlearn.Settings.SRS.LearningLimits.MaxNewCardsLearning.Description')}
+        >
+          <div style={{ display: "flex", gap: "8px", "align-items": "center" }}>
+            <input
+              type="number"
+              class="setting-input"
+              value={store.meta.maxNewCardsPerDayLearning}
+              min={-1}
+              max={1000}
+              onChange={(e) => updateMeta({ maxNewCardsPerDayLearning: parseLimitInput(e.currentTarget.value) })}
+            />
+            <span class="setting-hint">{t('mlearn.Settings.SRS.LearningLimits.UnlimitedHint')}</span>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.SRS.LearningLimits.MaxReviews.Label')}
+          description={t('mlearn.Settings.SRS.LearningLimits.MaxReviews.Description')}
+        >
+          <div style={{ display: "flex", gap: "8px", "align-items": "center" }}>
+            <input
+              type="number"
+              class="setting-input"
+              value={store.meta.maxReviewsPerDay}
+              min={-1}
+              max={10000}
+              onChange={(e) => updateMeta({ maxReviewsPerDay: parseLimitInput(e.currentTarget.value) })}
+            />
+            <span class="setting-hint">{t('mlearn.Settings.SRS.LearningLimits.UnlimitedHint')}</span>
+          </div>
+        </SettingRow>
+      </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.SRS.AnkiIntegration.Title')}>
         <SettingRow

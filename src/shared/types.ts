@@ -426,10 +426,16 @@ export interface WordStats {
 export interface FlashcardMeta {
   /** Number of new cards introduced today */
   newCardsToday: number;
+  /** Number of reviews done today */
+  reviewsToday: number;
   /** Date when new card count was last reset (YYYY-MM-DD) */
   newCardsDate: string;
   /** Maximum new cards per day (user setting stored here for sync) */
   maxNewCardsPerDay: number;
+  /** Maximum new cards to learn per day (-1 = unlimited) */
+  maxNewCardsPerDayLearning: number;
+  /** Maximum reviews per day (-1 = unlimited) */
+  maxReviewsPerDay: number;
   /** Learning steps in minutes (e.g., [1, 10] = 1 min, then 10 min) */
   learningSteps: number[];
   /** Relearning steps in minutes */

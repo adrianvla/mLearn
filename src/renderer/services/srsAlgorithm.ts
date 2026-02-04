@@ -104,8 +104,11 @@ export function dueDateToString(dueDate: number): string {
 export function getDefaultMeta(): FlashcardMeta {
     return {
         newCardsToday: 0,
+        reviewsToday: 0,
         newCardsDate: getTodayDateString(),
         maxNewCardsPerDay: 20,
+        maxNewCardsPerDayLearning: 20,
+        maxReviewsPerDay: -1, // -1 = unlimited
         learningSteps: [1, 10], // 1 min, 10 min
         relearnSteps: [10], // 10 min
         graduatingInterval: 1, // 1 day
@@ -469,11 +472,15 @@ export function getReviewCards(cards: Record<string, Flashcard>): Flashcard[] {
 
 /**
  * Build the review queue for a study session
+ * Now respects maxNewCardsPerDayLearning and maxReviewsPerDay limits
  */
 export function buildReviewQueue(
     cards: Record<string, Flashcard>,
     maxNewCards: number,
-    newCardsToday: number
+    newCardsToday: number,
+    maxNewCardsPerDayLearning?: number,
+    maxReviewsPerDay?: number,
+    reviewsToday?: number
 ): ReviewQueue {
     const now = Date.now();
 
@@ -485,14 +492,29 @@ export function buildReviewQueue(
         .filter(c => c.state === 'relearning' && !c.suspended && !c.buried && c.dueDate <= now)
         .sort((a, b) => a.dueDate - b.dueDate);
 
-    // Limit new cards
+    // Limit new cards for auto-creation system
     const remainingNewCards = Math.max(0, maxNewCards - newCardsToday);
-    const newCardsToShow = allNewCards.slice(0, remainingNewCards);
+    let newCardsToShow = allNewCards.slice(0, remainingNewCards);
+
+    // Apply learning limit for new cards (-1 means unlimited)
+    if (maxNewCardsPerDayLearning !== undefined && maxNewCardsPerDayLearning >= 0) {
+        // The learning limit is the actual limit for studying new cards
+        // newCardsToday already tracks how many new cards were studied
+        const remainingLearning = Math.max(0, maxNewCardsPerDayLearning - newCardsToday);
+        newCardsToShow = newCardsToShow.slice(0, remainingLearning);
+    }
+
+    // Apply review limit (-1 means unlimited)
+    let reviewCardsToShow = reviewCards;
+    if (maxReviewsPerDay !== undefined && maxReviewsPerDay >= 0 && reviewsToday !== undefined) {
+        const remainingReviews = Math.max(0, maxReviewsPerDay - reviewsToday);
+        reviewCardsToShow = reviewCards.slice(0, remainingReviews);
+    }
 
     return {
         newQueue: newCardsToShow.map(c => c.id),
         learningQueue: learningCards.map(c => c.id),
-        reviewQueue: reviewCards.map(c => c.id),
+        reviewQueue: reviewCardsToShow.map(c => c.id),
         relearnQueue: relearnCards.map(c => c.id),
     };
 }

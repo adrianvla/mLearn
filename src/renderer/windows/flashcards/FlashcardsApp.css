@@ -207,6 +207,37 @@
   background: var(--scrollbar-thumb-hover);
 }
 
+/* Learning Limits Card */
+.flashcards-limits .breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.flashcards-limit-input {
+  width: 80px;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  text-align: right;
+}
+
+.flashcards-limit-input:focus {
+  outline: none;
+  border-color: var(--border-color-intense);
+}
+
+.flashcards-limit-hint {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin: 0.5rem 0 0;
+  font-style: italic;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .flashcards-layout {

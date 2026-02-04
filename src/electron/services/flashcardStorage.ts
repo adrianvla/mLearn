@@ -29,8 +29,11 @@ const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
   knownUntracked: {},
   meta: {
     newCardsToday: 0,
+    reviewsToday: 0,
     newCardsDate: new Date().toISOString().split('T')[0],
     maxNewCardsPerDay: 10,
+    maxNewCardsPerDayLearning: 20,
+    maxReviewsPerDay: -1, // -1 = unlimited
     learningSteps: [1, 10],
     relearnSteps: [10],
     graduatingInterval: 1,
