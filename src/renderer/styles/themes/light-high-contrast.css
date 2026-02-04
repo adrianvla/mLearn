@@ -24,6 +24,7 @@ body.theme-light-high-contrast {
     --panel-border-hover: var(--border-color-intense);
     --bg-primary: var(--bg);
     --bg-secondary: var(--bg-intense);
+    --shadow-border:var(--border-color) 0px 0px 0px 1px;
 
     --overlay-bg: rgba(0, 0, 0, 0.6);
     --overlay-bg-soft: rgba(0, 0, 0, 0.4);
@@ -88,4 +89,11 @@ body.theme-light-high-contrast .label-pill,
 body.theme-light-high-contrast .btn-pill,
 body.theme-light-high-contrast .label-status{
     border: 1px solid var(--border-color);
+}
+
+body.theme-light-high-contrast .draggable-popup .panel{
+    background:var(--bg-opaque);
+}
+body.theme-light-high-contrast .draggable-popup .explainer-card__phrase{
+    background: black;
 }

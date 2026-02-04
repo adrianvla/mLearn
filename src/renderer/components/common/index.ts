@@ -29,6 +29,7 @@ export {
   WindowOverlay,
   LoadingOverlay as ModalLoadingOverlay,
   ErrorModal,
+  DraggablePopup,
   type ModalProps,
   type ConfirmDialogProps, 
   type ConfirmVariant, 
@@ -37,6 +38,7 @@ export {
   type LoadingOverlayProps,
   type ErrorModalProps,
   type ErrorSeverity,
+  type DraggablePopupProps,
 } from './Modal';
 
 // Panel Components

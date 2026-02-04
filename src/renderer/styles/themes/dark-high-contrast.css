@@ -24,6 +24,7 @@ body.theme-dark-high-contrast {
     --panel-border-hover: var(--border-color-intense);
     --bg-primary: var(--bg);
     --bg-secondary: var(--bg-intense);
+    --shadow-border:var(--border-color) 0px 0px 0px 1px;
 
     --overlay-bg: rgba(0, 0, 0, 0.6);
     --overlay-bg-soft: rgba(0, 0, 0, 0.4);
@@ -98,4 +99,11 @@ body.theme-dark-high-contrast .label-status{
     filter: invert(1) hue-rotate(180deg) saturate(200%);
     box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
     rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
+body.theme-dark-high-contrast .draggable-popup .panel{
+    background:var(--bg-opaque);
+}
+body.theme-dark-high-contrast .draggable-popup .explainer-card__phrase{
+    background: black;
 }

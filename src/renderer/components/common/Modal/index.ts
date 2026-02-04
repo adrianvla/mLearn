@@ -20,6 +20,7 @@ export {
   type ErrorModalProps, 
   type ErrorSeverity 
 } from './ErrorModal';
+export { DraggablePopup, type DraggablePopupProps } from './DraggablePopup';
 
 // Import CSS
 import './LoadingOverlay.css';
