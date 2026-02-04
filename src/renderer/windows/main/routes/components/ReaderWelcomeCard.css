@@ -78,12 +78,19 @@
   font-size: 0.85rem;
 }
 
+.reader-welcome-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .reader-welcome-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .reader-welcome-card {
     padding: 1.5rem;
   }

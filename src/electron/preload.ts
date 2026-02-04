@@ -3,7 +3,7 @@
  * Exposes a safe IPC bridge to renderer processes
  */
 
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload } from '../shared/types';
 
@@ -56,6 +56,27 @@ const mLearnIPC = {
   onReviewFlashcardRequest: (callback: () => void) => {
     ipcRenderer.on(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST, () => callback());
   },
+  
+  // ========== Migration ==========
+  onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, (_event, info) => callback(info));
+  },
+  getFlashcardMigrationInfo: () => ipcRenderer.send(IPC_CHANNELS.GET_FLASHCARD_MIGRATION_INFO),
+  onLocalStorageMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null }) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.LOCALSTORAGE_MIGRATION_COMPLETE, (_event, info) => callback(info));
+  },
+  // Get all migrated localStorage data
+  getMigratedLocalStorage: (): Promise<Record<string, unknown> | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_MIGRATED_LOCALSTORAGE),
+  // Get specific migrated item by key
+  getMigratedItem: (key: string): Promise<unknown> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_MIGRATED_ITEM, key),
+  // Check if migration has occurred
+  hasMigrationOccurred: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.HAS_MIGRATION_OCCURRED),
+  // Trigger manual migration (useful for re-migration)
+  triggerMigration: (): Promise<{ success: boolean; migratedKeys: string[]; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.TRIGGER_MIGRATION),
 
   // ========== Window Management ==========
   changeTrafficLights: (visibility: boolean) => {
@@ -67,6 +88,12 @@ const mLearnIPC = {
   showCtxMenu: () => ipcRenderer.send(IPC_CHANNELS.SHOW_CTX_MENU),
   onContextMenuCommand: (callback: (command: string) => void) => {
     ipcRenderer.on(IPC_CHANNELS.CTX_MENU_COMMAND, (_event, command) => callback(command));
+  },
+  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean }) => {
+    ipcRenderer.send(IPC_CHANNELS.SHOW_READER_CTX_MENU, options);
+  },
+  onReaderContextMenuCommand: (callback: (command: string) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.READER_CTX_MENU_COMMAND, (_event, command) => callback(command));
   },
   openWindow: (payload: OpenWindowPayload) => ipcRenderer.send(IPC_CHANNELS.OPEN_WINDOW, payload),
   closeWindow: () => ipcRenderer.send(IPC_CHANNELS.CLOSE_WINDOW),
@@ -173,6 +200,19 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.READ_DIRECTORY_IMAGES, directoryPath),
   readPdfFile: (filePath: string): Promise<{ data: ArrayBuffer }> => 
     ipcRenderer.invoke(IPC_CHANNELS.READ_PDF_FILE, filePath),
+    
+  /**
+   * Get filesystem path for a File object.
+   * Required for Electron v32+ where File.path was removed.
+   * Use this when handling drag-dropped files to get their filesystem path.
+   */
+  getPathForFile: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return '';
+    }
+  },
 
   // ========== Generic IPC Methods ==========
   // Generic send for any channel

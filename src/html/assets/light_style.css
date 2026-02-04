@@ -18,7 +18,7 @@ body.hide-cursor {
     height:28px;
     -webkit-app-region: drag;
     background-color: rgba(60,60,60, 0.5);
-    backdrop-filter: var(--theme-backdrop-filter);
+    backdrop-filter: blur(20px);
     border-bottom-right-radius: 10px;
     opacity:1;
     transition:opacity 0.3s;
@@ -130,7 +130,7 @@ body.hide-cursor .subtitles{
 .subtitle_hover {
     position: absolute;
     background-color: rgba(240,240,240, 0.75);
-    backdrop-filter: var(--theme-backdrop-filter);
+    backdrop-filter: blur(20px);
     color: black;
     align-items: center;
     font-size: 20px;
@@ -245,7 +245,7 @@ body.dark .subtitle_hover .pitch {
     padding:10px;
     box-sizing:border-box;
     background: rgba(184, 184, 184, 0.1);
-    backdrop-filter: var(--theme-backdrop-filter);
+    backdrop-filter: blur(20px);
     border-top: 1px solid #ddd;
     z-index:1;
     width:max-content;
@@ -400,7 +400,7 @@ body.dark .subtitle_hover .pill,body.dark .contains_pills .pill {
     height:50px;
     width:max-content;
     background: rgba(60,60,60, 0.5);
-    backdrop-filter: var(--theme-backdrop-filter);
+    backdrop-filter: blur(20px);
     border-radius:10px;
     overflow:hidden;
     transition: background 0.2s, top 0.2s, left 0.2s, gap 0.2s, opacity 0.2s;
@@ -466,7 +466,7 @@ body.hide-cursor .aside{
     /*min-width:300px;*/
     width:max-content;
     background: rgba(60,60,60, 0.5);
-    backdrop-filter: var(--theme-backdrop-filter);
+    backdrop-filter: blur(20px);
     border-radius:10px;
     overflow:hidden;
     transition: background 0.2s, top 0.2s, left 0.2s, gap 0.2s, opacity 0.2s;
@@ -527,7 +527,7 @@ body.hide-cursor .aside{
 }
 .aside:hover{
     background: rgba(60,60,60, 0.5);
-    backdrop-filter: var(--theme-backdrop-filter);
+    backdrop-filter: blur(20px);
 }
 .aside .header,.sync-subs .header, .custom-notification .header{
     display: flex;
@@ -591,7 +591,7 @@ body.hide-cursor .aside{
 }
 .aside .mLearn-card{
     background-color: rgba(60,60,60, 0.60);
-    backdrop-filter: var(--theme-backdrop-filter);
+    backdrop-filter: blur(20px) saturate(180%);
 
     padding-inline:20px;
     width:300px;

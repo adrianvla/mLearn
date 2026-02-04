@@ -5,16 +5,16 @@
  */
 
 import { Component, JSX, Show, For, createMemo, createSignal, createEffect } from 'solid-js';
-import type { Token, DictionaryEntry, TranslationEntry, PitchData, FlashcardContent, LLMResponse } from '../../../shared/types';
+import type { Token, DictionaryEntry, TranslationEntry, PitchData, FlashcardContent } from '../../../shared/types';
 import { WORD_STATUS } from '../../../shared/constants';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
-import { getWordStatus, setWordStatus, toUniqueIdentifier } from '../../services/statsService';
-import { getWordExplanation, getCachedExplanation } from '../../services/llmService';
+import { setWordStatus, toUniqueIdentifier, wordsLearnedInApp } from '../../services/statsService';
+import { getCachedExplanation } from '../../services/llmService';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Skeleton } from '../common';
+import { PillBtn, PillLabel } from '../common';
 import './WordHover.css';
 
 // Icon names for the Icon component - enables proper SVG coloring
@@ -79,7 +79,10 @@ export interface WordHoverProps {
   onAddFlashcard?: (token: Token, entry?: DictionaryEntry) => void;
   onAddToSRS?: () => void;
   onPlayAudio?: (word: string) => void;
+  /** @deprecated Use onOpenExplainer instead */
   onLLMExplain?: () => void;
+  /** Callback to open the LLM explainer popup */
+  onOpenExplainer?: (word: string, contextPhrase: string, position: { x: number; y: number }) => void;
   onClose?: () => void;
   visible?: boolean;
   onMouseEnter?: () => void;
@@ -88,20 +91,18 @@ export interface WordHoverProps {
 
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings } = useSettings();
-  const { addFlashcard, hasWord, getByWord } = useFlashcards();
+  const { addFlashcard, hasWordSync, getCardByWordSync } = useFlashcards();
   const { getFrequency, getLevelName, getLanguageFeatures, currentLangData } = useLanguage();
   const { tokenize } = useTokenizer();
   const { t } = useLocalization();
   const [currentStatus, setCurrentStatus] = createSignal<WordStatus>('unknown');
   const [wordUuid, setWordUuid] = createSignal<string>('');
-  const [isInSRS, setIsInSRS] = createSignal(props.isInSRS ?? false);
-  const [currentEase, setCurrentEase] = createSignal<number | undefined>(props.ease);
-  const [llmExplaining, setLlmExplaining] = createSignal(false);
-  const [llmExplanation, setLlmExplanation] = createSignal<string | null>(null);
   // Flag to prevent effect from overwriting local isInSRS state during flashcard creation
   const [isAddingFlashcard, setIsAddingFlashcard] = createSignal(false);
   // Flag to lock position during state changes to prevent jumps
   const [, setPositionLocked] = createSignal(false);
+  // Track if we have a cached explanation (for pill indicator)
+  const [hasCachedExplanation, setHasCachedExplanation] = createSignal(false);
   let hoverRef: HTMLDivElement | undefined;
 
   // Helper to get display word - track token changes
@@ -111,56 +112,92 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const actualWord = createMemo(() => props.token.actual_word || displayWord());
 
   const isShown = createMemo(() => props.visible !== false);
+  
+  // REACTIVE: Check if word is in SRS using synchronous method
+  // This properly integrates with SolidJS's reactive system
+  const isInSRS = createMemo(() => {
+    // Early exit if we're adding a flashcard (show tracked state optimistically)
+    if (isAddingFlashcard()) return true;
+    
+    const word = actualWord();
+    if (!word) return props.isInSRS ?? false;
+    
+    // Use sync method for proper reactivity with store
+    return hasWordSync(word) || (props.isInSRS ?? false);
+  });
+  
+  // REACTIVE: Get flashcard for the word (if tracked)
+  const currentFlashcard = createMemo(() => {
+    const word = actualWord();
+    if (!word) return null;
+    return getCardByWordSync(word);
+  });
+  
+  // REACTIVE: Get current ease from flashcard if tracked
+  const currentEase = createMemo(() => {
+    const card = currentFlashcard();
+    if (card) {
+      return card.ease;
+    }
+    return props.ease;
+  });
+  
+  // REACTIVE: Compute effective status by combining manual status and flashcard state
+  // If word has a flashcard in learning/relearning state → Learning
+  // If word has a flashcard in review state → Known
+  // Otherwise, use manually set status from wordsLearnedInApp
+  const effectiveStatus = createMemo((): WordStatus => {
+    const card = currentFlashcard();
+    
+    // If we have a flashcard, derive status from its state
+    if (card) {
+      if (card.state === 'new' || card.state === 'learning' || card.state === 'relearning') {
+        return 'learning';
+      }
+      if (card.state === 'review') {
+        // Mature cards (large intervals) are "known"
+        return 'known';
+      }
+    }
+    
+    // Fall back to manually-set status
+    return currentStatus();
+  });
 
-  // Load actual status from storage on mount or when word changes
-  createEffect(async () => {
+  // Load word status from storage on mount or when word changes
+  // This loads the manual status (separate from flashcard-derived status)
+  createEffect(() => {
     const word = actualWord(); // Use actualWord for status lookup (like old app)
     if (!word) return;
     
-    // Don't overwrite isInSRS if we're currently adding a flashcard
-    if (isAddingFlashcard()) return;
+    // Access the signal to make this effect reactive to word status changes
+    const allWordStatuses = wordsLearnedInApp();
     
-    try {
-      const uuid = await toUniqueIdentifier(word);
-      setWordUuid(uuid);
-      
-      // Get status from storage using word (not uuid) - matches old app
-      const storedStatus = getWordStatus(word);
-      setCurrentStatus(numericToWordStatus(storedStatus));
-      
-      // Check if in SRS and get ease
-      const inSRS = hasWord(word);
-      setIsInSRS(inSRS);
-      if (inSRS) {
-        const flashcard = getByWord(word);
-        if (flashcard) {
-          setCurrentEase(flashcard.ease);
-        }
+    // Async IIFE to generate UUID (only needed for extractExampleHtml)
+    (async () => {
+      try {
+        const uuid = await toUniqueIdentifier(word);
+        setWordUuid(uuid);
+        
+        // Get manual status from storage using word (not uuid) - matches old app
+        // This is the base status before considering flashcard state
+        const storedStatus = allWordStatuses[word] ?? WORD_STATUS.UNKNOWN;
+        setCurrentStatus(numericToWordStatus(storedStatus));
+      } catch (e) {
+        console.error('Failed to load word status:', e);
+        setCurrentStatus(props.status || 'unknown');
       }
-    } catch (e) {
-      console.error('Failed to load word status:', e);
-      setCurrentStatus(props.status || 'unknown');
-    }
+    })();
   });
 
-  // Reset LLM explanation when word changes, but restore from cache if available
-  // This implements the "memory" feature - previously requested explanations persist
+  // Check if we have a cached explanation for the current word (for pill indicator)
   createEffect(() => {
     const word = displayWord();
     const context = props.contextPhrase || '';
     
     // Check if we have a cached explanation for this word+context
     const cached = getCachedExplanation(word, context);
-    if (cached) {
-      // Restore the cached explanation immediately
-      setLlmExplanation(cached);
-      setLlmExplaining(false);
-      console.log(`%cRestored cached LLM explanation for "${word}"`, 'color: cyan;');
-    } else {
-      // No cache - reset to null
-      setLlmExplanation(null);
-      setLlmExplaining(false);
-    }
+    setHasCachedExplanation(!!cached);
   });
 
   // Computed position signal - updated after render when dimensions are known
@@ -276,20 +313,16 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     // Use requestAnimationFrame to ensure DOM has painted
     requestAnimationFrame(() => {
       const { width, height } = getHoverDimensions();
-      const bounds = getUIBounds();
       const newPos = calculateBoundedPosition(width, height);
       
-      // Debug logging
-      console.log(
-        `%c[WordHover] Position Debug:%c\n` +
-        `  Hover size: ${width}×${height}px\n` +
-        `  Position: (${newPos.left}, ${newPos.top})\n` +
-        `  Bounds: minX=${bounds.minX}, maxX=${bounds.maxX}, minY=${bounds.minY}, maxY=${bounds.maxY}\n` +
-        `  UI: navbar=${bounds.hasNavbar}(${bounds.navbarHeight}px), sidebar=${bounds.hasSidebar}(${bounds.sidebarWidth}px), statusbar=${bounds.hasStatusbar}(${bounds.statusbarHeight}px)\n` +
-        `  Viewport: ${bounds.vw}×${bounds.vh}`,
-        'color: #00bcd4; font-weight: bold;',
-        'color: #aaa;'
-      );
+      // Debug logging (uncomment and add `const bounds = getUIBounds();` to enable)
+      // console.log(
+      //   `%c[WordHover] Position Debug:%c\n` +
+      //   `  Hover size: ${width}×${height}px\n` +
+      //   `  Position: (${newPos.left}, ${newPos.top})`,
+      //   'color: #00bcd4; font-weight: bold;',
+      //   'color: #aaa;'
+      // );
       
       setComputedPosition(newPos);
     });
@@ -567,6 +600,17 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       e.stopPropagation();
     }
     
+    // Prevent duplicate requests - early return if already adding
+    if (isAddingFlashcard()) {
+      console.log('%cFlashcard add request blocked - already adding', 'color: orange;');
+      return;
+    }
+    
+    // CRITICAL: Set adding flag immediately BEFORE any async operations
+    // This prevents duplicate flashcards when clicking multiple times while backend is busy
+    setIsAddingFlashcard(true);
+    setPositionLocked(true);
+    
     const word = actualWord(); // Use dictionary form (like old app)
     const uuid = wordUuid();
     
@@ -642,7 +686,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     // Capture screenshot (OCR mode vs video mode like old app)
     const isOcr = isOcrMode();
+    console.log('%cHandleAddFlashcard: Starting screenshot capture, isOcr:', 'color: orange;', isOcr);
     const screenshot = isOcr ? captureOcrScreenshot() : screenshotVideo();
+    console.log('%cHandleAddFlashcard: Screenshot captured, length:', 'color: orange;', screenshot?.length || 0);
     
     // Extract example HTML (subtitle sentence with highlighted word)
     let exampleHtml: string;
@@ -651,7 +697,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       const contextPhrase = props.contextPhrase || '';
       if (contextPhrase && contextPhrase !== '-') {
         try {
+          console.log('%cHandleAddFlashcard: Tokenizing context phrase...', 'color: orange;');
           const tokens = await tokenize(contextPhrase);
+          console.log('%cHandleAddFlashcard: Tokenization complete, tokens:', 'color: orange;', tokens?.length || 0);
           const colourCodes = settings.colour_codes || currentLangData()?.colour_codes || {};
           exampleHtml = tokensToColoredHtml(tokens, colourCodes, word);
         } catch (e) {
@@ -665,23 +713,31 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       // Video mode: use subtitle HTML with word highlighted
       exampleHtml = extractExampleHtml(uuid);
     }
+    console.log('%cHandleAddFlashcard: exampleHtml built', 'color: orange;');
     
     // Get level from frequency data
     const freq = wordFreqEntry();
     const level = freq?.raw_level ?? props.level ?? -1;
     
-    // Build fully serializable flashcard content (matching old app's structure exactly)
+    // Build fully serializable flashcard content (using new structure with legacy compatibility)
     const content: FlashcardContent = {
-      word: word,
+      type: 'word',
+      front: word,
+      back: translationArr?.join('; ') || '-',
+      reading: reading || word,
       pitchAccent: pitchAccent,
+      pos: props.token.partOfSpeech ?? props.token.type ?? '',
+      level: level,
+      example: exampleHtml,
+      exampleMeaning: '',
+      imageUrl: screenshot,
+      context: props.contextPhrase,
+      // Legacy fields for backwards compatibility
+      word: word,
       pronunciation: reading || word,
       translation: translationArr,
       definition: definitionHtml ?? (props.token.meaning ? [props.token.meaning] : undefined),
-      example: exampleHtml,
-      exampleMeaning: '',
       screenshotUrl: screenshot,
-      pos: props.token.partOfSpeech ?? props.token.type ?? '',
-      level: level,
       contextPhrase: props.contextPhrase,
     };
     
@@ -692,10 +748,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       example: exampleHtml ? `${exampleHtml.substring(0, 50)}...` : 'EMPTY',
     });
     
-    // CRITICAL: Lock position and set adding flag to show "Adding..." state
-    setPositionLocked(true);
-    setIsAddingFlashcard(true);
-    
     // Calculate ease for flashcard (like old app's knownStatusToEaseFunction)
     // UNKNOWN (0) → 1.3, LEARNING (1) → 1.55, KNOWN (2) → 1.8
     const statusNum = wordStatusToNumeric(currentStatus());
@@ -703,19 +755,16 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     if (props.onAddFlashcard) {
       props.onAddFlashcard(props.token, entry);
-      // Update state after callback completes
-      setIsInSRS(true);
-      setCurrentEase(newEase);
+      // isInSRS and currentEase are now reactive memos that will update automatically
+      // when the flashcard is added to the store
       setIsAddingFlashcard(false);
     } else {
       try {
         // Pass ease to addFlashcard (like old app's knownStatusToEaseFunction)
         await addFlashcard(content, newEase);
         console.log(`%cCreated flashcard for word: ${word} with ease: ${newEase}`, 'color: aqua; font-weight: bold;');
-        // CRITICAL: Update isInSRS state AFTER flashcard is added successfully
-        // This ensures the "Adding..." state is visible during the async operation
-        setIsInSRS(true);
-        setCurrentEase(newEase);
+        // isInSRS and currentEase are now reactive memos that will update automatically
+        // when the flashcard is added to the store via BroadcastChannel sync
       } catch (err) {
         console.error('Failed to add flashcard:', err);
         alert(t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }));
@@ -733,45 +782,34 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     if (props.onAddToSRS) {
       props.onAddToSRS();
     } else {
-      handleAddFlashcard(undefined, e);
+      // Await the async function and catch any errors
+      handleAddFlashcard(undefined, e).catch((err) => {
+        console.error('handleAddFlashcard failed:', err);
+      });
     }
   };
 
-  const handleLLMExplain = async (e: MouseEvent) => {
+  // Open the LLM explainer popup
+  const handleOpenExplainer = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
-    if (props.onLLMExplain) {
-      props.onLLMExplain();
-      return;
-    }
-    
-    // Check if LLM is enabled (like old app's clickLLMExplain)
+    // Check if LLM is enabled
     if (!settings.llmEnabled) {
       alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
       return;
     }
     
-    // Show loading skeleton
-    setLlmExplaining(true);
-    setLlmExplanation(null);
-    
-    try {
+    // Call the callback to open the popup
+    if (props.onOpenExplainer) {
       const word = displayWord();
       const context = props.contextPhrase || '';
-      const response: LLMResponse = await getWordExplanation(word, context, settings);
-      
-      if (response.error) {
-        setLlmExplanation(`Error: ${response.error}`);
-      } else if (response.output) {
-        setLlmExplanation(response.output);
-      } else {
-        setLlmExplanation(t('mlearn.WordHover.NoExplanationAvailable'));
-      }
-    } catch (e) {
-      setLlmExplanation(`Error: ${String(e)}`);
-    } finally {
-      setLlmExplaining(false);
+      // Position popup near the hover (offset slightly)
+      const pos = computedPosition();
+      props.onOpenExplainer(word, context, { x: pos.left + 50, y: pos.top + 50 });
+    } else if (props.onLLMExplain) {
+      // Backwards compatibility
+      props.onLLMExplain();
     }
   };
 
@@ -855,18 +893,19 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   });
 
   // Status pill derived values - fully reactive
+  // Uses effectiveStatus which combines flashcard state with manual status
   const statusVariant = createMemo(() => {
-    const status = currentStatus();
+    const status = effectiveStatus();
     return status === 'unknown' ? 'red' : status === 'learning' ? 'orange' : 'green';
   });
   
   const statusIcon = createMemo(() => {
-    const status = currentStatus();
+    const status = effectiveStatus();
     return status === 'unknown' ? ICON_CROSS2 : ICON_CHECK;
   });
   
   const statusLabel = createMemo(() => {
-    const status = currentStatus();
+    const status = effectiveStatus();
     return status === 'unknown' 
       ? t('mlearn.WordHover.Status.Unknown') 
       : status === 'learning' 
@@ -915,13 +954,15 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   };
 
   // LLM Explain pill using PillBtn component
+  // Shows indicator if we have a cached explanation
   const LLMPill = () => {
+    const hasCached = hasCachedExplanation();
     return (
       <PillBtn
-        variant="blue"
+        variant={hasCached ? 'green' : 'blue'}
         icon={ICON_BOT}
         label={t('mlearn.WordHover.Explain')}
-        onClick={handleLLMExplain}
+        onClick={handleOpenExplainer}
       />
     );
   };
@@ -960,7 +1001,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       onMouseEnter={() => props.onMouseEnter?.()}
       onMouseLeave={() => props.onMouseLeave?.()}
     >
-      <div class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${(settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent') ? 'dark' : ''}`}>
+      <div class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${(settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker') ? 'dark' : ''}`}>
         <div class="subtitle_hover_relative">
           <div class="subtitle_hover_content">
             {/* Loading state */}
@@ -1008,18 +1049,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
             </Show>
           </div>
 
-          {/* LLM Explanation section */}
-          <Show when={llmExplaining()}>
-            <div class="subtitle_hover_alt_c skeleton-c">
-              <Skeleton />
-            </div>
-          </Show>
-          <Show when={llmExplanation()}>
-            <div class="subtitle_hover_alt_c">
-              <p innerHTML={llmExplanation()!.replace(/\n/g, '<br/>')} />
-            </div>
-          </Show>
-
           {/* Footer with pills */}
           <div class="footer">
             <div class="pills">
@@ -1063,6 +1092,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                     variant="yellow"
                     icon="⏳"
                     label={t('mlearn.Global.Status.Adding')}
+                    disabled={true}
                   />
                 </Show>
               }>

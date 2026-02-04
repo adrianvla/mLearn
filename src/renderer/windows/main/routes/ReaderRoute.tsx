@@ -6,10 +6,12 @@
 import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, batch } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
-import { OcrOverlay, type OcrResult } from '../../../components/reader';
+import { OcrOverlay, MagnifyingGlass, type OcrResult } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
-import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation } from '../../../hooks';
+import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
+import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation, getGlobalHoverManager } from '../../../hooks';
 import { useSettings, useLocalization } from '../../../context';
+import { parseKeybind } from '../../../components/common';
 import type { Token, TranslationResponse, DictionaryEntry } from '../../../../shared/types';
 import { API_ENDPOINTS } from '../../../../shared/constants';
 import { ReaderNav, ReaderSidebar, ReaderWelcomeCard, ReaderStatusBar } from './components';
@@ -89,7 +91,7 @@ export const ReaderRoute: Component = () => {
   const navigate = useNavigate();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { isProcessing: _ocrHookProcessing } = useOCR();
-  const { settings } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const { translateWord } = useTranslation({ immediate: true });
   const { lookup } = useDictionary();
@@ -139,6 +141,15 @@ export const ReaderRoute: Component = () => {
   const [ocrTranslationData, setOcrTranslationData] = createSignal<TranslationResponse | null>(null);
   const [ocrWordStatus, setOcrWordStatus] = createSignal<'unknown' | 'learning' | 'known'>('unknown');
   
+  // Explainer popup state
+  const [explainerOpen, setExplainerOpen] = createSignal(false);
+  const [explainerWord, setExplainerWord] = createSignal('');
+  const [explainerContext, setExplainerContext] = createSignal('');
+  const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
+  
+  // Magnifying glass state
+  const [magnifierActive, setMagnifierActive] = createSignal(false);
+  
   // OCR Progress Tracking
   // Total pages that need OCR in the current book (set once when book loads)
   const [ocrBatchTotal, setOcrBatchTotal] = createSignal(0);
@@ -159,37 +170,62 @@ export const ReaderRoute: Component = () => {
   let pageContainerRef: HTMLDivElement | undefined;
   const [imageRefs, setImageRefs] = createSignal<Record<string, HTMLImageElement>>({});
 
+  // Helper function to get file path using Electron's webUtils API (Electron 32+)
+  // Falls back to legacy File.path property for older Electron versions
+  const getFilePath = (file: File): string => {
+    // Try the new webUtils API first (Electron 32+)
+    if (window.mLearnIPC?.getPathForFile) {
+      const path = window.mLearnIPC.getPathForFile(file);
+      if (path) return path;
+    }
+    // Fallback to legacy File.path property
+    const fileWithPath = file as File & { path?: string };
+    return fileWithPath.path || '';
+  };
+
   // Returns files, the name of the dropped folder, and the full filesystem path (if available)
-  // In Electron, dropped items have a .path property on the dataTransfer.files entries
+  // Uses webUtils.getPathForFile (Electron 32+) to get filesystem paths
   const getDroppedFiles = async (dataTransfer: DataTransfer | null): Promise<{ 
     files: File[], 
     droppedFolderName: string | null,
-    droppedFolderPath: string | null 
+    droppedFolderPath: string | null,
+    rawFilePaths: Map<string, string> // Map of filename to path for preserving paths
   }> => {
-    if (!dataTransfer) return { files: [], droppedFolderName: null, droppedFolderPath: null };
+    if (!dataTransfer) return { files: [], droppedFolderName: null, droppedFolderPath: null, rawFilePaths: new Map() };
     
     const items = Array.from(dataTransfer.items || []);
     const rawFiles = Array.from(dataTransfer.files || []);
     
-    // In Electron, the raw files from dataTransfer.files have a .path property
-    // This is the full filesystem path - capture it before using webkit entries API
-    // (which creates new File objects without the path property)
-    let droppedFolderPath: string | null = null;
-    if (rawFiles.length > 0) {
-      const firstRawFile = rawFiles[0] as File & { path?: string };
-      if (firstRawFile.path) {
-        droppedFolderPath = firstRawFile.path;
+    // Build a map of filename -> path using webUtils.getPathForFile (Electron 32+)
+    // This preserves paths before webkit entries API creates new File objects
+    let rawFilePath: string | null = null;
+    const rawFilePaths = new Map<string, string>();
+    
+    for (const rawFile of rawFiles) {
+      const path = getFilePath(rawFile);
+      if (path) {
+        rawFilePaths.set(rawFile.name, path);
+        // Keep first path for folder path fallback
+        if (!rawFilePath) {
+          rawFilePath = path;
+        }
       }
     }
 
     const hasEntries = items.some((item) => typeof (item as any).webkitGetAsEntry === 'function');
     if (!hasEntries) {
-      return { files: rawFiles, droppedFolderName: null, droppedFolderPath };
+      // No webkit entries - just regular files dropped
+      // Extract folder path from first file's parent directory
+      const droppedFolderPath = rawFilePath 
+        ? rawFilePath.split('/').slice(0, -1).join('/') 
+        : null;
+      return { files: rawFiles, droppedFolderName: null, droppedFolderPath, rawFilePaths };
     }
 
     let droppedFolderName: string | null = null;
+    let droppedFolderPath: string | null = null;
 
-    const readEntry = async (entry: any): Promise<File[]> => {
+    const readEntry = async (entry: any, isTopLevel: boolean = false): Promise<File[]> => {
       if (!entry) return [];
       if (entry.isFile) {
         return new Promise((resolve) => {
@@ -197,9 +233,12 @@ export const ReaderRoute: Component = () => {
         });
       }
       if (entry.isDirectory) {
-        // Capture the folder name from the top-level directory entry
-        if (!droppedFolderName) {
+        // Capture the folder name and path from the top-level directory entry
+        if (isTopLevel && !droppedFolderName) {
           droppedFolderName = entry.name;
+          // When dropping a folder, rawFilePath from Electron's dataTransfer.files
+          // contains the folder's full filesystem path
+          droppedFolderPath = rawFilePath;
         }
         const reader = entry.createReader();
         const entries: any[] = [];
@@ -211,7 +250,7 @@ export const ReaderRoute: Component = () => {
           });
         });
         await readAll();
-        const nested = await Promise.all(entries.map((child) => readEntry(child)));
+        const nested = await Promise.all(entries.map((child) => readEntry(child, false)));
         return nested.flat();
       }
       return [];
@@ -221,10 +260,16 @@ export const ReaderRoute: Component = () => {
       items
         .map((item) => (item as any).webkitGetAsEntry?.())
         .filter(Boolean)
-        .map((entry) => readEntry(entry))
+        .map((entry) => readEntry(entry, true))
     );
 
-    return { files: entryFiles.flat(), droppedFolderName, droppedFolderPath };
+    // If no folder was dropped but we have a file path from Electron,
+    // extract the parent directory as the folder path
+    if (!droppedFolderPath && rawFilePath) {
+      droppedFolderPath = rawFilePath.split('/').slice(0, -1).join('/');
+    }
+
+    return { files: entryFiles.flat(), droppedFolderName, droppedFolderPath, rawFilePaths };
   };
 
   const visiblePages = () => {
@@ -617,6 +662,61 @@ export const ReaderRoute: Component = () => {
     }
   });
   
+  // Furigana hider state comes from settings
+  // Access it via settings context so changes propagate to OcrOverlay
+  const furiganaHiderEnabled = () => settings.readerFuriganaHider ?? false;
+  
+  // Listen to reader context menu commands
+  onMount(() => {
+    if (!window.mLearnIPC?.onReaderContextMenuCommand) return;
+    
+    window.mLearnIPC.onReaderContextMenuCommand((command: string) => {
+      switch (command) {
+        case 'toggle-furigana':
+          // Toggle through settings so FuriganaHider component gets updated
+          updateSettings({ readerFuriganaHider: !furiganaHiderEnabled() });
+          break;
+        case 'copy-phrase':
+          // Copy the current context phrase to clipboard
+          const phrase = ocrContextPhrase();
+          if (phrase && window.mLearnIPC?.writeToClipboard) {
+            window.mLearnIPC.writeToClipboard(phrase);
+          }
+          break;
+      }
+    });
+  });
+  
+  // Handler for right-click context menu in reader on OCR boxes (has phrase to copy)
+  const handleOcrContextMenu = (contextPhrase: string, _boxIndex: number) => {
+    // Store the context phrase for copy functionality
+    setOcrContextPhrase(contextPhrase);
+    
+    if (window.mLearnIPC?.showReaderCtxMenu) {
+      window.mLearnIPC.showReaderCtxMenu({
+        furiganaHiderEnabled: furiganaHiderEnabled(),
+        hasContextPhrase: !!contextPhrase && contextPhrase !== '-',
+      });
+    }
+  };
+  
+  // Handler for right-click context menu on image (no OCR box selected)
+  // Shows limited menu with only furigana toggle
+  const handleImageContextMenu = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Clear context phrase since we're not on an OCR box
+    setOcrContextPhrase('');
+    
+    if (window.mLearnIPC?.showReaderCtxMenu) {
+      window.mLearnIPC.showReaderCtxMenu({
+        furiganaHiderEnabled: furiganaHiderEnabled(),
+        hasContextPhrase: false, // No phrase to copy when clicking on image
+      });
+    }
+  };
+  
   // Listen to MangaOCR server status updates
   onMount(() => {
     if (!window.mLearnIPC?.onOcrStatusUpdate) return;
@@ -664,8 +764,35 @@ export const ReaderRoute: Component = () => {
     window.mLearnIPC.onOcrStatusUpdate(handleOcrStatus);
   });
 
-  // Keyboard navigation
+  // Keyboard navigation and magnifier hotkey
+  // Note: We access settings.readerMagnifierHotkey directly inside handlers 
+  // to ensure changes take effect immediately without requiring a restart
   onMount(() => {
+    /**
+     * Check if the current keyboard event matches the configured magnifier hotkey.
+     * Supports both simple keys (e.g., "z") and modifier combinations (e.g., "shift+c", "ctrl+alt+m")
+     */
+    const matchesHotkey = (e: KeyboardEvent): boolean => {
+      const hotkeySetting = settings.readerMagnifierHotkey?.toLowerCase() || 'z';
+      const { modifiers, key } = parseKeybind(hotkeySetting);
+      
+      // Check if pressed key matches the main key
+      if (e.key.toLowerCase() !== key) return false;
+      
+      // Check modifiers match exactly
+      const hasCtrl = modifiers.includes('ctrl');
+      const hasAlt = modifiers.includes('alt');
+      const hasShift = modifiers.includes('shift');
+      const hasMeta = modifiers.includes('meta');
+      
+      return (
+        e.ctrlKey === hasCtrl &&
+        e.altKey === hasAlt &&
+        e.shiftKey === hasShift &&
+        e.metaKey === hasMeta
+      );
+    };
+    
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft') prevPage();
       if (e.key === 'ArrowRight') nextPage();
@@ -673,16 +800,36 @@ export const ReaderRoute: Component = () => {
         e.preventDefault();
         runOcr();
       }
+      // Magnifier hotkey (press and hold)
+      // Access settings directly for reactivity
+      if (matchesHotkey(e) && !e.repeat) {
+        setMagnifierActive(true);
+        // Hide all word hovers when magnifying glass is activated
+        getGlobalHoverManager().forceHide();
+      }
     };
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Release magnifier when hotkey is released
+      // Access settings directly for reactivity
+      if (matchesHotkey(e)) {
+        setMagnifierActive(false);
+      }
+    };
+    
     document.addEventListener('keydown', handleKeyDown);
-    onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
+    document.addEventListener('keyup', handleKeyUp);
+    onCleanup(() => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    });
   });
 
   const handleDrop = async (e: DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
 
-    const { files: droppedFiles, droppedFolderName, droppedFolderPath } = await getDroppedFiles(e.dataTransfer || null);
+    const { files: droppedFiles, droppedFolderName, droppedFolderPath, rawFilePaths } = await getDroppedFiles(e.dataTransfer || null);
     
     // Check for PDF file first
     const pdfFile = droppedFiles.find(f => isPdfFile(f));
@@ -697,10 +844,12 @@ export const ReaderRoute: Component = () => {
         const bookId = parseWorkName(pdfFile.name);
         setCurrentBookId(bookId);
         
-        // In Electron, File objects have a .path property with the full filesystem path
-        // For PDFs dropped directly, use the path from the file
-        // If coming from folder entry API, use droppedFolderPath (which would be the PDF path)
-        const pdfPath = (pdfFile as File & { path?: string }).path || droppedFolderPath || '';
+        // Get PDF path from rawFilePaths map (populated using webUtils.getPathForFile)
+        // Fallback to getFilePath for the file, or droppedFolderPath
+        const pdfPath = rawFilePaths.get(pdfFile.name)
+          || getFilePath(pdfFile)
+          || droppedFolderPath 
+          || '';
         setCurrentBookPath(pdfPath);
         
         // Check for saved page position
@@ -764,20 +913,20 @@ export const ReaderRoute: Component = () => {
     if (droppedFolderName) {
       bookId = parseWorkName(droppedFolderName);
     } else {
-      // Fallback: extract from first file's path
-      const firstFile = files[0] as File & { path?: string };
-      const rawFolderName = firstFile?.path 
-        ? extractFolderName(firstFile.path)
+      // Fallback: extract from first file's path using rawFilePaths map
+      const firstFilePath = rawFilePaths.get(files[0].name) || getFilePath(files[0]);
+      const rawFolderName = firstFilePath
+        ? extractFolderName(firstFilePath)
         : files[0].name;
       bookId = parseWorkName(rawFolderName);
     }
     setCurrentBookId(bookId);
     
-    // Use droppedFolderPath from dataTransfer.files (has Electron's .path property)
-    // Fallback: try to get path from first file and extract directory
-    const firstFile = files[0] as File & { path?: string };
-    const bookPath = droppedFolderPath || (firstFile?.path 
-      ? firstFile.path.split('/').slice(0, -1).join('/') 
+    // Use droppedFolderPath or extract from first file's path
+    // rawFilePaths is populated using webUtils.getPathForFile (Electron 32+)
+    const firstFilePath = rawFilePaths.get(files[0].name) || getFilePath(files[0]);
+    const bookPath = droppedFolderPath || (firstFilePath
+      ? firstFilePath.split('/').slice(0, -1).join('/') 
       : '');
     setCurrentBookPath(bookPath);
     
@@ -898,6 +1047,18 @@ export const ReaderRoute: Component = () => {
         goToPage(curr + 2);
       }
     }
+  };
+
+  // Explainer popup handlers
+  const handleOpenExplainer = (word: string, context: string, position: { x: number; y: number }) => {
+    setExplainerWord(word);
+    setExplainerContext(context);
+    setExplainerPosition(position);
+    setExplainerOpen(true);
+  };
+  
+  const handleCloseExplainer = () => {
+    setExplainerOpen(false);
   };
 
   // OCR hover handlers (legacy-style hover popup)
@@ -1022,6 +1183,7 @@ export const ReaderRoute: Component = () => {
         <ReaderSidebar
           pages={pages}
           currentPage={currentPage}
+          pageMode={pageMode}
           hasOcrForPage={hasOcrForPage}
           onGoToPage={goToPage}
         />
@@ -1121,6 +1283,7 @@ export const ReaderRoute: Component = () => {
                       src={page.src}
                       alt={page.name}
                       ref={(el) => setImageRefs(prev => ({ ...prev, [page.id]: el }))}
+                      onContextMenu={handleImageContextMenu}
                     />
                     {/* Page Processing Loader - uses CSS fade animation instead of Show */}
                     <div class={`page-loader-overlay ${isWaitingForOcr() ? 'visible' : 'hidden'}`}>
@@ -1141,6 +1304,7 @@ export const ReaderRoute: Component = () => {
                         visible={showOcrOverlay()}
                         onWordHover={handleOcrWordHover}
                         onWordLeave={handleOcrWordLeave}
+                        onContextMenu={handleOcrContextMenu}
                       />
                     </Show>
                   </div>
@@ -1210,8 +1374,24 @@ export const ReaderRoute: Component = () => {
           visible={isOcrHoverVisible()}
           onMouseEnter={cancelOcrHide}
           onMouseLeave={hideOcrHover}
+          onOpenExplainer={handleOpenExplainer}
         />
       </Show>
+      
+      {/* LLM Explainer Popup */}
+      <ExplainerPopup
+        isOpen={explainerOpen()}
+        onClose={handleCloseExplainer}
+        word={explainerWord()}
+        contextPhrase={explainerContext()}
+        initialPosition={explainerPosition()}
+      />
+      
+      {/* Magnifying Glass */}
+      <MagnifyingGlass
+        imageElements={Object.values(imageRefs())}
+        active={magnifierActive()}
+      />
     </div>
   );
 };

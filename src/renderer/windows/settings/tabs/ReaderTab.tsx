@@ -4,7 +4,7 @@
 
 import { Component, createSignal, Show } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
 
 /** Key options for hover trigger keybind */
@@ -153,6 +153,88 @@ export const ReaderTab: Component = () => {
             checked={settings.readerFuriganaHider ?? false}
             onChange={(checked) => updateSettings({ readerFuriganaHider: checked })}
           />
+        </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup title={t('mlearn.Settings.Reader.Magnifier.Title')}>
+        <SettingRow
+          label={t('mlearn.Settings.Reader.Magnifier.Hotkey.Label')}
+          description={t('mlearn.Settings.Reader.Magnifier.Hotkey.Description')}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+            <KeybindInput
+              value={settings.readerMagnifierHotkey ?? 'z'}
+              onChange={(key) => updateSettings({ readerMagnifierHotkey: key.length === 1 ? key.toLowerCase() : key })}
+            />
+            {/*<span style={{ color: 'var(--text-secondary)', 'font-size': '0.85rem' }}>*/}
+            {/*  {t('mlearn.Settings.Reader.Magnifier.Hotkey.Hint')}*/}
+            {/*</span>*/}
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Reader.Magnifier.Zoom.Label')}
+          description={t('mlearn.Settings.Reader.Magnifier.Zoom.Description')}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+            <RangeInput
+              min={1.5}
+              max={5}
+              step={0.5}
+              value={settings.readerMagnifierZoom ?? 2}
+              style={{ width: '120px' }}
+              onChange={(value) => updateSettings({ readerMagnifierZoom: value })}
+            />
+            <Input
+              type="number"
+              value={settings.readerMagnifierZoom ?? 2}
+              min={1.5}
+              max={5}
+              step={0.5}
+              ghost={true}
+              style={{ width: '70px', 'text-align': 'center' }}
+              onChange={(e) => {
+                const val = parseFloat(e.currentTarget.value);
+                if (!isNaN(val) && val >= 1.5 && val <= 5) {
+                  updateSettings({ readerMagnifierZoom: val });
+                }
+              }}
+            />
+            {/*TODO: make actual layout because hardcoding the width is meh*/}
+            <span style={{ color: 'var(--text-secondary)', 'font-size': '0.9rem' , 'width': '16px'}}>x</span>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Reader.Magnifier.Size.Label')}
+          description={t('mlearn.Settings.Reader.Magnifier.Size.Description')}
+        >
+          <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
+            <RangeInput
+              min={100}
+              max={400}
+              step={25}
+              value={settings.readerMagnifierSize ?? 200}
+              style={{ width: '120px' }}
+              onChange={(value) => updateSettings({ readerMagnifierSize: value })}
+            />
+            <Input
+              type="number"
+              value={settings.readerMagnifierSize ?? 200}
+              min={100}
+              max={400}
+              step={25}
+              ghost={true}
+              style={{ width: '70px', 'text-align': 'center' }}
+              onChange={(e) => {
+                const val = parseInt(e.currentTarget.value);
+                if (!isNaN(val) && val >= 100 && val <= 400) {
+                  updateSettings({ readerMagnifierSize: val });
+                }
+              }}
+            />
+            <span style={{ color: 'var(--text-secondary)', 'font-size': '0.9rem' }}>px</span>
+          </div>
         </SettingRow>
       </SettingGroup>
 

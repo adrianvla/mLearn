@@ -1,0 +1,143 @@
+/**
+ * DraggablePopup Component Styles
+ * Draggable, resizable popup modal
+ */
+
+.draggable-popup {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+}
+
+.draggable-popup--dragging,
+.draggable-popup--resizing {
+  user-select: none;
+}
+
+.draggable-popup__panel {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+/* Header */
+.draggable-popup__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--border-color);
+  cursor: move;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.draggable-popup__title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: var(--spacing-2);
+}
+
+.draggable-popup__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-left: auto;
+}
+
+/* Content */
+.draggable-popup__content {
+  flex: 1;
+  overflow: auto;
+  padding: var(--spacing-3);
+}
+
+/* Footer */
+.draggable-popup__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+/* Resize handles - base */
+.draggable-popup__resize-handle {
+  position: absolute;
+  z-index: 10;
+}
+
+/* Edge handles */
+.draggable-popup__resize-handle--n {
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.draggable-popup__resize-handle--s {
+  bottom: 0;
+  left: 10px;
+  right: 10px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.draggable-popup__resize-handle--e {
+  right: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.draggable-popup__resize-handle--w {
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+/* Corner handles */
+.draggable-popup__resize-handle--ne {
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}
+
+.draggable-popup__resize-handle--nw {
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+.draggable-popup__resize-handle--se {
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+}
+
+.draggable-popup__resize-handle--sw {
+  bottom: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nesw-resize;
+}

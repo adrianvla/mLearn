@@ -3,18 +3,27 @@
  * Main video player with controls and subtitle overlay
  */
 
-import { Component, JSX, createEffect, onMount, onCleanup } from 'solid-js';
+import { Component, JSX, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { useVideo, useVideoKeyboard, useSubtitles, useCursorVisibility } from '../../hooks';
 import { useSettings } from '../../context';
 import { SubtitleContainer } from '../subtitle/SubtitleContainer';
 import { VideoControls } from './VideoControls';
+import './VideoPlayer.css';
 
 export interface VideoPlayerProps {
+  /** Video source URL */
   src?: string;
+  /** Subtitle file content (SRT/VTT/ASS) */
   subtitleContent?: string;
+  /** Autoplay video on load */
   autoplay?: boolean;
+  /** Callback when video time updates */
   onTimeUpdate?: (time: number) => void;
+  /** Callback when video ends */
   onEnded?: () => void;
+  /** Additional CSS class */
+  class?: string;
+  /** Additional inline styles */
   style?: JSX.CSSProperties;
 }
 
@@ -22,16 +31,22 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   const { settings } = useSettings();
   const video = useVideo();
   const subtitles = useSubtitles();
-  
+
   // Cursor visibility with 2s timeout - matches legacy behavior
   const { isVisible: controlsVisible } = useCursorVisibility({
     hideDelay: 2000,
     useBodyClass: true,
     enabled: true,
   });
-  
+
   let videoRef: HTMLVideoElement | undefined;
   let containerRef: HTMLDivElement | undefined;
+
+  // Compute video fit class
+  const videoFitClass = createMemo(() => {
+    const fit = settings.videoFit || 'contain';
+    return `video-fit-${fit}`;
+  });
 
   // Attach video element
   onMount(() => {
@@ -90,51 +105,39 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   // Enable keyboard shortcuts
   useVideoKeyboard(video);
 
-  const containerStyle = (): JSX.CSSProperties => ({
-    position: 'relative',
-    width: '100%',
-    height: '100%',
-    'background-color': 'black',
-    overflow: 'hidden',
-    ...props.style,
-  });
-
-  const videoStyle = (): JSX.CSSProperties => ({
-    width: '100%',
-    height: '100%',
-    'object-fit': (settings.videoFit as JSX.CSSProperties['object-fit']) || 'contain',
-  });
+  const handleContextMenu = (e: MouseEvent) => {
+    e.preventDefault();
+    window.mLearnIPC?.showCtxMenu();
+  };
 
   return (
-    <div
-      ref={containerRef}
-      style={containerStyle()}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        window.mLearnIPC?.showCtxMenu();
-      }}
-    >
-      <video
-        ref={videoRef}
-        style={videoStyle()}
-        autoplay={props.autoplay}
-        onEnded={props.onEnded}
-      />
+      <div
+          ref={containerRef}
+          class={`video-player ${props.class || ''}`}
+          style={props.style}
+          onContextMenu={handleContextMenu}
+      >
+        <video
+            ref={videoRef}
+            class={`video-element ${videoFitClass()}`}
+            autoplay={props.autoplay}
+            onEnded={props.onEnded}
+        />
 
-      {/* Subtitle overlay */}
-      <SubtitleContainer
-        tokens={subtitles.tokens()}
-        isLoading={subtitles.isTokenizing()}
-        originalText={subtitles.currentSubtitle()?.text}
-      />
+        {/* Subtitle overlay */}
+        <SubtitleContainer
+            tokens={subtitles.tokens()}
+            isLoading={subtitles.isTokenizing()}
+            originalText={subtitles.currentSubtitle()?.text}
+        />
 
-      {/* Video controls */}
-      <VideoControls
-        video={video}
-        subtitles={subtitles}
-        containerRef={containerRef}
-        isControlsVisible={controlsVisible()}
-      />
-    </div>
+        {/* Video controls */}
+        <VideoControls
+            video={video}
+            subtitles={subtitles}
+            containerRef={containerRef}
+            isControlsVisible={controlsVisible()}
+        />
+      </div>
   );
 };

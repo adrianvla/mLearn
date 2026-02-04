@@ -130,7 +130,6 @@ export const Modal: Component<ModalProps> = (props) => {
         >
           <Panel
             variant="elevated"
-            blur="lg"
             rounded="lg"
             padding="none"
             style={modalStyle()}

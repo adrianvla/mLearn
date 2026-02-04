@@ -32,7 +32,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
   const { t } = useLocalization();
 
   return (
-    <nav class={`reader-nav glass`}>
+    <nav class={`reader-nav panel`}>
       <div
         class="nav-group"
         style={`${props.marginLeft ? `margin-left: ${props.marginLeft}` : ''}`}
@@ -43,8 +43,10 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         <NavBtn class="sidebar-btn" onClick={props.onToggleSidebar}>
           <Icon icon="sidebar" color={"currentColor"} class={""}/>
         </NavBtn>
-        <Tag class="book-title-nav label-secondary" headless size={"sm"}>{props.bookTitle()}</Tag>
       </div>
+        <div class="nav-group">
+            <Tag class="book-title-nav label-secondary" headless size={"sm"}>{props.bookTitle()}</Tag>
+        </div>
       
       <div class="nav-group">
         <Tag class="progress label-secondary" headless size={"sm"}>{props.progressString()}</Tag>

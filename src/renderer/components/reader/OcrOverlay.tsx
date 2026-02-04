@@ -35,6 +35,8 @@ export interface OcrOverlayProps {
   /** Called when hovering over a word. Includes context phrase from neighboring boxes. */
   onWordHover?: (token: Token, rect: DOMRect, contextPhrase: string) => void;
   onWordLeave?: () => void;
+  /** Called on right-click with context phrase for the clicked area */
+  onContextMenu?: (contextPhrase: string, boxIndex: number) => void;
 }
 
 /**
@@ -282,6 +284,16 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     props.onWordHover?.(token, target.getBoundingClientRect(), context);
   };
 
+  // Handle right-click context menu on OCR boxes
+  const handleBoxContextMenu = (boxIndex: number, e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Get context phrase from context map
+    const context = contextMap().get(boxIndex) || '';
+    props.onContextMenu?.(context, boxIndex);
+  };
+
   // Check if vertical text is supported by the current language
   const langFeatures = createMemo(() => getLanguageFeatures());
   
@@ -342,6 +354,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                     height: `${rect.height * getScale()}px`,
                   }}
                   onClick={(e) => handleBoxClick(box, e)}
+                  onContextMenu={(e) => handleBoxContextMenu(index(), e)}
                   onMouseEnter={() => handleBoxHover(box)}
                   onMouseLeave={handleBoxLeave}
                   title={box.text}

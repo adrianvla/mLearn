@@ -6,9 +6,11 @@
  * Other themes override these base styles.
  */
 @import "./themes/dark.css";
-@import "./themes/glass-transparent.css";
+@import "./themes/darker.css";
 @import "./themes/glass-light.css";
 @import "./themes/glass-dark.css";
+@import "./themes/light-high-contrast.css";
+@import "./themes/dark-high-contrast.css";
 
 :root {
   /* ========== Color Palette ========== */
@@ -27,12 +29,12 @@
   --bg-opaque: #f5f5f5;
 
   --bg: rgba(85, 85, 85, 0.1);
+  --bg-intense: rgba(85, 85, 85, 0.15);
   --accent-bg: rgba(255, 255, 255, 0.2);
   --accent: rgba(255, 255, 255, 0.8);
-  --backdrop-blur: blur(10px) saturate(2) brightness(1.1);
-  --backdrop-blur-nodim: blur(10px) saturate(2) brightness(1.1);
+  --backdrop-filter: blur(10px) saturate(2) brightness(1.1);
+  --backdrop-filter-nodim: blur(10px) saturate(2) brightness(1.1);
   --border-color: rgba(85, 85, 85, 0.15);
-  --bg-intense: rgba(85, 85, 85, 0.15);
   --border-color-intense: rgba(85, 85, 85, 0.25);
 
   /* ========== Typography ========== */
@@ -40,6 +42,7 @@
   --font-family-japanese: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', sans-serif;
   --font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', Consolas, monospace;
 
+  --font-size-xxs: 0.5rem;
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
@@ -48,6 +51,8 @@
   --font-size-2xl: 1.5rem;
   --font-size-3xl: 2rem;
   --font-size-4xl: 2.5rem;
+  --font-size-5xl: 3rem;
+  --font-size-6xl: 4rem;
 
   --size-sm: 26px;
   --size-md: 32px;
@@ -84,11 +89,13 @@
   --radius-full: 9999px;
 
   /* ========== Shadows ========== */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
-  --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.25);
+  --shadow-sm: 0 3px 5px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 10px 50px rgba(0, 0, 0, 0.1);
+  --shadow-lg: rgba(0, 0, 0, 0.2) 0px 18px 50px -10px;
+  --shadow-lg-intense: rgba(0, 0, 0, 0.3) 0px 19px 38px, rgba(0, 0, 0, 0.22) 0px 15px 12px;
+  --shadow-special: rgba(50, 50, 93, 0.25) 0px 50px 100px -20px, rgba(0, 0, 0, 0.3) 0px 30px 60px -30px, rgba(10, 37, 64, 0.35) 0px -2px 6px 0px inset;
+  --shadow-inset: rgba(50, 50, 93, 0.25) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+  --shadow-border:var(--border-color) 0px 0px 0px 1px;
 
   /* ========== Transitions ========== */
   --transition-fast: 0.1s ease;
@@ -202,8 +209,9 @@
   --color-border-hover: var(--border-color-intense);
   
   /* Overlay backgrounds */
-  --overlay-bg: rgba(0, 0, 0, 0.6);
-  --overlay-bg-soft: rgba(0, 0, 0, 0.4);
+  /* Should only be used for modals or stuff that floats on top and not for normal UI components*/
+  --overlay-bg: rgba(255,255,255, 0.6);
+  --overlay-bg-soft: rgba(255,255,255, 0.4);
 }
 
 /* ========== Shared Animations ========== */
@@ -269,60 +277,6 @@ body {
   overflow: hidden;
 }
 
-/* ========== App Loading Overlay ========== */
-.app-loading-overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: var(--backdrop-blur);
-  z-index: 1000;
-}
-
-.app-loading-panel {
-  width: min(420px, 90vw);
-  padding: var(--spacing-8);
-  border-radius: var(--radius-xl);
-  background: rgba(20, 20, 20, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  text-align: center;
-  box-shadow: var(--shadow-xl);
-}
-
-.app-loading-title {
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-semibold);
-  margin-bottom: var(--spacing-3);
-}
-
-.app-loading-status {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  margin-bottom: var(--spacing-4);
-}
-
-.app-loading-progress {
-  position: relative;
-  height: 8px;
-  border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.1);
-  overflow: hidden;
-}
-
-.app-loading-progress-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
-  transition: width 0.3s ease;
-}
-
-.app-loading-percent {
-  margin-top: var(--spacing-2);
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
 #app {
   width: 100%;
   height: 100%;
@@ -369,34 +323,8 @@ img, svg {
 body.hide-cursor {
   cursor: none;
 }
-
-body.hide-cursor .drag-region {
-  opacity: 0;
-  pointer-events: none;
-}
-
-body.hide-cursor .video-controls {
-  opacity: 0;
-  pointer-events: none;
-}
-
 body.hide-cursor .subtitles {
   bottom: 10px;
-}
-
-body.hide-cursor .aside {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* Video controls visible state */
-.video-controls {
-  transition: opacity 0.3s;
-}
-
-.video-controls.visible {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 /* ========== Utility Classes ========== */
@@ -486,14 +414,9 @@ body.hide-cursor .aside {
 }
 
 /* ========== Panel Component Styles ========== */
-/* Base panel with glassmorphism effect */
-.panel,
-.glass {
+.panel {
   background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--shadow-md);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
+  backdrop-filter: var(--backdrop-filter);
 }
 
 .panel-elevated {

@@ -15,12 +15,42 @@ const LOOKUP_STATUS: Record<number, string> = {
   [WORD_STATUS.KNOWN]: 'Learned',
 };
 
+// Migration tracking
+interface LocalStorageMigrationInfo {
+  occurred: boolean;
+  backupData: Record<string, unknown> | null;
+  migratedWordCount: number;
+}
+
+let localStorageMigrationInfo: LocalStorageMigrationInfo = {
+  occurred: false,
+  backupData: null,
+  migratedWordCount: 0,
+};
+
+/**
+ * Get migration info for notifications
+ */
+export function getLocalStorageMigrationInfo(): LocalStorageMigrationInfo {
+  return localStorageMigrationInfo;
+}
+
+/**
+ * Reset migration info after notification
+ */
+export function resetLocalStorageMigrationInfo(): void {
+  localStorageMigrationInfo = { occurred: false, backupData: null, migratedWordCount: 0 };
+}
+
 // Stats signals
 const [timeWatchedSeconds, setTimeWatchedSeconds] = createSignal<number>(0);
 const [wordsLearnedInApp, setWordsLearnedInApp] = createSignal<Record<string, number>>({});
 const [isTrackingTime, setIsTrackingTime] = createSignal(false);
 
 let trackingInterval: ReturnType<typeof setInterval> | null = null;
+
+// Flag to track if we've already loaded word statuses
+let wordStatusesLoaded = false;
 
 /**
  * Initialize time watched from settings
@@ -168,17 +198,89 @@ export async function getKnownStatus(word: string, srsCheck?: (word: string) => 
 }
 
 /**
- * Load words from storage (localStorage or IPC)
+ * Load words from storage synchronously
+ * Can be called at module init time to ensure data is available immediately
+ * Safe to call multiple times - will only load once
  */
-export async function loadWordsFromStorage(): Promise<void> {
+export function loadWordsFromStorageSync(): void {
+  if (wordStatusesLoaded) return;
+  wordStatusesLoaded = true;
+  
   try {
+    // Check for existing v2 data in localStorage first
     const stored = localStorage.getItem('mlearn_words_learned');
     if (stored) {
       setWordsLearnedInApp(JSON.parse(stored));
+      console.log('[statsService] Loaded word statuses from v2 format');
+      return;
     }
+    
+    // Check for v1 data (knownAdjustment) in current localStorage
+    // This may not work in dev mode due to different origins, but try anyway
+    const v1KnownAdjustment = localStorage.getItem('knownAdjustment');
+    if (v1KnownAdjustment) {
+      console.log('[statsService] Detected v1 localStorage data (same origin), starting migration...');
+      migrateFromV1Data(JSON.parse(v1KnownAdjustment));
+      return;
+    }
+    
+    // No local data found - check for data migrated by main process
+    // This handles the case where old app used file:// and new app uses localhost
+    console.log('[statsService] No local data found, will check main process migration data');
+    loadFromMainProcessMigration();
   } catch (e) {
-    console.error('Failed to load words from storage:', e);
+    console.error('[statsService] Failed to load words from storage:', e);
   }
+}
+
+/**
+ * Migrate from v1 knownAdjustment data
+ */
+function migrateFromV1Data(knownAdjustment: Record<string, number>): void {
+  try {
+    setWordsLearnedInApp(knownAdjustment);
+    
+    // Save in new format
+    localStorage.setItem('mlearn_words_learned', JSON.stringify(knownAdjustment));
+    
+    // Track migration
+    localStorageMigrationInfo = {
+      occurred: true,
+      backupData: { knownAdjustment },
+      migratedWordCount: Object.keys(knownAdjustment).length,
+    };
+    
+    console.log(`[statsService] Migrated ${Object.keys(knownAdjustment).length} word statuses from v1 to v2`);
+  } catch (e) {
+    console.error('[statsService] Failed to migrate v1 knownAdjustment:', e);
+  }
+}
+
+/**
+ * Load data from main process migration (async, called after sync attempt)
+ */
+async function loadFromMainProcessMigration(): Promise<void> {
+  // Check if we're in Electron environment
+  if (typeof window !== 'undefined' && window.mLearnIPC?.getMigratedItem) {
+    try {
+      const knownAdjustment = await window.mLearnIPC.getMigratedItem('knownAdjustment');
+      if (knownAdjustment && typeof knownAdjustment === 'object') {
+        console.log('[statsService] Found knownAdjustment in main process migration data');
+        migrateFromV1Data(knownAdjustment as Record<string, number>);
+      }
+    } catch (e) {
+      console.warn('[statsService] Failed to get migrated data from main process:', e);
+    }
+  }
+}
+
+/**
+ * Load words from storage (localStorage or IPC)
+ * Also handles migration from v1 (old app) localStorage format
+ * @deprecated Use loadWordsFromStorageSync instead for immediate availability
+ */
+export async function loadWordsFromStorage(): Promise<void> {
+  loadWordsFromStorageSync();
 }
 
 /**
@@ -281,7 +383,7 @@ export function drawWordsLearnedPieChart(
   });
 
   // Title
-  const isDark = settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'glass-transparent';
+  const isDark = settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker';
   ctx.fillStyle = isDark ? '#ddd' : '#333';
   ctx.font = '14px sans-serif';
   ctx.textAlign = 'left';
@@ -330,4 +432,12 @@ export {
   wordsLearnedInApp,
   isTrackingTime,
   LOOKUP_STATUS,
+  localStorageMigrationInfo,
 };
+
+// Auto-load word statuses when module initializes
+// This ensures data is available before any component tries to access it
+if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+  loadWordsFromStorageSync();
+  console.log('[statsService] Auto-initialized word statuses on module load');
+}

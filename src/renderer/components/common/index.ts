@@ -27,11 +27,18 @@ export {
   ConfirmDialog, 
   useConfirmDialog,
   WindowOverlay,
+  LoadingOverlay as ModalLoadingOverlay,
+  ErrorModal,
+  DraggablePopup,
   type ModalProps,
   type ConfirmDialogProps, 
   type ConfirmVariant, 
   type ConfirmOptions,
   type WindowOverlayProps,
+  type LoadingOverlayProps,
+  type ErrorModalProps,
+  type ErrorSeverity,
+  type DraggablePopupProps,
 } from './Modal';
 
 // Panel Components
@@ -56,6 +63,10 @@ export {
   FormField,
   DropZone,
   RangeInput,
+  KeybindInput,
+  parseKeybind,
+  formatKeybindDisplay,
+  getLocalizedKeyName,
   type InputProps,
   type TextareaProps,
   type SelectInputProps,
@@ -64,6 +75,7 @@ export {
   type FormFieldProps,
   type DropZoneProps,
   type RangeInputProps,
+  type KeybindInputProps,
 } from './Input';
 
 // Card Components
@@ -112,7 +124,7 @@ export {
   Skeleton,
   Progress,
   ProgressRing,
-  LoadingOverlay,
+  InlineLoadingOverlay,
   type LoaderProps,
   type LoaderType,
   type ProgressVariant,
@@ -123,12 +135,14 @@ export {
   EmptyState,
   AlertBanner,
   ConnectionStatus,
+  ProgressBar,
   type EmptyStateProps,
   type EmptyStateAction,
   type AlertBannerProps,
   type AlertVariant,
   type ConnectionStatusProps,
   type ConnectionState,
+  type ProgressBarProps,
 } from './Feedback';
 
 // Text Components

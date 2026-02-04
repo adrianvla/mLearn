@@ -5,7 +5,7 @@
 
 import { Component, createSignal, createEffect, Show } from 'solid-js';
 import { useSettings, useLocalization } from '../../context';
-import { PanelHeader, NavBtn } from '../common';
+import { Panel, PanelHeader, IconBtn } from '../common';
 import './SubtitleSync.css';
 
 export interface SubtitleSyncProps {
@@ -44,7 +44,7 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
   const findCurrentSub = (adjustedTime: number) => {
     const subs = props.subtitles;
     if (!subs || subs.length === 0) return null;
-    
+
     for (let i = 0; i < subs.length; i++) {
       if (adjustedTime >= subs[i].start && adjustedTime <= subs[i].end) {
         return subs[i];
@@ -57,7 +57,7 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
   const findNextSub = (adjustedTime: number) => {
     const subs = props.subtitles;
     if (!subs || subs.length === 0) return null;
-    
+
     for (let i = 0; i < subs.length; i++) {
       if (subs[i].start > adjustedTime) {
         return subs[i];
@@ -71,7 +71,7 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
     const videoTime = props.currentVideoTime?.() ?? 0;
     const adjustedTime = videoTime + settings.subsOffsetTime;
     const currentSub = findCurrentSub(adjustedTime);
-    
+
     if (currentSub) {
       const newOffset = currentSub.start - videoTime;
       updateSetting('subsOffsetTime', isNaN(newOffset) ? 0 : newOffset);
@@ -83,14 +83,14 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
     const videoTime = props.currentVideoTime?.() ?? 0;
     const adjustedTime = videoTime + settings.subsOffsetTime;
     const nextSub = findNextSub(adjustedTime);
-    
+
     if (nextSub) {
       const newOffset = nextSub.start - videoTime;
       updateSetting('subsOffsetTime', isNaN(newOffset) ? 0 : newOffset);
     }
   };
 
-  // Handle direct input change - only update on blur or Enter key
+  // Handle direct input change
   const handleInputChange = (value: string) => {
     setInputValue(value);
   };
@@ -102,7 +102,6 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
       updateSetting('subsOffsetTime', parsed);
       setInputValue(parsed.toFixed(2));
     } else {
-      // Reset to current setting value if invalid
       setInputValue(settings.subsOffsetTime.toFixed(2));
     }
   };
@@ -120,26 +119,39 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
   }
 
   return (
-    <Show when={isVisible()}>
-      <div class="sync-subs">
-        <PanelHeader onClose={hide} />
-        <div class="controls">
-          <NavBtn class="backward" onClick={handleBackward} title={t('mlearn.SubtitleSync.PreviousTooltip')}>
-            <img src="assets/icons/fast-forward.svg" alt={t('mlearn.SubtitleSync.Backward')} />
-          </NavBtn>
-          <input
-            type="text"
-            value={inputValue()}
-            onInput={(e) => handleInputChange(e.currentTarget.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={applyInputValue}
-          />
-          <NavBtn class="forward" onClick={handleForward} title={t('mlearn.SubtitleSync.NextTooltip')}>
-            <img src="assets/icons/fast-forward.svg" alt={t('mlearn.SubtitleSync.Forward')} />
-          </NavBtn>
-        </div>
-      </div>
-    </Show>
+      <Show when={isVisible()}>
+        <Panel
+            class="subtitle-sync"
+            variant="default"
+            rounded="lg"
+            padding="none"
+            border={false}
+        >
+          <PanelHeader onClose={hide} />
+          <div class="subtitle-sync-controls">
+            <IconBtn
+                class="subtitle-sync-btn backward"
+                onClick={handleBackward}
+                title={t('mlearn.SubtitleSync.PreviousTooltip')}
+                icon="fast-forward"
+            />
+            <input
+                type="text"
+                class="subtitle-sync-input"
+                value={inputValue()}
+                onInput={(e) => handleInputChange(e.currentTarget.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={applyInputValue}
+            />
+            <IconBtn
+                class="subtitle-sync-btn"
+                onClick={handleForward}
+                title={t('mlearn.SubtitleSync.NextTooltip')}
+                icon="fast-forward"
+            />
+          </div>
+        </Panel>
+      </Show>
   );
 };
 

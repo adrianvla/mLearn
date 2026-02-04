@@ -4,6 +4,7 @@
  */
 
 import { Component, JSX, Show, splitProps, mergeProps } from 'solid-js';
+import './Input.css';
 
 export interface InputProps extends Omit<JSX.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string;
@@ -13,6 +14,7 @@ export interface InputProps extends Omit<JSX.InputHTMLAttributes<HTMLInputElemen
   leftIcon?: JSX.Element;
   rightIcon?: JSX.Element;
   fullWidth?: boolean;
+  ghost?: boolean;
 }
 
 export const Input: Component<InputProps> = (props) => {
@@ -20,6 +22,7 @@ export const Input: Component<InputProps> = (props) => {
     {
       size: 'md' as const,
       fullWidth: false,
+      ghost: false,
     },
     props
   );
@@ -31,6 +34,7 @@ export const Input: Component<InputProps> = (props) => {
     'size',
     'leftIcon',
     'rightIcon',
+    'ghost',
     'fullWidth',
     'class',
     'style',
@@ -117,7 +121,7 @@ export const Input: Component<InputProps> = (props) => {
         </Show>
 
         <input
-          class={`glass-input ${local.class || ''}`}
+          class={`glass-input ${local.ghost ? 'input-ghost' : ''} ${local.class || ''}`}
           style={inputStyle()}
           {...rest}
         />
@@ -149,6 +153,7 @@ export interface TextareaProps extends JSX.TextareaHTMLAttributes<HTMLTextAreaEl
   hint?: string;
   fullWidth?: boolean;
   resize?: 'none' | 'vertical' | 'horizontal' | 'both';
+  ghost?: boolean;
 }
 
 export const Textarea: Component<TextareaProps> = (props) => {
@@ -156,6 +161,7 @@ export const Textarea: Component<TextareaProps> = (props) => {
     {
       fullWidth: false,
       resize: 'vertical' as const,
+      ghost: false,
     },
     props
   );
@@ -166,6 +172,7 @@ export const Textarea: Component<TextareaProps> = (props) => {
     'hint',
     'fullWidth',
     'resize',
+    'ghost',
     'class',
     'style',
   ]);
@@ -208,7 +215,7 @@ export const Textarea: Component<TextareaProps> = (props) => {
       </Show>
 
       <textarea
-        class={`glass-input ${local.class || ''}`}
+        class={`glass-input ${local.ghost ? 'input-ghost' : ''} ${local.class || ''}`}
         style={textareaStyle()}
         {...rest}
       />
@@ -236,6 +243,7 @@ export interface SelectInputProps extends Omit<JSX.SelectHTMLAttributes<HTMLSele
   size?: 'sm' | 'md' | 'lg';
   fullWidth?: boolean;
   options: Array<{ value: string; label: string; disabled?: boolean }>;
+  ghost?: boolean;
 }
 
 export const SelectInput: Component<SelectInputProps> = (props) => {
@@ -243,6 +251,7 @@ export const SelectInput: Component<SelectInputProps> = (props) => {
     {
       size: 'md' as const,
       fullWidth: false,
+      ghost: false,
     },
     props
   );
@@ -254,6 +263,7 @@ export const SelectInput: Component<SelectInputProps> = (props) => {
     'size',
     'fullWidth',
     'options',
+    'ghost',
     'class',
     'style',
   ]);
@@ -334,7 +344,7 @@ export const SelectInput: Component<SelectInputProps> = (props) => {
 
       <div style={selectWrapperStyle()}>
         <select
-          class={`glass-input ${local.class || ''}`}
+          class={`glass-input ${local.ghost ? 'input-ghost' : ''} ${local.class || ''}`}
           style={selectStyle()}
           {...rest}
         >

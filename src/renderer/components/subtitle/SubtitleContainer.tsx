@@ -9,6 +9,7 @@ import { useSettings, useLanguage } from '../../context';
 import { useWordHover, useDictionary, useTranslation, getCachedTranslation } from '../../hooks';
 import { SubtitleWord } from './SubtitleWord';
 import { WordHover, WordStatus } from './WordHover';
+import { ExplainerPopup } from './ExplainerPopup';
 
 export interface SubtitleContainerProps {
   tokens: Token[];
@@ -31,10 +32,28 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const [translationData, setTranslationData] = createSignal<TranslationResponse | null>(null);
   const [wordStatus, setWordStatus] = createSignal<WordStatus>('unknown');
   const [currentHoverToken, setCurrentHoverToken] = createSignal<Token | null>(null);
+  
+  // Explainer popup state
+  const [explainerOpen, setExplainerOpen] = createSignal(false);
+  const [explainerWord, setExplainerWord] = createSignal('');
+  const [explainerContext, setExplainerContext] = createSignal('');
+  const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
 
   let hoverRequestId = 0;
   let lastSubtitleKey = '';
   let liveTranslatorSeen = new Set<string>();
+  
+  // Handle opening the explainer popup
+  const handleOpenExplainer = (word: string, context: string, position: { x: number; y: number }) => {
+    setExplainerWord(word);
+    setExplainerContext(context);
+    setExplainerPosition(position);
+    setExplainerOpen(true);
+  };
+  
+  const handleCloseExplainer = () => {
+    setExplainerOpen(false);
+  };
 
   // Handle word hover - only for translatable words
   const handleWordHover = async (token: Token, rect: DOMRect, el: HTMLElement) => {
@@ -309,8 +328,18 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
           visible={isVisible()}
           onMouseEnter={cancelHide}
           onMouseLeave={hideHover}
+          onOpenExplainer={handleOpenExplainer}
         />
       </Show>
+      
+      {/* LLM Explainer popup */}
+      <ExplainerPopup
+        isOpen={explainerOpen()}
+        onClose={handleCloseExplainer}
+        word={explainerWord()}
+        contextPhrase={explainerContext()}
+        initialPosition={explainerPosition()}
+      />
     </>
   );
 };
