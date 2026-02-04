@@ -233,9 +233,17 @@ Sentence:
       cachedLlmCheckedAt = Date.now();
     }
 
-    // Clean output by removing the prompt prefix
+    // Clean output by removing the prompt prefix and context phrase
+    // The backend echoes the full prompt (template + context) in the response
     if (data.output) {
-      data.output = data.output.replace(prompt, '');
+      const fullPrompt = prompt.trim() + '\n' + contextPhrase;
+      // Try multiple cleanup methods to ensure prompt is fully stripped
+      data.output = data.output
+        .replaceAll(fullPrompt, '')
+        .replaceAll(prompt.trim(), '')
+        .replaceAll(prompt, '')
+        .replaceAll(contextPhrase, '')
+        .trim();
       
       // Cache the successful explanation for future use (this is the "memory" feature)
       cacheExplanation(word, contextPhrase, data.output);

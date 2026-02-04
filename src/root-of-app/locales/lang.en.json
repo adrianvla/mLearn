@@ -384,6 +384,12 @@
         "FailedToAddFlashcard": "Failed to add flashcard: {error}"
       }
     },
+    "Explainer": {
+      "Translation": "Translation",
+      "Explanation": "Explanation",
+      "ExplanationOf": "Explanation of {word} usage",
+      "GrammarPoints": "Main Grammar Points"
+    },
     "Settings": {
       "UI": {
         "Title": "Settings",

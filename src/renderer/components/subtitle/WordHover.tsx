@@ -13,8 +13,10 @@ import { setWordStatus, toUniqueIdentifier, wordsLearnedInApp } from '../../serv
 import { getWordExplanation, getCachedExplanation } from '../../services/llmService';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
+import { parseExplainerResponse, type ParsedExplainer } from '../../utils/explainerParser';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, Skeleton } from '../common';
+import { PillBtn, PillLabel } from '../common';
+import { ExplainerCards } from './ExplainerCards';
 import './WordHover.css';
 
 // Icon names for the Icon component - enables proper SVG coloring
@@ -100,6 +102,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const [, setPositionLocked] = createSignal(false);
   const [llmExplaining, setLlmExplaining] = createSignal(false);
   const [llmExplanation, setLlmExplanation] = createSignal<string | null>(null);
+  // Toggle state for showing/hiding the LLM explanation panel
+  const [showLlmPanel, setShowLlmPanel] = createSignal(false);
   let hoverRef: HTMLDivElement | undefined;
 
   // Helper to get display word - track token changes
@@ -199,11 +203,14 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       // Restore the cached explanation immediately
       setLlmExplanation(cached);
       setLlmExplaining(false);
+      // Don't auto-show the panel, user needs to click to view cached explanation
+      setShowLlmPanel(false);
       console.log(`%cRestored cached LLM explanation for "${word}"`, 'color: cyan;');
     } else {
       // No cache - reset to null
       setLlmExplanation(null);
       setLlmExplaining(false);
+      setShowLlmPanel(false);
     }
   });
 
@@ -796,10 +803,24 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     }
   };
 
-  const handleLLMExplain = async (e: MouseEvent) => {
+  // Toggle LLM panel visibility or fetch new explanation
+  const handleLLMToggle = async (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     
+    // If panel is currently shown, just close it
+    if (showLlmPanel()) {
+      setShowLlmPanel(false);
+      return;
+    }
+    
+    // If we have an explanation (cached or loaded), just show the panel
+    if (llmExplanation()) {
+      setShowLlmPanel(true);
+      return;
+    }
+    
+    // Otherwise fetch a new explanation
     if (props.onLLMExplain) {
       props.onLLMExplain();
       return;
@@ -811,7 +832,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       return;
     }
     
-    // Show loading skeleton
+    // Show the panel with loading state
+    setShowLlmPanel(true);
     setLlmExplaining(true);
     setLlmExplanation(null);
     
@@ -833,6 +855,18 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       setLlmExplaining(false);
     }
   };
+
+  // Computed: whether the LLM panel should be visible
+  const isLlmPanelVisible = () => showLlmPanel() && (llmExplaining() || llmExplanation());
+
+  // Parse LLM explanation into structured sections
+  const parsedExplainer = createMemo<ParsedExplainer>(() => {
+    const explanation = llmExplanation();
+    if (!explanation) {
+      return { sections: [] };
+    }
+    return parseExplainerResponse(explanation, displayWord());
+  });
 
   // Translation entries
   const translationEntries = createMemo<TranslationEntry[]>(() => {
@@ -974,14 +1008,16 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     );
   };
 
-  // LLM Explain pill using PillBtn component
+  // LLM Explain/Close pill using PillBtn component
+  // Shows "Close" when panel is open, "Explain" otherwise
   const LLMPill = () => {
+    const isOpen = showLlmPanel();
     return (
       <PillBtn
-        variant="blue"
-        icon={ICON_BOT}
-        label={t('mlearn.WordHover.Explain')}
-        onClick={handleLLMExplain}
+        variant={isOpen ? 'gray' : 'blue'}
+        icon={isOpen ? ICON_CROSS2 : ICON_BOT}
+        label={isOpen ? t('mlearn.Global.Close') : t('mlearn.WordHover.Explain')}
+        onClick={handleLLMToggle}
       />
     );
   };
@@ -1068,15 +1104,15 @@ export const WordHover: Component<WordHoverProps> = (props) => {
             </Show>
           </div>
 
-          {/* LLM Explanation section */}
-          <Show when={llmExplaining()}>
-            <div class="subtitle_hover_alt_c skeleton-c">
-              <Skeleton />
-            </div>
-          </Show>
-          <Show when={llmExplanation()}>
+          {/* LLM Explanation section - toggleable overlay with parsed cards */}
+          <Show when={isLlmPanelVisible()}>
             <div class="subtitle_hover_alt_c">
-              <p innerHTML={llmExplanation()!.replace(/\n/g, '<br/>')} />
+              <ExplainerCards
+                data={parsedExplainer()}
+                targetWord={displayWord()}
+                contextPhrase={props.contextPhrase}
+                loading={llmExplaining()}
+              />
             </div>
           </Show>
 
