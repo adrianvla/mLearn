@@ -33,6 +33,7 @@ const FlashcardsContent: Component = () => {
     removeFlashcard,
     addFlashcard,
     updateFlashcardContent,
+    updateMeta,
     intervalToString
   } = useFlashcards();
   const { t } = useLocalization();
@@ -380,8 +381,55 @@ const FlashcardsContent: Component = () => {
                 <div class="breakdown-rows">
                   <div class="breakdown-row">
                     <span>{t('mlearn.Flashcards.Statistics.NewCardsStudied')}</span>
-                    <span>{store.meta.newCardsToday} / {store.meta.maxNewCardsPerDay}</span>
+                    <span>
+                      {store.meta.newCardsToday} / {store.meta.maxNewCardsPerDayLearning === -1 ? '∞' : store.meta.maxNewCardsPerDayLearning}
+                    </span>
                   </div>
+                  <div class="breakdown-row">
+                    <span>{t('mlearn.Flashcards.Statistics.ReviewsCompleted')}</span>
+                    <span>
+                      {store.meta.reviewsToday} / {store.meta.maxReviewsPerDay === -1 ? '∞' : store.meta.maxReviewsPerDay}
+                    </span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Quick Learning Limits Settings */}
+              <Card title={t('mlearn.Flashcards.Statistics.LearningLimits')} class="flashcards-limits">
+                <div class="breakdown-rows">
+                  <div class="breakdown-row">
+                    <span>{t('mlearn.Flashcards.Statistics.MaxNewCardsPerDay')}</span>
+                    <input
+                      type="number"
+                      class="flashcards-limit-input"
+                      value={store.meta.maxNewCardsPerDayLearning}
+                      min={-1}
+                      max={1000}
+                      onChange={(e) => {
+                        const val = parseInt(e.currentTarget.value);
+                        if (!isNaN(val) && val >= -1) {
+                          updateMeta({ maxNewCardsPerDayLearning: val });
+                        }
+                      }}
+                    />
+                  </div>
+                  <div class="breakdown-row">
+                    <span>{t('mlearn.Flashcards.Statistics.MaxReviewsPerDay')}</span>
+                    <input
+                      type="number"
+                      class="flashcards-limit-input"
+                      value={store.meta.maxReviewsPerDay}
+                      min={-1}
+                      max={10000}
+                      onChange={(e) => {
+                        const val = parseInt(e.currentTarget.value);
+                        if (!isNaN(val) && val >= -1) {
+                          updateMeta({ maxReviewsPerDay: val });
+                        }
+                      }}
+                    />
+                  </div>
+                  <p class="flashcards-limit-hint">{t('mlearn.Flashcards.Statistics.LimitHint')}</p>
                 </div>
               </Card>
             </div>

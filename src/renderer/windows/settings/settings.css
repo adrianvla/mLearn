@@ -185,6 +185,14 @@
   border-color: var(--border-color-intense);
 }
 
+/* Hint text for settings */
+.setting-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-style: italic;
+  white-space: nowrap;
+}
+
 /* Color Input */
 .color-input-wrapper {
   display: flex;

@@ -274,7 +274,12 @@
         "Review": "Review",
         "Suspended": "Suspended",
         "TodayProgress": "Today's Progress",
-        "NewCardsStudied": "New Cards Studied"
+        "NewCardsStudied": "New Cards Studied",
+        "ReviewsCompleted": "Reviews Completed",
+        "LearningLimits": "Daily Limits",
+        "MaxNewCardsPerDay": "Max New Cards",
+        "MaxReviewsPerDay": "Max Reviews",
+        "LimitHint": "Set to -1 for unlimited"
       },
       "Modals": {
         "DeleteCard": {
@@ -746,6 +751,18 @@
       "SRS": {
         "Title": "Spaced Repetition",
         "Description": "Configure flashcard and Anki settings",
+        "LearningLimits": {
+          "Title": "Daily Learning Limits",
+          "MaxNewCardsLearning": {
+            "Label": "Max New Cards to Learn",
+            "Description": "Maximum new cards to study per day (-1 = unlimited)"
+          },
+          "MaxReviews": {
+            "Label": "Max Reviews Per Day",
+            "Description": "Maximum review cards to study per day (-1 = unlimited)"
+          },
+          "UnlimitedHint": "-1 = unlimited"
+        },
         "AnkiIntegration": {
           "Title": "Anki Integration",
           "Enable": {

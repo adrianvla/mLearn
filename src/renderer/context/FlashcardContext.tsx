@@ -257,10 +257,16 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const today = SRS.getTodayDateString();
     const meta = { ...SRS.getDefaultMeta(), ...partial.meta };
 
-    // Reset new cards count if it's a new day
+    // Reset new cards count and reviews count if it's a new day
     if (meta.newCardsDate !== today) {
       meta.newCardsToday = 0;
+      meta.reviewsToday = 0;
       meta.newCardsDate = today;
+    }
+
+    // Ensure reviewsToday exists (for migration from older stores)
+    if (meta.reviewsToday === undefined) {
+      meta.reviewsToday = 0;
     }
 
     // Unbury cards at start of new day
@@ -349,7 +355,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const newQueue = SRS.buildReviewQueue(
         store.flashcards,
         store.meta.maxNewCardsPerDay,
-        store.meta.newCardsToday
+        store.meta.newCardsToday,
+        store.meta.maxNewCardsPerDayLearning,
+        store.meta.maxReviewsPerDay,
+        store.meta.reviewsToday
     );
     setQueue(newQueue);
   };
@@ -590,6 +599,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     pushUndoState({ type: 'answer' });
 
     const wasNew = card.state === 'new';
+    const wasReview = card.state === 'review';
     const updated = SRS.answerCard(card, rating, store.meta);
 
     setStore(produce((s) => {
@@ -598,6 +608,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
       // Update new cards count if this was a new card
       if (wasNew) {
         s.meta.newCardsToday++;
+      }
+
+      // Update review count for review cards
+      if (wasReview) {
+        s.meta.reviewsToday++;
       }
 
       // Update daily stats
