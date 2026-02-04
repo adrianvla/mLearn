@@ -32,7 +32,7 @@
   margin: 0 0 8px 0;
   font-size: 0.85em;
   font-weight: 600;
-  color: var(--text-secondary, #888);
+  color: var(--text-primary, #888);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -46,7 +46,7 @@
 
 /* Translation card */
 .explainer-card--translation {
-  background: var(--bg-tertiary, rgba(59, 130, 246, 0.1));
+  background: var(--bg, rgba(59, 130, 246, 0.1));
   border-color: var(--color-info, rgba(59, 130, 246, 0.3));
 }
 
@@ -59,6 +59,11 @@
   line-height: 1.6;
   margin-bottom: 8px;
   word-break: break-word;
+  border-radius:var(--radius-md);
+  background:var(--bg-secondary);
+  backdrop-filter:var(--backdrop-filter);
+  border:1px solid var(--border-color);
+  padding:4px 8px;
 }
 
 /* Colored subtitle words inside the phrase */
@@ -76,7 +81,7 @@
   margin: 8px 0 0 0;
   padding-top: 8px;
   border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-  color: var(--text-secondary, #aaa);
+  color: var(--text-primary, #aaa);
   font-style: italic;
 }
 
@@ -120,9 +125,10 @@
   flex-direction: column;
   gap: 2px;
   padding: 8px;
-  background: var(--bg-primary, rgba(0, 0, 0, 0.2));
+  background: var(--bg);
   border-radius: var(--radius-sm, 4px);
   border-left: 3px solid var(--color-success, #22c55e);
+  box-shadow: var(--shadow-border);
 }
 
 .grammar-point__term {
@@ -142,7 +148,7 @@
 }
 
 .grammar-point__description {
-  color: var(--text-secondary, #aaa);
+  color: var(--text-tertiary, #aaa);
   font-size: 0.9em;
   line-height: 1.4;
 }

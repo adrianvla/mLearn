@@ -8,6 +8,7 @@ import { createStore } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
 import { OcrOverlay, MagnifyingGlass, type OcrResult } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
+import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation, getGlobalHoverManager } from '../../../hooks';
 import { useSettings, useLocalization } from '../../../context';
 import { parseKeybind } from '../../../components/common';
@@ -139,6 +140,12 @@ export const ReaderRoute: Component = () => {
   const [ocrDictionaryEntries, setOcrDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [ocrTranslationData, setOcrTranslationData] = createSignal<TranslationResponse | null>(null);
   const [ocrWordStatus, setOcrWordStatus] = createSignal<'unknown' | 'learning' | 'known'>('unknown');
+  
+  // Explainer popup state
+  const [explainerOpen, setExplainerOpen] = createSignal(false);
+  const [explainerWord, setExplainerWord] = createSignal('');
+  const [explainerContext, setExplainerContext] = createSignal('');
+  const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
   
   // Magnifying glass state
   const [magnifierActive, setMagnifierActive] = createSignal(false);
@@ -1042,6 +1049,18 @@ export const ReaderRoute: Component = () => {
     }
   };
 
+  // Explainer popup handlers
+  const handleOpenExplainer = (word: string, context: string, position: { x: number; y: number }) => {
+    setExplainerWord(word);
+    setExplainerContext(context);
+    setExplainerPosition(position);
+    setExplainerOpen(true);
+  };
+  
+  const handleCloseExplainer = () => {
+    setExplainerOpen(false);
+  };
+
   // OCR hover handlers (legacy-style hover popup)
   let ocrHoverRequestId = 0;
   // Store current context phrase for use in WordHover
@@ -1355,8 +1374,18 @@ export const ReaderRoute: Component = () => {
           visible={isOcrHoverVisible()}
           onMouseEnter={cancelOcrHide}
           onMouseLeave={hideOcrHover}
+          onOpenExplainer={handleOpenExplainer}
         />
       </Show>
+      
+      {/* LLM Explainer Popup */}
+      <ExplainerPopup
+        isOpen={explainerOpen()}
+        onClose={handleCloseExplainer}
+        word={explainerWord()}
+        contextPhrase={explainerContext()}
+        initialPosition={explainerPosition()}
+      />
       
       {/* Magnifying Glass */}
       <MagnifyingGlass
