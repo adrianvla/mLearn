@@ -1196,6 +1196,84 @@ async def llm_endpoint(req: LlmRequest):
         raise HTTPException(status_code=500, detail="Generation failed")
 
 
+from fastapi.responses import StreamingResponse
+
+
+@app.post("/llm/stream")
+async def llm_stream_endpoint(req: LlmRequest):
+    """Streaming LLM endpoint using Server-Sent Events (SSE)."""
+    _log("LLM stream request", {"chars": len(req.prompt), "max_new_tokens": req.max_new_tokens})
+    if not LLM_ALLOWED:
+        raise HTTPException(status_code=403, detail="LLM disabled by user")
+    try:
+        _ensure_llm_loaded()
+    except RuntimeError as exc:
+        _log("LLM init error", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    if torch is None or _llm_tokenizer is None or _llm_model is None:
+        raise HTTPException(status_code=500, detail="LLM unavailable")
+
+    async def generate_stream():
+        """Generator that yields SSE events with tokens as they are generated."""
+        try:
+            from transformers import TextIteratorStreamer
+            
+            inputs = _llm_tokenizer(req.prompt, return_tensors="pt")
+            tensor_inputs = {k: v.to(_llm_device) for k, v in inputs.items()}
+            max_new_tokens = max(1, min(req.max_new_tokens, 512))
+            
+            # Create a streamer
+            streamer = TextIteratorStreamer(
+                _llm_tokenizer, 
+                skip_prompt=True, 
+                skip_special_tokens=True
+            )
+            
+            gen_opts = {
+                "max_new_tokens": max_new_tokens,
+                "do_sample": False,
+                "pad_token_id": _llm_tokenizer.pad_token_id,
+                "eos_token_id": _llm_tokenizer.eos_token_id,
+                "streamer": streamer,
+            }
+            if req.temperature > 0:
+                gen_opts["temperature"] = float(req.temperature)
+                gen_opts["do_sample"] = True
+            
+            # Start generation in a separate thread
+            generation_thread = threading.Thread(
+                target=lambda: _llm_model.generate(**tensor_inputs, **gen_opts)
+            )
+            generation_thread.start()
+            
+            # Yield tokens as they come
+            full_text = ""
+            for text_chunk in streamer:
+                if text_chunk:
+                    full_text += text_chunk
+                    # SSE format: data: <content>\n\n
+                    yield f"data: {json.dumps({'chunk': text_chunk, 'done': False})}\n\n"
+            
+            # Signal completion
+            yield f"data: {json.dumps({'chunk': '', 'done': True, 'full_text': full_text.strip(), 'device': _llm_device})}\n\n"
+            
+            generation_thread.join()
+            
+        except Exception as exc:
+            _log("LLM stream error", exc)
+            yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
+
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
 
 if __name__ == "__main__":
     uvicorn.run("server:app", host="0.0.0.0", port=7752, log_level="debug")

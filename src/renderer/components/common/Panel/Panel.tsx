@@ -10,7 +10,6 @@ import { Component, JSX, splitProps, mergeProps } from 'solid-js';
 
 export interface PanelProps extends JSX.HTMLAttributes<HTMLDivElement> {
   variant?: 'default' | 'elevated' | 'outlined' | 'solid';
-  blur?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
   rounded?: 'none' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
   border?: boolean;
   shadow?: boolean;
@@ -22,7 +21,6 @@ export const Panel: Component<PanelProps> = (props) => {
   const merged = mergeProps(
     {
       variant: 'default' as const,
-      blur: 'md' as const,
       rounded: 'lg' as const,
       border: true,
       shadow: true,
@@ -33,7 +31,6 @@ export const Panel: Component<PanelProps> = (props) => {
 
   const [local, rest] = splitProps(merged, [
     'variant',
-    'blur',
     'rounded',
     'border',
     'shadow',
@@ -53,23 +50,6 @@ export const Panel: Component<PanelProps> = (props) => {
         return 'panel panel-solid';
       default:
         return 'panel';
-    }
-  };
-
-  const getBlurStyle = () => {
-    switch (local.blur) {
-      case 'none':
-        return 'none';
-      case 'sm':
-        return 'blur(4px)';
-      case 'md':
-        return 'blur(8px)';
-      case 'lg':
-        return 'blur(16px)';
-      case 'xl':
-        return 'blur(24px)';
-      default:
-        return 'blur(8px)';
     }
   };
 
@@ -111,8 +91,6 @@ export const Panel: Component<PanelProps> = (props) => {
 
   const combinedStyle = () => {
     const baseStyle: JSX.CSSProperties = {
-      'backdrop-filter': getBlurStyle(),
-      '-webkit-backdrop-filter': getBlurStyle(),
       padding: getPaddingStyle(),
     };
 

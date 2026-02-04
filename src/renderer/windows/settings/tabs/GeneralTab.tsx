@@ -121,7 +121,9 @@ export const GeneralTab: Component = () => {
           >
             <option value="light">{t('mlearn.Settings.Appearance.Theme.Light')}</option>
             <option value="dark">{t('mlearn.Settings.Appearance.Theme.Dark')}</option>
-            <option value="glass-transparent">{t('mlearn.Settings.Appearance.Theme.GlassTransparent')}</option>
+            <option value="darker">{t('mlearn.Settings.Appearance.Theme.Darker')}</option>
+            <option value="light-high-contrast">{t('mlearn.Settings.Appearance.Theme.LightHighContrast')}</option>
+            <option value="dark-high-contrast">{t('mlearn.Settings.Appearance.Theme.DarkHighContrast')}</option>
             <option value="glass-light">{t('mlearn.Settings.Appearance.Theme.GlassLight')}</option>
             <option value="glass-dark">{t('mlearn.Settings.Appearance.Theme.GlassDark')}</option>
           </Select>

@@ -51,6 +51,14 @@ export const IPC_CHANNELS = {
   FORCE_NEWDAY_FLASHCARDS: 'force-newday-flashcards',
   FLASHCARD_CONNECT_OPEN: 'flashcard-connect-open',
   REVIEW_FLASHCARDS_REQUEST: 'review-flashcards-request',
+  // Migration
+  FLASHCARD_MIGRATION_COMPLETE: 'flashcard-migration-complete',
+  GET_FLASHCARD_MIGRATION_INFO: 'get-flashcard-migration-info',
+  LOCALSTORAGE_MIGRATION_COMPLETE: 'localstorage-migration-complete',
+  GET_MIGRATED_LOCALSTORAGE: 'get-migrated-localstorage',
+  GET_MIGRATED_ITEM: 'get-migrated-item',
+  HAS_MIGRATION_OCCURRED: 'has-migration-occurred',
+  TRIGGER_MIGRATION: 'trigger-migration',
   
   // Window management
   TRAFFIC_LIGHTS: 'traffic-lights',
@@ -59,7 +67,9 @@ export const IPC_CHANNELS = {
   MAKE_NORMAL: 'make-normal',
   SHOW_CTX_MENU: 'show-ctx-menu',
   CTX_MENU_COMMAND: 'ctx-menu-command',
-  
+  SHOW_READER_CTX_MENU: 'show-reader-ctx-menu',
+  READER_CTX_MENU_COMMAND: 'reader-ctx-menu-command',
+
   // App lifecycle
   RESTART_APP: 'restart-app',
   RESTART_APP_FORCE: 'restart-app-force',
@@ -120,6 +130,11 @@ export const IPC_CHANNELS = {
   // File operations
   READ_DIRECTORY_IMAGES: 'read-directory-images',
   READ_PDF_FILE: 'read-pdf-file',
+  SELECT_VIDEO_FILE: 'select-video-file',
+  SELECT_SUBTITLE_FILE: 'select-subtitle-file',
+  SELECT_BOOK_FOLDER: 'select-book-folder',
+  SELECT_PDF_FILE: 'select-pdf-file',
+  GET_LOCAL_MEDIA_URL: 'get-local-media-url',
 } as const;
 
 // Window types
@@ -144,7 +159,7 @@ export const SUBTITLE_THEMES = ['marker', 'background', 'shadow'] as const;
 export type SubtitleTheme = typeof SUBTITLE_THEMES[number];
 
 // App themes
-export const APP_THEMES = ['light', 'dark', 'glass-transparent', 'glass-light', 'glass-dark'] as const;
+export const APP_THEMES = ['light', 'dark', 'glass-light', 'glass-dark', 'light-high-contrast', 'dark-high-contrast', 'darker'] as const;
 export type AppTheme = typeof APP_THEMES[number];
 
 // Word status (for SRS)

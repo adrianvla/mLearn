@@ -1,0 +1,37 @@
+/**
+ * KeybindInput CSS
+ * Styles for the keybind capture input component
+ */
+
+.keybind-input {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg);
+  color: var(--text-primary);
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+  outline: none;
+  user-select: none;
+}
+
+.keybind-input:hover:not(:disabled):not(:focus) {
+  border-color: var(--border-color-intense);
+  background: var(--bg-intense);
+}
+
+.keybind-input:focus {
+  box-shadow: 0 0 0 3px var(--color-primary);
+  background: var(--bg-intense, rgba(99, 102, 241, 0.1));
+}
+.keybind-input:focus:hover{
+}
+
+.keybind-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Hide cursor when focused since it's capturing keys */
+.keybind-input:focus {
+  caret-color: transparent;
+}

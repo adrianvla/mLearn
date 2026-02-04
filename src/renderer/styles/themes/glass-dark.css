@@ -1,82 +1,187 @@
-/**
- * Glass Dark Theme
- * Glassmorphism effect optimized for dark backgrounds
- */
+/* === Start WordHover.css === */
+.subtitle_hover.theme-glass-dark,
+body.theme-glass-dark .subtitle_hover {
+  background-color: rgba(0, 0, 0, 0.5);
+  color: var(--text-primary);
+  border:1px solid var(--border-color);
+}
+body.theme-glass-dark .subtitle_hover .pitch,
+.subtitle_hover.theme-glass-dark .pitch {
+  filter: invert(1);
+}
 
+body.theme-glass-dark .subtitle_hover .footer,
+.subtitle_hover.theme-glass-dark .footer {
+  border-top: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+body.theme-glass-dark .subtitle_hover hr,
+.subtitle_hover.theme-glass-dark hr {
+  border-top-color: var(--border-color);
+}
+
+body.theme-glass-dark .subtitle_hover_alt_c,
+.subtitle_hover.theme-glass-dark .subtitle_hover_alt_c {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* === End WordHover.css === */
+
+
+/* === Start index.css === */
 body.theme-glass-dark {
-  /* Dark mode colors */
+  /*--bg-opaque: #0a0a0a;*/
   --bg-opaque: #000;
   --text-primary: #f0f0f0;
   --text-secondary: #a0a0a0;
   --text-tertiary: rgba(255, 255, 255, 0.4);
 
-  --toggle-bg: #555;
-  --toggle-bg-hover: #666;
+  --bg: rgba(130, 130, 130, 0.2);
+  --bg-intense: rgba(255, 255, 255, 0.15);
+  --border-color: rgba(255, 255, 255, 0.15);
+  --border-color-intense: rgba(255, 255, 255, 0.25);
 
-  /* Semi-transparent dark backgrounds */
-  --bg: rgba(30, 30, 35, 0.6);
-  --bg-intense: rgba(40, 40, 48, 0.75);
-  --border-color: rgba(255, 255, 255, 0.1);
-  --border-color-intense: rgba(255, 255, 255, 0.05);
+  --backdrop-filter: blur(20px) saturate(2) brightness(0.8);
+  --backdrop-filter-nodim: blur(20px) saturate(2);
 
-  /* Glass blur with slight dimming */
-  --backdrop-blur: blur(12px) saturate(1.8) brightness(0.85);
-  --backdrop-blur-nodim: blur(12px) saturate(1.8);
-
-  /* Panel-specific overrides */
-  --panel-bg: rgba(30, 30, 35, 0.6);
-  --panel-bg-elevated: rgba(40, 40, 48, 0.75);
-  --panel-border: rgba(255, 255, 255, 0.1);
-  --panel-shadow: 0 8px 32px rgba(0, 0, 20, 0.3);
-  
   /* Dark mode flashcard highlight */
   --flashcard-highlight: #ff5ec7;
+
+  --panel-bg: var(--bg);
+  --panel-bg-hover: var(--bg-intense);
+  --panel-border: var(--border-color);
+  --panel-border-hover: var(--border-color-intense);
+  --bg-primary: var(--bg);
+  --bg-secondary: var(--bg-intense);
+  --shadow-border:var(--border-color) 0px 0px 0px 1px;
+
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+  --overlay-bg-soft: rgba(0, 0, 0, 0.4);
+  -webkit-text-stroke: 1px var(--bg);
+
+
+  /*define a new variable*/
+  --glass-spacing: 8px;
 }
 
-/* Panel styling */
-body.theme-glass-dark .panel {
-  background: var(--panel-bg);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--panel-shadow);
+/* === End index.css === */
+
+
+/* === PitchAccent.css === */
+body.theme-glass-dark .pitch-accent-container,
+.theme-glass-dark .pitch-accent-container {
+  color: var(--text-primary);
 }
 
-body.theme-glass-dark .panel-elevated {
-  background: var(--panel-bg-elevated);
-  box-shadow: 0 16px 48px rgba(0, 0, 20, 0.4);
+/* When inside subtitle hover */
+.subtitle_hover .mLearn-pitch-accent {
+  --pitch-accent-height: 2px;
 }
 
-/* Modal styling */
-body.theme-glass-dark .modal-container {
-  background: var(--panel-bg-elevated);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
-  border: 1px solid var(--panel-border);
-  box-shadow: 0 16px 48px rgba(0, 0, 20, 0.4);
+.subtitle_hover .pill.pitch-accent-pill .mLearn-pitch-accent {
+  --pitch-accent-height: 2px;
 }
 
-/* Card styling */
-body.theme-glass-dark .card {
-  background: var(--panel-bg);
-  backdrop-filter: var(--backdrop-blur);
-  -webkit-backdrop-filter: var(--backdrop-blur);
-  border: 1px solid var(--panel-border);
-  box-shadow: var(--panel-shadow);
+.subtitle_hover .pill.pitch-accent-pill .pitch-accent-word {
+  position: relative;
 }
 
-/* Button styling */
-body.theme-glass-dark .btn {
-  backdrop-filter: blur(4px) saturate(1.8);
-  -webkit-backdrop-filter: blur(4px) saturate(1.8);
+body.theme-glass-dark .subtitle_hover .mLearn-pitch-accent,
+.subtitle_hover.theme-glass-dark .mLearn-pitch-accent {
+  filter: none;
+  color: var(--text-primary);
 }
 
-/* Input styling */
-body.theme-glass-dark .input,
-body.theme-glass-dark .textarea,
-body.theme-glass-dark .select-input {
-  background: var(--panel-bg);
-  backdrop-filter: blur(4px) saturate(1.8);
-  -webkit-backdrop-filter: blur(4px) saturate(1.8);
-  border: 1px solid var(--panel-border);
+/* === End PitchAccent.css === */
+
+/* === Start Pill.css === */
+body.theme-glass-dark .label-pill,
+body.theme-glass-dark .btn-pill,
+body.theme-glass-dark .label-status {
+  filter: invert(1) hue-rotate(180deg) saturate(200%);
+  box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
+  rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
+/* Ensure icons inside pills are not double-inverted (applies to both img and SVG) */
+body.theme-glass-dark .label-pill .label-icon img,
+body.theme-glass-dark .btn-pill .btn-icon-wrapper img,
+body.theme-glass-dark .label-pill .label-icon svg,
+body.theme-glass-dark .btn-pill .btn-icon-wrapper svg,
+body.theme-glass-dark .label-pill .label-svg-icon,
+body.theme-glass-dark .btn-pill .btn-svg-icon,
+body.theme-glass-dark .label-status .label-icon img,
+body.theme-glass-dark .label-status .label-icon svg,
+body.theme-glass-dark .label-status .label-svg-icon {
+  filter: invert(1) hue-rotate(180deg); /* counter the parent invert */
+  background: transparent;
+}
+/* === End Pill.css === */
+
+/* === ProgressBar.css === */
+body.theme-glass-dark .progress-bar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+/* === End ProgressBar.css === */
+
+body.theme-glass-dark .panel{
+  margin:var(--glass-spacing);
+  border-radius: var(--radius-full);
+}
+body.theme-glass-dark .reader-sidebar.panel{
+  border-radius:var(--radius-md);
+  height:calc(100vh - 48px - 30px - calc(4 * var(--glass-spacing)));
+  top:calc(48px + var(--glass-spacing))
+}
+body.theme-glass-dark nav{
+  background:transparent;
+  border-radius:0 !important;
+  border:none;
+  padding:0;
+  margin: 0 var(--glass-spacing) !important;
+}
+body.theme-glass-dark .nav-group, body.theme-glass-dark .video-controls .video-controls-left, body.theme-glass-dark .video-controls .video-controls-right{
+  background:var(--bg);
+  border-radius:var(--radius-full);
+  border:1px solid var(--border-color);
+  padding: 0;
+  gap: 0;
+  overflow:hidden;
+}
+body.theme-glass-dark .nav-group > *, body.theme-glass-dark .video-controls .video-controls-left > *, body.theme-glass-dark .video-controls .video-controls-right > *{
+  background:transparent;
+  border:none;
+  height:100%;
+  border-radius:0;
+  padding: 0 0.5rem;
+}
+body.theme-glass-dark .nav-group > *:not(:nth-child(1)){
+  border-left:1px solid var(--border-color);
+}
+body.theme-glass-dark .nav-group > *:first-child{
+  padding-left:0.5rem;
+}
+body.theme-glass-dark .nav-group > *:last-child{
+  padding-right:0.5rem;
+}
+
+body.theme-glass-dark .drop-zone{
+  border-radius:var(--radius-lg);
+}
+
+body.theme-glass-dark .video-controls .panel{
+  background:transparent;
+  border-radius:0 !important;
+  border:none;
+  padding:0;
+  margin: 0 var(--glass-spacing) !important;
+  backdrop-filter:none;
+}
+body.theme-glass-dark .video-controls .panel .progress-bar-container, body.theme-glass-dark .video-controls .panel .progress-bar, body.theme-glass-dark .video-controls .panel .progress-bar-fill{
+  border-radius:var(--radius-full);
+  overflow:hidden;
+}
+body.theme-glass-dark .video-controls .video-controls-left, body.theme-glass-dark .video-controls .video-controls-right, body.theme-glass-dark .video-controls .panel .progress-bar-container{
+  backdrop-filter:var(--backdrop-filter);
 }

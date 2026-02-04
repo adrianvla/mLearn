@@ -75,7 +75,6 @@ export const EmptyState: Component<EmptyStateProps> = (props) => {
     return (
       <Panel
         variant="elevated"
-        blur="lg"
         rounded="xl"
         padding="xl"
         style={{ 'max-width': '400px', margin: '0 auto' }}

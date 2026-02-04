@@ -4,8 +4,7 @@
  */
 
 import { Component, Show, createMemo } from 'solid-js';
-import { Btn, PillLabel, StatusLabel } from '../../../components/common';
-import { WORD_STATUS } from '../../../../shared/constants';
+import { Btn, PillLabel, StatusLabel, numericToStatus, statusToNumeric, getNextStatus } from '../../../components/common';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
 import { useSettings, useLocalization } from '../../../context';
 
@@ -111,26 +110,16 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         </Show>
       </div>
       <div class="col status">
-        <div class="status-pill-group">
-          <StatusLabel
-            status="unknown"
-            active={props.entry.status === WORD_STATUS.UNKNOWN}
-            onClick={() => props.onStatusChange(props.entry, WORD_STATUS.UNKNOWN)}
-            showIcon={false}
-          />
-          <StatusLabel
-            status="learning"
-            active={props.entry.status === WORD_STATUS.LEARNING}
-            onClick={() => props.onStatusChange(props.entry, WORD_STATUS.LEARNING)}
-            showIcon={false}
-          />
-          <StatusLabel
-            status="known"
-            active={props.entry.status === WORD_STATUS.KNOWN}
-            onClick={() => props.onStatusChange(props.entry, WORD_STATUS.KNOWN)}
-            showIcon={false}
-          />
-        </div>
+        <StatusLabel
+          status={numericToStatus(props.entry.status)}
+          active={true}
+          onClick={() => {
+            const currentStatus = numericToStatus(props.entry.status);
+            const nextStatus = getNextStatus(currentStatus);
+            props.onStatusChange(props.entry, statusToNumeric(nextStatus));
+          }}
+          showIcon={false}
+        />
       </div>
     </div>
   );

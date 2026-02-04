@@ -2,9 +2,12 @@
  * Flashcard Sync Service
  * Handles peer-to-peer flashcard syncing via WebRTC (like the old app's connect module)
  * Uses QR codes for connection establishment
+ *
+ * Updated to work with new UUID-keyed FlashcardStore format (v3)
+ * Supports multiple flashcards per word with O(1) word stats lookup
  */
 
-import type { FlashcardStore, Flashcard, WordCandidate } from '../../shared/types';
+import type { FlashcardStore, Flashcard, WordCandidate, WordStats, FlashcardState } from '../../shared/types';
 
 // Chunk size for sending data over WebRTC (must be small for reliability)
 const CHUNK_SIZE = 1000;
@@ -69,95 +72,173 @@ export async function toUniqueIdentifier(word: string): Promise<string> {
 }
 
 /**
+ * Compare flashcard states - returns positive if a is "better" than b
+ */
+function compareStates(a: FlashcardState, b: FlashcardState): number {
+  const order: Record<FlashcardState, number> = { 'new': 0, 'learning': 1, 'relearning': 2, 'review': 3 };
+  return order[a] - order[b];
+}
+
+/**
+ * Calculate aggregated word stats from all cards for a word
+ */
+function calculateWordStats(cards: Flashcard[]): WordStats {
+  if (cards.length === 0) {
+    return {
+      cardCount: 0,
+      bestEase: 2.5,
+      totalReviews: 0,
+      totalLapses: 0,
+      lastReviewed: 0,
+      bestInterval: 0,
+      bestState: 'new',
+    };
+  }
+
+  let bestEase = 0;
+  let totalReviews = 0;
+  let totalLapses = 0;
+  let lastReviewed = 0;
+  let bestInterval = 0;
+  let bestState: FlashcardState = 'new';
+
+  for (const card of cards) {
+    if (card.ease > bestEase) bestEase = card.ease;
+    totalReviews += card.reviews || 0;
+    totalLapses += card.lapses || 0;
+    if (card.lastReviewed > lastReviewed) lastReviewed = card.lastReviewed;
+    if (card.interval > bestInterval) bestInterval = card.interval;
+    if (compareStates(card.state, bestState) > 0) bestState = card.state;
+  }
+
+  return {
+    cardCount: cards.length,
+    bestEase,
+    totalReviews,
+    totalLapses,
+    lastReviewed,
+    bestInterval,
+    bestState,
+  };
+}
+
+/**
  * Merge incoming flashcards with local flashcards
- * Uses the same merge logic as the old app's sync.js
+ * Updated for new UUID-keyed Record format (v3) with multiple cards per word
+ *
+ * Merge strategy:
+ * - Flashcards: Merge all cards, deduplicate by ID
+ * - wordToCardMap: Merge arrays of card IDs per word
+ * - wordStatsMap: Recalculate from merged flashcards
+ * - wordCandidates: Keep max counts and latest lastSeen
+ * - knownUntracked: Union of both sets
+ * - meta: Preserve local settings, update date if remote is today
  */
 export async function mergeFlashcards(
-  localStore: FlashcardStore,
-  remoteStore: FlashcardStore
+    localStore: FlashcardStore,
+    remoteStore: FlashcardStore
 ): Promise<FlashcardStore> {
+  // Start with a deep copy of local store
   const merged: FlashcardStore = JSON.parse(JSON.stringify(localStore));
-  
-  // Merge alreadyCreated
-  for (const [key, value] of Object.entries(remoteStore.alreadyCreated || {})) {
-    merged.alreadyCreated[key] = value;
+
+  // Merge knownUntracked (union)
+  if (remoteStore.knownUntracked) {
+    for (const [wordHash, value] of Object.entries(remoteStore.knownUntracked)) {
+      if (value) {
+        merged.knownUntracked[wordHash] = true;
+      }
+    }
   }
-  
-  // Merge wordCandidates (keep max count)
-  // Note: Old app sometimes stored wordCandidates as raw numbers, new app uses WordCandidate objects
-  for (const [key, value] of Object.entries(remoteStore.wordCandidates || {})) {
-    const myValue = merged.wordCandidates[key];
-    const remoteCandidate = typeof value === 'number' 
-      ? { count: value, lastSeen: Date.now(), word: key }
-      : value as WordCandidate;
+
+  // Merge wordCandidates (keep max count and latest lastSeen)
+  if (remoteStore.wordCandidates) {
+    for (const [key, value] of Object.entries(remoteStore.wordCandidates)) {
+      const myValue = merged.wordCandidates[key];
+      const remoteCandidate = typeof value === 'number'
+          ? { count: value, lastSeen: Date.now(), word: key }
+          : value as WordCandidate;
+
+      if (!myValue) {
+        merged.wordCandidates[key] = remoteCandidate;
+      } else {
+        // Both exist - merge by taking max values
+        merged.wordCandidates[key] = {
+          word: myValue.word || remoteCandidate.word || key,
+          count: Math.max(myValue.count || 0, remoteCandidate.count || 0),
+          lastSeen: Math.max(myValue.lastSeen || 0, remoteCandidate.lastSeen || 0),
+          reading: myValue.reading || remoteCandidate.reading,
+        };
+      }
+    }
+  }
+
+  // Merge flashcards - add all remote cards that don't exist locally
+  // If same ID exists, keep the one with more reviews or latest update
+  for (const [cardId, remoteCard] of Object.entries(remoteStore.flashcards)) {
+    const localCard = merged.flashcards[cardId];
     
-    if (!myValue) {
-      merged.wordCandidates[key] = remoteCandidate;
+    if (!localCard) {
+      // Card doesn't exist locally - add it
+      merged.flashcards[cardId] = remoteCard;
     } else {
-      // Both exist - merge by taking max values
-      merged.wordCandidates[key] = {
-        word: myValue.word || remoteCandidate.word || key,
-        count: Math.max(myValue.count || 0, remoteCandidate.count || 0),
-        lastSeen: Math.max(myValue.lastSeen || 0, remoteCandidate.lastSeen || 0),
-      };
+      // Card exists in both - merge based on review history
+      const localReviews = localCard.reviews || 0;
+      const remoteReviews = remoteCard.reviews || 0;
+      const localUpdated = localCard.lastUpdated || 0;
+      const remoteUpdated = remoteCard.lastUpdated || 0;
+
+      if (remoteReviews > localReviews ||
+          (remoteReviews === localReviews && remoteUpdated > localUpdated)) {
+        // Use remote card's SRS data but merge content
+        merged.flashcards[cardId] = {
+          ...remoteCard,
+          content: {
+            ...localCard.content,
+            ...remoteCard.content,
+            // Keep longer example/image data
+            example: (remoteCard.content.example?.length || 0) > (localCard.content.example?.length || 0)
+                ? remoteCard.content.example
+                : localCard.content.example,
+            imageUrl: remoteCard.content.imageUrl || localCard.content.imageUrl,
+          },
+        };
+      } else if (remoteUpdated > localUpdated) {
+        // Keep local SRS data but update content
+        merged.flashcards[cardId].content = {
+          ...localCard.content,
+          ...remoteCard.content,
+        };
+        merged.flashcards[cardId].lastUpdated = remoteUpdated;
+      }
     }
   }
-  
-  // Build hash maps for flashcard lookup
-  const otherHashMap: Record<string, number> = {};
-  const myHashMap: Record<string, number> = {};
-  
-  for (let i = 0; i < (remoteStore.flashcards || []).length; i++) {
-    const word = remoteStore.flashcards[i]?.content?.word;
+
+  // Rebuild wordToCardMap from all flashcards
+  const newWordToCardMap: Record<string, string[]> = {};
+  for (const [cardId, card] of Object.entries(merged.flashcards)) {
+    const word = card.content.front;
     if (word) {
-      const uuid = await toUniqueIdentifier(word);
-      otherHashMap[uuid] = i;
+      const wordHash = await toUniqueIdentifier(word);
+      if (!newWordToCardMap[wordHash]) {
+        newWordToCardMap[wordHash] = [];
+      }
+      if (!newWordToCardMap[wordHash].includes(cardId)) {
+        newWordToCardMap[wordHash].push(cardId);
+      }
     }
   }
-  
-  for (let i = 0; i < merged.flashcards.length; i++) {
-    const word = merged.flashcards[i]?.content?.word;
-    if (word) {
-      const uuid = await toUniqueIdentifier(word);
-      myHashMap[uuid] = i;
+  merged.wordToCardMap = newWordToCardMap;
+
+  // Rebuild wordStatsMap from merged flashcards
+  const newWordStatsMap: Record<string, WordStats> = {};
+  for (const [wordHash, cardIds] of Object.entries(merged.wordToCardMap)) {
+    const cards = cardIds.map(id => merged.flashcards[id]).filter(Boolean);
+    if (cards.length > 0) {
+      newWordStatsMap[wordHash] = calculateWordStats(cards);
     }
   }
-  
-  // Add cards that don't exist locally
-  for (const [key, remoteIndex] of Object.entries(otherHashMap)) {
-    if (!(key in myHashMap)) {
-      merged.flashcards.push(remoteStore.flashcards[remoteIndex]);
-    }
-  }
-  
-  // Update hash map with new cards
-  for (let i = 0; i < merged.flashcards.length; i++) {
-    const word = merged.flashcards[i]?.content?.word;
-    if (word) {
-      const uuid = await toUniqueIdentifier(word);
-      myHashMap[uuid] = i;
-    }
-  }
-  
-  // Update cards that exist in both based on lastUpdated timestamp
-  for (const [key, remoteIndex] of Object.entries(otherHashMap)) {
-    if (!(key in myHashMap)) continue;
-    
-    const localIndex = myHashMap[key];
-    const otherCard = remoteStore.flashcards[remoteIndex];
-    const myCard = merged.flashcards[localIndex];
-    
-    if (otherCard?.content?.word !== myCard?.content?.word) {
-      console.error('Word mismatch during merge', myCard, otherCard);
-      continue;
-    }
-    
-    // Use the more recently updated card
-    if ((myCard.lastUpdated || 0) < (otherCard.lastUpdated || 0)) {
-      merged.flashcards[localIndex] = otherCard;
-    }
-  }
-  
+  merged.wordStatsMap = newWordStatsMap;
+
   return merged;
 }
 
@@ -167,21 +248,21 @@ export async function mergeFlashcards(
 export class ChunkCollector {
   private chunks: Record<number, string> = {};
   private totalChunks: number = 0;
-  
+
   addChunk(index: number, data: string, total: number): boolean {
     this.totalChunks = total;
     this.chunks[index] = data;
     return this.isComplete();
   }
-  
+
   isComplete(): boolean {
     return Object.keys(this.chunks).length === this.totalChunks && this.totalChunks > 0;
   }
-  
+
   getProgress(): { current: number; total: number } {
     return { current: Object.keys(this.chunks).length, total: this.totalChunks };
   }
-  
+
   assemble(): string {
     let data = '';
     for (let i = 0; i < this.totalChunks; i++) {
@@ -192,7 +273,7 @@ export class ChunkCollector {
     }
     return data;
   }
-  
+
   reset(): void {
     this.chunks = {};
     this.totalChunks = 0;

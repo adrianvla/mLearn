@@ -1,6 +1,6 @@
 {
-  "name": "mlearn-ts",
-  "version": "1.0.0",
+  "name": "mlearn",
+  "version": "2.0.0",
   "description": "Language learning through immersion - SolidJS + TypeScript + Electron",
   "main": "dist-electron/electron/main.js",
   "scripts": {
@@ -23,7 +23,6 @@
     "immersion",
     "japanese",
     "chinese",
-    "korean",
     "subtitles",
     "flashcards",
     "srs"

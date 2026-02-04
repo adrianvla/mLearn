@@ -5,6 +5,7 @@
  */
 
 import { Component } from 'solid-js';
+import { ProgressBar } from '../Feedback/ProgressBar';
 import './RecentCard.css';
 
 export interface RecentItem {
@@ -39,12 +40,13 @@ export const RecentCard: Component<RecentCardProps> = (props) => {
       </div>
       <div class="recent-info">
         <h4>{props.item.name}</h4>
-        <div class="progress-bar">
-          <div 
-            class="progress-fill" 
-            style={{ width: `${Math.min(100, Math.max(0, props.item.progress))}%` }} 
-          />
-        </div>
+        <ProgressBar
+          value={props.item.progress}
+          size="md"
+          variant="default"
+          class="recent-progress"
+          rounded={false}
+        />
       </div>
     </button>
   );

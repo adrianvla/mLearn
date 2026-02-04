@@ -9,6 +9,17 @@
   outline: none;
   transition: all var(--transition-fast);
   cursor: pointer;
+  padding:3px;
+}
+
+.range-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.range-input:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .range-input:hover {

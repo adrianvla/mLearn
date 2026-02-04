@@ -13,20 +13,25 @@
   z-index: 1000;
   pointer-events: auto;
   /* CSS handles width: fit-content flows up from .subtitle_hover */
+  transition: opacity var(--transition-normal);
+}
+/* autohide when there's a magnifying-glass */
+body:has(.magnifying-glass.visible) .word-hover-container{
+  opacity:0;
 }
 
 /* Hover popup - width driven by footer pills + padding + border */
 .subtitle_hover {
   position: relative;
   background: var(--bg);
-  backdrop-filter: var(--backdrop-blur-nodim);
+  backdrop-filter: var(--backdrop-filter-nodim);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: left;
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-normal);
   z-index: var(--z-tooltip);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--shadow-lg);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--transition-normal);
@@ -87,11 +92,13 @@
   width: 100%;
   min-height: 0; /* Allow shrinking for scroll */
   flex: 1;
+  justify-content: center;
+  align-items: center;
 }
 
 /* Content area - scrollable, takes remaining space above footer */
 .subtitle_hover_content {
-  padding: 40px;
+  padding: 20px;
   width: 100%;
   box-sizing: border-box;
   overflow-y: auto;
@@ -102,6 +109,7 @@
 
 /* Footer - NOT absolute, so pills width + padding (20px) drives parent's fit-content width */
 .subtitle_hover .footer {
+  width:100%;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -109,7 +117,7 @@
   padding: 10px; /* 10px left + 10px right = 20px total */
   box-sizing: border-box;
   background: var(--accent-bg);
-  backdrop-filter: var(--backdrop-blur-nodim);
+  backdrop-filter: var(--backdrop-filter-nodim);
   border-top: 1px solid var(--border-color);
   flex-shrink: 0; /* Don't shrink footer */
   /* width determined by pills (fit-content flows up) */
@@ -259,49 +267,54 @@
   border-color: var(--color-success);
 }
 
-/* LLM Explanation section - absolute positioned overlay */
+/* LLM Explanation section - positioned overlay inside the hover */
 .subtitle_hover_alt_c {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(20px);
-  padding: 20px 20px 65px;
+  bottom: 0;
+  background: var(--bg-overlay, rgba(0, 0, 0, 0.85));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 20px;
+  padding-bottom: 65px; /* Space for footer pills */
   width: 100%;
+  height: 100%;
   box-sizing: border-box;
   overflow-y: auto;
-  max-height: 350px;
   font-size: 0.9em;
-  line-height: 1.5;
+  line-height: 1.6;
   z-index: 2;
+  border-radius: var(--radius-lg);
 }
 
+/* Loading spinner container */
+.subtitle_hover_alt_c .llm-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 100px;
+}
 
 .subtitle_hover_alt_c p {
   margin: 0;
   color: var(--text-primary);
+  white-space: pre-wrap;
 }
 
-/* Skeleton loading animation */
-.skeleton-c {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+/* Scrollbar styling for LLM explanation panel */
+.subtitle_hover_alt_c::-webkit-scrollbar {
+  width: 6px;
 }
 
-.skeleton-c > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  width: 100%;
+.subtitle_hover_alt_c::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.skeleton {
-  display: inline-block;
-  height: 30px;
-  border-radius: 8px;
-  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+.subtitle_hover_alt_c::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
 }
