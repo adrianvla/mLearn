@@ -84,6 +84,10 @@ export interface Settings {
   proportionOfExamCards: number;
   preparedExam: number;
   createUnseenCards: boolean;
+  /** Hour at which a new SRS day begins (0-23, default 4 = 4:00 AM) */
+  newDayHour: number;
+  /** Whether to show a 3D flip animation when revealing flashcard answers */
+  flashcardFlipAnimation: boolean;
 
   // API URLs
   getCardUrl: string;
@@ -183,6 +187,8 @@ export const DEFAULT_SETTINGS: Settings = {
   proportionOfExamCards: 0.5,
   preparedExam: 3,
   createUnseenCards: true,
+  newDayHour: 4,
+  flashcardFlipAnimation: true,
   devMode: false,
   ocr_crop_padding: 200,
   ocrFuriganaWidthRatio: 1.5,

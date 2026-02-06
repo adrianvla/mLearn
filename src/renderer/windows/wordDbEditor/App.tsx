@@ -295,14 +295,14 @@ const WordDbEditorContent: Component = () => {
 
   return (
       <div class="word-db-editor">
-        {/* Loading indicator while initializing */}
-        <Show when={!isInitialized()}>
+        {/* Loading indicator while initializing or waiting for word frequency data */}
+        <Show when={!isInitialized() || (!hasLoadedWords() && !isLoading())}>
           <div class="init-loading">
             <Spinner size={40} text={t('mlearn.WordDbEditor.Loading')} />
           </div>
         </Show>
 
-        <Show when={isInitialized()}>
+        <Show when={isInitialized() && (hasLoadedWords() || isLoading())}>
           {/* Search Bar */}
           <SearchBar
               searchQuery={searchQuery}
@@ -324,7 +324,7 @@ const WordDbEditorContent: Component = () => {
 
           {/* Entries List */}
           <div class="entries-list">
-            <Show when={!isLoading() && filteredEntries().length === 0}>
+            <Show when={!isLoading() && filteredEntries().length === 0 && hasLoadedWords()}>
               <div class="empty-state">
                 <p>{t('mlearn.WordDbEditor.EmptyState')}</p>
               </div>
@@ -378,7 +378,7 @@ const WordDbEditorContent: Component = () => {
 // Main App with providers
 export const WordDbEditorApp: Component = () => {
   return (
-      <WindowWrapper>
+      <WindowWrapper showDragRegion={false}>
         <WordDbEditorContent />
       </WindowWrapper>
   );

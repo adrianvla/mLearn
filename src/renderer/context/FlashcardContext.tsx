@@ -10,6 +10,7 @@ import { createStore, reconcile, produce } from 'solid-js/store';
 import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, WordStats, FlashcardState } from '../../shared/types';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady } from './migrationSignals';
+import { useSettings } from './SettingsContext';
 
 // Current store version
 const CURRENT_VERSION = 3;
@@ -81,7 +82,7 @@ function getDefaultStore(): FlashcardStore {
 
 // Undo stack entry
 interface UndoEntry {
-  state: FlashcardStore;
+  state?: FlashcardStore;
   type: string;
   restore?: () => void | Promise<void>;
 }
@@ -160,6 +161,9 @@ const FlashcardContext = createContext<FlashcardContextValue>();
 const FLASHCARD_CHANNEL = 'mlearn-flashcards';
 
 export const FlashcardProvider: ParentComponent = (props) => {
+  const { settings } = useSettings();
+  const newDayHour = () => settings.newDayHour ?? 4;
+
   const [store, setStore] = createStore<FlashcardStore>(getDefaultStore());
   const [isLoading, setIsLoading] = createSignal(true);
   const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], learningQueue: [], reviewQueue: [], relearnQueue: [] });
@@ -168,6 +172,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const [, setSessionStartTime] = createSignal<number>(0);
 
   let broadcastChannel: BroadcastChannel | null = null;
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  const SAVE_DEBOUNCE_MS = 300;
 
   // Queue counts memo
   const queueCounts = createMemo(() => SRS.getQueueCounts(queue(), store.flashcards));
@@ -254,8 +260,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Ensure store has all required fields and handle migrations
   function ensureStoreFields(partial: any): FlashcardStore {
-    const today = SRS.getTodayDateString();
-    const meta = { ...SRS.getDefaultMeta(), ...partial.meta };
+    const hour = newDayHour();
+    const today = SRS.getTodayDateString(hour);
+    const meta = { ...SRS.getDefaultMeta(hour), ...partial.meta };
 
     // Reset new cards count and reviews count if it's a new day
     if (meta.newCardsDate !== today) {
@@ -322,8 +329,16 @@ export const FlashcardProvider: ParentComponent = (props) => {
     };
   }
 
-  // Save flashcards
+  // Save flashcards (debounced to avoid lag during rapid review)
   const saveFlashcards = () => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveFlashcardsImmediate();
+    }, SAVE_DEBOUNCE_MS);
+  };
+
+  // Immediate save (used by debounced save and cleanup)
+  const saveFlashcardsImmediate = () => {
     let serializedStore: FlashcardStore;
     try {
       serializedStore = JSON.parse(JSON.stringify(store));
@@ -389,9 +404,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const entry = stack[stack.length - 1];
     setUndoStack((prev) => prev.slice(0, -1));
 
-    setStore(reconcile(entry.state));
-    refreshQueue();
-    saveFlashcards();
+    if (entry.state) {
+      setStore(reconcile(entry.state));
+    }
 
     if (entry.restore) {
       const result = entry.restore();
@@ -399,6 +414,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
         (result as Promise<void>).catch(console.error);
       }
     }
+
+    refreshQueue();
+    saveFlashcards();
   };
 
   const canUndo = () => undoStack().length > 0;
@@ -596,7 +614,32 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const card = getCurrentCard();
     if (!card) return;
 
-    pushUndoState({ type: 'answer' });
+    // Lightweight undo: snapshot only the affected card and meta (avoids expensive full store clone)
+    const cardSnapshot: Flashcard = { ...card, content: { ...card.content } };
+    const metaSnapshot = { ...store.meta };
+    const undoToday = SRS.getTodayDateString(newDayHour());
+    const dailyStatSnapshot = store.dailyStats[undoToday]
+      ? { ...store.dailyStats[undoToday] }
+      : null;
+
+    setUndoStack((prev) => {
+      const newStack = [...prev, {
+        type: 'answer',
+        restore: () => {
+          setStore(produce((s) => {
+            s.flashcards[card.id] = cardSnapshot;
+            Object.assign(s.meta, metaSnapshot);
+            if (dailyStatSnapshot) {
+              s.dailyStats[undoToday] = dailyStatSnapshot;
+            } else {
+              delete s.dailyStats[undoToday];
+            }
+          }));
+        },
+      }];
+      if (newStack.length > MAX_UNDO_STACK_SIZE) newStack.shift();
+      return newStack;
+    });
 
     const wasNew = card.state === 'new';
     const wasReview = card.state === 'review';
@@ -616,7 +659,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }
 
       // Update daily stats
-      const today = SRS.getTodayDateString();
+      const today = SRS.getTodayDateString(newDayHour());
       if (!s.dailyStats[today]) {
         s.dailyStats[today] = {
           date: today,
@@ -818,7 +861,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Handle new day event
   const handleNewDay = () => {
-    const today = SRS.getTodayDateString();
+    const today = SRS.getTodayDateString(newDayHour());
     setStore(produce((s) => {
       // Unbury all cards
       s.flashcards = SRS.unburyCards(s.flashcards);
@@ -868,6 +911,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
   });
 
   onCleanup(() => {
+    // Flush any pending save before cleanup
+    if (saveTimer) {
+      clearTimeout(saveTimer);
+      saveFlashcardsImmediate();
+    }
     broadcastChannel?.close();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
   });

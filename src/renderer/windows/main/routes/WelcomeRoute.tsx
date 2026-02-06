@@ -79,7 +79,7 @@ export const WelcomeRoute: Component = () => {
   return (
     <div class="welcome-container">
       <WindowDragRegion />
-      
+
       {/* Header */}
       <header class="welcome-header">
         <div class="welcome-logo">

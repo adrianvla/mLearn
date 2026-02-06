@@ -3,13 +3,15 @@
  * Provides nested context providers for all windows (Russian Doll pattern)
  */
 
-import { ParentComponent, onMount, onCleanup } from 'solid-js';
-import { SettingsProvider } from './SettingsContext';
+import { ParentComponent, Component, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
+import { SettingsProvider, useSettings } from './SettingsContext';
+import './WindowWrapper.css';
 import { LanguageProvider } from './LanguageContext';
 import { FlashcardProvider } from './FlashcardContext';
 import { ServerProvider } from './ServerContext';
 import { LocalizationProvider } from './LocalizationContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
+import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
 import { setMigrationListenerReady } from './migrationSignals';
 
@@ -65,20 +67,51 @@ const MigrationHandler: ParentComponent = (props) => {
 };
 
 /**
+ * Loading screen shown during initial window load.
+ * Prevents light theme flash before settings/theme are applied.
+ * Uses pure CSS spinner to avoid component dependencies.
+ */
+const WindowLoadingScreen: Component = () => {
+  const { isLoading } = useSettings();
+  const [visible, setVisible] = createSignal(true);
+  const [fadeOut, setFadeOut] = createSignal(false);
+
+  createEffect(() => {
+    if (!isLoading()) {
+      setFadeOut(true);
+      const timer = setTimeout(() => setVisible(false), 300);
+      onCleanup(() => clearTimeout(timer));
+    }
+  });
+
+  return (
+    <Show when={visible()}>
+      <div class={`window-loading-overlay ${fadeOut() ? 'fade-out' : ''}`}>
+        <div class="window-loading-spinner" />
+      </div>
+    </Show>
+  );
+};
+
+/**
  * WindowWrapper wraps all window entry points with necessary providers
  * This ensures consistent context availability across all windows
  * 
  * IMPORTANT: MigrationHandler is placed BEFORE FlashcardProvider so that
  * the migration event listener is registered before flashcards are loaded
  */
-export const WindowWrapper: ParentComponent = (props) => {
+export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean }> = (props) => {
   return (
     <ServerProvider>
       <LocalizationProvider>
         <SettingsProvider>
+          <WindowLoadingScreen />
           <LanguageProvider>
             <MigrationHandler>
               <FlashcardProvider>
+                <Show when={props.showDragRegion !== false}>
+                  <WindowDragRegion />
+                </Show>
                 {props.children}
               </FlashcardProvider>
               <ToastContainer />

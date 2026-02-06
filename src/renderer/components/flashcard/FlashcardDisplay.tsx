@@ -1,22 +1,21 @@
 /**
- * Flashcard Component
- * Single flashcard with flip animation
- * Supports new UUID-keyed flashcard format
+ * Flashcard Display Component
+ * Single flashcard with optional 3D flip animation.
+ * Supports new UUID-keyed flashcard format.
+ *
+ * Key design decisions:
+ * - Both faces are rendered in normal flow; the hidden face collapses via CSS.
+ * - When flip animation is enabled, CSS perspective + rotateY is used.
+ * - The container always sizes to the visible face so buttons below move correctly.
+ * - Content is fully reactive via memos (no innerHTML refs that go stale).
  */
 
-import { Component, JSX, Show, createMemo, createEffect } from 'solid-js';
+import { Component, JSX, Show, createMemo, createSignal, createEffect, on } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
 import { Panel, PillLabel } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
-import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
+import { FlashcardPitchAccent } from './FlashcardPitchAccent';
 import './FlashcardDisplay.css';
-
-// Check if word is all kana (no kanji) - like old app's isNotAllKana but inverted
-function isAllKana(word: string): boolean {
-  if (!word) return true;
-  // Hiragana range: \u3040-\u309F, Katakana range: \u30A0-\u30FF
-  return /^[\u3040-\u309F\u30A0-\u30FF\u30FC\u30FBー・]+$/.test(word);
-}
 
 export interface FlashcardDisplayProps {
   flashcard: Flashcard;
@@ -30,133 +29,49 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const { getLevelName } = useLanguage();
   const { t } = useLocalization();
 
-  // Refs for elements that need innerHTML updates (innerHTML doesn't update reactively in SolidJS)
-  let translationRef: HTMLDivElement | undefined;
-  let exampleRef: HTMLDivElement | undefined;
-  let pitchAccentRef: HTMLDivElement | undefined;
+  // Track whether we should animate the current flip or instant-switch
+  const [shouldAnimate, setShouldAnimate] = createSignal(false);
+  let prevCardId: string | undefined;
 
-  // Access content through the nested structure (new format)
   const content = () => props.flashcard.content;
-
-  // Get display word (front of card)
   const displayWord = () => content().front;
-
-  // Get reading/pronunciation
   const pronunciation = () => content().reading || content().front;
-
-  // Get meaning (back of card)
   const meaning = () => content().back;
-
-  // isFlipped is driven by props.showAnswer
   const isFlipped = createMemo(() => props.showAnswer ?? false);
 
-  // Check if word needs furigana (contains kanji)
-  const needsFurigana = createMemo(() => {
-    const word = displayWord();
-    const reading = pronunciation();
-    if (!word || !reading) return false;
-    return !isAllKana(word) && word !== reading;
-  });
+  // When the flashcard id changes (answered/reviewed), disable animation for instant switch
+  createEffect(on(
+    () => props.flashcard.id,
+    (id) => {
+      if (prevCardId !== undefined && prevCardId !== id) {
+        setShouldAnimate(false);
+      }
+      prevCardId = id;
+    }
+  ));
 
-  // Compute pitch accent HTML if available
-  const pitchAccentHtml = createMemo(() => {
-    const c = content();
-    if (c.pitchAccent === undefined || c.pitchAccent === null) return null;
-    const reading = pronunciation();
-    if (!reading) return null;
-    if (settings.language !== 'ja' || !settings.showPitchAccent) return null;
+  // When flip state changes on the same card, trigger animation if the setting is enabled
+  createEffect(on(
+    () => props.showAnswer,
+    () => {
+      if (settings.flashcardFlipAnimation) {
+        setShouldAnimate(true);
+      }
+    },
+    { defer: true }
+  ));
 
-    const info = getPitchAccentInfo(c.pitchAccent, reading);
-    if (!info) return null;
-
-    // Don't include particle box for verbs (like old app)
-    const isVerb = c.pos === '動詞';
-    return buildPitchAccentHtml(info, displayWord().length, {
-      includeParticleBox: !isVerb,
-    });
-  });
-
-  // Get level info from langdata (not hardcoded!)
   const levelInfo = createMemo(() => {
     const level = content().level;
     if (level === undefined || level === null || level < 0) return null;
     return { level, name: getLevelName(level) };
   });
 
-  // Reactive effect to update innerHTML elements when content changes
-  // This fixes the stale data bug where innerHTML doesn't update reactively
-  createEffect(() => {
-    const m = meaning();
-    if (translationRef) {
-      translationRef.innerHTML = m || '';
-    }
-  });
-
-  createEffect(() => {
-    const ex = content().example;
-    if (exampleRef) {
-      exampleRef.innerHTML = ex && ex !== '-' ? ex : '';
-    }
-  });
-
-  createEffect(() => {
-    const html = pitchAccentHtml();
-    if (pitchAccentRef) {
-      pitchAccentRef.innerHTML = html || '';
-    }
-  });
-
   const handleFlip = () => {
     props.onFlip?.();
   };
 
-  // Render pitch accent display based on whether word has kanji
-  const PitchAccentDisplay = () => {
-    const html = pitchAccentHtml();
-    const word = displayWord();
-    const reading = pronunciation();
-
-    if (!html) {
-      // No pitch accent - show plain word with optional reading
-      return (
-        <div class="flashcard-word-title">
-          {word}
-          <Show when={reading && reading !== word}>
-            <span class="flashcard-word-reading">
-              ({reading})
-            </span>
-          </Show>
-        </div>
-      );
-    }
-
-    if (needsFurigana()) {
-      // Word has kanji - use ruby with pitch accent in rt
-      return (
-        <div class="flashcard-pitch-container" style={{"--pitch-accent-height": "2px"}}>
-          <ruby>
-            {word}
-            <rt>
-              <span class="flashcard-rt-content">
-                {reading}
-                <div class="mLearn-pitch-accent" ref={pitchAccentRef} />
-              </span>
-            </rt>
-          </ruby>
-        </div>
-      );
-    } else {
-      // Kana-only word - pitch accent overlays the word itself
-      return (
-        <div class="flashcard-pitch-kana" style={{"--pitch-accent-height": "5px"}}>
-          <span class="flashcard-kana-content">
-            {word}
-            <div class="mLearn-pitch-accent" ref={pitchAccentRef} />
-          </span>
-        </div>
-      );
-    }
-  };
+  const useAnimation = () => settings.flashcardFlipAnimation && shouldAnimate();
 
   return (
     <div
@@ -164,36 +79,34 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
       style={props.style}
       onClick={handleFlip}
     >
-      <div class={`flashcard-card ${isFlipped() ? 'flipped' : ''}`}>
-        {/* Front */}
+      <div
+        class="flashcard-card"
+        classList={{
+          'flipped': isFlipped(),
+          'flashcard-card--animated': useAnimation(),
+        }}
+      >
+        {/* Front face */}
         <Panel
-          variant="elevated"
+          variant="default"
           rounded="xl"
           class="flashcard-face flashcard-front"
+          classList={{ 'flashcard-face--hidden': isFlipped() && !useAnimation() }}
         >
-          {/* Level pill - using PillLabel like WordHover, positioned upper left */}
           <Show when={levelInfo()}>
             {(info) => (
-              <PillLabel 
-                level={info().level} 
-                class="flashcard-level-pill"
-              >
+              <PillLabel level={info().level} class="flashcard-level-pill">
                 {info().name}
               </PillLabel>
             )}
           </Show>
 
-          <div class="flashcard-word">
-            {displayWord()}
-          </div>
+          <div class="flashcard-word">{displayWord()}</div>
 
           <Show when={pronunciation() && pronunciation() !== displayWord()}>
-            <div class="flashcard-pronunciation">
-              {pronunciation()}
-            </div>
+            <div class="flashcard-pronunciation">{pronunciation()}</div>
           </Show>
 
-          {/* Screenshot/image - ALWAYS shown, even before reveal (like old app) */}
           <Show when={content().imageUrl && content().imageUrl !== '-' && content().imageUrl !== ''}>
             <div class="flashcard-screenshot-container flashcard-screenshot-front">
               <img
@@ -205,7 +118,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           </Show>
 
           <Show when={content().example && content().example !== '-'}>
-            <div class="flashcard-example" ref={exampleRef} />
+            <div class="flashcard-example" innerHTML={content().example} />
           </Show>
 
           <div class="flashcard-hint">
@@ -213,34 +126,35 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           </div>
         </Panel>
 
-        {/* Back */}
+        {/* Back face */}
         <Panel
-          variant="elevated"
+          variant="default"
           rounded="xl"
           class="flashcard-face flashcard-back"
+          classList={{ 'flashcard-face--hidden': !isFlipped() && !useAnimation() }}
         >
-          {/* Word with pitch accent */}
+          <Show when={levelInfo()}>
+            {(info) => (
+              <PillLabel level={info().level} class="flashcard-level-pill">
+                {info().name}
+              </PillLabel>
+            )}
+          </Show>
+
           <div class="flashcard-word-header">
-            <PitchAccentDisplay />
+            <FlashcardPitchAccent content={content()} />
           </div>
 
-          {/* Meaning (answer) - using ref for reactive innerHTML updates */}
-          <div class="flashcard-translation" ref={translationRef} />
+          <div class="flashcard-translation" innerHTML={meaning()} />
 
           <Show when={content().exampleMeaning}>
-            <div class="flashcard-example-meaning">
-              {content().exampleMeaning}
-            </div>
+            <div class="flashcard-example-meaning">{content().exampleMeaning}</div>
           </Show>
 
-          {/* Context where word was found */}
           <Show when={content().context}>
-            <div class="flashcard-context">
-              {content().context}
-            </div>
+            <div class="flashcard-context">{content().context}</div>
           </Show>
 
-          {/* Screenshot/image - also on back for reference */}
           <Show when={content().imageUrl && content().imageUrl !== '-' && content().imageUrl !== ''}>
             <div class="flashcard-screenshot-container">
               <img

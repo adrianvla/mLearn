@@ -4,6 +4,7 @@
  */
 
 import { Component, JSX, For, Show, splitProps, mergeProps } from 'solid-js';
+import { Badge } from '../Label';
 import './TabContainer.css';
 
 export interface TabItem {
@@ -74,7 +75,7 @@ export const TabContainer: Component<TabContainerProps> = (props) => {
               </Show>
               <span class="tab-label">{tab.label}</span>
               <Show when={tab.badge !== undefined}>
-                <span class="tab-badge">{tab.badge}</span>
+                <Badge class="tab-badge">{tab.badge}</Badge>
               </Show>
             </button>
           )}

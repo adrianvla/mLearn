@@ -108,12 +108,14 @@
 }
 
 .btn-glass.btn-danger {
-  background: rgba(231, 76, 60, 0.3);
+  background: rgba(231, 76, 60, 0.25);
+  color:var(--color-danger);
   border-color: rgba(231, 76, 60, 0.4);
 }
 
 .btn-glass.btn-danger:hover:not(:disabled) {
   background: rgba(231, 76, 60, 0.4);
+  border-color: rgba(231, 76, 60, 0.5);
 }
 
 .btn-glass.btn-success {

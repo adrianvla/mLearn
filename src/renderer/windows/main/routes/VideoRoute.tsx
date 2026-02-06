@@ -251,7 +251,7 @@ export const VideoRoute: Component = () => {
       onDragLeave={handleDragLeave}
     >
       <WindowDragRegion />
-      
+
       {/* Back button */}
       <NavBtn class="back-button" onClick={goHome} title={t('mlearn.Video.Tooltip.GoHome')}>
         {t('mlearn.Video.UI.GoHome')}

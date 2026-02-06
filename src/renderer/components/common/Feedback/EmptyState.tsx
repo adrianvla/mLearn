@@ -74,7 +74,7 @@ export const EmptyState: Component<EmptyStateProps> = (props) => {
   if (props.variant === 'card') {
     return (
       <Panel
-        variant="elevated"
+        variant="default"
         rounded="xl"
         padding="xl"
         style={{ 'max-width': '400px', margin: '0 auto' }}
