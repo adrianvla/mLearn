@@ -24,22 +24,36 @@ const EASE_BONUS = 1.3; // Bonus for Easy button
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
 
 /**
- * Get today's date string in YYYY-MM-DD format
+ * Get the effective date after applying the new day hour offset.
+ * If current time is before newDayHour, the SRS day is still "yesterday".
+ * @param date The date to offset
+ * @param newDayHour Hour (0-23) at which the new SRS day begins (default 4 = 4:00 AM)
  */
-export function getTodayDateString(): string {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+function getEffectiveDate(date: Date, newDayHour: number = 4): Date {
+    const offset = new Date(date.getTime() - newDayHour * 60 * 60 * 1000);
+    return offset;
 }
 
 /**
- * Check if a timestamp is from today
+ * Get today's date string in YYYY-MM-DD format, respecting newDayHour.
+ * Before newDayHour, it's still considered the previous day.
+ * @param newDayHour Hour (0-23) at which the new SRS day begins (default 4 = 4:00 AM)
  */
-export function isToday(timestamp: number): boolean {
-    const today = new Date();
-    const date = new Date(timestamp);
-    return today.getFullYear() === date.getFullYear() &&
-        today.getMonth() === date.getMonth() &&
-        today.getDate() === date.getDate();
+export function getTodayDateString(newDayHour: number = 4): string {
+    const effective = getEffectiveDate(new Date(), newDayHour);
+    return `${effective.getFullYear()}-${String(effective.getMonth() + 1).padStart(2, '0')}-${String(effective.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Check if a timestamp is from today, respecting newDayHour.
+ * @param newDayHour Hour (0-23) at which the new SRS day begins (default 4 = 4:00 AM)
+ */
+export function isToday(timestamp: number, newDayHour: number = 4): boolean {
+    const todayEffective = getEffectiveDate(new Date(), newDayHour);
+    const dateEffective = getEffectiveDate(new Date(timestamp), newDayHour);
+    return todayEffective.getFullYear() === dateEffective.getFullYear() &&
+        todayEffective.getMonth() === dateEffective.getMonth() &&
+        todayEffective.getDate() === dateEffective.getDate();
 }
 
 /**
@@ -101,11 +115,11 @@ export function dueDateToString(dueDate: number): string {
 /**
  * Default metadata
  */
-export function getDefaultMeta(): FlashcardMeta {
+export function getDefaultMeta(newDayHour: number = 4): FlashcardMeta {
     return {
         newCardsToday: 0,
         reviewsToday: 0,
-        newCardsDate: getTodayDateString(),
+        newCardsDate: getTodayDateString(newDayHour),
         maxNewCardsPerDay: 20,
         maxNewCardsPerDayLearning: 20,
         maxReviewsPerDay: -1, // -1 = unlimited

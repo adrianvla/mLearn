@@ -1,8 +1,7 @@
 /**
  * Panel Component
  * Base container with optional glassmorphism styling
- * 
- * The glassmorphism effect is applied via the variant prop.
+ *
  * For theming, use CSS variables that get overridden by theme classes.
  */
 
@@ -96,6 +95,8 @@ export const Panel: Component<PanelProps> = (props) => {
 
     if (!local.border) {
       baseStyle['border'] = 'none';
+    }else{
+      baseStyle['border'] = '1px solid var(--border-color)';
     }
 
     if (!local.shadow) {

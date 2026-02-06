@@ -48,6 +48,25 @@ export const SRSTab: Component = () => {
       {/* Learning Limits - New Section */}
       <SettingGroup title={t('mlearn.Settings.SRS.LearningLimits.Title')}>
         <SettingRow
+          label={t('mlearn.Settings.SRS.LearningLimits.NewDayHour.Label')}
+          description={t('mlearn.Settings.SRS.LearningLimits.NewDayHour.Description')}
+        >
+          <input
+            type="number"
+            class="setting-input"
+            value={settings.newDayHour ?? 4}
+            min={0}
+            max={23}
+            onChange={(e) => {
+              const val = parseInt(e.currentTarget.value);
+              if (!isNaN(val) && val >= 0 && val <= 23) {
+                updateSettings({ newDayHour: val });
+              }
+            }}
+          />
+        </SettingRow>
+
+        <SettingRow
           label={t('mlearn.Settings.SRS.LearningLimits.MaxNewCardsLearning.Label')}
           description={t('mlearn.Settings.SRS.LearningLimits.MaxNewCardsLearning.Description')}
         >
@@ -227,6 +246,16 @@ export const SRSTab: Component = () => {
           <ToggleSwitch
             checked={settings.createUnseenCards}
             onChange={(checked) => updateSettings({ createUnseenCards: checked })}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.FlipAnimation.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.FlipAnimation.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.flashcardFlipAnimation}
+            onChange={(checked) => updateSettings({ flashcardFlipAnimation: checked })}
           />
         </SettingRow>
       </SettingGroup>

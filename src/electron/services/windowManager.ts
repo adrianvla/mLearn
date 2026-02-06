@@ -143,6 +143,10 @@ export function createChildWindow(
     return existingWindow;
   }
 
+  const platformOptions: Partial<Electron.BrowserWindowConstructorOptions> = isMac
+    ? { titleBarStyle: 'hidden' }
+    : {};
+
   const defaultOptions: Electron.BrowserWindowConstructorOptions = {
     width: 800,
     height: 600,
@@ -152,7 +156,9 @@ export function createChildWindow(
       nodeIntegration: false,
       sandbox: false,
     },
+    frame: false,
     backgroundColor: '#000000',
+    ...platformOptions,
     ...options,
   };
 

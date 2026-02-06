@@ -765,6 +765,10 @@
         "Description": "Configure flashcard and Anki settings",
         "LearningLimits": {
           "Title": "Daily Learning Limits",
+          "NewDayHour": {
+            "Label": "New Day Start Hour",
+            "Description": "Hour at which the SRS day resets (0-23). Cards reviewed before this hour count as the previous day. Default: 4 (4:00 AM)"
+          },
           "MaxNewCardsLearning": {
             "Label": "Max New Cards to Learn",
             "Description": "Maximum new cards to study per day (-1 = unlimited)"
@@ -834,6 +838,10 @@
           "CreateUnseenCards": {
             "Label": "Create Unseen Cards",
             "Description": "Auto-create cards for new exam-level words"
+          },
+          "FlipAnimation": {
+            "Label": "Card Flip Animation",
+            "Description": "Show a 3D flip animation when revealing flashcard answers"
           }
         },
         "DataManagement": {

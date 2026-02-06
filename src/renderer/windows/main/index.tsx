@@ -22,7 +22,7 @@ if (!root) {
 }
 
 const App = () => (
-  <WindowWrapper>
+  <WindowWrapper showDragRegion={false}>
     <LoadingOverlay />
     <HashRouter>
       <Route path="/" component={WelcomeRoute} />

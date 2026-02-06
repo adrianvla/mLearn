@@ -17,7 +17,7 @@
 
 .label-clickable {
   cursor: pointer;
-  transition: opacity var(--transition-fast, 0.1s ease), transform var(--transition-fast, 0.1s ease);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
   /* Prevent blur from transform */
   transform: translateZ(0);
   backface-visibility: hidden;
@@ -156,7 +156,7 @@
   height: 8px;
   padding: 0;
   border-radius: 50%;
-  background: var(--accent-primary, #4a90d9);
+  background: var(--accent-primary);
 }
 
 .label-indicator .label-content,
@@ -237,42 +237,42 @@
 
 /* Primary */
 .label-primary {
-  color: var(--color-primary, #4a90d9);
-  background-color: rgba(74, 144, 217, 0.15);
+  color: var(--color-primary);
+  background-color: color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .label-primary.label-indicator {
-  background-color: var(--color-primary, #4a90d9);
+  background-color: var(--color-primary);
 }
 
 /* Success */
 .label-success {
-  color: var(--color-success, #2ecc71);
-  background-color: rgba(46, 204, 113, 0.15);
+  color: var(--color-success);
+  background-color: color-mix(in srgb, var(--color-success) 15%, transparent);
 }
 
 .label-success.label-indicator {
-  background-color: var(--color-success, #2ecc71);
+  background-color: var(--color-success);
 }
 
 /* Warning */
 .label-warning {
-  color: var(--color-warning, #f1c40f);
-  background-color: rgba(241, 196, 15, 0.15);
+  color: var(--color-warning);
+  background-color: color-mix(in srgb, var(--color-warning) 15%, transparent);
 }
 
 .label-warning.label-indicator {
-  background-color: var(--color-warning, #f1c40f);
+  background-color: var(--color-warning);
 }
 
 /* Error */
 .label-error {
-  color: var(--color-error, #e74c3c);
-  background-color: rgba(231, 76, 60, 0.15);
+  color: var(--color-error);
+  background-color: color-mix(in srgb, var(--color-error) 15%, transparent);
 }
 
 .label-error.label-indicator {
-  background-color: var(--color-error, #e74c3c);
+  background-color: var(--color-error);
 }
 
 /* ============ Count Styling ============ */

@@ -465,7 +465,7 @@ const FlashcardsContent: Component = () => {
           </>
         }
       >
-        <div style={{ display: 'flex', 'flex-direction': 'column', gap: '1rem' }}>
+        <div class="flashcards-add-form">
           <Input
             label={t('mlearn.Flashcards.Modals.AddCard.WordLabel')}
             value={newWord()}
@@ -518,7 +518,7 @@ const FlashcardsContent: Component = () => {
 
 export const FlashcardsApp: Component = () => {
   return (
-    <WindowWrapper>
+    <WindowWrapper showDragRegion={false}>
       <FlashcardsContent />
     </WindowWrapper>
   );
