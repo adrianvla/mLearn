@@ -62,16 +62,17 @@ export const LocalizationProvider: ParentComponent = (props) => {
   const [isLoaded, setIsLoaded] = createSignal(false);
   
   let broadcastChannel: BroadcastChannel | null = null;
+  const ipcCleanups: Array<() => void> = [];
 
   // Load localization from main process
   const loadLocalization = () => {
     if (typeof window !== 'undefined' && window.mLearnIPC) {
       // Set up listener BEFORE sending request to avoid race condition
-      window.mLearnIPC.onLocalization((data) => {
+      ipcCleanups.push(window.mLearnIPC.onLocalization((data) => {
         setLocale(data.locale);
         setStrings(reconcile(data.strings as LocaleStrings));
         setIsLoaded(true);
-      });
+      }));
       window.mLearnIPC.getLocalization();
     } else {
       // In tethered mode or without IPC, use default
@@ -90,7 +91,8 @@ export const LocalizationProvider: ParentComponent = (props) => {
         console.warn(`[Localization] String not found: ${path}`);
       }
       // Return the last part of the path as fallback for better UX
-      const fallback = path.split('.').pop() || path;
+      // const fallback = path.split('.').pop() || path;
+      const fallback = path; //return the whole path
       return fallback;
     }
     
@@ -141,6 +143,8 @@ export const LocalizationProvider: ParentComponent = (props) => {
   });
 
   onCleanup(() => {
+    for (const cleanup of ipcCleanups) cleanup();
+    ipcCleanups.length = 0;
     broadcastChannel?.close();
   });
 

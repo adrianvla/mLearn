@@ -9,27 +9,27 @@ export interface MLearnIPC {
   // Settings
   getSettings: () => void;
   saveSettings: (settings: Settings) => void;
-  onSettings: (callback: (settings: Settings) => void) => void;
-  onSettingsSaved: (callback: () => void) => void;
+  onSettings: (callback: (settings: Settings) => void) => () => void;
+  onSettingsSaved: (callback: () => void) => () => void;
   
   // Flashcards
   getFlashcards: () => void;
   saveFlashcards: (flashcards: FlashcardStore) => void;
-  onFlashcards: (callback: (flashcards: FlashcardStore) => void) => void;
-  onNewDayFlashcards: (callback: () => void) => void;
-  onFlashcardConnectOpen: (callback: () => void) => void;
-  onReviewFlashcardRequest: (callback: () => void) => void;
+  onFlashcards: (callback: (flashcards: FlashcardStore) => void) => () => void;
+  onNewDayFlashcards: (callback: () => void) => () => void;
+  onFlashcardConnectOpen: (callback: () => void) => () => void;
+  onReviewFlashcardRequest: (callback: () => void) => () => void;
   
   // Language Data
   getLangData: () => void;
-  onLangData: (callback: (data: LanguageData) => void) => void;
+  onLangData: (callback: (data: LanguageData) => void) => () => void;
   installLanguage: (url: string) => void;
-  onLanguageInstalled: (callback: (lang: string) => void) => void;
-  onLanguageInstallError: (callback: (error: string) => void) => void;
+  onLanguageInstalled: (callback: (lang: string) => void) => () => void;
+  onLanguageInstallError: (callback: (error: string) => void) => () => void;
   
   // Localization
   getLocalization: () => void;
-  onLocalization: (callback: (data: { locale: string; strings: Record<string, unknown> }) => void) => void;
+  onLocalization: (callback: (data: { locale: string; strings: Record<string, unknown> }) => void) => () => void;
   changeUILanguage: (langCode: string) => void;
   
   // Window Management
@@ -44,58 +44,58 @@ export interface MLearnIPC {
   restartApp: () => void;
   forceRestartApp: () => void;
   getVersion: () => void;
-  onVersionReceive: (callback: (version: string) => void) => void;
+  onVersionReceive: (callback: (version: string) => void) => () => void;
   
   // Server/Backend Status
   isLoaded: () => void;
   isSuccess: () => void;
-  onServerLoad: (callback: (message: string) => void) => void;
-  onServerStatusUpdate: (callback: (message: string) => void) => void;
-  onServerCriticalError: (callback: (message: string) => void) => void;
-  onOcrStatusUpdate: (callback: (message: string) => void) => void;
+  onServerLoad: (callback: (message: string) => void) => () => void;
+  onServerStatusUpdate: (callback: (message: string) => void) => () => void;
+  onServerCriticalError: (callback: (message: string) => void) => () => void;
+  onOcrStatusUpdate: (callback: (message: string) => void) => () => void;
   
   // Python Installer
   startInstall: (options: InstallOptions) => void;
   requestInstallerState: () => void;
-  onPythonSuccess: (callback: (success: boolean) => void) => void;
-  onInstallStarted: (callback: (options: InstallOptions) => void) => void;
-  onInstallerAwaitingChoice: (callback: () => void) => void;
-  onInstallerNetworkError: (callback: (payload: { message: string; detail?: string }) => void) => void;
-  onInstallerState: (callback: (state: InstallerState) => void) => void;
+  onPythonSuccess: (callback: (success: boolean) => void) => () => void;
+  onInstallStarted: (callback: (options: InstallOptions) => void) => () => void;
+  onInstallerAwaitingChoice: (callback: () => void) => () => void;
+  onInstallerNetworkError: (callback: (payload: { message: string; detail?: string }) => void) => () => void;
+  onInstallerState: (callback: (state: InstallerState) => void) => () => void;
   
   // Clipboard & UI
   writeToClipboard: (text: string) => void;
   promptOutput: (text: string) => void;
-  onOpenPrompt: (callback: (data: { title: string; message: string }) => void) => void;
+  onOpenPrompt: (callback: (data: { title: string; message: string }) => void) => () => void;
   
   // Context Menu & UI Events
-  onOpenSettings: (callback: (section?: string) => void) => void;
-  onOpenAside: (callback: () => void) => void;
-  onContextMenuCommand: (callback: (command: string) => void) => void;
+  onOpenSettings: (callback: (section?: string) => void) => () => void;
+  onOpenAside: (callback: () => void) => () => void;
+  onContextMenuCommand: (callback: (command: string) => void) => () => void;
   showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean }) => void;
-  onReaderContextMenuCommand: (callback: (command: string) => void) => void;
-  onOpenWordDbEditor: (callback: () => void) => void;
-  onOpenKanjiGrid: (callback: () => void) => void;
+  onReaderContextMenuCommand: (callback: (command: string) => void) => () => void;
+  onOpenWordDbEditor: (callback: () => void) => () => void;
+  onOpenKanjiGrid: (callback: () => void) => () => void;
   
   // Watch Together
   isWatchingTogether: () => void;
   watchTogetherSend: (message: unknown) => void;
-  onWatchTogetherLaunch: (callback: (data: unknown) => void) => void;
-  onWatchTogetherRequest: (callback: (data: unknown) => void) => void;
+  onWatchTogetherLaunch: (callback: (data: unknown) => void) => () => void;
+  onWatchTogetherRequest: (callback: (data: unknown) => void) => () => void;
   
   // Pill/Word Updates (cross-window sync)
-  onUpdatePills: (callback: (data: unknown) => void) => void;
-  onUpdateWordAppearance: (callback: (data: unknown) => void) => void;
-  onUpdateAttemptFlashcardCreation: (callback: (data: unknown) => void) => void;
-  onUpdateCreateFlashcard: (callback: (data: unknown) => void) => void;
-  onUpdateLastWatched: (callback: (data: unknown) => void) => void;
+  onUpdatePills: (callback: (data: unknown) => void) => () => void;
+  onUpdateWordAppearance: (callback: (data: unknown) => void) => () => void;
+  onUpdateAttemptFlashcardCreation: (callback: (data: unknown) => void) => () => void;
+  onUpdateCreateFlashcard: (callback: (data: unknown) => void) => () => void;
+  onUpdateLastWatched: (callback: (data: unknown) => void) => () => void;
   
   // License (DRM)
   getLicenseType: () => void;
   activateLicense: (key: string) => void;
   removeLicense: () => void;
-  onLicenseGet: (callback: (type: string) => void) => void;
-  onLicenseActivated: (callback: (success: boolean) => void) => void;
+  onLicenseGet: (callback: (type: string) => void) => () => void;
+  onLicenseActivated: (callback: (success: boolean) => void) => () => void;
   
   // Local Storage Sync
   sendLS: (data: Record<string, unknown>) => void;
@@ -105,8 +105,8 @@ export interface MLearnIPC {
   getMigratedItem: (key: string) => Promise<unknown>;
   hasMigrationOccurred: () => Promise<boolean>;
   triggerMigration: () => Promise<{ success: boolean; migratedKeys: string[]; error?: string }>;
-  onLocalStorageMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null }) => void) => void;
-  onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) => void;
+  onLocalStorageMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null }) => void) => () => void;
+  onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) => () => void;
   getFlashcardMigrationInfo: () => void;
   
   // File Operations
@@ -131,7 +131,7 @@ export interface MLearnIPC {
 
   // Generic IPC Methods
   send: (channel: string, data?: unknown) => void;
-  on: (channel: string, callback: (...args: unknown[]) => void) => void;
+  on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
   removeListener: (channel: string, callback: (...args: unknown[]) => void) => void;
   
   // Window Management

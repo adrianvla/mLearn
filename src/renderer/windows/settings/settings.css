@@ -27,6 +27,7 @@
   gap: 24px;
   flex-shrink: 0;
   user-select: none;
+  -webkit-app-region: drag;
 }
 
 .settings-header .settings-title {
@@ -61,10 +62,12 @@
   font-size: var(--font-size-sm);
   white-space: nowrap;
   box-sizing: border-box;
+  -webkit-app-region: no-drag;
 }
 .settings-tab:hover {
   background: var(--accent-bg);
   color: var(--text-primary);
+  border-color: var(--border-color);
 }
 
 .settings-tab.active {
@@ -221,7 +224,7 @@
   accent-color: var(--color-primary);
 }
 
-/* Note: setting-btn classes removed in favor of unified GlassButton component */
+/* Note: setting-btn classes removed in favor of unified Button component */
 
 /* Stats Specific */
 .stats-grid {
@@ -308,7 +311,7 @@
   margin-top: 20px;
 }
 
-/* Note: .about-link class removed in favor of GlassButton with ghost variant */
+/* Note: .about-link class removed in favor of Button with ghost variant */
 
 /* Scrollbar */
 .settings-content::-webkit-scrollbar {

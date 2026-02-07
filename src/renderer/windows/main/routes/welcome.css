@@ -155,9 +155,10 @@
   padding-top: 1rem;
   color: var(--text-tertiary);
   font-size: 0.8rem;
+  margin-top:auto;
 }
 
-/* Note: footer-link class removed in favor of GlassButton with ghost variant */
+/* Note: footer-link class removed in favor of Button with ghost variant */
 
 /* Responsive */
 @media (max-width: 500px) {

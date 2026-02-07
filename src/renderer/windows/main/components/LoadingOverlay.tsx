@@ -4,7 +4,7 @@
  * Uses the standardized LoadingOverlay component from common/Modal
  */
 
-import { Component, createMemo, createSignal, onMount, Show } from 'solid-js';
+import { Component, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { useServer, useSettings, useLanguage, useLocalization } from '../../../context';
 import { LoadingOverlay as BaseLoadingOverlay, ErrorModal } from '../../../components/common/Modal';
 
@@ -70,7 +70,8 @@ export const LoadingOverlay: Component = () => {
         setCriticalError({ message: friendlyMessage, details });
       };
 
-      window.mLearnIPC.onServerCriticalError(handleCriticalError);
+      const cleanup = window.mLearnIPC.onServerCriticalError(handleCriticalError);
+      onCleanup(cleanup);
     }
   });
 

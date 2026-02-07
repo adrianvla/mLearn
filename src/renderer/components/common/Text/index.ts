@@ -3,6 +3,7 @@
  */
 
 export { PitchAccent, type PitchAccentProps } from './PitchAccent';
+export { PitchAccentOverlay, type PitchAccentOverlayProps } from './PitchAccentOverlay';
 export { RubyText, type RubyTextProps } from './RubyText';
 export { FrequencyStars, type FrequencyStarsProps } from './FrequencyStars';
 export { HintText, type HintTextProps } from './HintText';

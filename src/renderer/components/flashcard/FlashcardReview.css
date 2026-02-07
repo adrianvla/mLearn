@@ -280,7 +280,7 @@
 }
 
 /* Stats display */
-.flashcard-stats {
+.flashcard-status {
   display: flex;
   gap: 1.5rem;
   font-size: 0.875rem;
@@ -306,6 +306,7 @@
 .flashcard-stat-value {
   font-weight: 600;
   color: var(--text-primary);
+  margin-left:var(--spacing-1);
 }
 
 .flashcard-stat-new {

@@ -18,7 +18,7 @@ export interface StatCardProps {
   };
   color?: 'default' | 'primary' | 'success' | 'warning' | 'error';
   size?: 'sm' | 'md' | 'lg';
-  variant?: 'default' | 'glass' | 'minimal';
+  variant?: 'default' | 'elevated' | 'minimal';
   style?: JSX.CSSProperties;
   class?: string;
 }
@@ -85,7 +85,7 @@ export const StatCard: Component<StatCardProps> = (props) => {
     </div>
   );
 
-  if (props.variant === 'glass') {
+  if (props.variant === 'elevated') {
     return (
       <Panel variant="elevated" rounded="lg" padding="md">
         {content}

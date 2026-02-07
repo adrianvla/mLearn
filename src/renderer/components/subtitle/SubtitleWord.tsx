@@ -3,12 +3,12 @@
  * Individual word/token in a subtitle with hover and click functionality
  */
 
-import { Component, createMemo, createSignal, createEffect, Show, For } from 'solid-js';
+import { Component, createMemo, createSignal, createEffect, Show } from 'solid-js';
 import type { Token } from '../../../shared/types';
 import { containsKanji, isAllKana } from '../../../shared/utils/textUtils';
 import { useSettings, useLanguage } from '../../context';
 import { getCachedReading, getCachedTranslation } from '../../hooks/useTranslation';
-import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
+import { PitchAccentOverlay, FrequencyStars } from '../common';
 import type { JSX } from 'solid-js/jsx-runtime';
 
 export interface SubtitleWordProps {
@@ -257,78 +257,28 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return () => clearTimeout(timer);
   });
 
-  // Extract pitch accent info from cached translation
-  const pitchAccentHtml = createMemo(() => {
-    // Use language features to check if pitch accent is supported
-    const features = getLanguageFeatures();
-    if (!features.supportsPitchAccent || !settings.showPitchAccent) return '';
-    
-    const translation = cachedTranslation();
-    if (!translation?.data) return '';
-    
-    const word = displayWord();
-    const reading = effectiveReading() || word;
-    if (!reading || reading.length <= 1) return '';
-    
-    // Find pitch position from data[2]
-    // Format: data[2] = ["word", "pitch", { pitches: [{ position: N }] }] or { pitches: [...] }
-    let pitchPosition: number | null = null;
-    const pitchEntry = translation.data[2];
-    if (pitchEntry) {
-      if (Array.isArray(pitchEntry) && pitchEntry[2]?.pitches?.[0]?.position !== undefined) {
-        pitchPosition = pitchEntry[2].pitches[0].position;
-      } else if ((pitchEntry as any)?.pitches?.[0]?.position !== undefined) {
-        pitchPosition = (pitchEntry as any).pitches[0].position;
-      } else if (typeof pitchEntry === 'object') {
-        // Recursively search for pitches
-        const findPitch = (obj: any): number | null => {
-          if (!obj || typeof obj !== 'object') return null;
-          if (obj.pitches?.[0]?.position !== undefined) return obj.pitches[0].position;
-          for (const val of Object.values(obj)) {
-            if (val && typeof val === 'object') {
-              const found = findPitch(val);
-              if (found !== null) return found;
-            }
-          }
-          return null;
-        };
-        pitchPosition = findPitch(pitchEntry);
-      }
-    }
-    
-    if (pitchPosition === null) return '';
-    
-    const info = getPitchAccentInfo(pitchPosition, reading);
-    if (!info) return '';
-    
-    // Check if next token is also a verb (like old app's look_ahead_token check)
-    const pos = getPos();
-    const includeParticleBox = !(pos === '動詞' && props.lookAheadPos === '動詞');
-    
-    return buildPitchAccentHtml(info, word.length, {
-      includeParticleBox,
-    });
-  });
+  // The actual word for pitch accent lookup
+  const actualWord = () => props.token.actual_word ?? displayWord();
 
-  // Determine if word is all kana (for pitch accent positioning)
+  // Determine if word is all kana (for pitch accent sizing)
   const isWordAllKana = createMemo(() => isAllKana(displayWord()));
 
   // CSS variable for pitch accent height
-  const pitchAccentHeight = createMemo(() => {
-    if (!pitchAccentHtml()) return undefined;
+  const pitchAccentHeight = createMemo((): string | undefined => {
+    const features = getLanguageFeatures();
+    if (!features.supportsPitchAccent || !settings.showPitchAccent) return undefined;
+    // Only set if we have a cached translation with pitch data
+    const translation = cachedTranslation();
+    if (!translation?.data?.[2]) return undefined;
     return isWordAllKana() ? '5px' : '2px';
   });
 
-  // Generate stars array for frequency level display
-  // Only show when word has dictionary data (cachedTranslation exists)
-  const frequencyStars = createMemo(() => {
-    // Don't show stars unless dictionary data is available
-    if (!cachedTranslation()) return [];
-    
+  // Whether to show frequency stars
+  // Only show when word has dictionary data and a valid frequency level
+  const showFrequencyStars = createMemo(() => {
+    if (!cachedTranslation()) return false;
     const freq = wordFreqEntry();
-    if (!freq || freq.raw_level === undefined) return [];
-    const level = freq.raw_level;
-    return Array.from({ length: level }, (_, i) => i);
+    return freq !== null && freq.raw_level !== undefined && freq.raw_level > 0;
   });
 
   return (
@@ -349,35 +299,39 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       <Show
         when={showFurigana()}
         fallback={
-          <>
+          <PitchAccentOverlay
+            word={actualWord()}
+            reading={effectiveReading() || displayWord()}
+            pos={getPos()}
+            nextPos={props.lookAheadPos}
+            mode="overlay"
+            isKanaOnly={isWordAllKana()}
+          >
             {displayWord()}
-            {/* Pitch accent for all-kana words (no furigana) - appended to word */}
-            <Show when={pitchAccentHtml() && isWordAllKana()}>
-              <div class="mLearn-pitch-accent" innerHTML={pitchAccentHtml()} />
-            </Show>
-          </>
+          </PitchAccentOverlay>
         }
       >
         <ruby>
           {displayWord()}
           <rp>(</rp>
           <rt style={{ 'font-size': '0.5em', position: 'relative' }}>
-            {getFuriganaReading()}
-            {/* Pitch accent inside furigana for kanji words */}
-            <Show when={pitchAccentHtml()}>
-              <div class="mLearn-pitch-accent" innerHTML={pitchAccentHtml()} />
-            </Show>
+            <PitchAccentOverlay
+              word={actualWord()}
+              reading={effectiveReading() || displayWord()}
+              pos={getPos()}
+              nextPos={props.lookAheadPos}
+              mode="overlay"
+              isKanaOnly={false}
+            >
+              {getFuriganaReading()}
+            </PitchAccentOverlay>
           </rt>
           <rp>)</rp>
         </ruby>
       </Show>
-      {/* Frequency stars (like old app's addFrequencyStars) */}
-      <Show when={frequencyStars().length > 0}>
-        <span class="frequency" data-level={wordFreqEntry()?.raw_level}>
-          <For each={frequencyStars()}>
-            {() => <span class="star" />}
-          </For>
-        </span>
+      {/* Frequency stars */}
+      <Show when={showFrequencyStars()}>
+        <FrequencyStars level={wordFreqEntry()!.raw_level} maxStars={wordFreqEntry()!.raw_level} />
       </Show>
     </span>
   );

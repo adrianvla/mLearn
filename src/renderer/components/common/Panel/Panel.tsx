@@ -1,6 +1,6 @@
 /**
  * Panel Component
- * Base container with optional glassmorphism styling
+ * Base container with optional themed styling
  *
  * For theming, use CSS variables that get overridden by theme classes.
  */

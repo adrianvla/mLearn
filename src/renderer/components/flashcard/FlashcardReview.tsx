@@ -6,7 +6,7 @@
 import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect } from 'solid-js';
 import { useFlashcards, useLocalization } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
-import { Button, Badge, Panel, ProgressBar, Label } from '../common';
+import { Button, Badge, Panel, ProgressBar } from '../common';
 import type { Flashcard } from '../../../shared/types';
 import type { Rating } from '../../services/srsAlgorithm';
 import './FlashcardReview.css';
@@ -252,7 +252,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
         {/* Header with stats */}
         <div class="flashcard-review-header">
-          <div class="flashcard-stats">
+          <div class="flashcard-status">
             <Badge class="flashcard-stat flashcard-stat--new">
               <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.New')}</span>
               <span class="flashcard-stat-value">{counts().new}</span>
@@ -272,7 +272,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             <Show when={!isComplete() && currentCard()}>
               <div class="flashcard-action-buttons">
                 <Button
-                    buttonType="glass"
+                    buttonType="default"
                     variant="ghost"
                     size="sm"
                     class="flashcard-action-btn flashcard-action-btn--bury"
@@ -282,7 +282,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   <span class="flashcard-action-label">{t('mlearn.Flashcards.Review.Bury')}</span>
                 </Button>
                 <Button
-                    buttonType="glass"
+                    buttonType="default"
                     variant="danger"
                     size="sm"
                     class="flashcard-action-btn flashcard-action-btn--remove"
@@ -294,7 +294,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               </div>
             </Show>
             <Show when={canUndo()}>
-              <Button buttonType="glass" variant="ghost" size="sm" onClick={() => { undoLastAction(); setCardsAnswered(prev => Math.max(0, prev - 1)); }} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
+              <Button buttonType="default" variant="ghost" size="sm" onClick={() => { undoLastAction(); setCardsAnswered(prev => Math.max(0, prev - 1)); }} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
                 {t('mlearn.Flashcards.Review.Undo')}
               </Button>
             </Show>
@@ -306,7 +306,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             when={!isComplete() && currentCard()}
             fallback={
               <Panel
-                  variant="elevated"
+                  variant="default"
                   rounded="xl"
                   class="flashcard-completion"
               >
@@ -318,12 +318,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 </p>
                 <div class="flashcard-completion-actions">
                   <Show when={Object.keys(store.flashcards).length > 0}>
-                    <Button buttonType="glass" variant="primary" onClick={handleStartOver}>
+                    <Button buttonType="default" variant="primary" onClick={handleStartOver}>
                       {t('mlearn.Flashcards.Review.ReviewMore')}
                     </Button>
                   </Show>
                   <Show when={props.onClose}>
-                    <Button buttonType="glass" onClick={props.onClose}>
+                    <Button buttonType="default" onClick={props.onClose}>
                       {t('mlearn.Global.Close')}
                     </Button>
                   </Show>
@@ -358,7 +358,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         <div class="flashcard-buttons-container">
           {/* Show answer button */}
           <Show when={!isComplete() && currentCard() && !showAnswer()}>
-            <Button buttonType="glass" variant="primary" size="lg" class="flashcard-show-answer-btn" onClick={handleFlip}>
+            <Button buttonType="default" variant="primary" size="lg" class="flashcard-show-answer-btn" onClick={handleFlip}>
               {t('mlearn.Flashcards.Review.ShowAnswer')}
             </Button>
           </Show>
@@ -369,7 +369,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               <For each={ratingButtons()}>
                 {(btn) => (
                     <Button
-                        buttonType="glass"
+                        buttonType="default"
                         class={`flashcard-rating-btn ${btn.className}`}
                         onClick={() => handleRating(btn.quality)}
                         title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: btn.key })}

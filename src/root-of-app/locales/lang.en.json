@@ -259,7 +259,7 @@
         "Review": "Review"
       },
       "Browse": {
-        "NoWordsFound": "No words found. Click 'Load All' to load your word database.",
+        "NoWordsFound": "No matching cards found.",
         "SearchPlaceholder": "Search words...",
         "AllLevels": "All Levels",
         "ShowingCount": "Showing {count} of {total} words"
@@ -279,7 +279,23 @@
         "LearningLimits": "Daily Limits",
         "MaxNewCardsPerDay": "Max New Cards",
         "MaxReviewsPerDay": "Max Reviews",
-        "LimitHint": "Set to -1 for unlimited"
+        "LimitHint": "Set to -1 for unlimited",
+        "Advanced": {
+          "RetentionRate": "Retention Rate",
+          "Last30Days": "Last 30 days",
+          "AverageEase": "Average Ease",
+          "AvgTimePerDay": "Avg. Time / Day",
+          "DaysStudied": "Days Studied",
+          "DailyActivity": "Daily Activity",
+          "TotalReviews": "Reviews",
+          "TotalNewLearned": "New Learned",
+          "TotalLapses": "Lapses",
+          "EaseDistribution": "Ease Distribution",
+          "IntervalDistribution": "Interval Distribution",
+          "CardMaturity": "Card Maturity",
+          "Young": "Young",
+          "Mature": "Mature"
+        }
       },
       "Modals": {
         "DeleteCard": {
@@ -327,7 +343,8 @@
         "LearningCard": "Learning Card",
         "RelearningCard": "Relearning Card",
         "ReviewCard": "Review Card",
-        "PressKeyTooltip": "Press {key}"
+        "PressKeyTooltip": "Press {key}",
+        "Review": "Review:"
       },
       "Sync": {
         "Title": "Sync Flashcards",

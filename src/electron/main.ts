@@ -14,7 +14,7 @@ import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageM
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 
-// Initialize IPC handlers
+// Initialize IPC handlers (called once)
 function setupBaseIPC(): void {
   ipcMain.on(IPC_CHANNELS.WRITE_TO_CLIPBOARD, (_event, text: string) => {
     clipboard.writeText(text);
@@ -25,9 +25,14 @@ function setupBaseIPC(): void {
   });
 }
 
-// Main initialization
-async function initialize(): Promise<void> {
-  // Setup all IPC handlers
+// Track whether IPC handlers have been registered
+let ipcInitialized = false;
+
+// Register all IPC handlers (only once)
+function setupAllIPC(): void {
+  if (ipcInitialized) return;
+  ipcInitialized = true;
+
   setupBaseIPC();
   setupSettingsIPC();
   setupLocalizationIPC();
@@ -37,11 +42,10 @@ async function initialize(): Promise<void> {
   setupFileOperationsIPC();
   setupMigrationIPC();
   setupKillHandlers();
+}
 
-  // Perform localStorage migration before creating windows
-  // This migrates data from the old app's file:// localStorage to file-based storage
-  await migrateLocalStorage();
-
+// Create windows and start services
+async function createAppWindows(): Promise<void> {
   // Start Python backend
   const pythonFound = await findPython();
   
@@ -57,6 +61,19 @@ async function initialize(): Promise<void> {
   startWebServer();
 }
 
+// Main initialization
+async function initialize(): Promise<void> {
+  // Setup all IPC handlers once
+  setupAllIPC();
+
+  // Perform localStorage migration before creating windows
+  // This migrates data from the old app's file:// localStorage to file-based storage
+  await migrateLocalStorage();
+
+  // Create windows and start services
+  await createAppWindows();
+}
+
 // App lifecycle
 app.whenReady().then(() => {
   initialize();
@@ -65,7 +82,7 @@ app.whenReady().then(() => {
     // On macOS, recreate window when dock icon is clicked
     const { BrowserWindow } = require('electron');
     if (BrowserWindow.getAllWindows().length === 0) {
-      initialize();
+      createAppWindows();
     }
   });
 });

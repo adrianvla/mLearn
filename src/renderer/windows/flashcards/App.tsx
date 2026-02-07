@@ -7,7 +7,7 @@
 import { Component, Show, For, createSignal, createMemo } from 'solid-js';
 import { WindowWrapper, useLocalization } from '../../context';
 import { useFlashcards } from '../../context';
-import { FlashcardReview, FlashcardEditor, FlashcardSyncModal } from '../../components/flashcard';
+import { FlashcardReview, FlashcardEditor, FlashcardSyncModal, FlashcardStats } from '../../components/flashcard';
 import {
   Card,
   Modal,
@@ -15,7 +15,6 @@ import {
   Btn,
   Badge,
   EmptyState,
-  StatCard,
   SearchIcon,
   TabContainer,
 } from '../../components/common';
@@ -27,13 +26,11 @@ type TabId = 'review' | 'browse' | 'stats';
 
 const FlashcardsContent: Component = () => {
   const {
-    store,
     getAllCards,
     queueCounts,
     removeFlashcard,
     addFlashcard,
     updateFlashcardContent,
-    updateMeta,
     intervalToString
   } = useFlashcards();
   const { t } = useLocalization();
@@ -73,20 +70,6 @@ const FlashcardsContent: Component = () => {
 
   // Queue counts for UI
   const counts = createMemo(() => queueCounts());
-
-  // Compute stats
-  const stats = createMemo(() => {
-    const cards = flashcards();
-    const now = Date.now();
-    return {
-      total: cards.length,
-      new: cards.filter(c => c.state === 'new').length,
-      learning: cards.filter(c => c.state === 'learning' || c.state === 'relearning').length,
-      review: cards.filter(c => c.state === 'review' && c.dueDate <= now).length,
-      mature: cards.filter(c => c.state === 'review' && c.interval > 21 * 24 * 60 * 60 * 1000).length,
-      suspended: cards.filter(c => c.suspended).length,
-    };
-  });
 
   const handleDeleteCard = async () => {
     const cardId = selectedCard();
@@ -324,115 +307,7 @@ const FlashcardsContent: Component = () => {
 
           {/* Stats Tab */}
           <Show when={activeTab() === 'stats'}>
-            <div class="flashcards-stats">
-              <div class="flashcards-stats-grid">
-                <Card>
-                  <StatCard
-                    label={t('mlearn.Flashcards.Statistics.TotalCards')}
-                    value={stats().total}
-                    icon="📚"
-                    color="primary"
-                    size="lg"
-                  />
-                </Card>
-                <Card>
-                  <StatCard
-                    label={t('mlearn.Flashcards.Statistics.DueToday')}
-                    value={counts().total}
-                    icon="📅"
-                    color="warning"
-                    size="lg"
-                  />
-                </Card>
-                <Card>
-                  <StatCard
-                    label={t('mlearn.Flashcards.Statistics.Mature')}
-                    value={stats().mature}
-                    icon="⭐"
-                    color="success"
-                    size="lg"
-                  />
-                </Card>
-              </div>
-
-              <Card title={t('mlearn.Flashcards.Statistics.CardBreakdown')} class="flashcards-breakdown">
-                <div class="breakdown-rows">
-                  <div class="breakdown-row">
-                    <span>{t('mlearn.Flashcards.Statistics.New')}</span>
-                    <span>{stats().new}</span>
-                  </div>
-                  <div class="breakdown-row">
-                    <span>{t('mlearn.Flashcards.Statistics.Learning')}</span>
-                    <span>{stats().learning}</span>
-                  </div>
-                  <div class="breakdown-row">
-                    <span>{t('mlearn.Flashcards.Statistics.Review')}</span>
-                    <span>{stats().review}</span>
-                  </div>
-                  <div class="breakdown-row">
-                    <span>{t('mlearn.Flashcards.Statistics.Suspended')}</span>
-                    <span>{stats().suspended}</span>
-                  </div>
-                </div>
-              </Card>
-
-              {/* New cards limit info */}
-              <Card title={t('mlearn.Flashcards.Statistics.TodayProgress')} class="flashcards-today">
-                <div class="breakdown-rows">
-                  <div class="breakdown-row">
-                    <span>{t('mlearn.Flashcards.Statistics.NewCardsStudied')}</span>
-                    <span>
-                      {store.meta.newCardsToday} / {store.meta.maxNewCardsPerDayLearning === -1 ? '∞' : store.meta.maxNewCardsPerDayLearning}
-                    </span>
-                  </div>
-                  <div class="breakdown-row">
-                    <span>{t('mlearn.Flashcards.Statistics.ReviewsCompleted')}</span>
-                    <span>
-                      {store.meta.reviewsToday} / {store.meta.maxReviewsPerDay === -1 ? '∞' : store.meta.maxReviewsPerDay}
-                    </span>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Quick Learning Limits Settings */}
-              <Card title={t('mlearn.Flashcards.Statistics.LearningLimits')} class="flashcards-limits">
-                <div class="breakdown-rows">
-                  <div class="breakdown-row">
-                    <span>{t('mlearn.Flashcards.Statistics.MaxNewCardsPerDay')}</span>
-                    <input
-                      type="number"
-                      class="flashcards-limit-input"
-                      value={store.meta.maxNewCardsPerDayLearning}
-                      min={-1}
-                      max={1000}
-                      onChange={(e) => {
-                        const val = parseInt(e.currentTarget.value);
-                        if (!isNaN(val) && val >= -1) {
-                          updateMeta({ maxNewCardsPerDayLearning: val });
-                        }
-                      }}
-                    />
-                  </div>
-                  <div class="breakdown-row">
-                    <span>{t('mlearn.Flashcards.Statistics.MaxReviewsPerDay')}</span>
-                    <input
-                      type="number"
-                      class="flashcards-limit-input"
-                      value={store.meta.maxReviewsPerDay}
-                      min={-1}
-                      max={10000}
-                      onChange={(e) => {
-                        const val = parseInt(e.currentTarget.value);
-                        if (!isNaN(val) && val >= -1) {
-                          updateMeta({ maxReviewsPerDay: val });
-                        }
-                      }}
-                    />
-                  </div>
-                  <p class="flashcards-limit-hint">{t('mlearn.Flashcards.Statistics.LimitHint')}</p>
-                </div>
-              </Card>
-            </div>
+            <FlashcardStats />
           </Show>
         </main>
       </div>

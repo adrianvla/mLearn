@@ -566,6 +566,9 @@ body.hide-cursor .aside{
     width: 30px;
     height: 30px;
 }
+.btn.close img{
+    filter: invert(0.5);
+}
 .aside .c{
     display: flex;
     padding-top:10px;

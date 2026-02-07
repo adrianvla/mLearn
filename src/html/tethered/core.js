@@ -138,11 +138,11 @@ function parseSubtitleName(filename) {
 
 function sendLastWatchedUpdateViaHTTP(payload){
     try{
-        const script = document.createElement('script');
         const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-        script.src = srvUrl()+`api/update-last-watched?payload=${encodeURIComponent(encoded)}`;
-        script.onload = () => script.remove();
-        document.body.appendChild(script);
+        fetch(srvUrl()+`api/update-last-watched?payload=${encodeURIComponent(encoded)}`, {
+            method: 'GET',
+            mode: 'cors',
+        }).catch(e => console.warn('HTTP fallback for last-watched failed', e));
     }catch(e){ console.warn('HTTP fallback for last-watched failed', e); }
 }
 
@@ -169,17 +169,17 @@ lS.getItem = function (key) {
 }
 function sendPill(key, value) {
     if(!window.mLearnTethered) return;
-    const script = document.createElement('script');
-    script.src = srvUrl()+`api/pills?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`;
-    script.onload = () => script.remove();
-    document.body.appendChild(script);
+    fetch(srvUrl()+`api/pills?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`, {
+        method: 'GET',
+        mode: 'cors',
+    }).catch(e => console.warn('sendPill failed', e));
 }
 function trackWordAppearance(word) {
     if(!window.mLearnTethered) return;
-    const script = document.createElement('script');
-    script.src = srvUrl()+`api/word-appearance?word=${encodeURIComponent(word)}`;
-    script.onload = () => script.remove();
-    document.body.appendChild(script);
+    fetch(srvUrl()+`api/word-appearance?word=${encodeURIComponent(word)}`, {
+        method: 'GET',
+        mode: 'cors',
+    }).catch(e => console.warn('trackWordAppearance failed', e));
 }
 function attemptFlashcardCreation(word, content) {
     if(!window.mLearnTethered) return;
@@ -194,11 +194,11 @@ function attemptFlashcardCreation(word, content) {
         // Fall back to HTTP below
         console.log("%cFailed to send attempt-flashcard-creation payload to WS, falling back to HTTP", "color:red");
     }
-    // Fallback: keep legacy HTTP path if WS isn’t available
-    const script = document.createElement('script');
-    script.src = srvUrl()+`api/attempt-flashcard-creation?word=${encodeURIComponent(word)}&content=${encodeURIComponent(JSON.stringify(content))}`;
-    script.onload = () => script.remove();
-    document.body.appendChild(script);
+    // Fallback: keep HTTP path if WS isn't available
+    fetch(srvUrl()+`api/attempt-flashcard-creation?word=${encodeURIComponent(word)}&content=${encodeURIComponent(JSON.stringify(content))}`, {
+        method: 'GET',
+        mode: 'cors',
+    }).catch(e => console.warn('attemptFlashcardCreation HTTP fallback failed', e));
 }
 
 function createNewFlashcard(content){
@@ -211,9 +211,15 @@ function createNewFlashcard(content){
             return;
         }
     } catch (e) {
-        // Fall back to HTTP below
-        console.log("%cFailed to send attempt-flashcard-creation payload to WS, falling back to HTTP", "color:red");
+        console.log("%cFailed to send create-new-flashcard payload to WS, falling back to HTTP", "color:red");
     }
+    // HTTP fallback when WebSocket is not available
+    fetch(srvUrl() + 'api/create-flashcard', {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+    }).catch(e => console.warn('createNewFlashcard HTTP fallback failed', e));
 }
 
 const applySettings = () => {
@@ -1420,11 +1426,7 @@ function watchTogetherSend(data) {
     const message = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
     // Compose the URL for the GET request
     const url = srvUrl() + 'api/watch-together?message=' + encodeURIComponent(message);
-    // Create a script element to bypass CORS
-    const script = document.createElement('script');
-    script.src = url;
-    script.onload = () => script.remove();
-    document.body.appendChild(script);
+    fetch(url, { method: 'GET', mode: 'cors' }).catch(e => console.warn('watchTogetherSend failed', e));
 }
 function calculateSubtitleOffset(){
     const video = document.querySelector("video");

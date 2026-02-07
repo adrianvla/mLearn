@@ -10,7 +10,7 @@
  * - Content is fully reactive via memos (no innerHTML refs that go stale).
  */
 
-import { Component, JSX, Show, createMemo, createSignal, createEffect, on } from 'solid-js';
+import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
 import { Panel, PillLabel } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
@@ -31,7 +31,8 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
 
   // Track whether we should animate the current flip or instant-switch
   const [shouldAnimate, setShouldAnimate] = createSignal(false);
-  let prevCardId: string | undefined;
+  // Track enter animation between cards
+  const [isEntering, setIsEntering] = createSignal(false);
 
   const content = () => props.flashcard.content;
   const displayWord = () => content().front;
@@ -39,26 +40,40 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const meaning = () => content().back;
   const isFlipped = createMemo(() => props.showAnswer ?? false);
 
-  // When the flashcard id changes (answered/reviewed), disable animation for instant switch
+  // Synchronous: determine animation mode BEFORE DOM updates.
+  // This prevents the "spinning div" artifact on first reveal (both
+  // `flipped` and `flashcard-card--animated` classes are applied in the
+  // same frame) and prevents the flip-back animation from briefly showing
+  // the next card's answer when transitioning between cards.
+  let prevCardId: string | undefined;
+  let prevShowAnswer: boolean | undefined;
+  createComputed(() => {
+    const id = props.flashcard.id;
+    const show = props.showAnswer ?? false;
+    const cardChanged = prevCardId !== undefined && prevCardId !== id;
+    const answerRevealed = prevShowAnswer !== undefined && !prevShowAnswer && show;
+
+    if (cardChanged) {
+      // Card changed — disable flip animation so the old answer
+      // doesn't briefly appear while flipping back
+      setShouldAnimate(false);
+    } else if (answerRevealed && settings.flashcardFlipAnimation) {
+      // Same card, answer being revealed — enable 3D flip
+      setShouldAnimate(true);
+    }
+
+    prevCardId = id;
+    prevShowAnswer = show;
+  });
+
+  // Trigger enter animation when the displayed card changes
   createEffect(on(
     () => props.flashcard.id,
-    (id) => {
-      if (prevCardId !== undefined && prevCardId !== id) {
-        setShouldAnimate(false);
+    (id, prevId) => {
+      if (prevId !== undefined && prevId !== id) {
+        setIsEntering(true);
       }
-      prevCardId = id;
     }
-  ));
-
-  // When flip state changes on the same card, trigger animation if the setting is enabled
-  createEffect(on(
-    () => props.showAnswer,
-    () => {
-      if (settings.flashcardFlipAnimation) {
-        setShouldAnimate(true);
-      }
-    },
-    { defer: true }
   ));
 
   const levelInfo = createMemo(() => {
@@ -84,7 +99,9 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
         classList={{
           'flipped': isFlipped(),
           'flashcard-card--animated': useAnimation(),
+          'flashcard-card--entering': isEntering(),
         }}
+        onAnimationEnd={() => setIsEntering(false)}
       >
         {/* Front face */}
         <Panel
@@ -107,6 +124,10 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             <div class="flashcard-pronunciation">{pronunciation()}</div>
           </Show>
 
+          <Show when={content().example && content().example !== '-'}>
+            <div class="flashcard-example" innerHTML={content().example} />
+          </Show>
+
           <Show when={content().imageUrl && content().imageUrl !== '-' && content().imageUrl !== ''}>
             <div class="flashcard-screenshot-container flashcard-screenshot-front">
               <img
@@ -117,9 +138,6 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             </div>
           </Show>
 
-          <Show when={content().example && content().example !== '-'}>
-            <div class="flashcard-example" innerHTML={content().example} />
-          </Show>
 
           <div class="flashcard-hint">
             {t('mlearn.Flashcards.Card.RevealHint')}

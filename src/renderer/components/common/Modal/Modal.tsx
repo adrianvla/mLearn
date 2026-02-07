@@ -1,6 +1,6 @@
 /**
  * Modal Component
- * Modal dialog with glassmorphism styling
+ * Modal dialog with themed styling
  */
 
 import { Component, JSX, Show, createEffect, onCleanup, splitProps, mergeProps } from 'solid-js';
