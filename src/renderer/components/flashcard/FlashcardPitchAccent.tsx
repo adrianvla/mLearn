@@ -1,13 +1,12 @@
 /**
  * FlashcardPitchAccent Component
  * Displays word with pitch accent overlay for flashcard back face.
+ * Uses the unified PitchAccentOverlay component.
  * Handles both kanji+furigana and kana-only words.
- * The pitch accent lines never wrap independently of the text.
  */
 
 import { Component, Show, createMemo } from 'solid-js';
-import { useSettings, useLanguage } from '../../context';
-import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
+import { PitchAccentOverlay } from '../common';
 import type { FlashcardContent } from '../../../shared/types';
 import './FlashcardPitchAccent.css';
 
@@ -22,9 +21,6 @@ export interface FlashcardPitchAccentProps {
 }
 
 export const FlashcardPitchAccent: Component<FlashcardPitchAccentProps> = (props) => {
-  const { settings } = useSettings();
-  const { getLanguageFeatures } = useLanguage();
-
   const word = () => props.content.front;
   const reading = () => props.content.reading || props.content.front;
 
@@ -35,27 +31,11 @@ export const FlashcardPitchAccent: Component<FlashcardPitchAccentProps> = (props
     return !isAllKana(w) && w !== r;
   });
 
-  const pitchAccentHtml = createMemo(() => {
-    const c = props.content;
-    if (c.pitchAccent === undefined || c.pitchAccent === null) return null;
-    const r = reading();
-    if (!r) return null;
-
-    const features = getLanguageFeatures();
-    if (!features.supportsPitchAccent || !settings.showPitchAccent) return null;
-
-    const info = getPitchAccentInfo(c.pitchAccent, r);
-    if (!info) return null;
-
-    const isVerb = c.pos === '動詞';
-    return buildPitchAccentHtml(info, word().length, {
-      includeParticleBox: !isVerb,
-    });
-  });
+  const isVerb = createMemo(() => props.content.pos === '動詞');
 
   return (
     <div class="fc-pitch">
-      <Show when={pitchAccentHtml()} fallback={
+      <Show when={props.content.pitchAccent !== undefined && props.content.pitchAccent !== null} fallback={
         <div class="fc-pitch-plain">
           <span class="fc-pitch-word">{word()}</span>
           <Show when={reading() && reading() !== word()}>
@@ -67,8 +47,17 @@ export const FlashcardPitchAccent: Component<FlashcardPitchAccentProps> = (props
           /* Kana-only word: pitch accent overlays the word text directly */
           <span class="fc-pitch-kana">
             <span class="fc-pitch-kana-inner">
-              {word()}
-              <span class="fc-pitch-overlay fc-pitch-overlay--kana" innerHTML={pitchAccentHtml()!} />
+              <PitchAccentOverlay
+                word={word()}
+                reading={reading()}
+                pitchPosition={props.content.pitchAccent}
+                pos={props.content.pos}
+                mode="overlay"
+                isKanaOnly={true}
+                showParticleBox={!isVerb()}
+              >
+                {word()}
+              </PitchAccentOverlay>
             </span>
           </span>
         }>
@@ -77,8 +66,17 @@ export const FlashcardPitchAccent: Component<FlashcardPitchAccentProps> = (props
             {word()}
             <rt>
               <span class="fc-pitch-rt">
-                {reading()}
-                <span class="fc-pitch-overlay fc-pitch-overlay--rt" innerHTML={pitchAccentHtml()!} />
+                <PitchAccentOverlay
+                  word={word()}
+                  reading={reading()}
+                  pitchPosition={props.content.pitchAccent}
+                  pos={props.content.pos}
+                  mode="overlay"
+                  isKanaOnly={false}
+                  showParticleBox={!isVerb()}
+                >
+                  {reading()}
+                </PitchAccentOverlay>
               </span>
             </rt>
           </ruby>

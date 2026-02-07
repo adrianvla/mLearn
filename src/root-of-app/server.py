@@ -265,6 +265,69 @@ _llm_dtype = None
 _LLM_EXPECTED_BYTES: int | None = None
 _LLM_EXPECTED_LOCK = threading.Lock()
 
+# LLM idle-unload: free VRAM/RAM after inactivity
+_LLM_IDLE_TIMEOUT_SECONDS = 600  # 10 minutes
+_llm_last_used: float = 0.0  # monotonic timestamp of last LLM request
+_llm_idle_timer: threading.Timer | None = None
+_llm_idle_lock = threading.Lock()
+
+
+def _llm_touch():
+    """Mark that the LLM was just used; reset the idle-unload timer."""
+    global _llm_last_used, _llm_idle_timer
+    _llm_last_used = time.monotonic()
+    with _llm_idle_lock:
+        if _llm_idle_timer is not None:
+            _llm_idle_timer.cancel()
+        _llm_idle_timer = threading.Timer(_LLM_IDLE_TIMEOUT_SECONDS, _llm_check_idle)
+        _llm_idle_timer.daemon = True
+        _llm_idle_timer.start()
+
+
+def _llm_check_idle():
+    """Called by the idle timer; unload if the model hasn't been used recently."""
+    elapsed = time.monotonic() - _llm_last_used
+    if elapsed >= _LLM_IDLE_TIMEOUT_SECONDS:
+        _llm_unload()
+    else:
+        # Re-schedule for the remaining time
+        remaining = _LLM_IDLE_TIMEOUT_SECONDS - elapsed
+        with _llm_idle_lock:
+            global _llm_idle_timer
+            _llm_idle_timer = threading.Timer(remaining, _llm_check_idle)
+            _llm_idle_timer.daemon = True
+            _llm_idle_timer.start()
+
+
+def _llm_unload():
+    """Unload the LLM model and tokenizer to free memory."""
+    global _llm_model, _llm_tokenizer, _llm_device, _llm_dtype
+    with _llm_lock:
+        if _llm_model is None and _llm_tokenizer is None:
+            return
+        _log("LLM idle timeout reached — unloading model to free memory")
+        try:
+            del _llm_model
+            del _llm_tokenizer
+        except Exception:
+            pass
+        _llm_model = None
+        _llm_tokenizer = None
+        _llm_device = "cpu"
+        _llm_dtype = None
+        # Force garbage collection and clear GPU cache if available
+        import gc
+        gc.collect()
+        if torch is not None:
+            try:
+                if hasattr(torch, 'cuda') and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                if hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
+                    torch.mps.empty_cache()
+            except Exception:
+                pass
+        _log("LLM unloaded successfully")
+
 
 def _llm_cache_root() -> Path:
     env_cache = os.environ.get("TRANSFORMERS_CACHE")
@@ -442,6 +505,7 @@ def _ensure_llm_loaded():
             _llm_model = model
             _llm_device = device
             _llm_dtype = dtype
+            _llm_touch()
             _log("LLM ready")
         except Exception as exc:
             _llm_tokenizer = None
@@ -1174,6 +1238,7 @@ async def llm_endpoint(req: LlmRequest):
     if torch is None or _llm_tokenizer is None or _llm_model is None:
         raise HTTPException(status_code=500, detail="LLM unavailable")
 
+    _llm_touch()
     try:
         inputs = _llm_tokenizer(req.prompt, return_tensors="pt")
         tensor_inputs = {k: v.to(_llm_device) for k, v in inputs.items()}
@@ -1214,6 +1279,7 @@ async def llm_stream_endpoint(req: LlmRequest):
     if torch is None or _llm_tokenizer is None or _llm_model is None:
         raise HTTPException(status_code=500, detail="LLM unavailable")
 
+    _llm_touch()
     async def generate_stream():
         """Generator that yields SSE events with tokens as they are generated."""
         try:

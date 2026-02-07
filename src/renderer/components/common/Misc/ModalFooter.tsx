@@ -58,7 +58,7 @@ export const ModalFooter: Component<ModalFooterProps> = (props) => {
       <div class="modal-footer-actions">
         <Show when={!props.hideCancel}>
           <Button
-            buttonType="glass"
+            buttonType="default"
             variant="secondary"
             onClick={props.onCancel}
             class="modal-footer-btn-cancel"
@@ -68,7 +68,7 @@ export const ModalFooter: Component<ModalFooterProps> = (props) => {
         </Show>
         
         <Button
-          buttonType="glass"
+          buttonType="default"
           variant={confirmVariant()}
           onClick={props.onConfirm}
           disabled={props.confirmDisabled}

@@ -2,7 +2,7 @@
  * About Tab
  */
 
-import { Component, createSignal, onMount } from 'solid-js';
+import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import { TabContent, Btn } from '../../../components/common';
 import { useLocalization } from '../../../context';
 import './AboutTab.css';
@@ -16,11 +16,12 @@ export const AboutTab: Component = () => {
     // Get version from IPC
     if (window.mLearnIPC) {
       window.mLearnIPC.send('get-version');
-      window.mLearnIPC.on('version', (...args: unknown[]) => {
+      const cleanup = window.mLearnIPC.on('version', (...args: unknown[]) => {
         if (typeof args[0] === 'string') {
           setVersion(args[0]);
         }
       });
+      onCleanup(cleanup);
     }
   });
 

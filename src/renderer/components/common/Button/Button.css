@@ -74,8 +74,8 @@
   /*min-height: 3rem;*/
 }
 
-/* ============ GLASS Button Type ============ */
-.btn-glass {
+/* ============ DEFAULT Button Type ============ */
+.btn-default {
   background: var(--bg);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);
@@ -83,56 +83,56 @@
   color: var(--text-primary);
 }
 
-.btn-glass:hover:not(:disabled) {
+.btn-default:hover:not(:disabled) {
   background: var(--bg-intense);
   border-color: var(--border-color-intense);
 }
 
-.btn-glass:active:not(:disabled) {
+.btn-default:active:not(:disabled) {
   transform: scale(0.98);
 }
 
-/* Glass color variants */
-.btn-glass.btn-primary {
+/* Default color variants */
+.btn-default.btn-primary {
   background: rgba(74, 144, 217, 0.3);
   border-color: rgba(74, 144, 217, 0.4);
 }
 
-.btn-glass.btn-primary:hover:not(:disabled) {
+.btn-default.btn-primary:hover:not(:disabled) {
   background: rgba(74, 144, 217, 0.4);
 }
 
-.btn-glass.btn-secondary {
+.btn-default.btn-secondary {
   background: rgba(128, 128, 128, 0.2);
   border-color: rgba(128, 128, 128, 0.3);
 }
 
-.btn-glass.btn-danger {
+.btn-default.btn-danger {
   background: rgba(231, 76, 60, 0.25);
   color:var(--color-danger);
   border-color: rgba(231, 76, 60, 0.4);
 }
 
-.btn-glass.btn-danger:hover:not(:disabled) {
+.btn-default.btn-danger:hover:not(:disabled) {
   background: rgba(231, 76, 60, 0.4);
   border-color: rgba(231, 76, 60, 0.5);
 }
 
-.btn-glass.btn-success {
+.btn-default.btn-success {
   background: rgba(46, 204, 113, 0.3);
   border-color: rgba(46, 204, 113, 0.4);
 }
 
-.btn-glass.btn-success:hover:not(:disabled) {
+.btn-default.btn-success:hover:not(:disabled) {
   background: rgba(46, 204, 113, 0.4);
 }
 
-.btn-glass.btn-ghost {
+.btn-default.btn-ghost {
   background: transparent;
   border-color: transparent;
 }
 
-.btn-glass.btn-ghost:hover:not(:disabled) {
+.btn-default.btn-ghost:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1);
 }
 

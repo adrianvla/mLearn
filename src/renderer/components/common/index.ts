@@ -148,12 +148,14 @@ export {
 // Text Components
 export { 
   PitchAccent,
+  PitchAccentOverlay,
   RubyText,
   FrequencyStars,
   HintText,
   BreakdownRow,
   LogConsole,
   type PitchAccentProps,
+  type PitchAccentOverlayProps,
   type RubyTextProps,
   type FrequencyStarsProps,
   type HintTextProps,

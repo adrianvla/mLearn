@@ -4,7 +4,7 @@
  * Uses real IPC to install Python backend and configure language
  */
 
-import { Component, Show, For, createSignal, createEffect, onMount } from 'solid-js';
+import { Component, Show, For, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization } from '../../context';
 import type { Settings, InstallOptions, InstallerState } from '../../../shared/types';
@@ -120,7 +120,8 @@ const WelcomeContent: Component = () => {
     const mLearnIPC = (window as unknown as { mLearnIPC?: typeof window.mLearnIPC }).mLearnIPC;
     if (mLearnIPC) {
       mLearnIPC.saveSettings({ language: selectedLanguage() } as Settings);
-      mLearnIPC.onSettingsSaved(() => {
+      const settingsSavedCleanup = mLearnIPC.onSettingsSaved(() => {
+        settingsSavedCleanup();
         setOverallStatus(t('mlearn.Installer.Status.LanguageInstalledRestarting'));
         setTimeout(() => {
           // Send quit request to proxy server
@@ -136,17 +137,18 @@ const WelcomeContent: Component = () => {
   };
 
   // Setup IPC event listeners
+  const ipcCleanups: Array<() => void> = [];
   onMount(() => {
     const mLearnIPC = (window as unknown as { mLearnIPC?: typeof window.mLearnIPC }).mLearnIPC;
     if (!mLearnIPC) return;
 
     // Python install success
-    mLearnIPC.onPythonSuccess((success: boolean) => {
+    ipcCleanups.push(mLearnIPC.onPythonSuccess((success: boolean) => {
       if (success) installCompleted();
-    });
+    }));
 
     // Server status updates (pip output, download progress, etc.)
-    mLearnIPC.onServerStatusUpdate((status: string) => {
+    ipcCleanups.push(mLearnIPC.onServerStatusUpdate((status: string) => {
       logInfo(status);
 
       // Update progress bar based on status
@@ -163,34 +165,34 @@ const WelcomeContent: Component = () => {
       } else if (status.toLowerCase().includes('error')) {
         setOverallStatus('An error occurred. Check the log below.');
       }
-    });
+    }));
 
     // Installation started by backend
-    mLearnIPC.onInstallStarted((opts: InstallOptions) => {
+    ipcCleanups.push(mLearnIPC.onInstallStarted((opts: InstallOptions) => {
       if (!installationStarted()) {
         setInstallationStarted(true);
         setIncludeLLM(opts.includeLLM ?? true);
         setIncludeOCR(opts.includeOCR ?? true);
       }
-    });
+    }));
 
     // Installer awaiting user choice (error recovery or initial state)
-    mLearnIPC.onInstallerAwaitingChoice(() => {
+    ipcCleanups.push(mLearnIPC.onInstallerAwaitingChoice(() => {
       setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR() });
-    });
+    }));
 
     // Network error during install
-    mLearnIPC.onInstallerNetworkError((payload: { message: string; detail?: string }) => {
+    ipcCleanups.push(mLearnIPC.onInstallerNetworkError((payload: { message: string; detail?: string }) => {
       const message = typeof payload === 'string' ? payload : payload.message;
       const detail = typeof payload === 'object' ? payload.detail : undefined;
       if (detail) logInfo(detail);
       setOverallStatus(message);
       setNetworkError(detail ? `${message}\n\nDetails: ${detail}` : message);
       setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR() });
-    });
+    }));
 
     // Get current installer state
-    mLearnIPC.onInstallerState((state: InstallerState) => {
+    ipcCleanups.push(mLearnIPC.onInstallerState((state: InstallerState) => {
       if (state.success) {
         installCompleted();
         return;
@@ -206,22 +208,27 @@ const WelcomeContent: Component = () => {
       if (state.waiting) {
         setWaitingState(state.options);
       }
-    });
+    }));
 
     // Load current settings
-    mLearnIPC.onSettings((settings: Settings) => {
+    ipcCleanups.push(mLearnIPC.onSettings((settings: Settings) => {
       if (settings.llmEnabled !== undefined) {
         setIncludeLLM(settings.llmEnabled !== false);
       }
       if (settings.ocrEnabled !== undefined) {
         setIncludeOCR(settings.ocrEnabled !== false);
       }
-    });
+    }));
 
     // Request current state
     mLearnIPC.requestInstallerState();
     mLearnIPC.isSuccess();
     mLearnIPC.getSettings();
+  });
+
+  onCleanup(() => {
+    for (const cleanup of ipcCleanups) cleanup();
+    ipcCleanups.length = 0;
   });
 
   // Welcome text animation

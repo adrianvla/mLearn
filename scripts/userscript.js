@@ -165,7 +165,7 @@
 </div>
 `;
     function isValidHttpUrlWithPort(url) {
-        const regex = /^https:\/\/[^:\s\/]+(?::\d+)?\/$/;
+        const regex = /^https?:\/\/[^:\s\/]+(?::\d+)?\/$/;
         return regex.test(url);
     }
     function createAndAppendScript(content, parent = document.body) {

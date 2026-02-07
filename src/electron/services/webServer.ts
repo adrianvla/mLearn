@@ -363,8 +363,18 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
 
     const proxyClient = tokeniserUrl.startsWith('https') ? https : http;
     const proxyReq = proxyClient.request(options, (proxyRes) => {
+      // Strip CORS headers from the proxied response to avoid duplicates.
+      // The Python backend (FastAPI CORSMiddleware) already sets these,
+      // and our own corsHeaders would duplicate them (lowercase vs mixed-case keys).
+      const filteredHeaders: Record<string, string | string[] | undefined> = {};
+      const corsKeySet = new Set(Object.keys(corsHeaders).map(k => k.toLowerCase()));
+      for (const [key, value] of Object.entries(proxyRes.headers)) {
+        if (!corsKeySet.has(key.toLowerCase())) {
+          filteredHeaders[key] = value;
+        }
+      }
       res.writeHead(proxyRes.statusCode || 200, {
-        ...proxyRes.headers,
+        ...filteredHeaders,
         ...corsHeaders,
       });
       proxyRes.pipe(res, { end: true });
@@ -455,6 +465,30 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
     }
     
     sendJsonResponse(res, { status: 'ok' });
+    return;
+  }
+
+  // API: Create flashcard (POST with JSON body - HTTP fallback for WebSocket)
+  if (pathname === '/api/create-flashcard') {
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          if (parsed && parsed.content) {
+            createFlashcardQueuedUpdates.push({ content: parsed.content });
+            console.log('Create new flashcard (HTTP):', parsed.content);
+            flushCreateFlashcardUpdates();
+          }
+          sendJsonResponse(res, { status: 'ok' });
+        } catch (e) {
+          sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
+        }
+      });
+    } else {
+      sendJsonResponse(res, { status: 'ok' });
+    }
     return;
   }
 

@@ -11,6 +11,7 @@ import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, Review
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady } from './migrationSignals';
 import { useSettings } from './SettingsContext';
+import { changeKnownStatus as changeKnownStatusInStats } from '../services/statsService';
 
 // Current store version
 const CURRENT_VERSION = 3;
@@ -174,6 +175,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   let broadcastChannel: BroadcastChannel | null = null;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   const SAVE_DEBOUNCE_MS = 300;
+  const ipcCleanups: Array<() => void> = [];
 
   // Queue counts memo
   const queueCounts = createMemo(() => SRS.getQueueCounts(queue(), store.flashcards));
@@ -190,57 +192,51 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return SRS.previewAnswers(card, store.meta);
   };
 
-  // Load flashcards
+  // Handle loaded flashcards (used by IPC listener registered once in onMount)
+  const handleFlashcardsLoaded = (loaded: FlashcardStore) => {
+    const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
+    setStore(reconcile(checked));
+    refreshQueue();
+    setIsLoading(false);
+  };
+
+  // Handle migration IPC event
+  const handleMigrationComplete = (...args: unknown[]) => {
+    const info = args[0] as { occurred: boolean; backupPath: string | null; fromVersion: number | null } | undefined;
+    console.log('[FlashcardContext] Received migration IPC:', info);
+    if (info?.occurred) {
+      console.log('[FlashcardContext] Flashcard migration completed from v', info.fromVersion);
+      const dispatchMigrationEvent = () => {
+        console.log('[FlashcardContext] Dispatching migration event to window');
+        window.dispatchEvent(new CustomEvent('mlearn-flashcard-migration', { 
+          detail: info 
+        }));
+      };
+      
+      if (migrationListenerReady()) {
+        dispatchMigrationEvent();
+      } else {
+        const checkReady = setInterval(() => {
+          if (migrationListenerReady()) {
+            clearInterval(checkReady);
+            dispatchMigrationEvent();
+          }
+        }, 50);
+        setTimeout(() => {
+          clearInterval(checkReady);
+          if (!migrationListenerReady()) {
+            console.warn('[FlashcardContext] Migration listener not ready after timeout, dispatching anyway');
+            dispatchMigrationEvent();
+          }
+        }, 2000);
+      }
+    }
+  };
+
+  // Load flashcards — just sends IPC request (listener is registered once in onMount)
   const loadFlashcards = () => {
     if (typeof window !== 'undefined' && window.mLearnIPC) {
-      // Set up migration listener FIRST before requesting flashcards
-      window.mLearnIPC.on(
-        'flashcard-migration-complete',
-        (...args: unknown[]) => {
-          const info = args[0] as { occurred: boolean; backupPath: string | null; fromVersion: number | null } | undefined;
-          console.log('[FlashcardContext] Received migration IPC:', info);
-          if (info?.occurred) {
-            console.log('[FlashcardContext] Flashcard migration completed from v', info.fromVersion);
-            // Dispatch event when listener is ready, or immediately if already ready
-            const dispatchMigrationEvent = () => {
-              console.log('[FlashcardContext] Dispatching migration event to window');
-              window.dispatchEvent(new CustomEvent('mlearn-flashcard-migration', { 
-                detail: info 
-              }));
-            };
-            
-            if (migrationListenerReady()) {
-              // Listener is already ready, dispatch immediately
-              dispatchMigrationEvent();
-            } else {
-              // Wait for listener to be ready with polling
-              const checkReady = setInterval(() => {
-                if (migrationListenerReady()) {
-                  clearInterval(checkReady);
-                  dispatchMigrationEvent();
-                }
-              }, 50);
-              // Safety timeout - don't wait forever
-              setTimeout(() => {
-                clearInterval(checkReady);
-                if (!migrationListenerReady()) {
-                  console.warn('[FlashcardContext] Migration listener not ready after timeout, dispatching anyway');
-                  dispatchMigrationEvent();
-                }
-              }, 2000);
-            }
-          }
-        }
-      );
-      
-      // Now request flashcards
       window.mLearnIPC.getFlashcards();
-      window.mLearnIPC.onFlashcards((loaded) => {
-        const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
-        setStore(reconcile(checked));
-        refreshQueue();
-        setIsLoading(false);
-      });
     } else {
       // Try localStorage for tethered mode
       try {
@@ -373,7 +369,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
         store.meta.newCardsToday,
         store.meta.maxNewCardsPerDayLearning,
         store.meta.maxReviewsPerDay,
-        store.meta.reviewsToday
+        store.meta.reviewsToday,
+        newDayHour()
     );
     setQueue(newQueue);
   };
@@ -756,9 +753,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return store.wordStatsMap[wordHash] || null;
   };
 
-  // Get due count
+  // Get due count (respects end-of-SRS-day for review cards)
   const getDueCount = (): number => {
-    return SRS.getDueCards(store.flashcards).length;
+    return SRS.getDueCards(store.flashcards, newDayHour()).length;
   };
 
   // Get new cards count
@@ -874,19 +871,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   // Handle window focus - reload flashcards to sync changes from other windows
-  // This ensures we get updates even if BroadcastChannel messages were missed
+  // Only sends the IPC request; the listener is registered once in onMount
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
-      console.log('[FlashcardContext] Window became visible, reloading flashcards to sync...');
-      // Reload flashcards from disk to get any changes made in other windows
       if (typeof window !== 'undefined' && window.mLearnIPC) {
         window.mLearnIPC.getFlashcards();
-        window.mLearnIPC.onFlashcards((loaded) => {
-          const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
-          setStore(reconcile(checked));
-          refreshQueue();
-          console.log('[FlashcardContext] Flashcards reloaded and synced');
-        });
       }
     }
   };
@@ -897,13 +886,106 @@ export const FlashcardProvider: ParentComponent = (props) => {
       broadcastChannel.onmessage = handleBroadcast;
     }
 
-    // Listen for new day event from main process
+    // Register all IPC listeners ONCE and store their cleanup functions
     if (typeof window !== 'undefined' && window.mLearnIPC) {
-      window.mLearnIPC.onNewDayFlashcards(handleNewDay);
+      // Flashcards loaded listener (single registration — reused by loadFlashcards and visibility sync)
+      ipcCleanups.push(window.mLearnIPC.onFlashcards(handleFlashcardsLoaded));
+
+      // Migration listener
+      ipcCleanups.push(window.mLearnIPC.on('flashcard-migration-complete', handleMigrationComplete));
+
+      // New day event from main process
+      ipcCleanups.push(window.mLearnIPC.onNewDayFlashcards(handleNewDay));
+
+      // Tethered mode updates
+      ipcCleanups.push(window.mLearnIPC.onUpdatePills((data: unknown) => {
+        try {
+          const updates: Array<{ word: string; status: number }> = JSON.parse(data as string);
+          for (const update of updates) {
+            changeKnownStatusInStats(update.word, update.status);
+          }
+        } catch (e) {
+          console.error('[Tethered] Failed to process pill updates:', e);
+        }
+      }));
+
+      ipcCleanups.push(window.mLearnIPC.onUpdateWordAppearance((data: unknown) => {
+        try {
+          const words: string[] = JSON.parse(data as string);
+          for (const word of words) {
+            trackWordAppearance(word);
+          }
+        } catch (e) {
+          console.error('[Tethered] Failed to process word appearance updates:', e);
+        }
+      }));
+
+      ipcCleanups.push(window.mLearnIPC.onUpdateAttemptFlashcardCreation((data: unknown) => {
+        try {
+          const updates: Array<{ word: string; content: Record<string, unknown> }> = JSON.parse(data as string);
+          for (const update of updates) {
+            trackWordAppearance(update.word);
+          }
+        } catch (e) {
+          console.error('[Tethered] Failed to process flashcard creation attempts:', e);
+        }
+      }));
+
+      ipcCleanups.push(window.mLearnIPC.onUpdateCreateFlashcard((data: unknown) => {
+        try {
+          const updates: Array<{ content: Record<string, unknown> }> = JSON.parse(data as string);
+          for (const update of updates) {
+            const c = update.content as Record<string, unknown>;
+            const word = (c.word as string) || '';
+            const rawTranslation = c.translation;
+            const rawDefinition = c.definition;
+            const toBackString = (val: unknown): string => {
+              if (!val) return '';
+              if (Array.isArray(val)) return val.join('; ');
+              return String(val);
+            };
+            const back = toBackString(rawTranslation) || toBackString(rawDefinition) || '';
+            if (word && back) {
+              addFlashcard({
+                type: 'word',
+                front: word,
+                back,
+                reading: (c.pronunciation as string) || undefined,
+                pitchAccent: (c.pitchAccent as number) || undefined,
+                pos: (c.pos as string) || undefined,
+                level: (c.level as number) || undefined,
+                example: (c.example as string) || undefined,
+                exampleMeaning: (c.exampleMeaning as string) || undefined,
+                imageUrl: (c.screenshotUrl as string) || undefined,
+              });
+            }
+          }
+        } catch (e) {
+          console.error('[Tethered] Failed to process flashcard creation:', e);
+        }
+      }));
+
+      ipcCleanups.push(window.mLearnIPC.onUpdateLastWatched((data: unknown) => {
+        try {
+          const updates: Array<{ name: string; screenshotUrl: string; videoUrl: string }> = JSON.parse(data as string);
+          for (const update of updates) {
+            try {
+              const stored = localStorage.getItem('mlearn_recently_watched');
+              const list: Array<{ name: string; screenshotUrl: string; videoUrl: string; timestamp: number }> = stored ? JSON.parse(stored) : [];
+              list.unshift({ ...update, timestamp: Date.now() });
+              if (list.length > 20) list.length = 20;
+              localStorage.setItem('mlearn_recently_watched', JSON.stringify(list));
+            } catch (e) {
+              console.warn('[Tethered] Failed to save last watched:', e);
+            }
+          }
+        } catch (e) {
+          console.error('[Tethered] Failed to process last watched updates:', e);
+        }
+      }));
     }
     
     // Listen for visibility changes to reload on window focus
-    // This ensures sync when returning from other windows (like flashcard review)
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     loadFlashcards();
@@ -916,6 +998,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
       clearTimeout(saveTimer);
       saveFlashcardsImmediate();
     }
+    // Remove all IPC listeners
+    for (const cleanup of ipcCleanups) cleanup();
+    ipcCleanups.length = 0;
     broadcastChannel?.close();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
   });

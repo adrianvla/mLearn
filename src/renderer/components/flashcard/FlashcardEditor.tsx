@@ -8,8 +8,8 @@
 import { Component, createSignal, createEffect, createMemo, Show, onMount } from 'solid-js';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { useSettings, useLanguage, useLocalization, useFlashcards } from '../../context';
-import { buildPitchAccentHtml, getPitchAccentInfo, getPitchAccentName } from '../../utils/pitchAccent';
-import { Input, Btn } from '../common';
+import { getPitchAccentName } from '../../utils/pitchAccent';
+import { Input, Btn, PitchAccentOverlay } from '../common';
 import './FlashcardEditor.css';
 
 export interface FlashcardEditorProps {
@@ -80,22 +80,6 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   // Language features check
   const features = createMemo(() => getLanguageFeatures());
   const supportsPitchAccent = createMemo(() => features().supportsPitchAccent && settings.showPitchAccent);
-
-  // Compute pitch accent preview HTML
-  const pitchPreviewHtml = createMemo(() => {
-    if (!supportsPitchAccent()) return null;
-    const pa = pitchAccent();
-    const readingVal = reading() || front();
-    if (pa === undefined || pa < 0 || !readingVal) return null;
-
-    const info = getPitchAccentInfo(pa, readingVal);
-    if (!info) return null;
-
-    return buildPitchAccentHtml(info, readingVal.length, {
-      includeParticleBox: true,
-      padTo: readingVal.length,
-    });
-  });
 
   // Compute pitch accent name (heiban, atamadaka, etc.)
   const pitchName = createMemo(() => {
@@ -194,10 +178,13 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
             </div>
             <div class="pitch-name">{pitchName()}</div>
             <div class="pitch-preview">
-              <span class="pronunciation-preview">{reading() || front()}</span>
-              <Show when={pitchPreviewHtml()}>
-                <div class="mLearn-pitch-accent" innerHTML={pitchPreviewHtml()!} />
-              </Show>
+              <PitchAccentOverlay
+                word={front()}
+                reading={reading() || front()}
+                pitchPosition={pitchAccent()}
+                mode="preview"
+                showParticleBox={true}
+              />
             </div>
           </div>
         </Show>

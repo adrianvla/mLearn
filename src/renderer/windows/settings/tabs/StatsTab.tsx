@@ -75,16 +75,16 @@ export const StatsTab: Component = () => {
       {/* Stats Cards */}
       <div class="stats-grid">
         <div class="stats-card-wrapper">
-          <StatCard label={t('mlearn.Statistics.TimeWatched')} value={timeWatched()} icon="⏱️" size="md" variant="glass" />
+          <StatCard label={t('mlearn.Statistics.TimeWatched')} value={timeWatched()} icon="⏱️" size="md" variant="elevated" />
         </div>
         <div class="stats-card-wrapper">
-          <StatCard label={t('mlearn.Statistics.WordsTracked')} value={wordStats().total} icon="📝" size="md" variant="glass" />
+          <StatCard label={t('mlearn.Statistics.WordsTracked')} value={wordStats().total} icon="📝" size="md" variant="elevated" />
         </div>
         <div class="stats-card-wrapper">
-          <StatCard label={t('mlearn.Statistics.WordsLearned')} value={wordStats().learned} icon="✅" color="success" size="md" variant="glass" />
+          <StatCard label={t('mlearn.Statistics.WordsLearned')} value={wordStats().learned} icon="✅" color="success" size="md" variant="elevated" />
         </div>
         <div class="stats-card-wrapper">
-          <StatCard label={t('mlearn.Statistics.CurrentlyLearning')} value={wordStats().learning} icon="📚" color="warning" size="md" variant="glass" />
+          <StatCard label={t('mlearn.Statistics.CurrentlyLearning')} value={wordStats().learning} icon="📚" color="warning" size="md" variant="elevated" />
         </div>
       </div>
 

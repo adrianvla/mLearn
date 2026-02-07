@@ -193,8 +193,8 @@
 
   /* ========== Window Loading Overlay ========== */
   --window-loading-bg: #000000;
-  --window-loading-spinner-track: rgba(255, 255, 255, 0.1);
-  --window-loading-spinner-color: #6366f1;
+  --window-loading-spinner-track: var(--bg);
+  --window-loading-spinner-color: var(--text-primary);
 
   /* ========== Additional Theming Variables ========== */
   /* Panel/surface hover states */

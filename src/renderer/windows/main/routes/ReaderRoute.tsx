@@ -670,7 +670,7 @@ export const ReaderRoute: Component = () => {
   onMount(() => {
     if (!window.mLearnIPC?.onReaderContextMenuCommand) return;
     
-    window.mLearnIPC.onReaderContextMenuCommand((command: string) => {
+    const cleanup = window.mLearnIPC.onReaderContextMenuCommand((command: string) => {
       switch (command) {
         case 'toggle-furigana':
           // Toggle through settings so FuriganaHider component gets updated
@@ -685,6 +685,7 @@ export const ReaderRoute: Component = () => {
           break;
       }
     });
+    onCleanup(cleanup);
   });
   
   // Handler for right-click context menu in reader on OCR boxes (has phrase to copy)
@@ -761,7 +762,8 @@ export const ReaderRoute: Component = () => {
       // Unknown message type - keep previous state
     };
     
-    window.mLearnIPC.onOcrStatusUpdate(handleOcrStatus);
+    const cleanup = window.mLearnIPC.onOcrStatusUpdate(handleOcrStatus);
+    onCleanup(cleanup);
   });
 
   // Keyboard navigation and magnifier hotkey

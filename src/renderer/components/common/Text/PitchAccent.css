@@ -180,3 +180,47 @@ span:not(ruby) .mLearn-pitch-accent {
 .pill.pitch-accent-pill .mLearn-pitch-accent {
   --pitch-accent-height: 2px;
 }
+
+/* ============================
+   PitchAccentOverlay Styles
+   ============================ */
+
+/* Overlay wrapper - wraps children with pitch accent overlay */
+.pitch-overlay-wrapper {
+  position: relative;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.pitch-overlay-wrapper > .mLearn-pitch-accent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  pointer-events: none;
+}
+
+/* Preview mode - standalone pitch accent display */
+.pitch-accent-preview {
+  display: inline-flex;
+  align-items: center;
+}
+
+.pitch-accent-preview .pitch-accent-word {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-bottom: 4px;
+}
+
+.pitch-accent-preview .mLearn-pitch-accent {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  pointer-events: none;
+}

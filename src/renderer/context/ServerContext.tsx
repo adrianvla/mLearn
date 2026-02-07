@@ -3,7 +3,7 @@
  * Manages connection to Python backend and server status
  */
 
-import { createContext, useContext, ParentComponent, onMount, createSignal } from 'solid-js';
+import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 
 // Server status types
 type ServerStatus = 'loading' | 'connected' | 'error' | 'installing';
@@ -24,6 +24,7 @@ export const ServerProvider: ParentComponent = (props) => {
   const [status, setStatus] = createSignal<ServerStatus>('loading');
   const [statusMessage, setStatusMessage] = createSignal('Initializing...');
   const [error, setError] = createSignal<string | null>(null);
+  const ipcCleanups: Array<() => void> = [];
 
   // Check if we're in Electron or tethered mode
   const isElectron = typeof window !== 'undefined' && window.mLearnIPC;
@@ -40,38 +41,38 @@ export const ServerProvider: ParentComponent = (props) => {
     window.mLearnIPC!.isLoaded();
 
     // Listen for server load
-    window.mLearnIPC!.onServerLoad((message) => {
+    ipcCleanups.push(window.mLearnIPC!.onServerLoad((message) => {
       setStatus('connected');
       setStatusMessage(message);
       setError(null);
-    });
+    }));
 
     // Listen for status updates
-    window.mLearnIPC!.onServerStatusUpdate((message) => {
+    ipcCleanups.push(window.mLearnIPC!.onServerStatusUpdate((message) => {
       setStatusMessage(message);
       if (message.toLowerCase().includes('error')) {
         setError(message);
       }
-    });
+    }));
 
     // Listen for critical errors
-    window.mLearnIPC!.onServerCriticalError((message) => {
+    ipcCleanups.push(window.mLearnIPC!.onServerCriticalError((message) => {
       setStatus('error');
       setError(message);
-    });
+    }));
 
     // Listen for installation events
-    window.mLearnIPC!.onInstallStarted(() => {
+    ipcCleanups.push(window.mLearnIPC!.onInstallStarted(() => {
       setStatus('installing');
       setStatusMessage('Installing components...');
-    });
+    }));
 
-    window.mLearnIPC!.onPythonSuccess((success) => {
+    ipcCleanups.push(window.mLearnIPC!.onPythonSuccess((success) => {
       if (success) {
         setStatus('connected');
         setStatusMessage('Installation complete');
       }
-    });
+    }));
   };
 
   const restart = () => {
@@ -88,6 +89,11 @@ export const ServerProvider: ParentComponent = (props) => {
 
   onMount(() => {
     setupListeners();
+  });
+
+  onCleanup(() => {
+    for (const cleanup of ipcCleanups) cleanup();
+    ipcCleanups.length = 0;
   });
 
   const value: ServerContextValue = {

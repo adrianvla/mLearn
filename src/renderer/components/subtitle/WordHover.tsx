@@ -11,10 +11,9 @@ import { normalizeReading } from '../../../shared/utils/textUtils';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { setWordStatus, toUniqueIdentifier, wordsLearnedInApp } from '../../services/statsService';
 import { getCachedExplanation } from '../../services/llmService';
-import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel } from '../common';
+import { PillBtn, PillLabel, PitchAccentOverlay } from '../common';
 import './WordHover.css';
 
 // Icon names for the Icon component - enables proper SVG coloring
@@ -967,30 +966,15 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     );
   };
 
-  // Pitch accent pill - computed values for proper reactivity
-  // Using createMemo to ensure the HTML is reactive to translation data changes
-  const pitchAccentPillData = createMemo(() => {
-    const features = getLanguageFeatures();
-    if (!features.supportsPitchAccent || !settings.showPitchAccent) return null;
-    
+  // Pitch accent data for PitchAccentOverlay pill
+  const pitchPillReading = createMemo(() => {
     const pitch = effectivePitchAccent();
-    if (!pitch || !pitch.reading) return null;
+    return pitch?.reading || '';
+  });
 
-    const info = getPitchAccentInfo(pitch.position, pitch.reading);
-    if (!info) return null;
-    
-    // Check if this is a verb followed by another verb (don't show particle box)
-    // The old app uses: includeParticleBox: !(pos === "動詞" && look_ahead_token === "動詞")
-    // But in the hover pill, we always show the particle box since we're showing standalone
-    const html = buildPitchAccentHtml(info, pitch.reading.length, {
-      includeParticleBox: true,
-      padTo: pitch.reading.length,
-      homogenous: true,
-    });
-    
-    if (!html) return null;
-
-    return { reading: pitch.reading, html };
+  const pitchPillPosition = createMemo(() => {
+    const pitch = effectivePitchAccent();
+    return pitch?.position ?? null;
   });
 
   return (
@@ -1052,17 +1036,16 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           {/* Footer with pills */}
           <div class="footer">
             <div class="pills">
-              {/* Pitch accent pill - using PillLabel for consistent theming */}
-              <Show when={pitchAccentPillData()}>
-                {(data) => (
-                  <PillLabel variant="gray" class="pitch-accent-pill">
-                    <span class="pitch-accent-word">
-                      {data().reading}✦
-                      <span class="mLearn-pitch-accent" aria-hidden="true" innerHTML={data().html} />
-                    </span>
-                  </PillLabel>
-                )}
-              </Show>
+              {/* Pitch accent pill */}
+              <PitchAccentOverlay
+                word={actualWord()}
+                reading={pitchPillReading()}
+                pitchPosition={pitchPillPosition()}
+                pos={posType()}
+                mode="pill"
+                showParticleBox={true}
+                homogenous={true}
+              />
               {/* Level pill - reactive via Show + createMemo */}
               <Show when={levelPillData()}>
                 {(data) => (

@@ -1,7 +1,7 @@
 /**
  * Unified Button Component
  * A single button component that can render different button variants:
- * - glass: Glassmorphism styled button (default)
+ * - default: Standard styled button (default)
  * - pill: Pill/badge styled clickable button
  * - icon: Icon-only button
  * - nav: Navigation button (for reader/video controls)
@@ -14,7 +14,7 @@ import './Button.css';
 
 // ============ Types ============
 
-export type ButtonType = 'glass' | 'pill' | 'icon' | 'nav' | 'tab';
+export type ButtonType = 'default' | 'pill' | 'icon' | 'nav' | 'tab';
 
 export type ButtonVariant = 
   | 'default' 
@@ -175,7 +175,7 @@ const ButtonIcon: Component<{
 export const Button: Component<ButtonProps> = (props) => {
   const merged = mergeProps(
     {
-      buttonType: 'glass' as ButtonType,
+      buttonType: 'default' as ButtonType,
       variant: 'default' as ButtonVariant,
       size: 'md' as ButtonSize,
       iconPosition: 'left' as const,
@@ -302,7 +302,7 @@ export const Button: Component<ButtonProps> = (props) => {
 
 /** Standard button - default variant */
 export const Btn: Component<Omit<ButtonProps, 'buttonType'>> = (props) => (
-  <Button buttonType="glass" {...props} />
+  <Button buttonType="default" {...props} />
 );
 
 /** Pill button - badge/pill styled */

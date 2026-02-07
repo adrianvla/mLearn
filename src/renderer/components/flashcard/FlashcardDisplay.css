@@ -14,13 +14,14 @@
 @import url('../common/Text/PitchAccent.css');
 @import url('../common/Label/Label.css');
 
-/* Container */
+/* Container — perspective lives here so the card wrapper rotates inside it */
 .flashcard-container {
   cursor: pointer;
   user-select: none;
   width: 100%;
   max-width: 500px;
   margin: 0 auto;
+  perspective: 1000px;
 }
 
 /* Card wrapper */
@@ -66,51 +67,49 @@
    3D Flip Animation
    ============================ */
 
-/* When animated, use perspective on wrapper */
+/* The card wrapper itself rotates as a single unit in 3D space.
+   This prevents seeing through translucent panels during the flip. */
 .flashcard-card--animated {
-  perspective: 1000px;
-}
-
-/* During animation, both faces are absolute-positioned for the 3D effect */
-.flashcard-card--animated .flashcard-face {
-  backface-visibility: hidden;
+  transform-style: preserve-3d;
   transition: transform 0.5s ease;
 }
 
-/* Override the hidden-face collapse during animation */
-.flashcard-card--animated .flashcard-face--hidden {
-  visibility: visible;
-  height: auto;
-  min-height: 300px;
-  padding: 2rem;
-  overflow: visible;
-  border: 1px solid var(--border-color);
+/* Both faces hide their backface so only the facing side is visible */
+.flashcard-card--animated .flashcard-face {
+  backface-visibility: hidden;
 }
 
-/* In animated mode, back face is stacked on top of front */
+/* Back face is stacked on front and permanently rotated 180° */
 .flashcard-card--animated .flashcard-back {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-}
-
-/* Front starts at 0deg, rotates to -180deg when flipped */
-.flashcard-card--animated .flashcard-front {
-  transform: rotateY(0deg);
-}
-
-.flashcard-card--animated.flipped .flashcard-front {
-  transform: rotateY(-180deg);
-}
-
-/* Back starts at 180deg, rotates to 0deg when flipped */
-.flashcard-card--animated .flashcard-back {
   transform: rotateY(180deg);
 }
 
-.flashcard-card--animated.flipped .flashcard-back {
-  transform: rotateY(0deg);
+/* When flipped, rotate the entire card wrapper 180° */
+.flashcard-card--animated.flipped {
+  transform: rotateY(180deg);
+}
+
+/* ============================
+   Card Enter Animation
+   ============================ */
+
+@keyframes flashcard-enter {
+  from {
+    opacity: 0.5;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.flashcard-card--entering {
+  animation: flashcard-enter 0.15s ease-out;
 }
 
 /* Level pill - positioned in upper left corner */
@@ -132,20 +131,19 @@
 
 /* Pronunciation */
 .flashcard-pronunciation {
-  font-size: 1.25rem;
+  font-size: var(--font-size-xl);
   color: var(--text-secondary);
   margin-bottom: 1rem;
 }
 
 /* Example sentence */
 .flashcard-example {
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   text-align: center;
   line-height: 1.6;
   color: var(--text-primary);
   margin-top: 1rem;
-  max-height: 120px;
-  overflow-y: auto;
+  height: max-content;
 }
 
 /* Hint text */

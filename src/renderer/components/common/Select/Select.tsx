@@ -1,6 +1,6 @@
 /**
- * Glass Select Component
- * A styled select dropdown component with glassmorphism design
+ * Select Component
+ * A styled select dropdown component
  */
 
 import { Component, JSX, splitProps, mergeProps, For } from 'solid-js';

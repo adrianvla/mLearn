@@ -18,7 +18,7 @@ export interface CheckboxCardProps {
   /** Whether the checkbox is disabled */
   disabled?: boolean;
   /** Card variant */
-  variant?: 'default' | 'glass' | 'bordered';
+  variant?: 'default' | 'bordered';
   /** Additional class */
   class?: string;
   /** Additional content to render after description */

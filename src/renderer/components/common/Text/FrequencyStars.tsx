@@ -1,22 +1,18 @@
 /**
  * FrequencyStars Component
  * Displays star icons based on word frequency level
- * Matches legacy .frequency styling from the old app
  */
 
 import { Component, For, Show, createMemo } from 'solid-js';
-import type { JSX } from 'solid-js/jsx-runtime';
 import './FrequencyStars.css';
 
 export interface FrequencyStarsProps {
-  /** The frequency level (1-7 typically) */
+  /** The frequency level (1-7) */
   level: number;
   /** Maximum stars to display */
   maxStars?: number;
   /** Additional class name */
   class?: string;
-  /** Custom style */
-  style?: JSX.CSSProperties;
   /** Size variant */
   size?: 'small' | 'medium' | 'large';
 }
@@ -24,7 +20,7 @@ export interface FrequencyStarsProps {
 /**
  * FrequencyStars - Displays frequency level as colored star icons
  * 
- * Level colors match the old app:
+ * Level colors (via hue-rotate on the base red star SVG):
  * - Level 1: Red (most rare/difficult)
  * - Level 2: Blue
  * - Level 3: Green
@@ -36,8 +32,7 @@ export interface FrequencyStarsProps {
 export const FrequencyStars: Component<FrequencyStarsProps> = (props) => {
   const starCount = createMemo(() => {
     const max = props.maxStars ?? 7;
-    const level = Math.min(Math.max(props.level || 0, 0), max);
-    return level;
+    return Math.min(Math.max(props.level || 0, 0), max);
   });
 
   const stars = createMemo(() => {
@@ -55,7 +50,6 @@ export const FrequencyStars: Component<FrequencyStarsProps> = (props) => {
       <span 
         class={`frequency ${sizeClass()} ${props.class || ''}`}
         data-level={props.level}
-        style={props.style}
       >
         <For each={stars()}>
           {() => <span class="star" />}
@@ -64,5 +58,3 @@ export const FrequencyStars: Component<FrequencyStarsProps> = (props) => {
     </Show>
   );
 };
-
-export default FrequencyStars;

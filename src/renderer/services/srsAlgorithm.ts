@@ -57,6 +57,26 @@ export function isToday(timestamp: number, newDayHour: number = 4): boolean {
 }
 
 /**
+ * Get the timestamp for the end of the current SRS day.
+ * The SRS day runs from newDayHour to the next newDayHour.
+ * If current time is before newDayHour, the day ends at newDayHour today.
+ * If current time is at or after newDayHour, the day ends at newDayHour tomorrow.
+ * @param newDayHour Hour (0-23) at which the new SRS day begins (default 4 = 4:00 AM)
+ */
+export function getEndOfSRSDay(newDayHour: number = 4): number {
+    const now = new Date();
+    const boundary = new Date(now);
+    boundary.setHours(newDayHour, 0, 0, 0);
+
+    if (now.getTime() >= boundary.getTime()) {
+        // We're past today's newDayHour, so end of SRS day is tomorrow's newDayHour
+        boundary.setDate(boundary.getDate() + 1);
+    }
+
+    return boundary.getTime();
+}
+
+/**
  * Generate UUID v4
  */
 export function generateUUID(): string {
@@ -446,12 +466,22 @@ export function sortByDueDate(cards: Flashcard[]): Flashcard[] {
 }
 
 /**
- * Get all cards that are due for review
+ * Get all cards that are due for review.
+ * Review cards use end-of-SRS-day cutoff so all cards due today appear in one session.
+ * Learning/relearning cards still use current time.
+ * @param newDayHour Hour (0-23) at which the new SRS day begins (default 4)
  */
-export function getDueCards(cards: Record<string, Flashcard>): Flashcard[] {
+export function getDueCards(cards: Record<string, Flashcard>, newDayHour: number = 4): Flashcard[] {
     const now = Date.now();
+    const dayEnd = getEndOfSRSDay(newDayHour);
     return Object.values(cards)
-        .filter(c => !c.suspended && !c.buried && c.dueDate <= now)
+        .filter(c => {
+            if (c.suspended || c.buried) return false;
+            // Review cards: show all that are due by end of SRS day
+            if (c.state === 'review') return c.dueDate <= dayEnd;
+            // Learning/relearning/new: show only when actually due
+            return c.dueDate <= now;
+        })
         .sort((a, b) => a.dueDate - b.dueDate);
 }
 
@@ -475,18 +505,21 @@ export function getLearningCards(cards: Record<string, Flashcard>): Flashcard[] 
 }
 
 /**
- * Get review cards (graduated cards that are due)
+ * Get review cards (graduated cards that are due).
+ * Uses end-of-SRS-day cutoff so all review cards due today appear in one session.
+ * @param newDayHour Hour (0-23) at which the new SRS day begins (default 4)
  */
-export function getReviewCards(cards: Record<string, Flashcard>): Flashcard[] {
-    const now = Date.now();
+export function getReviewCards(cards: Record<string, Flashcard>, newDayHour: number = 4): Flashcard[] {
+    const dayEnd = getEndOfSRSDay(newDayHour);
     return Object.values(cards)
-        .filter(c => c.state === 'review' && !c.suspended && !c.buried && c.dueDate <= now)
+        .filter(c => c.state === 'review' && !c.suspended && !c.buried && c.dueDate <= dayEnd)
         .sort((a, b) => a.dueDate - b.dueDate);
 }
 
 /**
- * Build the review queue for a study session
- * Now respects maxNewCardsPerDayLearning and maxReviewsPerDay limits
+ * Build the review queue for a study session.
+ * Review cards use end-of-SRS-day cutoff so all reviews due today appear in one session.
+ * Learning/relearning cards still use current time.
  */
 export function buildReviewQueue(
     cards: Record<string, Flashcard>,
@@ -494,14 +527,16 @@ export function buildReviewQueue(
     newCardsToday: number,
     maxNewCardsPerDayLearning?: number,
     maxReviewsPerDay?: number,
-    reviewsToday?: number
+    reviewsToday?: number,
+    newDayHour?: number
 ): ReviewQueue {
     const now = Date.now();
+    const hour = newDayHour ?? 4;
 
     // Get all card lists
     const allNewCards = getNewCards(cards);
     const learningCards = getLearningCards(cards);
-    const reviewCards = getReviewCards(cards);
+    const reviewCards = getReviewCards(cards, hour);
     const relearnCards = Object.values(cards)
         .filter(c => c.state === 'relearning' && !c.suspended && !c.buried && c.dueDate <= now)
         .sort((a, b) => a.dueDate - b.dueDate);
@@ -561,10 +596,12 @@ export function getNextCard(
 
     // Interleave new cards with review cards
     // Show new card if: there are new cards and (no review cards or every 10th card)
+    // Review cards in the queue are already filtered to be due today (end-of-SRS-day cutoff),
+    // so we don't re-check dueDate here.
     const hasNewCards = queue.newQueue.length > 0;
     const hasReviewCards = queue.reviewQueue.some(id => {
         const card = cards[id];
-        return card && card.dueDate <= now && !card.suspended && !card.buried;
+        return card && !card.suspended && !card.buried;
     });
 
     if (hasNewCards && (!hasReviewCards || Math.random() < 0.1)) {
@@ -575,10 +612,10 @@ export function getNextCard(
         }
     }
 
-    // Check review cards
+    // Check review cards (already filtered to be due today, no dueDate re-check needed)
     for (const id of queue.reviewQueue) {
         const card = cards[id];
-        if (card && card.dueDate <= now && !card.suspended && !card.buried) {
+        if (card && !card.suspended && !card.buried) {
             return card;
         }
     }
@@ -645,10 +682,12 @@ export function getQueueCounts(queue: ReviewQueue, cards: Record<string, Flashca
             return card && card.dueDate <= now;
         }).length;
 
+    // Review cards in the queue are already filtered to be due today
+    // (end-of-SRS-day cutoff), so count them all regardless of exact time
     const review = queue.reviewQueue
         .filter(id => {
             const card = cards[id];
-            return card && card.dueDate <= now;
+            return card && !card.suspended && !card.buried;
         }).length;
 
     return {

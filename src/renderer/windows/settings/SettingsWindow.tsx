@@ -120,7 +120,7 @@ const SettingsContent: Component = () => {
 
 export const SettingsWindow: Component = () => {
   return (
-    <WindowWrapper>
+    <WindowWrapper showDragRegion={false}>
       <SettingsContent />
     </WindowWrapper>
   );

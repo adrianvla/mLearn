@@ -4,11 +4,10 @@
  * Ported from openEditTranslationDialog in stats.js
  */
 
-import { Component, createSignal, onMount, Show, createEffect } from 'solid-js';
+import { Component, createSignal, onMount, Show } from 'solid-js';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useLocalization } from '../../../context';
-import { Btn, Input, Modal, Spinner } from '../../../components/common';
-import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
+import { Btn, Input, Modal, Spinner, PitchAccentOverlay } from '../../../components/common';
 import './EditTranslationDialog.css';
 
 export interface EditTranslationDialogProps {
@@ -36,9 +35,6 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
   const [structuredContent, setStructuredContent] = createSignal('');
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  
-  // Pitch accent preview
-  const [pitchPreviewHtml, setPitchPreviewHtml] = createSignal('');
   
   // Load initial data when dialog opens
   onMount(async () => {
@@ -83,28 +79,6 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
       } finally {
         setIsLoading(false);
       }
-    }
-  });
-  
-  // Update pitch preview when reading or pitch changes
-  createEffect(() => {
-    const r = reading().trim();
-    const pStr = pitch().trim();
-    const p = pStr === '' ? null : Number(pStr);
-    
-    if (r && p !== null && Number.isFinite(p) && p >= 0) {
-      const info = getPitchAccentInfo(p, r);
-      if (info) {
-        const html = buildPitchAccentHtml(info, r.length, {
-          includeParticleBox: true,
-          homogenous: true,
-        });
-        setPitchPreviewHtml(html);
-      } else {
-        setPitchPreviewHtml('');
-      }
-    } else {
-      setPitchPreviewHtml('');
     }
   });
   
@@ -274,10 +248,14 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
               />
               <span class="pitch-name">{pitchTypeName(pitch() === '' ? null : Number(pitch()))}</span>
               <div class="pitch-preview">
-                <Show when={pitchPreviewHtml() && reading()}>
-                  <span class="pitch-word">{reading()}</span>
-                  <div class="mLearn-pitch-accent" innerHTML={pitchPreviewHtml()} />
-                </Show>
+                <PitchAccentOverlay
+                  word={props.word}
+                  reading={reading()}
+                  pitchPosition={pitch() === '' ? null : Number(pitch())}
+                  mode="preview"
+                  showParticleBox={true}
+                  homogenous={true}
+                />
               </div>
             </div>
           </div>

@@ -33,17 +33,18 @@ export const SettingsProvider: ParentComponent = (props) => {
   const [hasLoaded, setHasLoaded] = createSignal(false);
 
   let broadcastChannel: BroadcastChannel | null = null;
+  const ipcCleanups: Array<() => void> = [];
 
   // Load settings from main process
   const loadSettings = () => {
     if (typeof window !== 'undefined' && window.mLearnIPC) {
       // Set up listener BEFORE sending request to avoid race condition
-      window.mLearnIPC.onSettings((loadedSettings) => {
+      ipcCleanups.push(window.mLearnIPC.onSettings((loadedSettings) => {
         setSettings(reconcile(loadedSettings));
         setIsLoading(false);
         setHasLoaded(true);
         applySettingsToDOM(loadedSettings);
-      });
+      }));
       window.mLearnIPC.getSettings();
     } else {
       // In tethered mode, load from API
@@ -162,6 +163,8 @@ export const SettingsProvider: ParentComponent = (props) => {
   });
 
   onCleanup(() => {
+    for (const cleanup of ipcCleanups) cleanup();
+    ipcCleanups.length = 0;
     broadcastChannel?.close();
   });
 

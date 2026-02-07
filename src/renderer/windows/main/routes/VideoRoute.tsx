@@ -31,6 +31,7 @@ export const VideoRoute: Component = () => {
   const [_currentVideoPath, setCurrentVideoPath] = createSignal<string>('');
   
   let thumbnailInterval: number | null = null;
+  const ipcCleanups: Array<() => void> = [];
 
   onMount(() => {
     // Check if we have a video to open from session storage
@@ -51,18 +52,18 @@ export const VideoRoute: Component = () => {
     // Setup IPC listeners
     if (window.mLearnIPC) {
       // Show aside (Live Word Translator)
-      window.mLearnIPC.on(IPC_CHANNELS.SHOW_ASIDE, () => {
+      ipcCleanups.push(window.mLearnIPC.on(IPC_CHANNELS.SHOW_ASIDE, () => {
         if ((window as any).mLearnLiveTranslator) {
           (window as any).mLearnLiveTranslator.show();
         }
-      });
+      }));
 
       // Context menu commands
-      window.mLearnIPC.on(IPC_CHANNELS.CTX_MENU_COMMAND, (...args: unknown[]) => {
+      ipcCleanups.push(window.mLearnIPC.on(IPC_CHANNELS.CTX_MENU_COMMAND, (...args: unknown[]) => {
         if (typeof args[0] === 'string') {
           handleContextMenuCommand(args[0]);
         }
-      });
+      }));
     }
     
     // Set up thumbnail capture interval
@@ -75,6 +76,8 @@ export const VideoRoute: Component = () => {
     if (thumbnailInterval !== null) {
       clearInterval(thumbnailInterval);
     }
+    for (const cleanup of ipcCleanups) cleanup();
+    ipcCleanups.length = 0;
     // Capture final thumbnail on cleanup
     captureThumbnailIfReady();
   });

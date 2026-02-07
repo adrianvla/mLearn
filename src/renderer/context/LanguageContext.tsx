@@ -3,7 +3,7 @@
  * Manages language data and supported languages
  */
 
-import { createContext, useContext, ParentComponent, onMount, createSignal } from 'solid-js';
+import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import type { LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings } from '../../shared/types';
 
@@ -59,16 +59,17 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const [wordFrequency, setWordFrequency] = createStore<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
   const [currentLang] = createSignal<string>(props.language || 'ja');
+  const ipcCleanups: Array<() => void> = [];
 
   // Load language data
   const loadLangData = () => {
     if (typeof window !== 'undefined' && window.mLearnIPC) {
       window.mLearnIPC.getLangData();
-      window.mLearnIPC.onLangData((data) => {
+      ipcCleanups.push(window.mLearnIPC.onLangData((data) => {
         setLangData(reconcile(data as unknown as LanguageDataMap));
         parseWordFrequency(data as unknown as LanguageDataMap);
         setIsLoading(false);
-      });
+      }));
     } else {
       // Tethered mode
       fetch('/api/lang-data')
@@ -211,6 +212,11 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
   onMount(() => {
     loadLangData();
+  });
+
+  onCleanup(() => {
+    for (const cleanup of ipcCleanups) cleanup();
+    ipcCleanups.length = 0;
   });
 
   const value: LanguageContextValue = {

@@ -10,61 +10,56 @@ import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOption
 /**
  * Type-safe IPC API exposed to renderer
  */
+/** Register an IPC listener and return a cleanup function to remove it */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ipcOn(channel: string, handler: (...args: any[]) => void): () => void {
+  ipcRenderer.on(channel, handler);
+  return () => { ipcRenderer.removeListener(channel, handler); };
+}
+
 const mLearnIPC = {
   // ========== Settings ==========
   getSettings: () => ipcRenderer.send(IPC_CHANNELS.GET_SETTINGS),
   saveSettings: (settings: Settings) => ipcRenderer.send(IPC_CHANNELS.SAVE_SETTINGS, settings),
-  onSettings: (callback: (settings: Settings) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.SETTINGS, (_event, settings) => callback(settings));
-  },
-  onSettingsSaved: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.SETTINGS_SAVED, () => callback());
-  },
+  onSettings: (callback: (settings: Settings) => void) =>
+    ipcOn(IPC_CHANNELS.SETTINGS, (_event, settings) => callback(settings)),
+  onSettingsSaved: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.SETTINGS_SAVED, () => callback()),
 
   // ========== Language Data ==========
   getLangData: () => ipcRenderer.send(IPC_CHANNELS.GET_LANG_DATA),
-  onLangData: (callback: (data: Record<string, unknown>) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.LANG_DATA, (_event, data) => callback(data));
-  },
+  onLangData: (callback: (data: Record<string, unknown>) => void) =>
+    ipcOn(IPC_CHANNELS.LANG_DATA, (_event, data) => callback(data)),
   installLanguage: (url: string) => ipcRenderer.send(IPC_CHANNELS.INSTALL_LANG, url),
-  onLanguageInstalled: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.LANG_INSTALLED, () => callback());
-  },
-  onLanguageInstallError: (callback: (error: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.LANG_INSTALL_ERROR, (_event, error) => callback(error));
-  },
+  onLanguageInstalled: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.LANG_INSTALLED, () => callback()),
+  onLanguageInstallError: (callback: (error: string) => void) =>
+    ipcOn(IPC_CHANNELS.LANG_INSTALL_ERROR, (_event, error) => callback(error)),
 
   // ========== Localization ==========
   getLocalization: () => ipcRenderer.send(IPC_CHANNELS.GET_LOCALIZATION),
-  onLocalization: (callback: (data: { locale: string; strings: Record<string, unknown> }) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.LOCALIZATION, (_event, data) => callback(data));
-  },
+  onLocalization: (callback: (data: { locale: string; strings: Record<string, unknown> }) => void) =>
+    ipcOn(IPC_CHANNELS.LOCALIZATION, (_event, data) => callback(data)),
   changeUILanguage: (langCode: string) => ipcRenderer.send(IPC_CHANNELS.CHANGE_UI_LANGUAGE, langCode),
 
   // ========== Flashcards ==========
   getFlashcards: () => ipcRenderer.send(IPC_CHANNELS.GET_FLASHCARDS),
   saveFlashcards: (flashcards: FlashcardStore) => ipcRenderer.send(IPC_CHANNELS.SAVE_FLASHCARDS, flashcards),
-  onFlashcards: (callback: (flashcards: FlashcardStore) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.FLASHCARDS_LOADED, (_event, flashcards) => callback(flashcards));
-  },
-  onNewDayFlashcards: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.FORCE_NEWDAY_FLASHCARDS, () => callback());
-  },
-  onFlashcardConnectOpen: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.FLASHCARD_CONNECT_OPEN, () => callback());
-  },
-  onReviewFlashcardRequest: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST, () => callback());
-  },
+  onFlashcards: (callback: (flashcards: FlashcardStore) => void) =>
+    ipcOn(IPC_CHANNELS.FLASHCARDS_LOADED, (_event, flashcards) => callback(flashcards)),
+  onNewDayFlashcards: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.FORCE_NEWDAY_FLASHCARDS, () => callback()),
+  onFlashcardConnectOpen: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.FLASHCARD_CONNECT_OPEN, () => callback()),
+  onReviewFlashcardRequest: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST, () => callback()),
   
   // ========== Migration ==========
-  onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, (_event, info) => callback(info));
-  },
+  onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) =>
+    ipcOn(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, (_event, info) => callback(info)),
   getFlashcardMigrationInfo: () => ipcRenderer.send(IPC_CHANNELS.GET_FLASHCARD_MIGRATION_INFO),
-  onLocalStorageMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null }) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.LOCALSTORAGE_MIGRATION_COMPLETE, (_event, info) => callback(info));
-  },
+  onLocalStorageMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null }) => void) =>
+    ipcOn(IPC_CHANNELS.LOCALSTORAGE_MIGRATION_COMPLETE, (_event, info) => callback(info)),
   // Get all migrated localStorage data
   getMigratedLocalStorage: (): Promise<Record<string, unknown> | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.GET_MIGRATED_LOCALSTORAGE),
@@ -86,15 +81,13 @@ const mLearnIPC = {
   makePiP: (size: WindowSize) => ipcRenderer.send(IPC_CHANNELS.MAKE_PIP, size),
   unPiP: () => ipcRenderer.send(IPC_CHANNELS.MAKE_NORMAL),
   showCtxMenu: () => ipcRenderer.send(IPC_CHANNELS.SHOW_CTX_MENU),
-  onContextMenuCommand: (callback: (command: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.CTX_MENU_COMMAND, (_event, command) => callback(command));
-  },
+  onContextMenuCommand: (callback: (command: string) => void) =>
+    ipcOn(IPC_CHANNELS.CTX_MENU_COMMAND, (_event, command) => callback(command)),
   showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean }) => {
     ipcRenderer.send(IPC_CHANNELS.SHOW_READER_CTX_MENU, options);
   },
-  onReaderContextMenuCommand: (callback: (command: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.READER_CTX_MENU_COMMAND, (_event, command) => callback(command));
-  },
+  onReaderContextMenuCommand: (callback: (command: string) => void) =>
+    ipcOn(IPC_CHANNELS.READER_CTX_MENU_COMMAND, (_event, command) => callback(command)),
   openWindow: (payload: OpenWindowPayload) => ipcRenderer.send(IPC_CHANNELS.OPEN_WINDOW, payload),
   closeWindow: () => ipcRenderer.send(IPC_CHANNELS.CLOSE_WINDOW),
 
@@ -102,95 +95,73 @@ const mLearnIPC = {
   restartApp: () => ipcRenderer.send(IPC_CHANNELS.RESTART_APP),
   forceRestartApp: () => ipcRenderer.send(IPC_CHANNELS.RESTART_APP_FORCE),
   getVersion: () => ipcRenderer.send(IPC_CHANNELS.GET_VERSION),
-  onVersionReceive: (callback: (version: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.VERSION, (_event, version) => callback(version));
-  },
+  onVersionReceive: (callback: (version: string) => void) =>
+    ipcOn(IPC_CHANNELS.VERSION, (_event, version) => callback(version)),
 
   // ========== Server Status ==========
   isLoaded: () => ipcRenderer.send(IPC_CHANNELS.IS_LOADED),
   isSuccess: () => ipcRenderer.send(IPC_CHANNELS.IS_SUCCESSFUL_INSTALL),
-  onServerLoad: (callback: (message: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.SERVER_LOAD, (_event, message) => callback(message));
-  },
-  onServerStatusUpdate: (callback: (message: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.SERVER_STATUS_UPDATE, (_event, message) => callback(message));
-  },
-  onServerCriticalError: (callback: (message: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.SERVER_CRITICAL_ERROR, (_event, message) => callback(message));
-  },
-  onOcrStatusUpdate: (callback: (message: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.OCR_STATUS_UPDATE, (_event, message) => callback(message));
-  },
+  onServerLoad: (callback: (message: string) => void) =>
+    ipcOn(IPC_CHANNELS.SERVER_LOAD, (_event, message) => callback(message)),
+  onServerStatusUpdate: (callback: (message: string) => void) =>
+    ipcOn(IPC_CHANNELS.SERVER_STATUS_UPDATE, (_event, message) => callback(message)),
+  onServerCriticalError: (callback: (message: string) => void) =>
+    ipcOn(IPC_CHANNELS.SERVER_CRITICAL_ERROR, (_event, message) => callback(message)),
+  onOcrStatusUpdate: (callback: (message: string) => void) =>
+    ipcOn(IPC_CHANNELS.OCR_STATUS_UPDATE, (_event, message) => callback(message)),
 
   // ========== Installation ==========
   startInstall: (options: InstallOptions) => ipcRenderer.send(IPC_CHANNELS.START_INSTALL, options),
   requestInstallerState: () => ipcRenderer.send(IPC_CHANNELS.INSTALLER_STATE_REQUEST),
-  onPythonSuccess: (callback: (success: boolean) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.SUCCESSFUL_INSTALL, (_event, success) => callback(success));
-  },
-  onInstallStarted: (callback: (options: InstallOptions) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.INSTALL_STARTED, (_event, options) => callback(options));
-  },
-  onInstallerAwaitingChoice: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE, () => callback());
-  },
-  onInstallerNetworkError: (callback: (payload: { message: string; detail?: string }) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.INSTALLER_NETWORK_ERROR, (_event, payload) => callback(payload));
-  },
-  onInstallerState: (callback: (state: { waiting: boolean; inProgress: boolean; success: boolean }) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.INSTALLER_STATE, (_event, state) => callback(state));
-  },
+  onPythonSuccess: (callback: (success: boolean) => void) =>
+    ipcOn(IPC_CHANNELS.SUCCESSFUL_INSTALL, (_event, success) => callback(success)),
+  onInstallStarted: (callback: (options: InstallOptions) => void) =>
+    ipcOn(IPC_CHANNELS.INSTALL_STARTED, (_event, options) => callback(options)),
+  onInstallerAwaitingChoice: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE, () => callback()),
+  onInstallerNetworkError: (callback: (payload: { message: string; detail?: string }) => void) =>
+    ipcOn(IPC_CHANNELS.INSTALLER_NETWORK_ERROR, (_event, payload) => callback(payload)),
+  onInstallerState: (callback: (state: { waiting: boolean; inProgress: boolean; success: boolean }) => void) =>
+    ipcOn(IPC_CHANNELS.INSTALLER_STATE, (_event, state) => callback(state)),
 
   // ========== UI ==========
-  onOpenSettings: (callback: (section?: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.SHOW_SETTINGS, (_event, section) => callback(section));
-  },
-  onOpenAside: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.SHOW_ASIDE, () => callback());
-  },
+  onOpenSettings: (callback: (section?: string) => void) =>
+    ipcOn(IPC_CHANNELS.SHOW_SETTINGS, (_event, section) => callback(section)),
+  onOpenAside: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.SHOW_ASIDE, () => callback()),
   writeToClipboard: (text: string) => ipcRenderer.send(IPC_CHANNELS.WRITE_TO_CLIPBOARD, text),
   showContact: () => ipcRenderer.send(IPC_CHANNELS.SHOW_CONTACT),
 
   // ========== Watch Together ==========
   watchTogetherSend: (message: string) => ipcRenderer.send(IPC_CHANNELS.WATCH_TOGETHER_SEND, message),
   isWatchingTogether: () => ipcRenderer.send(IPC_CHANNELS.IS_WATCHING_TOGETHER),
-  onWatchTogetherLaunch: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.WATCH_TOGETHER, () => callback());
-  },
-  onWatchTogetherRequest: (callback: (message: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, (_event, message) => callback(message));
-  },
+  onWatchTogetherLaunch: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.WATCH_TOGETHER, () => callback()),
+  onWatchTogetherRequest: (callback: (message: string) => void) =>
+    ipcOn(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, (_event, message) => callback(message)),
 
   // ========== Tethered Updates ==========
-  onUpdatePills: (callback: (data: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.UPDATE_PILLS, (_event, data) => callback(data));
-  },
-  onUpdateWordAppearance: (callback: (data: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.UPDATE_WORD_APPEARANCE, (_event, data) => callback(data));
-  },
-  onUpdateAttemptFlashcardCreation: (callback: (data: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.UPDATE_ATTEMPT_FLASHCARD_CREATION, (_event, data) => callback(data));
-  },
-  onUpdateCreateFlashcard: (callback: (data: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.UPDATE_CREATE_FLASHCARD, (_event, data) => callback(data));
-  },
-  onUpdateLastWatched: (callback: (data: string) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.UPDATE_LAST_WATCHED, (_event, data) => callback(data));
-  },
+  onUpdatePills: (callback: (data: string) => void) =>
+    ipcOn(IPC_CHANNELS.UPDATE_PILLS, (_event, data) => callback(data)),
+  onUpdateWordAppearance: (callback: (data: string) => void) =>
+    ipcOn(IPC_CHANNELS.UPDATE_WORD_APPEARANCE, (_event, data) => callback(data)),
+  onUpdateAttemptFlashcardCreation: (callback: (data: string) => void) =>
+    ipcOn(IPC_CHANNELS.UPDATE_ATTEMPT_FLASHCARD_CREATION, (_event, data) => callback(data)),
+  onUpdateCreateFlashcard: (callback: (data: string) => void) =>
+    ipcOn(IPC_CHANNELS.UPDATE_CREATE_FLASHCARD, (_event, data) => callback(data)),
+  onUpdateLastWatched: (callback: (data: string) => void) =>
+    ipcOn(IPC_CHANNELS.UPDATE_LAST_WATCHED, (_event, data) => callback(data)),
 
   // ========== Stats & Editors ==========
-  onOpenWordDbEditor: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.OPEN_WORD_DB_EDITOR, () => callback());
-  },
-  onOpenKanjiGrid: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.OPEN_KANJI_GRID, () => callback());
-  },
+  onOpenWordDbEditor: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.OPEN_WORD_DB_EDITOR, () => callback()),
+  onOpenKanjiGrid: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.OPEN_KANJI_GRID, () => callback()),
 
   // ========== Prompt ==========
   promptOutput: (text: string) => ipcRenderer.send(IPC_CHANNELS.PROMPT_OUTPUT, text),
-  onOpenPrompt: (callback: (options: PromptOptions) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.OPEN_PROMPT, (_event, options) => callback(options));
-  },
+  onOpenPrompt: (callback: (options: PromptOptions) => void) =>
+    ipcOn(IPC_CHANNELS.OPEN_PROMPT, (_event, options) => callback(options)),
 
   // ========== LocalStorage Sync ==========
   sendLS: (data: Record<string, unknown>) => ipcRenderer.send(IPC_CHANNELS.SEND_LS, data),
@@ -220,10 +191,9 @@ const mLearnIPC = {
     ipcRenderer.send(channel, data);
   },
   
-  // Generic on for any channel
-  on: (channel: string, callback: (...args: unknown[]) => void) => {
-    ipcRenderer.on(channel, (_event, ...args) => callback(...args));
-  },
+  // Generic on for any channel (returns cleanup function)
+  on: (channel: string, callback: (...args: unknown[]) => void) =>
+    ipcOn(channel, (_event, ...args) => callback(...args)),
   
   // Remove listener
   removeListener: (channel: string, callback: (...args: unknown[]) => void) => {

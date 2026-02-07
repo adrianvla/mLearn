@@ -78,16 +78,6 @@
 }
 
 /* Variants */
-.checkbox-card--glass {
-  background: var(--bg, rgba(255, 255, 255, 0.05));
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-}
-
-.checkbox-card--glass:hover:not(.disabled) {
-  background: rgba(255, 255, 255, 0.08);
-}
-
 .checkbox-card--bordered {
   background: transparent;
   border: 1px solid var(--border-color, rgba(255, 255, 255, 0.2));

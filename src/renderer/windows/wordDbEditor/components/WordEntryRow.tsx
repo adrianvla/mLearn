@@ -5,9 +5,8 @@
  */
 
 import { Component, Show, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Btn, PillLabel, StatusLabel, numericToStatus, statusToNumeric, getNextStatus } from '../../../components/common';
-import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
-import { useSettings, useLocalization, useLanguage } from '../../../context';
+import { Btn, PillLabel, StatusLabel, numericToStatus, statusToNumeric, getNextStatus, PitchAccentOverlay } from '../../../components/common';
+import { useSettings, useLocalization } from '../../../context';
 import { getCachedTranslation } from '../../../hooks/useTranslation';
 import type { TranslationResponse, TranslationEntry } from '../../../../shared/types';
 
@@ -101,7 +100,6 @@ export interface WordEntryRowProps {
 export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
-  const { getLanguageFeatures } = useLanguage();
   const [fetchedTranslation, setFetchedTranslation] = createSignal('');
   let rowRef: HTMLDivElement | undefined;
   let observer: IntersectionObserver | undefined;
@@ -145,36 +143,19 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     observer?.disconnect();
   });
   
-  // Generate pitch accent HTML
-  const pitchAccentHtml = createMemo(() => {
-    if (!getLanguageFeatures().supportsPitchAccent) return '';
-    const pitch = props.entry.pitch;
-    const reading = props.entry.reading || props.entry.word;
-    
-    if (pitch === null || pitch === undefined) return '';
-    if (!reading || reading.length <= 1) return '';
-    
-    const info = getPitchAccentInfo(pitch, reading);
-    if (!info) return '';
-    
-    return buildPitchAccentHtml(info, reading.length, {
-      includeParticleBox: true,
-      homogenous: true,
-    });
-  });
-  
   return (
     <div class="entry" ref={rowRef}>
       <div class="col word">
         <span class="word-text" style={{ position: 'relative' }}>
-          {props.entry.word}
-          <Show when={pitchAccentHtml()}>
-            <div
-              class="mLearn-pitch-accent"
-              style={{ '--pitch-accent-height': '3px' } as any}
-              innerHTML={pitchAccentHtml()}
-            />
-          </Show>
+          <PitchAccentOverlay
+            word={props.entry.word}
+            reading={props.entry.reading || props.entry.word}
+            pitchPosition={props.entry.pitch}
+            mode="overlay"
+            homogenous={true}
+          >
+            {props.entry.word}
+          </PitchAccentOverlay>
         </span>
         <Show when={props.entry.reading && props.entry.reading !== props.entry.word}>
           <span class="reading">{props.entry.reading}</span>
