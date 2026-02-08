@@ -112,6 +112,36 @@
   flex-shrink: 0;
 }
 
+/* Statusbar Toggle Buttons */
+.reader-status .statusbar-toggles {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.reader-status .statusbar-toggle {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  font-size: var(--font-size);
+  padding: 1px 6px;
+  cursor: pointer;
+  outline: none;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.reader-status .statusbar-toggle:hover {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.reader-status .statusbar-toggle.active {
+  color: var(--text-secondary);
+}
+
 @keyframes status-pulse {
   0%, 100% {
     opacity: 1;

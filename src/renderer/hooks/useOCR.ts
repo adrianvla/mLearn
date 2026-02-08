@@ -9,7 +9,8 @@ import { PORTS } from '../../shared/constants';
 import { useServer } from '../context';
 
 // Max target area for OCR (preserve aspect ratio) - matches legacy app
-const MAX_OCR_AREA = 1000 * 1600; // 1.6M pixels
+const MAX_OCR_AREA_TURBO = 1000 * 1600; // 1.6M pixels — turbo mode
+const MAX_OCR_AREA_ACCURATE = 1600 * 2400; // 3.84M pixels — accurate mode
 
 interface OCRBox {
   text: string;
@@ -121,7 +122,8 @@ async function transcodeBlobToPng(
 /**
  * Prepare blob for OCR - read dimensions and resize/transcode if needed
  */
-async function prepareBlobForOCR(blob: Blob): Promise<PreparedImage> {
+async function prepareBlobForOCR(blob: Blob, turbo = true): Promise<PreparedImage> {
+  const maxOcrArea = turbo ? MAX_OCR_AREA_TURBO : MAX_OCR_AREA_ACCURATE;
   let w = 0;
   let h = 0;
 
@@ -151,20 +153,20 @@ async function prepareBlobForOCR(blob: Blob): Promise<PreparedImage> {
     /* ignore; we will attempt direct transcode at native size */
   }
 
-  // Compute target size under MAX_OCR_AREA while preserving aspect ratio
+  // Compute target size under maxOcrArea while preserving aspect ratio
   let targetW = w;
   let targetH = h;
   if (w && h) {
     const area = w * h;
-    if (area > MAX_OCR_AREA) {
-      const scale = Math.sqrt(MAX_OCR_AREA / area);
+    if (area > maxOcrArea) {
+      const scale = Math.sqrt(maxOcrArea / area);
       targetW = Math.max(1, Math.floor(w * scale));
       targetH = Math.max(1, Math.floor(h * scale));
     }
   }
 
   const t = (blob.type || '').toLowerCase();
-  const needTranscode = t !== 'image/png' || (w && h && w * h > MAX_OCR_AREA);
+  const needTranscode = t !== 'image/png' || (w && h && w * h > maxOcrArea);
   const clientScale = w && h && targetW && targetH && w > 0 && h > 0 ? targetW / w : 1;
 
   if (!needTranscode) {
@@ -193,11 +195,13 @@ async function prepareBlobForOCR(blob: Blob): Promise<PreparedImage> {
  * Convert various input types to prepared blob for OCR
  */
 async function inputToBlobForOCR(
-  input: Blob | HTMLCanvasElement | HTMLImageElement | string
+  input: Blob | HTMLCanvasElement | HTMLImageElement | string,
+  turbo = true,
 ): Promise<PreparedImage> {
+  const maxOcrArea = turbo ? MAX_OCR_AREA_TURBO : MAX_OCR_AREA_ACCURATE;
   // If it's a Blob/File already
   if (input instanceof Blob) {
-    return prepareBlobForOCR(input);
+    return prepareBlobForOCR(input, turbo);
   }
 
   // If it's a canvas
@@ -206,8 +210,8 @@ async function inputToBlobForOCR(
     const h = input.height;
     const area = w * h;
 
-    if (area > MAX_OCR_AREA) {
-      const scale = Math.sqrt(MAX_OCR_AREA / area);
+    if (area > maxOcrArea) {
+      const scale = Math.sqrt(maxOcrArea / area);
       const newW = Math.max(1, Math.floor(w * scale));
       const newH = Math.max(1, Math.floor(h * scale));
       const canvas = document.createElement('canvas');
@@ -260,8 +264,8 @@ async function inputToBlobForOCR(
     const area = w * h;
     let newW = w;
     let newH = h;
-    if (area > MAX_OCR_AREA) {
-      const scale = Math.sqrt(MAX_OCR_AREA / area);
+    if (area > maxOcrArea) {
+      const scale = Math.sqrt(maxOcrArea / area);
       newW = Math.max(1, Math.floor(w * scale));
       newH = Math.max(1, Math.floor(h * scale));
     }
@@ -278,7 +282,7 @@ async function inputToBlobForOCR(
       // Cross-origin taint - try fetching the src directly
       const res = await fetch(input.src, { mode: 'cors' });
       const blob = await res.blob();
-      return prepareBlobForOCR(blob);
+      return prepareBlobForOCR(blob, turbo);
     }
 
     const blob = await new Promise<Blob>((resolve, reject) => {
@@ -302,14 +306,14 @@ async function inputToBlobForOCR(
   if (typeof input === 'string' && input.startsWith('data:')) {
     const response = await fetch(input);
     const blob = await response.blob();
-    return prepareBlobForOCR(blob);
+    return prepareBlobForOCR(blob, turbo);
   }
 
   // If it's a URL string
   if (typeof input === 'string') {
     const res = await fetch(input, { mode: 'cors' });
     const blob = await res.blob();
-    return prepareBlobForOCR(blob);
+    return prepareBlobForOCR(blob, turbo);
   }
 
   throw new Error('Unsupported input type for OCR');
@@ -320,13 +324,15 @@ async function inputToBlobForOCR(
  */
 async function sendImageForOCR(
   imageInput: Blob | HTMLCanvasElement | HTMLImageElement | string,
-  ocrUrl: string
+  ocrUrl: string,
+  turbo = true,
 ): Promise<OCRResult> {
-  const prepared = await inputToBlobForOCR(imageInput);
+  const prepared = await inputToBlobForOCR(imageInput, turbo);
 
   const form = new FormData();
   // Name the file for better server-side defaults
   form.append('file', prepared.blob, 'image.png');
+  form.append('turbo', turbo ? '1' : '0');
 
   const response = await fetch(ocrUrl, {
     method: 'POST',
@@ -467,4 +473,4 @@ export function useOCR() {
 }
 
 // Export helper for external use
-export { sendImageForOCR, prepareBlobForOCR, MAX_OCR_AREA };
+export { sendImageForOCR, prepareBlobForOCR, MAX_OCR_AREA_TURBO, MAX_OCR_AREA_ACCURATE };

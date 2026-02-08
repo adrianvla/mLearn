@@ -139,9 +139,18 @@ export interface MLearnIPC {
   closeWindow: () => void;
 }
 
+interface ImportMetaEnv {
+  readonly DEV: boolean;
+  readonly PROD: boolean;
+  readonly MODE: string;
+}
+
 declare global {
   interface Window {
     mLearnIPC?: MLearnIPC;
+  }
+  interface ImportMeta {
+    readonly env: ImportMetaEnv;
   }
 }
 

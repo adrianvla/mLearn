@@ -3,7 +3,7 @@
  */
 
 import { Component, createSignal, Show } from 'solid-js';
-import { useSettings, useLocalization } from '../../../context';
+import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
 
@@ -13,6 +13,7 @@ const KEY_OPTIONS = ['Shift', 'Control', 'Alt', 'Meta'] as const;
 export const ReaderTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
+  const { currentLangData } = useLanguage();
   
   // Recording state for key capture
   const [isRecording, setIsRecording] = createSignal(false);
@@ -91,6 +92,40 @@ export const ReaderTab: Component = () => {
             onChange={(e) => updateSettings({ ocr_crop_padding: parseInt(e.currentTarget.value) })}
           />
         </SettingRow>
+
+        <Show when={currentLangData()?.hasOcrRamSaver}>
+          <SettingRow
+            label={t('mlearn.Settings.Reader.OcrSettings.RamSaver.Label')}
+            description={t('mlearn.Settings.Reader.OcrSettings.RamSaver.Description')}
+          >
+            <ToggleSwitch
+              checked={settings.ocrRamSaver ?? false}
+              onChange={(checked) => updateSettings({ ocrRamSaver: checked })}
+            />
+          </SettingRow>
+        </Show>
+
+        <SettingRow
+          label={t('mlearn.Settings.Reader.OcrSettings.TurboMode.Label')}
+          description={t('mlearn.Settings.Reader.OcrSettings.TurboMode.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.ocrTurboMode ?? true}
+            onChange={(checked) => updateSettings({ ocrTurboMode: checked })}
+          />
+        </SettingRow>
+
+        <Show when={currentLangData()?.hasFurigana}>
+          <SettingRow
+            label={t('mlearn.Settings.Reader.OcrSettings.FuriganaDetection.Label')}
+            description={t('mlearn.Settings.Reader.OcrSettings.FuriganaDetection.Description')}
+          >
+            <ToggleSwitch
+              checked={settings.ocrFuriganaDetection ?? true}
+              onChange={(checked) => updateSettings({ ocrFuriganaDetection: checked })}
+            />
+          </SettingRow>
+        </Show>
       </SettingGroup>
       
       <SettingGroup title={t('mlearn.Settings.Reader.WordHoverBehavior.Title')}>

@@ -145,6 +145,7 @@
   gap: 1rem;
   width: 100%;
   max-width: 600px;
+  margin-top:auto;
 }
 
 /* Show answer button */
@@ -220,8 +221,9 @@
 }
 
 .flashcard-rating-time {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   opacity: 0.7;
+  margin-left:var(--spacing-1);
 }
 
 /* Action buttons container - positioned in header area */
@@ -275,7 +277,7 @@
 }
 
 .flashcard-action-time {
-  font-size: 0.7rem;
+  font-size: var(--font-size-xs);
   opacity: 0.7;
 }
 
@@ -283,7 +285,7 @@
 .flashcard-status {
   display: flex;
   gap: 1.5rem;
-  font-size: 0.875rem;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 

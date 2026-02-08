@@ -209,7 +209,16 @@
         "Ready": "Ready",
         "Tokenizing": "Tokenizing...",
         "Translating": "Translating...",
-        "MagnifierHint": "Press {key} to open magnifier"
+        "MagnifierHint": "Press {key} to open magnifier",
+        "TurboMode": "Turbo",
+        "TurboModeOn": "Turbo: On",
+        "TurboModeOff": "Turbo: Off",
+        "FuriganaDetection": "Furigana Detection",
+        "FuriganaDetectionOn": "Furigana Det.: On",
+        "FuriganaDetectionOff": "Furigana Det.: Off",
+        "DebugOverlayTitle": "Toggle debug overlay to visualize OCR text and furigana detection",
+        "DebugOverlayOn": "Debug: On",
+        "DebugOverlayOff": "Debug: Off"
       },
       "Status": {
         "NothingLoaded": "Nothing Loaded",
@@ -719,6 +728,18 @@
           "CropPadding": {
             "Label": "OCR Crop Padding",
             "Description": "Extra pixels around text when cropping for flashcards"
+          },
+          "RamSaver": {
+            "Label": "Ram Saver",
+            "Description": "Use lightweight OpenCV-based text detection instead of neural network detection. Reduces memory usage by ~1.5 GB but may lower accuracy on complex layouts. Recognition quality is unaffected."
+          },
+          "TurboMode": {
+            "Label": "Turbo Mode",
+            "Description": "Uses RapidOCR for faster detection. When off, uses PaddleOCR which is slower but significantly more accurate, especially for vertical text."
+          },
+          "FuriganaDetection": {
+            "Label": "Furigana Detection",
+            "Description": "Detect and filter furigana annotations from OCR results. When disabled, all detected text boxes are shown as-is without furigana filtering."
           }
         },
         "WordHoverBehavior": {

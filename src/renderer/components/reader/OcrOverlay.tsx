@@ -16,6 +16,7 @@ export interface OcrBox {
   box: number[][];  // [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
   text: string;
   score?: number;
+  is_vertical?: boolean;  // Backend-computed orientation from box aspect ratio
   __originalIdx?: number; // Added to track original index after filtering
 }
 
@@ -31,6 +32,8 @@ export interface OcrOverlayProps {
   result: OcrResult | null;
   imageElement?: HTMLImageElement | null;
   visible?: boolean;
+  /** Show debug overlay coloring for text vs furigana boxes */
+  debugOcr?: boolean;
   onBoxClick?: (box: OcrBox, rect: DOMRect) => void;
   /** Called when hovering over a word. Includes context phrase from neighboring boxes. */
   onWordHover?: (token: Token, rect: DOMRect, contextPhrase: string) => void;
@@ -114,6 +117,9 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const [imageOffsetLeft, setImageOffsetLeft] = createSignal(0);
   const [imageOffsetTop, setImageOffsetTop] = createSignal(0);
 
+  // Check if vertical text is supported by the current language
+  const langFeatures = createMemo(() => getLanguageFeatures());
+
   createEffect(() => {
     const el = props.imageElement;
     if (!el) return;
@@ -183,12 +189,17 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
       __originalIdx: idx,
     }));
     
-    // Filter out narrow furigana boxes (like old app does)
-    // This prevents furigana from being hoverable
+    // Skip furigana filtering when detection is disabled
+    if (!(settings.ocrFuriganaDetection ?? true)) {
+      return boxesWithIdx;
+    }
+    
+    // Filter out narrow furigana boxes
     const filtered = filterNarrowBoxes(boxesWithIdx, {
       ratio: settings.ocrFuriganaWidthRatio,
       neighborWindowMultiplier: settings.ocrFuriganaNeighborWindowMultiplier,
       neighborLookahead: settings.ocrFuriganaNeighborLookahead,
+      supportsVerticalText: langFeatures().supportsVerticalText,
     });
     
     return filtered;
@@ -217,7 +228,9 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     
     // Build context map for neighboring text boxes
     // The map is indexed by position in filteredBoxes array
-    const ctx = buildOcrContextMap(boxes);
+    const ctx = buildOcrContextMap(boxes, {
+      supportsVerticalText: langFeatures().supportsVerticalText,
+    });
     setContextMap(ctx);
   });
 
@@ -294,9 +307,6 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     props.onContextMenu?.(context, boxIndex);
   };
 
-  // Check if vertical text is supported by the current language
-  const langFeatures = createMemo(() => getLanguageFeatures());
-  
   // Only render when we have valid dimensions to calculate positions correctly
   const isReady = () => observedWidth() > 0 && observedHeight() > 0;
   
@@ -316,6 +326,39 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
         offsetTop={imageOffsetTop()}
       />
       
+      {/* Debug overlay for furigana boxes - shown with debug coloring */}
+      <Show when={props.debugOcr && furiganaBoxes().length > 0}>
+        <div
+          class="ocr-overlay"
+          style={{
+            left: `${imageOffsetLeft()}px`,
+            top: `${imageOffsetTop()}px`,
+            width: `${observedWidth()}px`,
+            height: `${observedHeight()}px`,
+            opacity: 1,
+          }}
+        >
+          <For each={furiganaBoxes()}>
+            {(box) => {
+              const rect = getBoundingRect(box.box);
+              const getScale = () => scaleFactor();
+              return (
+                <div
+                  class="ocr-box debug-furigana"
+                  style={{
+                    left: `${rect.x * getScale()}px`,
+                    top: `${rect.y * getScale()}px`,
+                    width: `${rect.width * getScale()}px`,
+                    height: `${rect.height * getScale()}px`,
+                  }}
+                  title={`[Furigana] ${box.text}`}
+                />
+              );
+            }}
+          </For>
+        </div>
+      </Show>
+      
       <Show when={filteredBoxes().length > 0}>
         <div 
           class="ocr-overlay"
@@ -333,8 +376,8 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
               // Use getter function to ensure reactivity when scaleFactor changes on resize
               const getScale = () => scaleFactor();
               const isHovered = () => hoveredBox() === box;
-              // Detect vertical text based on aspect ratio
-              const isVertical = rect.height > rect.width * 1.2;
+              // Detect vertical text: prefer backend flag, fall back to aspect ratio
+              const isVertical = box.is_vertical ?? (rect.height > rect.width * 1.2);
               // Only use vertical styling if language supports it
               const useVerticalLayout = () => isVertical && langFeatures().supportsVerticalText;
               const tokens = () => tokenMap().get(index()) || [];
@@ -346,6 +389,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                   classList={{
                     'hovered': isHovered(),
                     'vertical-box': useVerticalLayout(),
+                    'debug-text': props.debugOcr === true,
                   }}
                   style={{
                     left: `${rect.x * getScale()}px`,
