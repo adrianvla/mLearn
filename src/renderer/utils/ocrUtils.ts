@@ -77,7 +77,7 @@ export function computeBoxMetrics(box: OcrBox, idx: number): BoxMetrics {
     height,
     centerX: minX + width / 2,
     centerY: minY + height / 2,
-    orientation: height > width * 1.25 ? 'vertical' : 'horizontal',
+    orientation: (box.is_vertical ?? (height > width * 1.25)) ? 'vertical' as const : 'horizontal' as const,
   };
 }
 
@@ -116,9 +116,12 @@ function verticalGap(infoA: BoxMetrics, infoB: BoxMetrics): number {
  * confused by boxes in other parts of the page with very different sizes.
  * 
  * @param metrics Array of box metrics
+ * @param supportsVerticalText When true, use orientation-agnostic proximity so
+ *   boxes from vertical-text columns aren't incorrectly split by the per-box
+ *   aspect-ratio heuristic (individual characters may be roughly square).
  * @returns Array of zones, where each zone is an array of metrics indices
  */
-function clusterBoxesIntoZones(metrics: BoxMetrics[]): number[][] {
+function clusterBoxesIntoZones(metrics: BoxMetrics[], supportsVerticalText = false): number[][] {
   if (metrics.length === 0) return [];
   
   // Build adjacency graph based on spatial proximity and orientation
@@ -131,29 +134,49 @@ function clusterBoxesIntoZones(metrics: BoxMetrics[]): number[][] {
     for (let j = 0; j < metrics.length; j++) {
       if (i === j) continue;
       const other = metrics[j];
-      
-      // Skip if different orientations
-      if (info.orientation !== other.orientation) continue;
-      
-      if (info.orientation === 'vertical') {
-        // For vertical text: check horizontal overlap and vertical gap
-        const overlapRatio = overlapAmount(info.minY, info.maxY, other.minY, other.maxY) 
+
+      if (supportsVerticalText) {
+        // When the language can be written vertically, individual character
+        // boxes may be roughly square and mis-classified as horizontal.
+        // Use orientation-agnostic proximity: two boxes are adjacent if they
+        // satisfy EITHER the vertical-text OR horizontal-text adjacency rule.
+        const yOverlapRatio = overlapAmount(info.minY, info.maxY, other.minY, other.maxY)
           / Math.max(1, Math.min(info.height, other.height));
-        const gapRatio = horizontalGap(info, other) 
+        const hGapRatio = horizontalGap(info, other)
           / Math.max(1, (info.width + other.width) / 2);
-        
-        if (overlapRatio >= 0.3 && gapRatio <= 1.8) {
+        const xOverlapRatio = overlapAmount(info.minX, info.maxX, other.minX, other.maxX)
+          / Math.max(1, Math.min(info.width, other.width));
+        const vGapRatio = verticalGap(info, other)
+          / Math.max(1, (info.height + other.height) / 2);
+
+        const isVerticalAdj = yOverlapRatio >= 0.3 && hGapRatio <= 1.8;
+        const isHorizontalAdj = xOverlapRatio >= 0.25 && vGapRatio <= 1.5;
+
+        if (isVerticalAdj || isHorizontalAdj) {
           adj.push(j);
         }
       } else {
-        // For horizontal text: check vertical overlap and horizontal gap
-        const overlapRatio = overlapAmount(info.minX, info.maxX, other.minX, other.maxX) 
-          / Math.max(1, Math.min(info.width, other.width));
-        const gapRatio = verticalGap(info, other) 
-          / Math.max(1, (info.height + other.height) / 2);
-        
-        if (overlapRatio >= 0.25 && gapRatio <= 1.5) {
-          adj.push(j);
+        // Languages without vertical text: strict orientation filtering
+        if (info.orientation !== other.orientation) continue;
+
+        if (info.orientation === 'vertical') {
+          const overlapRatio = overlapAmount(info.minY, info.maxY, other.minY, other.maxY)
+            / Math.max(1, Math.min(info.height, other.height));
+          const gapRatio = horizontalGap(info, other)
+            / Math.max(1, (info.width + other.width) / 2);
+
+          if (overlapRatio >= 0.3 && gapRatio <= 1.8) {
+            adj.push(j);
+          }
+        } else {
+          const overlapRatio = overlapAmount(info.minX, info.maxX, other.minX, other.maxX)
+            / Math.max(1, Math.min(info.width, other.width));
+          const gapRatio = verticalGap(info, other)
+            / Math.max(1, (info.height + other.height) / 2);
+
+          if (overlapRatio >= 0.25 && gapRatio <= 1.5) {
+            adj.push(j);
+          }
         }
       }
     }
@@ -199,6 +222,8 @@ export interface FilterNarrowBoxesOptions {
   ratio?: number;
   neighborWindowMultiplier?: number;
   neighborLookahead?: number;
+  /** Pass true when the current language supports vertical writing */
+  supportsVerticalText?: boolean;
 }
 
 /**
@@ -230,7 +255,7 @@ export function filterNarrowBoxes(
   const metrics = boxes.map((box, idx) => computeBoxMetrics(box, idx));
   
   // Cluster boxes into zones (spatially connected groups)
-  const zones = clusterBoxesIntoZones(metrics);
+  const zones = clusterBoxesIntoZones(metrics, options.supportsVerticalText);
   
   const indicesToRemove = new Set<number>();
 
@@ -338,6 +363,59 @@ export function filterNarrowBoxes(
 }
 
 // ============================================================================
+// Zone Orientation Detection
+// ============================================================================
+
+/**
+ * Determine the reading orientation for a zone of OCR boxes.
+ *
+ * Strategy:
+ *  1. If the backend explicitly flagged boxes as vertical/horizontal via
+ *     `is_vertical`, use majority vote among the flagged boxes.
+ *  2. Otherwise, when `supportsVerticalText` is true, fall back to the
+ *     bounding-box aspect ratio of the entire zone — if the zone is taller
+ *     than it is wide the text is most likely arranged in vertical columns.
+ *  3. As a last resort, use the first box's individual orientation.
+ */
+function determineZoneOrientation(
+  cluster: number[],
+  infos: BoxMetrics[],
+  boxes: OcrBox[],
+  supportsVerticalText?: boolean,
+): 'vertical' | 'horizontal' {
+  // 1. Majority vote from backend-provided is_vertical flags
+  let vertCount = 0;
+  let horizCount = 0;
+  for (const i of cluster) {
+    const flag = boxes[i]?.is_vertical;
+    if (flag === true) vertCount++;
+    else if (flag === false) horizCount++;
+  }
+  if (vertCount > 0 || horizCount > 0) {
+    return vertCount >= horizCount ? 'vertical' : 'horizontal';
+  }
+
+  // 2. Zone bounding-box shape (only when vertical text is possible)
+  if (supportsVerticalText && cluster.length > 1) {
+    let zMinX = Infinity, zMaxX = -Infinity;
+    let zMinY = Infinity, zMaxY = -Infinity;
+    for (const i of cluster) {
+      const m = infos[i];
+      if (m.minX < zMinX) zMinX = m.minX;
+      if (m.maxX > zMaxX) zMaxX = m.maxX;
+      if (m.minY < zMinY) zMinY = m.minY;
+      if (m.maxY > zMaxY) zMaxY = m.maxY;
+    }
+    const zoneW = zMaxX - zMinX;
+    const zoneH = zMaxY - zMinY;
+    if (zoneH > zoneW) return 'vertical';
+  }
+
+  // 3. Fallback: first box
+  return infos[cluster[0]].orientation;
+}
+
+// ============================================================================
 // Build OCR Context Map
 // ============================================================================
 
@@ -349,9 +427,13 @@ export function filterNarrowBoxes(
  * grouping of boxes into speech bubbles / text blocks.
  * 
  * @param boxes Array of OCR boxes
+ * @param options Optional settings for vertical text support
  * @returns Map from box index to context phrase string
  */
-export function buildOcrContextMap(boxes: OcrBox[]): Map<number, string> {
+export function buildOcrContextMap(
+  boxes: OcrBox[],
+  options: { supportsVerticalText?: boolean } = {},
+): Map<number, string> {
   const contextMap = new Map<number, string>();
   
   try {
@@ -360,12 +442,12 @@ export function buildOcrContextMap(boxes: OcrBox[]): Map<number, string> {
     const infos = boxes.map((box, idx) => computeBoxMetrics(box, idx));
     
     // Use the shared zone clustering algorithm
-    const zones = clusterBoxesIntoZones(infos);
+    const zones = clusterBoxesIntoZones(infos, options.supportsVerticalText);
     
     for (const cluster of zones) {
       if (cluster.length === 0) continue;
       
-      const orient = infos[cluster[0]].orientation;
+      const orient = determineZoneOrientation(cluster, infos, boxes, options.supportsVerticalText);
       
       // Sort cluster by reading order
       const sorted = cluster.slice().sort((aIdx, bIdx) => {

@@ -189,8 +189,8 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       fixedSettingKeys: fixedKeys,
       // Character name detection primarily for Japanese anime subtitles
       supportsCharacterNames: isJapanese,
-      // Vertical text support for CJK languages (Japanese, Chinese, Korean)
-      supportsVerticalText: isJapanese || isChinese || isKorean,
+      // Vertical text support — driven by language data, not hardcoded language checks
+      supportsVerticalText: data?.supportsVerticalText === true,
     };
   };
 

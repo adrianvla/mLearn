@@ -119,6 +119,12 @@ export interface Settings {
 
   // OCR settings
   ocr_crop_padding: number;
+  /** Use lightweight OCR detection to reduce memory usage (only visible for languages that support it) */
+  ocrRamSaver?: boolean;
+  /** Turbo mode: faster but potentially less accurate OCR detection (default true) */
+  ocrTurboMode?: boolean;
+  /** Enable furigana detection and filtering in OCR results (default true) */
+  ocrFuriganaDetection?: boolean;
   /** Width ratio threshold for filtering narrow furigana boxes (default 1.5) */
   ocrFuriganaWidthRatio?: number;
   /** Window multiplier for neighbor detection (default 2.4) */
@@ -191,6 +197,9 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardFlipAnimation: true,
   devMode: false,
   ocr_crop_padding: 200,
+  ocrRamSaver: false,
+  ocrTurboMode: true,
+  ocrFuriganaDetection: true,
   ocrFuriganaWidthRatio: 1.5,
   ocrFuriganaNeighborWindowMultiplier: 2.4,
   ocrFuriganaNeighborLookahead: 3,
@@ -222,6 +231,12 @@ export interface LanguageData {
   fixed_settings: Partial<Settings>;
   freq?: [string, string][];
   freq_level_names?: FrequencyLevelNames;
+  /** Whether this language offers the OCR Ram Saver toggle (lightweight detection) */
+  hasOcrRamSaver?: boolean;
+  /** Whether this language can be written vertically (e.g. CJK vertical text) */
+  supportsVerticalText?: boolean;
+  /** Whether this language has furigana-like reading annotations alongside text (e.g. Japanese) */
+  hasFurigana?: boolean;
 }
 
 export interface LanguageDataMap {

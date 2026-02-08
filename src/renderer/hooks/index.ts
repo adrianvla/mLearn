@@ -9,7 +9,7 @@ export { useIPC, useIsElectron, useIsTethered, useIPCEvent, useBackendStatus, us
 // Media
 export { useVideo, useVideoKeyboard, type VideoState } from './useVideo';
 export { useSubtitles } from './useSubtitles';
-export { useOCR, sendImageForOCR, prepareBlobForOCR, MAX_OCR_AREA } from './useOCR';
+export { useOCR, sendImageForOCR, prepareBlobForOCR, MAX_OCR_AREA_TURBO, MAX_OCR_AREA_ACCURATE } from './useOCR';
 
 // Language & Learning
 export { 

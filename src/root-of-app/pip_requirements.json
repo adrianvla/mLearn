@@ -18,7 +18,9 @@
     "paddlepaddle>=2.5.2",
     "paddleocr>=2.7.3",
     "manga-ocr",
-    "onnxruntime"
+    "onnxruntime",
+    "opencv-python-headless",
+    "rapidocr"
   ],
   "llm": [
     "torch",

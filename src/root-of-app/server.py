@@ -60,6 +60,7 @@ if len(arguments) >= 7:
 ANKI_FIELD_EXPRESSION = "Expression"
 ANKI_FIELD_READING = "Reading"
 ANKI_FIELD_MEANING = "Meaning"
+OCR_RAM_SAVER = False
 
 if USER_DATA_PATH:
     settings_path = os.path.join(USER_DATA_PATH, "settings.json")
@@ -70,7 +71,9 @@ if USER_DATA_PATH:
                 ANKI_FIELD_EXPRESSION = settings.get("anki_field_expression", "Expression")
                 ANKI_FIELD_READING = settings.get("anki_field_reading", "Reading")
                 ANKI_FIELD_MEANING = settings.get("anki_field_meaning", "Meaning")
+                OCR_RAM_SAVER = settings.get("ocrRamSaver", False)
                 print(f"Loaded Anki field mappings: Expression='{ANKI_FIELD_EXPRESSION}', Reading='{ANKI_FIELD_READING}', Meaning='{ANKI_FIELD_MEANING}'")
+                print(f"OCR Ram Saver: {OCR_RAM_SAVER}")
         except Exception as e:
             print(f"Error reading settings.json: {e}")
 
@@ -79,6 +82,19 @@ print("LLM allowed:", LLM_ALLOWED)
 print("OCR allowed:", OCR_ALLOWED)
 LANGUAGE_DIR_PATH = os.path.join(RESPATH,"languages")
 
+# Read language-specific config from the JSON file next to the .py module.
+# This is used to determine features like vertical text support at runtime
+# without hardcoding per-language behaviour.
+SUPPORTS_VERTICAL_TEXT = False
+_lang_json_path = os.path.join(LANGUAGE_DIR_PATH, f"{LANGUAGE}.json")
+if os.path.isfile(_lang_json_path):
+    try:
+        with open(_lang_json_path, 'r', encoding='utf-8') as _lf:
+            _lang_cfg = json.load(_lf)
+            SUPPORTS_VERTICAL_TEXT = bool(_lang_cfg.get("supportsVerticalText", False))
+    except Exception as _e:
+        print(f"Warning: failed to read {_lang_json_path}: {_e}")
+print("Supports vertical text:", SUPPORTS_VERTICAL_TEXT)
 
 print("Language dir path: ", LANGUAGE_DIR_PATH)
 
@@ -823,25 +839,177 @@ def quit():
     return {"response": "quitting"}
 
 
-# --- OCR Support (PaddleOCR + MangaOCR) ---
+# --- OCR Support (RapidOCR + PaddleOCR + MangaOCR) ---
+_rapid_ocr = None
 _paddle_ocr = None
 _manga_ocr = None
+_ocr_model_lock = threading.Lock()  # protects _rapid_ocr, _paddle_ocr, _manga_ocr init/unload
+
+# OCR idle-unload: free RAM after inactivity (mirrors LLM idle-unload)
+_OCR_IDLE_TIMEOUT_SECONDS = 600  # 10 minutes
+_ocr_last_used: float = 0.0
+_ocr_idle_timer: threading.Timer | None = None
+_ocr_idle_lock = threading.Lock()
+
+
+def _ocr_touch():
+    """Mark that OCR was just used; reset the idle-unload timer."""
+    global _ocr_last_used, _ocr_idle_timer
+    _ocr_last_used = time.monotonic()
+    with _ocr_idle_lock:
+        if _ocr_idle_timer is not None:
+            _ocr_idle_timer.cancel()
+        _ocr_idle_timer = threading.Timer(_OCR_IDLE_TIMEOUT_SECONDS, _ocr_check_idle)
+        _ocr_idle_timer.daemon = True
+        _ocr_idle_timer.start()
+
+
+def _ocr_check_idle():
+    """Called by the idle timer; unload OCR models if not used recently."""
+    elapsed = time.monotonic() - _ocr_last_used
+    if elapsed >= _OCR_IDLE_TIMEOUT_SECONDS:
+        _ocr_unload()
+    else:
+        remaining = _OCR_IDLE_TIMEOUT_SECONDS - elapsed
+        with _ocr_idle_lock:
+            global _ocr_idle_timer
+            _ocr_idle_timer = threading.Timer(remaining, _ocr_check_idle)
+            _ocr_idle_timer.daemon = True
+            _ocr_idle_timer.start()
+
+
+def _ocr_unload():
+    """Unload all OCR models to free memory."""
+    global _rapid_ocr, _paddle_ocr, _manga_ocr
+    with _ocr_model_lock:
+        _ocr_unload_inner()
+
+
+def _ocr_unload_inner():
+    """Inner unload — caller must hold _ocr_model_lock."""
+    global _rapid_ocr, _paddle_ocr, _manga_ocr
+    any_unloaded = False
+    if _rapid_ocr is not None:
+        _log_ocr("OCR idle timeout — unloading RapidOCR")
+        try:
+            del _rapid_ocr
+        except Exception:
+            pass
+        _rapid_ocr = None
+        any_unloaded = True
+    if _paddle_ocr is not None:
+        _log_ocr("OCR idle timeout — unloading PaddleOCR")
+        try:
+            del _paddle_ocr
+        except Exception:
+            pass
+        _paddle_ocr = None
+        any_unloaded = True
+    if _manga_ocr is not None:
+        _log_ocr("OCR idle timeout — unloading MangaOCR")
+        try:
+            del _manga_ocr
+        except Exception:
+            pass
+        _manga_ocr = None
+        any_unloaded = True
+    if any_unloaded:
+        import gc
+        gc.collect()
+        if torch is not None:
+            try:
+                if hasattr(torch, 'cuda') and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                if hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
+                    torch.mps.empty_cache()
+            except Exception:
+                pass
+        _log_ocr("OCR models unloaded successfully")
+
+
+def _get_rapid_ocr():
+    """Lazily initialize RapidOCR with the appropriate language."""
+    global _rapid_ocr
+    if not OCR_ALLOWED:
+        _log_ocr_init("OCR disabled; RapidOCR not initialised")
+        return None
+    with _ocr_model_lock:
+        if _rapid_ocr is not None:
+            return _rapid_ocr
+        return _init_rapid_ocr()
+
+
+def _init_rapid_ocr():
+    """Inner init — caller must hold _ocr_model_lock."""
+    global _rapid_ocr
+    try:
+        from rapidocr import RapidOCR, LangRec  # type: ignore
+    except Exception as e:
+        _log_ocr_init("RapidOCR import error", e)
+        return None
+
+    lang_map = {
+        "de": LangRec.LATIN,
+        "ja": LangRec.JAPAN,
+        "en": LangRec.EN,
+        "zh": LangRec.CH,
+        "ko": LangRec.KOREAN,
+        "fr": LangRec.LATIN,
+        "es": LangRec.LATIN,
+        "ru": LangRec.CYRILLIC,
+        "ar": LangRec.ARABIC,
+        "th": LangRec.TH,
+    }
+    lang_type = lang_map.get(LANGUAGE, LangRec.EN)
+
+    _log_ocr_init("Initializing RapidOCR with lang", str(lang_type))
+    t0 = time.perf_counter()
+    params = {
+        "Global.use_cls": False,
+        "Rec.lang_type": lang_type,
+    }
+    if SUPPORTS_VERTICAL_TEXT:
+        # Use PaddleOCR-compatible detection parameters for vertical text.
+        # PaddleOCR used limit_type='max' (limit the longest side) and
+        # limit_side_len=960 which yields a higher-resolution detection
+        # input that separates adjacent vertical columns more reliably.
+        # The default RapidOCR values (limit_type='min', 736, unclip=1.6)
+        # tend to merge neighbouring vertical columns into one wide box.
+        params["Det.limit_type"] = "max"
+        params["Det.limit_side_len"] = 960
+        params["Det.unclip_ratio"] = 1.5
+    _rapid_ocr = RapidOCR(params=params)
+    t1 = time.perf_counter()
+    _log_ocr_init(f"RapidOCR initialized in {t1 - t0:.2f}s")
+    _process_stats("rapid_ocr_init")
+    return _rapid_ocr
 
 
 def _get_paddle_ocr():
+    """Lazily initialize PaddleOCR — the accurate (non-turbo) engine.
+
+    PaddleOCR produces significantly better detection boxes for vertical text
+    (e.g. manga) compared to RapidOCR's DBNet, which tends to merge adjacent
+    vertical columns into horizontal rows.
+    """
     global _paddle_ocr
     if not OCR_ALLOWED:
         _log_ocr_init("OCR disabled; PaddleOCR not initialised")
         return None
-    if _paddle_ocr is not None:
-        _log_ocr_init("PaddleOCR already initialized")
-        return _paddle_ocr
+    with _ocr_model_lock:
+        if _paddle_ocr is not None:
+            return _paddle_ocr
+        return _init_paddle_ocr()
+
+
+def _init_paddle_ocr():
+    """Inner init — caller must hold _ocr_model_lock."""
+    global _paddle_ocr
     try:
         from paddleocr import PaddleOCR  # type: ignore
     except Exception as e:
         _log_ocr_init("PaddleOCR import error", e)
         return None
-    # Use Japanese models if LANGUAGE == 'ja', else default to 'en'
     langs = {
         "de": "german",
         "ja": "japan",
@@ -850,10 +1018,9 @@ def _get_paddle_ocr():
         "ko": "korean",
         "fr": "french",
         "es": "spanish",
-        "ru": "russian"
+        "ru": "russian",
     }
-    lang_code = langs.get(LANGUAGE, 'en')  # Default to 'en' if language not found
-    # Log PaddlePaddle version if available
+    lang_code = langs.get(LANGUAGE, 'en')
     try:
         import paddle  # type: ignore
         _log_ocr_init("PaddlePaddle version", getattr(paddle, "__version__", "unknown"))
@@ -861,7 +1028,12 @@ def _get_paddle_ocr():
         _log_ocr_init("Paddle import/version error", e)
     _log_ocr_init("Initializing PaddleOCR with lang", lang_code)
     t0 = time.perf_counter()
-    _paddle_ocr = PaddleOCR(lang=lang_code, use_angle_cls=True, use_doc_orientation_classify=False, use_doc_unwarping=False)
+    _paddle_ocr = PaddleOCR(
+        lang=lang_code,
+        use_angle_cls=True,
+        use_doc_orientation_classify=False,
+        use_doc_unwarping=False,
+    )
     t1 = time.perf_counter()
     _log_ocr_init(f"PaddleOCR initialized in {t1 - t0:.2f}s")
     _process_stats("paddle_init")
@@ -875,10 +1047,82 @@ def _paddle_run_ocr(paddle_inst, img):
         _log_ocr_run("paddle ocr produced", len(res) if isinstance(res, list) else 'n/a', "items")
         return res
     except TypeError:
-        # Older signatures may not accept cls
         res = paddle_inst.ocr(img)
         _log_ocr_run("paddle ocr produced (compat)", len(res) if isinstance(res, list) else 'n/a', "items")
         return res
+
+
+def _extract_lines_from_paddle_result(result):
+    """Normalize PaddleOCR result to a flat list of (box, text, score)."""
+    if not result:
+        return []
+
+    if isinstance(result, list) and len(result) == 1 and not isinstance(result[0], (list, tuple)):
+        result = result[0]
+
+    if isinstance(result, dict):
+        texts = result.get('rec_texts') or result.get('texts')
+        scores = result.get('rec_scores') or result.get('scores')
+        box_keys = [
+            'text_det_polys', 'det_polys', 'dt_polys', 'polys',
+            'text_region_polys', 'boxes', 'dt_boxes', 'det_boxes',
+        ]
+        boxes = None
+        for k in box_keys:
+            if k in result:
+                boxes = result[k]
+                break
+        if boxes is None:
+            for k, v in result.items():
+                if isinstance(v, (list, tuple)) and len(v) > 0:
+                    try:
+                        arr = np.array(v[0])
+                        if arr.ndim == 2 and arr.shape[1] == 2 and arr.shape[0] >= 4:
+                            boxes = v
+                            break
+                    except Exception:
+                        pass
+        flat: list[tuple] = []
+        try:
+            if texts is not None and isinstance(boxes, (list, tuple)) and len(boxes) > 0:
+                n = min(len(texts), len(boxes))
+                for i in range(n):
+                    pts = boxes[i]
+                    if isinstance(pts, np.ndarray):
+                        pts = pts.tolist()
+                    if pts and isinstance(pts[0], (int, float)) and len(pts) % 2 == 0:
+                        pts = [[float(pts[j]), float(pts[j + 1])] for j in range(0, len(pts), 2)]
+                    pts = [[float(x), float(y)] for x, y in pts]
+                    txt = str(texts[i])
+                    scr = float(scores[i]) if scores is not None and i < len(scores) else None
+                    flat.append((pts, txt, scr))
+                return flat
+            if texts is not None:
+                return [(None, str(t), float(scores[i]) if scores is not None and i < len(scores) else None) for i, t in enumerate(texts)]
+        except Exception:
+            return []
+        return []
+
+    lines = result
+    if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list) and (
+        len(result) == 1 or (result and isinstance(result[0][0], (list, tuple)))
+    ):
+        lines = result[0]
+
+    flat = []
+    try:
+        for item in lines:
+            if not item:
+                continue
+            pts = item[0]
+            txt, scr = None, None
+            if len(item) > 1 and isinstance(item[1], (list, tuple)) and len(item[1]) >= 2:
+                txt, scr = item[1][0], float(item[1][1])
+            flat.append((pts, txt, scr))
+    except Exception as e:
+        _log_ocr_run(f"Failed to parse PaddleOCR lines: {e}")
+        return []
+    return flat
 
 
 def _get_manga_ocr():
@@ -886,9 +1130,15 @@ def _get_manga_ocr():
     if not OCR_ALLOWED:
         _log_ocr_init("OCR disabled; MangaOCR not initialised")
         return None
-    if _manga_ocr is not None:
-        _log_ocr_init("MangaOCR already initialized")
-        return _manga_ocr
+    with _ocr_model_lock:
+        if _manga_ocr is not None:
+            return _manga_ocr
+        return _init_manga_ocr()
+
+
+def _init_manga_ocr():
+    """Inner init — caller must hold _ocr_model_lock."""
+    global _manga_ocr
     try:
         from manga_ocr import MangaOcr  # type: ignore
     except Exception as e:
@@ -905,6 +1155,185 @@ def _get_manga_ocr():
         _log_ocr_init("Failed to initialize MangaOCR", e)
         _manga_ocr = None
     return _manga_ocr
+
+
+def _opencv_detect_text_regions(np_img, prefer_vertical: bool = False):
+    """Detect text regions using OpenCV morphological operations.
+
+    This is the lightweight 'Ram Saver' detection path.
+    It avoids loading any neural network for detection, using classical
+    image processing instead: grayscale → adaptive threshold → dilate
+    (to connect nearby characters) → contour detection → filter by
+    area and aspect ratio.
+
+    When *prefer_vertical* is ``False`` (default) two dilation passes are
+    performed — one with a horizontal kernel and one with a vertical
+    kernel — and their results are merged.  This ensures both horizontal
+    and vertical text lines are captured.
+
+    When *prefer_vertical* is ``True`` (vertical-text languages) only the
+    vertical kernel is used so that characters stacked in a column merge
+    into a single tall region instead of bridging across adjacent columns.
+
+    Returns a list of 4-point bounding boxes (same shape as RapidOCR boxes).
+    """
+    import cv2  # type: ignore
+    gray = cv2.cvtColor(np_img, cv2.COLOR_BGR2GRAY)
+    # Adaptive threshold handles uneven lighting in scanned pages / photos
+    binary = cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 25, 15
+    )
+
+    if prefer_vertical:
+        # Vertical-text path: only merge characters vertically so adjacent
+        # columns stay separate.  A small horizontal component (4px) still
+        # captures strokes that slightly exceed character bounding boxes.
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 25))
+        combined = cv2.dilate(binary, kernel, iterations=2)
+    else:
+        # Horizontal kernel — merges characters in horizontal text lines
+        kernel_h = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 8))
+        dilated_h = cv2.dilate(binary, kernel_h, iterations=2)
+
+        # Vertical kernel — merges characters in vertical text columns
+        kernel_v = cv2.getStructuringElement(cv2.MORPH_RECT, (8, 25))
+        dilated_v = cv2.dilate(binary, kernel_v, iterations=2)
+
+        # Combine both: any region found by either pass
+        combined = cv2.bitwise_or(dilated_h, dilated_v)
+
+    contours, _ = cv2.findContours(combined, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    H, W = np_img.shape[:2]
+    img_area = H * W
+    min_area = img_area * 0.0005   # filter tiny noise
+    max_area = img_area * 0.95     # filter full-page blobs
+
+    boxes = []
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
+        area = w * h
+        if area < min_area or area > max_area:
+            continue
+        # Filter by aspect ratio — skip extremely thin/wide blobs
+        aspect = w / max(h, 1)
+        if aspect > 30 or aspect < 0.03:
+            continue
+        box = [
+            [float(x), float(y)],
+            [float(x + w), float(y)],
+            [float(x + w), float(y + h)],
+            [float(x), float(y + h)],
+        ]
+        boxes.append(box)
+
+    # Sort top-to-bottom, then left-to-right
+    boxes.sort(key=lambda b: (b[0][1], b[0][0]))
+    _log_ocr_run(f"OpenCV morphological detection found {len(boxes)} regions")
+    return boxes
+
+
+def _regroup_boxes_for_vertical_text(boxes):
+    """Post-process detection boxes for vertical-text languages.
+
+    RapidOCR's DBNet detection may produce per-character boxes or horizontal-row
+    boxes instead of per-column boxes for vertical text (e.g. manga).  This
+    function clusters the detected boxes into vertical columns.
+
+    Algorithm:
+    1. Compute a bounding rect for each box.
+    2. If the majority of boxes are already taller than wide (vertical columns),
+       assume detection is correct and return unchanged.
+    3. Otherwise, cluster boxes whose X-ranges overlap into vertical columns
+       (union-find), merge each cluster into a single tall bounding box.
+    """
+    if not boxes or len(boxes) <= 1:
+        return boxes
+
+    # Compute metrics
+    rects = []
+    for box in boxes:
+        xs = [p[0] for p in box]
+        ys = [p[1] for p in box]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        w = max_x - min_x
+        h = max_y - min_y
+        rects.append({
+            'min_x': min_x, 'max_x': max_x,
+            'min_y': min_y, 'max_y': max_y,
+            'w': max(w, 1), 'h': max(h, 1),
+            'cx': (min_x + max_x) / 2.0,
+            'cy': (min_y + max_y) / 2.0,
+        })
+
+    # If most boxes are already taller than wide, detection was fine
+    tall_count = sum(1 for r in rects if r['h'] > r['w'] * 1.3)
+    if tall_count >= len(rects) * 0.5:
+        _log_ocr_run(f"Vertical regroup: {tall_count}/{len(rects)} already vertical, skipping")
+        return boxes
+
+    _log_ocr_run(f"Vertical regroup: only {tall_count}/{len(rects)} vertical, regrouping into columns")
+
+    # Union-Find for clustering boxes into columns
+    n = len(rects)
+    parent = list(range(n))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    # Median width of boxes (character width estimate)
+    widths = sorted(r['w'] for r in rects)
+    median_w = widths[len(widths) // 2] if widths else 1.0
+    # Threshold: boxes within this horizontal distance share a column
+    x_thresh = median_w * 1.2
+
+    # Cluster boxes that overlap or are close in X
+    for i in range(n):
+        for j in range(i + 1, n):
+            ri, rj = rects[i], rects[j]
+            # Check if X-ranges overlap or are within threshold
+            x_overlap = min(ri['max_x'], rj['max_x']) - max(ri['min_x'], rj['min_x'])
+            if x_overlap >= -x_thresh:
+                # Also verify they're not too far apart vertically
+                # (they should be in the same text block, not different bubbles)
+                y_gap = max(0, max(ri['min_y'], rj['min_y']) - min(ri['max_y'], rj['max_y']))
+                max_h = max(ri['h'], rj['h'])
+                if y_gap <= max_h * 3:
+                    union(i, j)
+
+    # Group by cluster
+    from collections import defaultdict
+    clusters = defaultdict(list)
+    for i in range(n):
+        clusters[find(i)].append(i)
+
+    # Merge each cluster into one bounding box
+    merged = []
+    for indices in clusters.values():
+        if not indices:
+            continue
+        min_x = min(rects[i]['min_x'] for i in indices)
+        max_x = max(rects[i]['max_x'] for i in indices)
+        min_y = min(rects[i]['min_y'] for i in indices)
+        max_y = max(rects[i]['max_y'] for i in indices)
+        merged.append([
+            [min_x, min_y],
+            [max_x, min_y],
+            [max_x, max_y],
+            [min_x, max_y],
+        ])
+
+    _log_ocr_run(f"Vertical regroup: {len(boxes)} boxes → {len(merged)} columns")
+    return merged
 
 
 def _load_image_from_inputs(file_bytes: bytes | None, image_base64: str | None) -> Image.Image:
@@ -929,113 +1358,34 @@ def _load_image_from_inputs(file_bytes: bytes | None, image_base64: str | None) 
         raise HTTPException(status_code=400, detail="Invalid image data.")
 
 
-def _extract_lines_from_paddle_result(result):
-    """Normalize PaddleOCR result to a flat list of (box, text, score).
-    Supports legacy list-based output and newer dict-based outputs that contain
-    keys such as 'rec_texts', 'rec_scores', and (ideally) some polygon boxes.
+def _extract_rapid_ocr_boxes(result) -> list:
+    """Extract boxes from a RapidOCR result object.
+
+    Returns a list of (box, text, score) where box is a list of 4 [x,y] pairs.
+    RapidOCR returns result.boxes as an (N, 4, 2) numpy array, result.txts
+    as a tuple of strings, and result.scores as a tuple of floats.
     """
-    if not result:
-        print("_extract_lines_from_paddle_result: Empty result")
+    if result is None:
         return []
-
-    # Use global numpy alias 'np' imported at module level
-
-    # If it's a batch-of-one list, unwrap
-    if isinstance(result, list) and len(result) == 1 and not isinstance(result[0], (list, tuple)):
-        # Could be a dict inside
-        result = result[0]
-
-    # Handle dict-based output
-    if isinstance(result, dict):
-        print("_extract_lines_from_paddle_result: Detected dict-based output. Keys:", list(result.keys()))
-        # Common fields
-        texts = result.get('rec_texts') or result.get('texts')
-        scores = result.get('rec_scores') or result.get('scores')
-
-        # Try common box keys in order
-        box_keys = [
-            'text_det_polys', 'det_polys', 'dt_polys', 'polys',
-            'text_region_polys', 'boxes', 'dt_boxes', 'det_boxes'
-        ]
-        boxes = None
-        for k in box_keys:
-            if k in result:
-                boxes = result[k]
-                print(f"_extract_lines_from_paddle_result: Found boxes under key '{k}' with count:", (len(boxes) if isinstance(boxes, (list, tuple)) else 'n/a'))
-                break
-
-        # If boxes not found, attempt to heuristically locate a list of polygon-like arrays
-        if boxes is None:
-            for k, v in result.items():
-                if isinstance(v, (list, tuple)) and len(v) > 0:
-                    first = v[0]
-                    try:
-                        arr = np.array(first)
-                        if arr.ndim == 2 and arr.shape[1] == 2 and arr.shape[0] >= 4:
-                            boxes = v
-                            print(f"_extract_lines_from_paddle_result: Heuristically using key '{k}' for boxes; count:", len(v))
-                            break
-                    except Exception:
-                        pass
-
-        if texts is None:
-            print("_extract_lines_from_paddle_result: No 'rec_texts'/'texts' found.")
-        else:
-            print("_extract_lines_from_paddle_result: Text count:", len(texts))
-        if isinstance(boxes, (list, tuple)):
-            print("_extract_lines_from_paddle_result: Box count:", len(boxes))
-        else:
-            print("_extract_lines_from_paddle_result: Boxes missing or not a sequence.")
-
-        # If we have both texts and boxes, pair them by index
-        flat: list[tuple] = []
-        try:
-            if texts is not None and isinstance(boxes, (list, tuple)) and len(boxes) > 0:
-                n = min(len(texts), len(boxes))
-                for i in range(n):
-                    pts = boxes[i]
-                    # normalize to list of [x,y]
-                    if isinstance(pts, np.ndarray):
-                        pts = pts.tolist()
-                    # Some formats might be [[x1,y1,x2,y2,...]] -> convert to [[x,y],...]
-                    if pts and isinstance(pts[0], (int, float)) and len(pts) % 2 == 0:
-                        pts = [[float(pts[j]), float(pts[j+1])] for j in range(0, len(pts), 2)]
-                    # Ensure it's a list of pairs
-                    pts = [[float(x), float(y)] for x, y in pts]
-                    txt = str(texts[i])
-                    scr = float(scores[i]) if scores is not None and i < len(scores) else None
-                    flat.append((pts, txt, scr))
-                return flat
-            # If we only have texts, return without boxes (caller can decide fallback)
-            if texts is not None:
-                return [(None, str(t), float(scores[i]) if scores is not None and i < len(scores) else None) for i, t in enumerate(texts)]
-        except Exception as e:
-            print("_extract_lines_from_paddle_result: Exception while pairing dict-based output:", e)
-            return []
-
+    boxes = result.boxes
+    txts = result.txts
+    scores = result.scores
+    if boxes is None or txts is None:
         return []
-
-    # Handle legacy list-based outputs
-    lines = result
-    if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list) and (
-        len(result) == 1 or (result and isinstance(result[0][0], (list, tuple)))
-    ):
-        lines = result[0]
-
     flat = []
     try:
-        for item in lines:
-            if not item:
-                continue
-            # Expected: item[0] = points, item[1] = (text, score)
-            pts = item[0]
-            txt, scr = None, None
-            if len(item) > 1 and isinstance(item[1], (list, tuple)) and len(item[1]) >= 2:
-                txt, scr = item[1][0], float(item[1][1])
+        n = min(len(boxes), len(txts))
+        for i in range(n):
+            pts = boxes[i]
+            if isinstance(pts, np.ndarray):
+                pts = pts.tolist()
+            # Ensure list of [x, y] pairs
+            pts = [[float(x), float(y)] for x, y in pts]
+            txt = str(txts[i])
+            scr = float(scores[i]) if scores is not None and i < len(scores) else None
             flat.append((pts, txt, scr))
     except Exception as e:
-        print(f"Failed to parse PaddleOCR lines. Error: {e}. Data was: {lines}")
-        return []
+        _log_ocr_run("_extract_rapid_ocr_boxes error:", e)
     return flat
 
 
@@ -1095,6 +1445,29 @@ class OcrBox(BaseModel):
     box: List[List[float]]  # 4x2 points
     text: str
     score: float | None = None
+    is_vertical: bool | None = None
+
+
+def _is_box_vertical(pts) -> bool:
+    """Determine whether a 4-point box represents vertical text.
+
+    Uses the actual edge lengths of the quadrilateral (not the axis-aligned
+    bounding rect) so that slightly rotated boxes are handled correctly.
+    A box is considered vertical when its height is at least 1.2× its width.
+    """
+    try:
+        import math
+        # Width  = average of top and bottom edges
+        w_top = math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1])
+        w_bot = math.hypot(pts[2][0] - pts[3][0], pts[2][1] - pts[3][1])
+        # Height = average of left and right edges
+        h_left  = math.hypot(pts[3][0] - pts[0][0], pts[3][1] - pts[0][1])
+        h_right = math.hypot(pts[2][0] - pts[1][0], pts[2][1] - pts[1][1])
+        w = (w_top + w_bot) / 2.0
+        h = (h_left + h_right) / 2.0
+        return h > w * 1.2 if w > 0 else h > 0
+    except Exception:
+        return False
 
 
 class OcrResponse(BaseModel):
@@ -1104,98 +1477,244 @@ class OcrResponse(BaseModel):
 @app.post("/ocr", response_model=OcrResponse)
 async def ocr_endpoint(
     file: UploadFile | None = File(None),
-    image_base64: str | None = Form(None)
+    image_base64: str | None = Form(None),
+    turbo: str | None = Form(None),
+    ram_saver: str | None = Form(None),
 ):
     if not OCR_ALLOWED:
         raise HTTPException(status_code=403, detail="OCR disabled by user")
-    _log_ocr_run("Loading Neural Network")
+
+    # Parse turbo flag — default to True (fast mode)
+    is_turbo = turbo is None or turbo.lower() not in ("0", "false", "no")
+    # Parse ram_saver flag — fall back to startup value from settings.json
+    if ram_saver is not None:
+        use_ram_saver = ram_saver.lower() in ("1", "true", "yes")
+    else:
+        use_ram_saver = OCR_RAM_SAVER
+
+    _log_ocr_run(f"Loading Neural Network (turbo={is_turbo})")
     _process_stats("ocr_req")
+    _ocr_touch()
     try:
-        # Load image
-        # if file is not None:
-        #     _log_ocr_run("UploadFile", {"filename": file.filename, "content_type": file.content_type})
         file_bytes = await file.read() if file is not None else None
         image = _load_image_from_inputs(file_bytes, image_base64)
         np_img = np.array(image, dtype=np.uint8)
         if not np_img.flags['C_CONTIGUOUS']:
             np_img = np.ascontiguousarray(np_img)
-        # _log_ocr_run("Image numpy shape", np_img.shape, "dtype", str(np_img.dtype), "contiguous", np_img.flags['C_CONTIGUOUS'])
-
-        # Init paddle
-        t0 = time.perf_counter()
-        paddle = _get_paddle_ocr()
-        t1 = time.perf_counter()
-        if paddle is None:
-            raise HTTPException(status_code=500, detail="PaddleOCR not available")
-        _log_ocr_run(f"Paddle handle ready in {t1 - t0:.2f}s")
-        # _log_ocr_run(f"OCR requested for language {LANGUAGE}")
-        _log_ocr_run(f"Recognizing text positions...")
 
         results: list[OcrBox] = []
 
-        if LANGUAGE == 'ja':
-            # Detection with Paddle, recognition with MangaOCR
-            H, W = int(np_img.shape[0]), int(np_img.shape[1])
-            det_img = np_img
-            scale = 1.0
-            if max(H, W) > 2000:
-                scale = 2000.0 / float(max(H, W))
-                new_w = max(1, int(W * scale))
-                new_h = max(1, int(H * scale))
-                _log_ocr_run(f"Downscaling for detection {W}x{H}->{new_w}x{new_h} scale={scale:.3f}")
-                det_img = np.ascontiguousarray(np.array(image.resize((new_w, new_h)), dtype=np.uint8))
-            t2 = time.perf_counter()
-            det = _paddle_run_ocr(paddle, det_img)
-            t3 = time.perf_counter()
-            _log_ocr_run(f"Paddle detection {t3 - t2:.2f}s")
-            lines = _extract_lines_from_paddle_result(det)
-            _log_ocr_run(f"Extracted {len(lines)} lines (det stage)")
-            initial_boxes = [item[0] for item in lines if item and item[0] is not None]
-            if scale != 1.0 and initial_boxes:
-                inv = 1.0 / scale
-                initial_boxes = [[[float(x)*inv, float(y)*inv] for x, y in pts] for pts in initial_boxes]
-            _log_ocr_run(f"Found {len(initial_boxes)} boxes after rescale")
-            mocr = _get_manga_ocr()
-            if mocr is None:
-                raise HTTPException(status_code=500, detail="MangaOCR not available")
-            if not initial_boxes:
-                try:
-                    full_txt = mocr(image) or ''
-                    w, h = image.size
-                    full_box = [[0.0,0.0],[float(w),0.0],[float(w),float(h)],[0.0,float(h)]]
-                    results.append(OcrBox(box=full_box, text=full_txt, score=None))
-                    _log_ocr_run(f"Full-image fallback len={len(full_txt)}")
-                except Exception as e:
-                    _log_ocr_run("Full-image fallback error", e)
-            else:
-                for i, pts in enumerate(initial_boxes):
-                    crop = _crop_by_box(image, pts)
+        if is_turbo:
+            # ── Turbo mode: RapidOCR (fast, may misdetect vertical text) ──
+            import cv2 as _cv2
+            np_img_bgr = _cv2.cvtColor(np_img, _cv2.COLOR_RGB2BGR)
+
+            if LANGUAGE == 'ja':
+                _log_ocr_run(f"Japanese OCR — Turbo ON, Ram Saver {'ON' if use_ram_saver else 'OFF'}")
+                H, W = int(np_img.shape[0]), int(np_img.shape[1])
+
+                if use_ram_saver:
+                    t2 = time.perf_counter()
+                    initial_boxes = _opencv_detect_text_regions(np_img_bgr, prefer_vertical=SUPPORTS_VERTICAL_TEXT)
+                    t3 = time.perf_counter()
+                    _log_ocr_run(f"OpenCV detection {t3 - t2:.2f}s, {len(initial_boxes)} boxes")
+                else:
+                    t0 = time.perf_counter()
+                    rapid = _get_rapid_ocr()
+                    t1 = time.perf_counter()
+                    if rapid is None:
+                        raise HTTPException(status_code=500, detail="RapidOCR not available")
+                    _log_ocr_run(f"RapidOCR handle ready in {t1 - t0:.2f}s (turbo)")
+
+                    det_img = np_img_bgr
+                    scale = 1.0
+                    if max(H, W) > 2000:
+                        scale = 2000.0 / float(max(H, W))
+                        new_w = max(1, int(W * scale))
+                        new_h = max(1, int(H * scale))
+                        _log_ocr_run(f"Downscaling for detection {W}x{H}->{new_w}x{new_h} scale={scale:.3f}")
+                        det_img = _cv2.resize(np_img_bgr, (new_w, new_h), interpolation=_cv2.INTER_AREA)
+                        if not det_img.flags['C_CONTIGUOUS']:
+                            det_img = np.ascontiguousarray(det_img)
+
+                    t2 = time.perf_counter()
+                    det_result = rapid(det_img, use_det=True, use_cls=False, use_rec=False)
+                    t3 = time.perf_counter()
+                    _log_ocr_run(f"RapidOCR detection-only {t3 - t2:.2f}s")
+
+                    initial_boxes = []
+                    if det_result is not None and det_result.boxes is not None:
+                        for pts in det_result.boxes:
+                            if isinstance(pts, np.ndarray):
+                                pts = pts.tolist()
+                            initial_boxes.append([[float(x), float(y)] for x, y in pts])
+
+                    if scale != 1.0 and initial_boxes:
+                        inv = 1.0 / scale
+                        initial_boxes = [[[float(x) * inv, float(y) * inv] for x, y in pts] for pts in initial_boxes]
+                    _log_ocr_run(f"Found {len(initial_boxes)} boxes after rescale")
+
+                # For vertical-text languages, regroup boxes into vertical columns
+                # if RapidOCR produced horizontal-row boxes instead.
+                if SUPPORTS_VERTICAL_TEXT and initial_boxes:
+                    initial_boxes = _regroup_boxes_for_vertical_text(initial_boxes)
+
+                # Recognition with MangaOCR
+                _log_ocr_run("Recognizing text with MangaOCR...")
+                mocr = _get_manga_ocr()
+                if mocr is None:
+                    raise HTTPException(status_code=500, detail="MangaOCR not available")
+                if not initial_boxes:
                     try:
-                        txt = mocr(crop) or ''
-                        # if i % 10 == 0:
-                        _log_ocr_run(f"Recognition progress {i+1}/{len(initial_boxes)}")
+                        full_txt = mocr(image) or ''
+                        w, h = image.size
+                        full_box = [[0.0, 0.0], [float(w), 0.0], [float(w), float(h)], [0.0, float(h)]]
+                        results.append(OcrBox(box=full_box, text=full_txt, score=None, is_vertical=_is_box_vertical(full_box)))
+                        _log_ocr_run(f"Full-image fallback len={len(full_txt)}")
                     except Exception as e:
-                        _log_ocr_run(f"MangaOCR error box {i+1}", e)
-                        txt = ''
-                    results.append(OcrBox(box=[[float(x),float(y)] for x,y in pts], text=txt, score=None))
+                        _log_ocr_run("Full-image fallback error", e)
+                else:
+                    for i, pts in enumerate(initial_boxes):
+                        crop = _crop_by_box(image, pts)
+                        try:
+                            txt = mocr(crop) or ''
+                            _log_ocr_run(f"Recognition progress {i + 1}/{len(initial_boxes)}")
+                        except Exception as e:
+                            _log_ocr_run(f"MangaOCR error box {i + 1}", e)
+                            txt = ''
+                        box_pts = [[float(x), float(y)] for x, y in pts]
+                        results.append(OcrBox(box=box_pts, text=txt, score=None, is_vertical=_is_box_vertical(box_pts)))
+            else:
+                # Non-Japanese turbo: RapidOCR end-to-end
+                t0 = time.perf_counter()
+                rapid = _get_rapid_ocr()
+                t1 = time.perf_counter()
+                if rapid is None:
+                    raise HTTPException(status_code=500, detail="RapidOCR not available")
+                _log_ocr_run(f"RapidOCR handle ready in {t1 - t0:.2f}s (turbo)")
+                _log_ocr_run("Recognizing text positions...")
+
+                t2 = time.perf_counter()
+                out = rapid(np_img_bgr, use_det=True, use_cls=False, use_rec=True)
+                t3 = time.perf_counter()
+                _log_ocr_run(f"RapidOCR e2e {t3 - t2:.2f}s")
+
+                lines = _extract_rapid_ocr_boxes(out)
+                _log_ocr_run(f"Extracted {len(lines)} lines (e2e)")
+                for i, (pts, txt, scr) in enumerate(lines):
+                    if pts is None:
+                        continue
+                    if i % 25 == 0:
+                        _log_ocr_run(f"Recognition progress {i + 1}/{len(lines)}")
+                    box_pts = [[float(x), float(y)] for x, y in pts]
+                    results.append(OcrBox(
+                        box=box_pts,
+                        text=str(txt or ''),
+                        score=(float(scr) if scr is not None else None),
+                        is_vertical=_is_box_vertical(box_pts),
+                    ))
         else:
-            # Use paddle for detection + recognition
-            t2 = time.perf_counter()
-            out = _paddle_run_ocr(paddle, np_img)
-            t3 = time.perf_counter()
-            _log_ocr_run(f"Paddle e2e {t3 - t2:.2f}s")
-            lines = _extract_lines_from_paddle_result(out)
-            _log_ocr_run(f"Extracted {len(lines)} lines (e2e)")
-            for i, (pts, txt, scr) in enumerate(lines):
-                if pts is None:
-                    continue
-                if i % 25 == 0:
-                    _log_ocr_run(f"Recognition progress {i+1}/{len(lines)}")
-                results.append(OcrBox(box=[[float(x),float(y)] for x,y in pts], text=str(txt or ''), score=(float(scr) if scr is not None else None)))
+            # ── Accurate mode: PaddleOCR (better vertical text detection) ──
+            if LANGUAGE == 'ja':
+                _log_ocr_run(f"Japanese OCR — Turbo OFF (PaddleOCR), Ram Saver {'ON' if use_ram_saver else 'OFF'}")
+                H, W = int(np_img.shape[0]), int(np_img.shape[1])
+
+                if use_ram_saver:
+                    import cv2 as _cv2
+                    np_img_bgr = _cv2.cvtColor(np_img, _cv2.COLOR_RGB2BGR)
+                    t2 = time.perf_counter()
+                    initial_boxes = _opencv_detect_text_regions(np_img_bgr, prefer_vertical=SUPPORTS_VERTICAL_TEXT)
+                    t3 = time.perf_counter()
+                    _log_ocr_run(f"OpenCV detection {t3 - t2:.2f}s, {len(initial_boxes)} boxes")
+                else:
+                    # PaddleOCR detection — handles vertical text columns correctly
+                    t0 = time.perf_counter()
+                    paddle = _get_paddle_ocr()
+                    t1 = time.perf_counter()
+                    if paddle is None:
+                        raise HTTPException(status_code=500, detail="PaddleOCR not available")
+                    _log_ocr_run(f"PaddleOCR handle ready in {t1 - t0:.2f}s")
+
+                    det_img = np_img
+                    scale = 1.0
+                    if max(H, W) > 2000:
+                        scale = 2000.0 / float(max(H, W))
+                        new_w = max(1, int(W * scale))
+                        new_h = max(1, int(H * scale))
+                        _log_ocr_run(f"Downscaling for detection {W}x{H}->{new_w}x{new_h} scale={scale:.3f}")
+                        det_img = np.ascontiguousarray(np.array(image.resize((new_w, new_h)), dtype=np.uint8))
+
+                    t2 = time.perf_counter()
+                    det = _paddle_run_ocr(paddle, det_img)
+                    t3 = time.perf_counter()
+                    _log_ocr_run(f"PaddleOCR detection {t3 - t2:.2f}s")
+
+                    lines = _extract_lines_from_paddle_result(det)
+                    _log_ocr_run(f"Extracted {len(lines)} lines (det stage)")
+                    initial_boxes = [item[0] for item in lines if item and item[0] is not None]
+                    if scale != 1.0 and initial_boxes:
+                        inv = 1.0 / scale
+                        initial_boxes = [[[float(x) * inv, float(y) * inv] for x, y in pts] for pts in initial_boxes]
+                    _log_ocr_run(f"Found {len(initial_boxes)} boxes after rescale")
+
+                # Recognition with MangaOCR
+                _log_ocr_run("Recognizing text with MangaOCR...")
+                mocr = _get_manga_ocr()
+                if mocr is None:
+                    raise HTTPException(status_code=500, detail="MangaOCR not available")
+                if not initial_boxes:
+                    try:
+                        full_txt = mocr(image) or ''
+                        w, h = image.size
+                        full_box = [[0.0, 0.0], [float(w), 0.0], [float(w), float(h)], [0.0, float(h)]]
+                        results.append(OcrBox(box=full_box, text=full_txt, score=None, is_vertical=_is_box_vertical(full_box)))
+                        _log_ocr_run(f"Full-image fallback len={len(full_txt)}")
+                    except Exception as e:
+                        _log_ocr_run("Full-image fallback error", e)
+                else:
+                    for i, pts in enumerate(initial_boxes):
+                        crop = _crop_by_box(image, pts)
+                        try:
+                            txt = mocr(crop) or ''
+                            _log_ocr_run(f"Recognition progress {i + 1}/{len(initial_boxes)}")
+                        except Exception as e:
+                            _log_ocr_run(f"MangaOCR error box {i + 1}", e)
+                            txt = ''
+                        box_pts = [[float(x), float(y)] for x, y in pts]
+                        results.append(OcrBox(box=box_pts, text=txt, score=None, is_vertical=_is_box_vertical(box_pts)))
+            else:
+                # Non-Japanese accurate: PaddleOCR end-to-end
+                t0 = time.perf_counter()
+                paddle = _get_paddle_ocr()
+                t1 = time.perf_counter()
+                if paddle is None:
+                    raise HTTPException(status_code=500, detail="PaddleOCR not available")
+                _log_ocr_run(f"PaddleOCR handle ready in {t1 - t0:.2f}s")
+                _log_ocr_run("Recognizing text positions...")
+
+                t2 = time.perf_counter()
+                out = _paddle_run_ocr(paddle, np_img)
+                t3 = time.perf_counter()
+                _log_ocr_run(f"PaddleOCR e2e {t3 - t2:.2f}s")
+
+                lines = _extract_lines_from_paddle_result(out)
+                _log_ocr_run(f"Extracted {len(lines)} lines (e2e)")
+                for i, (pts, txt, scr) in enumerate(lines):
+                    if pts is None:
+                        continue
+                    if i % 25 == 0:
+                        _log_ocr_run(f"Recognition progress {i + 1}/{len(lines)}")
+                    box_pts = [[float(x), float(y)] for x, y in pts]
+                    results.append(OcrBox(
+                        box=box_pts,
+                        text=str(txt or ''),
+                        score=(float(scr) if scr is not None else None),
+                        is_vertical=_is_box_vertical(box_pts),
+                    ))
 
         _log_ocr_run(f"Final boxes {len(results)}")
         _process_stats("ocr_done")
-        return {"boxes": [r.dict(exclude_none=True) for r in results]}
+        return {"boxes": [r.model_dump(exclude_none=True) for r in results]}
     except HTTPException:
         _log_ocr_run("/ocr http exception")
         raise

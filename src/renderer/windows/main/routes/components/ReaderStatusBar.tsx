@@ -3,8 +3,8 @@
  * Bottom status bar with OCR status and word hover trigger control
  */
 
-import { Component, Accessor, createMemo } from 'solid-js';
-import { useSettings, useLocalization } from '../../../../context';
+import { Component, Accessor, createMemo, Show } from 'solid-js';
+import { useSettings, useLocalization, useLanguage } from '../../../../context';
 import { formatKeybindDisplay } from '../../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../../shared/constants';
 import './ReaderStatusBar.css';
@@ -20,11 +20,14 @@ interface ReaderStatusBarProps {
   isTokenizing?: Accessor<boolean>;
   isTranslating?: Accessor<boolean>;
   onRunOcr: () => void;
+  debugOcr?: Accessor<boolean>;
+  onToggleDebugOcr?: () => void;
 }
 
 export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
+  const { currentLangData } = useLanguage();
 
   /** Get label for hover trigger mode - dynamically includes the configured key for key-hover mode */
   const getHoverTriggerLabel = (mode: WordHoverTriggerMode, key: string): string => {
@@ -67,6 +70,18 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
     updateSettings({ readerWordHoverTrigger: value });
   };
 
+  const isTurbo = () => settings.ocrTurboMode ?? true;
+  const isFuriganaDetection = () => settings.ocrFuriganaDetection ?? true;
+  const hasFurigana = () => currentLangData()?.hasFurigana ?? false;
+
+  const toggleTurbo = () => {
+    updateSettings({ ocrTurboMode: !isTurbo() });
+  };
+
+  const toggleFuriganaDetection = () => {
+    updateSettings({ ocrFuriganaDetection: !isFuriganaDetection() });
+  };
+
   return (
       <footer class="reader-status panel">
         <span class="book-title">{props.bookTitle()}</span>
@@ -85,6 +100,46 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
             <option value="long-hover">{getHoverTriggerLabel('long-hover', currentKey())}</option>
             <option value="key-hover">{getHoverTriggerLabel('key-hover', currentKey())}</option>
           </select>
+        </div>
+
+        {/* OCR Toggle Labels */}
+        <div class="statusbar-toggles">
+          <Show when={settings.ocrEnabled}>
+            <button
+              class="statusbar-toggle"
+              classList={{ 'active': isTurbo() }}
+              onClick={toggleTurbo}
+              title={t('mlearn.Settings.Reader.OcrSettings.TurboMode.Description')}
+            >
+              {isTurbo()
+                ? t('mlearn.Reader.StatusBar.TurboModeOn')
+                : t('mlearn.Reader.StatusBar.TurboModeOff')}
+            </button>
+          </Show>
+          <Show when={settings.ocrEnabled && hasFurigana()}>
+            <button
+              class="statusbar-toggle"
+              classList={{ 'active': isFuriganaDetection() }}
+              onClick={toggleFuriganaDetection}
+              title={t('mlearn.Settings.Reader.OcrSettings.FuriganaDetection.Description')}
+            >
+              {isFuriganaDetection()
+                ? t('mlearn.Reader.StatusBar.FuriganaDetectionOn')
+                : t('mlearn.Reader.StatusBar.FuriganaDetectionOff')}
+            </button>
+          </Show>
+          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && props.debugOcr && props.onToggleDebugOcr}>
+            <button
+              class="statusbar-toggle"
+              classList={{ 'active': props.debugOcr!() }}
+              onClick={() => props.onToggleDebugOcr!()}
+              title={t('mlearn.Reader.StatusBar.DebugOverlayTitle')}
+            >
+              {props.debugOcr!()
+                ? t('mlearn.Reader.StatusBar.DebugOverlayOn')
+                : t('mlearn.Reader.StatusBar.DebugOverlayOff')}
+            </button>
+          </Show>
         </div>
 
         <span class="magnifier-hint">

@@ -36,7 +36,6 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
 
   const content = () => props.flashcard.content;
   const displayWord = () => content().front;
-  const pronunciation = () => content().reading || content().front;
   const meaning = () => content().back;
   const isFlipped = createMemo(() => props.showAnswer ?? false);
 
@@ -120,9 +119,9 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
 
           <div class="flashcard-word">{displayWord()}</div>
 
-          <Show when={pronunciation() && pronunciation() !== displayWord()}>
-            <div class="flashcard-pronunciation">{pronunciation()}</div>
-          </Show>
+          {/*<Show when={pronunciation() && pronunciation() !== displayWord()}>*/}
+          {/*  <div class="flashcard-pronunciation">{pronunciation()}</div>*/}
+          {/*</Show>*/}
 
           <Show when={content().example && content().example !== '-'}>
             <div class="flashcard-example" innerHTML={content().example} />
