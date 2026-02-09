@@ -3,12 +3,11 @@
  * Manga/Image OCR reader integrated into main window via router
  */
 
-import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
-import { createStore, reconcile } from 'solid-js/store';
+import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, batch } from 'solid-js';
+import { createStore } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
 import { OcrOverlay, MagnifyingGlass, type OcrResult } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
-import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation, getGlobalHoverManager } from '../../../hooks';
 import { useSettings, useLocalization } from '../../../context';
 import { parseKeybind } from '../../../components/common';
@@ -141,21 +140,8 @@ export const ReaderRoute: Component = () => {
   const [ocrTranslationData, setOcrTranslationData] = createSignal<TranslationResponse | null>(null);
   const [ocrWordStatus, setOcrWordStatus] = createSignal<'unknown' | 'learning' | 'known'>('unknown');
   
-  // Explainer popup state
-  const [explainerOpen, setExplainerOpen] = createSignal(false);
-  const [explainerWord, setExplainerWord] = createSignal('');
-  const [explainerContext, setExplainerContext] = createSignal('');
-  const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
-  
   // Magnifying glass state
   const [magnifierActive, setMagnifierActive] = createSignal(false);
-  
-  // OCR debug overlay (dev mode only)
-  const [ocrDebugOverlay, setOcrDebugOverlay] = createSignal(false);
-  const toggleOcrDebugOverlay = () => setOcrDebugOverlay(!ocrDebugOverlay());
-  
-  // OCR generation counter — incremented when turbo mode changes to invalidate stale results
-  const [ocrGeneration, setOcrGeneration] = createSignal(0);
   
   // OCR Progress Tracking
   // Total pages that need OCR in the current book (set once when book loads)
@@ -353,35 +339,6 @@ export const ReaderRoute: Component = () => {
     processQueue();
   });
 
-  // Invalidate OCR cache when turbo mode changes so pages get re-OCR'd
-  createEffect(on(
-    () => settings.ocrTurboMode,
-    (_turbo, prevTurbo) => {
-      // Skip the initial run (prevTurbo is undefined on first effect execution)
-      if (prevTurbo === undefined) return;
-      // Only invalidate if there are pages loaded
-      if (pages().length === 0) return;
-      
-      batch(() => {
-        // Bump generation so any in-flight requests are discarded
-        setOcrGeneration(g => g + 1);
-        // Clear all cached OCR results — reconcile actually deletes store keys
-        // (plain setOcrResults({}) only merges, which does nothing)
-        setOcrResults(reconcile({}));
-        // Reset progress tracking
-        setOcrCompletedIds(new Set<string>());
-        setOcrBatchTotal(pages().length);
-        // Clear queue so the auto-OCR effect can rebuild it cleanly
-        setOcrQueue([]);
-        // Don't reset processingTask here — if there's an in-flight request,
-        // let it finish. The generation guard will discard the stale result,
-        // and the finally block in processQueue will restart processing.
-      });
-      // The auto-OCR createEffect above will re-trigger because ocrResults
-      // was cleared via reconcile, causing !ocrResults[page.id] to become true.
-    },
-  ));
-
   // Serial Queue Processor
   const processQueue = async () => {
     if (processingTask()) return; // Already working
@@ -427,8 +384,6 @@ export const ReaderRoute: Component = () => {
   };
 
   const performOcr = async (page: PageImage) => {
-    // Capture generation at start — if it changes mid-flight, discard the result
-    const gen = ocrGeneration();
     // Reset server progress at start of each page
     setServerOcrProgress(null);
     setServerOcrMessage('');
@@ -437,15 +392,23 @@ export const ReaderRoute: Component = () => {
     // Note: status bar text is handled by updateOverallStatus based on processingTask
     
     try {
-      const imageBlob = page.blob ?? await (await fetch(page.src)).blob();
+      let imageBlob: Blob;
+
+      if (page.blob) {
+        imageBlob = page.blob;
+      } else {
+         if (!page.blob) {
+             const resp = await fetch(page.src);
+             imageBlob = await resp.blob();
+         } else {
+             imageBlob = page.blob;
+         }
+      }
       
-      const turbo = settings.ocrTurboMode ?? true;
-      const prepared = await prepareBlobForOCR(imageBlob, turbo);
+      const prepared = await prepareBlobForOCR(imageBlob);
 
       const formData = new FormData();
       formData.append('file', prepared.blob, 'image.png');
-      formData.append('turbo', turbo ? '1' : '0');
-      formData.append('ram_saver', (settings.ocrRamSaver ?? false) ? '1' : '0');
 
       const response = await fetch(API_ENDPOINTS.ocr, {
         method: 'POST',
@@ -463,10 +426,7 @@ export const ReaderRoute: Component = () => {
       result.original_size = { width: prepared.originalW, height: prepared.originalH };
       result.sent_size = { width: prepared.sentW, height: prepared.sentH };
 
-      // Only store if generation hasn't changed (turbo mode wasn't toggled mid-flight)
-      if (ocrGeneration() === gen) {
-        setOcrResults(page.id, result);
-      }
+      setOcrResults(page.id, result);
       return result;
     } catch (error) {
       console.error('OCR error:', error);
@@ -703,7 +663,7 @@ export const ReaderRoute: Component = () => {
   onMount(() => {
     if (!window.mLearnIPC?.onReaderContextMenuCommand) return;
     
-    const cleanup = window.mLearnIPC.onReaderContextMenuCommand((command: string) => {
+    window.mLearnIPC.onReaderContextMenuCommand((command: string) => {
       switch (command) {
         case 'toggle-furigana':
           // Toggle through settings so FuriganaHider component gets updated
@@ -718,7 +678,6 @@ export const ReaderRoute: Component = () => {
           break;
       }
     });
-    onCleanup(cleanup);
   });
   
   // Handler for right-click context menu in reader on OCR boxes (has phrase to copy)
@@ -795,8 +754,7 @@ export const ReaderRoute: Component = () => {
       // Unknown message type - keep previous state
     };
     
-    const cleanup = window.mLearnIPC.onOcrStatusUpdate(handleOcrStatus);
-    onCleanup(cleanup);
+    window.mLearnIPC.onOcrStatusUpdate(handleOcrStatus);
   });
 
   // Keyboard navigation and magnifier hotkey
@@ -1084,18 +1042,6 @@ export const ReaderRoute: Component = () => {
     }
   };
 
-  // Explainer popup handlers
-  const handleOpenExplainer = (word: string, context: string, position: { x: number; y: number }) => {
-    setExplainerWord(word);
-    setExplainerContext(context);
-    setExplainerPosition(position);
-    setExplainerOpen(true);
-  };
-  
-  const handleCloseExplainer = () => {
-    setExplainerOpen(false);
-  };
-
   // OCR hover handlers (legacy-style hover popup)
   let ocrHoverRequestId = 0;
   // Store current context phrase for use in WordHover
@@ -1337,7 +1283,6 @@ export const ReaderRoute: Component = () => {
                         result={ocrResults[page.id]}
                         imageElement={imageRefs()[page.id]}
                         visible={showOcrOverlay()}
-                        debugOcr={ocrDebugOverlay()}
                         onWordHover={handleOcrWordHover}
                         onWordLeave={handleOcrWordLeave}
                         onContextMenu={handleOcrContextMenu}
@@ -1361,8 +1306,6 @@ export const ReaderRoute: Component = () => {
         hasOcrResult={hasOcrResult}
         hasPages={hasPages}
         onRunOcr={runOcr}
-        debugOcr={ocrDebugOverlay}
-        onToggleDebugOcr={toggleOcrDebugOverlay}
       />
 
       <Show when={ocrHoverData() && ocrHoverData()!.token}>
@@ -1412,18 +1355,8 @@ export const ReaderRoute: Component = () => {
           visible={isOcrHoverVisible()}
           onMouseEnter={cancelOcrHide}
           onMouseLeave={hideOcrHover}
-          onOpenExplainer={handleOpenExplainer}
         />
       </Show>
-      
-      {/* LLM Explainer Popup */}
-      <ExplainerPopup
-        isOpen={explainerOpen()}
-        onClose={handleCloseExplainer}
-        word={explainerWord()}
-        contextPhrase={explainerContext()}
-        initialPosition={explainerPosition()}
-      />
       
       {/* Magnifying Glass */}
       <MagnifyingGlass

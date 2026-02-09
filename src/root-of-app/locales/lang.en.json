@@ -271,7 +271,13 @@
         "NoWordsFound": "No matching cards found.",
         "SearchPlaceholder": "Search words...",
         "AllLevels": "All Levels",
-        "ShowingCount": "Showing {count} of {total} words"
+        "ShowingCount": "Showing {count} of {total} words",
+        "SortBy": "Sort by",
+        "SortDefault": "Default",
+        "SortEaseAsc": "Ease (low to high)",
+        "SortEaseDesc": "Ease (high to low)",
+        "SortDueDateAsc": "Due date (earliest first)",
+        "SortDueDateDesc": "Due date (latest first)"
       },
       "Statistics": {
         "TotalCards": "Total Cards",
@@ -390,6 +396,10 @@
         "Level": "Level",
         "TrackedBy": "Tracked By",
         "Status": "Status"
+      },
+      "Leech": {
+        "Title": "Leech Detected",
+        "Message": "\"{word}\" has lapsed {count} times and may need extra attention"
       }
     },
     "WordHover": {
@@ -880,6 +890,10 @@
           "FlipAnimation": {
             "Label": "Card Flip Animation",
             "Description": "Show a 3D flip animation when revealing flashcard answers"
+          },
+          "LeechThreshold": {
+            "Label": "Leech Threshold",
+            "Description": "Number of lapses before a card is flagged as a leech (0 = disabled)"
           }
         },
         "DataManagement": {

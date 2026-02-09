@@ -138,9 +138,9 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           </Show>
 
 
-          <div class="flashcard-hint">
-            {t('mlearn.Flashcards.Card.RevealHint')}
-          </div>
+          {/*<div class="flashcard-hint">*/}
+          {/*  {t('mlearn.Flashcards.Card.RevealHint')}*/}
+          {/*</div>*/}
         </Panel>
 
         {/* Back face */}
@@ -182,9 +182,9 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             </div>
           </Show>
 
-          <div class="flashcard-hint">
-            {t('mlearn.Flashcards.Card.RateHint')}
-          </div>
+          {/*<div class="flashcard-hint">*/}
+          {/*  {t('mlearn.Flashcards.Card.RateHint')}*/}
+          {/*</div>*/}
         </Panel>
       </div>
     </div>

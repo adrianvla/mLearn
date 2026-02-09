@@ -29,6 +29,7 @@
 .search-input {
   flex: 1;
   min-width: 200px;
+  margin-left:60px;
 }
 
 .level-select {

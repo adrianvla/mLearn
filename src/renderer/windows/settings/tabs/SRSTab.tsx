@@ -258,6 +258,25 @@ export const SRSTab: Component = () => {
             onChange={(checked) => updateSettings({ flashcardFlipAnimation: checked })}
           />
         </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.LeechThreshold.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.LeechThreshold.Description')}
+        >
+          <input
+            type="number"
+            class="setting-input"
+            value={settings.leechThreshold ?? 10}
+            min={0}
+            max={100}
+            onChange={(e) => {
+              const val = parseInt(e.currentTarget.value);
+              if (!isNaN(val) && val >= 0) {
+                updateSettings({ leechThreshold: val });
+              }
+            }}
+          />
+        </SettingRow>
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.SRS.DataManagement.Title')}>

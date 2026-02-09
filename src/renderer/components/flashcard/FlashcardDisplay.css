@@ -112,6 +112,11 @@
   animation: flashcard-enter 0.15s ease-out;
 }
 
+/* During enter animation, prevent any lingering 3D transform artifacts */
+.flashcard-card--entering .flashcard-face {
+  backface-visibility: hidden;
+}
+
 /* Level pill - positioned in upper left corner */
 .flashcard-level-pill {
   position: absolute !important;
@@ -176,7 +181,7 @@
 
 /* Translation/definition */
 .flashcard-translation {
-  font-size: var(--font-size-3xl);
+  font-size: var(--font-size-lg);
   color: var(--text-primary);
   margin-bottom: 1rem;
   line-height: 1.6;
@@ -204,12 +209,22 @@
 
 .flashcard-screenshot {
   max-width: 100%;
-  max-height: 350px;
+  max-height: calc(100vh - 500px);
+  min-height:300px;
   width: auto;
   height: auto;
   border-radius: var(--radius-md);
   object-fit: contain;
   box-shadow: var(--shadow-sm);
+}
+.flashcard-example rt{
+  position:relative;
+}
+.flashcard-example .mLearn-pitch-accent{
+  --pitch-accent-height: 1.5px;
+}
+.flashcard-example .frequency{
+  display:none;
 }
 
 /* Highlighted word in example (the word being studied) */

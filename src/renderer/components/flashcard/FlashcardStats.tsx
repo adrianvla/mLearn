@@ -60,12 +60,12 @@ function drawPieChart(
     // Draw empty state circle
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.fillStyle = getComputedCSSVar('--border-color', 'rgba(128,128,128,0.2)');
+    ctx.fillStyle = getComputedCSSVar('--border-color');
     ctx.fill();
     if (opts.donut) {
       ctx.beginPath();
       ctx.arc(cx, cy, innerRadius, 0, Math.PI * 2);
-      ctx.fillStyle = getComputedCSSVar('--bg-opaque', '#f5f5f5');
+      ctx.fillStyle = getComputedCSSVar('--bg-opaque');
       ctx.fill();
     }
     return;
@@ -89,18 +89,18 @@ function drawPieChart(
   if (opts.donut) {
     ctx.beginPath();
     ctx.arc(cx, cy, innerRadius, 0, Math.PI * 2);
-    ctx.fillStyle = getComputedCSSVar('--bg-opaque', '#f5f5f5');
+    ctx.fillStyle = getComputedCSSVar('--bg-opaque');
     ctx.fill();
 
     // Center label
     if (opts.holeLabel) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = getComputedCSSVar('--text-primary', '#1a1a1a');
+      ctx.fillStyle = getComputedCSSVar('--text-primary');
       ctx.font = `bold ${Math.round(innerRadius * 0.45)}px sans-serif`;
       ctx.fillText(opts.holeLabel, cx, opts.holeSublabel ? cy - innerRadius * 0.12 : cy);
       if (opts.holeSublabel) {
-        ctx.fillStyle = getComputedCSSVar('--text-secondary', '#666');
+        ctx.fillStyle = getComputedCSSVar('--text-secondary');
         ctx.font = `${Math.round(innerRadius * 0.22)}px sans-serif`;
         ctx.fillText(opts.holeSublabel, cx, cy + innerRadius * 0.28);
       }
@@ -149,7 +149,7 @@ function drawBarChart(
     ctx.fill();
 
     if (opts.showLabels && bar.label) {
-      ctx.fillStyle = getComputedCSSVar('--text-tertiary', 'rgba(0,0,0,0.4)');
+      ctx.fillStyle = getComputedCSSVar('--text-tertiary');
       ctx.font = '10px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
@@ -180,14 +180,14 @@ function drawStackedBar(
   const radius = h / 2;
 
   if (total === 0) {
-    ctx.fillStyle = getComputedCSSVar('--border-color', 'rgba(128,128,128,0.2)');
+    ctx.fillStyle = getComputedCSSVar('--border-color');
     roundedRect(ctx, 0, 0, w, h, radius);
     ctx.fill();
     return;
   }
 
   // Draw full background
-  ctx.fillStyle = getComputedCSSVar('--border-color', 'rgba(128,128,128,0.2)');
+  ctx.fillStyle = getComputedCSSVar('--border-color');
   roundedRect(ctx, 0, 0, w, h, radius);
   ctx.fill();
 
@@ -224,10 +224,9 @@ function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w:
   ctx.arcTo(x, y, x + w, y, r);
 }
 
-function getComputedCSSVar(name: string, fallback: string): string {
-  if (typeof document === 'undefined') return fallback;
-  const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return val || fallback;
+function getComputedCSSVar(name: string): string {
+  if (typeof document === 'undefined') return '';
+  return getComputedStyle(document.body).getPropertyValue(name).trim();
 }
 
 // ============================================================================
@@ -403,14 +402,14 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   // ---- Chart Colors ----
 
   const chartColors = createMemo(() => ({
-    new: getComputedCSSVar('--color-primary', '#4a90d9'),
-    learning: getComputedCSSVar('--color-warning', '#f1c40f'),
-    review: getComputedCSSVar('--color-success', '#58c333'),
-    suspended: getComputedCSSVar('--text-tertiary', 'rgba(0,0,0,0.3)'),
-    ease: getComputedCSSVar('--color-info', '#3498db'),
-    mature: getComputedCSSVar('--color-success', '#58c333'),
-    young: getComputedCSSVar('--color-primary', '#4a90d9'),
-    lapse: getComputedCSSVar('--color-error', '#e74c3c'),
+    new: getComputedCSSVar('--color-primary'),
+    learning: getComputedCSSVar('--color-warning'),
+    review: getComputedCSSVar('--color-success'),
+    suspended: getComputedCSSVar('--text-tertiary'),
+    ease: getComputedCSSVar('--color-info'),
+    mature: getComputedCSSVar('--color-success'),
+    young: getComputedCSSVar('--color-primary'),
+    lapse: getComputedCSSVar('--color-error'),
   }));
 
   // ---- Render Charts ----

@@ -184,57 +184,103 @@
     }
     let ip = "";
     let isLocal = false;
-    const inj = (logger,scriptName = 'core.js',isModule = false, requireVideo = true)=>{
+
+    // Load a script via fetch + blob URL to bypass CSP script-src restrictions.
+    // Pages with strict Content-Security-Policy block <script src="http://localhost:...">
+    // but blob: URLs are same-origin and pass CSP 'self'. Falls back to <script src> if fetch fails.
+    function loadScriptViaFetch(url, asModule) {
+        return new Promise(function(resolve, reject) {
+            fetch(url, { mode: 'cors' })
+                .then(function(resp) {
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    return resp.text();
+                })
+                .then(function(code) {
+                    var blob = new Blob([code], { type: 'text/javascript' });
+                    var blobUrl = URL.createObjectURL(blob);
+                    var s = document.createElement('script');
+                    s.src = blobUrl;
+                    if (asModule) s.type = 'module';
+                    s.onload = function() { URL.revokeObjectURL(blobUrl); resolve(); };
+                    s.onerror = function() { URL.revokeObjectURL(blobUrl); reject(new Error('Blob script failed for ' + url)); };
+                    document.body.appendChild(s);
+                })
+                .catch(function(fetchErr) {
+                    // Fallback: direct <script src> (works when CSP allows it)
+                    var s = document.createElement('script');
+                    s.src = url;
+                    s.type = asModule ? 'module' : 'text/javascript';
+                    s.onload = function() { resolve(); };
+                    s.onerror = function() { reject(new Error('Failed to load ' + url)); };
+                    document.body.appendChild(s);
+                });
+        });
+    }
+
+    const inj = (logger, scriptName = 'core.js', isModule = false, requireVideo = true)=>{
         return new Promise((resolve, reject)=>{
-            createAndAppendScript(`
-                globalThis.mLearnTethered = true;
-                globalThis.mLearnTetheredIP = '${ip}';
-            `);
+            // Set tethered mode globals on the actual page window.
+            // Userscript managers may sandbox globalThis, so we use multiple approaches.
+            try { window.mLearnTethered = true; } catch (_) {}
+            try { window.mLearnTetheredIP = ip; } catch (_) {}
+            try { globalThis.mLearnTethered = true; } catch (_) {}
+            try { globalThis.mLearnTetheredIP = ip; } catch (_) {}
+            // DOM data attribute fallback — always readable from any script context
+            try { document.documentElement.dataset.mlearnTetheredIp = ip; } catch (_) {}
+            // Tampermonkey / Violentmonkey expose unsafeWindow for page-context access
+            try {
+                if (typeof unsafeWindow !== 'undefined') {
+                    unsafeWindow.mLearnTethered = true;
+                    unsafeWindow.mLearnTetheredIP = ip;
+                }
+            } catch (_) {}
 
-            !function(m,L,E,A,R,N,_){
-                if(N[L]) {
-                    R("mLearn is already loaded.");
-                    return;
-                }
-                if((!m.querySelector("video")) && requireVideo) {
-                    R("Cannot find video element. Maybe you forgot to select the video element in the DevTools?");
-                    return;
-                }
+            if (window.mLearnOnlineAgentLoaded && scriptName !== 'core.js') {
+                logger("mLearn is already loaded.");
+                return resolve();
+            }
+            if (!document.querySelector("video") && requireVideo) {
+                logger("Cannot find video element.");
+                return resolve();
+            }
 
-                createScriptFromSRC("https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js",m.head);
-                let o = createScriptFromSRC(_+"settings.js",m.body);
-                o.onerror = ()=>{
-                    R("Failed to load settings.js. Please check the URL/IP and try again.");
-                    alert("Failed to load settings.js. Please check the URL/IP and try again.");
-                }
-                o.onload = ()=>{
-                    createScriptFromSRC(_+scriptName,m.body, isModule);
-                    N[L] = true;
+            // Sequence: jQuery (if needed) → settings.js → scriptName
+            var jqReady = (typeof jQuery !== 'undefined')
+                ? Promise.resolve()
+                : loadScriptViaFetch("https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js", false);
+
+            jqReady
+                .then(function() { return loadScriptViaFetch(ip + "settings.js", false); })
+                .then(function() { return loadScriptViaFetch(ip + scriptName, isModule); })
+                .then(function() {
+                    window.mLearnOnlineAgentLoaded = true;
                     resolve();
-                };
-            }(document, "mLearnOnlineAgentLoaded", "bUxlYXJuIGRpZCBub3QgbG9hZCBwcm9wZXJseS4gUGxlYXNlIGNoZWNrIGlmIHRoZSBhcHBsaWNhdGlvbiBsb2FkZWQgc3VjY2Vzc2Z1bGx5IGFuZCBpcyBydW5uaW5nLiBJZiB0aGUgcHJvYmxlbSBwZXJzaXN0cywgdHJ5IHJlbG9hZGluZyB0aGUgcGFnZSBhbmQgdHJ5aW5nIGFnYWluLiBJZiB0aGUgcHJvYmxlbSBzdGlsbCBwZXJzaXN0cywgcGxlYXNlIHJlc3RhcnQgbUxlYXJuLg==", atob, logger, window, ip);
+                })
+                .catch(function(err) {
+                    logger("Failed to load scripts. Is mLearn running? " + err.message);
+                    reject(err);
+                });
         });
     };
     (async function(){
-        //ping server at localhost:7753
         try {
             const response = await fetch("http://localhost:7753/");
             if (response.ok) {
-                console.log("Server is running.");
-            } else {
-                console.error("Server is not running.");
+                console.log("mLearn app detected at localhost:7753.");
+                isLocal = true;
+                ip = "http://localhost:7753/";
+                await inj(console.log,"quick-lookup.js",true,false);
+                console.log("mLearn quick-lookup.js injected.");
             }
-        } catch (error) {}
-        console.log("mLearn app detected at localhost:7753.");
-        isLocal = true;
-        ip = "http://localhost:7753/";
-        await inj(console.log,"quick-lookup.js",true,false);
-        console.log("mLearn quick-lookup.js injected.");
+        } catch (error) {
+            // Server not reachable locally or scripts failed to load — user must enter IP manually
+            if (isLocal) console.warn("mLearn: auto-inject failed", error);
+        }
     })();
     const B = () => {
         const isClickedFn = async () => {
             ip = document.getElementById(mLearnInputId).value.trim();
-            if(isLocal) ip = "http://localhost:7753/";
+            if(isLocal && !ip) ip = "http://localhost:7753/";
             if (!ip || !isValidHttpUrlWithPort(ip)) {
                 document.getElementById("mLearn-info").innerText = "Please enter a valid URL/IP.";
                 return;
@@ -244,8 +290,13 @@
             };
             info("Working...");
             console.log(`mLearn: Injecting core with URL/IP: ${ip}`);
-            await inj(info);
-            document.getElementById(popupId).remove();
+            try {
+                await inj(info);
+                document.getElementById(popupId).remove();
+            } catch (err) {
+                // info() already set by the inj catch handler
+                console.error("mLearn injection failed:", err);
+            }
         };
         clearInterval(I);
         const style = document.createElement('style');

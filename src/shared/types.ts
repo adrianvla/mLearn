@@ -88,6 +88,8 @@ export interface Settings {
   newDayHour: number;
   /** Whether to show a 3D flip animation when revealing flashcard answers */
   flashcardFlipAnimation: boolean;
+  /** Number of lapses before a card is flagged as a leech (0 = disabled) */
+  leechThreshold: number;
 
   // API URLs
   getCardUrl: string;
@@ -195,6 +197,7 @@ export const DEFAULT_SETTINGS: Settings = {
   createUnseenCards: true,
   newDayHour: 4,
   flashcardFlipAnimation: true,
+  leechThreshold: 10,
   devMode: false,
   ocr_crop_padding: 200,
   ocrRamSaver: false,

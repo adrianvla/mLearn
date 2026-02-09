@@ -9,8 +9,11 @@
 
 import type { FlashcardStore, Flashcard, WordCandidate, WordStats, FlashcardState } from '../../shared/types';
 
-// Chunk size for sending data over WebRTC (must be small for reliability)
-const CHUNK_SIZE = 1000;
+// Chunk size for sending data over WebRTC
+const CHUNK_SIZE = 16000;
+
+// Max buffered bytes before waiting for drain
+const MAX_BUFFERED_AMOUNT = 64 * 1024;
 
 // QR code chunk size for signal data
 const QR_CHUNK_SIZE = 60;
@@ -277,6 +280,48 @@ export class ChunkCollector {
   reset(): void {
     this.chunks = {};
     this.totalChunks = 0;
+  }
+}
+
+/**
+ * Wait until the data channel's buffered amount drops below the threshold.
+ * Falls back to a polling interval if the `bufferedamountlow` event isn't available.
+ */
+function waitForBufferDrain(channel: RTCDataChannel): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const check = () => {
+      if (channel.bufferedAmount <= MAX_BUFFERED_AMOUNT) {
+        resolve();
+      } else {
+        setTimeout(check, 5);
+      }
+    };
+    setTimeout(check, 5);
+  });
+}
+
+/**
+ * Send chunked data over a SimplePeer connection with backpressure handling.
+ * Prevents "RTCDataChannel send queue is full" by waiting for the buffer to drain
+ * between sends when it exceeds `MAX_BUFFERED_AMOUNT`.
+ */
+export async function sendChunkedWithBackpressure(
+  peer: SimplePeerInstance,
+  type: string,
+  payload: string,
+): Promise<void> {
+  const chunks = splitTextIntoChunks(payload, CHUNK_SIZE);
+  const channel: RTCDataChannel | undefined = (peer as any)._channel;
+
+  for (let i = 0; i < chunks.length; i++) {
+    if (channel && channel.bufferedAmount > MAX_BUFFERED_AMOUNT) {
+      await waitForBufferDrain(channel);
+    }
+
+    peer.send(JSON.stringify({
+      type: `${type}-chunk`,
+      data: [i, chunks[i], chunks.length],
+    }));
   }
 }
 
