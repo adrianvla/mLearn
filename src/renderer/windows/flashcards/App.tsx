@@ -17,6 +17,7 @@ import {
   EmptyState,
   SearchIcon,
   TabContainer,
+  Select,
 } from '../../components/common';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
@@ -46,6 +47,17 @@ const FlashcardsContent: Component = () => {
   // Search state
   const [searchQuery, setSearchQuery] = createSignal('');
 
+  // Sort state
+  const [sortBy, setSortBy] = createSignal('default');
+
+  const sortOptions = createMemo(() => [
+    { value: 'default', label: t('mlearn.Flashcards.Browse.SortDefault') },
+    { value: 'ease-asc', label: t('mlearn.Flashcards.Browse.SortEaseAsc') },
+    { value: 'ease-desc', label: t('mlearn.Flashcards.Browse.SortEaseDesc') },
+    { value: 'due-asc', label: t('mlearn.Flashcards.Browse.SortDueDateAsc') },
+    { value: 'due-desc', label: t('mlearn.Flashcards.Browse.SortDueDateDesc') },
+  ]);
+
   // Add card form state (simple mode)
   const [newWord, setNewWord] = createSignal('');
   const [newReading, setNewReading] = createSignal('');
@@ -57,15 +69,32 @@ const FlashcardsContent: Component = () => {
   // Filtered flashcards for browse tab
   const filteredFlashcards = createMemo(() => {
     const query = searchQuery().toLowerCase().trim();
-    if (!query) return flashcards();
-    
-    return flashcards().filter(card => {
-      const front = card.content.front?.toLowerCase() || '';
-      const back = card.content.back?.toLowerCase() || '';
-      const reading = card.content.reading?.toLowerCase() || '';
-      
-      return front.includes(query) || back.includes(query) || reading.includes(query);
-    });
+    let cards = flashcards();
+
+    if (query) {
+      cards = cards.filter(card => {
+        const front = card.content.front?.toLowerCase() || '';
+        const back = card.content.back?.toLowerCase() || '';
+        const reading = card.content.reading?.toLowerCase() || '';
+
+        return front.includes(query) || back.includes(query) || reading.includes(query);
+      });
+    }
+
+    const sort = sortBy();
+    if (sort !== 'default') {
+      cards = [...cards].sort((a, b) => {
+        switch (sort) {
+          case 'ease-asc': return a.ease - b.ease;
+          case 'ease-desc': return b.ease - a.ease;
+          case 'due-asc': return a.dueDate - b.dueDate;
+          case 'due-desc': return b.dueDate - a.dueDate;
+          default: return 0;
+        }
+      });
+    }
+
+    return cards;
   });
 
   // Queue counts for UI
@@ -221,6 +250,12 @@ const FlashcardsContent: Component = () => {
                   size="md"
                   class="flashcards-search-input"
                 />
+                <Select
+                  options={sortOptions()}
+                  value={sortBy()}
+                  onChange={(e) => setSortBy(e.currentTarget.value)}
+                  class="flashcards-sort-select"
+                />
                 <Show when={flashcards().length > 0}>
                   <span class="flashcards-count">
                     {t('mlearn.Flashcards.Browse.ShowingCount', {
@@ -271,10 +306,12 @@ const FlashcardsContent: Component = () => {
                               {card.content.back}
                             </p>
                             <div class="flashcard-footer">
-                              <Badge variant={stateBadge.variant}>{stateBadge.label}</Badge>
-                              <Show when={card.state === 'review'}>
-                                <Badge>{intervalToString(card.interval)}</Badge>
-                              </Show>
+                              <div class="flashcard-state">
+                                <Badge variant={stateBadge.variant}>{stateBadge.label}</Badge>
+                                <Show when={card.state === 'review'}>
+                                  <Badge>{intervalToString(card.interval)}</Badge>
+                                </Show>
+                              </div>
                               <div class="flashcard-actions">
                                 <Btn
                                   variant="ghost"

@@ -29,6 +29,18 @@ export const ServerProvider: ParentComponent = (props) => {
   // Check if we're in Electron or tethered mode
   const isElectron = typeof window !== 'undefined' && window.mLearnIPC;
 
+  // Send localStorage snapshot to main process so the web server
+  // can serve it to tethered clients via /settings.js
+  const sendLocalStorageToMain = () => {
+    if (!window.mLearnIPC) return;
+    const data: Record<string, string> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) data[key] = localStorage.getItem(key) ?? '';
+    }
+    window.mLearnIPC.sendLS(data);
+  };
+
   const setupListeners = () => {
     if (!isElectron) {
       // In tethered mode, assume server is connected
@@ -36,6 +48,9 @@ export const ServerProvider: ParentComponent = (props) => {
       setStatusMessage('Connected (Tethered Mode)');
       return;
     }
+
+    // Send localStorage data to main process for tethered clients
+    sendLocalStorageToMain();
 
     // Request initial status
     window.mLearnIPC!.isLoaded();

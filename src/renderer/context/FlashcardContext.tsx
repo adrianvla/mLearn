@@ -11,7 +11,9 @@ import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, Review
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady } from './migrationSignals';
 import { useSettings } from './SettingsContext';
+import { useLocalization } from './LocalizationContext';
 import { changeKnownStatus as changeKnownStatusInStats } from '../services/statsService';
+import { showToast } from '../components/common/Feedback/Toast';
 
 // Current store version
 const CURRENT_VERSION = 3;
@@ -163,6 +165,7 @@ const FLASHCARD_CHANNEL = 'mlearn-flashcards';
 
 export const FlashcardProvider: ParentComponent = (props) => {
   const { settings } = useSettings();
+  const { t } = useLocalization();
   const newDayHour = () => settings.newDayHour ?? 4;
 
   const [store, setStore] = createStore<FlashcardStore>(getDefaultStore());
@@ -693,6 +696,17 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }
 
     setQueue(newQueue);
+
+    // Leech detection: notify when a card's lapses reach the threshold
+    const threshold = settings.leechThreshold ?? 10;
+    if (threshold > 0 && updated.lapses >= threshold && updated.lapses % threshold === 0) {
+      showToast({
+        variant: 'warning',
+        title: t('mlearn.Flashcards.Leech.Title'),
+        message: t('mlearn.Flashcards.Leech.Message', { word: card.content.front, count: String(updated.lapses) }),
+        duration: 8000,
+      });
+    }
     
     // Recalculate word stats after answering (async)
     (async () => {

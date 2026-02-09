@@ -93,6 +93,28 @@ const WindowLoadingScreen: Component = () => {
   );
 };
 
+// /**
+//  * DevToastTester - Fires a test toast on mount in dev mode
+//  */
+// const DevToastTester: Component = () => {
+//   const { settings } = useSettings();
+//
+//   onMount(() => {
+//     if (settings.devMode || true) {
+//       showToast({
+//         variant: 'info',
+//         title: 'test',
+//         message: 'Toast system operational',
+//         duration: 3000,
+//       });
+//       console.log('[DevToastTester] Toast fired');
+//     }
+//     console.log('[DevToastTester] a');
+//   });
+//
+//   return null;
+// };
+
 /**
  * WindowWrapper wraps all window entry points with necessary providers
  * This ensures consistent context availability across all windows
@@ -106,6 +128,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean }> = (pro
       <LocalizationProvider>
         <SettingsProvider>
           <WindowLoadingScreen />
+          {/*<DevToastTester />*/}
           <LanguageProvider>
             <MigrationHandler>
               <FlashcardProvider>

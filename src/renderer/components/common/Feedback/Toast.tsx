@@ -1,9 +1,9 @@
 /**
  * Toast Component
- * A notification that appears temporarily and auto-dismisses
+ * A notification system that appears temporarily and auto-dismisses
  */
 
-import { Component, createSignal, onCleanup, onMount, Show, JSX } from 'solid-js';
+import { Component, createSignal, onCleanup, onMount, Show, JSX, For } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import './Toast.css';
 
@@ -73,71 +73,67 @@ const defaultIcons: Record<ToastVariant, () => JSX.Element> = {
 };
 
 /**
- * Toast - A notification that appears temporarily
+ * ToastItem - A single toast notification rendered within the container
  */
-export const Toast: Component<ToastProps> = (props) => {
+const ToastItem: Component<ToastProps> = (props) => {
   const [visible, setVisible] = createSignal(false);
   const [exiting, setExiting] = createSignal(false);
-  
+
   let timeoutId: ReturnType<typeof setTimeout>;
-  
+
   const handleClose = () => {
     setExiting(true);
     setTimeout(() => {
       setVisible(false);
       props.onClose?.();
-    }, 300); // Match animation duration
+    }, 300);
   };
-  
+
   onMount(() => {
-    // Trigger enter animation
     requestAnimationFrame(() => {
       setVisible(true);
     });
-    
-    // Auto-dismiss
+
     const duration = props.duration ?? 5000;
     if (duration > 0) {
       timeoutId = setTimeout(handleClose, duration);
     }
   });
-  
+
   onCleanup(() => {
     if (timeoutId) clearTimeout(timeoutId);
   });
-  
+
   const getIcon = () => {
     if (props.icon) return props.icon;
     const IconComponent = defaultIcons[props.variant];
     return <IconComponent />;
   };
-  
+
   return (
-    <Portal mount={document.body}>
-      <div
-        class={`toast toast--${props.variant} ${visible() ? 'toast--visible' : ''} ${exiting() ? 'toast--exiting' : ''} ${props.class || ''}`}
-        role="alert"
-        aria-live="polite"
-      >
-        <div class="toast__icon">
-          {getIcon()}
-        </div>
-        <div class="toast__content">
-          <Show when={props.title}>
-            <div class="toast__title">{props.title}</div>
-          </Show>
-          <div class="toast__message">{props.message}</div>
-        </div>
-        <button class="toast__close" onClick={handleClose} aria-label="Close">
-          <CloseIcon />
-        </button>
+    <div
+      class={`toast toast--${props.variant} ${visible() ? 'toast--visible' : ''} ${exiting() ? 'toast--exiting' : ''} ${props.class || ''}`}
+      role="alert"
+      aria-live="polite"
+    >
+      <div class="toast__icon">
+        {getIcon()}
       </div>
-    </Portal>
+      <div class="toast__content">
+        <Show when={props.title}>
+          <div class="toast__title">{props.title}</div>
+        </Show>
+        <div class="toast__message">{props.message}</div>
+      </div>
+      <button class="toast__close" onClick={handleClose} aria-label="Close">
+        <CloseIcon />
+      </button>
+    </div>
   );
 };
 
-// Global toast container for managing multiple toasts
-interface ToastItem {
+// Global toast state
+interface ToastItemData {
   id: number;
   variant: ToastVariant;
   title?: string;
@@ -145,11 +141,11 @@ interface ToastItem {
   duration?: number;
 }
 
-const [toasts, setToasts] = createSignal<ToastItem[]>([]);
+const [toasts, setToasts] = createSignal<ToastItemData[]>([]);
 let toastIdCounter = 0;
 
 /**
- * Show a toast notification
+ * Show a toast notification programmatically
  */
 export function showToast(options: Omit<ToastProps, 'onClose'>): number {
   const id = ++toastIdCounter;
@@ -165,22 +161,31 @@ export function removeToast(id: number): void {
 }
 
 /**
- * ToastContainer - Renders all active toasts
+ * ToastContainer - Renders all active toasts via Portal
+ * Must be mounted once in the component tree (e.g., in WindowWrapper)
  */
 export const ToastContainer: Component = () => {
   return (
-    <div class="toast-container">
-      {toasts().map((toast) => (
-        <Toast
-          variant={toast.variant}
-          title={toast.title}
-          message={toast.message}
-          duration={toast.duration}
-          onClose={() => removeToast(toast.id)}
-        />
-      ))}
-    </div>
+    <Portal mount={document.body}>
+      <div class="toast-container">
+        <For each={toasts()}>
+          {(toast) => (
+            <ToastItem
+              variant={toast.variant}
+              title={toast.title}
+              message={toast.message}
+              duration={toast.duration}
+              onClose={() => removeToast(toast.id)}
+            />
+          )}
+        </For>
+      </div>
+    </Portal>
   );
 };
 
+/**
+ * Toast - Re-export for backward compatibility (use showToast for programmatic usage)
+ */
+export const Toast = ToastItem;
 export default Toast;

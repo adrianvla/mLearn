@@ -7,10 +7,10 @@ import { Component, createSignal, Show, onCleanup, createEffect } from 'solid-js
 import { Modal, Btn, Progress, Spinner } from '../../components/common';
 import { useFlashcards, useLocalization } from '../../context';
 import {
-  splitTextIntoChunks,
   splitForQR,
   mergeFlashcards,
   ChunkCollector,
+  sendChunkedWithBackpressure,
   type FlashcardStore,
 } from '../../services/flashcardSyncService';
 import './FlashcardSyncModal.css';
@@ -295,18 +295,16 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     }
   };
 
-  const sendFlashcards = () => {
+  const sendFlashcards = async () => {
+    if (!peer) return;
     const storeData = JSON.stringify(store);
-    const chunks = splitTextIntoChunks(storeData, 1000);
-    
-    chunks.forEach((chunk, i) => {
-      peer?.send(JSON.stringify({
-        type: 'sync-chunk',
-        data: [i, chunk, chunks.length],
-      }));
-    });
-    
-    console.log(`Sent ${chunks.length} flashcard chunks`);
+    try {
+      await sendChunkedWithBackpressure(peer, 'sync', storeData);
+    } catch (e) {
+      console.error('Error sending flashcards:', e);
+      setError(t('mlearn.Flashcards.Sync.Error.Connection'));
+      setPhase('error');
+    }
   };
 
   const receivedChunkCollector = new ChunkCollector();

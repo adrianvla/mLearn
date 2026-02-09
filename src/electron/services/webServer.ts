@@ -21,7 +21,7 @@ import { PROXY_SERVER_PORT, PYTHON_BACKEND_PORT, IPC_CHANNELS } from '../../shar
 import { getAppPath, getResourcePath } from '../utils/platform';
 import { loadSettings, loadLangData } from './settings';
 import { getMainWindow } from './windowManager';
-import { getFlashcardEaseMap } from './flashcardStorage';
+import { getFlashcardEaseMap, loadFlashcards } from './flashcardStorage';
 
 // Server instances
 let httpServer: http.Server | null = null;
@@ -290,24 +290,73 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
     return;
   }
 
-  // Serve settings.js - dynamic JavaScript with settings, lang data, localStorage, and ease hashmap
+  // Serve settings.js - dynamic JavaScript with settings, lang data, localStorage, and word knowledge
   if (pathname === '/settings.js') {
-    const settings = loadSettings();
-    const langData = loadLangData();
-    const easeHashmap = getFlashcardEaseMap();
-    
-    let js = '';
-    js += `globalThis.lang_data = ${JSON.stringify(langData)};\n`;
-    js += `globalThis.settings = ${JSON.stringify(settings)};\n`;
-    js += `globalThis.lS = ${JSON.stringify(localStorageData)};\n`;
-    js += `globalThis.easeHashmap = ${JSON.stringify(easeHashmap)};\n`;
-    js += `globalThis.serverProtocol = 'http';\n`;
-    
-    res.writeHead(200, {
-      'Content-Type': 'application/javascript',
-      ...corsHeaders,
-    });
-    res.end(js);
+    try {
+      const settings = loadSettings();
+      const langData = loadLangData();
+      const easeHashmap = getFlashcardEaseMap();
+      const flashcardStore = loadFlashcards();
+      
+      // Build word-keyed knowledge map from the flashcard store
+      // This avoids hash function mismatches between Node and browser crypto
+      const wordKnowledgeMap: Record<string, {
+        hasFlashcard: boolean;
+        bestEase: number;
+        bestState: string;
+        cardCount: number;
+        totalReviews: number;
+        bestInterval: number;
+      }> = {};
+      
+      for (const flashcard of Object.values(flashcardStore.flashcards)) {
+        const word = flashcard.content?.front;
+        if (!word) continue;
+        const existing = wordKnowledgeMap[word];
+        if (!existing) {
+          wordKnowledgeMap[word] = {
+            hasFlashcard: true,
+            bestEase: flashcard.ease,
+            bestState: flashcard.state,
+            cardCount: 1,
+            totalReviews: flashcard.reviews || 0,
+            bestInterval: flashcard.interval || 0,
+          };
+        } else {
+          existing.cardCount++;
+          existing.totalReviews += flashcard.reviews || 0;
+          if (flashcard.ease > existing.bestEase) existing.bestEase = flashcard.ease;
+          if (flashcard.interval > existing.bestInterval) existing.bestInterval = flashcard.interval;
+          const stateOrder: Record<string, number> = { 'new': 0, 'learning': 1, 'relearning': 2, 'review': 3 };
+          if ((stateOrder[flashcard.state] || 0) > (stateOrder[existing.bestState] || 0)) {
+            existing.bestState = flashcard.state;
+          }
+        }
+      }
+      
+      let js = '';
+      js += `globalThis.lang_data = ${JSON.stringify(langData)};\n`;
+      js += `globalThis.settings = ${JSON.stringify(settings)};\n`;
+      js += `globalThis.lS = ${JSON.stringify(localStorageData)};\n`;
+      js += `globalThis.easeHashmap = ${JSON.stringify(easeHashmap)};\n`;
+      js += `globalThis.wordKnowledgeMap = ${JSON.stringify(wordKnowledgeMap)};\n`;
+      js += `globalThis.knownUntrackedHashes = ${JSON.stringify(flashcardStore.knownUntracked || {})};\n`;
+      js += `globalThis.knownEaseThreshold = ${JSON.stringify(settings.known_ease_threshold)};\n`;
+      js += `globalThis.serverProtocol = 'http';\n`;
+      
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript',
+        ...corsHeaders,
+      });
+      res.end(js);
+    } catch (error) {
+      console.error('Error generating settings.js:', error);
+      res.writeHead(500, {
+        'Content-Type': 'application/javascript',
+        ...corsHeaders,
+      });
+      res.end(`console.error("mLearn: Failed to generate settings.js");`);
+    }
     return;
   }
 
@@ -584,6 +633,13 @@ function handleWebSocketConnection(ws: WebSocket): void {
         return;
       }
       
+      // Handle attempt-flashcard-creation action from tethered mode
+      if (data && data.action === 'attempt-flashcard-creation') {
+        attemptFlashcardCreationQueuedUpdates.push({ word: data.word, content: data.content });
+        flushAttemptFlashcardCreationUpdates();
+        return;
+      }
+      
       // Handle update-last-watched action
       if (data && data.action === 'update-last-watched') {
         lastWatchedQueuedUpdates.push({
@@ -673,8 +729,8 @@ export function startWebServer(): void {
   });
 
   // Setup IPC handlers
-  ipcMain.on(IPC_CHANNELS.SEND_LS, (_event, _data) => {
-    // LocalStorage data received from renderer (currently unused)
+  ipcMain.on(IPC_CHANNELS.SEND_LS, (_event, data) => {
+    setLocalStorage(data);
   });
 
   ipcMain.on(IPC_CHANNELS.WATCH_TOGETHER_SEND, (_event, message) => {

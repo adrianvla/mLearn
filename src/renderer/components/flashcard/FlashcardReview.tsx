@@ -3,7 +3,7 @@
  * SRS review interface with Anki-like rating buttons
  */
 
-import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect } from 'solid-js';
+import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect, batch } from 'solid-js';
 import { useFlashcards, useLocalization } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { Button, Badge, Panel, ProgressBar } from '../common';
@@ -62,6 +62,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // Keyboard shortcuts
   onMount(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore held-down key repeats to prevent accidental multi-reviews
+      if (e.repeat) return;
+
       // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
@@ -142,23 +145,27 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const card = currentCard();
     if (!card) return;
 
-    answerCard(quality);
-    setCardsAnswered(prev => prev + 1);
-    setShowAnswer(false);
+    batch(() => {
+      setShowAnswer(false);
+      answerCard(quality);
+      setCardsAnswered(prev => prev + 1);
+    });
   };
 
   const handleBury = () => {
     const card = currentCard();
     if (!card) return;
-    buryCard(card.id);
-    setShowAnswer(false);
+    batch(() => {
+      setShowAnswer(false);
+      buryCard(card.id);
+    });
   };
 
   const handleRemove = async () => {
     const card = currentCard();
     if (!card) return;
-    await removeFlashcard(card.id, true);
     setShowAnswer(false);
+    await removeFlashcard(card.id, true);
   };
 
   const handleFlip = () => {
