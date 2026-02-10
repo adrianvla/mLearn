@@ -28,3 +28,7 @@ export { useAnki } from './useAnki';
 
 // UI
 export { useCursorVisibility } from './useCursorVisibility';
+
+// Collaboration
+export { useWatchTogether } from './useWatchTogether';
+export type { WatchTogetherMessage } from './useWatchTogether';

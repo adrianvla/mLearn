@@ -80,7 +80,7 @@ const mLearnIPC = {
   resizeWindow: (size: WindowSize) => ipcRenderer.send(IPC_CHANNELS.CHANGE_WINDOW_SIZE, size),
   makePiP: (size: WindowSize) => ipcRenderer.send(IPC_CHANNELS.MAKE_PIP, size),
   unPiP: () => ipcRenderer.send(IPC_CHANNELS.MAKE_NORMAL),
-  showCtxMenu: () => ipcRenderer.send(IPC_CHANNELS.SHOW_CTX_MENU),
+  showCtxMenu: (options?: { isWatchTogether?: boolean }) => ipcRenderer.send(IPC_CHANNELS.SHOW_CTX_MENU, options),
   onContextMenuCommand: (callback: (command: string) => void) =>
     ipcOn(IPC_CHANNELS.CTX_MENU_COMMAND, (_event, command) => callback(command)),
   showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean }) => {

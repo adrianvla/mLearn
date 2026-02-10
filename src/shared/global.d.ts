@@ -37,7 +37,7 @@ export interface MLearnIPC {
   resizeWindow: (size: { width: number; height: number }) => void;
   makePiP: (size: { width: number; height: number }) => void;
   unPiP: () => void;
-  showCtxMenu: () => void;
+  showCtxMenu: (options?: { isWatchTogether?: boolean }) => void;
   showContact: () => void;
   
   // App Control

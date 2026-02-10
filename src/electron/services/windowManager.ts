@@ -229,7 +229,8 @@ function makeMainWindowNormal(): void {
 }
 
 // Context menu for video
-function showVideoContextMenu(sender: Electron.WebContents): void {
+function showVideoContextMenu(sender: Electron.WebContents, options?: { isWatchTogether?: boolean }): void {
+  const isWT = options?.isWatchTogether ?? false;
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'Sync Subtitles with Video',
@@ -243,6 +244,11 @@ function showVideoContextMenu(sender: Electron.WebContents): void {
     {
       label: 'Copy Subtitle',
       click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'copy-sub'),
+    },
+    { type: 'separator' },
+    {
+      label: isWT ? 'Stop Watch Together' : 'Watch Together',
+      click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'watch-together'),
     },
   ];
 
@@ -384,6 +390,11 @@ function setupAppMenu(): void {
         {
           label: 'Copy Subtitle',
           click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'copy-sub'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Watch Together',
+          click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'watch-together'),
         },
       ],
     },
@@ -535,8 +546,8 @@ export function setupWindowIPC(): void {
   });
 
   // Context menu
-  ipcMain.on(IPC_CHANNELS.SHOW_CTX_MENU, (event) => {
-    showVideoContextMenu(event.sender);
+  ipcMain.on(IPC_CHANNELS.SHOW_CTX_MENU, (event, options?: { isWatchTogether?: boolean }) => {
+    showVideoContextMenu(event.sender, options);
   });
 
   // Reader context menu (OCR overlay)
