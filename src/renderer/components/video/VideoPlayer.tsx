@@ -21,6 +21,8 @@ export interface VideoPlayerProps {
   onTimeUpdate?: (time: number) => void;
   /** Callback when video ends */
   onEnded?: () => void;
+  /** Options forwarded to the native context menu */
+  ctxMenuOptions?: { isWatchTogether?: boolean };
   /** Additional CSS class */
   class?: string;
   /** Additional inline styles */
@@ -107,7 +109,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
 
   const handleContextMenu = (e: MouseEvent) => {
     e.preventDefault();
-    window.mLearnIPC?.showCtxMenu();
+    window.mLearnIPC?.showCtxMenu(props.ctxMenuOptions);
   };
 
   return (

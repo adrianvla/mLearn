@@ -3,10 +3,10 @@
  * Video player with subtitle display and all video-related functionality
  */
 
-import { Component, Show, createSignal, onMount, onCleanup } from 'solid-js';
+import { Component, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { useIPC, useSubtitles } from '../../../hooks';
-import { useLocalization } from '../../../context';
+import { useIPC, useSubtitles, useWatchTogether } from '../../../hooks';
+import { useLocalization, useSettings } from '../../../context';
 import { VideoPlayer } from '../../../components/video';
 import { Panel, Btn, NavBtn } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
@@ -19,7 +19,13 @@ export const VideoRoute: Component = () => {
   const navigate = useNavigate();
   const { isElectron, selectFile, readFile } = useIPC();
   const { t } = useLocalization();
+  const { settings } = useSettings();
   const subtitles = useSubtitles();
+
+  const watchTogether = useWatchTogether({
+    getVideo: () => document.querySelector('video'),
+    getVideoSrc: () => videoSrc(),
+  });
 
   const [videoSrc, setVideoSrc] = createSignal<string>('');
   const [subtitleContent, setSubtitleContent] = createSignal<string>('');
@@ -70,6 +76,54 @@ export const VideoRoute: Component = () => {
     thumbnailInterval = window.setInterval(() => {
       captureThumbnailIfReady();
     }, 30000); // Capture thumbnail every 30 seconds while watching
+
+    // Attach watch-together listeners to the video element once it exists.
+    // Uses a short poll because the <video> may not be in the DOM yet.
+    const attachWatchTogetherListeners = () => {
+      const video = document.querySelector('video');
+      if (!video) return;
+
+      const onPlay = () => {
+        if (!watchTogether.isSuppressed) {
+          watchTogether.sendPlay(video.currentTime);
+        }
+      };
+      const onPause = () => {
+        if (!watchTogether.isSuppressed) {
+          watchTogether.sendPause(video.currentTime);
+        }
+      };
+      const onSeeked = () => {
+        if (!watchTogether.isSuppressed) {
+          watchTogether.sendSync(video.currentTime);
+        }
+      };
+
+      video.addEventListener('play', onPlay);
+      video.addEventListener('pause', onPause);
+      video.addEventListener('seeked', onSeeked);
+
+      ipcCleanups.push(() => {
+        video.removeEventListener('play', onPlay);
+        video.removeEventListener('pause', onPause);
+        video.removeEventListener('seeked', onSeeked);
+      });
+    };
+
+    // The video element may appear later (ShowDropZone toggle), so use a
+    // MutationObserver to detect when it's added.
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('video')) {
+        attachWatchTogetherListeners();
+        observer.disconnect();
+      }
+    });
+    if (document.querySelector('video')) {
+      attachWatchTogetherListeners();
+    } else {
+      observer.observe(document.body, { childList: true, subtree: true });
+      ipcCleanups.push(() => observer.disconnect());
+    }
   });
   
   onCleanup(() => {
@@ -80,6 +134,24 @@ export const VideoRoute: Component = () => {
     ipcCleanups.length = 0;
     // Capture final thumbnail on cleanup
     captureThumbnailIfReady();
+  });
+
+  // Broadcast subtitle HTML to tethered clients whenever the current
+  // subtitle changes and watch-together is active.
+  createEffect(() => {
+    if (!watchTogether.isActive()) return;
+    const sub = subtitles.currentSubtitle();
+    if (!sub) return;
+    // Grab the rendered subtitle container from the DOM.
+    const el = document.querySelector('.subtitle-container');
+    if (!el) return;
+    const html = el.innerHTML;
+    if (!html) return;
+    watchTogether.sendSubtitles(
+      html,
+      settings.subtitle_font_size ?? 32,
+      settings.subtitle_font_weight ?? 700,
+    );
   });
   
   const captureThumbnailIfReady = () => {
@@ -101,7 +173,7 @@ export const VideoRoute: Component = () => {
           (window as any).mLearnSubtitleSync.show();
         }
         break;
-      case 'copy-sub':
+      case 'copy-sub': {
         const currentSub = subtitles.currentSubtitle();
         if (currentSub) {
           const textToCopy = currentSub.text || '';
@@ -115,6 +187,10 @@ export const VideoRoute: Component = () => {
             });
           }
         }
+        break;
+      }
+      case 'watch-together':
+        watchTogether.toggle();
         break;
     }
   };
@@ -288,6 +364,7 @@ export const VideoRoute: Component = () => {
         <VideoPlayer
           src={videoSrc()}
           subtitleContent={subtitleContent()}
+          ctxMenuOptions={{ isWatchTogether: watchTogether.isActive() }}
           style={{ flex: '1' }}
           onTimeUpdate={(time) => setCurrentVideoTime(time)}
         />

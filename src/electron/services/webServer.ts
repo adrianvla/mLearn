@@ -575,8 +575,10 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
       try {
         const decoded = Buffer.from(message, 'base64').toString('utf8');
         const parsedMessage = JSON.parse(decoded);
-        console.log('Received watch-together message:', parsedMessage);
-        broadcastToClients(JSON.stringify(parsedMessage));
+        const encoded = JSON.stringify(parsedMessage);
+        broadcastToClients(encoded);
+        // Also forward to the desktop renderer so it can react
+        getMainWindow()?.webContents.send(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, encoded);
         sendJsonResponse(res, { status: 'ok' });
       } catch {
         sendJsonResponse(res, { status: 'error', error: 'Invalid message format' }, 400);
@@ -652,20 +654,18 @@ function handleWebSocketConnection(ws: WebSocket): void {
         return;
       }
       
-      // Handle watch-together messages
-      if (data.type === 'watch-together') {
-        getMainWindow()?.webContents.send(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, JSON.stringify(data));
-        // Broadcast to other clients
-        for (const client of connectedClients) {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
-            client.send(message.toString());
-          }
+      // Forward to renderer and broadcast to other WS clients.
+      // Messages arrive with an `action` field (play, pause, sync, etc.) from
+      // tethered clients acting as watch-together masters, or with a `type`
+      // field from future structured messages. Both paths need to reach the
+      // renderer AND all other connected clients.
+      const raw = message.toString();
+      getMainWindow()?.webContents.send(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, raw);
+      for (const client of connectedClients) {
+        if (client !== ws && client.readyState === WebSocket.OPEN) {
+          client.send(raw);
         }
-        return;
       }
-      
-      // Default: forward to main window
-      getMainWindow()?.webContents.send(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, message.toString());
     } catch (e) {
       console.error('WebSocket message error:', e);
     }
@@ -735,6 +735,11 @@ export function startWebServer(): void {
 
   ipcMain.on(IPC_CHANNELS.WATCH_TOGETHER_SEND, (_event, message) => {
     broadcastToClients(message);
+  });
+
+  // When the renderer asks "am I watching together?" reply to activate the mode
+  ipcMain.on(IPC_CHANNELS.IS_WATCHING_TOGETHER, (event) => {
+    event.reply(IPC_CHANNELS.WATCH_TOGETHER);
   });
 }
 
