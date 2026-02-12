@@ -55,6 +55,11 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     if (isWordTranslatable()) {
       classes.push('has-hover');
     }
+
+    // Blur individual words when blur_words is enabled and word is known
+    if (settings.blur_words && props.token.isKnown) {
+      classes.push('blur');
+    }
     
     // Add part-of-speech class
     const pos = getPos();

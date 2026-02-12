@@ -12,8 +12,11 @@ import { Panel, Btn, NavBtn } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { LiveWordTranslator, SubtitleSync } from '../../../components/subtitle';
 import { IPC_CHANNELS } from '../../../../shared/constants';
-import { captureVideoThumbnail, saveToRecentItems, updateRecentItemThumbnail } from '../../../services/thumbnailService';
+import { captureVideoThumbnail, saveToRecentItems, updateRecentItemThumbnail, updateRecentItemProgress } from '../../../services/thumbnailService';
 import './video.css';
+
+/** Convert a filesystem path to a local-media:// URL that the renderer can load */
+const toLocalMediaUrl = (filePath: string): string => `local-media://${filePath}`;
 
 export const VideoRoute: Component = () => {
   const navigate = useNavigate();
@@ -37,6 +40,7 @@ export const VideoRoute: Component = () => {
   const [_currentVideoPath, setCurrentVideoPath] = createSignal<string>('');
   
   let thumbnailInterval: number | null = null;
+  let progressInterval: number | null = null;
   const ipcCleanups: Array<() => void> = [];
 
   onMount(() => {
@@ -46,7 +50,7 @@ export const VideoRoute: Component = () => {
       sessionStorage.removeItem('mlearn_open_video');
       // Only load if we have an actual path
       if (pendingVideo.trim()) {
-        setVideoSrc(`file://${pendingVideo}`);
+        setVideoSrc(toLocalMediaUrl(pendingVideo));
         setCurrentVideoPath(pendingVideo);
         setShowDropZone(false);
         // Extract video name from path
@@ -76,6 +80,11 @@ export const VideoRoute: Component = () => {
     thumbnailInterval = window.setInterval(() => {
       captureThumbnailIfReady();
     }, 30000); // Capture thumbnail every 30 seconds while watching
+    
+    // Set up video progress save interval
+    progressInterval = window.setInterval(() => {
+      updateVideoProgress();
+    }, 10000); // Save progress every 10 seconds
 
     // Attach watch-together listeners to the video element once it exists.
     // Uses a short poll because the <video> may not be in the DOM yet.
@@ -130,10 +139,14 @@ export const VideoRoute: Component = () => {
     if (thumbnailInterval !== null) {
       clearInterval(thumbnailInterval);
     }
+    if (progressInterval !== null) {
+      clearInterval(progressInterval);
+    }
     for (const cleanup of ipcCleanups) cleanup();
     ipcCleanups.length = 0;
-    // Capture final thumbnail on cleanup
+    // Capture final thumbnail and save final progress on cleanup
     captureThumbnailIfReady();
+    updateVideoProgress();
   });
 
   // Broadcast subtitle HTML to tethered clients whenever the current
@@ -162,6 +175,15 @@ export const VideoRoute: Component = () => {
       if (thumbnail) {
         updateRecentItemThumbnail(name, thumbnail);
       }
+    }
+  };
+
+  const updateVideoProgress = () => {
+    const videoEl = document.querySelector('video');
+    const name = currentVideoName();
+    if (videoEl && name && videoEl.duration && isFinite(videoEl.duration)) {
+      const progress = videoEl.currentTime / videoEl.duration;
+      updateRecentItemProgress(name, progress);
     }
   };
 
@@ -205,9 +227,10 @@ export const VideoRoute: Component = () => {
       const ext = file.name.split('.').pop()?.toLowerCase();
       
       if (['mp4', 'webm', 'mkv', 'avi', 'mov'].includes(ext || '')) {
-        // In Electron, File objects have a .path property with the full filesystem path
-        const filePath = (file as File & { path?: string }).path || '';
-        const url = filePath ? `file://${filePath}` : URL.createObjectURL(file);
+        const filePath = window.mLearnIPC?.getPathForFile
+          ? window.mLearnIPC.getPathForFile(file)
+          : (file as File & { path?: string }).path || '';
+        const url = filePath ? toLocalMediaUrl(filePath) : URL.createObjectURL(file);
         setVideoSrc(url);
         setCurrentVideoPath(filePath);
         setShowDropZone(false);
@@ -247,9 +270,10 @@ export const VideoRoute: Component = () => {
       input.onchange = async () => {
         const file = input.files?.[0];
         if (file) {
-          // In Electron, File objects have a .path property with the full filesystem path
-          const filePath = (file as File & { path?: string }).path || '';
-          const url = filePath ? `file://${filePath}` : URL.createObjectURL(file);
+          const filePath = window.mLearnIPC?.getPathForFile
+            ? window.mLearnIPC.getPathForFile(file)
+            : (file as File & { path?: string }).path || '';
+          const url = filePath ? toLocalMediaUrl(filePath) : URL.createObjectURL(file);
           setVideoSrc(url);
           setCurrentVideoPath(filePath);
           setShowDropZone(false);
@@ -277,7 +301,7 @@ export const VideoRoute: Component = () => {
 
     if (path) {
       const videoName = path.split('/').pop() || path.split('\\').pop() || 'Video';
-      setVideoSrc(`file://${path}`);
+      setVideoSrc(toLocalMediaUrl(path));
       setCurrentVideoPath(path);
       setShowDropZone(false);
       setCurrentVideoName(videoName);

@@ -11,8 +11,12 @@ import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
 import { setupFileOperationsIPC } from './services/fileOperations';
 import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageMigration';
+import { registerLocalMediaScheme, setupLocalMediaProtocol } from './services/localMediaProtocol';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
+
+// Register custom protocol scheme before app is ready
+registerLocalMediaScheme();
 
 // Initialize IPC handlers (called once)
 function setupBaseIPC(): void {
@@ -65,6 +69,9 @@ async function createAppWindows(): Promise<void> {
 async function initialize(): Promise<void> {
   // Setup all IPC handlers once
   setupAllIPC();
+
+  // Set up custom protocol for serving local media files to renderer
+  setupLocalMediaProtocol();
 
   // Perform localStorage migration before creating windows
   // This migrates data from the old app's file:// localStorage to file-based storage
