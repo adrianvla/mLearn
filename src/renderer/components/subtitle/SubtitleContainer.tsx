@@ -179,11 +179,21 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const hasContent = () => props.tokens.length > 0 || props.originalText || props.isLoading;
   const shouldShow = () => (settings.showSubtitles ?? true) && hasContent();
 
+  // Check if all tokens in the current subtitle are known (for blur_known_subtitles)
+  const allWordsKnown = createMemo(() => {
+    const tokens = props.tokens;
+    if (!tokens.length) return false;
+    return tokens.every(t => t.isKnown);
+  });
+
   // Container class with theme and visibility state
   const getContainerClass = () => {
     const classes = ['subtitles', getSubtitleThemeClass()];
     if (!shouldShow()) {
       classes.push('not-shown');
+    }
+    if (settings.blur_known_subtitles && allWordsKnown()) {
+      classes.push('subtitle-line-blur');
     }
     return classes.join(' ');
   };

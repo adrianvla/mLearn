@@ -27,6 +27,16 @@
   pointer-events: none;
 }
 
+/* Blur entire subtitle line when all words are known */
+.subtitles.subtitle-line-blur {
+  filter: blur(var(--word-blur-amount));
+  transition: filter var(--transition-normal);
+}
+
+.subtitles.subtitle-line-blur:hover {
+  filter: blur(0);
+}
+
 .subtitles.quick-transition {
   transition: bottom 0.3s, opacity 0s;
 }
