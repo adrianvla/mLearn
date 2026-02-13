@@ -9,4 +9,5 @@ export { CustomizationTab } from './CustomizationTab';
 export { SRSTab } from './SRSTab';
 export { ReaderTab } from './ReaderTab';
 export { StatsTab } from './StatsTab';
+export { AITab } from './AITab';
 export { AboutTab } from './AboutTab';

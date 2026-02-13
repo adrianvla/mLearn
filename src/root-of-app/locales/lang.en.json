@@ -477,6 +477,7 @@
         "SRS": "Flashcards",
         "Reader": "Reader",
         "Statistics": "Stats",
+        "AI": "AI",
         "About": "About"
       },
       "Groups": {
@@ -496,7 +497,8 @@
         "LlmIntegration": "LLM Integration",
         "SubtitleAppearance": "Subtitle Appearance",
         "SubtitleTiming": "Subtitle Timing",
-        "ThemePreview": "Theme Preview"
+        "ThemePreview": "Theme Preview",
+        "PosColors": "Part of Speech Colors"
       },
       "Language": {
         "LearningLanguage": {
@@ -547,6 +549,11 @@
         "ColourCodes": {
           "Label": "Part of Speech Colours",
           "Description": "Colour code words based on their grammatical role"
+        },
+        "PosColors": {
+          "Description": "Customize the color for each part of speech tag. These colors are used to highlight words in subtitles, the reader, and the conversation agent.",
+          "Reset": "Reset",
+          "ResetAll": "Reset All POS Colors"
         },
         "KnownThreshold": {
           "Label": "Known Threshold",
@@ -1168,7 +1175,7 @@
         "Title": "Start a conversation",
         "Hint": "Practice your target language with the AI tutor. It will correct mistakes, quiz you, and help you learn."
       },
-      "InputPlaceholder": "Message in target language...",
+      "InputPlaceholder": "Message in {language}...",
       "Stats": {
         "Overview": "Overview",
         "FailedWords": "Failed Words",
@@ -1234,6 +1241,58 @@
         "Words": "Words",
         "Grammar": "Grammar",
         "Unknown": "Unknown"
+      }
+    },
+    "AI": {
+      "SetupRequired": "AI features require setup. Opening settings...",
+      "SetupRequiredAction": "Configure AI in settings to use this feature.",
+      "DownloadModel": "Download Model",
+      "DownloadingModel": "Downloading model...",
+      "DownloadProgress": "{percent}% downloaded ({downloaded} / {total})",
+      "DownloadComplete": "Model downloaded successfully.",
+      "DownloadFailed": "Failed to download model: {error}",
+      "ModelReady": "Model is ready.",
+      "ModelNotDownloaded": "Model has not been downloaded yet.",
+      "ModelLoading": "Loading model...",
+      "ModelLoaded": "Model loaded and ready.",
+      "OllamaNotReachable": "Cannot reach Ollama server. Check that Ollama is running and the URL is correct.",
+      "OllamaConnected": "Connected to Ollama.",
+      "OllamaInstallGuide": "Install Ollama",
+      "OllamaInstallGuideUrl": "https://ollama.com/download",
+      "Settings": {
+        "Title": "AI Configuration",
+        "Description": "Configure AI features for word explanations and conversation practice.",
+        "Provider": {
+          "Title": "AI Provider",
+          "Description": "Choose how to run AI models.",
+          "Builtin": "Built-in",
+          "BuiltinDescription": "Run a local model directly in the app. No external software required.",
+          "Ollama": "Ollama",
+          "OllamaDescription": "Connect to an Ollama server for more model options."
+        },
+        "BuiltinModel": {
+          "Title": "Built-in Model",
+          "ModelName": "Model",
+          "Status": "Status",
+          "DiskSpace": "Disk space required: ~{size}",
+          "Redownload": "Re-download"
+        },
+        "OllamaConfig": {
+          "Title": "Ollama Configuration",
+          "ServerUrl": "Server URL",
+          "ServerUrlHint": "The address of your Ollama server.",
+          "Model": "Model",
+          "ModelHint": "Select or type an Ollama model name.",
+          "TestConnection": "Test Connection",
+          "Testing": "Testing...",
+          "ConnectionSuccess": "Connection successful.",
+          "ConnectionFailed": "Could not connect to Ollama.",
+          "FetchModels": "Fetch Models",
+          "LoadingModels": "Loading models...",
+          "NoModels": "No models found.",
+          "InstallHintPrefix": "Don't have Ollama?",
+          "InstallHintSuffix": "to get started."
+        }
       }
     }
   }

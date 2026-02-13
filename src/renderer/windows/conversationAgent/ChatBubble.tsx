@@ -12,6 +12,58 @@ import type { WordHoverTriggerMode } from '../../../shared/constants';
 const LONG_HOVER_DELAY = 500;
 const DEBUG_HOVER_DELAY = 600;
 
+/**
+ * Find the index of an error span in text using context for disambiguation.
+ * When contextBefore/contextAfter are provided, we look for the occurrence
+ * that matches the surrounding context, rather than just the first match.
+ */
+function findErrorSpanIndex(text: string, correction: MistakeWidgetData, startFrom: number): number {
+  const { errorSpan, contextBefore, contextAfter } = correction;
+  if (!errorSpan) return -1;
+
+  // If no context provided, fall back to simple indexOf
+  if (!contextBefore && !contextAfter) {
+    return text.indexOf(errorSpan, startFrom);
+  }
+
+  // Search all occurrences and score them on context match
+  let bestIdx = -1;
+  let bestScore = -1;
+  let searchFrom = startFrom;
+
+  while (searchFrom < text.length) {
+    const idx = text.indexOf(errorSpan, searchFrom);
+    if (idx === -1) break;
+
+    let score = 0;
+    if (contextBefore) {
+      const before = text.slice(Math.max(0, idx - contextBefore.length), idx);
+      if (before.endsWith(contextBefore)) score += 2;
+      else if (before.includes(contextBefore)) score += 1;
+    }
+    if (contextAfter) {
+      const afterStart = idx + errorSpan.length;
+      const after = text.slice(afterStart, afterStart + contextAfter.length);
+      if (after.startsWith(contextAfter)) score += 2;
+      else if (after.includes(contextAfter)) score += 1;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = idx;
+    }
+
+    searchFrom = idx + 1;
+  }
+
+  // If context matching didn't help, fall back to first occurrence after startFrom
+  if (bestIdx === -1) {
+    return text.indexOf(errorSpan, startFrom);
+  }
+
+  return bestIdx;
+}
+
 interface ChatBubbleProps {
   message: ConversationMessage;
   isStreaming?: boolean;
@@ -154,16 +206,16 @@ const CorrectedUserText: Component<CorrectedUserTextProps> = (props) => {
     const text = props.content;
     const result: Array<{ type: 'text'; value: string } | { type: 'correction'; original: string; correction: string; errorType: string }> = [];
 
-    // Sort corrections by their position in the text (find order)
+    // Sort corrections by their position in the text using context-aware matching
     const sorted = [...props.corrections].sort((a, b) => {
-      const idxA = text.indexOf(a.errorSpan);
-      const idxB = text.indexOf(b.errorSpan);
+      const idxA = findErrorSpanIndex(text, a, 0);
+      const idxB = findErrorSpanIndex(text, b, 0);
       return idxA - idxB;
     });
 
     let lastIndex = 0;
     for (const corr of sorted) {
-      const idx = text.indexOf(corr.errorSpan, lastIndex);
+      const idx = findErrorSpanIndex(text, corr, lastIndex);
       if (idx === -1) continue;
 
       // Text before the correction
@@ -235,20 +287,20 @@ const CorrectedTokenizedText: Component<CorrectedTokenizedTextProps> = (props) =
     });
   });
 
-  /** Build correction ranges from the reconstructed text */
+  /** Build correction ranges from the reconstructed text using context-aware matching */
   const correctionRanges = createMemo(() => {
     const fullText = props.tokens.map((t) => t.word).join('');
     const ranges: Array<{ start: number; end: number; correction: MistakeWidgetData }> = [];
 
     const sorted = [...props.corrections].sort((a, b) => {
-      const idxA = fullText.indexOf(a.errorSpan);
-      const idxB = fullText.indexOf(b.errorSpan);
+      const idxA = findErrorSpanIndex(fullText, a, 0);
+      const idxB = findErrorSpanIndex(fullText, b, 0);
       return idxA - idxB;
     });
 
     let lastIndex = 0;
     for (const corr of sorted) {
-      const idx = fullText.indexOf(corr.errorSpan, lastIndex);
+      const idx = findErrorSpanIndex(fullText, corr, lastIndex);
       if (idx === -1) continue;
       ranges.push({ start: idx, end: idx + corr.errorSpan.length, correction: corr });
       lastIndex = idx + corr.errorSpan.length;
@@ -273,33 +325,65 @@ const CorrectedTokenizedText: Component<CorrectedTokenizedTextProps> = (props) =
     });
   });
 
+  /** Group consecutive corrected tokens into correction groups for proper vertical layout */
+  const groupedAnnotations = createMemo(() => {
+    const annotations = tokenAnnotations();
+    const groups: Array<
+      | { type: 'token'; token: Token }
+      | { type: 'correction-group'; tokens: Token[]; correction: MistakeWidgetData }
+    > = [];
+
+    let currentCorrectionTokens: Token[] = [];
+    let currentCorrection: MistakeWidgetData | null = null;
+
+    for (const ann of annotations) {
+      if (ann.corrected) {
+        currentCorrectionTokens.push(ann.token);
+        if (ann.isLastInGroup && ann.correction) {
+          currentCorrection = ann.correction;
+        }
+        if (ann.isLastInGroup) {
+          groups.push({
+            type: 'correction-group',
+            tokens: currentCorrectionTokens,
+            correction: currentCorrection!,
+          });
+          currentCorrectionTokens = [];
+          currentCorrection = null;
+        }
+      } else {
+        groups.push({ type: 'token', token: ann.token });
+      }
+    }
+
+    return groups;
+  });
+
   return (
     <span>
-      <For each={tokenAnnotations()}>
-        {(ann) => (
-          <>
-            <Show when={ann.corrected} fallback={
-              <Show
-                when={ann.token.word && ann.token.word.trim().length > 0 && ann.token.type !== '記号'}
-                fallback={<span>{ann.token.word}</span>}
-              >
-                <ChatToken
-                  token={ann.token}
-                  onTokenHover={props.onTokenHover}
-                  onTokenLeave={props.onTokenLeave}
-                  triggerMode={props.triggerMode}
-                  triggerKey={props.triggerKey}
-                />
-              </Show>
-            }>
-              <span class="chat-correction-original">{ann.token.word}</span>
-              <Show when={ann.isLastInGroup && ann.correction}>
-                <span class="chat-correction-replacement">
-                  {ann.correction!.correction}
-                </span>
-              </Show>
-            </Show>
-          </>
+      <For each={groupedAnnotations()}>
+        {(group) => (
+          <Show
+            when={group.type === 'correction-group'}
+            fallback={
+              <ChatToken
+                token={(group as { type: 'token'; token: Token }).token}
+                onTokenHover={props.onTokenHover}
+                onTokenLeave={props.onTokenLeave}
+                triggerMode={props.triggerMode}
+                triggerKey={props.triggerKey}
+              />
+            }
+          >
+            <span class="chat-correction-group">
+              <span class="chat-correction-original">
+                {(group as { type: 'correction-group'; tokens: Token[] }).tokens.map((t) => t.word).join('')}
+              </span>
+              <span class="chat-correction-replacement">
+                {(group as { type: 'correction-group'; correction: MistakeWidgetData }).correction.correction}
+              </span>
+            </span>
+          </Show>
         )}
       </For>
     </span>
@@ -320,18 +404,13 @@ const TokenizedText: Component<TokenizedTextProps> = (props) => {
     <span>
       <For each={props.tokens}>
         {(token) => (
-          <Show
-            when={token.word && token.word.trim().length > 0 && token.type !== '記号'}
-            fallback={<span>{token.word}</span>}
-          >
-            <ChatToken
-              token={token}
-              onTokenHover={props.onTokenHover}
-              onTokenLeave={props.onTokenLeave}
-              triggerMode={props.triggerMode}
-              triggerKey={props.triggerKey}
-            />
-          </Show>
+          <ChatToken
+            token={token}
+            onTokenHover={props.onTokenHover}
+            onTokenLeave={props.onTokenLeave}
+            triggerMode={props.triggerMode}
+            triggerKey={props.triggerKey}
+          />
         )}
       </For>
     </span>
@@ -349,11 +428,20 @@ interface ChatTokenProps {
 
 const ChatToken: Component<ChatTokenProps> = (props) => {
   const { settings } = useSettings();
-  const { currentLangData } = useLanguage();
+  const { currentLangData, isTranslatable } = useLanguage();
   let wordRef: HTMLSpanElement | undefined;
   let longHoverTimeout: ReturnType<typeof setTimeout> | null = null;
   const [isMouseOver, setIsMouseOver] = createSignal(false);
   const [isKeyHeld, setIsKeyHeld] = createSignal(false);
+
+  /** Whether this token is a translatable word (not punctuation/symbol) */
+  const isTokenTranslatable = createMemo(() => {
+    const word = props.token.word;
+    if (!word || !word.trim()) return false;
+    const pos = props.token.partOfSpeech ?? props.token.type ?? '';
+    if (!pos) return !!word.trim();
+    return isTranslatable(pos);
+  });
 
   const clearLongHoverTimeout = () => {
     if (longHoverTimeout) {
@@ -369,6 +457,7 @@ const ChatToken: Component<ChatTokenProps> = (props) => {
   };
 
   const handleMouseEnter = () => {
+    if (!isTokenTranslatable()) return;
     setIsMouseOver(true);
     const mode = settings.readerWordHoverTrigger ?? props.triggerMode;
 
@@ -438,14 +527,19 @@ const ChatToken: Component<ChatTokenProps> = (props) => {
     clearLongHoverTimeout();
   });
 
+  const tokenClass = createMemo(() => {
+    if (!isTokenTranslatable()) return 'chat-token';
+    return `chat-token ${props.token.isKnown === false ? 'unknown' : 'known'}`;
+  });
+
   return (
     <span
       ref={wordRef}
-      class={`chat-token ${props.token.isKnown === false ? 'unknown' : 'known'}`}
+      class={tokenClass()}
       style={getTokenColor() ? { color: getTokenColor() } : undefined}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      title={props.token.actual_word || props.token.word}
+      title={isTokenTranslatable() ? (props.token.actual_word || props.token.word) : undefined}
     >
       {props.token.word}
     </span>

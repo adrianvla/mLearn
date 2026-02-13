@@ -1,0 +1,116 @@
+/**
+ * StatusBar Component Styles
+ * Unified status bar styling based on ReaderStatusBar design
+ */
+
+.statusbar {
+  --statusbar-font-size: var(--font-size-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-2) var(--spacing-4);
+  height: 30px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg);
+  font-size: var(--statusbar-font-size);
+  user-select: none;
+  gap: var(--spacing-4);
+  flex-shrink: 0;
+}
+
+/* Hover trigger section - reused across status bars */
+.statusbar .hover-trigger-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+}
+
+.statusbar .hover-trigger-label {
+  color: var(--text-secondary);
+  font-size: var(--statusbar-font-size);
+}
+
+.statusbar .hover-trigger-select {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0;
+  color: var(--text-primary);
+  font-size: var(--statusbar-font-size);
+  padding: 2px var(--spacing-2);
+  cursor: pointer;
+  outline: none;
+  transition: all var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.statusbar .hover-trigger-select:hover {
+  border-color: var(--border-color);
+  background: var(--bg);
+}
+
+.statusbar .hover-trigger-select option {
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+/* Toggle buttons within status bar */
+.statusbar .statusbar-toggles {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+.statusbar .statusbar-toggle {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  font-size: var(--statusbar-font-size);
+  padding: 1px var(--spacing-2);
+  cursor: pointer;
+  outline: none;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.statusbar .statusbar-toggle:hover {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.statusbar .statusbar-toggle.active {
+  color: var(--text-secondary);
+}
+
+/* Status text */
+.statusbar .statusbar-text {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.statusbar .statusbar-text.truncate {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+}
+
+/* Status pulse animation */
+.statusbar .statusbar-text.active {
+  animation: statusbar-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes statusbar-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Hint text */
+.statusbar .statusbar-hint {
+  color: var(--text-tertiary);
+  font-size: var(--statusbar-font-size);
+  flex-shrink: 0;
+}

@@ -149,6 +149,7 @@
   --pos-prefix: #e91e63;
   --pos-suffix: #00bcd4;
   --pos-symbol: #607d8b;
+  --pos-punctuation: #8fc99d;
 
   /* ========== Pill Level Colors (Light/Default) ========== */
   /* Level 1 - Red */
@@ -217,6 +218,9 @@
   /* Should only be used for modals or stuff that floats on top and not for normal UI components*/
   --overlay-bg: rgba(255,255,255, 0.6);
   --overlay-bg-soft: rgba(255,255,255, 0.4);
+
+  /*for OSes*/
+  --navbar-margin-left: 70px;
 }
 
 /* ========== Shared Animations ========== */

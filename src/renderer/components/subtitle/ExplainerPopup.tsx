@@ -1,15 +1,16 @@
 /**
  * ExplainerPopup Component
- * Draggable, resizable popup for displaying LLM word explanations
- * Supports streaming responses and raw/parsed view toggle
+ * Draggable, resizable popup for displaying LLM word explanations.
+ * Uses tool-call-based structured output via the unified LLM provider.
  */
 
 import { Component, Show, createSignal, createEffect, createMemo, onCleanup } from 'solid-js';
+import type { LLMToolCall } from '../../../shared/types';
 import { DraggablePopup, IconBtn } from '../common';
 import { EyeIcon, EyeOffIcon, BotIcon } from '../common/Misc/Icons';
 import { useSettings, useLocalization } from '../../context';
-import { getWordExplanationStreaming, getCachedExplanation } from '../../services/llmService';
-import { parseExplainerResponse, type ParsedExplainer } from '../../utils/explainerParser';
+import { streamExplanation, getCachedExplanation, checkAvailability, requiresSetup } from '../../services/llmProvider';
+import type { ParsedExplainer, ExplainerSection, GrammarPoint } from './ExplainerCards';
 import { ExplainerCards } from './ExplainerCards';
 import { Spinner } from '../common';
 import './ExplainerPopup.css';
@@ -28,28 +29,65 @@ export interface ExplainerPopupProps {
 }
 
 /**
+ * Convert accumulated tool calls into the ParsedExplainer shape
+ * that ExplainerCards already understands.
+ */
+function toolCallsToParsedExplainer(toolCalls: LLMToolCall[], rawText: string): ParsedExplainer {
+  const sections: ExplainerSection[] = [];
+
+  for (const tc of toolCalls) {
+    const args = tc.arguments as Record<string, unknown>;
+    switch (tc.name) {
+      case 'show_translation':
+        sections.push({
+          type: 'translation',
+          content: (args.translation as string) ?? '',
+        });
+        break;
+      case 'show_explanation':
+        sections.push({
+          type: 'explanation',
+          word: args.word as string | undefined,
+          content: (args.explanation as string) ?? '',
+        });
+        break;
+      case 'show_grammar_points':
+        sections.push({
+          type: 'grammar',
+          grammarPoints: (args.points as GrammarPoint[]) ?? [],
+        });
+        break;
+    }
+  }
+
+  return { sections, rawText: rawText || undefined };
+}
+
+/**
  * ExplainerPopup - Streaming LLM explanation popup with raw mode toggle
  */
 export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
-  
+
   // State
-  const [streamingText, setStreamingText] = createSignal<string>('');
+  const [rawText, setRawText] = createSignal('');
+  const [toolCalls, setToolCalls] = createSignal<LLMToolCall[]>([]);
   const [isLoading, setIsLoading] = createSignal(false);
   const [isComplete, setIsComplete] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [showRawMode, setShowRawMode] = createSignal(false);
   const [abortFn, setAbortFn] = createSignal<(() => void) | null>(null);
 
-  // Parse the streaming text into structured sections
+  // Build ParsedExplainer from accumulated tool calls
   const parsedContent = createMemo<ParsedExplainer>(() => {
-    const text = streamingText();
-    if (!text) {
-      return { sections: [] };
-    }
-    return parseExplainerResponse(text, props.word);
+    const calls = toolCalls();
+    const text = rawText();
+    if (calls.length === 0 && !text) return { sections: [] };
+    return toolCallsToParsedExplainer(calls, text);
   });
+
+  const hasContent = createMemo(() => toolCalls().length > 0 || rawText().length > 0);
 
   // Start streaming when popup opens with a new word
   createEffect(() => {
@@ -69,62 +107,79 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     }
   });
 
-  // Cleanup on unmount
   onCleanup(() => {
     const abort = abortFn();
-    if (abort) {
-      abort();
-    }
+    if (abort) abort();
   });
 
   const startStreaming = async () => {
     // Reset state
-    setStreamingText('');
+    setRawText('');
+    setToolCalls([]);
     setIsLoading(true);
     setIsComplete(false);
     setError(null);
 
-    // Check cache first (instant response)
+    // Check cache first
     const cached = getCachedExplanation(props.word, props.contextPhrase);
     if (cached) {
-      setStreamingText(cached);
+      setToolCalls(cached.toolCalls);
+      setRawText(cached.rawText);
       setIsLoading(false);
       setIsComplete(true);
       return;
     }
 
-    // Start streaming
-    try {
-      const { abort } = await getWordExplanationStreaming(
-        props.word,
-        props.contextPhrase,
-        settings,
-        (_chunk, fullText, done) => {
-          if (done) {
-            setStreamingText(fullText);
-            setIsLoading(false);
-            setIsComplete(true);
-            
-            // Check for error
-            if (fullText.startsWith('Error:') || fullText.startsWith('LLM')) {
-              setError(fullText);
-            }
-          } else {
-            setStreamingText(fullText);
-          }
-        }
-      );
-      setAbortFn(() => abort);
-    } catch (e) {
-      setError(String(e));
+    // Check setup
+    if (requiresSetup(settings)) {
+      setError(t('mlearn.AI.SetupRequired'));
       setIsLoading(false);
       setIsComplete(true);
+      return;
     }
+
+    // Check availability
+    const status = await checkAvailability(settings);
+    if (!status.available) {
+      setError(status.reason === 'ollama_unreachable'
+        ? t('mlearn.AI.OllamaNotReachable')
+        : status.reason === 'model_not_downloaded'
+          ? t('mlearn.AI.DownloadModel')
+          : (status.reason ?? 'LLM unavailable'));
+      setIsLoading(false);
+      setIsComplete(true);
+      return;
+    }
+
+    // Stream via unified provider
+    const language = settings.language || 'Japanese';
+    const handle = streamExplanation(
+      props.word,
+      props.contextPhrase,
+      language,
+      {
+        onChunk: (_chunk, accumulated) => {
+          setRawText(accumulated);
+        },
+        onToolCall: (tc) => {
+          setToolCalls((prev) => [...prev, tc]);
+        },
+        onDone: (finalContent, _allToolCalls, _stats) => {
+          setRawText(finalContent);
+          setIsLoading(false);
+          setIsComplete(true);
+        },
+        onError: (err) => {
+          setError(err);
+          setIsLoading(false);
+          setIsComplete(true);
+        },
+      },
+    );
+    setAbortFn(() => handle.abort);
   };
 
-  const handleToggleRawMode = () => {
-    setShowRawMode(!showRawMode());
-  };
+  const handleToggleRawMode = () => setShowRawMode(!showRawMode());
 
   const handleClose = () => {
     const abort = abortFn();
@@ -135,9 +190,8 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     props.onClose();
   };
 
-  // Format raw text for display
   const formattedRawText = createMemo(() => {
-    const text = streamingText();
+    const text = rawText();
     if (!text) return '';
     return text.replace(/\n/g, '<br/>');
   });
@@ -183,7 +237,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     >
       <div class="explainer-popup__body">
         {/* Loading state (initial) */}
-        <Show when={isLoading() && !streamingText()}>
+        <Show when={isLoading() && !hasContent()}>
           <div class="explainer-popup__loading">
             <Spinner size={32} />
             <p>{t('mlearn.Explainer.Loading')}</p>
@@ -197,16 +251,16 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
           </div>
         </Show>
 
-        {/* Content - show when we have text and no error */}
-        <Show when={streamingText() && !error()}>
-          {/* Raw mode */}
+        {/* Content */}
+        <Show when={hasContent() && !error()}>
+          {/* Raw mode - shows the raw text the LLM emitted (for debugging) */}
           <Show when={showRawMode()}>
             <div class="explainer-popup__raw">
               <p innerHTML={formattedRawText()} />
             </div>
           </Show>
 
-          {/* Parsed mode */}
+          {/* Parsed mode - structured tool-call cards */}
           <Show when={!showRawMode()}>
             <ExplainerCards
               data={parsedContent()}
@@ -217,7 +271,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
           </Show>
 
           {/* Streaming cursor indicator */}
-          <Show when={isLoading() && streamingText()}>
+          <Show when={isLoading() && hasContent()}>
             <span class="explainer-popup__cursor" />
           </Show>
         </Show>

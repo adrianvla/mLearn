@@ -119,6 +119,9 @@ export interface Settings {
   ocrEnabled: boolean;
   devMode: boolean;
 
+  /** Whether the user has completed initial LLM provider setup */
+  llmConfigured: boolean;
+
   // OCR settings
   ocr_crop_padding: number;
   /** Use lightweight OCR detection to reduce memory usage (only visible for languages that support it) */
@@ -160,12 +163,14 @@ export interface Settings {
   passiveHoverDelayMs: number;
 
   // LLM provider settings
-  /** LLM provider: built-in Python backend or Ollama */
-  llmProvider: 'builtin' | 'ollama';
+  /** LLM provider: built-in local model or Ollama */
+  llmProvider: LLMProvider;
   /** Ollama server URL */
   ollamaUrl: string;
   /** Ollama model name */
   ollamaModel: string;
+  /** Built-in model identifier (GGUF filename) */
+  builtinModel: string;
 
   // Speech settings
   /** Enable speech I/O features */
@@ -240,9 +245,11 @@ export const DEFAULT_SETTINGS: Settings = {
   anki_model_name: 'Basic',
   passiveEaseEnabled: true,
   passiveHoverDelayMs: 1000,
+  llmConfigured: false,
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',
-  ollamaModel: 'llama3.2',
+  ollamaModel: 'qwen3:4b',
+  builtinModel: 'Qwen3-4B-Instruct-Q4_K_M.gguf',
   speechEnabled: false,
   autoSpeak: false,
   sttLanguage: '',
@@ -715,7 +722,7 @@ export interface OCRResult {
 }
 
 // ============================================================================
-// LLM Types
+// LLM Types (Legacy — Python backend)
 // ============================================================================
 
 export interface LLMStatus {
@@ -732,6 +739,73 @@ export interface LLMResponse {
   output?: string;
   error?: string;
   device?: string;
+}
+
+// ============================================================================
+// Unified LLM Types
+// ============================================================================
+
+/** LLM backend provider */
+export type LLMProvider = 'builtin' | 'ollama';
+
+/** Provider-agnostic chat message */
+export interface LLMChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  toolCalls?: LLMToolCall[];
+  toolName?: string;
+}
+
+/** Provider-agnostic tool definition */
+export interface LLMToolDefinition {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+/** Provider-agnostic tool call result */
+export interface LLMToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+/** Chunk emitted during LLM streaming */
+export interface LLMStreamChunk {
+  /** Incremental text content */
+  content?: string;
+  /** Whether this is the final chunk */
+  done?: boolean;
+  /** Tool calls detected in this chunk */
+  toolCalls?: LLMToolCall[];
+  /** Error message if something went wrong */
+  error?: string;
+  /** Token count for stats (final chunk) */
+  evalCount?: number;
+  /** Duration in nanoseconds for stats (final chunk) */
+  evalDuration?: number;
+  /** Prompt eval duration in nanoseconds (final chunk) */
+  promptEvalDuration?: number;
+  /** Total duration in nanoseconds (final chunk) */
+  totalDuration?: number;
+}
+
+/** Model download/readiness status */
+export interface LLMModelStatus {
+  /** Whether the model file exists on disk */
+  downloaded: boolean;
+  /** Whether a download is currently in progress */
+  downloading: boolean;
+  /** Download progress 0.0–1.0 */
+  progress: number;
+  /** Total bytes downloaded */
+  downloadedBytes: number;
+  /** Total expected bytes */
+  expectedBytes: number;
+  /** Whether the model is loaded into memory and ready */
+  loaded: boolean;
+  /** Error message if download/load failed */
+  error?: string;
 }
 
 // ============================================================================
@@ -864,6 +938,10 @@ export interface MistakeWidgetData {
   correction: string;
   errorType: 'grammar' | 'word' | 'typo' | 'other';
   affectedPattern?: string;
+  /** Text immediately before the error span for disambiguation */
+  contextBefore?: string;
+  /** Text immediately after the error span for disambiguation */
+  contextAfter?: string;
 }
 
 // ============================================================================

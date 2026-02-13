@@ -13,12 +13,13 @@ import {
   SRSTab,
   ReaderTab,
   StatsTab,
+  AITab,
   AboutTab
 } from './tabs';
 import Icon from '../../components/common/Icons/Icon';
 import './settings.css';
 
-type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'stats' | 'about';
+type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'stats' | 'ai' | 'about';
 
 interface Tab {
   id: TabId;
@@ -34,6 +35,7 @@ const TABS: Tab[] = [
   { id: 'srs', labelKey: 'mlearn.Settings.Tabs.SRS', icon: 'cards' },
   { id: 'reader', labelKey: 'mlearn.Settings.Tabs.Reader', icon: 'book' },
   { id: 'stats', labelKey: 'mlearn.Settings.Tabs.Statistics', icon: 'stats' },
+  { id: 'ai', labelKey: 'mlearn.Settings.Tabs.AI', icon: 'stars' },
   { id: 'about', labelKey: 'mlearn.Settings.Tabs.About', icon: 'star' },
 ];
 
@@ -47,6 +49,7 @@ const SettingsContent: Component = () => {
     const normalized = section.toLowerCase();
     if (normalized.includes('about') || normalized.includes('license')) return 'about';
     if (normalized.includes('stat')) return 'stats';
+    if (normalized.includes('ai') || normalized.includes('llm')) return 'ai';
     if (normalized.includes('reader')) return 'reader';
     if (normalized.includes('srs') || normalized.includes('flashcard')) return 'srs';
     if (normalized.includes('custom') || normalized.includes('appearance')) return 'customization';
@@ -109,6 +112,9 @@ const SettingsContent: Component = () => {
         </Show>
         <Show when={activeTab() === 'stats'}>
           <StatsTab />
+        </Show>
+        <Show when={activeTab() === 'ai'}>
+          <AITab />
         </Show>
         <Show when={activeTab() === 'about'}>
           <AboutTab />

@@ -1,0 +1,49 @@
+/**
+ * Unified LLM Router
+ * Routes LLM_STREAM and LLM_STREAM_ABORT to the correct provider (builtin or ollama).
+ */
+
+import { ipcMain, type IpcMainEvent } from 'electron';
+import { IPC_CHANNELS } from '../../shared/constants';
+import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk } from '../../shared/types';
+import { loadSettings } from './settings';
+import { ollamaStreamChatUnified, ollamaAbortStream } from './ollamaService';
+import { builtinStreamChat, builtinAbortStream } from './builtinLLMService';
+
+/**
+ * Set up the unified LLM stream router.
+ * Call this after setupOllamaIPC() and setupBuiltinLLMIPC().
+ */
+export function setupLLMRouterIPC(): void {
+  // Unified stream — routes to the correct provider
+  ipcMain.on(IPC_CHANNELS.LLM_STREAM, async (event: IpcMainEvent, messages: LLMChatMessage[], tools: LLMToolDefinition[]) => {
+    const settings = loadSettings();
+    const provider = settings.llmProvider || 'builtin';
+
+    try {
+      if (provider === 'ollama') {
+        ollamaStreamChatUnified(event.sender, messages, tools || []);
+      } else {
+        await builtinStreamChat(event.sender, messages, tools || []);
+      }
+    } catch (err) {
+      const errorChunk: LLMStreamChunk = {
+        error: (err as Error).message || 'Failed to start LLM stream',
+        done: true,
+      };
+      event.sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, errorChunk);
+    }
+  });
+
+  // Unified abort — routes to correct provider
+  ipcMain.on(IPC_CHANNELS.LLM_STREAM_ABORT, (event: IpcMainEvent) => {
+    const settings = loadSettings();
+    const provider = settings.llmProvider || 'builtin';
+
+    if (provider === 'ollama') {
+      ollamaAbortStream(event.sender.id);
+    } else {
+      builtinAbortStream();
+    }
+  });
+}

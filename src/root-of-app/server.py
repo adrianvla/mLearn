@@ -229,6 +229,8 @@ def invoke(action, **params):
 
 @app.get("/llm/status")
 async def llm_status():
+    """DEPRECATED: LLM inference has moved to node-llama-cpp in the Electron main process.
+    This endpoint is retained for backward compatibility but will be removed."""
     if not LLM_ALLOWED:
         return {
             "allowed": False,
@@ -1745,6 +1747,7 @@ async def log_requests(request: Request, call_next):
 
 @app.post("/llm", response_model=LlmResponse)
 async def llm_endpoint(req: LlmRequest):
+    """DEPRECATED: LLM inference has moved to node-llama-cpp in the Electron main process."""
     _log("LLM request", {"chars": len(req.prompt), "max_new_tokens": req.max_new_tokens})
     if not LLM_ALLOWED:
         raise HTTPException(status_code=403, detail="LLM disabled by user")
@@ -1785,7 +1788,7 @@ from fastapi.responses import StreamingResponse
 
 @app.post("/llm/stream")
 async def llm_stream_endpoint(req: LlmRequest):
-    """Streaming LLM endpoint using Server-Sent Events (SSE)."""
+    """DEPRECATED: Streaming LLM endpoint. LLM inference has moved to node-llama-cpp in the Electron main process."""
     _log("LLM stream request", {"chars": len(req.prompt), "max_new_tokens": req.max_new_tokens})
     if not LLM_ALLOWED:
         raise HTTPException(status_code=403, detail="LLM disabled by user")

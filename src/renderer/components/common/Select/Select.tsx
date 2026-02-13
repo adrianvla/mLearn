@@ -34,12 +34,13 @@ export const Select: Component<SelectProps> = (props) => {
     props
   );
 
-  const [local, others] = splitProps(merged, ['options', 'placeholder', 'class']);
+  const [local, others] = splitProps(merged, ['options', 'placeholder', 'class', 'value']);
 
   return (
     <select
       {...others}
       class={`${local.class || ''}`}
+      value={local.value}
     >
       {local.placeholder && (
         <option value="" disabled>
