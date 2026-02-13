@@ -6,7 +6,7 @@
 
 import { Component, createSignal, onCleanup } from 'solid-js';
 import type { Token } from '../../../shared/types';
-import { useSettings } from '../../context';
+import { useSettings, useFlashcards } from '../../context';
 import './OcrOverlay.css';
 
 export interface OcrWordProps {
@@ -20,6 +20,7 @@ const LONG_HOVER_DELAY = 500;
 
 export const OcrWord: Component<OcrWordProps> = (props) => {
   const { settings } = useSettings();
+  const flashcardCtx = useFlashcards();
   
   // Reference to the word span element - used to get stable getBoundingClientRect
   // This is necessary because event.currentTarget becomes null after event handlers return,
@@ -54,6 +55,10 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   const handleMouseEnter = (e: MouseEvent) => {
     setIsMouseOver(true);
     
+    // Track word hover for passive knowledge
+    const lookupWord = props.token.actual_word ?? props.token.surface ?? props.token.word;
+    flashcardCtx.trackWordHovered(lookupWord, props.token.reading);
+
     const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
     
     switch (triggerMode) {
@@ -92,6 +97,11 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   const handleMouseLeave = () => {
     setIsMouseOver(false);
     clearLongHoverTimeout();
+    
+    // Cancel hover timer for passive knowledge
+    const lookupWord = props.token.actual_word ?? props.token.surface ?? props.token.word;
+    flashcardCtx.cancelWordHover(lookupWord);
+
     props.onWordLeave?.();
   };
   

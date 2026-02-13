@@ -5,7 +5,13 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import type { LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings } from '../../shared/types';
+import type { LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings, GrammarPoint, Token } from '../../shared/types';
+
+// Grammar entry with parsed data for lookup
+export interface GrammarEntry extends GrammarPoint {
+  /** Level display name (e.g., "JLPT N5") */
+  levelName: string;
+}
 
 // Language feature capabilities - derived from fixed_settings and language properties
 export interface LanguageFeatures {
@@ -29,6 +35,10 @@ export interface LanguageFeatures {
   supportsCharacterNames: boolean;
   /** Whether the language can be written vertically (CJK vertical text) */
   supportsVerticalText: boolean;
+  /** Whether the language has grammar point data */
+  supportsGrammar: boolean;
+  /** Whether the language uses CJK-style parentheses */
+  usesCJKParentheses: boolean;
 }
 
 // Context interface
@@ -49,6 +59,16 @@ interface LanguageContextValue {
   getEffectiveSettings: <T extends Partial<Settings>>(baseSettings: T) => T;
   /** Check if a setting is fixed by language data */
   isSettingFixed: (key: keyof Settings) => boolean;
+  /** Look up a grammar point by pattern */
+  getGrammarPoint: (pattern: string) => GrammarEntry | undefined;
+  /** Detect grammar points present in a token sequence */
+  detectGrammarInText: (tokens: Token[]) => GrammarEntry[];
+  /** Whether current language supports grammar detection */
+  supportsGrammar: () => boolean;
+  /** Get grammar level name */
+  getGrammarLevelName: (level: number) => string;
+  /** Get all grammar level names */
+  getGrammarLevelNames: () => Record<string, string>;
 }
 
 // Create context
@@ -61,6 +81,10 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const [currentLang] = createSignal<string>(props.language || 'ja');
   const ipcCleanups: Array<() => void> = [];
 
+  // Grammar lookup structures
+  let grammarMap = new Map<string, GrammarEntry>();
+  let grammarPatternsSorted: GrammarEntry[] = [];
+
   // Load language data
   const loadLangData = () => {
     if (typeof window !== 'undefined' && window.mLearnIPC) {
@@ -68,6 +92,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       ipcCleanups.push(window.mLearnIPC.onLangData((data) => {
         setLangData(reconcile(data as unknown as LanguageDataMap));
         parseWordFrequency(data as unknown as LanguageDataMap);
+        parseGrammarData(data as unknown as LanguageDataMap);
         setIsLoading(false);
       }));
     } else {
@@ -77,6 +102,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
         .then(data => {
           setLangData(reconcile(data));
           parseWordFrequency(data);
+          parseGrammarData(data);
           setIsLoading(false);
         })
         .catch(() => {
@@ -148,6 +174,78 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     return data.translatable.includes(pos);
   };
 
+  // Parse grammar data into lookup structures
+  const parseGrammarData = (data: LanguageDataMap) => {
+    const lang = currentLang();
+    const langInfo = data[lang];
+    if (!langInfo?.grammar || !langInfo.hasGrammar) {
+      grammarMap = new Map();
+      grammarPatternsSorted = [];
+      return;
+    }
+
+    const levelNames = langInfo.grammar_level_names || {};
+    const newMap = new Map<string, GrammarEntry>();
+
+    for (const point of langInfo.grammar) {
+      const entry: GrammarEntry = {
+        ...point,
+        levelName: levelNames[String(point.level)] || `Level ${point.level}`,
+      };
+      newMap.set(point.pattern, entry);
+    }
+
+    grammarMap = newMap;
+    // Sort by pattern length descending (longest first for greedy matching)
+    grammarPatternsSorted = Array.from(newMap.values()).sort(
+      (a, b) => b.pattern.length - a.pattern.length
+    );
+  };
+
+  // Look up a grammar point by pattern
+  const getGrammarPoint = (pattern: string): GrammarEntry | undefined => {
+    return grammarMap.get(pattern);
+  };
+
+  // Detect grammar points in a token sequence
+  const detectGrammarInText = (tokens: Token[]): GrammarEntry[] => {
+    if (grammarPatternsSorted.length === 0) return [];
+
+    // Build full text from tokens
+    const fullText = tokens.map(t => t.word).join('');
+    const matched: GrammarEntry[] = [];
+    const matchedPatterns = new Set<string>();
+
+    for (const entry of grammarPatternsSorted) {
+      if (matchedPatterns.has(entry.pattern)) continue;
+      if (fullText.includes(entry.pattern)) {
+        matched.push(entry);
+        matchedPatterns.add(entry.pattern);
+      }
+    }
+
+    return matched;
+  };
+
+  // Whether current language supports grammar
+  const supportsGrammar = (): boolean => {
+    const data = currentLangData();
+    return data?.hasGrammar === true && grammarPatternsSorted.length > 0;
+  };
+
+  // Get grammar level name
+  const getGrammarLevelName = (level: number): string => {
+    const data = currentLangData();
+    const levelNames = data?.grammar_level_names || {};
+    return levelNames[String(level)] || `Level ${level}`;
+  };
+
+  // Get all grammar level names
+  const getGrammarLevelNames = (): Record<string, string> => {
+    const data = currentLangData();
+    return data?.grammar_level_names || {};
+  };
+
   // Get translatable POS types
   const translatableTypes = (): string[] => {
     const data = currentLangData();
@@ -191,6 +289,10 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       supportsCharacterNames: isJapanese,
       // Vertical text support — driven by language data, not hardcoded language checks
       supportsVerticalText: data?.supportsVerticalText === true,
+      // Grammar data available
+      supportsGrammar: data?.hasGrammar === true,
+      // CJK parentheses for character names
+      usesCJKParentheses: data?.usesCJKParentheses === true,
     };
   };
 
@@ -233,6 +335,11 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     getLanguageFeatures,
     getEffectiveSettings,
     isSettingFixed,
+    getGrammarPoint,
+    detectGrammarInText,
+    supportsGrammar,
+    getGrammarLevelName,
+    getGrammarLevelNames,
   };
 
   return (

@@ -16,6 +16,9 @@ let mainWindow: BrowserWindow | null = null;
 let currentWindow: BrowserWindow | null = null;
 const childWindows: Map<string, BrowserWindow> = new Map();
 
+// Context data passed to child windows
+const windowContextStore: Map<string, Record<string, unknown>> = new Map();
+
 // Window state for PiP
 interface WindowState {
   width: number | null;
@@ -557,7 +560,16 @@ export function setupWindowIPC(): void {
 
   // Open child window from renderer
   ipcMain.on(IPC_CHANNELS.OPEN_WINDOW, (_event, payload: OpenWindowPayload) => {
+    if (payload.context) {
+      windowContextStore.set(payload.type, payload.context);
+    }
     createChildWindow(payload.type, payload.options);
+  });
+
+  // Child window requests its context
+  ipcMain.on(IPC_CHANNELS.GET_WINDOW_CONTEXT, (event, windowType: string) => {
+    const ctx = windowContextStore.get(windowType) || null;
+    event.reply(IPC_CHANNELS.WINDOW_CONTEXT, ctx);
   });
 
   // Close current window

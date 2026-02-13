@@ -5,14 +5,18 @@
 
 import { Component, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { useIPC, useSubtitles, useWatchTogether } from '../../../hooks';
-import { useLocalization, useSettings } from '../../../context';
+import { useIPC, useSubtitles, useWatchTogether, useMediaStats } from '../../../hooks';
+import { useLocalization, useSettings, useLanguage, useFlashcards } from '../../../context';
 import { VideoPlayer } from '../../../components/video';
+import { MediaStatsPanel } from '../../../components/statistics/MediaStatsPanel';
 import { Panel, Btn, NavBtn } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { LiveWordTranslator, SubtitleSync } from '../../../components/subtitle';
 import { IPC_CHANNELS } from '../../../../shared/constants';
 import { captureVideoThumbnail, saveToRecentItems, updateRecentItemThumbnail, updateRecentItemProgress } from '../../../services/thumbnailService';
+import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
+import { buildCharacterContext } from '../../../utils/characterExtraction';
+import type { ConversationAgentContext } from '../../../../shared/types';
 import './video.css';
 
 /** Convert a filesystem path to a local-media:// URL that the renderer can load */
@@ -23,6 +27,8 @@ export const VideoRoute: Component = () => {
   const { isElectron, selectFile, readFile } = useIPC();
   const { t } = useLocalization();
   const { settings } = useSettings();
+  const langCtx = useLanguage();
+  const flashcardCtx = useFlashcards();
   const subtitles = useSubtitles();
 
   const watchTogether = useWatchTogether({
@@ -38,6 +44,16 @@ export const VideoRoute: Component = () => {
   const [currentVideoName, setCurrentVideoName] = createSignal('');
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_currentVideoPath, setCurrentVideoPath] = createSignal<string>('');
+  const [showStatsPanel, setShowStatsPanel] = createSignal(false);
+
+  // Media stats for this video session
+  const mediaStats = useMediaStats({ mediaType: 'video', language: settings.language || 'ja' });
+
+  // Activate media stats when a video name is available
+  createEffect(() => {
+    const name = currentVideoName();
+    if (name) mediaStats.setMedia(name);
+  });
   
   let thumbnailInterval: number | null = null;
   let progressInterval: number | null = null;
@@ -346,6 +362,61 @@ export const VideoRoute: Component = () => {
     navigate('/');
   };
 
+  const openConversationAgent = () => {
+    const s = mediaStats.stats();
+    const name = currentVideoName();
+    const lang = settings.language || 'ja';
+
+    // Build level percentages from current media stats
+    const freqLookup = { getFrequency: langCtx.getFrequency, getFreqLevelNames: langCtx.getFreqLevelNames };
+    const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
+    const wordLevels = computeWordLevelPercentages(s, freqLookup);
+    const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup);
+    const level = assessMediaLevel(wordLevels);
+    const levelNames = langCtx.getFreqLevelNames();
+
+    // Collect failed words: merge per-media stats with global wordKnowledge
+    // wordsEncountered has per-media seen/hovered counts; wordKnowledge has global ease
+    const wordKnowledge = flashcardCtx.store.wordKnowledge;
+    const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
+
+    // Only include words encountered in this specific media
+    // Refine ease with global wordKnowledge but never add words from other media
+    for (const entry of Object.values(s.wordsEncountered)) {
+      const globalEntry = wordKnowledge[entry.word];
+      if (globalEntry) {
+        mediaWords.set(entry.word, {
+          word: entry.word,
+          ease: Math.min(entry.ease, globalEntry.ease),
+          timesSeen: Math.max(entry.timesSeen, globalEntry.timesSeen),
+          timesHovered: Math.max(entry.timesHovered, globalEntry.timesHovered),
+        });
+      } else {
+        mediaWords.set(entry.word, { ...entry });
+      }
+    }
+
+    const failedWords = Array.from(mediaWords.values()).filter((w) => w.ease < 2.5);
+    const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
+
+    const context: ConversationAgentContext = {
+      mediaName: name,
+      mediaType: 'video',
+      mediaHash: s.mediaHash,
+      assessedLevel: level,
+      assessedLevelName: level !== null && levelNames[String(level)] ? levelNames[String(level)] : '',
+      language: lang,
+      failedWords,
+      failedGrammar,
+      wordLevelPercentages: wordLevels,
+      grammarLevelPercentages: grammarLevels,
+      characterContext: buildCharacterContext(subtitles.subtitles().map((sub) => sub.text)) ?? undefined,
+      subtitleHistory: subtitles.subtitles().slice(-50).map((sub) => sub.text),
+    };
+
+    window.mLearnIPC?.openWindow({ type: 'conversation-agent', context: context as unknown as Record<string, unknown> });
+  };
+
   return (
     <div
       class="video-route"
@@ -358,6 +429,14 @@ export const VideoRoute: Component = () => {
       {/* Back button */}
       <NavBtn class="back-button" onClick={goHome} title={t('mlearn.Video.Tooltip.GoHome')}>
         {t('mlearn.Video.UI.GoHome')}
+      </NavBtn>
+
+      <NavBtn
+        class="conversation-agent-button"
+        onClick={openConversationAgent}
+        title={t('mlearn.Video.Tooltip.OpenConversationAgent')}
+      >
+        {t('mlearn.Video.UI.OpenConversationAgent')}
       </NavBtn>
 
       <Show
@@ -391,6 +470,8 @@ export const VideoRoute: Component = () => {
           ctxMenuOptions={{ isWatchTogether: watchTogether.isActive() }}
           style={{ flex: '1' }}
           onTimeUpdate={(time) => setCurrentVideoTime(time)}
+          showStats={showStatsPanel()}
+          onToggleStats={() => setShowStatsPanel(prev => !prev)}
         />
       </Show>
 
@@ -399,6 +480,18 @@ export const VideoRoute: Component = () => {
         currentVideoTime={currentVideoTime}
         subtitles={subtitles.subtitles()}
       />
+
+      {/* Media Stats Panel overlay */}
+      <Show when={showStatsPanel() && mediaStats.isActive()}>
+        <MediaStatsPanel
+          stats={mediaStats.stats()}
+          onClose={() => setShowStatsPanel(false)}
+          onReviewWithAI={() => {
+            openConversationAgent();
+            setShowStatsPanel(false);
+          }}
+        />
+      </Show>
     </div>
   );
 };

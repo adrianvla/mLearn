@@ -5,7 +5,7 @@
 
 import { Component, JSX, Show, For, createSignal, createMemo, createEffect } from 'solid-js';
 import type { Token, DictionaryEntry, TranslationResponse } from '../../../shared/types';
-import { useSettings, useLanguage } from '../../context';
+import { useSettings, useLanguage, useFlashcards } from '../../context';
 import { useWordHover, useDictionary, useTranslation, getCachedTranslation } from '../../hooks';
 import { SubtitleWord } from './SubtitleWord';
 import { WordHover, WordStatus } from './WordHover';
@@ -22,7 +22,8 @@ export interface SubtitleContainerProps {
 
 export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const { settings } = useSettings();
-  const { isTranslatable } = useLanguage();
+  const { isTranslatable, detectGrammarInText, supportsGrammar } = useLanguage();
+  const flashcardCtx = useFlashcards();
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
   const { lookup } = useDictionary();
   const { translateWord } = useTranslation({ immediate: true });
@@ -49,6 +50,15 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     setExplainerContext(context);
     setExplainerPosition(position);
     setExplainerOpen(true);
+
+    // Grammar failure tracking: using explainer = user didn't understand the phrase
+    if (supportsGrammar()) {
+      const tokens = props.tokens || [];
+      const matched = detectGrammarInText(tokens);
+      for (const g of matched) {
+        flashcardCtx.trackGrammarFailed(g.pattern, g.level);
+      }
+    }
   };
   
   const handleCloseExplainer = () => {
@@ -63,6 +73,10 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     if (!isTranslatable(pos)) {
       return;
     }
+
+    // Track hover (signals potential unknown word, debounced in FlashcardContext)
+    const lookupWord = token.actual_word ?? token.surface ?? token.word;
+    flashcardCtx.trackWordHovered(lookupWord, token.reading);
     
     const requestId = ++hoverRequestId;
     const position = {
@@ -71,7 +85,6 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     };
 
     // Use actual_word (dictionary form) for translation, fallback to surface form
-    const lookupWord = token.actual_word ?? token.surface ?? token.word;
     const displayWord = token.surface ?? token.word;
     
     // Check if translation is already cached (from pre-fetch)
@@ -152,6 +165,12 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   };
 
   const handleWordLeave = () => {
+    // Cancel hover timer for the currently hovered word
+    const token = currentHoverToken();
+    if (token) {
+      const word = token.actual_word ?? token.surface ?? token.word;
+      flashcardCtx.cancelWordHover(word);
+    }
     hideHover();
   };
 
@@ -183,7 +202,13 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const allWordsKnown = createMemo(() => {
     const tokens = props.tokens;
     if (!tokens.length) return false;
-    return tokens.every(t => t.isKnown);
+    return tokens.every(t => {
+      const pos = t.partOfSpeech ?? t.type ?? '';
+      // Non-translatable tokens (particles, punctuation) don't affect known status
+      if (!isTranslatable(pos)) return true;
+      const word = t.actual_word ?? t.surface ?? t.word;
+      return flashcardCtx.isWordKnownByText(word);
+    });
   });
 
   // Container class with theme and visibility state
@@ -209,6 +234,26 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     
     lastSubtitleKey = subtitleKey;
     liveTranslatorSeen = new Set();
+
+    // Track word seen for passive knowledge + populate Token.isKnown
+    for (const token of tokens) {
+      const pos = token.partOfSpeech ?? token.type ?? '';
+      if (!isTranslatable(pos)) continue;
+      
+      const lookupWord = token.actual_word ?? token.surface ?? token.word;
+      if (!lookupWord) continue;
+
+      // Passive word tracking
+      flashcardCtx.trackWordSeen(lookupWord, token.reading);
+    }
+
+    // Passive grammar encounter tracking
+    if (supportsGrammar()) {
+      const matched = detectGrammarInText(tokens);
+      for (const g of matched) {
+        flashcardCtx.trackGrammarEncountered(g.pattern, g.level);
+      }
+    }
 
     // Pre-fetch translations for all translatable words
     // This runs in the background and populates the cache
@@ -244,6 +289,9 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       
       if (!displayWord || liveTranslatorSeen.has(displayWord)) continue;
       liveTranslatorSeen.add(displayWord);
+
+      // Higher ease bump for words shown in live translator (+0.02 vs +0.01)
+      flashcardCtx.trackWordSeen(lookupWord, token.reading, 0.02);
       
       (async () => {
         try {

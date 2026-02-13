@@ -7,7 +7,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, WordStats, FlashcardState } from '../../shared/types';
+import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, WordStats, FlashcardState, PassiveWordKnowledge, GrammarKnowledgeEntry } from '../../shared/types';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady } from './migrationSignals';
 import { useSettings } from './SettingsContext';
@@ -16,7 +16,7 @@ import { changeKnownStatus as changeKnownStatusInStats } from '../services/stats
 import { showToast } from '../components/common/Feedback/Toast';
 
 // Current store version
-const CURRENT_VERSION = 3;
+const CURRENT_VERSION = 4;
 
 /**
  * Compare flashcard states - returns positive if a is "better" than b
@@ -77,6 +77,8 @@ function getDefaultStore(): FlashcardStore {
     wordToCardMap: {},
     wordStatsMap: {},
     knownUntracked: {},
+    wordKnowledge: {},
+    grammarKnowledge: {},
     meta: SRS.getDefaultMeta(),
     dailyStats: {},
     version: CURRENT_VERSION,
@@ -148,6 +150,19 @@ interface FlashcardContextValue {
   // Word tracking
   trackWordAppearance: (word: string, reading?: string) => Promise<void>;
   markWordAsKnown: (word: string) => Promise<void>;
+
+  // Passive word knowledge tracking
+  trackWordSeen: (word: string, reading?: string, easeBump?: number) => void;
+  trackWordHovered: (word: string, reading?: string) => void;
+  cancelWordHover: (word: string) => void;
+  getWordKnowledge: (wordHash: string) => PassiveWordKnowledge | undefined;
+  isWordKnown: (wordHash: string) => boolean;
+  isWordKnownByText: (word: string) => boolean;
+
+  // Grammar knowledge tracking
+  trackGrammarEncountered: (pattern: string, level?: number) => void;
+  trackGrammarFailed: (pattern: string, level?: number) => void;
+  getGrammarKnowledge: (pattern: string) => GrammarKnowledgeEntry | undefined;
 
   // Session management
   startSession: () => void;
@@ -322,6 +337,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
       wordToCardMap,
       wordStatsMap,
       knownUntracked: partial.knownUntracked || {},
+      wordKnowledge: partial.wordKnowledge || {},
+      grammarKnowledge: partial.grammarKnowledge || {},
       meta,
       dailyStats: partial.dailyStats || {},
       version: CURRENT_VERSION,
@@ -861,6 +878,164 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }
   };
 
+  // ========================
+  // Passive Word Knowledge
+  // ========================
+
+  // Debounce map for hover tracking (word -> timeout)
+  const hoverTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  // Track that a word was seen (displayed on screen)
+  const trackWordSeen = (word: string, reading?: string, easeBump = 0.01) => {
+    if (!settings.passiveEaseEnabled) return;
+    const wordHash = SRS.hashWordSync(word);
+    const now = Date.now();
+
+    setStore(produce((s) => {
+      if (!s.wordKnowledge[wordHash]) {
+        s.wordKnowledge[wordHash] = {
+          ease: 2.5,
+          lastSeen: now,
+          timesSeen: 0,
+          timesHovered: 0,
+          word,
+          reading,
+        };
+      }
+      const k = s.wordKnowledge[wordHash];
+      k.timesSeen++;
+      k.lastSeen = now;
+      // Ease bump for passive exposure (configurable per caller)
+      k.ease = Math.min(5, k.ease + easeBump);
+    }));
+
+    // Notify media stats listeners so per-media tracking stays in sync
+    const newEase = store.wordKnowledge[wordHash]?.ease ?? 2.5;
+    window.dispatchEvent(new CustomEvent('mlearn:word-seen', { detail: { word, ease: newEase } }));
+  };
+
+  // Track that a word was hovered (user doesn't know it)
+  // 1-second debounce: call this on hover start, cancel on hover end
+  const trackWordHovered = (word: string, reading?: string) => {
+    const wordHash = SRS.hashWordSync(word);
+
+    // Cancel existing timer if any
+    const existing = hoverTimers.get(wordHash);
+    if (existing) clearTimeout(existing);
+
+    const timer = setTimeout(() => {
+      hoverTimers.delete(wordHash);
+      const now = Date.now();
+
+      setStore(produce((s) => {
+        if (!s.wordKnowledge[wordHash]) {
+          s.wordKnowledge[wordHash] = {
+            ease: 2.5,
+            lastSeen: now,
+            timesSeen: 0,
+            timesHovered: 0,
+            word,
+            reading,
+          };
+        }
+        const k = s.wordKnowledge[wordHash];
+        k.timesHovered++;
+        k.lastSeen = now;
+        // Decrease ease (signals unknown)
+        k.ease = Math.max(0, k.ease - 0.05);
+      }));
+      saveFlashcards();
+
+      // Notify media stats listeners so per-media tracking stays in sync
+      const newEase = store.wordKnowledge[wordHash]?.ease ?? 2.5;
+      window.dispatchEvent(new CustomEvent('mlearn:word-hovered', { detail: { word, ease: newEase } }));
+    }, settings.passiveHoverDelayMs ?? 1000);
+
+    hoverTimers.set(wordHash, timer);
+  };
+
+  // Cancel a hover timer (call on hover end)
+  const cancelWordHover = (word: string) => {
+    const wordHash = SRS.hashWordSync(word);
+    const timer = hoverTimers.get(wordHash);
+    if (timer) {
+      clearTimeout(timer);
+      hoverTimers.delete(wordHash);
+    }
+  };
+
+  // Get passive word knowledge
+  const getWordKnowledge = (wordHash: string): PassiveWordKnowledge | undefined => {
+    return store.wordKnowledge[wordHash];
+  };
+
+  // Check if word is known (ease >= threshold)
+  const isWordKnown = (wordHash: string): boolean => {
+    const k = store.wordKnowledge[wordHash];
+    if (!k) return false;
+    return k.ease >= (settings.known_ease_threshold / 1000); // Normalize from 0-5000 to 0-5 scale
+  };
+
+  // Convenience: check if word is known by raw word text (sync hash)
+  const isWordKnownByText = (word: string): boolean => {
+    const wordHash = SRS.hashWordSync(word);
+    return isWordKnown(wordHash);
+  };
+
+  // ========================
+  // Grammar Knowledge
+  // ========================
+
+  // Track that a grammar pattern was passively encountered
+  const trackGrammarEncountered = (pattern: string, level = 0) => {
+    const now = Date.now();
+    setStore(produce((s) => {
+      if (!s.grammarKnowledge[pattern]) {
+        s.grammarKnowledge[pattern] = {
+          pattern,
+          ease: 2.5,
+          timesEncountered: 0,
+          timesFailed: 0,
+          lastSeen: now,
+          level,
+        };
+      }
+      const g = s.grammarKnowledge[pattern];
+      g.timesEncountered++;
+      g.lastSeen = now;
+      // Slight ease bump for passive encounter
+      g.ease = Math.min(5, g.ease + 0.01);
+    }));
+  };
+
+  // Track that user struggled with a grammar pattern
+  const trackGrammarFailed = (pattern: string, level = 0) => {
+    const now = Date.now();
+    setStore(produce((s) => {
+      if (!s.grammarKnowledge[pattern]) {
+        s.grammarKnowledge[pattern] = {
+          pattern,
+          ease: 2.5,
+          timesEncountered: 0,
+          timesFailed: 0,
+          lastSeen: now,
+          level,
+        };
+      }
+      const g = s.grammarKnowledge[pattern];
+      g.timesFailed++;
+      g.lastSeen = now;
+      // Larger ease decrease for failed grammar
+      g.ease = Math.max(0, g.ease - 0.15);
+    }));
+    saveFlashcards();
+  };
+
+  // Get grammar knowledge entry
+  const getGrammarKnowledge = (pattern: string): GrammarKnowledgeEntry | undefined => {
+    return store.grammarKnowledge[pattern];
+  };
+
   // Handle broadcast from other windows
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.store) {
@@ -1052,6 +1227,15 @@ export const FlashcardProvider: ParentComponent = (props) => {
     canUndo,
     trackWordAppearance,
     markWordAsKnown,
+    trackWordSeen,
+    trackWordHovered,
+    cancelWordHover,
+    getWordKnowledge,
+    isWordKnown,
+    isWordKnownByText,
+    trackGrammarEncountered,
+    trackGrammarFailed,
+    getGrammarKnowledge,
     startSession,
     refreshQueue,
     intervalToString: SRS.intervalToString,

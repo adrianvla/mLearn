@@ -63,6 +63,10 @@ export const StatsTab: Component = () => {
     window.mLearnIPC?.send('open-window', { type: 'word-db-editor' });
   };
 
+  const openAiAnalytics = () => {
+    window.mLearnIPC?.openWindow({ type: 'conversation-agent', context: { initialTab: 'stats' } });
+  };
+
   return (
     <TabContent
       header={{
@@ -133,6 +137,9 @@ export const StatsTab: Component = () => {
         </Btn>
         <Btn variant="primary" onClick={openWordDbEditor}>
           {t('mlearn.Statistics.Actions.EditWordDatabase')}
+        </Btn>
+        <Btn variant="primary" onClick={openAiAnalytics}>
+          {t('mlearn.Statistics.Actions.OpenAiAnalytics')}
         </Btn>
       </div>
     </TabContent>

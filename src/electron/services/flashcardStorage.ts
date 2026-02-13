@@ -11,7 +11,7 @@ import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidat
 import { getUserDataPath } from '../utils/platform';
 
 // Current store version - increment when making breaking changes
-const CURRENT_VERSION = 3;
+const CURRENT_VERSION = 4;
 
 // Migration tracking - sent to renderer to notify user
 let migrationInfo: { occurred: boolean; backupPath: string | null; fromVersion: number | null } = {
@@ -27,6 +27,8 @@ const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
   wordToCardMap: {},
   wordStatsMap: {},
   knownUntracked: {},
+  wordKnowledge: {},
+  grammarKnowledge: {},
   meta: {
     newCardsToday: 0,
     reviewsToday: 0,
@@ -144,6 +146,8 @@ function migrateV2ToV3(store: any): FlashcardStore {
     wordToCardMap: newWordToCardMap,
     wordStatsMap,
     knownUntracked: store.knownUntracked || {},
+    wordKnowledge: store.wordKnowledge || {},
+    grammarKnowledge: store.grammarKnowledge || {},
     meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...store.meta },
     dailyStats: store.dailyStats || {},
     version: CURRENT_VERSION,
@@ -386,6 +390,8 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
     wordToCardMap,
     wordStatsMap,
     knownUntracked,
+    wordKnowledge: {},
+    grammarKnowledge: {},
     meta,
     dailyStats: {},
     version: CURRENT_VERSION,
@@ -415,6 +421,8 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     wordToCardMap: fc_to_check.wordToCardMap || {},
     wordStatsMap: fc_to_check.wordStatsMap || {},
     knownUntracked: fc_to_check.knownUntracked || {},
+    wordKnowledge: fc_to_check.wordKnowledge || {},
+    grammarKnowledge: fc_to_check.grammarKnowledge || {},
     meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...fc_to_check.meta },
     dailyStats: fc_to_check.dailyStats || {},
     version: CURRENT_VERSION,

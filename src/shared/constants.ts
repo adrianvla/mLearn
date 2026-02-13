@@ -135,6 +135,33 @@ export const IPC_CHANNELS = {
   SELECT_BOOK_FOLDER: 'select-book-folder',
   SELECT_PDF_FILE: 'select-pdf-file',
   GET_LOCAL_MEDIA_URL: 'get-local-media-url',
+
+  // Media stats
+  SAVE_MEDIA_STATS: 'save-media-stats',
+  GET_MEDIA_STATS: 'get-media-stats',
+  LIST_MEDIA_STATS: 'list-media-stats',
+
+  // Ollama
+  OLLAMA_CHAT: 'ollama-chat',
+  OLLAMA_CHAT_STREAM: 'ollama-chat-stream',
+  OLLAMA_CHAT_STREAM_ABORT: 'ollama-chat-stream-abort',
+  OLLAMA_LIST_MODELS: 'ollama-list-models',
+  OLLAMA_CHECK: 'ollama-check',
+
+  // Speech
+  STT_START: 'stt-start',
+  STT_STOP: 'stt-stop',
+  STT_RESULT: 'stt-result',
+  TTS_SPEAK: 'tts-speak',
+  TTS_STOP: 'tts-stop',
+  TTS_STATUS: 'tts-status',
+
+  // URL fetch (for conversation agent)
+  FETCH_URL: 'fetch-url',
+
+  // Window context
+  GET_WINDOW_CONTEXT: 'get-window-context',
+  WINDOW_CONTEXT: 'window-context',
 } as const;
 
 // Window types
@@ -150,6 +177,7 @@ export const WINDOW_TYPES = {
   WORD_DB_EDITOR: 'word-db-editor',
   LICENSES: 'licenses',
   CONNECT_QR: 'connect-qr',
+  CONVERSATION_AGENT: 'conversation-agent',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];

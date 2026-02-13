@@ -38,6 +38,7 @@ export default defineConfig({
         'kanji-grid': resolve(__dirname, 'src/html/kanji-grid.html'),
         licenses: resolve(__dirname, 'src/html/licenses.html'),
         'connect-qr': resolve(__dirname, 'src/html/connect-qr.html'),
+        'conversation-agent': resolve(__dirname, 'src/html/conversation-agent.html'),
       },
     },
   },

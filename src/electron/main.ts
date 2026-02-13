@@ -12,6 +12,9 @@ import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './service
 import { setupFileOperationsIPC } from './services/fileOperations';
 import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageMigration';
 import { registerLocalMediaScheme, setupLocalMediaProtocol } from './services/localMediaProtocol';
+import { setupMediaStatsIPC } from './services/mediaStatsStorage';
+import { setupOllamaIPC } from './services/ollamaService';
+import { setupSpeechIPC } from './services/speechService';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 
@@ -45,6 +48,9 @@ function setupAllIPC(): void {
   setupPythonBackendIPC();
   setupFileOperationsIPC();
   setupMigrationIPC();
+  setupMediaStatsIPC();
+  setupOllamaIPC();
+  setupSpeechIPC();
   setupKillHandlers();
 }
 

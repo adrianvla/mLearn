@@ -20,6 +20,7 @@ interface ReaderStatusBarProps {
   isTokenizing?: Accessor<boolean>;
   isTranslating?: Accessor<boolean>;
   onRunOcr: () => void;
+  onOpenConversationAgent: () => void;
   debugOcr?: Accessor<boolean>;
   onToggleDebugOcr?: () => void;
 }
@@ -104,6 +105,13 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
 
         {/* OCR Toggle Labels */}
         <div class="statusbar-toggles">
+          <button
+            class="statusbar-toggle"
+            onClick={props.onOpenConversationAgent}
+            title={t('mlearn.Reader.StatusBar.OpenConversationAgentTitle')}
+          >
+            {t('mlearn.Reader.StatusBar.OpenConversationAgent')}
+          </button>
           <Show when={settings.ocrEnabled}>
             <button
               class="statusbar-toggle"
