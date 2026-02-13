@@ -170,7 +170,9 @@ export {
   Column,
   Center,
   Spacer,
+  StatusBar,
   type FlexProps,
+  type StatusBarProps,
 } from './Layout';
 
 // Tabs Components

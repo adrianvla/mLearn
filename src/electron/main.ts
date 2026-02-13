@@ -14,6 +14,8 @@ import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageM
 import { registerLocalMediaScheme, setupLocalMediaProtocol } from './services/localMediaProtocol';
 import { setupMediaStatsIPC } from './services/mediaStatsStorage';
 import { setupOllamaIPC } from './services/ollamaService';
+import { setupBuiltinLLMIPC } from './services/builtinLLMService';
+import { setupLLMRouterIPC } from './services/llmRouter';
 import { setupSpeechIPC } from './services/speechService';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
@@ -50,6 +52,8 @@ function setupAllIPC(): void {
   setupMigrationIPC();
   setupMediaStatsIPC();
   setupOllamaIPC();
+  setupBuiltinLLMIPC();
+  setupLLMRouterIPC();
   setupSpeechIPC();
   setupKillHandlers();
 }

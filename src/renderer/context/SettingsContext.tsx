@@ -4,7 +4,7 @@
  */
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
-import { createStore, reconcile, produce } from 'solid-js/store';
+import { createStore, reconcile } from 'solid-js/store';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { SubtitleTheme, AppTheme } from '../../shared/constants';
@@ -34,16 +34,29 @@ export const SettingsProvider: ParentComponent = (props) => {
 
   let broadcastChannel: BroadcastChannel | null = null;
   const ipcCleanups: Array<() => void> = [];
+  let pendingSettingsSnapshot: Settings | null = null;
+
+  const serializeSettings = (value: Settings): Settings => JSON.parse(JSON.stringify(value)) as Settings;
 
   // Load settings from main process
   const loadSettings = () => {
     if (typeof window !== 'undefined' && window.mLearnIPC) {
       // Set up listener BEFORE sending request to avoid race condition
       ipcCleanups.push(window.mLearnIPC.onSettings((loadedSettings) => {
-        setSettings(reconcile(loadedSettings));
+        const mergedSettings = pendingSettingsSnapshot
+          ? { ...loadedSettings, ...pendingSettingsSnapshot }
+          : loadedSettings;
+
+        setSettings(reconcile(mergedSettings));
         setIsLoading(false);
         setHasLoaded(true);
-        applySettingsToDOM(loadedSettings);
+
+        applySettingsToDOM(mergedSettings);
+
+        if (pendingSettingsSnapshot) {
+          window.mLearnIPC?.saveSettings(pendingSettingsSnapshot);
+          pendingSettingsSnapshot = null;
+        }
       }));
       window.mLearnIPC.getSettings();
     } else {
@@ -99,47 +112,49 @@ export const SettingsProvider: ParentComponent = (props) => {
 
   // Update a single setting
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
-    setSettings(produce((s) => {
-      (s as any)[key] = value;
-    }));
-    applySettingsToDOM(settings);
-    // Auto-save after update
-    saveSettings();
+    const nextSettings = {
+      ...serializeSettings(settings as Settings),
+      [key]: value,
+    } as Settings;
+
+    setSettings(reconcile(nextSettings));
+    applySettingsToDOM(nextSettings);
+    saveSettings(nextSettings);
   };
 
   // Update multiple settings
   const updateSettings = (partial: Partial<Settings>) => {
-    setSettings(produce((s) => {
-      Object.assign(s, partial);
-    }));
-    applySettingsToDOM(settings);
-    // Auto-save after update
-    saveSettings();
+    const nextSettings = {
+      ...serializeSettings(settings as Settings),
+      ...partial,
+    } as Settings;
+
+    setSettings(reconcile(nextSettings));
+    applySettingsToDOM(nextSettings);
+    saveSettings(nextSettings);
   };
 
   // Save settings to main process
-  const saveSettings = () => {
+  const saveSettings = (settingsSnapshot?: Settings) => {
+    const snapshot = settingsSnapshot ?? serializeSettings(settings as Settings);
+
     // CRITICAL: Don't save until we've loaded settings from disk
     // This prevents overwriting user settings with defaults during app startup
     if (!hasLoaded()) {
-      console.warn('[Settings] Skipping save - settings not yet loaded from disk');
+      pendingSettingsSnapshot = snapshot;
       return;
     }
 
     if (typeof window !== 'undefined' && window.mLearnIPC) {
-      // Must serialize the store to a plain object before sending via IPC
-      // SolidJS stores are proxies that can't be cloned directly
-      const serializedSettings = JSON.parse(JSON.stringify(settings)) as Settings;
-      window.mLearnIPC.saveSettings(serializedSettings);
+      window.mLearnIPC.saveSettings(snapshot);
     }
-    broadcastSettingsUpdate();
+    broadcastSettingsUpdate(snapshot);
   };
 
   // Broadcast settings to other windows
-  const broadcastSettingsUpdate = () => {
+  const broadcastSettingsUpdate = (settingsSnapshot: Settings) => {
     if (broadcastChannel) {
-      // Must serialize settings to plain object for postMessage (stores aren't cloneable)
-      broadcastChannel.postMessage({ type: 'update', settings: JSON.parse(JSON.stringify(settings)) });
+      broadcastChannel.postMessage({ type: 'update', settings: settingsSnapshot });
     }
   };
 

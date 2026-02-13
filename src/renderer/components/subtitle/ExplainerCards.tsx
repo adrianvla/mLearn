@@ -9,7 +9,26 @@ import type { Token } from '../../../shared/types';
 import { useLanguage, useLocalization } from '../../context';
 import { useTokenizer } from '../../hooks/useTranslation';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
-import type { GrammarPoint, ParsedExplainer } from '../../utils/explainerParser';
+// Types previously from explainerParser — now defined here for tool-call-based flow
+export type ExplainerSectionType = 'translation' | 'explanation' | 'grammar';
+
+export interface GrammarPoint {
+  term: string;
+  description: string;
+}
+
+export interface ExplainerSection {
+  type: ExplainerSectionType;
+  title?: string;
+  word?: string;
+  content?: string;
+  grammarPoints?: GrammarPoint[];
+}
+
+export interface ParsedExplainer {
+  sections: ExplainerSection[];
+  rawText?: string;
+}
 import { Spinner } from '../common';
 import './ExplainerCards.css';
 

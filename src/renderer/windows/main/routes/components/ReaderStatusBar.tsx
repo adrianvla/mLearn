@@ -5,7 +5,7 @@
 
 import { Component, Accessor, createMemo, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../../context';
-import { formatKeybindDisplay } from '../../../../components/common';
+import { StatusBar, formatKeybindDisplay } from '../../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../../shared/constants';
 import './ReaderStatusBar.css';
 
@@ -84,9 +84,9 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
   };
 
   return (
-      <footer class="reader-status panel">
-        <span class="book-title">{props.bookTitle()}</span>
-        <span class="progress">{props.progressString()}</span>
+      <StatusBar class="reader-status">
+        <span class="statusbar-text truncate">{props.bookTitle()}</span>
+        <span class="statusbar-text">{props.progressString()}</span>
 
         {/* Word Hover Trigger Mode Select */}
         <div class="hover-trigger-section">
@@ -150,16 +150,16 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
           </Show>
         </div>
 
-        <span class="magnifier-hint">
+        <span class="statusbar-hint">
           {t('mlearn.Reader.StatusBar.MagnifierHint', {key: formatKeybindDisplay(settings.readerMagnifierHotkey ?? 'z', t)})}
         </span>
 
         <div class="ocr-section">
-        <span class={`ocr-status ${displayStatus() !== t('mlearn.Reader.StatusBar.Ready') ? 'active' : ''}`}>
+        <span class={`statusbar-text ${displayStatus() !== t('mlearn.Reader.StatusBar.Ready') ? 'active' : ''}`}>
           {displayStatus()}
         </span>
         </div>
-      </footer>
+      </StatusBar>
   );
 };
 

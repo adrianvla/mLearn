@@ -3,7 +3,6 @@
  * Re-exports all utility functions for easy importing
  */
 
-export * from './explainerParser';
 export * from './ocrUtils';
 export * from './phraseExtraction';
 export * from './pitchAccent';

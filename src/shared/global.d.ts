@@ -3,7 +3,7 @@
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats } from './types';
+import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus } from './types';
 
 export interface MLearnIPC {
   // Settings
@@ -148,6 +148,18 @@ export interface MLearnIPC {
   onOllamaChatStream: (callback: (chunk: { content?: string; done?: boolean; tool_calls?: unknown[]; eval_count?: number; eval_duration?: number; prompt_eval_duration?: number; total_duration?: number }) => void) => () => void;
   ollamaListModels: () => Promise<unknown[]>;
   ollamaCheck: () => Promise<boolean>;
+  ollamaPullModel: (modelName: string) => void;
+  onOllamaPullModelProgress: (callback: (progress: { status: string; completed?: number; total?: number; error?: string }) => void) => () => void;
+
+  // Unified LLM
+  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[]) => void;
+  llmStreamAbort: () => void;
+  onLLMStreamChunk: (callback: (chunk: LLMStreamChunk) => void) => () => void;
+  llmCheckModel: (modelFile?: string) => Promise<LLMModelStatus>;
+  llmDownloadModel: (modelUrl?: string, modelFile?: string) => void;
+  onLLMDownloadProgress: (callback: (status: LLMModelStatus) => void) => () => void;
+  onLLMModelStatus: (callback: (status: LLMModelStatus) => void) => () => void;
+  llmUnloadModel: () => void;
 
   // Speech
   sttStart: (language: string) => void;

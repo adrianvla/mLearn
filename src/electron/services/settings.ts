@@ -108,10 +108,11 @@ function getDefaultLangData(): LanguageDataMap {
         '接尾辞': '#aac8c4',
         '感動詞': '#eacbcb',
         '代名詞': '#f1ccfd',
-        '補助記号': '#cccccccc',
+        '補助記号': '#8fc99d',
         '連体詞': '#def6ff',
         '形容詞': '#def6ff',
         '形容動詞': '#def6ff',
+        '記号': '#8fc99d',
       },
       fixed_settings: {},
       freq_level_names: {
@@ -138,7 +139,7 @@ function getDefaultLangData(): LanguageDataMap {
         'AUX': '#ffefd1',
         'ADJ': '#def6ff',
         'ADV': '#b8cdf5',
-        'PUNCT': '#ffffff',
+        'PUNCT': '#8fc99d',
       },
       fixed_settings: {
         furigana: false,

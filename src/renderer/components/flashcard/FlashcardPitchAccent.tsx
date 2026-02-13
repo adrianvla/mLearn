@@ -6,15 +6,10 @@
  */
 
 import { Component, Show, createMemo } from 'solid-js';
-import { PitchAccentOverlay } from '../common';
+import { PitchAccentOverlay, RubyText } from '../common';
 import type { FlashcardContent } from '../../../shared/types';
+import { isAllKana } from '../../../shared/utils/textUtils';
 import './FlashcardPitchAccent.css';
-
-/** Check if word is all kana (no kanji) */
-function isAllKana(word: string): boolean {
-  if (!word) return true;
-  return /^[\u3040-\u309F\u30A0-\u30FF\u30FC\u30FBー・]+$/.test(word);
-}
 
 export interface FlashcardPitchAccentProps {
   content: FlashcardContent;
@@ -36,12 +31,11 @@ export const FlashcardPitchAccent: Component<FlashcardPitchAccentProps> = (props
   return (
     <div class="fc-pitch">
       <Show when={props.content.pitchAccent !== undefined && props.content.pitchAccent !== null} fallback={
-        <div class="fc-pitch-plain">
-          <span class="fc-pitch-word">{word()}</span>
-          <Show when={reading() && reading() !== word()}>
-            <span class="fc-pitch-reading">({reading()})</span>
-          </Show>
-        </div>
+        <RubyText
+          word={word()}
+          reading={reading()}
+          class="fc-pitch-ruby"
+        />
       }>
         <Show when={needsFurigana()} fallback={
           /* Kana-only word: pitch accent overlays the word text directly */

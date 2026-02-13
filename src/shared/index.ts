@@ -32,4 +32,10 @@ export {
   type InstallOptions,
   type InstallerState,
   type PipRequirementsConfig,
+  type LLMProvider,
+  type LLMChatMessage,
+  type LLMToolDefinition,
+  type LLMToolCall,
+  type LLMStreamChunk,
+  type LLMModelStatus,
 } from './types';

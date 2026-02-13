@@ -6,3 +6,4 @@ src/root-of-app/dictionaries
 .github
 __pycache__
 scripts/scrapeGrammar.js
+package-lock.json

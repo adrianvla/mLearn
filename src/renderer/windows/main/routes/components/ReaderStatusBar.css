@@ -1,91 +1,27 @@
 /**
  * Reader Status Bar Component Styles
+ * Reader-specific overrides for the unified StatusBar component
  */
 
 .reader-status {
-  --font-size: var(--font-size-sm);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.5rem 1rem;
-  height: 30px;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg);
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 100;
-  font-size: var(--font-size);
-  user-select: none;
-  gap: 1rem;
-}
-
-.reader-status .book-title {
-  color: var(--text-secondary);
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex-shrink: 1;
-}
-
-.reader-status .progress {
-  color: var(--text-secondary);
-  flex-shrink: 0;
-}
-
-/* Hover Trigger Select Section */
-.reader-status .hover-trigger-section {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-
-.reader-status .hover-trigger-label {
-  color: var(--text-secondary);
-  font-size: var(--font-size);
-}
-
-.reader-status .hover-trigger-select {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 0;
-  color: var(--text-primary);
-  font-size: var(--font-size);
-  padding: 2px 6px;
-  cursor: pointer;
-  outline: none;
-  transition: all var(--transition-fast);
-  box-sizing: border-box;
-}
-
-.reader-status .hover-trigger-select:hover {
-  border-color: var(--border-color);
-  background: var(--bg);
-}
-
-.reader-status .hover-trigger-select option {
-  background: var(--bg);
-  color: var(--text-primary);
 }
 
 .reader-status .ocr-section {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--spacing-3);
   flex-shrink: 0;
-}
-
-.reader-status .ocr-status {
-  color: var(--text-secondary);
 }
 
 .reader-status .ocr-progress-container {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
 }
 
 .reader-status .ocr-progress {
@@ -97,56 +33,7 @@
 }
 
 .reader-status .ocr-progress-text {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   min-width: 35px;
-}
-
-.reader-status .ocr-status.active {
-  animation: status-pulse 1.5s ease-in-out infinite;
-}
-
-.reader-status .magnifier-hint {
-  color: var(--text-tertiary);
-  font-size: var(--font-size);
-  flex-shrink: 0;
-}
-
-/* Statusbar Toggle Buttons */
-.reader-status .statusbar-toggles {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  flex-shrink: 0;
-}
-
-.reader-status .statusbar-toggle {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  color: var(--text-tertiary);
-  font-size: var(--font-size);
-  padding: 1px 6px;
-  cursor: pointer;
-  outline: none;
-  transition: all var(--transition-fast);
-  white-space: nowrap;
-}
-
-.reader-status .statusbar-toggle:hover {
-  border-color: var(--border-color);
-  color: var(--text-primary);
-}
-
-.reader-status .statusbar-toggle.active {
-  color: var(--text-secondary);
-}
-
-@keyframes status-pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
 }

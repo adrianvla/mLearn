@@ -10,7 +10,7 @@ import { WORD_STATUS } from '../../../shared/constants';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { setWordStatus, toUniqueIdentifier, wordsLearnedInApp } from '../../services/statsService';
-import { getCachedExplanation } from '../../services/llmService';
+import { getCachedExplanation } from '../../services/llmProvider';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useTokenizer } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, PitchAccentOverlay } from '../common';

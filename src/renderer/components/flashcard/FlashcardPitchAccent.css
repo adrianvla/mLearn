@@ -12,26 +12,6 @@
   white-space: nowrap;
 }
 
-/* Plain display (no pitch accent) */
-.fc-pitch-plain {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.fc-pitch-word {
-  white-space: nowrap;
-}
-
-.fc-pitch-reading {
-  font-size: 1rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
 /* Kana-only display: pitch overlays the word */
 .fc-pitch-kana {
   font-size: 2rem;

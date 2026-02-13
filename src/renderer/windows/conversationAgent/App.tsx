@@ -3,7 +3,7 @@
  * AI-powered language tutor with tokenized chat, tool calling, and speech I/O
  */
 
-import { Component, Show, For, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
+import { Component, Show, Index, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useSettings, useLanguage, useLocalization } from '../../context';
 import { useFlashcards } from '../../context';
 import {
@@ -13,8 +13,10 @@ import {
   AlertBanner,
   EmptyState,
   ConnectionStatus,
+  StatusBar,
   Textarea,
   Select,
+  Label,
   formatKeybindDisplay,
 } from '../../components/common';
 import type { TabItem, SelectOption } from '../../components/common';
@@ -22,7 +24,7 @@ import { WordHover } from '../../components/subtitle';
 import { useWordHover, useTranslation, useDictionary, getCachedTranslation } from '../../hooks';
 import { ChatBubble } from './ChatBubble';
 import { MediaStatsTab } from './MediaStatsTab';
-import { ConnectionTab } from './ConnectionTab';
+
 import { createConversationAgent } from '../../services/conversationAgent';
 import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
@@ -66,6 +68,7 @@ const ConversationContent: Component = () => {
   const [isStreaming, setIsStreaming] = createSignal(false);
   const [isWaiting, setIsWaiting] = createSignal(false);
   const [isConnected, setIsConnected] = createSignal(false);
+  const [isCheckingConnection, setIsCheckingConnection] = createSignal(true);
   const [isRecording, setIsRecording] = createSignal(false);
   const [isSpeaking, setIsSpeaking] = createSignal(false);
   const [sceneContext, setSceneContext] = createSignal('');
@@ -84,12 +87,27 @@ const ConversationContent: Component = () => {
   let messagesRef: HTMLDivElement | undefined;
   let textareaRef: HTMLTextAreaElement | undefined;
 
-  const langName = () => currentLangData()?.name_translated || currentLangData()?.name || '';
+  const langName = () => {
+    const languageCode = settings.language || currentLangData()?.name || '';
+    const localizedKey = `mlearn.Languages.${languageCode}`;
+    const localized = t(localizedKey);
+
+    if (localized !== localizedKey) {
+      return localized;
+    }
+
+    return currentLangData()?.name_translated || currentLangData()?.name || languageCode;
+  };
+
+  const providerLabel = () => (
+    settings.llmProvider === 'ollama'
+      ? t('mlearn.AI.Settings.Provider.Ollama')
+      : t('mlearn.AI.Settings.Provider.Builtin')
+  );
 
   const topTabs = (): TabItem[] => [
     { id: 'chat', label: t('mlearn.ConversationAgent.Tab.Chat') },
     { id: 'stats', label: t('mlearn.ConversationAgent.Tab.Stats') },
-    { id: 'connection', label: t('mlearn.ConversationAgent.Tab.Connection') },
   ];
 
   // Initialize agent
@@ -102,14 +120,45 @@ const ConversationContent: Component = () => {
     flashcardCtx,
   });
 
-  // Check Ollama connection on mount
-  onMount(async () => {
-    try {
-      const connected = await window.mLearnIPC?.ollamaCheck();
-      setIsConnected(connected ?? false);
-    } catch {
-      setIsConnected(false);
-    }
+  // Check LLM availability reactively when provider/config changes
+  createEffect(() => {
+    // Track reactive dependencies so the effect re-runs on change
+    const provider = settings.llmProvider;
+    void settings.ollamaUrl;
+    void settings.ollamaModel;
+    void settings.llmConfigured;
+
+    setIsCheckingConnection(true);
+
+    (async () => {
+      try {
+        if (provider === 'ollama') {
+          const connected = await window.mLearnIPC?.ollamaCheck();
+          setIsConnected(connected ?? false);
+        } else {
+          const status = await window.mLearnIPC?.llmCheckModel();
+          setIsConnected(status?.downloaded ?? false);
+        }
+      } catch {
+        setIsConnected(false);
+      } finally {
+        setIsCheckingConnection(false);
+      }
+    })();
+  });
+
+  // Listen for model status changes (e.g., download completes)
+  onMount(() => {
+    const ipc = window.mLearnIPC;
+    if (!ipc) return;
+
+    const cleanupStatus = ipc.onLLMModelStatus?.((status: { downloaded: boolean }) => {
+      if (settings.llmProvider !== 'ollama') {
+        setIsConnected(status.downloaded);
+      }
+    });
+
+    if (cleanupStatus) onCleanup(cleanupStatus);
   });
 
   // Retrieve media context passed from the parent window
@@ -219,6 +268,26 @@ const ConversationContent: Component = () => {
     hideHover();
   };
 
+  const isSameCorrection = (a: MistakeWidgetData, b: MistakeWidgetData): boolean => (
+    a.errorSpan === b.errorSpan
+    && a.correction === b.correction
+    && a.errorType === b.errorType
+    && a.contextBefore === b.contextBefore
+    && a.contextAfter === b.contextAfter
+    && a.affectedPattern === b.affectedPattern
+  );
+
+  const appendUniqueCorrection = (
+    existing: MistakeWidgetData[] | undefined,
+    incoming: MistakeWidgetData,
+  ): MistakeWidgetData[] => {
+    const corrections = existing || [];
+    if (corrections.some((c) => isSameCorrection(c, incoming))) {
+      return corrections;
+    }
+    return [...corrections, incoming];
+  };
+
   const handleSend = () => {
     const text = inputText().trim();
     if (!text || isStreaming()) return;
@@ -280,7 +349,7 @@ const ConversationContent: Component = () => {
             // Find the latest user message
             for (let i = updated.length - 1; i >= 0; i--) {
               if (updated[i].role === 'user') {
-                const corrections = [...(updated[i].corrections || []), mistakeData];
+                const corrections = appendUniqueCorrection(updated[i].corrections, mistakeData);
                 updated[i] = { ...updated[i], corrections };
                 break;
               }
@@ -304,7 +373,7 @@ const ConversationContent: Component = () => {
             const updated = [...prev];
             for (let i = updated.length - 1; i >= 0; i--) {
               if (updated[i].role === 'user') {
-                const corrections = [...(updated[i].corrections || []), mistakeData];
+                const corrections = appendUniqueCorrection(updated[i].corrections, mistakeData);
                 updated[i] = { ...updated[i], corrections };
                 break;
               }
@@ -438,29 +507,33 @@ const ConversationContent: Component = () => {
 
   return (
     <div class="conversation-agent">
-      {/* Header */}
+      {/* Header with integrated tabs */}
       <div class="ca-header">
         <div class="ca-header-left">
           <span class="ca-header-title">{t('mlearn.ConversationAgent.Title')}</span>
-          <ConnectionStatus
-            status={isConnected() ? 'connected' : 'disconnected'}
-            showLabel={!isConnected()}
-            size="sm"
-          />
+          <div class="ca-connection-info">
+            <ConnectionStatus
+              status={isCheckingConnection() ? 'loading' : isConnected() ? 'connected' : 'disconnected'}
+              showLabel={!isConnected()}
+              size="sm"
+            />
+            <Label type="tag" size="xs" variant="default" class="ca-provider-label">
+              {providerLabel()}
+            </Label>
+          </div>
         </div>
+        <TabContainer
+          tabs={topTabs()}
+          activeTab={activeTab()}
+          onTabChange={setActiveTab}
+          variant="underline"
+          size="sm"
+          class="ca-header-tabs"
+        />
         <div class="ca-header-actions">
           <IconBtn variant="ghost" onClick={handleClear} icon="trash" aria-label={t('mlearn.ConversationAgent.ClearConversation')} />
         </div>
       </div>
-
-      {/* Top-level tabs */}
-      <TabContainer
-        tabs={topTabs()}
-        activeTab={activeTab()}
-        onTabChange={setActiveTab}
-        variant="underline"
-        size="sm"
-      />
 
       {/* Chat panel */}
       <TabPanel tabId="chat" activeTab={activeTab()}>
@@ -502,20 +575,20 @@ const ConversationContent: Component = () => {
                 />
               }
             >
-              <For each={messages()}>
+              <Index each={messages()}>
                 {(msg, index) => (
                   <ChatBubble
-                    message={msg}
-                    isStreaming={isStreaming() && index() === messages().length - 1 && msg.role === 'assistant'}
-                    isWaiting={isWaiting() && index() === messages().length - 1 && msg.role === 'assistant'}
+                    message={msg()}
+                    isStreaming={isStreaming() && index === messages().length - 1 && msg().role === 'assistant'}
+                    isWaiting={isWaiting() && index === messages().length - 1 && msg().role === 'assistant'}
                     onTokenHover={handleTokenHover}
                     onTokenLeave={handleTokenLeave}
                     triggerMode={currentTriggerMode()}
                     triggerKey={currentKey()}
-                    onQuizAnswer={(answer) => handleQuizAnswer(index(), answer)}
+                    onQuizAnswer={(answer) => handleQuizAnswer(index, answer)}
                   />
                 )}
-              </For>
+              </Index>
             </Show>
           </div>
 
@@ -575,15 +648,18 @@ const ConversationContent: Component = () => {
               </Show>
 
               <div class="ca-input-wrapper">
-                <textarea
+                <Textarea
                   ref={textareaRef}
-                  class="ca-textarea"
-                  placeholder={t('mlearn.ConversationAgent.InputPlaceholder', { lang: langName() })}
+                  class="ca-chat-textarea"
+                  placeholder={t('mlearn.ConversationAgent.InputPlaceholder', { language: langName() })}
                   value={inputText()}
                   onInput={handleTextareaInput}
                   onKeyDown={handleKeyDown}
                   rows={1}
+                  resize="none"
                   disabled={isStreaming() || !isConnected()}
+                  fullWidth
+                  ghost
                 />
               </div>
 
@@ -612,7 +688,7 @@ const ConversationContent: Component = () => {
           </div>
 
           {/* Status bar with hover trigger selector */}
-          <div class="ca-statusbar">
+          <StatusBar>
             <div class="hover-trigger-section">
               <label class="hover-trigger-label">{t('mlearn.ConversationAgent.ShowTooltipOn')}</label>
               <Select
@@ -622,7 +698,7 @@ const ConversationContent: Component = () => {
                 onChange={handleTriggerModeChange}
               />
             </div>
-          </div>
+          </StatusBar>
         </div>
       </TabPanel>
 
@@ -631,10 +707,7 @@ const ConversationContent: Component = () => {
         <MediaStatsTab context={mediaContext()} />
       </TabPanel>
 
-      {/* Connection panel */}
-      <TabPanel tabId="connection" activeTab={activeTab()}>
-        <ConnectionTab />
-      </TabPanel>
+
     </div>
   );
 };

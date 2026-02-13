@@ -2,9 +2,9 @@
  * Customization Settings Tab
  */
 
-import { Component, For, Show } from 'solid-js';
-import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, TabContent, Select } from '../../../components/common';
+import { Component, For, Show, createMemo } from 'solid-js';
+import { useSettings, useLocalization, useLanguage } from '../../../context';
+import { SettingRow, SettingGroup, TabContent, Select, Btn } from '../../../components/common';
 import { CUSTOMIZABLE_CSS_VARS, CustomColorOverrides } from '@shared/types';
 
 /** Labels for CSS variables (user-friendly names) */
@@ -22,6 +22,7 @@ const CSS_VAR_LABELS: Record<string, { label: string; description: string }> = {
 export const CustomizationTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
+  const { currentLangData } = useLanguage();
 
   /** Update a single custom color */
   const updateCustomColor = (varName: keyof CustomColorOverrides, value: string | null) => {
@@ -46,6 +47,41 @@ export const CustomizationTab: Component = () => {
   const hasCustomColors = () => {
     const colors = settings.customColors || {};
     return Object.keys(colors).length > 0;
+  };
+
+  /** Get all POS tags available from the current language data */
+  const posEntries = createMemo(() => {
+    const langData = currentLangData();
+    const langCodes = langData?.colour_codes || {};
+    const userCodes = settings.colour_codes || {};
+    // Merge lang defaults with user overrides to show all known POS tags
+    const allPos = new Set([...Object.keys(langCodes), ...Object.keys(userCodes)]);
+    return [...allPos].map((pos) => ({
+      pos,
+      userColor: userCodes[pos] || '',
+      defaultColor: langCodes[pos] || '',
+    }));
+  });
+
+  /** Update a single POS color override */
+  const updatePosColor = (pos: string, value: string | null) => {
+    const currentCodes = { ...settings.colour_codes };
+    if (value === null || value === '') {
+      delete currentCodes[pos];
+    } else {
+      currentCodes[pos] = value;
+    }
+    updateSettings({ colour_codes: currentCodes });
+  };
+
+  /** Reset all POS color overrides */
+  const resetAllPosColors = () => {
+    updateSettings({ colour_codes: {} });
+  };
+
+  /** Check if any POS color overrides are set */
+  const hasPosColorOverrides = () => {
+    return Object.keys(settings.colour_codes || {}).length > 0;
   };
 
   return (
@@ -148,6 +184,71 @@ export const CustomizationTab: Component = () => {
           </p>
         </div>
       </SettingGroup>
+
+      <Show when={posEntries().length > 0}>
+        <SettingGroup title={t('mlearn.Settings.Groups.PosColors')}>
+          <p style={{
+            "font-size": "var(--font-size-sm)",
+            color: "var(--text-secondary)",
+            "margin-bottom": "var(--spacing-4)",
+            "line-height": "var(--line-height-normal)"
+          }}>
+            {t('mlearn.Settings.WordStatus.PosColors.Description')}
+          </p>
+
+          <For each={posEntries()}>
+            {(entry) => {
+              const effectiveColor = () => entry.userColor || entry.defaultColor;
+
+              return (
+                <SettingRow label={entry.pos}>
+                  <div style={{ display: 'flex', gap: 'var(--spacing-2)', "align-items": 'center' }}>
+                    <input
+                      type="color"
+                      value={effectiveColor() || '#000000'}
+                      onChange={(e) => updatePosColor(entry.pos, e.currentTarget.value)}
+                      style={{
+                        width: '40px',
+                        height: '32px',
+                        padding: '2px',
+                        border: '1px solid var(--border-color)',
+                        "border-radius": 'var(--radius-sm)',
+                        cursor: 'pointer',
+                        background: 'var(--bg)',
+                      }}
+                    />
+                    <input
+                      type="text"
+                      class="setting-input"
+                      placeholder={entry.defaultColor || '#000000'}
+                      value={entry.userColor}
+                      onChange={(e) => updatePosColor(entry.pos, e.currentTarget.value || null)}
+                      style={{ width: '100px' }}
+                    />
+                    <Show when={entry.userColor}>
+                      <Btn
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => updatePosColor(entry.pos, null)}
+                      >
+                        {t('mlearn.Settings.WordStatus.PosColors.Reset')}
+                      </Btn>
+                    </Show>
+                  </div>
+                </SettingRow>
+              );
+            }}
+          </For>
+
+          <Show when={hasPosColorOverrides()}>
+            <div style={{ "margin-top": "var(--spacing-4)", "text-align": "right" }}>
+              <Btn variant="ghost" size="sm" onClick={resetAllPosColors}>
+                {t('mlearn.Settings.WordStatus.PosColors.ResetAll')}
+              </Btn>
+            </div>
+          </Show>
+        </SettingGroup>
+      </Show>
 
       <SettingGroup title="Custom Color Overrides">
         <p style={{ 

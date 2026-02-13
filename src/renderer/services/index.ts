@@ -4,4 +4,4 @@
  */
 
 export * from './statsService';
-export * from './llmService';
+export * from './llmProvider';

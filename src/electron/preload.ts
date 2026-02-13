@@ -5,7 +5,7 @@
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus } from '../shared/types';
 
 /**
  * Type-safe IPC API exposed to renderer
@@ -224,6 +224,28 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.OLLAMA_CHAT_STREAM, (_event, chunk) => callback(chunk)),
   ollamaListModels: () => ipcRenderer.invoke(IPC_CHANNELS.OLLAMA_LIST_MODELS),
   ollamaCheck: () => ipcRenderer.invoke(IPC_CHANNELS.OLLAMA_CHECK),
+  ollamaPullModel: (modelName: string) =>
+    ipcRenderer.send(IPC_CHANNELS.OLLAMA_PULL_MODEL, modelName),
+  onOllamaPullModelProgress: (callback: (progress: { status: string; completed?: number; total?: number; error?: string }) => void) =>
+    ipcOn(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, (_event, progress) => callback(progress)),
+
+  // ========== Unified LLM ==========
+  llmStream: (messages: LLMChatMessage[], tools: LLMToolDefinition[]) =>
+    ipcRenderer.send(IPC_CHANNELS.LLM_STREAM, messages, tools),
+  llmStreamAbort: () =>
+    ipcRenderer.send(IPC_CHANNELS.LLM_STREAM_ABORT),
+  onLLMStreamChunk: (callback: (chunk: LLMStreamChunk) => void) =>
+    ipcOn(IPC_CHANNELS.LLM_STREAM_CHUNK, (_event, chunk) => callback(chunk)),
+  llmCheckModel: (modelFile?: string): Promise<LLMModelStatus> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_CHECK_MODEL, modelFile),
+  llmDownloadModel: (modelUrl?: string, modelFile?: string) =>
+    ipcRenderer.send(IPC_CHANNELS.LLM_DOWNLOAD_MODEL, modelUrl, modelFile),
+  onLLMDownloadProgress: (callback: (status: LLMModelStatus) => void) =>
+    ipcOn(IPC_CHANNELS.LLM_DOWNLOAD_PROGRESS, (_event, status) => callback(status)),
+  onLLMModelStatus: (callback: (status: LLMModelStatus) => void) =>
+    ipcOn(IPC_CHANNELS.LLM_MODEL_STATUS, (_event, status) => callback(status)),
+  llmUnloadModel: () =>
+    ipcRenderer.send(IPC_CHANNELS.LLM_UNLOAD_MODEL),
 
   // ========== Speech ==========
   sttStart: (language: string) => ipcRenderer.send(IPC_CHANNELS.STT_START, language),

@@ -17,7 +17,9 @@ export const API_ENDPOINTS = {
   tokenize: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/tokenize`,
   translate: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/translate`,
   getCard: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/getCard`,
+  /** @deprecated LLM moved to unified LLM backend */
   llm: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/llm`,
+  /** @deprecated LLM moved to unified LLM backend */
   llmStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/llm/status`,
   ocr: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/ocr`,
   control: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/control`,
@@ -147,6 +149,18 @@ export const IPC_CHANNELS = {
   OLLAMA_CHAT_STREAM_ABORT: 'ollama-chat-stream-abort',
   OLLAMA_LIST_MODELS: 'ollama-list-models',
   OLLAMA_CHECK: 'ollama-check',
+  OLLAMA_PULL_MODEL: 'ollama-pull-model',
+  OLLAMA_PULL_MODEL_PROGRESS: 'ollama-pull-model-progress',
+
+  // Unified LLM
+  LLM_STREAM: 'llm-stream',
+  LLM_STREAM_CHUNK: 'llm-stream-chunk',
+  LLM_STREAM_ABORT: 'llm-stream-abort',
+  LLM_CHECK_MODEL: 'llm-check-model',
+  LLM_DOWNLOAD_MODEL: 'llm-download-model',
+  LLM_DOWNLOAD_PROGRESS: 'llm-download-progress',
+  LLM_MODEL_STATUS: 'llm-model-status',
+  LLM_UNLOAD_MODEL: 'llm-unload-model',
 
   // Speech
   STT_START: 'stt-start',

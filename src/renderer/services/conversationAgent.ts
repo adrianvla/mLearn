@@ -12,8 +12,9 @@ import type {
   ChatWidget,
   QuizWidgetData,
   MistakeWidgetData,
-  OllamaChatMessage,
-  OllamaToolDefinition,
+  LLMChatMessage,
+  LLMToolDefinition,
+  LLMStreamChunk,
   Settings,
   StreamStats,
 } from '../../shared/types';
@@ -61,12 +62,12 @@ function buildSystemPrompt(_langCode: string, langName: string, mediaCtx: Conver
 Your primary role is to have natural conversations in ${langName} with the learner.
 
 ## Rules
-- Respond primarily in ${langName}, mixing in the learner's native language only when necessary for explanations.
+- Respond ONLY in ${langName} for all user-visible assistant messages.
 - Adjust your language level based on the learner's apparent proficiency.
 - Keep responses concise (2-4 sentences typically) to maintain conversational flow.
 - Naturally correct mistakes the learner makes using the "correct_mistake" tool.
 - Periodically quiz the learner using the "create_quiz" tool based on vocabulary or grammar used in the conversation.
-- If the learner writes in their native language, gently encourage switching to ${langName}.
+- If the learner writes in another language, reply in ${langName} and gently guide them back to ${langName}.
 - Base conversation topics on the media the learner is consuming — discuss scenes, character actions, plot, and themes rather than generic topics like weather or hobbies.
 
 ## Personality
@@ -77,6 +78,10 @@ Your primary role is to have natural conversations in ${langName} with the learn
 
 ## Tool Usage Guidelines
 - Use "correct_mistake" when you notice grammar, vocabulary, or spelling errors in the learner's messages. Attach it to your response subtly.
+  - If the learner explicitly asks you to call a tool or to mark/correct a specific span, you MUST call the appropriate tool even for meta/tool-testing requests and even when the text is not in ${langName}.
+  - IMPORTANT: The error_span must be copied EXACTLY from the learner's message. Do not translate or alter it.
+  - When the same word or phrase appears multiple times in the learner's message, provide context_before and/or context_after to identify which occurrence to correct.
+  - Only correct actual mistakes in the target language; do not "correct" text that is already correct or translate it.
 - Use "create_quiz" every 4-6 exchanges or when a good teaching moment arises. Vary between MCQ and fill-in types.
 - Use "fetch_url" to look up grammar explanations or vocabulary from language learning resources if the learner asks about a specific topic.
 - Use "get_media_stats" to retrieve the learner's analytics for their current media to personalize your teaching.
@@ -129,179 +134,169 @@ ${userSceneContext}`;
   return prompt;
 }
 
+function inferExplicitToolCallsFromLastUserMessage(history: LLMChatMessage[]): ToolCall[] {
+  let lastUserIndex = -1;
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === 'user') {
+      lastUserIndex = i;
+      break;
+    }
+  }
+
+  if (lastUserIndex === -1) return [];
+
+  const followUpsAfterLastUser = history.slice(lastUserIndex + 1);
+  const mistakeAlreadyHandled = followUpsAfterLastUser.some((msg) => {
+    if (msg.role === 'tool' && msg.toolName === 'correct_mistake') {
+      return true;
+    }
+    if (msg.role === 'assistant' && msg.toolCalls?.some((tc) => tc.name === 'correct_mistake')) {
+      return true;
+    }
+    return false;
+  });
+
+  if (mistakeAlreadyHandled) return [];
+
+  const lastUser = history[lastUserIndex];
+  if (!lastUser?.content) return [];
+
+  const text = lastUser.content.trim();
+  if (!text) return [];
+
+  const markWordPattern = /mark\s+(?:the\s+)?word\s+["“”'](.+?)["“”']\s+as\s+a\s+mistake(?:\s+in\s+(?:the\s+)?(?:following\s+)?phrase\s*:|\s*:)?\s*([\s\S]+)$/i;
+
+  const match = text.match(markWordPattern);
+  if (!match) return [];
+
+  const rawWord = (match[1] || '').trim();
+  const phrase = (match[2] || '').trim();
+  if (!rawWord || !phrase) return [];
+
+  const correctionQuotedMatch = text.match(/correct(?:\s+it)?\s+with(?:\s+the\s+word)?\s+["“”'](.+?)["“”']/i);
+  const correctionUnquotedMatch = text.match(/correct(?:\s+it)?\s+with(?:\s+the\s+word)?\s+([^\s"“”',.?!:;]+)/i);
+  const requestedCorrection = (correctionQuotedMatch?.[1] || correctionUnquotedMatch?.[1] || rawWord).trim();
+
+  const lowerPhrase = phrase.toLowerCase();
+  const lowerWord = rawWord.toLowerCase();
+  const index = lowerPhrase.indexOf(lowerWord);
+  if (index === -1) return [];
+
+  const errorSpan = phrase.slice(index, index + rawWord.length);
+  const contextBefore = phrase.slice(Math.max(0, index - 20), index).trim() || undefined;
+  const contextAfter = phrase.slice(index + errorSpan.length, index + errorSpan.length + 20).trim() || undefined;
+
+  return [
+    {
+      id: `forced_call_${Date.now()}`,
+      name: 'correct_mistake',
+      arguments: {
+        error_span: errorSpan,
+        correction: requestedCorrection,
+        error_type: 'word',
+        context_before: contextBefore,
+        context_after: contextAfter,
+      },
+    },
+  ];
+}
+
 // ============================================================================
 // Tool Definitions
 // ============================================================================
 
-const AGENT_TOOLS: OllamaToolDefinition[] = [
+const AGENT_TOOLS: LLMToolDefinition[] = [
   {
-    type: 'function',
-    function: {
-      name: 'correct_mistake',
-      description: 'Correct a grammatical, vocabulary, or spelling mistake the learner made in their message.',
-      parameters: {
-        type: 'object',
-        properties: {
-          error_span: {
-            type: 'string',
-            description: 'The exact text that contains the error from the learner\'s message',
-          },
-          correction: {
-            type: 'string',
-            description: 'The corrected version of the error span',
-          },
-          error_type: {
-            type: 'string',
-            enum: ['grammar', 'word', 'typo', 'other'],
-            description: 'The category of error',
-          },
-          affected_pattern: {
-            type: 'string',
-            description: 'The grammar pattern related to this error, if any (e.g., "てform", "は vs が")',
-          },
+    name: 'correct_mistake',
+    description: 'Correct a grammatical, vocabulary, or spelling mistake the learner made in their message. You must provide surrounding context to identify which occurrence of the error span to correct.',
+    parameters: {
+      type: 'object',
+      properties: {
+        error_span: {
+          type: 'string',
+          description: 'The exact text that contains the error from the learner\'s message',
         },
-        required: ['error_span', 'correction', 'error_type'],
+        correction: {
+          type: 'string',
+          description: 'The corrected version of the error span',
+        },
+        error_type: {
+          type: 'string',
+          enum: ['grammar', 'word', 'typo', 'other'],
+          description: 'The category of error',
+        },
+        context_before: {
+          type: 'string',
+          description: 'A few characters or words appearing immediately before the error span in the learner\'s message, to disambiguate when the same text appears multiple times',
+        },
+        context_after: {
+          type: 'string',
+          description: 'A few characters or words appearing immediately after the error span in the learner\'s message, to disambiguate when the same text appears multiple times',
+        },
+        affected_pattern: {
+          type: 'string',
+          description: 'The grammar pattern related to this error, if any (e.g., "てform", "は vs が")',
+        },
       },
+      required: ['error_span', 'correction', 'error_type'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'create_quiz',
-      description: 'Create a quiz question to test the learner on vocabulary or grammar from the conversation.',
-      parameters: {
-        type: 'object',
-        properties: {
-          quiz_type: {
-            type: 'string',
-            enum: ['mcq', 'fill-in'],
-            description: 'Type of quiz: multiple choice or fill-in-the-blank',
-          },
-          question: {
-            type: 'string',
-            description: 'The quiz question',
-          },
-          options: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Answer options for MCQ (3-4 options, one correct)',
-          },
-          correct_answer: {
-            type: 'string',
-            description: 'The correct answer',
-          },
-          affected_pattern: {
-            type: 'string',
-            description: 'The grammar pattern being tested, if any',
-          },
+    name: 'create_quiz',
+    description: 'Create a quiz question to test the learner on vocabulary or grammar from the conversation.',
+    parameters: {
+      type: 'object',
+      properties: {
+        quiz_type: {
+          type: 'string',
+          enum: ['mcq', 'fill-in'],
+          description: 'Type of quiz: multiple choice or fill-in-the-blank',
         },
-        required: ['quiz_type', 'question', 'correct_answer'],
+        question: {
+          type: 'string',
+          description: 'The quiz question',
+        },
+        options: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Answer options for MCQ (3-4 options, one correct)',
+        },
+        correct_answer: {
+          type: 'string',
+          description: 'The correct answer',
+        },
+        affected_pattern: {
+          type: 'string',
+          description: 'The grammar pattern being tested, if any',
+        },
       },
+      required: ['quiz_type', 'question', 'correct_answer'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'fetch_url',
-      description: 'Fetch and retrieve content from a URL. Use this to look up grammar explanations or language resources online when the learner asks about a specific topic.',
-      parameters: {
-        type: 'object',
-        properties: {
-          url: {
-            type: 'string',
-            description: 'The URL to fetch content from',
-          },
+    name: 'fetch_url',
+    description: 'Fetch and retrieve content from a URL. Use this to look up grammar explanations or language resources online when the learner asks about a specific topic.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'The URL to fetch content from',
         },
-        required: ['url'],
       },
+      required: ['url'],
     },
   },
   {
-    type: 'function',
-    function: {
-      name: 'get_media_stats',
-      description: 'Retrieve the learner\'s analytics and statistics for the media they are currently consuming. Returns failed words, grammar points, level percentages, and assessed difficulty.',
-      parameters: {
-        type: 'object',
-        properties: {},
-        required: [],
-      },
+    name: 'get_media_stats',
+    description: 'Retrieve the learner\'s analytics and statistics for the media they are currently consuming. Returns failed words, grammar points, level percentages, and assessed difficulty.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
     },
   },
 ];
-
-// ============================================================================
-// Inline Tool Call Parser
-// ============================================================================
-
-/**
- * Parse inline tool calls from LLM text output.
- * Many models (especially smaller ones) don't produce structured tool_calls in
- * the Ollama response. Instead they embed calls directly in the text, e.g.:
- *
- *   [correct_mistake original="test" correction="テスト"]
- *   [create_quiz quiz_type="mcq" question="..." options=["a","b","c"] correct_answer="a"]
- *
- * This parser extracts them, returning the cleaned text and parsed tool calls.
- */
-function parseInlineToolCalls(text: string): { cleanedText: string; toolCalls: ToolCall[] } {
-  const toolCalls: ToolCall[] = [];
-  const toolNames = ['correct_mistake', 'create_quiz', 'fetch_url', 'get_media_stats'];
-
-  // Build a pattern that matches [tool_name key="value" key="value" ...] or
-  // [tool_namekey="value"key="value"] (no spaces between name and keys)
-  // Also handles JSON-style values like options=["a","b"]
-  const toolPattern = new RegExp(
-    `\\[\\s*(${toolNames.join('|')})([^\\]]*?)\\]`,
-    'g',
-  );
-
-  const cleanedText = text.replace(toolPattern, (_match, name: string, argsStr: string) => {
-    const args: Record<string, unknown> = {};
-
-    // Parse key="value" or key='value' pairs
-    // Handle JSON array values like options=["a","b","c"]
-    const kvPattern = /(\w+)\s*=\s*(?:\[([^\]]*)\]|"([^"]*)"|'([^']*)'|(\S+))/g;
-    let kvMatch: RegExpExecArray | null;
-
-    while ((kvMatch = kvPattern.exec(argsStr)) !== null) {
-      const key = kvMatch[1];
-      if (kvMatch[2] !== undefined) {
-        // Array value: parse JSON-like ["a","b","c"]
-        try {
-          args[key] = JSON.parse(`[${kvMatch[2]}]`);
-        } catch {
-          args[key] = kvMatch[2];
-        }
-      } else {
-        args[key] = kvMatch[3] ?? kvMatch[4] ?? kvMatch[5];
-      }
-    }
-
-    // Map common key variants to the expected parameter names
-    const normalized: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(args)) {
-      const normalizedKey = k
-        .replace(/^original$/, 'error_span')
-        .replace(/^errorSpan$/, 'error_span')
-        .replace(/^errorType$/, 'error_type')
-        .replace(/^affectedPattern$/, 'affected_pattern')
-        .replace(/^quizType$/, 'quiz_type')
-        .replace(/^correctAnswer$/, 'correct_answer');
-      normalized[normalizedKey] = v;
-    }
-
-    toolCalls.push({
-      id: `tc_inline_${Date.now()}_${toolCalls.length}`,
-      name,
-      arguments: normalized,
-    });
-
-    return ''; // Remove the inline tool call from text
-  });
-
-  return { cleanedText: cleanedText.trim(), toolCalls };
-}
 
 // ============================================================================
 // Tool Execution
@@ -318,6 +313,8 @@ function executeTool(toolCall: ToolCall, deps: AgentDeps): ChatWidget | null {
         correction: (args.correction as string) || '',
         errorType: (args.error_type as 'grammar' | 'word' | 'typo' | 'other') || 'other',
         affectedPattern: args.affected_pattern as string | undefined,
+        contextBefore: args.context_before as string | undefined,
+        contextAfter: args.context_after as string | undefined,
       };
 
       // Track grammar failure
@@ -420,12 +417,21 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
 // Tokenization
 // ============================================================================
 
+const TOKENIZE_TIMEOUT_MS = 1500;
+
 async function tokenizeText(text: string, langCode: string): Promise<Token[]> {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TOKENIZE_TIMEOUT_MS);
+
   try {
     const response = await fetch(API_ENDPOINTS.tokenize, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, language: langCode }),
+      signal: controller.signal,
     });
 
     if (!response.ok) return [];
@@ -434,6 +440,8 @@ async function tokenizeText(text: string, langCode: string): Promise<Token[]> {
     return (data.tokens || data) as Token[];
   } catch {
     return [];
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -442,7 +450,7 @@ async function tokenizeText(text: string, langCode: string): Promise<Token[]> {
 // ============================================================================
 
 export function createConversationAgent(deps: AgentDeps): AgentInstance {
-  let conversationHistory: OllamaChatMessage[] = [];
+  let conversationHistory: LLMChatMessage[] = [];
   let aborted = false;
   let streamCleanup: (() => void) | null = null;
 
@@ -454,61 +462,66 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     aborted = true;
     streamCleanup?.();
     streamCleanup = null;
-    window.mLearnIPC?.ollamaChatStreamAbort();
+    window.mLearnIPC?.llmStreamAbort();
   }
 
   /**
-   * Process tool calls from the Ollama response.
+   * Process tool calls from the LLM response.
    * Widget-producing tools return a widget; response-producing tools
    * add their results to the conversation history and trigger a follow-up request.
    */
   async function handleToolCalls(
-    rawToolCalls: Array<{ function: { name: string; arguments: Record<string, unknown> } }>,
-    accumulatedContent: string,
+    toolCalls: ToolCall[],
+    visibleContent: string,
     callbacks: StreamCallbacks,
     language: string,
     langName: string,
+    streamStats?: StreamStats,
+    assistantSegmentContent = visibleContent,
   ): Promise<void> {
     let widget: ChatWidget | undefined;
-    const toolResponses: OllamaChatMessage[] = [];
+    const toolResponses: LLMChatMessage[] = [];
 
-    // Add the assistant message (with tool_calls and any text content) to history
-    const assistantMsg: OllamaChatMessage = {
+    // Add the assistant message to history
+    const assistantMsg: LLMChatMessage = {
       role: 'assistant',
-      content: accumulatedContent,
-      tool_calls: rawToolCalls,
+      content: assistantSegmentContent,
+      toolCalls,
     };
     conversationHistory.push(assistantMsg);
 
-    for (const tc of rawToolCalls) {
-      const parsed: ToolCall = {
-        id: `tc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        name: tc.function.name,
-        arguments: tc.function.arguments || {},
-      };
-
+    for (const tc of toolCalls) {
       // Try widget-producing tools first
-      const w = executeTool(parsed, deps);
+      const w = executeTool(tc, deps);
       if (w) {
         widget = w;
         callbacks.onToolCall(w);
-        // Add a tool response acknowledging the widget was created
-        toolResponses.push({
-          role: 'tool',
-          content: `Tool ${parsed.name} executed successfully.`,
-          tool_name: parsed.name,
-        });
       } else {
         // Response-producing tools (fetch_url, get_media_stats)
-        const result = await executeToolWithResponse(parsed, deps);
+        const result = await executeToolWithResponse(tc, deps);
         if (result !== null) {
           toolResponses.push({
-            role: 'tool',
+            role: 'tool' as const,
+            toolName: tc.name,
             content: result,
-            tool_name: parsed.name,
           });
         }
       }
+    }
+
+    // Widget-only tools do not need a second model pass.
+    // Finalize immediately to avoid replacing already-streamed content.
+    if (toolResponses.length === 0) {
+      tokenizeText(visibleContent, language).then((tokens) => {
+        if (aborted) return;
+        const finalTokens = tokens.length > 0 ? tokens : undefined;
+        callbacks.onDone(visibleContent, finalTokens, widget, streamStats);
+      }).catch(() => {
+        if (!aborted) {
+          callbacks.onDone(visibleContent, undefined, widget, streamStats);
+        }
+      });
+      return;
     }
 
     // Add tool responses to history
@@ -516,124 +529,129 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       conversationHistory.push(tr);
     }
 
-    // If we have tool responses that need a follow-up (response-producing tools),
-    // send another request so the model can incorporate the tool results
     if (aborted) return;
 
-    // Always do a follow-up after tool calls so the model can respond naturally
-    startStream(callbacks, language, langName, widget);
+    // For tools that return data (fetch_url/get_media_stats), do a follow-up pass.
+    // Keep the already streamed text visible and append follow-up text to it.
+    startStream(callbacks, language, langName, widget, visibleContent);
   }
 
   /**
-   * Start a streaming request to Ollama
+   * Start a streaming request through the unified LLM router
    */
   function startStream(
     callbacks: StreamCallbacks,
     language: string,
     langName: string,
     existingWidget?: ChatWidget,
+    contentPrefix = '',
   ): void {
+    const ipc = window.mLearnIPC;
+    if (!ipc) {
+      callbacks.onError('IPC not available');
+      return;
+    }
+
     const mediaCtx = deps.getMediaContext();
     const sceneCtx = deps.getSceneContext();
 
-    const systemMsg: OllamaChatMessage = {
+    const systemMsg: LLMChatMessage = {
       role: 'system',
       content: buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined),
     };
 
-    const ollamaMessages: OllamaChatMessage[] = [
+    const messages: LLMChatMessage[] = [
       systemMsg,
       ...conversationHistory,
     ];
 
     let accumulated = '';
-    let toolCalls: Array<{ function: { name: string; arguments: Record<string, unknown> } }> | undefined;
+    const collectedToolCalls: ToolCall[] = [];
     let widget = existingWidget;
     const requestStartTime = Date.now();
     let firstTokenTime = 0;
 
-    streamCleanup = window.mLearnIPC!.onOllamaChatStream((chunk) => {
+    streamCleanup = ipc.onLLMStreamChunk((chunk: LLMStreamChunk) => {
       if (aborted) return;
+
+      if (chunk.error) {
+        streamCleanup?.();
+        streamCleanup = null;
+        callbacks.onError(chunk.error);
+        return;
+      }
 
       if (chunk.content) {
         if (!firstTokenTime) firstTokenTime = Date.now();
         accumulated += chunk.content;
-        callbacks.onChunk(accumulated);
+        callbacks.onChunk(contentPrefix + accumulated);
       }
-      if (chunk.tool_calls) {
-        toolCalls = chunk.tool_calls as Array<{ function: { name: string; arguments: Record<string, unknown> } }>;
+
+      if (chunk.toolCalls) {
+        for (const tc of chunk.toolCalls) {
+          collectedToolCalls.push(tc);
+        }
       }
+
       if (chunk.done) {
         streamCleanup?.();
         streamCleanup = null;
 
         if (aborted) return;
 
-        // Build stream stats from Ollama response or local timing
+        // Build stream stats
         const doneTime = Date.now();
         const timeToFirstToken = firstTokenTime ? firstTokenTime - requestStartTime : doneTime - requestStartTime;
         const totalTime = doneTime - requestStartTime;
         let tokensPerSecond = 0;
-        if (chunk.eval_count && chunk.eval_duration) {
-          // eval_duration is in nanoseconds
-          tokensPerSecond = chunk.eval_count / (chunk.eval_duration / 1e9);
+        if (chunk.evalCount && chunk.evalDuration) {
+          tokensPerSecond = chunk.evalCount / (chunk.evalDuration / 1e9);
         }
         const streamStats: StreamStats = { timeToFirstToken, totalTime, tokensPerSecond };
 
-        // Handle structured tool calls
-        if (toolCalls && toolCalls.length > 0) {
-          handleToolCalls(toolCalls, accumulated, callbacks, language, langName).catch((err) => {
+        // Handle tool calls
+        if (collectedToolCalls.length === 0) {
+          const forcedToolCalls = inferExplicitToolCallsFromLastUserMessage(conversationHistory);
+          if (forcedToolCalls.length > 0) {
+            collectedToolCalls.push(...forcedToolCalls);
+          }
+        }
+
+        if (collectedToolCalls.length > 0) {
+          const visibleContent = contentPrefix + accumulated;
+          handleToolCalls(
+            collectedToolCalls,
+            visibleContent,
+            callbacks,
+            language,
+            langName,
+            streamStats,
+            accumulated,
+          ).catch((err) => {
             callbacks.onError(`Tool execution failed: ${(err as Error).message}`);
           });
           return;
         }
 
-        // Parse inline tool calls from text (fallback for models that don't produce structured tool_calls)
-        if (!widget) {
-          const { cleanedText, toolCalls: inlineToolCalls } = parseInlineToolCalls(accumulated);
-          if (inlineToolCalls.length > 0) {
-            accumulated = cleanedText;
-            callbacks.onChunk(accumulated);
-            for (const tc of inlineToolCalls) {
-              const w = executeTool(tc, deps);
-              if (w) {
-                widget = w;
-                callbacks.onToolCall(w);
-              }
-            }
-            // Handle response-producing inline tools
-            (async () => {
-              for (const tc of inlineToolCalls) {
-                const result = await executeToolWithResponse(tc, deps);
-                if (result !== null) {
-                  conversationHistory.push({
-                    role: 'tool',
-                    content: result,
-                    tool_name: tc.name,
-                  });
-                }
-              }
-            })();
-          }
-        }
-
         // Add assistant response to history
         conversationHistory.push({ role: 'assistant', content: accumulated });
 
+        const finalVisibleContent = contentPrefix + accumulated;
+
         // Tokenize the response for interactive rendering
-        tokenizeText(accumulated, language).then((tokens) => {
+        tokenizeText(finalVisibleContent, language).then((tokens) => {
           if (aborted) return;
           const finalTokens = tokens.length > 0 ? tokens : undefined;
-          callbacks.onDone(accumulated, finalTokens, widget, streamStats);
+          callbacks.onDone(finalVisibleContent, finalTokens, widget, streamStats);
         }).catch(() => {
           if (!aborted) {
-            callbacks.onDone(accumulated, undefined, widget, streamStats);
+            callbacks.onDone(finalVisibleContent, undefined, widget, streamStats);
           }
         });
       }
     });
 
-    window.mLearnIPC!.ollamaChatStream(ollamaMessages, AGENT_TOOLS);
+    ipc.llmStream(messages, AGENT_TOOLS);
 
     // Timeout after 90 seconds
     setTimeout(() => {
@@ -642,10 +660,11 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
         streamCleanup = null;
         if (accumulated) {
           conversationHistory.push({ role: 'assistant', content: accumulated });
-          tokenizeText(accumulated, language).then((tokens) => {
-            callbacks.onDone(accumulated, tokens.length > 0 ? tokens : undefined, widget);
+          const finalVisibleContent = contentPrefix + accumulated;
+          tokenizeText(finalVisibleContent, language).then((tokens) => {
+            callbacks.onDone(finalVisibleContent, tokens.length > 0 ? tokens : undefined, widget);
           }).catch(() => {
-            callbacks.onDone(accumulated, undefined, widget);
+            callbacks.onDone(finalVisibleContent, undefined, widget);
           });
         } else {
           callbacks.onError('Response timed out');

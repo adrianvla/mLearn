@@ -5,7 +5,7 @@
 
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import type { OllamaModel, OllamaChatMessage, OllamaToolDefinition } from '../../shared/types';
+import type { OllamaModel, OllamaChatMessage, OllamaToolDefinition, LLMStreamChunk, LLMChatMessage, LLMToolDefinition } from '../../shared/types';
 import { loadSettings } from './settings';
 import http from 'http';
 import https from 'https';
@@ -272,6 +272,241 @@ async function checkConnection(): Promise<boolean> {
 }
 
 /**
+ * Pull (download) a model from the Ollama registry with progress streaming
+ */
+function pullModel(sender: Electron.WebContents, modelName: string): void {
+  const settings = loadSettings();
+  const baseUrl = settings.ollamaUrl || 'http://localhost:11434';
+  const url = `${baseUrl}/api/pull`;
+
+  const { hostname, port, protocol, path } = parseUrl(url);
+  const lib = protocol === 'https:' ? https : http;
+
+  const body = { name: modelName, stream: true };
+
+  const options: http.RequestOptions = {
+    hostname,
+    port,
+    path,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  };
+
+  const req = lib.request(options, (res) => {
+    let buffer = '';
+
+    res.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const parsed = JSON.parse(line);
+          if (!sender.isDestroyed()) {
+            sender.send(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, parsed);
+          }
+        } catch { /* skip */ }
+      }
+    });
+
+    res.on('end', () => {
+      if (buffer.trim()) {
+        try {
+          const parsed = JSON.parse(buffer);
+          if (!sender.isDestroyed()) {
+            sender.send(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, parsed);
+          }
+        } catch { /* skip */ }
+      }
+      if (!sender.isDestroyed()) {
+        sender.send(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, { status: 'success' });
+      }
+    });
+
+    res.on('error', (err) => {
+      if (!sender.isDestroyed()) {
+        sender.send(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, { status: 'error', error: err.message });
+      }
+    });
+  });
+
+  req.on('error', (err) => {
+    if (!sender.isDestroyed()) {
+      sender.send(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, { status: 'error', error: err.message });
+    }
+  });
+
+  req.write(JSON.stringify(body));
+  req.end();
+}
+
+/**
+ * Convert unified LLM messages to Ollama format
+ */
+function toOllamaMessages(messages: LLMChatMessage[]): OllamaChatMessage[] {
+  return messages.map(m => ({
+    role: m.role,
+    content: m.content,
+    tool_calls: m.toolCalls?.map(tc => ({
+      function: { name: tc.name, arguments: tc.arguments },
+    })),
+    tool_name: m.toolName,
+  }));
+}
+
+/**
+ * Convert unified tool definitions to Ollama format
+ */
+function toOllamaTools(tools: LLMToolDefinition[]): OllamaToolDefinition[] {
+  return tools.map(t => ({
+    type: 'function' as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    },
+  }));
+}
+
+/**
+ * Stream an Ollama chat in unified LLM format, sending LLMStreamChunks
+ */
+function streamChatUnified(
+  sender: Electron.WebContents,
+  messages: LLMChatMessage[],
+  tools: LLMToolDefinition[],
+): void {
+  const settings = loadSettings();
+  const baseUrl = settings.ollamaUrl || 'http://localhost:11434';
+  const model = settings.ollamaModel || 'qwen3:4b';
+  const url = `${baseUrl}/api/chat`;
+
+  const { hostname, port, protocol, path } = parseUrl(url);
+  const lib = protocol === 'https:' ? https : http;
+
+  const ollamaMessages = toOllamaMessages(messages);
+  const ollamaTools = tools.length > 0 ? toOllamaTools(tools) : undefined;
+
+  const body: Record<string, unknown> = {
+    model,
+    messages: ollamaMessages,
+    stream: true,
+  };
+  if (ollamaTools) {
+    body.tools = ollamaTools;
+  }
+
+  const options: http.RequestOptions = {
+    hostname,
+    port,
+    path,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  };
+
+  const req = lib.request(options, (res) => {
+    let buffer = '';
+    let doneSent = false;
+
+    res.on('data', (rawChunk: Buffer) => {
+      buffer += rawChunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const parsed = JSON.parse(line);
+          const chunk: LLMStreamChunk = {};
+
+          if (parsed.message?.content) {
+            chunk.content = parsed.message.content;
+          }
+          if (parsed.message?.tool_calls) {
+            chunk.toolCalls = parsed.message.tool_calls.map(
+              (tc: { function: { name: string; arguments: Record<string, unknown> } }, i: number) => ({
+                id: `call_${Date.now()}_${i}`,
+                name: tc.function.name,
+                arguments: tc.function.arguments,
+              })
+            );
+          }
+          if (parsed.done) {
+            chunk.done = true;
+            doneSent = true;
+            if (parsed.eval_count != null) chunk.evalCount = parsed.eval_count;
+            if (parsed.eval_duration != null) chunk.evalDuration = parsed.eval_duration;
+            if (parsed.prompt_eval_duration != null) chunk.promptEvalDuration = parsed.prompt_eval_duration;
+            if (parsed.total_duration != null) chunk.totalDuration = parsed.total_duration;
+          }
+
+          if (!sender.isDestroyed()) {
+            sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
+          }
+        } catch { /* skip */ }
+      }
+    });
+
+    res.on('end', () => {
+      activeStreamRequests.delete(sender.id);
+      if (buffer.trim()) {
+        try {
+          const parsed = JSON.parse(buffer);
+          const chunk: LLMStreamChunk = {
+            content: parsed.message?.content || '',
+            done: true,
+          };
+          if (parsed.message?.tool_calls) {
+            chunk.toolCalls = parsed.message.tool_calls.map(
+              (tc: { function: { name: string; arguments: Record<string, unknown> } }, i: number) => ({
+                id: `call_${Date.now()}_${i}`,
+                name: tc.function.name,
+                arguments: tc.function.arguments,
+              })
+            );
+          }
+          if (!sender.isDestroyed()) {
+            sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
+          }
+        } catch {
+          if (!doneSent && !sender.isDestroyed()) {
+            sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, { done: true } as LLMStreamChunk);
+          }
+        }
+      } else if (!doneSent && !sender.isDestroyed()) {
+        sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, { done: true } as LLMStreamChunk);
+      }
+    });
+
+    res.on('error', (err) => {
+      activeStreamRequests.delete(sender.id);
+      if (!sender.isDestroyed()) {
+        sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, {
+          error: err.message,
+          done: true,
+        } as LLMStreamChunk);
+      }
+    });
+  });
+
+  req.on('error', (err) => {
+    activeStreamRequests.delete(sender.id);
+    if (!sender.isDestroyed()) {
+      sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, {
+        error: err.message,
+        done: true,
+      } as LLMStreamChunk);
+    }
+  });
+
+  activeStreamRequests.set(sender.id, req);
+  req.write(JSON.stringify(body));
+  req.end();
+}
+
+/**
  * Register IPC handlers for Ollama
  */
 export function setupOllamaIPC(): void {
@@ -297,10 +532,11 @@ export function setupOllamaIPC(): void {
     abortStream(_event.sender.id);
   });
 
-  // List models
+  // List models (return name strings only)
   ipcMain.handle(IPC_CHANNELS.OLLAMA_LIST_MODELS, async () => {
     try {
-      return await listModels();
+      const models = await listModels();
+      return models.map(m => m.name);
     } catch {
       return [];
     }
@@ -320,4 +556,27 @@ export function setupOllamaIPC(): void {
       return { content: '', error: (err as Error).message };
     }
   });
+
+  // Pull model
+  ipcMain.on(IPC_CHANNELS.OLLAMA_PULL_MODEL, (event: IpcMainEvent, modelName: string) => {
+    pullModel(event.sender, modelName);
+  });
+}
+
+/**
+ * Stream chat in unified LLM format via Ollama (called by the unified LLM router)
+ */
+export function ollamaStreamChatUnified(
+  sender: Electron.WebContents,
+  messages: LLMChatMessage[],
+  tools: LLMToolDefinition[],
+): void {
+  streamChatUnified(sender, messages, tools);
+}
+
+/**
+ * Abort an active Ollama stream (called by the unified LLM router)
+ */
+export function ollamaAbortStream(senderId: number): void {
+  abortStream(senderId);
 }
