@@ -3,7 +3,7 @@
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload } from './types';
+import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats } from './types';
 
 export interface MLearnIPC {
   // Settings
@@ -134,9 +134,37 @@ export interface MLearnIPC {
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
   removeListener: (channel: string, callback: (...args: unknown[]) => void) => void;
   
+  // Media Stats
+  saveMediaStats: (mediaHash: string, stats: MediaStats) => void;
+  getMediaStats: (mediaHash: string) => void;
+  onMediaStats: (callback: (stats: MediaStats | null) => void) => () => void;
+  listMediaStats: () => void;
+  onMediaStatsList: (callback: (stats: MediaStats[]) => void) => () => void;
+
+  // Ollama
+  ollamaChat: (messages: unknown[], tools?: unknown[]) => void;
+  ollamaChatStream: (messages: unknown[], tools?: unknown[]) => void;
+  ollamaChatStreamAbort: () => void;
+  onOllamaChatStream: (callback: (chunk: { content?: string; done?: boolean; tool_calls?: unknown[]; eval_count?: number; eval_duration?: number; prompt_eval_duration?: number; total_duration?: number }) => void) => () => void;
+  ollamaListModels: () => Promise<unknown[]>;
+  ollamaCheck: () => Promise<boolean>;
+
+  // Speech
+  sttStart: (language: string) => void;
+  sttStop: () => void;
+  onSttResult: (callback: (result: { transcript: string; isFinal: boolean }) => void) => () => void;
+  ttsSpeak: (text: string, language: string) => void;
+  ttsStop: () => void;
+  onTtsStatus: (callback: (status: { speaking: boolean; progress: number }) => void) => () => void;
+
+  // URL Fetch
+  fetchUrl: (url: string) => Promise<{ content: string; error?: string }>;
+
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
+  getWindowContext: (windowType: string) => void;
+  onWindowContext: (callback: (context: Record<string, unknown> | null) => void) => (() => void) | undefined;
 }
 
 interface ImportMetaEnv {

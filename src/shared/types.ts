@@ -153,6 +153,28 @@ export interface Settings {
   // Stats
   timeWatched: number;
 
+  // Passive word knowledge
+  /** Enable passive ease adjustments from seeing/hovering words */
+  passiveEaseEnabled: boolean;
+  /** Delay in ms before a hover counts as a failed word event (default 1000) */
+  passiveHoverDelayMs: number;
+
+  // LLM provider settings
+  /** LLM provider: built-in Python backend or Ollama */
+  llmProvider: 'builtin' | 'ollama';
+  /** Ollama server URL */
+  ollamaUrl: string;
+  /** Ollama model name */
+  ollamaModel: string;
+
+  // Speech settings
+  /** Enable speech I/O features */
+  speechEnabled: boolean;
+  /** Automatically read assistant responses aloud */
+  autoSpeak: boolean;
+  /** STT language override (auto-detected from learning language by default) */
+  sttLanguage: string;
+
   // First-run tracking
   hasCompletedSetup?: boolean;
 }
@@ -216,6 +238,14 @@ export const DEFAULT_SETTINGS: Settings = {
   anki_field_reading: 'Reading',
   anki_field_meaning: 'Meaning',
   anki_model_name: 'Basic',
+  passiveEaseEnabled: true,
+  passiveHoverDelayMs: 1000,
+  llmProvider: 'builtin',
+  ollamaUrl: 'http://localhost:11434',
+  ollamaModel: 'llama3.2',
+  speechEnabled: false,
+  autoSpeak: false,
+  sttLanguage: '',
 };
 
 // ============================================================================
@@ -226,6 +256,15 @@ export interface FrequencyLevelNames {
   [level: string]: string;
 }
 
+export interface GrammarPoint {
+  /** The grammar pattern text */
+  pattern: string;
+  /** Meaning/explanation of the grammar point */
+  meaning: string;
+  /** Numeric difficulty level (same scale as frequency levels) */
+  level: number;
+}
+
 export interface LanguageData {
   name: string;
   name_translated?: string;
@@ -234,12 +273,20 @@ export interface LanguageData {
   fixed_settings: Partial<Settings>;
   freq?: [string, string][];
   freq_level_names?: FrequencyLevelNames;
+  /** Grammar points for this language */
+  grammar?: GrammarPoint[];
+  /** Level names for grammar (e.g., {"5": "JLPT N5", ...}) — reuses FrequencyLevelNames */
+  grammar_level_names?: FrequencyLevelNames;
+  /** Whether this language has grammar point data */
+  hasGrammar?: boolean;
   /** Whether this language offers the OCR Ram Saver toggle (lightweight detection) */
   hasOcrRamSaver?: boolean;
   /** Whether this language can be written vertically (e.g. CJK vertical text) */
   supportsVerticalText?: boolean;
   /** Whether this language has furigana-like reading annotations alongside text (e.g. Japanese) */
   hasFurigana?: boolean;
+  /** Whether this language uses CJK-style parentheses for character names (e.g. （角色名）) */
+  usesCJKParentheses?: boolean;
 }
 
 export interface LanguageDataMap {
@@ -490,6 +537,10 @@ export interface FlashcardStore {
   wordStatsMap: Record<string, WordStats>;
   /** Words marked as known but not tracked as flashcards (word hash -> true) */
   knownUntracked: Record<string, boolean>;
+  /** Unified passive word knowledge (word hash -> PassiveWordKnowledge) */
+  wordKnowledge: Record<string, PassiveWordKnowledge>;
+  /** Grammar knowledge tracking (pattern -> GrammarKnowledgeEntry) */
+  grammarKnowledge: Record<string, GrammarKnowledgeEntry>;
   /** Store metadata */
   meta: FlashcardMeta;
   /** Daily study statistics (keyed by date string YYYY-MM-DD) */
@@ -526,11 +577,44 @@ export interface Subtitle {
 // Word Knowledge Types
 // ============================================================================
 
+/** @deprecated Use PassiveWordKnowledge for unified system */
 export interface WordKnowledge {
   status: WordStatus;
   ease: number;
   lastSeen?: string;
   appearances: number;
+}
+
+/** Unified passive word knowledge tracked in FlashcardStore */
+export interface PassiveWordKnowledge {
+  /** Ease factor 0–5, default 2.5. Lower = less known */
+  ease: number;
+  /** Timestamp of last encounter */
+  lastSeen: number;
+  /** Total times word was displayed on screen */
+  timesSeen: number;
+  /** Times user hovered for 1s+ (signals unknown) */
+  timesHovered: number;
+  /** The word text */
+  word: string;
+  /** Reading/pronunciation if available */
+  reading?: string;
+}
+
+/** Grammar knowledge entry tracked in FlashcardStore */
+export interface GrammarKnowledgeEntry {
+  /** The grammar pattern */
+  pattern: string;
+  /** Ease factor 0–5, default 2.5 */
+  ease: number;
+  /** Times the pattern was passively encountered */
+  timesEncountered: number;
+  /** Times user needed help (explainer, copy) */
+  timesFailed: number;
+  /** Timestamp of last encounter */
+  lastSeen: number;
+  /** Difficulty level from language data */
+  level: number;
 }
 
 export interface WordFrequencyEntry {
@@ -585,6 +669,8 @@ export interface WindowSize {
 export interface OpenWindowPayload {
   type: WindowType;
   options?: Partial<Electron.BrowserWindowConstructorOptions>;
+  /** Context data to pass to the new window */
+  context?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -674,4 +760,197 @@ export interface PipRequirementsConfig {
   core: string[];
   ocr: string[];
   llm: string[];
+}
+
+// ============================================================================
+// Media Statistics Types
+// ============================================================================
+
+export interface MediaStatsWordEntry {
+  word: string;
+  ease: number;
+  timesSeen: number;
+  timesHovered: number;
+}
+
+export interface MediaStatsGrammarEntry {
+  pattern: string;
+  ease: number;
+  timesFailed: number;
+}
+
+export interface MediaSession {
+  date: string;
+  duration: number;
+  wordsLearned: number;
+}
+
+export interface MediaStats {
+  mediaHash: string;
+  mediaName: string;
+  mediaType: 'video' | 'book';
+  language: string;
+  wordsEncountered: Record<string, MediaStatsWordEntry>;
+  grammarEncountered: Record<string, MediaStatsGrammarEntry>;
+  assessedLevel: number | null;
+  sessions: MediaSession[];
+  totalTimeSpent: number;
+  lastAccessed: number;
+  /** Cached OCR results per page for books */
+  ocrCache?: Record<number, Token[]>;
+}
+
+// ============================================================================
+// Conversation Agent Types
+// ============================================================================
+
+export type ConversationRole = 'system' | 'user' | 'assistant' | 'tool';
+
+export interface ConversationMessage {
+  role: ConversationRole;
+  content: string;
+  /** Tool call results or tool invocations */
+  toolCalls?: ToolCall[];
+  toolCallId?: string;
+  /** Tokenized content for interactive rendering */
+  tokens?: Token[];
+  /** Timestamp */
+  timestamp: number;
+  /** Rendered widget data (quiz, mistake, etc.) */
+  widget?: ChatWidget;
+  /** Inline corrections applied to user messages by the AI tutor */
+  corrections?: MistakeWidgetData[];
+  /** Generation timing stats (assistant messages only) */
+  streamStats?: StreamStats;
+}
+
+/** Performance stats from the LLM streaming response */
+export interface StreamStats {
+  /** Time from request sent to first token (ms) */
+  timeToFirstToken: number;
+  /** Total generation time (ms) */
+  totalTime: number;
+  /** Tokens per second */
+  tokensPerSecond: number;
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+export type ChatWidgetType = 'quiz' | 'mistake' | 'url-fetch' | 'stats';
+
+export interface ChatWidget {
+  type: ChatWidgetType;
+  data: Record<string, unknown>;
+  /** Whether the user has interacted with this widget */
+  resolved?: boolean;
+}
+
+export interface QuizWidgetData {
+  type: 'mcq' | 'fill-in';
+  question: string;
+  options?: string[];
+  correctAnswer: string;
+  userAnswer?: string;
+  isCorrect?: boolean;
+}
+
+export interface MistakeWidgetData {
+  userMessageIndex: number;
+  errorSpan: string;
+  correction: string;
+  errorType: 'grammar' | 'word' | 'typo' | 'other';
+  affectedPattern?: string;
+}
+
+// ============================================================================
+// Ollama Types
+// ============================================================================
+
+export interface OllamaModel {
+  name: string;
+  size: number;
+  modified_at: string;
+}
+
+export interface OllamaChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  /** Tool calls made by the assistant (Ollama format) */
+  tool_calls?: Array<{ function: { name: string; arguments: Record<string, unknown> } }>;
+  /** Name of the tool that produced this message (for role: 'tool') */
+  tool_name?: string;
+}
+
+export interface OllamaToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+// ============================================================================
+// Speech Types
+// ============================================================================
+
+// ============================================================================
+// Conversation Agent Context Types
+// ============================================================================
+
+/** Context passed to the conversation agent window when opened from a media route */
+export interface ConversationAgentContext {
+  mediaName: string;
+  mediaType: 'video' | 'book';
+  mediaHash: string;
+  assessedLevel: number | null;
+  assessedLevelName: string;
+  language: string;
+  failedWords: MediaStatsWordEntry[];
+  failedGrammar: MediaStatsGrammarEntry[];
+  wordLevelPercentages: LevelPercentages;
+  grammarLevelPercentages: LevelPercentages;
+  characterContext?: string;
+  subtitleHistory?: string[];
+}
+
+/** Level distribution data for analytics display */
+export interface LevelPercentageEntry {
+  level: number;
+  levelName: string;
+  /** Percentage by unique items */
+  uniquePercent: number;
+  /** Percentage by occurrence count */
+  occurrencePercent: number;
+  /** Count of unique items at this level */
+  uniqueCount: number;
+  /** Total occurrences at this level */
+  occurrenceCount: number;
+}
+
+export interface LevelPercentages {
+  entries: LevelPercentageEntry[];
+  totalUnique: number;
+  totalOccurrences: number;
+}
+
+export interface SpeechModelInfo {
+  language: string;
+  modelPath: string;
+  downloaded: boolean;
+  size: number;
+}
+
+export interface STTResult {
+  transcript: string;
+  isFinal: boolean;
+}
+
+export interface TTSStatus {
+  speaking: boolean;
+  progress: number;
 }

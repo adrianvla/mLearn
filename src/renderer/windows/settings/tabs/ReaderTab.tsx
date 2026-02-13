@@ -283,6 +283,80 @@ export const ReaderTab: Component = () => {
             onChange={(checked) => updateSettings({ llmEnabled: checked })}
           />
         </SettingRow>
+
+        <SettingRow
+          label="LLM Provider"
+          description="Use the built-in Python LLM or connect to a local Ollama instance"
+        >
+          <select
+            class="setting-select"
+            value={settings.llmProvider}
+            onChange={(e) => updateSettings({ llmProvider: e.currentTarget.value as 'builtin' | 'ollama' })}
+          >
+            <option value="builtin">Built-in</option>
+            <option value="ollama">Ollama</option>
+          </select>
+        </SettingRow>
+
+        <Show when={settings.llmProvider === 'ollama'}>
+          <SettingRow
+            label="Ollama URL"
+            description="URL of the local Ollama server"
+          >
+            <input
+              type="text"
+              class="setting-input"
+              value={settings.ollamaUrl}
+              onChange={(e) => updateSettings({ ollamaUrl: e.currentTarget.value })}
+              placeholder="http://localhost:11434"
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="Ollama Model"
+            description="Model name to use for chat and explanations"
+          >
+            <input
+              type="text"
+              class="setting-input"
+              value={settings.ollamaModel}
+              onChange={(e) => updateSettings({ ollamaModel: e.currentTarget.value })}
+              placeholder="llama3.2"
+            />
+          </SettingRow>
+        </Show>
+
+        <SettingRow
+          label="Passive Word Tracking"
+          description="Automatically track word familiarity from reading and hovering"
+        >
+          <ToggleSwitch
+            checked={settings.passiveEaseEnabled}
+            onChange={(checked) => updateSettings({ passiveEaseEnabled: checked })}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label="Speech (Experimental)"
+          description="Enable text-to-speech for AI responses and speech-to-text input"
+        >
+          <ToggleSwitch
+            checked={settings.speechEnabled}
+            onChange={(checked) => updateSettings({ speechEnabled: checked })}
+          />
+        </SettingRow>
+
+        <Show when={settings.speechEnabled}>
+          <SettingRow
+            label="Auto-speak Responses"
+            description="Automatically read AI tutor responses aloud"
+          >
+            <ToggleSwitch
+              checked={settings.autoSpeak}
+              onChange={(checked) => updateSettings({ autoSpeak: checked })}
+            />
+          </SettingRow>
+        </Show>
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Reader.Tips.Title')}>

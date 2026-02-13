@@ -1,0 +1,753 @@
+/* Conversation Agent Window Styles */
+
+.conversation-agent {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* Header */
+.ca-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-1);
+  border-bottom: 1px solid var(--border-color);
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+.ca-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ca-header-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ca-header-actions {
+  display: flex;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+/* Chat panel — fills remaining space below tabs, contains its own scroll */
+.ca-chat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Messages area — scrollable */
+.ca-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  scroll-behavior: smooth;
+  min-height: 0;
+}
+
+.ca-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ca-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ca-messages::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+/* Empty state positioning inside messages */
+.ca-empty {
+  flex: 1;
+  display: flex;
+}
+
+/* ============ Chat Bubble ============ */
+
+.chat-bubble {
+  max-width: 85%;
+  animation: bubbleIn 0.2s ease-out both;
+}
+
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-bubble.user {
+  align-self: flex-end;
+}
+
+.chat-bubble.assistant {
+  align-self: flex-start;
+}
+
+.chat-bubble.system {
+  align-self: center;
+  max-width: 90%;
+}
+
+.chat-bubble-content {
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.chat-bubble.user .chat-bubble-content {
+  background: var(--color-accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-bubble.assistant .chat-bubble-content {
+  background: var(--bg-intense);
+  border: 1px solid var(--border-color);
+  border-bottom-left-radius: 4px;
+}
+
+.chat-bubble.system .chat-bubble-content {
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-align: center;
+  padding: 6px 12px;
+}
+
+/* ============ Tokenized text in bubbles ============ */
+
+.chat-token {
+  cursor: pointer;
+  transition: background 0.1s;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.chat-token:hover {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+.chat-bubble.user .chat-token:hover {
+  background: color-mix(in srgb, #fff 20%, transparent);
+}
+
+.chat-token.unknown {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--color-warning);
+}
+
+/* ============ Blinking cursor (waiting for first token) ============ */
+
+.chat-bubble-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--color-accent);
+  vertical-align: text-bottom;
+  animation: cursorBlink 0.8s step-end infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ============ Inline Correction (user bubble) ============ */
+
+.chat-correction-group {
+  display: inline;
+}
+
+.chat-correction-original {
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--color-danger);
+  text-underline-offset: 3px;
+}
+
+.chat-correction-replacement {
+  color: var(--color-success);
+  font-size: 0.85em;
+  margin-left: 2px;
+}
+
+/* Adjust correction colors inside user bubble (white text on accent bg) */
+.chat-bubble.user .chat-correction-original {
+  text-decoration-color: color-mix(in srgb, var(--color-danger) 80%, #fff);
+}
+
+.chat-bubble.user .chat-correction-replacement {
+  color: var(--color-success-lighter);
+}
+
+/* Chat timestamp */
+.chat-bubble-time {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  padding: 0 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  cursor: default;
+}
+
+.chat-bubble.user .chat-bubble-time {
+  justify-content: flex-end;
+}
+
+.chat-bubble-debug-stats {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+  animation: bubbleIn 0.15s ease-out both;
+}
+
+/* ============ Widget container ============ */
+
+.chat-widget {
+  margin-top: 8px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ============ Quiz widget ============ */
+
+.quiz-widget {
+  background: var(--bg-intense);
+  border: 1px solid var(--border-color);
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.quiz-question {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quiz-options .quiz-option {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.quiz-result {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.quiz-result-correct {
+  color: var(--color-success);
+}
+
+.quiz-result-incorrect {
+  color: var(--color-danger);
+}
+
+/* ============ Input area — fixed at bottom ============ */
+
+.ca-input-area {
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+/* Scene context */
+.ca-scene-context-section {
+  margin-bottom: 8px;
+}
+
+.ca-scene-context-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ca-scene-context-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.ca-scene-context-toggle.active {
+  color: var(--color-accent);
+}
+
+.ca-scene-context-icon {
+  font-size: 14px;
+}
+
+.ca-scene-context-badge {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.ca-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.ca-input-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+.ca-textarea {
+  width: 100%;
+  background: var(--bg-intense);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--text-primary);
+  resize: none;
+  outline: none;
+  font-family: inherit;
+  line-height: 1.5;
+  max-height: 120px;
+  min-height: 40px;
+}
+
+.ca-textarea:focus {
+  border-color: var(--color-accent);
+}
+
+.ca-textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+.ca-send-btn {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.ca-send-btn:hover {
+  opacity: 0.85;
+}
+
+.ca-send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ca-send-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============ Speech button ============ */
+
+.ca-mic-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.ca-mic-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.ca-mic-btn.recording {
+  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 30%, transparent); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+
+.ca-mic-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============ TTS speaking indicator ============ */
+
+.ca-tts-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--color-accent);
+  padding: 4px 0;
+}
+
+.ca-tts-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.ca-tts-bar {
+  width: 3px;
+  background: var(--color-accent);
+  border-radius: 1px;
+  animation: ttsBar 0.6s ease-in-out infinite;
+}
+
+.ca-tts-bar:nth-child(1) { height: 40%; animation-delay: 0s; }
+.ca-tts-bar:nth-child(2) { height: 70%; animation-delay: 0.1s; }
+.ca-tts-bar:nth-child(3) { height: 50%; animation-delay: 0.2s; }
+.ca-tts-bar:nth-child(4) { height: 80%; animation-delay: 0.3s; }
+
+@keyframes ttsBar {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.4); }
+}
+
+/* ============ Stats Tab ============ */
+
+.ca-stats-tab {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.ca-stats-media-picker {
+  margin-bottom: 12px;
+}
+
+.ca-stats-media-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ca-stats-media-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ca-stats-level-badge {
+  flex-shrink: 0;
+}
+
+.ca-stats-content {
+  min-height: 0;
+}
+
+.ca-stats-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 16px 0 8px;
+}
+
+.ca-stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ca-stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--bg-intense);
+}
+
+.ca-stats-row:hover {
+  background: var(--bg);
+}
+
+.ca-stats-word {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.ca-stats-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.ca-stats-ease {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============ Level Bars ============ */
+
+.ca-level-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ca-level-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ca-level-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 70px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ca-level-bar-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ca-level-bar-track {
+  height: 8px;
+  background: var(--bg-intense);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ca-level-bar-track.occurrence {
+  height: 5px;
+}
+
+.ca-level-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.ca-level-bar-fill.unique {
+  background: var(--accent);
+}
+
+.ca-level-bar-fill.occurrence {
+  background: var(--color-warning);
+  opacity: 0.7;
+}
+
+.ca-level-percent {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 60px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ca-level-percent-occ {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.ca-level-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  justify-content: center;
+}
+
+.ca-level-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.ca-level-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.ca-level-dot.unique {
+  background: var(--accent);
+}
+
+.ca-level-dot.occurrence {
+  background: var(--color-warning);
+}
+
+/* ============ Connection Tab ============ */
+
+.ca-connection-tab {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ca-conn-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ca-conn-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.ca-conn-models-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ca-conn-models-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ca-conn-model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* ============ Stop / Abort Button ============ */
+
+.ca-stop-btn {
+  background: var(--color-danger);
+}
+
+.ca-stop-btn:hover {
+  opacity: 0.85;
+}
+
+/* ============ Status Bar — fixed at bottom ============ */
+
+.ca-statusbar {
+  display: flex;
+  align-items: center;
+  padding: 4px 20px;
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.ca-statusbar .hover-trigger-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.ca-statusbar .hover-trigger-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.ca-statusbar .hover-trigger-select {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 2px 6px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s;
+  box-sizing: border-box;
+}
+
+.ca-statusbar .hover-trigger-select:hover {
+  border-color: var(--border-color);
+  background: var(--bg);
+}
+
+/* ============ Failed Words Visual Treatment ============ */
+
+.ca-stats-row.failed-word {
+  opacity: 0.85;
+}
+
+.ca-stats-row.failed-word .ca-stats-word {
+  color: var(--color-warning);
+}
+
+.ca-stats-row.failed-word.severe {
+  opacity: 0.7;
+}
+
+.ca-stats-row.failed-word.severe .ca-stats-word {
+  color: var(--color-danger);
+}

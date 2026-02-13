@@ -139,10 +139,12 @@
         "OrClickToBrowse": "Or click below to browse",
         "OpenVideo": "Open Video",
         "OpenSubtitles": "Open Subtitles",
-        "GoHome": "← Home"
+        "GoHome": "← Home",
+        "OpenConversationAgent": "🤖 AI Tutor"
       },
       "Tooltip": {
-        "GoHome": "Go back to home"
+        "GoHome": "Go back to home",
+        "OpenConversationAgent": "Open AI conversation tutor"
       }
     },
     "SubtitleSync": {
@@ -203,6 +205,8 @@
       "StatusBar": {
         "ShowTooltipOn": "Show Tooltip On:",
         "TriggerTitle": "How word hover is triggered",
+        "OpenConversationAgent": "AI Tutor",
+        "OpenConversationAgentTitle": "Open AI conversation tutor",
         "TriggerHover": "Hover",
         "TriggerLongHover": "Long Hover",
         "TriggerKeyHover": "{key} + Hover",
@@ -964,7 +968,8 @@
       },
       "Actions": {
         "ViewKanjiGrid": "📊 View Kanji Grid",
-        "EditWordDatabase": "📝 Edit Word Database"
+        "EditWordDatabase": "📝 Edit Word Database",
+        "OpenAiAnalytics": "🤖 AI Media Analytics"
       }
     },
     "About": {
@@ -1120,6 +1125,116 @@
       "InvalidLanguage": "Invalid language",
       "FailedToLoad": "Failed to load",
       "NetworkError": "Network error"
+    },
+    "ConversationAgent": {
+      "Title": "Conversation Agent",
+      "ModelLabel": "Model",
+      "Connected": "Connected",
+      "Disconnected": "Disconnected",
+      "ExperimentalBanner": "Experimental — AI responses may contain errors. Verify important language points.",
+      "EmptyTitle": "Start a conversation",
+      "EmptyDescription": "Practice your target language with the AI tutor. It will correct mistakes, quiz you, and help you learn.",
+      "Placeholder": "Message in target language...",
+      "Speaking": "Speaking...",
+      "StopRecording": "Stop recording",
+      "StartRecording": "Start recording",
+      "Send": "Send message",
+      "Clear": "Clear conversation",
+      "ClearConversation": "Clear conversation",
+      "Tab": {
+        "Chat": "Chat",
+        "Stats": "Stats",
+        "Connection": "Connection"
+      },
+      "Connection": {
+        "Title": "LLM Connection",
+        "Hint": "Configure the connection to your LLM provider.",
+        "ServerUrl": "Server URL",
+        "ServerUrlHint": "The base URL of the LLM server (e.g. Ollama, LM Studio, or any OpenAI-compatible endpoint).",
+        "Model": "Model",
+        "ModelHint": "The model identifier to use for chat completions.",
+        "TestConnection": "Test Connection",
+        "Testing": "Testing...",
+        "ConnectionSuccess": "Connected successfully",
+        "ConnectionFailed": "Connection failed",
+        "Save": "Save",
+        "Saved": "Saved",
+        "AvailableModels": "Available Models",
+        "NoModelsFound": "No models found on server",
+        "LoadingModels": "Loading models...",
+        "FetchModels": "Fetch models"
+      },
+      "Empty": {
+        "Title": "Start a conversation",
+        "Hint": "Practice your target language with the AI tutor. It will correct mistakes, quiz you, and help you learn."
+      },
+      "InputPlaceholder": "Message in target language...",
+      "Stats": {
+        "Overview": "Overview",
+        "FailedWords": "Failed Words",
+        "Grammar": "Grammar",
+        "Levels": "Levels",
+        "NoMedia": "No media stats saved yet",
+        "NoMediaHint": "Watch a video or read a book to see analytics here.",
+        "Current": "current",
+        "AssessedLevel": "Assessed Level",
+        "UnknownWords": "Unknown Words",
+        "FailedGrammarCount": "Failed Grammar",
+        "UniqueWords": "Unique Words",
+        "WordLevelDistribution": "Word Level Distribution",
+        "NoFailedWords": "No failed words yet — keep immersing!",
+        "Seen": "seen",
+        "Hovered": "hovered",
+        "Failed": "failed",
+        "NoFailedGrammar": "No failed grammar points yet.",
+        "WordLevels": "Word Levels",
+        "GrammarLevels": "Grammar Levels",
+        "NoLevelData": "Not enough data to compute level distribution.",
+        "Unique": "Unique",
+        "ByOccurrence": "By occurrence"
+      },
+      "SceneContext": "Scene context",
+      "SceneContextPlaceholder": "Describe what happened in the scene (e.g. character actions, plot points). Can be in any language.",
+      "StopStreaming": "Stop",
+      "ShowTooltipOn": "Show tooltip on:",
+      "TriggerHover": "Hover",
+      "TriggerLongHover": "Long hover",
+      "TriggerKeyHover": "{key} + Hover",
+      "Quiz": {
+        "FillInPlaceholder": "Type your answer...",
+        "Correct": "Correct!",
+        "IncorrectAnswer": "The answer is: {answer}"
+      },
+      "Mistake": {
+        "GrammarCorrection": "Grammar correction",
+        "Correction": "Correction",
+        "RelatedPattern": "Related pattern: {pattern}"
+      },
+      "Debug": {
+        "TokensPerSecond": "{value} tok/s",
+        "TimeToFirstToken": "TTFT: {value}ms",
+        "TotalTime": "Total: {value}ms"
+      }
+    },
+    "MediaStats": {
+      "Title": "Media Statistics",
+      "Difficulty": "Difficulty",
+      "TimeSpent": "Time Spent",
+      "Sessions": "Sessions",
+      "WordsSeen": "Words Seen",
+      "UnknownWords": "Unknown Words",
+      "GrammarPoints": "Grammar Points",
+      "ReviewWithAI": "Review with AI",
+      "NoWords": "No words encountered yet.",
+      "NoGrammar": "No grammar points detected yet.",
+      "AllKnown": "All words are known!",
+      "NotAssessed": "Not assessed",
+      "Tabs": {
+        "Summary": "Summary",
+        "Words": "Words",
+        "Grammar": "Grammar",
+        "Unknown": "Unknown"
+      }
     }
   }
 }

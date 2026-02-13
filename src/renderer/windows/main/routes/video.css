@@ -19,13 +19,34 @@
   transition:all var(--transition-slow);
   backdrop-filter: var(--backdrop-filter);
 }
+
+.conversation-agent-button {
+  position: absolute;
+  top: 0.5rem;
+  left: calc(100px + 7.5rem);
+  z-index: 100;
+  background: var(--bg);
+  color: var(--text-secondary);
+  transition: all var(--transition-slow);
+  backdrop-filter: var(--backdrop-filter);
+}
+
 body.hide-cursor .back-button {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.hide-cursor .conversation-agent-button {
   opacity: 0;
   pointer-events: none;
 }
 
 .back-button:hover {
   color:var(--text-primary);
+}
+
+.conversation-agent-button:hover {
+  color: var(--text-primary);
 }
 
 .drop-zone-container {

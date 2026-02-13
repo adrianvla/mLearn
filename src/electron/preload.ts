@@ -5,7 +5,7 @@
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats } from '../shared/types';
 
 /**
  * Type-safe IPC API exposed to renderer
@@ -90,6 +90,9 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.READER_CTX_MENU_COMMAND, (_event, command) => callback(command)),
   openWindow: (payload: OpenWindowPayload) => ipcRenderer.send(IPC_CHANNELS.OPEN_WINDOW, payload),
   closeWindow: () => ipcRenderer.send(IPC_CHANNELS.CLOSE_WINDOW),
+  getWindowContext: (windowType: string) => ipcRenderer.send(IPC_CHANNELS.GET_WINDOW_CONTEXT, windowType),
+  onWindowContext: (callback: (context: Record<string, unknown> | null) => void) =>
+    ipcOn(IPC_CHANNELS.WINDOW_CONTEXT, (_event, context) => callback(context)),
 
   // ========== App Lifecycle ==========
   restartApp: () => ipcRenderer.send(IPC_CHANNELS.RESTART_APP),
@@ -199,6 +202,42 @@ const mLearnIPC = {
   removeListener: (channel: string, callback: (...args: unknown[]) => void) => {
     ipcRenderer.removeListener(channel, callback);
   },
+
+  // ========== Media Stats ==========
+  saveMediaStats: (mediaHash: string, stats: MediaStats) =>
+    ipcRenderer.send(IPC_CHANNELS.SAVE_MEDIA_STATS, mediaHash, stats),
+  getMediaStats: (mediaHash: string) => ipcRenderer.send(IPC_CHANNELS.GET_MEDIA_STATS, mediaHash),
+  onMediaStats: (callback: (stats: MediaStats | null) => void) =>
+    ipcOn(IPC_CHANNELS.GET_MEDIA_STATS, (_event, stats) => callback(stats)),
+  listMediaStats: () => ipcRenderer.send(IPC_CHANNELS.LIST_MEDIA_STATS),
+  onMediaStatsList: (callback: (stats: MediaStats[]) => void) =>
+    ipcOn(IPC_CHANNELS.LIST_MEDIA_STATS, (_event, stats) => callback(stats)),
+
+  // ========== Ollama ==========
+  ollamaChat: (messages: unknown[], tools?: unknown[]) =>
+    ipcRenderer.send(IPC_CHANNELS.OLLAMA_CHAT, messages, tools),
+  ollamaChatStream: (messages: unknown[], tools?: unknown[]) =>
+    ipcRenderer.send(IPC_CHANNELS.OLLAMA_CHAT_STREAM, messages, tools),
+  ollamaChatStreamAbort: () =>
+    ipcRenderer.send(IPC_CHANNELS.OLLAMA_CHAT_STREAM_ABORT),
+  onOllamaChatStream: (callback: (chunk: { content?: string; done?: boolean; tool_calls?: unknown[]; eval_count?: number; eval_duration?: number; prompt_eval_duration?: number; total_duration?: number }) => void) =>
+    ipcOn(IPC_CHANNELS.OLLAMA_CHAT_STREAM, (_event, chunk) => callback(chunk)),
+  ollamaListModels: () => ipcRenderer.invoke(IPC_CHANNELS.OLLAMA_LIST_MODELS),
+  ollamaCheck: () => ipcRenderer.invoke(IPC_CHANNELS.OLLAMA_CHECK),
+
+  // ========== Speech ==========
+  sttStart: (language: string) => ipcRenderer.send(IPC_CHANNELS.STT_START, language),
+  sttStop: () => ipcRenderer.send(IPC_CHANNELS.STT_STOP),
+  onSttResult: (callback: (result: { transcript: string; isFinal: boolean }) => void) =>
+    ipcOn(IPC_CHANNELS.STT_RESULT, (_event, result) => callback(result)),
+  ttsSpeak: (text: string, language: string) => ipcRenderer.send(IPC_CHANNELS.TTS_SPEAK, text, language),
+  ttsStop: () => ipcRenderer.send(IPC_CHANNELS.TTS_STOP),
+  onTtsStatus: (callback: (status: { speaking: boolean; progress: number }) => void) =>
+    ipcOn(IPC_CHANNELS.TTS_STATUS, (_event, status) => callback(status)),
+
+  // ========== URL Fetch ==========
+  fetchUrl: (url: string): Promise<{ content: string; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FETCH_URL, url),
 };
 
 // Expose API to renderer

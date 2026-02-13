@@ -109,6 +109,17 @@ export async function hashWord(word: string): Promise<string> {
 }
 
 /**
+ * Synchronous word hash using djb2 (for paths where async is not viable)
+ */
+export function hashWordSync(word: string): string {
+    let hash = 5381;
+    for (let i = 0; i < word.length; i++) {
+        hash = ((hash << 5) + hash) ^ word.charCodeAt(i);
+    }
+    return 'djb2_' + Math.abs(hash).toString(16);
+}
+
+/**
  * Convert interval in milliseconds to human-readable string
  */
 export function intervalToString(intervalMs: number): string {

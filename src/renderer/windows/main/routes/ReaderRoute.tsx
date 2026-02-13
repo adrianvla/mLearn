@@ -9,16 +9,17 @@ import { useNavigate } from '@solidjs/router';
 import { OcrOverlay, MagnifyingGlass, type OcrResult } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
-import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation, getGlobalHoverManager } from '../../../hooks';
-import { useSettings, useLocalization } from '../../../context';
+import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats } from '../../../hooks';
+import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { parseKeybind } from '../../../components/common';
-import type { Token, TranslationResponse, DictionaryEntry } from '../../../../shared/types';
+import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext } from '../../../../shared/types';
 import { API_ENDPOINTS } from '../../../../shared/constants';
 import { ReaderNav, ReaderSidebar, ReaderWelcomeCard, ReaderStatusBar } from './components';
 import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages } from '../../../services/pdfService';
 import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumbnailService';
 import { parseWorkName } from '../../../utils/subtitleParsing';
+import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import './reader.css';
 
 interface PageImage {
@@ -93,9 +94,15 @@ export const ReaderRoute: Component = () => {
   const { isProcessing: _ocrHookProcessing } = useOCR();
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
+  const flashcardCtx = useFlashcards();
+  const langCtx = useLanguage();
+  const { detectGrammarInText, supportsGrammar } = langCtx;
   const { translateWord } = useTranslation({ immediate: true });
   const { lookup } = useDictionary();
   const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
+
+  // Media stats for this reader session
+  const mediaStats = useMediaStats({ mediaType: 'book', language: settings.language || 'ja' });
 
   const [pages, setPages] = createSignal<PageImage[]>([]);
   const [currentPage, setCurrentPage] = createSignal(0);
@@ -149,6 +156,12 @@ export const ReaderRoute: Component = () => {
 
   // Magnifying glass state
   const [magnifierActive, setMagnifierActive] = createSignal(false);
+
+  // Activate media stats when a book is loaded
+  createEffect(() => {
+    const title = bookTitle();
+    if (title) mediaStats.setMedia(title);
+  });
 
   // OCR debug overlay (dev mode only)
   const [ocrDebugOverlay, setOcrDebugOverlay] = createSignal(false);
@@ -1090,6 +1103,14 @@ export const ReaderRoute: Component = () => {
     setExplainerContext(context);
     setExplainerPosition(position);
     setExplainerOpen(true);
+
+    // Track grammar failure for the word being explained
+    if (supportsGrammar()) {
+      const detectedPatterns = detectGrammarInText([{ word, surface: word, actual_word: word } as Token]);
+      for (const pattern of detectedPatterns) {
+        flashcardCtx.trackGrammarFailed(pattern.pattern, pattern.level);
+      }
+    }
   };
 
   const handleCloseExplainer = () => {
@@ -1106,6 +1127,18 @@ export const ReaderRoute: Component = () => {
     // Use actual_word (dictionary form) for translation lookup, fallback to surface
     const lookupWord = token.actual_word ?? token.surface ?? token.word;
     const displayWord = token.surface ?? token.word;
+
+    // Track word encounter for passive knowledge
+    flashcardCtx.trackWordSeen(lookupWord, token.reading);
+
+    // Track grammar encounters in OCR context
+    if (supportsGrammar() && contextPhrase) {
+      // Detect grammar in the context phrase tokens (simplified single-token case)
+      const detectedPatterns = detectGrammarInText([token]);
+      for (const pattern of detectedPatterns) {
+        flashcardCtx.trackGrammarEncountered(pattern.pattern, pattern.level);
+      }
+    }
 
     // Store context phrase for LLM explain and flashcard example
     setOcrContextPhrase(contextPhrase);
@@ -1153,6 +1186,56 @@ export const ReaderRoute: Component = () => {
   const handleOcrWordLeave = () => hideOcrHover();
 
   const goHome = () => navigate('/');
+
+  const openConversationAgent = () => {
+    const s = mediaStats.stats();
+    const name = bookTitle();
+    const lang = settings.language || 'ja';
+
+    const freqLookup = { getFrequency: langCtx.getFrequency, getFreqLevelNames: langCtx.getFreqLevelNames };
+    const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
+    const wordLevels = computeWordLevelPercentages(s, freqLookup);
+    const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup);
+    const level = assessMediaLevel(wordLevels);
+    const levelNames = langCtx.getFreqLevelNames();
+
+    // Only include words encountered in this specific media
+    // Refine ease with global wordKnowledge but never add words from other media
+    const wordKnowledge = flashcardCtx.store.wordKnowledge;
+    const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
+
+    for (const entry of Object.values(s.wordsEncountered)) {
+      const globalEntry = wordKnowledge[entry.word];
+      if (globalEntry) {
+        mediaWords.set(entry.word, {
+          word: entry.word,
+          ease: Math.min(entry.ease, globalEntry.ease),
+          timesSeen: Math.max(entry.timesSeen, globalEntry.timesSeen),
+          timesHovered: Math.max(entry.timesHovered, globalEntry.timesHovered),
+        });
+      } else {
+        mediaWords.set(entry.word, { ...entry });
+      }
+    }
+
+    const failedWords = Array.from(mediaWords.values()).filter((w) => w.ease < 2.5);
+    const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
+
+    const context: ConversationAgentContext = {
+      mediaName: name,
+      mediaType: 'book',
+      mediaHash: s.mediaHash,
+      assessedLevel: level,
+      assessedLevelName: level !== null && levelNames[String(level)] ? levelNames[String(level)] : '',
+      language: lang,
+      failedWords,
+      failedGrammar,
+      wordLevelPercentages: wordLevels,
+      grammarLevelPercentages: grammarLevels,
+    };
+
+    window.mLearnIPC?.openWindow({ type: 'conversation-agent', context: context as unknown as Record<string, unknown> });
+  };
 
   const toggleOcrOverlay = () => setShowOcrOverlay(!showOcrOverlay());
 
@@ -1361,6 +1444,7 @@ export const ReaderRoute: Component = () => {
             hasOcrResult={hasOcrResult}
             hasPages={hasPages}
             onRunOcr={runOcr}
+            onOpenConversationAgent={openConversationAgent}
             debugOcr={ocrDebugOverlay}
             onToggleDebugOcr={toggleOcrDebugOverlay}
         />

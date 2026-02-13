@@ -23,6 +23,10 @@ export interface VideoPlayerProps {
   onEnded?: () => void;
   /** Options forwarded to the native context menu */
   ctxMenuOptions?: { isWatchTogether?: boolean };
+  /** Whether the stats panel is currently shown */
+  showStats?: boolean;
+  /** Toggle stats panel visibility */
+  onToggleStats?: () => void;
   /** Additional CSS class */
   class?: string;
   /** Additional inline styles */
@@ -139,6 +143,8 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
             subtitles={subtitles}
             containerRef={containerRef}
             isControlsVisible={controlsVisible()}
+            showStats={props.showStats}
+            onToggleStats={props.onToggleStats}
         />
       </div>
   );
