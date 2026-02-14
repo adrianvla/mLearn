@@ -3,7 +3,7 @@
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus } from './types';
+import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode } from './types';
 
 export interface MLearnIPC {
   // Settings
@@ -171,6 +171,20 @@ export interface MLearnIPC {
 
   // URL Fetch
   fetchUrl: (url: string) => Promise<{ content: string; error?: string }>;
+
+  // Voice Call Mode
+  voiceCheckModels: (language: string) => Promise<VoiceModelStatus>;
+  voiceDownloadModels: (language: string) => void;
+  onVoiceModelProgress: (callback: (status: VoiceModelStatus) => void) => () => void;
+  voiceStartSession: (language: string, mode: VoiceMode) => void;
+  voiceStopSession: () => void;
+  voiceSendAudioChunk: (samples: Float32Array) => void;
+  onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) => () => void;
+  onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) => () => void;
+  voiceTtsGenerate: (text: string, language: string, speed: number) => void;
+  voiceTtsStop: () => void;
+  onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) => () => void;
+  onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) => () => void;
 
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;

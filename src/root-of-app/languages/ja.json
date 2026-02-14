@@ -26,6 +26,8 @@
     "記号": "#8fc99d"
   },
   "fixed_settings": {},
+  "usesLatinScript": false,
+  "supportedScripts": ["Hira", "Kana", "Han"],
   "hasOcrRamSaver": true,
   "supportsVerticalText": true,
   "hasFurigana": true,

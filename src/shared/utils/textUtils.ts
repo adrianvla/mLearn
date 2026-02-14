@@ -1,11 +1,16 @@
 /**
  * Shared Text Utilities
- * Centralized functions for Japanese text processing
+ * Centralized functions for text processing across languages
  */
 
 // ============================================================================
 // Constants
 // ============================================================================
+
+/**
+ * Regex to match Latin letter characters (Basic + Extended-A/B + supplements)
+ */
+const LATIN_LETTER_REGEX = /[\u0041-\u005A\u0061-\u007A\u00C0-\u024F\u1E00-\u1EFF]/;
 
 /**
  * Regex to detect kanji characters (CJK Unified Ideographs)
@@ -61,6 +66,31 @@ export function extractKana(text: string): string {
   if (!text) return '';
   const matches = text.match(KANA_EXTRACT_REGEX);
   return matches ? matches.join('') : '';
+}
+
+/**
+ * Check if text is composed entirely of Latin-script characters,
+ * digits, punctuation, and whitespace — i.e. no non-Latin letters.
+ * Used to detect when a user typed romanized / English text in a
+ * non-Latin language session.
+ */
+export function isLatinOnly(text: string): boolean {
+  if (!text.trim()) return false;
+  // Check every character: allow Latin letters, digits, ASCII punctuation,
+  // common symbols, and whitespace. Reject if any non-Latin letter is found.
+  for (const char of text) {
+    const code = char.codePointAt(0)!;
+    // ASCII printable + common Latin Extended ranges
+    if (code <= 0x024F) continue;
+    // Latin Extended Additional
+    if (code >= 0x1E00 && code <= 0x1EFF) continue;
+    // General punctuation, currency symbols, etc.
+    if (code >= 0x2000 && code <= 0x206F) continue;
+    // Non-Latin character found
+    return false;
+  }
+  // Must contain at least one letter (not just numbers/punctuation)
+  return LATIN_LETTER_REGEX.test(text);
 }
 
 // ============================================================================

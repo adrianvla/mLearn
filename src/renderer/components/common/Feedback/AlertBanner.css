@@ -5,33 +5,33 @@
 
 .alert-banner {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   gap: 0.75rem;
   padding: 1rem;
-  border-radius: var(--radius-md, 8px);
   border: 1px solid;
-  background: var(--bg, rgba(255, 255, 255, 0.1));
-  backdrop-filter: blur(10px);
+  background: var(--bg);
+  backdrop-filter: var(--backdrop-filter);
 }
 
 /* Variants */
 .alert-banner--error {
-  border-color: var(--color-error, #ef4444);
+  border-color: var(--color-error);
   background: rgba(239, 68, 68, 0.1);
 }
 
 .alert-banner--warning {
-  border-color: var(--color-warning, #f59e0b);
+  border-color: var(--color-warning);
   background: rgba(245, 158, 11, 0.1);
 }
 
 .alert-banner--info {
-  border-color: var(--color-info, #3b82f6);
+  border-color: var(--color-info);
   background: rgba(59, 130, 246, 0.1);
 }
 
 .alert-banner--success {
-  border-color: var(--color-success, #10b981);
+  border-color: var(--color-success);
   background: rgba(16, 185, 129, 0.1);
 }
 
@@ -47,19 +47,19 @@
 }
 
 .alert-banner--error .alert-banner__icon {
-  color: var(--color-error, #ef4444);
+  color: var(--color-error);
 }
 
 .alert-banner--warning .alert-banner__icon {
-  color: var(--color-warning, #f59e0b);
+  color: var(--color-warning);
 }
 
 .alert-banner--info .alert-banner__icon {
-  color: var(--color-info, #3b82f6);
+  color: var(--color-info);
 }
 
 .alert-banner--success .alert-banner__icon {
-  color: var(--color-success, #10b981);
+  color: var(--color-success);
 }
 
 /* Content */
@@ -73,30 +73,6 @@
   font-weight: 600;
   margin: 0 0 0.25rem 0;
 }
-
-.alert-banner--error .alert-banner__title {
-  color: var(--color-error, #ef4444);
-}
-
-.alert-banner--warning .alert-banner__title {
-  color: var(--color-warning, #f59e0b);
-}
-
-.alert-banner--info .alert-banner__title {
-  color: var(--color-info, #3b82f6);
-}
-
-.alert-banner--success .alert-banner__title {
-  color: var(--color-success, #10b981);
-}
-
-.alert-banner__message {
-  font-size: 0.8125rem;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.8));
-  margin: 0;
-  line-height: 1.5;
-}
-
 /* Close button */
 .alert-banner__close {
   flex-shrink: 0;
@@ -107,7 +83,6 @@
   justify-content: center;
   background: transparent;
   border: none;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
   cursor: pointer;
   border-radius: 4px;
   transition: all 0.2s ease;
@@ -116,7 +91,7 @@
 
 .alert-banner__close:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 /* Size variants */
@@ -149,4 +124,28 @@
 
 .alert-banner--lg .alert-banner__message {
   font-size: 0.875rem;
+}
+
+
+
+.alert-banner--error *{
+  color: var(--color-error);
+}
+
+.alert-banner--warning *{
+  color: var(--color-warning);
+}
+
+.alert-banner--info *{
+  color: var(--color-info);
+}
+
+.alert-banner--success *{
+  color: var(--color-success);
+}
+
+.alert-banner__message {
+  font-size: 0.8125rem;
+  margin: 0;
+  line-height: 1.5;
 }

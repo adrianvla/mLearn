@@ -6,9 +6,8 @@
 import { ipcMain, app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as https from 'https';
-import * as http from 'http';
 import { IPC_CHANNELS } from '../../shared/constants';
+import { downloadFileWithProgress } from '../utils/downloadManager';
 import type { LLMStreamChunk, LLMModelStatus, LLMChatMessage, LLMToolDefinition, LLMToolCall } from '../../shared/types';
 
 // Default model configuration
@@ -25,7 +24,6 @@ let llamaCppModule: typeof import('node-llama-cpp') | null = null;
 let llamaInstance: any = null;
 let loadedModel: any = null;
 let modelContext: any = null;
-let chatSession: any = null;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 let currentAbortController: AbortController | null = null;
 let isDownloading = false;
@@ -67,102 +65,38 @@ function getModelStatus(modelFile?: string): LLMModelStatus {
 /**
  * Download a model file from HuggingFace with progress reporting
  */
-function downloadModel(
+async function downloadModel(
   modelUrl: string,
   modelFile: string,
   sender: Electron.WebContents
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (isDownloading) {
-      reject(new Error('Download already in progress'));
-      return;
-    }
+  if (isDownloading) {
+    throw new Error('Download already in progress');
+  }
 
-    const modelsDir = getModelsDir();
-    if (!fs.existsSync(modelsDir)) {
-      fs.mkdirSync(modelsDir, { recursive: true });
-    }
+  isDownloading = true;
+  downloadProgress = 0;
+  downloadedBytes = 0;
+  expectedBytes = 0;
 
-    const destPath = getModelPath(modelFile);
-    const tempPath = destPath + '.downloading';
-
-    isDownloading = true;
-    downloadProgress = 0;
-    downloadedBytes = 0;
-    expectedBytes = 0;
-
-    const emitProgress = () => {
-      const status = getModelStatus(modelFile);
-      sender.send(IPC_CHANNELS.LLM_DOWNLOAD_PROGRESS, status);
-    };
-
-    const doRequest = (url: string, redirectCount: number = 0) => {
-      if (redirectCount > 5) {
-        isDownloading = false;
-        reject(new Error('Too many redirects'));
-        return;
+  try {
+    await downloadFileWithProgress(
+      modelUrl,
+      getModelPath(modelFile),
+      (progress) => {
+        downloadedBytes = progress.downloadedBytes;
+        expectedBytes = progress.expectedBytes;
+        downloadProgress = progress.progress;
+        sender.send(IPC_CHANNELS.LLM_DOWNLOAD_PROGRESS, getModelStatus(modelFile));
       }
-
-      const protocol = url.startsWith('https') ? https : http;
-      const req = protocol.get(url, (res) => {
-        // Handle redirects (HuggingFace uses them)
-        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          doRequest(res.headers.location, redirectCount + 1);
-          return;
-        }
-
-        if (res.statusCode !== 200) {
-          isDownloading = false;
-          reject(new Error(`HTTP ${res.statusCode}`));
-          return;
-        }
-
-        expectedBytes = parseInt(res.headers['content-length'] || '0', 10);
-        emitProgress();
-
-        const fileStream = fs.createWriteStream(tempPath);
-        let lastEmit = 0;
-
-        res.on('data', (chunk: Buffer) => {
-          downloadedBytes += chunk.length;
-          if (expectedBytes > 0) {
-            downloadProgress = downloadedBytes / expectedBytes;
-          }
-          // Throttle progress updates to ~500ms
-          const now = Date.now();
-          if (now - lastEmit > 500) {
-            lastEmit = now;
-            emitProgress();
-          }
-        });
-
-        res.pipe(fileStream);
-
-        fileStream.on('finish', () => {
-          fileStream.close(() => {
-            fs.renameSync(tempPath, destPath);
-            isDownloading = false;
-            downloadProgress = 1;
-            emitProgress();
-            resolve();
-          });
-        });
-
-        fileStream.on('error', (err) => {
-          fs.unlinkSync(tempPath);
-          isDownloading = false;
-          reject(err);
-        });
-      });
-
-      req.on('error', (err) => {
-        isDownloading = false;
-        reject(err);
-      });
-    };
-
-    doRequest(modelUrl);
-  });
+    );
+    isDownloading = false;
+    downloadProgress = 1;
+    sender.send(IPC_CHANNELS.LLM_DOWNLOAD_PROGRESS, getModelStatus(modelFile));
+  } catch (err) {
+    isDownloading = false;
+    throw err;
+  }
 }
 
 function resetIdleTimer(): void {
@@ -191,10 +125,6 @@ async function ensureModelLoaded(modelFile?: string): Promise<void> {
 
   loadedModel = await llamaInstance.loadModel({ modelPath });
   modelContext = await loadedModel.createContext();
-  // Create a fresh chat session each time model is loaded
-  chatSession = new llamaCpp.LlamaChatSession({
-    contextSequence: modelContext.getSequence(),
-  });
 
   resetIdleTimer();
 }
@@ -205,9 +135,6 @@ function unloadModel(): void {
     idleTimer = null;
   }
 
-  if (chatSession) {
-    chatSession = null;
-  }
   if (modelContext) {
     modelContext.dispose();
     modelContext = null;
@@ -231,24 +158,50 @@ async function streamChat(
 
   const llamaCpp = await importLlamaCpp();
 
-  if (!chatSession || !modelContext) {
+  if (!modelContext) {
     throw new Error('Model not loaded');
   }
+
+  // Create a fresh chat session for each request so the full conversation
+  // history (sent by the renderer) is reconstructed properly.
+  const session = new llamaCpp.LlamaChatSession({
+    contextSequence: modelContext.getSequence(),
+  });
 
   currentAbortController = new AbortController();
   const startTime = Date.now();
   let firstTokenTime = 0;
   let tokenCount = 0;
 
-  // Build the user prompt from messages
-  // The chat session manages system messages internally,
-  // so we extract the last user message as the prompt
+  // Separate system messages from conversation messages
   const systemMessages = messages.filter(m => m.role === 'system');
-  const userMessages = messages.filter(m => m.role !== 'system');
-  const lastUserMsg = userMessages[userMessages.length - 1];
+  const conversationMessages = messages.filter(m => m.role !== 'system');
 
-  if (!lastUserMsg) {
+  // The last message should be the user prompt
+  const lastUserMsg = conversationMessages[conversationMessages.length - 1];
+  if (!lastUserMsg || lastUserMsg.role !== 'user') {
     throw new Error('No user message found');
+  }
+
+  // Build the chat history for node-llama-cpp from all messages except the last user message
+  const chatHistoryItems: { type: string; text?: string; response?: string[] }[] = [];
+  if (systemMessages.length > 0) {
+    chatHistoryItems.push({
+      type: 'system',
+      text: systemMessages.map(m => m.content).join('\n'),
+    });
+  }
+  for (const msg of conversationMessages.slice(0, -1)) {
+    if (msg.role === 'user') {
+      chatHistoryItems.push({ type: 'user', text: msg.content });
+    } else if (msg.role === 'assistant') {
+      chatHistoryItems.push({ type: 'model', response: [msg.content] });
+    }
+    // Tool messages are handled implicitly by node-llama-cpp's function calling
+  }
+
+  if (chatHistoryItems.length > 0) {
+    session.setChatHistory(chatHistoryItems as Parameters<typeof session.setChatHistory>[0]);
   }
 
   // Build function definitions for node-llama-cpp tool calling
@@ -283,15 +236,8 @@ async function streamChat(
   }
 
   try {
-    // Set system prompt if provided
-    if (systemMessages.length > 0) {
-      chatSession.setChatHistory([
-        { type: 'system', text: systemMessages.map(m => m.content).join('\n') },
-      ]);
-    }
-
     // Build prompt options
-    const promptOptions: Parameters<typeof chatSession.prompt>[1] = {
+    const promptOptions: Parameters<typeof session.prompt>[1] = {
       signal: currentAbortController.signal,
       functions: Object.keys(functions).length > 0 ? functions : undefined,
       onTextChunk: (text: string) => {
@@ -307,7 +253,7 @@ async function streamChat(
       temperature: 0.3,
     };
 
-    const response = await chatSession.prompt(lastUserMsg.content, promptOptions);
+    const response = await session.prompt(lastUserMsg.content, promptOptions);
     void response; // The response text is already emitted via onTextChunk
 
     const totalTime = Date.now() - startTime;

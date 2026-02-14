@@ -3,11 +3,13 @@
  * Renders a single message with tokenized text, widgets, and timestamps
  */
 
-import { Component, Show, For, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
+import { Component, Show, For, createSignal, createMemo, createEffect, onMount, onCleanup } from 'solid-js';
 import { useSettings, useLanguage, useLocalization } from '../../context';
-import { Btn, Input, Spinner } from '../../components';
+import { Btn, Input, Spinner, IconBtn, RefreshIcon } from '../../components';
+import { MarkdownRenderer, parseMarkdownToHtml } from './MarkdownRenderer';
 import type { ConversationMessage, Token, QuizWidgetData, MistakeWidgetData, StreamStats } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
+import './ChatBubble.css';
 
 const LONG_HOVER_DELAY = 500;
 const DEBUG_HOVER_DELAY = 600;
@@ -69,11 +71,14 @@ interface ChatBubbleProps {
   isStreaming?: boolean;
   /** True when waiting for the request to be sent / before streaming starts */
   isWaiting?: boolean;
+  /** True when the LLM is processing a tool call */
+  isProcessingToolCall?: boolean;
   onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
   onTokenLeave?: () => void;
   triggerMode?: WordHoverTriggerMode;
   triggerKey?: string;
-  onQuizAnswer?: (answer: string) => void;
+  onQuizAnswer?: (widgetIndex: number, answer: string) => void;
+  onRegenerate?: () => void;
 }
 
 export const ChatBubble: Component<ChatBubbleProps> = (props) => {
@@ -89,11 +94,15 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
   const isAssistantEmpty = () =>
     props.message.role === 'assistant' && !props.message.content;
 
+  const isAssistant = () => props.message.role === 'assistant';
+
   const hasCorrections = () =>
     props.message.role === 'user' && props.message.corrections && props.message.corrections.length > 0;
 
   const hasTokens = () =>
     props.message.tokens && props.message.tokens.length > 0;
+
+  const messageWidgets = () => props.message.widgets || (props.message.widget ? [props.message.widget] : []);
 
   const handleTimeMouseEnter = () => {
     if (!props.message.streamStats) return;
@@ -149,7 +158,18 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
           <CorrectedUserText content={props.message.content} corrections={props.message.corrections!} />
         </Show>
         {/* State 4: Tokenized text (any role with tokens, no corrections) */}
-        <Show when={!hasCorrections() && hasTokens()}>
+        <Show when={!hasCorrections() && hasTokens() && isAssistant()}>
+          <MarkdownRenderer
+            content={props.message.content}
+            tokens={props.message.tokens!}
+            onTokenHover={props.onTokenHover}
+            onTokenLeave={props.onTokenLeave}
+            triggerMode={props.triggerMode || 'hover'}
+            triggerKey={props.triggerKey || 'Shift'}
+            renderToken={ChatToken}
+          />
+        </Show>
+        <Show when={!hasCorrections() && hasTokens() && !isAssistant()}>
           <TokenizedText
             tokens={props.message.tokens!}
             onTokenHover={props.onTokenHover}
@@ -158,31 +178,55 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
             triggerKey={props.triggerKey || 'Shift'}
           />
         </Show>
-        {/* State 5: Plain text (streaming content or no tokens) */}
-        <Show when={!isAssistantEmpty() && !hasCorrections() && !hasTokens()}>
+        {/* State 5: Plain text — assistant gets markdown rendering, user gets plain */}
+        <Show when={!isAssistantEmpty() && !hasCorrections() && !hasTokens() && isAssistant()}>
+          <span class="ca-markdown" innerHTML={parseMarkdownToHtml(props.message.content)} />
+        </Show>
+        <Show when={!isAssistantEmpty() && !hasCorrections() && !hasTokens() && !isAssistant()}>
           <span>{props.message.content}</span>
         </Show>
       </div>
 
-      <Show when={props.message.widget}>
+      {/* Spinner shown while processing tool calls */}
+      <Show when={props.isProcessingToolCall && !props.isWaiting}>
+        <div class="chat-bubble-tool-spinner">
+          <Spinner size={14} />
+        </div>
+      </Show>
+
+      <Show when={messageWidgets().length > 0}>
         <div class="chat-widget">
-          <Show when={props.message.widget!.type === 'quiz'}>
-            <QuizWidget
-              data={props.message.widget!.data as unknown as QuizWidgetData}
-              resolved={props.message.widget!.resolved}
-              onAnswer={props.onQuizAnswer}
-            />
-          </Show>
+          <For each={messageWidgets()}>
+            {(widget, widgetIndex) => (
+              <Show when={widget.type === 'quiz'}>
+                <QuizWidget
+                  data={widget.data as unknown as QuizWidgetData}
+                  resolved={widget.resolved}
+                  onAnswer={(answer) => props.onQuizAnswer?.(widgetIndex(), answer)}
+                />
+              </Show>
+            )}
+          </For>
         </div>
       </Show>
 
       <Show when={props.message.role !== 'system'}>
         <div
-          class="chat-bubble-time"
+          class="chat-bubble-footer"
           onMouseEnter={handleTimeMouseEnter}
           onMouseLeave={handleTimeMouseLeave}
         >
           <span>{formatTime(props.message.timestamp)}</span>
+          <Show when={isAssistant() && !props.isStreaming && props.onRegenerate}>
+            <IconBtn
+                class="chat-bubble-regenerate"
+                variant="ghost"
+                size="xs"
+                icon={<RefreshIcon size={12} />}
+                onClick={() => props.onRegenerate?.()}
+                aria-label={t('mlearn.ConversationAgent.Regenerate')}
+            />
+          </Show>
           <Show when={showDebugStats() && props.message.streamStats}>
             <span class="chat-bubble-debug-stats">
               {formatStats(props.message.streamStats!)}
@@ -555,18 +599,89 @@ interface QuizWidgetProps {
 
 const QuizWidget: Component<QuizWidgetProps> = (props) => {
   const { t } = useLocalization();
-  const [fillAnswer, setFillAnswer] = createSignal('');
+  const [textAnswer, setTextAnswer] = createSignal('');
+
+  const blankTemplate = createMemo(() => {
+    if (props.data.type !== 'fill-in') return '';
+    const raw = (props.data.textWithBlanks || props.data.question || '').trim();
+    return raw || '[]';
+  });
+
+  const blankCount = createMemo(() => {
+    if (props.data.type !== 'fill-in') return 0;
+    const matches = blankTemplate().match(/\[\]/g);
+    return matches ? matches.length : 0;
+  });
+
+  const [blankAnswers, setBlankAnswers] = createSignal<string[]>([]);
+
+  createEffect(() => {
+    const count = Math.max(1, blankCount());
+    setBlankAnswers((prev) => {
+      if (prev.length === count) return prev;
+      return Array.from({ length: count }, (_value, index) => prev[index] || '');
+    });
+  });
 
   const handleMCQ = (option: string) => {
     if (props.resolved) return;
     props.onAnswer?.(option);
   };
 
-  const handleFillSubmit = (e: Event) => {
+  const handleTextSubmit = (e: Event) => {
     e.preventDefault();
-    if (props.resolved || !fillAnswer().trim()) return;
-    props.onAnswer?.(fillAnswer().trim());
+    if (props.resolved || !textAnswer().trim()) return;
+    props.onAnswer?.(textAnswer().trim());
   };
+
+  const handleBlankInput = (index: number, value: string) => {
+    setBlankAnswers((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  };
+
+  const handleFillInSubmit = (e: Event) => {
+    e.preventDefault();
+    if (props.resolved) return;
+
+    const answers = blankAnswers().map((answer) => answer.trim());
+    if (answers.some((answer) => !answer)) return;
+
+    props.onAnswer?.(answers.join(' | '));
+  };
+
+  const fillInSegments = createMemo(() => {
+    if (props.data.type !== 'fill-in') return [] as Array<{ type: 'text'; value: string } | { type: 'blank'; index: number }>;
+
+    const template = blankTemplate();
+    const segments: Array<{ type: 'text'; value: string } | { type: 'blank'; index: number }> = [];
+    let cursor = 0;
+    let blankIndex = 0;
+
+    while (cursor < template.length) {
+      const nextBlank = template.indexOf('[]', cursor);
+      if (nextBlank === -1) {
+        segments.push({ type: 'text', value: template.slice(cursor) });
+        break;
+      }
+
+      if (nextBlank > cursor) {
+        segments.push({ type: 'text', value: template.slice(cursor, nextBlank) });
+      }
+
+      segments.push({ type: 'blank', index: blankIndex });
+      blankIndex += 1;
+      cursor = nextBlank + 2;
+    }
+
+    if (segments.length === 0) {
+      segments.push({ type: 'blank', index: 0 });
+    }
+
+    return segments;
+  });
 
   return (
     <div class="quiz-widget">
@@ -589,7 +704,7 @@ const QuizWidget: Component<QuizWidgetProps> = (props) => {
                   class="quiz-option"
                   variant={variant()}
                   size="sm"
-                  disabled={props.resolved}
+                  disabled={props.resolved && !isCorrectAnswer()}
                   onClick={() => handleMCQ(option)}
                 >
                   {option}
@@ -600,23 +715,49 @@ const QuizWidget: Component<QuizWidgetProps> = (props) => {
         </div>
       </Show>
 
-      <Show when={props.data.type === 'fill-in'}>
-        <form onSubmit={handleFillSubmit}>
+      <Show when={props.data.type === 'text-input'}>
+        <form onSubmit={handleTextSubmit}>
           <Input
             type="text"
             size="sm"
             fullWidth
-            placeholder={t('mlearn.ConversationAgent.Quiz.FillInPlaceholder')}
-            value={props.resolved ? (props.data.userAnswer || '') : fillAnswer()}
-            onInput={(e) => setFillAnswer(e.currentTarget.value)}
+            placeholder={t('mlearn.ConversationAgent.Quiz.TextInputPlaceholder')}
+            value={props.resolved ? (props.data.userAnswer || '') : textAnswer()}
+            onInput={(e) => setTextAnswer(e.currentTarget.value)}
             disabled={props.resolved}
           />
         </form>
-        <Show when={props.resolved}>
-          <div class={`quiz-result ${props.data.isCorrect ? 'quiz-result-correct' : 'quiz-result-incorrect'}`}>
-            {props.data.isCorrect ? `✓ ${t('mlearn.ConversationAgent.Quiz.Correct')}` : `✗ ${t('mlearn.ConversationAgent.Quiz.IncorrectAnswer', { answer: props.data.correctAnswer })}`}
+      </Show>
+
+      <Show when={props.data.type === 'fill-in'}>
+        <form class="quiz-fill-in-form" onSubmit={handleFillInSubmit}>
+          <div class="quiz-fill-in-line">
+            <For each={fillInSegments()}>
+              {(segment) => (
+                <Show
+                  when={segment.type === 'blank'}
+                  fallback={<span class="quiz-fill-in-text">{(segment as { type: 'text'; value: string }).value}</span>}
+                >
+                  <input
+                    class="quiz-fill-in-input"
+                    type="text"
+                    value={props.resolved ? (props.data.userAnswer || '').split(' | ')[(segment as { type: 'blank'; index: number }).index] || '' : blankAnswers()[(segment as { type: 'blank'; index: number }).index] || ''}
+                    onInput={(e) => handleBlankInput((segment as { type: 'blank'; index: number }).index, e.currentTarget.value)}
+                    aria-label={t('mlearn.ConversationAgent.Quiz.BlankInputAriaLabel', { index: String((segment as { type: 'blank'; index: number }).index + 1) })}
+                    disabled={props.resolved}
+                  />
+                </Show>
+              )}
+            </For>
           </div>
-        </Show>
+        </form>
+      </Show>
+
+      {/* Unified result feedback for all quiz types */}
+      <Show when={props.resolved}>
+        <div class={`quiz-result ${props.data.isCorrect ? 'quiz-result-correct' : 'quiz-result-incorrect'}`}>
+          {props.data.isCorrect ? `✓ ${t('mlearn.ConversationAgent.Quiz.Correct')}` : `✗ ${t('mlearn.ConversationAgent.Quiz.IncorrectAnswer', { answer: props.data.correctAnswer })}`}
+        </div>
       </Show>
     </div>
   );

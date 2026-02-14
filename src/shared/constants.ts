@@ -176,6 +176,20 @@ export const IPC_CHANNELS = {
   // Window context
   GET_WINDOW_CONTEXT: 'get-window-context',
   WINDOW_CONTEXT: 'window-context',
+
+  // Voice call mode
+  VOICE_MODEL_STATUS: 'voice-model-status',
+  VOICE_MODEL_DOWNLOAD: 'voice-model-download',
+  VOICE_MODEL_DOWNLOAD_PROGRESS: 'voice-model-download-progress',
+  VOICE_START_SESSION: 'voice-start-session',
+  VOICE_STOP_SESSION: 'voice-stop-session',
+  VOICE_AUDIO_CHUNK: 'voice-audio-chunk',
+  VOICE_STT_RESULT: 'voice-stt-result',
+  VOICE_VAD_EVENT: 'voice-vad-event',
+  VOICE_TTS_GENERATE: 'voice-tts-generate',
+  VOICE_TTS_AUDIO: 'voice-tts-audio',
+  VOICE_TTS_STATUS: 'voice-tts-status',
+  VOICE_TTS_STOP: 'voice-tts-stop',
 } as const;
 
 // Window types
