@@ -1134,7 +1134,7 @@
       "NetworkError": "Network error"
     },
     "ConversationAgent": {
-      "Title": "Conversation Agent",
+      "Title": "Conversation AI",
       "ModelLabel": "Model",
       "Connected": "Connected",
       "Disconnected": "Disconnected",
@@ -1148,10 +1148,12 @@
       "Send": "Send message",
       "Clear": "Clear conversation",
       "ClearConversation": "Clear conversation",
+      "Regenerate": "Regenerate response",
       "Tab": {
         "Chat": "Chat",
         "Stats": "Stats",
-        "Connection": "Connection"
+        "Connection": "Connection",
+        "Voice": "Voice"
       },
       "Connection": {
         "Title": "LLM Connection",
@@ -1207,8 +1209,13 @@
       "TriggerHover": "Hover",
       "TriggerLongHover": "Long hover",
       "TriggerKeyHover": "{key} + Hover",
+      "LevelAdapt": {
+        "Label": "Adapt to level:",
+        "None": "None"
+      },
       "Quiz": {
-        "FillInPlaceholder": "Type your answer...",
+        "TextInputPlaceholder": "Type your answer...",
+        "BlankInputAriaLabel": "Blank {index}",
         "Correct": "Correct!",
         "IncorrectAnswer": "The answer is: {answer}"
       },
@@ -1221,6 +1228,25 @@
         "TokensPerSecond": "{value} tok/s",
         "TimeToFirstToken": "TTFT: {value}ms",
         "TotalTime": "Total: {value}ms"
+      },
+      "Voice": {
+        "DownloadModels": "Download Voice Models",
+        "DownloadProgress": "Downloading voice models… {progress}%",
+        "Listening": "Listening…",
+        "Processing": "Processing…",
+        "Speaking": "Speaking…",
+        "CallEnded": "Call ended",
+        "StartCall": "Start voice call",
+        "EndCall": "End call",
+        "PushToTalk": "Push to Talk",
+        "HandsFree": "Hands-Free",
+        "ModelsRequired": "Voice models are required for this feature. Download them to get started.",
+        "TtsSpeed": "Speech speed",
+        "Interrupted": "*interrupted by user*",
+        "SilenceThreshold": "Silence threshold",
+        "VoiceMode": "Input mode",
+        "HoldToSpeak": "Hold to speak",
+        "MicPermission": "Microphone access is required for voice calls."
       }
     },
     "MediaStats": {

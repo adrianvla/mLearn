@@ -15,7 +15,7 @@ import {
 } from '../../components/common';
 import type { SelectOption } from '../../components/common';
 import type { OllamaModel } from '../../../shared/types';
-import './ConversationAgent.css';
+import './ConnectionTab.css';
 
 export const ConnectionTab: Component = () => {
   const { settings, updateSetting } = useSettings();

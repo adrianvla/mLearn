@@ -16,19 +16,46 @@ import {
   StatusBar,
   Textarea,
   Select,
-  Label,
-  formatKeybindDisplay,
+  formatKeybindDisplay, Tag,
 } from '../../components/common';
 import type { TabItem, SelectOption } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
 import { useWordHover, useTranslation, useDictionary, getCachedTranslation } from '../../hooks';
 import { ChatBubble } from './ChatBubble';
 import { MediaStatsTab } from './MediaStatsTab';
+import { VoiceTab } from './VoiceTab';
 
 import { createConversationAgent } from '../../services/conversationAgent';
+import type { StreamCallbacks } from '../../services/conversationAgent';
 import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
+import { isLatinOnly } from '../../../shared/utils/textUtils';
 import './ConversationAgent.css';
+
+/**
+ * Known tool names used by the conversation agent.
+ * Used to detect and hide partial tool call text during streaming.
+ */
+const TOOL_NAMES = ['correct_mistake', 'create_quiz', 'fetch_url', 'get_media_stats'];
+
+/**
+ * Strip any trailing partial tool call text from streamed content.
+ * During streaming the LLM may output e.g. `correct_mistake({` before
+ * the full tool call is complete — we hide it to avoid a jarring UX.
+ */
+function stripPartialToolCall(text: string): string {
+  // Check if any tool name appears near the end of the text (last 200 chars)
+  const tail = text.slice(-200);
+  for (const name of TOOL_NAMES) {
+    const idx = tail.lastIndexOf(name);
+    if (idx !== -1) {
+      // Found a tool name in the tail — strip from that point onward
+      const absoluteIdx = text.length - 200 + idx;
+      return text.slice(0, absoluteIdx < 0 ? 0 : absoluteIdx).trimEnd();
+    }
+  }
+  return text;
+}
 
 // Send icon SVG
 const SendIcon: Component = () => (
@@ -57,7 +84,7 @@ const MicIcon: Component = () => (
 
 const ConversationContent: Component = () => {
   const { settings, updateSettings } = useSettings();
-  const { currentLangData, isTranslatable } = useLanguage();
+  const { currentLangData, isTranslatable, getLanguageFeatures, getFrequency, getFreqLevelNames, getLevelName } = useLanguage();
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
 
@@ -74,6 +101,10 @@ const ConversationContent: Component = () => {
   const [sceneContext, setSceneContext] = createSignal('');
   const [showSceneContext, setShowSceneContext] = createSignal(false);
   const [showBanner, setShowBanner] = createSignal(true);
+  const [isProcessingToolCall, setIsProcessingToolCall] = createSignal(false);
+
+  // Level adaptation state
+  const [targetLevel, setTargetLevel] = createSignal<number | null>(null);
 
   // Word hover state
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
@@ -107,6 +138,7 @@ const ConversationContent: Component = () => {
 
   const topTabs = (): TabItem[] => [
     { id: 'chat', label: t('mlearn.ConversationAgent.Tab.Chat') },
+    { id: 'voice', label: t('mlearn.ConversationAgent.Tab.Voice') },
     { id: 'stats', label: t('mlearn.ConversationAgent.Tab.Stats') },
   ];
 
@@ -118,6 +150,9 @@ const ConversationContent: Component = () => {
     getMediaContext: () => mediaContext(),
     getSceneContext: () => sceneContext(),
     flashcardCtx,
+    getFrequency,
+    getTargetLevel: () => targetLevel(),
+    getLevelName,
   });
 
   // Check LLM availability reactively when provider/config changes
@@ -288,65 +323,50 @@ const ConversationContent: Component = () => {
     return [...corrections, incoming];
   };
 
-  const handleSend = () => {
-    const text = inputText().trim();
-    if (!text || isStreaming()) return;
+  /**
+   * Build reusable streaming callbacks for agent responses.
+   * Handles chunk accumulation, tool calls, completion, and errors.
+   */
+  const buildStreamCallbacks = (): StreamCallbacks => {
+    let streamTokenizeId = 0;
 
-    setInputText('');
-    if (textareaRef) {
-      textareaRef.style.height = 'auto';
-    }
-
-    // Add user message
-    const userMsg: ConversationMessage = {
-      role: 'user',
-      content: text,
-      timestamp: Date.now(),
-    };
-    const userMsgIndex = messages().length;
-    setMessages((prev) => [...prev, userMsg]);
-
-    // Tokenize user message asynchronously
-    agent.tokenize(text).then((tokens) => {
-      if (tokens.length > 0) {
-        setMessages((prev) => {
-          const updated = [...prev];
-          if (updated[userMsgIndex] && updated[userMsgIndex].role === 'user') {
-            updated[userMsgIndex] = { ...updated[userMsgIndex], tokens };
-          }
-          return updated;
-        });
-      }
-    });
-
-    // Add placeholder assistant message for streaming
-    const streamingMsg: ConversationMessage = {
-      role: 'assistant',
-      content: '',
-      timestamp: Date.now(),
-    };
-    setMessages((prev) => [...prev, streamingMsg]);
-    setIsStreaming(true);
-    setIsWaiting(true);
-
-    agent.processMessage(text, messages(), {
+    return {
       onChunk: (accumulated) => {
         setIsWaiting(false);
+        setIsProcessingToolCall(false);
+        const visibleContent = stripPartialToolCall(accumulated);
+
         setMessages((prev) => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
-          updated[lastIdx] = { ...updated[lastIdx], content: accumulated };
+          updated[lastIdx] = { ...updated[lastIdx], content: visibleContent };
           return updated;
         });
+
+        if (visibleContent.trim()) {
+          const tokenizeId = ++streamTokenizeId;
+          agent.tokenize(visibleContent).then((tokens) => {
+            if (tokenizeId !== streamTokenizeId) return;
+            if (tokens.length > 0) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                const lastIdx = updated.length - 1;
+                if (updated[lastIdx]?.role === 'assistant') {
+                  updated[lastIdx] = { ...updated[lastIdx], tokens };
+                }
+                return updated;
+              });
+            }
+          });
+        }
       },
       onToolCall: (widget: ChatWidget) => {
         setIsWaiting(false);
-        // For mistake corrections, apply inline on the user's last message
+        setIsProcessingToolCall(true);
         if (widget.type === 'mistake') {
           const mistakeData = widget.data as unknown as MistakeWidgetData;
           setMessages((prev) => {
             const updated = [...prev];
-            // Find the latest user message
             for (let i = updated.length - 1; i >= 0; i--) {
               if (updated[i].role === 'user') {
                 const corrections = appendUniqueCorrection(updated[i].corrections, mistakeData);
@@ -361,19 +381,30 @@ const ConversationContent: Component = () => {
         setMessages((prev) => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
-          updated[lastIdx] = { ...updated[lastIdx], widget };
+          const existingWidgets = updated[lastIdx].widgets || (updated[lastIdx].widget ? [updated[lastIdx].widget] : []);
+          updated[lastIdx] = {
+            ...updated[lastIdx],
+            widgets: [...existingWidgets, widget],
+            widget,
+          };
           return updated;
         });
       },
-      onDone: (finalContent, tokens, widget, streamStats) => {
-        // Handle mistake widgets in onDone as well
-        if (widget && widget.type === 'mistake') {
-          const mistakeData = widget.data as unknown as MistakeWidgetData;
+      onDone: (finalContent, tokens, widgets, streamStats) => {
+        setIsProcessingToolCall(false);
+        const finalWidgets = widgets && widgets.length > 0 ? widgets : undefined;
+
+        if (finalWidgets && finalWidgets.some((widget) => widget.type === 'mistake')) {
+          const mistakeWidgets = finalWidgets.filter((widget) => widget.type === 'mistake');
           setMessages((prev) => {
             const updated = [...prev];
             for (let i = updated.length - 1; i >= 0; i--) {
               if (updated[i].role === 'user') {
-                const corrections = appendUniqueCorrection(updated[i].corrections, mistakeData);
+                let corrections = updated[i].corrections;
+                for (const mistakeWidget of mistakeWidgets) {
+                  const mistakeData = mistakeWidget.data as unknown as MistakeWidgetData;
+                  corrections = appendUniqueCorrection(corrections, mistakeData);
+                }
                 updated[i] = { ...updated[i], corrections };
                 break;
               }
@@ -383,6 +414,8 @@ const ConversationContent: Component = () => {
               ...updated[lastIdx],
               content: finalContent,
               tokens,
+              widgets: finalWidgets,
+              widget: finalWidgets[finalWidgets.length - 1],
               streamStats,
             };
             return updated;
@@ -395,7 +428,8 @@ const ConversationContent: Component = () => {
               ...updated[lastIdx],
               content: finalContent,
               tokens,
-              widget: widget || updated[lastIdx].widget,
+              widgets: finalWidgets || updated[lastIdx].widgets,
+              widget: finalWidgets ? finalWidgets[finalWidgets.length - 1] : updated[lastIdx].widget,
               streamStats,
             };
             return updated;
@@ -404,13 +438,13 @@ const ConversationContent: Component = () => {
         setIsStreaming(false);
         setIsWaiting(false);
 
-        // Auto-speak response if enabled
         if (settings.autoSpeak && settings.speechEnabled && finalContent) {
           const langCode = settings.language || 'ja';
           window.mLearnIPC?.ttsSpeak(finalContent, langCode);
         }
       },
       onError: (error) => {
+        setIsProcessingToolCall(false);
         setMessages((prev) => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
@@ -423,46 +457,174 @@ const ConversationContent: Component = () => {
         setIsStreaming(false);
         setIsWaiting(false);
       },
-    });
+    };
+  };
+
+  const sendTextMessage = (text: string) => {
+    if (!text || isStreaming()) return;
+
+    // Add user message
+    const userMsg: ConversationMessage = {
+      role: 'user',
+      content: text,
+      timestamp: Date.now(),
+    };
+    const userMsgIndex = messages().length;
+    setMessages((prev) => [...prev, userMsg]);
+
+    // Skip tokenization when a non-Latin language receives Latin-only input
+    const shouldTokenizeUser = getLanguageFeatures().usesLatinScript || !isLatinOnly(text);
+    if (shouldTokenizeUser) {
+      agent.tokenize(text).then((tokens) => {
+        if (tokens.length > 0) {
+          setMessages((prev) => {
+            const updated = [...prev];
+            if (updated[userMsgIndex] && updated[userMsgIndex].role === 'user') {
+              updated[userMsgIndex] = { ...updated[userMsgIndex], tokens };
+            }
+            return updated;
+          });
+        }
+      });
+    }
+
+    // Add placeholder assistant message for streaming
+    setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
+    setIsStreaming(true);
+    setIsWaiting(true);
+    setIsProcessingToolCall(false);
+
+    agent.processMessage(text, messages(), buildStreamCallbacks());
+  };
+
+  const handleSend = () => {
+    const text = inputText().trim();
+    if (!text || isStreaming()) return;
+
+    setInputText('');
+    if (textareaRef) {
+      textareaRef.style.height = 'auto';
+    }
+
+    sendTextMessage(text);
   };
 
   const handleAbort = () => {
     agent.abortStream();
     setIsStreaming(false);
     setIsWaiting(false);
+    setIsProcessingToolCall(false);
+  };
+
+  const handleRegenerate = (messageIndex: number) => {
+    if (isStreaming()) return;
+
+    const msgs = messages();
+    const targetMsg = msgs[messageIndex];
+    if (!targetMsg || targetMsg.role !== 'assistant') return;
+
+    // Find the user message that preceded this assistant message
+    let userMsgIndex = -1;
+    for (let i = messageIndex - 1; i >= 0; i--) {
+      if (msgs[i].role === 'user') {
+        userMsgIndex = i;
+        break;
+      }
+    }
+    if (userMsgIndex === -1) return;
+
+    const userText = msgs[userMsgIndex].content;
+
+    // Remove the assistant message to regenerate
+    setMessages((prev) => {
+      const updated = [...prev];
+      updated.splice(messageIndex, 1);
+      return updated;
+    });
+
+    // Remove the last assistant entry from conversation history so the agent re-generates
+    agent.clearHistory();
+
+    // Add placeholder assistant message for streaming
+    setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
+    setIsStreaming(true);
+    setIsWaiting(true);
+    setIsProcessingToolCall(false);
+
+    agent.processMessage(userText, messages(), buildStreamCallbacks());
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSend();
     }
   };
 
-  const handleQuizAnswer = (messageIndex: number, answer: string) => {
+  const normalizeQuizAnswer = (answer: string): string => answer.trim().toLocaleLowerCase();
+
+  const handleQuizAnswer = (messageIndex: number, widgetIndex: number, answer: string) => {
+    // Extract quiz data before updating state to determine follow-up action
+    const msgs = messages();
+    const targetMsg = msgs[messageIndex];
+    const targetWidgets = targetMsg?.widgets || (targetMsg?.widget ? [targetMsg.widget] : []);
+    const targetWidget = targetWidgets[widgetIndex];
+
+    let quizCorrectAnswer = '';
+    let quizIsCorrect = false;
+
+    if (targetWidget && targetWidget.type === 'quiz') {
+      const quizData = targetWidget.data as Record<string, unknown>;
+      quizCorrectAnswer = String(quizData.correctAnswer ?? '');
+      quizIsCorrect = normalizeQuizAnswer(quizCorrectAnswer) === normalizeQuizAnswer(answer);
+    }
+
     setMessages((prev) => {
       const updated = [...prev];
       const msg = { ...updated[messageIndex] };
-      if (msg.widget && msg.widget.type === 'quiz') {
-        const quizData = msg.widget.data as Record<string, unknown>;
-        const isCorrect = answer === quizData.correctAnswer;
-        msg.widget = {
-          ...msg.widget,
+      const widgets = msg.widgets || (msg.widget ? [msg.widget] : []);
+      const widget = widgets[widgetIndex];
+
+      if (widget && widget.type === 'quiz') {
+        const quizData = widget.data as Record<string, unknown>;
+
+        const updatedWidget: ChatWidget = {
+          ...widget,
           resolved: true,
           data: {
             ...quizData,
             userAnswer: answer,
-            isCorrect,
+            isCorrect: quizIsCorrect,
           },
         };
 
-        if (!isCorrect && quizData.affectedPattern) {
+        const updatedWidgets = [...widgets];
+        updatedWidgets[widgetIndex] = updatedWidget;
+
+        msg.widgets = updatedWidgets;
+        msg.widget = updatedWidgets[updatedWidgets.length - 1];
+
+        if (!quizIsCorrect && quizData.affectedPattern) {
           flashcardCtx.trackGrammarFailed(quizData.affectedPattern as string);
         }
       }
       updated[messageIndex] = msg;
       return updated;
     });
+
+    // Continue agent loop after quiz answer
+    if (targetWidget && targetWidget.type === 'quiz' && !isStreaming()) {
+      const context = quizIsCorrect
+        ? `[The learner answered the quiz correctly: "${answer}"]`
+        : `[The learner answered incorrectly: "${answer}". The correct answer was: "${quizCorrectAnswer}"]`;
+
+      setMessages((prev) => [...prev, { role: 'assistant' as const, content: '', timestamp: Date.now() }]);
+      setIsStreaming(true);
+      setIsWaiting(true);
+      setIsProcessingToolCall(false);
+
+      agent.continueWithContext(context, buildStreamCallbacks());
+    }
   };
 
   const toggleRecording = () => {
@@ -505,6 +667,47 @@ const ConversationContent: Component = () => {
     updateSettings({ readerWordHoverTrigger: value });
   };
 
+  // Level adaptation options — derived from language frequency level names
+  const levelOptions = (): SelectOption[] => {
+    const names = getFreqLevelNames();
+    const options: SelectOption[] = [
+      { value: '', label: t('mlearn.ConversationAgent.LevelAdapt.None') },
+    ];
+    // Levels go from highest number (easiest) to lowest (hardest)
+    const levels = Object.keys(names)
+      .map(Number)
+      .filter((n) => !isNaN(n))
+      .sort((a, b) => b - a);
+    for (const level of levels) {
+      options.push({ value: String(level), label: names[String(level)] });
+    }
+    return options;
+  };
+
+  const hasLevelData = () => getLanguageFeatures().supportsFrequencyLevels;
+
+  const handleLevelChange = (e: Event) => {
+    const value = (e.target as HTMLSelectElement).value;
+    setTargetLevel(value ? Number(value) : null);
+  };
+
+  /**
+   * Check if a message at the given index should be hidden.
+   * Any empty assistant bubble that is not currently streaming is hidden.
+   */
+  const isEmptyToolOnlyBubble = (index: number): boolean => {
+    const msgs = messages();
+    const msg = msgs[index];
+    if (!msg || msg.role !== 'assistant') return false;
+    if (msg.content.trim()) return false;
+
+    // Don't hide if this is the latest message and we're still streaming
+    const isLatest = index === msgs.length - 1;
+    if (isLatest && isStreaming()) return false;
+
+    return true;
+  };
+
   return (
     <div class="conversation-agent">
       {/* Header with integrated tabs */}
@@ -512,14 +715,14 @@ const ConversationContent: Component = () => {
         <div class="ca-header-left">
           <span class="ca-header-title">{t('mlearn.ConversationAgent.Title')}</span>
           <div class="ca-connection-info">
-            <ConnectionStatus
-              status={isCheckingConnection() ? 'loading' : isConnected() ? 'connected' : 'disconnected'}
-              showLabel={!isConnected()}
-              size="sm"
-            />
-            <Label type="tag" size="xs" variant="default" class="ca-provider-label">
+            <Tag class="ca-provider-label" headless size="sm">
               {providerLabel()}
-            </Label>
+            </Tag>
+            <ConnectionStatus
+                status={isCheckingConnection() ? 'loading' : isConnected() ? 'connected' : 'disconnected'}
+                showLabel={!isConnected()}
+                size="sm"
+            />
           </div>
         </div>
         <TabContainer
@@ -577,16 +780,20 @@ const ConversationContent: Component = () => {
             >
               <Index each={messages()}>
                 {(msg, index) => (
-                  <ChatBubble
-                    message={msg()}
-                    isStreaming={isStreaming() && index === messages().length - 1 && msg().role === 'assistant'}
-                    isWaiting={isWaiting() && index === messages().length - 1 && msg().role === 'assistant'}
-                    onTokenHover={handleTokenHover}
-                    onTokenLeave={handleTokenLeave}
-                    triggerMode={currentTriggerMode()}
-                    triggerKey={currentKey()}
-                    onQuizAnswer={(answer) => handleQuizAnswer(index, answer)}
-                  />
+                  <Show when={!isEmptyToolOnlyBubble(index)}>
+                    <ChatBubble
+                      message={msg()}
+                      isStreaming={isStreaming() && index === messages().length - 1 && msg().role === 'assistant'}
+                      isWaiting={isWaiting() && index === messages().length - 1 && msg().role === 'assistant'}
+                      isProcessingToolCall={isProcessingToolCall() && index === messages().length - 1 && msg().role === 'assistant'}
+                      onTokenHover={handleTokenHover}
+                      onTokenLeave={handleTokenLeave}
+                      triggerMode={currentTriggerMode()}
+                      triggerKey={currentKey()}
+                      onQuizAnswer={(widgetIndex, answer) => handleQuizAnswer(index, widgetIndex, answer)}
+                      onRegenerate={msg().role === 'assistant' ? () => handleRegenerate(index) : undefined}
+                    />
+                  </Show>
                 )}
               </Index>
             </Show>
@@ -686,26 +893,54 @@ const ConversationContent: Component = () => {
               </Show>
             </div>
           </div>
-
-          {/* Status bar with hover trigger selector */}
+          {/* Status bar with hover trigger selector and level adaptation */}
           <StatusBar>
             <div class="hover-trigger-section">
               <label class="hover-trigger-label">{t('mlearn.ConversationAgent.ShowTooltipOn')}</label>
               <Select
-                class="hover-trigger-select"
-                options={triggerOptions()}
-                value={currentTriggerMode()}
-                onChange={handleTriggerModeChange}
+                  class="hover-trigger-select"
+                  options={triggerOptions()}
+                  value={currentTriggerMode()}
+                  onChange={handleTriggerModeChange}
               />
             </div>
+            <Show when={hasLevelData()}>
+              <div class="hover-trigger-section">
+                <label class="hover-trigger-label">{t('mlearn.ConversationAgent.LevelAdapt.Label')}</label>
+                <Select
+                    class="hover-trigger-select"
+                    options={levelOptions()}
+                    value={targetLevel() !== null ? String(targetLevel()) : ''}
+                    onChange={handleLevelChange}
+                />
+              </div>
+            </Show>
           </StatusBar>
         </div>
+
+      </TabPanel>
+
+      {/* Voice panel */}
+      <TabPanel tabId="voice" activeTab={activeTab()}>
+        <VoiceTab
+          messages={messages()}
+          isStreaming={isStreaming()}
+          onSendMessage={sendTextMessage}
+          onAbort={handleAbort}
+          onTokenHover={handleTokenHover}
+          onTokenLeave={handleTokenLeave}
+          triggerMode={currentTriggerMode()}
+          triggerKey={currentKey()}
+          isConnected={isConnected()}
+          language={settings.language || 'ja'}
+        />
       </TabPanel>
 
       {/* Stats panel */}
       <TabPanel tabId="stats" activeTab={activeTab()}>
         <MediaStatsTab context={mediaContext()} />
       </TabPanel>
+
 
 
     </div>

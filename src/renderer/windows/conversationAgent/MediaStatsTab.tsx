@@ -19,6 +19,7 @@ import {
 } from '../../components/common';
 import type { TabItem } from '../../components/common';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../utils/levelPercentages';
+import './MediaStatsTab.css';
 
 interface MediaStatsTabProps {
   /** Context passed from the current media route (pre-selected) */

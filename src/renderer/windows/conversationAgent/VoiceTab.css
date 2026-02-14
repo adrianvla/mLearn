@@ -1,0 +1,254 @@
+/* ============================================================================
+   VoiceTab — Voice call UI for the Conversation Agent
+   ============================================================================ */
+
+.voice-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ------ Model download section ------ */
+
+.voice-download-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-8);
+  flex: 1;
+  text-align: center;
+}
+
+.voice-download-hint {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  max-width: 320px;
+  line-height: var(--line-height-relaxed);
+}
+
+/* ------ Call UI ------ */
+
+.voice-call-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.voice-call-ui {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6) var(--spacing-4);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+/* ------ Waveform visualizer ------ */
+
+.voice-visualizer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  height: 48px;
+  min-width: 120px;
+}
+
+.voice-bar {
+  width: 4px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  transition: height 0.08s ease-out;
+  min-height: 4px;
+}
+
+.voice-bar.idle {
+  background: var(--text-tertiary);
+  opacity: 0.4;
+}
+
+/* ------ Status text ------ */
+
+.voice-status-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  min-height: 20px;
+}
+
+.voice-status-text.active {
+  color: var(--color-primary);
+}
+
+/* ------ Controls row ------ */
+
+.voice-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+/* ------ Mode toggle ------ */
+
+.voice-mode-toggle {
+  display: flex;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.voice-mode-btn {
+  padding: var(--spacing-1) var(--spacing-3);
+  font-size: var(--font-size-xs);
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-weight: var(--font-weight-medium);
+}
+
+.voice-mode-btn:hover {
+  background: var(--bg-intense);
+}
+
+.voice-mode-btn.active {
+  background: var(--color-primary);
+  color: white;
+}
+
+/* ------ End call button ------ */
+
+.voice-end-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-lg);
+  height: var(--size-lg);
+  border-radius: var(--radius-full);
+  border: none;
+  background: var(--color-error);
+  color: white;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.voice-end-btn:hover {
+  opacity: 0.85;
+}
+
+.voice-end-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ------ Start call button ------ */
+
+.voice-start-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-5);
+  border-radius: var(--radius-lg);
+  border: none;
+  background: var(--color-primary);
+  color: white;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  transition: opacity 0.15s ease;
+}
+
+.voice-start-btn:hover {
+  opacity: 0.85;
+}
+
+.voice-start-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voice-start-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ------ Push-to-talk button ------ */
+
+.voice-ptt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-full);
+  border: 3px solid var(--color-primary);
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+.voice-ptt-btn:active,
+.voice-ptt-btn.active {
+  background: var(--color-primary);
+  color: white;
+  transform: scale(0.96);
+}
+
+/* ------ Speed control ------ */
+
+.voice-speed-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  padding: 0 var(--spacing-4);
+}
+
+.voice-speed-row label {
+  white-space: nowrap;
+}
+
+.voice-speed-value {
+  min-width: 30px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------ Messages area (shared with chat) ------ */
+
+.voice-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-2) var(--spacing-3);
+}
+
+/* ------ Transcript preview ------ */
+
+.voice-transcript-preview {
+  padding: var(--spacing-2) var(--spacing-4);
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  font-style: italic;
+  border-top: 1px solid var(--border-color);
+  min-height: 28px;
+  flex-shrink: 0;
+}
+
+.voice-transcript-preview.final {
+  color: var(--text-primary);
+  font-style: normal;
+}

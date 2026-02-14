@@ -17,6 +17,7 @@ import { setupOllamaIPC } from './services/ollamaService';
 import { setupBuiltinLLMIPC } from './services/builtinLLMService';
 import { setupLLMRouterIPC } from './services/llmRouter';
 import { setupSpeechIPC } from './services/speechService';
+import { setupVoiceIPC } from './services/voiceService';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 
@@ -55,6 +56,7 @@ function setupAllIPC(): void {
   setupBuiltinLLMIPC();
   setupLLMRouterIPC();
   setupSpeechIPC();
+  setupVoiceIPC();
   setupKillHandlers();
 }
 

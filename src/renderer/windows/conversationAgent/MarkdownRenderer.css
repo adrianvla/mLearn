@@ -1,0 +1,83 @@
+/* ============ Markdown in assistant bubble ============ */
+
+.ca-markdown {
+  display: inline;
+}
+
+.ca-markdown p,
+.ca-md-p {
+  margin: 0;
+}
+
+.ca-markdown p + p,
+.ca-md-p + .ca-md-p {
+  margin-top: var(--spacing-2);
+}
+
+.ca-markdown strong,
+.ca-markdown b {
+  font-weight: var(--font-weight-semibold);
+}
+
+.ca-markdown em,
+.ca-markdown i {
+  font-style: italic;
+}
+
+.ca-md-code,
+.ca-markdown code {
+  background: var(--bg-intense);
+  padding: 1px var(--spacing-1);
+  border-radius: var(--radius-sm);
+  font-size: 0.9em;
+  font-family: monospace;
+}
+
+.ca-md-pre,
+.ca-markdown pre {
+  background: var(--bg-intense);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin: var(--spacing-2) 0;
+  font-size: 0.85em;
+}
+
+.ca-md-pre code,
+.ca-markdown pre code {
+  background: none;
+  padding: 0;
+}
+
+.ca-md-list,
+.ca-markdown ul,
+.ca-markdown ol {
+  margin: var(--spacing-1) 0;
+  padding-left: var(--spacing-5);
+}
+
+.ca-md-blockquote,
+.ca-markdown blockquote {
+  border-left: 3px solid var(--border-color);
+  padding-left: var(--spacing-3);
+  margin: var(--spacing-2) 0;
+  color: var(--text-secondary);
+}
+
+.ca-md-hr,
+.ca-markdown hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: var(--spacing-2) 0;
+}
+
+.ca-md-link,
+.ca-markdown a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ca-md-heading {
+  font-weight: var(--font-weight-semibold);
+}

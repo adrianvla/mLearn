@@ -25,6 +25,8 @@ export interface LanguageFeatures {
   isRTL: boolean;
   /** Whether the language supports color-coded parts of speech */
   supportsColorCodes: boolean;
+  /** Whether the primary writing system is Latin script */
+  usesLatinScript: boolean;
   /** Whether the language supports frequency/JLPT-style level indicators */
   supportsFrequencyLevels: boolean;
   /** Whether settings are overridden by language data */
@@ -271,6 +273,25 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     
     // RTL languages
     const isRTL = isArabic || isHebrew;
+
+    let usesLatinScript: boolean;
+    if (typeof data?.usesLatinScript === 'boolean') {
+      usesLatinScript = data.usesLatinScript;
+    } else {
+      let localeScript = '';
+      try {
+        const locale = new Intl.Locale(lang).maximize();
+        localeScript = (locale.script || '').toLowerCase();
+      } catch {
+        localeScript = '';
+      }
+
+      if (localeScript) {
+        usesLatinScript = localeScript === 'latn';
+      } else {
+        usesLatinScript = !isLogographic && !isRTL;
+      }
+    }
     
     return {
       // Japanese and Chinese support readings (furigana/pinyin)
@@ -279,6 +300,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       supportsPitchAccent: fixedSettings.showPitchAccent !== false && isJapanese,
       isLogographic,
       isRTL,
+      usesLatinScript,
       // All languages can potentially have color codes if defined
       supportsColorCodes: Boolean(data?.colour_codes && Object.keys(data.colour_codes).length > 0),
       // Frequency levels are usually for Japanese (JLPT) but can be configured for any language

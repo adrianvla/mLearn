@@ -180,6 +180,16 @@ export interface Settings {
   /** STT language override (auto-detected from learning language by default) */
   sttLanguage: string;
 
+  // Voice call mode settings
+  /** Voice input mode: hands-free VAD or push-to-talk */
+  voiceMode: VoiceMode;
+  /** TTS speech speed multiplier */
+  voiceTtsSpeed: number;
+  /** Automatically send message after VAD silence detection */
+  voiceAutoSendOnSilence: boolean;
+  /** Seconds of silence before considering speech ended */
+  voiceSilenceThreshold: number;
+
   // First-run tracking
   hasCompletedSetup?: boolean;
 }
@@ -253,6 +263,10 @@ export const DEFAULT_SETTINGS: Settings = {
   speechEnabled: false,
   autoSpeak: false,
   sttLanguage: '',
+  voiceMode: 'vad',
+  voiceTtsSpeed: 1.0,
+  voiceAutoSendOnSilence: true,
+  voiceSilenceThreshold: 1.2,
 };
 
 // ============================================================================
@@ -294,6 +308,10 @@ export interface LanguageData {
   hasFurigana?: boolean;
   /** Whether this language uses CJK-style parentheses for character names (e.g. （角色名）) */
   usesCJKParentheses?: boolean;
+  /** Whether this language primarily uses Latin script */
+  usesLatinScript?: boolean;
+  /** Unicode script tags used by this language (e.g., ["Latn"], ["Hira","Kana","Han"]) */
+  supportedScripts?: string[];
 }
 
 export interface LanguageDataMap {
@@ -892,6 +910,8 @@ export interface ConversationMessage {
   timestamp: number;
   /** Rendered widget data (quiz, mistake, etc.) */
   widget?: ChatWidget;
+  /** Rendered widgets in order when multiple tool calls occur in one assistant turn */
+  widgets?: ChatWidget[];
   /** Inline corrections applied to user messages by the AI tutor */
   corrections?: MistakeWidgetData[];
   /** Generation timing stats (assistant messages only) */
@@ -924,10 +944,13 @@ export interface ChatWidget {
 }
 
 export interface QuizWidgetData {
-  type: 'mcq' | 'fill-in';
+  type: 'mcq' | 'text-input' | 'fill-in';
   question: string;
+  /** Phrase template with [] placeholders for fill-in mode */
+  textWithBlanks?: string;
   options?: string[];
   correctAnswer: string;
+  affectedPattern?: string;
   userAnswer?: string;
   isCorrect?: boolean;
 }
@@ -1031,4 +1054,39 @@ export interface STTResult {
 export interface TTSStatus {
   speaking: boolean;
   progress: number;
+}
+
+// ============================================================================
+// Voice Call Mode Types
+// ============================================================================
+
+export type VoiceMode = 'vad' | 'push-to-talk';
+
+export interface VoiceModelStatus {
+  sttDownloaded: boolean;
+  ttsDownloaded: boolean;
+  vadDownloaded: boolean;
+  downloading: boolean;
+  progress: number;
+  error?: string;
+}
+
+export interface VoiceSTTResult {
+  text: string;
+  isFinal: boolean;
+  isEndpoint: boolean;
+}
+
+export interface VoiceVadEvent {
+  type: 'speech-start' | 'speech-end';
+}
+
+export interface VoiceTtsAudio {
+  samples: Float32Array;
+  sampleRate: number;
+}
+
+export interface VoiceTtsStatus {
+  generating: boolean;
+  playing: boolean;
 }
