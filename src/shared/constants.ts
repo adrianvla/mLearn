@@ -24,6 +24,12 @@ export const API_ENDPOINTS = {
   ocr: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/ocr`,
   control: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/control`,
   quit: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/quit`,
+  // Voice endpoints
+  voiceStream: `ws://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stream`,
+  voiceTts: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts`,
+  voiceSttStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stt/status`,
+  voiceTtsStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/status`,
+  voiceModelsDownload: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/models/download`,
 } as const;
 
 // IPC Channel names - strongly typed
@@ -190,6 +196,14 @@ export const IPC_CHANNELS = {
   VOICE_TTS_AUDIO: 'voice-tts-audio',
   VOICE_TTS_STATUS: 'voice-tts-status',
   VOICE_TTS_STOP: 'voice-tts-stop',
+  VOICE_SESSION_READY: 'voice-session-ready',
+  VOICE_SESSION_ERROR: 'voice-session-error',
+
+  // Voice samples
+  VOICE_SAMPLE_UPLOAD: 'voice-sample-upload',
+  VOICE_SAMPLE_LIST: 'voice-sample-list',
+  VOICE_SAMPLE_DELETE: 'voice-sample-delete',
+  VOICE_SAMPLE_RENAME: 'voice-sample-rename',
 } as const;
 
 // Window types
@@ -231,6 +245,12 @@ export const WORD_HOVER_TRIGGER_MODES = ['hover', 'long-hover', 'key-hover'] as 
 export type WordHoverTriggerMode = typeof WORD_HOVER_TRIGGER_MODES[number];
 
 // Python download URLs
+// NOTE: Voice (Chatterbox TTS) requires Python 3.11+.
+// Update packaged-python repo with 3.11 builds from indygreg/python-build-standalone:
+//   - aarch64-apple-darwin: cpython-3.11.x+...aarch64-apple-darwin-install_only.tar.gz
+//   - x86_64-apple-darwin:  cpython-3.11.x+...x86_64-apple-darwin-install_only.tar.gz
+//   - x86_64-linux-gnu:     cpython-3.11.x+...x86_64-unknown-linux-gnu-install_only.tar.gz
+//   - x86_64-windows-msvc:  cpython-3.11.x+...x86_64-pc-windows-msvc-install_only.tar.gz
 export const PYTHON_DOWNLOAD_BASE = 'https://github.com/adrianvla/packaged-python/raw/refs/heads/main/';
 
 // Update URL

@@ -3,7 +3,7 @@
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode } from './types';
+import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample } from './types';
 
 export interface MLearnIPC {
   // Settings
@@ -176,15 +176,23 @@ export interface MLearnIPC {
   voiceCheckModels: (language: string) => Promise<VoiceModelStatus>;
   voiceDownloadModels: (language: string) => void;
   onVoiceModelProgress: (callback: (status: VoiceModelStatus) => void) => () => void;
-  voiceStartSession: (language: string, mode: VoiceMode) => void;
+  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number) => void;
   voiceStopSession: () => void;
   voiceSendAudioChunk: (samples: Float32Array) => void;
   onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) => () => void;
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) => () => void;
-  voiceTtsGenerate: (text: string, language: string, speed: number) => void;
+  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string) => void;
   voiceTtsStop: () => void;
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) => () => void;
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) => () => void;
+  onVoiceSessionReady: (callback: (data: VoiceSessionReady) => void) => () => void;
+  onVoiceSessionError: (callback: (data: VoiceSessionError) => void) => () => void;
+
+  // Voice Sample Management
+  voiceSampleList: () => Promise<VoiceSample[]>;
+  voiceSampleUpload: (sourcePath: string, name: string) => Promise<VoiceSample>;
+  voiceSampleDelete: (id: string) => Promise<boolean>;
+  voiceSampleRename: (id: string, newName: string) => Promise<boolean>;
 
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;

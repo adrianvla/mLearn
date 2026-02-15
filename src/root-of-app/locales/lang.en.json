@@ -62,7 +62,17 @@
         "RemoveOverride": "Remove Override",
         "LoadAll": "Load All"
       },
-      "Remove": "Remove"
+      "Time": {
+        "ShortHour": "{value}h",
+        "ShortMinute": "{value}m",
+        "ShortSecond": "{value}s",
+        "ShortDay": "{value}d",
+        "ShortYear": "{value}y",
+        "HoursMinutes": "{hours}h {minutes}m",
+        "MinutesSeconds": "{minutes}m {seconds}s",
+        "LessThanMinute": "< 1m",
+        "Now": "now"
+      }
     },
     "ConnectionStatus": {
       "Connected": "Connected",
@@ -95,8 +105,12 @@
     "SubtitleSync": {
       "SyncToPrevious": "Sync subtitle to previous audio",
       "SyncToNext": "Sync subtitle to next audio",
-      "Backward": "← {ms}ms",
-      "Forward": "{ms}ms →"
+      "PreviousTooltip": "Sync to previous subtitle",
+      "NextTooltip": "Sync to next subtitle",
+      "BackwardMs": "← {ms}ms",
+      "ForwardMs": "{ms}ms →",
+      "Backward": "Backward",
+      "Forward": "Forward"
     },
     "Home": {
       "UI": {
@@ -146,12 +160,6 @@
         "GoHome": "Go back to home",
         "OpenConversationAgent": "Open AI conversation tutor"
       }
-    },
-    "SubtitleSync": {
-      "PreviousTooltip": "Sync to previous subtitle",
-      "NextTooltip": "Sync to next subtitle",
-      "Backward": "Backward",
-      "Forward": "Forward"
     },
     "Reader": {
       "UI": {
@@ -334,10 +342,6 @@
         "EditCard": {
           "Title": "Edit Flashcard"
         }
-      },
-      "SyncStatus": {
-        "Success": "Flashcards synced successfully!",
-        "Syncing": "Syncing..."
       },
       "Review": {
         "Again": "Again",
@@ -602,99 +606,9 @@
           "Description": "Enable developer tools and debugging features"
         }
       },
-      "Anki": {
-        "UseAnki": {
-          "Label": "Enable Anki",
-          "Description": "Connect to Anki for flashcard creation"
-        },
-        "AnkiConnectUrl": {
-          "Label": "AnkiConnect URL",
-          "Description": "URL for the AnkiConnect plugin"
-        },
-        "AnkiDeck": {
-          "Label": "Anki Deck",
-          "Description": "Deck to add new cards to"
-        },
-        "TestConnection": "Test",
-        "Connected": "✓ Connected",
-        "Failed": "✗ Failed",
-        "AnkiModel": {
-          "Label": "Note Type",
-          "Description": "Anki note type to use for new cards"
-        },
-        "ExpressionField": {
-          "Label": "Expression Field",
-          "Description": "Anki field for the word/expression"
-        },
-        "ReadingField": {
-          "Label": "Reading Field",
-          "Description": "Anki field for the reading/pronunciation"
-        },
-        "MeaningField": {
-          "Label": "Meaning Field",
-          "Description": "Anki field for the meaning/definition"
-        }
-      },
       "BuiltInFlashcards": {
-        "EnableFlashcardCreation": {
-          "Label": "Enable Flashcard Creation",
-          "Description": "Allow creating flashcards while learning"
-        },
-        "MaxNewCardsPerDay": {
-          "Label": "Max New Cards Per Day",
-          "Description": "Maximum number of new cards to introduce daily"
-        },
-        "ProportionOfExamCards": {
-          "Label": "Exam Card Proportion",
-          "Description": "Proportion of exam-style cards in reviews"
-        },
-        "PreparedExam": {
-          "Label": "Prepared Exam Level",
-          "Description": "Target proficiency level for exam preparation"
-        },
-        "CreateUnseenCards": {
-          "Label": "Create Unseen Cards",
-          "Description": "Automatically create cards for new words"
-        },
-        "ResetSrs": {
-          "Label": "Reset SRS Data",
-          "Description": "Clear all spaced repetition progress"
-        },
         "ResetSrsConfirm": "Are you sure you want to reset all SRS data? This cannot be undone!",
         "ResetSrsConfirm2": "This will delete all your flashcard progress. Really continue?"
-      },
-      "Tokenizer": {
-        "OcrEnabled": {
-          "Label": "Enable OCR",
-          "Description": "Enable optical character recognition for images"
-        },
-        "LlmEnabled": {
-          "Label": "Enable LLM",
-          "Description": "Enable AI-powered explanations and features"
-        }
-      },
-      "WordHover": {
-        "TriggerMode": {
-          "Label": "Hover Trigger Mode",
-          "Description": "How the word hover popup is activated"
-        },
-        "TriggerModes": {
-          "Hover": "Hover (immediate)",
-          "LongHover": "Long Hover (500ms delay)",
-          "KeyHover": "Key + Hover (hold key)"
-        },
-        "HoverKey": {
-          "Label": "Hover Key",
-          "Description": "Key to hold for 'Key + Hover' mode"
-        },
-        "TestPopup": "Test popup",
-        "HidePopup": "Hide popup"
-      },
-      "FuriganaSettings": {
-        "FuriganaHider": {
-          "Label": "Furigana Hider",
-          "Description": "Hide furigana behind white boxes until hover"
-        }
       },
       "Subtitle": {
         "Theme": {
@@ -729,13 +643,6 @@
           "Label": "Subtitle Offset",
           "Description": "Time offset for subtitle timing (ms)"
         }
-      },
-      "ReaderTips": {
-        "Title": "Reader Tips",
-        "OcrTip": "🔍 OCR: Press the OCR button or use the keyboard shortcut to extract text from the current page.",
-        "TextLayerTip": "📝 Text Layer: The extracted text will appear as an overlay you can interact with.",
-        "NavigationTip": "📚 Navigation: Use arrow keys or click thumbnails in the sidebar to navigate pages.",
-        "DoublePageTip": "💡 Tip: Double-page mode works great for manga spreads!"
       },
       "Reader": {
         "Title": "Reader",
@@ -1064,9 +971,6 @@
       "LevelNames": {
         "Common": "Common",
         "Unlisted": "Unlisted"
-      },
-      "Tooltip": {
-        "EditWord": "Edit word overrides"
       }
     },
     "CardEditor": {
@@ -1078,7 +982,6 @@
         "ReadingPlaceholder": "かな / reading",
         "PitchAccent": "Pitch accent",
         "PitchAccentPlaceholder": "0 (Heiban), 1, 2, 3…",
-        "PitchPlaceholder": "0 (Heiban), 1, 2, 3…",
         "Surface": "Surface form",
         "SurfaceNote": "(Word)",
         "PartOfSpeech": "Part of Speech",
@@ -1139,15 +1042,12 @@
       "Connected": "Connected",
       "Disconnected": "Disconnected",
       "ExperimentalBanner": "Experimental — AI responses may contain errors. Verify important language points.",
-      "EmptyTitle": "Start a conversation",
-      "EmptyDescription": "Practice your target language with the AI tutor. It will correct mistakes, quiz you, and help you learn.",
       "Placeholder": "Message in target language...",
       "Speaking": "Speaking...",
       "StopRecording": "Stop recording",
       "StartRecording": "Start recording",
       "Send": "Send message",
       "Clear": "Clear conversation",
-      "ClearConversation": "Clear conversation",
       "Regenerate": "Regenerate response",
       "Tab": {
         "Chat": "Chat",
@@ -1241,12 +1141,25 @@
         "PushToTalk": "Push to Talk",
         "HandsFree": "Hands-Free",
         "ModelsRequired": "Voice models are required for this feature. Download them to get started.",
+        "DownloadFailed": "Failed to download voice models. The required dependencies may not be installed. Please reinstall the application or check the logs for details.",
         "TtsSpeed": "Speech speed",
         "Interrupted": "*interrupted by user*",
         "SilenceThreshold": "Silence threshold",
         "VoiceMode": "Input mode",
         "HoldToSpeak": "Hold to speak",
-        "MicPermission": "Microphone access is required for voice calls."
+        "MicPermission": "Microphone access is required for voice calls.",
+        "EmptyHint": "Start a voice call to practice speaking with the AI tutor.",
+        "Initializing": "Loading voice engines…",
+        "DefaultVoice": "Default voice",
+        "VoiceSample": "Voice clone",
+        "UploadSample": "Upload voice sample",
+        "Aftermath": {
+          "Title": "Session Summary",
+          "Duration": "Duration",
+          "Messages": "Messages",
+          "Mistakes": "Mistakes noted",
+          "NoMistakes": "No mistakes were noted. Great job!"
+        }
       }
     },
     "MediaStats": {

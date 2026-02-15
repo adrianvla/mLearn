@@ -92,13 +92,16 @@ export function getTimeWatchedSeconds(): number {
 }
 
 /**
- * Get formatted time watched string (e.g., "2h 30m")
+ * Get formatted time watched string, localized via the provided translation function.
  */
-export function getTimeWatchedFormatted(): string {
+export function getTimeWatchedFormatted(t: (key: string, params?: Record<string, string | number>) => string): string {
   const seconds = timeWatchedSeconds();
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  return `${hours}h ${minutes}m`;
+  if (hours > 0) {
+    return t('mlearn.Global.Time.HoursMinutes', { hours, minutes });
+  }
+  return t('mlearn.Global.Time.ShortMinute', { value: minutes });
 }
 
 /**

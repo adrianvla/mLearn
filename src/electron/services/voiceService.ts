@@ -1,41 +1,40 @@
 /**
- * Voice Service — manages sherpa-onnx STT, TTS, and VAD engines
- * for the voice call mode in the Conversation Agent.
+ * Voice Service — relays audio between renderer IPC and Python backend
+ * for STT (faster-whisper), TTS (Chatterbox), and VAD (Silero).
  *
- * All engines run in the main process. Audio is streamed from the
- * renderer via IPC as Float32Array PCM chunks at 16 kHz mono.
+ * All speech models run in the Python backend (server.py).
+ * Audio streams from renderer via IPC → this service → Python WebSocket.
+ * TTS is requested via HTTP POST, audio returned and forwarded to renderer.
  */
 
 import { ipcMain, app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import { IPC_CHANNELS } from '../../shared/constants';
-import { downloadFileWithProgress } from '../utils/downloadManager';
-import { getSTTModel, getTTSModel, VAD_MODEL } from '../../shared/voiceModels';
-import type { VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceMode } from '../../shared/types';
-
-// sherpa-onnx-node is a CJS native addon — require it dynamically to
-// avoid issues if the binary isn't available at build time.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let sherpaOnnx: any = null;
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function requireSherpa(): any {
-  if (!sherpaOnnx) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    sherpaOnnx = require('sherpa-onnx-node');
-  }
-  return sherpaOnnx;
-}
+import * as http from 'http';
+import { IPC_CHANNELS, API_ENDPOINTS } from '../../shared/constants';
+import type {
+  VoiceModelStatus,
+  VoiceSTTResult,
+  VoiceVadEvent,
+  VoiceMode,
+  VoiceSample,
+  VoiceTtsAudio,
+} from '../../shared/types';
+import WebSocket from 'ws';
 
 // ============================================================================
 // Paths
 // ============================================================================
 
-const VOICE_MODELS_DIR = 'voice-models';
+const VOICE_SAMPLES_DIR = 'voice-samples';
+const VOICE_SAMPLES_MANIFEST = 'voice-samples.json';
 
-function getVoiceModelsDir(): string {
-  return path.join(app.getPath('userData'), VOICE_MODELS_DIR);
+function getVoiceSamplesDir(): string {
+  return path.join(app.getPath('userData'), VOICE_SAMPLES_DIR);
+}
+
+function getManifestPath(): string {
+  return path.join(app.getPath('userData'), VOICE_SAMPLES_MANIFEST);
 }
 
 function ensureDir(dir: string): void {
@@ -45,394 +44,334 @@ function ensureDir(dir: string): void {
 }
 
 // ============================================================================
-// Download State
+// Voice Sample Management
 // ============================================================================
 
-let isDownloading = false;
-let downloadProgress = 0;
+function loadSamplesManifest(): VoiceSample[] {
+  const manifestPath = getManifestPath();
+  if (!fs.existsSync(manifestPath)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+  } catch {
+    return [];
+  }
+}
 
-function getModelStatus(language: string): VoiceModelStatus {
-  return {
-    sttDownloaded: isSTTDownloaded(language),
-    ttsDownloaded: isTTSDownloaded(language),
-    vadDownloaded: isVADDownloaded(),
-    downloading: isDownloading,
-    progress: downloadProgress,
-  };
+function saveSamplesManifest(samples: VoiceSample[]): void {
+  fs.writeFileSync(getManifestPath(), JSON.stringify(samples, null, 2), 'utf-8');
+}
+
+function getVoiceSamplePath(sample: VoiceSample): string {
+  return path.join(getVoiceSamplesDir(), sample.filename);
 }
 
 // ============================================================================
-// Model Availability Checks
+// HTTP Helpers
 // ============================================================================
 
-function isVADDownloaded(): boolean {
-  const p = path.join(getVoiceModelsDir(), VAD_MODEL.filename);
-  return fs.existsSync(p);
+function fetchJson(url: string): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    http.get(url, (res) => {
+      let data = '';
+      res.on('data', (chunk: string) => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+      });
+    }).on('error', reject);
+  });
 }
 
-function isSTTDownloaded(language: string): boolean {
-  const model = getSTTModel(language);
-  const dir = path.join(getVoiceModelsDir(), model.dirName);
-  if (!fs.existsSync(dir)) return false;
-  const tokensPath = path.join(dir, model.files.tokens);
-  return fs.existsSync(tokensPath);
-}
-
-function isTTSDownloaded(language: string): boolean {
-  const model = getTTSModel(language);
-  const dir = path.join(getVoiceModelsDir(), model.dirName);
-  if (!fs.existsSync(dir)) return false;
-  const modelPath = path.join(dir, model.files.model);
-  return fs.existsSync(modelPath);
+function postJson(
+  url: string,
+  body: Record<string, unknown>,
+): Promise<{ data: Buffer; headers: http.IncomingHttpHeaders }> {
+  return new Promise((resolve, reject) => {
+    const bodyStr = JSON.stringify(body);
+    const urlObj = new URL(url);
+    const req = http.request(
+      {
+        hostname: urlObj.hostname,
+        port: urlObj.port,
+        path: urlObj.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(bodyStr),
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => { chunks.push(chunk); });
+        res.on('end', () => {
+          resolve({ data: Buffer.concat(chunks), headers: res.headers });
+        });
+      },
+    );
+    req.on('error', reject);
+    req.write(bodyStr);
+    req.end();
+  });
 }
 
 // ============================================================================
-// Model Download
+// WebSocket Session State
 // ============================================================================
 
-async function downloadModels(
-  language: string,
-  sender: Electron.WebContents
-): Promise<void> {
-  if (isDownloading) throw new Error('Download already in progress');
+let activeWs: WebSocket | null = null;
+let activeSession = false;
+let activeSender: Electron.WebContents | null = null;
 
-  isDownloading = true;
-  downloadProgress = 0;
-  const baseDir = getVoiceModelsDir();
-  ensureDir(baseDir);
+// ============================================================================
+// TTS Abort
+// ============================================================================
 
-  const emitStatus = () => {
-    sender.send(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD_PROGRESS, getModelStatus(language));
+let ttsAbortController: AbortController | null = null;
+
+// ============================================================================
+// Model Status Check
+// ============================================================================
+
+async function checkModelStatus(_language: string): Promise<VoiceModelStatus> {
+  const status: VoiceModelStatus = {
+    sttDownloaded: false,
+    ttsDownloaded: false,
+    vadDownloaded: true, // VAD is loaded via torch.hub, always "available" if voice deps installed
+    downloading: false,
+    progress: 0,
+    sttModelName: 'openai/whisper-small',
+    ttsModelName: 'Chatterbox-Multilingual',
   };
 
   try {
-    const steps: Array<{ url: string; dest: string }> = [];
-
-    // VAD
-    if (!isVADDownloaded()) {
-      steps.push({
-        url: VAD_MODEL.url,
-        dest: path.join(baseDir, VAD_MODEL.filename),
-      });
-    }
-
-    // STT
-    if (!isSTTDownloaded(language)) {
-      const stt = getSTTModel(language);
-      if (stt.isArchive) {
-        // Download archive then extract
-        const archiveDest = path.join(baseDir, path.basename(stt.url));
-        steps.push({ url: stt.url, dest: archiveDest });
-      }
-    }
-
-    // TTS
-    if (!isTTSDownloaded(language)) {
-      const tts = getTTSModel(language);
-      if (tts.isArchive) {
-        const archiveDest = path.join(baseDir, path.basename(tts.url));
-        // Avoid duplicate if STT and TTS use the same archive
-        if (!steps.some(s => s.dest === archiveDest)) {
-          steps.push({ url: tts.url, dest: archiveDest });
-        }
-      }
-    }
-
-    const totalSteps = steps.length;
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      await downloadFileWithProgress(step.url, step.dest, (p) => {
-        downloadProgress = (i + p.progress) / totalSteps;
-        emitStatus();
-      });
-
-      // Extract tar.bz2 archives using system tar (npm tar doesn't support bzip2)
-      if (step.dest.endsWith('.tar.bz2')) {
-        try {
-          const { execFileSync } = require('child_process') as typeof import('child_process');
-          execFileSync('tar', ['xjf', step.dest, '-C', baseDir]);
-          fs.unlinkSync(step.dest);
-        } catch (err) {
-          console.error('Failed to extract archive:', err);
-        }
-      } else if (step.dest.endsWith('.tar.gz') || step.dest.endsWith('.tgz')) {
-        try {
-          const tar = require('tar') as typeof import('tar');
-          await tar.extract({ file: step.dest, cwd: baseDir });
-          fs.unlinkSync(step.dest);
-        } catch (err) {
-          console.error('Failed to extract archive:', err);
-        }
-      }
-    }
-
-    isDownloading = false;
-    downloadProgress = 1;
-    emitStatus();
+    const [sttRes, ttsRes] = await Promise.all([
+      fetchJson(API_ENDPOINTS.voiceSttStatus),
+      fetchJson(API_ENDPOINTS.voiceTtsStatus),
+    ]);
+    status.sttDownloaded = (sttRes.downloaded as boolean) ?? false;
+    status.ttsDownloaded = (ttsRes.downloaded as boolean) ?? false;
+    status.downloading =
+      ((sttRes.downloading as boolean) ?? false) ||
+      ((ttsRes.downloading as boolean) ?? false);
+    status.progress =
+      (((sttRes.progress as number) ?? 0) + ((ttsRes.progress as number) ?? 0)) / 2;
   } catch (err) {
-    isDownloading = false;
-    const status = getModelStatus(language);
     status.error = err instanceof Error ? err.message : String(err);
-    sender.send(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD_PROGRESS, status);
-    throw err;
   }
+
+  return status;
 }
 
 // ============================================================================
-// Engine State
+// WebSocket Session Management
 // ============================================================================
 
-// Use `any` for sherpa-onnx instance types since their constructors vary
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let recognizer: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let recognizerStream: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let vad: any = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let tts: any = null;
-
-let activeSession = false;
-let activeSender: Electron.WebContents | null = null;
-let speechDetected = false;
-
-// VAD circular buffer for feeding samples in window-sized chunks
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let vadBuffer: any = null;
-
-// ============================================================================
-// Engine Initialization
-// ============================================================================
-
-function initSTT(language: string): void {
-  if (recognizer) return;
-
-  const sherpa = requireSherpa();
-  const model = getSTTModel(language);
-  const baseDir = path.join(getVoiceModelsDir(), model.dirName);
-
-  const config = {
-    featConfig: {
-      sampleRate: 16000,
-      featureDim: 80,
-    },
-    modelConfig: {
-      transducer: {
-        encoder: path.join(baseDir, model.files.encoder),
-        decoder: path.join(baseDir, model.files.decoder),
-        joiner: path.join(baseDir, model.files.joiner),
-      },
-      tokens: path.join(baseDir, model.files.tokens),
-      numThreads: 2,
-      provider: 'cpu',
-      debug: 0,
-    },
-    enableEndpoint: true,
-    rule1MinTrailingSilence: 2.4,
-    rule2MinTrailingSilence: 1.2,
-    rule3MinUtteranceLength: 20,
-  };
-
-  recognizer = new sherpa.OnlineRecognizer(config);
-  recognizerStream = recognizer.createStream();
-}
-
-function initVAD(): void {
-  if (vad) return;
-
-  const sherpa = requireSherpa();
-  const vadModelPath = path.join(getVoiceModelsDir(), VAD_MODEL.filename);
-
-  const config = {
-    sileroVad: {
-      model: vadModelPath,
-      threshold: 0.5,
-      minSilenceDuration: 0.25,
-      minSpeechDuration: 0.25,
-      windowSize: 512,
-    },
-    sampleRate: 16000,
-    debug: 0,
-    numThreads: 1,
-  };
-
-  vad = new sherpa.Vad(config, 30); // 30 second buffer
-  vadBuffer = new sherpa.CircularBuffer(30 * 16000);
-}
-
-function initTTS(language: string): void {
-  if (tts) return;
-
-  const sherpa = requireSherpa();
-  const model = getTTSModel(language);
-  const baseDir = path.join(getVoiceModelsDir(), model.dirName);
-
-  const config: Record<string, unknown> = {
-    model: {
-      kokoro: model.type === 'kokoro' ? {
-        model: path.join(baseDir, model.files.model),
-        voices: model.files.voices ? path.join(baseDir, model.files.voices) : '',
-        tokens: path.join(baseDir, model.files.tokens),
-        dataDir: model.files.dataDir ? path.join(baseDir, model.files.dataDir) : '',
-        lang: model.kokoroLang || language,
-        lengthScale: 1.0,
-      } : undefined,
-      vits: model.type === 'vits' ? {
-        model: path.join(baseDir, model.files.model),
-        tokens: path.join(baseDir, model.files.tokens),
-        lexicon: model.files.lexicon ? path.join(baseDir, model.files.lexicon) : '',
-        dataDir: model.files.dataDir ? path.join(baseDir, model.files.dataDir) : '',
-        lengthScale: 1.0,
-      } : undefined,
-      numThreads: 2,
-      provider: 'cpu',
-      debug: 0,
-    },
-    maxNumSentences: 1,
-  };
-
-  tts = new sherpa.OfflineTts(config);
-}
-
-function destroyEngines(): void {
-  if (recognizerStream) {
-    try { recognizerStream.free(); } catch { /* ignore */ }
-    recognizerStream = null;
+function startSession(
+  language: string,
+  _mode: VoiceMode,
+  silenceThreshold: number,
+  sender: Electron.WebContents,
+): void {
+  if (activeWs) {
+    stopSession();
   }
-  if (recognizer) {
-    try { recognizer.free(); } catch { /* ignore */ }
-    recognizer = null;
-  }
-  if (vad) {
-    try { vad.free(); } catch { /* ignore */ }
-    vad = null;
-  }
-  if (vadBuffer) {
-    try { vadBuffer.free(); } catch { /* ignore */ }
-    vadBuffer = null;
-  }
-  if (tts) {
-    try { tts.free(); } catch { /* ignore */ }
-    tts = null;
-  }
-}
 
-// ============================================================================
-// Audio Processing
-// ============================================================================
+  const wsUrl = `${API_ENDPOINTS.voiceStream}?language=${encodeURIComponent(language)}&silence=${silenceThreshold}`;
 
-function processAudioChunk(samples: Float32Array): void {
-  if (!activeSession || !activeSender) return;
+  try {
+    const ws = new WebSocket(wsUrl);
+    activeWs = ws;
+    activeSession = true;
+    activeSender = sender;
 
-  const sender = activeSender;
+    ws.on('open', () => {
+      console.log('[VoiceService] WebSocket connected to Python backend');
+    });
 
-  // Feed VAD
-  if (vad) {
-    vad.acceptWaveform(samples);
-
-    // Check for speech segments
-    while (!vad.isEmpty()) {
-      const segment = vad.front();
-
-      if (!speechDetected) {
-        speechDetected = true;
-        const vadEvent: VoiceVadEvent = { type: 'speech-start' };
-        sender.send(IPC_CHANNELS.VOICE_VAD_EVENT, vadEvent);
+    ws.on('message', (rawData: WebSocket.RawData) => {
+      if (!activeSender) return;
+      try {
+        const msg = JSON.parse(rawData.toString());
+        switch (msg.type) {
+          case 'ready':
+            activeSender.send(IPC_CHANNELS.VOICE_SESSION_READY, { ready: true });
+            break;
+          case 'vad': {
+            const vadEvent: VoiceVadEvent = { type: msg.event };
+            activeSender.send(IPC_CHANNELS.VOICE_VAD_EVENT, vadEvent);
+            break;
+          }
+          case 'stt': {
+            const sttResult: VoiceSTTResult = {
+              text: msg.text,
+              isFinal: msg.isFinal,
+              isPartial: msg.isPartial ?? !msg.isFinal,
+            };
+            activeSender.send(IPC_CHANNELS.VOICE_STT_RESULT, sttResult);
+            break;
+          }
+          case 'error':
+            console.error('[VoiceService] Backend error:', msg.message);
+            activeSender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
+              error: msg.message,
+            });
+            break;
+        }
+      } catch (e) {
+        console.error('[VoiceService] Failed to parse WS message:', e);
       }
+    });
 
-      // Feed the speech segment to STT
-      if (recognizerStream && recognizer) {
-        recognizerStream.acceptWaveform(16000, segment.samples);
-
-        while (recognizer.isReady(recognizerStream)) {
-          recognizer.decode(recognizerStream);
-        }
-
-        const text = recognizer.getResult(recognizerStream).text;
-        const isEndpoint = recognizer.isEndpoint(recognizerStream);
-
-        if (text) {
-          const result: VoiceSTTResult = {
-            text,
-            isFinal: isEndpoint,
-            isEndpoint,
-          };
-          sender.send(IPC_CHANNELS.VOICE_STT_RESULT, result);
-        }
-
-        if (isEndpoint) {
-          recognizer.reset(recognizerStream);
-          speechDetected = false;
-          const vadEvent: VoiceVadEvent = { type: 'speech-end' };
-          sender.send(IPC_CHANNELS.VOICE_VAD_EVENT, vadEvent);
-        }
+    ws.on('error', (err) => {
+      console.error('[VoiceService] WebSocket error:', err);
+      if (activeSender) {
+        activeSender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
+          error: err.message || 'WebSocket connection error',
+        });
       }
+    });
 
-      vad.pop();
-    }
+    ws.on('close', () => {
+      console.log('[VoiceService] WebSocket closed');
+      if (activeWs === ws) {
+        activeWs = null;
+        activeSession = false;
+      }
+    });
+  } catch (err) {
+    console.error('[VoiceService] Failed to connect:', err);
+    sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
+}
 
-  // Also feed STT directly for partial results even without VAD speech detection
-  if (recognizerStream && recognizer && !vad) {
-    recognizerStream.acceptWaveform(16000, samples);
+function stopSession(): void {
+  activeSession = false;
+  activeSender = null;
+  if (activeWs) {
+    try { activeWs.close(); } catch { /* ignore */ }
+    activeWs = null;
+  }
+}
 
-    while (recognizer.isReady(recognizerStream)) {
-      recognizer.decode(recognizerStream);
-    }
-
-    const text = recognizer.getResult(recognizerStream).text;
-    const isEndpoint = recognizer.isEndpoint(recognizerStream);
-
-    if (text) {
-      const result: VoiceSTTResult = {
-        text,
-        isFinal: isEndpoint,
-        isEndpoint,
-      };
-      sender.send(IPC_CHANNELS.VOICE_STT_RESULT, result);
-    }
-
-    if (isEndpoint) {
-      recognizer.reset(recognizerStream);
-    }
+function sendAudioChunk(samples: Float32Array): void {
+  if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
+  try {
+    activeWs.send(Buffer.from(samples.buffer, samples.byteOffset, samples.byteLength));
+  } catch (e) {
+    console.error('[VoiceService] Failed to send audio chunk:', e);
   }
 }
 
 // ============================================================================
-// TTS Generation
+// TTS Generation via Python Backend
 // ============================================================================
 
-function generateTTS(
+async function generateTTS(
   text: string,
   language: string,
   speed: number,
-  sender: Electron.WebContents
-): void {
-  if (!tts) {
-    initTTS(language);
-  }
-
+  voiceSampleId: string | undefined,
+  sender: Electron.WebContents,
+): Promise<void> {
   sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: false });
 
-  try {
-    const model = getTTSModel(language);
-    const result = tts.generate({
-      text,
-      sid: model.speakerId,
-      speed: speed || 1.0,
-    });
+  ttsAbortController = new AbortController();
 
-    if (result && result.samples) {
-      sender.send(IPC_CHANNELS.VOICE_TTS_AUDIO, {
-        samples: result.samples,
-        sampleRate: result.sampleRate || tts.sampleRate || 22050,
-      });
+  try {
+    // Resolve voice sample path if provided
+    let voiceSamplePath: string | undefined;
+    if (voiceSampleId) {
+      const samples = loadSamplesManifest();
+      const sample = samples.find((s) => s.id === voiceSampleId);
+      if (sample) {
+        voiceSamplePath = getVoiceSamplePath(sample);
+      }
+    }
+
+    const body: Record<string, unknown> = { text, language, speed };
+    if (voiceSamplePath) {
+      body.voiceSamplePath = voiceSamplePath;
+    }
+
+    const { data, headers } = await postJson(API_ENDPOINTS.voiceTts, body);
+
+    if (ttsAbortController?.signal.aborted) return;
+
+    // Parse sentence boundaries from response header
+    const boundariesHeader = headers['x-sentence-boundaries'];
+    const sampleRateHeader = headers['x-sample-rate'];
+    const sampleRate = sampleRateHeader ? parseInt(sampleRateHeader as string, 10) : 24000;
+
+    let boundaries: Array<{
+      index: number;
+      text: string;
+      sampleOffset: number;
+      sampleCount: number;
+    }> = [];
+
+    if (boundariesHeader) {
+      try { boundaries = JSON.parse(boundariesHeader as string); } catch { /* ignore */ }
+    }
+
+    // Extract WAV PCM data (skip 44-byte WAV header)
+    const wavHeader = 44;
+    const pcmData = data.subarray(wavHeader);
+
+    // Convert Int16 PCM to Float32
+    const int16View = new Int16Array(
+      pcmData.buffer,
+      pcmData.byteOffset,
+      pcmData.byteLength / 2,
+    );
+    const float32Samples = new Float32Array(int16View.length);
+    for (let i = 0; i < int16View.length; i++) {
+      float32Samples[i] = int16View[i] / 32768;
+    }
+
+    if (ttsAbortController?.signal.aborted) return;
+
+    if (boundaries.length > 0) {
+      // Send audio per-sentence for precise interruption tracking
+      for (const boundary of boundaries) {
+        if (ttsAbortController?.signal.aborted) break;
+
+        const sentenceSamples = float32Samples.slice(
+          boundary.sampleOffset,
+          boundary.sampleOffset + boundary.sampleCount,
+        );
+
+        const audio: VoiceTtsAudio = {
+          samples: sentenceSamples,
+          sampleRate,
+          sentenceIndex: boundary.index,
+          sentenceText: boundary.text,
+          totalSentences: boundaries.length,
+          sampleOffset: boundary.sampleOffset,
+          sampleCount: boundary.sampleCount,
+        };
+        sender.send(IPC_CHANNELS.VOICE_TTS_AUDIO, audio);
+      }
+    } else {
+      // Fallback: send entire audio at once
+      const audio: VoiceTtsAudio = { samples: float32Samples, sampleRate };
+      sender.send(IPC_CHANNELS.VOICE_TTS_AUDIO, audio);
     }
   } catch (err) {
-    console.error('TTS generation error:', err);
+    if (!ttsAbortController?.signal.aborted) {
+      console.error('[VoiceService] TTS generation error:', err);
+    }
   }
 
+  ttsAbortController = null;
   sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+}
+
+function stopTTS(): void {
+  if (ttsAbortController) {
+    ttsAbortController.abort();
+    ttsAbortController = null;
+  }
 }
 
 // ============================================================================
@@ -440,64 +379,138 @@ function generateTTS(
 // ============================================================================
 
 export function setupVoiceIPC(): void {
-  // Check model status
-  ipcMain.handle(IPC_CHANNELS.VOICE_MODEL_STATUS, (_event, language: string) => {
-    const status = getModelStatus(language);
+  // Model status
+  ipcMain.handle(IPC_CHANNELS.VOICE_MODEL_STATUS, async (_event, language: string) => {
+    const status = await checkModelStatus(language);
     console.log('[VoiceService] Model status for', language, ':', JSON.stringify(status));
     return status;
   });
 
-  // Download models
-  ipcMain.on(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, (event, language: string) => {
-    downloadModels(language, event.sender).catch((err) => {
-      console.error('Voice model download failed:', err);
-    });
+  // Trigger model pre-download in Python backend
+  ipcMain.on(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, async (event, language: string) => {
+    try {
+      const emitProgress = (s: VoiceModelStatus) => {
+        event.sender.send(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD_PROGRESS, s);
+      };
+
+      emitProgress({
+        sttDownloaded: false,
+        ttsDownloaded: false,
+        vadDownloaded: true,
+        downloading: true,
+        progress: 0,
+        sttModelName: 'openai/whisper-small',
+        ttsModelName: 'Chatterbox-Multilingual',
+      });
+
+      await postJson(API_ENDPOINTS.voiceModelsDownload, {});
+
+      const finalStatus = await checkModelStatus(language);
+      if (!finalStatus.sttDownloaded || !finalStatus.ttsDownloaded) {
+        finalStatus.error = finalStatus.error || 'voice-models-install-failed';
+      }
+      emitProgress(finalStatus);
+    } catch (err) {
+      console.error('[VoiceService] Model download failed:', err);
+      event.sender.send(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD_PROGRESS, {
+        sttDownloaded: false,
+        ttsDownloaded: false,
+        vadDownloaded: false,
+        downloading: false,
+        progress: 0,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   });
 
   // Start voice session
-  ipcMain.on(IPC_CHANNELS.VOICE_START_SESSION, (event, language: string, _mode: VoiceMode) => {
-    if (activeSession) {
-      // Stop existing session first
-      destroyEngines();
-    }
-
-    activeSession = true;
-    activeSender = event.sender;
-    speechDetected = false;
-
-    try {
-      initVAD();
-      initSTT(language);
-      initTTS(language);
-    } catch (err) {
-      console.error('Failed to start voice session:', err);
-      activeSession = false;
-      activeSender = null;
-    }
-  });
+  ipcMain.on(
+    IPC_CHANNELS.VOICE_START_SESSION,
+    (event, language: string, mode: VoiceMode, silenceThreshold?: number) => {
+      startSession(language, mode, silenceThreshold ?? 1.5, event.sender);
+    },
+  );
 
   // Stop voice session
   ipcMain.on(IPC_CHANNELS.VOICE_STOP_SESSION, () => {
-    activeSession = false;
-    activeSender = null;
-    speechDetected = false;
-    destroyEngines();
+    stopSession();
   });
 
   // Receive audio chunk from renderer
   ipcMain.on(IPC_CHANNELS.VOICE_AUDIO_CHUNK, (_event, samples: Float32Array) => {
     if (activeSession) {
-      processAudioChunk(samples);
+      sendAudioChunk(new Float32Array(samples));
     }
   });
 
   // TTS generation request
-  ipcMain.on(IPC_CHANNELS.VOICE_TTS_GENERATE, (event, text: string, language: string, speed?: number) => {
-    generateTTS(text, language, speed ?? 1.0, event.sender);
-  });
+  ipcMain.on(
+    IPC_CHANNELS.VOICE_TTS_GENERATE,
+    (event, text: string, language: string, speed?: number, voiceSampleId?: string) => {
+      generateTTS(text, language, speed ?? 1.0, voiceSampleId, event.sender).catch((err) => {
+        console.error('[VoiceService] TTS error:', err);
+      });
+    },
+  );
 
-  // TTS stop (renderer handles stopping playback; we just acknowledge)
+  // TTS stop
   ipcMain.on(IPC_CHANNELS.VOICE_TTS_STOP, (event) => {
+    stopTTS();
     event.sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
   });
+
+  // ========== Voice Sample Management ==========
+
+  ipcMain.handle(IPC_CHANNELS.VOICE_SAMPLE_LIST, () => {
+    return loadSamplesManifest();
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.VOICE_SAMPLE_UPLOAD,
+    async (_event, sourcePath: string, name: string) => {
+      ensureDir(getVoiceSamplesDir());
+      const id = crypto.randomUUID();
+      const ext = path.extname(sourcePath) || '.wav';
+      const filename = `${id}${ext}`;
+      const destPath = path.join(getVoiceSamplesDir(), filename);
+
+      fs.copyFileSync(sourcePath, destPath);
+
+      const sample: VoiceSample = { id, name, filename, createdAt: Date.now() };
+      const samples = loadSamplesManifest();
+      samples.push(sample);
+      saveSamplesManifest(samples);
+
+      return sample;
+    },
+  );
+
+  ipcMain.handle(IPC_CHANNELS.VOICE_SAMPLE_DELETE, (_event, id: string) => {
+    const samples = loadSamplesManifest();
+    const idx = samples.findIndex((s) => s.id === id);
+    if (idx === -1) return false;
+
+    const sample = samples[idx];
+    const filePath = getVoiceSamplePath(sample);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    samples.splice(idx, 1);
+    saveSamplesManifest(samples);
+    return true;
+  });
+
+  ipcMain.handle(
+    IPC_CHANNELS.VOICE_SAMPLE_RENAME,
+    (_event, id: string, newName: string) => {
+      const samples = loadSamplesManifest();
+      const sample = samples.find((s) => s.id === id);
+      if (!sample) return false;
+
+      sample.name = newName;
+      saveSamplesManifest(samples);
+      return true;
+    },
+  );
 }

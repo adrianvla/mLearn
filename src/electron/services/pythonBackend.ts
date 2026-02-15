@@ -112,6 +112,9 @@ function buildPipRequirementList(options: InstallOptions): string[] {
   if (options.includeLLM) {
     packages.push(...config.llm);
   }
+  if (options.includeVoice && config.voice) {
+    packages.push(...config.voice);
+  }
   
   return packages;
 }

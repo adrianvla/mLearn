@@ -243,7 +243,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
                 min={0}
                 value={pitch()}
                 onInput={handlePitchChange}
-                placeholder={t('mlearn.CardEditor.Fields.PitchPlaceholder')}
+                placeholder={t('mlearn.CardEditor.Fields.PitchAccentPlaceholder')}
                 class="pitch-input"
               />
               <span class="pitch-name">{pitchTypeName(pitch() === '' ? null : Number(pitch()))}</span>

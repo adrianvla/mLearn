@@ -5,7 +5,7 @@
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceMode } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample } from '../shared/types';
 
 /**
  * Type-safe IPC API exposed to renderer
@@ -268,8 +268,8 @@ const mLearnIPC = {
     ipcRenderer.send(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, language),
   onVoiceModelProgress: (callback: (status: VoiceModelStatus) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD_PROGRESS, (_event, status) => callback(status)),
-  voiceStartSession: (language: string, mode: VoiceMode) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_START_SESSION, language, mode),
+  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_START_SESSION, language, mode, silenceThreshold),
   voiceStopSession: () =>
     ipcRenderer.send(IPC_CHANNELS.VOICE_STOP_SESSION),
   voiceSendAudioChunk: (samples: Float32Array) =>
@@ -278,14 +278,28 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.VOICE_STT_RESULT, (_event, result) => callback(result)),
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_VAD_EVENT, (_event, vadEvent) => callback(vadEvent)),
-  voiceTtsGenerate: (text: string, language: string, speed?: number) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_GENERATE, text, language, speed),
+  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_GENERATE, text, language, speed, voiceSampleId),
   voiceTtsStop: () =>
     ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STOP),
-  onVoiceTtsAudio: (callback: (audio: { samples: Float32Array; sampleRate: number }) => void) =>
+  onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_TTS_AUDIO, (_event, audio) => callback(audio)),
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_TTS_STATUS, (_event, status) => callback(status)),
+  onVoiceSessionReady: (callback: (data: VoiceSessionReady) => void) =>
+    ipcOn(IPC_CHANNELS.VOICE_SESSION_READY, (_event, data) => callback(data)),
+  onVoiceSessionError: (callback: (data: VoiceSessionError) => void) =>
+    ipcOn(IPC_CHANNELS.VOICE_SESSION_ERROR, (_event, data) => callback(data)),
+
+  // ========== Voice Sample Management ==========
+  voiceSampleList: (): Promise<VoiceSample[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_LIST),
+  voiceSampleUpload: (sourcePath: string, name: string): Promise<VoiceSample> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_UPLOAD, sourcePath, name),
+  voiceSampleDelete: (id: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_DELETE, id),
+  voiceSampleRename: (id: string, newName: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_RENAME, id, newName),
 };
 
 // Expose API to renderer

@@ -5,6 +5,8 @@
 
 import { Component, Show, For, createSignal, createMemo } from 'solid-js';
 import type { MediaStats } from '../../../shared/types';
+import { useLocalization } from '../../context';
+import { formatDurationHM } from '../../utils/timeFormatting';
 import '../../../renderer/styles/media-stats.css';
 
 type StatsTab = 'summary' | 'words' | 'grammar' | 'unknown';
@@ -18,6 +20,7 @@ interface MediaStatsPanelProps {
 }
 
 export const MediaStatsPanel: Component<MediaStatsPanelProps> = (props) => {
+  const { t } = useLocalization();
   const [activeTab, setActiveTab] = createSignal<StatsTab>('summary');
 
   const wordEntries = createMemo(() => {
@@ -36,12 +39,7 @@ export const MediaStatsPanel: Component<MediaStatsPanelProps> = (props) => {
 
   const sessionsCount = createMemo(() => props.stats.sessions?.length || 0);
 
-  const formatTime = (ms: number): string => {
-    const hours = Math.floor(ms / 3_600_000);
-    const minutes = Math.floor((ms % 3_600_000) / 60_000);
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
+  const formatTime = (ms: number): string => formatDurationHM(ms, t);
 
   const getEaseColor = (ease: number): string => {
     if (ease >= 4) return 'var(--color-success, #4caf50)';

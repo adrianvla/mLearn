@@ -178,72 +178,15 @@
   line-height: var(--line-height-normal);
 }
 
-.ca-send-btn {
-  background: var(--color-accent);
-  color: var(--accent);
-  border: none;
-  border-radius: var(--radius-md);
-  width: var(--size-lg);
-  height: var(--size-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: opacity var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.ca-send-btn:hover {
-  opacity: 0.85;
-}
-
-.ca-send-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.ca-send-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
 /* ============ Speech button ============ */
 
-.ca-mic-btn {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  width: var(--size-lg);
-  height: var(--size-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: all var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.ca-mic-btn:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
 .ca-mic-btn.recording {
-  background: color-mix(in srgb, var(--color-danger) 15%, transparent);
-  border-color: var(--color-danger);
-  color: var(--color-danger);
   animation: pulse 1.5s infinite;
 }
 
 @keyframes pulse {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 30%, transparent); }
   50% { box-shadow: 0 0 0 6px transparent; }
-}
-
-.ca-mic-btn svg {
-  width: 18px;
-  height: 18px;
 }
 
 /* ============ TTS speaking indicator ============ */
@@ -281,12 +224,3 @@
   50% { transform: scaleY(0.4); }
 }
 
-/* ============ Stop / Abort Button ============ */
-
-.ca-stop-btn {
-  background: var(--color-danger);
-}
-
-.ca-stop-btn:hover {
-  opacity: 0.85;
-}

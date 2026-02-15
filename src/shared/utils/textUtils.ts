@@ -97,6 +97,122 @@ export function isLatinOnly(text: string): boolean {
 // Text Normalization Functions
 // ============================================================================
 
+// ============================================================================
+// STT Script Validation
+// ============================================================================
+
+/**
+ * Regex to detect Hangul characters (Korean)
+ */
+const HANGUL_REGEX = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/;
+
+/**
+ * Regex to detect hiragana characters
+ */
+const HIRAGANA_REGEX = /[\u3040-\u309F]/;
+
+/**
+ * Regex to detect katakana characters
+ */
+const KATAKANA_REGEX = /[\u30A0-\u30FF]/;
+
+/**
+ * Regex to detect CJK Unified Ideographs (shared by Chinese/Japanese/Korean)
+ */
+const CJK_IDEOGRAPH_REGEX = /[\u4E00-\u9FFF\u3400-\u4DBF\uF900-\uFAFF]/;
+
+/**
+ * Common Chinese filler/interjection characters that STT models produce from
+ * non-speech noise (e.g., "ahh", ambient sounds). These are almost always
+ * false positives when the target language is not Chinese.
+ */
+const CHINESE_NOISE_CHARS = new Set([
+  '哦', '嗯', '啊', '呢', '吧', '嘛', '哎', '哈', '嗨', '喂',
+  '哇', '唉', '嘿', '呀', '哟', '噢', '呐', '喔', '嚯', '咦',
+  '咳', '嘁', '噫', '咩', '呃', '额', '哼', '嗷', '嚎', '呜',
+]);
+
+/**
+ * Validate an STT transcription result against the target language.
+ * Returns true if the result appears to be valid speech in the target language,
+ * false if it looks like noise or text in the wrong language/script.
+ *
+ * This is designed to filter out garbage transcriptions from multilingual or
+ * wrong-language STT models (e.g., a Chinese model producing "哦" from noise
+ * when the user is learning Japanese).
+ */
+export function isValidSTTResult(text: string, language: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+
+  // Single-character results are almost always noise
+  if ([...trimmed].length === 1) return false;
+
+  // Check for Chinese noise particles (regardless of language — these are
+  // false positives from the STT model, not real speech)
+  if (language !== 'zh' && CHINESE_NOISE_CHARS.has(trimmed)) return false;
+
+  // For non-Chinese CJK languages: validate script consistency
+  switch (language) {
+    case 'ja': {
+      // Japanese speech transcribed by a proper model should contain kana.
+      // If using a Chinese-English model, all output is in CJK ideographs
+      // without any kana — which means it's probably Chinese, not Japanese.
+      // Allow text that contains at least one kana character.
+      // Also allow pure Latin (romaji) or mixed content.
+      const hasKana = HIRAGANA_REGEX.test(trimmed) || KATAKANA_REGEX.test(trimmed);
+      const hasCJK = CJK_IDEOGRAPH_REGEX.test(trimmed);
+      const hasLatin = LATIN_LETTER_REGEX.test(trimmed);
+
+      // If it contains kana, it's valid Japanese
+      if (hasKana) return true;
+
+      // If it's pure Latin, it could be valid (romaji input)
+      if (hasLatin && !hasCJK) return true;
+
+      // Pure CJK without kana: likely a Chinese false positive.
+      // Short pure-CJK strings (≤ 3 chars) are very likely noise.
+      if (hasCJK && !hasKana) {
+        const cjkCount = [...trimmed].filter(ch => CJK_IDEOGRAPH_REGEX.test(ch)).length;
+        if (cjkCount <= 3) return false;
+      }
+
+      return true;
+    }
+
+    case 'ko': {
+      // Korean should contain Hangul. Pure CJK without Hangul from a
+      // Chinese model is almost certainly wrong.
+      const hasHangul = HANGUL_REGEX.test(trimmed);
+      const hasCJK = CJK_IDEOGRAPH_REGEX.test(trimmed);
+      const hasLatin = LATIN_LETTER_REGEX.test(trimmed);
+
+      if (hasHangul) return true;
+      if (hasLatin && !hasCJK) return true;
+
+      // Pure CJK without Hangul is not Korean
+      if (hasCJK && !hasHangul) return false;
+
+      return true;
+    }
+
+    case 'zh':
+      // Chinese model output is valid for Chinese target
+      return true;
+
+    default: {
+      // For Latin-script languages (en, fr, de, es, etc.):
+      // Reject if the text is entirely CJK characters
+      const hasCJK = CJK_IDEOGRAPH_REGEX.test(trimmed);
+      const hasLatin = LATIN_LETTER_REGEX.test(trimmed);
+
+      if (hasCJK && !hasLatin) return false;
+
+      return true;
+    }
+  }
+}
+
 /**
  * Normalize reading by removing HTML tags and accent markers
  * Used to extract clean reading text from formatted dictionary entries

@@ -24,6 +24,8 @@ import faulthandler
 import signal
 import atexit
 from pathlib import Path
+import struct
+import asyncio
 
 # Ensure printing non-ASCII (e.g., Japanese) won't crash on Windows consoles
 try:
@@ -118,7 +120,8 @@ from PIL import Image
 import numpy as np
 import statistics
 import math
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.websockets import WebSocket, WebSocketDisconnect
 import asyncio
 
 torch = None  # populated lazily to avoid heavy import costs
@@ -1861,6 +1864,470 @@ async def llm_stream_endpoint(req: LlmRequest):
             "X-Accel-Buffering": "no",
         }
     )
+
+# ============================================================================
+# Voice Service — STT (faster-whisper) + TTS (Chatterbox) + VAD (Silero)
+# ============================================================================
+
+_voice_stt_model = None
+_voice_tts_model = None
+_voice_vad_model = None
+_voice_lock = threading.Lock()
+
+_VOICE_IDLE_TIMEOUT_SECONDS = 600
+_voice_last_used: float = 0.0
+_voice_idle_timer: threading.Timer | None = None
+_voice_idle_lock = threading.Lock()
+
+_voice_stt_downloading = False
+_voice_tts_downloading = False
+_voice_stt_progress = 0.0
+_voice_tts_progress = 0.0
+
+
+def _voice_touch():
+    global _voice_last_used, _voice_idle_timer
+    _voice_last_used = time.monotonic()
+    with _voice_idle_lock:
+        if _voice_idle_timer is not None:
+            _voice_idle_timer.cancel()
+        _voice_idle_timer = threading.Timer(_VOICE_IDLE_TIMEOUT_SECONDS, _voice_check_idle)
+        _voice_idle_timer.daemon = True
+        _voice_idle_timer.start()
+
+
+def _voice_check_idle():
+    elapsed = time.monotonic() - _voice_last_used
+    if elapsed >= _VOICE_IDLE_TIMEOUT_SECONDS:
+        _voice_unload()
+    else:
+        remaining = _VOICE_IDLE_TIMEOUT_SECONDS - elapsed
+        with _voice_idle_lock:
+            global _voice_idle_timer
+            _voice_idle_timer = threading.Timer(remaining, _voice_check_idle)
+            _voice_idle_timer.daemon = True
+            _voice_idle_timer.start()
+
+
+def _voice_unload():
+    global _voice_stt_model, _voice_tts_model, _voice_vad_model
+    with _voice_lock:
+        any_unloaded = False
+        if _voice_stt_model is not None:
+            _log("Voice idle — unloading STT model")
+            del _voice_stt_model
+            _voice_stt_model = None
+            any_unloaded = True
+        if _voice_tts_model is not None:
+            _log("Voice idle — unloading TTS model")
+            del _voice_tts_model
+            _voice_tts_model = None
+            any_unloaded = True
+        if _voice_vad_model is not None:
+            _log("Voice idle — unloading VAD model")
+            del _voice_vad_model
+            _voice_vad_model = None
+            any_unloaded = True
+        if any_unloaded:
+            import gc
+            gc.collect()
+            if torch is not None:
+                try:
+                    if hasattr(torch, 'cuda') and torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    if hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
+                        torch.mps.empty_cache()
+                except Exception:
+                    pass
+            _log("Voice models unloaded")
+
+
+def _get_voice_device():
+    """Determine the best device for voice models."""
+    _torch = importlib.import_module("torch") if torch is None else torch
+    if _torch.cuda.is_available():
+        return "cuda"
+    if hasattr(_torch.backends, "mps") and _torch.backends.mps.is_available():
+        return "cpu"  # Chatterbox has MPS issues, safer on CPU for now
+    return "cpu"
+
+
+def _ensure_vad_loaded():
+    global _voice_vad_model
+    if _voice_vad_model is not None:
+        return _voice_vad_model
+    with _voice_lock:
+        if _voice_vad_model is not None:
+            return _voice_vad_model
+        try:
+            _log("Loading Silero VAD model...")
+            _torch = importlib.import_module("torch") if torch is None else torch
+            model, utils = _torch.hub.load(
+                repo_or_dir='snakers4/silero-vad',
+                model='silero_vad',
+                force_reload=False,
+                onnx=False
+            )
+            _voice_vad_model = {
+                'model': model,
+                'utils': utils,
+            }
+            _log("Silero VAD loaded")
+            _voice_touch()
+            return _voice_vad_model
+        except Exception as e:
+            _log("Failed to load VAD:", e)
+            raise
+
+
+def _ensure_stt_loaded():
+    global _voice_stt_model
+    if _voice_stt_model is not None:
+        return _voice_stt_model
+    with _voice_lock:
+        if _voice_stt_model is not None:
+            return _voice_stt_model
+        try:
+            _log("Loading faster-whisper STT model (small)...")
+            from faster_whisper import WhisperModel
+            device = _get_voice_device()
+            compute_type = "float16" if device == "cuda" else "int8"
+            _voice_stt_model = WhisperModel(
+                "small",
+                device=device,
+                compute_type=compute_type,
+            )
+            _log(f"faster-whisper loaded on {device}")
+            _voice_touch()
+            return _voice_stt_model
+        except Exception as e:
+            _log("Failed to load STT:", e)
+            raise
+
+
+def _ensure_tts_loaded():
+    global _voice_tts_model
+    if _voice_tts_model is not None:
+        return _voice_tts_model
+    with _voice_lock:
+        if _voice_tts_model is not None:
+            return _voice_tts_model
+        try:
+            _log("Loading Chatterbox Multilingual TTS model...")
+            global torch
+            if torch is None:
+                torch = importlib.import_module("torch")
+            from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+            device = _get_voice_device()
+            _voice_tts_model = ChatterboxMultilingualTTS.from_pretrained(device=device)
+            _log(f"Chatterbox Multilingual TTS loaded on {device}")
+            _voice_touch()
+            return _voice_tts_model
+        except Exception as e:
+            _log("Failed to load TTS:", e)
+            raise
+
+
+def _split_into_sentences(text: str) -> list:
+    """Split text into sentences for sentence-level TTS."""
+    import re as _re
+    sentences = _re.split(r'(?<=[.!?。！？])\s*', text)
+    return [s.strip() for s in sentences if s.strip()]
+
+
+@app.get("/voice/stt/status")
+async def voice_stt_status():
+    """Check STT model status."""
+    downloaded = False
+    loaded = _voice_stt_model is not None
+    try:
+        from faster_whisper import WhisperModel
+        downloaded = True
+    except ImportError:
+        pass
+    return {
+        "downloaded": downloaded,
+        "loaded": loaded,
+        "downloading": _voice_stt_downloading,
+        "progress": _voice_stt_progress,
+        "modelName": "openai/whisper-small",
+    }
+
+
+@app.get("/voice/tts/status")
+async def voice_tts_status():
+    """Check TTS model status."""
+    downloaded = False
+    loaded = _voice_tts_model is not None
+    try:
+        from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+        downloaded = True
+    except ImportError:
+        pass
+    return {
+        "downloaded": downloaded,
+        "loaded": loaded,
+        "downloading": _voice_tts_downloading,
+        "progress": _voice_tts_progress,
+        "modelName": "Chatterbox-Multilingual",
+    }
+
+
+@app.post("/voice/models/download")
+async def voice_download_models():
+    """Trigger pre-download of voice models (STT + TTS)."""
+    global _voice_stt_downloading, _voice_tts_downloading, _voice_stt_progress, _voice_tts_progress
+
+    errors = []
+
+    # Download STT
+    try:
+        _voice_stt_downloading = True
+        _voice_stt_progress = 0.0
+        _log("Pre-downloading STT model...")
+        _ensure_stt_loaded()
+        _voice_stt_progress = 1.0
+        _voice_stt_downloading = False
+    except Exception as e:
+        _voice_stt_downloading = False
+        errors.append(f"STT: {e}")
+
+    # Download TTS
+    try:
+        _voice_tts_downloading = True
+        _voice_tts_progress = 0.0
+        _log("Pre-downloading TTS model...")
+        _ensure_tts_loaded()
+        _voice_tts_progress = 1.0
+        _voice_tts_downloading = False
+    except Exception as e:
+        _voice_tts_downloading = False
+        errors.append(f"TTS: {e}")
+
+    if errors:
+        return {"success": False, "errors": errors}
+    return {"success": True}
+
+
+class TTSRequest(BaseModel):
+    text: str
+    language: str = "en"
+    voiceSamplePath: Optional[str] = None
+    speed: float = 1.0
+
+
+@app.post("/voice/tts")
+async def voice_tts_generate(req: TTSRequest):
+    """Generate TTS audio. Returns binary WAV with sentence boundary metadata in headers."""
+    try:
+        tts_model = _ensure_tts_loaded()
+        _voice_touch()
+
+        global torch
+        if torch is None:
+            torch = importlib.import_module("torch")
+        import torchaudio as ta
+
+        sentences = _split_into_sentences(req.text)
+        if not sentences:
+            sentences = [req.text]
+
+        all_wavs = []
+        sentence_boundaries = []
+        sample_offset = 0
+
+        for i, sentence in enumerate(sentences):
+            generate_kwargs = {
+                "text": sentence,
+                "language_id": req.language,
+            }
+            if req.voiceSamplePath and os.path.isfile(req.voiceSamplePath):
+                generate_kwargs["audio_prompt_path"] = req.voiceSamplePath
+
+            wav = tts_model.generate(**generate_kwargs)
+
+            if isinstance(wav, torch.Tensor):
+                if wav.dim() == 1:
+                    wav = wav.unsqueeze(0)
+            else:
+                wav = torch.tensor(wav).unsqueeze(0)
+
+            num_samples = wav.shape[-1]
+            sentence_boundaries.append({
+                "index": i,
+                "text": sentence,
+                "sampleOffset": sample_offset,
+                "sampleCount": num_samples,
+            })
+            sample_offset += num_samples
+            all_wavs.append(wav)
+
+        combined_wav = torch.cat(all_wavs, dim=-1)
+        sr = tts_model.sr
+
+        buf = io.BytesIO()
+        ta.save(buf, combined_wav.cpu(), sr, format="wav")
+        buf.seek(0)
+
+        boundaries_json = json.dumps(sentence_boundaries)
+
+        from starlette.responses import Response
+        return Response(
+            content=buf.read(),
+            media_type="audio/wav",
+            headers={
+                "X-Sentence-Boundaries": boundaries_json,
+                "X-Sample-Rate": str(sr),
+            }
+        )
+    except Exception as e:
+        _log("TTS generation error:", e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.websocket("/voice/stream")
+async def voice_stream_ws(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time voice streaming.
+    Receives raw PCM audio (16kHz, mono, float32) from the client.
+    Sends back JSON messages:
+      { "type": "vad", "event": "speech-start" | "speech-end" }
+      { "type": "stt", "text": "...", "isFinal": false, "isPartial": true }
+      { "type": "stt", "text": "...", "isFinal": true, "isPartial": false }
+      { "type": "error", "message": "..." }
+      { "type": "ready" }
+    """
+    await websocket.accept()
+
+    language = websocket.query_params.get("language", LANGUAGE or "en")
+    silence_threshold = float(websocket.query_params.get("silence", "1.5"))
+
+    try:
+        # Load models
+        vad_data = _ensure_vad_loaded()
+        stt_model = _ensure_stt_loaded()
+
+        vad_model = vad_data['model']
+
+        await websocket.send_json({"type": "ready"})
+
+        # State
+        audio_buffer = bytearray()
+        speech_buffer = bytearray()
+        is_speaking = False
+        silence_start: float | None = None
+        last_partial_time: float = 0.0
+        PARTIAL_INTERVAL = 1.0  # Send partial transcription every 1s during speech
+        SAMPLE_RATE = 16000
+        CHUNK_SAMPLES = 512  # VAD window size
+
+        while True:
+            try:
+                data = await asyncio.wait_for(websocket.receive_bytes(), timeout=30.0)
+            except asyncio.TimeoutError:
+                continue
+            except WebSocketDisconnect:
+                break
+
+            audio_buffer.extend(data)
+
+            # Process in VAD-sized chunks
+            bytes_per_sample = 4  # float32
+            chunk_bytes = CHUNK_SAMPLES * bytes_per_sample
+
+            while len(audio_buffer) >= chunk_bytes:
+                chunk_data = bytes(audio_buffer[:chunk_bytes])
+                del audio_buffer[:chunk_bytes]
+
+                samples = np.frombuffer(chunk_data, dtype=np.float32)
+                _torch = importlib.import_module("torch") if torch is None else torch
+                tensor = _torch.from_numpy(samples.copy())
+
+                speech_prob = vad_model(tensor, SAMPLE_RATE).item()
+
+                if speech_prob > 0.5:
+                    if not is_speaking:
+                        is_speaking = True
+                        silence_start = None
+                        speech_buffer = bytearray()
+                        await websocket.send_json({"type": "vad", "event": "speech-start"})
+
+                    speech_buffer.extend(chunk_data)
+
+                    # Periodic partial transcription
+                    now = time.monotonic()
+                    if now - last_partial_time > PARTIAL_INTERVAL and len(speech_buffer) > SAMPLE_RATE * bytes_per_sample:
+                        last_partial_time = now
+                        try:
+                            speech_np = np.frombuffer(bytes(speech_buffer), dtype=np.float32)
+                            segments, _ = stt_model.transcribe(
+                                speech_np,
+                                language=language if language != "ja" else "ja",
+                                beam_size=1,
+                                vad_filter=False,
+                            )
+                            partial_text = " ".join(seg.text for seg in segments).strip()
+                            if partial_text:
+                                await websocket.send_json({
+                                    "type": "stt",
+                                    "text": partial_text,
+                                    "isFinal": False,
+                                    "isPartial": True,
+                                })
+                        except Exception as e:
+                            _log("Partial STT error:", e)
+                else:
+                    if is_speaking:
+                        speech_buffer.extend(chunk_data)
+                        if silence_start is None:
+                            silence_start = time.monotonic()
+                        elif time.monotonic() - silence_start > silence_threshold:
+                            # Speech ended — run final transcription
+                            is_speaking = False
+                            silence_start = None
+                            await websocket.send_json({"type": "vad", "event": "speech-end"})
+
+                            if len(speech_buffer) > SAMPLE_RATE * bytes_per_sample * 0.3:
+                                try:
+                                    speech_np = np.frombuffer(bytes(speech_buffer), dtype=np.float32)
+                                    _voice_touch()
+                                    segments, _ = stt_model.transcribe(
+                                        speech_np,
+                                        language=language if language != "ja" else "ja",
+                                        beam_size=5,
+                                        vad_filter=False,
+                                    )
+                                    final_text = " ".join(seg.text for seg in segments).strip()
+                                    if final_text:
+                                        await websocket.send_json({
+                                            "type": "stt",
+                                            "text": final_text,
+                                            "isFinal": True,
+                                            "isPartial": False,
+                                        })
+                                except Exception as e:
+                                    _log("Final STT error:", e)
+                                    await websocket.send_json({"type": "error", "message": str(e)})
+
+                            speech_buffer = bytearray()
+                    else:
+                        silence_start = None
+
+    except WebSocketDisconnect:
+        _log("Voice WebSocket disconnected")
+    except Exception as e:
+        _log("Voice WebSocket error:", e)
+        traceback.print_exc()
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

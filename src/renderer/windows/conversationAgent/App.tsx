@@ -24,10 +24,11 @@ import { useWordHover, useTranslation, useDictionary, getCachedTranslation } fro
 import { ChatBubble } from './ChatBubble';
 import { MediaStatsTab } from './MediaStatsTab';
 import { VoiceTab } from './VoiceTab';
+import { VoiceAftermath } from './VoiceAftermath';
 
 import { createConversationAgent } from '../../services/conversationAgent';
 import type { StreamCallbacks } from '../../services/conversationAgent';
-import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData } from '../../../shared/types';
+import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import { isLatinOnly } from '../../../shared/utils/textUtils';
 import './ConversationAgent.css';
@@ -103,6 +104,12 @@ const ConversationContent: Component = () => {
   const [showBanner, setShowBanner] = createSignal(true);
   const [isProcessingToolCall, setIsProcessingToolCall] = createSignal(false);
 
+  // Voice mode state
+  const [isVoiceCallActive, setIsVoiceCallActive] = createSignal(false);
+  const [voiceMistakes, setVoiceMistakes] = createSignal<VoiceMistake[]>([]);
+  const [voiceSessionStart, setVoiceSessionStart] = createSignal<number>(0);
+  const [voiceAftermath, setVoiceAftermath] = createSignal<VoiceSessionAftermath | null>(null);
+
   // Level adaptation state
   const [targetLevel, setTargetLevel] = createSignal<number | null>(null);
 
@@ -153,6 +160,12 @@ const ConversationContent: Component = () => {
     getFrequency,
     getTargetLevel: () => targetLevel(),
     getLevelName,
+    isVoiceMode: () => activeTab() === 'voice' && isVoiceCallActive(),
+    onVoiceMistake: (mistake: VoiceMistake) => {
+      setVoiceMistakes((prev) => [...prev, mistake]);
+      // Lower ease of the word in flashcard context
+      flashcardCtx.trackGrammarFailed(mistake.word);
+    },
   });
 
   // Check LLM availability reactively when provider/config changes
@@ -497,6 +510,19 @@ const ConversationContent: Component = () => {
     agent.processMessage(text, messages(), buildStreamCallbacks());
   };
 
+  const handleRequestGreeting = () => {
+    if (isStreaming() || messages().length > 0) return;
+
+    // Add placeholder assistant message for the greeting
+    setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
+    setIsStreaming(true);
+    setIsWaiting(true);
+    setIsProcessingToolCall(false);
+
+    const context = `[Voice call started. The learner is waiting for you to speak. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
+    agent.continueWithContext(context, buildStreamCallbacks());
+  };
+
   const handleSend = () => {
     const text = inputText().trim();
     if (!text || isStreaming()) return;
@@ -734,7 +760,7 @@ const ConversationContent: Component = () => {
           class="ca-header-tabs"
         />
         <div class="ca-header-actions">
-          <IconBtn variant="ghost" onClick={handleClear} icon="trash" aria-label={t('mlearn.ConversationAgent.ClearConversation')} />
+          <IconBtn variant="ghost" onClick={handleClear} icon="trash" aria-label={t('mlearn.ConversationAgent.Clear')} />
         </div>
       </div>
 
@@ -845,13 +871,13 @@ const ConversationContent: Component = () => {
 
             <div class="ca-input-row">
               <Show when={settings.speechEnabled}>
-                <button
+                <IconBtn
+                  icon={<MicIcon />}
+                  variant={isRecording() ? 'danger' : 'ghost'}
                   class={`ca-mic-btn ${isRecording() ? 'recording' : ''}`}
                   onClick={toggleRecording}
                   aria-label={isRecording() ? t('mlearn.ConversationAgent.StopRecording') : t('mlearn.ConversationAgent.StartRecording')}
-                >
-                  <MicIcon />
-                </button>
+                />
               </Show>
 
               <div class="ca-input-wrapper">
@@ -873,23 +899,21 @@ const ConversationContent: Component = () => {
               <Show
                 when={!isStreaming()}
                 fallback={
-                  <button
-                    class="ca-send-btn ca-stop-btn"
+                  <IconBtn
+                    icon={<StopIcon />}
+                    variant="danger"
                     onClick={handleAbort}
                     aria-label={t('mlearn.ConversationAgent.StopStreaming')}
-                  >
-                    <StopIcon />
-                  </button>
+                  />
                 }
               >
-                <button
-                  class="ca-send-btn"
+                <IconBtn
+                  icon={<SendIcon />}
+                  variant="primary"
                   onClick={handleSend}
                   disabled={!inputText().trim() || !isConnected()}
                   aria-label={t('mlearn.ConversationAgent.Send')}
-                >
-                  <SendIcon />
-                </button>
+                />
               </Show>
             </div>
           </div>
@@ -926,7 +950,44 @@ const ConversationContent: Component = () => {
           messages={messages()}
           isStreaming={isStreaming()}
           onSendMessage={sendTextMessage}
+          onRequestGreeting={handleRequestGreeting}
           onAbort={handleAbort}
+          onCallStateChange={(active) => {
+            setIsVoiceCallActive(active);
+            if (active) {
+              setVoiceMistakes([]);
+              setVoiceSessionStart(Date.now());
+              setVoiceAftermath(null);
+            } else {
+              // Build aftermath when call ends
+              const mistakes = voiceMistakes();
+              if (mistakes.length > 0 || voiceSessionStart() > 0) {
+                setVoiceAftermath({
+                  mistakes,
+                  duration: Date.now() - voiceSessionStart(),
+                  messageCount: messages().filter(m => m.role !== 'system').length,
+                });
+              }
+            }
+          }}
+          onInterrupted={(spokenText, _interruptedAt) => {
+            // Mark the last assistant message as interrupted
+            setMessages((prev) => {
+              const updated = [...prev];
+              for (let i = updated.length - 1; i >= 0; i--) {
+                if (updated[i].role === 'assistant') {
+                  updated[i] = {
+                    ...updated[i],
+                    interrupted: true,
+                    interruptedAt: spokenText + ' *interrupted by user*',
+                    content: spokenText + ' *interrupted by user*',
+                  };
+                  break;
+                }
+              }
+              return updated;
+            });
+          }}
           onTokenHover={handleTokenHover}
           onTokenLeave={handleTokenLeave}
           triggerMode={currentTriggerMode()}
@@ -935,6 +996,16 @@ const ConversationContent: Component = () => {
           language={settings.language || 'ja'}
         />
       </TabPanel>
+
+      {/* Voice session aftermath overlay */}
+      <Show when={voiceAftermath()}>
+        {(aftermath) => (
+          <VoiceAftermath
+            aftermath={aftermath()}
+            onDismiss={() => setVoiceAftermath(null)}
+          />
+        )}
+      </Show>
 
       {/* Stats panel */}
       <TabPanel tabId="stats" activeTab={activeTab()}>

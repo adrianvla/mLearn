@@ -7,3 +7,4 @@ export * from './ocrUtils';
 export * from './phraseExtraction';
 export * from './pitchAccent';
 export * from './subtitleParsing';
+export * from './timeFormatting';
