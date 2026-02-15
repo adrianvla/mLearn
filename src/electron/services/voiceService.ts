@@ -1,6 +1,6 @@
 /**
  * Voice Service — relays audio between renderer IPC and Python backend
- * for STT (faster-whisper), TTS (Chatterbox), and VAD (Silero).
+ * for STT (faster-whisper), TTS (Kokoro / Remote MOSS-TTS), and VAD (Silero).
  *
  * All speech models run in the Python backend (server.py).
  * Audio streams from renderer via IPC → this service → Python WebSocket.
@@ -11,6 +11,7 @@ import { ipcMain, app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
+import { spawn } from 'child_process';
 import { IPC_CHANNELS, API_ENDPOINTS } from '../../shared/constants';
 import type {
   VoiceModelStatus,
@@ -19,7 +20,15 @@ import type {
   VoiceMode,
   VoiceSample,
   VoiceTtsAudio,
+  PipRequirementsConfig,
 } from '../../shared/types';
+import {
+  getAppPath,
+  getResourcePath,
+  getPipExecutablePath,
+  getPythonExecutablePath,
+  isWindows,
+} from '../utils/platform';
 import WebSocket from 'ws';
 
 // ============================================================================
@@ -114,6 +123,118 @@ function postJson(
 }
 
 // ============================================================================
+// Voice Package Installation
+// ============================================================================
+
+function loadVoicePackages(): string[] {
+  const appPath = getAppPath();
+  const configPath = path.join(appPath, 'pip_requirements.json');
+  try {
+    const data = fs.readFileSync(configPath, 'utf-8');
+    const config: PipRequirementsConfig = JSON.parse(data);
+    return config.voice ?? [];
+  } catch {
+    // Fallback: try resource path (development mode)
+    const resPath = getResourcePath();
+    const fallbackPath = path.join(resPath, 'pip_requirements.json');
+    try {
+      const data = fs.readFileSync(fallbackPath, 'utf-8');
+      const config: PipRequirementsConfig = JSON.parse(data);
+      return config.voice ?? [];
+    } catch {
+      return [];
+    }
+  }
+}
+
+function installVoicePackages(
+  onProgress: (status: VoiceModelStatus) => void,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const packages = loadVoicePackages();
+    if (packages.length === 0) {
+      resolve(true);
+      return;
+    }
+
+    const pipExecutable = getPipExecutablePath();
+    const pipArgs = isWindows
+      ? ['-m', 'pip', 'install', ...packages]
+      : ['install', ...packages];
+    const executable = isWindows ? getPythonExecutablePath() : pipExecutable;
+    const envPath = path.join(getResourcePath(), 'env');
+
+    console.log('[VoiceService] Installing voice packages:', packages.join(', '));
+
+    const pipProcess = spawn(executable, pipArgs, { cwd: envPath });
+
+    const seenPackages = new Set<string>();
+
+    const processLine = (line: string): void => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      // Track progress via "Collecting" lines
+      const collectingMatch = trimmed.match(/^Collecting\s+(\S+)/i);
+      if (collectingMatch) {
+        const pkgName = collectingMatch[1].replace(/[>=<!].*$/, '');
+        seenPackages.add(pkgName.toLowerCase());
+      }
+
+      const satisfiedMatch = trimmed.match(/^Requirement already satisfied:\s+(\S+)/i);
+      if (satisfiedMatch) {
+        const pkgName = satisfiedMatch[1].replace(/[>=<!].*$/, '');
+        seenPackages.add(pkgName.toLowerCase());
+      }
+
+      // Emit progress — pip install is 0-50% of total
+      const pipProgress = Math.min(seenPackages.size / Math.max(packages.length, 1), 1);
+      onProgress({
+        sttDownloaded: false,
+        ttsDownloaded: false,
+        vadDownloaded: true,
+        downloading: true,
+        progress: pipProgress * 0.5,
+        statusMessage: trimmed,
+        sttModelName: 'openai/whisper-small',
+        ttsModelName: 'Kokoro-82M',
+      });
+    };
+
+    let outputBuffer = '';
+
+    pipProcess.stdout.on('data', (data: Buffer) => {
+      const text = data.toString('utf8');
+      console.log('[VoiceService] pip:', text);
+      outputBuffer += text;
+      const lines = outputBuffer.split(/\r?\n/);
+      outputBuffer = lines.pop() || '';
+      for (const line of lines) processLine(line);
+    });
+
+    pipProcess.stderr.on('data', (data: Buffer) => {
+      console.error('[VoiceService] pip error:', data.toString());
+    });
+
+    pipProcess.on('close', (code) => {
+      if (outputBuffer.trim()) processLine(outputBuffer);
+      if (code === 0 || code === null) {
+        console.log('[VoiceService] Voice packages installed successfully');
+        resolve(true);
+      } else {
+        console.error('[VoiceService] pip install failed with code:', code);
+        resolve(false);
+      }
+    });
+
+    pipProcess.on('error', (err) => {
+      console.error('[VoiceService] Failed to spawn pip:', err);
+      resolve(false);
+    });
+  });
+}
+
+// ============================================================================
 // WebSocket Session State
 // ============================================================================
 
@@ -139,7 +260,7 @@ async function checkModelStatus(_language: string): Promise<VoiceModelStatus> {
     downloading: false,
     progress: 0,
     sttModelName: 'openai/whisper-small',
-    ttsModelName: 'Chatterbox-Multilingual',
+    ttsModelName: 'Kokoro-82M',
   };
 
   try {
@@ -274,9 +395,18 @@ async function generateTTS(
   voiceSampleId: string | undefined,
   sender: Electron.WebContents,
 ): Promise<void> {
-  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: false });
-
   ttsAbortController = new AbortController();
+
+  // Check if TTS model is loaded — if not, signal that model loading is in progress
+  let modelLoading = false;
+  try {
+    const ttsStatus = await fetchJson(API_ENDPOINTS.voiceTtsStatus);
+    modelLoading = !(ttsStatus.loaded as boolean);
+  } catch {
+    // If status check fails, proceed without the flag
+  }
+
+  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: false, modelLoading });
 
   try {
     // Resolve voice sample path if provided
@@ -399,8 +529,41 @@ export function setupVoiceIPC(): void {
         vadDownloaded: true,
         downloading: true,
         progress: 0,
+        statusMessage: 'Installing voice dependencies…',
         sttModelName: 'openai/whisper-small',
-        ttsModelName: 'Chatterbox-Multilingual',
+        ttsModelName: 'Kokoro-82M',
+      });
+
+      // Step 1: Check if voice packages are installed
+      const initialStatus = await checkModelStatus(language);
+      const needsPackageInstall = !initialStatus.sttDownloaded || !initialStatus.ttsDownloaded;
+
+      if (needsPackageInstall) {
+        // Install voice pip packages first
+        const pipSuccess = await installVoicePackages(emitProgress);
+        if (!pipSuccess) {
+          emitProgress({
+            sttDownloaded: false,
+            ttsDownloaded: false,
+            vadDownloaded: false,
+            downloading: false,
+            progress: 0,
+            error: 'voice-packages-install-failed',
+          });
+          return;
+        }
+      }
+
+      // Step 2: Load/download model weights via Python backend
+      emitProgress({
+        sttDownloaded: false,
+        ttsDownloaded: false,
+        vadDownloaded: true,
+        downloading: true,
+        progress: 0.5,
+        statusMessage: 'Downloading voice models…',
+        sttModelName: 'openai/whisper-small',
+        ttsModelName: 'Kokoro-82M',
       });
 
       await postJson(API_ENDPOINTS.voiceModelsDownload, {});

@@ -11,7 +11,7 @@ import { spawn, exec, ChildProcess } from 'child_process';
 import { ipcMain } from 'electron';
 import * as tar from 'tar';
 import { IPC_CHANNELS, PYTHON_BACKEND_PORT, PYTHON_DOWNLOAD_BASE } from '../../shared/constants';
-import type { InstallOptions, InstallerState, PipRequirementsConfig } from '../../shared/types';
+import type { InstallOptions, InstallerState, PipRequirementsConfig, PipProgress } from '../../shared/types';
 import { 
   getResourcePath, 
   getAppPath, 
@@ -22,7 +22,7 @@ import {
   isWindows 
 } from '../utils/platform';
 import { loadSettings } from './settings';
-import { getCurrentWindow, getMainWindow, createMainWindow } from './windowManager';
+import { getCurrentWindow, getMainWindow } from './windowManager';
 
 // State
 let pythonChildProcess: ChildProcess | null = null;
@@ -56,6 +56,103 @@ function sendStatusUpdate(message: string): void {
   } catch (e) {
     console.error('Failed to send status update:', e);
   }
+}
+
+// Send pip progress update to current window
+function sendPipProgress(progress: PipProgress): void {
+  try {
+    getCurrentWindow()?.webContents.send(IPC_CHANNELS.PIP_PROGRESS, progress);
+  } catch (e) {
+    console.error('Failed to send pip progress:', e);
+  }
+}
+
+// Strip ANSI escape codes from text
+// eslint-disable-next-line no-control-regex
+const ANSI_REGEX = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]/g;
+
+function stripAnsi(text: string): string {
+  return text.replace(ANSI_REGEX, '');
+}
+
+/**
+ * Parse pip output lines to extract meaningful progress info.
+ * pip outputs lines like:
+ *   "Collecting networkx"
+ *   "  Downloading networkx-3.1-py3-none-any.whl (2.1 MB)"
+ *   "Requirement already satisfied: numpy in ./env/lib/..."
+ *   "Installing collected packages: networkx, numpy, ..."
+ *   "Successfully installed networkx-3.1 numpy-1.24.3 ..."
+ */
+function parsePipLine(line: string, seenPackages: Set<string>): PipProgress | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  // Use actual seen count as total — pip resolves transitive dependencies
+  // so explicit package count is always an undercount
+  const currentTotal = seenPackages.size;
+
+  // "Collecting <package>"
+  const collectingMatch = trimmed.match(/^Collecting\s+(\S+)/i);
+  if (collectingMatch) {
+    const pkgName = collectingMatch[1].replace(/[>=<!].*$/, '');
+    seenPackages.add(pkgName.toLowerCase());
+    return {
+      packageName: pkgName,
+      current: seenPackages.size,
+      total: seenPackages.size,
+      action: 'collecting',
+    };
+  }
+
+  // "Downloading <package-file>"
+  const downloadingMatch = trimmed.match(/^Downloading\s+(\S+)/i);
+  if (downloadingMatch) {
+    const fileName = downloadingMatch[1].split('/').pop() || downloadingMatch[1];
+    // Extract package name from wheel/tarball filename (e.g., "networkx-3.1-py3-none-any.whl")
+    const pkgName = fileName.replace(/[-_]\d+.*$/, '').replace(/[-_]/, '-');
+    return {
+      packageName: pkgName || fileName,
+      current: seenPackages.size,
+      total: currentTotal,
+      action: 'downloading',
+    };
+  }
+
+  // "Requirement already satisfied: <package>"
+  const satisfiedMatch = trimmed.match(/^Requirement already satisfied:\s+(\S+)/i);
+  if (satisfiedMatch) {
+    const pkgName = satisfiedMatch[1].replace(/[>=<!].*$/, '');
+    seenPackages.add(pkgName.toLowerCase());
+    return {
+      packageName: pkgName,
+      current: seenPackages.size,
+      total: seenPackages.size,
+      action: 'satisfied',
+    };
+  }
+
+  // "Installing collected packages: pkg1, pkg2, ..."
+  if (trimmed.match(/^Installing collected packages:/i)) {
+    return {
+      packageName: '',
+      current: currentTotal,
+      total: currentTotal,
+      action: 'installing',
+    };
+  }
+
+  // "Successfully installed pkg1-ver pkg2-ver ..."
+  if (trimmed.match(/^Successfully installed/i)) {
+    return {
+      packageName: '',
+      current: currentTotal,
+      total: currentTotal,
+      action: 'complete',
+    };
+  }
+
+  return null;
 }
 
 // Handle installer failure
@@ -451,27 +548,62 @@ export function startPythonInstall(options: InstallOptions): void {
         cwd: envPath,
       });
 
+      const seenPackages = new Set<string>();
+      let pipOutputBuffer = '';
+
+      const processPipLines = (raw: string, isError: boolean): void => {
+        const cleaned = stripAnsi(raw);
+        // Buffer partial lines — pip can chunk output mid-line
+        pipOutputBuffer += cleaned;
+        const lines = pipOutputBuffer.split(/\r?\n/);
+        // Keep last element as buffer (may be incomplete)
+        pipOutputBuffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          // Skip pure progress bar lines (━, █, etc.)
+          if (/^[━╺╸█░▓▒─\s]+$/.test(trimmed)) continue;
+
+          if (isError) {
+            // Filter out pip's non-error stderr (e.g. deprecation warnings, "already satisfied" notices)
+            const lower = trimmed.toLowerCase();
+            if (lower.includes('warning') && !lower.includes('error')) {
+              sendStatusUpdate(trimmed);
+              continue;
+            }
+            sendStatusUpdate(`ERROR: ${trimmed}`);
+          } else {
+            sendStatusUpdate(trimmed);
+          }
+
+          const progress = parsePipLine(trimmed, seenPackages);
+          if (progress) {
+            sendPipProgress(progress);
+          }
+        }
+      };
+
       pipProcess.stdout.on('data', (data) => {
         console.log('pip:', data.toString());
-        sendStatusUpdate(data.toString());
+        processPipLines(data.toString(), false);
       });
 
       pipProcess.stderr.on('data', (data) => {
         console.error('pip error:', data.toString());
-        sendStatusUpdate(`ERROR: ${data.toString()}`);
+        processPipLines(data.toString(), true);
       });
 
       pipProcess.on('close', (code) => {
         installInProgress = false;
         if (code === 0 || code === null) {
           console.log('Installation complete');
-          sendStatusUpdate('Installation complete');
           pythonSuccessInstall = true;
-          pythonFound();
-          
-          // Transition to main window
-          getCurrentWindow()?.close();
-          createMainWindow();
+          sendStatusUpdate('Installation complete');
+          // Don't close welcome window — let the user select a language first.
+          // The welcome window will show language selection on "Installation complete".
+          // Transition to main window happens via handleContinue → forceRestartApp.
         } else {
           console.error('pip install failed with code:', code);
           waitingForInstallChoice = true;

@@ -1,15 +1,16 @@
 /**
  * Welcome Window App Component
- * Initial setup and language installation - Production Ready
+ * Initial setup and language installation
  * Uses real IPC to install Python backend and configure language
  */
 
 import { Component, Show, For, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization } from '../../context';
-import type { Settings, InstallOptions, InstallerState } from '../../../shared/types';
-import { Panel, Btn, SelectableCard, AlertBanner, LogConsole, CheckboxCard, Progress } from '../../components/common';
+import type { Settings, InstallOptions, InstallerState, PipProgress } from '../../../shared/types';
+import { Panel, Btn, SelectableCard, AlertBanner, LogConsole, CheckboxCard, ProgressBar } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
+import './welcome.css';
 
 interface LanguageOption {
   code: string;
@@ -28,14 +29,12 @@ const LANGUAGES: LanguageOption[] = [
   { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸', available: false },
 ];
 
-// Animated welcome text in multiple languages
 const WELCOME_TEXTS = ['Welcome!', 'ようこそ！', 'Wilkommen!', 'Bienvenue!', '欢迎！', 'Добро пожаловать!'];
 
 const WelcomeContent: Component = () => {
   const { updateSettings } = useSettings();
   const { t } = useLocalization();
 
-  // Installation state
   const [installationStarted, setInstallationStarted] = createSignal(false);
   const [installationCompleted, setInstallationCompleted] = createSignal(false);
   const [progress, setProgress] = createSignal(0);
@@ -43,25 +42,20 @@ const WelcomeContent: Component = () => {
   const [overallStatus, setOverallStatus] = createSignal(t('mlearn.Installer.Status.NotStarted'));
   const [networkError, setNetworkError] = createSignal<string | null>(null);
 
-  // Install options
   const [includeLLM, setIncludeLLM] = createSignal(true);
   const [includeOCR, setIncludeOCR] = createSignal(true);
 
-  // Language selection (enabled after install completes)
   const [selectedLanguage, setSelectedLanguage] = createSignal<string>('ja');
 
-  // Welcome text animation
   const [welcomeTextIndex, setWelcomeTextIndex] = createSignal(0);
   const [welcomeFading, setWelcomeFading] = createSignal(false);
 
-  // Log a message to the status console
   const logInfo = (message: string) => {
     const level = message.toLowerCase().includes('error') ? 'error' as const : 
                   message.toLowerCase().includes('complete') ? 'success' as const : 'info' as const;
     setStatusLogs(prev => [...prev, { message, level }]);
   };
 
-  // Handle installation completion
   const installCompleted = () => {
     setInstallationCompleted(true);
     setInstallationStarted(false);
@@ -70,7 +64,6 @@ const WelcomeContent: Component = () => {
     logInfo(t('mlearn.Installer.Status.Complete'));
   };
 
-  // Reset to waiting state (for retries)
   const setWaitingState = (opts?: InstallOptions) => {
     if (installationCompleted()) return;
     setInstallationStarted(false);
@@ -83,7 +76,6 @@ const WelcomeContent: Component = () => {
     }
   };
 
-  // Start installation
   const handleInstall = async () => {
     if (installationStarted()) return;
 
@@ -95,7 +87,6 @@ const WelcomeContent: Component = () => {
     logInfo(includeLLM() ? t('mlearn.Installer.Status.LlmWillInstall') : t('mlearn.Installer.Status.LlmSkip'));
     logInfo(includeOCR() ? t('mlearn.Installer.Status.OcrWillInstall') : t('mlearn.Installer.Status.OcrSkip'));
 
-    // Save preferences and start install via IPC
     try {
       const mLearnIPC = (window as unknown as { mLearnIPC?: typeof window.mLearnIPC }).mLearnIPC;
       if (mLearnIPC) {
@@ -105,16 +96,14 @@ const WelcomeContent: Component = () => {
       }
     } catch (e) {
       console.error('Failed to start installation:', e);
-      setOverallStatus('Error: Could not start installation');
+      setOverallStatus(t('mlearn.Installer.Status.CouldNotStart'));
       setInstallationStarted(false);
     }
   };
 
-  // Continue after installation to select language
   const handleContinue = () => {
     if (!installationCompleted()) return;
 
-    // Save language and restart
     updateSettings({ language: selectedLanguage() });
 
     const mLearnIPC = (window as unknown as { mLearnIPC?: typeof window.mLearnIPC }).mLearnIPC;
@@ -124,7 +113,6 @@ const WelcomeContent: Component = () => {
         settingsSavedCleanup();
         setOverallStatus(t('mlearn.Installer.Status.LanguageInstalledRestarting'));
         setTimeout(() => {
-          // Send quit request to proxy server
           fetch('http://127.0.0.1:7753/quit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -136,38 +124,63 @@ const WelcomeContent: Component = () => {
     }
   };
 
-  // Setup IPC event listeners
   const ipcCleanups: Array<() => void> = [];
   onMount(() => {
     const mLearnIPC = (window as unknown as { mLearnIPC?: typeof window.mLearnIPC }).mLearnIPC;
     if (!mLearnIPC) return;
 
-    // Python install success
     ipcCleanups.push(mLearnIPC.onPythonSuccess((success: boolean) => {
       if (success) installCompleted();
     }));
 
-    // Server status updates (pip output, download progress, etc.)
     ipcCleanups.push(mLearnIPC.onServerStatusUpdate((status: string) => {
       logInfo(status);
 
-      // Update progress bar based on status
       if (status.includes('Installing Python dependencies')) {
-        setProgress(5);
+        setProgress(2);
       } else if (status === 'Downloading Python...') {
-        setProgress(10);
+        setProgress(5);
       } else if (status.includes('Download complete')) {
-        setProgress(45);
+        setProgress(30);
       } else if (status.includes('Extraction complete')) {
-        setProgress(70);
+        setProgress(40);
+        setOverallStatus(t('mlearn.Installer.Status.InstallingPackages'));
       } else if (status === 'Installation complete') {
         installCompleted();
       } else if (status.toLowerCase().includes('error')) {
-        setOverallStatus('An error occurred. Check the log below.');
+        setOverallStatus(t('mlearn.Installer.Status.ErrorOccurred'));
       }
     }));
 
-    // Installation started by backend
+    ipcCleanups.push(mLearnIPC.onPipProgress((pipProgress: PipProgress) => {
+      if (pipProgress.action === 'complete') {
+        setProgress(95);
+      } else if (pipProgress.action === 'installing') {
+        // "Installing collected packages" — near the end
+        setProgress(90);
+        setOverallStatus(t('mlearn.Installer.Status.InstallingPackages'));
+      } else {
+        // Use asymptotic curve: progress approaches 90% as package count grows
+        // Formula: 40 + 50 * (1 - 1/(1 + count/10)) — starts at 40%, approaches 90%
+        const count = pipProgress.current;
+        const pipPercent = Math.round(40 + 50 * (1 - 1 / (1 + count / 10)));
+        setProgress(Math.min(pipPercent, 89));
+
+        if (pipProgress.packageName) {
+          const actionKey = pipProgress.action === 'collecting'
+            ? 'mlearn.Installer.Status.Collecting'
+            : pipProgress.action === 'downloading'
+              ? 'mlearn.Installer.Status.Downloading'
+              : pipProgress.action === 'satisfied'
+                ? 'mlearn.Installer.Status.AlreadySatisfied'
+                : 'mlearn.Installer.Status.InstallingPackages';
+          setOverallStatus(
+            `${t(actionKey)} ${pipProgress.packageName} (${pipProgress.current})`
+          );
+        }
+      }
+    }));
+
     ipcCleanups.push(mLearnIPC.onInstallStarted((opts: InstallOptions) => {
       if (!installationStarted()) {
         setInstallationStarted(true);
@@ -176,12 +189,10 @@ const WelcomeContent: Component = () => {
       }
     }));
 
-    // Installer awaiting user choice (error recovery or initial state)
     ipcCleanups.push(mLearnIPC.onInstallerAwaitingChoice(() => {
       setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR() });
     }));
 
-    // Network error during install
     ipcCleanups.push(mLearnIPC.onInstallerNetworkError((payload: { message: string; detail?: string }) => {
       const message = typeof payload === 'string' ? payload : payload.message;
       const detail = typeof payload === 'object' ? payload.detail : undefined;
@@ -191,7 +202,6 @@ const WelcomeContent: Component = () => {
       setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR() });
     }));
 
-    // Get current installer state
     ipcCleanups.push(mLearnIPC.onInstallerState((state: InstallerState) => {
       if (state.success) {
         installCompleted();
@@ -210,7 +220,6 @@ const WelcomeContent: Component = () => {
       }
     }));
 
-    // Load current settings
     ipcCleanups.push(mLearnIPC.onSettings((settings: Settings) => {
       if (settings.llmEnabled !== undefined) {
         setIncludeLLM(settings.llmEnabled !== false);
@@ -220,7 +229,6 @@ const WelcomeContent: Component = () => {
       }
     }));
 
-    // Request current state
     mLearnIPC.requestInstallerState();
     mLearnIPC.isSuccess();
     mLearnIPC.getSettings();
@@ -231,7 +239,6 @@ const WelcomeContent: Component = () => {
     ipcCleanups.length = 0;
   });
 
-  // Welcome text animation
   createEffect(() => {
     const interval = setInterval(() => {
       setWelcomeFading(true);
@@ -244,71 +251,29 @@ const WelcomeContent: Component = () => {
   });
 
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        'flex-direction': 'column',
-        'align-items': 'center',
-        'justify-content': 'flex-start',
-        padding: '2rem',
-        'background': 'linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%)',
-        overflow: 'auto',
-      }}
-    >
-      {/* Draggable region */}
-      <div
-        class="dragger"
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '32px',
-          '-webkit-app-region': 'drag',
-        }}
-      />
+    <div class="welcome-window">
+      <div class="welcome-window__dragger" />
 
-      {/* Animated welcome text */}
-      <h1
-        style={{
-          'font-size': '2.5rem',
-          'font-weight': '700',
-          color: 'var(--text-primary)',
-          'margin-bottom': '1rem',
-          transition: 'opacity 0.5s ease',
-          opacity: welcomeFading() ? '0' : '1',
-        }}
-      >
+      <h1 class={`welcome-window__heading ${welcomeFading() ? 'welcome-window__heading--fading' : ''}`}>
         {WELCOME_TEXTS[welcomeTextIndex()]}
       </h1>
 
-      {/* Progress bar */}
-      <Progress 
-        progress={progress()} 
-        style={{ width: '100%', 'max-width': '500px', 'margin-bottom': '1rem' }}
+      <ProgressBar
+        value={progress()}
+        class="welcome-window__progress"
+        size="lg"
+        variant="primary"
+        rounded
+        animated
       />
 
       <Panel
-        variant="elevated"
+        variant="default"
         rounded="xl"
         padding="xl"
-        style={{
-          'max-width': '600px',
-          width: '100%',
-          display: 'flex',
-          'flex-direction': 'column',
-        }}
+        class="welcome-window__panel"
       >
-        {/* Info text */}
-        <p
-          style={{
-            color: 'var(--text-secondary)',
-            'margin-bottom': '1.5rem',
-            'line-height': '1.6',
-          }}
-        >
+        <p class="welcome-window__info">
           <Show when={!installationStarted() && !installationCompleted()}>
             {t('mlearn.Installer.Instructions.ChooseComponents')}
             <br />
@@ -326,9 +291,8 @@ const WelcomeContent: Component = () => {
           </Show>
         </p>
 
-        {/* Install options - only shown before installation */}
         <Show when={!installationStarted() && !installationCompleted()}>
-          <div style={{ 'margin-bottom': '1.5rem', display: 'flex', 'flex-direction': 'column', gap: '0.5rem' }}>
+          <div class="welcome-window__options">
             <CheckboxCard
               checked={includeLLM()}
               onChange={setIncludeLLM}
@@ -344,16 +308,8 @@ const WelcomeContent: Component = () => {
           </div>
         </Show>
 
-        {/* Language selection - only enabled after installation */}
         <Show when={installationCompleted()}>
-          <div
-            style={{
-              display: 'grid',
-              'grid-template-columns': 'repeat(2, 1fr)',
-              gap: '0.75rem',
-              'margin-bottom': '1.5rem',
-            }}
-          >
+          <div class="welcome-window__languages">
             <For each={LANGUAGES}>
               {(lang) => (
                 <SelectableCard
@@ -369,7 +325,6 @@ const WelcomeContent: Component = () => {
           </div>
         </Show>
 
-        {/* Installation log - shown during/after installation */}
         <Show when={installationStarted() || installationCompleted()}>
           <LogConsole
             logs={statusLogs()}
@@ -381,7 +336,6 @@ const WelcomeContent: Component = () => {
           />
         </Show>
 
-        {/* Network error alert */}
         <Show when={networkError()}>
           <AlertBanner
             variant="error"
@@ -392,12 +346,11 @@ const WelcomeContent: Component = () => {
           />
         </Show>
 
-        {/* Action button */}
         <Btn
           variant="primary"
           onClick={installationCompleted() ? handleContinue : handleInstall}
           disabled={installationStarted() && !installationCompleted()}
-          style={{ width: '100%', 'margin-top': '1rem' }}
+          class="welcome-window__action"
         >
           <Show when={!installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.StartInstallation')}</Show>
           <Show when={installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.Installing')}</Show>

@@ -6,6 +6,7 @@
 
 import { Component, Show, For } from 'solid-js';
 import { useLocalization } from '../../context';
+import { IconBtn, CrossIcon } from '../../components/common';
 import { formatDurationShort } from '../../utils/timeFormatting';
 import type { VoiceSessionAftermath } from '../../../shared/types';
 
@@ -20,10 +21,14 @@ export const VoiceAftermath: Component<VoiceAftermathProps> = (props) => {
   return (
     <div class="voice-aftermath">
       <div class="voice-aftermath-header">
-        <h3>{t('mlearn.ConversationAgent.Voice.Aftermath.Title')}</h3>
-        <button class="voice-aftermath-dismiss" onClick={props.onDismiss} aria-label="Dismiss">
-          &times;
-        </button>
+        <h3 class="voice-aftermath-title">{t('mlearn.ConversationAgent.Voice.Aftermath.Title')}</h3>
+        <IconBtn
+          icon={<CrossIcon />}
+          variant="ghost"
+          size="sm"
+          onClick={props.onDismiss}
+          aria-label={t('mlearn.ConversationAgent.Voice.Aftermath.Title')}
+        />
       </div>
 
       <div class="voice-aftermath-stats">
@@ -40,13 +45,13 @@ export const VoiceAftermath: Component<VoiceAftermathProps> = (props) => {
         }
       >
         <div class="voice-aftermath-mistakes">
-          <h4>{t('mlearn.ConversationAgent.Voice.Aftermath.Mistakes')} ({props.aftermath.mistakes.length})</h4>
+          <h4 class="voice-aftermath-mistakes-title">{t('mlearn.ConversationAgent.Voice.Aftermath.Mistakes')} ({props.aftermath.mistakes.length})</h4>
           <ul class="voice-aftermath-list">
             <For each={props.aftermath.mistakes}>
               {(m) => (
                 <li class="voice-aftermath-item">
                   <div class="voice-aftermath-word">
-                    <strong>{m.word}</strong>
+                    <span class="voice-aftermath-word-text">{m.word}</span>
                     <Show when={m.reading}>
                       <span class="voice-aftermath-reading">{m.reading}</span>
                     </Show>

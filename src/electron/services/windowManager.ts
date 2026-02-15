@@ -92,7 +92,6 @@ export function createMainWindow(): BrowserWindow {
   const isDev = process.env.NODE_ENV === 'development';
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000/src/html/main.html');
-    mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'main.html'));
   }

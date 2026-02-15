@@ -4,7 +4,7 @@
  */
 
 import { Component, createSignal, Show, onCleanup, createEffect } from 'solid-js';
-import { Modal, Btn, Progress, Spinner } from '../../components/common';
+import { Modal, Btn, ProgressBar, Spinner } from '../../components/common';
 import { useFlashcards, useLocalization } from '../../context';
 import {
   splitForQR,
@@ -389,7 +389,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
               muted
             />
             <canvas ref={canvasEl} class="scan-canvas" />
-            <Progress progress={progress()} showPercent />
+            <ProgressBar value={progress()} showPercent variant="primary" animated />
             <Btn onClick={() => { stopScanning(); startConnection(); }}>
               {t('mlearn.Flashcards.Sync.ShowQRInstead')}
             </Btn>
@@ -400,7 +400,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         <Show when={phase() === 'syncing' || phase() === 'connecting'}>
           <div class="sync-progress">
             <Spinner size={48} text={t('mlearn.Flashcards.Sync.SyncingFlashcards')} />
-            <Progress progress={progress()} showPercent animated />
+            <ProgressBar value={progress()} showPercent variant="primary" animated />
           </div>
         </Show>
         

@@ -663,7 +663,7 @@
           },
           "TurboMode": {
             "Label": "Turbo Mode",
-            "Description": "Uses RapidOCR for faster detection. When off, uses PaddleOCR which is slower but significantly more accurate, especially for vertical text."
+            "Description": "Uses faster detection settings. When off, uses higher-resolution detection which is slower but more accurate, especially for vertical text."
           },
           "FuriganaDetection": {
             "Label": "Furigana Detection",
@@ -841,7 +841,12 @@
         "OcrWillInstall": "OCR reader dependencies will be installed.",
         "OcrSkip": "Skipping OCR reader dependencies.",
         "CouldNotStart": "Could not start the installation process.",
-        "LanguageInstalledRestarting": "Language installed! Restarting..."
+        "LanguageInstalledRestarting": "Language installed! Restarting...",
+        "ErrorOccurred": "An error occurred. Check the log below.",
+        "InstallingPackages": "Installing packages...",
+        "Collecting": "Collecting",
+        "Downloading": "Downloading",
+        "AlreadySatisfied": "Already installed:"
       },
       "Components": {
         "ExplainAi": {
@@ -1132,6 +1137,8 @@
       "Voice": {
         "DownloadModels": "Download Voice Models",
         "DownloadProgress": "Downloading voice models… {progress}%",
+        "InstallingDependencies": "Installing voice dependencies…",
+        "DownloadingModels": "Downloading voice models…",
         "Listening": "Listening…",
         "Processing": "Processing…",
         "Speaking": "Speaking…",
@@ -1143,6 +1150,9 @@
         "ModelsRequired": "Voice models are required for this feature. Download them to get started.",
         "DownloadFailed": "Failed to download voice models. The required dependencies may not be installed. Please reinstall the application or check the logs for details.",
         "TtsSpeed": "Speech speed",
+        "TtsProvider": "TTS engine",
+        "RemoteTts": "Remote",
+        "RemoteTtsUrl": "Server URL",
         "Interrupted": "*interrupted by user*",
         "SilenceThreshold": "Silence threshold",
         "VoiceMode": "Input mode",
@@ -1150,6 +1160,7 @@
         "MicPermission": "Microphone access is required for voice calls.",
         "EmptyHint": "Start a voice call to practice speaking with the AI tutor.",
         "Initializing": "Loading voice engines…",
+        "LoadingTtsModel": "Loading speech model…",
         "DefaultVoice": "Default voice",
         "VoiceSample": "Voice clone",
         "UploadSample": "Upload voice sample",

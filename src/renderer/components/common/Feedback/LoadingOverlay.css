@@ -28,9 +28,5 @@
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  padding: 2rem;
-  background: var(--bg, rgba(30, 30, 30, 0.9));
-  border-radius: var(--radius-lg, 12px);
-  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-  backdrop-filter: var(--backdrop-filter, blur(10px));
+  padding: var(--spacing-4);
 }

@@ -12,6 +12,8 @@
   border: 1px solid;
   background: var(--bg);
   backdrop-filter: var(--backdrop-filter);
+  border-radius: var(--radius-md);
+  margin:var(--spacing-3);
 }
 
 /* Variants */

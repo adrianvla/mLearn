@@ -48,6 +48,16 @@
   height: 1em;
 }
 
+.btn-icon{
+  padding: var(--spacing-1) !important;
+}
+.btn-icon > span{
+  display:flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
 /* ============ Size Variants ============ */
 /* Note: Pill buttons don't use size-based min-height - their height is content-driven */
 .btn-xs:not(.btn-pill) {
@@ -246,6 +256,38 @@
 
 .btn-icon:hover:not(:disabled) {
   background: var(--bg-intense);
+}
+
+/* Icon button color variants */
+.btn-icon.btn-primary {
+  background: rgba(74, 144, 217, 0.3);
+  border-color: rgba(74, 144, 217, 0.4);
+  color: var(--color-primary);
+}
+
+.btn-icon.btn-primary:hover:not(:disabled) {
+  background: rgba(74, 144, 217, 0.4);
+}
+
+.btn-icon.btn-danger {
+  background: rgba(231, 76, 60, 0.25);
+  border-color: rgba(231, 76, 60, 0.4);
+  color: var(--color-danger);
+}
+
+.btn-icon.btn-danger:hover:not(:disabled) {
+  background: rgba(231, 76, 60, 0.4);
+  border-color: rgba(231, 76, 60, 0.5);
+}
+
+.btn-icon.btn-success {
+  background: rgba(46, 204, 113, 0.3);
+  border-color: rgba(46, 204, 113, 0.4);
+  color: var(--color-success);
+}
+
+.btn-icon.btn-success:hover:not(:disabled) {
+  background: rgba(46, 204, 113, 0.4);
 }
 
 

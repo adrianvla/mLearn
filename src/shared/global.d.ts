@@ -3,7 +3,7 @@
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample } from './types';
+import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, PipProgress } from './types';
 
 export interface MLearnIPC {
   // Settings
@@ -62,6 +62,7 @@ export interface MLearnIPC {
   onInstallerAwaitingChoice: (callback: () => void) => () => void;
   onInstallerNetworkError: (callback: (payload: { message: string; detail?: string }) => void) => () => void;
   onInstallerState: (callback: (state: InstallerState) => void) => () => void;
+  onPipProgress: (callback: (progress: PipProgress) => void) => () => void;
   
   // Clipboard & UI
   writeToClipboard: (text: string) => void;

@@ -71,6 +71,11 @@
   height:100%;
 }
 
+/* Voice panel — needs relative positioning to scope the aftermath overlay */
+.ca-voice-panel {
+  position: relative;
+}
+
 /* Messages area — scrollable */
 .ca-messages {
   flex: 1;

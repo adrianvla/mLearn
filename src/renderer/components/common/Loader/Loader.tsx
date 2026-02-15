@@ -3,7 +3,6 @@
  * A single loading indicator component that can render different types:
  * - spinner: Spinning circle indicator
  * - skeleton: Animated placeholder lines
- * - progress: Linear progress bar
  * - ring: Circular progress ring (for OCR, etc.)
  * - overlay: Full overlay with spinner
  */
@@ -13,9 +12,7 @@ import './Loader.css';
 
 // ============ Types ============
 
-export type LoaderType = 'spinner' | 'skeleton' | 'progress' | 'ring' | 'overlay';
-
-export type ProgressVariant = 'default' | 'thin' | 'thick' | 'gradient';
+export type LoaderType = 'spinner' | 'skeleton' | 'ring' | 'overlay';
 
 export interface LoaderProps {
   /** Type of loader to display */
@@ -26,7 +23,7 @@ export interface LoaderProps {
   text?: string;
   /** Status text (for ring - shows below ring) */
   statusText?: string;
-  /** Progress value 0-100 (for progress bar, ring) */
+  /** Progress value 0-100 (for ring) */
   progress?: number;
   /** Whether to show indeterminate animation (for ring) */
   indeterminate?: boolean;
@@ -34,12 +31,6 @@ export interface LoaderProps {
   lines?: number;
   /** Show percentage text */
   showPercent?: boolean;
-  /** Progress bar variant */
-  variant?: ProgressVariant;
-  /** Custom color for progress bar */
-  color?: string;
-  /** Label for progress bar */
-  label?: string;
   /** Animate progress transitions */
   animated?: boolean;
   /** Show backdrop (for overlay) */
@@ -94,39 +85,6 @@ const SkeletonContent: Component<{ lines: number }> = (props) => {
           )}
         </For>
       </div>
-    </div>
-  );
-};
-
-// ============ Progress Bar Component ============
-
-const ProgressContent: Component<{
-  progress: number;
-  variant: ProgressVariant;
-  animated: boolean;
-  showPercent: boolean;
-  label?: string;
-  color?: string;
-}> = (props) => {
-  const progressValue = createMemo(() => Math.max(0, Math.min(100, props.progress)));
-  
-  return (
-    <div class={`loader-progress loader-progress--${props.variant}`}>
-      <Show when={props.label}>
-        <span class="loader-progress-label">{props.label}</span>
-      </Show>
-      <div class="loader-progress-track">
-        <div 
-          class={`loader-progress-fill ${props.animated ? 'animated' : ''}`}
-          style={{ 
-            width: `${progressValue()}%`,
-            ...(props.color ? { 'background-color': props.color } : {})
-          }}
-        />
-      </div>
-      <Show when={props.showPercent}>
-        <span class="loader-progress-percent">{Math.round(progressValue())}%</span>
-      </Show>
     </div>
   );
 };
@@ -235,8 +193,6 @@ export const Loader: Component<LoaderProps> = (props) => {
   const size = () => props.size ?? 32;
   const lines = () => props.lines ?? Math.floor(Math.random() * 10) + 10;
   const progress = () => props.progress ?? 0;
-  const variant = () => props.variant || 'default';
-  const animated = () => props.animated !== false;
   const showPercent = () => props.showPercent === true;
   const strokeWidth = () => props.strokeWidth ?? (props.indeterminate ? 4 : 3);
   const visible = () => props.visible !== false;
@@ -253,17 +209,6 @@ export const Loader: Component<LoaderProps> = (props) => {
       
       <Show when={type() === 'skeleton'}>
         <SkeletonContent lines={lines()} />
-      </Show>
-      
-      <Show when={type() === 'progress'}>
-        <ProgressContent 
-          progress={progress()}
-          variant={variant()}
-          animated={animated()}
-          showPercent={showPercent()}
-          label={props.label}
-          color={props.color}
-        />
       </Show>
       
       <Show when={type() === 'ring'}>
@@ -302,11 +247,6 @@ export const Spinner: Component<Omit<LoaderProps, 'type'>> = (props) => (
 /** Skeleton loader */
 export const Skeleton: Component<Omit<LoaderProps, 'type'>> = (props) => (
   <Loader type="skeleton" {...props} />
-);
-
-/** Progress bar */
-export const Progress: Component<Omit<LoaderProps, 'type'>> = (props) => (
-  <Loader type="progress" {...props} />
 );
 
 /** Progress ring */

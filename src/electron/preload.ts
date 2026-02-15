@@ -126,6 +126,8 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.INSTALLER_NETWORK_ERROR, (_event, payload) => callback(payload)),
   onInstallerState: (callback: (state: { waiting: boolean; inProgress: boolean; success: boolean }) => void) =>
     ipcOn(IPC_CHANNELS.INSTALLER_STATE, (_event, state) => callback(state)),
+  onPipProgress: (callback: (progress: { packageName: string; current: number; total: number; action: string }) => void) =>
+    ipcOn(IPC_CHANNELS.PIP_PROGRESS, (_event, progress) => callback(progress)),
 
   // ========== UI ==========
   onOpenSettings: (callback: (section?: string) => void) =>
