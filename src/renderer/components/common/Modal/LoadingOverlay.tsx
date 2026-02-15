@@ -59,7 +59,7 @@ export const LoadingOverlay: Component<LoadingOverlayProps> = (props) => {
           style={overlayStyle()}
         >
           <Panel
-            variant="elevated"
+            variant="default"
             rounded="xl"
             padding="lg"
             class="loading-overlay-panel"
@@ -78,8 +78,8 @@ export const LoadingOverlay: Component<LoadingOverlayProps> = (props) => {
               <Show when={merged.showProgress && typeof merged.progress === 'number'}>
                 <ProgressBar
                   value={merged.progress!}
-                  size="md"
-                  variant="primary"
+                  size="lg"
+                  variant="default"
                   showPercent={merged.showPercent}
                   percentPosition="below"
                   class="loading-overlay-progress"

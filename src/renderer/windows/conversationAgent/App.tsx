@@ -945,7 +945,7 @@ const ConversationContent: Component = () => {
       </TabPanel>
 
       {/* Voice panel */}
-      <TabPanel tabId="voice" activeTab={activeTab()}>
+      <TabPanel tabId="voice" activeTab={activeTab()} class="ca-voice-panel">
         <VoiceTab
           messages={messages()}
           isStreaming={isStreaming()}
@@ -995,17 +995,17 @@ const ConversationContent: Component = () => {
           isConnected={isConnected()}
           language={settings.language || 'ja'}
         />
-      </TabPanel>
 
-      {/* Voice session aftermath overlay */}
-      <Show when={voiceAftermath()}>
-        {(aftermath) => (
-          <VoiceAftermath
-            aftermath={aftermath()}
-            onDismiss={() => setVoiceAftermath(null)}
-          />
-        )}
-      </Show>
+        {/* Voice session aftermath overlay — scoped inside voice panel */}
+        <Show when={voiceAftermath()}>
+          {(aftermath) => (
+            <VoiceAftermath
+              aftermath={aftermath()}
+              onDismiss={() => setVoiceAftermath(null)}
+            />
+          )}
+        </Show>
+      </TabPanel>
 
       {/* Stats panel */}
       <TabPanel tabId="stats" activeTab={activeTab()}>

@@ -183,6 +183,10 @@ export interface Settings {
   // Voice call mode settings
   /** Voice input mode: hands-free VAD or push-to-talk */
   voiceMode: VoiceMode;
+  /** TTS backend provider: local Kokoro or remote MOSS-TTS server */
+  ttsProvider: TTSProvider;
+  /** Remote TTS server URL (for 'remote' provider, e.g. http://192.168.1.100:7760) */
+  remoteTtsUrl: string;
   /** TTS speech speed multiplier */
   voiceTtsSpeed: number;
   /** Automatically send message after VAD silence detection */
@@ -264,6 +268,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoSpeak: false,
   sttLanguage: '',
   voiceMode: 'vad',
+  ttsProvider: 'kokoro',
+  remoteTtsUrl: '',
   voiceTtsSpeed: 1.0,
   voiceAutoSendOnSilence: true,
   voiceSilenceThreshold: 1.2,
@@ -680,6 +686,17 @@ export interface InstallerState {
   options: InstallOptions;
 }
 
+export interface PipProgress {
+  /** Package currently being processed */
+  packageName: string;
+  /** Current package index (1-based) */
+  current: number;
+  /** Total number of packages to install */
+  total: number;
+  /** Current pip action: collecting, downloading, installing, etc. */
+  action: string;
+}
+
 export interface PromptOptions {
   title: string;
   desc: string;
@@ -766,6 +783,9 @@ export interface LLMResponse {
 
 /** LLM backend provider */
 export type LLMProvider = 'builtin' | 'ollama';
+
+/** TTS backend provider */
+export type TTSProvider = 'kokoro' | 'remote';
 
 /** Provider-agnostic chat message */
 export interface LLMChatMessage {
@@ -1075,6 +1095,7 @@ export interface VoiceModelStatus {
   downloading: boolean;
   progress: number;
   error?: string;
+  statusMessage?: string;
   sttModelName?: string;
   ttsModelName?: string;
 }
@@ -1102,6 +1123,7 @@ export interface VoiceTtsAudio {
 export interface VoiceTtsStatus {
   generating: boolean;
   playing: boolean;
+  modelLoading?: boolean;
 }
 
 export interface VoiceSessionReady {

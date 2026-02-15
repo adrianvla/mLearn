@@ -32,7 +32,10 @@
     "torch",
     "torchaudio",
     "faster-whisper",
-    "chatterbox-tts",
+    "kokoro",
+    "misaki[ja]",
+    "soundfile",
+    "unidic",
     "silero-vad"
   ]
 }

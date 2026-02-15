@@ -663,7 +663,7 @@
           },
           "TurboMode": {
             "Label": "Turbo-Modus",
-            "Description": "Verwendet RapidOCR für schnelle Erkennung. Deaktiviert wird PaddleOCR verwendet, das genauer ist, besonders bei vertikalem Text."
+            "Description": "Verwendet schnellere Erkennungseinstellungen. Deaktiviert wird eine höher aufgelöste Erkennung verwendet, die langsamer, aber genauer ist, besonders bei vertikalem Text."
           },
           "FuriganaDetection": {
             "Label": "Furigana-Erkennung",
@@ -841,7 +841,12 @@
         "OcrWillInstall": "Abhängigkeiten für den OCR-Reader werden installiert.",
         "OcrSkip": "Abhängigkeiten für den OCR-Reader werden übersprungen.",
         "CouldNotStart": "Der Installationsprozess konnte nicht gestartet werden.",
-        "LanguageInstalledRestarting": "Sprache installiert! Neustart..."
+        "LanguageInstalledRestarting": "Sprache installiert! Neustart...",
+        "ErrorOccurred": "Ein Fehler ist aufgetreten. Überprüfen Sie das Protokoll unten.",
+        "InstallingPackages": "Pakete werden installiert...",
+        "Collecting": "Sammle",
+        "Downloading": "Herunterladen",
+        "AlreadySatisfied": "Bereits installiert:"
       },
       "Components": {
         "ExplainAi": {
@@ -1132,6 +1137,8 @@
       "Voice": {
         "DownloadModels": "Sprachmodelle herunterladen",
         "DownloadProgress": "Sprachmodelle werden heruntergeladen… {progress}%",
+        "InstallingDependencies": "Sprachabhängigkeiten werden installiert…",
+        "DownloadingModels": "Sprachmodelle werden heruntergeladen…",
         "Listening": "Höre zu…",
         "Processing": "Verarbeitung…",
         "Speaking": "Spricht…",
@@ -1143,6 +1150,9 @@
         "ModelsRequired": "Diese Funktion erfordert Sprachmodelle. Laden Sie sie herunter, um zu beginnen.",
         "DownloadFailed": "Herunterladen der Sprachmodelle fehlgeschlagen. Möglicherweise sind erforderliche Abhängigkeiten nicht installiert. Installieren Sie die Anwendung neu oder überprüfen Sie die Protokolle.",
         "TtsSpeed": "Sprechgeschwindigkeit",
+        "TtsProvider": "TTS-Engine",
+        "RemoteTts": "Remote",
+        "RemoteTtsUrl": "Server-URL",
         "Interrupted": "*Vom Benutzer unterbrochen*",
         "SilenceThreshold": "Stille-Schwelle",
         "VoiceMode": "Eingabemodus",
@@ -1150,6 +1160,7 @@
         "MicPermission": "Sprachanrufe erfordern Mikrofonzugriff.",
         "EmptyHint": "Starten Sie einen Sprachanruf, um das Sprechen mit dem KI-Tutor zu üben.",
         "Initializing": "Sprachengine wird geladen…",
+        "LoadingTtsModel": "Sprachsynthesemodell wird geladen…",
         "DefaultVoice": "Standardstimme",
         "VoiceSample": "Stimmklon",
         "UploadSample": "Stimmprobe hochladen",

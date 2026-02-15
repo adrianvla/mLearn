@@ -663,7 +663,7 @@
           },
           "TurboMode": {
             "Label": "Mode turbo",
-            "Description": "Utilise RapidOCR pour une détection rapide. Désactivé, PaddleOCR est utilisé, plus précis notamment pour le texte vertical."
+            "Description": "Utilise des paramètres de détection plus rapides. Désactivé, une détection haute résolution est utilisée, plus lente mais plus précise, notamment pour le texte vertical."
           },
           "FuriganaDetection": {
             "Label": "Détection des furigana",
@@ -841,7 +841,12 @@
         "OcrWillInstall": "Les dépendances du lecteur OCR seront installées.",
         "OcrSkip": "Les dépendances du lecteur OCR seront ignorées.",
         "CouldNotStart": "Impossible de démarrer le processus d'installation.",
-        "LanguageInstalledRestarting": "Langue installée ! Redémarrage..."
+        "LanguageInstalledRestarting": "Langue installée ! Redémarrage...",
+        "ErrorOccurred": "Une erreur est survenue. Vérifiez le journal ci-dessous.",
+        "InstallingPackages": "Installation des paquets...",
+        "Collecting": "Collecte",
+        "Downloading": "Téléchargement",
+        "AlreadySatisfied": "Déjà installé :"
       },
       "Components": {
         "ExplainAi": {
@@ -1132,6 +1137,8 @@
       "Voice": {
         "DownloadModels": "Télécharger les modèles vocaux",
         "DownloadProgress": "Téléchargement des modèles vocaux… {progress}%",
+        "InstallingDependencies": "Installation des dépendances vocales…",
+        "DownloadingModels": "Téléchargement des modèles vocaux…",
         "Listening": "Écoute…",
         "Processing": "Traitement…",
         "Speaking": "Parle…",
@@ -1143,6 +1150,9 @@
         "ModelsRequired": "Cette fonctionnalité nécessite des modèles vocaux. Téléchargez-les pour commencer.",
         "DownloadFailed": "Échec du téléchargement des modèles vocaux. Les dépendances requises ne sont peut-être pas installées. Réinstallez l'application ou consultez les journaux.",
         "TtsSpeed": "Vitesse de parole",
+        "TtsProvider": "Moteur TTS",
+        "RemoteTts": "Distant",
+        "RemoteTtsUrl": "URL du serveur",
         "Interrupted": "*Interrompu par l'utilisateur*",
         "SilenceThreshold": "Seuil de silence",
         "VoiceMode": "Mode de saisie",
@@ -1150,6 +1160,7 @@
         "MicPermission": "L'appel vocal nécessite l'accès au microphone.",
         "EmptyHint": "Démarrez un appel vocal pour pratiquer l'expression orale avec le tuteur IA.",
         "Initializing": "Chargement du moteur vocal…",
+        "LoadingTtsModel": "Chargement du modèle de synthèse vocale…",
         "DefaultVoice": "Voix par défaut",
         "VoiceSample": "Clone vocal",
         "UploadSample": "Téléverser un échantillon vocal",

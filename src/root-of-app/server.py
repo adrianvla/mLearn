@@ -1866,13 +1866,15 @@ async def llm_stream_endpoint(req: LlmRequest):
     )
 
 # ============================================================================
-# Voice Service — STT (faster-whisper) + TTS (Chatterbox) + VAD (Silero)
+# Voice Service — STT (faster-whisper) + TTS (Kokoro / Remote) + VAD (Silero)
 # ============================================================================
 
 _voice_stt_model = None
-_voice_tts_model = None
+_voice_tts_pipeline = None   # Kokoro KPipeline instance
 _voice_vad_model = None
-_voice_lock = threading.Lock()
+_voice_vad_lock = threading.Lock()
+_voice_stt_lock = threading.Lock()
+_voice_tts_lock = threading.Lock()
 
 _VOICE_IDLE_TIMEOUT_SECONDS = 600
 _voice_last_used: float = 0.0
@@ -1883,6 +1885,47 @@ _voice_stt_downloading = False
 _voice_tts_downloading = False
 _voice_stt_progress = 0.0
 _voice_tts_progress = 0.0
+
+# TTS provider config — read from settings.json at startup
+_tts_provider: str = "kokoro"   # 'kokoro' | 'remote'
+_remote_tts_url: str = ""
+
+if USER_DATA_PATH:
+    _tts_settings_path = os.path.join(USER_DATA_PATH, "settings.json")
+    if os.path.exists(_tts_settings_path):
+        try:
+            with open(_tts_settings_path, 'r', encoding='utf-8') as _f:
+                _tts_settings = json.load(_f)
+                _tts_provider = _tts_settings.get("ttsProvider", "kokoro")
+                _remote_tts_url = _tts_settings.get("remoteTtsUrl", "")
+                print(f"TTS provider: {_tts_provider}, remote URL: {_remote_tts_url}")
+        except Exception:
+            pass
+
+# Kokoro language code mapping (mLearn language code → Kokoro lang_code)
+_KOKORO_LANG_MAP = {
+    "ja": "j",   # Japanese
+    "en": "a",   # American English
+    "zh": "z",   # Chinese (Mandarin)
+    "ko": "j",   # Korean — fallback to Japanese phonemizer
+    "fr": "f",   # French
+    "es": "e",   # Spanish
+    "hi": "h",   # Hindi
+    "it": "i",   # Italian
+    "pt": "p",   # Portuguese (Brazilian)
+}
+
+# Default Kokoro voice per language
+_KOKORO_VOICE_MAP = {
+    "j": "jf_alpha",
+    "a": "af_heart",
+    "z": "zf_xiaobei",
+    "f": "ff_siwis",
+    "e": "ef_dora",
+    "h": "hf_alpha",
+    "i": "if_sara",
+    "p": "pf_dora",
+}
 
 
 def _voice_touch():
@@ -1911,44 +1954,54 @@ def _voice_check_idle():
 
 def _voice_unload():
     global _voice_stt_model, _voice_tts_model, _voice_vad_model
-    with _voice_lock:
-        any_unloaded = False
-        if _voice_stt_model is not None:
-            _log("Voice idle — unloading STT model")
-            del _voice_stt_model
-            _voice_stt_model = None
-            any_unloaded = True
-        if _voice_tts_model is not None:
-            _log("Voice idle — unloading TTS model")
-            del _voice_tts_model
-            _voice_tts_model = None
-            any_unloaded = True
+    any_unloaded = False
+    with _voice_vad_lock:
         if _voice_vad_model is not None:
             _log("Voice idle — unloading VAD model")
             del _voice_vad_model
             _voice_vad_model = None
             any_unloaded = True
-        if any_unloaded:
-            import gc
-            gc.collect()
-            if torch is not None:
-                try:
-                    if hasattr(torch, 'cuda') and torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-                    if hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
-                        torch.mps.empty_cache()
-                except Exception:
-                    pass
-            _log("Voice models unloaded")
+    with _voice_stt_lock:
+        if _voice_stt_model is not None:
+            _log("Voice idle — unloading STT model")
+            del _voice_stt_model
+            _voice_stt_model = None
+            any_unloaded = True
+    with _voice_tts_lock:
+        if _voice_tts_pipeline is not None:
+            _log("Voice idle — unloading TTS pipeline")
+            del _voice_tts_pipeline
+            _voice_tts_pipeline = None
+            any_unloaded = True
+    if any_unloaded:
+        import gc
+        gc.collect()
+        if torch is not None:
+            try:
+                if hasattr(torch, 'cuda') and torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                if hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
+                    torch.mps.empty_cache()
+            except Exception:
+                pass
+        _log("Voice models unloaded")
 
 
-def _get_voice_device():
-    """Determine the best device for voice models."""
+def _get_stt_device():
+    """Device for STT (faster-whisper / CTranslate2) — CUDA or CPU only (no MPS support)."""
     _torch = importlib.import_module("torch") if torch is None else torch
     if _torch.cuda.is_available():
         return "cuda"
+    return "cpu"
+
+
+def _get_tts_device():
+    """Device for TTS (Kokoro) — MPS > CUDA > CPU."""
+    _torch = importlib.import_module("torch") if torch is None else torch
     if hasattr(_torch.backends, "mps") and _torch.backends.mps.is_available():
-        return "cpu"  # Chatterbox has MPS issues, safer on CPU for now
+        return "mps"
+    if _torch.cuda.is_available():
+        return "cuda"
     return "cpu"
 
 
@@ -1956,7 +2009,7 @@ def _ensure_vad_loaded():
     global _voice_vad_model
     if _voice_vad_model is not None:
         return _voice_vad_model
-    with _voice_lock:
+    with _voice_vad_lock:
         if _voice_vad_model is not None:
             return _voice_vad_model
         try:
@@ -1984,13 +2037,13 @@ def _ensure_stt_loaded():
     global _voice_stt_model
     if _voice_stt_model is not None:
         return _voice_stt_model
-    with _voice_lock:
+    with _voice_stt_lock:
         if _voice_stt_model is not None:
             return _voice_stt_model
         try:
             _log("Loading faster-whisper STT model (small)...")
             from faster_whisper import WhisperModel
-            device = _get_voice_device()
+            device = _get_stt_device()
             compute_type = "float16" if device == "cuda" else "int8"
             _voice_stt_model = WhisperModel(
                 "small",
@@ -2006,25 +2059,28 @@ def _ensure_stt_loaded():
 
 
 def _ensure_tts_loaded():
-    global _voice_tts_model
-    if _voice_tts_model is not None:
-        return _voice_tts_model
-    with _voice_lock:
-        if _voice_tts_model is not None:
-            return _voice_tts_model
+    """Load the local Kokoro TTS pipeline (lazy, thread-safe)."""
+    global _voice_tts_pipeline
+    if _voice_tts_pipeline is not None:
+        return _voice_tts_pipeline
+    with _voice_tts_lock:
+        if _voice_tts_pipeline is not None:
+            return _voice_tts_pipeline
         try:
-            _log("Loading Chatterbox Multilingual TTS model...")
-            global torch
-            if torch is None:
-                torch = importlib.import_module("torch")
-            from chatterbox.mtl_tts import ChatterboxMultilingualTTS
-            device = _get_voice_device()
-            _voice_tts_model = ChatterboxMultilingualTTS.from_pretrained(device=device)
-            _log(f"Chatterbox Multilingual TTS loaded on {device}")
+            _log("Loading Kokoro-82M TTS pipeline...")
+            from kokoro import KPipeline
+            # Default to Japanese; the pipeline can be recreated per-language
+            # but 'j' is the primary use case.
+            lang_code = _KOKORO_LANG_MAP.get(LANGUAGE, "a")
+            _voice_tts_pipeline = KPipeline(
+                lang_code=lang_code,
+                repo_id="hexgrad/Kokoro-82M",
+            )
+            _log(f"Kokoro TTS pipeline loaded (lang={lang_code})")
             _voice_touch()
-            return _voice_tts_model
+            return _voice_tts_pipeline
         except Exception as e:
-            _log("Failed to load TTS:", e)
+            _log("Failed to load Kokoro TTS:", e)
             raise
 
 
@@ -2057,19 +2113,41 @@ async def voice_stt_status():
 @app.get("/voice/tts/status")
 async def voice_tts_status():
     """Check TTS model status."""
-    downloaded = False
-    loaded = _voice_tts_model is not None
+    if _tts_provider == "remote":
+        # For remote provider, check if the remote server is reachable
+        reachable = False
+        remote_loaded = False
+        if _remote_tts_url:
+            try:
+                import urllib.request
+                resp = urllib.request.urlopen(f"{_remote_tts_url.rstrip('/')}/voice/tts/status", timeout=3)
+                data = json.loads(resp.read())
+                reachable = True
+                remote_loaded = data.get("loaded", False)
+            except Exception:
+                pass
+        return {
+            "downloaded": reachable,
+            "loaded": remote_loaded,
+            "downloading": False,
+            "progress": 1.0 if reachable else 0.0,
+            "modelName": "MOSS-TTS-Realtime (Remote)",
+        }
+
+    # Kokoro local
+    package_installed = False
+    loaded = _voice_tts_pipeline is not None
     try:
-        from chatterbox.mtl_tts import ChatterboxMultilingualTTS
-        downloaded = True
+        from kokoro import KPipeline
+        package_installed = True
     except ImportError:
         pass
     return {
-        "downloaded": downloaded,
+        "downloaded": package_installed,
         "loaded": loaded,
         "downloading": _voice_tts_downloading,
         "progress": _voice_tts_progress,
-        "modelName": "Chatterbox-Multilingual",
+        "modelName": "Kokoro-82M",
     }
 
 
@@ -2092,17 +2170,18 @@ async def voice_download_models():
         _voice_stt_downloading = False
         errors.append(f"STT: {e}")
 
-    # Download TTS
-    try:
-        _voice_tts_downloading = True
-        _voice_tts_progress = 0.0
-        _log("Pre-downloading TTS model...")
-        _ensure_tts_loaded()
-        _voice_tts_progress = 1.0
-        _voice_tts_downloading = False
-    except Exception as e:
-        _voice_tts_downloading = False
-        errors.append(f"TTS: {e}")
+    # Download TTS (Kokoro only — remote doesn't need local download)
+    if _tts_provider == "kokoro":
+        try:
+            _voice_tts_downloading = True
+            _voice_tts_progress = 0.0
+            _log("Pre-downloading TTS model...")
+            _ensure_tts_loaded()
+            _voice_tts_progress = 1.0
+            _voice_tts_downloading = False
+        except Exception as e:
+            _voice_tts_downloading = False
+            errors.append(f"TTS: {e}")
 
     if errors:
         return {"success": False, "errors": errors}
@@ -2120,39 +2199,83 @@ class TTSRequest(BaseModel):
 async def voice_tts_generate(req: TTSRequest):
     """Generate TTS audio. Returns binary WAV with sentence boundary metadata in headers."""
     try:
-        tts_model = _ensure_tts_loaded()
-        _voice_touch()
+        # If using remote provider, forward request to the remote server
+        if _tts_provider == "remote" and _remote_tts_url:
+            return await _generate_tts_remote(req)
 
-        global torch
-        if torch is None:
-            torch = importlib.import_module("torch")
-        import torchaudio as ta
+        # Local Kokoro generation
+        return await _generate_tts_kokoro(req)
+    except Exception as e:
+        _log("TTS generation error:", e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
-        sentences = _split_into_sentences(req.text)
-        if not sentences:
-            sentences = [req.text]
 
-        all_wavs = []
-        sentence_boundaries = []
-        sample_offset = 0
+async def _generate_tts_remote(req: TTSRequest):
+    """Forward TTS request to the remote MOSS-TTS server."""
+    import urllib.request
+    url = f"{_remote_tts_url.rstrip('/')}/voice/tts"
+    body_bytes = json.dumps({
+        "text": req.text,
+        "language": req.language,
+        "voiceSamplePath": req.voiceSamplePath or "",
+        "speed": req.speed,
+    }).encode("utf-8")
+    http_req = urllib.request.Request(
+        url, data=body_bytes,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    resp = urllib.request.urlopen(http_req, timeout=60)
+    audio_bytes = resp.read()
+    boundaries = resp.headers.get("X-Sentence-Boundaries", "[]")
+    sample_rate = resp.headers.get("X-Sample-Rate", "24000")
+    from starlette.responses import Response
+    return Response(
+        content=audio_bytes,
+        media_type="audio/wav",
+        headers={
+            "X-Sentence-Boundaries": boundaries,
+            "X-Sample-Rate": sample_rate,
+        },
+    )
 
-        for i, sentence in enumerate(sentences):
-            generate_kwargs = {
-                "text": sentence,
-                "language_id": req.language,
-            }
-            if req.voiceSamplePath and os.path.isfile(req.voiceSamplePath):
-                generate_kwargs["audio_prompt_path"] = req.voiceSamplePath
 
-            wav = tts_model.generate(**generate_kwargs)
+async def _generate_tts_kokoro(req: TTSRequest):
+    """Generate TTS audio using the local Kokoro pipeline."""
+    pipeline = _ensure_tts_loaded()
+    _voice_touch()
 
-            if isinstance(wav, torch.Tensor):
-                if wav.dim() == 1:
-                    wav = wav.unsqueeze(0)
-            else:
-                wav = torch.tensor(wav).unsqueeze(0)
+    global torch
+    if torch is None:
+        torch = importlib.import_module("torch")
+    import numpy as np
 
-            num_samples = wav.shape[-1]
+    sentences = _split_into_sentences(req.text)
+    if not sentences:
+        sentences = [req.text]
+
+    lang_code = _KOKORO_LANG_MAP.get(req.language, "a")
+    voice = _KOKORO_VOICE_MAP.get(lang_code, "af_heart")
+
+    # If the pipeline was created for a different language, recreate it
+    if pipeline.lang_code != lang_code:
+        from kokoro import KPipeline
+        pipeline = KPipeline(lang_code=lang_code, repo_id="hexgrad/Kokoro-82M")
+
+    all_audio = []
+    sentence_boundaries = []
+    sample_offset = 0
+    sr = 24000  # Kokoro default sample rate
+
+    for i, sentence in enumerate(sentences):
+        chunks = []
+        for _gs, _ps, audio in pipeline(sentence, voice=voice, speed=req.speed):
+            chunks.append(audio)
+
+        if chunks:
+            sentence_audio = np.concatenate(chunks)
+            num_samples = len(sentence_audio)
             sentence_boundaries.append({
                 "index": i,
                 "text": sentence,
@@ -2160,30 +2283,28 @@ async def voice_tts_generate(req: TTSRequest):
                 "sampleCount": num_samples,
             })
             sample_offset += num_samples
-            all_wavs.append(wav)
+            all_audio.append(sentence_audio)
 
-        combined_wav = torch.cat(all_wavs, dim=-1)
-        sr = tts_model.sr
+    if not all_audio:
+        raise HTTPException(status_code=500, detail="No audio generated")
 
-        buf = io.BytesIO()
-        ta.save(buf, combined_wav.cpu(), sr, format="wav")
-        buf.seek(0)
+    combined = np.concatenate(all_audio)
+    # Convert to WAV bytes
+    import soundfile as sf
+    buf = io.BytesIO()
+    sf.write(buf, combined, sr, format="WAV")
+    buf.seek(0)
 
-        boundaries_json = json.dumps(sentence_boundaries)
-
-        from starlette.responses import Response
-        return Response(
-            content=buf.read(),
-            media_type="audio/wav",
-            headers={
-                "X-Sentence-Boundaries": boundaries_json,
-                "X-Sample-Rate": str(sr),
-            }
-        )
-    except Exception as e:
-        _log("TTS generation error:", e)
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+    boundaries_json = json.dumps(sentence_boundaries)
+    from starlette.responses import Response
+    return Response(
+        content=buf.read(),
+        media_type="audio/wav",
+        headers={
+            "X-Sentence-Boundaries": boundaries_json,
+            "X-Sample-Rate": str(sr),
+        },
+    )
 
 
 @app.websocket("/voice/stream")
@@ -2204,10 +2325,21 @@ async def voice_stream_ws(websocket: WebSocket):
     silence_threshold = float(websocket.query_params.get("silence", "1.5"))
 
     try:
-        # Load models
-        vad_data = _ensure_vad_loaded()
-        stt_model = _ensure_stt_loaded()
+        # Load voice models concurrently — run blocking loads in threads
+        # so the event loop stays responsive and models init in parallel.
+        # Only load local TTS if using Kokoro provider.
+        loop = asyncio.get_running_loop()
+        vad_future = loop.run_in_executor(None, _ensure_vad_loaded)
+        stt_future = loop.run_in_executor(None, _ensure_stt_loaded)
 
+        futures = [vad_future, stt_future]
+        if _tts_provider == "kokoro":
+            tts_future = loop.run_in_executor(None, _ensure_tts_loaded)
+            futures.append(tts_future)
+
+        results = await asyncio.gather(*futures)
+        vad_data = results[0]
+        stt_model = results[1]
         vad_model = vad_data['model']
 
         await websocket.send_json({"type": "ready"})

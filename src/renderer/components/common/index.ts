@@ -122,12 +122,10 @@ export {
   Loader,
   Spinner,
   Skeleton,
-  Progress,
   ProgressRing,
   InlineLoadingOverlay,
   type LoaderProps,
   type LoaderType,
-  type ProgressVariant,
 } from './Loader';
 
 // Feedback Components

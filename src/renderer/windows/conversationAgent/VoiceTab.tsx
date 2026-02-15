@@ -18,7 +18,7 @@ import {
 } from '../../components/common';
 import type { SelectOption } from '../../components/common';
 import { ChatBubble } from './ChatBubble';
-import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceMode, VoiceSample, Token } from '../../../shared/types';
+import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceMode, VoiceSample, Token, TTSProvider } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './VoiceTab.css';
 
@@ -98,6 +98,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const [pttActive, setPttActive] = createSignal(false);
   const [audioLevel, setAudioLevel] = createSignal(0);
   const [micError, setMicError] = createSignal('');
+  const [ttsModelLoading, setTtsModelLoading] = createSignal(false);
 
   // Voice sample state
   const [voiceSamples, setVoiceSamples] = createSignal<VoiceSample[]>([]);
@@ -231,8 +232,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     // TTS status
     const unsub5 = ipc.onVoiceTtsStatus((status) => {
+      setTtsModelLoading(status.modelLoading ?? false);
       if (status.generating) {
         setCallState('processing');
+      } else {
+        setTtsModelLoading(false);
       }
     });
     if (unsub5) cleanups.push(unsub5);
@@ -484,18 +488,20 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // Start voice session — engines init in main process.
     // The VOICE_SESSION_READY event will confirm when engines are loaded,
     // and VOICE_SESSION_ERROR will fire if initialization fails.
+    // Audio capture is deferred until session is ready (see createEffect below).
     window.mLearnIPC?.voiceStartSession(
       props.language,
       voiceMode(),
       settings.voiceSilenceThreshold ?? 1.2,
     );
-    await startAudioCapture();
   };
 
-  // Called when the session ready event arrives from main process
+  // Called when the session ready event arrives from main process —
+  // only now start capturing audio so no data is sent while models load.
   createEffect(() => {
     if (isCallActive() && !isInitializing() && !initError()) {
       setCallState('listening');
+      startAudioCapture();
 
       // Request the model to start the conversation with a greeting
       if (props.messages.length === 0 && !props.isStreaming) {
@@ -532,6 +538,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   const setVoiceMode = (mode: VoiceMode) => {
     updateSettings({ ...settings, voiceMode: mode });
+  };
+
+  const setTtsProvider = (provider: TTSProvider) => {
+    updateSettings({ ...settings, ttsProvider: provider });
+  };
+
+  const setRemoteTtsUrl = (url: string) => {
+    updateSettings({ ...settings, remoteTtsUrl: url });
   };
 
   const setTtsSpeed = (speed: number) => {
@@ -672,7 +686,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       <Show when={isDownloading()}>
         <div class="voice-download-section">
           <p class="voice-download-hint">
-            {t('mlearn.ConversationAgent.Voice.DownloadProgress', { progress: String(downloadProgress()) })}
+            <Show
+              when={downloadProgress() < 50}
+              fallback={t('mlearn.ConversationAgent.Voice.DownloadingModels')}
+            >
+              {t('mlearn.ConversationAgent.Voice.InstallingDependencies')}
+            </Show>
           </p>
           <ProgressBar value={downloadProgress()} showPercent variant="primary" size="md" />
         </div>
@@ -689,6 +708,16 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 <Spinner size={20} />
                 <span class="voice-initializing-text">
                   {t('mlearn.ConversationAgent.Voice.Initializing')}
+                </span>
+              </div>
+            </Show>
+
+            {/* TTS model loading indicator */}
+            <Show when={!isInitializing() && ttsModelLoading()}>
+              <div class="voice-initializing">
+                <Spinner size={20} />
+                <span class="voice-initializing-text">
+                  {t('mlearn.ConversationAgent.Voice.LoadingTtsModel')}
                 </span>
               </div>
             </Show>
@@ -750,6 +779,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 {/* End call */}
                 <IconBtn
                   variant="danger"
+                  size="lg"
                   icon={<PhoneOffIcon />}
                   onClick={stopCall}
                   aria-label={t('mlearn.ConversationAgent.Voice.EndCall')}
@@ -771,6 +801,45 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 onTouchEnd={handlePttUp}
                 aria-label={t('mlearn.ConversationAgent.Voice.PushToTalk')}
               />
+            </Show>
+
+            {/* TTS provider selector */}
+            <Show when={isCallActive() && !isInitializing()}>
+              <div class="voice-speed-row">
+                <label>{t('mlearn.ConversationAgent.Voice.TtsProvider')}</label>
+                <div class="voice-mode-toggle">
+                  <Btn
+                    size="sm"
+                    variant={(settings.ttsProvider || 'kokoro') === 'kokoro' ? 'primary' : 'ghost'}
+                    onClick={() => setTtsProvider('kokoro')}
+                    class="voice-mode-btn"
+                  >
+                    Kokoro
+                  </Btn>
+                  <Btn
+                    size="sm"
+                    variant={(settings.ttsProvider || 'kokoro') === 'remote' ? 'primary' : 'ghost'}
+                    onClick={() => setTtsProvider('remote')}
+                    class="voice-mode-btn"
+                  >
+                    {t('mlearn.ConversationAgent.Voice.RemoteTts')}
+                  </Btn>
+                </div>
+              </div>
+            </Show>
+
+            {/* Remote TTS server URL */}
+            <Show when={isCallActive() && !isInitializing() && (settings.ttsProvider || 'kokoro') === 'remote'}>
+              <div class="voice-speed-row">
+                <label>{t('mlearn.ConversationAgent.Voice.RemoteTtsUrl')}</label>
+                <input
+                  type="text"
+                  class="voice-remote-url-input"
+                  placeholder="http://192.168.1.100:7760"
+                  value={settings.remoteTtsUrl || ''}
+                  onInput={(e) => setRemoteTtsUrl(e.currentTarget.value)}
+                />
+              </div>
             </Show>
 
             {/* TTS speed control */}

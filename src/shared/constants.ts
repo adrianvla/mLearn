@@ -100,6 +100,7 @@ export const IPC_CHANNELS = {
   INSTALLER_STATE: 'installer-state',
   INSTALLER_AWAITING_CHOICE: 'installer-awaiting-choice',
   INSTALLER_NETWORK_ERROR: 'installer-network-error',
+  PIP_PROGRESS: 'pip-progress',
   
   // UI
   SHOW_SETTINGS: 'show-settings',
@@ -245,7 +246,7 @@ export const WORD_HOVER_TRIGGER_MODES = ['hover', 'long-hover', 'key-hover'] as 
 export type WordHoverTriggerMode = typeof WORD_HOVER_TRIGGER_MODES[number];
 
 // Python download URLs
-// NOTE: Voice (Chatterbox TTS) requires Python 3.11+.
+// NOTE: Voice TTS uses Kokoro-82M locally (fast, CPU/MPS) or a remote MOSS-TTS server (CUDA).
 // Update packaged-python repo with 3.11 builds from indygreg/python-build-standalone:
 //   - aarch64-apple-darwin: cpython-3.11.x+...aarch64-apple-darwin-install_only.tar.gz
 //   - x86_64-apple-darwin:  cpython-3.11.x+...x86_64-apple-darwin-install_only.tar.gz

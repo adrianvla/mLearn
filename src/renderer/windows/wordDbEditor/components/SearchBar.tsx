@@ -3,7 +3,7 @@
  */
 
 import { Component, For, Show, Accessor, Setter } from 'solid-js';
-import { Btn, Progress, HintText, Select, Input } from '../../../components/common';
+import { Btn, ProgressBar, HintText, Select, Input } from '../../../components/common';
 import { useLocalization } from '../../../context';
 
 export interface SearchBarProps {
@@ -33,10 +33,13 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
       <Btn onClick={props.onSearch}>{t('mlearn.Global.Search')}</Btn>
       
       <Show when={props.isLoading()}>
-        <Progress 
-          progress={props.loadProgress()} 
-          variant="thin" 
+        <ProgressBar 
+          value={props.loadProgress()} 
+          size="xs" 
           class="load-progress"
+          variant="primary"
+          rounded
+          animated
         />
       </Show>
       
