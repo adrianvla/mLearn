@@ -5,6 +5,7 @@
 
 import { Component, JSX, Show, For, createEffect } from 'solid-js';
 import { useLocalization } from '../../../context';
+import { formatLogTimestamp } from '../../../utils/timeFormatting';
 import './LogConsole.css';
 
 export type LogLevel = 'info' | 'success' | 'warning' | 'error' | 'debug';
@@ -55,15 +56,8 @@ const ClearIcon = () => (
 /**
  * Format timestamp
  */
-function formatTimestamp(ts: Date | string | number | undefined): string {
-  if (!ts) return '';
-  const date = ts instanceof Date ? ts : new Date(ts);
-  return date.toLocaleTimeString('en-US', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+function formatTimestamp(ts: Date | string | number | undefined, appLocale: string): string {
+  return formatLogTimestamp(ts, appLocale);
 }
 
 /**
@@ -92,7 +86,7 @@ function parseLogEntry(entry: string | LogEntry): LogEntry {
  * LogConsole - A console-like display for showing log output
  */
 export const LogConsole: Component<LogConsoleProps> = (props) => {
-  const { t } = useLocalization();
+  const { t, locale } = useLocalization();
   let contentRef: HTMLDivElement | undefined;
   
   // Auto-scroll to bottom when logs change
@@ -165,7 +159,7 @@ export const LogConsole: Component<LogConsoleProps> = (props) => {
                 <div class={`log-console__entry log-console__entry--${parsed.level || 'info'}`}>
                   <Show when={props.showTimestamps}>
                     <span class="log-console__timestamp">
-                      {formatTimestamp(parsed.timestamp)}
+                      {formatTimestamp(parsed.timestamp, locale())}
                     </span>
                   </Show>
                   <Show when={props.showLevels}>

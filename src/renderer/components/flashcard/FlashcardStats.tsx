@@ -8,6 +8,7 @@
 import { Component, createMemo, onMount, onCleanup, createSignal, Show, For } from 'solid-js';
 import { useFlashcards } from '../../context';
 import { useLocalization } from '../../context';
+import { formatDurationHM } from '../../utils/timeFormatting';
 import { Card, StatCard } from '../common';
 import './FlashcardStats.css';
 
@@ -386,13 +387,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   });
 
   // Format milliseconds to readable time
-  const formatTime = (ms: number): string => {
-    const minutes = Math.round(ms / 60000);
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-  };
+  const formatTime = (ms: number): string => formatDurationHM(ms, t);
 
   // Format day label (DD)
   const formatDayLabel = (dateStr: string): string => {

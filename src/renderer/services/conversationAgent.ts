@@ -18,6 +18,7 @@ import type {
   Settings,
   StreamStats,
   WordFrequencyEntry,
+  VoiceMistake,
 } from '../../shared/types';
 import { API_ENDPOINTS } from '../../shared/constants';
 
@@ -42,6 +43,10 @@ interface AgentDeps {
   getTargetLevel?: () => number | null;
   /** Get the display name for a frequency level number */
   getLevelName?: (level: number) => string;
+  /** Whether voice mode is active — uses voice-specific tools and prompt */
+  isVoiceMode?: () => boolean;
+  /** Callback for voice-mode mistake tracking (lowers ease) */
+  onVoiceMistake?: (mistake: VoiceMistake) => void;
 }
 
 /** Callback for streaming chunks to the UI */
@@ -268,6 +273,106 @@ const AGENT_TOOLS: LLMToolDefinition[] = [
 ];
 
 // ============================================================================
+// Voice-Mode Tool Definitions
+// ============================================================================
+
+const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
+  {
+    name: 'note_mistake',
+    description: 'Note a spoken mistake the learner made during the voice conversation. Call this for every pronunciation, grammar, or vocabulary error. It will lower the ease of the affected word and show in the session aftermath. MUST be called at the end of your response if the learner made a mistake.',
+    parameters: {
+      type: 'object',
+      properties: {
+        word: {
+          type: 'string',
+          description: 'The word or short phrase the learner said incorrectly',
+        },
+        reading: {
+          type: 'string',
+          description: 'The correct reading/pronunciation if applicable (for languages with phonetic readings)',
+        },
+        context: {
+          type: 'string',
+          description: 'The full sentence or phrase the learner was trying to say',
+        },
+        correction: {
+          type: 'string',
+          description: 'What the learner should have said instead',
+        },
+        type: {
+          type: 'string',
+          enum: ['pronunciation', 'grammar', 'vocabulary', 'usage'],
+          description: 'Category of the mistake',
+        },
+      },
+      required: ['word', 'context', 'correction', 'type'],
+    },
+  },
+  {
+    name: 'fetch_url',
+    description: 'Fetch and retrieve content from a URL. Use this to look up grammar explanations or language resources online if the learner asks about a specific topic.',
+    parameters: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'The URL to fetch content from',
+        },
+      },
+      required: ['url'],
+    },
+  },
+  {
+    name: 'get_media_stats',
+    description: 'Retrieve the learner\'s analytics and statistics for the media they are currently consuming.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+];
+
+// ============================================================================
+// Voice-Mode System Prompt
+// ============================================================================
+
+function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentContext | null): string {
+  let prompt = `You are a friendly, natural-sounding language tutor for ${langName} in a live voice conversation.
+
+## Rules
+- Respond ONLY in ${langName}.
+- Keep responses SHORT — 1-3 sentences max. You are in a voice call, not writing an essay.
+- Adjust your language to the learner's level.
+- Do NOT use emojis.
+- Do NOT use interaction markers like [chuckles], [laughs], *smiles*, etc.
+- Do NOT use asterisks for emphasis or actions.
+- Speak naturally and conversationally, as if chatting with a friend.
+- If the learner makes a mistake, gently mention the correction in your speech AND call the "note_mistake" tool.
+- The "note_mistake" tool MUST be called at the END of your response whenever the learner makes an error.
+
+## Personality
+- Patient, warm, encouraging.
+- Use natural spoken ${langName}, not textbook language.
+- Keep the conversation flowing — ask follow-up questions.`;
+
+  if (mediaCtx) {
+    prompt += `\n\n## Current Media Context
+The learner is ${mediaCtx.mediaType === 'video' ? 'watching' : 'reading'}: "${mediaCtx.mediaName}"`;
+
+    if (mediaCtx.failedWords.length > 0) {
+      const topFailed = mediaCtx.failedWords
+        .sort((a, b) => a.ease - b.ease)
+        .slice(0, 10)
+        .map((w) => w.word);
+      prompt += `\nWords the learner struggles with: ${topFailed.join(', ')}`;
+    }
+  }
+
+  return prompt;
+}
+
+// ============================================================================
 // Tool Execution
 // ============================================================================
 
@@ -317,6 +422,19 @@ function executeTool(toolCall: ToolCall, deps: AgentDeps): ChatWidget | ChatWidg
       return { type: 'mistake', data: data as unknown as Record<string, unknown> };
     }
 
+    case 'note_mistake': {
+      // Voice mode mistake — report to the callback for aftermath tracking
+      const mistake: VoiceMistake = {
+        word: (args.word as string) || '',
+        reading: args.reading as string | undefined,
+        context: (args.context as string) || '',
+        correction: (args.correction as string) || '',
+        type: (args.type as VoiceMistake['type']) || 'vocabulary',
+      };
+      deps.onVoiceMistake?.(mistake);
+      return null;
+    }
+
     case 'create_quiz': {
       const rawQuizType = ((args.quiz_type as string) || 'mcq').trim();
       const textWithBlanks = (args.text_with_blanks as string | undefined)?.trim();
@@ -356,6 +474,10 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
       return question
         ? `Quiz created for learner: ${question}`
         : 'Quiz created for learner.';
+    }
+
+    case 'note_mistake': {
+      return `Mistake noted: "${args.word}" → "${args.correction}"`;
     }
 
     case 'fetch_url': {
@@ -457,7 +579,7 @@ async function tokenizeText(text: string, langCode: string): Promise<Token[]> {
 // ============================================================================
 
 /** Known tool names that the agent can call */
-const KNOWN_TOOL_NAMES = new Set(AGENT_TOOLS.map((t) => t.name));
+const KNOWN_TOOL_NAMES = new Set([...AGENT_TOOLS.map((t) => t.name), ...VOICE_AGENT_TOOLS.map((t) => t.name)]);
 
 /**
  * Parse tool calls that appear as plain text in the model's response.
@@ -695,7 +817,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const terminalToolCalls: ToolCall[] = [];
 
     for (const toolCall of toolCalls) {
-      if (toolCall.name === 'correct_mistake') {
+      if (toolCall.name === 'correct_mistake' || toolCall.name === 'note_mistake') {
         terminalToolCalls.push(toolCall);
       } else {
         nonTerminalToolCalls.push(toolCall);
@@ -789,18 +911,25 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const mediaCtx = deps.getMediaContext();
     const sceneCtx = deps.getSceneContext();
 
+    const isVoice = deps.isVoiceMode?.() ?? false;
+    const tools = isVoice ? VOICE_AGENT_TOOLS : AGENT_TOOLS;
+
     const targetLevel = deps.getTargetLevel?.() ?? null;
     const targetLevelName = targetLevel !== null ? (deps.getLevelName?.(targetLevel) ?? undefined) : undefined;
 
     const systemMsg: LLMChatMessage = {
       role: 'system',
-      content: buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName),
+      content: isVoice
+        ? buildVoiceSystemPrompt(langName, mediaCtx)
+        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName),
     };
 
     const messages: LLMChatMessage[] = [
       systemMsg,
       ...conversationHistory,
     ];
+
+    console.log('[ConversationAgent] [DEBUG] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
 
     let accumulated = '';
     const collectedToolCalls: ToolCall[] = [];
@@ -833,6 +962,8 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       if (chunk.done) {
         streamCleanup?.();
         streamCleanup = null;
+
+        console.log('[ConversationAgent] [DEBUG] LLM streamed response:', accumulated);
 
         if (aborted) return;
 
@@ -914,7 +1045,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       }
     });
 
-    ipc.llmStream(messages, AGENT_TOOLS);
+    ipc.llmStream(messages, tools);
 
     // Timeout after 90 seconds
     setTimeout(() => {

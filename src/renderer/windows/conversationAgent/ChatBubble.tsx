@@ -5,6 +5,7 @@
 
 import { Component, Show, For, createSignal, createMemo, createEffect, onMount, onCleanup } from 'solid-js';
 import { useSettings, useLanguage, useLocalization } from '../../context';
+import { formatClockTime } from '../../utils/timeFormatting';
 import { Btn, Input, Spinner, IconBtn, RefreshIcon } from '../../components';
 import { MarkdownRenderer, parseMarkdownToHtml } from './MarkdownRenderer';
 import type { ConversationMessage, Token, QuizWidgetData, MistakeWidgetData, StreamStats } from '../../../shared/types';
@@ -82,14 +83,11 @@ interface ChatBubbleProps {
 }
 
 export const ChatBubble: Component<ChatBubbleProps> = (props) => {
-  const { t } = useLocalization();
+  const { t, locale } = useLocalization();
   const [showDebugStats, setShowDebugStats] = createSignal(false);
   let debugHoverTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  const formatTime = (ts: number): string => {
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const formatTime = (ts: number): string => formatClockTime(ts, locale());
 
   const isAssistantEmpty = () =>
     props.message.role === 'assistant' && !props.message.content;

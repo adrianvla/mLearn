@@ -26,7 +26,7 @@ export const StatsTab: Component = () => {
 
   onMount(() => {
     initTimeWatched(settings);
-    setTimeWatched(getTimeWatchedFormatted());
+    setTimeWatched(getTimeWatchedFormatted(t));
     setWordStats(getWordsLearnedInAppStats());
   });
   

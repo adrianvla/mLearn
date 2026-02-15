@@ -120,10 +120,19 @@ export function hashWordSync(word: string): string {
 }
 
 /**
- * Convert interval in milliseconds to human-readable string
+ * Convert interval in milliseconds to human-readable string.
+ * When a translation function is provided, time units are localized.
  */
-export function intervalToString(intervalMs: number): string {
+export function intervalToString(intervalMs: number, t?: (key: string, params?: Record<string, string | number>) => string): string {
     if (intervalMs < 0) intervalMs = 0;
+
+    if (t) {
+        if (intervalMs < MINUTE) return t('mlearn.Global.Time.LessThanMinute');
+        if (intervalMs < HOUR) return t('mlearn.Global.Time.ShortMinute', { value: Math.round(intervalMs / MINUTE) });
+        if (intervalMs < DAY) return t('mlearn.Global.Time.ShortHour', { value: Math.round(intervalMs / HOUR) });
+        if (intervalMs < 365 * DAY) return t('mlearn.Global.Time.ShortDay', { value: Math.round(intervalMs / DAY) });
+        return t('mlearn.Global.Time.ShortYear', { value: (intervalMs / (365 * DAY)).toFixed(1) });
+    }
 
     if (intervalMs < MINUTE) return '< 1m';
     if (intervalMs < HOUR) return `${Math.round(intervalMs / MINUTE)}m`;
@@ -133,14 +142,15 @@ export function intervalToString(intervalMs: number): string {
 }
 
 /**
- * Convert due date to relative string (e.g., "in 5m", "in 2d")
+ * Convert due date to relative string (e.g., "in 5m", "in 2d").
+ * When a translation function is provided, output is localized.
  */
-export function dueDateToString(dueDate: number): string {
+export function dueDateToString(dueDate: number, t?: (key: string, params?: Record<string, string | number>) => string): string {
     const now = Date.now();
     const diff = dueDate - now;
 
-    if (diff <= 0) return 'now';
-    return intervalToString(diff);
+    if (diff <= 0) return t ? t('mlearn.Global.Time.Now') : 'now';
+    return intervalToString(diff, t);
 }
 
 /**

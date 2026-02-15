@@ -1,20 +1,24 @@
 /**
  * VoiceTab — Real-time voice conversation UI for the Conversation Agent.
  * Captures audio via getUserMedia, streams PCM to main process for STT/VAD,
- * plays back TTS audio via Web Audio API.
+ * plays back TTS audio via Web Audio API with sentence-level interruption tracking.
  */
 
-import { Component, Show, createSignal, createEffect, onCleanup, Index } from 'solid-js';
+import { Component, Show, createSignal, createEffect, onCleanup, Index, onMount } from 'solid-js';
 import { useSettings, useLocalization } from '../../context';
 import {
   Btn,
-  Progress,
+  IconBtn,
+  ProgressBar,
   RangeInput,
   EmptyState,
   AlertBanner,
+  Spinner,
+  Select,
 } from '../../components/common';
+import type { SelectOption } from '../../components/common';
 import { ChatBubble } from './ChatBubble';
-import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceMode, Token } from '../../../shared/types';
+import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceMode, VoiceSample, Token } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './VoiceTab.css';
 
@@ -43,6 +47,14 @@ const MicIcon: Component = () => (
   </svg>
 );
 
+const UploadIcon: Component = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" y1="3" x2="12" y2="15" />
+  </svg>
+);
+
 // ============================================================================
 // Props
 // ============================================================================
@@ -51,7 +63,12 @@ export interface VoiceTabProps {
   messages: ConversationMessage[];
   isStreaming: boolean;
   onSendMessage: (text: string) => void;
+  onRequestGreeting: () => void;
   onAbort: () => void;
+  /** Called when user interrupts TTS — provides the text spoken so far and remaining text */
+  onInterrupted?: (spokenText: string, interruptedAt: string) => void;
+  /** Called when voice call starts or stops */
+  onCallStateChange?: (active: boolean) => void;
   onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
   onTokenLeave?: () => void;
   triggerMode?: WordHoverTriggerMode;
@@ -74,11 +91,17 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const [isChecking, setIsChecking] = createSignal(true);
   const [isDownloading, setIsDownloading] = createSignal(false);
   const [downloadProgress, setDownloadProgress] = createSignal(0);
+  const [isInitializing, setIsInitializing] = createSignal(false);
+  const [initError, setInitError] = createSignal('');
   const [callState, setCallState] = createSignal<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [partialTranscript, setPartialTranscript] = createSignal('');
   const [pttActive, setPttActive] = createSignal(false);
   const [audioLevel, setAudioLevel] = createSignal(0);
   const [micError, setMicError] = createSignal('');
+
+  // Voice sample state
+  const [voiceSamples, setVoiceSamples] = createSignal<VoiceSample[]>([]);
+  const [selectedSampleId, setSelectedSampleId] = createSignal<string>('');
 
   // Refs
   let messagesRef: HTMLDivElement | undefined;
@@ -88,26 +111,33 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   let analyserNode: AnalyserNode | null = null;
   let animFrameId: number | null = null;
 
-  // TTS playback state
+  // TTS sentence queue for interruption tracking
+  let ttsQueue: VoiceTtsAudio[] = [];
+  let ttsQueueIndex = 0;
   let ttsSource: AudioBufferSourceNode | null = null;
   let ttsPlaying = false;
+  let ttsSentenceTexts: string[] = []; // full ordered list of sentence texts for this TTS turn
+  let ttsCurrentSentenceIdx = 0;
 
   // Voice mode from settings
   const voiceMode = () => (settings.voiceMode || 'vad') as VoiceMode;
   const ttsSpeed = () => settings.voiceTtsSpeed ?? 1.0;
+  const silenceThreshold = () => settings.voiceSilenceThreshold ?? 1.2;
 
   // ============================================================================
   // Check model status on mount and language change
   // ============================================================================
 
-  const checkModels = async () => {
+  const checkModels = async (language: string) => {
     setIsChecking(true);
     try {
-      const status = await window.mLearnIPC?.voiceCheckModels(props.language);
+      const status = await window.mLearnIPC?.voiceCheckModels(language);
       if (status) {
         setModelStatus(status);
-      } else {
-        console.warn('[VoiceTab] voiceCheckModels returned:', status);
+        setIsDownloading(status.downloading);
+        if (status.downloading) {
+          setDownloadProgress(Math.round(status.progress * 100));
+        }
       }
     } catch (err) {
       console.error('[VoiceTab] Failed to check voice models:', err);
@@ -116,32 +146,46 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
   };
 
+  // Load voice samples
+  const loadVoiceSamples = async () => {
+    try {
+      const samples = await window.mLearnIPC?.voiceSampleList();
+      if (samples) setVoiceSamples(samples);
+    } catch {
+      // ignore
+    }
+  };
+
   createEffect(() => {
     const lang = props.language;
-    console.log('[VoiceTab] checking models for language:', lang);
-    checkModels();
+    checkModels(lang);
+  });
+
+  onMount(() => {
+    loadVoiceSamples();
   });
 
   // ============================================================================
   // IPC Listeners
   // ============================================================================
 
-  const cleanupFns: Array<() => void> = [];
+  // Set up IPC listeners once on mount, clean up on unmount
+  onMount(() => {
+    const ipc = window.mLearnIPC;
+    if (!ipc) return;
 
-  createEffect(() => {
+    const cleanups: Array<() => void> = [];
+
     // Model download progress
-    const unsub1 = window.mLearnIPC?.onVoiceModelProgress((status) => {
+    const unsub1 = ipc.onVoiceModelProgress((status) => {
       setModelStatus(status);
       setIsDownloading(status.downloading);
       setDownloadProgress(Math.round(status.progress * 100));
-      if (!status.downloading && status.sttDownloaded && status.ttsDownloaded && status.vadDownloaded) {
-        setIsDownloading(false);
-      }
     });
-    if (unsub1) cleanupFns.push(unsub1);
+    if (unsub1) cleanups.push(unsub1);
 
     // STT results
-    const unsub2 = window.mLearnIPC?.onVoiceSttResult((result: VoiceSTTResult) => {
+    const unsub2 = ipc.onVoiceSttResult((result: VoiceSTTResult) => {
       setPartialTranscript(result.text);
       if (result.isFinal && result.text.trim()) {
         setCallState('processing');
@@ -149,15 +193,15 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         setPartialTranscript('');
       }
     });
-    if (unsub2) cleanupFns.push(unsub2);
+    if (unsub2) cleanups.push(unsub2);
 
     // VAD events
-    const unsub3 = window.mLearnIPC?.onVoiceVadEvent((event) => {
+    const unsub3 = ipc.onVoiceVadEvent((event) => {
       if (event.type === 'speech-start') {
         setCallState('listening');
-        // Interrupt TTS if speaking
+        // Interrupt TTS if speaking — track what was said vs interrupted
         if (ttsPlaying) {
-          stopTTSPlayback();
+          handleTTSInterruption();
           props.onAbort();
         }
       } else if (event.type === 'speech-end') {
@@ -166,25 +210,58 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         }
       }
     });
-    if (unsub3) cleanupFns.push(unsub3);
+    if (unsub3) cleanups.push(unsub3);
 
-    // TTS audio
-    const unsub4 = window.mLearnIPC?.onVoiceTtsAudio((audio) => {
-      playTTSAudio(audio.samples, audio.sampleRate);
+    // TTS audio — queue sentences for sequential playback
+    const unsub4 = ipc.onVoiceTtsAudio((audio: VoiceTtsAudio) => {
+      ttsQueue.push(audio);
+      // Collect sentence texts for interruption tracking
+      if (audio.sentenceText && audio.sentenceIndex !== undefined) {
+        while (ttsSentenceTexts.length <= audio.sentenceIndex) {
+          ttsSentenceTexts.push('');
+        }
+        ttsSentenceTexts[audio.sentenceIndex] = audio.sentenceText;
+      }
+      // Start playing if not already playing
+      if (!ttsPlaying) {
+        playNextSentence();
+      }
     });
-    if (unsub4) cleanupFns.push(unsub4);
+    if (unsub4) cleanups.push(unsub4);
 
     // TTS status
-    const unsub5 = window.mLearnIPC?.onVoiceTtsStatus((status) => {
+    const unsub5 = ipc.onVoiceTtsStatus((status) => {
       if (status.generating) {
         setCallState('processing');
       }
     });
-    if (unsub5) cleanupFns.push(unsub5);
+    if (unsub5) cleanups.push(unsub5);
+
+    // Voice session ready
+    const unsub6 = ipc.onVoiceSessionReady(() => {
+      setIsInitializing(false);
+      setInitError('');
+    });
+    if (unsub6) cleanups.push(unsub6);
+
+    // Voice session error
+    const unsub7 = ipc.onVoiceSessionError((data) => {
+      setIsInitializing(false);
+      setInitError(data.error);
+      setIsCallActive(false);
+      props.onCallStateChange?.(false);
+      setCallState('idle');
+      stopAudioCapture();
+    });
+    if (unsub7) cleanups.push(unsub7);
+
+    onCleanup(() => {
+      cleanups.forEach(fn => fn());
+    });
   });
 
+  // Clean up call on component unmount
   onCleanup(() => {
-    cleanupFns.forEach(fn => fn());
     stopCall();
   });
 
@@ -211,8 +288,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     if (msgs.length === 0) return;
     const last = msgs[msgs.length - 1];
     if (last.role === 'assistant' && last.content && !props.isStreaming) {
-      // Generate TTS for the final assistant response
-      window.mLearnIPC?.voiceTtsGenerate(last.content, props.language, ttsSpeed());
+      // Reset sentence queue for new TTS turn
+      ttsQueue = [];
+      ttsQueueIndex = 0;
+      ttsSentenceTexts = [];
+      ttsCurrentSentenceIdx = 0;
+      // Generate TTS for the final assistant response with optional voice cloning
+      const sampleId = selectedSampleId() || undefined;
+      window.mLearnIPC?.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId);
     }
   });
 
@@ -302,33 +385,75 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   };
 
   // ============================================================================
-  // TTS Playback
+  // TTS Playback — Sentence Queue
   // ============================================================================
 
-  const playTTSAudio = (samples: Float32Array, sampleRate: number) => {
+  const playNextSentence = () => {
+    if (ttsQueueIndex >= ttsQueue.length) {
+      // All sentences played
+      ttsPlaying = false;
+      if (isCallActive()) {
+        setCallState('listening');
+      }
+      return;
+    }
+
+    const audio = ttsQueue[ttsQueueIndex];
+    ttsCurrentSentenceIdx = audio.sentenceIndex ?? ttsQueueIndex;
+
     if (!audioContext) {
       audioContext = new AudioContext();
     }
 
-    stopTTSPlayback();
     setCallState('speaking');
     ttsPlaying = true;
 
-    const buffer = audioContext.createBuffer(1, samples.length, sampleRate);
-    buffer.getChannelData(0).set(samples);
+    const buffer = audioContext.createBuffer(1, audio.samples.length, audio.sampleRate);
+    buffer.getChannelData(0).set(audio.samples);
 
     ttsSource = audioContext.createBufferSource();
     ttsSource.buffer = buffer;
     ttsSource.connect(audioContext.destination);
 
     ttsSource.onended = () => {
-      ttsPlaying = false;
-      if (isCallActive()) {
-        setCallState('listening');
-      }
+      ttsQueueIndex++;
+      playNextSentence();
     };
 
     ttsSource.start();
+  };
+
+  /** Handle TTS interruption — compute spoken vs interrupted text */
+  const handleTTSInterruption = () => {
+    if (ttsSentenceTexts.length === 0) {
+      stopTTSPlayback();
+      return;
+    }
+
+    // Sentences fully played = indices 0..ttsCurrentSentenceIdx-1
+    // Current sentence was interrupted mid-playback
+    const spokenParts: string[] = [];
+    for (let i = 0; i < ttsCurrentSentenceIdx; i++) {
+      if (ttsSentenceTexts[i]) spokenParts.push(ttsSentenceTexts[i]);
+    }
+    // Add current (partially played) sentence
+    const currentText = ttsSentenceTexts[ttsCurrentSentenceIdx] || '';
+    if (currentText) spokenParts.push(currentText);
+
+    const spokenText = spokenParts.join(' ');
+
+    // Remaining unspoken sentences
+    const remainingParts: string[] = [];
+    for (let i = ttsCurrentSentenceIdx + 1; i < ttsSentenceTexts.length; i++) {
+      if (ttsSentenceTexts[i]) remainingParts.push(ttsSentenceTexts[i]);
+    }
+    const interruptedAt = remainingParts.join(' ');
+
+    stopTTSPlayback();
+
+    if (spokenText && props.onInterrupted) {
+      props.onInterrupted(spokenText, interruptedAt);
+    }
   };
 
   const stopTTSPlayback = () => {
@@ -337,6 +462,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       ttsSource = null;
     }
     ttsPlaying = false;
+    ttsQueue = [];
+    ttsQueueIndex = 0;
+    ttsSentenceTexts = [];
+    ttsCurrentSentenceIdx = 0;
     window.mLearnIPC?.voiceTtsStop();
   };
 
@@ -345,16 +474,40 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // ============================================================================
 
   const startCall = async () => {
+    setIsInitializing(true);
+    setInitError('');
     setIsCallActive(true);
-    setCallState('listening');
+    props.onCallStateChange?.(true);
+    setCallState('idle');
     setPartialTranscript('');
 
-    window.mLearnIPC?.voiceStartSession(props.language, voiceMode());
+    // Start voice session — engines init in main process.
+    // The VOICE_SESSION_READY event will confirm when engines are loaded,
+    // and VOICE_SESSION_ERROR will fire if initialization fails.
+    window.mLearnIPC?.voiceStartSession(
+      props.language,
+      voiceMode(),
+      settings.voiceSilenceThreshold ?? 1.2,
+    );
     await startAudioCapture();
   };
 
+  // Called when the session ready event arrives from main process
+  createEffect(() => {
+    if (isCallActive() && !isInitializing() && !initError()) {
+      setCallState('listening');
+
+      // Request the model to start the conversation with a greeting
+      if (props.messages.length === 0 && !props.isStreaming) {
+        props.onRequestGreeting();
+      }
+    }
+  });
+
   const stopCall = () => {
     setIsCallActive(false);
+    props.onCallStateChange?.(false);
+    setIsInitializing(false);
     setCallState('idle');
     setPartialTranscript('');
 
@@ -383,6 +536,39 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   const setTtsSpeed = (speed: number) => {
     updateSettings({ ...settings, voiceTtsSpeed: speed });
+  };
+
+  const setSilenceThreshold = (threshold: number) => {
+    updateSettings({ ...settings, voiceSilenceThreshold: threshold });
+  };
+
+  // Voice sample upload
+  const handleSampleUpload = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'audio/*';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const filePath = window.mLearnIPC?.getPathForFile(file);
+      if (!filePath) return;
+      const name = file.name.replace(/\.[^.]+$/, '');
+      try {
+        await window.mLearnIPC?.voiceSampleUpload(filePath, name);
+        await loadVoiceSamples();
+      } catch (err) {
+        console.error('[VoiceTab] Failed to upload voice sample:', err);
+      }
+    };
+    input.click();
+  };
+
+  const voiceSampleOptions = (): SelectOption[] => {
+    const opts: SelectOption[] = [{ value: '', label: t('mlearn.ConversationAgent.Voice.DefaultVoice') }];
+    for (const s of voiceSamples()) {
+      opts.push({ value: s.id, label: s.name });
+    }
+    return opts;
   };
 
   // ============================================================================
@@ -439,9 +625,34 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         />
       </Show>
 
+      {/* Init error banner */}
+      <Show when={initError()}>
+        <AlertBanner
+          variant="error"
+          message={initError()}
+          size="sm"
+          closable
+          onClose={() => setInitError('')}
+        />
+      </Show>
+
+      {/* Checking model status */}
+      <Show when={isChecking()}>
+        <div class="voice-download-section">
+          <Spinner size={32} />
+        </div>
+      </Show>
+
       {/* Model download required */}
       <Show when={!isChecking() && !modelsReady() && !isDownloading()}>
         <div class="voice-download-section">
+          <Show when={modelStatus()?.error}>
+            <AlertBanner
+              variant="error"
+              message={t('mlearn.ConversationAgent.Voice.DownloadFailed')}
+              size="sm"
+            />
+          </Show>
           <EmptyState
             icon="🎙️"
             title={t('mlearn.ConversationAgent.Voice.DownloadModels')}
@@ -463,84 +674,107 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
           <p class="voice-download-hint">
             {t('mlearn.ConversationAgent.Voice.DownloadProgress', { progress: String(downloadProgress()) })}
           </p>
-          <Progress progress={downloadProgress()} showPercent />
+          <ProgressBar value={downloadProgress()} showPercent variant="primary" size="md" />
         </div>
       </Show>
 
       {/* Main voice UI (models ready) */}
-      <Show when={modelsReady() && !isDownloading()}>
+      <Show when={!isChecking() && modelsReady() && !isDownloading()}>
         <div class="voice-call-area">
           {/* Call UI */}
           <div class="voice-call-ui">
-            {/* Visualizer */}
-            <div class="voice-visualizer">
-              {Array.from({ length: barCount }).map((_, i) => (
-                <div
-                  class={`voice-bar ${isCallActive() ? '' : 'idle'}`}
-                  style={{ height: `${getBarHeight(i)}px` }}
-                />
-              ))}
-            </div>
+            {/* Initializing engines indicator */}
+            <Show when={isInitializing()}>
+              <div class="voice-initializing">
+                <Spinner size={20} />
+                <span class="voice-initializing-text">
+                  {t('mlearn.ConversationAgent.Voice.Initializing')}
+                </span>
+              </div>
+            </Show>
 
-            {/* Status */}
-            <div class={`voice-status-text ${isCallActive() ? 'active' : ''}`}>
-              {isCallActive() ? statusText() : ''}
-            </div>
+            {/* Visualizer */}
+            <Show when={!isInitializing()}>
+              <div class="voice-visualizer">
+                {Array.from({ length: barCount }).map((_, i) => (
+                  <div
+                    class={`voice-bar ${isCallActive() ? '' : 'idle'}`}
+                    style={{ height: `${getBarHeight(i)}px` }}
+                  />
+                ))}
+              </div>
+
+              {/* Status */}
+              <div class={`voice-status-text ${isCallActive() ? 'active' : ''}`}>
+                {isCallActive() ? statusText() : ''}
+              </div>
+            </Show>
 
             {/* Controls */}
             <div class="voice-controls">
               <Show
                 when={isCallActive()}
                 fallback={
-                  <button
-                    class="voice-start-btn"
+                  <Btn
+                    variant="primary"
+                    icon={<PhoneIcon />}
                     onClick={startCall}
                     disabled={!props.isConnected}
                   >
-                    <PhoneIcon />
                     {t('mlearn.ConversationAgent.Voice.StartCall')}
-                  </button>
+                  </Btn>
                 }
               >
                 {/* Mode toggle */}
-                <div class="voice-mode-toggle">
-                  <button
-                    class={`voice-mode-btn ${voiceMode() === 'vad' ? 'active' : ''}`}
-                    onClick={() => setVoiceMode('vad')}
-                  >
-                    {t('mlearn.ConversationAgent.Voice.HandsFree')}
-                  </button>
-                  <button
-                    class={`voice-mode-btn ${voiceMode() === 'push-to-talk' ? 'active' : ''}`}
-                    onClick={() => setVoiceMode('push-to-talk')}
-                  >
-                    {t('mlearn.ConversationAgent.Voice.PushToTalk')}
-                  </button>
-                </div>
+                <Show when={!isInitializing()}>
+                  <div class="voice-mode-toggle">
+                    <Btn
+                      size="sm"
+                      variant={voiceMode() === 'vad' ? 'primary' : 'ghost'}
+                      onClick={() => setVoiceMode('vad')}
+                      class="voice-mode-btn"
+                    >
+                      {t('mlearn.ConversationAgent.Voice.HandsFree')}
+                    </Btn>
+                    <Btn
+                      size="sm"
+                      variant={voiceMode() === 'push-to-talk' ? 'primary' : 'ghost'}
+                      onClick={() => setVoiceMode('push-to-talk')}
+                      class="voice-mode-btn"
+                    >
+                      {t('mlearn.ConversationAgent.Voice.PushToTalk')}
+                    </Btn>
+                  </div>
+                </Show>
 
                 {/* End call */}
-                <button class="voice-end-btn" onClick={stopCall}>
-                  <PhoneOffIcon />
-                </button>
+                <IconBtn
+                  variant="danger"
+                  icon={<PhoneOffIcon />}
+                  onClick={stopCall}
+                  aria-label={t('mlearn.ConversationAgent.Voice.EndCall')}
+                  class="voice-end-btn"
+                />
               </Show>
             </div>
 
             {/* PTT button (only in push-to-talk mode during active call) */}
-            <Show when={isCallActive() && voiceMode() === 'push-to-talk'}>
-              <button
+            <Show when={isCallActive() && !isInitializing() && voiceMode() === 'push-to-talk'}>
+              <IconBtn
+                icon={<MicIcon />}
+                variant={pttActive() ? 'primary' : 'ghost'}
                 class={`voice-ptt-btn ${pttActive() ? 'active' : ''}`}
                 onMouseDown={handlePttDown}
                 onMouseUp={handlePttUp}
                 onMouseLeave={handlePttUp}
                 onTouchStart={handlePttDown}
                 onTouchEnd={handlePttUp}
-              >
-                <MicIcon />
-              </button>
+                aria-label={t('mlearn.ConversationAgent.Voice.PushToTalk')}
+              />
             </Show>
 
             {/* TTS speed control */}
-            <Show when={isCallActive()}>
+            <Show when={isCallActive() && !isInitializing()}>
               <div class="voice-speed-row">
                 <label>{t('mlearn.ConversationAgent.Voice.TtsSpeed')}</label>
                 <RangeInput
@@ -551,6 +785,41 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   onChange={(v) => setTtsSpeed(v)}
                 />
                 <span class="voice-speed-value">{ttsSpeed().toFixed(1)}x</span>
+              </div>
+            </Show>
+
+            {/* Silence threshold control (VAD mode only) */}
+            <Show when={isCallActive() && !isInitializing() && voiceMode() === 'vad'}>
+              <div class="voice-speed-row">
+                <label>{t('mlearn.ConversationAgent.Voice.SilenceThreshold')}</label>
+                <RangeInput
+                  min={0.5}
+                  max={5.0}
+                  step={0.1}
+                  value={silenceThreshold()}
+                  onChange={(v) => setSilenceThreshold(v)}
+                />
+                <span class="voice-speed-value">{silenceThreshold().toFixed(1)}s</span>
+              </div>
+            </Show>
+
+            {/* Voice sample selector */}
+            <Show when={isCallActive() && !isInitializing()}>
+              <div class="voice-sample-row">
+                <label>{t('mlearn.ConversationAgent.Voice.VoiceSample')}</label>
+                <Select
+                  options={voiceSampleOptions()}
+                  value={selectedSampleId()}
+                  onChange={(e) => setSelectedSampleId(e.currentTarget.value)}
+                  size="sm"
+                />
+                <IconBtn
+                  icon={<UploadIcon />}
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleSampleUpload}
+                  aria-label={t('mlearn.ConversationAgent.Voice.UploadSample')}
+                />
               </div>
             </Show>
           </div>
@@ -570,7 +839,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 <EmptyState
                   icon="🎙️"
                   title={t('mlearn.ConversationAgent.Voice.StartCall')}
-                  description={t('mlearn.ConversationAgent.Voice.ModelsRequired')}
+                  description={t('mlearn.ConversationAgent.Voice.EmptyHint')}
                   class="ca-empty"
                 />
               }

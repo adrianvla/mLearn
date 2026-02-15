@@ -1238,8 +1238,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     getGrammarKnowledge,
     startSession,
     refreshQueue,
-    intervalToString: SRS.intervalToString,
-    dueDateToString: SRS.dueDateToString,
+    intervalToString: (ms: number) => SRS.intervalToString(ms, t),
+    dueDateToString: (dueDate: number) => SRS.dueDateToString(dueDate, t),
   };
 
   return (

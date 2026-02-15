@@ -1,0 +1,1238 @@
+{
+  "mlearn": {
+    "Global": {
+      "AppName": "mLearn",
+      "Loading": "Chargement...",
+      "Ready": "Prêt",
+      "Cancel": "Annuler",
+      "Save": "Enregistrer",
+      "Delete": "Supprimer",
+      "Edit": "Modifier",
+      "Add": "Ajouter",
+      "Remove": "Retirer",
+      "Close": "Fermer",
+      "Search": "Rechercher",
+      "Test": "Tester",
+      "Export": "Exporter",
+      "Import": "Importer",
+      "Reset": "Réinitialiser",
+      "Back": "Retour",
+      "Continue": "Continuer",
+      "TryAgain": "Réessayer",
+      "Yes": "Oui",
+      "No": "Non",
+      "Ok": "OK",
+      "Error": "Erreur",
+      "Success": "Succès",
+      "Warning": "Avertissement",
+      "Info": "Info",
+      "Unknown": "Inconnu",
+      "None": "Aucun",
+      "All": "Tout",
+      "Default": "Par défaut",
+      "Flashcard": "Carte mémoire",
+      "RequiresRestart": "Redémarrage requis",
+      "ComingSoon": "Bientôt disponible",
+      "Aria": {
+        "CloseModal": "Fermer la fenêtre",
+        "CloseAlert": "Fermer l'alerte",
+        "PlayPause": "Lecture/Pause",
+        "Play": "Lecture",
+        "Pause": "Pause",
+        "ToggleSubtitles": "Activer/désactiver les sous-titres",
+        "PictureInPicture": "Image dans l'image",
+        "Fullscreen": "Plein écran",
+        "ExitFullscreen": "Quitter le plein écran"
+      },
+      "Status": {
+        "StartingBackend": "Démarrage du serveur...",
+        "LoadingModels": "Chargement des modèles...",
+        "WaitingForBackend": "En attente du serveur...",
+        "Tokenizing": "Tokenisation...",
+        "Translating": "Traduction...",
+        "Adding": "Ajout...",
+        "Installing": "Installation...",
+        "Syncing": "Synchronisation...",
+        "LoadingDatabase": "Chargement de la base de mots...",
+        "LoadingSettings": "Chargement des paramètres...",
+        "LoadingLanguageData": "Chargement des données linguistiques..."
+      },
+      "Actions": {
+        "SaveChanges": "Enregistrer les modifications",
+        "RemoveOverride": "Supprimer le remplacement",
+        "LoadAll": "Tout charger"
+      },
+      "Time": {
+        "ShortHour": "{value}h",
+        "ShortMinute": "{value}m",
+        "ShortSecond": "{value}s",
+        "ShortDay": "{value}j",
+        "ShortYear": "{value}a",
+        "HoursMinutes": "{hours}h {minutes}m",
+        "MinutesSeconds": "{minutes}m {seconds}s",
+        "LessThanMinute": "< 1m",
+        "Now": "Maintenant"
+      }
+    },
+    "ConnectionStatus": {
+      "Connected": "Connecté",
+      "Disconnected": "Déconnecté",
+      "Connecting": "Connexion...",
+      "Error": "Erreur"
+    },
+    "ConfirmDialog": {
+      "Title": "Confirmation"
+    },
+    "ErrorModal": {
+      "Title": {
+        "Error": "Erreur",
+        "Fatal": "Erreur fatale",
+        "Warning": "Avertissement",
+        "StartupError": "Erreur de démarrage"
+      },
+      "Messages": {
+        "PortInUse": "Une autre application utilise le port requis. Fermez les autres instances de mLearn ou redémarrez votre ordinateur.",
+        "PermissionDenied": "Permission refusée. Vérifiez les permissions système ou lancez l'application en tant qu'administrateur.",
+        "FileNotFound": "Un fichier requis est introuvable. Réinstallez l'application.",
+        "BackendStopped": "Le serveur s'est arrêté de manière inattendue. Redémarrez l'application."
+      },
+      "ShowDetails": "Afficher les détails",
+      "HideDetails": "Masquer les détails",
+      "CopyError": "Copier l'erreur",
+      "Copied": "Copié !",
+      "Quit": "Quitter"
+    },
+    "SubtitleSync": {
+      "SyncToPrevious": "Synchroniser les sous-titres avec l'audio précédent",
+      "SyncToNext": "Synchroniser les sous-titres avec l'audio suivant",
+      "PreviousTooltip": "Synchroniser avec le sous-titre précédent",
+      "NextTooltip": "Synchroniser avec le sous-titre suivant",
+      "BackwardMs": "← {ms}ms",
+      "ForwardMs": "{ms}ms →",
+      "Backward": "Reculer",
+      "Forward": "Avancer"
+    },
+    "Home": {
+      "UI": {
+        "Title": "mLearn",
+        "TitleDescription": "Apprenez les langues par immersion",
+        "ContinueLearning": "Continuer l'apprentissage",
+        "ChangeLanguage": "Changer de langue",
+        "LearningLanguage": "J'apprends le {language}"
+      },
+      "Cards": {
+        "Video": {
+          "Title": "Vidéo",
+          "Description": "Regardez des vidéos avec sous-titres interactifs"
+        },
+        "Reader": {
+          "Title": "Lecteur",
+          "Description": "Lisez des mangas et documents avec OCR"
+        },
+        "Flashcards": {
+          "Title": "Cartes mémoire",
+          "Description": "Révisez le vocabulaire par répétition espacée"
+        },
+        "Settings": {
+          "Title": "Paramètres",
+          "Description": "Personnalisez mLearn"
+        }
+      },
+      "Errors": {
+        "UnableToOpen": "Impossible d'ouvrir le fichier. Le chemin du fichier n'a pas été correctement enregistré."
+      }
+    },
+    "Video": {
+      "Controls": {
+        "Unmute": "Activer le son",
+        "Mute": "Couper le son",
+        "PlaybackSpeed": "Vitesse de lecture"
+      },
+      "UI": {
+        "DropVideoHere": "Déposez un fichier vidéo ici",
+        "OrClickToBrowse": "ou cliquez pour parcourir",
+        "OpenVideo": "Ouvrir une vidéo",
+        "OpenSubtitles": "Ouvrir des sous-titres",
+        "GoHome": "← Accueil",
+        "OpenConversationAgent": "🤖 Tuteur IA"
+      },
+      "Tooltip": {
+        "GoHome": "Retour à l'accueil",
+        "OpenConversationAgent": "Ouvrir le tuteur conversationnel IA"
+      }
+    },
+    "Reader": {
+      "UI": {
+        "WelcomeSplash": {
+          "Title": "📖 Bienvenue dans le Lecteur",
+          "TitleDescription": "Glissez-déposez un dossier d'images ou un fichier .pdf dans cette fenêtre.",
+          "DropZone": "Déposez les fichiers ici pour importer",
+          "Footer": "Déposez quelque chose pour commencer — cet écran d'accueil laissera place à votre histoire.",
+          "OpenFolder": "Ouvrir un dossier d'images",
+          "OpenPdf": "Ouvrir un PDF"
+        },
+        "Tips": {
+          "ShapeView": {
+            "Title": "Ajustez la vue",
+            "Description": "Utilisez la barre latérale ou les raccourcis clavier pour basculer entre les pages doubles et simples."
+          },
+          "SummonOcr": {
+            "Title": "Utilisez l'OCR",
+            "Description": "Lorsqu'une page est affichée, lancez l'OCR pour convertir le texte de manière interactive."
+          },
+          "NeverLosePlace": {
+            "Title": "Marque-page automatique",
+            "Description": "Votre position de page est sauvegardée automatiquement."
+          }
+        },
+        "NothingLoaded": "Rien n'est chargé"
+      },
+      "Controls": {
+        "OcrStatus": "État OCR",
+        "ModeLabels": {
+          "Hover": "Survol",
+          "LongHover": "Survol prolongé",
+          "KeyHover": "{key} + survol"
+        }
+      },
+      "Toolbar": {
+        "FitHeight": "Ajuster à la hauteur ↕",
+        "FitWidth": "Ajuster à la largeur ↔",
+        "DoublePage": "Double page",
+        "SinglePage": "Page simple",
+        "BackToHome": "Retour à l'accueil",
+        "Home": "← Accueil",
+        "FirstPageSingleTooltip": "Première page seule (couverture)",
+        "FirstPagePairedTooltip": "Première page appariée",
+        "PageLayoutSingle": "1|2+3",
+        "PageLayoutPaired": "1+2|3+4"
+      },
+      "Sidebar": {
+        "Pages": "Pages"
+      },
+      "StatusBar": {
+        "ShowTooltipOn": "Info-bulle :",
+        "TriggerTitle": "Comment déclencher l'info-bulle des mots",
+        "OpenConversationAgent": "Tuteur IA",
+        "OpenConversationAgentTitle": "Ouvrir le tuteur conversationnel IA",
+        "TriggerHover": "Survol",
+        "TriggerLongHover": "Survol prolongé",
+        "TriggerKeyHover": "{key} + survol",
+        "Ready": "Prêt",
+        "Tokenizing": "Tokenisation...",
+        "Translating": "Traduction...",
+        "MagnifierHint": "Appuyez sur {key} pour la loupe",
+        "TurboMode": "Turbo",
+        "TurboModeOn": "Turbo : Activé",
+        "TurboModeOff": "Turbo : Désactivé",
+        "FuriganaDetection": "Détection des furigana",
+        "FuriganaDetectionOn": "Furigana : Activé",
+        "FuriganaDetectionOff": "Furigana : Désactivé",
+        "DebugOverlayTitle": "Basculer la couche de débogage pour visualiser le texte OCR et la détection des furigana",
+        "DebugOverlayOn": "Débogage : Activé",
+        "DebugOverlayOff": "Débogage : Désactivé"
+      },
+      "Status": {
+        "NothingLoaded": "Rien n'est chargé",
+        "Loading": "Chargement...",
+        "LoadingBook": "Chargement du média...",
+        "LoadingPdf": "Chargement du PDF...",
+        "Ready": "Prêt",
+        "Recognizing": "Reconnaissance...",
+        "Processing": "Traitement {x}/{y}",
+        "Caching": "Mise en cache {x}/{y}",
+        "CleaningUp": "Nettoyage…",
+        "LoadingNeuralNetwork": "Chargement du réseau neuronal...",
+        "NoImagesFound": "Aucune image trouvée",
+        "FailedToLoad": "Échec du chargement",
+        "FailedToLoadPdf": "Échec du chargement du PDF",
+        "Pending": "En attente...",
+        "Queued": "En file d'attente...",
+        "PdfDocument": "Document PDF",
+        "ImportedBook": "Livre importé"
+      },
+      "Tooltip": {
+        "SelectionMode": "Mode de sélection"
+      }
+    },
+    "Flashcards": {
+      "UI": {
+        "Title": "Cartes mémoire",
+        "Tabs": {
+          "Review": "Révision",
+          "Browse": "Parcourir",
+          "Statistics": "Statistiques"
+        },
+        "Sync": "🔄 Synchroniser",
+        "AddCard": "+ Ajouter une carte"
+      },
+      "EmptyState": {
+        "NoCardsTitle": "Pas encore de cartes mémoire",
+        "NoCardsDescription": "Commencez à apprendre des mots en regardant des vidéos ou en lisant, et ils apparaîtront ici !",
+        "NoCardsDueTitle": "Tout est fait !",
+        "NoCardsDueDescription": "Aucune carte à réviser pour le moment. Excellent travail !",
+        "NoCardsDueAction": "Revenez plus tard ou ajoutez de nouvelles cartes"
+      },
+      "State": {
+        "New": "Nouvelle",
+        "Learning": "En apprentissage",
+        "Relearning": "Réapprentissage",
+        "Review": "Révision"
+      },
+      "Browse": {
+        "NoWordsFound": "Aucune carte correspondante trouvée.",
+        "SearchPlaceholder": "Rechercher des mots...",
+        "AllLevels": "Tous les niveaux",
+        "ShowingCount": "{count} sur {total} affichés",
+        "SortBy": "Trier par",
+        "SortDefault": "Par défaut",
+        "SortEaseAsc": "Facilité (croissante)",
+        "SortEaseDesc": "Facilité (décroissante)",
+        "SortDueDateAsc": "Échéance (plus proche)",
+        "SortDueDateDesc": "Échéance (plus lointaine)"
+      },
+      "Statistics": {
+        "TotalCards": "Total des cartes",
+        "DueToday": "À réviser aujourd'hui",
+        "Mature": "Matures",
+        "CardBreakdown": "Répartition des cartes",
+        "New": "Nouvelles",
+        "Learning": "En apprentissage",
+        "Review": "Révision",
+        "Suspended": "Suspendues",
+        "TodayProgress": "Progrès du jour",
+        "NewCardsStudied": "Nouvelles cartes étudiées",
+        "ReviewsCompleted": "Révisions terminées",
+        "LearningLimits": "Limites quotidiennes",
+        "MaxNewCardsPerDay": "Nouvelles cartes max par jour",
+        "MaxReviewsPerDay": "Révisions max par jour",
+        "LimitHint": "-1 pour illimité",
+        "Advanced": {
+          "RetentionRate": "Taux de rétention",
+          "Last30Days": "30 derniers jours",
+          "AverageEase": "Facilité moyenne",
+          "AvgTimePerDay": "Temps moyen par jour",
+          "DaysStudied": "Jours d'étude",
+          "DailyActivity": "Activité quotidienne",
+          "TotalReviews": "Total des révisions",
+          "TotalNewLearned": "Nouveaux mots appris",
+          "TotalLapses": "Total des échecs",
+          "EaseDistribution": "Distribution de facilité",
+          "IntervalDistribution": "Distribution des intervalles",
+          "CardMaturity": "Maturité des cartes",
+          "Young": "Jeunes",
+          "Mature": "Matures"
+        }
+      },
+      "Modals": {
+        "DeleteCard": {
+          "Title": "Supprimer la carte mémoire",
+          "Confirm": "Êtes-vous sûr de vouloir supprimer cette carte mémoire ? Cette action est irréversible."
+        },
+        "AddCard": {
+          "Title": "Ajouter une nouvelle carte mémoire",
+          "Submit": "Ajouter la carte",
+          "WordLabel": "Mot",
+          "WordPlaceholder": "Entrez un mot...",
+          "ReadingLabel": "Lecture (optionnel)",
+          "ReadingPlaceholder": "Prononciation...",
+          "MeaningLabel": "Signification",
+          "MeaningPlaceholder": "Définition..."
+        },
+        "EditCard": {
+          "Title": "Modifier la carte mémoire"
+        }
+      },
+      "Review": {
+        "Again": "Encore",
+        "Hard": "Difficile",
+        "Ok": "Bien",
+        "Easy": "Facile",
+        "PitchWrong": "Mauvais accent tonal",
+        "ShowLater": "Montrer plus tard",
+        "Hide": "Masquer",
+        "Left": "Restant :",
+        "New": "Nouvelles :",
+        "LearningLabel": "En apprentissage :",
+        "Undo": "↩",
+        "UndoTooltip": "Annuler",
+        "Complete": "🎉 Révision terminée !",
+        "CompleteDescription": "Vous avez révisé toutes vos cartes du jour. Excellent travail !",
+        "ReviewMore": "Réviser encore",
+        "ShowAnswer": "Afficher la réponse",
+        "Remove": "Retirer",
+        "Bury": "Enterrer",
+        "NewCard": "Nouvelle carte",
+        "LearningCard": "Carte en apprentissage",
+        "RelearningCard": "Carte en réapprentissage",
+        "ReviewCard": "Carte de révision",
+        "PressKeyTooltip": "Appuyez sur {key}",
+        "Review": "Révision :"
+      },
+      "Sync": {
+        "Title": "Synchroniser les cartes",
+        "Initializing": "Initialisation...",
+        "LoadingLibraries": "Chargement des bibliothèques...",
+        "GeneratingCode": "Génération du code de connexion...",
+        "ScanInstructions": "Entrez {numChunks} dans l'application mLearn, puis scannez ce code QR",
+        "ConnectedSyncing": "Connecté ! Synchronisation...",
+        "PointCamera": "Dirigez la caméra vers le code QR...",
+        "EstablishingConnection": "Établissement de la connexion...",
+        "Complete": "Synchronisation terminée !",
+        "QRHint": "Scannez le code QR dans l'application mobile mLearn pour synchroniser",
+        "ScanQRInstead": "Scanner le QR",
+        "ShowQRInstead": "Afficher le QR",
+        "SyncingFlashcards": "Synchronisation des cartes...",
+        "SyncedSuccessfully": "Cartes synchronisées !",
+        "Error": {
+          "LoadLibraries": "Échec du chargement des bibliothèques requises : {error}",
+          "Connection": "Échec de l'établissement de la connexion",
+          "CameraAccess": "Accès à la caméra refusé"
+        }
+      },
+      "Card": {
+        "Tracked": "Suivie",
+        "Ease": "Facilité :",
+        "ScreenshotAlt": "Capture d'écran",
+        "RevealHint": "Cliquez ou appuyez sur Espace pour révéler la réponse",
+        "RateHint": "Notez de 1 à 4 • Cliquez pour revenir au verso",
+        "ReviewsCount": "{count} révisions"
+      },
+      "Table": {
+        "Word": "Mot",
+        "Translation": "Traduction",
+        "Level": "Niveau",
+        "TrackedBy": "Suivi par",
+        "Status": "Statut"
+      },
+      "Leech": {
+        "Title": "Sangsue détectée",
+        "Message": "Le mot « {word} » a échoué {count} fois et peut nécessiter une attention particulière"
+      }
+    },
+    "WordHover": {
+      "NoTranslation": "Aucune traduction trouvée",
+      "Explain": "Expliquer",
+      "Loading": "Chargement...",
+      "NoExplanationAvailable": "Aucune explication disponible",
+      "Status": {
+        "Unknown": "Inconnu",
+        "Learning": "En apprentissage",
+        "Known": "Connu"
+      },
+      "Alerts": {
+        "CopiedToClipboard": "Copié dans le presse-papiers !",
+        "ExplainRequiresLlm": "La fonction d'explication nécessite un modèle IA local. Activez le LLM dans les paramètres et redémarrez l'application."
+      },
+      "Errors": {
+        "FailedToAddFlashcard": "Échec de l'ajout de la carte : {error}"
+      }
+    },
+    "Explainer": {
+      "Title": "Explication IA",
+      "Translation": "Traduction",
+      "Explanation": "Explication",
+      "ExplanationOf": "Explication de l'utilisation de {word}",
+      "GrammarPoints": "Points de grammaire clés",
+      "ShowRaw": "Vue texte",
+      "ShowParsed": "Vue analysée",
+      "GeneratedBy": "Généré par l'IA locale",
+      "Generating": "Génération...",
+      "Loading": "Chargement de l'explication IA..."
+    },
+    "Settings": {
+      "UI": {
+        "Title": "Paramètres",
+        "Description": "Personnalisez mLearn",
+        "ResetConfirm": "Êtes-vous sûr de vouloir réinitialiser tous les paramètres ? Cette action est irréversible.",
+        "ResetSuccess": "Paramètres réinitialisés aux valeurs par défaut",
+        "SaveError": "Échec de l'enregistrement des paramètres"
+      },
+      "Keybind": {
+        "PressKey": "Appuyez sur une touche...",
+        "Tooltip": "Cliquez pour enregistrer, puis appuyez sur une touche pour l'assigner",
+        "Keys": {
+          "Ctrl": "Ctrl",
+          "Alt": "Alt",
+          "Shift": "Maj",
+          "Meta": "Cmd",
+          "Space": "Espace",
+          "Enter": "Entrée",
+          "Escape": "Échap",
+          "Backspace": "Retour arrière",
+          "Delete": "Suppr",
+          "Tab": "Tab",
+          "CapsLock": "Verr. Maj",
+          "ArrowUp": "↑",
+          "ArrowDown": "↓",
+          "ArrowLeft": "←",
+          "ArrowRight": "→",
+          "Home": "Début",
+          "End": "Fin",
+          "PageUp": "Page haut",
+          "PageDown": "Page bas",
+          "Insert": "Inser"
+        }
+      },
+      "Tabs": {
+        "General": "Général",
+        "Behaviour": "Comportement",
+        "Appearance": "Apparence",
+        "SRS": "Cartes mémoire",
+        "Reader": "Lecteur",
+        "Statistics": "Statistiques",
+        "AI": "IA",
+        "About": "À propos"
+      },
+      "Groups": {
+        "Language": "Langue",
+        "Appearance": "Apparence",
+        "Data": "Données",
+        "WordStatus": "Statut des mots",
+        "BlurEffect": "Effet de flou",
+        "DisplayOptions": "Options d'affichage",
+        "Performance": "Performance",
+        "AnkiIntegration": "Intégration Anki",
+        "BuiltInFlashcards": "Cartes intégrées",
+        "DataManagement": "Gestion des données",
+        "Tokenizer": "Tokeniseur",
+        "WordHoverBehavior": "Comportement du survol",
+        "Furigana": "Furigana",
+        "LlmIntegration": "Intégration LLM",
+        "SubtitleAppearance": "Apparence des sous-titres",
+        "SubtitleTiming": "Timing des sous-titres",
+        "ThemePreview": "Aperçu du thème",
+        "PosColors": "Couleurs des parties du discours"
+      },
+      "Language": {
+        "LearningLanguage": {
+          "Label": "Langue cible",
+          "Description": "Choisissez la langue que vous apprenez"
+        }
+      },
+      "Appearance": {
+        "Theme": {
+          "Label": "Thème",
+          "Description": "Choisissez le thème visuel de l'application",
+          "Light": "Clair",
+          "Dark": "Sombre",
+          "Darker": "Très sombre",
+          "LightHighContrast": "Clair contrasté",
+          "DarkHighContrast": "Sombre contrasté",
+          "GlassLight": "Verre clair",
+          "GlassDark": "Verre sombre"
+        },
+        "SubtitleFontSize": {
+          "Label": "Taille de police des sous-titres",
+          "Description": "Taille du texte des sous-titres en pixels"
+        }
+      },
+      "Data": {
+        "ExportData": {
+          "Label": "Exporter les données",
+          "Description": "Exporter les données d'apprentissage dans un fichier"
+        },
+        "ImportData": {
+          "Label": "Importer des données",
+          "Description": "Importer des données d'apprentissage depuis un fichier"
+        },
+        "ResetSettings": {
+          "Label": "Réinitialiser les paramètres",
+          "Description": "Remettre tous les paramètres aux valeurs par défaut"
+        }
+      },
+      "WordStatus": {
+        "ColourKnown": {
+          "Label": "Colorer les mots connus",
+          "Description": "Mettre en surbrillance les mots déjà appris"
+        },
+        "KnownColour": {
+          "Label": "Couleur des mots connus",
+          "Description": "Couleur de surbrillance des mots connus"
+        },
+        "ColourCodes": {
+          "Label": "Couleurs grammaticales",
+          "Description": "Colorer les mots selon leur partie du discours"
+        },
+        "PosColors": {
+          "Description": "Personnalisez les couleurs pour chaque partie du discours. Ces couleurs sont utilisées pour mettre en surbrillance les mots dans les sous-titres, le lecteur et l'agent conversationnel.",
+          "Reset": "Réinitialiser",
+          "ResetAll": "Réinitialiser toutes les couleurs"
+        },
+        "KnownThreshold": {
+          "Label": "Seuil de connaissance",
+          "Description": "Valeur de facilité à partir de laquelle un mot est considéré comme connu"
+        }
+      },
+      "BlurEffect": {
+        "BlurWords": {
+          "Label": "Flouter les mots inconnus",
+          "Description": "Flouter les mots pas encore appris"
+        },
+        "BlurKnownSubtitles": {
+          "Label": "Flouter les sous-titres connus",
+          "Description": "Flouter les sous-titres dont tous les mots sont connus"
+        },
+        "BlurAmount": {
+          "Label": "Intensité du flou",
+          "Description": "Intensité de l'effet de flou"
+        }
+      },
+      "DisplayOptions": {
+        "ShowPos": {
+          "Label": "Afficher la partie du discours",
+          "Description": "Afficher les informations grammaticales des mots"
+        },
+        "ShowFurigana": {
+          "Label": "Afficher les furigana",
+          "Description": "Afficher la lecture au-dessus des mots"
+        },
+        "ShowPitchAccent": {
+          "Label": "Afficher l'accent tonal",
+          "Description": "Afficher les informations d'accent tonal des mots"
+        },
+        "ImmediateFetch": {
+          "Label": "Chargement immédiat",
+          "Description": "Charger les données des mots dès l'apparition des sous-titres"
+        }
+      },
+      "Performance": {
+        "HoverKnownGetFromDictionary": {
+          "Label": "Chercher les mots connus",
+          "Description": "Récupérer les données du dictionnaire même pour les mots connus"
+        },
+        "DevMode": {
+          "Label": "Mode développeur",
+          "Description": "Activer les outils de développement et les fonctions de débogage"
+        }
+      },
+      "BuiltInFlashcards": {
+        "ResetSrsConfirm": "Êtes-vous sûr de vouloir réinitialiser toutes les données SRS ? Cette action est irréversible !",
+        "ResetSrsConfirm2": "Toute la progression des cartes sera supprimée. Voulez-vous vraiment continuer ?"
+      },
+      "Subtitle": {
+        "Theme": {
+          "Label": "Style des sous-titres",
+          "Description": "Style visuel du fond des sous-titres"
+        },
+        "Themes": {
+          "Shadow": "Ombre",
+          "Background": "Fond",
+          "Marker": "Marqueur"
+        },
+        "FontSize": {
+          "Label": "Taille de police",
+          "Description": "Taille du texte des sous-titres"
+        },
+        "FontWeight": {
+          "Label": "Épaisseur de police",
+          "Description": "Graisse du texte des sous-titres"
+        },
+        "FontWeights": {
+          "Thin": "Très fin (100)",
+          "ExtraLight": "Extra-fin (200)",
+          "Light": "Fin (300)",
+          "Normal": "Normal (400)",
+          "Medium": "Moyen (500)",
+          "SemiBold": "Semi-gras (600)",
+          "Bold": "Gras (700)",
+          "ExtraBold": "Extra-gras (800)",
+          "Black": "Très gras (900)"
+        },
+        "Offset": {
+          "Label": "Décalage des sous-titres",
+          "Description": "Décalage temporel des sous-titres en ms"
+        }
+      },
+      "Reader": {
+        "Title": "Lecteur",
+        "Description": "Paramètres OCR et lecteur",
+        "OcrSettings": {
+          "Title": "Paramètres OCR",
+          "Enable": {
+            "Label": "Activer l'OCR",
+            "Description": "Activer la reconnaissance optique de caractères pour les images"
+          },
+          "CropPadding": {
+            "Label": "Marge de recadrage OCR",
+            "Description": "Pixels de marge lors du recadrage du texte pour les cartes"
+          },
+          "RamSaver": {
+            "Label": "Économie de RAM",
+            "Description": "Utilise une détection de texte légère basée sur OpenCV au lieu du réseau neuronal. Économise ~1,5 Go de RAM mais peut être moins précis pour les mises en page complexes. La qualité de reconnaissance n'est pas affectée."
+          },
+          "TurboMode": {
+            "Label": "Mode turbo",
+            "Description": "Utilise RapidOCR pour une détection rapide. Désactivé, PaddleOCR est utilisé, plus précis notamment pour le texte vertical."
+          },
+          "FuriganaDetection": {
+            "Label": "Détection des furigana",
+            "Description": "Détecter et filtrer les annotations furigana dans les résultats OCR. Désactivé, les blocs de texte détectés sont affichés tels quels."
+          }
+        },
+        "WordHoverBehavior": {
+          "Title": "Comportement de l'info-bulle",
+          "TriggerMode": {
+            "Label": "Mode de déclenchement",
+            "Description": "Comment déclencher la traduction au survol dans le lecteur"
+          },
+          "Modes": {
+            "Hover": "Survol (instantané)",
+            "LongHover": "Survol prolongé (délai de 500ms)",
+            "KeyHover": "{key} + survol"
+          },
+          "HoverKey": {
+            "Label": "Touche de survol",
+            "Description": "Touche à maintenir pour afficher l'info-bulle au survol"
+          },
+          "RecordKey": "Enregistrer la touche",
+          "PressAKey": "Appuyez sur une touche..."
+        },
+        "Furigana": {
+          "Title": "Furigana",
+          "Hide": {
+            "Label": "Masquer les furigana",
+            "Description": "Couvrir les furigana détectés avec un bloc blanc, révéler au survol (pour pratiquer la lecture)"
+          }
+        },
+        "Magnifier": {
+          "Title": "Loupe",
+          "Hotkey": {
+            "Label": "Raccourci loupe",
+            "Description": "Touche à maintenir pour zoomer sur l'image",
+            "Hint": "Maintenez pour zoomer"
+          },
+          "Zoom": {
+            "Label": "Niveau de zoom",
+            "Description": "Facteur d'agrandissement de la loupe"
+          },
+          "Size": {
+            "Label": "Taille de la lentille",
+            "Description": "Taille de la lentille de la loupe en pixels"
+          }
+        },
+        "LlmIntegration": {
+          "Title": "Intégration LLM",
+          "Enable": {
+            "Label": "Activer les explications LLM",
+            "Description": "Utiliser l'IA pour expliquer les mots et la grammaire"
+          }
+        },
+        "Tips": {
+          "Title": "Conseils pour le lecteur",
+          "GettingStarted": "📖 Pour commencer : glissez-déposez un dossier d'images ou un fichier PDF dans la fenêtre du lecteur.",
+          "OcrMode": "🔍 Mode OCR : cliquez sur « Lancer l'OCR » pour extraire le texte de la page courante. Survolez le texte détecté pour voir la traduction.",
+          "Navigation": "📚 Navigation : utilisez les flèches ou les miniatures dans la barre latérale pour naviguer entre les pages.",
+          "DoublePage": "💡 Astuce : le mode double page est idéal pour les doubles pages de manga !"
+        }
+      },
+      "SRS": {
+        "Title": "Répétition espacée",
+        "Description": "Paramètres des cartes mémoire et d'Anki",
+        "LearningLimits": {
+          "Title": "Limites d'apprentissage quotidiennes",
+          "NewDayHour": {
+            "Label": "Heure de début du nouveau jour",
+            "Description": "Heure de réinitialisation du jour SRS (0-23). Les révisions avant cette heure comptent pour le jour précédent. Par défaut : 4 (4h00)"
+          },
+          "MaxNewCardsLearning": {
+            "Label": "Max. nouvelles cartes",
+            "Description": "Nombre maximum de nouvelles cartes par jour (-1 = illimité)"
+          },
+          "MaxReviews": {
+            "Label": "Max. révisions par jour",
+            "Description": "Nombre maximum de révisions par jour (-1 = illimité)"
+          },
+          "UnlimitedHint": "-1 = illimité"
+        },
+        "AnkiIntegration": {
+          "Title": "Intégration Anki",
+          "Enable": {
+            "Label": "Activer Anki",
+            "Description": "Envoyer les cartes à Anki via AnkiConnect"
+          },
+          "ConnectUrl": {
+            "Label": "URL AnkiConnect",
+            "Description": "URL du serveur AnkiConnect"
+          },
+          "ConnectionStatus": {
+            "Label": "État de la connexion",
+            "Description": "Tester la connexion AnkiConnect"
+          },
+          "Test": "Tester",
+          "Connected": "✓ Connecté",
+          "Failed": "✗ Échec",
+          "DeckName": {
+            "Label": "Nom du paquet",
+            "Description": "Paquet Anki pour les nouvelles cartes",
+            "Placeholder": "Par défaut"
+          },
+          "ModelName": {
+            "Label": "Type de note",
+            "Description": "Type de note Anki à utiliser"
+          },
+          "AddScreenshots": {
+            "Label": "Ajouter des captures d'écran",
+            "Description": "Inclure une capture d'écran vidéo dans la carte"
+          }
+        },
+        "BuiltInFlashcards": {
+          "Title": "Cartes intégrées",
+          "Enable": {
+            "Label": "Activer la création de cartes",
+            "Description": "Permettre la création de cartes dans mLearn"
+          },
+          "MaxNewCards": {
+            "Label": "Max. nouvelles par jour",
+            "Description": "Limite des cartes créées automatiquement"
+          },
+          "ExamCardProportion": {
+            "Label": "Proportion de cartes d'examen",
+            "Description": "Proportion de cartes de niveau examen (0-1)"
+          },
+          "PreparedExamLevel": {
+            "Label": "Niveau d'examen cible",
+            "Description": "Niveau d'examen de qualification cible"
+          },
+          "ExamLevels": {
+            "N5": "N5 (débutant)",
+            "N4": "N4",
+            "N3": "N3",
+            "N2": "N2",
+            "N1": "N1 (avancé)"
+          },
+          "CreateUnseenCards": {
+            "Label": "Créer des cartes pour mots nouveaux",
+            "Description": "Créer automatiquement des cartes pour les nouveaux mots de niveau examen"
+          },
+          "FlipAnimation": {
+            "Label": "Animation de retournement",
+            "Description": "Afficher une animation 3D de retournement en révélant la réponse"
+          },
+          "LeechThreshold": {
+            "Label": "Seuil de sangsue",
+            "Description": "Nombre d'échecs avant de marquer la carte comme sangsue (0 = désactivé)"
+          }
+        },
+        "DataManagement": {
+          "Title": "Gestion des données",
+          "ResetSRS": {
+            "Label": "Réinitialiser les données SRS",
+            "Description": "Effacer toute la progression des cartes (irréversible !)"
+          },
+          "ResetButton": "Réinitialiser le SRS"
+        }
+      }
+    },
+    "Installer": {
+      "Instructions": {
+        "ChooseComponents": "Choisissez les composants à installer et cliquez sur Installer.",
+        "LanguageUnlocks": "Le choix de la langue sera disponible après la configuration.",
+        "ForgetSomething": "Si vous avez oublié d'installer quelque chose, supprimez mLearn et relancez l'installateur.",
+        "DownloadNote": "Tous les téléchargements sont gérés automatiquement. Une connexion stable est recommandée.",
+        "ClickToBegin": "Cliquez sur Installer pour commencer."
+      },
+      "Status": {
+        "Installing": "Installation en cours, veuillez patienter...",
+        "NotStarted": "En attente du début de l'installation...",
+        "Complete": "Installation terminée ! Choisissez une langue pour finaliser la configuration.",
+        "LlmWillInstall": "Les dépendances du modèle IA local seront installées.",
+        "LlmSkip": "Les dépendances du modèle IA local seront ignorées.",
+        "OcrWillInstall": "Les dépendances du lecteur OCR seront installées.",
+        "OcrSkip": "Les dépendances du lecteur OCR seront ignorées.",
+        "CouldNotStart": "Impossible de démarrer le processus d'installation.",
+        "LanguageInstalledRestarting": "Langue installée ! Redémarrage..."
+      },
+      "Components": {
+        "ExplainAi": {
+          "Title": "Installer le module mLearn Explain AI",
+          "Description": "Installe le réseau neuronal LLM local. Décochez pour ignorer ~3 Go de dépendances."
+        },
+        "Reader": {
+          "Title": "Installer le module lecteur mLearn",
+          "Description": "Installe l'OCR pour la lecture de mangas/images. Décochez pour ignorer ~2 Go de dépendances."
+        }
+      },
+      "Buttons": {
+        "StartInstallation": "Démarrer l'installation",
+        "Installing": "Installation...",
+        "Continue": "Continuer"
+      },
+      "Alerts": {
+        "NetworkError": "Une erreur réseau s'est produite. Vérifiez votre connexion et réessayez."
+      }
+    },
+    "Statistics": {
+      "Title": "Statistiques d'apprentissage",
+      "Description": "Suivez votre progression et votre parcours d'apprentissage",
+      "TimeWatched": "Temps visionné",
+      "WordsTracked": "Mots suivis",
+      "WordsLearned": "Mots appris",
+      "CurrentlyLearning": "En cours d'apprentissage",
+      "WordsByStatus": "Mots par statut",
+      "WordsByExamLevel": "Mots par niveau d'examen",
+      "EmptyState": {
+        "Title": "Pas encore de données de mots",
+        "Description": "Commencez à regarder des vidéos pour suivre vos mots !"
+      },
+      "Legend": {
+        "Learned": "Appris",
+        "Learning": "En apprentissage",
+        "Viewed": "Vus"
+      },
+      "Actions": {
+        "ViewKanjiGrid": "📊 Grille de kanji",
+        "EditWordDatabase": "📝 Éditeur de base de mots",
+        "OpenAiAnalytics": "🤖 Analyse IA des médias"
+      }
+    },
+    "About": {
+      "Title": "mLearn",
+      "VersionLabel": "Version {version}",
+      "Description": "mLearn est un outil pour apprendre les langues par immersion. Regardez des vidéos, lisez des mangas et apprenez le vocabulaire naturellement grâce aux sous-titres intelligents et à la répétition espacée.",
+      "Website": "🌐 Site web",
+      "Licenses": "📄 Licences",
+      "KeyboardShortcuts": {
+        "Title": "Raccourcis clavier",
+        "Space": "Lecture/pause de la vidéo",
+        "LeftRight": "Avancer/reculer de 5 secondes",
+        "UpDown": "Régler le volume",
+        "F": "Plein écran",
+        "M": "Activer/couper le son",
+        "Numbers": "Noter la carte",
+        "Undo": "Annuler l'action de la carte"
+      }
+    },
+    "KanjiGrid": {
+      "Title": "Maîtrise des caractères",
+      "Description": "Couleurs : en apprentissage (orange→jaune), connu (vert→vert clair), inconnu (gris). Survolez pour les détails.",
+      "CharactersByExamLevel": "Caractères par niveau d'examen :",
+      "LevelFallback": "Niveau {level}",
+      "EmptyState": {
+        "Title": "Aucun caractère suivi pour le moment",
+        "Description": "Les caractères rencontrés dans les vidéos ou le texte apparaîtront ici.",
+        "Hint": "Commencez à visionner ou lire du contenu pour débuter le suivi !"
+      },
+      "Loading": "Chargement des données de caractères...",
+      "Legend": {
+        "Learning": "En apprentissage :",
+        "Known": "Connu :",
+        "Unknown": "Inconnu :"
+      },
+      "Stats": {
+        "Known": "Connus :",
+        "Learning": "En apprentissage :",
+        "Unknown": "Inconnus :",
+        "TotalFound": "Total :"
+      },
+      "Filter": "Filtrer les caractères...",
+      "Tooltip": {
+        "WordsContaining": "Mots contenant {char}",
+        "Category": "Catégorie",
+        "Score": "Score",
+        "KnownCount": "Connus",
+        "LearningCount": "En apprentissage"
+      }
+    },
+    "WordDbEditor": {
+      "Title": "Éditeur de base de mots",
+      "Loading": "Chargement de la base de mots...",
+      "EmptyState": "Aucun mot trouvé. Cliquez sur « Tout charger » pour charger la base de mots.",
+      "LoadingMore": "Chargement...",
+      "SearchPlaceholder": "Rechercher des mots...",
+      "AllLevels": "Tous les niveaux",
+      "LoadAll": "Tout charger",
+      "SearchHint": "Tapez 2+ caractères pour chercher ou cliquez sur « Tout charger »",
+      "SearchHintDetailed": "Entrée pour chercher. Les correspondances exactes sont prioritaires. Appuyez d'abord sur « Tout charger ».",
+      "EditTranslation": {
+        "Title": "Modifier la traduction — {word}",
+        "Tooltip": "Modifier le remplacement du mot",
+        "RemoveOverride": "Supprimer le remplacement"
+      },
+      "Fields": {
+        "Word": "Mot",
+        "Reading": "Lecture",
+        "ReadingPlaceholder": "Lecture (kana)...",
+        "PitchAccent": "Accent tonal",
+        "PitchAccentPlaceholder": "0 (plat), 1, 2, 3…",
+        "Translation": "Traduction",
+        "TranslationPlaceholder": "Traductions séparées par des virgules...",
+        "StructuredContent": "Contenu structuré (HTML libre)",
+        "PartOfSpeech": "Partie du discours",
+        "PosPlaceholder": "n, v, adj, etc."
+      },
+      "Columns": {
+        "Word": "Mot",
+        "Translation": "Traduction",
+        "Level": "Niveau",
+        "TrackedBy": "Suivi par",
+        "Status": "Statut"
+      },
+      "LevelNames": {
+        "Common": "Courant",
+        "Unlisted": "Non répertorié"
+      }
+    },
+    "CardEditor": {
+      "Title": "Modifier la carte mémoire",
+      "Fields": {
+        "Word": "Mot",
+        "WordPlaceholder": "Entrez un mot...",
+        "Reading": "Lecture (furigana)",
+        "ReadingPlaceholder": "Kana / lecture",
+        "PitchAccent": "Accent tonal",
+        "PitchAccentPlaceholder": "0 (plat), 1, 2, 3…",
+        "Surface": "Forme de surface",
+        "SurfaceNote": "(mot)",
+        "PartOfSpeech": "Partie du discours",
+        "PosPlaceholder": "n, v, adj, etc.",
+        "Translation": "Traduction (virgules ou retours à la ligne)",
+        "ExampleSentence": "Phrase d'exemple (HTML autorisé)",
+        "ExampleTranslation": "Traduction de l'exemple",
+        "Definition": "Définition (HTML autorisé)",
+        "Definitions": "Définitions (une par ligne)",
+        "DefinitionsPlaceholder": "Une définition par ligne",
+        "StructuredContent": "Contenu structuré (HTML libre)"
+      },
+      "Statistics": {
+        "Title": "Statistiques",
+        "Ease": "Facilité :",
+        "Reviews": "Révisions :",
+        "LastReviewed": "Dernière révision :",
+        "Never": "Jamais",
+        "Interval": "Intervalle :"
+      },
+      "Hint": "Traduction : virgules ou retours à la ligne. L'accent tonal est la position mora de descente (0=plat)."
+    },
+    "PitchAccent": {
+      "Heiban": "Plat (heiban)",
+      "Atamadaka": "Tête haute (atamadaka)",
+      "Nakadaka": "Milieu haut (nakadaka)",
+      "Odaka": "Queue haute (odaka)",
+      "DropAfterMora": "Descente après la mora {mora}"
+    },
+    "Components": {
+      "LogConsole": {
+        "DefaultTitle": "Console",
+        "ClearTooltip": "Effacer les journaux",
+        "NoLogs": "Aucun journal à afficher"
+      }
+    },
+    "Languages": {
+      "ja": "Japonais",
+      "de": "Allemand",
+      "zh": "Chinois",
+      "ko": "Coréen",
+      "es": "Espagnol",
+      "fr": "Français",
+      "it": "Italien",
+      "pt": "Portugais",
+      "ru": "Russe"
+    },
+    "Errors": {
+      "FirstArgumentMustBeString": "Le premier argument doit être une chaîne de caractères",
+      "ChunkSizeMustBePositive": "La taille du bloc doit être un nombre positif",
+      "InvalidLanguage": "Langue invalide",
+      "FailedToLoad": "Échec du chargement",
+      "NetworkError": "Erreur réseau"
+    },
+    "ConversationAgent": {
+      "Title": "Agent conversationnel",
+      "ModelLabel": "Modèle",
+      "Connected": "Connecté",
+      "Disconnected": "Déconnecté",
+      "ExperimentalBanner": "Fonctionnalité expérimentale — les réponses de l'IA peuvent contenir des erreurs. Vérifiez les points linguistiques importants.",
+      "Placeholder": "Message dans la langue cible...",
+      "Speaking": "Parle...",
+      "StopRecording": "Arrêter l'enregistrement",
+      "StartRecording": "Démarrer l'enregistrement",
+      "Send": "Envoyer le message",
+      "Clear": "Effacer la conversation",
+      "Regenerate": "Régénérer la réponse",
+      "Tab": {
+        "Chat": "Chat",
+        "Stats": "Statistiques",
+        "Connection": "Connexion",
+        "Voice": "Voix"
+      },
+      "Connection": {
+        "Title": "Connexion LLM",
+        "Hint": "Configurez la connexion à votre fournisseur LLM.",
+        "ServerUrl": "URL du serveur",
+        "ServerUrlHint": "URL de base du serveur LLM (ex : Ollama, LM Studio ou endpoint compatible OpenAI).",
+        "Model": "Modèle",
+        "ModelHint": "Identifiant du modèle pour la complétion de chat.",
+        "TestConnection": "Tester la connexion",
+        "Testing": "Test en cours...",
+        "ConnectionSuccess": "Connexion réussie",
+        "ConnectionFailed": "Échec de la connexion",
+        "Save": "Enregistrer",
+        "Saved": "Enregistré",
+        "AvailableModels": "Modèles disponibles",
+        "NoModelsFound": "Aucun modèle trouvé sur le serveur",
+        "LoadingModels": "Chargement des modèles...",
+        "FetchModels": "Récupérer les modèles"
+      },
+      "Empty": {
+        "Title": "Démarrer une conversation",
+        "Hint": "Pratiquez la langue cible avec le tuteur IA. Il corrigera vos erreurs, vous interrogera et vous aidera à progresser."
+      },
+      "InputPlaceholder": "Message en {language}...",
+      "Stats": {
+        "Overview": "Vue d'ensemble",
+        "FailedWords": "Mots échoués",
+        "Grammar": "Grammaire",
+        "Levels": "Niveaux",
+        "NoMedia": "Aucune statistique média enregistrée",
+        "NoMediaHint": "Regardez des vidéos ou lisez des livres, et les analyses apparaîtront ici.",
+        "Current": "Actuel",
+        "AssessedLevel": "Niveau évalué",
+        "UnknownWords": "Mots inconnus",
+        "FailedGrammarCount": "Erreurs de grammaire",
+        "UniqueWords": "Mots uniques",
+        "WordLevelDistribution": "Distribution des niveaux de mots",
+        "NoFailedWords": "Aucun mot échoué pour le moment — continuez l'immersion !",
+        "Seen": "Vus",
+        "Hovered": "Survolés",
+        "Failed": "Échoués",
+        "NoFailedGrammar": "Aucune erreur de grammaire pour le moment.",
+        "WordLevels": "Niveaux de mots",
+        "GrammarLevels": "Niveaux de grammaire",
+        "NoLevelData": "Pas assez de données pour calculer la distribution des niveaux.",
+        "Unique": "Uniques",
+        "ByOccurrence": "Par occurrence"
+      },
+      "SceneContext": "Contexte de la scène",
+      "SceneContextPlaceholder": "Décrivez ce qui se passe dans la scène (ex : actions des personnages, développement de l'intrigue). Vous pouvez écrire dans n'importe quelle langue.",
+      "StopStreaming": "Stop",
+      "ShowTooltipOn": "Info-bulle :",
+      "TriggerHover": "Survol",
+      "TriggerLongHover": "Survol prolongé",
+      "TriggerKeyHover": "{key} + survol",
+      "LevelAdapt": {
+        "Label": "Adapter au niveau :",
+        "None": "Aucun"
+      },
+      "Quiz": {
+        "TextInputPlaceholder": "Tapez votre réponse...",
+        "BlankInputAriaLabel": "Blanc {index}",
+        "Correct": "Correct !",
+        "IncorrectAnswer": "La réponse est : {answer}"
+      },
+      "Mistake": {
+        "GrammarCorrection": "Correction grammaticale",
+        "Correction": "Correction",
+        "RelatedPattern": "Structure liée : {pattern}"
+      },
+      "Debug": {
+        "TokensPerSecond": "{value} tok/s",
+        "TimeToFirstToken": "TTFT : {value}ms",
+        "TotalTime": "Total : {value}ms"
+      },
+      "Voice": {
+        "DownloadModels": "Télécharger les modèles vocaux",
+        "DownloadProgress": "Téléchargement des modèles vocaux… {progress}%",
+        "Listening": "Écoute…",
+        "Processing": "Traitement…",
+        "Speaking": "Parle…",
+        "CallEnded": "Appel terminé",
+        "StartCall": "Démarrer l'appel vocal",
+        "EndCall": "Terminer l'appel",
+        "PushToTalk": "Appuyer pour parler",
+        "HandsFree": "Mains libres",
+        "ModelsRequired": "Cette fonctionnalité nécessite des modèles vocaux. Téléchargez-les pour commencer.",
+        "DownloadFailed": "Échec du téléchargement des modèles vocaux. Les dépendances requises ne sont peut-être pas installées. Réinstallez l'application ou consultez les journaux.",
+        "TtsSpeed": "Vitesse de parole",
+        "Interrupted": "*Interrompu par l'utilisateur*",
+        "SilenceThreshold": "Seuil de silence",
+        "VoiceMode": "Mode de saisie",
+        "HoldToSpeak": "Maintenez pour parler",
+        "MicPermission": "L'appel vocal nécessite l'accès au microphone.",
+        "EmptyHint": "Démarrez un appel vocal pour pratiquer l'expression orale avec le tuteur IA.",
+        "Initializing": "Chargement du moteur vocal…",
+        "DefaultVoice": "Voix par défaut",
+        "VoiceSample": "Clone vocal",
+        "UploadSample": "Téléverser un échantillon vocal",
+        "Aftermath": {
+          "Title": "Résumé de la session",
+          "Duration": "Durée",
+          "Messages": "Messages",
+          "Mistakes": "Erreurs signalées",
+          "NoMistakes": "Aucune erreur signalée. Excellent travail !"
+        }
+      }
+    },
+    "MediaStats": {
+      "Title": "Statistiques médias",
+      "Difficulty": "Difficulté",
+      "TimeSpent": "Temps passé",
+      "Sessions": "Sessions",
+      "WordsSeen": "Mots vus",
+      "UnknownWords": "Mots inconnus",
+      "GrammarPoints": "Points de grammaire",
+      "ReviewWithAI": "Réviser avec l'IA",
+      "NoWords": "Aucun mot rencontré pour le moment.",
+      "NoGrammar": "Aucun point de grammaire détecté pour le moment.",
+      "AllKnown": "Tous les mots sont connus !",
+      "NotAssessed": "Non évalué",
+      "Tabs": {
+        "Summary": "Résumé",
+        "Words": "Mots",
+        "Grammar": "Grammaire",
+        "Unknown": "Inconnus"
+      }
+    },
+    "AI": {
+      "SetupRequired": "Les fonctions IA nécessitent une configuration. Ouverture des paramètres...",
+      "SetupRequiredAction": "Configurez l'IA dans les paramètres pour utiliser cette fonction.",
+      "DownloadModel": "Télécharger le modèle",
+      "DownloadingModel": "Téléchargement du modèle...",
+      "DownloadProgress": "{percent}% téléchargé ({downloaded} / {total})",
+      "DownloadComplete": "Modèle téléchargé.",
+      "DownloadFailed": "Échec du téléchargement du modèle : {error}",
+      "ModelReady": "Le modèle est prêt.",
+      "ModelNotDownloaded": "Le modèle n'est pas encore téléchargé.",
+      "ModelLoading": "Chargement du modèle...",
+      "ModelLoaded": "Modèle chargé et prêt.",
+      "OllamaNotReachable": "Impossible de joindre le serveur Ollama. Vérifiez qu'Ollama est lancé et que l'URL est correcte.",
+      "OllamaConnected": "Connecté à Ollama.",
+      "OllamaInstallGuide": "Installer Ollama",
+      "OllamaInstallGuideUrl": "https://ollama.com/download",
+      "Settings": {
+        "Title": "Paramètres IA",
+        "Description": "Configurez les fonctions IA pour l'explication des mots et la pratique conversationnelle.",
+        "Provider": {
+          "Title": "Fournisseur IA",
+          "Description": "Choisissez comment exécuter les modèles IA.",
+          "Builtin": "Intégré",
+          "BuiltinDescription": "Exécuter les modèles locaux directement dans l'application. Aucun logiciel externe requis.",
+          "Ollama": "Ollama",
+          "OllamaDescription": "Se connecter à un serveur Ollama pour plus d'options de modèles."
+        },
+        "BuiltinModel": {
+          "Title": "Modèle intégré",
+          "ModelName": "Modèle",
+          "Status": "Statut",
+          "DiskSpace": "Espace disque requis : ~{size}",
+          "Redownload": "Retélécharger"
+        },
+        "OllamaConfig": {
+          "Title": "Configuration Ollama",
+          "ServerUrl": "URL du serveur",
+          "ServerUrlHint": "Adresse du serveur Ollama.",
+          "Model": "Modèle",
+          "ModelHint": "Sélectionnez ou saisissez un nom de modèle Ollama.",
+          "TestConnection": "Tester la connexion",
+          "Testing": "Test en cours...",
+          "ConnectionSuccess": "Connexion réussie.",
+          "ConnectionFailed": "Impossible de se connecter à Ollama.",
+          "FetchModels": "Récupérer les modèles",
+          "LoadingModels": "Chargement des modèles...",
+          "NoModels": "Aucun modèle trouvé.",
+          "InstallHintPrefix": "Pas d'Ollama ?",
+          "InstallHintSuffix": "pour commencer."
+        }
+      }
+    }
+  }
+}

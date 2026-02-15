@@ -12,7 +12,8 @@
     "numpy",
     "python-multipart",
     "setuptools",
-    "wheel"
+    "wheel",
+    "websockets"
   ],
   "ocr": [
     "paddlepaddle>=2.5.2",
@@ -26,5 +27,12 @@
     "torch",
     "transformers",
     "sentencepiece"
+  ],
+  "voice": [
+    "torch",
+    "torchaudio",
+    "faster-whisper",
+    "chatterbox-tts",
+    "silero-vad"
   ]
 }

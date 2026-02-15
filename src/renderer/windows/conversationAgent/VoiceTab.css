@@ -48,6 +48,20 @@
   flex-shrink: 0;
 }
 
+/* ------ Initializing engines ------ */
+
+.voice-initializing {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+}
+
+.voice-initializing-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
 /* ------ Waveform visualizer ------ */
 
 .voice-visualizer {
@@ -102,44 +116,15 @@
   border: 1px solid var(--border-color);
 }
 
-.voice-mode-btn {
-  padding: var(--spacing-1) var(--spacing-3);
-  font-size: var(--font-size-xs);
+.voice-mode-toggle .voice-mode-btn {
+  border-radius: 0;
   border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-weight: var(--font-weight-medium);
-}
-
-.voice-mode-btn:hover {
-  background: var(--bg-intense);
-}
-
-.voice-mode-btn.active {
-  background: var(--color-primary);
-  color: white;
 }
 
 /* ------ End call button ------ */
 
 .voice-end-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--size-lg);
-  height: var(--size-lg);
   border-radius: var(--radius-full);
-  border: none;
-  background: var(--color-error);
-  color: white;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
-}
-
-.voice-end-btn:hover {
-  opacity: 0.85;
 }
 
 .voice-end-btn svg {
@@ -147,52 +132,12 @@
   height: 20px;
 }
 
-/* ------ Start call button ------ */
-
-.voice-start-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-5);
-  border-radius: var(--radius-lg);
-  border: none;
-  background: var(--color-primary);
-  color: white;
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  transition: opacity 0.15s ease;
-}
-
-.voice-start-btn:hover {
-  opacity: 0.85;
-}
-
-.voice-start-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.voice-start-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
 /* ------ Push-to-talk button ------ */
 
 .voice-ptt-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 72px;
   height: 72px;
   border-radius: var(--radius-full);
-  border: 3px solid var(--color-primary);
-  background: transparent;
-  color: var(--color-primary);
-  cursor: pointer;
-  transition: all 0.15s ease;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
@@ -200,10 +145,7 @@
   user-select: none;
 }
 
-.voice-ptt-btn:active,
 .voice-ptt-btn.active {
-  background: var(--color-primary);
-  color: white;
   transform: scale(0.96);
 }
 
@@ -251,4 +193,148 @@
 .voice-transcript-preview.final {
   color: var(--text-primary);
   font-style: normal;
+}
+
+/* ------ Voice sample selector ------ */
+
+.voice-sample-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  padding: 0 var(--spacing-4);
+}
+
+.voice-sample-row label {
+  white-space: nowrap;
+}
+
+.voice-sample-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.voice-sample-upload-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ------ Voice Aftermath ------ */
+
+.voice-aftermath {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-6);
+  overflow-y: auto;
+}
+
+.voice-aftermath-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-4);
+}
+
+.voice-aftermath-header h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.voice-aftermath-dismiss {
+  background: none;
+  border: none;
+  font-size: var(--font-size-xl);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--spacing-1) var(--spacing-2);
+  line-height: 1;
+}
+
+.voice-aftermath-dismiss:hover {
+  color: var(--text-primary);
+}
+
+.voice-aftermath-stats {
+  display: flex;
+  gap: var(--spacing-4);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-4);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.voice-aftermath-empty {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  padding: var(--spacing-6) 0;
+}
+
+.voice-aftermath-mistakes h4 {
+  margin: 0 0 var(--spacing-3);
+  font-size: var(--font-size-base);
+}
+
+.voice-aftermath-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.voice-aftermath-item {
+  padding: var(--spacing-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.voice-aftermath-word {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-1);
+}
+
+.voice-aftermath-reading {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.voice-aftermath-type {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  padding: 1px var(--spacing-2);
+  border-radius: var(--radius-sm);
+}
+
+.voice-aftermath-correction {
+  font-size: var(--font-size-sm);
+  color: var(--color-success);
+}
+
+.voice-aftermath-arrow {
+  color: var(--text-tertiary);
+}
+
+.voice-aftermath-context {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-style: italic;
+  margin-top: var(--spacing-1);
 }

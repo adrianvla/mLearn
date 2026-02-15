@@ -19,6 +19,7 @@ import {
 } from '../../components/common';
 import type { TabItem } from '../../components/common';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../utils/levelPercentages';
+import { formatDurationHM } from '../../utils/timeFormatting';
 import './MediaStatsTab.css';
 
 interface MediaStatsTabProps {
@@ -52,15 +53,10 @@ const getEaseColor = (ease: number): string => {
   return 'var(--color-danger)';
 };
 
-const formatTime = (ms: number): string => {
-  const hours = Math.floor(ms / 3_600_000);
-  const minutes = Math.floor((ms % 3_600_000) / 60_000);
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
-};
-
 export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
   const { t } = useLocalization();
+
+  const formatTime = (ms: number): string => formatDurationHM(ms, t);
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
   const [subTab, setSubTab] = createSignal<string>('overview');

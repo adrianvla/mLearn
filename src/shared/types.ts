@@ -670,6 +670,7 @@ export interface PitchAccentInfo {
 export interface InstallOptions {
   includeLLM: boolean;
   includeOCR: boolean;
+  includeVoice?: boolean;
 }
 
 export interface InstallerState {
@@ -852,6 +853,7 @@ export interface PipRequirementsConfig {
   core: string[];
   ocr: string[];
   llm: string[];
+  voice?: string[];
 }
 
 // ============================================================================
@@ -916,6 +918,10 @@ export interface ConversationMessage {
   corrections?: MistakeWidgetData[];
   /** Generation timing stats (assistant messages only) */
   streamStats?: StreamStats;
+  /** Whether the TTS output was interrupted by the user speaking */
+  interrupted?: boolean;
+  /** The content up to where TTS was interrupted (e.g. "I have eaten a green") */
+  interruptedAt?: string;
 }
 
 /** Performance stats from the LLM streaming response */
@@ -1069,12 +1075,14 @@ export interface VoiceModelStatus {
   downloading: boolean;
   progress: number;
   error?: string;
+  sttModelName?: string;
+  ttsModelName?: string;
 }
 
 export interface VoiceSTTResult {
   text: string;
   isFinal: boolean;
-  isEndpoint: boolean;
+  isPartial: boolean;
 }
 
 export interface VoiceVadEvent {
@@ -1084,9 +1092,47 @@ export interface VoiceVadEvent {
 export interface VoiceTtsAudio {
   samples: Float32Array;
   sampleRate: number;
+  sentenceIndex?: number;
+  sentenceText?: string;
+  totalSentences?: number;
+  sampleOffset?: number;
+  sampleCount?: number;
 }
 
 export interface VoiceTtsStatus {
   generating: boolean;
   playing: boolean;
+}
+
+export interface VoiceSessionReady {
+  ready: true;
+}
+
+export interface VoiceSessionError {
+  error: string;
+}
+
+/** A user-uploaded voice sample for TTS voice cloning */
+export interface VoiceSample {
+  id: string;
+  name: string;
+  filename: string;
+  language?: string;
+  createdAt: number;
+}
+
+/** A mistake noted by the LLM during voice mode */
+export interface VoiceMistake {
+  word: string;
+  reading?: string;
+  context: string;
+  correction: string;
+  type: string;
+}
+
+/** Summary displayed after a voice call session ends */
+export interface VoiceSessionAftermath {
+  mistakes: VoiceMistake[];
+  duration: number;
+  messageCount: number;
 }
