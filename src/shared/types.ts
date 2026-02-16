@@ -194,6 +194,9 @@ export interface Settings {
   /** Seconds of silence before considering speech ended */
   voiceSilenceThreshold: number;
 
+  /** UI language / locale code (e.g., 'en', 'ja', 'de') */
+  uiLanguage: string;
+
   // First-run tracking
   hasCompletedSetup?: boolean;
 }
@@ -273,6 +276,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceTtsSpeed: 1.0,
   voiceAutoSendOnSilence: true,
   voiceSilenceThreshold: 1.2,
+  uiLanguage: 'en',
 };
 
 // ============================================================================

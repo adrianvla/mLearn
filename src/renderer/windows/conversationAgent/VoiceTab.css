@@ -99,6 +99,38 @@
   color: var(--color-primary);
 }
 
+/* ------ Pipeline stage indicator ------ */
+
+.voice-stage-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.voice-stage-pill {
+  font-size: var(--font-size-xxs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 2px var(--spacing-2);
+  border-radius: var(--radius-full);
+  color: var(--text-tertiary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.voice-stage-pill.active {
+  color: var(--bg);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.voice-stage-arrow {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
 /* ------ Controls row ------ */
 
 .voice-controls {
@@ -172,40 +204,30 @@
   font-variant-numeric: tabular-nums;
 }
 
-.voice-remote-url-input {
-  flex: 1;
-  padding: var(--spacing-1) var(--spacing-2);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  font-size: var(--font-size-xs);
-  font-family: var(--font-mono);
-}
-
 /* ------ Messages area (shared with chat) ------ */
 
 .voice-messages {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-2) var(--spacing-3);
+  padding: var(--spacing-4) var(--spacing-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  scroll-behavior: smooth;
+  min-height: 0;
 }
 
-/* ------ Transcript preview ------ */
-
-.voice-transcript-preview {
-  padding: var(--spacing-2) var(--spacing-4);
-  font-size: var(--font-size-sm);
-  color: var(--text-tertiary);
-  font-style: italic;
-  border-top: 1px solid var(--border-color);
-  min-height: 28px;
-  flex-shrink: 0;
+.voice-messages::-webkit-scrollbar {
+  width: 6px;
 }
 
-.voice-transcript-preview.final {
-  color: var(--text-primary);
-  font-style: normal;
+.voice-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.voice-messages::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: var(--radius-sm);
 }
 
 /* ------ Voice sample selector ------ */
@@ -221,6 +243,16 @@
 
 .voice-sample-row label {
   white-space: nowrap;
+}
+
+.voice-sample-row.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voice-sample-row.disabled select,
+.voice-sample-row.disabled button {
+  pointer-events: none;
 }
 
 /* ------ Voice Aftermath ------ */

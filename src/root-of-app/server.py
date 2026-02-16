@@ -1886,21 +1886,30 @@ _voice_tts_downloading = False
 _voice_stt_progress = 0.0
 _voice_tts_progress = 0.0
 
-# TTS provider config — read from settings.json at startup
+# TTS provider config — reloaded from settings.json on each TTS request
 _tts_provider: str = "kokoro"   # 'kokoro' | 'remote'
 _remote_tts_url: str = ""
 
-if USER_DATA_PATH:
-    _tts_settings_path = os.path.join(USER_DATA_PATH, "settings.json")
-    if os.path.exists(_tts_settings_path):
-        try:
-            with open(_tts_settings_path, 'r', encoding='utf-8') as _f:
-                _tts_settings = json.load(_f)
-                _tts_provider = _tts_settings.get("ttsProvider", "kokoro")
-                _remote_tts_url = _tts_settings.get("remoteTtsUrl", "")
-                print(f"TTS provider: {_tts_provider}, remote URL: {_remote_tts_url}")
-        except Exception:
-            pass
+
+def _reload_tts_settings():
+    """Reload TTS provider settings from settings.json (called per-request)."""
+    global _tts_provider, _remote_tts_url
+    if not USER_DATA_PATH:
+        return
+    settings_path = os.path.join(USER_DATA_PATH, "settings.json")
+    if not os.path.exists(settings_path):
+        return
+    try:
+        with open(settings_path, 'r', encoding='utf-8') as f:
+            settings = json.load(f)
+            _tts_provider = settings.get("ttsProvider", "kokoro")
+            _remote_tts_url = settings.get("remoteTtsUrl", "")
+    except Exception:
+        pass
+
+
+# Load initial settings
+_reload_tts_settings()
 
 # Kokoro language code mapping (mLearn language code → Kokoro lang_code)
 _KOKORO_LANG_MAP = {
@@ -1953,7 +1962,7 @@ def _voice_check_idle():
 
 
 def _voice_unload():
-    global _voice_stt_model, _voice_tts_model, _voice_vad_model
+    global _voice_stt_model, _voice_tts_pipeline, _voice_vad_model
     any_unloaded = False
     with _voice_vad_lock:
         if _voice_vad_model is not None:
@@ -2198,6 +2207,8 @@ class TTSRequest(BaseModel):
 @app.post("/voice/tts")
 async def voice_tts_generate(req: TTSRequest):
     """Generate TTS audio. Returns binary WAV with sentence boundary metadata in headers."""
+    # Reload TTS settings so runtime changes take effect without restart
+    _reload_tts_settings()
     try:
         # If using remote provider, forward request to the remote server
         if _tts_provider == "remote" and _remote_tts_url:
@@ -2292,7 +2303,7 @@ async def _generate_tts_kokoro(req: TTSRequest):
     # Convert to WAV bytes
     import soundfile as sf
     buf = io.BytesIO()
-    sf.write(buf, combined, sr, format="WAV")
+    sf.write(buf, combined, sr, format="WAV", subtype="PCM_16")
     buf.seek(0)
 
     boundaries_json = json.dumps(sentence_boundaries)
@@ -2327,7 +2338,7 @@ async def voice_stream_ws(websocket: WebSocket):
     try:
         # Load voice models concurrently — run blocking loads in threads
         # so the event loop stays responsive and models init in parallel.
-        # Only load local TTS if using Kokoro provider.
+        _reload_tts_settings()
         loop = asyncio.get_running_loop()
         vad_future = loop.run_in_executor(None, _ensure_vad_loaded)
         stt_future = loop.run_in_executor(None, _ensure_stt_loaded)
@@ -2353,15 +2364,110 @@ async def voice_stream_ws(websocket: WebSocket):
         PARTIAL_INTERVAL = 1.0  # Send partial transcription every 1s during speech
         SAMPLE_RATE = 16000
         CHUNK_SAMPLES = 512  # VAD window size
+        MAX_SPEECH_SECONDS = 30  # Cap speech buffer to prevent runaway accumulation
+        MAX_SPEECH_BYTES = MAX_SPEECH_SECONDS * SAMPLE_RATE * 4  # float32 = 4 bytes
+
+        # Hallucination-filtering: common Whisper phantom phrases for short/silent input
+        _HALLUCINATION_PATTERNS = {
+            "ご視聴ありがとうございます",
+            "ご視聴ありがとうございました",
+            "おやすみなさい",
+            "お疲れ様でした",
+            "次の動画でお会いしましょう",
+            "チャンネル登録",
+            "thank you for watching",
+            "thanks for watching",
+            "please subscribe",
+            "see you in the next video",
+            "like and subscribe",
+        }
+
+        def _is_hallucination(text: str, audio_duration_s: float) -> bool:
+            """Detect Whisper hallucinations: phantom phrases on very short audio."""
+            stripped = text.strip().lower().rstrip("。！？.!?")
+            # Very short audio producing long text is suspicious
+            if audio_duration_s < 1.0 and len(stripped) > 5:
+                return True
+            for pattern in _HALLUCINATION_PATTERNS:
+                if pattern in stripped:
+                    return True
+            return False
+
+        async def _run_final_stt(buffer: bytearray) -> None:
+            """Run final STT transcription on accumulated speech buffer."""
+            buffer_bytes = bytes(buffer)
+            if len(buffer_bytes) < int(SAMPLE_RATE * 4 * 0.3):
+                return  # Too short — skip
+            try:
+                speech_np = np.frombuffer(buffer_bytes, dtype=np.float32)
+                audio_duration = len(speech_np) / SAMPLE_RATE
+                _voice_touch()
+                segments, info = stt_model.transcribe(
+                    speech_np,
+                    language=language,
+                    beam_size=5,
+                    vad_filter=False,
+                    condition_on_previous_text=False,
+                    no_speech_threshold=0.6,
+                    log_prob_threshold=-1.0,
+                )
+                final_text = " ".join(seg.text for seg in segments).strip()
+                if final_text and not _is_hallucination(final_text, audio_duration):
+                    await websocket.send_json({
+                        "type": "stt",
+                        "text": final_text,
+                        "isFinal": True,
+                        "isPartial": False,
+                    })
+            except Exception as e:
+                _log("Final STT error:", e)
+                await websocket.send_json({"type": "error", "message": str(e)})
 
         while True:
             try:
-                data = await asyncio.wait_for(websocket.receive_bytes(), timeout=30.0)
+                raw_data = await asyncio.wait_for(websocket.receive(), timeout=30.0)
             except asyncio.TimeoutError:
+                # Send keepalive ping to prevent connection drop
+                try:
+                    await websocket.send_json({"type": "ping"})
+                except Exception:
+                    break
                 continue
             except WebSocketDisconnect:
                 break
 
+            # Handle both binary audio data and text commands
+            if "text" in raw_data:
+                try:
+                    cmd = json.loads(raw_data["text"])
+                    cmd_type = cmd.get("type", "")
+
+                    if cmd_type == "flush":
+                        # PTT release or explicit flush — immediately process buffered speech
+                        if is_speaking and len(speech_buffer) > 0:
+                            is_speaking = False
+                            silence_start = None
+                            await websocket.send_json({"type": "vad", "event": "speech-end"})
+                            await _run_final_stt(speech_buffer)
+                            speech_buffer = bytearray()
+                        continue
+
+                    if cmd_type == "silence_threshold":
+                        new_threshold = float(cmd.get("value", silence_threshold))
+                        silence_threshold = max(0.3, min(10.0, new_threshold))
+                        continue
+
+                    if cmd_type == "pong":
+                        continue
+
+                except (json.JSONDecodeError, ValueError):
+                    pass
+                continue
+
+            if "bytes" not in raw_data:
+                continue
+
+            data = raw_data["bytes"]
             audio_buffer.extend(data)
 
             # Process in VAD-sized chunks
@@ -2387,6 +2493,16 @@ async def voice_stream_ws(websocket: WebSocket):
 
                     speech_buffer.extend(chunk_data)
 
+                    # Cap speech buffer to prevent unbounded growth
+                    if len(speech_buffer) >= MAX_SPEECH_BYTES:
+                        # Force-process what we have and reset
+                        is_speaking = False
+                        silence_start = None
+                        await websocket.send_json({"type": "vad", "event": "speech-end"})
+                        await _run_final_stt(speech_buffer)
+                        speech_buffer = bytearray()
+                        continue
+
                     # Periodic partial transcription
                     now = time.monotonic()
                     if now - last_partial_time > PARTIAL_INTERVAL and len(speech_buffer) > SAMPLE_RATE * bytes_per_sample:
@@ -2395,12 +2511,14 @@ async def voice_stream_ws(websocket: WebSocket):
                             speech_np = np.frombuffer(bytes(speech_buffer), dtype=np.float32)
                             segments, _ = stt_model.transcribe(
                                 speech_np,
-                                language=language if language != "ja" else "ja",
+                                language=language,
                                 beam_size=1,
                                 vad_filter=False,
+                                condition_on_previous_text=False,
+                                no_speech_threshold=0.6,
                             )
                             partial_text = " ".join(seg.text for seg in segments).strip()
-                            if partial_text:
+                            if partial_text and not _is_hallucination(partial_text, len(speech_np) / SAMPLE_RATE):
                                 await websocket.send_json({
                                     "type": "stt",
                                     "text": partial_text,
@@ -2419,29 +2537,7 @@ async def voice_stream_ws(websocket: WebSocket):
                             is_speaking = False
                             silence_start = None
                             await websocket.send_json({"type": "vad", "event": "speech-end"})
-
-                            if len(speech_buffer) > SAMPLE_RATE * bytes_per_sample * 0.3:
-                                try:
-                                    speech_np = np.frombuffer(bytes(speech_buffer), dtype=np.float32)
-                                    _voice_touch()
-                                    segments, _ = stt_model.transcribe(
-                                        speech_np,
-                                        language=language if language != "ja" else "ja",
-                                        beam_size=5,
-                                        vad_filter=False,
-                                    )
-                                    final_text = " ".join(seg.text for seg in segments).strip()
-                                    if final_text:
-                                        await websocket.send_json({
-                                            "type": "stt",
-                                            "text": final_text,
-                                            "isFinal": True,
-                                            "isPartial": False,
-                                        })
-                                except Exception as e:
-                                    _log("Final STT error:", e)
-                                    await websocket.send_json({"type": "error", "message": str(e)})
-
+                            await _run_final_stt(speech_buffer)
                             speech_buffer = bytearray()
                     else:
                         silence_start = None

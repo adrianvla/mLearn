@@ -4,88 +4,42 @@
 
 .settings-window {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   width: 100vw;
   background: var(--bg);
   color: var(--text-primary);
-}
-
-/* Top Navigation Layout */
-.settings-window.top-nav-layout {
-  flex-direction: column;
-  height: 100vh;
   overflow: hidden;
 }
 
-/* Header with top navigation */
-.settings-header {
-  display: flex;
-  align-items: center;
-  padding: 12px 24px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border-color);
-  gap: 24px;
-  flex-shrink: 0;
-  user-select: none;
+/* Drag region at the very top for window dragging */
+.settings-drag-region {
+  height: 28px;
+  width: 100%;
   -webkit-app-region: drag;
-}
-
-.settings-header .settings-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0;
-  padding: 0;
-  border: none;
-  white-space: nowrap;
-}
-
-/* Tab navigation */
-.settings-tabs {
-  display: flex;
-  gap: 8px;
-  flex: 1;
-  overflow-x: auto;
-}
-
-.settings-tab {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 8px 8px;
-  background: transparent;
-  border: 1px solid transparent; /* to prevent size changes */
-  border-radius: 8px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-  box-sizing: border-box;
-  -webkit-app-region: no-drag;
-}
-.settings-tab:hover {
-  background: var(--accent-bg);
-  color: var(--text-primary);
-  border-color: var(--border-color);
-}
-
-.settings-tab.active {
-  background: var(--bg);
-  color: var(--text-primary);
-  font-weight: var(--font-weight-medium);
-  border: 1px solid var(--border-color);
-}
-
-.settings-tab .tab-icon {
-  width: 24px;
-  height: 24px;
   flex-shrink: 0;
-  display: block;
 }
 
-.settings-tab.active .tab-icon {
-  opacity: 1;
+/* TabContainer overrides for settings sidebar */
+.settings-tab-container.tab-container.vertical {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-tab-container.tab-container.vertical > .tab-list {
+  min-width: 180px;
+  max-width: 200px;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+  gap: var(--spacing-1);
+}
+
+.settings-tab-container .settings-tab-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 /* Content */
@@ -93,69 +47,13 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  min-height: 0; /* Crucial for flexbox overflow scrolling */
+  min-height: 0;
 }
 
 
 .tab-header p {
   color: var(--text-secondary);
   margin: 0;
-}
-
-/* Setting Groups */
-.setting-group {
-  margin-bottom: 24px;
-  padding: 20px;
-  background: var(--bg);
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-}
-
-.setting-group h3 {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  margin: 0 0 16px;
-  color: var(--text-primary);
-}
-
-/* Setting Row */
-.setting-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.setting-row:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.setting-row:first-child {
-  padding-top: 0;
-}
-
-.setting-info {
-  flex: 1;
-}
-
-.setting-label {
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-  display: block;
-  margin-bottom: 2px;
-}
-
-.setting-description {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
-.setting-control {
-  flex-shrink: 0;
-  margin-left: 16px;
-  color:var(--text-secondary);
 }
 
 /* Select Input */

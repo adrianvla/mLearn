@@ -4,7 +4,7 @@
  * plays back TTS audio via Web Audio API with sentence-level interruption tracking.
  */
 
-import { Component, Show, createSignal, createEffect, onCleanup, Index, onMount } from 'solid-js';
+import { Component, Show, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
 import { useSettings, useLocalization } from '../../context';
 import {
   Btn,
@@ -15,6 +15,7 @@ import {
   AlertBanner,
   Spinner,
   Select,
+  Input,
 } from '../../components/common';
 import type { SelectOption } from '../../components/common';
 import { ChatBubble } from './ChatBubble';
@@ -99,6 +100,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const [audioLevel, setAudioLevel] = createSignal(0);
   const [micError, setMicError] = createSignal('');
   const [ttsModelLoading, setTtsModelLoading] = createSignal(false);
+  // Tick counter drives continuous visualizer animation independent of audio level
+  const [tick, setTick] = createSignal(0);
 
   // Voice sample state
   const [voiceSamples, setVoiceSamples] = createSignal<VoiceSample[]>([]);
@@ -119,6 +122,17 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   let ttsPlaying = false;
   let ttsSentenceTexts: string[] = []; // full ordered list of sentence texts for this TTS turn
   let ttsCurrentSentenceIdx = 0;
+  let ttsAudioContext: AudioContext | null = null; // separate context for TTS playback
+
+  // TTS generation guard — prevents stale audio from playing after cancellation
+  let ttsAborted = false;
+  // Sentence timing for estimating interruption position within a sentence
+  let ttsCurrentSentenceStartTime = 0;
+  let ttsCurrentSentenceDuration = 0;
+  // Barge-in detection: consecutive mic-loud frames during TTS playback
+  let bargeInFrames = 0;
+  const BARGE_IN_THRESHOLD = 0.15;
+  const BARGE_IN_FRAMES_REQUIRED = 3;
 
   // Voice mode from settings
   const voiceMode = () => (settings.voiceMode || 'vad') as VoiceMode;
@@ -196,15 +210,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     });
     if (unsub2) cleanups.push(unsub2);
 
-    // VAD events
+    // VAD events — during TTS playback, audio is not streamed to backend,
+    // so no VAD events arrive; barge-in is detected locally via mic level.
     const unsub3 = ipc.onVoiceVadEvent((event) => {
       if (event.type === 'speech-start') {
+        if (ttsPlaying) return; // safety guard — barge-in handled locally
         setCallState('listening');
-        // Interrupt TTS if speaking — track what was said vs interrupted
-        if (ttsPlaying) {
-          handleTTSInterruption();
-          props.onAbort();
-        }
       } else if (event.type === 'speech-end') {
         if (callState() === 'listening') {
           setCallState('processing');
@@ -215,6 +226,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     // TTS audio — queue sentences for sequential playback
     const unsub4 = ipc.onVoiceTtsAudio((audio: VoiceTtsAudio) => {
+      if (ttsAborted) return; // ignore audio from a cancelled generation
       ttsQueue.push(audio);
       // Collect sentence texts for interruption tracking
       if (audio.sentenceText && audio.sentenceIndex !== undefined) {
@@ -291,12 +303,15 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     const msgs = props.messages;
     if (msgs.length === 0) return;
     const last = msgs[msgs.length - 1];
-    if (last.role === 'assistant' && last.content && !props.isStreaming) {
+    // Skip TTS for interrupted messages to avoid re-reading already-spoken text
+    if (last.role === 'assistant' && last.content && !props.isStreaming && !last.interrupted) {
       // Reset sentence queue for new TTS turn
+      ttsAborted = false;
       ttsQueue = [];
       ttsQueueIndex = 0;
       ttsSentenceTexts = [];
       ttsCurrentSentenceIdx = 0;
+      bargeInFrames = 0;
       // Generate TTS for the final assistant response with optional voice cloning
       const sampleId = selectedSampleId() || undefined;
       window.mLearnIPC?.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId);
@@ -308,6 +323,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // ============================================================================
 
   const startAudioCapture = async () => {
+    // Clean up any existing capture to prevent duplicate pipelines
+    stopAudioCapture();
+
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -335,6 +353,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       scriptNode.onaudioprocess = (e) => {
         if (!isCallActive()) return;
         if (voiceMode() === 'push-to-talk' && !pttActive()) return;
+        // Don't stream mic audio to backend during TTS playback — prevents
+        // TTS echo from triggering the server-side VAD. Barge-in is detected
+        // locally via the analyser node instead.
+        if (ttsPlaying) return;
 
         const inputData = e.inputBuffer.getChannelData(0);
         const samples = new Float32Array(inputData);
@@ -375,7 +397,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   };
 
   const updateVisualizer = () => {
-    if (!analyserNode) return;
+    if (!analyserNode || !isCallActive()) {
+      animFrameId = null;
+      return;
+    }
     const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
     analyserNode.getByteFrequencyData(dataArray);
 
@@ -384,6 +409,25 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
     const avg = sum / dataArray.length / 255;
     setAudioLevel(avg);
+    // Increment tick on every frame so the visualizer wave animates continuously
+    // regardless of whether the audio level actually changed.
+    setTick(t => t + 1);
+
+    // Barge-in detection: when TTS is playing, local mic level above threshold
+    // for several consecutive frames indicates the user is actually speaking
+    // (not just echo from TTS output).
+    if (ttsPlaying) {
+      if (avg > BARGE_IN_THRESHOLD) {
+        bargeInFrames++;
+        if (bargeInFrames >= BARGE_IN_FRAMES_REQUIRED) {
+          bargeInFrames = 0;
+          handleTTSInterruption();
+          props.onAbort();
+        }
+      } else {
+        bargeInFrames = 0;
+      }
+    }
 
     animFrameId = requestAnimationFrame(updateVisualizer);
   };
@@ -396,6 +440,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     if (ttsQueueIndex >= ttsQueue.length) {
       // All sentences played
       ttsPlaying = false;
+      bargeInFrames = 0;
       if (isCallActive()) {
         setCallState('listening');
       }
@@ -405,19 +450,19 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     const audio = ttsQueue[ttsQueueIndex];
     ttsCurrentSentenceIdx = audio.sentenceIndex ?? ttsQueueIndex;
 
-    if (!audioContext) {
-      audioContext = new AudioContext();
+    if (!ttsAudioContext) {
+      ttsAudioContext = new AudioContext();
     }
 
     setCallState('speaking');
     ttsPlaying = true;
 
-    const buffer = audioContext.createBuffer(1, audio.samples.length, audio.sampleRate);
+    const buffer = ttsAudioContext.createBuffer(1, audio.samples.length, audio.sampleRate);
     buffer.getChannelData(0).set(audio.samples);
 
-    ttsSource = audioContext.createBufferSource();
+    ttsSource = ttsAudioContext.createBufferSource();
     ttsSource.buffer = buffer;
-    ttsSource.connect(audioContext.destination);
+    ttsSource.connect(ttsAudioContext.destination);
 
     ttsSource.onended = () => {
       ttsQueueIndex++;
@@ -425,6 +470,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     };
 
     ttsSource.start();
+    // Record timing for interruption position estimation
+    ttsCurrentSentenceStartTime = Date.now();
+    ttsCurrentSentenceDuration = buffer.duration;
   };
 
   /** Handle TTS interruption — compute spoken vs interrupted text */
@@ -435,19 +483,35 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
 
     // Sentences fully played = indices 0..ttsCurrentSentenceIdx-1
-    // Current sentence was interrupted mid-playback
     const spokenParts: string[] = [];
     for (let i = 0; i < ttsCurrentSentenceIdx; i++) {
       if (ttsSentenceTexts[i]) spokenParts.push(ttsSentenceTexts[i]);
     }
-    // Add current (partially played) sentence
+
+    // Estimate how much of the current sentence was actually played
     const currentText = ttsSentenceTexts[ttsCurrentSentenceIdx] || '';
-    if (currentText) spokenParts.push(currentText);
+    if (currentText) {
+      if (ttsCurrentSentenceDuration > 0 && ttsCurrentSentenceStartTime > 0) {
+        const elapsedMs = Date.now() - ttsCurrentSentenceStartTime;
+        const ratio = Math.min(1, Math.max(0, (elapsedMs / 1000) / ttsCurrentSentenceDuration));
+        const charIdx = Math.max(1, Math.ceil(currentText.length * ratio));
+        spokenParts.push(currentText.substring(0, charIdx));
+      } else {
+        spokenParts.push(currentText);
+      }
+    }
 
     const spokenText = spokenParts.join(' ');
 
-    // Remaining unspoken sentences
+    // Remaining unspoken text: rest of current sentence + all subsequent sentences
     const remainingParts: string[] = [];
+    if (currentText && ttsCurrentSentenceDuration > 0 && ttsCurrentSentenceStartTime > 0) {
+      const elapsedMs = Date.now() - ttsCurrentSentenceStartTime;
+      const ratio = Math.min(1, Math.max(0, (elapsedMs / 1000) / ttsCurrentSentenceDuration));
+      const charIdx = Math.max(1, Math.ceil(currentText.length * ratio));
+      const rest = currentText.substring(charIdx).trim();
+      if (rest) remainingParts.push(rest);
+    }
     for (let i = ttsCurrentSentenceIdx + 1; i < ttsSentenceTexts.length; i++) {
       if (ttsSentenceTexts[i]) remainingParts.push(ttsSentenceTexts[i]);
     }
@@ -466,10 +530,18 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       ttsSource = null;
     }
     ttsPlaying = false;
+    ttsAborted = true; // reject any in-flight audio from this generation
     ttsQueue = [];
     ttsQueueIndex = 0;
     ttsSentenceTexts = [];
     ttsCurrentSentenceIdx = 0;
+    ttsCurrentSentenceStartTime = 0;
+    ttsCurrentSentenceDuration = 0;
+    bargeInFrames = 0;
+    if (ttsAudioContext) {
+      ttsAudioContext.close();
+      ttsAudioContext = null;
+    }
     window.mLearnIPC?.voiceTtsStop();
   };
 
@@ -496,14 +568,30 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     );
   };
 
-  // Called when the session ready event arrives from main process —
-  // only now start capturing audio so no data is sent while models load.
+  // Start audio capture when the voice session becomes ready.
+  // Uses on() to limit reactive tracking to only the session-readiness signals
+  // and prevent re-running when messages or streaming state change.
+  let audioCaptureStarted = false;
+  createEffect(
+    on(
+      [isCallActive, isInitializing, initError],
+      () => {
+        if (isCallActive() && !isInitializing() && !initError()) {
+          if (!audioCaptureStarted) {
+            audioCaptureStarted = true;
+            setCallState('listening');
+            startAudioCapture();
+          }
+        } else {
+          audioCaptureStarted = false;
+        }
+      },
+    ),
+  );
+
+  // Request a greeting when the call starts and there are no messages yet.
   createEffect(() => {
     if (isCallActive() && !isInitializing() && !initError()) {
-      setCallState('listening');
-      startAudioCapture();
-
-      // Request the model to start the conversation with a greeting
       if (props.messages.length === 0 && !props.isStreaming) {
         props.onRequestGreeting();
       }
@@ -554,6 +642,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   const setSilenceThreshold = (threshold: number) => {
     updateSettings({ ...settings, voiceSilenceThreshold: threshold });
+    // Update the server-side threshold in real-time
+    window.mLearnIPC?.voiceUpdateSilenceThreshold(threshold);
   };
 
   // Voice sample upload
@@ -590,7 +680,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // ============================================================================
 
   const handlePttDown = () => setPttActive(true);
-  const handlePttUp = () => setPttActive(false);
+  const handlePttUp = () => {
+    if (pttActive()) {
+      setPttActive(false);
+      // Flush the server-side speech buffer so it immediately runs STT
+      window.mLearnIPC?.voiceFlush();
+    }
+  };
 
   // ============================================================================
   // Derived State
@@ -611,9 +707,24 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
   };
 
+  /** Map call state to the active pipeline stage label */
+  const activeStage = (): 'stt' | 'llm' | 'tts' | null => {
+    if (!isCallActive()) return null;
+    const state = callState();
+    switch (state) {
+      case 'listening': return 'stt';
+      case 'processing': return 'llm';
+      case 'speaking': return 'tts';
+      default: return null;
+    }
+  };
+
   // Generate bar heights for visualizer
   const barCount = 12;
   const getBarHeight = (index: number) => {
+    // Reading tick() ensures this re-evaluates on every animation frame,
+    // even when audioLevel stays constant (e.g. during TTS speaking state).
+    void tick();
     if (!isCallActive() || callState() === 'idle') return 4;
     const level = audioLevel();
     // Create wave-like pattern using index offset
@@ -733,10 +844,25 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 ))}
               </div>
 
-              {/* Status */}
+              {/* Status + Stage indicator */}
               <div class={`voice-status-text ${isCallActive() ? 'active' : ''}`}>
                 {isCallActive() ? statusText() : ''}
               </div>
+              <Show when={isCallActive()}>
+                <div class="voice-stage-indicator">
+                  <span class={`voice-stage-pill ${activeStage() === 'stt' ? 'active' : ''}`}>
+                    {t('mlearn.ConversationAgent.Voice.Stage.STT')}
+                  </span>
+                  <span class="voice-stage-arrow">›</span>
+                  <span class={`voice-stage-pill ${activeStage() === 'llm' ? 'active' : ''}`}>
+                    {t('mlearn.ConversationAgent.Voice.Stage.LLM')}
+                  </span>
+                  <span class="voice-stage-arrow">›</span>
+                  <span class={`voice-stage-pill ${activeStage() === 'tts' ? 'active' : ''}`}>
+                    {t('mlearn.ConversationAgent.Voice.Stage.TTS')}
+                  </span>
+                </div>
+              </Show>
             </Show>
 
             {/* Controls */}
@@ -814,7 +940,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                     onClick={() => setTtsProvider('kokoro')}
                     class="voice-mode-btn"
                   >
-                    Kokoro
+                    {t('mlearn.ConversationAgent.Voice.LocalTts')}
                   </Btn>
                   <Btn
                     size="sm"
@@ -832,12 +958,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             <Show when={isCallActive() && !isInitializing() && (settings.ttsProvider || 'kokoro') === 'remote'}>
               <div class="voice-speed-row">
                 <label>{t('mlearn.ConversationAgent.Voice.RemoteTtsUrl')}</label>
-                <input
+                <Input
                   type="text"
-                  class="voice-remote-url-input"
+                  size="sm"
                   placeholder="http://192.168.1.100:7760"
                   value={settings.remoteTtsUrl || ''}
                   onInput={(e) => setRemoteTtsUrl(e.currentTarget.value)}
+                  fullWidth
                 />
               </div>
             </Show>
@@ -874,36 +1001,33 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
             {/* Voice sample selector */}
             <Show when={isCallActive() && !isInitializing()}>
-              <div class="voice-sample-row">
+              <div class={`voice-sample-row ${(settings.ttsProvider || 'kokoro') === 'kokoro' ? 'disabled' : ''}`}
+                title={(settings.ttsProvider || 'kokoro') === 'kokoro' ? t('mlearn.ConversationAgent.Voice.VoiceSampleDisabledLocal') : undefined}
+              >
                 <label>{t('mlearn.ConversationAgent.Voice.VoiceSample')}</label>
                 <Select
                   options={voiceSampleOptions()}
                   value={selectedSampleId()}
                   onChange={(e) => setSelectedSampleId(e.currentTarget.value)}
                   size="sm"
+                  disabled={(settings.ttsProvider || 'kokoro') === 'kokoro'}
                 />
                 <IconBtn
                   icon={<UploadIcon />}
                   variant="ghost"
                   size="sm"
                   onClick={handleSampleUpload}
+                  disabled={(settings.ttsProvider || 'kokoro') === 'kokoro'}
                   aria-label={t('mlearn.ConversationAgent.Voice.UploadSample')}
                 />
               </div>
             </Show>
           </div>
 
-          {/* Partial transcript preview */}
-          <Show when={partialTranscript()}>
-            <div class="voice-transcript-preview">
-              {partialTranscript()}
-            </div>
-          </Show>
-
           {/* Messages (shared with chat tab) */}
           <div class="voice-messages" ref={messagesRef}>
             <Show
-              when={props.messages.length > 0}
+              when={props.messages.length > 0 || partialTranscript()}
               fallback={
                 <EmptyState
                   icon="🎙️"
@@ -929,6 +1053,19 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   </Show>
                 )}
               </Index>
+              {/* Live STT user bubble — shows partial transcript as a real-time updating user message */}
+              <Show when={partialTranscript()}>
+                <ChatBubble
+                  message={{
+                    role: 'user',
+                    content: partialTranscript(),
+                    timestamp: Date.now(),
+                  }}
+                  isStreaming={true}
+                  isWaiting={false}
+                  isProcessingToolCall={false}
+                />
+              </Show>
             </Show>
           </div>
         </div>

@@ -95,6 +95,27 @@ export const GeneralTab: Component = () => {
 
       <SettingGroup title={t('mlearn.Settings.Groups.Language')}>
         <SettingRow
+          label={t('mlearn.Settings.Language.AppLanguage.Label')}
+          description={t('mlearn.Settings.Language.AppLanguage.Description')}
+        >
+          <Select
+            class="setting-select"
+            value={settings.uiLanguage || 'en'}
+            onChange={(e) => {
+              const lang = e.currentTarget.value;
+              updateSettings({ uiLanguage: lang });
+              saveSettings();
+            }}
+          >
+            <option value="en">{t('mlearn.LocaleNames.en')}</option>
+            <option value="ja">{t('mlearn.LocaleNames.ja')}</option>
+            <option value="de">{t('mlearn.LocaleNames.de')}</option>
+            <option value="fr">{t('mlearn.LocaleNames.fr')}</option>
+            <option value="ru">{t('mlearn.LocaleNames.ru')}</option>
+          </Select>
+        </SettingRow>
+
+        <SettingRow
           label={t('mlearn.Settings.Language.LearningLanguage.Label')}
           description={t('mlearn.Settings.Language.LearningLanguage.Description')}
         >

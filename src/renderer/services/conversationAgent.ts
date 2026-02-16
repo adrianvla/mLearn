@@ -65,6 +65,8 @@ export interface AgentInstance {
   tokenize: (text: string) => Promise<Token[]>;
   /** Continue the conversation with context (e.g., quiz result) without a visible user message */
   continueWithContext: (context: string, callbacks: StreamCallbacks) => void;
+  /** Replace the last assistant message in history with the truncated spoken text and add interruption context */
+  markInterrupted: (spokenText: string) => void;
 }
 
 // ============================================================================
@@ -350,6 +352,8 @@ function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentCon
 - Speak naturally and conversationally, as if chatting with a friend.
 - If the learner makes a mistake, gently mention the correction in your speech AND call the "note_mistake" tool.
 - The "note_mistake" tool MUST be called at the END of your response whenever the learner makes an error.
+- Do NOT correct speech patterns that are valid informal/casual variations. Only correct actual mistakes.
+- If your previous message contains "[interrupted by user]", it means the learner interrupted you mid-speech. Do NOT repeat or reference the interrupted content. Simply continue the conversation naturally from where the learner picks up.
 
 ## Personality
 - Patient, warm, encouraging.
@@ -546,7 +550,7 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
 // Tokenization
 // ============================================================================
 
-const TOKENIZE_TIMEOUT_MS = 1500;
+const TOKENIZE_TIMEOUT_MS = 5000;
 
 async function tokenizeText(text: string, langCode: string): Promise<Token[]> {
   const trimmed = text.trim();
@@ -591,20 +595,33 @@ const KNOWN_TOOL_NAMES = new Set([...AGENT_TOOLS.map((t) => t.name), ...VOICE_AG
 function parseToolCallsFromContent(content: string): { cleanedContent: string; toolCalls: ToolCall[] } {
   const toolCalls: ToolCall[] = [];
 
-  // Match patterns like: tool_name({ ... }) or tool_name({\n...\n})
-  // The regex handles multiline JSON args with balanced braces
+  let cleanedContent = content;
+  let match: RegExpExecArray | null;
+
+  // Strip `interruptedbyuser` markers (emitted inline when the user interrupts TTS)
+  cleanedContent = cleanedContent.replace(/\s*interruptedbyuser\s*/g, ' ');
+
+  // Pattern 1: tool_name({ ... }) — with parentheses
   const toolCallPattern = new RegExp(
     `(${Array.from(KNOWN_TOOL_NAMES).join('|')})\\s*\\(\\s*(\\{[\\s\\S]*?\\})\\s*\\)`,
     'g',
   );
 
-  let cleanedContent = content;
-  let match: RegExpExecArray | null;
-
-  // Collect all matches first to avoid mutation during iteration
   const matches: { fullMatch: string; name: string; argsStr: string }[] = [];
-  while ((match = toolCallPattern.exec(content)) !== null) {
+  while ((match = toolCallPattern.exec(cleanedContent)) !== null) {
     matches.push({ fullMatch: match[0], name: match[1], argsStr: match[2] });
+  }
+
+  // Pattern 2: tool_name{ ... } — without parentheses (some models emit this)
+  const toolCallNoParen = new RegExp(
+    `(${Array.from(KNOWN_TOOL_NAMES).join('|')})\\s*(\\{[\\s\\S]*?\\})`,
+    'g',
+  );
+  while ((match = toolCallNoParen.exec(cleanedContent)) !== null) {
+    // Avoid duplicates from pattern 1 (which would include parentheses)
+    if (!matches.some((m) => m.fullMatch.includes(match![0]))) {
+      matches.push({ fullMatch: match[0], name: match[1], argsStr: match[2] });
+    }
   }
 
   for (const { fullMatch, name, argsStr } of matches) {
@@ -929,8 +946,6 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       ...conversationHistory,
     ];
 
-    console.log('[ConversationAgent] [DEBUG] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
-
     let accumulated = '';
     const collectedToolCalls: ToolCall[] = [];
     const widgets = [...existingWidgets];
@@ -962,8 +977,6 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       if (chunk.done) {
         streamCleanup?.();
         streamCleanup = null;
-
-        console.log('[ConversationAgent] [DEBUG] LLM streamed response:', accumulated);
 
         if (aborted) return;
 
@@ -1092,5 +1105,18 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     startStream(callbacks, language, langName);
   }
 
-  return { processMessage, abortStream, clearHistory, tokenize, continueWithContext };
+  function markInterrupted(spokenText: string): void {
+    // Find the last assistant message in history and replace with truncated spoken text
+    for (let i = conversationHistory.length - 1; i >= 0; i--) {
+      if (conversationHistory[i].role === 'assistant') {
+        conversationHistory[i] = {
+          ...conversationHistory[i],
+          content: spokenText + ' [interrupted by user]',
+        };
+        break;
+      }
+    }
+  }
+
+  return { processMessage, abortStream, clearHistory, tokenize, continueWithContext, markInterrupted };
 }

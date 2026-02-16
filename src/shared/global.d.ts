@@ -180,6 +180,8 @@ export interface MLearnIPC {
   voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number) => void;
   voiceStopSession: () => void;
   voiceSendAudioChunk: (samples: Float32Array) => void;
+  voiceFlush: () => void;
+  voiceUpdateSilenceThreshold: (threshold: number) => void;
   onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) => () => void;
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) => () => void;
   voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string) => void;

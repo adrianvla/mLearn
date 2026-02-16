@@ -88,12 +88,22 @@ export function setUILanguage(langCode: string): void {
 }
 
 /**
- * Initialize localization with default language
+ * Initialize localization with the saved UI language from settings
  */
 export function initializeLocalization(): void {
-  // Load English as default
-  currentLocale = 'en';
-  localeData = loadLocalization('en');
+  // Try to read the saved uiLanguage from settings
+  let savedLang = 'en';
+  try {
+    const { loadSettings } = require('./settings');
+    const settings = loadSettings();
+    if (settings.uiLanguage) {
+      savedLang = settings.uiLanguage;
+    }
+  } catch {
+    // Settings not available yet, use English
+  }
+  currentLocale = savedLang;
+  localeData = loadLocalization(savedLang);
 }
 
 /**
