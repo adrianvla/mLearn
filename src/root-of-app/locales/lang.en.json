@@ -508,6 +508,10 @@
         "LearningLanguage": {
           "Label": "Learning Language",
           "Description": "Select the language you are learning"
+        },
+        "AppLanguage": {
+          "Label": "App Language",
+          "Description": "Select the language for the user interface"
         }
       },
       "Appearance": {
@@ -1034,6 +1038,13 @@
       "pt": "Portuguese",
       "ru": "Russian"
     },
+    "LocaleNames": {
+      "en": "English",
+      "ja": "日本語",
+      "de": "Deutsch",
+      "fr": "Français",
+      "ru": "Русский"
+    },
     "Errors": {
       "FirstArgumentMustBeString": "First argument must be a string",
       "ChunkSizeMustBePositive": "Chunk size must be a positive number",
@@ -1080,7 +1091,8 @@
       },
       "Empty": {
         "Title": "Start a conversation",
-        "Hint": "Practice your target language with the AI tutor. It will correct mistakes, quiz you, and help you learn."
+        "Hint": "Practice your target language with the AI tutor. It will correct mistakes, quiz you, and help you learn.",
+        "StartConversation": "Let AI start"
       },
       "InputPlaceholder": "Message in {language}...",
       "Stats": {
@@ -1142,6 +1154,9 @@
         "Listening": "Listening…",
         "Processing": "Processing…",
         "Speaking": "Speaking…",
+        "Stage.STT": "STT",
+        "Stage.LLM": "LLM",
+        "Stage.TTS": "TTS",
         "CallEnded": "Call ended",
         "StartCall": "Start voice call",
         "EndCall": "End call",
@@ -1151,6 +1166,7 @@
         "DownloadFailed": "Failed to download voice models. The required dependencies may not be installed. Please reinstall the application or check the logs for details.",
         "TtsSpeed": "Speech speed",
         "TtsProvider": "TTS engine",
+        "LocalTts": "Local",
         "RemoteTts": "Remote",
         "RemoteTtsUrl": "Server URL",
         "Interrupted": "*interrupted by user*",
@@ -1163,6 +1179,7 @@
         "LoadingTtsModel": "Loading speech model…",
         "DefaultVoice": "Default voice",
         "VoiceSample": "Voice clone",
+        "VoiceSampleDisabledLocal": "Custom voice upload is only available with the Remote TTS engine",
         "UploadSample": "Upload voice sample",
         "Aftermath": {
           "Title": "Session Summary",

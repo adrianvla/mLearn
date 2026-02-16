@@ -182,15 +182,25 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
         </Show>
         <Show when={!isAssistantEmpty() && !hasCorrections() && !hasTokens() && !isAssistant()}>
           <span>{props.message.content}</span>
+          <Show when={props.isStreaming}>
+            <span class="chat-bubble-cursor" />
+          </Show>
+        </Show>
+
+        {/* Spinner shown while processing tool calls (inside bubble for consistency) */}
+        <Show when={props.isProcessingToolCall && !props.isWaiting}>
+          <div class="chat-bubble-tool-spinner">
+            <Spinner size={14} />
+          </div>
+        </Show>
+
+        {/* Interrupted indicator */}
+        <Show when={props.message.interrupted}>
+          <span class="chat-bubble-interrupted">
+            ✂ {t('mlearn.ConversationAgent.Voice.Interrupted')}
+          </span>
         </Show>
       </div>
-
-      {/* Spinner shown while processing tool calls */}
-      <Show when={props.isProcessingToolCall && !props.isWaiting}>
-        <div class="chat-bubble-tool-spinner">
-          <Spinner size={14} />
-        </div>
-      </Show>
 
       <Show when={messageWidgets().length > 0}>
         <div class="chat-widget">

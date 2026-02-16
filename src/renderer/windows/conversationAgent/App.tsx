@@ -37,25 +37,29 @@ import './ConversationAgent.css';
  * Known tool names used by the conversation agent.
  * Used to detect and hide partial tool call text during streaming.
  */
-const TOOL_NAMES = ['correct_mistake', 'create_quiz', 'fetch_url', 'get_media_stats'];
+const TOOL_NAMES = ['correct_mistake', 'create_quiz', 'fetch_url', 'get_media_stats', 'note_mistake'];
 
 /**
  * Strip any trailing partial tool call text from streamed content.
  * During streaming the LLM may output e.g. `correct_mistake({` before
  * the full tool call is complete — we hide it to avoid a jarring UX.
+ * Also strips inline markers like `interruptedbyuser`.
  */
 function stripPartialToolCall(text: string): string {
+  // Strip interruptedbyuser markers
+  let cleaned = text.replace(/\s*interruptedbyuser\s*/g, ' ');
+
   // Check if any tool name appears near the end of the text (last 200 chars)
-  const tail = text.slice(-200);
+  const tail = cleaned.slice(-200);
   for (const name of TOOL_NAMES) {
     const idx = tail.lastIndexOf(name);
     if (idx !== -1) {
       // Found a tool name in the tail — strip from that point onward
-      const absoluteIdx = text.length - 200 + idx;
-      return text.slice(0, absoluteIdx < 0 ? 0 : absoluteIdx).trimEnd();
+      const absoluteIdx = cleaned.length - 200 + idx;
+      return cleaned.slice(0, absoluteIdx < 0 ? 0 : absoluteIdx).trimEnd();
     }
   }
-  return text;
+  return cleaned;
 }
 
 // Send icon SVG
@@ -342,6 +346,7 @@ const ConversationContent: Component = () => {
    */
   const buildStreamCallbacks = (): StreamCallbacks => {
     let streamTokenizeId = 0;
+    let streamTokenizeTimer: ReturnType<typeof setTimeout> | null = null;
 
     return {
       onChunk: (accumulated) => {
@@ -357,20 +362,24 @@ const ConversationContent: Component = () => {
         });
 
         if (visibleContent.trim()) {
-          const tokenizeId = ++streamTokenizeId;
-          agent.tokenize(visibleContent).then((tokens) => {
-            if (tokenizeId !== streamTokenizeId) return;
-            if (tokens.length > 0) {
-              setMessages((prev) => {
-                const updated = [...prev];
-                const lastIdx = updated.length - 1;
-                if (updated[lastIdx]?.role === 'assistant') {
-                  updated[lastIdx] = { ...updated[lastIdx], tokens };
-                }
-                return updated;
-              });
-            }
-          });
+          // Debounce tokenization during streaming to avoid flooding the backend
+          if (streamTokenizeTimer) clearTimeout(streamTokenizeTimer);
+          streamTokenizeTimer = setTimeout(() => {
+            const tokenizeId = ++streamTokenizeId;
+            agent.tokenize(visibleContent).then((tokens) => {
+              if (tokenizeId !== streamTokenizeId) return;
+              if (tokens.length > 0) {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const lastIdx = updated.length - 1;
+                  if (updated[lastIdx]?.role === 'assistant') {
+                    updated[lastIdx] = { ...updated[lastIdx], tokens };
+                  }
+                  return updated;
+                });
+              }
+            });
+          }, 300);
         }
       },
       onToolCall: (widget: ChatWidget) => {
@@ -520,6 +529,19 @@ const ConversationContent: Component = () => {
     setIsProcessingToolCall(false);
 
     const context = `[Voice call started. The learner is waiting for you to speak. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
+    agent.continueWithContext(context, buildStreamCallbacks());
+  };
+
+  const handleStartConversation = () => {
+    if (isStreaming() || messages().length > 0 || !isConnected()) return;
+
+    // Add placeholder assistant message for the AI-initiated conversation
+    setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
+    setIsStreaming(true);
+    setIsWaiting(true);
+    setIsProcessingToolCall(false);
+
+    const context = `[The learner opened the chat. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
     agent.continueWithContext(context, buildStreamCallbacks());
   };
 
@@ -800,6 +822,11 @@ const ConversationContent: Component = () => {
                   icon="💬"
                   title={t('mlearn.ConversationAgent.Empty.Title')}
                   description={t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
+                  action={{
+                    label: t('mlearn.ConversationAgent.Empty.StartConversation'),
+                    onClick: handleStartConversation,
+                    variant: 'primary',
+                  }}
                   class="ca-empty"
                 />
               }
@@ -971,7 +998,10 @@ const ConversationContent: Component = () => {
             }
           }}
           onInterrupted={(spokenText, _interruptedAt) => {
-            // Mark the last assistant message as interrupted
+            // Update LLM conversation history to reflect what was actually heard
+            agent.markInterrupted(spokenText);
+
+            // Mark the last assistant message as interrupted with only the spoken text
             setMessages((prev) => {
               const updated = [...prev];
               for (let i = updated.length - 1; i >= 0; i--) {
@@ -979,8 +1009,8 @@ const ConversationContent: Component = () => {
                   updated[i] = {
                     ...updated[i],
                     interrupted: true,
-                    interruptedAt: spokenText + ' *interrupted by user*',
-                    content: spokenText + ' *interrupted by user*',
+                    interruptedAt: spokenText,
+                    content: spokenText,
                   };
                   break;
                 }

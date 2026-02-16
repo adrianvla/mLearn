@@ -7,7 +7,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-color);
   gap: 1rem;
 }
 
@@ -31,8 +31,8 @@
 }
 
 .setting-label {
-  font-size: 0.9rem;
-  color: white;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -44,14 +44,14 @@
 }
 
 .restart-indicator {
-  font-size: 0.75rem;
-  color: var(--color-warning, #f59e0b);
+  font-size: var(--font-size-xs);
+  color: var(--color-warning);
   opacity: 0.8;
 }
 
 .setting-description {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.5);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
   display: block;
   line-height: 1.4;
 }

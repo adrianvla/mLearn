@@ -1,11 +1,13 @@
 /**
  * Settings Window
- * Standalone settings window with top tabbed navigation
+ * Standalone settings window with left sidebar navigation
  */
 
-import { Component, createSignal, onCleanup, onMount, Show, For } from 'solid-js';
+import { Component, createSignal, createMemo, onCleanup, onMount, Show } from 'solid-js';
 import { WindowWrapper, useLocalization } from '../../context';
 import { IPC_CHANNELS } from '../../../shared/constants';
+import { TabContainer } from '../../components/common/Tabs/TabContainer';
+import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import {
   GeneralTab,
   BehaviourTab,
@@ -21,14 +23,13 @@ import './settings.css';
 
 type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'stats' | 'ai' | 'about';
 
-interface Tab {
+interface SettingsTab {
   id: TabId;
   labelKey: string;
-  icon: string; // SVG icon path
+  icon: string;
 }
 
-// Icon paths for each tab (using existing icons)
-const TABS: Tab[] = [
+const TABS: SettingsTab[] = [
   { id: 'general', labelKey: 'mlearn.Settings.Tabs.General', icon: 'cog' },
   { id: 'behaviour', labelKey: 'mlearn.Settings.Tabs.Behaviour', icon: 'bot' },
   { id: 'customization', labelKey: 'mlearn.Settings.Tabs.Appearance', icon: 'palette' },
@@ -42,6 +43,14 @@ const TABS: Tab[] = [
 const SettingsContent: Component = () => {
   const [activeTab, setActiveTab] = createSignal<TabId>('general');
   const { t } = useLocalization();
+
+  const tabItems = createMemo((): TabItem[] =>
+    TABS.map((tab) => ({
+      id: tab.id,
+      label: t(tab.labelKey),
+      icon: <Icon icon={tab.icon} color="currentColor" class="settings-tab-icon" />,
+    }))
+  );
 
   const resolveTab = (section?: string): TabId => {
     if (!section) return 'general';
@@ -73,53 +82,45 @@ const SettingsContent: Component = () => {
   });
 
   return (
-    <div class="settings-window top-nav-layout">
-      {/* Top Navigation Bar */}
-      <header class="settings-header">
-        <h1 class="settings-title">{t('mlearn.Settings.UI.Title')}</h1>
-        <nav class="settings-tabs">
-          <For each={TABS}>
-            {(tab) => (
-              <button
-                class={`settings-tab ${activeTab() === tab.id ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-                title={t(tab.labelKey)}
-              >
-                <Icon icon={tab.icon} color="currentColor" class="tab-icon" />
-                <span class="tab-label">{t(tab.labelKey)}</span>
-              </button>
-            )}
-          </For>
-        </nav>
-      </header>
+    <div class="settings-window">
+      {/* Drag region for window */}
+      <div class="settings-drag-region" />
 
-      {/* Content */}
-      <main class="settings-content">
-        <Show when={activeTab() === 'general'}>
-          <GeneralTab />
-        </Show>
-        <Show when={activeTab() === 'behaviour'}>
-          <BehaviourTab />
-        </Show>
-        <Show when={activeTab() === 'customization'}>
-          <CustomizationTab />
-        </Show>
-        <Show when={activeTab() === 'srs'}>
-          <SRSTab />
-        </Show>
-        <Show when={activeTab() === 'reader'}>
-          <ReaderTab />
-        </Show>
-        <Show when={activeTab() === 'stats'}>
-          <StatsTab />
-        </Show>
-        <Show when={activeTab() === 'ai'}>
-          <AITab />
-        </Show>
-        <Show when={activeTab() === 'about'}>
-          <AboutTab />
-        </Show>
-      </main>
+      <TabContainer
+        tabs={tabItems()}
+        activeTab={activeTab()}
+        onTabChange={(id) => setActiveTab(id as TabId)}
+        orientation="vertical"
+        variant="pills"
+        class="settings-tab-container"
+      >
+        <div class="settings-content">
+          <Show when={activeTab() === 'general'}>
+            <GeneralTab />
+          </Show>
+          <Show when={activeTab() === 'behaviour'}>
+            <BehaviourTab />
+          </Show>
+          <Show when={activeTab() === 'customization'}>
+            <CustomizationTab />
+          </Show>
+          <Show when={activeTab() === 'srs'}>
+            <SRSTab />
+          </Show>
+          <Show when={activeTab() === 'reader'}>
+            <ReaderTab />
+          </Show>
+          <Show when={activeTab() === 'stats'}>
+            <StatsTab />
+          </Show>
+          <Show when={activeTab() === 'ai'}>
+            <AITab />
+          </Show>
+          <Show when={activeTab() === 'about'}>
+            <AboutTab />
+          </Show>
+        </div>
+      </TabContainer>
     </div>
   );
 };

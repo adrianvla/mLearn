@@ -276,6 +276,10 @@ const mLearnIPC = {
     ipcRenderer.send(IPC_CHANNELS.VOICE_STOP_SESSION),
   voiceSendAudioChunk: (samples: Float32Array) =>
     ipcRenderer.send(IPC_CHANNELS.VOICE_AUDIO_CHUNK, samples),
+  voiceFlush: () =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_FLUSH),
+  voiceUpdateSilenceThreshold: (threshold: number) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_UPDATE_SILENCE_THRESHOLD, threshold),
   onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_STT_RESULT, (_event, result) => callback(result)),
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) =>

@@ -508,6 +508,10 @@
         "LearningLanguage": {
           "Label": "Lernsprache",
           "Description": "Wählen Sie die Sprache, die Sie lernen"
+        },
+        "AppLanguage": {
+          "Label": "App-Sprache",
+          "Description": "Sprache der Benutzeroberfläche auswählen"
         }
       },
       "Appearance": {
@@ -1034,6 +1038,13 @@
       "pt": "Portugiesisch",
       "ru": "Russisch"
     },
+    "LocaleNames": {
+      "en": "English",
+      "ja": "日本語",
+      "de": "Deutsch",
+      "fr": "Français",
+      "ru": "Русский"
+    },
     "Errors": {
       "FirstArgumentMustBeString": "Das erste Argument muss ein String sein",
       "ChunkSizeMustBePositive": "Die Blockgröße muss eine positive Zahl sein",
@@ -1080,7 +1091,8 @@
       },
       "Empty": {
         "Title": "Gespräch beginnen",
-        "Hint": "Üben Sie die Zielsprache mit dem KI-Tutor. Er korrigiert Fehler, stellt Fragen und unterstützt Ihr Lernen."
+        "Hint": "Üben Sie die Zielsprache mit dem KI-Tutor. Er korrigiert Fehler, stellt Fragen und unterstützt Ihr Lernen.",
+        "StartConversation": "KI beginnen lassen"
       },
       "InputPlaceholder": "Nachricht auf {language}...",
       "Stats": {
@@ -1151,6 +1163,7 @@
         "DownloadFailed": "Herunterladen der Sprachmodelle fehlgeschlagen. Möglicherweise sind erforderliche Abhängigkeiten nicht installiert. Installieren Sie die Anwendung neu oder überprüfen Sie die Protokolle.",
         "TtsSpeed": "Sprechgeschwindigkeit",
         "TtsProvider": "TTS-Engine",
+        "LocalTts": "Lokal",
         "RemoteTts": "Remote",
         "RemoteTtsUrl": "Server-URL",
         "Interrupted": "*Vom Benutzer unterbrochen*",
@@ -1163,6 +1176,7 @@
         "LoadingTtsModel": "Sprachsynthesemodell wird geladen…",
         "DefaultVoice": "Standardstimme",
         "VoiceSample": "Stimmklon",
+        "VoiceSampleDisabledLocal": "Benutzerdefinierte Stimmen-Upload ist nur mit der Remote-TTS-Engine verfügbar",
         "UploadSample": "Stimmprobe hochladen",
         "Aftermath": {
           "Title": "Sitzungszusammenfassung",

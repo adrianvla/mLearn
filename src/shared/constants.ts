@@ -197,6 +197,8 @@ export const IPC_CHANNELS = {
   VOICE_TTS_AUDIO: 'voice-tts-audio',
   VOICE_TTS_STATUS: 'voice-tts-status',
   VOICE_TTS_STOP: 'voice-tts-stop',
+  VOICE_FLUSH: 'voice-flush',
+  VOICE_UPDATE_SILENCE_THRESHOLD: 'voice-update-silence-threshold',
   VOICE_SESSION_READY: 'voice-session-ready',
   VOICE_SESSION_ERROR: 'voice-session-error',
 

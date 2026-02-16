@@ -9,6 +9,7 @@ import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { Settings, DEFAULT_SETTINGS, LanguageDataMap } from '../../shared/types';
 import { getUserDataPath, getAppPath, getResourcePath } from '../utils/platform';
+import { setUILanguage } from './localization';
 
 // Settings file path
 function getSettingsPath(): string {
@@ -157,8 +158,14 @@ export function setupSettingsIPC(): void {
   });
 
   ipcMain.on(IPC_CHANNELS.SAVE_SETTINGS, (event, settings: Settings) => {
+    const prevSettings = loadSettings();
     saveSettings(settings);
     event.reply(IPC_CHANNELS.SETTINGS_SAVED);
+
+    // If uiLanguage changed, update localization for all windows
+    if (settings.uiLanguage && settings.uiLanguage !== prevSettings.uiLanguage) {
+      setUILanguage(settings.uiLanguage);
+    }
   });
 
   ipcMain.on(IPC_CHANNELS.GET_LANG_DATA, (event) => {

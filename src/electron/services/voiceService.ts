@@ -309,7 +309,7 @@ function startSession(
     });
 
     ws.on('message', (rawData: WebSocket.RawData) => {
-      if (!activeSender) return;
+      if (!activeSender || activeSender.isDestroyed()) return;
       try {
         const msg = JSON.parse(rawData.toString());
         switch (msg.type) {
@@ -330,6 +330,9 @@ function startSession(
             activeSender.send(IPC_CHANNELS.VOICE_STT_RESULT, sttResult);
             break;
           }
+          case 'ping':
+            // Respond to server keepalive pings
+            break;
           case 'error':
             console.error('[VoiceService] Backend error:', msg.message);
             activeSender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
@@ -381,6 +384,24 @@ function sendAudioChunk(samples: Float32Array): void {
     activeWs.send(Buffer.from(samples.buffer, samples.byteOffset, samples.byteLength));
   } catch (e) {
     console.error('[VoiceService] Failed to send audio chunk:', e);
+  }
+}
+
+function sendFlush(): void {
+  if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
+  try {
+    activeWs.send(JSON.stringify({ type: 'flush' }));
+  } catch (e) {
+    console.error('[VoiceService] Failed to send flush command:', e);
+  }
+}
+
+function sendSilenceThresholdUpdate(threshold: number): void {
+  if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
+  try {
+    activeWs.send(JSON.stringify({ type: 'silence_threshold', value: threshold }));
+  } catch (e) {
+    console.error('[VoiceService] Failed to send silence threshold update:', e);
   }
 }
 
@@ -603,6 +624,20 @@ export function setupVoiceIPC(): void {
   ipcMain.on(IPC_CHANNELS.VOICE_AUDIO_CHUNK, (_event, samples: Float32Array) => {
     if (activeSession) {
       sendAudioChunk(new Float32Array(samples));
+    }
+  });
+
+  // Flush buffered speech (PTT release)
+  ipcMain.on(IPC_CHANNELS.VOICE_FLUSH, () => {
+    if (activeSession) {
+      sendFlush();
+    }
+  });
+
+  // Update silence threshold at runtime
+  ipcMain.on(IPC_CHANNELS.VOICE_UPDATE_SILENCE_THRESHOLD, (_event, threshold: number) => {
+    if (activeSession) {
+      sendSilenceThresholdUpdate(threshold);
     }
   });
 

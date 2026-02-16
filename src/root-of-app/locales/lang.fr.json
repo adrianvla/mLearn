@@ -508,6 +508,10 @@
         "LearningLanguage": {
           "Label": "Langue cible",
           "Description": "Choisissez la langue que vous apprenez"
+        },
+        "AppLanguage": {
+          "Label": "Langue de l'application",
+          "Description": "Sélectionner la langue de l'interface"
         }
       },
       "Appearance": {
@@ -1034,6 +1038,13 @@
       "pt": "Portugais",
       "ru": "Russe"
     },
+    "LocaleNames": {
+      "en": "English",
+      "ja": "日本語",
+      "de": "Deutsch",
+      "fr": "Français",
+      "ru": "Русский"
+    },
     "Errors": {
       "FirstArgumentMustBeString": "Le premier argument doit être une chaîne de caractères",
       "ChunkSizeMustBePositive": "La taille du bloc doit être un nombre positif",
@@ -1080,7 +1091,8 @@
       },
       "Empty": {
         "Title": "Démarrer une conversation",
-        "Hint": "Pratiquez la langue cible avec le tuteur IA. Il corrigera vos erreurs, vous interrogera et vous aidera à progresser."
+        "Hint": "Pratiquez la langue cible avec le tuteur IA. Il corrigera vos erreurs, vous interrogera et vous aidera à progresser.",
+        "StartConversation": "Laisser l'IA commencer"
       },
       "InputPlaceholder": "Message en {language}...",
       "Stats": {
@@ -1151,6 +1163,7 @@
         "DownloadFailed": "Échec du téléchargement des modèles vocaux. Les dépendances requises ne sont peut-être pas installées. Réinstallez l'application ou consultez les journaux.",
         "TtsSpeed": "Vitesse de parole",
         "TtsProvider": "Moteur TTS",
+        "LocalTts": "Local",
         "RemoteTts": "Distant",
         "RemoteTtsUrl": "URL du serveur",
         "Interrupted": "*Interrompu par l'utilisateur*",
@@ -1163,6 +1176,7 @@
         "LoadingTtsModel": "Chargement du modèle de synthèse vocale…",
         "DefaultVoice": "Voix par défaut",
         "VoiceSample": "Clone vocal",
+        "VoiceSampleDisabledLocal": "L'envoi de voix personnalisée n'est disponible qu'avec le moteur TTS distant",
         "UploadSample": "Téléverser un échantillon vocal",
         "Aftermath": {
           "Title": "Résumé de la session",

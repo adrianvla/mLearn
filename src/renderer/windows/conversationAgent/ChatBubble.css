@@ -2,6 +2,7 @@
 
 .chat-bubble {
   max-width: 85%;
+  width: fit-content;
   animation: bubbleIn 0.2s ease-out both;
 }
 
@@ -154,7 +155,19 @@
 .chat-bubble-tool-spinner {
   display: flex;
   align-items: center;
-  padding: var(--spacing-1) var(--spacing-3);
+  padding-top: var(--spacing-1);
+}
+
+/* ============ Interrupted indicator ============ */
+
+.chat-bubble-interrupted {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-style: italic;
+  margin-left: var(--spacing-2);
 }
 
 /* ============ Widget container ============ */
