@@ -3,6 +3,7 @@
  */
 
 import { app, ipcMain, clipboard, shell } from 'electron';
+import { execSync } from 'child_process';
 import { findPython, terminatePythonBackend, setupPythonBackendIPC } from './services/pythonBackend';
 import { startWebServer, stopWebServer } from './services/webServer';
 import { setupFlashcardIPC } from './services/flashcardStorage';
@@ -20,6 +21,35 @@ import { setupSpeechIPC } from './services/speechService';
 import { setupVoiceIPC } from './services/voiceService';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
+
+// Best-effort raise of system-wide file descriptor limits.
+// ML workloads (torch, transformers, ONNX) combined with Electron/Chromium
+// easily exhaust default OS limits (e.g. kern.maxfiles=50 000 on macOS).
+// These calls require root so they will silently fail for non-admin users.
+if (process.platform === 'darwin') {
+  const TARGET_MAXFILES = 524288;
+  try {
+    const current = parseInt(
+      execSync('sysctl -n kern.maxfiles', { encoding: 'utf8', timeout: 2000 }).trim(),
+      10,
+    );
+    if (!isNaN(current) && current < TARGET_MAXFILES) {
+      execSync(
+        `sysctl -w kern.maxfiles=${TARGET_MAXFILES} kern.maxfilesperproc=${TARGET_MAXFILES}`,
+        { stdio: 'ignore', timeout: 2000 },
+      );
+    }
+  } catch {
+    console.warn(
+      `Could not raise kern.maxfiles (needs root). If OCR fails, run: ` +
+      `sudo sysctl -w kern.maxfiles=${TARGET_MAXFILES} kern.maxfilesperproc=${TARGET_MAXFILES}`,
+    );
+  }
+} else if (process.platform === 'linux') {
+  try {
+    execSync('sysctl -w fs.file-max=524288', { stdio: 'ignore', timeout: 2000 });
+  } catch { /* best-effort, needs root */ }
+}
 
 // Register custom protocol scheme before app is ready
 registerLocalMediaScheme();

@@ -194,7 +194,9 @@ function streamChat(
     }
   });
 
-  // Track this request so it can be aborted
+  // Track this request so it can be aborted; destroy any prior request first
+  const existing = activeStreamRequests.get(sender.id);
+  if (existing && !existing.destroyed) existing.destroy();
   activeStreamRequests.set(sender.id, req);
 
   req.write(JSON.stringify(body));
@@ -501,6 +503,9 @@ function streamChatUnified(
     }
   });
 
+  // Track this request so it can be aborted; destroy any prior request first
+  const existing = activeStreamRequests.get(sender.id);
+  if (existing && !existing.destroyed) existing.destroy();
   activeStreamRequests.set(sender.id, req);
   req.write(JSON.stringify(body));
   req.end();

@@ -209,7 +209,10 @@ function serveStaticFile(res: http.ServerResponse, filePath: string): void {
     'Content-Type': contentType,
   });
   
-  fs.createReadStream(filePath).pipe(res);
+  const stream = fs.createReadStream(filePath);
+  stream.pipe(res);
+  res.on('close', () => stream.destroy());
+  res.on('error', () => stream.destroy());
 }
 
 // HTTP request handler
@@ -266,7 +269,10 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
         'Content-Type': 'application/javascript',
         ...corsHeaders,
       });
-      fs.createReadStream(scriptPath).pipe(res);
+      const stream = fs.createReadStream(scriptPath);
+      stream.pipe(res);
+      res.on('close', () => stream.destroy());
+      res.on('error', () => stream.destroy());
     } else {
       res.writeHead(404, corsHeaders);
       res.end('Script not found');
@@ -432,6 +438,10 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
     proxyReq.on('error', (err) => {
       res.writeHead(502, corsHeaders);
       res.end(`Proxy error: ${err.message}`);
+    });
+
+    res.on('close', () => {
+      if (!proxyReq.destroyed) proxyReq.destroy();
     });
 
     req.pipe(proxyReq, { end: true });
@@ -600,15 +610,21 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
 
     const client = targetUrl.startsWith('https') ? https : http;
 
-    client.get(targetUrl, (targetRes) => {
+    const externalReq = client.get(targetUrl, (targetRes) => {
       res.writeHead(targetRes.statusCode || 200, {
         ...corsHeaders,
         'Content-Type': targetRes.headers['content-type'] || 'application/octet-stream',
       });
       targetRes.pipe(res);
-    }).on('error', (err) => {
+      res.on('close', () => { targetRes.destroy(); });
+      res.on('error', () => { targetRes.destroy(); });
+    });
+    externalReq.on('error', (err) => {
       res.writeHead(500, corsHeaders);
       res.end(`Error: ${err.message}`);
+    });
+    res.on('close', () => {
+      if (!externalReq.destroyed) externalReq.destroy();
     });
     return;
   }
@@ -751,6 +767,7 @@ export function stopWebServer(): void {
   }
   
   if (httpServer) {
+    httpServer.closeAllConnections();
     httpServer.close();
     httpServer = null;
   }
