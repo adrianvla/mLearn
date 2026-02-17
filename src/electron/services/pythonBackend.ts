@@ -238,12 +238,14 @@ function downloadFile(
 
       const redirectUrl = new URL(response.headers.location, fileUrl).toString();
       file.destroy();
+      response.resume();
       downloadFile(redirectUrl, dest, callback, redirectCount + 1);
       return;
     }
 
     if (response.statusCode !== 200) {
       file.destroy();
+      response.resume();
       fs.unlink(dest, () => {});
       handleInstallerFailure('Download failed', {
         detail: `Status code: ${response.statusCode}`,
@@ -321,6 +323,7 @@ function pingPythonServer(callback: (running: boolean) => void): void {
     headers: {
       'Content-Type': 'application/json',
     },
+    timeout: 3000,
   };
 
   const req = http.request(options, (res) => {
@@ -336,33 +339,37 @@ function pingPythonServer(callback: (running: boolean) => void): void {
   });
 
   req.on('error', () => callback(false));
+  req.on('timeout', () => { req.destroy(); callback(false); });
   req.write(JSON.stringify({ function: 'ping' }));
   req.end();
 }
 
 function startServerReadyPolling(): void {
   if (serverLoadCheckInterval) {
-    clearInterval(serverLoadCheckInterval);
+    clearTimeout(serverLoadCheckInterval);
+    serverLoadCheckInterval = null;
   }
 
-  serverLoadCheckInterval = setInterval(() => {
+  function poll(): void {
     if (serverLoaded) {
-      clearInterval(serverLoadCheckInterval!);
       serverLoadCheckInterval = null;
       return;
     }
 
     pingPythonServer((running) => {
-      if (!running) return;
+      if (serverLoaded) return;
 
-      serverLoaded = true;
-      getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_LOAD, 'Python server running');
-      if (serverLoadCheckInterval) {
-        clearInterval(serverLoadCheckInterval);
+      if (running) {
+        serverLoaded = true;
         serverLoadCheckInterval = null;
+        getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_LOAD, 'Python server running');
+      } else {
+        serverLoadCheckInterval = setTimeout(poll, 750);
       }
     });
-  }, 750);
+  }
+
+  serverLoadCheckInterval = setTimeout(poll, 750);
 }
 
 // Start Python backend
@@ -415,9 +422,10 @@ function pythonFound(): void {
 
   const handleClose = (code: number | null): void => {
     console.log(`Python process exited with code ${code}`);
+    pythonChildProcess = null;
     serverLoaded = false;
     if (serverLoadCheckInterval) {
-      clearInterval(serverLoadCheckInterval);
+      clearTimeout(serverLoadCheckInterval);
       serverLoadCheckInterval = null;
     }
     getMainWindow()?.webContents.send(
@@ -445,7 +453,14 @@ function pythonFound(): void {
     
     pythonChildProcess = exec(command);
   } else {
-    pythonChildProcess = spawn('env', [pythonExecutable, ...args], {
+    // Raise the per-process FD limit before exec-ing Python.
+    // ML libs (torch, transformers, ONNX) open thousands of files;
+    // the macOS default (256 for GUI apps) is far too low.
+    const quotedArgs = args.map(a => `'${a.replace(/'/g, "'\\''")}'`).join(' ');
+    pythonChildProcess = spawn('/bin/sh', [
+      '-c',
+      `ulimit -n 65536 2>/dev/null; exec env '${pythonExecutable}' ${quotedArgs}`,
+    ], {
       env: process.env,
     });
   }
@@ -640,8 +655,9 @@ export function terminatePythonBackend(): void {
     timeout: 2000,
   };
 
-  const req = http.request(options);
+  const req = http.request(options, (res) => { res.resume(); });
   req.on('error', () => { /* ignore */ });
+  req.on('timeout', () => { req.destroy(); });
   req.end();
 
   // Force kill after timeout

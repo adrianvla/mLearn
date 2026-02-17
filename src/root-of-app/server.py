@@ -27,6 +27,21 @@ from pathlib import Path
 import struct
 import asyncio
 
+# Raise the per-process file-descriptor limit as early as possible.
+# MangaOCR + transformers + torch + ONNX together open thousands of files;
+# macOS defaults (256–2560) are too low and cause ENFILE / EMFILE crashes.
+try:
+    import resource as _resource
+    _soft, _hard = _resource.getrlimit(_resource.RLIMIT_NOFILE)
+    _desired = min(_hard, 65536) if _hard > 0 else 65536
+    if _soft < _desired:
+        _resource.setrlimit(_resource.RLIMIT_NOFILE, (_desired, _hard))
+        print(f"Raised RLIMIT_NOFILE from {_soft} to {_desired} (hard={_hard})")
+    else:
+        print(f"RLIMIT_NOFILE already sufficient: soft={_soft} hard={_hard}")
+except Exception as _rlimit_err:
+    print(f"Could not adjust RLIMIT_NOFILE: {_rlimit_err}")
+
 # Ensure printing non-ASCII (e.g., Japanese) won't crash on Windows consoles
 try:
     # Python 3.7+ TextIOWrapper exposes reconfigure
@@ -703,6 +718,34 @@ async def startup_event():
     except Exception as e:
         _log("Failed to enable faulthandler:", e)
 
+    # Pre-import heavy libraries that open many temporary FDs during
+    # their module scan (transformers imports 100+ model submodules).
+    # Doing it at startup — before ONNX/RapidOCR models claim permanent
+    # FDs — avoids hitting the macOS kern.maxfiles limit later.
+    # This is SYNCHRONOUS (blocking) so uvicorn won't accept connections
+    # until the import scan is done and its temporary FDs are released.
+    if OCR_ALLOWED:
+        try:
+            _log("Pre-importing transformers for MangaOCR...")
+            # MangaOCR uses these specific classes, whose import triggers
+            # transformers' auto-model config scan (opens 100s of .py files).
+            # A plain `import transformers` is lazy and skips this scan.
+            from transformers import (  # noqa: F401
+                ViTImageProcessor,
+                AutoTokenizer,
+                VisionEncoderDecoderModel,
+                GenerationMixin,
+            )
+            import gc
+            gc.collect()
+            _log("Transformers pre-import done")
+        except Exception as _e:
+            _log("Transformers pre-import failed (non-fatal):", _e)
+        finally:
+            _transformers_preimport_done.set()
+    else:
+        _transformers_preimport_done.set()
+
 # Request Body
 class TokenizeRequest(BaseModel):
     text: str
@@ -849,6 +892,7 @@ _rapid_ocr = None
 _paddle_ocr = None
 _manga_ocr = None
 _ocr_model_lock = threading.Lock()  # protects _rapid_ocr, _paddle_ocr, _manga_ocr init/unload
+_transformers_preimport_done = threading.Event()  # set once transformers has been pre-imported
 
 # OCR idle-unload: free RAM after inactivity (mirrors LLM idle-unload)
 _OCR_IDLE_TIMEOUT_SECONDS = 600  # 10 minutes
@@ -1144,6 +1188,19 @@ def _get_manga_ocr():
 def _init_manga_ocr():
     """Inner init — caller must hold _ocr_model_lock."""
     global _manga_ocr
+    # Wait for the background transformers pre-import to finish so the heavy
+    # module scan happens before ONNX sessions claim permanent FDs.
+    _transformers_preimport_done.wait(timeout=120)
+    # Log FD count for diagnostics
+    try:
+        _fd_count = len(os.listdir('/dev/fd'))
+        _log_ocr_init(f"Process FDs before MangaOCR init: {_fd_count}")
+    except Exception:
+        pass
+    # Force GC to close unreferenced file handles before the heavy
+    # transformers import, which opens hundreds of module files.
+    import gc
+    gc.collect()
     try:
         from manga_ocr import MangaOcr  # type: ignore
     except Exception as e:

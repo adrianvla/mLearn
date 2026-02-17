@@ -54,11 +54,13 @@ export function downloadFileWithProgress(
       const protocol = reqUrl.startsWith('https') ? https : http;
       const req = protocol.get(reqUrl, (res) => {
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
           doRequest(res.headers.location, redirectCount + 1);
           return;
         }
 
         if (res.statusCode !== 200) {
+          res.resume();
           reject(new Error(`HTTP ${res.statusCode}`));
           return;
         }

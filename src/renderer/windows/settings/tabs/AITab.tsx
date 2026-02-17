@@ -234,7 +234,7 @@ export const AITab: Component = () => {
                   <Input
                     value={settings.ollamaModel}
                     onInput={(e) => updateSettings({ ollamaModel: e.currentTarget.value })}
-                    placeholder="qwen3:4b"
+                    placeholder="qwen3:8b"
                     size="md"
                   />
                 }
