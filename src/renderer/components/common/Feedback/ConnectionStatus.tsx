@@ -3,8 +3,10 @@
  * Visual indicator for connection states
  */
 
-import { Component, Show } from 'solid-js';
+import { Component, Show, JSX } from 'solid-js';
 import { useLocalization } from '../../../context';
+import { CheckIcon, CrossIcon, WarningIcon } from '../Misc/Icons';
+import { Spinner } from '../Loader';
 import './ConnectionStatus.css';
 
 export type ConnectionState = 'connected' | 'disconnected' | 'loading' | 'error';
@@ -25,22 +27,21 @@ export interface ConnectionStatusProps {
 export const ConnectionStatus: Component<ConnectionStatusProps> = (props) => {
   const { t } = useLocalization();
   
-  const statusConfig: Record<ConnectionState, { icon: string; color: string; labelKey: string }> = {
-    connected: { icon: '✓', color: '#4ade80', labelKey: 'mlearn.ConnectionStatus.Connected' },
-    disconnected: { icon: '✗', color: '#ef4444', labelKey: 'mlearn.ConnectionStatus.Disconnected' },
-    loading: { icon: '◌', color: '#f59e0b', labelKey: 'mlearn.ConnectionStatus.Connecting' },
-    error: { icon: '!', color: '#ef4444', labelKey: 'mlearn.ConnectionStatus.Error' },
+  const statusConfig: Record<ConnectionState, { icon: JSX.Element; labelKey: string }> = {
+    connected: { icon: <CheckIcon size={14} />, labelKey: 'mlearn.ConnectionStatus.Connected' },
+    disconnected: { icon: <CrossIcon size={14} />, labelKey: 'mlearn.ConnectionStatus.Disconnected' },
+    loading: { icon: <Spinner size={14} />, labelKey: 'mlearn.ConnectionStatus.Connecting' },
+    error: { icon: <WarningIcon size={14} />, labelKey: 'mlearn.ConnectionStatus.Error' },
   };
   
   const config = () => statusConfig[props.status] || statusConfig.disconnected;
   const size = () => props.size || 'md';
   
   return (
-    <span 
+    <span
       class={`connection-status connection-status--${size()} connection-status--${props.status} ${props.class || ''}`}
-      style={{ color: config().color }}
     >
-      <span class={`connection-status-icon ${props.status === 'loading' ? 'spinning' : ''}`}>
+      <span class={`connection-status-icon`}>
         {config().icon}
       </span>
       <Show when={props.showLabel !== false}>

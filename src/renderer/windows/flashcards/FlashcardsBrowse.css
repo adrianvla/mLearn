@@ -1,0 +1,94 @@
+/**
+ * Flashcards Browse Tab Styles
+ * Grid layout for browsing flashcards with search/sort controls
+ */
+
+.flashcards-browse {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  height: 100%;
+}
+
+.flashcards-browse-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.flashcards-search-input {
+  flex: 1;
+  min-width: 200px;
+  max-width: 400px;
+}
+
+.flashcards-sort-select {
+  min-width: 180px;
+}
+
+.flashcards-count {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.flashcards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  overflow-y: auto;
+}
+
+.flashcards-grid > .panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.flashcards-grid > .panel > div:nth-child(2) {
+  height: 100%;
+  position: relative;
+}
+
+.flashcard-translation {
+  margin-bottom: 50px;
+}
+
+.flashcard-footer {
+  display: flex;
+  gap: var(--spacing-2);
+  bottom: 1rem;
+  position: absolute;
+  justify-content: space-between;
+  width: calc(100% - 2rem);
+}
+
+.flashcard-state {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.flashcard-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  margin-left: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .flashcards-browse-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .flashcards-search-input {
+    max-width: none;
+  }
+
+  .flashcards-count {
+    text-align: center;
+  }
+}

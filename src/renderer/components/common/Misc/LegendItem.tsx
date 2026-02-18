@@ -4,6 +4,7 @@
  */
 
 import { Component, Show } from 'solid-js';
+import { ArrowRightIcon } from './Icons';
 import './LegendItem.css';
 
 export interface LegendItemProps {
@@ -46,7 +47,7 @@ export const LegendItem: Component<LegendItemProps> = (props) => {
         style={{ background: props.color }}
       />
       <Show when={props.showArrow && props.secondaryColor}>
-        <span class="legend-arrow">→</span>
+        <span class="legend-arrow"><ArrowRightIcon size={12} /></span>
         <span 
           class={`legend-color legend-color--${shape()}`}
           style={{ background: props.secondaryColor }}

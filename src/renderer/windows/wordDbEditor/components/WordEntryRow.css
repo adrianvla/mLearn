@@ -1,0 +1,67 @@
+/**
+ * Word Entry Row Styles
+ * Single entry row in the Word Database Editor
+ */
+
+.entry {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.15s ease;
+}
+
+.entry:hover {
+  background: var(--border-color);
+}
+
+.entry .reading {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-left: 0.5rem;
+}
+
+/* Tracker label */
+.tracker-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* Word column layout */
+.word-db-editor .col.word {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.word-db-editor .col.word .word-text {
+  position: relative;
+  display: inline-block;
+}
+
+.word-db-editor .col.word .word-text .mLearn-pitch-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+/* Edit button */
+.word-db-editor .edit-btn {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.word-db-editor .edit-btn:hover {
+  background: var(--accent-bg);
+  color: var(--text-primary);
+}

@@ -1,0 +1,22 @@
+/**
+ * Entries Header Styles
+ * Column header row for the Word Database Editor
+ */
+
+.entries-header {
+  display: flex;
+  padding: 0.75rem 1rem;
+  background: var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.entries-header .col {
+  cursor: pointer;
+  user-select: none;
+}
+
+.entries-header .col:hover {
+  color: var(--color-primary);
+}

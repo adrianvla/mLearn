@@ -47,6 +47,23 @@
   gap: 0.5rem;
 }
 
+/* Status color variants */
+.connection-status--connected {
+  color: var(--color-success);
+}
+
+.connection-status--disconnected {
+  color: var(--color-error);
+}
+
+.connection-status--loading {
+  color: var(--color-warning);
+}
+
+.connection-status--error {
+  color: var(--color-error);
+}
+
 /* Status-specific pulse animations */
 .connection-status--connected .connection-status-icon {
   animation: pulse-green 2s ease-in-out infinite;

@@ -14,7 +14,7 @@ import {
 import { WORD_STATUS } from '../../../shared/constants';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, type WordEntry, type TranslationOverride } from './components';
 import { ModalLoadingOverlay, Spinner } from '../../components/common';
-import './wordDbEditor.css';
+import './WordDbEditorLayout.css';
 
 export const WordDbEditorContent: Component = () => {
   const { wordFrequency, getFreqLevelNames } = useLanguage();

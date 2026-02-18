@@ -1,303 +1,146 @@
 /**
  * Stats Settings Tab
- * Displays learning statistics with pie charts and bar charts
+ * Displays learning statistics: stat cards, word distribution bar, level breakdown table
  */
 
-import { Component, createSignal, onMount, createEffect, Show } from 'solid-js';
+import { Component, createSignal, onMount, Show, For } from 'solid-js';
 import { useSettings, useLanguage, useLocalization } from '../../../context';
-import { TabContent, StatCard, EmptyState, Btn } from '../../../components/common';
+import { TabContent, StatCard, Btn } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
 import {
   getTimeWatchedFormatted,
   getWordsLearnedInAppStats,
+  getWordsLearnedInApp,
   initTimeWatched,
 } from '../../../services/statsService';
 import './StatsTab.css';
 
 export const StatsTab: Component = () => {
   const { settings } = useSettings();
-  const { getFreqLevelNames } = useLanguage();
+  const { getFreqLevelNames, getFrequency, getLanguageFeatures } = useLanguage();
   const { t } = useLocalization();
-  
+
   const [timeWatched, setTimeWatched] = createSignal('0h 0m');
   const [wordStats, setWordStats] = createSignal({ total: 0, learned: 0, learning: 0, unknown: 0 });
-  
-  let pieCanvasRef: HTMLCanvasElement | undefined;
-  let barCanvasRef: HTMLCanvasElement | undefined;
+  const [levelBreakdown, setLevelBreakdown] = createSignal<{ name: string; learned: number; learning: number; viewed: number }[]>([]);
 
   onMount(() => {
     initTimeWatched(settings);
     setTimeWatched(getTimeWatchedFormatted(t));
     setWordStats(getWordsLearnedInAppStats());
+    buildLevelBreakdown();
   });
-  
-  // Get dynamic level names
-  const getLevelLabels = () => {
+
+  const buildLevelBreakdown = () => {
     const names = getFreqLevelNames();
-    // Convert to array sorted by level (descending)
     const entries = Object.entries(names).map(([k, v]) => ({ level: parseInt(k), name: v }));
     entries.sort((a, b) => b.level - a.level);
-    return entries.map(e => e.name || `Level ${e.level}`);
-  };
+    if (entries.length === 0) return;
 
-  // Draw pie chart when stats change
-  createEffect(() => {
-    const stats = wordStats();
-    if (pieCanvasRef && stats.total > 0) {
-      drawPieChart(pieCanvasRef, stats);
+    const words = getWordsLearnedInApp();
+    const buckets = new Map<number, { learned: number; learning: number; viewed: number }>();
+    for (const entry of entries) {
+      buckets.set(entry.level, { learned: 0, learning: 0, viewed: 0 });
     }
-  });
 
-  // Draw bar chart when stats change
-  createEffect(() => {
-    const stats = wordStats();
-    if (barCanvasRef) {
-      drawBarChart(barCanvasRef, stats, getLevelLabels());
+    for (const [word, status] of Object.entries(words)) {
+      const freq = getFrequency(word);
+      if (!freq) continue;
+      const bucket = buckets.get(freq.raw_level);
+      if (!bucket) continue;
+      if (status === 2) bucket.learned++;
+      else if (status === 1) bucket.learning++;
+      else bucket.viewed++;
     }
-  });
 
-  const openKanjiGrid = () => {
-    getBridge().window.openWindow({ type: 'kanji-grid' });
+    setLevelBreakdown(entries.map(e => ({
+      name: e.name || `Level ${e.level}`,
+      ...(buckets.get(e.level) ?? { learned: 0, learning: 0, viewed: 0 }),
+    })));
   };
 
-  const openWordDbEditor = () => {
-    getBridge().window.openWindow({ type: 'word-db-editor' });
-  };
+  const pct = (n: number, total: number) => total > 0 ? ((n / total) * 100).toFixed(1) : '0';
 
-  const openAiAnalytics = () => {
-    getBridge().window.openWindow({ type: 'conversation-agent', context: { initialTab: 'stats' } });
-  };
+  const openKanjiGrid = () => getBridge().window.openWindow({ type: 'kanji-grid' });
+  const openWordDbEditor = () => getBridge().window.openWindow({ type: 'word-db-editor' });
+  const openAiAnalytics = () => getBridge().window.openWindow({ type: 'conversation-agent', context: { initialTab: 'stats' } });
 
   return (
     <TabContent
       header={{
         title: t('mlearn.Statistics.Title'),
         description: t('mlearn.Statistics.Description'),
-        icon: '📊',
       }}
       padding="lg"
     >
-      {/* Stats Cards */}
+      {/* Stat cards */}
       <div class="stats-grid">
-        <div class="stats-card-wrapper">
-          <StatCard label={t('mlearn.Statistics.TimeWatched')} value={timeWatched()} icon="⏱️" size="md" variant="elevated" />
-        </div>
-        <div class="stats-card-wrapper">
-          <StatCard label={t('mlearn.Statistics.WordsTracked')} value={wordStats().total} icon="📝" size="md" variant="elevated" />
-        </div>
-        <div class="stats-card-wrapper">
-          <StatCard label={t('mlearn.Statistics.WordsLearned')} value={wordStats().learned} icon="✅" color="success" size="md" variant="elevated" />
-        </div>
-        <div class="stats-card-wrapper">
-          <StatCard label={t('mlearn.Statistics.CurrentlyLearning')} value={wordStats().learning} icon="📚" color="warning" size="md" variant="elevated" />
-        </div>
+        <StatCard label={t('mlearn.Statistics.TimeWatched')} value={timeWatched()} size="md" />
+        <StatCard label={t('mlearn.Statistics.WordsTracked')} value={wordStats().total} size="md" />
+        <StatCard label={t('mlearn.Statistics.WordsLearned')} value={wordStats().learned} size="md" />
+        <StatCard label={t('mlearn.Statistics.CurrentlyLearning')} value={wordStats().learning} size="md" />
       </div>
 
-      {/* Pie Chart */}
-      <div class="chart-container">
-        <h3 class="chart-title">{t('mlearn.Statistics.WordsByStatus')}</h3>
-        <Show
-          when={wordStats().total > 0}
-          fallback={
-            <EmptyState
-              icon="📈"
-              title={t('mlearn.Statistics.EmptyState.Title')}
-              description={t('mlearn.Statistics.EmptyState.Description')}
-              size="sm"
-            />
-          }
-        >
-          <canvas ref={pieCanvasRef} class="chart-canvas" width={300} height={300} />
-          <div class="chart-legend">
-            <div class="legend-item">
-              <span class="legend-color" style={{ background: "#4ade80" }} />
-              <span>{t('mlearn.Statistics.Legend.Learned')} ({wordStats().learned})</span>
+      {/* Word distribution */}
+      <Show when={wordStats().total > 0}>
+        <div class="stats-section">
+          <h4 class="stats-section-title">{t('mlearn.Statistics.WordsByStatus')}</h4>
+          <div class="stats-distribution">
+            <div class="stats-distribution-bar">
+              <div class="bar-segment bar-segment-learned" style={{ width: `${pct(wordStats().learned, wordStats().total)}%` }} />
+              <div class="bar-segment bar-segment-learning" style={{ width: `${pct(wordStats().learning, wordStats().total)}%` }} />
+              <div class="bar-segment bar-segment-viewed" style={{ width: `${pct(wordStats().unknown, wordStats().total)}%` }} />
             </div>
-            <div class="legend-item">
-              <span class="legend-color" style={{ background: "#fb923c" }} />
-              <span>{t('mlearn.Statistics.Legend.Learning')} ({wordStats().learning})</span>
-            </div>
-            <div class="legend-item">
-              <span class="legend-color" style={{ background: "#64748b" }} />
-              <span>{t('mlearn.Statistics.Legend.Viewed')} ({wordStats().unknown})</span>
+            <div class="stats-distribution-legend">
+              <span class="legend-entry"><span class="legend-dot legend-dot-learned" />{t('mlearn.Statistics.Legend.Learned')} ({wordStats().learned})</span>
+              <span class="legend-entry"><span class="legend-dot legend-dot-learning" />{t('mlearn.Statistics.Legend.Learning')} ({wordStats().learning})</span>
+              <span class="legend-entry"><span class="legend-dot legend-dot-viewed" />{t('mlearn.Statistics.Legend.Viewed')} ({wordStats().unknown})</span>
             </div>
           </div>
-        </Show>
-      </div>
+        </div>
+      </Show>
 
-      {/* Bar Chart */}
-      <div class="chart-container">
-        <h3 class="chart-title">{t('mlearn.Statistics.WordsByExamLevel')}</h3>
-        <canvas ref={barCanvasRef} class="chart-canvas" width={400} height={200} />
-      </div>
+      {/* Level breakdown table */}
+      <Show when={getLanguageFeatures().supportsFrequencyLevels && levelBreakdown().length > 0}>
+        <div class="stats-section">
+          <h4 class="stats-section-title">{t('mlearn.Statistics.WordsByExamLevel')}</h4>
+          <table class="stats-level-table">
+            <thead>
+              <tr>
+                <th>{t('mlearn.Statistics.LevelColumn')}</th>
+                <th>{t('mlearn.Statistics.Legend.Learned')}</th>
+                <th>{t('mlearn.Statistics.Legend.Learning')}</th>
+                <th>{t('mlearn.Statistics.Legend.Viewed')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <For each={levelBreakdown()}>
+                {(row) => (
+                  <tr>
+                    <td>{row.name}</td>
+                    <td class="stat-num">{row.learned}</td>
+                    <td class="stat-num">{row.learning}</td>
+                    <td class="stat-num">{row.viewed}</td>
+                  </tr>
+                )}
+              </For>
+            </tbody>
+          </table>
+        </div>
+      </Show>
 
-      {/* Action Buttons */}
-      <div class="action-buttons">
-        <Btn variant="primary" onClick={openKanjiGrid}>
+      {/* Actions */}
+      <div class="stats-actions">
+        <Btn variant="default" onClick={openKanjiGrid}>
           {t('mlearn.Statistics.Actions.ViewKanjiGrid')}
         </Btn>
-        <Btn variant="primary" onClick={openWordDbEditor}>
+        <Btn variant="default" onClick={openWordDbEditor}>
           {t('mlearn.Statistics.Actions.EditWordDatabase')}
         </Btn>
-        <Btn variant="primary" onClick={openAiAnalytics}>
+        <Btn variant="default" onClick={openAiAnalytics}>
           {t('mlearn.Statistics.Actions.OpenAiAnalytics')}
         </Btn>
       </div>
     </TabContent>
   );
 };
-
-/**
- * Draw pie chart showing word status distribution
- */
-function drawPieChart(
-  canvas: HTMLCanvasElement,
-  stats: { learned: number; learning: number; unknown: number; total: number }
-) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  const { learned, learning, unknown, total } = stats;
-  if (total === 0) return;
-
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
-  const radius = Math.min(centerX, centerY) - 20;
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const data = [
-    { value: learned, color: '#4ade80', label: 'Learned' },
-    { value: learning, color: '#fb923c', label: 'Learning' },
-    { value: unknown, color: '#64748b', label: 'Viewed' },
-  ];
-
-  let startAngle = -Math.PI / 2;
-
-  for (const segment of data) {
-    if (segment.value === 0) continue;
-    
-    const sliceAngle = (segment.value / total) * 2 * Math.PI;
-    
-    ctx.beginPath();
-    ctx.moveTo(centerX, centerY);
-    ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
-    ctx.closePath();
-    ctx.fillStyle = segment.color;
-    ctx.fill();
-
-    // Draw percentage label
-    const labelAngle = startAngle + sliceAngle / 2;
-    const labelRadius = radius * 0.65;
-    const labelX = centerX + Math.cos(labelAngle) * labelRadius;
-    const labelY = centerY + Math.sin(labelAngle) * labelRadius;
-    
-    const percentage = Math.round((segment.value / total) * 100);
-    if (percentage >= 5) {
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`${percentage}%`, labelX, labelY);
-    }
-
-    startAngle += sliceAngle;
-  }
-
-  // Draw center circle for donut effect
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, radius * 0.5, 0, 2 * Math.PI);
-  ctx.fillStyle = '#0a0a12';
-  ctx.fill();
-
-  // Draw total in center
-  ctx.fillStyle = 'white';
-  ctx.font = 'bold 24px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(total.toString(), centerX, centerY - 10);
-  ctx.font = '12px sans-serif';
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.fillText('words', centerX, centerY + 15);
-}
-
-/**
- * Draw bar chart showing words by exam level
- */
-function drawBarChart(
-  canvas: HTMLCanvasElement,
-  _stats: { learned: number; learning: number; unknown: number },
-  levelLabels: string[] = []
-) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Use dynamic level labels, or fallback to generic levels
-  const levels = levelLabels.length > 0 ? levelLabels : ['Level 5', 'Level 4', 'Level 3', 'Level 2', 'Level 1'];
-  const levelData = levels.map(() => ({
-    learned: Math.floor(Math.random() * 50),
-    learning: Math.floor(Math.random() * 30),
-    unknown: Math.floor(Math.random() * 100),
-  }));
-
-  const padding = { top: 20, right: 20, bottom: 40, left: 50 };
-  const chartWidth = canvas.width - padding.left - padding.right;
-  const chartHeight = canvas.height - padding.top - padding.bottom;
-  const barWidth = chartWidth / levels.length * 0.7;
-  const gap = chartWidth / levels.length * 0.3;
-
-  const maxValue = Math.max(...levelData.map(d => d.learned + d.learning + d.unknown), 1);
-
-  // Draw grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = padding.top + (chartHeight / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(padding.left, y);
-    ctx.lineTo(canvas.width - padding.right, y);
-    ctx.stroke();
-  }
-
-  // Draw bars
-  levelData.forEach((data, i) => {
-    const x = padding.left + (barWidth + gap) * i + gap / 2;
-    
-    let y = padding.top + chartHeight;
-    
-    // Unknown
-    const unknownHeight = (data.unknown / maxValue) * chartHeight;
-    ctx.fillStyle = '#64748b';
-    ctx.fillRect(x, y - unknownHeight, barWidth, unknownHeight);
-    y -= unknownHeight;
-
-    // Learning
-    const learningHeight = (data.learning / maxValue) * chartHeight;
-    ctx.fillStyle = '#fb923c';
-    ctx.fillRect(x, y - learningHeight, barWidth, learningHeight);
-    y -= learningHeight;
-
-    // Learned
-    const learnedHeight = (data.learned / maxValue) * chartHeight;
-    ctx.fillStyle = '#4ade80';
-    ctx.fillRect(x, y - learnedHeight, barWidth, learnedHeight);
-
-    // Label
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = '12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(levels[i], x + barWidth / 2, canvas.height - padding.bottom + 20);
-  });
-
-  // Y-axis labels
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.font = '10px sans-serif';
-  ctx.textAlign = 'right';
-  for (let i = 0; i <= 4; i++) {
-    const value = Math.round((maxValue / 4) * (4 - i));
-    const y = padding.top + (chartHeight / 4) * i;
-    ctx.fillText(value.toString(), padding.left - 10, y + 4);
-  }
-}

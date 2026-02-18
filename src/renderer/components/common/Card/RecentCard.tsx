@@ -6,6 +6,7 @@
 
 import { Component } from 'solid-js';
 import { ProgressBar } from '../Feedback/ProgressBar';
+import { VideoIcon, BookIcon } from '../Misc/Icons';
 import './RecentCard.css';
 
 export interface RecentItem {
@@ -26,7 +27,7 @@ export interface RecentCardProps {
  * RecentCard - Displays a recently accessed item with thumbnail and progress
  */
 export const RecentCard: Component<RecentCardProps> = (props) => {
-  const typeIcon = () => props.item.type === 'video' ? '🎬' : '📖';
+  const typeIcon = () => props.item.type === 'video' ? <VideoIcon size={16} /> : <BookIcon size={16} />;
 
   return (
     <button class="recent-card" onClick={props.onClick}>

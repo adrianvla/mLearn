@@ -16,7 +16,7 @@ import {
   getWordsLearnedInApp,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
-import { Spinner, PillLabel, LegendItem } from '../../components/common';
+import { Spinner, PillLabel, LegendItem, BookIcon } from '../../components/common';
 import './kanjiGrid.css';
 
 interface KanjiData {
@@ -324,7 +324,7 @@ export const KanjiGridContent: Component = () => {
           
           <Show when={!isLoading() && kanjiData().length === 0}>
             <div class="kg-empty-state">
-              <div class="empty-icon">📚</div>
+              <div class="empty-icon"><BookIcon size={40} /></div>
               <h3>{t('mlearn.KanjiGrid.EmptyState.Title')}</h3>
               <p>{t('mlearn.KanjiGrid.EmptyState.Description')}</p>
               <p class="hint">{t('mlearn.KanjiGrid.EmptyState.Hint')}</p>

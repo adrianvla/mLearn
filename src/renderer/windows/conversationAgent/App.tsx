@@ -18,6 +18,8 @@ import {
   Textarea,
   Select,
   formatKeybindDisplay, Tag,
+  ChatIcon,
+  EditIcon,
 } from '../../components/common';
 import type { TabItem, SelectOption } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
@@ -820,7 +822,7 @@ export const ConversationContent: Component = () => {
               when={messages().length > 0}
               fallback={
                 <EmptyState
-                  icon="💬"
+                  icon={<ChatIcon size={24} />}
                   title={t('mlearn.ConversationAgent.Empty.Title')}
                   description={t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
                   action={{
@@ -878,7 +880,7 @@ export const ConversationContent: Component = () => {
                 class={`ca-scene-context-toggle ${showSceneContext() ? 'active' : ''}`}
                 onClick={() => setShowSceneContext(!showSceneContext())}
               >
-                <span class="ca-scene-context-icon">📝</span>
+                <span class="ca-scene-context-icon"><EditIcon size={14} /></span>
                 {t('mlearn.ConversationAgent.SceneContext')}
                 <Show when={sceneContext().trim()}>
                   <span class="ca-scene-context-badge" />

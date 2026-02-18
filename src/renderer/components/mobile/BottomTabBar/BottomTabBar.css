@@ -25,7 +25,7 @@
   height: 56px;
   border: none;
   background: none;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 4px 0;
   -webkit-tap-highlight-color: transparent;

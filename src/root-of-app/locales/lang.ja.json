@@ -161,7 +161,7 @@
         "OpenVideo": "動画を開く",
         "OpenSubtitles": "字幕を開く",
         "GoHome": "← ホーム",
-        "OpenConversationAgent": "🤖 AIチューター"
+        "OpenConversationAgent": "AIチューター"
       },
       "Tooltip": {
         "GoHome": "ホームに戻る",
@@ -171,7 +171,7 @@
     "Reader": {
       "UI": {
         "WelcomeSplash": {
-          "Title": "📖 リーダーへようこそ",
+          "Title": "リーダーへようこそ",
           "TitleDescription": "画像フォルダまたは.pdfファイルをこのウィンドウにドラッグ＆ドロップしてください。",
           "DropZone": "ファイルをここにドロップしてインポート",
           "Footer": "何かをドロップして始めましょう — このウェルカム画面はあなたの物語のために場所を空けます。",
@@ -237,7 +237,13 @@
         "FuriganaDetectionOff": "ふりがな検出: オフ",
         "DebugOverlayTitle": "OCRテキストとふりがな検出を視覚化するデバッグオーバーレイの切り替え",
         "DebugOverlayOn": "デバッグ: オン",
-        "DebugOverlayOff": "デバッグ: オフ"
+        "DebugOverlayOff": "デバッグ: オフ",
+        "TimingDetection": "検出",
+        "TimingRecognition": "認識",
+        "TimingPerBox": "平均/ボックス",
+        "TimingTotal": "合計",
+        "PaddleDownscaleLabel": "PaddleOCRスケール: {value}%",
+        "PaddleDownscaleTitle": "PaddleOCR処理前に画像を縮小する（開発用）"
       },
       "Status": {
         "NothingLoaded": "何も読み込まれていません",
@@ -270,7 +276,7 @@
           "Browse": "閲覧",
           "Statistics": "統計"
         },
-        "Sync": "🔄 同期",
+        "Sync": "同期",
         "AddCard": "+ カード追加"
       },
       "EmptyState": {
@@ -363,7 +369,7 @@
         "LearningLabel": "学習中:",
         "Undo": "↩",
         "UndoTooltip": "元に戻す",
-        "Complete": "🎉 復習完了！",
+        "Complete": "復習完了！",
         "CompleteDescription": "すべてのカードの復習が完了しました。お疲れ様でした！",
         "ReviewMore": "さらに復習",
         "ShowAnswer": "答えを表示",
@@ -732,10 +738,10 @@
         },
         "Tips": {
           "Title": "リーダーのヒント",
-          "GettingStarted": "📖 始め方: 画像フォルダまたはPDFファイルをリーダーウィンドウにドラッグ＆ドロップします。",
-          "OcrMode": "🔍 OCRモード: 「OCR実行」をクリックして現在のページからテキストを抽出します。検出されたテキストにホバーして翻訳を確認できます。",
-          "Navigation": "📚 ナビゲーション: 矢印キーを使用するか、サイドバーのサムネイルをクリックしてページ移動できます。",
-          "DoublePage": "💡 ヒント: 見開きモードは漫画の見開きページに最適です！"
+          "GettingStarted": "始め方: 画像フォルダまたはPDFファイルをリーダーウィンドウにドラッグ＆ドロップします。",
+          "OcrMode": "OCRモード: 「OCR実行」をクリックして現在のページからテキストを抽出します。検出されたテキストにホバーして翻訳を確認できます。",
+          "Navigation": "ナビゲーション: 矢印キーを使用するか、サイドバーのサムネイルをクリックしてページ移動できます。",
+          "DoublePage": "ヒント: 見開きモードは漫画の見開きページに最適です！"
         }
       },
       "SRS": {
@@ -772,8 +778,8 @@
             "Description": "AnkiConnect接続のテスト"
           },
           "Test": "テスト",
-          "Connected": "✓ 接続済み",
-          "Failed": "✗ 失敗",
+          "Connected": "接続済み",
+          "Failed": "失敗",
           "DeckName": {
             "Label": "デッキ名",
             "Description": "新しいカードのAnkiデッキ",
@@ -899,6 +905,7 @@
       "CurrentlyLearning": "学習中",
       "WordsByStatus": "状態別の単語",
       "WordsByExamLevel": "試験レベル別の単語",
+      "LevelColumn": "レベル",
       "EmptyState": {
         "Title": "単語データはまだありません",
         "Description": "動画を視聴して単語の追跡を開始しましょう！"
@@ -909,9 +916,9 @@
         "Viewed": "閲覧済み"
       },
       "Actions": {
-        "ViewKanjiGrid": "📊 漢字グリッドを表示",
-        "EditWordDatabase": "📝 単語データベースを編集",
-        "OpenAiAnalytics": "🤖 AIメディア分析"
+        "ViewKanjiGrid": "漢字グリッドを表示",
+        "EditWordDatabase": "単語データベースを編集",
+        "OpenAiAnalytics": "AIメディア分析"
       }
     },
     "Connection": {
@@ -944,8 +951,8 @@
       "Title": "mLearn",
       "VersionLabel": "バージョン {version}",
       "Description": "mLearnは没入型学習で言語を学ぶツールです。動画を見たり、漫画を読んだり、インテリジェントな字幕と間隔反復で自然に語彙を学べます。",
-      "Website": "🌐 ウェブサイト",
-      "Licenses": "📄 ライセンス",
+      "Website": "ウェブサイト",
+      "Licenses": "ライセンス",
       "KeyboardShortcuts": {
         "Title": "キーボードショートカット",
         "Space": "動画の再生/一時停止",

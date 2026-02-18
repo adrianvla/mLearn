@@ -17,6 +17,7 @@ import {
   Spinner,
   Select,
   Input,
+  MicrophoneIcon,
 } from '../../components/common';
 import type { SelectOption } from '../../components/common';
 import { ChatBubble } from './ChatBubble';
@@ -771,7 +772,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             />
           </Show>
           <EmptyState
-            icon="🎙️"
+            icon={<MicrophoneIcon size={24} />}
             title={t('mlearn.ConversationAgent.Voice.DownloadModels')}
             description={t('mlearn.ConversationAgent.Voice.ModelsRequired')}
           />
@@ -1022,7 +1023,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
               when={props.messages.length > 0 || partialTranscript()}
               fallback={
                 <EmptyState
-                  icon="🎙️"
+                  icon={<MicrophoneIcon size={24} />}
                   title={t('mlearn.ConversationAgent.Voice.StartCall')}
                   description={t('mlearn.ConversationAgent.Voice.EmptyHint')}
                   class="ca-empty"

@@ -4,8 +4,9 @@
 
 import { Component, createSignal, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
+import '../SettingsForm.css';
 
 /** Key options for hover trigger keybind */
 const KEY_OPTIONS = ['Shift', 'Control', 'Alt', 'Meta'] as const;
@@ -62,7 +63,7 @@ export const ReaderTab: Component = () => {
       header={{
         title: t('mlearn.Settings.Reader.Title'),
         description: t('mlearn.Settings.Reader.Description'),
-        icon: '📖',
+        icon: <BookIcon size={20} />,
       }}
       padding="lg"
     >

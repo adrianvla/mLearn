@@ -9,7 +9,7 @@ import { useIPC, useSubtitles, useWatchTogether, useMediaStats } from '../../../
 import { useLocalization, useSettings, useLanguage, useFlashcards } from '../../../context';
 import { VideoPlayer } from '../../../components/video';
 import { MediaStatsPanel } from '../../../components/statistics/MediaStatsPanel';
-import { Panel, Btn, NavBtn } from '../../../components/common';
+import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { LiveWordTranslator, SubtitleSync } from '../../../components/subtitle';
 import { IPC_CHANNELS } from '../../../../shared/constants';
@@ -136,16 +136,34 @@ export const VideoRoute: Component = () => {
       });
     };
 
+    // Capture an initial thumbnail as soon as the video has enough data
+    const attachInitialThumbnailCapture = () => {
+      const video = document.querySelector('video');
+      if (!video) return;
+      const onCanPlay = () => {
+        captureThumbnailIfReady();
+        video.removeEventListener('canplay', onCanPlay);
+      };
+      if (video.readyState >= 3) {
+        captureThumbnailIfReady();
+      } else {
+        video.addEventListener('canplay', onCanPlay);
+        ipcCleanups.push(() => video.removeEventListener('canplay', onCanPlay));
+      }
+    };
+
     // The video element may appear later (ShowDropZone toggle), so use a
     // MutationObserver to detect when it's added.
     const observer = new MutationObserver(() => {
       if (document.querySelector('video')) {
         attachWatchTogetherListeners();
+        attachInitialThumbnailCapture();
         observer.disconnect();
       }
     });
     if (document.querySelector('video')) {
       attachWatchTogetherListeners();
+      attachInitialThumbnailCapture();
     } else {
       observer.observe(document.body, { childList: true, subtree: true });
       ipcCleanups.push(() => observer.disconnect());
@@ -187,7 +205,7 @@ export const VideoRoute: Component = () => {
   const captureThumbnailIfReady = () => {
     const videoEl = document.querySelector('video');
     const name = currentVideoName();
-    if (videoEl && name && !videoEl.paused && videoEl.readyState >= 2) {
+    if (videoEl && name && videoEl.readyState >= 2) {
       const thumbnail = captureVideoThumbnail(videoEl);
       if (thumbnail) {
         updateRecentItemThumbnail(name, thumbnail);
@@ -440,7 +458,7 @@ export const VideoRoute: Component = () => {
               padding="xl"
               class={`drop-zone bordered ${isDragging() ? 'dragging' : ''}`}
             >
-              <div class="drop-icon">🎬</div>
+              <div class="drop-icon"><VideoIcon size={40} /></div>
               <h2>{t('mlearn.Video.UI.DropVideoHere')}</h2>
               <p>{t('mlearn.Video.UI.OrClickToBrowse')}</p>
               <div class="drop-actions">

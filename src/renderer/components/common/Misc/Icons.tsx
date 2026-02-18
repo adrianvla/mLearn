@@ -204,6 +204,113 @@ export const EyeOffIcon = createIcon([
   'M1 1l22 22',
 ]);
 
+// ============ Additional Icons ============
+
+/** Clock/Timer icon */
+export const ClockIcon = createIcon([
+  'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z',
+  'M12 6v6l4 2',
+]);
+
+/** Target/Crosshair icon */
+export const TargetIcon = createIcon([
+  'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z',
+  'M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12z',
+  'M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+]);
+
+/** Link/Chain icon */
+export const LinkIcon = createIcon([
+  'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71',
+  'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+]);
+
+/** Chat/Message bubble icon */
+export const ChatIcon = createIcon(
+  'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'
+);
+
+/** Calendar icon */
+export const CalendarIcon = createIcon([
+  'M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z',
+  'M16 2v4',
+  'M8 2v4',
+  'M3 10h18',
+]);
+
+/** Video/Film icon */
+export const VideoIcon = createIcon([
+  'M23 7l-7 5 7 5V7z',
+  'M14 5H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z',
+]);
+
+/** Globe/World icon */
+export const GlobeIcon = createIcon([
+  'M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z',
+  'M2 12h20',
+  'M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z',
+]);
+
+/** Sparkles/Magic icon */
+export const SparklesIcon = createIcon([
+  'M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z',
+]);
+
+/** Book/Reading icon */
+export const BookIcon = createIcon([
+  'M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z',
+  'M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z',
+]);
+
+/** Bar chart/Stats icon */
+export const BarChartIcon = createIcon([
+  'M12 20V10',
+  'M18 20V4',
+  'M6 20v-4',
+]);
+
+/** Star icon */
+export const StarIcon = createIcon(
+  'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'
+);
+
+/** Grid/Layout icon */
+export const GridIcon = createIcon([
+  'M3 3h7v7H3z',
+  'M14 3h7v7h-7z',
+  'M14 14h7v7h-7z',
+  'M3 14h7v7H3z',
+]);
+
+/** Sort ascending */
+export const SortAscIcon = createIcon([
+  'M12 5v14',
+  'M5 12l7-7 7 7',
+]);
+
+/** Sort descending */
+export const SortDescIcon = createIcon([
+  'M12 5v14',
+  'M19 12l-7 7-7-7',
+]);
+
+/** Microphone icon */
+export const MicrophoneIcon = createIcon([
+  'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z',
+  'M19 10v2a7 7 0 0 1-14 0v-2',
+  'M12 19v4',
+  'M8 23h8',
+]);
+
+/** Scissors icon */
+export const ScissorsIcon = createIcon([
+  'M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  'M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  'M20 4L8.12 15.88',
+  'M14.47 14.48L20 20',
+  'M8.12 8.12L12 12',
+]);
+
 export default {
   CloseIcon,
   CrossIcon,
@@ -235,4 +342,20 @@ export default {
   CopyIcon,
   EyeIcon,
   EyeOffIcon,
+  ClockIcon,
+  TargetIcon,
+  LinkIcon,
+  ChatIcon,
+  CalendarIcon,
+  VideoIcon,
+  GlobeIcon,
+  SparklesIcon,
+  BookIcon,
+  BarChartIcon,
+  StarIcon,
+  GridIcon,
+  SortAscIcon,
+  SortDescIcon,
+  MicrophoneIcon,
+  ScissorsIcon,
 };

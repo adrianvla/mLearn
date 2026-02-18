@@ -13,7 +13,7 @@ import { setWordStatus, toUniqueIdentifier, wordsLearnedInApp } from '../../serv
 import { getCachedExplanation } from '../../services/llmProvider';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, PitchAccentOverlay } from '../common';
+import { PillBtn, PillLabel, PitchAccentOverlay, ClockIcon } from '../common';
 import './WordHover.css';
 
 // Icon names for the Icon component - enables proper SVG coloring
@@ -1073,7 +1073,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 }>
                   <PillBtn
                     variant="yellow"
-                    icon="⏳"
+                    icon={<ClockIcon size={14} />}
                     label={t('mlearn.Global.Status.Adding')}
                     disabled={true}
                   />

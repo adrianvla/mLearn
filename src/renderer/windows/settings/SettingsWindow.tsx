@@ -20,7 +20,7 @@ import {
   AboutTab
 } from './tabs';
 import Icon from '../../components/common/Icons/Icon';
-import './settings.css';
+import './SettingsLayout.css';
 
 type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'stats' | 'ai' | 'connection' | 'about';
 
@@ -86,8 +86,6 @@ export const SettingsContent: Component = () => {
 
   return (
     <div class="settings-window">
-      {/* Drag region for window */}
-      <div class="settings-drag-region" />
 
       <TabContainer
         tabs={tabItems()}

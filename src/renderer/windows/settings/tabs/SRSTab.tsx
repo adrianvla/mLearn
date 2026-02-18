@@ -5,6 +5,7 @@
 import { Component, createSignal, Show } from 'solid-js';
 import { useSettings, useLocalization, useFlashcards } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select } from '../../../components/common';
+import '../SettingsForm.css';
 
 export const SRSTab: Component = () => {
   const { settings, updateSettings } = useSettings();

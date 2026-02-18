@@ -5,6 +5,7 @@
 import { Component, For, Show, Accessor, Setter } from 'solid-js';
 import { Btn, ProgressBar, HintText, Select, Input } from '../../../components/common';
 import { useLocalization } from '../../../context';
+import './SearchBar.css';
 
 export interface SearchBarProps {
   searchQuery: Accessor<string>;

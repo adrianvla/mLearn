@@ -8,6 +8,7 @@ import { Component, Show, createSignal, JSX, mergeProps } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { Panel } from '../Panel';
 import { Btn } from '../Button';
+import { ErrorIcon, WarningIcon } from '../Misc/Icons';
 import { useLocalization } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { isElectron } from '../../../../shared/platform';
@@ -59,17 +60,17 @@ export const ErrorModal: Component<ErrorModalProps> = (props) => {
 
   const severityConfig = {
     error: {
-      icon: '❌',
+      icon: <ErrorIcon size={24} />,
       colorClass: 'error-modal--error',
       defaultTitle: t('mlearn.ErrorModal.Title.Error'),
     },
     fatal: {
-      icon: '💥',
+      icon: <ErrorIcon size={24} />,
       colorClass: 'error-modal--fatal',
       defaultTitle: t('mlearn.ErrorModal.Title.Fatal'),
     },
     warning: {
-      icon: '⚠️',
+      icon: <WarningIcon size={24} />,
       colorClass: 'error-modal--warning',
       defaultTitle: t('mlearn.ErrorModal.Title.Warning'),
     },

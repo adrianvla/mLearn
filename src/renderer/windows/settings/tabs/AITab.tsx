@@ -5,9 +5,11 @@
 
 import { Component, Show, createSignal, createEffect, onCleanup, For } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText } from '../../../components/common';
+import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, SparklesIcon } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
 import type { LLMProvider, LLMModelStatus } from '../../../../shared/types';
+import '../SettingsForm.css';
+import './AITab.css';
 
 export const AITab: Component = () => {
   const { settings, updateSettings, updateSetting } = useSettings();
@@ -124,7 +126,7 @@ export const AITab: Component = () => {
       header={{
         title: t('mlearn.AI.Settings.Title'),
         description: t('mlearn.AI.Settings.Description'),
-        icon: '✨',
+        icon: <SparklesIcon size={20} />,
       }}
       padding="lg"
     >
