@@ -36,7 +36,11 @@
   min-width: 150px;
 }
 
-.load-progress {\n  width: 150px;\n}\n\n.hint {
+.load-progress {
+  width: 150px;
+}
+
+.hint {
   font-size: 0.75rem;
   color: var(--text-secondary);
   margin-left: auto;

@@ -5,6 +5,7 @@
 
 import { Component, Show, createSignal, onMount } from 'solid-js';
 import { useSettings, useLocalization } from '../../context';
+import { getBridge } from '../../../shared/bridges';
 import {
   FormField,
   Input,
@@ -38,7 +39,7 @@ export const ConnectionTab: Component = () => {
     setTestStatus('testing');
     try {
       updateSetting('ollamaUrl', serverUrl());
-      const connected = await window.mLearnIPC?.ollamaCheck();
+      const connected = await getBridge().llm.ollamaCheck();
       setTestStatus(connected ? 'success' : 'failed');
       setTimeout(() => setTestStatus('idle'), 3000);
     } catch {
@@ -51,7 +52,7 @@ export const ConnectionTab: Component = () => {
     setLoadingModels(true);
     try {
       updateSetting('ollamaUrl', serverUrl());
-      const models = (await window.mLearnIPC?.ollamaListModels()) as OllamaModel[] | undefined;
+      const models = (await getBridge().llm.ollamaListModels()) as OllamaModel[] | undefined;
       setAvailableModels(models || []);
     } catch {
       setAvailableModels([]);

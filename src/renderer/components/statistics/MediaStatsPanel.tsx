@@ -7,7 +7,7 @@ import { Component, Show, For, createSignal, createMemo } from 'solid-js';
 import type { MediaStats } from '../../../shared/types';
 import { useLocalization } from '../../context';
 import { formatDurationHM } from '../../utils/timeFormatting';
-import '../../../renderer/styles/media-stats.css';
+import './MediaStats.css';
 
 type StatsTab = 'summary' | 'words' | 'grammar' | 'unknown';
 

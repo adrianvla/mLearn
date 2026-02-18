@@ -14,6 +14,8 @@ import { useSettings } from './SettingsContext';
 import { useLocalization } from './LocalizationContext';
 import { changeKnownStatus as changeKnownStatusInStats } from '../services/statsService';
 import { showToast } from '../components/common/Feedback/Toast';
+import { getBridge } from '../../shared/bridges';
+import { isElectron } from '../../shared/platform';
 
 // Current store version
 const CURRENT_VERSION = 4;
@@ -253,8 +255,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Load flashcards — just sends IPC request (listener is registered once in onMount)
   const loadFlashcards = () => {
-    if (typeof window !== 'undefined' && window.mLearnIPC) {
-      window.mLearnIPC.getFlashcards();
+    if (isElectron()) {
+      getBridge().flashcards.getFlashcards();
     } else {
       // Try localStorage for tethered mode
       try {
@@ -363,8 +365,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
       return;
     }
 
-    if (typeof window !== 'undefined' && window.mLearnIPC) {
-      window.mLearnIPC.saveFlashcards(serializedStore);
+    if (isElectron()) {
+      getBridge().flashcards.saveFlashcards(serializedStore);
     } else {
       try {
         localStorage.setItem('mlearn-flashcards', JSON.stringify(serializedStore));
@@ -1063,8 +1065,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Only sends the IPC request; the listener is registered once in onMount
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
-      if (typeof window !== 'undefined' && window.mLearnIPC) {
-        window.mLearnIPC.getFlashcards();
+      if (isElectron()) {
+        getBridge().flashcards.getFlashcards();
       }
     }
   };
@@ -1076,18 +1078,19 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }
 
     // Register all IPC listeners ONCE and store their cleanup functions
-    if (typeof window !== 'undefined' && window.mLearnIPC) {
+    if (isElectron()) {
+      const bridge = getBridge();
       // Flashcards loaded listener (single registration — reused by loadFlashcards and visibility sync)
-      ipcCleanups.push(window.mLearnIPC.onFlashcards(handleFlashcardsLoaded));
+      ipcCleanups.push(bridge.flashcards.onFlashcards(handleFlashcardsLoaded));
 
       // Migration listener
-      ipcCleanups.push(window.mLearnIPC.on('flashcard-migration-complete', handleMigrationComplete));
+      ipcCleanups.push(bridge.generic.on('flashcard-migration-complete', handleMigrationComplete));
 
       // New day event from main process
-      ipcCleanups.push(window.mLearnIPC.onNewDayFlashcards(handleNewDay));
+      ipcCleanups.push(bridge.flashcards.onNewDayFlashcards(handleNewDay));
 
       // Tethered mode updates
-      ipcCleanups.push(window.mLearnIPC.onUpdatePills((data: unknown) => {
+      ipcCleanups.push(bridge.crossWindow.onUpdatePills((data: unknown) => {
         try {
           const updates: Array<{ word: string; status: number }> = JSON.parse(data as string);
           for (const update of updates) {
@@ -1098,7 +1101,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         }
       }));
 
-      ipcCleanups.push(window.mLearnIPC.onUpdateWordAppearance((data: unknown) => {
+      ipcCleanups.push(bridge.crossWindow.onUpdateWordAppearance((data: unknown) => {
         try {
           const words: string[] = JSON.parse(data as string);
           for (const word of words) {
@@ -1109,7 +1112,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         }
       }));
 
-      ipcCleanups.push(window.mLearnIPC.onUpdateAttemptFlashcardCreation((data: unknown) => {
+      ipcCleanups.push(bridge.crossWindow.onUpdateAttemptFlashcardCreation((data: unknown) => {
         try {
           const updates: Array<{ word: string; content: Record<string, unknown> }> = JSON.parse(data as string);
           for (const update of updates) {
@@ -1120,7 +1123,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         }
       }));
 
-      ipcCleanups.push(window.mLearnIPC.onUpdateCreateFlashcard((data: unknown) => {
+      ipcCleanups.push(bridge.crossWindow.onUpdateCreateFlashcard((data: unknown) => {
         try {
           const updates: Array<{ content: Record<string, unknown> }> = JSON.parse(data as string);
           for (const update of updates) {
@@ -1154,7 +1157,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         }
       }));
 
-      ipcCleanups.push(window.mLearnIPC.onUpdateLastWatched((data: unknown) => {
+      ipcCleanups.push(bridge.crossWindow.onUpdateLastWatched((data: unknown) => {
         try {
           const updates: Array<{ name: string; screenshotUrl: string; videoUrl: string }> = JSON.parse(data as string);
           for (const update of updates) {

@@ -1,5 +1,12 @@
 {
   "mlearn": {
+    "Tabs": {
+      "Home": "ホーム",
+      "Video": "動画",
+      "Reader": "リーダー",
+      "Flashcards": "カード",
+      "Settings": "設定"
+    },
     "Global": {
       "AppName": "mLearn",
       "Loading": "読み込み中...",
@@ -482,6 +489,7 @@
         "Reader": "リーダー",
         "Statistics": "統計",
         "AI": "AI",
+        "Connection": "接続",
         "About": "情報"
       },
       "Groups": {
@@ -826,6 +834,17 @@
           },
           "ResetButton": "SRSをリセット"
         }
+      },
+      "Mobile": {
+        "GeneralDesc": "言語、テーマ、データ",
+        "BehaviourDesc": "単語ステータス、表示、パフォーマンス",
+        "AppearanceDesc": "字幕、色、テーマ",
+        "SRSDesc": "フラッシュカードの制限と連携",
+        "ReaderDesc": "OCR、ホバー、読書ツール",
+        "StatsDesc": "学習統計と進捗",
+        "AIDesc": "言語モデルプロバイダー",
+        "ConnectionDesc": "バックエンドモードと同期",
+        "AboutDesc": "バージョン、リンク、ショートカット"
       }
     },
     "Installer": {
@@ -894,6 +913,32 @@
         "EditWordDatabase": "📝 単語データベースを編集",
         "OpenAiAnalytics": "🤖 AIメディア分析"
       }
+    },
+    "Connection": {
+      "Title": "接続",
+      "BackendMode": "バックエンドモード",
+      "Mode": "モード",
+      "ModeLocal": "ローカル",
+      "ModeTethered": "テザリング",
+      "ModeCloud": "クラウド",
+      "HintLocal": "このマシンのローカルPythonバックエンドを使用します。",
+      "HintTethered": "デスクトップで実行中のPythonバックエンドに接続します。",
+      "HintCloud": "リモートクラウドバックエンドに接続します。",
+      "BackendUrl": "バックエンドURL",
+      "AuthToken": "認証トークン",
+      "TestConnection": "接続テスト",
+      "Testing": "テスト中...",
+      "Connected": "接続済み",
+      "Unreachable": "到達不能",
+      "NodeServer": "デスクトップサーバー",
+      "NodeServerUrl": "サーバーURL",
+      "CloudLLM": "クラウドLLM",
+      "LLMProvider": "LLMプロバイダー",
+      "LLMBuiltIn": "内蔵",
+      "LLMOllama": "Ollama",
+      "LLMCloud": "クラウド",
+      "CloudLLMUrl": "クラウドLLM URL",
+      "CloudLLMToken": "クラウドLLMトークン"
     },
     "About": {
       "Title": "mLearn",
@@ -1154,6 +1199,9 @@
         "Listening": "聞いています…",
         "Processing": "処理中…",
         "Speaking": "話しています…",
+        "Stage.STT": "STT",
+        "Stage.LLM": "LLM",
+        "Stage.TTS": "TTS",
         "CallEnded": "通話終了",
         "StartCall": "音声通話を開始",
         "EndCall": "通話を終了",

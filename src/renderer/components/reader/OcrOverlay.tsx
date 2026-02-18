@@ -268,7 +268,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
             .map((t) => t.actual_word);
           
           if (translatableWords.length > 0) {
-            warmTranslationCache(translatableWords, settings.getTranslationUrl);
+            warmTranslationCache(translatableWords);
           }
         })
         .catch(() => {

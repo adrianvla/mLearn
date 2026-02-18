@@ -10,10 +10,12 @@ import { LanguageProvider } from './LanguageContext';
 import { FlashcardProvider } from './FlashcardContext';
 import { ServerProvider } from './ServerContext';
 import { LocalizationProvider } from './LocalizationContext';
+import { ResponsiveProvider } from './ResponsiveContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
 import { setMigrationListenerReady } from './migrationSignals';
+import { isElectron } from '../../shared/platform';
 
 /**
  * MigrationHandler - Handles showing notifications for v1 data migration
@@ -126,21 +128,23 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean }> = (pro
   return (
     <ServerProvider>
       <LocalizationProvider>
-        <SettingsProvider>
-          <WindowLoadingScreen />
-          {/*<DevToastTester />*/}
-          <LanguageProvider>
+        <ResponsiveProvider>
+          <SettingsProvider>
+            <WindowLoadingScreen />
+            {/*<DevToastTester />*/}
+            <LanguageProvider>
             <MigrationHandler>
-              <FlashcardProvider>
-                <Show when={props.showDragRegion !== false}>
-                  <WindowDragRegion />
-                </Show>
-                {props.children}
-              </FlashcardProvider>
-              <ToastContainer />
-            </MigrationHandler>
-          </LanguageProvider>
-        </SettingsProvider>
+                <FlashcardProvider>
+                  <Show when={(props.showDragRegion !== false) && isElectron()}>
+                    <WindowDragRegion />
+                  </Show>
+                  {props.children}
+                </FlashcardProvider>
+                <ToastContainer />
+              </MigrationHandler>
+            </LanguageProvider>
+          </SettingsProvider>
+        </ResponsiveProvider>
       </LocalizationProvider>
     </ServerProvider>
   );

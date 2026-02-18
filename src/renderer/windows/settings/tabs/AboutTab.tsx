@@ -5,6 +5,7 @@
 import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import { TabContent, Btn } from '../../../components/common';
 import { useLocalization } from '../../../context';
+import { getBridge } from '../../../../shared/bridges';
 import './AboutTab.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
 
@@ -13,24 +14,20 @@ export const AboutTab: Component = () => {
   const { t } = useLocalization();
 
   onMount(() => {
-    // Get version from IPC
-    if (window.mLearnIPC) {
-      window.mLearnIPC.send('get-version');
-      const cleanup = window.mLearnIPC.on('version', (...args: unknown[]) => {
-        if (typeof args[0] === 'string') {
-          setVersion(args[0]);
-        }
-      });
-      onCleanup(cleanup);
-    }
+    const bridge = getBridge();
+    bridge.server.getVersion();
+    const cleanup = bridge.server.onVersionReceive((version: string) => {
+      setVersion(version);
+    });
+    onCleanup(cleanup);
   });
 
   const openContact = () => {
-    window.mLearnIPC?.send('show-contact');
+    getBridge().window.showContact();
   };
 
   const openLicenses = () => {
-    window.mLearnIPC?.openWindow({
+    getBridge().window.openWindow({
       type: 'licenses',
       options: { width: 900, height: 700 },
     });

@@ -11,6 +11,7 @@
  */
 
 import { createSignal, onCleanup } from 'solid-js';
+import { getBridge } from '../../shared/bridges';
 
 export interface WatchTogetherMessage {
   action: string;
@@ -37,23 +38,23 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   // IPC listeners — registered once and cleaned up on unmount
   // ---------------------------------------------------------------------------
 
-  if (window.mLearnIPC) {
-    // When the main process confirms watch-together is available, activate.
-    cleanups.push(
-      window.mLearnIPC.onWatchTogetherLaunch(() => {
-        setIsActive(true);
-      }),
-    );
+  const bridge = getBridge();
 
-    // Incoming messages from tethered clients (forwarded by the web server).
-    cleanups.push(
-      window.mLearnIPC.onWatchTogetherRequest((raw: unknown) => {
-        if (typeof raw === 'string') {
-          handleIncomingMessage(raw);
-        }
-      }),
-    );
-  }
+  // When the main process confirms watch-together is available, activate.
+  cleanups.push(
+    bridge.watchTogether.onWatchTogetherLaunch(() => {
+      setIsActive(true);
+    }),
+  );
+
+  // Incoming messages from tethered clients (forwarded by the web server).
+  cleanups.push(
+    bridge.watchTogether.onWatchTogetherRequest((raw: unknown) => {
+      if (typeof raw === 'string') {
+        handleIncomingMessage(raw);
+      }
+    }),
+  );
 
   onCleanup(() => {
     for (const cleanup of cleanups) cleanup();
@@ -66,7 +67,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
 
   /** Call once to tell the main process we want watch-together mode. */
   function activate(): void {
-    window.mLearnIPC?.isWatchingTogether();
+    bridge.watchTogether.isWatchingTogether();
     setIsActive(true);
   }
 
@@ -87,7 +88,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
 
   function send(msg: WatchTogetherMessage): void {
     if (!isActive()) return;
-    window.mLearnIPC?.watchTogetherSend(JSON.stringify(msg));
+    bridge.watchTogether.watchTogetherSend(JSON.stringify(msg));
   }
 
   /** Call when the local video starts playing. */
@@ -140,7 +141,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         const video = options.getVideo();
         if (video) {
           // Send directly via IPC even though isActive() is false.
-          window.mLearnIPC?.watchTogetherSend(JSON.stringify({
+          bridge.watchTogether.watchTogetherSend(JSON.stringify({
             action: 'request-response',
             url: options.getVideoSrc(),
             time: video.currentTime,

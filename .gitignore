@@ -1,6 +1,11 @@
 node_modules
 dist
 dist-electron
+dist-mobile
+
+android
+ios
+
 .idea
 src/root-of-app/dictionaries
 .github

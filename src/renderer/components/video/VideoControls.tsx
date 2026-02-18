@@ -241,8 +241,8 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                             </IconBtn>
                         </Show>
 
-                        {/* PiP (Electron only) */}
-                        <Show when={!isTethered}>
+                        {/* PiP — shown on Electron desktop or when Web PiP API is available */}
+                        <Show when={!isTethered || document.pictureInPictureEnabled}>
                             <IconBtn
                                 variant="ghost"
                                 active={state().isPiP}

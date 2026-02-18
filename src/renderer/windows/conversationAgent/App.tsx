@@ -6,6 +6,7 @@
 import { Component, Show, Index, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useSettings, useLanguage, useLocalization } from '../../context';
 import { useFlashcards } from '../../context';
+import { getBridge } from '../../../shared/bridges';
 import {
   IconBtn,
   TabContainer,
@@ -87,7 +88,7 @@ const MicIcon: Component = () => (
   </svg>
 );
 
-const ConversationContent: Component = () => {
+export const ConversationContent: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { currentLangData, isTranslatable, getLanguageFeatures, getFrequency, getFreqLevelNames, getLevelName } = useLanguage();
   const { t } = useLocalization();
@@ -185,10 +186,10 @@ const ConversationContent: Component = () => {
     (async () => {
       try {
         if (provider === 'ollama') {
-          const connected = await window.mLearnIPC?.ollamaCheck();
+          const connected = await getBridge().llm.ollamaCheck();
           setIsConnected(connected ?? false);
         } else {
-          const status = await window.mLearnIPC?.llmCheckModel();
+          const status = await getBridge().llm.llmCheckModel();
           setIsConnected(status?.downloaded ?? false);
         }
       } catch {
@@ -201,21 +202,21 @@ const ConversationContent: Component = () => {
 
   // Listen for model status changes (e.g., download completes)
   onMount(() => {
-    const ipc = window.mLearnIPC;
-    if (!ipc) return;
+    const bridge = getBridge();
 
-    const cleanupStatus = ipc.onLLMModelStatus?.((status: { downloaded: boolean }) => {
+    const cleanupStatus = bridge.llm.onLLMModelStatus((status: { downloaded: boolean }) => {
       if (settings.llmProvider !== 'ollama') {
         setIsConnected(status.downloaded);
       }
     });
 
-    if (cleanupStatus) onCleanup(cleanupStatus);
+    onCleanup(cleanupStatus);
   });
 
   // Retrieve media context passed from the parent window
   onMount(() => {
-    const cleanup = window.mLearnIPC?.onWindowContext((ctx) => {
+    const bridge = getBridge();
+    const cleanup = bridge.window.onWindowContext((ctx) => {
       if (ctx) {
         const rawCtx = ctx as Record<string, unknown>;
         if (rawCtx.initialTab === 'stats') {
@@ -226,7 +227,7 @@ const ConversationContent: Component = () => {
         }
       }
     });
-    window.mLearnIPC?.getWindowContext('conversation-agent');
+    bridge.window.getWindowContext('conversation-agent');
     if (cleanup) onCleanup(cleanup);
   });
 
@@ -242,21 +243,21 @@ const ConversationContent: Component = () => {
 
   // STT result listener
   onMount(() => {
-    const cleanup = window.mLearnIPC?.onSttResult((result: { transcript: string; isFinal: boolean }) => {
+    const cleanup = getBridge().speech.onSttResult((result: { transcript: string; isFinal: boolean }) => {
       if (result.isFinal) {
         setInputText((prev) => prev + result.transcript);
         setIsRecording(false);
       }
     });
-    if (cleanup) onCleanup(cleanup);
+    onCleanup(cleanup);
   });
 
   // TTS status listener
   onMount(() => {
-    const cleanup = window.mLearnIPC?.onTtsStatus((status: { speaking: boolean; progress: number }) => {
+    const cleanup = getBridge().speech.onTtsStatus((status: { speaking: boolean; progress: number }) => {
       setIsSpeaking(status.speaking);
     });
-    if (cleanup) onCleanup(cleanup);
+    onCleanup(cleanup);
   });
 
   // Auto-resize textarea
@@ -462,7 +463,7 @@ const ConversationContent: Component = () => {
 
         if (settings.autoSpeak && settings.speechEnabled && finalContent) {
           const langCode = settings.language || 'ja';
-          window.mLearnIPC?.ttsSpeak(finalContent, langCode);
+          getBridge().speech.ttsSpeak(finalContent, langCode);
         }
       },
       onError: (error) => {
@@ -677,11 +678,11 @@ const ConversationContent: Component = () => {
 
   const toggleRecording = () => {
     if (isRecording()) {
-      window.mLearnIPC?.sttStop();
+      getBridge().speech.sttStop();
       setIsRecording(false);
     } else {
       const lang = settings.sttLanguage || settings.language || 'ja';
-      window.mLearnIPC?.sttStart(lang);
+      getBridge().speech.sttStart(lang);
       setIsRecording(true);
     }
   };

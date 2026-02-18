@@ -8,6 +8,7 @@
 import { Component, Show, For, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
 import type { ConversationAgentContext, MediaStats, LevelPercentageEntry } from '../../../shared/types';
 import { useLocalization, useLanguage, useFlashcards } from '../../context';
+import { getBridge } from '../../../shared/bridges';
 import {
   TabContainer,
   TabPanel,
@@ -65,7 +66,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
 
   // Load all saved media stats on mount
   onMount(() => {
-    const cleanup = window.mLearnIPC?.onMediaStatsList((statsList: MediaStats[]) => {
+    const cleanup = getBridge().mediaStats.onMediaStatsList((statsList: MediaStats[]) => {
       // Sort by lastAccessed descending (most recent first)
       const sorted = [...statsList].sort((a, b) => b.lastAccessed - a.lastAccessed);
       setAllMediaStats(sorted);
@@ -77,7 +78,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
         setSelectedHash(sorted[0].mediaHash);
       }
     });
-    window.mLearnIPC?.listMediaStats();
+    getBridge().mediaStats.listMediaStats();
     if (cleanup) onCleanup(cleanup);
   });
 

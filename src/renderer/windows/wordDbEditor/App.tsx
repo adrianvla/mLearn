@@ -16,7 +16,7 @@ import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, type Wor
 import { ModalLoadingOverlay, Spinner } from '../../components/common';
 import './wordDbEditor.css';
 
-const WordDbEditorContent: Component = () => {
+export const WordDbEditorContent: Component = () => {
   const { wordFrequency, getFreqLevelNames } = useLanguage();
   const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord } = useFlashcards();
   const { t } = useLocalization();

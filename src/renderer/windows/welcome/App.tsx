@@ -7,6 +7,7 @@
 import { Component, Show, For, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization } from '../../context';
+import { getBridge } from '../../../shared/bridges';
 import type { Settings, InstallOptions, InstallerState, PipProgress } from '../../../shared/types';
 import { Panel, Btn, SelectableCard, AlertBanner, LogConsole, CheckboxCard, ProgressBar } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
@@ -88,12 +89,7 @@ const WelcomeContent: Component = () => {
     logInfo(includeOCR() ? t('mlearn.Installer.Status.OcrWillInstall') : t('mlearn.Installer.Status.OcrSkip'));
 
     try {
-      const mLearnIPC = (window as unknown as { mLearnIPC?: typeof window.mLearnIPC }).mLearnIPC;
-      if (mLearnIPC) {
-        mLearnIPC.startInstall({ includeLLM: includeLLM(), includeOCR: includeOCR() });
-      } else {
-        throw new Error('IPC not available');
-      }
+      getBridge().installer.startInstall({ includeLLM: includeLLM(), includeOCR: includeOCR() });
     } catch (e) {
       console.error('Failed to start installation:', e);
       setOverallStatus(t('mlearn.Installer.Status.CouldNotStart'));
@@ -106,34 +102,31 @@ const WelcomeContent: Component = () => {
 
     updateSettings({ language: selectedLanguage() });
 
-    const mLearnIPC = (window as unknown as { mLearnIPC?: typeof window.mLearnIPC }).mLearnIPC;
-    if (mLearnIPC) {
-      mLearnIPC.saveSettings({ language: selectedLanguage() } as Settings);
-      const settingsSavedCleanup = mLearnIPC.onSettingsSaved(() => {
-        settingsSavedCleanup();
-        setOverallStatus(t('mlearn.Installer.Status.LanguageInstalledRestarting'));
-        setTimeout(() => {
-          fetch('http://127.0.0.1:7753/quit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: '{}',
-          }).catch(() => { /* ignore */ });
-          mLearnIPC.forceRestartApp();
-        }, 5000);
-      });
-    }
+    const bridge = getBridge();
+    bridge.settings.saveSettings({ language: selectedLanguage() } as Settings);
+    const settingsSavedCleanup = bridge.settings.onSettingsSaved(() => {
+      settingsSavedCleanup();
+      setOverallStatus(t('mlearn.Installer.Status.LanguageInstalledRestarting'));
+      setTimeout(() => {
+        fetch('http://127.0.0.1:7753/quit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        }).catch(() => { /* ignore */ });
+        bridge.server.forceRestartApp();
+      }, 5000);
+    });
   };
 
   const ipcCleanups: Array<() => void> = [];
   onMount(() => {
-    const mLearnIPC = (window as unknown as { mLearnIPC?: typeof window.mLearnIPC }).mLearnIPC;
-    if (!mLearnIPC) return;
+    const bridge = getBridge();
 
-    ipcCleanups.push(mLearnIPC.onPythonSuccess((success: boolean) => {
+    ipcCleanups.push(bridge.installer.onPythonSuccess((success: boolean) => {
       if (success) installCompleted();
     }));
 
-    ipcCleanups.push(mLearnIPC.onServerStatusUpdate((status: string) => {
+    ipcCleanups.push(bridge.server.onServerStatusUpdate((status: string) => {
       logInfo(status);
 
       if (status.includes('Installing Python dependencies')) {
@@ -152,7 +145,7 @@ const WelcomeContent: Component = () => {
       }
     }));
 
-    ipcCleanups.push(mLearnIPC.onPipProgress((pipProgress: PipProgress) => {
+    ipcCleanups.push(bridge.installer.onPipProgress((pipProgress: PipProgress) => {
       if (pipProgress.action === 'complete') {
         setProgress(95);
       } else if (pipProgress.action === 'installing') {
@@ -181,7 +174,7 @@ const WelcomeContent: Component = () => {
       }
     }));
 
-    ipcCleanups.push(mLearnIPC.onInstallStarted((opts: InstallOptions) => {
+    ipcCleanups.push(bridge.installer.onInstallStarted((opts: InstallOptions) => {
       if (!installationStarted()) {
         setInstallationStarted(true);
         setIncludeLLM(opts.includeLLM ?? true);
@@ -189,11 +182,11 @@ const WelcomeContent: Component = () => {
       }
     }));
 
-    ipcCleanups.push(mLearnIPC.onInstallerAwaitingChoice(() => {
+    ipcCleanups.push(bridge.installer.onInstallerAwaitingChoice(() => {
       setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR() });
     }));
 
-    ipcCleanups.push(mLearnIPC.onInstallerNetworkError((payload: { message: string; detail?: string }) => {
+    ipcCleanups.push(bridge.installer.onInstallerNetworkError((payload: { message: string; detail?: string }) => {
       const message = typeof payload === 'string' ? payload : payload.message;
       const detail = typeof payload === 'object' ? payload.detail : undefined;
       if (detail) logInfo(detail);
@@ -202,7 +195,7 @@ const WelcomeContent: Component = () => {
       setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR() });
     }));
 
-    ipcCleanups.push(mLearnIPC.onInstallerState((state: InstallerState) => {
+    ipcCleanups.push(bridge.installer.onInstallerState((state: InstallerState) => {
       if (state.success) {
         installCompleted();
         return;
@@ -220,7 +213,7 @@ const WelcomeContent: Component = () => {
       }
     }));
 
-    ipcCleanups.push(mLearnIPC.onSettings((settings: Settings) => {
+    ipcCleanups.push(bridge.settings.onSettings((settings: Settings) => {
       if (settings.llmEnabled !== undefined) {
         setIncludeLLM(settings.llmEnabled !== false);
       }
@@ -229,9 +222,9 @@ const WelcomeContent: Component = () => {
       }
     }));
 
-    mLearnIPC.requestInstallerState();
-    mLearnIPC.isSuccess();
-    mLearnIPC.getSettings();
+    bridge.installer.requestInstallerState();
+    bridge.server.isSuccess();
+    bridge.settings.getSettings();
   });
 
   onCleanup(() => {

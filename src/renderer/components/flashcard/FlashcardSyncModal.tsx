@@ -6,6 +6,7 @@
 import { Component, createSignal, Show, onCleanup, createEffect } from 'solid-js';
 import { Modal, Btn, ProgressBar, Spinner } from '../../components/common';
 import { useFlashcards, useLocalization } from '../../context';
+import { getBridge } from '../../../shared/bridges';
 import {
   splitForQR,
   mergeFlashcards,
@@ -328,9 +329,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
           const merged = await mergeFlashcards(store, remoteStore);
           
           // Save merged store via IPC
-          if (window.mLearnIPC) {
-            window.mLearnIPC.saveFlashcards(merged);
-          }
+          getBridge().flashcards.saveFlashcards(merged);
           
           setPhase('complete');
           setStatusText(t('mlearn.Flashcards.Sync.Complete'));

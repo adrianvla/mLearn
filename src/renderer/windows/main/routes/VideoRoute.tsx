@@ -13,6 +13,7 @@ import { Panel, Btn, NavBtn } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { LiveWordTranslator, SubtitleSync } from '../../../components/subtitle';
 import { IPC_CHANNELS } from '../../../../shared/constants';
+import { getBridge } from '../../../../shared/bridges';
 import { captureVideoThumbnail, saveToRecentItems, updateRecentItemThumbnail, updateRecentItemProgress } from '../../../services/thumbnailService';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
@@ -76,21 +77,21 @@ export const VideoRoute: Component = () => {
     }
 
     // Setup IPC listeners
-    if (window.mLearnIPC) {
-      // Show aside (Live Word Translator)
-      ipcCleanups.push(window.mLearnIPC.on(IPC_CHANNELS.SHOW_ASIDE, () => {
-        if ((window as any).mLearnLiveTranslator) {
-          (window as any).mLearnLiveTranslator.show();
-        }
-      }));
+    const bridge = getBridge();
 
-      // Context menu commands
-      ipcCleanups.push(window.mLearnIPC.on(IPC_CHANNELS.CTX_MENU_COMMAND, (...args: unknown[]) => {
-        if (typeof args[0] === 'string') {
-          handleContextMenuCommand(args[0]);
-        }
-      }));
-    }
+    // Show aside (Live Word Translator)
+    ipcCleanups.push(bridge.generic.on(IPC_CHANNELS.SHOW_ASIDE, () => {
+      if ((window as any).mLearnLiveTranslator) {
+        (window as any).mLearnLiveTranslator.show();
+      }
+    }));
+
+    // Context menu commands
+    ipcCleanups.push(bridge.generic.on(IPC_CHANNELS.CTX_MENU_COMMAND, (...args: unknown[]) => {
+      if (typeof args[0] === 'string') {
+        handleContextMenuCommand(args[0]);
+      }
+    }));
     
     // Set up thumbnail capture interval
     thumbnailInterval = window.setInterval(() => {
@@ -215,15 +216,7 @@ export const VideoRoute: Component = () => {
         const currentSub = subtitles.currentSubtitle();
         if (currentSub) {
           const textToCopy = currentSub.text || '';
-          // Try IPC first for Electron
-          if (window.mLearnIPC?.send) {
-            window.mLearnIPC.send(IPC_CHANNELS.WRITE_TO_CLIPBOARD, textToCopy);
-          } else {
-            // Fallback to browser clipboard API
-            navigator.clipboard.writeText(textToCopy).catch(err => {
-              console.error('Failed to copy subtitle:', err);
-            });
-          }
+          getBridge().files.writeToClipboard(textToCopy);
         }
         break;
       }
@@ -243,9 +236,8 @@ export const VideoRoute: Component = () => {
       const ext = file.name.split('.').pop()?.toLowerCase();
       
       if (['mp4', 'webm', 'mkv', 'avi', 'mov'].includes(ext || '')) {
-        const filePath = window.mLearnIPC?.getPathForFile
-          ? window.mLearnIPC.getPathForFile(file)
-          : (file as File & { path?: string }).path || '';
+        const filePath = getBridge().files.getPathForFile(file)
+          || (file as File & { path?: string }).path || '';
         const url = filePath ? toLocalMediaUrl(filePath) : URL.createObjectURL(file);
         setVideoSrc(url);
         setCurrentVideoPath(filePath);
@@ -286,9 +278,8 @@ export const VideoRoute: Component = () => {
       input.onchange = async () => {
         const file = input.files?.[0];
         if (file) {
-          const filePath = window.mLearnIPC?.getPathForFile
-            ? window.mLearnIPC.getPathForFile(file)
-            : (file as File & { path?: string }).path || '';
+          const filePath = getBridge().files.getPathForFile(file)
+            || (file as File & { path?: string }).path || '';
           const url = filePath ? toLocalMediaUrl(filePath) : URL.createObjectURL(file);
           setVideoSrc(url);
           setCurrentVideoPath(filePath);
@@ -414,7 +405,7 @@ export const VideoRoute: Component = () => {
       subtitleHistory: subtitles.subtitles().slice(-50).map((sub) => sub.text),
     };
 
-    window.mLearnIPC?.openWindow({ type: 'conversation-agent', context: context as unknown as Record<string, unknown> });
+    getBridge().window.openWindow({ type: 'conversation-agent', context: context as unknown as Record<string, unknown> });
   };
 
   return (

@@ -19,9 +19,10 @@ import fs from 'fs';
 import { ipcMain } from 'electron';
 import { PROXY_SERVER_PORT, PYTHON_BACKEND_PORT, IPC_CHANNELS } from '../../shared/constants';
 import { getAppPath, getResourcePath } from '../utils/platform';
-import { loadSettings, loadLangData } from './settings';
+import { loadSettings, loadLangData, saveSettings } from './settings';
 import { getMainWindow } from './windowManager';
-import { getFlashcardEaseMap, loadFlashcards } from './flashcardStorage';
+import { getFlashcardEaseMap, loadFlashcards, saveFlashcards } from './flashcardStorage';
+import { loadLocalization } from './localization';
 
 // Server instances
 let httpServer: http.Server | null = null;
@@ -626,6 +627,88 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
     res.on('close', () => {
       if (!externalReq.destroyed) externalReq.destroy();
     });
+    return;
+  }
+
+  // ================================================================
+  // REST API endpoints for mobile tethered mode
+  // ================================================================
+
+  // API: Ping / health check
+  if (pathname === '/api/ping') {
+    sendJsonResponse(res, { status: 'ok' });
+    return;
+  }
+
+  // API: Settings (GET/POST)
+  if (pathname === '/api/settings') {
+    if (req.method === 'GET') {
+      sendJsonResponse(res, loadSettings());
+      return;
+    }
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const incoming = JSON.parse(body);
+          saveSettings(incoming);
+          sendJsonResponse(res, { status: 'ok' });
+        } catch {
+          sendJsonResponse(res, { error: 'Invalid JSON' }, 400);
+        }
+      });
+      return;
+    }
+  }
+
+  // API: Flashcards (GET/POST)
+  if (pathname === '/api/flashcards') {
+    if (req.method === 'GET') {
+      sendJsonResponse(res, loadFlashcards());
+      return;
+    }
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk.toString(); });
+      req.on('end', () => {
+        try {
+          const incoming = JSON.parse(body);
+          saveFlashcards(incoming);
+          sendJsonResponse(res, { status: 'ok' });
+        } catch {
+          sendJsonResponse(res, { error: 'Invalid JSON' }, 400);
+        }
+      });
+      return;
+    }
+  }
+
+  // API: Localization (GET /api/localization/:lang)
+  if (pathname.startsWith('/api/localization/')) {
+    const lang = decodeURIComponent(pathname.replace('/api/localization/', ''));
+    if (lang) {
+      const data = loadLocalization(lang);
+      sendJsonResponse(res, { locale: lang, strings: data });
+    } else {
+      sendJsonResponse(res, { error: 'Missing language code' }, 400);
+    }
+    return;
+  }
+
+  // API: Lang data (GET /api/lang-data or /api/lang-data/:lang)
+  if (pathname === '/api/lang-data' || pathname.startsWith('/api/lang-data/')) {
+    const langData = loadLangData();
+    if (pathname === '/api/lang-data') {
+      sendJsonResponse(res, langData);
+    } else {
+      const lang = decodeURIComponent(pathname.replace('/api/lang-data/', ''));
+      if (langData[lang]) {
+        sendJsonResponse(res, langData[lang]);
+      } else {
+        sendJsonResponse(res, { error: `Language '${lang}' not found` }, 404);
+      }
+    }
     return;
   }
 

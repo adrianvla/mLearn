@@ -6,6 +6,7 @@
 import { Component, createSignal, onMount, For, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization } from '../../../context';
+import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { ActionCard, RecentCard, Btn, type RecentItem } from '../../../components/common';
 import './welcome.css';
@@ -39,11 +40,11 @@ export const WelcomeRoute: Component = () => {
   };
 
   const openSettings = () => {
-    window.mLearnIPC?.send('open-window', { type: 'settings' });
+    getBridge().window.openWindow({ type: 'settings' });
   };
 
   const openFlashcards = () => {
-    window.mLearnIPC?.send('open-window', { type: 'flashcards' });
+    getBridge().window.openWindow({ type: 'flashcards' });
   };
 
   const openRecent = (item: RecentItem) => {

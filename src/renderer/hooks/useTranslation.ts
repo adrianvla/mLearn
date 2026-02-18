@@ -5,7 +5,7 @@
 
 import { createSignal, createResource } from 'solid-js';
 import type { TranslationResponse, TranslationEntry, DictionaryEntry } from '../../shared/types';
-import { useSettings } from '../context';
+import { getBackend } from '../../shared/backends';
 
 // Translation cache - globally accessible for all components
 const translationCache = new Map<string, TranslationResponse>();
@@ -69,7 +69,7 @@ function writeOverrides(map: Record<string, TranslationResponse>): void {
 }
 
 // Fetch translation from backend
-async function fetchTranslation(word: string, url: string): Promise<TranslationResponse> {
+async function fetchTranslation(word: string): Promise<TranslationResponse> {
   // Check override first
   const overrides = readOverrides();
   if (overrides[word]) {
@@ -81,17 +81,7 @@ async function fetchTranslation(word: string, url: string): Promise<TranslationR
     return translationCache.get(word)!;
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ word }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Translation request failed: ${response.status}`);
-  }
-
-  const data = await response.json() as TranslationResponse;
+  const data = await getBackend().translate(word);
   translationCache.set(word, data);
   return data;
 }
@@ -101,14 +91,13 @@ export interface UseTranslationOptions {
 }
 
 export function useTranslation(options: UseTranslationOptions = {}) {
-  const { settings } = useSettings();
   const [currentWord, setCurrentWord] = createSignal<string | null>(null);
 
   const [translation, { refetch }] = createResource(
     () => currentWord(),
     async (word) => {
       if (!word) return null;
-      return fetchTranslation(word, settings.getTranslationUrl);
+      return fetchTranslation(word);
     }
   );
 
@@ -121,7 +110,7 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   };
 
   const translateWord = async (word: string): Promise<TranslationResponse> => {
-    return fetchTranslation(word, settings.getTranslationUrl);
+    return fetchTranslation(word);
   };
 
   const setOverride = (word: string, value: TranslationResponse | null) => {
@@ -150,24 +139,24 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   };
 }
 
-// Pre-warm translation cache for a list of words (like old app's warmTokeniseCache)
+/**
+ * Pre-warm translation cache for a list of words.
+ * @param words - Words to pre-fetch translations for
+ * @param _translationUrl - Deprecated, ignored. Uses BackendAdapter.
+ * @param _translatableTypes - Deprecated, ignored.
+ */
 export async function warmTranslationCache(
   words: string[],
-  translationUrl: string,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _translationUrl?: string,
   _translatableTypes?: string[]
 ): Promise<void> {
+  const backend = getBackend();
   const unique = [...new Set(words)];
   const promises = unique
     .filter((w) => w && w.trim())
     .filter((w) => !translationCache.has(w))
     .map((word) =>
-      fetch(translationUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word }),
-      })
-        .then((res) => res.json())
+      backend.translate(word)
         .then((data) => {
           translationCache.set(word, data);
         })
@@ -179,8 +168,6 @@ export async function warmTranslationCache(
 }
 
 export function useTokenizer() {
-  const { settings } = useSettings();
-
   const tokenize = async (text: string) => {
     const key = typeof text === 'string' ? text : String(text);
     if (!key.trim()) return [{ actual_word: key, word: key, type: '名詞' }];
@@ -188,18 +175,7 @@ export function useTokenizer() {
     if (tokenInFlight.has(key)) return tokenInFlight.get(key)!;
 
     const p = (async () => {
-      const response = await fetch(settings.tokeniserUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: key }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Tokenization failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const tokens = data.tokens || [];
+      const tokens = await getBackend().tokenize(key);
       tokenCache.set(key, { tokens, ts: Date.now() });
       if (tokenCache.size > TOKEN_CACHE_MAX) {
         const firstKey = tokenCache.keys().next().value as string | undefined;
@@ -222,25 +198,12 @@ export function useTokenizer() {
 }
 
 export function useDictionary() {
-  const { settings } = useSettings();
-  
   const lookup = async (word: string, reading?: string): Promise<DictionaryEntry[]> => {
     try {
       const cacheKey = `${word}::${reading || ''}`;
       if (dictionaryCache.has(cacheKey)) return dictionaryCache.get(cacheKey)!;
 
-      // Use translation endpoint for dictionary lookup (not getCard which is for Anki)
-      const response = await fetch(settings.getTranslationUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word }),
-      });
-      
-      if (!response.ok) {
-        return [];
-      }
-      
-      const data = await response.json();
+      const data = await getBackend().translate(word);
       // Transform backend response to DictionaryEntry array
       // Response format: { data: [TranslationEntry?, TranslationEntry?, PitchData?] }
       if (data.data && Array.isArray(data.data)) {

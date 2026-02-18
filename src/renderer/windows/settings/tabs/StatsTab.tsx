@@ -6,6 +6,7 @@
 import { Component, createSignal, onMount, createEffect, Show } from 'solid-js';
 import { useSettings, useLanguage, useLocalization } from '../../../context';
 import { TabContent, StatCard, EmptyState, Btn } from '../../../components/common';
+import { getBridge } from '../../../../shared/bridges';
 import {
   getTimeWatchedFormatted,
   getWordsLearnedInAppStats,
@@ -56,15 +57,15 @@ export const StatsTab: Component = () => {
   });
 
   const openKanjiGrid = () => {
-    window.mLearnIPC?.send('open-window', { type: 'kanji-grid' });
+    getBridge().window.openWindow({ type: 'kanji-grid' });
   };
 
   const openWordDbEditor = () => {
-    window.mLearnIPC?.send('open-window', { type: 'word-db-editor' });
+    getBridge().window.openWindow({ type: 'word-db-editor' });
   };
 
   const openAiAnalytics = () => {
-    window.mLearnIPC?.openWindow({ type: 'conversation-agent', context: { initialTab: 'stats' } });
+    getBridge().window.openWindow({ type: 'conversation-agent', context: { initialTab: 'stats' } });
   };
 
   return (

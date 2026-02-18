@@ -1,5 +1,12 @@
 {
   "mlearn": {
+    "Tabs": {
+      "Home": "Accueil",
+      "Video": "Vidéo",
+      "Reader": "Lecteur",
+      "Flashcards": "Cartes",
+      "Settings": "Paramètres"
+    },
     "Global": {
       "AppName": "mLearn",
       "Loading": "Chargement...",
@@ -482,6 +489,7 @@
         "Reader": "Lecteur",
         "Statistics": "Statistiques",
         "AI": "IA",
+        "Connection": "Connexion",
         "About": "À propos"
       },
       "Groups": {
@@ -826,6 +834,17 @@
           },
           "ResetButton": "Réinitialiser le SRS"
         }
+      },
+      "Mobile": {
+        "GeneralDesc": "Langue, theme et donnees",
+        "BehaviourDesc": "Statut des mots, affichage et performance",
+        "AppearanceDesc": "Sous-titres, couleurs et themes",
+        "SRSDesc": "Limites de cartes et integration",
+        "ReaderDesc": "OCR, survol et outils de lecture",
+        "StatsDesc": "Statistiques d'apprentissage et progres",
+        "AIDesc": "Fournisseurs de modeles de langue",
+        "ConnectionDesc": "Mode backend et synchronisation",
+        "AboutDesc": "Version, liens et raccourcis"
       }
     },
     "Installer": {
@@ -894,6 +913,32 @@
         "EditWordDatabase": "📝 Éditeur de base de mots",
         "OpenAiAnalytics": "🤖 Analyse IA des médias"
       }
+    },
+    "Connection": {
+      "Title": "Connexion",
+      "BackendMode": "Mode Backend",
+      "Mode": "Mode",
+      "ModeLocal": "Local",
+      "ModeTethered": "Relié",
+      "ModeCloud": "Cloud",
+      "HintLocal": "Utilise le backend Python local sur cette machine.",
+      "HintTethered": "Se connecte au backend Python sur votre ordinateur.",
+      "HintCloud": "Se connecte à un backend cloud distant.",
+      "BackendUrl": "URL du backend",
+      "AuthToken": "Jeton d'authentification",
+      "TestConnection": "Tester la connexion",
+      "Testing": "Test en cours...",
+      "Connected": "Connecté",
+      "Unreachable": "Injoignable",
+      "NodeServer": "Serveur Bureau",
+      "NodeServerUrl": "URL du serveur",
+      "CloudLLM": "LLM Cloud",
+      "LLMProvider": "Fournisseur LLM",
+      "LLMBuiltIn": "Intégré",
+      "LLMOllama": "Ollama",
+      "LLMCloud": "Cloud",
+      "CloudLLMUrl": "URL LLM Cloud",
+      "CloudLLMToken": "Jeton LLM Cloud"
     },
     "About": {
       "Title": "mLearn",
@@ -1154,6 +1199,9 @@
         "Listening": "Écoute…",
         "Processing": "Traitement…",
         "Speaking": "Parle…",
+        "Stage.STT": "STT",
+        "Stage.LLM": "LLM",
+        "Stage.TTS": "TTS",
         "CallEnded": "Appel terminé",
         "StartCall": "Démarrer l'appel vocal",
         "EndCall": "Terminer l'appel",

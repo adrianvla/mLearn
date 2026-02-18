@@ -6,6 +6,7 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import type { LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings, GrammarPoint, Token } from '../../shared/types';
+import { getBridge } from '../../shared/bridges';
 
 // Grammar entry with parsed data for lookup
 export interface GrammarEntry extends GrammarPoint {
@@ -89,28 +90,16 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
   // Load language data
   const loadLangData = () => {
-    if (typeof window !== 'undefined' && window.mLearnIPC) {
-      window.mLearnIPC.getLangData();
-      ipcCleanups.push(window.mLearnIPC.onLangData((data) => {
-        setLangData(reconcile(data as unknown as LanguageDataMap));
-        parseWordFrequency(data as unknown as LanguageDataMap);
-        parseGrammarData(data as unknown as LanguageDataMap);
-        setIsLoading(false);
-      }));
-    } else {
-      // Tethered mode
-      fetch('/api/lang-data')
-        .then(res => res.json())
-        .then(data => {
-          setLangData(reconcile(data));
-          parseWordFrequency(data);
-          parseGrammarData(data);
-          setIsLoading(false);
-        })
-        .catch(() => {
-          setIsLoading(false);
-        });
-    }
+    const bridge = getBridge();
+    console.log('[LanguageContext] Loading language data...');
+    bridge.localization.getLangData();
+    ipcCleanups.push(bridge.localization.onLangData((data) => {
+      console.log('[LanguageContext] Language data received');
+      setLangData(reconcile(data as unknown as LanguageDataMap));
+      parseWordFrequency(data as unknown as LanguageDataMap);
+      parseGrammarData(data as unknown as LanguageDataMap);
+      setIsLoading(false);
+    }));
   };
 
   // Parse word frequency data

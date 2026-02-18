@@ -73,7 +73,7 @@ function mixHex(c1: string, c2: string, t: number): string {
   });
 }
 
-const KanjiGridContent: Component = () => {
+export const KanjiGridContent: Component = () => {
   const { settings } = useSettings();
   const { wordFrequency, getFreqLevelNames, getFrequency, currentLangData } = useLanguage();
   const { t } = useLocalization();

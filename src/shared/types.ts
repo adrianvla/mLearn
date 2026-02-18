@@ -97,6 +97,22 @@ export interface Settings {
   getTranslationUrl: string;
   ankiUrl: string;
 
+  // Backend connection mode
+  /** How the renderer reaches the Python backend */
+  backendMode: 'local' | 'tethered' | 'cloud';
+  /** Base URL when mode is 'tethered' or 'cloud' (e.g. http://192.168.1.10:7752) */
+  backendUrl: string;
+  /** Bearer token for cloud backend auth */
+  cloudAuthToken: string;
+  /** URL of the Electron node server (port 7753) for tethered mode sync */
+  nodeServerUrl: string;
+  /** URL for cloud LLM endpoint */
+  cloudLLMUrl: string;
+  /** Auth token for cloud LLM endpoint */
+  cloudLLMToken: string;
+  /** Timestamp of last settings modification (for sync conflict resolution) */
+  lastModified: number;
+
   // UI settings
   openAside: boolean;
   subsOffsetTime: number;
@@ -225,6 +241,13 @@ export const DEFAULT_SETTINGS: Settings = {
   getTranslationUrl: 'http://127.0.0.1:7752/translate',
   ankiUrl: 'http://127.0.0.1:7753/api/fwd-to-anki',
   ankiConnectUrl: 'http://127.0.0.1:8765',
+  backendMode: 'local' as const,
+  backendUrl: '',
+  cloudAuthToken: '',
+  nodeServerUrl: 'http://127.0.0.1:7753',
+  cloudLLMUrl: '',
+  cloudLLMToken: '',
+  lastModified: 0,
   openAside: true,
   llmEnabled: true,
   ocrEnabled: true,
@@ -786,7 +809,7 @@ export interface LLMResponse {
 // ============================================================================
 
 /** LLM backend provider */
-export type LLMProvider = 'builtin' | 'ollama';
+export type LLMProvider = 'builtin' | 'ollama' | 'cloud';
 
 /** TTS backend provider */
 export type TTSProvider = 'kokoro' | 'remote';

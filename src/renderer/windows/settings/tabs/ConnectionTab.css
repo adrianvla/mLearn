@@ -1,0 +1,13 @@
+.connection-test-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.connection-status-ok {
+  color: var(--color-success);
+}
+
+.connection-status-error {
+  color: var(--color-error);
+}

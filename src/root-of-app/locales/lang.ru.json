@@ -1,5 +1,12 @@
 {
   "mlearn": {
+    "Tabs": {
+      "Home": "Главная",
+      "Video": "Видео",
+      "Reader": "Читалка",
+      "Flashcards": "Карточки",
+      "Settings": "Настройки"
+    },
     "Global": {
       "AppName": "mLearn",
       "Loading": "Загрузка...",
@@ -482,6 +489,7 @@
         "Reader": "Читалка",
         "Statistics": "Статистика",
         "AI": "ИИ",
+        "Connection": "Подключение",
         "About": "О программе"
       },
       "Groups": {
@@ -826,6 +834,17 @@
           },
           "ResetButton": "Сбросить SRS"
         }
+      },
+      "Mobile": {
+        "GeneralDesc": "Язык, тема и данные",
+        "BehaviourDesc": "Статус слов, отображение и производительность",
+        "AppearanceDesc": "Субтитры, цвета и темы",
+        "SRSDesc": "Лимиты карточек и интеграция",
+        "ReaderDesc": "OCR, наведение и инструменты чтения",
+        "StatsDesc": "Статистика обучения и прогресс",
+        "AIDesc": "Провайдеры языковых моделей",
+        "ConnectionDesc": "Режим бэкенда и синхронизация",
+        "AboutDesc": "Версия, ссылки и горячие клавиши"
       }
     },
     "Installer": {
@@ -894,6 +913,32 @@
         "EditWordDatabase": "📝 Редактор базы слов",
         "OpenAiAnalytics": "🤖 AI-анализ медиа"
       }
+    },
+    "Connection": {
+      "Title": "Подключение",
+      "BackendMode": "Режим бэкенда",
+      "Mode": "Режим",
+      "ModeLocal": "Локальный",
+      "ModeTethered": "Привязанный",
+      "ModeCloud": "Облако",
+      "HintLocal": "Использует локальный Python-бэкенд на этом устройстве.",
+      "HintTethered": "Подключается к Python-бэкенду на вашем компьютере.",
+      "HintCloud": "Подключается к удалённому облачному бэкенду.",
+      "BackendUrl": "URL бэкенда",
+      "AuthToken": "Токен авторизации",
+      "TestConnection": "Проверить подключение",
+      "Testing": "Проверка...",
+      "Connected": "Подключено",
+      "Unreachable": "Недоступен",
+      "NodeServer": "Сервер на ПК",
+      "NodeServerUrl": "URL сервера",
+      "CloudLLM": "Облачная LLM",
+      "LLMProvider": "Провайдер LLM",
+      "LLMBuiltIn": "Встроенный",
+      "LLMOllama": "Ollama",
+      "LLMCloud": "Облако",
+      "CloudLLMUrl": "URL облачной LLM",
+      "CloudLLMToken": "Токен облачной LLM"
     },
     "About": {
       "Title": "mLearn",
@@ -1154,6 +1199,9 @@
         "Listening": "Слушаю…",
         "Processing": "Обработка…",
         "Speaking": "Говорю…",
+        "Stage.STT": "STT",
+        "Stage.LLM": "LLM",
+        "Stage.TTS": "TTS",
         "CallEnded": "Звонок завершён",
         "StartCall": "Начать голосовой звонок",
         "EndCall": "Завершить звонок",

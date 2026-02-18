@@ -9,6 +9,8 @@ import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { SubtitleTheme, AppTheme } from '../../shared/constants';
 import { APP_THEMES } from '../../shared/constants';
+import { getBridge } from '../../shared/bridges';
+import { getBackend, resetBackend } from '../../shared/backends';
 
 // Context interface
 interface SettingsContextValue {
@@ -38,42 +40,36 @@ export const SettingsProvider: ParentComponent = (props) => {
 
   const serializeSettings = (value: Settings): Settings => JSON.parse(JSON.stringify(value)) as Settings;
 
-  // Load settings from main process
+  // Load settings from main process or platform bridge
   const loadSettings = () => {
-    if (typeof window !== 'undefined' && window.mLearnIPC) {
-      // Set up listener BEFORE sending request to avoid race condition
-      ipcCleanups.push(window.mLearnIPC.onSettings((loadedSettings) => {
-        const mergedSettings = pendingSettingsSnapshot
-          ? { ...loadedSettings, ...pendingSettingsSnapshot }
-          : loadedSettings;
+    const bridge = getBridge();
+    console.log('[SettingsContext] Loading settings...');
+    // Set up listener BEFORE sending request to avoid race condition
+    ipcCleanups.push(bridge.settings.onSettings((loadedSettings) => {
+      console.log('[SettingsContext] Settings received');
+      const mergedSettings = pendingSettingsSnapshot
+        ? { ...loadedSettings, ...pendingSettingsSnapshot }
+        : loadedSettings;
 
-        setSettings(reconcile(mergedSettings));
-        setIsLoading(false);
-        setHasLoaded(true);
+      setSettings(reconcile(mergedSettings));
+      setIsLoading(false);
+      setHasLoaded(true);
 
-        applySettingsToDOM(mergedSettings);
+      // Initialize the backend adapter with the loaded settings
+      getBackend({
+        mode: mergedSettings.backendMode,
+        url: mergedSettings.backendUrl,
+        authToken: mergedSettings.cloudAuthToken,
+      });
 
-        if (pendingSettingsSnapshot) {
-          window.mLearnIPC?.saveSettings(pendingSettingsSnapshot);
-          pendingSettingsSnapshot = null;
-        }
-      }));
-      window.mLearnIPC.getSettings();
-    } else {
-      // In tethered mode, load from API
-      fetch('/api/settings')
-          .then(res => res.json())
-          .then(loadedSettings => {
-            setSettings(reconcile(loadedSettings));
-            setIsLoading(false);
-            setHasLoaded(true);
-            applySettingsToDOM(loadedSettings);
-          })
-          .catch(() => {
-            setIsLoading(false);
-            setHasLoaded(true);
-          });
-    }
+      applySettingsToDOM(mergedSettings);
+
+      if (pendingSettingsSnapshot) {
+        bridge.settings.saveSettings(pendingSettingsSnapshot);
+        pendingSettingsSnapshot = null;
+      }
+    }));
+    bridge.settings.getSettings();
   };
 
   // Apply settings to DOM (CSS variables, classes)
@@ -110,6 +106,21 @@ export const SettingsProvider: ParentComponent = (props) => {
     }
   };
 
+  // Keys that require backend adapter reconfiguration
+  const BACKEND_KEYS = new Set<keyof Settings>(['backendMode', 'backendUrl', 'cloudAuthToken']);
+
+  // Reconfigure backend adapter if needed
+  const maybeReconfigureBackend = (nextSettings: Settings, changedKeys?: Set<keyof Settings>) => {
+    if (!changedKeys || [...changedKeys].some(k => BACKEND_KEYS.has(k))) {
+      resetBackend();
+      getBackend({
+        mode: nextSettings.backendMode,
+        url: nextSettings.backendUrl,
+        authToken: nextSettings.cloudAuthToken,
+      });
+    }
+  };
+
   // Update a single setting
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     const nextSettings = {
@@ -119,6 +130,7 @@ export const SettingsProvider: ParentComponent = (props) => {
 
     setSettings(reconcile(nextSettings));
     applySettingsToDOM(nextSettings);
+    maybeReconfigureBackend(nextSettings, new Set([key]));
     saveSettings(nextSettings);
   };
 
@@ -131,6 +143,7 @@ export const SettingsProvider: ParentComponent = (props) => {
 
     setSettings(reconcile(nextSettings));
     applySettingsToDOM(nextSettings);
+    maybeReconfigureBackend(nextSettings, new Set(Object.keys(partial) as (keyof Settings)[]));
     saveSettings(nextSettings);
   };
 
@@ -145,9 +158,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       return;
     }
 
-    if (typeof window !== 'undefined' && window.mLearnIPC) {
-      window.mLearnIPC.saveSettings(snapshot);
-    }
+    getBridge().settings.saveSettings(snapshot);
     broadcastSettingsUpdate(snapshot);
   };
 

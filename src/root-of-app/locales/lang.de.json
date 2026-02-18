@@ -1,5 +1,12 @@
 {
   "mlearn": {
+    "Tabs": {
+      "Home": "Startseite",
+      "Video": "Video",
+      "Reader": "Reader",
+      "Flashcards": "Karten",
+      "Settings": "Einstellungen"
+    },
     "Global": {
       "AppName": "mLearn",
       "Loading": "Laden...",
@@ -407,7 +414,7 @@
       },
       "Leech": {
         "Title": "Blutegel erkannt",
-        "Message": "Das Wort \u201E{word}\u201C wurde {count} Mal falsch beantwortet und benötigt möglicherweise besondere Aufmerksamkeit"
+        "Message": "Das Wort „{word}“ wurde {count} Mal falsch beantwortet und benötigt möglicherweise besondere Aufmerksamkeit"
       }
     },
     "WordHover": {
@@ -482,6 +489,7 @@
         "Reader": "Reader",
         "Statistics": "Statistiken",
         "AI": "KI",
+        "Connection": "Verbindung",
         "About": "Über"
       },
       "Groups": {
@@ -725,7 +733,7 @@
         "Tips": {
           "Title": "Reader-Tipps",
           "GettingStarted": "📖 Erste Schritte: Ziehen Sie einen Bilderordner oder eine PDF-Datei in das Reader-Fenster.",
-          "OcrMode": "🔍 OCR-Modus: Klicken Sie auf \u201EOCR ausführen\u201C, um Text von der aktuellen Seite zu extrahieren. Hovern Sie über erkannten Text für Übersetzungen.",
+          "OcrMode": "🔍 OCR-Modus: Klicken Sie auf „OCR ausführen“, um Text von der aktuellen Seite zu extrahieren. Hovern Sie über erkannten Text für Übersetzungen.",
           "Navigation": "📚 Navigation: Verwenden Sie die Pfeiltasten oder Miniaturansichten in der Seitenleiste zum Blättern.",
           "DoublePage": "💡 Tipp: Der Doppelseiten-Modus ist ideal für Manga-Doppelseiten!"
         }
@@ -826,6 +834,17 @@
           },
           "ResetButton": "SRS zurücksetzen"
         }
+      },
+      "Mobile": {
+        "GeneralDesc": "Sprache, Design und Daten",
+        "BehaviourDesc": "Wortstatus, Anzeige und Leistung",
+        "AppearanceDesc": "Untertitel, Farben und Designs",
+        "SRSDesc": "Karteikarten-Limits und Integration",
+        "ReaderDesc": "OCR, Hover und Lesetools",
+        "StatsDesc": "Lernstatistiken und Fortschritt",
+        "AIDesc": "Sprachmodell-Anbieter",
+        "ConnectionDesc": "Backend-Modus und Synchronisierung",
+        "AboutDesc": "Version, Links und Tastenkuerzel"
       }
     },
     "Installer": {
@@ -895,6 +914,32 @@
         "OpenAiAnalytics": "🤖 KI-Medienanalyse"
       }
     },
+    "Connection": {
+      "Title": "Verbindung",
+      "BackendMode": "Backend-Modus",
+      "Mode": "Modus",
+      "ModeLocal": "Lokal",
+      "ModeTethered": "Angebunden",
+      "ModeCloud": "Cloud",
+      "HintLocal": "Verwendet das lokale Python-Backend auf diesem Gerät.",
+      "HintTethered": "Verbindet sich mit dem Python-Backend auf Ihrem Desktop.",
+      "HintCloud": "Verbindet sich mit einem entfernten Cloud-Backend.",
+      "BackendUrl": "Backend-URL",
+      "AuthToken": "Auth-Token",
+      "TestConnection": "Verbindung testen",
+      "Testing": "Teste...",
+      "Connected": "Verbunden",
+      "Unreachable": "Nicht erreichbar",
+      "NodeServer": "Desktop-Server",
+      "NodeServerUrl": "Server-URL",
+      "CloudLLM": "Cloud-LLM",
+      "LLMProvider": "LLM-Anbieter",
+      "LLMBuiltIn": "Eingebaut",
+      "LLMOllama": "Ollama",
+      "LLMCloud": "Cloud",
+      "CloudLLMUrl": "Cloud-LLM-URL",
+      "CloudLLMToken": "Cloud-LLM-Token"
+    },
     "About": {
       "Title": "mLearn",
       "VersionLabel": "Version {version}",
@@ -946,13 +991,13 @@
     "WordDbEditor": {
       "Title": "Wortdatenbank-Editor",
       "Loading": "Wortdatenbank wird geladen...",
-      "EmptyState": "Keine Wörter gefunden. Klicken Sie auf \u201EAlle laden\u201C, um die Wortdatenbank zu laden.",
+      "EmptyState": "Keine Wörter gefunden. Klicken Sie auf „Alle laden“, um die Wortdatenbank zu laden.",
       "LoadingMore": "Weitere laden...",
       "SearchPlaceholder": "Wörter suchen...",
       "AllLevels": "Alle Stufen",
       "LoadAll": "Alle laden",
-      "SearchHint": "Geben Sie 2+ Zeichen zum Suchen ein oder klicken Sie auf \u201EAlle laden\u201C",
-      "SearchHintDetailed": "Enter zum Suchen. Exakte Treffer werden bevorzugt. Klicken Sie zuerst auf \u201EAlle laden\u201C.",
+      "SearchHint": "Geben Sie 2+ Zeichen zum Suchen ein oder klicken Sie auf „Alle laden“",
+      "SearchHintDetailed": "Enter zum Suchen. Exakte Treffer werden bevorzugt. Klicken Sie zuerst auf „Alle laden“.",
       "EditTranslation": {
         "Title": "Übersetzung bearbeiten – {word}",
         "Tooltip": "Wortüberschreibung bearbeiten",
@@ -1154,6 +1199,9 @@
         "Listening": "Höre zu…",
         "Processing": "Verarbeitung…",
         "Speaking": "Spricht…",
+        "Stage.STT": "STT",
+        "Stage.LLM": "LLM",
+        "Stage.TTS": "TTS",
         "CallEnded": "Anruf beendet",
         "StartCall": "Sprachanruf starten",
         "EndCall": "Anruf beenden",

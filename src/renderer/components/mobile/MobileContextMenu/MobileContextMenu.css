@@ -1,0 +1,101 @@
+/* Mobile Context Menu — bottom sheet style */
+
+.mobile-ctx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: mobile-ctx-fade-in 0.15s ease-out;
+}
+
+@keyframes mobile-ctx-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mobile-ctx-sheet {
+  width: 100%;
+  max-width: 500px;
+  background: var(--bg-secondary, #2a2a2e);
+  border-radius: 14px 14px 0 0;
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+  animation: mobile-ctx-slide-up 0.2s ease-out;
+}
+
+@keyframes mobile-ctx-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.mobile-ctx-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--text-tertiary, #555);
+  margin: 4px auto 12px;
+}
+
+.mobile-ctx-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  background: none;
+  border: none;
+  color: var(--text-primary, #e0e0e0);
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.mobile-ctx-item:active {
+  background: var(--panel-bg-hover);
+}
+
+.mobile-ctx-item:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.mobile-ctx-item.destructive {
+  color: var(--color-error);
+}
+
+.mobile-ctx-icon {
+  font-size: 20px;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.mobile-ctx-label {
+  flex: 1;
+}
+
+.mobile-ctx-cancel {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 8px auto 0;
+  padding: 14px;
+  background: var(--bg-intense);
+  border: none;
+  border-radius: 12px;
+  color: var(--accent-primary);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.mobile-ctx-cancel:active {
+  opacity: 0.7;
+}
