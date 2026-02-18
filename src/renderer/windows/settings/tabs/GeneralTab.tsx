@@ -4,9 +4,10 @@
 
 import { Component, createSignal } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon } from '../../../components/common';
 import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/types';
 import { type AppTheme } from '../../../../shared/constants';
+import '../SettingsForm.css';
 
 export const GeneralTab: Component = () => {
   const { settings, updateSettings, saveSettings } = useSettings();
@@ -88,7 +89,7 @@ export const GeneralTab: Component = () => {
       header={{
         title: t('mlearn.Settings.UI.Title'),
         description: t('mlearn.Settings.UI.Description'),
-        icon: '⚙️',
+        icon: <SettingsIcon size={20} />,
       }}
       padding="lg"
     >

@@ -8,7 +8,8 @@ import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { ActionCard, RecentCard, Btn, type RecentItem } from '../../../components/common';
+import { ActionCard, RecentCard, Btn, VideoIcon, BookIcon, SettingsIcon, type RecentItem } from '../../../components/common';
+import Icon from '../../../components/common/Icons/Icon';
 import './welcome.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
 
@@ -93,7 +94,7 @@ export const WelcomeRoute: Component = () => {
       {/* Main Actions */}
       <section class="welcome-actions">
         <ActionCard
-          icon="🎬"
+          icon={<VideoIcon size={24} />}
           title={t('mlearn.Home.Cards.Video.Title')}
           description={t('mlearn.Home.Cards.Video.Description')}
           onClick={openVideoPlayer}
@@ -101,7 +102,7 @@ export const WelcomeRoute: Component = () => {
         />
 
         <ActionCard
-          icon="📖"
+          icon={<BookIcon size={24} />}
           title={t('mlearn.Home.Cards.Reader.Title')}
           description={t('mlearn.Home.Cards.Reader.Description')}
           onClick={openReader}
@@ -109,14 +110,14 @@ export const WelcomeRoute: Component = () => {
         />
 
         <ActionCard
-          icon="🃏"
+          icon={<Icon icon="cards" color="currentColor" class="" />}
           title={t('mlearn.Home.Cards.Flashcards.Title')}
           description={t('mlearn.Home.Cards.Flashcards.Description')}
           onClick={openFlashcards}
         />
 
         <ActionCard
-          icon="⚙️"
+          icon={<SettingsIcon size={24} />}
           title={t('mlearn.Home.Cards.Settings.Title')}
           description={t('mlearn.Home.Cards.Settings.Description')}
           onClick={openSettings}

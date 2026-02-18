@@ -9,7 +9,7 @@ import { Component, createMemo, onMount, onCleanup, createSignal, Show, For } fr
 import { useFlashcards } from '../../context';
 import { useLocalization } from '../../context';
 import { formatDurationHM } from '../../utils/timeFormatting';
-import { Card, StatCard } from '../common';
+import { Card, StatCard, BookIcon, CalendarIcon, StarIcon, BreakdownRow } from '../common';
 import './FlashcardStats.css';
 
 // ============================================================================
@@ -538,7 +538,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
           <StatCard
             label={t('mlearn.Flashcards.Statistics.TotalCards')}
             value={cards().length}
-            icon="📚"
+            icon={<BookIcon />}
             color="primary"
             size="lg"
           />
@@ -547,7 +547,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
           <StatCard
             label={t('mlearn.Flashcards.Statistics.DueToday')}
             value={counts().total}
-            icon="📅"
+            icon={<CalendarIcon />}
             color="warning"
             size="lg"
           />
@@ -556,7 +556,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
           <StatCard
             label={t('mlearn.Flashcards.Statistics.Mature')}
             value={maturityBreakdown().mature}
-            icon="⭐"
+            icon={<StarIcon />}
             color="success"
             size="lg"
           />
@@ -685,59 +685,51 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
 
       {/* Today's Progress */}
       <Card title={t('mlearn.Flashcards.Statistics.TodayProgress')} class="flashcard-stats-today">
-        <div class="breakdown-rows">
-          <div class="breakdown-row">
-            <span>{t('mlearn.Flashcards.Statistics.NewCardsStudied')}</span>
-            <span>
-              {store.meta.newCardsToday} / {store.meta.maxNewCardsPerDayLearning === -1 ? '∞' : store.meta.maxNewCardsPerDayLearning}
-            </span>
-          </div>
-          <div class="breakdown-row">
-            <span>{t('mlearn.Flashcards.Statistics.ReviewsCompleted')}</span>
-            <span>
-              {store.meta.reviewsToday} / {store.meta.maxReviewsPerDay === -1 ? '∞' : store.meta.maxReviewsPerDay}
-            </span>
-          </div>
-        </div>
+        <BreakdownRow
+          label={t('mlearn.Flashcards.Statistics.NewCardsStudied')}
+          value={`${store.meta.newCardsToday} / ${store.meta.maxNewCardsPerDayLearning === -1 ? '∞' : store.meta.maxNewCardsPerDayLearning}`}
+        />
+        <BreakdownRow
+          label={t('mlearn.Flashcards.Statistics.ReviewsCompleted')}
+          value={`${store.meta.reviewsToday} / ${store.meta.maxReviewsPerDay === -1 ? '∞' : store.meta.maxReviewsPerDay}`}
+        />
       </Card>
 
       {/* Quick Learning Limits */}
       <Card title={t('mlearn.Flashcards.Statistics.LearningLimits')} class="flashcard-stats-limits">
-        <div class="breakdown-rows">
-          <div class="breakdown-row">
-            <span>{t('mlearn.Flashcards.Statistics.MaxNewCardsPerDay')}</span>
-            <input
-              type="number"
-              class="flashcards-limit-input"
-              value={store.meta.maxNewCardsPerDayLearning}
-              min={-1}
-              max={1000}
-              onChange={(e) => {
-                const val = parseInt(e.currentTarget.value);
-                if (!isNaN(val) && val >= -1) {
-                  updateMeta({ maxNewCardsPerDayLearning: val });
-                }
-              }}
-            />
-          </div>
-          <div class="breakdown-row">
-            <span>{t('mlearn.Flashcards.Statistics.MaxReviewsPerDay')}</span>
-            <input
-              type="number"
-              class="flashcards-limit-input"
-              value={store.meta.maxReviewsPerDay}
-              min={-1}
-              max={10000}
-              onChange={(e) => {
-                const val = parseInt(e.currentTarget.value);
-                if (!isNaN(val) && val >= -1) {
-                  updateMeta({ maxReviewsPerDay: val });
-                }
-              }}
-            />
-          </div>
-          <p class="flashcards-limit-hint">{t('mlearn.Flashcards.Statistics.LimitHint')}</p>
+        <div class="breakdown-row">
+          <span class="breakdown-label">{t('mlearn.Flashcards.Statistics.MaxNewCardsPerDay')}</span>
+          <input
+            type="number"
+            class="flashcard-stats-limit-input"
+            value={store.meta.maxNewCardsPerDayLearning}
+            min={-1}
+            max={1000}
+            onChange={(e) => {
+              const val = parseInt(e.currentTarget.value);
+              if (!isNaN(val) && val >= -1) {
+                updateMeta({ maxNewCardsPerDayLearning: val });
+              }
+            }}
+          />
         </div>
+        <div class="breakdown-row">
+          <span class="breakdown-label">{t('mlearn.Flashcards.Statistics.MaxReviewsPerDay')}</span>
+          <input
+            type="number"
+            class="flashcard-stats-limit-input"
+            value={store.meta.maxReviewsPerDay}
+            min={-1}
+            max={10000}
+            onChange={(e) => {
+              const val = parseInt(e.currentTarget.value);
+              if (!isNaN(val) && val >= -1) {
+                updateMeta({ maxReviewsPerDay: val });
+              }
+            }}
+          />
+        </div>
+        <p class="flashcard-stats-limit-hint">{t('mlearn.Flashcards.Statistics.LimitHint')}</p>
       </Card>
     </div>
   );

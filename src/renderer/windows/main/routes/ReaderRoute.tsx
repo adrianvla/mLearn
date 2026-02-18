@@ -6,7 +6,7 @@
 import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
-import { OcrOverlay, MagnifyingGlass, type OcrResult } from '../../../components/reader';
+import { OcrOverlay, MagnifyingGlass, type OcrResult, type OcrProcessingTimes } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats } from '../../../hooks';
@@ -169,6 +169,9 @@ export const ReaderRoute: Component = () => {
   const [ocrDebugOverlay, setOcrDebugOverlay] = createSignal(false);
   const toggleOcrDebugOverlay = () => setOcrDebugOverlay(!ocrDebugOverlay());
 
+  // PaddleOCR downscale slider (dev mode only, non-turbo)
+  const [paddleOcrScale, setPaddleOcrScale] = createSignal(100);
+
   // OCR generation counter — incremented when turbo mode changes to invalidate stale results
   const [ocrGeneration, setOcrGeneration] = createSignal(0);
 
@@ -187,6 +190,9 @@ export const ReaderRoute: Component = () => {
   // Latched status text per page - holds the last visible status during fade-out
   // This prevents text from changing while the overlay is fading out
   const [latchedStatusByPage, setLatchedStatusByPage] = createSignal<Record<string, string>>({});
+
+  // Last OCR processing times (dev mode benchmarking)
+  const [lastOcrTiming, setLastOcrTiming] = createSignal<OcrProcessingTimes | null>(null);
 
   // References for OCR overlay positioning
   let pageContainerRef: HTMLDivElement | undefined;
@@ -459,6 +465,17 @@ export const ReaderRoute: Component = () => {
       formData.append('file', prepared.blob, 'image.png');
       formData.append('turbo', turbo ? '1' : '0');
       formData.append('ram_saver', (settings.ocrRamSaver ?? false) ? '1' : '0');
+      if (settings.devMode) {
+        formData.append('dev_mode', '1');
+        // Dev-mode PaddleOCR downscale: compute max dimensions from scale percentage
+        const scale = paddleOcrScale();
+        if (!turbo && scale < 100) {
+          const maxW = Math.max(1, Math.round(prepared.sentW * (scale / 100)));
+          const maxH = Math.max(1, Math.round(prepared.sentH * (scale / 100)));
+          formData.append('paddle_max_width', String(maxW));
+          formData.append('paddle_max_height', String(maxH));
+        }
+      }
 
       const response = await fetch(getBackend().buildUrl('/ocr'), {
         method: 'POST',
@@ -479,6 +496,9 @@ export const ReaderRoute: Component = () => {
       // Only store if generation hasn't changed (turbo mode wasn't toggled mid-flight)
       if (ocrGeneration() === gen) {
         setOcrResults(page.id, result);
+        if (result.processing_times) {
+          setLastOcrTiming(result.processing_times);
+        }
       }
       return result;
     } catch (error) {
@@ -1537,6 +1557,9 @@ export const ReaderRoute: Component = () => {
             onOpenConversationAgent={openConversationAgent}
             debugOcr={ocrDebugOverlay}
             onToggleDebugOcr={toggleOcrDebugOverlay}
+            lastOcrTiming={lastOcrTiming}
+            paddleOcrScale={paddleOcrScale}
+            onPaddleOcrScaleChange={setPaddleOcrScale}
         />
 
         <Show when={ocrHoverData() && ocrHoverData()!.token}>

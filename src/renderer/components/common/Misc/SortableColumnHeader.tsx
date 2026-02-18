@@ -5,6 +5,7 @@
  */
 
 import { Component, JSX } from 'solid-js';
+import { SortAscIcon, SortDescIcon } from './Icons';
 import './SortableColumnHeader.css';
 
 export type SortDirection = 'asc' | 'desc' | null;
@@ -34,9 +35,9 @@ export const SortableColumnHeader: Component<SortableColumnHeaderProps> = (props
   };
 
   const getSortIndicator = () => {
-    if (props.sortDirection === 'asc') return '▲';
-    if (props.sortDirection === 'desc') return '▼';
-    return '';
+    if (props.sortDirection === 'asc') return <SortAscIcon size={12} />;
+    if (props.sortDirection === 'desc') return <SortDescIcon size={12} />;
+    return null;
   };
 
   return (

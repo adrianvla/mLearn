@@ -4,6 +4,8 @@
 
 import { Component, Accessor } from 'solid-js';
 import { useLocalization } from '../../../context';
+import { SortAscIcon, SortDescIcon } from '../../../components/common';
+import './EntriesHeader.css';
 
 export interface EntriesHeaderProps {
   sortKey: Accessor<string>;
@@ -15,8 +17,8 @@ export const EntriesHeader: Component<EntriesHeaderProps> = (props) => {
   const { t } = useLocalization();
   
   const getSortIndicator = (key: string) => {
-    if (props.sortKey() !== key) return '';
-    return props.sortDir() === 1 ? ' ▲' : ' ▼';
+    if (props.sortKey() !== key) return null;
+    return props.sortDir() === 1 ? <SortAscIcon size={12} /> : <SortDescIcon size={12} />;
   };
 
   return (

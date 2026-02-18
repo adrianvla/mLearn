@@ -56,44 +56,6 @@
   width: 100%;
 }
 
-.action-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.25rem;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-align: left;
-}
-
-.action-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  background: var(--bg-intense);
-  border-color: var(--border-color-intense);
-}
-
-.action-icon {
-  font-size: 2rem;
-  flex-shrink: 0;
-}
-
-.action-text h3 {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0 0 0.25rem;
-  color: var(--text-primary);
-}
-
-.action-text p {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
 /* Recent Items */
 .welcome-recent {
   margin: 0 auto 0;

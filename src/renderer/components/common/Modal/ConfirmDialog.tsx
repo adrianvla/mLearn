@@ -8,6 +8,8 @@ import { Component, Show, createSignal, JSX } from 'solid-js';
 import { useLocalization } from '../../../context';
 import { Modal } from './Modal';
 import { Btn } from '../Button';
+import { WarningIcon, InfoIcon } from '../Misc/Icons';
+import { Spinner } from '../Loader';
 
 export type ConfirmVariant = 'danger' | 'warning' | 'info';
 
@@ -31,17 +33,17 @@ export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
   const variantConfig = {
     danger: {
       confirmVariant: 'danger' as const,
-      icon: '⚠️',
+      icon: <WarningIcon size={20} />,
       defaultConfirmText: t('mlearn.Global.Delete'),
     },
     warning: {
       confirmVariant: 'primary' as const,
-      icon: '⚠️',
+      icon: <WarningIcon size={20} />,
       defaultConfirmText: t('mlearn.Global.Continue'),
     },
     info: {
       confirmVariant: 'primary' as const,
-      icon: 'ℹ️',
+      icon: <InfoIcon size={20} />,
       defaultConfirmText: t('mlearn.Global.Ok'),
     },
   };
@@ -78,7 +80,7 @@ export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
         disabled={isLoading()}
       >
         <Show when={isLoading()}>
-          <span style={{ 'margin-right': '0.5rem' }}>⏳</span>
+          <Spinner size={14} />
         </Show>
         {props.confirmText ?? config().defaultConfirmText}
       </Btn>

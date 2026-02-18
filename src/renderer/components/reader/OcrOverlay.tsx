@@ -20,12 +20,22 @@ export interface OcrBox {
   __originalIdx?: number; // Added to track original index after filtering
 }
 
+export interface OcrProcessingTimes {
+  total_ms: number;
+  detection_ms?: number;
+  detection_engine?: string;
+  recognition_ms?: number;
+  recognition_engine?: string;
+  per_box_ms?: number[];
+}
+
 export interface OcrResult {
   boxes: OcrBox[];
   client_scale?: number;
   downscale_factor?: number;
   original_size?: { width: number; height: number };
   sent_size?: { width: number; height: number };
+  processing_times?: OcrProcessingTimes;
 }
 
 export interface OcrOverlayProps {

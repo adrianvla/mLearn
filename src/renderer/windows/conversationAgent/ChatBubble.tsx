@@ -6,7 +6,7 @@
 import { Component, Show, For, createSignal, createMemo, createEffect, onMount, onCleanup } from 'solid-js';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { formatClockTime } from '../../utils/timeFormatting';
-import { Btn, Input, Spinner, IconBtn, RefreshIcon } from '../../components';
+import { Btn, Input, Spinner, IconBtn, RefreshIcon, CheckIcon, CrossIcon, ScissorsIcon } from '../../components';
 import { MarkdownRenderer, parseMarkdownToHtml } from './MarkdownRenderer';
 import type { ConversationMessage, Token, QuizWidgetData, MistakeWidgetData, StreamStats } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
@@ -197,7 +197,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
         {/* Interrupted indicator */}
         <Show when={props.message.interrupted}>
           <span class="chat-bubble-interrupted">
-            ✂ {t('mlearn.ConversationAgent.Voice.Interrupted')}
+            <ScissorsIcon size={12} /> {t('mlearn.ConversationAgent.Voice.Interrupted')}
           </span>
         </Show>
       </div>
@@ -764,7 +764,7 @@ const QuizWidget: Component<QuizWidgetProps> = (props) => {
       {/* Unified result feedback for all quiz types */}
       <Show when={props.resolved}>
         <div class={`quiz-result ${props.data.isCorrect ? 'quiz-result-correct' : 'quiz-result-incorrect'}`}>
-          {props.data.isCorrect ? `✓ ${t('mlearn.ConversationAgent.Quiz.Correct')}` : `✗ ${t('mlearn.ConversationAgent.Quiz.IncorrectAnswer', { answer: props.data.correctAnswer })}`}
+          {props.data.isCorrect ? <><CheckIcon size={14} /> {t('mlearn.ConversationAgent.Quiz.Correct')}</> : <><CrossIcon size={14} /> {t('mlearn.ConversationAgent.Quiz.IncorrectAnswer', { answer: props.data.correctAnswer })}</>}
         </div>
       </Show>
     </div>

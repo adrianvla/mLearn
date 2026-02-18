@@ -284,6 +284,24 @@ html, body {
 
 body {
   overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Ensure buttons inherit the theme color instead of browser-default black */
+button {
+  color: inherit;
+}
+
+/* Allow text selection on inputs, textareas, and explicitly selectable content */
+input,
+textarea,
+[contenteditable="true"],
+pre,
+code,
+.selectable {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 #app {

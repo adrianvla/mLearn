@@ -17,6 +17,7 @@ import {
   EmptyState,
   SelectInput,
   PillLabel,
+  BarChartIcon,
 } from '../../components/common';
 import type { TabItem } from '../../components/common';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../utils/levelPercentages';
@@ -225,7 +226,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
   const mediaSelectOptions = () =>
     mediaList().map((item) => ({
       value: item.hash,
-      label: `${item.type === 'video' ? '🎬' : '📖'} ${item.name}${item.isCurrent ? ` (${t('mlearn.ConversationAgent.Stats.Current')})` : ''}`,
+      label: `${item.name}${item.isCurrent ? ` (${t('mlearn.ConversationAgent.Stats.Current')})` : ''}`,
     }));
 
   return (
@@ -234,7 +235,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
         when={mediaList().length > 0}
         fallback={
           <EmptyState
-            icon="📊"
+            icon={<BarChartIcon size={24} />}
             title={t('mlearn.ConversationAgent.Stats.NoMedia')}
             description={t('mlearn.ConversationAgent.Stats.NoMediaHint')}
           />

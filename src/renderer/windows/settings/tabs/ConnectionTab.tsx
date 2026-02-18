@@ -6,7 +6,7 @@
 
 import { Component, Show, createSignal } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText } from '../../../components/common';
+import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, CheckIcon, CrossIcon } from '../../../components/common';
 import { isMobile } from '../../../../shared/platform';
 import { getBackend, resetBackend } from '../../../../shared/backends';
 import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
@@ -115,7 +115,7 @@ export const ConnectionTab: Component = () => {
     <TabContent
       header={{
         title: t('mlearn.Connection.Title') || 'Connection',
-        icon: '🔗',
+        icon: <LinkIcon size={20} />,
       }}
       padding="lg"
     >
@@ -170,10 +170,10 @@ export const ConnectionTab: Component = () => {
                   : (t('mlearn.Connection.TestConnection') || 'Test Connection')}
               </Btn>
               <Show when={backendStatus() === 'success'}>
-                <span class="connection-status-ok">✓ {t('mlearn.Connection.Connected') || 'Connected'}</span>
+                <span class="connection-status-ok"><CheckIcon size={14} /> {t('mlearn.Connection.Connected') || 'Connected'}</span>
               </Show>
               <Show when={backendStatus() === 'error'}>
-                <span class="connection-status-error">✗ {backendError()}</span>
+                <span class="connection-status-error"><CrossIcon size={14} /> {backendError()}</span>
               </Show>
             </div>
           </SettingRow>
@@ -198,10 +198,10 @@ export const ConnectionTab: Component = () => {
                   : (t('mlearn.Connection.TestConnection') || 'Test Connection')}
               </Btn>
               <Show when={nodeStatus() === 'success'}>
-                <span class="connection-status-ok">✓ {t('mlearn.Connection.Connected') || 'Connected'}</span>
+                <span class="connection-status-ok"><CheckIcon size={14} /> {t('mlearn.Connection.Connected') || 'Connected'}</span>
               </Show>
               <Show when={nodeStatus() === 'error'}>
-                <span class="connection-status-error">✗ {nodeError()}</span>
+                <span class="connection-status-error"><CrossIcon size={14} /> {nodeError()}</span>
               </Show>
             </div>
           </SettingRow>
@@ -244,10 +244,10 @@ export const ConnectionTab: Component = () => {
                   : (t('mlearn.Connection.TestConnection') || 'Test Connection')}
               </Btn>
               <Show when={cloudLLMStatus() === 'success'}>
-                <span class="connection-status-ok">✓ {t('mlearn.Connection.Connected') || 'Connected'}</span>
+                <span class="connection-status-ok"><CheckIcon size={14} /> {t('mlearn.Connection.Connected') || 'Connected'}</span>
               </Show>
               <Show when={cloudLLMStatus() === 'error'}>
-                <span class="connection-status-error">✗ {cloudLLMError()}</span>
+                <span class="connection-status-error"><CrossIcon size={14} /> {cloudLLMError()}</span>
               </Show>
             </div>
           </SettingRow>

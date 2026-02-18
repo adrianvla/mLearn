@@ -11,14 +11,14 @@
 }
 
 .breakdown-row:not(:last-child) {
-  border-bottom: 1px solid var(--border-light, rgba(255, 255, 255, 0.05));
+  border-bottom: 1px solid var(--border-light);
 }
 
 .breakdown-label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  color: var(--text-secondary);
 }
 
 .breakdown-color {
@@ -35,7 +35,7 @@
 
 .breakdown-value {
   font-weight: 600;
-  color: var(--text-primary, white);
+  color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 

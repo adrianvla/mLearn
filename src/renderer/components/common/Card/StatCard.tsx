@@ -5,6 +5,7 @@
 
 import { Component, JSX, Show } from 'solid-js';
 import { Panel } from '../Panel';
+import { ChevronUpIcon, ChevronDownIcon, ArrowRightIcon } from '../Misc/Icons';
 import './StatCard.css';
 
 export interface StatCardProps {
@@ -45,9 +46,9 @@ export const StatCard: Component<StatCardProps> = (props) => {
   const trendIcon = () => {
     if (!props.trend) return null;
     switch (props.trend.direction) {
-      case 'up': return '↑';
-      case 'down': return '↓';
-      default: return '→';
+      case 'up': return <ChevronUpIcon size={14} />;
+      case 'down': return <ChevronDownIcon size={14} />;
+      default: return <ArrowRightIcon size={14} />;
     }
   };
 

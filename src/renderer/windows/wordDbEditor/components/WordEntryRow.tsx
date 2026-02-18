@@ -10,6 +10,7 @@ import { useLocalization } from '../../../context';
 import { getCachedTranslation } from '../../../hooks/useTranslation';
 import type { TranslationResponse, TranslationEntry } from '../../../../shared/types';
 import { getBackend } from '../../../../shared/backends';
+import './WordEntryRow.css';
 
 /**
  * Shared translation fetch queue to avoid overwhelming the backend.

@@ -161,7 +161,7 @@
         "OpenVideo": "Open Video",
         "OpenSubtitles": "Open Subtitles",
         "GoHome": "← Home",
-        "OpenConversationAgent": "🤖 AI Tutor"
+        "OpenConversationAgent": "AI Tutor"
       },
       "Tooltip": {
         "GoHome": "Go back to home",
@@ -171,7 +171,7 @@
     "Reader": {
       "UI": {
         "WelcomeSplash": {
-          "Title": "📖 Settle in, Reader",
+          "Title": "Settle in, Reader",
           "TitleDescription": "Drag and drop a folder of images or a .pdf file anywhere in this window.",
           "DropZone": "Drop files here to import them instantly",
           "Footer": "Drop something in to begin — this welcome screen will make room for your story.",
@@ -237,7 +237,13 @@
         "FuriganaDetectionOff": "Furigana Det.: Off",
         "DebugOverlayTitle": "Toggle debug overlay to visualize OCR text and furigana detection",
         "DebugOverlayOn": "Debug: On",
-        "DebugOverlayOff": "Debug: Off"
+        "DebugOverlayOff": "Debug: Off",
+        "TimingDetection": "Det",
+        "TimingRecognition": "Rec",
+        "TimingPerBox": "Avg/box",
+        "TimingTotal": "Total",
+        "PaddleDownscaleLabel": "PaddleOCR Scale: {value}%",
+        "PaddleDownscaleTitle": "Downscale image before PaddleOCR processing (dev)"
       },
       "Status": {
         "NothingLoaded": "Nothing Loaded",
@@ -270,7 +276,7 @@
           "Browse": "Browse",
           "Statistics": "Statistics"
         },
-        "Sync": "🔄 Sync",
+        "Sync": "Sync",
         "AddCard": "+ Add Card"
       },
       "EmptyState": {
@@ -363,7 +369,7 @@
         "LearningLabel": "Learning:",
         "Undo": "↩",
         "UndoTooltip": "Undo",
-        "Complete": "🎉 Review Complete!",
+        "Complete": "Review Complete!",
         "CompleteDescription": "You've reviewed all cards for now. Great job!",
         "ReviewMore": "Review More",
         "ShowAnswer": "Show Answer",
@@ -732,10 +738,10 @@
         },
         "Tips": {
           "Title": "Reader Tips",
-          "GettingStarted": "📖 Getting Started: Drag and drop a folder of images or a PDF file onto the reader window.",
-          "OcrMode": "🔍 OCR Mode: Click \"Run OCR\" to extract text from the current page. Hover over detected text to see translations.",
-          "Navigation": "📚 Navigation: Use arrow keys or click thumbnails in the sidebar to navigate pages.",
-          "DoublePage": "💡 Tip: Double-page mode works great for manga spreads!"
+          "GettingStarted": "Getting Started: Drag and drop a folder of images or a PDF file onto the reader window.",
+          "OcrMode": "OCR Mode: Click \"Run OCR\" to extract text from the current page. Hover over detected text to see translations.",
+          "Navigation": "Navigation: Use arrow keys or click thumbnails in the sidebar to navigate pages.",
+          "DoublePage": "Tip: Double-page mode works great for manga spreads!"
         }
       },
       "SRS": {
@@ -772,8 +778,8 @@
             "Description": "Test your AnkiConnect connection"
           },
           "Test": "Test",
-          "Connected": "✓ Connected",
-          "Failed": "✗ Failed",
+          "Connected": "Connected",
+          "Failed": "Failed",
           "DeckName": {
             "Label": "Deck Name",
             "Description": "Anki deck for new cards",
@@ -899,6 +905,7 @@
       "CurrentlyLearning": "Currently Learning",
       "WordsByStatus": "Words by Status",
       "WordsByExamLevel": "Words by Exam Level",
+      "LevelColumn": "Level",
       "EmptyState": {
         "Title": "No Word Data Yet",
         "Description": "Start watching to track words!"
@@ -909,9 +916,9 @@
         "Viewed": "Viewed"
       },
       "Actions": {
-        "ViewKanjiGrid": "📊 View Kanji Grid",
-        "EditWordDatabase": "📝 Edit Word Database",
-        "OpenAiAnalytics": "🤖 AI Media Analytics"
+        "ViewKanjiGrid": "View Kanji Grid",
+        "EditWordDatabase": "Edit Word Database",
+        "OpenAiAnalytics": "AI Media Analytics"
       }
     },
     "Connection": {
@@ -944,8 +951,8 @@
       "Title": "mLearn",
       "VersionLabel": "Version {version}",
       "Description": "mLearn is a language learning tool that helps you study through immersion. Watch videos, read manga, and learn vocabulary naturally with intelligent subtitles and spaced repetition.",
-      "Website": "🌐 Website",
-      "Licenses": "📄 Licenses",
+      "Website": "Website",
+      "Licenses": "Licenses",
       "KeyboardShortcuts": {
         "Title": "Keyboard Shortcuts",
         "Space": "Play/Pause video",

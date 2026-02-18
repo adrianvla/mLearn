@@ -4,6 +4,7 @@
  */
 
 import { Component, JSX } from 'solid-js';
+import { WarningIcon, InfoIcon, CheckIcon, CrossIcon } from '../Misc/Icons';
 import './HintText.css';
 
 export interface HintTextProps {
@@ -19,12 +20,12 @@ export interface HintTextProps {
   class?: string;
 }
 
-const ICONS: Record<string, string> = {
-  default: '',
-  warning: '⚠️',
-  info: 'ℹ️',
-  success: '✓',
-  error: '✕',
+const ICONS: Record<string, JSX.Element | null> = {
+  default: null,
+  warning: <WarningIcon size={14} />,
+  info: <InfoIcon size={14} />,
+  success: <CheckIcon size={14} />,
+  error: <CrossIcon size={14} />,
 };
 
 export const HintText: Component<HintTextProps> = (props) => {

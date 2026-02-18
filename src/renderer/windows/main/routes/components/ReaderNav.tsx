@@ -4,7 +4,7 @@
  */
 
 import {Component, Accessor} from 'solid-js';
-import { NavBtn, Tag, Select } from '../../../../components/common';
+import { NavBtn, Tag, Select, ChevronLeftIcon, ChevronRightIcon } from '../../../../components/common';
 import { useLocalization } from '../../../../context';
 import './ReaderNav.css';
 import Icon from "@renderer/components/common/Icons/Icon";
@@ -83,8 +83,8 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       </div>
       
       <div class="nav-group nav-arrows">
-        <NavBtn onClick={props.onPrevPage}>◀</NavBtn>
-        <NavBtn onClick={props.onNextPage}>▶</NavBtn>
+        <NavBtn onClick={props.onPrevPage}><ChevronLeftIcon size={16} /></NavBtn>
+        <NavBtn onClick={props.onNextPage}><ChevronRightIcon size={16} /></NavBtn>
       </div>
     </nav>
   );

@@ -161,7 +161,7 @@
         "OpenVideo": "Video öffnen",
         "OpenSubtitles": "Untertitel öffnen",
         "GoHome": "← Startseite",
-        "OpenConversationAgent": "🤖 KI-Tutor"
+        "OpenConversationAgent": "KI-Tutor"
       },
       "Tooltip": {
         "GoHome": "Zur Startseite",
@@ -171,7 +171,7 @@
     "Reader": {
       "UI": {
         "WelcomeSplash": {
-          "Title": "📖 Willkommen im Reader",
+          "Title": "Willkommen im Reader",
           "TitleDescription": "Ziehen Sie einen Bilderordner oder eine .pdf-Datei in dieses Fenster.",
           "DropZone": "Dateien hier ablegen zum Importieren",
           "Footer": "Legen Sie etwas ab, um zu beginnen — dieser Willkommensbildschirm wird Ihrer Geschichte Platz machen.",
@@ -237,7 +237,13 @@
         "FuriganaDetectionOff": "Furigana: Aus",
         "DebugOverlayTitle": "Debug-Overlay für OCR-Text und Furigana-Erkennung umschalten",
         "DebugOverlayOn": "Debug: Ein",
-        "DebugOverlayOff": "Debug: Aus"
+        "DebugOverlayOff": "Debug: Aus",
+        "TimingDetection": "Det",
+        "TimingRecognition": "Erk",
+        "TimingPerBox": "Ø/Box",
+        "TimingTotal": "Gesamt",
+        "PaddleDownscaleLabel": "PaddleOCR-Skalierung: {value}%",
+        "PaddleDownscaleTitle": "Bild vor PaddleOCR-Verarbeitung herunterskalieren (dev)"
       },
       "Status": {
         "NothingLoaded": "Nichts geladen",
@@ -270,7 +276,7 @@
           "Browse": "Durchsuchen",
           "Statistics": "Statistiken"
         },
-        "Sync": "🔄 Synchronisieren",
+        "Sync": "Synchronisieren",
         "AddCard": "+ Karte hinzufügen"
       },
       "EmptyState": {
@@ -363,7 +369,7 @@
         "LearningLabel": "Lernen:",
         "Undo": "↩",
         "UndoTooltip": "Rückgängig",
-        "Complete": "🎉 Wiederholung abgeschlossen!",
+        "Complete": "Wiederholung abgeschlossen!",
         "CompleteDescription": "Sie haben alle heutigen Karten wiederholt. Gute Arbeit!",
         "ReviewMore": "Weitere wiederholen",
         "ShowAnswer": "Antwort zeigen",
@@ -732,10 +738,10 @@
         },
         "Tips": {
           "Title": "Reader-Tipps",
-          "GettingStarted": "📖 Erste Schritte: Ziehen Sie einen Bilderordner oder eine PDF-Datei in das Reader-Fenster.",
-          "OcrMode": "🔍 OCR-Modus: Klicken Sie auf „OCR ausführen“, um Text von der aktuellen Seite zu extrahieren. Hovern Sie über erkannten Text für Übersetzungen.",
-          "Navigation": "📚 Navigation: Verwenden Sie die Pfeiltasten oder Miniaturansichten in der Seitenleiste zum Blättern.",
-          "DoublePage": "💡 Tipp: Der Doppelseiten-Modus ist ideal für Manga-Doppelseiten!"
+          "GettingStarted": "Erste Schritte: Ziehen Sie einen Bilderordner oder eine PDF-Datei in das Reader-Fenster.",
+          "OcrMode": "OCR-Modus: Klicken Sie auf „OCR ausführen“, um Text von der aktuellen Seite zu extrahieren. Hovern Sie über erkannten Text für Übersetzungen.",
+          "Navigation": "Navigation: Verwenden Sie die Pfeiltasten oder Miniaturansichten in der Seitenleiste zum Blättern.",
+          "DoublePage": "Tipp: Der Doppelseiten-Modus ist ideal für Manga-Doppelseiten!"
         }
       },
       "SRS": {
@@ -772,8 +778,8 @@
             "Description": "AnkiConnect-Verbindung testen"
           },
           "Test": "Testen",
-          "Connected": "✓ Verbunden",
-          "Failed": "✗ Fehlgeschlagen",
+          "Connected": "Verbunden",
+          "Failed": "Fehlgeschlagen",
           "DeckName": {
             "Label": "Stapelname",
             "Description": "Anki-Stapel für neue Karten",
@@ -899,6 +905,7 @@
       "CurrentlyLearning": "Aktuell lernend",
       "WordsByStatus": "Wörter nach Status",
       "WordsByExamLevel": "Wörter nach Prüfungsstufe",
+      "LevelColumn": "Stufe",
       "EmptyState": {
         "Title": "Noch keine Wortdaten",
         "Description": "Beginnen Sie, Videos zu schauen, um Wörter zu verfolgen!"
@@ -909,9 +916,9 @@
         "Viewed": "Gesehen"
       },
       "Actions": {
-        "ViewKanjiGrid": "📊 Kanji-Raster anzeigen",
-        "EditWordDatabase": "📝 Wortdatenbank bearbeiten",
-        "OpenAiAnalytics": "🤖 KI-Medienanalyse"
+        "ViewKanjiGrid": "Kanji-Raster anzeigen",
+        "EditWordDatabase": "Wortdatenbank bearbeiten",
+        "OpenAiAnalytics": "KI-Medienanalyse"
       }
     },
     "Connection": {
@@ -944,8 +951,8 @@
       "Title": "mLearn",
       "VersionLabel": "Version {version}",
       "Description": "mLearn ist ein Werkzeug zum Sprachenlernen durch Immersion. Schauen Sie Videos, lesen Sie Manga und lernen Sie Vokabeln natürlich mit intelligenten Untertiteln und Spaced Repetition.",
-      "Website": "🌐 Webseite",
-      "Licenses": "📄 Lizenzen",
+      "Website": "Webseite",
+      "Licenses": "Lizenzen",
       "KeyboardShortcuts": {
         "Title": "Tastenkürzel",
         "Space": "Video wiedergeben/pausieren",

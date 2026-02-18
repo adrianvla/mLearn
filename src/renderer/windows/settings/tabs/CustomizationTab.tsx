@@ -5,6 +5,8 @@
 import { Component, For, Show, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, TabContent, Select, Btn } from '../../../components/common';
+import Icon from '../../../components/common/Icons/Icon';
+import '../SettingsForm.css';
 import { CUSTOMIZABLE_CSS_VARS, CustomColorOverrides } from '@shared/types';
 
 /** Labels for CSS variables (user-friendly names) */
@@ -89,7 +91,7 @@ export const CustomizationTab: Component = () => {
       header={{
         title: t('mlearn.Settings.Groups.SubtitleAppearance'),
         description: t('mlearn.Settings.UI.Description'),
-        icon: '🎨',
+        icon: <Icon icon="palette" color="currentColor" class="" />,
       }}
       padding="lg"
     >

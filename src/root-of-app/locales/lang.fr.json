@@ -161,7 +161,7 @@
         "OpenVideo": "Ouvrir une vidéo",
         "OpenSubtitles": "Ouvrir des sous-titres",
         "GoHome": "← Accueil",
-        "OpenConversationAgent": "🤖 Tuteur IA"
+        "OpenConversationAgent": "Tuteur IA"
       },
       "Tooltip": {
         "GoHome": "Retour à l'accueil",
@@ -171,7 +171,7 @@
     "Reader": {
       "UI": {
         "WelcomeSplash": {
-          "Title": "📖 Bienvenue dans le Lecteur",
+          "Title": "Bienvenue dans le Lecteur",
           "TitleDescription": "Glissez-déposez un dossier d'images ou un fichier .pdf dans cette fenêtre.",
           "DropZone": "Déposez les fichiers ici pour importer",
           "Footer": "Déposez quelque chose pour commencer — cet écran d'accueil laissera place à votre histoire.",
@@ -237,7 +237,13 @@
         "FuriganaDetectionOff": "Furigana : Désactivé",
         "DebugOverlayTitle": "Basculer la couche de débogage pour visualiser le texte OCR et la détection des furigana",
         "DebugOverlayOn": "Débogage : Activé",
-        "DebugOverlayOff": "Débogage : Désactivé"
+        "DebugOverlayOff": "Débogage : Désactivé",
+        "TimingDetection": "Dét",
+        "TimingRecognition": "Rec",
+        "TimingPerBox": "Moy/boîte",
+        "TimingTotal": "Total",
+        "PaddleDownscaleLabel": "Échelle PaddleOCR : {value}%",
+        "PaddleDownscaleTitle": "Réduire l'image avant le traitement PaddleOCR (dev)"
       },
       "Status": {
         "NothingLoaded": "Rien n'est chargé",
@@ -270,7 +276,7 @@
           "Browse": "Parcourir",
           "Statistics": "Statistiques"
         },
-        "Sync": "🔄 Synchroniser",
+        "Sync": "Synchroniser",
         "AddCard": "+ Ajouter une carte"
       },
       "EmptyState": {
@@ -363,7 +369,7 @@
         "LearningLabel": "En apprentissage :",
         "Undo": "↩",
         "UndoTooltip": "Annuler",
-        "Complete": "🎉 Révision terminée !",
+        "Complete": "Révision terminée !",
         "CompleteDescription": "Vous avez révisé toutes vos cartes du jour. Excellent travail !",
         "ReviewMore": "Réviser encore",
         "ShowAnswer": "Afficher la réponse",
@@ -732,10 +738,10 @@
         },
         "Tips": {
           "Title": "Conseils pour le lecteur",
-          "GettingStarted": "📖 Pour commencer : glissez-déposez un dossier d'images ou un fichier PDF dans la fenêtre du lecteur.",
-          "OcrMode": "🔍 Mode OCR : cliquez sur « Lancer l'OCR » pour extraire le texte de la page courante. Survolez le texte détecté pour voir la traduction.",
-          "Navigation": "📚 Navigation : utilisez les flèches ou les miniatures dans la barre latérale pour naviguer entre les pages.",
-          "DoublePage": "💡 Astuce : le mode double page est idéal pour les doubles pages de manga !"
+          "GettingStarted": "Pour commencer : glissez-déposez un dossier d'images ou un fichier PDF dans la fenêtre du lecteur.",
+          "OcrMode": "Mode OCR : cliquez sur « Lancer l'OCR » pour extraire le texte de la page courante. Survolez le texte détecté pour voir la traduction.",
+          "Navigation": "Navigation : utilisez les flèches ou les miniatures dans la barre latérale pour naviguer entre les pages.",
+          "DoublePage": "Astuce : le mode double page est idéal pour les doubles pages de manga !"
         }
       },
       "SRS": {
@@ -772,8 +778,8 @@
             "Description": "Tester la connexion AnkiConnect"
           },
           "Test": "Tester",
-          "Connected": "✓ Connecté",
-          "Failed": "✗ Échec",
+          "Connected": "Connecté",
+          "Failed": "Échec",
           "DeckName": {
             "Label": "Nom du paquet",
             "Description": "Paquet Anki pour les nouvelles cartes",
@@ -899,6 +905,7 @@
       "CurrentlyLearning": "En cours d'apprentissage",
       "WordsByStatus": "Mots par statut",
       "WordsByExamLevel": "Mots par niveau d'examen",
+      "LevelColumn": "Niveau",
       "EmptyState": {
         "Title": "Pas encore de données de mots",
         "Description": "Commencez à regarder des vidéos pour suivre vos mots !"
@@ -909,9 +916,9 @@
         "Viewed": "Vus"
       },
       "Actions": {
-        "ViewKanjiGrid": "📊 Grille de kanji",
-        "EditWordDatabase": "📝 Éditeur de base de mots",
-        "OpenAiAnalytics": "🤖 Analyse IA des médias"
+        "ViewKanjiGrid": "Grille de kanji",
+        "EditWordDatabase": "Éditeur de base de mots",
+        "OpenAiAnalytics": "Analyse IA des médias"
       }
     },
     "Connection": {
@@ -944,8 +951,8 @@
       "Title": "mLearn",
       "VersionLabel": "Version {version}",
       "Description": "mLearn est un outil pour apprendre les langues par immersion. Regardez des vidéos, lisez des mangas et apprenez le vocabulaire naturellement grâce aux sous-titres intelligents et à la répétition espacée.",
-      "Website": "🌐 Site web",
-      "Licenses": "📄 Licences",
+      "Website": "Site web",
+      "Licenses": "Licences",
       "KeyboardShortcuts": {
         "Title": "Raccourcis clavier",
         "Space": "Lecture/pause de la vidéo",

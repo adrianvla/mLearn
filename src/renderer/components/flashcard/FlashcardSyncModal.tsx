@@ -4,7 +4,7 @@
  */
 
 import { Component, createSignal, Show, onCleanup, createEffect } from 'solid-js';
-import { Modal, Btn, ProgressBar, Spinner } from '../../components/common';
+import { Modal, Btn, ProgressBar, Spinner, CheckIcon, CrossIcon } from '../../components/common';
 import { useFlashcards, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import {
@@ -406,7 +406,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         {/* Complete */}
         <Show when={phase() === 'complete'}>
           <div class="sync-complete">
-            <div class="complete-icon">✓</div>
+            <div class="complete-icon"><CheckIcon size={24} /></div>
             <p>{t('mlearn.Flashcards.Sync.SyncedSuccessfully')}</p>
           </div>
         </Show>
@@ -414,7 +414,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         {/* Error */}
         <Show when={phase() === 'error'}>
           <div class="sync-error">
-            <div class="error-icon">✕</div>
+            <div class="error-icon"><CrossIcon size={24} /></div>
             <p>{error()}</p>
             <Btn onClick={startConnection}>
               {t('mlearn.Global.TryAgain')}

@@ -4,7 +4,8 @@
 
 import { Component } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, RangeInput } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, RangeInput, TargetIcon } from '../../../components/common';
+import '../SettingsForm.css';
 
 export const BehaviourTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -15,7 +16,7 @@ export const BehaviourTab: Component = () => {
       header={{
         title: t('mlearn.Settings.Groups.WordStatus'),
         description: t('mlearn.Settings.UI.Description'),
-        icon: '🎯',
+        icon: <TargetIcon size={20} />,
       }}
       padding="lg"
     >

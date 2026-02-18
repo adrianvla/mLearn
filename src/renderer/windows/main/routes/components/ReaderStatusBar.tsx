@@ -5,8 +5,9 @@
 
 import { Component, Accessor, createMemo, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../../context';
-import { StatusBar, formatKeybindDisplay } from '../../../../components/common';
+import { StatusBar, formatKeybindDisplay, RangeInput } from '../../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../../shared/constants';
+import type { OcrProcessingTimes } from '../../../../components/reader';
 import './ReaderStatusBar.css';
 
 interface ReaderStatusBarProps {
@@ -23,6 +24,9 @@ interface ReaderStatusBarProps {
   onOpenConversationAgent: () => void;
   debugOcr?: Accessor<boolean>;
   onToggleDebugOcr?: () => void;
+  lastOcrTiming?: Accessor<OcrProcessingTimes | null>;
+  paddleOcrScale?: Accessor<number>;
+  onPaddleOcrScaleChange?: (value: number) => void;
 }
 
 export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
@@ -82,6 +86,24 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
   const toggleFuriganaDetection = () => {
     updateSettings({ ocrFuriganaDetection: !isFuriganaDetection() });
   };
+
+  const timingSummary = createMemo(() => {
+    const timing = props.lastOcrTiming?.();
+    if (!timing) return '';
+    const parts: string[] = [];
+    if (timing.detection_ms != null) {
+      parts.push(`${t('mlearn.Reader.StatusBar.TimingDetection')}: ${timing.detection_engine ?? '?'} ${timing.detection_ms.toFixed(0)}ms`);
+    }
+    if (timing.recognition_ms != null) {
+      parts.push(`${t('mlearn.Reader.StatusBar.TimingRecognition')}: ${timing.recognition_engine ?? '?'} ${timing.recognition_ms.toFixed(0)}ms`);
+    }
+    if (timing.per_box_ms && timing.per_box_ms.length > 0) {
+      const avg = timing.per_box_ms.reduce((a, b) => a + b, 0) / timing.per_box_ms.length;
+      parts.push(`${t('mlearn.Reader.StatusBar.TimingPerBox')}: ${avg.toFixed(0)}ms (×${timing.per_box_ms.length})`);
+    }
+    parts.push(`${t('mlearn.Reader.StatusBar.TimingTotal')}: ${timing.total_ms.toFixed(0)}ms`);
+    return parts.join(' | ');
+  });
 
   return (
       <StatusBar class="reader-status">
@@ -148,6 +170,21 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 : t('mlearn.Reader.StatusBar.DebugOverlayOff')}
             </button>
           </Show>
+          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && !isTurbo() && props.paddleOcrScale && props.onPaddleOcrScaleChange}>
+            <div class="paddle-downscale-section" title={t('mlearn.Reader.StatusBar.PaddleDownscaleTitle')}>
+              <span class="paddle-downscale-label">
+                {t('mlearn.Reader.StatusBar.PaddleDownscaleLabel', { value: String(props.paddleOcrScale!()) })}
+              </span>
+              <RangeInput
+                min={10}
+                max={100}
+                step={5}
+                value={props.paddleOcrScale!()}
+                onChange={props.onPaddleOcrScaleChange!}
+                class="paddle-downscale-slider"
+              />
+            </div>
+          </Show>
         </div>
 
         <span class="statusbar-hint">
@@ -158,6 +195,9 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
         <span class={`statusbar-text ${displayStatus() !== t('mlearn.Reader.StatusBar.Ready') ? 'active' : ''}`}>
           {displayStatus()}
         </span>
+        <Show when={settings.devMode && timingSummary()}>
+          <span class="statusbar-text ocr-timing">{timingSummary()}</span>
+        </Show>
         </div>
       </StatusBar>
   );

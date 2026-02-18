@@ -164,6 +164,9 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
 
           <div class="flashcard-translation" innerHTML={meaning()} />
 
+          <Show when={content().example && content().example !== '-'}>
+            <div class="flashcard-example" innerHTML={content().example} />
+          </Show>
           <Show when={content().exampleMeaning}>
             <div class="flashcard-example-meaning">{content().exampleMeaning}</div>
           </Show>

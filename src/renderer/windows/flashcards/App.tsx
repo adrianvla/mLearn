@@ -18,10 +18,15 @@ import {
   SearchIcon,
   TabContainer,
   Select,
+  EditIcon,
+  BookIcon,
+  BarChartIcon,
+  SparklesIcon,
 } from '../../components/common';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
-import './FlashcardsApp.css';
+import './FlashcardsLayout.css';
+import './FlashcardsBrowse.css';
 
 type TabId = 'review' | 'browse' | 'stats';
 
@@ -160,18 +165,18 @@ export const FlashcardsContent: Component = () => {
     { 
       id: 'review', 
       label: t('mlearn.Flashcards.UI.Tabs.Review'),
-      icon: '📝',
+      icon: <EditIcon size={16} />,
       badge: counts().total > 0 ? counts().total : undefined
     },
     { 
       id: 'browse', 
       label: t('mlearn.Flashcards.UI.Tabs.Browse'),
-      icon: '📚'
+      icon: <BookIcon size={16} />
     },
     { 
       id: 'stats', 
       label: t('mlearn.Flashcards.UI.Tabs.Statistics'),
-      icon: '📊'
+      icon: <BarChartIcon size={16} />
     },
   ]);
 
@@ -224,7 +229,7 @@ export const FlashcardsContent: Component = () => {
               fallback={
                 <div class="flashcards-empty-container">
                   <EmptyState
-                    icon="✨"
+                    icon={<SparklesIcon size={32} />}
                     title={t('mlearn.Flashcards.EmptyState.NoCardsDueTitle')}
                     description={t('mlearn.Flashcards.EmptyState.NoCardsDueDescription')}
                     variant="card"
@@ -270,7 +275,7 @@ export const FlashcardsContent: Component = () => {
                 when={flashcards().length > 0}
                 fallback={
                   <EmptyState
-                    icon="📚"
+                    icon={<BookIcon size={32} />}
                     title={t('mlearn.Flashcards.EmptyState.NoCardsTitle')}
                     description={t('mlearn.Flashcards.EmptyState.NoCardsDescription')}
                     size="md"
@@ -286,7 +291,7 @@ export const FlashcardsContent: Component = () => {
                   when={filteredFlashcards().length > 0}
                   fallback={
                     <EmptyState
-                      icon="🔍"
+                      icon={<SearchIcon size={32} />}
                       title={t('mlearn.Flashcards.Browse.NoWordsFound')}
                       size="sm"
                     />

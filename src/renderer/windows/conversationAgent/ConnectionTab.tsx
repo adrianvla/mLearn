@@ -84,8 +84,8 @@ export const ConnectionTab: Component = () => {
   const testBtnLabel = () => {
     switch (testStatus()) {
       case 'testing': return t('mlearn.ConversationAgent.Connection.Testing');
-      case 'success': return `✓ ${t('mlearn.ConversationAgent.Connection.ConnectionSuccess')}`;
-      case 'failed': return `✗ ${t('mlearn.ConversationAgent.Connection.ConnectionFailed')}`;
+      case 'success': return t('mlearn.ConversationAgent.Connection.ConnectionSuccess');
+      case 'failed': return t('mlearn.ConversationAgent.Connection.ConnectionFailed');
       default: return t('mlearn.ConversationAgent.Connection.TestConnection');
     }
   };
