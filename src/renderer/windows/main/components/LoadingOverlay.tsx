@@ -7,6 +7,7 @@
 import { Component, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { useServer, useSettings, useLanguage, useLocalization } from '../../../context';
 import { LoadingOverlay as BaseLoadingOverlay, ErrorModal } from '../../../components/common/Modal';
+import { getBridge } from '../../../../shared/bridges';
 
 export const LoadingOverlay: Component = () => {
   const server = useServer();
@@ -45,8 +46,7 @@ export const LoadingOverlay: Component = () => {
 
   // Listen for critical errors from the server
   onMount(() => {
-    if (window.mLearnIPC) {
-      const handleCriticalError = (errorMessage: string) => {
+    const handleCriticalError = (errorMessage: string) => {
         console.error('[LoadingOverlay] Critical error received:', errorMessage);
         
         // Parse error messages for known error types
@@ -70,9 +70,8 @@ export const LoadingOverlay: Component = () => {
         setCriticalError({ message: friendlyMessage, details });
       };
 
-      const cleanup = window.mLearnIPC.onServerCriticalError(handleCriticalError);
-      onCleanup(cleanup);
-    }
+    const cleanup = getBridge().server.onServerCriticalError(handleCriticalError);
+    onCleanup(cleanup);
   });
 
   const handleRetry = () => {
@@ -81,7 +80,7 @@ export const LoadingOverlay: Component = () => {
   };
 
   const handleQuit = () => {
-    window.mLearnIPC?.closeWindow();
+    getBridge().window.closeWindow();
   };
 
   return (

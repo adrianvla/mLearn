@@ -20,7 +20,8 @@ import type {
   WordFrequencyEntry,
   VoiceMistake,
 } from '../../shared/types';
-import { API_ENDPOINTS } from '../../shared/constants';
+import { getBridge } from '../../shared/bridges';
+import { getBackend } from '../../shared/backends';
 
 // ============================================================================
 // Types
@@ -488,7 +489,7 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
       const url = args.url as string;
       if (!url) return 'Error: No URL provided';
       try {
-        const result = await window.mLearnIPC?.fetchUrl(url);
+        const result = await getBridge().generic.fetchUrl(url);
         if (result?.error) return `Error fetching URL: ${result.error}`;
         const content = result?.content || '';
         // Truncate to avoid overwhelming the context
@@ -560,17 +561,8 @@ async function tokenizeText(text: string, langCode: string): Promise<Token[]> {
   const timeoutId = setTimeout(() => controller.abort(), TOKENIZE_TIMEOUT_MS);
 
   try {
-    const response = await fetch(API_ENDPOINTS.tokenize, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, language: langCode }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) return [];
-
-    const data = await response.json();
-    return (data.tokens || data) as Token[];
+    const tokens = await getBackend().tokenize(text, langCode);
+    return tokens;
   } catch {
     return [];
   } finally {
@@ -691,11 +683,7 @@ function streamReformulation(
   langName: string,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const ipc = window.mLearnIPC;
-    if (!ipc) {
-      reject(new Error('IPC not available'));
-      return;
-    }
+    const bridge = getBridge();
 
     const wordList = difficultWords.map((w) => `"${w.word}"`).join(', ');
 
@@ -711,7 +699,7 @@ function streamReformulation(
 
     let accumulated = '';
 
-    const cleanup = ipc.onLLMStreamChunk((chunk: LLMStreamChunk) => {
+    const cleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
       if (chunk.error) {
         cleanup();
         reject(new Error(chunk.error));
@@ -726,7 +714,7 @@ function streamReformulation(
       }
     });
 
-    ipc.llmStream([systemMsg, userMsg], []);
+    bridge.llm.llmStream([systemMsg, userMsg], []);
   });
 }
 
@@ -747,7 +735,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     aborted = true;
     streamCleanup?.();
     streamCleanup = null;
-    window.mLearnIPC?.llmStreamAbort();
+    getBridge().llm.llmStreamAbort();
   }
 
   /**
@@ -919,11 +907,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     contentPrefix = '',
     deferredTerminalToolCalls: ToolCall[] = [],
   ): void {
-    const ipc = window.mLearnIPC;
-    if (!ipc) {
-      callbacks.onError('IPC not available');
-      return;
-    }
+    const bridge = getBridge();
 
     const mediaCtx = deps.getMediaContext();
     const sceneCtx = deps.getSceneContext();
@@ -952,7 +936,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const requestStartTime = Date.now();
     let firstTokenTime = 0;
 
-    streamCleanup = ipc.onLLMStreamChunk((chunk: LLMStreamChunk) => {
+    streamCleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
       if (aborted) return;
 
       if (chunk.error) {
@@ -1058,7 +1042,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       }
     });
 
-    ipc.llmStream(messages, tools);
+    bridge.llm.llmStream(messages, tools);
 
     // Timeout after 90 seconds
     setTimeout(() => {

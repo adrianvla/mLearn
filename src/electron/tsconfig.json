@@ -24,6 +24,9 @@
     "../shared/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "../shared/bridges",
+    "../shared/backends",
+    "../shared/platform.ts"
   ]
 }

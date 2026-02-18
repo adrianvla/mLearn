@@ -6,6 +6,7 @@
 
 import { createSignal, onMount, onCleanup } from 'solid-js';
 import type { MediaStats, MediaSession, Token } from '../../shared/types';
+import { getBridge } from '../../shared/bridges';
 
 interface UseMediaStatsOptions {
   mediaType: 'video' | 'book';
@@ -50,25 +51,22 @@ export function useMediaStats(options: UseMediaStatsOptions) {
     const hash = mediaHash();
     if (!hash) return;
     const current = stats();
-    if (typeof window !== 'undefined' && window.mLearnIPC) {
-      window.mLearnIPC.saveMediaStats(hash, {
-        ...current,
-        lastAccessed: Date.now(),
-      });
-    }
+    getBridge().mediaStats.saveMediaStats(hash, {
+      ...current,
+      lastAccessed: Date.now(),
+    });
   };
 
   // Load existing stats from disk
   const loadStats = (hash: string) => {
-    if (typeof window !== 'undefined' && window.mLearnIPC) {
-      window.mLearnIPC.getMediaStats(hash);
-      const cleanup = window.mLearnIPC.onMediaStats((loaded) => {
-        if (loaded && loaded.mediaHash === hash) {
-          setStats(loaded);
-        }
-      });
-      ipcCleanups.push(cleanup);
-    }
+    const bridge = getBridge();
+    bridge.mediaStats.getMediaStats(hash);
+    const cleanup = bridge.mediaStats.onMediaStats((loaded) => {
+      if (loaded && loaded.mediaHash === hash) {
+        setStats(loaded);
+      }
+    });
+    ipcCleanups.push(cleanup);
   };
 
   // End the current session

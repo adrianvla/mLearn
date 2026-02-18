@@ -5,6 +5,7 @@
  */
 
 import { Component, JSX } from 'solid-js';
+import crossIconUrl from '@/html/assets/icons/cross.svg';
 import './PanelHeader.css';
 
 export interface PanelHeaderProps {
@@ -30,7 +31,7 @@ export const PanelHeader: Component<PanelHeaderProps> = (props) => {
       {props.children}
       {showClose() && (
         <div class="btn close" onClick={props.onClose}>
-          <img src={props.closeIcon || 'assets/icons/cross.svg'} alt="close" />
+          <img src={props.closeIcon || crossIconUrl} alt="close" />
         </div>
       )}
     </div>

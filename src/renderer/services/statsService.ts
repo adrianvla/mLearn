@@ -7,6 +7,8 @@
 import { createSignal } from 'solid-js';
 import type { Settings } from '../../shared/types';
 import { WORD_STATUS } from '../../shared/constants';
+import { getBridge } from '../../shared/bridges';
+import { isElectron } from '../../shared/platform';
 
 // Word tracking status lookup
 const LOOKUP_STATUS: Record<number, string> = {
@@ -264,9 +266,9 @@ function migrateFromV1Data(knownAdjustment: Record<string, number>): void {
  */
 async function loadFromMainProcessMigration(): Promise<void> {
   // Check if we're in Electron environment
-  if (typeof window !== 'undefined' && window.mLearnIPC?.getMigratedItem) {
+  if (isElectron()) {
     try {
-      const knownAdjustment = await window.mLearnIPC.getMigratedItem('knownAdjustment');
+      const knownAdjustment = await getBridge().migration.getMigratedItem('knownAdjustment');
       if (knownAdjustment && typeof knownAdjustment === 'object') {
         console.log('[statsService] Found knownAdjustment in main process migration data');
         migrateFromV1Data(knownAdjustment as Record<string, number>);

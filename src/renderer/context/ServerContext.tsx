@@ -4,6 +4,8 @@
  */
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
+import { getBridge } from '../../shared/bridges';
+import { isElectron } from '../../shared/platform';
 
 // Server status types
 type ServerStatus = 'loading' | 'connected' | 'error' | 'installing';
@@ -27,43 +29,46 @@ export const ServerProvider: ParentComponent = (props) => {
   const ipcCleanups: Array<() => void> = [];
 
   // Check if we're in Electron or tethered mode
-  const isElectron = typeof window !== 'undefined' && window.mLearnIPC;
+  const isElectronApp = isElectron();
 
   // Send localStorage snapshot to main process so the web server
   // can serve it to tethered clients via /settings.js
   const sendLocalStorageToMain = () => {
-    if (!window.mLearnIPC) return;
+    if (!isElectronApp) return;
     const data: Record<string, string> = {};
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key) data[key] = localStorage.getItem(key) ?? '';
     }
-    window.mLearnIPC.sendLS(data);
+    getBridge().generic.sendLS(data);
   };
 
   const setupListeners = () => {
-    if (!isElectron) {
-      // In tethered mode, assume server is connected
+    if (!isElectronApp) {
+      // On mobile/web, there is no local Python server
+      console.log('[ServerContext] Non-Electron mode, marking server as connected');
       setStatus('connected');
       setStatusMessage('Connected (Tethered Mode)');
       return;
     }
 
+    const bridge = getBridge();
+
     // Send localStorage data to main process for tethered clients
     sendLocalStorageToMain();
 
     // Request initial status
-    window.mLearnIPC!.isLoaded();
+    bridge.server.isLoaded();
 
     // Listen for server load
-    ipcCleanups.push(window.mLearnIPC!.onServerLoad((message) => {
+    ipcCleanups.push(bridge.server.onServerLoad((message) => {
       setStatus('connected');
       setStatusMessage(message);
       setError(null);
     }));
 
     // Listen for status updates
-    ipcCleanups.push(window.mLearnIPC!.onServerStatusUpdate((message) => {
+    ipcCleanups.push(bridge.server.onServerStatusUpdate((message) => {
       setStatusMessage(message);
       if (message.toLowerCase().includes('error')) {
         setError(message);
@@ -71,18 +76,18 @@ export const ServerProvider: ParentComponent = (props) => {
     }));
 
     // Listen for critical errors
-    ipcCleanups.push(window.mLearnIPC!.onServerCriticalError((message) => {
+    ipcCleanups.push(bridge.server.onServerCriticalError((message) => {
       setStatus('error');
       setError(message);
     }));
 
     // Listen for installation events
-    ipcCleanups.push(window.mLearnIPC!.onInstallStarted(() => {
+    ipcCleanups.push(bridge.installer.onInstallStarted(() => {
       setStatus('installing');
       setStatusMessage('Installing components...');
     }));
 
-    ipcCleanups.push(window.mLearnIPC!.onPythonSuccess((success) => {
+    ipcCleanups.push(bridge.installer.onPythonSuccess((success) => {
       if (success) {
         setStatus('connected');
         setStatusMessage('Installation complete');
@@ -91,15 +96,11 @@ export const ServerProvider: ParentComponent = (props) => {
   };
 
   const restart = () => {
-    if (isElectron) {
-      window.mLearnIPC!.restartApp();
-    }
+    getBridge().server.restartApp();
   };
 
   const forceRestart = () => {
-    if (isElectron) {
-      window.mLearnIPC!.forceRestartApp();
-    }
+    getBridge().server.forceRestartApp();
   };
 
   onMount(() => {

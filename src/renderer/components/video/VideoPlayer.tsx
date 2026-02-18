@@ -5,7 +5,10 @@
 
 import { Component, JSX, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { useVideo, useVideoKeyboard, useSubtitles, useCursorVisibility } from '../../hooks';
+import { useVideoTouch } from '../../hooks/useVideoTouch';
 import { useSettings } from '../../context';
+import { getBridge } from '../../../shared/bridges';
+import { isElectron } from '../../../shared/platform';
 import { SubtitleContainer } from '../subtitle/SubtitleContainer';
 import { VideoControls } from './VideoControls';
 import './VideoPlayer.css';
@@ -59,7 +62,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
     if (videoRef) {
       video.attachVideo(videoRef);
       const handleLoadedMetadata = () => {
-        if (!window.mLearnIPC) return;
+        if (!isElectron()) return;
         const width = videoRef?.videoWidth || 0;
         const height = videoRef?.videoHeight || 0;
         if (!width || !height) return;
@@ -71,7 +74,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
           targetWidth = maxWidth;
         }
         const chromeOffset = 120;
-        window.mLearnIPC.resizeWindow({
+        getBridge().window.resizeWindow({
           width: Math.round(targetWidth),
           height: Math.round(targetHeight + chromeOffset),
         });
@@ -111,9 +114,12 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   // Enable keyboard shortcuts
   useVideoKeyboard(video);
 
+  // Enable touch gestures on mobile
+  useVideoTouch(video, () => containerRef);
+
   const handleContextMenu = (e: MouseEvent) => {
     e.preventDefault();
-    window.mLearnIPC?.showCtxMenu(props.ctxMenuOptions);
+    getBridge().window.showCtxMenu(props.ctxMenuOptions);
   };
 
   return (

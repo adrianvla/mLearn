@@ -193,7 +193,7 @@
   --flashcard-highlight: #356ee8;
 
   /* ========== Window Loading Overlay ========== */
-  --window-loading-bg: #000000;
+  --window-loading-bg: var(--bg-opaque);
   --window-loading-spinner-track: var(--bg);
   --window-loading-spinner-color: var(--text-primary);
 

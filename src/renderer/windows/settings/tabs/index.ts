@@ -10,4 +10,5 @@ export { SRSTab } from './SRSTab';
 export { ReaderTab } from './ReaderTab';
 export { StatsTab } from './StatsTab';
 export { AITab } from './AITab';
+export { ConnectionTab } from './ConnectionTab';
 export { AboutTab } from './AboutTab';

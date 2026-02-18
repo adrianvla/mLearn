@@ -6,9 +6,10 @@
 
 import { Component, Show, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
 import { Btn, PillLabel, StatusLabel, numericToStatus, statusToNumeric, getNextStatus, PitchAccentOverlay } from '../../../components/common';
-import { useSettings, useLocalization } from '../../../context';
+import { useLocalization } from '../../../context';
 import { getCachedTranslation } from '../../../hooks/useTranslation';
 import type { TranslationResponse, TranslationEntry } from '../../../../shared/types';
+import { getBackend } from '../../../../shared/backends';
 
 /**
  * Shared translation fetch queue to avoid overwhelming the backend.
@@ -19,34 +20,26 @@ let isProcessingQueue = false;
 const BATCH_SIZE = 5;
 const BATCH_DELAY = 50;
 
-function enqueueTranslation(word: string, translationUrl: string): Promise<string> {
+function enqueueTranslation(word: string): Promise<string> {
   return new Promise((resolve) => {
     translationQueue.push({ word, resolve });
     if (!isProcessingQueue) {
-      processQueue(translationUrl);
+      processQueue();
     }
   });
 }
 
-async function processQueue(translationUrl: string): Promise<void> {
+async function processQueue(): Promise<void> {
   if (isProcessingQueue) return;
   isProcessingQueue = true;
+  const backend = getBackend();
 
   while (translationQueue.length > 0) {
     const batch = translationQueue.splice(0, BATCH_SIZE);
     await Promise.all(
       batch.map(async ({ word, resolve }) => {
         try {
-          const response = await fetch(translationUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ word }),
-          });
-          if (!response.ok) {
-            resolve('');
-            return;
-          }
-          const data = await response.json() as TranslationResponse;
+          const data = await backend.translate(word);
           const entry = data?.data?.[0] as TranslationEntry | undefined;
           if (entry?.definitions) {
             const defs = Array.isArray(entry.definitions) ? entry.definitions : [entry.definitions];
@@ -98,7 +91,6 @@ export interface WordEntryRowProps {
 }
 
 export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
-  const { settings } = useSettings();
   const { t } = useLocalization();
   const [fetchedTranslation, setFetchedTranslation] = createSignal('');
   let rowRef: HTMLDivElement | undefined;
@@ -129,7 +121,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         if (entries[0]?.isIntersecting && !fetched) {
           fetched = true;
           observer?.disconnect();
-          enqueueTranslation(props.entry.word, settings.getTranslationUrl).then((t) => {
+          enqueueTranslation(props.entry.word).then((t) => {
             if (t) setFetchedTranslation(t);
           });
         }

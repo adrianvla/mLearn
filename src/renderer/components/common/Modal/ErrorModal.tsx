@@ -9,6 +9,8 @@ import { Portal } from 'solid-js/web';
 import { Panel } from '../Panel';
 import { Btn } from '../Button';
 import { useLocalization } from '../../../context';
+import { getBridge } from '../../../../shared/bridges';
+import { isElectron } from '../../../../shared/platform';
 import './ErrorModal.css';
 
 export type ErrorSeverity = 'error' | 'fatal' | 'warning';
@@ -84,8 +86,8 @@ export const ErrorModal: Component<ErrorModalProps> = (props) => {
     ].filter(Boolean).join('\n');
 
     try {
-      if (window.mLearnIPC) {
-        window.mLearnIPC.writeToClipboard(errorText);
+      if (isElectron()) {
+        getBridge().files.writeToClipboard(errorText);
       } else {
         await navigator.clipboard.writeText(errorText);
       }
@@ -103,9 +105,8 @@ export const ErrorModal: Component<ErrorModalProps> = (props) => {
   const handleQuit = () => {
     if (merged.onQuit) {
       merged.onQuit();
-    } else if (window.mLearnIPC) {
-      // Default quit behavior
-      window.mLearnIPC.closeWindow();
+    } else {
+      getBridge().window.closeWindow();
     }
   };
 

@@ -13,7 +13,9 @@ import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover,
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { parseKeybind } from '../../../components/common';
 import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext } from '../../../../shared/types';
-import { API_ENDPOINTS } from '../../../../shared/constants';
+import { getBridge } from '../../../../shared/bridges';
+import { getBackend } from '../../../../shared/backends';
+import { isElectron } from '../../../../shared/platform';
 import { ReaderNav, ReaderSidebar, ReaderWelcomeCard, ReaderStatusBar } from './components';
 import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages } from '../../../services/pdfService';
@@ -194,10 +196,8 @@ export const ReaderRoute: Component = () => {
   // Falls back to legacy File.path property for older Electron versions
   const getFilePath = (file: File): string => {
     // Try the new webUtils API first (Electron 32+)
-    if (window.mLearnIPC?.getPathForFile) {
-      const path = window.mLearnIPC.getPathForFile(file);
-      if (path) return path;
-    }
+    const path = getBridge().files.getPathForFile(file);
+    if (path) return path;
     // Fallback to legacy File.path property
     const fileWithPath = file as File & { path?: string };
     return fileWithPath.path || '';
@@ -460,7 +460,7 @@ export const ReaderRoute: Component = () => {
       formData.append('turbo', turbo ? '1' : '0');
       formData.append('ram_saver', (settings.ocrRamSaver ?? false) ? '1' : '0');
 
-      const response = await fetch(API_ENDPOINTS.ocr, {
+      const response = await fetch(getBackend().buildUrl('/ocr'), {
         method: 'POST',
         body: formData,
       });
@@ -600,11 +600,6 @@ export const ReaderRoute: Component = () => {
 
   // Load book from filesystem path (for recent items)
   const loadBookFromPath = async (bookPath: string) => {
-    if (!window.mLearnIPC) {
-      console.warn('[Reader] IPC not available, cannot load from path');
-      return;
-    }
-
     setOcrStatus(t('mlearn.Reader.Status.Loading'));
 
     try {
@@ -613,7 +608,7 @@ export const ReaderRoute: Component = () => {
 
       if (isPdf) {
         // Load PDF file
-        const result = await window.mLearnIPC.readPdfFile(bookPath);
+        const result = await getBridge().files.readPdfFile(bookPath);
         const blob = new Blob([result.data], { type: 'application/pdf' });
         const fileName = bookPath.split('/').pop() || 'document.pdf';
         const file = new File([blob], fileName, { type: 'application/pdf' });
@@ -650,7 +645,7 @@ export const ReaderRoute: Component = () => {
         saveToRecent(bookId || t('mlearn.Reader.Status.PdfDocument'), 'book', startPage, bookPath, newPages[0]?.blob);
       } else {
         // Load directory of images
-        const result = await window.mLearnIPC.readDirectoryImages(bookPath);
+        const result = await getBridge().files.readDirectoryImages(bookPath);
 
         if (result.files.length === 0) {
           setOcrStatus(t('mlearn.Reader.Status.NoImagesFound'));
@@ -699,6 +694,107 @@ export const ReaderRoute: Component = () => {
     }
   };
 
+  // Open folder via bridge — on Electron uses native dialog, on mobile uses HTML file input.
+  // For mobile, files are obtained directly from the file input rather than path-based loading.
+  const handleOpenFolder = async () => {
+    if (isElectron()) {
+      const bridge = getBridge();
+      const path = await bridge.files.selectBookFolder();
+      if (path) loadBookFromPath(path);
+      return;
+    }
+
+    // Mobile: use file input with webkitdirectory to get image files directly
+    const input = document.createElement('input');
+    input.type = 'file';
+    (input as HTMLInputElement & { webkitdirectory: boolean }).webkitdirectory = true;
+    input.multiple = true;
+    input.accept = 'image/*';
+    input.onchange = async () => {
+      const files = Array.from(input.files || []).filter(f => f.type.startsWith('image/'));
+      if (files.length === 0) return;
+
+      files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      const folderName = (files[0] as File & { webkitRelativePath: string }).webkitRelativePath?.split('/')[0] || 'Book';
+      const bookId = parseWorkName(folderName);
+      setCurrentBookId(bookId);
+      setCurrentBookPath('');
+
+      const savedPageIndex = loadSavedPageIndex(bookId);
+      const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < files.length ? savedPageIndex : 0;
+
+      const newPages: PageImage[] = files.map((file, index) => ({
+        id: `page-${index}-${file.name}`,
+        src: URL.createObjectURL(file),
+        name: file.name,
+        index,
+        blob: file,
+      }));
+
+      setOcrResults({});
+      batch(() => {
+        setCurrentPage(startPage);
+        setPages(newPages);
+        setOcrBatchTotal(newPages.length);
+        setOcrCompletedIds(new Set<string>());
+        setBookTitle(bookId || t('mlearn.Reader.Status.ImportedBook'));
+      });
+      setOcrStatus(t('mlearn.Reader.Status.Ready'));
+    };
+    input.click();
+  };
+
+  const handleOpenPdf = async () => {
+    if (isElectron()) {
+      const bridge = getBridge();
+      const path = await bridge.files.selectPdfFile();
+      if (path) loadBookFromPath(path);
+      return;
+    }
+
+    // Mobile: use file input to get the PDF File directly, then process via pdfToImages
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,application/pdf';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      setOcrStatus(t('mlearn.Reader.Status.LoadingPdf'));
+      try {
+        const pdfImages = await pdfToImages(file);
+        const bookId = parseWorkName(file.name);
+        setCurrentBookId(bookId);
+        setCurrentBookPath('');
+
+        const savedPageIndex = loadSavedPageIndex(bookId);
+        const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pdfImages.length ? savedPageIndex : 0;
+
+        const newPages: PageImage[] = pdfImages.map((img, index) => ({
+          id: `page-${index}-${img.name}`,
+          src: img.url,
+          name: img.name,
+          index,
+          blob: img.blob,
+        }));
+
+        setOcrResults({});
+        batch(() => {
+          setCurrentPage(startPage);
+          setPages(newPages);
+          setOcrBatchTotal(newPages.length);
+          setOcrCompletedIds(new Set<string>());
+          setBookTitle(bookId || t('mlearn.Reader.Status.PdfDocument'));
+        });
+        setOcrStatus(t('mlearn.Reader.Status.Ready'));
+      } catch (error) {
+        console.error('[Reader] Failed to load PDF:', error);
+        setOcrStatus(t('mlearn.Reader.Status.FailedToLoadPdf'));
+      }
+    };
+    input.click();
+  };
+
   // Check for pending book on mount
   onMount(() => {
     const pendingBook = sessionStorage.getItem('mlearn_open_book');
@@ -714,9 +810,9 @@ export const ReaderRoute: Component = () => {
 
   // Listen to reader context menu commands
   onMount(() => {
-    if (!window.mLearnIPC?.onReaderContextMenuCommand) return;
+    const bridge = getBridge();
 
-    const cleanup = window.mLearnIPC.onReaderContextMenuCommand((command: string) => {
+    const cleanup = bridge.window.onReaderContextMenuCommand((command: string) => {
       switch (command) {
         case 'toggle-furigana':
           // Toggle through settings so FuriganaHider component gets updated
@@ -725,8 +821,8 @@ export const ReaderRoute: Component = () => {
         case 'copy-phrase':
           // Copy the current context phrase to clipboard
           const phrase = ocrContextPhrase();
-          if (phrase && window.mLearnIPC?.writeToClipboard) {
-            window.mLearnIPC.writeToClipboard(phrase);
+          if (phrase) {
+            bridge.files.writeToClipboard(phrase);
           }
           break;
       }
@@ -739,12 +835,10 @@ export const ReaderRoute: Component = () => {
     // Store the context phrase for copy functionality
     setOcrContextPhrase(contextPhrase);
 
-    if (window.mLearnIPC?.showReaderCtxMenu) {
-      window.mLearnIPC.showReaderCtxMenu({
-        furiganaHiderEnabled: furiganaHiderEnabled(),
-        hasContextPhrase: !!contextPhrase && contextPhrase !== '-',
-      });
-    }
+    getBridge().window.showReaderCtxMenu({
+      furiganaHiderEnabled: furiganaHiderEnabled(),
+      hasContextPhrase: !!contextPhrase && contextPhrase !== '-',
+    });
   };
 
   // Handler for right-click context menu on image (no OCR box selected)
@@ -756,18 +850,14 @@ export const ReaderRoute: Component = () => {
     // Clear context phrase since we're not on an OCR box
     setOcrContextPhrase('');
 
-    if (window.mLearnIPC?.showReaderCtxMenu) {
-      window.mLearnIPC.showReaderCtxMenu({
-        furiganaHiderEnabled: furiganaHiderEnabled(),
-        hasContextPhrase: false, // No phrase to copy when clicking on image
-      });
-    }
+    getBridge().window.showReaderCtxMenu({
+      furiganaHiderEnabled: furiganaHiderEnabled(),
+      hasContextPhrase: false, // No phrase to copy when clicking on image
+    });
   };
 
   // Listen to MangaOCR server status updates
   onMount(() => {
-    if (!window.mLearnIPC?.onOcrStatusUpdate) return;
-
     const handleOcrStatus = (message: string) => {
       setServerOcrMessage(message);
 
@@ -808,7 +898,7 @@ export const ReaderRoute: Component = () => {
       // Unknown message type - keep previous state
     };
 
-    const cleanup = window.mLearnIPC.onOcrStatusUpdate(handleOcrStatus);
+    const cleanup = getBridge().server.onOcrStatusUpdate(handleOcrStatus);
     onCleanup(cleanup);
   });
 
@@ -1234,7 +1324,7 @@ export const ReaderRoute: Component = () => {
       grammarLevelPercentages: grammarLevels,
     };
 
-    window.mLearnIPC?.openWindow({ type: 'conversation-agent', context: context as unknown as Record<string, unknown> });
+    getBridge().window.openWindow({ type: 'conversation-agent', context: context as unknown as Record<string, unknown> });
   };
 
   const toggleOcrOverlay = () => setShowOcrOverlay(!showOcrOverlay());
@@ -1311,7 +1401,7 @@ export const ReaderRoute: Component = () => {
         <main class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${fitMode()}`}>
           <Show
               when={pages().length > 0}
-              fallback={<ReaderWelcomeCard isDragging={isDragging} />}
+              fallback={<ReaderWelcomeCard isDragging={isDragging} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenPdf} />}
           >
             <div class={`page-container ${pageMode()}`} ref={pageContainerRef}>
               <For each={visiblePages()}>

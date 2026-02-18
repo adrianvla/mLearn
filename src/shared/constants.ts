@@ -12,7 +12,7 @@ export const PORTS = {
   PROXY_SERVER: PROXY_SERVER_PORT,
 } as const;
 
-// API endpoints
+// API endpoints (full URLs — for legacy/Electron direct usage)
 export const API_ENDPOINTS = {
   tokenize: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/tokenize`,
   translate: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/translate`,
@@ -30,6 +30,23 @@ export const API_ENDPOINTS = {
   voiceSttStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stt/status`,
   voiceTtsStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/status`,
   voiceModelsDownload: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/models/download`,
+} as const;
+
+/** Path-only endpoint constants — use with BackendAdapter.buildUrl() */
+export const API_PATHS = {
+  tokenize: '/tokenize',
+  translate: '/translate',
+  getCard: '/getCard',
+  llm: '/llm',
+  llmStatus: '/llm/status',
+  ocr: '/ocr',
+  control: '/control',
+  quit: '/quit',
+  voiceStream: '/voice/stream',
+  voiceTts: '/voice/tts',
+  voiceSttStatus: '/voice/stt/status',
+  voiceTtsStatus: '/voice/tts/status',
+  voiceModelsDownload: '/voice/models/download',
 } as const;
 
 // IPC Channel names - strongly typed

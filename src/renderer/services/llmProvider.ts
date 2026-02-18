@@ -5,6 +5,9 @@
  */
 
 import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, Settings } from '../../shared/types';
+import { getBridge } from '../../shared/bridges';
+import { isMobile } from '../../shared/platform';
+import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
 
 // ============================================================================
 // Types
@@ -75,18 +78,21 @@ let activeCleanup: (() => void) | null = null;
 
 /**
  * Stream a chat completion through the unified LLM backend.
- * Handles both built-in and Ollama providers transparently.
+ * On desktop: routes through IPC bridge to Electron main process.
+ * On mobile: streams directly via CloudLLMAdapter to cloud or tethered endpoint.
  */
 export function streamChat(
   messages: LLMChatMessage[],
   tools: LLMToolDefinition[],
   callbacks: LLMStreamCallbacks,
+  settings?: Settings,
 ): { abort: () => void } {
-  const ipc = window.mLearnIPC;
-  if (!ipc) {
-    callbacks.onError('IPC not available');
-    return { abort: () => {} };
+  // Mobile: stream directly via HTTP (no IPC bridge)
+  if (isMobile() && settings) {
+    return streamChatMobile(messages, tools, callbacks, settings);
   }
+
+  const bridge = getBridge();
 
   let accumulated = '';
   const collectedToolCalls: LLMToolCall[] = [];
@@ -94,7 +100,7 @@ export function streamChat(
   let firstTokenTime = 0;
 
   // Set up listener for stream chunks
-  const cleanup = ipc.onLLMStreamChunk((chunk: LLMStreamChunk) => {
+  const cleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
     if (chunk.error) {
       callbacks.onError(chunk.error);
       cleanupListener();
@@ -145,11 +151,11 @@ export function streamChat(
   }
 
   // Start the stream
-  ipc.llmStream(messages, tools);
+  bridge.llm.llmStream(messages, tools);
 
   return {
     abort: () => {
-      ipc.llmStreamAbort();
+      bridge.llm.llmStreamAbort();
       cleanupListener();
     },
   };
@@ -159,12 +165,81 @@ export function streamChat(
  * Abort any active LLM stream
  */
 export function abortStream(): void {
-  const ipc = window.mLearnIPC;
-  if (ipc) ipc.llmStreamAbort();
+  getBridge().llm.llmStreamAbort();
   if (activeCleanup) {
     activeCleanup();
     activeCleanup = null;
   }
+}
+
+// ============================================================================
+// Mobile streaming (direct HTTP, no IPC)
+// ============================================================================
+
+let mobileCloudAdapter: CloudLLMAdapter | null = null;
+
+function streamChatMobile(
+  messages: LLMChatMessage[],
+  tools: LLMToolDefinition[],
+  callbacks: LLMStreamCallbacks,
+  settings: Settings,
+): { abort: () => void } {
+  const startTime = Date.now();
+  let accumulated = '';
+  let firstTokenTime = 0;
+  const collectedToolCalls: LLMToolCall[] = [];
+
+  // Determine the cloud URL: direct cloud or tethered via desktop's forwarding endpoint
+  let url: string;
+  let token: string;
+
+  if (settings.backendMode === 'cloud' && settings.cloudLLMUrl) {
+    url = settings.cloudLLMUrl;
+    token = settings.cloudLLMToken;
+  } else if (settings.backendMode === 'tethered' && settings.backendUrl) {
+    // Tethered: forward through the desktop's web server
+    url = settings.backendUrl.replace(/\/+$/, '');
+    token = settings.cloudAuthToken;
+  } else {
+    callbacks.onError('No LLM endpoint configured for mobile');
+    return { abort: () => {} };
+  }
+
+  mobileCloudAdapter = new CloudLLMAdapter(url, token);
+
+  mobileCloudAdapter.streamChat(messages, tools, {
+    onChunk: (chunk) => {
+      if (chunk.error) {
+        callbacks.onError(chunk.error);
+        return;
+      }
+      if (chunk.content) {
+        if (!firstTokenTime) firstTokenTime = Date.now();
+        accumulated += chunk.content;
+        callbacks.onChunk(chunk.content, accumulated);
+      }
+      if (chunk.toolCalls) {
+        for (const tc of chunk.toolCalls) {
+          collectedToolCalls.push(tc);
+          callbacks.onToolCall(tc);
+        }
+      }
+    },
+    onDone: () => {
+      const totalTime = Date.now() - startTime;
+      const ttft = firstTokenTime ? firstTokenTime - startTime : 0;
+      const stats: LLMStreamStats = { timeToFirstToken: ttft, totalTime, tokensPerSecond: 0 };
+      callbacks.onDone(accumulated, collectedToolCalls, stats);
+    },
+    onError: callbacks.onError,
+  });
+
+  return {
+    abort: () => {
+      mobileCloudAdapter?.abort();
+      mobileCloudAdapter = null;
+    },
+  };
 }
 
 // ============================================================================
@@ -175,16 +250,26 @@ export function abortStream(): void {
  * Check if the LLM is ready to use (provider-specific checks)
  */
 export async function checkAvailability(settings: Settings): Promise<{ available: boolean; reason?: string }> {
-  const ipc = window.mLearnIPC;
-  if (!ipc) return { available: false, reason: 'IPC not available' };
+  const bridge = getBridge();
 
   if (!settings.llmConfigured) {
     return { available: false, reason: 'not_configured' };
   }
 
+  if (settings.llmProvider === 'cloud') {
+    if (!settings.cloudLLMUrl) {
+      return { available: false, reason: 'cloud_url_not_set' };
+    }
+    const adapter = new CloudLLMAdapter(settings.cloudLLMUrl, settings.cloudLLMToken);
+    const reachable = await adapter.checkAvailability();
+    return reachable
+      ? { available: true }
+      : { available: false, reason: 'cloud_unreachable' };
+  }
+
   if (settings.llmProvider === 'ollama') {
     try {
-      const connected = await ipc.ollamaCheck();
+      const connected = await bridge.llm.ollamaCheck();
       if (!connected) {
         return { available: false, reason: 'ollama_unreachable' };
       }
@@ -196,7 +281,7 @@ export async function checkAvailability(settings: Settings): Promise<{ available
 
   // Built-in: check if model is downloaded
   try {
-    const status = await ipc.llmCheckModel();
+    const status = await bridge.llm.llmCheckModel();
     if (!status.downloaded) {
       return { available: false, reason: 'model_not_downloaded' };
     }

@@ -5,7 +5,7 @@
 
 import { Component, createSignal, createMemo, onCleanup, onMount, Show } from 'solid-js';
 import { WindowWrapper, useLocalization } from '../../context';
-import { IPC_CHANNELS } from '../../../shared/constants';
+import { getBridge } from '../../../shared/bridges';
 import { TabContainer } from '../../components/common/Tabs/TabContainer';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import {
@@ -16,12 +16,13 @@ import {
   ReaderTab,
   StatsTab,
   AITab,
+  ConnectionTab,
   AboutTab
 } from './tabs';
 import Icon from '../../components/common/Icons/Icon';
 import './settings.css';
 
-type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'stats' | 'ai' | 'about';
+type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'stats' | 'ai' | 'connection' | 'about';
 
 interface SettingsTab {
   id: TabId;
@@ -37,10 +38,11 @@ const TABS: SettingsTab[] = [
   { id: 'reader', labelKey: 'mlearn.Settings.Tabs.Reader', icon: 'book' },
   { id: 'stats', labelKey: 'mlearn.Settings.Tabs.Statistics', icon: 'stats' },
   { id: 'ai', labelKey: 'mlearn.Settings.Tabs.AI', icon: 'stars' },
+  { id: 'connection', labelKey: 'mlearn.Settings.Tabs.Connection', icon: 'pin' },
   { id: 'about', labelKey: 'mlearn.Settings.Tabs.About', icon: 'star' },
 ];
 
-const SettingsContent: Component = () => {
+export const SettingsContent: Component = () => {
   const [activeTab, setActiveTab] = createSignal<TabId>('general');
   const { t } = useLocalization();
 
@@ -59,6 +61,7 @@ const SettingsContent: Component = () => {
     if (normalized.includes('about') || normalized.includes('license')) return 'about';
     if (normalized.includes('stat')) return 'stats';
     if (normalized.includes('ai') || normalized.includes('llm')) return 'ai';
+    if (normalized.includes('connect') || normalized.includes('tether') || normalized.includes('cloud') || normalized.includes('backend')) return 'connection';
     if (normalized.includes('reader')) return 'reader';
     if (normalized.includes('srs') || normalized.includes('flashcard')) return 'srs';
     if (normalized.includes('custom') || normalized.includes('appearance')) return 'customization';
@@ -67,17 +70,17 @@ const SettingsContent: Component = () => {
   };
 
   onMount(() => {
-    if (!window.mLearnIPC) return;
+    const bridge = getBridge();
 
     const handler = (...args: unknown[]) => {
       const section = typeof args[0] === 'string' ? args[0] : undefined;
       setActiveTab(resolveTab(section));
     };
 
-    window.mLearnIPC.onOpenSettings(handler);
+    const cleanup = bridge.window.onOpenSettings(handler);
 
     onCleanup(() => {
-      window.mLearnIPC?.removeListener?.(IPC_CHANNELS.SHOW_SETTINGS, handler);
+      cleanup();
     });
   });
 
@@ -115,6 +118,9 @@ const SettingsContent: Component = () => {
           </Show>
           <Show when={activeTab() === 'ai'}>
             <AITab />
+          </Show>
+          <Show when={activeTab() === 'connection'}>
+            <ConnectionTab />
           </Show>
           <Show when={activeTab() === 'about'}>
             <AboutTab />

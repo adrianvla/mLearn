@@ -39,6 +39,10 @@ body.theme-glass-light {
 
   /*define a new variable*/
   --glass-spacing: 8px;
+
+  --window-loading-bg: var(--bg-opaque);
+  --window-loading-spinner-track: var(--bg);
+  --window-loading-spinner-color: var(--text-primary);
 }
 
 /* === End index.css === */

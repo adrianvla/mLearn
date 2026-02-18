@@ -25,7 +25,7 @@ import './FlashcardsApp.css';
 
 type TabId = 'review' | 'browse' | 'stats';
 
-const FlashcardsContent: Component = () => {
+export const FlashcardsContent: Component = () => {
   const {
     getAllCards,
     queueCounts,

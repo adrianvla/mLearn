@@ -10,6 +10,7 @@ import { Component, createSignal, For, onCleanup, createEffect } from 'solid-js'
 import { useSettings } from '../../context';
 import { PanelHeader } from '../common';
 import { IPC_CHANNELS } from '../../../shared/constants';
+import { getBridge } from '../../../shared/bridges';
 import './LiveWordTranslator.css';
 
 interface TranslationCard {
@@ -104,18 +105,16 @@ export const LiveWordTranslator: Component = () => {
 
   // Listen for IPC events to show aside
   createEffect(() => {
-    if (typeof window !== 'undefined' && window.mLearnIPC) {
-      const handleShowAside = () => {
-        setIsVisible(true);
-        resetHideTimeout();
-      };
+    const handleShowAside = () => {
+      setIsVisible(true);
+      resetHideTimeout();
+    };
 
-      window.mLearnIPC.on(IPC_CHANNELS.SHOW_ASIDE, handleShowAside);
+    const cleanup = getBridge().generic.on(IPC_CHANNELS.SHOW_ASIDE, handleShowAside);
 
-      onCleanup(() => {
-        // Would need to implement removeListener
-      });
-    }
+    onCleanup(() => {
+      cleanup();
+    });
   });
 
   // Expose addCard globally for subtitle components to use

@@ -1,5 +1,12 @@
 {
   "mlearn": {
+    "Tabs": {
+      "Home": "Home",
+      "Video": "Video",
+      "Reader": "Reader",
+      "Flashcards": "Cards",
+      "Settings": "Settings"
+    },
     "Global": {
       "AppName": "mLearn",
       "Loading": "Loading...",
@@ -474,7 +481,7 @@
           "Insert": "Insert"
         }
       },
-      "Tabs" : {
+      "Tabs": {
         "General": "General",
         "Behaviour": "Behaviour",
         "Appearance": "Appearance",
@@ -482,6 +489,7 @@
         "Reader": "Reader",
         "Statistics": "Stats",
         "AI": "AI",
+        "Connection": "Connection",
         "About": "About"
       },
       "Groups": {
@@ -826,6 +834,17 @@
           },
           "ResetButton": "Reset SRS"
         }
+      },
+      "Mobile": {
+        "GeneralDesc": "Language, theme, and data",
+        "BehaviourDesc": "Word status, display, and performance",
+        "AppearanceDesc": "Subtitles, colors, and themes",
+        "SRSDesc": "Flashcard limits and integration",
+        "ReaderDesc": "OCR, hover, and reading tools",
+        "StatsDesc": "Learning statistics and progress",
+        "AIDesc": "Language model providers",
+        "ConnectionDesc": "Backend mode and sync",
+        "AboutDesc": "Version, links, and shortcuts"
       }
     },
     "Installer": {
@@ -894,6 +913,32 @@
         "EditWordDatabase": "📝 Edit Word Database",
         "OpenAiAnalytics": "🤖 AI Media Analytics"
       }
+    },
+    "Connection": {
+      "Title": "Connection",
+      "BackendMode": "Backend Mode",
+      "Mode": "Mode",
+      "ModeLocal": "Local",
+      "ModeTethered": "Tethered",
+      "ModeCloud": "Cloud",
+      "HintLocal": "Uses the local Python backend on this machine.",
+      "HintTethered": "Connect to the Python backend running on your desktop.",
+      "HintCloud": "Connect to a remote cloud backend.",
+      "BackendUrl": "Backend URL",
+      "AuthToken": "Auth Token",
+      "TestConnection": "Test Connection",
+      "Testing": "Testing...",
+      "Connected": "Connected",
+      "Unreachable": "Unreachable",
+      "NodeServer": "Desktop Server",
+      "NodeServerUrl": "Server URL",
+      "CloudLLM": "Cloud LLM",
+      "LLMProvider": "LLM Provider",
+      "LLMBuiltIn": "Built-in",
+      "LLMOllama": "Ollama",
+      "LLMCloud": "Cloud",
+      "CloudLLMUrl": "Cloud LLM URL",
+      "CloudLLMToken": "Cloud LLM Token"
     },
     "About": {
       "Title": "mLearn",

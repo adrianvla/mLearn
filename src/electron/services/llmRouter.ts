@@ -9,6 +9,16 @@ import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk } from '../../sh
 import { loadSettings } from './settings';
 import { ollamaStreamChatUnified, ollamaAbortStream } from './ollamaService';
 import { builtinStreamChat, builtinAbortStream } from './builtinLLMService';
+import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
+
+let cloudAdapter: CloudLLMAdapter | null = null;
+
+function getCloudAdapter(): CloudLLMAdapter {
+  const settings = loadSettings();
+  // Recreate if settings changed
+  cloudAdapter = new CloudLLMAdapter(settings.cloudLLMUrl, settings.cloudLLMToken);
+  return cloudAdapter;
+}
 
 /**
  * Set up the unified LLM stream router.
@@ -21,7 +31,17 @@ export function setupLLMRouterIPC(): void {
     const provider = settings.llmProvider || 'builtin';
 
     try {
-      if (provider === 'ollama') {
+      if (provider === 'cloud') {
+        const adapter = getCloudAdapter();
+        await adapter.streamChat(messages, tools || [], {
+          onChunk: (chunk) => event.sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk),
+          onDone: () => {},
+          onError: (error) => {
+            const errorChunk: LLMStreamChunk = { error, done: true };
+            event.sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, errorChunk);
+          },
+        });
+      } else if (provider === 'ollama') {
         ollamaStreamChatUnified(event.sender, messages, tools || []);
       } else {
         await builtinStreamChat(event.sender, messages, tools || []);
@@ -40,7 +60,9 @@ export function setupLLMRouterIPC(): void {
     const settings = loadSettings();
     const provider = settings.llmProvider || 'builtin';
 
-    if (provider === 'ollama') {
+    if (provider === 'cloud') {
+      cloudAdapter?.abort();
+    } else if (provider === 'ollama') {
       ollamaAbortStream(event.sender.id);
     } else {
       builtinAbortStream();

@@ -6,6 +6,7 @@
 
 import { Component, Show, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
 import { useSettings, useLocalization } from '../../context';
+import { getBridge } from '../../../shared/bridges';
 import {
   Btn,
   IconBtn,
@@ -146,7 +147,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const checkModels = async (language: string) => {
     setIsChecking(true);
     try {
-      const status = await window.mLearnIPC?.voiceCheckModels(language);
+      const status = await getBridge().voice.voiceCheckModels(language);
       if (status) {
         setModelStatus(status);
         setIsDownloading(status.downloading);
@@ -164,7 +165,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // Load voice samples
   const loadVoiceSamples = async () => {
     try {
-      const samples = await window.mLearnIPC?.voiceSampleList();
+      const samples = await getBridge().voice.voiceSampleList();
       if (samples) setVoiceSamples(samples);
     } catch {
       // ignore
@@ -186,33 +187,29 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   // Set up IPC listeners once on mount, clean up on unmount
   onMount(() => {
-    const ipc = window.mLearnIPC;
-    if (!ipc) return;
-
+    const bridge = getBridge();
     const cleanups: Array<() => void> = [];
 
     // Model download progress
-    const unsub1 = ipc.onVoiceModelProgress((status) => {
+    cleanups.push(bridge.voice.onVoiceModelProgress((status) => {
       setModelStatus(status);
       setIsDownloading(status.downloading);
       setDownloadProgress(Math.round(status.progress * 100));
-    });
-    if (unsub1) cleanups.push(unsub1);
+    }));
 
     // STT results
-    const unsub2 = ipc.onVoiceSttResult((result: VoiceSTTResult) => {
+    cleanups.push(bridge.voice.onVoiceSttResult((result: VoiceSTTResult) => {
       setPartialTranscript(result.text);
       if (result.isFinal && result.text.trim()) {
         setCallState('processing');
         props.onSendMessage(result.text.trim());
         setPartialTranscript('');
       }
-    });
-    if (unsub2) cleanups.push(unsub2);
+    }));
 
     // VAD events — during TTS playback, audio is not streamed to backend,
     // so no VAD events arrive; barge-in is detected locally via mic level.
-    const unsub3 = ipc.onVoiceVadEvent((event) => {
+    cleanups.push(bridge.voice.onVoiceVadEvent((event) => {
       if (event.type === 'speech-start') {
         if (ttsPlaying) return; // safety guard — barge-in handled locally
         setCallState('listening');
@@ -221,11 +218,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
           setCallState('processing');
         }
       }
-    });
-    if (unsub3) cleanups.push(unsub3);
+    }));
 
     // TTS audio — queue sentences for sequential playback
-    const unsub4 = ipc.onVoiceTtsAudio((audio: VoiceTtsAudio) => {
+    cleanups.push(bridge.voice.onVoiceTtsAudio((audio: VoiceTtsAudio) => {
       if (ttsAborted) return; // ignore audio from a cancelled generation
       ttsQueue.push(audio);
       // Collect sentence texts for interruption tracking
@@ -239,37 +235,33 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       if (!ttsPlaying) {
         playNextSentence();
       }
-    });
-    if (unsub4) cleanups.push(unsub4);
+    }));
 
     // TTS status
-    const unsub5 = ipc.onVoiceTtsStatus((status) => {
+    cleanups.push(bridge.voice.onVoiceTtsStatus((status) => {
       setTtsModelLoading(status.modelLoading ?? false);
       if (status.generating) {
         setCallState('processing');
       } else {
         setTtsModelLoading(false);
       }
-    });
-    if (unsub5) cleanups.push(unsub5);
+    }));
 
     // Voice session ready
-    const unsub6 = ipc.onVoiceSessionReady(() => {
+    cleanups.push(bridge.voice.onVoiceSessionReady(() => {
       setIsInitializing(false);
       setInitError('');
-    });
-    if (unsub6) cleanups.push(unsub6);
+    }));
 
     // Voice session error
-    const unsub7 = ipc.onVoiceSessionError((data) => {
+    cleanups.push(bridge.voice.onVoiceSessionError((data) => {
       setIsInitializing(false);
       setInitError(data.error);
       setIsCallActive(false);
       props.onCallStateChange?.(false);
       setCallState('idle');
       stopAudioCapture();
-    });
-    if (unsub7) cleanups.push(unsub7);
+    }));
 
     onCleanup(() => {
       cleanups.forEach(fn => fn());
@@ -314,7 +306,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       bargeInFrames = 0;
       // Generate TTS for the final assistant response with optional voice cloning
       const sampleId = selectedSampleId() || undefined;
-      window.mLearnIPC?.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId);
+      getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId);
     }
   });
 
@@ -360,7 +352,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
         const inputData = e.inputBuffer.getChannelData(0);
         const samples = new Float32Array(inputData);
-        window.mLearnIPC?.voiceSendAudioChunk(samples);
+        getBridge().voice.voiceSendAudioChunk(samples);
       };
 
       // Start visualizer loop
@@ -542,7 +534,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       ttsAudioContext.close();
       ttsAudioContext = null;
     }
-    window.mLearnIPC?.voiceTtsStop();
+    getBridge().voice.voiceTtsStop();
   };
 
   // ============================================================================
@@ -561,7 +553,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // The VOICE_SESSION_READY event will confirm when engines are loaded,
     // and VOICE_SESSION_ERROR will fire if initialization fails.
     // Audio capture is deferred until session is ready (see createEffect below).
-    window.mLearnIPC?.voiceStartSession(
+    getBridge().voice.voiceStartSession(
       props.language,
       voiceMode(),
       settings.voiceSilenceThreshold ?? 1.2,
@@ -607,7 +599,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     stopTTSPlayback();
     stopAudioCapture();
-    window.mLearnIPC?.voiceStopSession();
+    getBridge().voice.voiceStopSession();
   };
 
   // ============================================================================
@@ -617,7 +609,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const handleDownloadModels = () => {
     setIsDownloading(true);
     setDownloadProgress(0);
-    window.mLearnIPC?.voiceDownloadModels(props.language);
+    getBridge().voice.voiceDownloadModels(props.language);
   };
 
   // ============================================================================
@@ -643,7 +635,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const setSilenceThreshold = (threshold: number) => {
     updateSettings({ ...settings, voiceSilenceThreshold: threshold });
     // Update the server-side threshold in real-time
-    window.mLearnIPC?.voiceUpdateSilenceThreshold(threshold);
+    getBridge().voice.voiceUpdateSilenceThreshold(threshold);
   };
 
   // Voice sample upload
@@ -654,11 +646,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
-      const filePath = window.mLearnIPC?.getPathForFile(file);
+      const filePath = getBridge().files.getPathForFile(file);
       if (!filePath) return;
       const name = file.name.replace(/\.[^.]+$/, '');
       try {
-        await window.mLearnIPC?.voiceSampleUpload(filePath, name);
+        await getBridge().voice.voiceSampleUpload(filePath, name);
         await loadVoiceSamples();
       } catch (err) {
         console.error('[VoiceTab] Failed to upload voice sample:', err);
@@ -684,7 +676,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     if (pttActive()) {
       setPttActive(false);
       // Flush the server-side speech buffer so it immediately runs STT
-      window.mLearnIPC?.voiceFlush();
+      getBridge().voice.voiceFlush();
     }
   };
 

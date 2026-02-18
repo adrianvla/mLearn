@@ -1,3 +1,5 @@
+import { Show } from 'solid-js';
+import { isElectron } from '@shared/platform';
 import './WindowDragRegion.css';
 
 type Props = {
@@ -6,8 +8,10 @@ type Props = {
 
 export function WindowDragRegion(props: Props) {
     return (
-        <div
-            class={`drag-region ${props.hidden ? 'hidden' : ''}`}
-        />
+        <Show when={isElectron()}>
+            <div
+                class={`drag-region ${props.hidden ? 'hidden' : ''}`}
+            />
+        </Show>
     );
 }

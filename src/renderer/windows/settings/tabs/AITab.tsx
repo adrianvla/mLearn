@@ -6,6 +6,7 @@
 import { Component, Show, createSignal, createEffect, onCleanup, For } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText } from '../../../components/common';
+import { getBridge } from '../../../../shared/bridges';
 import type { LLMProvider, LLMModelStatus } from '../../../../shared/types';
 
 export const AITab: Component = () => {
@@ -41,14 +42,13 @@ export const AITab: Component = () => {
 
   // Listen for download progress and model status updates
   createEffect(() => {
-    const ipc = window.mLearnIPC;
-    if (!ipc) return;
+    const bridge = getBridge();
 
-    const cleanupProgress = ipc.onLLMDownloadProgress((status: LLMModelStatus) => {
+    const cleanupProgress = bridge.llm.onLLMDownloadProgress((status: LLMModelStatus) => {
       setModelStatus(status);
     });
 
-    const cleanupStatus = ipc.onLLMModelStatus((status: LLMModelStatus) => {
+    const cleanupStatus = bridge.llm.onLLMModelStatus((status: LLMModelStatus) => {
       setModelStatus(status);
     });
 
@@ -59,10 +59,8 @@ export const AITab: Component = () => {
   });
 
   async function checkModelStatus() {
-    const ipc = window.mLearnIPC;
-    if (!ipc) return;
     try {
-      const status = await ipc.llmCheckModel();
+      const status = await getBridge().llm.llmCheckModel();
       setModelStatus(status);
     } catch {
       // Ignore — status will remain default
@@ -75,24 +73,20 @@ export const AITab: Component = () => {
   }
 
   async function handleDownloadModel() {
-    const ipc = window.mLearnIPC;
-    if (!ipc) return;
     setModelStatus((prev) => ({ ...prev, downloading: true, progress: 0, error: undefined }));
     try {
-      await ipc.llmDownloadModel();
+      await getBridge().llm.llmDownloadModel();
     } catch (e) {
       setModelStatus((prev) => ({ ...prev, downloading: false, error: String(e) }));
     }
   }
 
   async function handleTestOllama() {
-    const ipc = window.mLearnIPC;
-    if (!ipc) return;
     setOllamaTesting(true);
     setOllamaConnected(null);
     setOllamaTestSuccess(false);
     try {
-      const ok = await ipc.ollamaCheck();
+      const ok = await getBridge().llm.ollamaCheck();
       setOllamaConnected(ok);
       if (ok) {
         setOllamaTestSuccess(true);
@@ -106,11 +100,9 @@ export const AITab: Component = () => {
   }
 
   async function handleFetchOllamaModels() {
-    const ipc = window.mLearnIPC;
-    if (!ipc) return;
     setLoadingModels(true);
     try {
-      const models = await ipc.ollamaListModels();
+      const models = await getBridge().llm.ollamaListModels();
       setOllamaModels((models || []) as string[]);
     } catch {
       setOllamaModels([]);

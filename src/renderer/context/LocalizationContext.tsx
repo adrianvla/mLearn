@@ -5,6 +5,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
+import { getBridge } from '../../shared/bridges';
 
 // Type for nested locale strings
 export type LocaleStrings = Record<string, unknown>;
@@ -64,20 +65,18 @@ export const LocalizationProvider: ParentComponent = (props) => {
   let broadcastChannel: BroadcastChannel | null = null;
   const ipcCleanups: Array<() => void> = [];
 
-  // Load localization from main process
+  // Load localization from platform bridge
   const loadLocalization = () => {
-    if (typeof window !== 'undefined' && window.mLearnIPC) {
-      // Set up listener BEFORE sending request to avoid race condition
-      ipcCleanups.push(window.mLearnIPC.onLocalization((data) => {
-        setLocale(data.locale);
-        setStrings(reconcile(data.strings as LocaleStrings));
-        setIsLoaded(true);
-      }));
-      window.mLearnIPC.getLocalization();
-    } else {
-      // In tethered mode or without IPC, use default
+    const bridge = getBridge();
+    console.log('[LocalizationContext] Loading localization...');
+    // Set up listener BEFORE sending request to avoid race condition
+    ipcCleanups.push(bridge.localization.onLocalization((data) => {
+      console.log('[LocalizationContext] Localization received, locale:', data.locale);
+      setLocale(data.locale);
+      setStrings(reconcile(data.strings as LocaleStrings));
       setIsLoaded(true);
-    }
+    }));
+    bridge.localization.getLocalization();
   };
 
   // Get a localized string by path
@@ -101,9 +100,7 @@ export const LocalizationProvider: ParentComponent = (props) => {
 
   // Change the UI language
   const changeLanguage = (langCode: string) => {
-    if (typeof window !== 'undefined' && window.mLearnIPC) {
-      window.mLearnIPC.changeUILanguage(langCode);
-    }
+    getBridge().localization.changeUILanguage(langCode);
     broadcastLanguageChange(langCode);
   };
 
@@ -123,9 +120,7 @@ export const LocalizationProvider: ParentComponent = (props) => {
       setStrings(reconcile(event.data.strings));
     } else if (event.data?.type === 'language-change') {
       // Re-request localization after language change
-      if (typeof window !== 'undefined' && window.mLearnIPC) {
-        window.mLearnIPC.getLocalization();
-      }
+      getBridge().localization.getLocalization();
     }
   };
 

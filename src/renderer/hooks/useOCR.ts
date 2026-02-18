@@ -5,8 +5,8 @@
  */
 
 import { createSignal } from 'solid-js';
-import { PORTS } from '../../shared/constants';
 import { useServer } from '../context';
+import { getBackend } from '../../shared/backends';
 
 // Max target area for OCR (preserve aspect ratio) - matches legacy app
 const MAX_OCR_AREA_TURBO = 1000 * 1600; // 1.6M pixels — turbo mode
@@ -362,7 +362,7 @@ export function useOCR() {
   const [lastResult, setLastResult] = createSignal<OCRResult | null>(null);
   const [error, setError] = createSignal<string | null>(null);
 
-  const getOCRUrl = () => `http://localhost:${PORTS.PYTHON_BACKEND}/ocr`;
+  const getOCRUrl = () => getBackend().buildUrl('/ocr');
 
   // Perform OCR on various input types
   const recognize = async (

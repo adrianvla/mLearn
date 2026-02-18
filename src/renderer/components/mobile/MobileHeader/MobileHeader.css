@@ -1,0 +1,39 @@
+.mobile-header {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 12px;
+  background: var(--bg-secondary, #111);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.mobile-header-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: none;
+  color: var(--accent-primary, #4a9eff);
+  cursor: pointer;
+  padding: 0;
+  margin-right: 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-header-back svg {
+  width: 22px;
+  height: 22px;
+}
+
+.mobile-header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
