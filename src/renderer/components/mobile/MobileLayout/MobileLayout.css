@@ -1,13 +1,9 @@
 .mobile-layout {
-  --mobile-header-height: 44px;
   --mobile-tabbar-height: 56px;
 
   position: relative;
   height: 100%;
   width: 100%;
-  overflow: hidden;
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
 }
 
 .mobile-content {
@@ -15,7 +11,118 @@
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  /* Offset content so it starts below the floating header and above the floating navbar */
-  padding-top: calc(var(--mobile-header-height) + env(safe-area-inset-top) + var(--spacing-3));
-  padding-bottom: calc(var(--mobile-tabbar-height) + env(safe-area-inset-bottom) + var(--spacing-3));
+  padding-top: env(safe-area-inset-top);
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+body.settings-overlay-open .mobile-content {
+  transform: translateX(-30%);
+}
+
+/* Spacer at end of scroll so the last content item can be scrolled above the tab bar */
+.mobile-content::after {
+  content: '';
+  display: block;
+  height: calc(var(--mobile-tabbar-height) + env(safe-area-inset-bottom) + var(--spacing-3));
+  flex-shrink: 0;
+}
+
+/* Large title area — in normal document flow at the top of the scroll */
+.mobile-large-title-area {
+  padding: var(--spacing-2) var(--spacing-4) var(--spacing-1);
+  opacity: calc(1 - var(--title-progress, 0));
+}
+
+.mobile-large-title {
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.15;
+}
+
+/* Back button shown on sub-routes above the large title */
+.mobile-large-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  padding: 0;
+  margin-bottom: var(--spacing-1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-large-back svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Compact sticky bar — appears when the large title scrolls out of view */
+.mobile-sticky-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(44px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) var(--spacing-3) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  -webkit-backdrop-filter: var(--backdrop-filter);
+  backdrop-filter: var(--backdrop-filter);
+  border-bottom: 1px solid var(--border-color);
+  z-index: var(--z-sticky);
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  pointer-events: none;
+}
+
+body.settings-overlay-open .mobile-sticky-bar {
+  transform: translateX(-30%);
+}
+
+.mobile-sticky-bar.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-sticky-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Back button in the compact sticky bar */
+.mobile-sticky-back {
+  position: absolute;
+  left: var(--spacing-2);
+  bottom: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  color: var(--accent-primary);
+  cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-sticky-back svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.mobile-sticky-back-label {
+  font-size: 17px;
+  font-weight: 400;
+  white-space: nowrap;
 }

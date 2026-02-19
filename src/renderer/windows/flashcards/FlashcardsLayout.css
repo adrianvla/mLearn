@@ -1,4 +1,4 @@
-/**
+  /**
  * Flashcards Window Layout Styles
  * Sidebar navigation + main content area
  */
@@ -10,6 +10,11 @@
   flex-direction: column;
   background-color: var(--bg-opaque);
   overflow: hidden;
+}
+
+/* On mobile (inside mobile-content), don't clip overflow */
+.mobile-layout .flashcards-window {
+  overflow: visible;
 }
 
 /* Main layout with sidebar */
@@ -177,4 +182,19 @@
   .flashcards-sidebar-btn {
     width: auto;
   }
+}
+
+/* Mobile: hide sidebar header — MobileLayout provides the large title */
+.mobile-layout .flashcards-sidebar-header {
+  display: none;
+}
+
+/* Mobile: make sidebar sticky with translucent backdrop */
+.mobile-layout .flashcards-sidebar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-foreground);
+  background: var(--bg);
+  -webkit-backdrop-filter: var(--backdrop-filter);
+  backdrop-filter: var(--backdrop-filter);
 }

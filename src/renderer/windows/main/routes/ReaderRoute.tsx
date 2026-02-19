@@ -983,6 +983,21 @@ export const ReaderRoute: Component = () => {
     });
   });
 
+  // Save current page as thumbnail when leaving the reader
+  onCleanup(() => {
+    const title = bookTitle();
+    const currentPages = pages();
+    const page = currentPage();
+    const path = currentBookPath();
+    if (title && currentPages.length > 0 && currentPages[page]?.blob) {
+      captureBlobThumbnail(currentPages[page].blob!).then((thumbnail) => {
+        if (thumbnail) {
+          saveToRecentItems({ type: 'book', name: title, path, progress: page }, thumbnail);
+        }
+      });
+    }
+  });
+
   const handleDrop = async (e: DragEvent) => {
     e.preventDefault();
     setIsDragging(false);

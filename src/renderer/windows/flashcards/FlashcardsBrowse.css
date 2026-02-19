@@ -51,10 +51,6 @@
   position: relative;
 }
 
-.flashcard-translation {
-  margin-bottom: 50px;
-}
-
 .flashcard-footer {
   display: flex;
   gap: var(--spacing-2);

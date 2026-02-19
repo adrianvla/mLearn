@@ -145,10 +145,13 @@ export function saveToRecentItems(
     const stored = localStorage.getItem(STORAGE_KEY);
     const items: RecentItem[] = stored ? JSON.parse(stored) : [];
     
+    // Preserve existing thumbnail when no new one is provided
+    const existing = items.find((i) => i.name === item.name);
+    
     // Create new item
     const newItem: RecentItem = {
       ...item,
-      thumbnail: thumbnail || item.thumbnail,
+      thumbnail: thumbnail || item.thumbnail || existing?.thumbnail,
       lastWatched: Date.now(),
     };
     
