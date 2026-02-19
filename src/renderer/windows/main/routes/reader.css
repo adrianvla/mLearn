@@ -11,6 +11,11 @@
   color: var(--text-primary);
 }
 
+/* On mobile, fill the mobile content area */
+.mobile-layout .reader-route {
+  height: 100%;
+}
+
 /* Main Content Area */
 .reader-main {
   flex: 1;
@@ -24,6 +29,16 @@
   margin-top: 48px; /* Push below fixed nav */
   margin-bottom: 30px; /* Push above fixed status bar */
   box-sizing: border-box;
+}
+
+/* On mobile, no extra margins — MobileLayout handles spacing */
+.mobile-layout .reader-main {
+  flex: 1;
+  height: auto;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: var(--spacing-2);
+  min-height: 0;
 }
 
 .reader-main.fit-height {
@@ -163,4 +178,97 @@
 .page-loader-overlay .loader-ring{
   gap:0;
   align-items:end;
+}
+
+/* Mobile adaptations — reader inside MobileLayout */
+
+/* On mobile, reader nav is compact — horizontal row with minimal controls */
+.mobile-layout .reader-nav {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  -webkit-app-region: no-drag;
+  height: auto;
+  flex-wrap: nowrap;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  justify-content: center;
+}
+
+/* Remove desktop window drag margin on mobile */
+.mobile-layout .reader-nav .nav-group {
+  margin-left: 0 !important;
+}
+
+/* Hide sidebar toggle and page-mode controls on mobile — always single + fit-width */
+.mobile-layout .reader-nav .sidebar-btn,
+.mobile-layout .reader-nav .book-title-nav,
+.mobile-layout .reader-nav select {
+  display: none;
+}
+
+/* Hide status bar entirely on mobile — it's a desktop concept */
+.mobile-layout .reader-status {
+  display: none;
+}
+
+/* On mobile, sidebar overlays content instead of pushing it */
+.mobile-layout .reader-sidebar {
+  display: none;
+}
+
+.mobile-layout .reader-main.with-sidebar {
+  margin-left: 0;
+}
+
+/* Page image fills width on mobile (always fit-width behavior) */
+.mobile-layout .page-image {
+  width: 100% !important;
+  max-width: none !important;
+  height: auto;
+  max-height: none !important;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.mobile-layout .fit-height .page-image {
+  width: 100% !important;
+  max-width: none !important;
+  height: auto;
+  max-height: none !important;
+}
+
+.mobile-layout .fit-width .page-image {
+  width: 100% !important;
+  max-width: none !important;
+  height: auto;
+  max-height: none !important;
+}
+
+/* Force single-page on mobile — double-page is unreadable on small screens */
+.mobile-layout .page-container.double {
+  flex-direction: column;
+}
+
+.mobile-layout .page-container.double .page:nth-child(2) {
+  display: none;
+}
+
+/* Reader welcome card adapts to mobile */
+.mobile-layout .reader-welcome {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+  padding: var(--spacing-4);
+}
+
+/* Hide the drop zone on mobile — no drag and drop */
+.mobile-layout .reader-welcome-dropzone {
+  display: none;
+}
+
+/* Welcome tips grid single-column on mobile */
+.mobile-layout .reader-welcome-grid {
+  grid-template-columns: 1fr;
 }

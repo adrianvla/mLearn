@@ -12,6 +12,11 @@
   overflow: hidden;
 }
 
+/* On mobile, fill mobile content area */
+.mobile-layout .word-db-editor {
+  height: 100%;
+}
+
 /* Shared column layout (used by header + entry rows) */
 .col {
   padding: 0 0.5rem;
@@ -72,7 +77,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  height: 100%;
   color: var(--text-secondary);
   font-size: 1.2rem;
 }

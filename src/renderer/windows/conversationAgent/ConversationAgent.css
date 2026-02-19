@@ -9,6 +9,13 @@
   overflow: hidden;
 }
 
+/* On mobile, fill mobile content area */
+.mobile-layout .conversation-agent {
+  height: 100%;
+}
+
+
+
 /* Header */
 .ca-header {
   display: flex;

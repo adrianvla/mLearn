@@ -10,7 +10,7 @@
   background: var(--bg);
   border-radius:var(--radius-full);
   border: 1px solid var(--border-color);
-  z-index: var(--z-sticky);
+  z-index: 300; /* above settings overlay (250) */
   -webkit-backdrop-filter: var(--backdrop-filter);
   backdrop-filter: var(--backdrop-filter);
 }

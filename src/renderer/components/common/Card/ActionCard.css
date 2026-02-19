@@ -22,6 +22,7 @@
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
   border-color: var(--border-color-intense);
+  background: var(--bg-intense);
 }
 
 .action-card:active {

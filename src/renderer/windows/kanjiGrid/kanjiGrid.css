@@ -12,6 +12,23 @@
   padding: 1rem;
 }
 
+/* On mobile, fill mobile content area */
+.mobile-layout .kanji-grid-window {
+  height: 100%;
+}
+
+/* On mobile, push tooltip above the tab bar */
+.mobile-layout .kg-tooltip {
+  bottom: calc(var(--mobile-tabbar-height, 56px) + env(safe-area-inset-bottom) + var(--spacing-3));
+}
+
+
+
+/* On mobile, hide header h1 — MobileLayout provides the large title */
+.mobile-layout .kg-header h1 {
+  display: none;
+}
+
 /* Header */
 .kg-header {
   margin-bottom: 1rem;
@@ -239,4 +256,23 @@
   font-size: 0.8rem;
   color: var(--text-tertiary);
   opacity: 0.8;
+}
+
+/* Mobile: stack sidebar below grid, allow scrolling */
+@media (max-width: 600px) {
+  .kg-main {
+    flex-direction: column;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .kg-sidebar {
+    width: 100%;
+  }
+
+  .kg-cell {
+    width: 30px;
+    height: 30px;
+    font-size: var(--font-size-lg);
+  }
 }

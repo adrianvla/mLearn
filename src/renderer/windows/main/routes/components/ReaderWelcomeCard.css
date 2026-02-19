@@ -95,3 +95,10 @@
     padding: 1.5rem;
   }
 }
+
+/* Mobile: allow the welcome card to scroll */
+.mobile-layout .reader-welcome {
+  height: auto;
+  min-height: 100%;
+  padding: var(--spacing-4);
+}

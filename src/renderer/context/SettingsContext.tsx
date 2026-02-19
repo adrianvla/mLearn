@@ -11,6 +11,7 @@ import type { SubtitleTheme, AppTheme } from '../../shared/constants';
 import { APP_THEMES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resetBackend } from '../../shared/backends';
+import { isCapacitor } from '../../shared/platform';
 
 // Context interface
 interface SettingsContextValue {
@@ -89,6 +90,14 @@ export const SettingsProvider: ParentComponent = (props) => {
     // Apply current theme class (light is default, no class needed)
     if (s.theme !== 'light') {
       document.body.classList.add(`theme-${s.theme}`);
+    }
+
+    // Update status bar text color on Capacitor (light text for dark themes, dark text for light themes)
+    if (isCapacitor()) {
+      const isDark = s.theme === 'dark' || s.theme === 'glass-dark' || s.theme === 'dark-high-contrast' || s.theme === 'darker';
+      import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+        StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
+      }).catch(() => { /* StatusBar plugin unavailable */ });
     }
 
     // Apply custom color overrides (these override theme colors)

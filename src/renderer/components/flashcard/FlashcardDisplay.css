@@ -127,10 +127,10 @@
 }
 
 /* Word display */
-.flashcard-word {
-  font-size: 2.5rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
+.flashcard-word, .flashcard-word-header {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-2);
   color: var(--text-primary);
 }
 
@@ -161,7 +161,7 @@
 
 /* Back side word header */
 .flashcard-word-header {
-  margin-bottom: 1rem;
+  /*margin-bottom: 1rem;*/
   display: flex;
   justify-content: center;
   align-items: center;
@@ -209,13 +209,13 @@
 
 .flashcard-screenshot {
   max-width: 100%;
-  max-height: calc(100vh - 500px);
-  min-height:300px;
+  min-height: 150px;
   width: auto;
   height: auto;
   border-radius: var(--radius-md);
   object-fit: contain;
-  box-shadow: var(--shadow-sm);
+  border:1px solid var(--border-color);
+  box-shadow: var(--shadow-lg-intense);
 }
 .flashcard-example rt{
   position:relative;
