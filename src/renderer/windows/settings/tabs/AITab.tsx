@@ -5,9 +5,9 @@
 
 import { Component, Show, createSignal, createEffect, onCleanup, For } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, SparklesIcon } from '../../../components/common';
+import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, SparklesIcon, ToggleSwitch, VoiceSamplePicker } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
-import type { LLMProvider, LLMModelStatus } from '../../../../shared/types';
+import type { LLMProvider, LLMModelStatus, TTSProvider } from '../../../../shared/types';
 import '../SettingsForm.css';
 import './AITab.css';
 
@@ -289,6 +289,72 @@ export const AITab: Component = () => {
           </SettingRow>
         </SettingGroup>
       </Show>
+
+      {/* Flashcard TTS */}
+      <SettingGroup title={t('mlearn.AI.Settings.FlashcardTTS.Title')}>
+        <SettingRow
+          label={t('mlearn.AI.Settings.FlashcardTTS.AutoPlay.Label')}
+          description={t('mlearn.AI.Settings.FlashcardTTS.AutoPlay.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.flashcardAutoTts}
+            onChange={(v) => updateSettings({ flashcardAutoTts: v })}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.AI.Settings.FlashcardTTS.Provider.Label')}
+          description={t('mlearn.AI.Settings.FlashcardTTS.Provider.Description')}
+        >
+          <Select
+            value={settings.flashcardTtsProvider}
+            onChange={(e) => updateSettings({ flashcardTtsProvider: e.currentTarget.value as TTSProvider })}
+            options={[
+              { value: 'kokoro', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Kokoro') },
+              { value: 'qwen3', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Qwen3') },
+              { value: 'remote', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Remote') },
+            ]}
+          />
+        </SettingRow>
+
+        <Show when={settings.flashcardTtsProvider !== 'kokoro'}>
+          <SettingRow
+            label={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Label')}
+            description={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Description')}
+          >
+            <VoiceSamplePicker
+              value={settings.flashcardVoiceSampleId}
+              onChange={(id) => updateSettings({ flashcardVoiceSampleId: id })}
+              ttsProvider={settings.flashcardTtsProvider}
+            />
+          </SettingRow>
+        </Show>
+
+        <Show when={settings.flashcardTtsProvider === 'remote'}>
+          <SettingRow
+            label={t('mlearn.AI.Settings.FlashcardTTS.RemoteUrl.Label')}
+            description={t('mlearn.AI.Settings.FlashcardTTS.RemoteUrl.Description')}
+          >
+            <input
+              type="text"
+              class="setting-input"
+              value={settings.flashcardRemoteTtsUrl}
+              onInput={(e) => updateSettings({ flashcardRemoteTtsUrl: e.currentTarget.value })}
+              placeholder="https://example.com/tts"
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.AI.Settings.FlashcardTTS.AutoGenerate.Label')}
+            description={t('mlearn.AI.Settings.FlashcardTTS.AutoGenerate.Description')}
+          >
+            <ToggleSwitch
+              checked={settings.flashcardAutoGenerateAudio}
+              onChange={(v) => updateSettings({ flashcardAutoGenerateAudio: v })}
+            />
+          </SettingRow>
+        </Show>
+      </SettingGroup>
     </TabContent>
   );
 };

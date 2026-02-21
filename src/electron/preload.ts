@@ -65,10 +65,12 @@ const mLearnIPC = {
   // ========== Flashcard TTS ==========
   getFlashcardTts: (cardId: string, field: 'word' | 'example'): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET, cardId, field),
-  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, remoteUrl?: string): Promise<string | null> =>
-    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GENERATE, cardId, text, language, field, provider, remoteUrl),
-  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, remoteUrl?: string): Promise<Record<string, string>> =>
-    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_BATCH_GENERATE, items, language, provider, remoteUrl),
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, remoteUrl?: string, voiceSampleId?: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GENERATE, cardId, text, language, field, provider, remoteUrl, voiceSampleId),
+  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, remoteUrl?: string, voiceSampleId?: string): Promise<Record<string, string>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_BATCH_GENERATE, items, language, provider, remoteUrl, voiceSampleId),
+  getFlashcardTtsMeta: (cardId: string, field: 'word' | 'example'): Promise<{ provider: string; generatedAt: string; language: string } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET_META, cardId, field),
   
   // ========== Migration ==========
   onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) =>
@@ -300,8 +302,8 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.VOICE_STT_RESULT, (_event, result) => callback(result)),
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_VAD_EVENT, (_event, vadEvent) => callback(vadEvent)),
-  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_GENERATE, text, language, speed, voiceSampleId),
+  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_GENERATE, text, language, speed, voiceSampleId, provider),
   voiceTtsStop: () =>
     ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STOP),
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) =>
@@ -322,6 +324,10 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_DELETE, id),
   voiceSampleRename: (id: string, newName: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_RENAME, id, newName),
+  voiceSampleTranscribe: (id: string): Promise<{ text: string; language: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_TRANSCRIBE, id),
+  voiceSampleGetPath: (id: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_GET_PATH, id),
 };
 
 // Expose API to renderer

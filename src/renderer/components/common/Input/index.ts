@@ -16,6 +16,7 @@ export { FormField, type FormFieldProps } from './FormField';
 export { DropZone, type DropZoneProps } from './DropZone';
 export { RangeInput, type RangeInputProps } from './RangeInput';
 export { KeybindInput, type KeybindInputProps, parseKeybind, formatKeybindDisplay, getLocalizedKeyName } from './KeybindInput';
+export { VoiceSamplePicker, type VoiceSamplePickerProps } from './VoiceSamplePicker';
 
 // Import CSS
 import './ContentEditable.css';
@@ -24,3 +25,4 @@ import './FormField.css';
 import './DropZone.css';
 import './RangeInput.css';
 import './KeybindInput.css';
+import './VoiceSamplePicker.css';

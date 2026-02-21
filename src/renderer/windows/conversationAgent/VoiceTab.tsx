@@ -937,6 +937,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   </Btn>
                   <Btn
                     size="sm"
+                    variant={(settings.ttsProvider || 'kokoro') === 'qwen3' ? 'primary' : 'ghost'}
+                    onClick={() => setTtsProvider('qwen3')}
+                    class="voice-mode-btn"
+                  >
+                    {t('mlearn.ConversationAgent.Voice.Qwen3Tts')}
+                  </Btn>
+                  <Btn
+                    size="sm"
                     variant={(settings.ttsProvider || 'kokoro') === 'remote' ? 'primary' : 'ghost'}
                     onClick={() => setTtsProvider('remote')}
                     class="voice-mode-btn"

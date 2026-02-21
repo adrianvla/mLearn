@@ -172,6 +172,9 @@ interface FlashcardContextValue {
   startSession: () => void;
   refreshQueue: () => void;
 
+  // LLM example generation
+  generateExampleSentenceWithLLM: (word: string, definition: string, language: string) => Promise<{ sentence: string; meaning: string }>;
+
   // Utility
   intervalToString: (ms: number) => string;
   dueDateToString: (dueDate: number) => string;
@@ -1445,6 +1448,7 @@ Translation: [English translation]`;
     getGrammarKnowledge,
     startSession,
     refreshQueue,
+    generateExampleSentenceWithLLM,
     intervalToString: (ms: number) => SRS.intervalToString(ms, t),
     dueDateToString: (dueDate: number) => SRS.dueDateToString(dueDate, t),
   };

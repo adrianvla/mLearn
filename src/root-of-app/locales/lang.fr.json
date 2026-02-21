@@ -274,10 +274,24 @@
         "Tabs": {
           "Review": "Révision",
           "Browse": "Parcourir",
+          "Generate": "Générer",
           "Statistics": "Statistiques"
         },
         "Sync": "Synchroniser",
         "AddCard": "+ Ajouter une carte"
+      },
+      "Bulk": {
+        "TtsButton": "Générer TTS",
+        "TtsTooltip": "Générer l'audio TTS pour tous les mots et exemples des cartes",
+        "TtsProgress": "Génération TTS en cours…",
+        "TtsDone": "TTS généré pour {count} éléments",
+        "TtsAllDone": "Toutes les cartes ont déjà un audio TTS",
+        "ExamplesButton": "Générer des exemples",
+        "ExamplesTooltip": "Générer des phrases d'exemple par LLM pour les cartes sans exemples",
+        "ExamplesProgress": "Génération des exemples…",
+        "ExamplesDone": "Exemples générés pour {count} cartes",
+        "ExamplesAllDone": "Toutes les cartes ont déjà des exemples",
+        "GenerateDescription": "Générer en lot l'audio et les phrases d'exemple pour vos cartes mémoire"
       },
       "EmptyState": {
         "NoCardsTitle": "Pas encore de cartes mémoire",
@@ -409,7 +423,9 @@
         "ScreenshotAlt": "Capture d'écran",
         "RevealHint": "Cliquez ou appuyez sur Espace pour révéler la réponse",
         "RateHint": "Notez de 1 à 4 • Cliquez pour revenir au verso",
-        "ReviewsCount": "{count} révisions"
+        "ReviewsCount": "{count} révisions",
+        "PlayWord": "Écouter la prononciation du mot",
+        "PlayExample": "Écouter la phrase d'exemple"
       },
       "Table": {
         "Word": "Mot",
@@ -879,6 +895,8 @@
         "LlmSkip": "Les dépendances du modèle IA local seront ignorées.",
         "OcrWillInstall": "Les dépendances du lecteur OCR seront installées.",
         "OcrSkip": "Les dépendances du lecteur OCR seront ignorées.",
+        "VoiceWillInstall": "Les dépendances vocales et TTS seront installées.",
+        "VoiceSkip": "Les dépendances vocales et TTS seront ignorées.",
         "CouldNotStart": "Impossible de démarrer le processus d'installation.",
         "LanguageInstalledRestarting": "Langue installée ! Redémarrage...",
         "ErrorOccurred": "Une erreur est survenue. Vérifiez le journal ci-dessous.",
@@ -895,6 +913,10 @@
         "Reader": {
           "Title": "Installer le module lecteur mLearn",
           "Description": "Installe l'OCR pour la lecture de mangas/images. Décochez pour ignorer ~2 Go de dépendances."
+        },
+        "Voice": {
+          "Title": "Installer le module voix et TTS",
+          "Description": "Installe la reconnaissance vocale, la synthèse vocale et le clonage de voix. Décochez pour ignorer ~4 Go de dépendances."
         }
       },
       "Buttons": {
@@ -1229,6 +1251,7 @@
         "TtsSpeed": "Vitesse de parole",
         "TtsProvider": "Moteur TTS",
         "LocalTts": "Local",
+        "Qwen3Tts": "Qwen3",
         "RemoteTts": "Distant",
         "RemoteTtsUrl": "URL du serveur",
         "Interrupted": "*Interrompu par l'utilisateur*",
@@ -1321,6 +1344,41 @@
           "NoModels": "Aucun modèle trouvé.",
           "InstallHintPrefix": "Pas d'Ollama ?",
           "InstallHintSuffix": "pour commencer."
+        },
+        "FlashcardTTS": {
+          "Title": "TTS des flashcards",
+          "AutoPlay": {
+            "Label": "Lecture auto du TTS",
+            "Description": "Lire automatiquement la prononciation du mot lorsqu'une flashcard est affichée lors de la révision"
+          },
+          "Provider": {
+            "Label": "Fournisseur TTS",
+            "Description": "Choisir entre Kokoro TTS local, Qwen3-TTS (clonage vocal) ou un service TTS distant",
+            "Kokoro": "Kokoro (local)",
+            "Qwen3": "Qwen3-TTS (clonage vocal)",
+            "Remote": "Serveur distant"
+          },
+          "VoiceSample": {
+            "Label": "Échantillon vocal",
+            "Description": "Sélectionnez un échantillon vocal pour le clonage vocal",
+            "DefaultVoice": "Voix par défaut",
+            "Upload": "Télécharger un échantillon vocal",
+            "Transcribing": "Transcription en cours…",
+            "Transcript": "Transcription :",
+            "NoTranscript": "Aucune transcription disponible",
+            "PlaySample": "Lire l'échantillon",
+            "TestPlaceholder": "Saisissez du texte pour tester le TTS…",
+            "TestTts": "Tester le TTS",
+            "ModelLoading": "Chargement du modèle TTS…"
+          },
+          "RemoteUrl": {
+            "Label": "URL du TTS distant",
+            "Description": "URL du point d'accès du serveur TTS distant"
+          },
+          "AutoGenerate": {
+            "Label": "Génération auto de l'audio",
+            "Description": "Générer et mettre en cache automatiquement les fichiers audio pour les nouvelles flashcards"
+          }
         }
       }
     }

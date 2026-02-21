@@ -31,7 +31,7 @@ let isFirstTimeSetup = false;
 let serverLoaded = false;
 let installInProgress = false;
 let waitingForInstallChoice = false;
-let pendingInstallOptions: InstallOptions = { includeLLM: true, includeOCR: true };
+let pendingInstallOptions: InstallOptions = { includeLLM: true, includeOCR: true, includeVoice: true };
 let serverLoadCheckInterval: NodeJS.Timeout | null = null;
 
 // Paths
@@ -211,6 +211,9 @@ function buildPipRequirementList(options: InstallOptions): string[] {
   }
   if (options.includeVoice && config.voice) {
     packages.push(...config.voice);
+    if (config['qwen3-tts']) {
+      packages.push(...config['qwen3-tts']);
+    }
   }
   
   return packages;

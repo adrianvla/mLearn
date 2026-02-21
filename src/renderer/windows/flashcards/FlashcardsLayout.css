@@ -83,6 +83,27 @@
 .flashcards-sidebar-btn {
   width: 100%;
   justify-content: center;
+  gap: 0.375rem;
+}
+
+/* Bulk operation progress */
+.flashcards-bulk-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.25rem 0;
+}
+
+.flashcards-bulk-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.flashcards-bulk-count {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-align: right;
 }
 
 /* Main content area */

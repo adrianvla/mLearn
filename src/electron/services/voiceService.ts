@@ -1,6 +1,6 @@
 /**
  * Voice Service — relays audio between renderer IPC and Python backend
- * for STT (faster-whisper), TTS (Kokoro / Remote MOSS-TTS), and VAD (Silero).
+ * for STT (faster-whisper), TTS (Kokoro / Qwen3-TTS / Remote), and VAD (Silero).
  *
  * All speech models run in the Python backend (server.py).
  * Audio streams from renderer via IPC → this service → Python WebSocket.
@@ -56,7 +56,7 @@ function ensureDir(dir: string): void {
 // Voice Sample Management
 // ============================================================================
 
-function loadSamplesManifest(): VoiceSample[] {
+export function loadSamplesManifest(): VoiceSample[] {
   const manifestPath = getManifestPath();
   if (!fs.existsSync(manifestPath)) return [];
   try {
@@ -70,7 +70,7 @@ function saveSamplesManifest(samples: VoiceSample[]): void {
   fs.writeFileSync(getManifestPath(), JSON.stringify(samples, null, 2), 'utf-8');
 }
 
-function getVoiceSamplePath(sample: VoiceSample): string {
+export function getVoiceSamplePath(sample: VoiceSample): string {
   return path.join(getVoiceSamplesDir(), sample.filename);
 }
 
@@ -112,7 +112,13 @@ function postJson(
         const chunks: Buffer[] = [];
         res.on('data', (chunk: Buffer) => { chunks.push(chunk); });
         res.on('end', () => {
-          resolve({ data: Buffer.concat(chunks), headers: res.headers });
+          const data = Buffer.concat(chunks);
+          if (res.statusCode && res.statusCode >= 400) {
+            const detail = data.toString('utf-8').slice(0, 500);
+            reject(new Error(`HTTP ${res.statusCode}: ${detail}`));
+          } else {
+            resolve({ data, headers: res.headers });
+          }
         });
       },
     );
@@ -147,11 +153,35 @@ function loadVoicePackages(): string[] {
   }
 }
 
+function loadQwen3Packages(): string[] {
+  const appPath = getAppPath();
+  const configPath = path.join(appPath, 'pip_requirements.json');
+  try {
+    const data = fs.readFileSync(configPath, 'utf-8');
+    const config = JSON.parse(data) as Record<string, string[]>;
+    return config['qwen3-tts'] ?? [];
+  } catch {
+    const resPath = getResourcePath();
+    const fallbackPath = path.join(resPath, 'pip_requirements.json');
+    try {
+      const data = fs.readFileSync(fallbackPath, 'utf-8');
+      const config = JSON.parse(data) as Record<string, string[]>;
+      return config['qwen3-tts'] ?? [];
+    } catch {
+      return [];
+    }
+  }
+}
+
 function installVoicePackages(
   onProgress: (status: VoiceModelStatus) => void,
+  includeQwen3 = false,
 ): Promise<boolean> {
   return new Promise((resolve) => {
-    const packages = loadVoicePackages();
+    const packages = [
+      ...loadVoicePackages(),
+      ...(includeQwen3 ? loadQwen3Packages() : []),
+    ];
     if (packages.length === 0) {
       resolve(true);
       return;
@@ -415,6 +445,7 @@ async function generateTTS(
   speed: number,
   voiceSampleId: string | undefined,
   sender: Electron.WebContents,
+  provider?: string,
 ): Promise<void> {
   ttsAbortController = new AbortController();
 
@@ -428,6 +459,26 @@ async function generateTTS(
   }
 
   sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: false, modelLoading });
+
+  // Poll model loading progress while waiting for the TTS response
+  let progressPollTimer: ReturnType<typeof setInterval> | null = null;
+  if (modelLoading) {
+    progressPollTimer = setInterval(async () => {
+      if (ttsAbortController?.signal.aborted) {
+        if (progressPollTimer) { clearInterval(progressPollTimer); progressPollTimer = null; }
+        return;
+      }
+      try {
+        const s = await fetchJson(API_ENDPOINTS.voiceTtsStatus);
+        sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+          generating: true,
+          playing: false,
+          modelLoading: !(s.loaded as boolean),
+          downloadProgress: s.progress as number ?? 0,
+        });
+      } catch { /* ignore */ }
+    }, 2000);
+  }
 
   try {
     // Resolve voice sample path if provided
@@ -443,6 +494,9 @@ async function generateTTS(
     const body: Record<string, unknown> = { text, language, speed };
     if (voiceSamplePath) {
       body.voiceSamplePath = voiceSamplePath;
+    }
+    if (provider) {
+      body.provider = provider;
     }
 
     const { data, headers } = await postJson(API_ENDPOINTS.voiceTts, body);
@@ -514,6 +568,7 @@ async function generateTTS(
     }
   }
 
+  if (progressPollTimer) { clearInterval(progressPollTimer); progressPollTimer = null; }
   ttsAbortController = null;
   sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
 }
@@ -644,8 +699,8 @@ export function setupVoiceIPC(): void {
   // TTS generation request
   ipcMain.on(
     IPC_CHANNELS.VOICE_TTS_GENERATE,
-    (event, text: string, language: string, speed?: number, voiceSampleId?: string) => {
-      generateTTS(text, language, speed ?? 1.0, voiceSampleId, event.sender).catch((err) => {
+    (event, text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string) => {
+      generateTTS(text, language, speed ?? 1.0, voiceSampleId, event.sender, provider).catch((err) => {
         console.error('[VoiceService] TTS error:', err);
       });
     },
@@ -660,7 +715,17 @@ export function setupVoiceIPC(): void {
   // ========== Voice Sample Management ==========
 
   ipcMain.handle(IPC_CHANNELS.VOICE_SAMPLE_LIST, () => {
-    return loadSamplesManifest();
+    // Reconcile manifest with actual files on disk
+    const samples = loadSamplesManifest();
+    const dir = getVoiceSamplesDir();
+    const validSamples = samples.filter((s) => {
+      const filePath = path.join(dir, s.filename);
+      return fs.existsSync(filePath);
+    });
+    if (validSamples.length !== samples.length) {
+      saveSamplesManifest(validSamples);
+    }
+    return validSamples;
   });
 
   ipcMain.handle(
@@ -709,6 +774,58 @@ export function setupVoiceIPC(): void {
       sample.name = newName;
       saveSamplesManifest(samples);
       return true;
+    },
+  );
+
+  // Transcribe a voice sample via Python STT
+  ipcMain.handle(
+    IPC_CHANNELS.VOICE_SAMPLE_TRANSCRIBE,
+    async (_event, id: string) => {
+      const samples = loadSamplesManifest();
+      const sample = samples.find((s) => s.id === id);
+      if (!sample) throw new Error('Voice sample not found');
+
+      const samplePath = getVoiceSamplePath(sample);
+      const { data } = await postJson(API_ENDPOINTS.voiceTranscribe, {
+        voiceSamplePath: samplePath,
+      });
+      const parsed = JSON.parse(data.toString('utf-8'));
+      if (parsed.detail) {
+        throw new Error(typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail));
+      }
+      const result = parsed as { text: string; language: string };
+      if (!result.text) {
+        throw new Error('Transcription returned empty text');
+      }
+
+      // Save transcript as sidecar .txt file
+      const txtPath = samplePath.replace(/\.[^.]+$/, '.txt');
+      fs.writeFileSync(txtPath, result.text, 'utf-8');
+
+      // Update manifest with transcript
+      sample.transcript = result.text;
+      saveSamplesManifest(samples);
+
+      return result;
+    },
+  );
+
+  // Return a data URL for a voice sample so the renderer can play it
+  ipcMain.handle(
+    IPC_CHANNELS.VOICE_SAMPLE_GET_PATH,
+    async (_event, id: string) => {
+      const samples = loadSamplesManifest();
+      const sample = samples.find((s) => s.id === id);
+      if (!sample) return null;
+
+      const samplePath = getVoiceSamplePath(sample);
+      if (!fs.existsSync(samplePath)) return null;
+
+      const buffer = fs.readFileSync(samplePath);
+      const ext = path.extname(sample.filename).slice(1) || 'wav';
+      const mimeMap: Record<string, string> = { mp3: 'audio/mpeg', ogg: 'audio/ogg', m4a: 'audio/mp4' };
+      const mime = mimeMap[ext] || `audio/${ext}`;
+      return `data:${mime};base64,${buffer.toString('base64')}`;
     },
   );
 }

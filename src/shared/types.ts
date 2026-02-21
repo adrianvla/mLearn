@@ -226,6 +226,8 @@ export interface Settings {
   flashcardRemoteTtsUrl: string;
   /** Auto-generate .ogg files for new flashcards using remote TTS */
   flashcardAutoGenerateAudio: boolean;
+  /** Voice sample ID for flashcard TTS voice cloning (Qwen3/Remote) */
+  flashcardVoiceSampleId: string;
 
   // First-run tracking
   hasCompletedSetup?: boolean;
@@ -320,6 +322,7 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardTtsProvider: 'kokoro',
   flashcardRemoteTtsUrl: '',
   flashcardAutoGenerateAudio: false,
+  flashcardVoiceSampleId: '',
 };
 
 // ============================================================================
@@ -832,7 +835,7 @@ export interface LLMResponse {
 export type LLMProvider = 'builtin' | 'ollama' | 'cloud';
 
 /** TTS backend provider */
-export type TTSProvider = 'kokoro' | 'remote';
+export type TTSProvider = 'kokoro' | 'qwen3' | 'remote';
 
 /** Provider-agnostic chat message */
 export interface LLMChatMessage {
@@ -921,6 +924,7 @@ export interface PipRequirementsConfig {
   ocr: string[];
   llm: string[];
   voice?: string[];
+  'qwen3-tts'?: string[];
 }
 
 // ============================================================================
@@ -1171,6 +1175,7 @@ export interface VoiceTtsStatus {
   generating: boolean;
   playing: boolean;
   modelLoading?: boolean;
+  downloadProgress?: number;
 }
 
 export interface VoiceSessionReady {
@@ -1187,6 +1192,7 @@ export interface VoiceSample {
   name: string;
   filename: string;
   language?: string;
+  transcript?: string;
   createdAt: number;
 }
 

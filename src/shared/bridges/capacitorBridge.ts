@@ -223,6 +223,10 @@ const flashcardBridge: FlashcardBridge = {
   async batchGenerateFlashcardTts() {
     return {};
   },
+
+  async getFlashcardTtsMeta() {
+    return null;
+  },
 };
 
 // ============================================================================
@@ -818,6 +822,8 @@ const voiceBridge: VoiceBridge = {
   async voiceSampleUpload(): Promise<VoiceSample> { throw new Error('Not supported on mobile'); },
   async voiceSampleDelete(): Promise<boolean> { return false; },
   async voiceSampleRename(): Promise<boolean> { return false; },
+  async voiceSampleTranscribe(): Promise<{ text: string; language: string }> { throw new Error('Not supported on mobile'); },
+  async voiceSampleGetPath(): Promise<string | null> { return null; },
 };
 
 // ============================================================================
