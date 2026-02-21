@@ -409,7 +409,9 @@
         "ScreenshotAlt": "Screenshot",
         "RevealHint": "Click or press Space to reveal answer",
         "RateHint": "Press 1-4 to rate • Click to flip back",
-        "ReviewsCount": "{count} reviews"
+        "ReviewsCount": "{count} reviews",
+        "PlayWord": "Play word pronunciation",
+        "PlayExample": "Play example sentence"
       },
       "Table": {
         "Word": "Word",
@@ -797,8 +799,12 @@
         "BuiltInFlashcards": {
           "Title": "Built-in Flashcards",
           "Enable": {
-            "Label": "Enable Flashcard Creation",
-            "Description": "Allow creating flashcards within mLearn"
+            "Label": "Use mLearn SRS",
+            "Description": "Use mLearn's built-in spaced repetition system instead of Anki"
+          },
+          "AutomaticCreation": {
+            "Label": "Automatic Flashcard Creation",
+            "Description": "Automatically create flashcards from words you encounter while studying"
           },
           "MaxNewCards": {
             "Label": "Max New Cards Per Day",
@@ -806,22 +812,19 @@
           },
           "ExamCardProportion": {
             "Label": "Exam Card Proportion",
-            "Description": "Percentage of cards from exam levels (0-1)"
+            "Description": "Percentage of auto-created cards from exam levels (0-1)"
           },
           "PreparedExamLevel": {
-            "Label": "Prepared Exam Level",
-            "Description": "Target JLPT level (5=N5, 1=N1)"
-          },
-          "ExamLevels": {
-            "N5": "N5 (Beginner)",
-            "N4": "N4",
-            "N3": "N3",
-            "N2": "N2",
-            "N1": "N1 (Advanced)"
+            "Label": "Target Exam Level",
+            "Description": "Target proficiency level for auto-created cards"
           },
           "CreateUnseenCards": {
             "Label": "Create Unseen Cards",
-            "Description": "Auto-create cards for new exam-level words"
+            "Description": "Auto-create cards for new words at your target level"
+          },
+          "LLMExamples": {
+            "Label": "Generate Example Sentences",
+            "Description": "Use an LLM to generate example sentences when auto-creating flashcards (requires backend connection)"
           },
           "FlipAnimation": {
             "Label": "Card Flip Animation",
@@ -830,6 +833,15 @@
           "LeechThreshold": {
             "Label": "Leech Threshold",
             "Description": "Number of lapses before a card is flagged as a leech (0 = disabled)"
+          },
+          "ForceRecreate": {
+            "Title": "Recreate Flashcards",
+            "Confirm": "This will create new flashcards from your tracked word candidates. Continue?",
+            "ConfirmWithLLM": "Generate example sentences using the LLM for the new cards?",
+            "Creating": "Creating flashcards...",
+            "Created": "{count} new flashcards were created.",
+            "NoCandidates": "No word candidates available. Browse more content to track new words.",
+            "BackendUnavailable": "Cannot reach the backend. Make sure the Python server is running."
           }
         },
         "DataManagement": {
@@ -839,6 +851,27 @@
             "Description": "Clear all flashcard progress (cannot be undone!)"
           },
           "ResetButton": "Reset SRS"
+        },
+        "FlashcardTTS": {
+          "Title": "Flashcard TTS",
+          "AutoPlay": {
+            "Label": "Auto-play TTS",
+            "Description": "Automatically play word pronunciation when a flashcard is shown during review"
+          },
+          "Provider": {
+            "Label": "TTS Provider",
+            "Description": "Choose between local Kokoro TTS or a remote TTS service",
+            "Kokoro": "Kokoro (local)",
+            "Remote": "Remote server"
+          },
+          "RemoteUrl": {
+            "Label": "Remote TTS URL",
+            "Description": "URL of the remote TTS server endpoint"
+          },
+          "AutoGenerate": {
+            "Label": "Auto-generate audio",
+            "Description": "Automatically generate and cache audio files for new flashcards"
+          }
         }
       },
       "Mobile": {

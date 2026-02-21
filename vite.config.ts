@@ -81,6 +81,7 @@ export default defineConfig(({ mode }) => {
               welcome: resolve(__dirname, 'src/html/welcome.html'),
               flashcards: resolve(__dirname, 'src/html/flashcards.html'),
               settings: resolve(__dirname, 'src/html/settings.html'),
+              statistics: resolve(__dirname, 'src/html/statistics.html'),
               'word-db-editor': resolve(__dirname, 'src/html/word-db-editor.html'),
               'kanji-grid': resolve(__dirname, 'src/html/kanji-grid.html'),
               licenses: resolve(__dirname, 'src/html/licenses.html'),

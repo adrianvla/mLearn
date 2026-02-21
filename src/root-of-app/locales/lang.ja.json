@@ -797,8 +797,12 @@
         "BuiltInFlashcards": {
           "Title": "内蔵フラッシュカード",
           "Enable": {
-            "Label": "フラッシュカード作成を有効にする",
-            "Description": "mLearn内でフラッシュカードの作成を許可"
+            "Label": "mLearn SRSを使用",
+            "Description": "Ankiの代わりにmLearnの内蔵間隔反復システムを使用"
+          },
+          "AutomaticCreation": {
+            "Label": "自動カード作成",
+            "Description": "学習中に出会った単語から自動的にフラッシュカードを作成"
           },
           "MaxNewCards": {
             "Label": "1日の最大新規カード数",
@@ -806,22 +810,19 @@
           },
           "ExamCardProportion": {
             "Label": "試験カードの割合",
-            "Description": "試験レベルのカードの割合（0〜1）"
+            "Description": "自動作成カードのうち試験レベルの割合（0〜1）"
           },
           "PreparedExamLevel": {
-            "Label": "準備する試験レベル",
-            "Description": "目標能力試験レベル"
-          },
-          "ExamLevels": {
-            "N5": "N5（初級）",
-            "N4": "N4",
-            "N3": "N3",
-            "N2": "N2",
-            "N1": "N1（上級）"
+            "Label": "目標試験レベル",
+            "Description": "自動作成カードの目標レベル"
           },
           "CreateUnseenCards": {
             "Label": "未見カードを作成",
-            "Description": "試験レベルの新しい単語のカードを自動作成"
+            "Description": "目標レベルの新しい単語のカードを自動作成"
+          },
+          "LLMExamples": {
+            "Label": "例文を生成",
+            "Description": "自動カード作成時にLLMを使用して例文を生成（バックエンド接続が必要）"
           },
           "FlipAnimation": {
             "Label": "カードフリップアニメーション",
@@ -830,6 +831,15 @@
           "LeechThreshold": {
             "Label": "リーチ閾値",
             "Description": "カードがリーチとしてフラグ付けされるまでの失敗回数（0 = 無効）"
+          },
+          "ForceRecreate": {
+            "Title": "カードを再作成",
+            "Confirm": "追跡した単語候補から新しいフラッシュカードを作成します。続行しますか？",
+            "ConfirmWithLLM": "新しいカードにLLMで例文を生成しますか？",
+            "Creating": "フラッシュカードを作成中...",
+            "Created": "{count}枚の新しいフラッシュカードが作成されました。",
+            "NoCandidates": "単語候補がありません。新しい単語を追跡するには、より多くのコンテンツを閲覧してください。",
+            "BackendUnavailable": "バックエンドに接続できません。Pythonサーバーが実行中であることを確認してください。"
           }
         },
         "DataManagement": {

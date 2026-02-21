@@ -1,0 +1,210 @@
+/**
+ * Statistics Dashboard Styles
+ */
+
+.statistics-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* ─── Stats Row ─── */
+
+.dashboard-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--spacing-3);
+}
+
+.dashboard-stats-row.compact {
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: var(--spacing-2);
+}
+
+/* ─── Panel ─── */
+
+.dashboard-panel {
+  backdrop-filter: var(--backdrop-filter);
+}
+
+/* ─── Section Titles ─── */
+
+.dashboard-section-title {
+  margin: 0 0 var(--spacing-3);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
+
+.dashboard-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-3);
+}
+
+.dashboard-section-header .dashboard-section-title {
+  margin-bottom: 0;
+}
+
+/* ─── Charts Row ─── */
+
+.dashboard-charts-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--spacing-4);
+}
+
+/* ─── Legend ─── */
+
+.dashboard-legend-inline {
+  display: flex;
+  gap: var(--spacing-3);
+  align-items: center;
+}
+
+.dashboard-legend-inline .legend-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.dashboard-legend-inline .legend-dot,
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ─── Horizontal Bars ─── */
+
+.horizontal-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.h-bar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.h-bar-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  min-width: 60px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.h-bar-track {
+  flex: 1;
+  height: 14px;
+  background: var(--bg-intense);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.h-bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-sm);
+  transition: width var(--transition-normal);
+  min-width: 2px;
+}
+
+.h-bar-fill-ease {
+  background: var(--color-teal);
+}
+
+.h-bar-value {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  min-width: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Meta Stats ─── */
+
+.dashboard-meta-stats {
+  display: flex;
+  gap: var(--spacing-4);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+/* ─── SRS Params ─── */
+
+.srs-params-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--spacing-2);
+}
+
+.srs-param {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+}
+
+.srs-param-label {
+  color: var(--text-secondary);
+}
+
+.srs-param-value {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Level Table ─── */
+
+.level-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.level-table th {
+  text-align: left;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-tertiary);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-bottom: 1px solid var(--border-color);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.level-table td {
+  padding: var(--spacing-1) var(--spacing-2);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.level-table td:first-child {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.level-table .level-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.level-table tr:last-child td {
+  border-bottom: none;
+}

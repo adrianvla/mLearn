@@ -2,8 +2,8 @@
  * SRS Settings Tab
  */
 
-import { Component, createSignal, Show } from 'solid-js';
-import { useSettings, useLocalization, useFlashcards } from '../../../context';
+import { Component, createSignal, Show, For, createMemo } from 'solid-js';
+import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select } from '../../../components/common';
 import '../SettingsForm.css';
 
@@ -11,7 +11,15 @@ export const SRSTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const { store, updateMeta } = useFlashcards();
+  const { getFreqLevelNames, getLanguageFeatures } = useLanguage();
   const [ankiStatus, setAnkiStatus] = createSignal<'unchecked' | 'connected' | 'error'>('unchecked');
+
+  const freqLevels = createMemo(() => {
+    const names = getFreqLevelNames();
+    return Object.entries(names).sort((a, b) => Number(b[0]) - Number(a[0]));
+  });
+
+  const hasFreqLevels = createMemo(() => getLanguageFeatures().supportsFrequencyLevels);
 
   const checkAnkiConnection = async () => {
     try {
@@ -195,6 +203,16 @@ export const SRSTab: Component = () => {
         </SettingRow>
 
         <SettingRow
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.AutomaticCreation.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.AutomaticCreation.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.automaticFlashcardCreation}
+            onChange={(checked) => updateSettings({ automaticFlashcardCreation: checked })}
+          />
+        </SettingRow>
+
+        <SettingRow
           label={t('mlearn.Settings.SRS.BuiltInFlashcards.MaxNewCards.Label')}
           description={t('mlearn.Settings.SRS.BuiltInFlashcards.MaxNewCards.Description')}
         >
@@ -208,37 +226,39 @@ export const SRSTab: Component = () => {
           />
         </SettingRow>
 
-        <SettingRow
-          label={t('mlearn.Settings.SRS.BuiltInFlashcards.ExamCardProportion.Label')}
-          description={t('mlearn.Settings.SRS.BuiltInFlashcards.ExamCardProportion.Description')}
-        >
-          <input
-            type="number"
-            class="setting-input"
-            value={settings.proportionOfExamCards}
-            min={0}
-            max={1}
-            step={0.1}
-            onChange={(e) => updateSettings({ proportionOfExamCards: parseFloat(e.currentTarget.value) })}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label={t('mlearn.Settings.SRS.BuiltInFlashcards.PreparedExamLevel.Label')}
-          description={t('mlearn.Settings.SRS.BuiltInFlashcards.PreparedExamLevel.Description')}
-        >
-          <Select
-            class="setting-select"
-            value={settings.preparedExam.toString()}
-            onChange={(e) => updateSettings({ preparedExam: parseInt(e.currentTarget.value) })}
+        <Show when={hasFreqLevels()}>
+          <SettingRow
+            label={t('mlearn.Settings.SRS.BuiltInFlashcards.ExamCardProportion.Label')}
+            description={t('mlearn.Settings.SRS.BuiltInFlashcards.ExamCardProportion.Description')}
           >
-            <option value="5">{t('mlearn.Settings.SRS.BuiltInFlashcards.ExamLevels.N5')}</option>
-            <option value="4">{t('mlearn.Settings.SRS.BuiltInFlashcards.ExamLevels.N4')}</option>
-            <option value="3">{t('mlearn.Settings.SRS.BuiltInFlashcards.ExamLevels.N3')}</option>
-            <option value="2">{t('mlearn.Settings.SRS.BuiltInFlashcards.ExamLevels.N2')}</option>
-            <option value="1">{t('mlearn.Settings.SRS.BuiltInFlashcards.ExamLevels.N1')}</option>
-          </Select>
-        </SettingRow>
+            <input
+              type="number"
+              class="setting-input"
+              value={settings.proportionOfExamCards}
+              min={0}
+              max={1}
+              step={0.1}
+              onChange={(e) => updateSettings({ proportionOfExamCards: parseFloat(e.currentTarget.value) })}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.SRS.BuiltInFlashcards.PreparedExamLevel.Label')}
+            description={t('mlearn.Settings.SRS.BuiltInFlashcards.PreparedExamLevel.Description')}
+          >
+            <Select
+              class="setting-select"
+              value={settings.preparedExam.toString()}
+              onChange={(e) => updateSettings({ preparedExam: parseInt(e.currentTarget.value) })}
+            >
+              <For each={freqLevels()}>
+                {([level, name]) => (
+                  <option value={level}>{name}</option>
+                )}
+              </For>
+            </Select>
+          </SettingRow>
+        </Show>
 
         <SettingRow
           label={t('mlearn.Settings.SRS.BuiltInFlashcards.CreateUnseenCards.Label')}
@@ -247,6 +267,16 @@ export const SRSTab: Component = () => {
           <ToggleSwitch
             checked={settings.createUnseenCards}
             onChange={(checked) => updateSettings({ createUnseenCards: checked })}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.LLMExamples.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.LLMExamples.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.flashcardLLMExamples}
+            onChange={(checked) => updateSettings({ flashcardLLMExamples: checked })}
           />
         </SettingRow>
 
@@ -278,6 +308,57 @@ export const SRSTab: Component = () => {
             }}
           />
         </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup title={t('mlearn.Settings.SRS.FlashcardTTS.Title')}>
+        <SettingRow
+          label={t('mlearn.Settings.SRS.FlashcardTTS.AutoPlay.Label')}
+          description={t('mlearn.Settings.SRS.FlashcardTTS.AutoPlay.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.flashcardAutoTts}
+            onChange={(v) => updateSettings({ flashcardAutoTts: v })}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.SRS.FlashcardTTS.Provider.Label')}
+          description={t('mlearn.Settings.SRS.FlashcardTTS.Provider.Description')}
+        >
+          <Select
+            value={settings.flashcardTtsProvider}
+            onChange={(e) => updateSettings({ flashcardTtsProvider: e.currentTarget.value as 'kokoro' | 'remote' })}
+            options={[
+              { value: 'kokoro', label: t('mlearn.Settings.SRS.FlashcardTTS.Provider.Kokoro') },
+              { value: 'remote', label: t('mlearn.Settings.SRS.FlashcardTTS.Provider.Remote') },
+            ]}
+          />
+        </SettingRow>
+
+        <Show when={settings.flashcardTtsProvider === 'remote'}>
+          <SettingRow
+            label={t('mlearn.Settings.SRS.FlashcardTTS.RemoteUrl.Label')}
+            description={t('mlearn.Settings.SRS.FlashcardTTS.RemoteUrl.Description')}
+          >
+            <input
+              type="text"
+              class="setting-input"
+              value={settings.flashcardRemoteTtsUrl}
+              onInput={(e) => updateSettings({ flashcardRemoteTtsUrl: e.currentTarget.value })}
+              placeholder="https://example.com/tts"
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.SRS.FlashcardTTS.AutoGenerate.Label')}
+            description={t('mlearn.Settings.SRS.FlashcardTTS.AutoGenerate.Description')}
+          >
+            <ToggleSwitch
+              checked={settings.flashcardAutoGenerateAudio}
+              onChange={(v) => updateSettings({ flashcardAutoGenerateAudio: v })}
+            />
+          </SettingRow>
+        </Show>
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.SRS.DataManagement.Title')}>

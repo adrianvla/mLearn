@@ -134,6 +134,40 @@
   color: var(--text-primary);
 }
 
+/* Word row - word + TTS button inline */
+.flashcard-word-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+}
+
+/* Example row - example + TTS button inline */
+.flashcard-example-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  margin-top: 1rem;
+}
+
+/* TTS play button */
+.flashcard-tts-btn {
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+}
+
+.flashcard-tts-btn:hover {
+  opacity: 1;
+}
+
+.flashcard-tts-btn--active {
+  opacity: 1;
+  color: var(--color-primary);
+}
+
 /* Pronunciation */
 .flashcard-pronunciation {
   font-size: var(--font-size-xl);

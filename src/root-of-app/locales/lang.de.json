@@ -797,8 +797,12 @@
         "BuiltInFlashcards": {
           "Title": "Integrierte Lernkarten",
           "Enable": {
-            "Label": "Kartenerstellung aktivieren",
-            "Description": "Erstellung von Lernkarten in mLearn erlauben"
+            "Label": "mLearn SRS verwenden",
+            "Description": "Integriertes Wiederholungssystem von mLearn statt Anki verwenden"
+          },
+          "AutomaticCreation": {
+            "Label": "Automatische Kartenerstellung",
+            "Description": "Automatisch Lernkarten aus Wörtern erstellen, die beim Lernen auftauchen"
           },
           "MaxNewCards": {
             "Label": "Max. neue pro Tag",
@@ -806,22 +810,19 @@
           },
           "ExamCardProportion": {
             "Label": "Anteil Prüfungskarten",
-            "Description": "Anteil der Karten auf Prüfungsniveau (0–1)"
+            "Description": "Anteil automatisch erstellter Karten auf Prüfungsniveau (0–1)"
           },
           "PreparedExamLevel": {
             "Label": "Ziel-Prüfungsstufe",
-            "Description": "Angestrebte Sprachprüfungsstufe"
-          },
-          "ExamLevels": {
-            "N5": "N5 (Anfänger)",
-            "N4": "N4",
-            "N3": "N3",
-            "N2": "N2",
-            "N1": "N1 (Fortgeschritten)"
+            "Description": "Zielstufe für automatisch erstellte Karten"
           },
           "CreateUnseenCards": {
             "Label": "Karten für neue Wörter erstellen",
-            "Description": "Automatisch Karten für neue Wörter auf Prüfungsniveau erstellen"
+            "Description": "Automatisch Karten für neue Wörter auf Zielstufe erstellen"
+          },
+          "LLMExamples": {
+            "Label": "Beispielsätze generieren",
+            "Description": "LLM verwenden, um Beispielsätze beim automatischen Erstellen von Lernkarten zu generieren (erfordert Backend-Verbindung)"
           },
           "FlipAnimation": {
             "Label": "Umdreh-Animation",
@@ -830,6 +831,15 @@
           "LeechThreshold": {
             "Label": "Blutegel-Schwelle",
             "Description": "Anzahl der Fehlversuche bis zur Markierung als Blutegel (0 = deaktiviert)"
+          },
+          "ForceRecreate": {
+            "Title": "Lernkarten erstellen",
+            "Confirm": "Neue Lernkarten aus verfolgten Wortkandidaten erstellen. Fortfahren?",
+            "ConfirmWithLLM": "Beispielsätze mit dem LLM für die neuen Karten generieren?",
+            "Creating": "Lernkarten werden erstellt...",
+            "Created": "{count} neue Lernkarten wurden erstellt.",
+            "NoCandidates": "Keine Wortkandidaten verfügbar. Durchstöbere mehr Inhalte, um neue Wörter zu erfassen.",
+            "BackendUnavailable": "Backend nicht erreichbar. Stelle sicher, dass der Python-Server läuft."
           }
         },
         "DataManagement": {

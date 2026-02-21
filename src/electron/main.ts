@@ -7,6 +7,8 @@ import { execSync } from 'child_process';
 import { findPython, terminatePythonBackend, setupPythonBackendIPC } from './services/pythonBackend';
 import { startWebServer, stopWebServer } from './services/webServer';
 import { setupFlashcardIPC } from './services/flashcardStorage';
+import { setupFlashcardImageIPC } from './services/flashcardImageStorage';
+import { setupFlashcardTtsIPC } from './services/flashcardTtsStorage';
 import { setupSettingsIPC } from './services/settings';
 import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
@@ -77,6 +79,8 @@ function setupAllIPC(): void {
   setupSettingsIPC();
   setupLocalizationIPC();
   setupFlashcardIPC();
+  setupFlashcardImageIPC();
+  setupFlashcardTtsIPC();
   setupWindowIPC();
   setupPythonBackendIPC();
   setupFileOperationsIPC();

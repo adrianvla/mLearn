@@ -12,15 +12,20 @@
 
 import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
-import { Panel, PillLabel } from '../common';
+import { Panel, PillLabel, IconBtn } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { FlashcardPitchAccent } from './FlashcardPitchAccent';
+import { getBridge } from '../../../shared/bridges';
+import { isElectron } from '../../../shared/platform';
 import './FlashcardDisplay.css';
 
 export interface FlashcardDisplayProps {
   flashcard: Flashcard;
   showAnswer?: boolean;
   onFlip?: () => void;
+  onPlayTts?: (cardId: string, text: string, field: 'word' | 'example') => void;
+  ttsPlaying?: boolean;
+  ttsGenerating?: boolean;
   style?: JSX.CSSProperties;
 }
 
@@ -38,6 +43,33 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const displayWord = () => content().front;
   const meaning = () => content().back;
   const isFlipped = createMemo(() => props.showAnswer ?? false);
+
+  // Resolve flashcard-image:// URLs to absolute file paths on Electron
+  const [resolvedImageUrl, setResolvedImageUrl] = createSignal<string | null>(null);
+
+  createEffect(on(
+    () => content().imageUrl,
+    async (imageUrl) => {
+      if (!imageUrl || imageUrl === '-' || imageUrl === '') {
+        setResolvedImageUrl(null);
+        return;
+      }
+      if (isElectron() && imageUrl.startsWith('flashcard-image://')) {
+        const resolved = await getBridge().flashcards.resolveFlashcardImage(imageUrl);
+        setResolvedImageUrl(resolved);
+      } else {
+        setResolvedImageUrl(imageUrl);
+      }
+    }
+  ));
+
+  const displayImageUrl = () => resolvedImageUrl();
+
+  const handleTtsClick = (field: 'word' | 'example', text: string, e: MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    props.onPlayTts?.(props.flashcard.id, text, field);
+  };
 
   // Synchronous: determine animation mode BEFORE DOM updates.
   // This prevents the "spinning div" artifact on first reveal (both
@@ -117,20 +149,48 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             )}
           </Show>
 
-          <div class="flashcard-word">{displayWord()}</div>
+          <div class="flashcard-word-row">
+            <div class="flashcard-word">{displayWord()}</div>
+            <Show when={props.onPlayTts}>
+              <IconBtn
+                icon="volume"
+                size="sm"
+                variant="ghost"
+                class="flashcard-tts-btn"
+                classList={{ 'flashcard-tts-btn--active': props.ttsPlaying }}
+                onClick={(e: MouseEvent) => handleTtsClick('word', displayWord(), e)}
+                disabled={props.ttsGenerating}
+                title={t('mlearn.Flashcards.Card.PlayWord')}
+              />
+            </Show>
+          </div>
 
           {/*<Show when={pronunciation() && pronunciation() !== displayWord()}>*/}
           {/*  <div class="flashcard-pronunciation">{pronunciation()}</div>*/}
           {/*</Show>*/}
 
           <Show when={content().example && content().example !== '-'}>
-            <div class="flashcard-example" innerHTML={content().example} />
+            <div class="flashcard-example-row">
+              <div class="flashcard-example" innerHTML={content().example} />
+              <Show when={props.onPlayTts}>
+                <IconBtn
+                  icon="volume"
+                  size="sm"
+                  variant="ghost"
+                  class="flashcard-tts-btn"
+                  classList={{ 'flashcard-tts-btn--active': props.ttsPlaying }}
+                  onClick={(e: MouseEvent) => handleTtsClick('example', content().example!, e)}
+                  disabled={props.ttsGenerating}
+                  title={t('mlearn.Flashcards.Card.PlayExample')}
+                />
+              </Show>
+            </div>
           </Show>
 
-          <Show when={content().imageUrl && content().imageUrl !== '-' && content().imageUrl !== ''}>
+          <Show when={displayImageUrl()}>
             <div class="flashcard-screenshot-container flashcard-screenshot-front">
               <img
-                src={content().imageUrl}
+                src={displayImageUrl()!}
                 alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
                 class="flashcard-screenshot"
               />
@@ -160,12 +220,38 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
 
           <div class="flashcard-word-header">
             <FlashcardPitchAccent content={content()} />
+            <Show when={props.onPlayTts}>
+              <IconBtn
+                icon="volume"
+                size="sm"
+                variant="ghost"
+                class="flashcard-tts-btn"
+                classList={{ 'flashcard-tts-btn--active': props.ttsPlaying }}
+                onClick={(e: MouseEvent) => handleTtsClick('word', displayWord(), e)}
+                disabled={props.ttsGenerating}
+                title={t('mlearn.Flashcards.Card.PlayWord')}
+              />
+            </Show>
           </div>
 
           <div class="flashcard-translation" innerHTML={meaning()} />
 
           <Show when={content().example && content().example !== '-'}>
-            <div class="flashcard-example" innerHTML={content().example} />
+            <div class="flashcard-example-row">
+              <div class="flashcard-example" innerHTML={content().example} />
+              <Show when={props.onPlayTts}>
+                <IconBtn
+                  icon="volume"
+                  size="sm"
+                  variant="ghost"
+                  class="flashcard-tts-btn"
+                  classList={{ 'flashcard-tts-btn--active': props.ttsPlaying }}
+                  onClick={(e: MouseEvent) => handleTtsClick('example', content().example!, e)}
+                  disabled={props.ttsGenerating}
+                  title={t('mlearn.Flashcards.Card.PlayExample')}
+                />
+              </Show>
+            </div>
           </Show>
           <Show when={content().exampleMeaning}>
             <div class="flashcard-example-meaning">{content().exampleMeaning}</div>
@@ -175,10 +261,10 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             <div class="flashcard-context">{content().context}</div>
           </Show>
 
-          <Show when={content().imageUrl && content().imageUrl !== '-' && content().imageUrl !== ''}>
+          <Show when={displayImageUrl()}>
             <div class="flashcard-screenshot-container">
               <img
-                src={content().imageUrl}
+                src={displayImageUrl()!}
                 alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
                 class="flashcard-screenshot"
               />

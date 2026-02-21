@@ -48,6 +48,12 @@ export interface FlashcardBridge {
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;
   onReviewFlashcardRequest: (callback: () => void) => () => void;
+  saveFlashcardImage: (cardId: string, dataUrl: string) => Promise<string | null>;
+  resolveFlashcardImage: (imageUrl: string) => Promise<string | null>;
+  deleteFlashcardImage: (cardId: string) => Promise<void>;
+  getFlashcardTts: (cardId: string, field: 'word' | 'example') => Promise<string | null>;
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, remoteUrl?: string) => Promise<string | null>;
+  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, remoteUrl?: string) => Promise<Record<string, string>>;
 }
 
 export interface LocalizationBridge {

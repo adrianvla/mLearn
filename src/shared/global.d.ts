@@ -20,6 +20,16 @@ export interface MLearnIPC {
   onFlashcardConnectOpen: (callback: () => void) => () => void;
   onReviewFlashcardRequest: (callback: () => void) => () => void;
   
+  // Flashcard Images
+  saveFlashcardImage: (cardId: string, dataUrl: string) => Promise<string>;
+  resolveFlashcardImage: (imageUrl: string) => Promise<string | null>;
+  deleteFlashcardImage: (cardId: string) => Promise<void>;
+  
+  // Flashcard TTS
+  getFlashcardTts: (cardId: string, field: string) => Promise<string | null>;
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: string, provider: string, remoteUrl?: string) => Promise<string | null>;
+  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: string }>, language: string, provider: string, remoteUrl?: string) => Promise<Record<string, string>>;
+  
   // Language Data
   getLangData: () => void;
   onLangData: (callback: (data: LanguageData) => void) => () => void;

@@ -9,6 +9,7 @@ import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
+import { extractBase64Images } from './flashcardImageStorage';
 
 // Current store version - increment when making breaking changes
 const CURRENT_VERSION = 4;
@@ -438,7 +439,19 @@ export function loadFlashcards(): FlashcardStore {
     if (fs.existsSync(filePath)) {
       const data = fs.readFileSync(filePath, 'utf-8');
       const loaded = JSON.parse(data) as Partial<FlashcardStore>;
-      return checkFlashcards(loaded);
+      const store = checkFlashcards(loaded);
+
+      // Extract any leftover base64 images to files
+      if (extractBase64Images(store)) {
+        // Re-save with file references instead of base64
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(filePath, JSON.stringify(store, null, 2));
+      }
+
+      return store;
     }
   } catch (error) {
     console.error('Failed to load flashcards:', error);
@@ -449,6 +462,9 @@ export function loadFlashcards(): FlashcardStore {
 // Save flashcards to disk
 export function saveFlashcards(store: FlashcardStore): void {
   try {
+    // Extract any base64 images to files before saving
+    extractBase64Images(store);
+
     const filePath = getFlashcardsPath();
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {

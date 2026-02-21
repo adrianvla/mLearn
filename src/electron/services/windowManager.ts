@@ -460,13 +460,19 @@ function setupAppMenu(): void {
         },
         {
           label: 'Force recreate new flashcards for today',
-          click: () => {
-            mainWindow?.webContents.send(IPC_CHANNELS.FORCE_NEWDAY_FLASHCARDS);
-            dialog.showMessageBox({
-              type: 'info',
-              title: 'Created!',
-              message: 'You may now review the flashcards that you just created.',
+          click: async () => {
+            if (!mainWindow) return;
+            const { response } = await dialog.showMessageBox(mainWindow, {
+              type: 'question',
+              title: 'Recreate Flashcards',
+              message: 'This will create new flashcards from your tracked word candidates. Continue?',
+              buttons: ['Cancel', 'Create'],
+              defaultId: 1,
+              cancelId: 0,
             });
+            if (response === 0) return;
+
+            mainWindow.webContents.send(IPC_CHANNELS.FORCE_NEWDAY_FLASHCARDS);
           },
         },
         {
@@ -482,7 +488,7 @@ function setupAppMenu(): void {
       submenu: [
         {
           label: 'Show learning statistics',
-          click: () => openSettingsWindow('stats'),
+          click: () => createChildWindow('statistics' as WindowType, { width: 800, height: 600 }),
         },
         {
           label: 'Show Kanji grid',

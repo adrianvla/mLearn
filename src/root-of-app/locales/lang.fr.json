@@ -797,8 +797,12 @@
         "BuiltInFlashcards": {
           "Title": "Cartes intégrées",
           "Enable": {
-            "Label": "Activer la création de cartes",
-            "Description": "Permettre la création de cartes dans mLearn"
+            "Label": "Utiliser le SRS mLearn",
+            "Description": "Utiliser le système de répétition espacée intégré de mLearn au lieu d'Anki"
+          },
+          "AutomaticCreation": {
+            "Label": "Création automatique de cartes",
+            "Description": "Créer automatiquement des cartes à partir des mots rencontrés pendant l'étude"
           },
           "MaxNewCards": {
             "Label": "Max. nouvelles par jour",
@@ -806,22 +810,19 @@
           },
           "ExamCardProportion": {
             "Label": "Proportion de cartes d'examen",
-            "Description": "Proportion de cartes de niveau examen (0-1)"
+            "Description": "Proportion des cartes auto-créées de niveau examen (0-1)"
           },
           "PreparedExamLevel": {
             "Label": "Niveau d'examen cible",
-            "Description": "Niveau d'examen de qualification cible"
-          },
-          "ExamLevels": {
-            "N5": "N5 (débutant)",
-            "N4": "N4",
-            "N3": "N3",
-            "N2": "N2",
-            "N1": "N1 (avancé)"
+            "Description": "Niveau cible pour les cartes auto-créées"
           },
           "CreateUnseenCards": {
             "Label": "Créer des cartes pour mots nouveaux",
-            "Description": "Créer automatiquement des cartes pour les nouveaux mots de niveau examen"
+            "Description": "Créer automatiquement des cartes pour les nouveaux mots de votre niveau cible"
+          },
+          "LLMExamples": {
+            "Label": "Générer des phrases d'exemple",
+            "Description": "Utiliser un LLM pour générer des phrases d'exemple lors de la création automatique de cartes (nécessite une connexion au backend)"
           },
           "FlipAnimation": {
             "Label": "Animation de retournement",
@@ -830,6 +831,15 @@
           "LeechThreshold": {
             "Label": "Seuil de sangsue",
             "Description": "Nombre d'échecs avant de marquer la carte comme sangsue (0 = désactivé)"
+          },
+          "ForceRecreate": {
+            "Title": "Recréer les cartes",
+            "Confirm": "Créer de nouvelles cartes à partir de vos mots suivis. Continuer ?",
+            "ConfirmWithLLM": "Générer des phrases d'exemple avec le LLM pour les nouvelles cartes ?",
+            "Creating": "Création des cartes en cours...",
+            "Created": "{count} nouvelles cartes ont été créées.",
+            "NoCandidates": "Aucun mot candidat disponible. Explorez plus de contenu pour suivre de nouveaux mots.",
+            "BackendUnavailable": "Le backend est inaccessible. Vérifiez que le serveur Python est en cours d'exécution."
           }
         },
         "DataManagement": {
