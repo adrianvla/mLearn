@@ -47,6 +47,12 @@ const flashcardBridge: FlashcardBridge = {
   onNewDayFlashcards: (cb) => getIPC().onNewDayFlashcards(cb),
   onFlashcardConnectOpen: (cb) => getIPC().onFlashcardConnectOpen(cb),
   onReviewFlashcardRequest: (cb) => getIPC().onReviewFlashcardRequest(cb),
+  saveFlashcardImage: (cardId, dataUrl) => getIPC().saveFlashcardImage(cardId, dataUrl),
+  resolveFlashcardImage: (imageUrl) => getIPC().resolveFlashcardImage(imageUrl),
+  deleteFlashcardImage: (cardId) => getIPC().deleteFlashcardImage(cardId),
+  getFlashcardTts: (cardId, field) => getIPC().getFlashcardTts(cardId, field),
+  generateFlashcardTts: (cardId, text, language, field, provider, remoteUrl) => getIPC().generateFlashcardTts(cardId, text, language, field, provider, remoteUrl),
+  batchGenerateFlashcardTts: (items, language, provider, remoteUrl) => getIPC().batchGenerateFlashcardTts(items, language, provider, remoteUrl),
 };
 
 const localizationBridge: LocalizationBridge = {

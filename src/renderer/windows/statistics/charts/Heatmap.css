@@ -1,0 +1,54 @@
+/**
+ * Heatmap Calendar Styles
+ */
+
+.heatmap-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.heatmap-grid {
+  display: flex;
+  gap: 2px;
+}
+
+.heatmap-day-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 4px;
+}
+
+.heatmap-day-label {
+  width: 24px;
+  height: 12px;
+  font-size: 9px;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+}
+
+.heatmap-weeks {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+}
+
+.heatmap-week {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heatmap-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  transition: opacity 0.15s ease;
+  cursor: default;
+}
+
+.heatmap-cell:hover {
+  opacity: 0.75;
+  outline: 1px solid var(--border-color-intense);
+}

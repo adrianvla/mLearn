@@ -1,0 +1,65 @@
+/**
+ * Bar Chart Styles
+ */
+
+.bar-chart-container {
+  width: 100%;
+}
+
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  width: 100%;
+}
+
+.bar-chart-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.bar-chart-value {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+  margin-bottom: 2px;
+  white-space: nowrap;
+}
+
+.bar-chart-bar-wrapper {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.bar-chart-bar-stacked {
+  width: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: stretch;
+}
+
+.bar-chart-bar {
+  width: 100%;
+  max-width: 24px;
+  margin: 0 auto;
+  border-radius: 2px 2px 0 0;
+  min-height: 1px;
+  transition: height var(--transition-normal);
+}
+
+.bar-chart-label {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}

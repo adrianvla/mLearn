@@ -3,10 +3,11 @@
  * SRS review interface with Anki-like rating buttons
  */
 
-import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect, batch } from 'solid-js';
-import { useFlashcards, useLocalization } from '../../context';
+import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
+import { useFlashcards, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { Button, Badge, Panel, ProgressBar } from '../common';
+import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import type { Flashcard } from '../../../shared/types';
 import type { Rating } from '../../services/srsAlgorithm';
 import './FlashcardReview.css';
@@ -37,6 +38,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [isComplete, setIsComplete] = createSignal(false);
   const [initialTotal, setInitialTotal] = createSignal(0);
   const [cardsAnswered, setCardsAnswered] = createSignal(0);
+
+  // TTS integration
+  const { settings } = useSettings();
+  const { playTts, isPlaying: ttsPlaying, isGenerating: ttsGenerating, stop: stopTts } = useFlashcardTts();
+
+  const handlePlayTts = (cardId: string, text: string, field: 'word' | 'example') => {
+    playTts(cardId, text, settings.language, field);
+  };
 
   // Current card
   const currentCard = createMemo(() => getCurrentCard());
@@ -141,10 +150,39 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }
   });
 
+  // Auto-TTS: play word when a new card appears
+  createEffect(on(
+    () => currentCard()?.id,
+    (cardId) => {
+      if (!cardId || !settings.flashcardAutoTts) return;
+      const card = currentCard();
+      if (!card) return;
+      // Small delay to let the card render first
+      setTimeout(() => {
+        playTts(card.id, card.content.front, settings.language, 'word');
+      }, 100);
+    }
+  ));
+
+  // Auto-TTS: play example when answer is revealed
+  createEffect(on(
+    () => showAnswer(),
+    (isShown) => {
+      if (!isShown || !settings.flashcardAutoTts) return;
+      const card = currentCard();
+      if (!card?.content.example || card.content.example === '-') return;
+      // Small delay so the word TTS isn't interrupted
+      setTimeout(() => {
+        playTts(card.id, card.content.example!, settings.language, 'example');
+      }, 200);
+    }
+  ));
+
   const handleRating = (quality: Rating) => {
     const card = currentCard();
     if (!card) return;
 
+    stopTts();
     batch(() => {
       setShowAnswer(false);
       answerCard(quality);
@@ -356,6 +394,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   flashcard={card()}
                   showAnswer={showAnswer()}
                   onFlip={handleFlip}
+                  onPlayTts={handlePlayTts}
+                  ttsPlaying={ttsPlaying()}
+                  ttsGenerating={ttsGenerating()}
               />
             )}
           </Show>

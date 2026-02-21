@@ -7,7 +7,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, WordStats, FlashcardState, PassiveWordKnowledge, GrammarKnowledgeEntry } from '../../shared/types';
+import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, WordStats, FlashcardState, PassiveWordKnowledge, GrammarKnowledgeEntry, TranslationEntry } from '../../shared/types';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady } from './migrationSignals';
 import { useSettings } from './SettingsContext';
@@ -15,7 +15,9 @@ import { useLocalization } from './LocalizationContext';
 import { changeKnownStatus as changeKnownStatusInStats } from '../services/statsService';
 import { showToast } from '../components/common/Feedback/Toast';
 import { getBridge } from '../../shared/bridges';
+import { getBackend } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
+import { streamChat } from '../services/llmProvider';
 
 // Current store version
 const CURRENT_VERSION = 4;
@@ -1038,6 +1040,188 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return store.grammarKnowledge[pattern];
   };
 
+  /**
+   * Auto-create flashcards from accumulated word candidates.
+   * Uses the backend translate endpoint to get word data,
+   * and optionally the LLM to generate example sentences.
+   * Returns the number of cards created.
+   */
+  const autoCreateFlashcardsFromCandidates = async (useLLM: boolean): Promise<number> => {
+    const candidates = Object.entries(store.wordCandidates);
+    if (candidates.length === 0) return 0;
+
+    // Sort by count descending (most frequently seen first)
+    candidates.sort((a, b) => b[1].count - a[1].count);
+
+    // Limit to maxNewCardsPerDay
+    const maxCards = settings.maxNewCardsPerDay ?? 10;
+    const toCreate = candidates.slice(0, maxCards);
+
+    // Check backend availability
+    const backend = getBackend({
+      mode: settings.backendMode,
+      url: settings.backendUrl,
+      authToken: settings.cloudAuthToken,
+    });
+
+    let backendAvailable = false;
+    try {
+      backendAvailable = await backend.ping();
+    } catch {
+      backendAvailable = false;
+    }
+
+    if (!backendAvailable) {
+      showToast({ message: t('mlearn.Settings.SRS.BuiltInFlashcards.ForceRecreate.BackendUnavailable'), variant: 'error' });
+      return 0;
+    }
+
+    let createdCount = 0;
+
+    for (const [wordHash, candidate] of toCreate) {
+      // Skip if card already exists for this word
+      const existingCards = store.wordToCardMap[wordHash];
+      if (existingCards && existingCards.length > 0) continue;
+      if (store.knownUntracked[wordHash]) continue;
+
+      try {
+        // Get translation data from backend
+        const translationResponse = await backend.translate(candidate.word, settings.language);
+        const data = translationResponse?.data;
+
+        if (!data || !Array.isArray(data)) continue;
+
+        const firstEntry = data[0] as TranslationEntry | undefined;
+        const secondEntry = data[1] as TranslationEntry | undefined;
+
+        // Build back text from definitions
+        let backText = '';
+        if (firstEntry?.definitions) {
+          if (Array.isArray(firstEntry.definitions)) {
+            backText = firstEntry.definitions.join('; ');
+          } else {
+            backText = String(firstEntry.definitions);
+          }
+        }
+
+        if (!backText) continue; // Skip words with no translation
+
+        const reading = firstEntry?.reading || candidate.reading || '';
+
+        // Get pitch accent if available
+        let pitchAccent: number | undefined;
+        if (data.length > 2 && data[2]) {
+          const pitchEntry = data[2] as Record<string, unknown>;
+          if (pitchEntry && typeof pitchEntry === 'object') {
+            const pitches = (pitchEntry as { pitches?: Array<{ position?: number }> }).pitches;
+            if (pitches?.[0]?.position !== undefined) {
+              pitchAccent = pitches[0].position;
+            }
+          }
+        }
+
+        // Get definition HTML from the second entry
+        let definitionArr: string[] | undefined;
+        if (secondEntry?.definitions) {
+          definitionArr = Array.isArray(secondEntry.definitions)
+            ? secondEntry.definitions
+            : [String(secondEntry.definitions)];
+        }
+
+        // Optionally generate example sentence with LLM
+        let exampleSentence = '';
+        let exampleMeaning = '';
+        if (useLLM) {
+          try {
+            const result = await generateExampleSentenceWithLLM(candidate.word, backText, settings.language);
+            exampleSentence = result.sentence;
+            exampleMeaning = result.meaning;
+          } catch (e) {
+            console.warn(`Failed to generate LLM example for "${candidate.word}":`, e);
+          }
+        }
+
+        const content: Partial<FlashcardContent> & { front: string; back: string } = {
+          type: 'word',
+          front: candidate.word,
+          back: backText,
+          reading: reading || undefined,
+          pitchAccent,
+          example: exampleSentence || undefined,
+          exampleMeaning: exampleMeaning || undefined,
+          // Legacy fields
+          word: candidate.word,
+          pronunciation: reading || undefined,
+          translation: backText ? [backText] : undefined,
+          definition: definitionArr,
+        };
+
+        await addFlashcard(content);
+        createdCount++;
+
+        // Remove from word candidates after successful creation
+        setStore(produce((s) => {
+          delete s.wordCandidates[wordHash];
+        }));
+      } catch (e) {
+        console.warn(`Failed to auto-create flashcard for "${candidate.word}":`, e);
+      }
+    }
+
+    if (createdCount > 0) {
+      saveFlashcards();
+    }
+
+    return createdCount;
+  };
+
+  /**
+   * Generate an example sentence for a word using the LLM.
+   * Returns { sentence, meaning }.
+   */
+  const generateExampleSentenceWithLLM = (word: string, definition: string, language: string): Promise<{ sentence: string; meaning: string }> => {
+    return new Promise((resolve, reject) => {
+      const prompt = `Generate a simple, natural example sentence using the word "${word}" (meaning: ${definition}) in ${language}. Then provide an English translation of the sentence. Format your response exactly as:
+Sentence: [sentence in ${language}]
+Translation: [English translation]`;
+
+      const messages = [
+        { role: 'system' as const, content: 'You are a helpful language learning assistant. Generate natural, simple example sentences.' },
+        { role: 'user' as const, content: prompt },
+      ];
+
+      const { abort } = streamChat(messages, [], {
+        onChunk: () => {},
+        onToolCall: () => {},
+        onDone: (finalContent: string) => {
+          // Parse the response
+          const sentenceMatch = finalContent.match(/Sentence:\s*(.+)/i);
+          const translationMatch = finalContent.match(/Translation:\s*(.+)/i);
+
+          resolve({
+            sentence: sentenceMatch?.[1]?.trim() || '',
+            meaning: translationMatch?.[1]?.trim() || '',
+          });
+        },
+        onError: (error: string) => {
+          reject(new Error(error));
+        },
+      }, settings);
+
+      // Safety timeout - abort after 30 seconds
+      const safetyTimeout = setTimeout(() => {
+        abort();
+        reject(new Error('LLM timeout'));
+      }, 30_000);
+
+      // Clear timeout on completion (handled by onDone/onError above)
+      const origResolve = resolve;
+      const origReject = reject;
+      resolve = (val) => { clearTimeout(safetyTimeout); origResolve(val); };
+      reject = (err) => { clearTimeout(safetyTimeout); origReject(err); };
+    });
+  };
+
   // Handle broadcast from other windows
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.store) {
@@ -1047,8 +1231,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }
   };
 
-  // Handle new day event
-  const handleNewDay = () => {
+  // Handle new day event (also triggered by "Force recreate" menu)
+  const handleNewDay = async () => {
     const today = SRS.getTodayDateString(newDayHour());
     setStore(produce((s) => {
       // Unbury all cards
@@ -1057,6 +1241,26 @@ export const FlashcardProvider: ParentComponent = (props) => {
       s.meta.newCardsToday = 0;
       s.meta.newCardsDate = today;
     }));
+
+    // Auto-create flashcards from word candidates if enabled
+    if (settings.createUnseenCards && settings.enable_flashcard_creation) {
+      const candidateCount = Object.keys(store.wordCandidates).length;
+      if (candidateCount > 0) {
+        const useLLM = settings.flashcardLLMExamples ?? false;
+        try {
+          const created = await autoCreateFlashcardsFromCandidates(useLLM);
+          if (created > 0) {
+            showToast({
+              message: t('mlearn.Settings.SRS.BuiltInFlashcards.ForceRecreate.Created', { count: String(created) }),
+              variant: 'success'
+            });
+          }
+        } catch (e) {
+          console.error('Failed to auto-create flashcards:', e);
+        }
+      }
+    }
+
     refreshQueue();
     saveFlashcards();
   };

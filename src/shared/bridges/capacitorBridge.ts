@@ -197,6 +197,32 @@ const flashcardBridge: FlashcardBridge = {
   onReviewFlashcardRequest(callback) {
     return emitter.on('review-flashcard-request', callback as Listener);
   },
+
+  async saveFlashcardImage(_cardId: string, dataUrl: string) {
+    // On mobile, keep base64 inline — no file extraction
+    return dataUrl;
+  },
+
+  async resolveFlashcardImage(imageUrl: string) {
+    // On mobile, imageUrl is already usable (base64 or http)
+    return imageUrl;
+  },
+
+  async deleteFlashcardImage() {
+    // No-op on mobile - images stay inline
+  },
+
+  async getFlashcardTts() {
+    return null;
+  },
+
+  async generateFlashcardTts() {
+    return null;
+  },
+
+  async batchGenerateFlashcardTts() {
+    return {};
+  },
 };
 
 // ============================================================================

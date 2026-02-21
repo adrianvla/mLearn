@@ -78,12 +78,16 @@ export interface Settings {
 
   // Flashcard settings
   enable_flashcard_creation: boolean;
+  /** Automatically create flashcards from tracked word candidates */
+  automaticFlashcardCreation: boolean;
   flashcard_deck: string | null;
   flashcards_add_picture: boolean;
   maxNewCardsPerDay: number;
   proportionOfExamCards: number;
   preparedExam: number;
   createUnseenCards: boolean;
+  /** Use LLM to generate example sentences when auto-creating flashcards */
+  flashcardLLMExamples: boolean;
   /** Hour at which a new SRS day begins (0-23, default 4 = 4:00 AM) */
   newDayHour: number;
   /** Whether to show a 3D flip animation when revealing flashcard answers */
@@ -213,6 +217,16 @@ export interface Settings {
   /** UI language / locale code (e.g., 'en', 'ja', 'de') */
   uiLanguage: string;
 
+  // Flashcard TTS settings
+  /** Auto-play TTS when viewing flashcard front */
+  flashcardAutoTts: boolean;
+  /** TTS provider for flashcard audio: 'kokoro' (local) or 'remote' */
+  flashcardTtsProvider: TTSProvider;
+  /** Remote TTS server URL for flashcard audio generation */
+  flashcardRemoteTtsUrl: string;
+  /** Auto-generate .ogg files for new flashcards using remote TTS */
+  flashcardAutoGenerateAudio: boolean;
+
   // First-run tracking
   hasCompletedSetup?: boolean;
 }
@@ -233,7 +247,8 @@ export const DEFAULT_SETTINGS: Settings = {
   language: 'ja',
   use_anki: false,
   furigana: true,
-  enable_flashcard_creation: true,  // Enable flashcard creation by default
+  enable_flashcard_creation: true,
+  automaticFlashcardCreation: false,
   flashcard_deck: null,
   flashcards_add_picture: true,
   getCardUrl: 'http://127.0.0.1:7752/getCard',
@@ -262,6 +277,7 @@ export const DEFAULT_SETTINGS: Settings = {
   proportionOfExamCards: 0.5,
   preparedExam: 3,
   createUnseenCards: true,
+  flashcardLLMExamples: false,
   newDayHour: 4,
   flashcardFlipAnimation: true,
   leechThreshold: 10,
@@ -300,6 +316,10 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceAutoSendOnSilence: true,
   voiceSilenceThreshold: 1.2,
   uiLanguage: 'en',
+  flashcardAutoTts: true,
+  flashcardTtsProvider: 'kokoro',
+  flashcardRemoteTtsUrl: '',
+  flashcardAutoGenerateAudio: false,
 };
 
 // ============================================================================

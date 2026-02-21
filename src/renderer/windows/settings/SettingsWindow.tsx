@@ -14,7 +14,6 @@ import {
   CustomizationTab,
   SRSTab,
   ReaderTab,
-  StatsTab,
   AITab,
   ConnectionTab,
   AboutTab
@@ -22,7 +21,7 @@ import {
 import Icon from '../../components/common/Icons/Icon';
 import './SettingsLayout.css';
 
-type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'stats' | 'ai' | 'connection' | 'about';
+type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'ai' | 'connection' | 'about';
 
 interface SettingsTab {
   id: TabId;
@@ -36,7 +35,6 @@ const TABS: SettingsTab[] = [
   { id: 'customization', labelKey: 'mlearn.Settings.Tabs.Appearance', icon: 'palette' },
   { id: 'srs', labelKey: 'mlearn.Settings.Tabs.SRS', icon: 'cards' },
   { id: 'reader', labelKey: 'mlearn.Settings.Tabs.Reader', icon: 'book' },
-  { id: 'stats', labelKey: 'mlearn.Settings.Tabs.Statistics', icon: 'stats' },
   { id: 'ai', labelKey: 'mlearn.Settings.Tabs.AI', icon: 'stars' },
   { id: 'connection', labelKey: 'mlearn.Settings.Tabs.Connection', icon: 'pin' },
   { id: 'about', labelKey: 'mlearn.Settings.Tabs.About', icon: 'star' },
@@ -59,7 +57,6 @@ export const SettingsContent: Component = () => {
 
     const normalized = section.toLowerCase();
     if (normalized.includes('about') || normalized.includes('license')) return 'about';
-    if (normalized.includes('stat')) return 'stats';
     if (normalized.includes('ai') || normalized.includes('llm')) return 'ai';
     if (normalized.includes('connect') || normalized.includes('tether') || normalized.includes('cloud') || normalized.includes('backend')) return 'connection';
     if (normalized.includes('reader')) return 'reader';
@@ -110,9 +107,6 @@ export const SettingsContent: Component = () => {
           </Show>
           <Show when={activeTab() === 'reader'}>
             <ReaderTab />
-          </Show>
-          <Show when={activeTab() === 'stats'}>
-            <StatsTab />
           </Show>
           <Show when={activeTab() === 'ai'}>
             <AITab />

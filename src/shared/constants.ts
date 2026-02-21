@@ -224,6 +224,16 @@ export const IPC_CHANNELS = {
   VOICE_SAMPLE_LIST: 'voice-sample-list',
   VOICE_SAMPLE_DELETE: 'voice-sample-delete',
   VOICE_SAMPLE_RENAME: 'voice-sample-rename',
+
+  // Flashcard images
+  FLASHCARD_IMAGE_SAVE: 'flashcard-image-save',
+  FLASHCARD_IMAGE_RESOLVE: 'flashcard-image-resolve',
+  FLASHCARD_IMAGE_DELETE: 'flashcard-image-delete',
+
+  // Flashcard TTS audio files
+  FLASHCARD_TTS_GET: 'flashcard-tts-get',
+  FLASHCARD_TTS_GENERATE: 'flashcard-tts-generate',
+  FLASHCARD_TTS_BATCH_GENERATE: 'flashcard-tts-batch-generate',
 } as const;
 
 // Window types
@@ -240,6 +250,7 @@ export const WINDOW_TYPES = {
   LICENSES: 'licenses',
   CONNECT_QR: 'connect-qr',
   CONVERSATION_AGENT: 'conversation-agent',
+  STATISTICS: 'statistics',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];

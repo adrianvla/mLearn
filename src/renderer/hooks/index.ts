@@ -25,6 +25,7 @@ export type { PitchAccentInfo } from '../../shared/types';
 export { useWordHover, getGlobalHoverManager, useWordHoverTarget, type HoverData } from './useWordHover';
 export { useAnki } from './useAnki';
 export { useMediaStats } from './useMediaStats';
+export { useFlashcardTts } from './useFlashcardTts';
 
 // UI
 export { useCursorVisibility } from './useCursorVisibility';

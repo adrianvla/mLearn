@@ -54,6 +54,22 @@ const mLearnIPC = {
   onReviewFlashcardRequest: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST, () => callback()),
   
+  // ========== Flashcard Images ==========
+  saveFlashcardImage: (cardId: string, dataUrl: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_IMAGE_SAVE, cardId, dataUrl),
+  resolveFlashcardImage: (imageUrl: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_IMAGE_RESOLVE, imageUrl),
+  deleteFlashcardImage: (cardId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_IMAGE_DELETE, cardId),
+
+  // ========== Flashcard TTS ==========
+  getFlashcardTts: (cardId: string, field: 'word' | 'example'): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET, cardId, field),
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, remoteUrl?: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GENERATE, cardId, text, language, field, provider, remoteUrl),
+  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, remoteUrl?: string): Promise<Record<string, string>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_BATCH_GENERATE, items, language, provider, remoteUrl),
+  
   // ========== Migration ==========
   onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) =>
     ipcOn(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, (_event, info) => callback(info)),
