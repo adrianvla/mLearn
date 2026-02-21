@@ -52,8 +52,9 @@ export interface FlashcardBridge {
   resolveFlashcardImage: (imageUrl: string) => Promise<string | null>;
   deleteFlashcardImage: (cardId: string) => Promise<void>;
   getFlashcardTts: (cardId: string, field: 'word' | 'example') => Promise<string | null>;
-  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, remoteUrl?: string) => Promise<string | null>;
-  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, remoteUrl?: string) => Promise<Record<string, string>>;
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, remoteUrl?: string, voiceSampleId?: string) => Promise<string | null>;
+  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, remoteUrl?: string, voiceSampleId?: string) => Promise<Record<string, string>>;
+  getFlashcardTtsMeta: (cardId: string, field: 'word' | 'example') => Promise<{ provider: string; generatedAt: string; language: string } | null>;
 }
 
 export interface LocalizationBridge {
@@ -167,7 +168,7 @@ export interface VoiceBridge {
   voiceUpdateSilenceThreshold: (threshold: number) => void;
   onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) => () => void;
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) => () => void;
-  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string) => void;
+  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string) => void;
   voiceTtsStop: () => void;
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) => () => void;
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) => () => void;
@@ -177,6 +178,8 @@ export interface VoiceBridge {
   voiceSampleUpload: (sourcePath: string, name: string) => Promise<VoiceSample>;
   voiceSampleDelete: (id: string) => Promise<boolean>;
   voiceSampleRename: (id: string, newName: string) => Promise<boolean>;
+  voiceSampleTranscribe: (id: string) => Promise<{ text: string; language: string }>;
+  voiceSampleGetPath: (id: string) => Promise<string | null>;
 }
 
 export interface MediaStatsBridge {

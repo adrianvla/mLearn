@@ -41,7 +41,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   // TTS integration
   const { settings } = useSettings();
-  const { playTts, isPlaying: ttsPlaying, isGenerating: ttsGenerating, stop: stopTts } = useFlashcardTts();
+  const { playTts, isGenerating: ttsGenerating, stop: stopTts, metadata: ttsMetadata, playingField: ttsPlayingField } = useFlashcardTts();
 
   const handlePlayTts = (cardId: string, text: string, field: 'word' | 'example') => {
     playTts(cardId, text, settings.language, field);
@@ -157,24 +157,19 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       if (!cardId || !settings.flashcardAutoTts) return;
       const card = currentCard();
       if (!card) return;
-      // Small delay to let the card render first
-      setTimeout(() => {
-        playTts(card.id, card.content.front, settings.language, 'word');
-      }, 100);
+      playTts(card.id, card.content.front, settings.language, 'word');
     }
   ));
 
-  // Auto-TTS: play example when answer is revealed
+  // Auto-TTS: play example when answer is revealed (waits for word TTS to finish)
   createEffect(on(
     () => showAnswer(),
     (isShown) => {
       if (!isShown || !settings.flashcardAutoTts) return;
       const card = currentCard();
       if (!card?.content.example || card.content.example === '-') return;
-      // Small delay so the word TTS isn't interrupted
-      setTimeout(() => {
-        playTts(card.id, card.content.example!, settings.language, 'example');
-      }, 200);
+      // Play example immediately — playTts stops any previous audio first
+      playTts(card.id, card.content.example!, settings.language, 'example');
     }
   ));
 
@@ -395,8 +390,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   showAnswer={showAnswer()}
                   onFlip={handleFlip}
                   onPlayTts={handlePlayTts}
-                  ttsPlaying={ttsPlaying()}
+                  ttsPlayingField={ttsPlayingField()}
                   ttsGenerating={ttsGenerating()}
+                  ttsMetadata={ttsMetadata()}
               />
             )}
           </Show>

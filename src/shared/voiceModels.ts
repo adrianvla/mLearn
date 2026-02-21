@@ -29,12 +29,39 @@ export const KOKORO_LANGUAGES: Record<string, string> = {
   it: 'i',   // Italian
 };
 
-/** Check if a language is supported by the local TTS engine */
-export function isTTSLanguageSupported(language: string): boolean {
+// ============================================================================
+// Supported language codes for Qwen3-TTS
+// ============================================================================
+
+/**
+ * Languages supported by Qwen3-TTS-1.7B.
+ * Mapping from app language code → Qwen3 language code.
+ */
+export const QWEN3_TTS_LANGUAGES: Record<string, string> = {
+  zh: 'zh',
+  en: 'en',
+  ja: 'ja',
+  ko: 'ko',
+  de: 'de',
+  fr: 'fr',
+  ru: 'ru',
+  pt: 'pt',
+  es: 'es',
+  it: 'it',
+};
+
+/** Check if a language is supported by the selected local TTS engine */
+export function isTTSLanguageSupported(language: string, provider: 'kokoro' | 'qwen3' = 'kokoro'): boolean {
+  if (provider === 'qwen3') return language in QWEN3_TTS_LANGUAGES;
   return language in KOKORO_LANGUAGES;
 }
 
 /** Get the Kokoro language code for a given app language code */
 export function getKokoroLanguageCode(language: string): string {
   return KOKORO_LANGUAGES[language] ?? 'a';
+}
+
+/** Get the Qwen3-TTS language code for a given app language code */
+export function getQwen3LanguageCode(language: string): string {
+  return QWEN3_TTS_LANGUAGES[language] ?? 'en';
 }

@@ -6,10 +6,13 @@
 
 import fs from 'fs';
 import path from 'path';
-import { ipcMain } from 'electron';
+import { ipcMain, protocol, net } from 'electron';
 import { IPC_CHANNELS, API_ENDPOINTS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
+import { loadSamplesManifest, getVoiceSamplePath } from './voiceService';
 import http from 'http';
+
+const SCHEME = 'flashcard-audio';
 
 /** Get the directory for flashcard audio */
 function getAudioDir(): string {
@@ -29,9 +32,44 @@ function audioFilename(cardId: string, field: 'word' | 'example'): string {
   return `${cardId}-${field}.ogg`;
 }
 
+/** Build the metadata filename for a card's audio */
+function metaFilename(cardId: string, field: 'word' | 'example'): string {
+  return `${cardId}-${field}.meta.json`;
+}
+
 /** Get the full path for a card's audio file */
 function audioPath(cardId: string, field: 'word' | 'example'): string {
   return path.join(getAudioDir(), audioFilename(cardId, field));
+}
+
+/** Get the full path for a card's metadata file */
+function metaPath(cardId: string, field: 'word' | 'example'): string {
+  return path.join(getAudioDir(), metaFilename(cardId, field));
+}
+
+/** Write TTS metadata alongside the audio file */
+function writeMetadata(cardId: string, field: 'word' | 'example', provider: string, language: string): void {
+  const meta = {
+    provider,
+    generatedAt: new Date().toISOString(),
+    language,
+  };
+  try {
+    fs.writeFileSync(metaPath(cardId, field), JSON.stringify(meta));
+  } catch {
+    // Non-critical — silently ignore
+  }
+}
+
+/** Read TTS metadata for a card field */
+function getFlashcardTtsMeta(cardId: string, field: 'word' | 'example'): { provider: string; generatedAt: string; language: string } | null {
+  const mp = metaPath(cardId, field);
+  if (!fs.existsSync(mp)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(mp, 'utf8'));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -40,7 +78,7 @@ function audioPath(cardId: string, field: 'word' | 'example'): string {
 function getFlashcardTts(cardId: string, field: 'word' | 'example'): string | null {
   const filePath = audioPath(cardId, field);
   if (fs.existsSync(filePath)) {
-    return `file://${filePath.replace(/\\/g, '/')}`;
+    return toAudioUrl(filePath);
   }
   return null;
 }
@@ -49,10 +87,12 @@ function getFlashcardTts(cardId: string, field: 'word' | 'example'): string | nu
  * Generate TTS audio via Kokoro (local Python backend) and save as .ogg.
  * Returns the file URL on success, null on failure.
  */
-async function generateViaKokoro(text: string, language: string, outputPath: string): Promise<boolean> {
+async function generateViaKokoro(text: string, language: string, outputPath: string, voiceSamplePath?: string): Promise<boolean> {
   return new Promise((resolve) => {
     const url = new URL(API_ENDPOINTS.voiceTts);
-    const body = JSON.stringify({ text, language, format: 'ogg' });
+    const payload: Record<string, unknown> = { text, language, format: 'ogg' };
+    if (voiceSamplePath) payload.voiceSamplePath = voiceSamplePath;
+    const body = JSON.stringify(payload);
 
     const req = http.request(
       {
@@ -163,20 +203,30 @@ async function generateFlashcardTts(
   field: 'word' | 'example',
   provider: string,
   remoteUrl?: string,
+  voiceSampleId?: string,
 ): Promise<string | null> {
   if (!text || text === '-') return null;
 
   const output = audioPath(cardId, field);
   let success = false;
 
+  // Resolve voice sample path if provided
+  let voiceSamplePath: string | undefined;
+  if (voiceSampleId) {
+    const samples = loadSamplesManifest();
+    const sample = samples.find((s) => s.id === voiceSampleId);
+    if (sample) voiceSamplePath = getVoiceSamplePath(sample);
+  }
+
   if (provider === 'remote' && remoteUrl) {
     success = await generateViaRemote(text, language, output, remoteUrl);
   } else {
-    success = await generateViaKokoro(text, language, output);
+    success = await generateViaKokoro(text, language, output, voiceSamplePath);
   }
 
   if (success) {
-    return `file://${output.replace(/\\/g, '/')}`;
+    writeMetadata(cardId, field, provider === 'remote' ? 'remote' : 'kokoro', language);
+    return toAudioUrl(output);
   }
   return null;
 }
@@ -190,6 +240,7 @@ async function batchGenerateFlashcardTts(
   language: string,
   provider: string,
   remoteUrl?: string,
+  voiceSampleId?: string,
 ): Promise<Record<string, string>> {
   const results: Record<string, string> = {};
 
@@ -201,7 +252,7 @@ async function batchGenerateFlashcardTts(
 
   // Fallback: generate one by one
   for (const item of items) {
-    const url = await generateFlashcardTts(item.cardId, item.text, language, item.field, provider, remoteUrl);
+    const url = await generateFlashcardTts(item.cardId, item.text, language, item.field, provider, remoteUrl, voiceSampleId);
     if (url) {
       results[`${item.cardId}-${item.field}`] = url;
     }
@@ -268,7 +319,7 @@ async function tryBatchRemote(
               const actualField = result.id.substring(lastDash + 1) as 'word' | 'example';
               const output = audioPath(actualCardId, actualField);
               fs.writeFileSync(output, audio);
-              results[result.id] = `file://${output.replace(/\\/g, '/')}`;
+              results[result.id] = toAudioUrl(output);
               // suppress unused
               void cardId;
               void field;
@@ -294,6 +345,45 @@ async function tryBatchRemote(
 }
 
 /**
+ * Register the `flashcard-audio://` protocol scheme as privileged.
+ * Must be called BEFORE app.whenReady().
+ */
+export function registerFlashcardAudioScheme(): void {
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: SCHEME,
+      privileges: {
+        standard: false,
+        secure: true,
+        supportFetchAPI: true,
+        stream: true,
+        bypassCSP: true,
+      },
+    },
+  ]);
+}
+
+/**
+ * Set up the protocol handler that maps `flashcard-audio://` to files
+ * in the flashcard-audio directory.
+ * Must be called AFTER app.whenReady().
+ */
+export function setupFlashcardAudioProtocol(): void {
+  protocol.handle(SCHEME, (request) => {
+    const filename = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
+    const filePath = path.join(getAudioDir(), filename);
+    const fileUrl = `file://${filePath.replace(/\\/g, '/')}`;
+    return net.fetch(fileUrl, { headers: request.headers });
+  });
+}
+
+/** Convert audio file path to protocol URL */
+function toAudioUrl(filePath: string): string {
+  const filename = path.basename(filePath);
+  return `${SCHEME}://${filename}`;
+}
+
+/**
  * Setup IPC handlers for flashcard TTS operations.
  */
 export function setupFlashcardTtsIPC(): void {
@@ -303,15 +393,19 @@ export function setupFlashcardTtsIPC(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.FLASHCARD_TTS_GENERATE,
-    (_event, cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, remoteUrl?: string) => {
-      return generateFlashcardTts(cardId, text, language, field, provider, remoteUrl);
+    (_event, cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, remoteUrl?: string, voiceSampleId?: string) => {
+      return generateFlashcardTts(cardId, text, language, field, provider, remoteUrl, voiceSampleId);
     },
   );
 
   ipcMain.handle(
     IPC_CHANNELS.FLASHCARD_TTS_BATCH_GENERATE,
-    (_event, items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, remoteUrl?: string) => {
-      return batchGenerateFlashcardTts(items, language, provider, remoteUrl);
+    (_event, items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, remoteUrl?: string, voiceSampleId?: string) => {
+      return batchGenerateFlashcardTts(items, language, provider, remoteUrl, voiceSampleId);
     },
   );
+
+  ipcMain.handle(IPC_CHANNELS.FLASHCARD_TTS_GET_META, (_event, cardId: string, field: 'word' | 'example') => {
+    return getFlashcardTtsMeta(cardId, field);
+  });
 }

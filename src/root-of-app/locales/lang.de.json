@@ -274,10 +274,24 @@
         "Tabs": {
           "Review": "Wiederholung",
           "Browse": "Durchsuchen",
+          "Generate": "Generieren",
           "Statistics": "Statistiken"
         },
         "Sync": "Synchronisieren",
         "AddCard": "+ Karte hinzufügen"
+      },
+      "Bulk": {
+        "TtsButton": "TTS generieren",
+        "TtsTooltip": "TTS-Audio für alle Lernkarten-Wörter und Beispiele generieren",
+        "TtsProgress": "TTS wird generiert…",
+        "TtsDone": "TTS für {count} Einträge generiert",
+        "TtsAllDone": "Alle Lernkarten haben bereits TTS-Audio",
+        "ExamplesButton": "Beispiele generieren",
+        "ExamplesTooltip": "Beispielsätze per LLM für Karten ohne Beispiele generieren",
+        "ExamplesProgress": "Beispiele werden generiert…",
+        "ExamplesDone": "Beispiele für {count} Karten generiert",
+        "ExamplesAllDone": "Alle Lernkarten haben bereits Beispiele",
+        "GenerateDescription": "Audio und Beispielsätze für Ihre Lernkarten stapelweise generieren"
       },
       "EmptyState": {
         "NoCardsTitle": "Noch keine Lernkarten",
@@ -409,7 +423,9 @@
         "ScreenshotAlt": "Screenshot",
         "RevealHint": "Klicken oder Leertaste drücken, um die Antwort zu zeigen",
         "RateHint": "Bewerten mit 1–4 • Klicken zum Zurückdrehen",
-        "ReviewsCount": "{count} Wiederholungen"
+        "ReviewsCount": "{count} Wiederholungen",
+        "PlayWord": "Wortaussprache abspielen",
+        "PlayExample": "Beispielsatz abspielen"
       },
       "Table": {
         "Word": "Wort",
@@ -879,6 +895,8 @@
         "LlmSkip": "Abhängigkeiten für das lokale KI-Modell werden übersprungen.",
         "OcrWillInstall": "Abhängigkeiten für den OCR-Reader werden installiert.",
         "OcrSkip": "Abhängigkeiten für den OCR-Reader werden übersprungen.",
+        "VoiceWillInstall": "Sprach- und TTS-Abhängigkeiten werden installiert.",
+        "VoiceSkip": "Sprach- und TTS-Abhängigkeiten werden übersprungen.",
         "CouldNotStart": "Der Installationsprozess konnte nicht gestartet werden.",
         "LanguageInstalledRestarting": "Sprache installiert! Neustart...",
         "ErrorOccurred": "Ein Fehler ist aufgetreten. Überprüfen Sie das Protokoll unten.",
@@ -895,6 +913,10 @@
         "Reader": {
           "Title": "mLearn Reader-Modul installieren",
           "Description": "Installiert OCR zum Lesen von Manga/Bildern. Deaktivieren, um ~2 GB Abhängigkeiten zu überspringen."
+        },
+        "Voice": {
+          "Title": "Sprach- und TTS-Modul installieren",
+          "Description": "Installiert Spracherkennung, Text-to-Speech und Stimmklonen. Deaktivieren, um ~4 GB Abhängigkeiten zu überspringen."
         }
       },
       "Buttons": {
@@ -1229,6 +1251,7 @@
         "TtsSpeed": "Sprechgeschwindigkeit",
         "TtsProvider": "TTS-Engine",
         "LocalTts": "Lokal",
+        "Qwen3Tts": "Qwen3",
         "RemoteTts": "Remote",
         "RemoteTtsUrl": "Server-URL",
         "Interrupted": "*Vom Benutzer unterbrochen*",
@@ -1321,6 +1344,41 @@
           "NoModels": "Keine Modelle gefunden.",
           "InstallHintPrefix": "Kein Ollama?",
           "InstallHintSuffix": "um loszulegen."
+        },
+        "FlashcardTTS": {
+          "Title": "Lernkarten-TTS",
+          "AutoPlay": {
+            "Label": "TTS automatisch abspielen",
+            "Description": "Wortaussprache automatisch abspielen, wenn eine Lernkarte bei der Wiederholung angezeigt wird"
+          },
+          "Provider": {
+            "Label": "TTS-Anbieter",
+            "Description": "Wählen Sie zwischen lokalem Kokoro-TTS, Qwen3-TTS (Stimmklonen) oder einem Remote-TTS-Dienst",
+            "Kokoro": "Kokoro (lokal)",
+            "Qwen3": "Qwen3-TTS (Stimmklonen)",
+            "Remote": "Remote-Server"
+          },
+          "VoiceSample": {
+            "Label": "Stimmprobe",
+            "Description": "Wählen Sie eine Stimmprobe für das Stimmklonen",
+            "DefaultVoice": "Standardstimme",
+            "Upload": "Stimmprobe hochladen",
+            "Transcribing": "Audio wird transkribiert…",
+            "Transcript": "Transkript:",
+            "NoTranscript": "Kein Transkript verfügbar",
+            "PlaySample": "Probe abspielen",
+            "TestPlaceholder": "Text eingeben, um TTS zu testen…",
+            "TestTts": "TTS testen",
+            "ModelLoading": "TTS-Modell wird geladen…"
+          },
+          "RemoteUrl": {
+            "Label": "Remote-TTS-URL",
+            "Description": "URL des Remote-TTS-Server-Endpunkts"
+          },
+          "AutoGenerate": {
+            "Label": "Audio automatisch generieren",
+            "Description": "Audiodateien für neue Lernkarten automatisch generieren und zwischenspeichern"
+          }
         }
       }
     }

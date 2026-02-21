@@ -7,8 +7,8 @@ import { execSync } from 'child_process';
 import { findPython, terminatePythonBackend, setupPythonBackendIPC } from './services/pythonBackend';
 import { startWebServer, stopWebServer } from './services/webServer';
 import { setupFlashcardIPC } from './services/flashcardStorage';
-import { setupFlashcardImageIPC } from './services/flashcardImageStorage';
-import { setupFlashcardTtsIPC } from './services/flashcardTtsStorage';
+import { setupFlashcardImageIPC, registerFlashcardImageScheme, setupFlashcardImageProtocol } from './services/flashcardImageStorage';
+import { setupFlashcardTtsIPC, registerFlashcardAudioScheme, setupFlashcardAudioProtocol } from './services/flashcardTtsStorage';
 import { setupSettingsIPC } from './services/settings';
 import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
@@ -53,8 +53,10 @@ if (process.platform === 'darwin') {
   } catch { /* best-effort, needs root */ }
 }
 
-// Register custom protocol scheme before app is ready
+// Register custom protocol schemes before app is ready
 registerLocalMediaScheme();
+registerFlashcardImageScheme();
+registerFlashcardAudioScheme();
 
 // Initialize IPC handlers (called once)
 function setupBaseIPC(): void {
@@ -116,8 +118,10 @@ async function initialize(): Promise<void> {
   // Setup all IPC handlers once
   setupAllIPC();
 
-  // Set up custom protocol for serving local media files to renderer
+  // Set up custom protocols for serving local files to renderer
   setupLocalMediaProtocol();
+  setupFlashcardImageProtocol();
+  setupFlashcardAudioProtocol();
 
   // Perform localStorage migration before creating windows
   // This migrates data from the old app's file:// localStorage to file-based storage

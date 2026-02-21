@@ -310,57 +310,6 @@ export const SRSTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title={t('mlearn.Settings.SRS.FlashcardTTS.Title')}>
-        <SettingRow
-          label={t('mlearn.Settings.SRS.FlashcardTTS.AutoPlay.Label')}
-          description={t('mlearn.Settings.SRS.FlashcardTTS.AutoPlay.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.flashcardAutoTts}
-            onChange={(v) => updateSettings({ flashcardAutoTts: v })}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label={t('mlearn.Settings.SRS.FlashcardTTS.Provider.Label')}
-          description={t('mlearn.Settings.SRS.FlashcardTTS.Provider.Description')}
-        >
-          <Select
-            value={settings.flashcardTtsProvider}
-            onChange={(e) => updateSettings({ flashcardTtsProvider: e.currentTarget.value as 'kokoro' | 'remote' })}
-            options={[
-              { value: 'kokoro', label: t('mlearn.Settings.SRS.FlashcardTTS.Provider.Kokoro') },
-              { value: 'remote', label: t('mlearn.Settings.SRS.FlashcardTTS.Provider.Remote') },
-            ]}
-          />
-        </SettingRow>
-
-        <Show when={settings.flashcardTtsProvider === 'remote'}>
-          <SettingRow
-            label={t('mlearn.Settings.SRS.FlashcardTTS.RemoteUrl.Label')}
-            description={t('mlearn.Settings.SRS.FlashcardTTS.RemoteUrl.Description')}
-          >
-            <input
-              type="text"
-              class="setting-input"
-              value={settings.flashcardRemoteTtsUrl}
-              onInput={(e) => updateSettings({ flashcardRemoteTtsUrl: e.currentTarget.value })}
-              placeholder="https://example.com/tts"
-            />
-          </SettingRow>
-
-          <SettingRow
-            label={t('mlearn.Settings.SRS.FlashcardTTS.AutoGenerate.Label')}
-            description={t('mlearn.Settings.SRS.FlashcardTTS.AutoGenerate.Description')}
-          >
-            <ToggleSwitch
-              checked={settings.flashcardAutoGenerateAudio}
-              onChange={(v) => updateSettings({ flashcardAutoGenerateAudio: v })}
-            />
-          </SettingRow>
-        </Show>
-      </SettingGroup>
-
       <SettingGroup title={t('mlearn.Settings.SRS.DataManagement.Title')}>
         <SettingRow
           label={t('mlearn.Settings.SRS.DataManagement.ResetSRS.Label')}

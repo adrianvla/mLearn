@@ -27,8 +27,9 @@ export interface MLearnIPC {
   
   // Flashcard TTS
   getFlashcardTts: (cardId: string, field: string) => Promise<string | null>;
-  generateFlashcardTts: (cardId: string, text: string, language: string, field: string, provider: string, remoteUrl?: string) => Promise<string | null>;
-  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: string }>, language: string, provider: string, remoteUrl?: string) => Promise<Record<string, string>>;
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: string, provider: string, remoteUrl?: string, voiceSampleId?: string) => Promise<string | null>;
+  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: string }>, language: string, provider: string, remoteUrl?: string, voiceSampleId?: string) => Promise<Record<string, string>>;
+  getFlashcardTtsMeta: (cardId: string, field: string) => Promise<{ provider: string; generatedAt: string; language: string } | null>;
   
   // Language Data
   getLangData: () => void;
@@ -194,7 +195,7 @@ export interface MLearnIPC {
   voiceUpdateSilenceThreshold: (threshold: number) => void;
   onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) => () => void;
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) => () => void;
-  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string) => void;
+  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string) => void;
   voiceTtsStop: () => void;
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) => () => void;
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) => () => void;
@@ -206,6 +207,8 @@ export interface MLearnIPC {
   voiceSampleUpload: (sourcePath: string, name: string) => Promise<VoiceSample>;
   voiceSampleDelete: (id: string) => Promise<boolean>;
   voiceSampleRename: (id: string, newName: string) => Promise<boolean>;
+  voiceSampleTranscribe: (id: string) => Promise<{ text: string; language: string }>;
+  voiceSampleGetPath: (id: string) => Promise<string | null>;
 
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;

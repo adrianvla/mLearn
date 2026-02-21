@@ -45,6 +45,7 @@ const WelcomeContent: Component = () => {
 
   const [includeLLM, setIncludeLLM] = createSignal(true);
   const [includeOCR, setIncludeOCR] = createSignal(true);
+  const [includeVoice, setIncludeVoice] = createSignal(true);
 
   const [selectedLanguage, setSelectedLanguage] = createSignal<string>('ja');
 
@@ -74,6 +75,7 @@ const WelcomeContent: Component = () => {
     if (opts) {
       setIncludeLLM(opts.includeLLM ?? true);
       setIncludeOCR(opts.includeOCR ?? true);
+      setIncludeVoice(opts.includeVoice ?? true);
     }
   };
 
@@ -87,9 +89,10 @@ const WelcomeContent: Component = () => {
     setStatusLogs([]);
     logInfo(includeLLM() ? t('mlearn.Installer.Status.LlmWillInstall') : t('mlearn.Installer.Status.LlmSkip'));
     logInfo(includeOCR() ? t('mlearn.Installer.Status.OcrWillInstall') : t('mlearn.Installer.Status.OcrSkip'));
+    logInfo(includeVoice() ? t('mlearn.Installer.Status.VoiceWillInstall') : t('mlearn.Installer.Status.VoiceSkip'));
 
     try {
-      getBridge().installer.startInstall({ includeLLM: includeLLM(), includeOCR: includeOCR() });
+      getBridge().installer.startInstall({ includeLLM: includeLLM(), includeOCR: includeOCR(), includeVoice: includeVoice() });
     } catch (e) {
       console.error('Failed to start installation:', e);
       setOverallStatus(t('mlearn.Installer.Status.CouldNotStart'));
@@ -179,11 +182,12 @@ const WelcomeContent: Component = () => {
         setInstallationStarted(true);
         setIncludeLLM(opts.includeLLM ?? true);
         setIncludeOCR(opts.includeOCR ?? true);
+        setIncludeVoice(opts.includeVoice ?? true);
       }
     }));
 
     ipcCleanups.push(bridge.installer.onInstallerAwaitingChoice(() => {
-      setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR() });
+      setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR(), includeVoice: includeVoice() });
     }));
 
     ipcCleanups.push(bridge.installer.onInstallerNetworkError((payload: { message: string; detail?: string }) => {
@@ -192,7 +196,7 @@ const WelcomeContent: Component = () => {
       if (detail) logInfo(detail);
       setOverallStatus(message);
       setNetworkError(detail ? `${message}\n\nDetails: ${detail}` : message);
-      setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR() });
+      setWaitingState({ includeLLM: includeLLM(), includeOCR: includeOCR(), includeVoice: includeVoice() });
     }));
 
     ipcCleanups.push(bridge.installer.onInstallerState((state: InstallerState) => {
@@ -297,6 +301,12 @@ const WelcomeContent: Component = () => {
               onChange={setIncludeOCR}
               title={t('mlearn.Installer.Components.Reader.Title')}
               description={t('mlearn.Installer.Components.Reader.Description')}
+            />
+            <CheckboxCard
+              checked={includeVoice()}
+              onChange={setIncludeVoice}
+              title={t('mlearn.Installer.Components.Voice.Title')}
+              description={t('mlearn.Installer.Components.Voice.Description')}
             />
           </div>
         </Show>

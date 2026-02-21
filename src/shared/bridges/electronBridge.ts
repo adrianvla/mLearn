@@ -51,8 +51,9 @@ const flashcardBridge: FlashcardBridge = {
   resolveFlashcardImage: (imageUrl) => getIPC().resolveFlashcardImage(imageUrl),
   deleteFlashcardImage: (cardId) => getIPC().deleteFlashcardImage(cardId),
   getFlashcardTts: (cardId, field) => getIPC().getFlashcardTts(cardId, field),
-  generateFlashcardTts: (cardId, text, language, field, provider, remoteUrl) => getIPC().generateFlashcardTts(cardId, text, language, field, provider, remoteUrl),
-  batchGenerateFlashcardTts: (items, language, provider, remoteUrl) => getIPC().batchGenerateFlashcardTts(items, language, provider, remoteUrl),
+  generateFlashcardTts: (cardId, text, language, field, provider, remoteUrl, voiceSampleId) => getIPC().generateFlashcardTts(cardId, text, language, field, provider, remoteUrl, voiceSampleId),
+  batchGenerateFlashcardTts: (items, language, provider, remoteUrl, voiceSampleId) => getIPC().batchGenerateFlashcardTts(items, language, provider, remoteUrl, voiceSampleId),
+  getFlashcardTtsMeta: (cardId, field) => getIPC().getFlashcardTtsMeta(cardId, field),
 };
 
 const localizationBridge: LocalizationBridge = {
@@ -164,7 +165,7 @@ const voiceBridge: VoiceBridge = {
   voiceUpdateSilenceThreshold: (t) => getIPC().voiceUpdateSilenceThreshold(t),
   onVoiceSttResult: (cb) => getIPC().onVoiceSttResult(cb),
   onVoiceVadEvent: (cb) => getIPC().onVoiceVadEvent(cb),
-  voiceTtsGenerate: (text, lang, speed, sampleId) => getIPC().voiceTtsGenerate(text, lang, speed, sampleId),
+  voiceTtsGenerate: (text, lang, speed, sampleId, provider) => getIPC().voiceTtsGenerate(text, lang, speed, sampleId, provider),
   voiceTtsStop: () => getIPC().voiceTtsStop(),
   onVoiceTtsAudio: (cb) => getIPC().onVoiceTtsAudio(cb),
   onVoiceTtsStatus: (cb) => getIPC().onVoiceTtsStatus(cb),
@@ -174,6 +175,8 @@ const voiceBridge: VoiceBridge = {
   voiceSampleUpload: (path, name) => getIPC().voiceSampleUpload(path, name),
   voiceSampleDelete: (id) => getIPC().voiceSampleDelete(id),
   voiceSampleRename: (id, name) => getIPC().voiceSampleRename(id, name),
+  voiceSampleTranscribe: (id) => getIPC().voiceSampleTranscribe(id),
+  voiceSampleGetPath: (id) => getIPC().voiceSampleGetPath(id),
 };
 
 const mediaStatsBridge: MediaStatsBridge = {

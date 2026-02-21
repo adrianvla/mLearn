@@ -67,6 +67,7 @@ export {
   parseKeybind,
   formatKeybindDisplay,
   getLocalizedKeyName,
+  VoiceSamplePicker,
   type InputProps,
   type TextareaProps,
   type SelectInputProps,
@@ -76,6 +77,7 @@ export {
   type DropZoneProps,
   type RangeInputProps,
   type KeybindInputProps,
+  type VoiceSamplePickerProps,
 } from './Input';
 
 // Card Components

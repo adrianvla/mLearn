@@ -42,3 +42,7 @@
 .hint-icon {
   font-size: 0.9em;
 }
+
+.hint-text a {
+  color: var(--text-primary);
+}

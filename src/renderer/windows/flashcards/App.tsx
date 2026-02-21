@@ -4,8 +4,8 @@
  * Modernized UI with sidebar navigation
  */
 
-import { Component, Show, For, createSignal, createMemo } from 'solid-js';
-import { WindowWrapper, useLocalization } from '../../context';
+import { Component, Show, For, createSignal, createMemo, onCleanup } from 'solid-js';
+import { WindowWrapper, useLocalization, useSettings } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditor, FlashcardSyncModal, FlashcardStats } from '../../components/flashcard';
 import {
@@ -15,6 +15,7 @@ import {
   Btn,
   Badge,
   EmptyState,
+  IconBtn,
   SearchIcon,
   TabContainer,
   Select,
@@ -22,13 +23,23 @@ import {
   BookIcon,
   BarChartIcon,
   SparklesIcon,
+  ProgressBar,
+  MicrophoneIcon,
+  VoiceSamplePicker,
 } from '../../components/common';
-import type { Flashcard, FlashcardContent } from '../../../shared/types';
+import { showToast } from '../../components/common/Feedback/Toast';
+import { getBridge } from '../../../shared/bridges';
+import { getBackend } from '../../../shared/backends';
+import { isElectron } from '../../../shared/platform';
+import { tokensToColoredHtml } from '../../utils/subtitleParsing';
+import { useFlashcardTts } from '../../hooks/useFlashcardTts';
+import type { Flashcard, FlashcardContent, TTSProvider } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
+import './FlashcardsGenerate.css';
 
-type TabId = 'review' | 'browse' | 'stats';
+type TabId = 'review' | 'browse' | 'generate' | 'stats';
 
 export const FlashcardsContent: Component = () => {
   const {
@@ -37,9 +48,11 @@ export const FlashcardsContent: Component = () => {
     removeFlashcard,
     addFlashcard,
     updateFlashcardContent,
-    intervalToString
+    intervalToString,
+    generateExampleSentenceWithLLM,
   } = useFlashcards();
   const { t } = useLocalization();
+  const { settings, updateSettings } = useSettings();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null);
@@ -54,6 +67,28 @@ export const FlashcardsContent: Component = () => {
 
   // Sort state
   const [sortBy, setSortBy] = createSignal('default');
+
+  // Bulk operation state
+  const [bulkProgress, setBulkProgress] = createSignal<{ current: number; total: number; label: string } | null>(null);
+
+  // TTS provider override for bulk generation (defaults to settings value)
+  const [bulkTtsProvider, setBulkTtsProvider] = createSignal<TTSProvider>(settings.flashcardTtsProvider);
+
+  // Browse TTS hook
+  const { playTts: browseTtsPlay, playingField: browseTtsPlayingField, isGenerating: browseTtsGenerating, stop: browseTtsStop } = useFlashcardTts();
+  const [browseTtsCardId, setBrowseTtsCardId] = createSignal<string | null>(null);
+
+  const handleBrowseTts = (cardId: string, text: string) => {
+    if (browseTtsCardId() === cardId && browseTtsPlayingField() === 'word') {
+      browseTtsStop();
+      setBrowseTtsCardId(null);
+      return;
+    }
+    setBrowseTtsCardId(cardId);
+    browseTtsPlay(cardId, text, settings.language, 'word');
+  };
+
+  onCleanup(() => browseTtsStop());
 
   const sortOptions = createMemo(() => [
     { value: 'default', label: t('mlearn.Flashcards.Browse.SortDefault') },
@@ -150,6 +185,108 @@ export const FlashcardsContent: Component = () => {
     setEditingCard(null);
   };
 
+  /** Bulk generate TTS for all flashcards (word + example fields) */
+  const handleBulkTts = async () => {
+    if (!isElectron() || bulkProgress()) return;
+
+    const bridge = getBridge();
+    const cards = flashcards();
+    const provider = bulkTtsProvider();
+    const remoteUrl = settings.flashcardRemoteTtsUrl || undefined;
+    const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
+    const language = settings.language;
+
+    // Collect items that need TTS generation
+    const items: Array<{ cardId: string; text: string; field: 'word' | 'example' }> = [];
+    for (const card of cards) {
+      const front = card.content.front;
+      if (front && front !== '-') {
+        const existing = await bridge.flashcards.getFlashcardTts(card.id, 'word');
+        if (!existing) items.push({ cardId: card.id, text: front.replace(/<[^>]*>/g, ''), field: 'word' });
+      }
+      const example = card.content.example;
+      if (example && example !== '-') {
+        const existing = await bridge.flashcards.getFlashcardTts(card.id, 'example');
+        if (!existing) items.push({ cardId: card.id, text: example.replace(/<[^>]*>/g, ''), field: 'example' });
+      }
+    }
+
+    if (items.length === 0) {
+      showToast({ message: t('mlearn.Flashcards.Bulk.TtsAllDone'), variant: 'success' });
+      return;
+    }
+
+    setBulkProgress({ current: 0, total: items.length, label: t('mlearn.Flashcards.Bulk.TtsProgress') });
+
+    let generated = 0;
+    // Generate one-by-one so we can show progress
+    for (const item of items) {
+      await bridge.flashcards.generateFlashcardTts(item.cardId, item.text, language, item.field, provider, remoteUrl, voiceSampleId);
+      generated++;
+      setBulkProgress({ current: generated, total: items.length, label: t('mlearn.Flashcards.Bulk.TtsProgress') });
+    }
+
+    setBulkProgress(null);
+    showToast({ message: t('mlearn.Flashcards.Bulk.TtsDone', { count: generated }), variant: 'success' });
+  };
+
+  /** Bulk generate LLM examples for all flashcards without examples, then tokenize */
+  const handleBulkExamples = async () => {
+    if (bulkProgress()) return;
+
+    const cards = flashcards();
+    const language = settings.language;
+    const colourCodes = settings.colour_codes || {};
+
+    // Find cards without examples
+    const needExamples = cards.filter(card =>
+      !card.content.example || card.content.example === '-' || card.content.example.trim() === ''
+    );
+
+    if (needExamples.length === 0) {
+      showToast({ message: t('mlearn.Flashcards.Bulk.ExamplesAllDone'), variant: 'success' });
+      return;
+    }
+
+    setBulkProgress({ current: 0, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress') });
+
+    const backend = getBackend({
+      mode: settings.backendMode,
+      url: settings.backendUrl,
+      authToken: settings.cloudAuthToken,
+    });
+
+    let generated = 0;
+    for (const card of needExamples) {
+      try {
+        const result = await generateExampleSentenceWithLLM(card.content.front, card.content.back, language);
+        if (result.sentence) {
+          // Tokenize the sentence for colored HTML
+          let exampleHtml = result.sentence;
+          try {
+            const tokens = await backend.tokenize(result.sentence, language);
+            if (tokens.length > 0) {
+              exampleHtml = tokensToColoredHtml(tokens, colourCodes, card.content.front);
+            }
+          } catch {
+            // Use plain text if tokenization fails
+          }
+          updateFlashcardContent(card.id, {
+            example: exampleHtml,
+            exampleMeaning: result.meaning || undefined,
+          });
+        }
+      } catch (e) {
+        console.warn(`Failed to generate example for "${card.content.front}":`, e);
+      }
+      generated++;
+      setBulkProgress({ current: generated, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress') });
+    }
+
+    setBulkProgress(null);
+    showToast({ message: t('mlearn.Flashcards.Bulk.ExamplesDone', { count: generated }), variant: 'success' });
+  };
+
   // Get state badge variant
   const getStateBadge = (card: Flashcard) => {
     switch (card.state) {
@@ -159,6 +296,13 @@ export const FlashcardsContent: Component = () => {
       case 'review': return { label: t('mlearn.Flashcards.State.Review'), variant: 'success' as const };
     }
   };
+
+  // TTS provider options for the Generate tab select
+  const ttsProviderOptions = createMemo(() => [
+    { value: 'kokoro', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Kokoro') },
+    { value: 'qwen3', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Qwen3') },
+    { value: 'remote', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Remote') },
+  ]);
 
   // Tab items for vertical navigation
   const tabs = createMemo<TabItem[]>(() => [
@@ -172,6 +316,11 @@ export const FlashcardsContent: Component = () => {
       id: 'browse', 
       label: t('mlearn.Flashcards.UI.Tabs.Browse'),
       icon: <BookIcon size={16} />
+    },
+    { 
+      id: 'generate', 
+      label: t('mlearn.Flashcards.UI.Tabs.Generate'),
+      icon: <SparklesIcon size={16} />
     },
     { 
       id: 'stats', 
@@ -306,6 +455,18 @@ export const FlashcardsContent: Component = () => {
                             title={card.content.front}
                             subtitle={card.content.reading && card.content.reading !== card.content.front
                               ? card.content.reading : undefined}
+                            headerActions={
+                              <IconBtn
+                                icon="volume"
+                                size="sm"
+                                variant="ghost"
+                                class="flashcard-tts-btn"
+                                classList={{ 'flashcard-tts-btn--active': browseTtsCardId() === card.id && browseTtsPlayingField() === 'word' }}
+                                onClick={() => handleBrowseTts(card.id, card.content.front)}
+                                disabled={browseTtsGenerating()}
+                                title={t('mlearn.Flashcards.Card.PlayWord')}
+                              />
+                            }
                           >
                             <p class="flashcard-translation">
                               {card.content.back}
@@ -343,6 +504,92 @@ export const FlashcardsContent: Component = () => {
                     </For>
                   </div>
                 </Show>
+              </Show>
+            </div>
+          </Show>
+
+          {/* Generate Tab */}
+          <Show when={activeTab() === 'generate'}>
+            <div class="flashcards-generate">
+              <h2 class="flashcards-generate-title">{t('mlearn.Flashcards.UI.Tabs.Generate')}</h2>
+              <p class="flashcards-generate-description">{t('mlearn.Flashcards.Bulk.GenerateDescription')}</p>
+
+              <div class="flashcards-generate-actions">
+                <Show when={isElectron()}>
+                  <div class="flashcards-generate-section">
+                    <div class="flashcards-generate-section-header">
+                      <MicrophoneIcon size={18} />
+                      <h3>{t('mlearn.Flashcards.Bulk.TtsButton')}</h3>
+                    </div>
+                    <p class="flashcards-generate-section-desc">{t('mlearn.Flashcards.Bulk.TtsTooltip')}</p>
+
+                    <div class="flashcards-generate-option">
+                      <label class="flashcards-generate-label">{t('mlearn.AI.Settings.FlashcardTTS.Provider.Label')}</label>
+                      <Select
+                        options={ttsProviderOptions()}
+                        value={bulkTtsProvider()}
+                        onChange={(e) => setBulkTtsProvider(e.currentTarget.value as TTSProvider)}
+                        class="flashcards-generate-select"
+                      />
+                    </div>
+
+                    <Show when={bulkTtsProvider() !== 'kokoro'}>
+                      <div class="flashcards-generate-option">
+                        <label class="flashcards-generate-label">{t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Label')}</label>
+                        <VoiceSamplePicker
+                          value={settings.flashcardVoiceSampleId}
+                          onChange={(id) => updateSettings({ flashcardVoiceSampleId: id })}
+                          selectClass="flashcards-generate-select"
+                          ttsProvider={bulkTtsProvider()}
+                        />
+                      </div>
+                    </Show>
+
+                    <Btn
+                      size="md"
+                      variant="primary"
+                      onClick={handleBulkTts}
+                      class="flashcards-generate-btn"
+                      disabled={!!bulkProgress()}
+                      icon={<MicrophoneIcon size={16} />}
+                    >
+                      {t('mlearn.Flashcards.Bulk.TtsButton')}
+                    </Btn>
+                  </div>
+                </Show>
+
+                <div class="flashcards-generate-section">
+                  <div class="flashcards-generate-section-header">
+                    <SparklesIcon size={18} />
+                    <h3>{t('mlearn.Flashcards.Bulk.ExamplesButton')}</h3>
+                  </div>
+                  <p class="flashcards-generate-section-desc">{t('mlearn.Flashcards.Bulk.ExamplesTooltip')}</p>
+
+                  <Btn
+                    size="md"
+                    variant="primary"
+                    onClick={handleBulkExamples}
+                    class="flashcards-generate-btn"
+                    disabled={!!bulkProgress()}
+                    icon={<SparklesIcon size={16} />}
+                  >
+                    {t('mlearn.Flashcards.Bulk.ExamplesButton')}
+                  </Btn>
+                </div>
+              </div>
+
+              <Show when={bulkProgress()}>
+                <div class="flashcards-generate-progress">
+                  <span class="flashcards-generate-progress-label">{bulkProgress()!.label}</span>
+                  <ProgressBar
+                    value={Math.round((bulkProgress()!.current / bulkProgress()!.total) * 100)}
+                    size="md"
+                    variant="default"
+                  />
+                  <span class="flashcards-generate-progress-count">
+                    {bulkProgress()!.current} / {bulkProgress()!.total}
+                  </span>
+                </div>
               </Show>
             </div>
           </Show>

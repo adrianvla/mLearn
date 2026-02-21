@@ -274,10 +274,24 @@
         "Tabs": {
           "Review": "復習",
           "Browse": "閲覧",
+          "Generate": "生成",
           "Statistics": "統計"
         },
         "Sync": "同期",
         "AddCard": "+ カード追加"
+      },
+      "Bulk": {
+        "TtsButton": "TTS生成",
+        "TtsTooltip": "すべてのフラッシュカードの単語と例文にTTS音声を生成",
+        "TtsProgress": "TTS生成中…",
+        "TtsDone": "{count}件のTTSを生成しました",
+        "TtsAllDone": "すべてのフラッシュカードにTTS音声があります",
+        "ExamplesButton": "例文生成",
+        "ExamplesTooltip": "例文のないカードにLLMで例文を生成",
+        "ExamplesProgress": "例文を生成中…",
+        "ExamplesDone": "{count}枚のカードに例文を生成しました",
+        "ExamplesAllDone": "すべてのフラッシュカードに例文があります",
+        "GenerateDescription": "フラッシュカードの音声と例文を一括生成します"
       },
       "EmptyState": {
         "NoCardsTitle": "フラッシュカードはまだありません",
@@ -409,7 +423,9 @@
         "ScreenshotAlt": "スクリーンショット",
         "RevealHint": "クリックまたはスペースキーで答えを表示",
         "RateHint": "1〜4で評価 • クリックで裏に戻す",
-        "ReviewsCount": "{count}回復習"
+        "ReviewsCount": "{count}回復習",
+        "PlayWord": "単語の発音を再生",
+        "PlayExample": "例文を再生"
       },
       "Table": {
         "Word": "単語",
@@ -879,6 +895,8 @@
         "LlmSkip": "ローカルAIモデルの依存関係をスキップします。",
         "OcrWillInstall": "OCRリーダーの依存関係がインストールされます。",
         "OcrSkip": "OCRリーダーの依存関係をスキップします。",
+        "VoiceWillInstall": "音声・TTSの依存関係がインストールされます。",
+        "VoiceSkip": "音声・TTSの依存関係をスキップします。",
         "CouldNotStart": "インストールプロセスを開始できませんでした。",
         "LanguageInstalledRestarting": "言語がインストールされました！再起動中...",
         "ErrorOccurred": "エラーが発生しました。下のログを確認してください。",
@@ -895,6 +913,10 @@
         "Reader": {
           "Title": "mLearnリーダーモジュールをインストール",
           "Description": "漫画/画像を読むためのOCR機能をインストールします。チェックを外すと約2 GBの依存関係をスキップします。"
+        },
+        "Voice": {
+          "Title": "音声・TTSモジュールをインストール",
+          "Description": "音声認識、テキスト読み上げ、音声クローンをインストールします。チェックを外すと約4 GBの依存関係をスキップします。"
         }
       },
       "Buttons": {
@@ -1229,6 +1251,7 @@
         "TtsSpeed": "話速",
         "TtsProvider": "TTSエンジン",
         "LocalTts": "ローカル",
+        "Qwen3Tts": "Qwen3",
         "RemoteTts": "リモート",
         "RemoteTtsUrl": "サーバーURL",
         "Interrupted": "*ユーザーによる中断*",
@@ -1321,6 +1344,41 @@
           "NoModels": "モデルが見つかりません。",
           "InstallHintPrefix": "Ollamaをお持ちでないですか？",
           "InstallHintSuffix": "で始めましょう。"
+        },
+        "FlashcardTTS": {
+          "Title": "フラッシュカードTTS",
+          "AutoPlay": {
+            "Label": "TTS自動再生",
+            "Description": "復習中にフラッシュカードが表示されたとき、単語の発音を自動的に再生します"
+          },
+          "Provider": {
+            "Label": "TTSプロバイダー",
+            "Description": "ローカルKokoro TTS、Qwen3-TTS（音声クローン）、またはリモートTTSサービスから選択",
+            "Kokoro": "Kokoro（ローカル）",
+            "Qwen3": "Qwen3-TTS（音声クローン）",
+            "Remote": "リモートサーバー"
+          },
+          "VoiceSample": {
+            "Label": "音声サンプル",
+            "Description": "音声クローン用の音声サンプルを選択",
+            "DefaultVoice": "デフォルト音声",
+            "Upload": "音声サンプルをアップロード",
+            "Transcribing": "音声を文字起こし中…",
+            "Transcript": "文字起こし：",
+            "NoTranscript": "文字起こしがありません",
+            "PlaySample": "サンプルを再生",
+            "TestPlaceholder": "TTSをテストするテキストを入力…",
+            "TestTts": "TTSテスト",
+            "ModelLoading": "TTSモデル読み込み中…"
+          },
+          "RemoteUrl": {
+            "Label": "リモートTTS URL",
+            "Description": "リモートTTSサーバーのエンドポイントURL"
+          },
+          "AutoGenerate": {
+            "Label": "オーディオ自動生成",
+            "Description": "新しいフラッシュカードのオーディオファイルを自動的に生成してキャッシュします"
+          }
         }
       }
     }

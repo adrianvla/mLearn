@@ -282,3 +282,12 @@ body:not(.dark) .flashcard-example .defined {
 .flashcard-translation li {
   margin: 0.25rem 0;
 }
+
+/* TTS metadata (dev mode only) */
+.flashcard-tts-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-align: center;
+  margin-top: 0.75rem;
+  opacity: 0.6;
+}

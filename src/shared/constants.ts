@@ -30,6 +30,7 @@ export const API_ENDPOINTS = {
   voiceSttStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/stt/status`,
   voiceTtsStatus: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/tts/status`,
   voiceModelsDownload: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/models/download`,
+  voiceTranscribe: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/voice/transcribe`,
 } as const;
 
 /** Path-only endpoint constants — use with BackendAdapter.buildUrl() */
@@ -47,6 +48,7 @@ export const API_PATHS = {
   voiceSttStatus: '/voice/stt/status',
   voiceTtsStatus: '/voice/tts/status',
   voiceModelsDownload: '/voice/models/download',
+  voiceTranscribe: '/voice/transcribe',
 } as const;
 
 // IPC Channel names - strongly typed
@@ -224,6 +226,8 @@ export const IPC_CHANNELS = {
   VOICE_SAMPLE_LIST: 'voice-sample-list',
   VOICE_SAMPLE_DELETE: 'voice-sample-delete',
   VOICE_SAMPLE_RENAME: 'voice-sample-rename',
+  VOICE_SAMPLE_TRANSCRIBE: 'voice-sample-transcribe',
+  VOICE_SAMPLE_GET_PATH: 'voice-sample-get-path',
 
   // Flashcard images
   FLASHCARD_IMAGE_SAVE: 'flashcard-image-save',
@@ -234,6 +238,7 @@ export const IPC_CHANNELS = {
   FLASHCARD_TTS_GET: 'flashcard-tts-get',
   FLASHCARD_TTS_GENERATE: 'flashcard-tts-generate',
   FLASHCARD_TTS_BATCH_GENERATE: 'flashcard-tts-batch-generate',
+  FLASHCARD_TTS_GET_META: 'flashcard-tts-get-meta',
 } as const;
 
 // Window types

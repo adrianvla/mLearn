@@ -274,10 +274,24 @@
         "Tabs": {
           "Review": "Review",
           "Browse": "Browse",
+          "Generate": "Generate",
           "Statistics": "Statistics"
         },
         "Sync": "Sync",
         "AddCard": "+ Add Card"
+      },
+      "Bulk": {
+        "TtsButton": "Generate TTS",
+        "TtsTooltip": "Generate TTS audio for all flashcard words and examples",
+        "TtsProgress": "Generating TTS…",
+        "TtsDone": "Generated TTS for {count} items",
+        "TtsAllDone": "All flashcards already have TTS audio",
+        "ExamplesButton": "Generate Examples",
+        "ExamplesTooltip": "Generate example sentences using LLM for cards without examples",
+        "ExamplesProgress": "Generating examples…",
+        "ExamplesDone": "Generated examples for {count} cards",
+        "ExamplesAllDone": "All flashcards already have examples",
+        "GenerateDescription": "Bulk generate audio and example sentences for your flashcards"
       },
       "EmptyState": {
         "NoCardsTitle": "No flashcards yet",
@@ -851,27 +865,6 @@
             "Description": "Clear all flashcard progress (cannot be undone!)"
           },
           "ResetButton": "Reset SRS"
-        },
-        "FlashcardTTS": {
-          "Title": "Flashcard TTS",
-          "AutoPlay": {
-            "Label": "Auto-play TTS",
-            "Description": "Automatically play word pronunciation when a flashcard is shown during review"
-          },
-          "Provider": {
-            "Label": "TTS Provider",
-            "Description": "Choose between local Kokoro TTS or a remote TTS service",
-            "Kokoro": "Kokoro (local)",
-            "Remote": "Remote server"
-          },
-          "RemoteUrl": {
-            "Label": "Remote TTS URL",
-            "Description": "URL of the remote TTS server endpoint"
-          },
-          "AutoGenerate": {
-            "Label": "Auto-generate audio",
-            "Description": "Automatically generate and cache audio files for new flashcards"
-          }
         }
       },
       "Mobile": {
@@ -902,6 +895,8 @@
         "LlmSkip": "Skipping local AI model dependencies.",
         "OcrWillInstall": "OCR reader dependencies will be installed.",
         "OcrSkip": "Skipping OCR reader dependencies.",
+        "VoiceWillInstall": "Voice & TTS dependencies will be installed.",
+        "VoiceSkip": "Skipping Voice & TTS dependencies.",
         "CouldNotStart": "Could not start the installation process.",
         "LanguageInstalledRestarting": "Language installed! Restarting...",
         "ErrorOccurred": "An error occurred. Check the log below.",
@@ -918,6 +913,10 @@
         "Reader": {
           "Title": "Install mLearn Reader Module",
           "Description": "Installs OCR capabilities for reading manga/images. Skips ~2 GB of dependencies if left unchecked."
+        },
+        "Voice": {
+          "Title": "Install Voice & TTS Module",
+          "Description": "Installs speech recognition, text-to-speech, and voice cloning. Skips ~4 GB of dependencies if left unchecked."
         }
       },
       "Buttons": {
@@ -1252,6 +1251,7 @@
         "TtsSpeed": "Speech speed",
         "TtsProvider": "TTS engine",
         "LocalTts": "Local",
+        "Qwen3Tts": "Qwen3",
         "RemoteTts": "Remote",
         "RemoteTtsUrl": "Server URL",
         "Interrupted": "*interrupted by user*",
@@ -1344,6 +1344,41 @@
           "NoModels": "No models found.",
           "InstallHintPrefix": "Don't have Ollama?",
           "InstallHintSuffix": "to get started."
+        },
+        "FlashcardTTS": {
+          "Title": "Flashcard TTS",
+          "AutoPlay": {
+            "Label": "Auto-play TTS",
+            "Description": "Automatically play word pronunciation when a flashcard is shown during review"
+          },
+          "Provider": {
+            "Label": "TTS Provider",
+            "Description": "Choose between local Kokoro TTS, Qwen3-TTS (voice cloning), or a remote TTS service",
+            "Kokoro": "Kokoro (local)",
+            "Qwen3": "Qwen3-TTS (voice cloning)",
+            "Remote": "Remote server"
+          },
+          "VoiceSample": {
+            "Label": "Voice sample",
+            "Description": "Select a voice sample for voice cloning",
+            "DefaultVoice": "Default voice",
+            "Upload": "Upload voice sample",
+            "Transcribing": "Transcribing audio…",
+            "Transcript": "Transcript:",
+            "NoTranscript": "No transcript available",
+            "PlaySample": "Play sample",
+            "TestPlaceholder": "Type text to test TTS…",
+            "TestTts": "Test TTS",
+            "ModelLoading": "Loading TTS model…"
+          },
+          "RemoteUrl": {
+            "Label": "Remote TTS URL",
+            "Description": "URL of the remote TTS server endpoint"
+          },
+          "AutoGenerate": {
+            "Label": "Auto-generate audio",
+            "Description": "Automatically generate and cache audio files for new flashcards"
+          }
         }
       }
     }

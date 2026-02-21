@@ -6,10 +6,12 @@
 
 import fs from 'fs';
 import path from 'path';
-import { ipcMain } from 'electron';
+import { ipcMain, protocol, net } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
 import type { FlashcardStore } from '../../shared/types';
+
+const SCHEME = 'flashcard-image';
 
 /** Get the directory for flashcard images */
 function getImageDir(): string {
@@ -148,6 +150,39 @@ export function resolveImageUrl(imageUrl: string): string | null {
   if (!filePath) return null;
   // Convert to a file:// URL - cross-platform compatible
   return `file://${filePath.replace(/\\/g, '/')}`;
+}
+
+/**
+ * Register the `flashcard-image://` protocol scheme as privileged.
+ * Must be called BEFORE app.whenReady().
+ */
+export function registerFlashcardImageScheme(): void {
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: SCHEME,
+      privileges: {
+        standard: false,
+        secure: true,
+        supportFetchAPI: true,
+        bypassCSP: true,
+      },
+    },
+  ]);
+}
+
+/**
+ * Set up the protocol handler that maps `flashcard-image://` to files
+ * in the flashcard-images directory.
+ * Must be called AFTER app.whenReady().
+ */
+export function setupFlashcardImageProtocol(): void {
+  protocol.handle(SCHEME, (request) => {
+    // flashcard-image://cardId.jpg -> {userData}/flashcard-images/cardId.jpg
+    const filename = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
+    const filePath = path.join(getImageDir(), filename);
+    const fileUrl = `file://${filePath.replace(/\\/g, '/')}`;
+    return net.fetch(fileUrl, { headers: request.headers });
+  });
 }
 
 /**
