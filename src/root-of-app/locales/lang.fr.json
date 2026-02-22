@@ -291,7 +291,13 @@
         "ExamplesProgress": "Génération des exemples…",
         "ExamplesDone": "Exemples générés pour {count} cartes",
         "ExamplesAllDone": "Toutes les cartes ont déjà des exemples",
-        "GenerateDescription": "Générer en lot l'audio et les phrases d'exemple pour vos cartes mémoire"
+        "GenerateDescription": "Générer en lot l'audio et les phrases d'exemple pour vos cartes mémoire",
+        "ModeChoice": "Mode de génération",
+        "ModeOnlyEmpty": "Uniquement les cartes sans données",
+        "ModeReplaceAll": "Tout régénérer (remplacer l'existant)",
+        "ModeOlderThan": "Régénérer antérieur à une date",
+        "OlderThanDate": "Généré avant le",
+        "EtaRemaining": "~{eta} restant"
       },
       "EmptyState": {
         "NoCardsTitle": "Pas encore de cartes mémoire",
@@ -1085,16 +1091,22 @@
         "Definition": "Définition (HTML autorisé)",
         "Definitions": "Définitions (une par ligne)",
         "DefinitionsPlaceholder": "Une définition par ligne",
-        "StructuredContent": "Contenu structuré (HTML libre)"
+        "StructuredContent": "Contenu structuré (HTML libre)",
+        "Context": "Contexte",
+        "ContextPlaceholder": "Où vous avez rencontré ce mot..."
       },
       "Statistics": {
         "Title": "Statistiques",
         "Ease": "Facilité :",
         "Reviews": "Révisions :",
+        "State": "État :",
+        "Lapses": "Échecs :",
         "LastReviewed": "Dernière révision :",
         "Never": "Jamais",
         "Interval": "Intervalle :"
       },
+      "RegenerateTts": "Régénérer TTS",
+      "RegenerateExample": "Régénérer l'exemple",
       "Hint": "Traduction : virgules ou retours à la ligne. L'accent tonal est la position mora de descente (0=plat)."
     },
     "PitchAccent": {
@@ -1367,6 +1379,8 @@
             "Transcript": "Transcription :",
             "NoTranscript": "Aucune transcription disponible",
             "PlaySample": "Lire l'échantillon",
+            "DeleteSample": "Supprimer l'échantillon vocal",
+            "DeleteConfirm": "Voulez-vous vraiment supprimer cet échantillon vocal\u00a0? Cette action est irréversible.",
             "TestPlaceholder": "Saisissez du texte pour tester le TTS…",
             "TestTts": "Tester le TTS",
             "ModelLoading": "Chargement du modèle TTS…"

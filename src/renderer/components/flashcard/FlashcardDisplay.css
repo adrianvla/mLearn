@@ -217,7 +217,7 @@
 .flashcard-translation {
   font-size: var(--font-size-lg);
   color: var(--text-primary);
-  margin-bottom: 1rem;
+  margin-bottom: 40px;
   line-height: 1.6;
 }
 
@@ -281,6 +281,13 @@ body:not(.dark) .flashcard-example .defined {
 
 .flashcard-translation li {
   margin: 0.25rem 0;
+}
+
+/* TTS regeneration row */
+.flashcard-regen-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
 }
 
 /* TTS metadata (dev mode only) */

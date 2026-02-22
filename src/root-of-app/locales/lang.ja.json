@@ -291,7 +291,13 @@
         "ExamplesProgress": "例文を生成中…",
         "ExamplesDone": "{count}枚のカードに例文を生成しました",
         "ExamplesAllDone": "すべてのフラッシュカードに例文があります",
-        "GenerateDescription": "フラッシュカードの音声と例文を一括生成します"
+        "GenerateDescription": "フラッシュカードの音声と例文を一括生成します",
+        "ModeChoice": "生成モード",
+        "ModeOnlyEmpty": "データのないカードのみ",
+        "ModeReplaceAll": "すべて再生成（既存を置換）",
+        "ModeOlderThan": "指定日より古いものを再生成",
+        "OlderThanDate": "生成日が以前",
+        "EtaRemaining": "残り約{eta}"
       },
       "EmptyState": {
         "NoCardsTitle": "フラッシュカードはまだありません",
@@ -1085,16 +1091,22 @@
         "Definition": "定義（HTML可）",
         "Definitions": "定義（1行に1つ）",
         "DefinitionsPlaceholder": "1行に1つの定義",
-        "StructuredContent": "構造化コンテンツ（任意のHTML）"
+        "StructuredContent": "構造化コンテンツ（任意のHTML）",
+        "Context": "コンテキスト",
+        "ContextPlaceholder": "この単語に出会った場所..."
       },
       "Statistics": {
         "Title": "統計",
         "Ease": "容易度:",
         "Reviews": "復習回数:",
+        "State": "状態:",
+        "Lapses": "失敗回数:",
         "LastReviewed": "最終復習日:",
         "Never": "なし",
         "Interval": "間隔:"
       },
+      "RegenerateTts": "TTS再生成",
+      "RegenerateExample": "例文を再生成",
       "Hint": "翻訳: コンマまたは改行区切り。ピッチアクセントはモーラ下降位置（0=平板）。"
     },
     "PitchAccent": {
@@ -1367,6 +1379,8 @@
             "Transcript": "文字起こし：",
             "NoTranscript": "文字起こしがありません",
             "PlaySample": "サンプルを再生",
+            "DeleteSample": "音声サンプルを削除",
+            "DeleteConfirm": "この音声サンプルを削除してもよろしいですか？この操作は取り消せません。",
             "TestPlaceholder": "TTSをテストするテキストを入力…",
             "TestTts": "TTSテスト",
             "ModelLoading": "TTSモデル読み込み中…"

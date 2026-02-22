@@ -12,7 +12,8 @@ import { Select } from '../Select/Select';
 import { Btn } from '../Button/Button';
 import { IconBtn } from '../Button/Button';
 import { ProgressBar } from '../Feedback/ProgressBar';
-import { PlayIcon, PauseIcon, Spinner } from '../../common';
+import { ConfirmDialog } from '../Modal/ConfirmDialog';
+import { PlayIcon, PauseIcon, TrashIcon, Spinner } from '../../common';
 import type { VoiceSample, VoiceTtsAudio } from '../../../../shared/types';
 import './VoiceSamplePicker.css';
 
@@ -34,6 +35,9 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
   // Sample playback state
   const [playingSample, setPlayingSample] = createSignal(false);
   let sampleAudio: HTMLAudioElement | null = null;
+
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = createSignal(false);
 
   // TTS test state
   const [ttsTestText, setTtsTestText] = createSignal('');
@@ -270,6 +274,19 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
     getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider);
   }
 
+  async function handleDelete() {
+    const id = props.value;
+    if (!id) return;
+    stopSamplePlayback();
+    stopTtsPlayback();
+    await getBridge().voice.voiceSampleDelete(id);
+    props.onChange('');
+    setLastTranscript('');
+    const samples = await getBridge().voice.voiceSampleList();
+    if (samples) setVoiceSamples(samples);
+    setDeleteConfirmOpen(false);
+  }
+
   const selectedSample = () => {
     const id = props.value;
     if (!id) return undefined;
@@ -296,6 +313,13 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
             onClick={toggleSamplePlayback}
             aria-label={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.PlaySample')}
             title={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.PlaySample')}
+          />
+          <IconBtn
+            size="sm"
+            icon={<TrashIcon size={14} />}
+            onClick={() => setDeleteConfirmOpen(true)}
+            aria-label={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.DeleteSample')}
+            title={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.DeleteSample')}
           />
         </Show>
         <Btn size="sm" onClick={handleUpload} disabled={transcribing()}>
@@ -369,6 +393,16 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
           title={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestTts')}
         />
       </div>
+
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen()}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleDelete}
+        variant="danger"
+        title={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.DeleteSample')}
+        message={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.DeleteConfirm')}
+        showLoading
+      />
     </div>
   );
 };

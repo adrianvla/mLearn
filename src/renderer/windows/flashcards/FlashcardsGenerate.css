@@ -8,7 +8,6 @@
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  max-width: 600px;
 }
 
 .flashcards-generate-title {
@@ -71,6 +70,7 @@
   font-size: var(--font-size-sm);
   color: var(--text-primary);
   white-space: nowrap;
+  min-width: 140px;
 }
 
 .flashcards-generate-select {
@@ -100,5 +100,15 @@
 .flashcards-generate-progress-count {
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
-  text-align: right;
+}
+
+.flashcards-generate-progress-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.flashcards-generate-progress-eta {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
 }

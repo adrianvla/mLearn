@@ -291,7 +291,13 @@
         "ExamplesProgress": "Generating examples…",
         "ExamplesDone": "Generated examples for {count} cards",
         "ExamplesAllDone": "All flashcards already have examples",
-        "GenerateDescription": "Bulk generate audio and example sentences for your flashcards"
+        "GenerateDescription": "Bulk generate audio and example sentences for your flashcards",
+        "ModeChoice": "Generation mode",
+        "ModeOnlyEmpty": "Only cards without existing data",
+        "ModeReplaceAll": "Regenerate all (replace existing)",
+        "ModeOlderThan": "Regenerate older than date",
+        "OlderThanDate": "Generated before",
+        "EtaRemaining": "~{eta} remaining"
       },
       "EmptyState": {
         "NoCardsTitle": "No flashcards yet",
@@ -1085,16 +1091,22 @@
         "Definition": "Definition (HTML allowed)",
         "Definitions": "Definitions (one per line)",
         "DefinitionsPlaceholder": "Definition per line",
-        "StructuredContent": "Structured content (optional HTML)"
+        "StructuredContent": "Structured content (optional HTML)",
+        "Context": "Context",
+        "ContextPlaceholder": "Where you encountered this word..."
       },
       "Statistics": {
         "Title": "Statistics",
         "Ease": "Ease:",
         "Reviews": "Reviews:",
+        "State": "State:",
+        "Lapses": "Lapses:",
         "LastReviewed": "Last Reviewed:",
         "Never": "Never",
         "Interval": "Interval:"
       },
+      "RegenerateTts": "Regenerate TTS",
+      "RegenerateExample": "Regenerate Example",
       "Hint": "Translations: comma or newline separated. Pitch accent is mora drop position (0=heiban)."
     },
     "PitchAccent": {
@@ -1367,6 +1379,8 @@
             "Transcript": "Transcript:",
             "NoTranscript": "No transcript available",
             "PlaySample": "Play sample",
+            "DeleteSample": "Delete voice sample",
+            "DeleteConfirm": "Are you sure you want to delete this voice sample? This cannot be undone.",
             "TestPlaceholder": "Type text to test TTS…",
             "TestTts": "Test TTS",
             "ModelLoading": "Loading TTS model…"

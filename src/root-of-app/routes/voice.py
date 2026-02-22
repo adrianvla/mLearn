@@ -633,15 +633,30 @@ def _ensure_qwen3_tts_loaded():
             else:
                 _log("Loading Qwen3-TTS model…")
 
+            import torch
             from qwen_tts import Qwen3TTSModel
 
+            device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+            _log(f"Loading Qwen3-TTS on device: {device}")
+
+            # Qwen3TTSModel is a wrapper (not nn.Module), so .to() is not
+            # available.  Pass device_map for CUDA; for MPS / CPU, load on
+            # CPU first and move the inner PyTorch model manually.
+            load_kwargs: dict = {}
+            if device.startswith("cuda"):
+                load_kwargs["device_map"] = device
+
             _qwen3_tts_model = Qwen3TTSModel.from_pretrained(
-                _QWEN3_TTS_MODEL_ID
+                _QWEN3_TTS_MODEL_ID, **load_kwargs
             )
+
+            if not device.startswith("cuda"):
+                _qwen3_tts_model.model = _qwen3_tts_model.model.to(device)
+                _qwen3_tts_model.device = torch.device(device)
             stop_monitor.set()
             _set_tts_progress(1.0)
             _qwen3_model_loading = False
-            _log("Qwen3-TTS model loaded successfully")
+            _log(f"Qwen3-TTS model loaded successfully on {device}")
             _voice_touch()
             return _qwen3_tts_model
         except Exception as e:

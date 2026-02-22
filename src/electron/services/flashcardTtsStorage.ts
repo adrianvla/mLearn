@@ -84,13 +84,13 @@ function getFlashcardTts(cardId: string, field: 'word' | 'example'): string | nu
 }
 
 /**
- * Generate TTS audio via Kokoro (local Python backend) and save as .ogg.
- * Returns the file URL on success, null on failure.
+ * Generate TTS audio via the local Python backend (Kokoro or Qwen3) and save as .ogg.
+ * The `provider` field is forwarded so the backend routes to the correct engine.
  */
-async function generateViaKokoro(text: string, language: string, outputPath: string, voiceSamplePath?: string): Promise<boolean> {
+async function generateViaLocal(text: string, language: string, outputPath: string, provider: string, voiceSamplePath?: string): Promise<boolean> {
   return new Promise((resolve) => {
     const url = new URL(API_ENDPOINTS.voiceTts);
-    const payload: Record<string, unknown> = { text, language, format: 'ogg' };
+    const payload: Record<string, unknown> = { text, language, format: 'ogg', provider };
     if (voiceSamplePath) payload.voiceSamplePath = voiceSamplePath;
     const body = JSON.stringify(payload);
 
@@ -221,11 +221,11 @@ async function generateFlashcardTts(
   if (provider === 'remote' && remoteUrl) {
     success = await generateViaRemote(text, language, output, remoteUrl);
   } else {
-    success = await generateViaKokoro(text, language, output, voiceSamplePath);
+    success = await generateViaLocal(text, language, output, provider, voiceSamplePath);
   }
 
   if (success) {
-    writeMetadata(cardId, field, provider === 'remote' ? 'remote' : 'kokoro', language);
+    writeMetadata(cardId, field, provider, language);
     return toAudioUrl(output);
   }
   return null;

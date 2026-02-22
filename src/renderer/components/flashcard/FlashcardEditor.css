@@ -37,15 +37,15 @@
 }
 
 .pitch-input-group label {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
 .pitch-input {
   width: 100%;
   padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   color: var(--text-primary);
   font-size: 0.9rem;
@@ -84,15 +84,26 @@
 }
 
 .editor-field label {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
+}
+
+.editor-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.editor-field-actions {
+  display: flex;
+  gap: 0.25rem;
 }
 
 .content-editable {
   min-height: 60px;
   padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   color: var(--text-primary);
   font-size: 0.9rem;
@@ -105,7 +116,7 @@
 .content-editable:focus {
   outline: none;
   border-color: var(--accent-primary);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-intense);
 }
 
 .content-editable:empty::before {
@@ -130,9 +141,9 @@
 /* Card Preview Section */
 .card-preview {
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
 }
 
 .card-word {
@@ -148,7 +159,7 @@
   margin-top: 1rem;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-color);
 }
 
 .screenshot-preview img {
@@ -159,9 +170,9 @@
 /* Stats Section */
 .stats-section {
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
 }
 
 .stats-section h3 {
@@ -181,7 +192,7 @@
   display: flex;
   justify-content: space-between;
   padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg);
   border-radius: 4px;
 }
 
@@ -198,7 +209,7 @@
 
 /* Editor Hint */
 .editor-hint {
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
   color: var(--text-secondary);
   opacity: 0.65;
   padding-bottom: 0.5rem;
@@ -210,7 +221,7 @@
   gap: 0.75rem;
   justify-content: flex-end;
   padding-top: 0.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border-color);
 }
 
 /* Responsive */

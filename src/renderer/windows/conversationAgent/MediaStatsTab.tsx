@@ -7,7 +7,7 @@
 
 import { Component, Show, For, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
 import type { ConversationAgentContext, MediaStats, LevelPercentageEntry } from '../../../shared/types';
-import { useLocalization, useLanguage, useFlashcards } from '../../context';
+import { useLocalization, useLanguage, useFlashcards, useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import {
   TabContainer,
@@ -61,6 +61,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
   const formatTime = (ms: number): string => formatDurationHM(ms, t);
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
+  const { settings } = useSettings();
   const [subTab, setSubTab] = createSignal<string>('overview');
   const [allMediaStats, setAllMediaStats] = createSignal<MediaStats[]>([]);
   const [selectedHash, setSelectedHash] = createSignal<string>('');
@@ -121,7 +122,8 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
     const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
 
     for (const entry of Object.values(stats.wordsEncountered)) {
-      const globalEntry = wordKnowledge[entry.word];
+      const lang = settings.language || 'ja';
+      const globalEntry = wordKnowledge[lang + ':' + entry.word] || wordKnowledge[entry.word];
       if (globalEntry) {
         // Use the lower ease (harder) between per-media and global knowledge
         mediaWords.set(entry.word, {
