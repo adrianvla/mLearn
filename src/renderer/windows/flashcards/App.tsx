@@ -7,7 +7,7 @@
 import { Component, Show, For, createSignal, createMemo, onCleanup } from 'solid-js';
 import { WindowWrapper, useLocalization, useSettings } from '../../context';
 import { useFlashcards } from '../../context';
-import { FlashcardReview, FlashcardEditor, FlashcardSyncModal, FlashcardStats } from '../../components/flashcard';
+import { FlashcardReview, FlashcardEditor, FlashcardSyncModal, FlashcardStats, FlashcardPitchAccent } from '../../components/flashcard';
 import {
   Card,
   Modal,
@@ -41,6 +41,18 @@ import './FlashcardsGenerate.css';
 
 type TabId = 'review' | 'browse' | 'generate' | 'stats';
 
+/** Format milliseconds into a human-readable ETA string (e.g. "2m 30s") */
+const formatEta = (ms: number): string => {
+  const totalSec = Math.ceil(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  if (min < 60) return sec > 0 ? `${min}m ${sec}s` : `${min}m`;
+  const hr = Math.floor(min / 60);
+  const remMin = min % 60;
+  return remMin > 0 ? `${hr}h ${remMin}m` : `${hr}h`;
+};
+
 export const FlashcardsContent: Component = () => {
   const {
     getAllCards,
@@ -69,10 +81,18 @@ export const FlashcardsContent: Component = () => {
   const [sortBy, setSortBy] = createSignal('default');
 
   // Bulk operation state
-  const [bulkProgress, setBulkProgress] = createSignal<{ current: number; total: number; label: string } | null>(null);
+  const [bulkProgress, setBulkProgress] = createSignal<{ current: number; total: number; label: string; startTime: number } | null>(null);
 
   // TTS provider override for bulk generation (defaults to settings value)
   const [bulkTtsProvider, setBulkTtsProvider] = createSignal<TTSProvider>(settings.flashcardTtsProvider);
+
+  // Bulk mode: generate only for empty fields, replace all, or regenerate older than date
+  const [bulkMode, setBulkMode] = createSignal<'onlyEmpty' | 'replaceAll' | 'olderThan'>('onlyEmpty');
+
+  // Cutoff date for 'olderThan' mode (default: today in YYYY-MM-DD)
+  const [bulkOlderThanDate, setBulkOlderThanDate] = createSignal(
+    new Date().toISOString().slice(0, 10)
+  );
 
   // Browse TTS hook
   const { playTts: browseTtsPlay, playingField: browseTtsPlayingField, isGenerating: browseTtsGenerating, stop: browseTtsStop } = useFlashcardTts();
@@ -196,18 +216,40 @@ export const FlashcardsContent: Component = () => {
     const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
     const language = settings.language;
 
+    const replaceAll = bulkMode() === 'replaceAll';
+    const olderThan = bulkMode() === 'olderThan';
+    const cutoffDate = olderThan ? new Date(bulkOlderThanDate() + 'T23:59:59').getTime() : 0;
+
     // Collect items that need TTS generation
     const items: Array<{ cardId: string; text: string; field: 'word' | 'example' }> = [];
     for (const card of cards) {
       const front = card.content.front;
       if (front && front !== '-') {
-        const existing = await bridge.flashcards.getFlashcardTts(card.id, 'word');
-        if (!existing) items.push({ cardId: card.id, text: front.replace(/<[^>]*>/g, ''), field: 'word' });
+        if (replaceAll) {
+          items.push({ cardId: card.id, text: front.replace(/<[^>]*>/g, ''), field: 'word' });
+        } else if (olderThan) {
+          const meta = await bridge.flashcards.getFlashcardTtsMeta(card.id, 'word');
+          if (!meta || new Date(meta.generatedAt).getTime() < cutoffDate) {
+            items.push({ cardId: card.id, text: front.replace(/<[^>]*>/g, ''), field: 'word' });
+          }
+        } else {
+          const existing = await bridge.flashcards.getFlashcardTts(card.id, 'word');
+          if (!existing) items.push({ cardId: card.id, text: front.replace(/<[^>]*>/g, ''), field: 'word' });
+        }
       }
       const example = card.content.example;
       if (example && example !== '-') {
-        const existing = await bridge.flashcards.getFlashcardTts(card.id, 'example');
-        if (!existing) items.push({ cardId: card.id, text: example.replace(/<[^>]*>/g, ''), field: 'example' });
+        if (replaceAll) {
+          items.push({ cardId: card.id, text: example.replace(/<[^>]*>/g, ''), field: 'example' });
+        } else if (olderThan) {
+          const meta = await bridge.flashcards.getFlashcardTtsMeta(card.id, 'example');
+          if (!meta || new Date(meta.generatedAt).getTime() < cutoffDate) {
+            items.push({ cardId: card.id, text: example.replace(/<[^>]*>/g, ''), field: 'example' });
+          }
+        } else {
+          const existing = await bridge.flashcards.getFlashcardTts(card.id, 'example');
+          if (!existing) items.push({ cardId: card.id, text: example.replace(/<[^>]*>/g, ''), field: 'example' });
+        }
       }
     }
 
@@ -216,14 +258,15 @@ export const FlashcardsContent: Component = () => {
       return;
     }
 
-    setBulkProgress({ current: 0, total: items.length, label: t('mlearn.Flashcards.Bulk.TtsProgress') });
+    const startTime = Date.now();
+    setBulkProgress({ current: 0, total: items.length, label: t('mlearn.Flashcards.Bulk.TtsProgress'), startTime });
 
     let generated = 0;
     // Generate one-by-one so we can show progress
     for (const item of items) {
       await bridge.flashcards.generateFlashcardTts(item.cardId, item.text, language, item.field, provider, remoteUrl, voiceSampleId);
       generated++;
-      setBulkProgress({ current: generated, total: items.length, label: t('mlearn.Flashcards.Bulk.TtsProgress') });
+      setBulkProgress({ current: generated, total: items.length, label: t('mlearn.Flashcards.Bulk.TtsProgress'), startTime });
     }
 
     setBulkProgress(null);
@@ -238,17 +281,22 @@ export const FlashcardsContent: Component = () => {
     const language = settings.language;
     const colourCodes = settings.colour_codes || {};
 
-    // Find cards without examples
-    const needExamples = cards.filter(card =>
-      !card.content.example || card.content.example === '-' || card.content.example.trim() === ''
-    );
+    const replaceAll = bulkMode() === 'replaceAll';
+
+    // Find cards that need examples
+    const needExamples = replaceAll
+      ? cards.filter(card => card.content.front && card.content.front !== '-')
+      : cards.filter(card =>
+          !card.content.example || card.content.example === '-' || card.content.example.trim() === ''
+        );
 
     if (needExamples.length === 0) {
       showToast({ message: t('mlearn.Flashcards.Bulk.ExamplesAllDone'), variant: 'success' });
       return;
     }
 
-    setBulkProgress({ current: 0, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress') });
+    const startTime = Date.now();
+    setBulkProgress({ current: 0, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress'), startTime });
 
     const backend = getBackend({
       mode: settings.backendMode,
@@ -280,7 +328,7 @@ export const FlashcardsContent: Component = () => {
         console.warn(`Failed to generate example for "${card.content.front}":`, e);
       }
       generated++;
-      setBulkProgress({ current: generated, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress') });
+      setBulkProgress({ current: generated, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress'), startTime });
     }
 
     setBulkProgress(null);
@@ -302,6 +350,13 @@ export const FlashcardsContent: Component = () => {
     { value: 'kokoro', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Kokoro') },
     { value: 'qwen3', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Qwen3') },
     { value: 'remote', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Remote') },
+  ]);
+
+  // Bulk mode options
+  const bulkModeOptions = createMemo(() => [
+    { value: 'onlyEmpty', label: t('mlearn.Flashcards.Bulk.ModeOnlyEmpty') },
+    { value: 'replaceAll', label: t('mlearn.Flashcards.Bulk.ModeReplaceAll') },
+    { value: 'olderThan', label: t('mlearn.Flashcards.Bulk.ModeOlderThan') },
   ]);
 
   // Tab items for vertical navigation
@@ -452,9 +507,12 @@ export const FlashcardsContent: Component = () => {
                         const stateBadge = getStateBadge(card);
                         return (
                           <Card
-                            title={card.content.front}
-                            subtitle={card.content.reading && card.content.reading !== card.content.front
-                              ? card.content.reading : undefined}
+                            title={
+                              card.content.reading && card.content.reading !== card.content.front
+                                  ? <FlashcardPitchAccent content={card.content} />
+                                  : undefined}
+                            subtitle={undefined
+                            }
                             headerActions={
                               <IconBtn
                                 icon="volume"
@@ -513,6 +571,28 @@ export const FlashcardsContent: Component = () => {
             <div class="flashcards-generate">
               <h2 class="flashcards-generate-title">{t('mlearn.Flashcards.UI.Tabs.Generate')}</h2>
               <p class="flashcards-generate-description">{t('mlearn.Flashcards.Bulk.GenerateDescription')}</p>
+
+              <div class="flashcards-generate-option">
+                <label class="flashcards-generate-label">{t('mlearn.Flashcards.Bulk.ModeChoice')}</label>
+                <Select
+                  options={bulkModeOptions()}
+                  value={bulkMode()}
+                  onChange={(e) => setBulkMode(e.currentTarget.value as 'onlyEmpty' | 'replaceAll' | 'olderThan')}
+                  class="flashcards-generate-select"
+                />
+              </div>
+
+              <Show when={bulkMode() === 'olderThan'}>
+                <div class="flashcards-generate-option">
+                  <label class="flashcards-generate-label">{t('mlearn.Flashcards.Bulk.OlderThanDate')}</label>
+                  <Input
+                    type="date"
+                    value={bulkOlderThanDate()}
+                    onInput={(e) => setBulkOlderThanDate(e.currentTarget.value)}
+                    class="flashcards-generate-select"
+                  />
+                </div>
+              </Show>
 
               <div class="flashcards-generate-actions">
                 <Show when={isElectron()}>
@@ -579,17 +659,33 @@ export const FlashcardsContent: Component = () => {
               </div>
 
               <Show when={bulkProgress()}>
-                <div class="flashcards-generate-progress">
-                  <span class="flashcards-generate-progress-label">{bulkProgress()!.label}</span>
-                  <ProgressBar
-                    value={Math.round((bulkProgress()!.current / bulkProgress()!.total) * 100)}
-                    size="md"
-                    variant="default"
-                  />
-                  <span class="flashcards-generate-progress-count">
-                    {bulkProgress()!.current} / {bulkProgress()!.total}
-                  </span>
-                </div>
+                {(() => {
+                  const p = bulkProgress()!;
+                  const elapsed = Date.now() - p.startTime;
+                  const avgMs = p.current > 0 ? elapsed / p.current : 0;
+                  const remaining = p.current > 0 ? Math.round(avgMs * (p.total - p.current)) : 0;
+                  const etaText = p.current > 0 ? formatEta(remaining) : '';
+                  return (
+                    <div class="flashcards-generate-progress">
+                      <span class="flashcards-generate-progress-label">{p.label}</span>
+                      <ProgressBar
+                        value={Math.round((p.current / p.total) * 100)}
+                        size="md"
+                        variant="default"
+                      />
+                      <div class="flashcards-generate-progress-footer">
+                        <span class="flashcards-generate-progress-count">
+                          {p.current} / {p.total}
+                        </span>
+                        <Show when={etaText}>
+                          <span class="flashcards-generate-progress-eta">
+                            {t('mlearn.Flashcards.Bulk.EtaRemaining', { eta: etaText })}
+                          </span>
+                        </Show>
+                      </div>
+                    </div>
+                  );
+                })()}
               </Show>
             </div>
           </Show>

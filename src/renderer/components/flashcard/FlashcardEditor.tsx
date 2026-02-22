@@ -1,7 +1,7 @@
 /**
  * Flashcard Editor Component
  * Full-featured editor for flashcards with pitch accent, contentEditable fields,
- * and all the features from the old word database editor
+ * TTS regeneration, and example sentence generation.
  * Updated for the new UUID-keyed flashcard format
  */
 
@@ -10,6 +10,11 @@ import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { useSettings, useLanguage, useLocalization, useFlashcards } from '../../context';
 import { getPitchAccentName } from '../../utils/pitchAccent';
 import { Input, Btn, PitchAccentOverlay } from '../common';
+import { getBridge } from '../../../shared/bridges';
+import { getBackend } from '../../../shared/backends';
+import { isElectron } from '../../../shared/platform';
+import { tokensToColoredHtml } from '../../utils/subtitleParsing';
+import { showToast } from '../common/Feedback/Toast';
 import './FlashcardEditor.css';
 
 export interface FlashcardEditorProps {
@@ -29,7 +34,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   const { settings } = useSettings();
   const { getLanguageFeatures } = useLanguage();
   const { t } = useLocalization();
-  const { intervalToString } = useFlashcards();
+  const { intervalToString, generateExampleSentenceWithLLM, updateFlashcardContent } = useFlashcards();
 
   // Form state
   const [front, setFront] = createSignal('');
@@ -42,6 +47,10 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   const [level, setLevel] = createSignal<number | undefined>(undefined);
   const [imageUrl, setImageUrl] = createSignal('');
   const [context, setContext] = createSignal('');
+
+  // TTS / generation state
+  const [regeneratingTts, setRegeneratingTts] = createSignal(false);
+  const [regeneratingExample, setRegeneratingExample] = createSignal(false);
 
   // ContentEditable refs
   let exampleRef: HTMLDivElement | undefined;
@@ -119,6 +128,80 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
     props.onSave(content);
   };
+
+  /** Regenerate TTS for the current flashcard (word + example) */
+  const handleRegenerateTts = async () => {
+    const card = props.flashcard;
+    if (!card || !isElectron()) return;
+
+    setRegeneratingTts(true);
+    const bridge = getBridge();
+    const provider = settings.flashcardTtsProvider;
+    const remoteUrl = settings.flashcardRemoteTtsUrl || undefined;
+    const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
+    const language = settings.language;
+
+    try {
+      const wordText = front().replace(/<[^>]*>/g, '');
+      if (wordText && wordText !== '-') {
+        await bridge.flashcards.generateFlashcardTts(card.id, wordText, language, 'word', provider, remoteUrl, voiceSampleId);
+      }
+      const exampleText = example().replace(/<[^>]*>/g, '');
+      if (exampleText && exampleText !== '-') {
+        await bridge.flashcards.generateFlashcardTts(card.id, exampleText, language, 'example', provider, remoteUrl, voiceSampleId);
+      }
+      showToast({ message: t('mlearn.CardEditor.RegenerateTts'), variant: 'success' });
+    } catch (e) {
+      console.warn('Failed to regenerate TTS:', e);
+    } finally {
+      setRegeneratingTts(false);
+    }
+  };
+
+  /** Regenerate example sentence using LLM */
+  const handleRegenerateExample = async () => {
+    const card = props.flashcard;
+    if (!card) return;
+
+    setRegeneratingExample(true);
+    try {
+      const result = await generateExampleSentenceWithLLM(front(), back(), settings.language);
+      if (result.sentence) {
+        let exampleHtml = result.sentence;
+        try {
+          const backend = getBackend({
+            mode: settings.backendMode,
+            url: settings.backendUrl,
+            authToken: settings.cloudAuthToken,
+          });
+          const tokens = await backend.tokenize(result.sentence, settings.language);
+          if (tokens.length > 0) {
+            exampleHtml = tokensToColoredHtml(tokens, settings.colour_codes || {}, front());
+          }
+        } catch {
+          // Use plain text if tokenization fails
+        }
+        setExample(exampleHtml);
+        setExampleMeaning(result.meaning || '');
+        // Also persist to the flashcard store
+        updateFlashcardContent(card.id, {
+          example: exampleHtml,
+          exampleMeaning: result.meaning || undefined,
+        });
+        showToast({ message: t('mlearn.CardEditor.RegenerateExample'), variant: 'success' });
+      }
+    } catch (e) {
+      console.warn('Failed to regenerate example:', e);
+    } finally {
+      setRegeneratingExample(false);
+    }
+  };
+
+  /** Check if this card has TTS audio saved */
+  const hasTtsAudio = createMemo(() => {
+    // Only show regenerate for existing cards on Electron
+    return !!props.flashcard && isElectron();
+  });
 
   // Get stats for existing card
   const cardStats = createMemo(() => {
@@ -218,7 +301,21 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
         {/* Example sentence - contentEditable with HTML */}
         <div class="editor-field">
-          <label>{t('mlearn.CardEditor.Fields.ExampleSentence')}</label>
+          <div class="editor-field-header">
+            <label>{t('mlearn.CardEditor.Fields.ExampleSentence')}</label>
+            <Show when={props.flashcard}>
+              <div class="editor-field-actions">
+                <Btn
+                  size="xs"
+                  variant="ghost"
+                  onClick={handleRegenerateExample}
+                  disabled={regeneratingExample()}
+                >
+                  {t('mlearn.CardEditor.RegenerateExample')}
+                </Btn>
+              </div>
+            </Show>
+          </div>
           <div
             ref={exampleRef}
             contentEditable
@@ -256,6 +353,20 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
           </div>
         </Show>
       </div>
+
+      {/* TTS Regeneration - only for existing cards on Electron */}
+      <Show when={hasTtsAudio()}>
+        <div class="editor-section">
+          <Btn
+            size="sm"
+            variant="secondary"
+            onClick={handleRegenerateTts}
+            disabled={regeneratingTts()}
+          >
+            {t('mlearn.CardEditor.RegenerateTts')}
+          </Btn>
+        </div>
+      </Show>
 
       {/* Stats Section - only for existing cards */}
       <Show when={props.showStats && cardStats()}>

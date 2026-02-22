@@ -1330,7 +1330,7 @@ export const ReaderRoute: Component = () => {
     const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
 
     for (const entry of Object.values(s.wordsEncountered)) {
-      const globalEntry = wordKnowledge[entry.word];
+      const globalEntry = wordKnowledge[lang + ':' + entry.word] || wordKnowledge[entry.word];
       if (globalEntry) {
         mediaWords.set(entry.word, {
           word: entry.word,

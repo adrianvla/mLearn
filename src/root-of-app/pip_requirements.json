@@ -31,12 +31,14 @@
   "voice": [
     "torch",
     "torchaudio",
-    "faster-whisper",
+    "faster_whisper",
     "kokoro",
     "misaki[ja]",
     "soundfile",
     "unidic",
-    "silero-vad"
+    "silero-vad",
+    "pyopenjtalk",
+    "mojimoji"
   ],
   "qwen3-tts": [
     "qwen_tts",

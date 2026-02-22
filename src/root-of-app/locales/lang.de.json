@@ -291,7 +291,13 @@
         "ExamplesProgress": "Beispiele werden generiert…",
         "ExamplesDone": "Beispiele für {count} Karten generiert",
         "ExamplesAllDone": "Alle Lernkarten haben bereits Beispiele",
-        "GenerateDescription": "Audio und Beispielsätze für Ihre Lernkarten stapelweise generieren"
+        "GenerateDescription": "Audio und Beispielsätze für Ihre Lernkarten stapelweise generieren",
+        "ModeChoice": "Generierungsmodus",
+        "ModeOnlyEmpty": "Nur Karten ohne vorhandene Daten",
+        "ModeReplaceAll": "Alle neu generieren (vorhandene ersetzen)",
+        "ModeOlderThan": "Älter als Datum neu generieren",
+        "OlderThanDate": "Generiert vor",
+        "EtaRemaining": "~{eta} verbleibend"
       },
       "EmptyState": {
         "NoCardsTitle": "Noch keine Lernkarten",
@@ -1085,16 +1091,22 @@
         "Definition": "Definition (HTML erlaubt)",
         "Definitions": "Definitionen (eine pro Zeile)",
         "DefinitionsPlaceholder": "Eine Definition pro Zeile",
-        "StructuredContent": "Strukturierter Inhalt (beliebiges HTML)"
+        "StructuredContent": "Strukturierter Inhalt (beliebiges HTML)",
+        "Context": "Kontext",
+        "ContextPlaceholder": "Wo Sie dieses Wort begegnet sind..."
       },
       "Statistics": {
         "Title": "Statistiken",
         "Ease": "Leichtigkeit:",
         "Reviews": "Wiederholungen:",
+        "State": "Status:",
+        "Lapses": "Rückfälle:",
         "LastReviewed": "Letzte Wiederholung:",
         "Never": "Nie",
         "Interval": "Intervall:"
       },
+      "RegenerateTts": "TTS neu generieren",
+      "RegenerateExample": "Beispiel neu generieren",
       "Hint": "Übersetzung: Komma oder Zeilenumbruch. Tonakzent ist die Mora-Absenkungsposition (0=flach)."
     },
     "PitchAccent": {
@@ -1367,6 +1379,8 @@
             "Transcript": "Transkript:",
             "NoTranscript": "Kein Transkript verfügbar",
             "PlaySample": "Probe abspielen",
+            "DeleteSample": "Stimmprobe löschen",
+            "DeleteConfirm": "Möchten Sie diese Stimmprobe wirklich löschen? Dies kann nicht rückgängig gemacht werden.",
             "TestPlaceholder": "Text eingeben, um TTS zu testen…",
             "TestTts": "TTS testen",
             "ModelLoading": "TTS-Modell wird geladen…"

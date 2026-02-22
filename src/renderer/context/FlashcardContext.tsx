@@ -20,7 +20,12 @@ import { isElectron } from '../../shared/platform';
 import { streamChat } from '../services/llmProvider';
 
 // Current store version
-const CURRENT_VERSION = 4;
+const CURRENT_VERSION = 5;
+
+/** Build a language-prefixed composite key for per-language maps */
+function langKey(language: string, hash: string): string {
+  return language + ':' + hash;
+}
 
 /**
  * Compare flashcard states - returns positive if a is "better" than b
@@ -338,6 +343,93 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }
     }
 
+    // Handle migration from v4 to v5 (per-language keying)
+    if (version < 5) {
+      const lang = settings.language || 'ja';
+
+      // Add language field to each flashcard
+      for (const card of Object.values(flashcards) as Flashcard[]) {
+        if (!card.language) {
+          card.language = lang;
+        }
+      }
+
+      // Re-key wordToCardMap with language prefix
+      const newWordToCardMap: Record<string, string[]> = {};
+      for (const [hash, cardIds] of Object.entries(wordToCardMap)) {
+        if (!hash.includes(':')) {
+          newWordToCardMap[langKey(lang, hash)] = cardIds;
+        } else {
+          newWordToCardMap[hash] = cardIds;
+        }
+      }
+      wordToCardMap = newWordToCardMap;
+
+      // Re-key wordStatsMap
+      const newWordStatsMap: Record<string, WordStats> = {};
+      for (const [hash, stats] of Object.entries(wordStatsMap)) {
+        if (!hash.includes(':')) {
+          newWordStatsMap[langKey(lang, hash)] = stats;
+        } else {
+          newWordStatsMap[hash] = stats;
+        }
+      }
+      wordStatsMap = newWordStatsMap;
+
+      // Re-key wordKnowledge
+      const newWordKnowledge: Record<string, PassiveWordKnowledge> = {};
+      for (const [hash, entry] of Object.entries<PassiveWordKnowledge>(partial.wordKnowledge || {})) {
+        if (!hash.includes(':')) {
+          newWordKnowledge[langKey(lang, hash)] = { ...entry, language: lang };
+        } else {
+          newWordKnowledge[hash] = entry;
+        }
+      }
+
+      // Re-key grammarKnowledge
+      const newGrammarKnowledge: Record<string, GrammarKnowledgeEntry> = {};
+      for (const [key, entry] of Object.entries<GrammarKnowledgeEntry>(partial.grammarKnowledge || {})) {
+        if (!key.includes(':')) {
+          newGrammarKnowledge[langKey(lang, key)] = { ...entry, language: lang };
+        } else {
+          newGrammarKnowledge[key] = entry;
+        }
+      }
+
+      // Re-key knownUntracked
+      const newKnownUntracked: Record<string, boolean> = {};
+      for (const [hash, val] of Object.entries<boolean>(partial.knownUntracked || {})) {
+        if (!hash.includes(':')) {
+          newKnownUntracked[langKey(lang, hash)] = val;
+        } else {
+          newKnownUntracked[hash] = val;
+        }
+      }
+
+      // Re-key wordCandidates
+      const newWordCandidates: Record<string, any> = {};
+      for (const [hash, entry] of Object.entries(partial.wordCandidates || {})) {
+        if (!hash.includes(':')) {
+          newWordCandidates[langKey(lang, hash)] = { ...(entry as any), language: lang };
+        } else {
+          newWordCandidates[hash] = entry;
+        }
+      }
+
+      return {
+        flashcards,
+        wordCandidates: newWordCandidates,
+        wordToCardMap,
+        wordStatsMap,
+        knownUntracked: newKnownUntracked,
+        wordKnowledge: newWordKnowledge,
+        grammarKnowledge: newGrammarKnowledge,
+        meta,
+        dailyStats: partial.dailyStats || {},
+        version: CURRENT_VERSION,
+      };
+    }
+
     return {
       flashcards,
       wordCandidates: partial.wordCandidates || {},
@@ -450,10 +542,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
     console.log('%caddFlashcard called with:', 'color: magenta; font-weight: bold;', content.front);
     const word = content.front;
     const wordHash = await SRS.hashWord(word);
+    const lang = settings.language;
+    const lk = langKey(lang, wordHash);
     console.log('%caddFlashcard: wordHash generated:', 'color: magenta;', wordHash);
 
     // Check if marked as known (skip flashcard creation)
-    if (store.knownUntracked[wordHash]) {
+    if (store.knownUntracked[lk]) {
       console.log(`Word "${word}" is marked as known, not creating flashcard.`);
       return '';
     }
@@ -496,26 +590,27 @@ export const FlashcardProvider: ParentComponent = (props) => {
       createdAt: now,
       lastReviewed: now,
       lastUpdated: now,
+      language: lang,
     };
 
     setStore(produce((s) => {
       // Add flashcard
       s.flashcards[id] = newCard;
       
-      // Add to wordToCardMap (array)
-      if (!s.wordToCardMap[wordHash]) {
-        s.wordToCardMap[wordHash] = [];
+      // Add to wordToCardMap (array) with language-prefixed key
+      if (!s.wordToCardMap[lk]) {
+        s.wordToCardMap[lk] = [];
       }
-      s.wordToCardMap[wordHash].push(id);
+      s.wordToCardMap[lk].push(id);
       
       // Update wordStatsMap
-      const cards = s.wordToCardMap[wordHash].map(cid => s.flashcards[cid]).filter(Boolean);
-      s.wordStatsMap[wordHash] = calculateWordStats(cards);
+      const cards = s.wordToCardMap[lk].map(cid => s.flashcards[cid]).filter(Boolean);
+      s.wordStatsMap[lk] = calculateWordStats(cards);
     }));
 
     refreshQueue();
     saveFlashcards();
-    console.log(`Created new flashcard for word: ${word} (now has ${store.wordToCardMap[wordHash]?.length || 1} cards)`);
+    console.log(`Created new flashcard for word: ${word} (now has ${store.wordToCardMap[lk]?.length || 1} cards)`);
     return id;
   };
 
@@ -539,27 +634,29 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     const word = card.content.front;
     const wordHash = await SRS.hashWord(word);
+    const lang = card.language || settings.language;
+    const lk = langKey(lang, wordHash);
 
     setStore(produce((s) => {
       // Remove from flashcards
       delete s.flashcards[id];
       
       // Remove from wordToCardMap array
-      if (s.wordToCardMap[wordHash]) {
-        s.wordToCardMap[wordHash] = s.wordToCardMap[wordHash].filter(cid => cid !== id);
+      if (s.wordToCardMap[lk]) {
+        s.wordToCardMap[lk] = s.wordToCardMap[lk].filter(cid => cid !== id);
         
         // If no more cards for this word, clean up
-        if (s.wordToCardMap[wordHash].length === 0) {
-          delete s.wordToCardMap[wordHash];
-          delete s.wordStatsMap[wordHash];
+        if (s.wordToCardMap[lk].length === 0) {
+          delete s.wordToCardMap[lk];
+          delete s.wordStatsMap[lk];
           
           if (neverShowAgain) {
-            s.knownUntracked[wordHash] = true;
+            s.knownUntracked[lk] = true;
           }
         } else {
           // Recalculate stats for remaining cards
-          const cards = s.wordToCardMap[wordHash].map(cid => s.flashcards[cid]).filter(Boolean);
-          s.wordStatsMap[wordHash] = calculateWordStats(cards);
+          const cards = s.wordToCardMap[lk].map(cid => s.flashcards[cid]).filter(Boolean);
+          s.wordStatsMap[lk] = calculateWordStats(cards);
         }
       }
     }));
@@ -735,7 +832,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // Recalculate word stats after answering (async)
     (async () => {
       const wordHash = await SRS.hashWord(card.content.front);
-      recalculateWordStats(wordHash);
+      const lk = langKey(card.language || settings.language, wordHash);
+      recalculateWordStats(lk);
     })();
     
     saveFlashcards();
@@ -754,7 +852,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Get all cards for a word (supports multiple cards per word)
   const getCardsByWord = async (word: string): Promise<Flashcard[]> => {
     const wordHash = await SRS.hashWord(word);
-    const ids = store.wordToCardMap[wordHash];
+    const lk = langKey(settings.language, wordHash);
+    const ids = store.wordToCardMap[lk];
     if (!ids || ids.length === 0) return [];
     return ids.map(id => store.flashcards[id]).filter(Boolean);
   };
@@ -762,7 +861,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Get the first/best card for a word (backwards compatible)
   const getCardByWord = async (word: string): Promise<Flashcard | null> => {
     const wordHash = await SRS.hashWord(word);
-    const ids = store.wordToCardMap[wordHash];
+    const lk = langKey(settings.language, wordHash);
+    const ids = store.wordToCardMap[lk];
     if (!ids || ids.length === 0) return null;
     
     // Return the card with best state/ease
@@ -781,14 +881,16 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Check if word has flashcard
   const hasWord = async (word: string): Promise<boolean> => {
     const wordHash = await SRS.hashWord(word);
-    const ids = store.wordToCardMap[wordHash];
+    const lk = langKey(settings.language, wordHash);
+    const ids = store.wordToCardMap[lk];
     return !!ids && ids.length > 0;
   };
 
   // Get aggregated word statistics for O(1) lookup
   const getWordStats = async (word: string): Promise<WordStats | null> => {
     const wordHash = await SRS.hashWord(word);
-    return store.wordStatsMap[wordHash] || null;
+    const lk = langKey(settings.language, wordHash);
+    return store.wordStatsMap[lk] || null;
   };
 
   // Get due count (respects end-of-SRS-day for review cards)
@@ -805,18 +907,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // These iterate through cards directly by checking content.front
   // They're O(n) but fully reactive with SolidJS, unlike async methods
   // TODO: instead of O(n), maybe using a Map of word to card IDs would be better for performance
-  // Synchronous check if word has flashcard
+  // Synchronous check if word has flashcard (for current language)
   const hasWordSync = (word: string): boolean => {
     if (!word) return false;
+    const lang = settings.language;
     const allCards = Object.values(store.flashcards);
-    return allCards.some(card => card.content.front === word);
+    return allCards.some(card => card.content.front === word && (card.language === lang || !card.language));
   };
   
-  // Synchronous get all cards for a word
+  // Synchronous get all cards for a word (for current language)
   const getCardsByWordSync = (word: string): Flashcard[] => {
     if (!word) return [];
+    const lang = settings.language;
     const allCards = Object.values(store.flashcards);
-    return allCards.filter(card => card.content.front === word);
+    return allCards.filter(card => card.content.front === word && (card.language === lang || !card.language));
   };
   
   // Synchronous get the best card for a word (highest state/ease)
@@ -846,20 +950,22 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Track word appearance for auto-creation
   const trackWordAppearance = async (word: string, reading?: string) => {
     const wordHash = await SRS.hashWord(word);
+    const lang = settings.language;
+    const lk = langKey(lang, wordHash);
     const now = Date.now();
 
     // Skip if already has flashcard(s) or marked as known
-    const cardIds = store.wordToCardMap[wordHash];
-    if ((cardIds && cardIds.length > 0) || store.knownUntracked[wordHash]) {
+    const cardIds = store.wordToCardMap[lk];
+    if ((cardIds && cardIds.length > 0) || store.knownUntracked[lk]) {
       return;
     }
 
     setStore(produce((s) => {
-      if (!s.wordCandidates[wordHash]) {
-        s.wordCandidates[wordHash] = { count: 0, lastSeen: now, word, reading };
+      if (!s.wordCandidates[lk]) {
+        s.wordCandidates[lk] = { count: 0, lastSeen: now, word, reading, language: lang };
       }
-      s.wordCandidates[wordHash].count++;
-      s.wordCandidates[wordHash].lastSeen = now;
+      s.wordCandidates[lk].count++;
+      s.wordCandidates[lk].lastSeen = now;
     }));
 
     saveFlashcards();
@@ -868,9 +974,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Mark word as known (won't create flashcard)
   const markWordAsKnown = async (word: string) => {
     const wordHash = await SRS.hashWord(word);
+    const lang = settings.language;
+    const lk = langKey(lang, wordHash);
 
     // If there are flashcards, remove all of them
-    const cardIds = store.wordToCardMap[wordHash];
+    const cardIds = store.wordToCardMap[lk];
     if (cardIds && cardIds.length > 0) {
       // Remove all cards for this word
       for (const cardId of [...cardIds]) {
@@ -878,8 +986,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }
     } else {
       setStore(produce((s) => {
-        s.knownUntracked[wordHash] = true;
-        delete s.wordCandidates[wordHash];
+        s.knownUntracked[lk] = true;
+        delete s.wordCandidates[lk];
       }));
       saveFlashcards();
     }
@@ -896,20 +1004,23 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const trackWordSeen = (word: string, reading?: string, easeBump = 0.01) => {
     if (!settings.passiveEaseEnabled) return;
     const wordHash = SRS.hashWordSync(word);
+    const lang = settings.language;
+    const lk = langKey(lang, wordHash);
     const now = Date.now();
 
     setStore(produce((s) => {
-      if (!s.wordKnowledge[wordHash]) {
-        s.wordKnowledge[wordHash] = {
+      if (!s.wordKnowledge[lk]) {
+        s.wordKnowledge[lk] = {
           ease: 2.5,
           lastSeen: now,
           timesSeen: 0,
           timesHovered: 0,
           word,
           reading,
+          language: lang,
         };
       }
-      const k = s.wordKnowledge[wordHash];
+      const k = s.wordKnowledge[lk];
       k.timesSeen++;
       k.lastSeen = now;
       // Ease bump for passive exposure (configurable per caller)
@@ -917,35 +1028,38 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }));
 
     // Notify media stats listeners so per-media tracking stays in sync
-    const newEase = store.wordKnowledge[wordHash]?.ease ?? 2.5;
+    const newEase = store.wordKnowledge[lk]?.ease ?? 2.5;
     window.dispatchEvent(new CustomEvent('mlearn:word-seen', { detail: { word, ease: newEase } }));
   };
 
   // Track that a word was hovered (user doesn't know it)
-  // 1-second debounce: call this on hover start, cancel on hover end
+  // Debounce: call this on hover start, cancel on hover end
   const trackWordHovered = (word: string, reading?: string) => {
     const wordHash = SRS.hashWordSync(word);
+    const lang = settings.language;
+    const lk = langKey(lang, wordHash);
 
     // Cancel existing timer if any
-    const existing = hoverTimers.get(wordHash);
+    const existing = hoverTimers.get(lk);
     if (existing) clearTimeout(existing);
 
     const timer = setTimeout(() => {
-      hoverTimers.delete(wordHash);
+      hoverTimers.delete(lk);
       const now = Date.now();
 
       setStore(produce((s) => {
-        if (!s.wordKnowledge[wordHash]) {
-          s.wordKnowledge[wordHash] = {
+        if (!s.wordKnowledge[lk]) {
+          s.wordKnowledge[lk] = {
             ease: 2.5,
             lastSeen: now,
             timesSeen: 0,
             timesHovered: 0,
             word,
             reading,
+            language: lang,
           };
         }
-        const k = s.wordKnowledge[wordHash];
+        const k = s.wordKnowledge[lk];
         k.timesHovered++;
         k.lastSeen = now;
         // Decrease ease (signals unknown)
@@ -954,31 +1068,36 @@ export const FlashcardProvider: ParentComponent = (props) => {
       saveFlashcards();
 
       // Notify media stats listeners so per-media tracking stays in sync
-      const newEase = store.wordKnowledge[wordHash]?.ease ?? 2.5;
+      const newEase = store.wordKnowledge[lk]?.ease ?? 2.5;
       window.dispatchEvent(new CustomEvent('mlearn:word-hovered', { detail: { word, ease: newEase } }));
-    }, settings.passiveHoverDelayMs ?? 1000);
+    }, settings.passiveHoverDelayMs ?? 150);
 
-    hoverTimers.set(wordHash, timer);
+    hoverTimers.set(lk, timer);
   };
 
   // Cancel a hover timer (call on hover end)
   const cancelWordHover = (word: string) => {
     const wordHash = SRS.hashWordSync(word);
-    const timer = hoverTimers.get(wordHash);
+    const lk = langKey(settings.language, wordHash);
+    const timer = hoverTimers.get(lk);
     if (timer) {
       clearTimeout(timer);
-      hoverTimers.delete(wordHash);
+      hoverTimers.delete(lk);
     }
   };
 
-  // Get passive word knowledge
+  // Get passive word knowledge (uses language-prefixed key)
   const getWordKnowledge = (wordHash: string): PassiveWordKnowledge | undefined => {
-    return store.wordKnowledge[wordHash];
+    // If the key already has a language prefix, use as-is
+    if (wordHash.includes(':')) return store.wordKnowledge[wordHash];
+    // Otherwise prefix with current language
+    return store.wordKnowledge[langKey(settings.language, wordHash)];
   };
 
   // Check if word is known (ease >= threshold)
   const isWordKnown = (wordHash: string): boolean => {
-    const k = store.wordKnowledge[wordHash];
+    const lk = wordHash.includes(':') ? wordHash : langKey(settings.language, wordHash);
+    const k = store.wordKnowledge[lk];
     if (!k) return false;
     return k.ease >= (settings.known_ease_threshold / 1000); // Normalize from 0-5000 to 0-5 scale
   };
@@ -986,7 +1105,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Convenience: check if word is known by raw word text (sync hash)
   const isWordKnownByText = (word: string): boolean => {
     const wordHash = SRS.hashWordSync(word);
-    return isWordKnown(wordHash);
+    return isWordKnown(langKey(settings.language, wordHash));
   };
 
   // ========================
@@ -995,19 +1114,22 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Track that a grammar pattern was passively encountered
   const trackGrammarEncountered = (pattern: string, level = 0) => {
+    const lang = settings.language;
+    const lk = langKey(lang, pattern);
     const now = Date.now();
     setStore(produce((s) => {
-      if (!s.grammarKnowledge[pattern]) {
-        s.grammarKnowledge[pattern] = {
+      if (!s.grammarKnowledge[lk]) {
+        s.grammarKnowledge[lk] = {
           pattern,
           ease: 2.5,
           timesEncountered: 0,
           timesFailed: 0,
           lastSeen: now,
           level,
+          language: lang,
         };
       }
-      const g = s.grammarKnowledge[pattern];
+      const g = s.grammarKnowledge[lk];
       g.timesEncountered++;
       g.lastSeen = now;
       // Slight ease bump for passive encounter
@@ -1017,19 +1139,22 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Track that user struggled with a grammar pattern
   const trackGrammarFailed = (pattern: string, level = 0) => {
+    const lang = settings.language;
+    const lk = langKey(lang, pattern);
     const now = Date.now();
     setStore(produce((s) => {
-      if (!s.grammarKnowledge[pattern]) {
-        s.grammarKnowledge[pattern] = {
+      if (!s.grammarKnowledge[lk]) {
+        s.grammarKnowledge[lk] = {
           pattern,
           ease: 2.5,
           timesEncountered: 0,
           timesFailed: 0,
           lastSeen: now,
           level,
+          language: lang,
         };
       }
-      const g = s.grammarKnowledge[pattern];
+      const g = s.grammarKnowledge[lk];
       g.timesFailed++;
       g.lastSeen = now;
       // Larger ease decrease for failed grammar
@@ -1040,7 +1165,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Get grammar knowledge entry
   const getGrammarKnowledge = (pattern: string): GrammarKnowledgeEntry | undefined => {
-    return store.grammarKnowledge[pattern];
+    const lk = pattern.includes(':') ? pattern : langKey(settings.language, pattern);
+    return store.grammarKnowledge[lk];
   };
 
   /**
@@ -1050,7 +1176,15 @@ export const FlashcardProvider: ParentComponent = (props) => {
    * Returns the number of cards created.
    */
   const autoCreateFlashcardsFromCandidates = async (useLLM: boolean): Promise<number> => {
-    const candidates = Object.entries(store.wordCandidates);
+    const lang = settings.language;
+    // Only process candidates for the current language
+    const candidates = Object.entries(store.wordCandidates)
+      .filter(([key, c]) => {
+        // Composite key starts with lang prefix, or legacy entry matches current language
+        if (key.startsWith(lang + ':')) return true;
+        if (!key.includes(':') && (!c.language || c.language === lang)) return true;
+        return false;
+      });
     if (candidates.length === 0) return 0;
 
     // Sort by count descending (most frequently seen first)
@@ -1081,11 +1215,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     let createdCount = 0;
 
-    for (const [wordHash, candidate] of toCreate) {
+    for (const [compositeKey, candidate] of toCreate) {
       // Skip if card already exists for this word
-      const existingCards = store.wordToCardMap[wordHash];
+      const existingCards = store.wordToCardMap[compositeKey];
       if (existingCards && existingCards.length > 0) continue;
-      if (store.knownUntracked[wordHash]) continue;
+      if (store.knownUntracked[compositeKey]) continue;
 
       try {
         // Get translation data from backend
@@ -1164,7 +1298,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
         // Remove from word candidates after successful creation
         setStore(produce((s) => {
-          delete s.wordCandidates[wordHash];
+          delete s.wordCandidates[compositeKey];
         }));
       } catch (e) {
         console.warn(`Failed to auto-create flashcard for "${candidate.word}":`, e);

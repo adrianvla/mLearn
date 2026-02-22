@@ -216,17 +216,19 @@ export async function mergeFlashcards(
     }
   }
 
-  // Rebuild wordToCardMap from all flashcards
+  // Rebuild wordToCardMap from all flashcards (with language-prefixed keys)
   const newWordToCardMap: Record<string, string[]> = {};
   for (const [cardId, card] of Object.entries(merged.flashcards)) {
     const word = card.content.front;
     if (word) {
       const wordHash = await toUniqueIdentifier(word);
-      if (!newWordToCardMap[wordHash]) {
-        newWordToCardMap[wordHash] = [];
+      const lang = card.language || 'ja';
+      const lk = lang + ':' + wordHash;
+      if (!newWordToCardMap[lk]) {
+        newWordToCardMap[lk] = [];
       }
-      if (!newWordToCardMap[wordHash].includes(cardId)) {
-        newWordToCardMap[wordHash].push(cardId);
+      if (!newWordToCardMap[lk].includes(cardId)) {
+        newWordToCardMap[lk].push(cardId);
       }
     }
   }

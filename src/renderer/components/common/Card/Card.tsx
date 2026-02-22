@@ -6,9 +6,9 @@
 import { Component, JSX, Show, splitProps, mergeProps } from 'solid-js';
 import { Panel, type PanelProps } from '../Panel';
 
-export interface CardProps extends PanelProps {
-  title?: string;
-  subtitle?: string;
+export interface CardProps extends Omit<PanelProps, 'title'> {
+  title?: string | JSX.Element;
+  subtitle?: string | JSX.Element;
   header?: JSX.Element;
   footer?: JSX.Element;
   headerActions?: JSX.Element;

@@ -302,7 +302,7 @@ export const DEFAULT_SETTINGS: Settings = {
   anki_field_meaning: 'Meaning',
   anki_model_name: 'Basic',
   passiveEaseEnabled: true,
-  passiveHoverDelayMs: 1000,
+  passiveHoverDelayMs: 150,
   llmConfigured: false,
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',
@@ -517,6 +517,8 @@ export interface Flashcard {
   suspended?: boolean;
   /** Flag for buried cards (temporarily hidden until next day) */
   buried?: boolean;
+  /** Language this card belongs to (e.g. 'ja', 'de') — set at creation */
+  language?: string;
 }
 
 /**
@@ -531,6 +533,8 @@ export interface WordCandidate {
   word: string;
   /** Optional reading for the word */
   reading?: string;
+  /** Language this candidate belongs to */
+  language?: string;
 }
 
 /**
@@ -680,6 +684,8 @@ export interface PassiveWordKnowledge {
   word: string;
   /** Reading/pronunciation if available */
   reading?: string;
+  /** Language this knowledge entry belongs to */
+  language?: string;
 }
 
 /** Grammar knowledge entry tracked in FlashcardStore */
@@ -696,6 +702,8 @@ export interface GrammarKnowledgeEntry {
   lastSeen: number;
   /** Difficulty level from language data */
   level: number;
+  /** Language this grammar entry belongs to */
+  language?: string;
 }
 
 export interface WordFrequencyEntry {

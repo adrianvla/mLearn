@@ -392,7 +392,7 @@ export const VideoRoute: Component = () => {
     // Only include words encountered in this specific media
     // Refine ease with global wordKnowledge but never add words from other media
     for (const entry of Object.values(s.wordsEncountered)) {
-      const globalEntry = wordKnowledge[entry.word];
+      const globalEntry = wordKnowledge[lang + ':' + entry.word] || wordKnowledge[entry.word];
       if (globalEntry) {
         mediaWords.set(entry.word, {
           word: entry.word,

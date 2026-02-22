@@ -12,9 +12,12 @@
 
 import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
-import { Panel, PillLabel, IconBtn } from '../common';
+import { Panel, PillLabel, IconBtn, Btn } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { FlashcardPitchAccent } from './FlashcardPitchAccent';
+import { getBridge } from '../../../shared/bridges';
+import { isElectron } from '../../../shared/platform';
+import { showToast } from '../common/Feedback/Toast';
 import type { TtsMetadata } from '../../hooks/useFlashcardTts';
 import './FlashcardDisplay.css';
 
@@ -38,6 +41,8 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const [shouldAnimate, setShouldAnimate] = createSignal(false);
   // Track enter animation between cards
   const [isEntering, setIsEntering] = createSignal(false);
+  // TTS regeneration state
+  const [regeneratingTts, setRegeneratingTts] = createSignal(false);
 
   const content = () => props.flashcard.content;
   const displayWord = () => content().front;
@@ -56,6 +61,36 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     e.stopPropagation();
     e.preventDefault();
     props.onPlayTts?.(props.flashcard.id, text, field);
+  };
+
+  /** Regenerate TTS audio for the current card */
+  const handleRegenerateTts = async (e: MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!isElectron() || regeneratingTts()) return;
+
+    setRegeneratingTts(true);
+    const bridge = getBridge();
+    const provider = settings.flashcardTtsProvider;
+    const remoteUrl = settings.flashcardRemoteTtsUrl || undefined;
+    const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
+    const language = settings.language;
+
+    try {
+      const wordText = displayWord().replace(/<[^>]*>/g, '');
+      if (wordText && wordText !== '-') {
+        await bridge.flashcards.generateFlashcardTts(props.flashcard.id, wordText, language, 'word', provider, remoteUrl, voiceSampleId);
+      }
+      const exampleText = content().example?.replace(/<[^>]*>/g, '') || '';
+      if (exampleText && exampleText !== '-') {
+        await bridge.flashcards.generateFlashcardTts(props.flashcard.id, exampleText, language, 'example', provider, remoteUrl, voiceSampleId);
+      }
+      showToast({ message: t('mlearn.CardEditor.RegenerateTts'), variant: 'success' });
+    } catch {
+      // silently fail
+    } finally {
+      setRegeneratingTts(false);
+    }
   };
 
   // Synchronous: determine animation mode BEFORE DOM updates.
@@ -255,6 +290,19 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
                 alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
                 class="flashcard-screenshot"
               />
+            </div>
+          </Show>
+
+          <Show when={isElectron()}>
+            <div class="flashcard-regen-row" onClick={(e) => e.stopPropagation()}>
+              <Btn
+                size="xs"
+                variant="ghost"
+                onClick={handleRegenerateTts}
+                disabled={regeneratingTts()}
+              >
+                {t('mlearn.CardEditor.RegenerateTts')}
+              </Btn>
             </div>
           </Show>
 
