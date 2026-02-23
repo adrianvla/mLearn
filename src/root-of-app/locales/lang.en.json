@@ -143,11 +143,44 @@
         "Settings": {
           "Title": "Settings",
           "Description": "Configure mLearn to your liking"
+        },
+        "AITutor": {
+          "Title": "AI Tutor",
+          "Description": "Practice with an AI conversation partner"
         }
       },
       "Errors": {
         "UnableToOpen": "Unable to open the file. The file path was not saved correctly."
       }
+    },
+    "AITutorSetup": {
+      "Title": "AI Tutor Setup",
+      "GrammarTab": "Grammar",
+      "WordsTab": "Words",
+      "MediaTab": "Media",
+      "InstructionsTab": "Instructions",
+      "StartSession": "Start Session",
+      "NoGrammarSupport": "Grammar points are not available for this language yet.",
+      "NoWordsYet": "No words encountered yet. Start watching or reading to build your vocabulary.",
+      "NoMediaYet": "No saved media yet. Watch videos or read books to track your progress.",
+      "SearchGrammar": "Search grammar points...",
+      "SearchWords": "Search words...",
+      "SelectGrammarHint": "Select grammar points you want to practice.",
+      "SelectWordsHint": "Select words you want to focus on.",
+      "SelectMediaHint": "Select saved media to include context from.",
+      "InstructionsPlaceholder": "Describe a scenario, roleplay, or specific topic you want to practice. For example: 'Let's practice ordering food at a restaurant' or 'Roleplay as a job interviewer'.",
+      "ExcludeWords": "Exclude words",
+      "FailedWords": "Struggled words",
+      "FailedGrammar": "Struggled grammar",
+      "AllLevels": "All",
+      "ShowMore": "Show more",
+      "ItemsSelected": "{count} selected",
+      "LLMNotConfigured": "AI is not configured. Set it up in Settings first.",
+      "InstructionsLabel": "Custom Instructions",
+      "PressEnterToAdd": "Press Enter to add this word",
+      "GenerateTopicPlaceholder": "Enter a topic to generate vocabulary...",
+      "GenerateBtn": "Generate",
+      "GenerateError": "Failed to generate vocabulary. Please try again."
     },
     "Video": {
       "Controls": {
@@ -1106,7 +1139,15 @@
         "Interval": "Interval:"
       },
       "RegenerateTts": "Regenerate TTS",
+      "GenerateTtsAction": "Generate",
+      "GeneratingTts": "Generating…",
+      "TtsGenerated": "TTS audio regenerated successfully",
+      "TtsGenerateFailed": "Failed to generate TTS audio",
+      "NoRemoteUrl": "No remote TTS URL configured. Set it in Settings → AI → Flashcard TTS.",
       "RegenerateExample": "Regenerate Example",
+      "RegeneratingExample": "Regenerating…",
+      "ExampleGenerateFailed": "Failed to regenerate example",
+      "UseReadingForTts": "Use reading for TTS",
       "Hint": "Translations: comma or newline separated. Pitch accent is mora drop position (0=heiban)."
     },
     "PitchAccent": {

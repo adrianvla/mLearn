@@ -19,6 +19,7 @@ import type {
   StreamStats,
   WordFrequencyEntry,
   VoiceMistake,
+  TutorSessionConfig,
 } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
@@ -48,6 +49,8 @@ interface AgentDeps {
   isVoiceMode?: () => boolean;
   /** Callback for voice-mode mistake tracking (lowers ease) */
   onVoiceMistake?: (mistake: VoiceMistake) => void;
+  /** Tutor session configuration (grammar, words, media, custom instructions) */
+  getTutorConfig?: () => TutorSessionConfig | null;
 }
 
 /** Callback for streaming chunks to the UI */
@@ -74,7 +77,7 @@ export interface AgentInstance {
 // System Prompt Builder
 // ============================================================================
 
-function buildSystemPrompt(_langCode: string, langName: string, mediaCtx: ConversationAgentContext | null, userSceneContext?: string, targetLevelName?: string): string {
+function buildSystemPrompt(_langCode: string, langName: string, mediaCtx: ConversationAgentContext | null, userSceneContext?: string, targetLevelName?: string, tutorConfig?: TutorSessionConfig | null): string {
   let prompt = `You are a friendly and encouraging language tutor for ${langName}.
 Your primary role is to have natural conversations in ${langName} with the learner.
 
@@ -159,6 +162,49 @@ ${userSceneContext}`;
   if (targetLevelName) {
     prompt += `\n\n## Vocabulary Level Restriction
 IMPORTANT: The learner's proficiency level is set to "${targetLevelName}". You MUST restrict your vocabulary to words at or below this level. Do not use words that are above this proficiency level. If you need to express a complex idea, rephrase it using simpler vocabulary that fits within the "${targetLevelName}" level. This applies to all your responses in ${langName}.`;
+  }
+
+  // Tutor session configuration (from welcome page setup)
+  if (tutorConfig) {
+    if (tutorConfig.selectedGrammar.length > 0) {
+      const grammarList = tutorConfig.selectedGrammar
+        .map((g) => `- ${g.pattern}${g.meaning ? ` (${g.meaning})` : ''}${g.level ? ` [${g.level}]` : ''}`)
+        .join('\n');
+      prompt += `\n\n## Grammar Focus
+The learner wants to practice these grammar points. Incorporate them naturally into the conversation and quiz on them:
+${grammarList}`;
+    }
+
+    if (tutorConfig.selectedWords.length > 0) {
+      const wordList = tutorConfig.selectedWords
+        .map((w) => `- ${w.word}${w.reading ? ` (${w.reading})` : ''} — ease: ${w.ease.toFixed(1)}`)
+        .join('\n');
+      prompt += `\n\n## Vocabulary Focus
+The learner wants to practice these words. Use them in conversation and quiz on the ones with lower ease:
+${wordList}`;
+    }
+
+    if (tutorConfig.selectedMedia.length > 0) {
+      for (const media of tutorConfig.selectedMedia) {
+        prompt += `\n\n## Media: "${media.mediaName}" (${media.mediaType})`;
+
+        if (media.failedWords.length > 0) {
+          const words = media.failedWords.map((w) => w.word).join(', ');
+          prompt += `\nStruggled words from this media: ${words}`;
+        }
+
+        if (media.failedGrammar.length > 0) {
+          const grammar = media.failedGrammar.map((g) => g.pattern).join(', ');
+          prompt += `\nStruggled grammar from this media: ${grammar}`;
+        }
+      }
+    }
+
+    if (tutorConfig.customInstructions) {
+      prompt += `\n\n## Session Instructions (provided by the learner)
+The learner has specific instructions for this session. Follow them:
+${tutorConfig.customInstructions}`;
+    }
   }
 
   return prompt;
@@ -918,11 +964,13 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const targetLevel = deps.getTargetLevel?.() ?? null;
     const targetLevelName = targetLevel !== null ? (deps.getLevelName?.(targetLevel) ?? undefined) : undefined;
 
+    const tutorCfg = deps.getTutorConfig?.() ?? null;
+
     const systemMsg: LLMChatMessage = {
       role: 'system',
       content: isVoice
         ? buildVoiceSystemPrompt(langName, mediaCtx)
-        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName),
+        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg),
     };
 
     const messages: LLMChatMessage[] = [

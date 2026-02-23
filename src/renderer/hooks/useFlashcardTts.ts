@@ -123,7 +123,8 @@ export function useFlashcardTts() {
           bridge.flashcards.getFlashcardTtsMeta(cardId, field).then(m => {
             if (m && myGenId === generationId) setMetadata(m);
           });
-          await playUrl(existingUrl, myGenId);
+          // Append cache-buster to avoid stale audio after regeneration
+          await playUrl(existingUrl + '?t=' + Date.now(), myGenId);
           return;
         } catch {
           if (myGenId !== generationId) return;
@@ -154,7 +155,7 @@ export function useFlashcardTts() {
           bridge.flashcards.getFlashcardTtsMeta(cardId, field).then(m => {
             if (m && myGenId === generationId) setMetadata(m);
           });
-          await playUrl(generatedUrl, myGenId);
+          await playUrl(generatedUrl + '?t=' + Date.now(), myGenId);
           return;
         } catch {
           if (myGenId !== generationId) return;

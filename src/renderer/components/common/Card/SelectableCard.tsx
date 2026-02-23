@@ -23,6 +23,8 @@ export interface SelectableCardProps {
   subtitle?: string;
   /** Optional badge text (e.g., "Coming soon") */
   badge?: string;
+  /** Optional badge as JSX element (e.g., PillLabel) — overrides badge text */
+  badgeElement?: JSX.Element;
   /** Size variant */
   size?: SelectableCardSize;
   /** Show checkmark when selected */
@@ -97,7 +99,10 @@ export const SelectableCard: Component<SelectableCardProps> = (props) => {
       </Show>
 
       {/* Badge */}
-      <Show when={props.badge}>
+      <Show when={props.badgeElement}>
+        <div class="selectable-card__badge">{props.badgeElement}</div>
+      </Show>
+      <Show when={!props.badgeElement && props.badge}>
         <div class="selectable-card__badge">{props.badge}</div>
       </Show>
 

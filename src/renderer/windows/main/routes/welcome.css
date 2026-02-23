@@ -64,6 +64,11 @@
   width: 100%;
 }
 
+/* AI Tutor card spans full width as the standalone 5th item */
+.welcome-ai-tutor-card {
+  grid-column: 1 / -1;
+}
+
 /* Recent Items */
 .welcome-recent {
   margin: 0 auto 0;

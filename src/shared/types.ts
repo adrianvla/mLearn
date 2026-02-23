@@ -1104,6 +1104,41 @@ export interface ConversationAgentContext {
   subtitleHistory?: string[];
 }
 
+/** Grammar point selected by the user for a tutor session */
+export interface TutorGrammarSelection {
+  pattern: string;
+  meaning: string;
+  level: number;
+}
+
+/** Word selected by the user for a tutor session */
+export interface TutorWordSelection {
+  word: string;
+  reading?: string;
+  ease: number;
+}
+
+/** Media selected by the user for a tutor session, with its failed data */
+export interface TutorMediaSelection {
+  mediaHash: string;
+  mediaName: string;
+  mediaType: 'video' | 'book';
+  failedWords: MediaStatsWordEntry[];
+  failedGrammar: MediaStatsGrammarEntry[];
+}
+
+/** Configuration for an AI tutor session launched from the welcome page */
+export interface TutorSessionConfig {
+  /** Grammar points the user wants to focus on */
+  selectedGrammar: TutorGrammarSelection[];
+  /** Words the user wants to practice */
+  selectedWords: TutorWordSelection[];
+  /** Media the user selected (with their failed words/grammar, minus excluded) */
+  selectedMedia: TutorMediaSelection[];
+  /** Custom instructions from the user (scenario, roleplay, etc.) */
+  customInstructions: string;
+}
+
 /** Level distribution data for analytics display */
 export interface LevelPercentageEntry {
   level: number;

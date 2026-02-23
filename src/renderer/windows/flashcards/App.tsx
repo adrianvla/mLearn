@@ -510,7 +510,7 @@ export const FlashcardsContent: Component = () => {
                             title={
                               card.content.reading && card.content.reading !== card.content.front
                                   ? <FlashcardPitchAccent content={card.content} />
-                                  : undefined}
+                                  : card.content.front}
                             subtitle={undefined
                             }
                             headerActions={

@@ -283,8 +283,8 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     }
     
     return {
-      // Japanese and Chinese support readings (furigana/pinyin)
-      supportsReadings: fixedSettings.furigana !== false && (isJapanese || isChinese),
+      // Languages with readings (furigana/pinyin) — driven by language data
+      supportsReadings: fixedSettings.furigana !== false && (data?.hasFurigana === true || isJapanese || isChinese),
       // Only Japanese has pitch accent data in this app
       supportsPitchAccent: fixedSettings.showPitchAccent !== false && isJapanese,
       isLogographic,

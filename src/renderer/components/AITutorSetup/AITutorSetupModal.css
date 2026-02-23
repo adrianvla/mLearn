@@ -1,0 +1,27 @@
+/* AITutorSetupModal — modal for configuring an AI tutor session */
+
+.ai-tutor-setup-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-height: 400px;
+  max-height: 60vh;
+}
+
+.ai-tutor-setup-modal__tab-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ai-tutor-setup-modal__instructions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.ai-tutor-setup-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}

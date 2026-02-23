@@ -155,17 +155,16 @@
 /* TTS play button */
 .flashcard-tts-btn {
   flex-shrink: 0;
-  opacity: 0.6;
-  transition: opacity var(--transition-fast);
+  color:var(--text-secondary);
+  transition: color var(--transition-fast);
 }
 
 .flashcard-tts-btn:hover {
-  opacity: 1;
+  color:var(--text-secondary);
 }
 
 .flashcard-tts-btn--active {
-  opacity: 1;
-  color: var(--color-primary);
+  color: var(--text-primary) !important;
 }
 
 /* Pronunciation */

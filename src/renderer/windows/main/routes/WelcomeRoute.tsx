@@ -8,7 +8,9 @@ import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { ActionCard, RecentCard, Btn, VideoIcon, BookIcon, SettingsIcon, type RecentItem } from '../../../components/common';
+import { ActionCard, RecentCard, Btn, VideoIcon, BookIcon, SettingsIcon, BotIcon, type RecentItem } from '../../../components/common';
+import { AITutorSetupModal } from '../../../components/AITutorSetup';
+import type { TutorSessionConfig } from '../../../../shared/types';
 import Icon from '../../../components/common/Icons/Icon';
 import './welcome.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
@@ -19,6 +21,7 @@ export const WelcomeRoute: Component = () => {
   const { t } = useLocalization();
   
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
+  const [showTutorModal, setShowTutorModal] = createSignal(false);
 
   onMount(() => {
     // Load recent items from localStorage
@@ -46,6 +49,18 @@ export const WelcomeRoute: Component = () => {
 
   const openFlashcards = () => {
     getBridge().window.openWindow({ type: 'flashcards' });
+  };
+
+  const openAITutor = () => {
+    setShowTutorModal(true);
+  };
+
+  const handleStartTutor = (config: TutorSessionConfig) => {
+    setShowTutorModal(false);
+    getBridge().window.openWindow({
+      type: 'conversation-agent',
+      context: { tutorConfig: config } as unknown as Record<string, unknown>,
+    });
   };
 
   const openRecent = (item: RecentItem) => {
@@ -122,7 +137,23 @@ export const WelcomeRoute: Component = () => {
           description={t('mlearn.Home.Cards.Settings.Description')}
           onClick={openSettings}
         />
+
+        <ActionCard
+          icon={<BotIcon size={24} />}
+          title={t('mlearn.Home.Cards.AITutor.Title')}
+          description={t('mlearn.Home.Cards.AITutor.Description')}
+          onClick={openAITutor}
+          primary
+          disabled={!settings.llmEnabled || !settings.llmConfigured}
+          class="welcome-ai-tutor-card"
+        />
       </section>
+
+      <AITutorSetupModal
+        isOpen={showTutorModal()}
+        onClose={() => setShowTutorModal(false)}
+        onStart={handleStartTutor}
+      />
 
       {/* Recent Items */}
       <Show when={recentItems().length > 0}>
