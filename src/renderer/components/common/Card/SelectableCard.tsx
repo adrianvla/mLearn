@@ -7,6 +7,7 @@ import { Component, JSX, Show } from 'solid-js';
 import './SelectableCard.css';
 
 export type SelectableCardSize = 'sm' | 'md' | 'lg';
+export type SelectableCardLayout = 'vertical' | 'horizontal';
 
 export interface SelectableCardProps {
   /** Whether the card is selected */
@@ -27,6 +28,8 @@ export interface SelectableCardProps {
   badgeElement?: JSX.Element;
   /** Size variant */
   size?: SelectableCardSize;
+  /** Layout direction: vertical (centered, default) or horizontal (list-like) */
+  layout?: SelectableCardLayout;
   /** Show checkmark when selected */
   showCheckmark?: boolean;
   /** Additional class names */
@@ -82,7 +85,7 @@ export const SelectableCard: Component<SelectableCardProps> = (props) => {
 
   return (
     <div
-      class={`selectable-card ${props.selected ? 'selected' : ''} ${props.disabled ? 'disabled' : ''} ${props.size ? `selectable-card--${props.size}` : ''} ${props.class || ''}`}
+      class={`selectable-card ${props.selected ? 'selected' : ''} ${props.disabled ? 'disabled' : ''} ${props.size ? `selectable-card--${props.size}` : ''} ${props.layout === 'horizontal' ? 'selectable-card--horizontal' : ''} ${props.class || ''}`}
       style={props.style}
       onClick={handleClick}
       onKeyDown={handleKeyDown}

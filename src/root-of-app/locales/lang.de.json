@@ -180,7 +180,15 @@
       "PressEnterToAdd": "Eingabetaste drücken, um dieses Wort hinzuzufügen",
       "GenerateTopicPlaceholder": "Thema eingeben, um Vokabeln zu generieren...",
       "GenerateBtn": "Generieren",
-      "GenerateError": "Vokabeln konnten nicht generiert werden. Bitte erneut versuchen."
+      "GenerateError": "Vokabeln konnten nicht generiert werden. Bitte erneut versuchen.",
+      "WordEaseLegendTitle": "Wortvertrautheit:",
+      "WordEaseLegend": {
+        "unassessed": "Neu / unbewertet",
+        "hard": "Sehr schwierig",
+        "struggling": "Unsicher",
+        "reviewing": "In Wiederholung",
+        "known": "Bekannt"
+      }
     },
     "Video": {
       "Controls": {
@@ -331,6 +339,9 @@
         "ModeOlderThan": "Älter als Datum neu generieren",
         "OlderThanDate": "Generiert vor",
         "EtaRemaining": "~{eta} verbleibend"
+      },
+      "AutoTts": {
+        "BackendHint": "Verwendet {provider}"
       },
       "EmptyState": {
         "NoCardsTitle": "Noch keine Lernkarten",
@@ -1205,6 +1216,7 @@
       "Tab": {
         "Chat": "Chat",
         "Stats": "Statistiken",
+        "Context": "Kontext",
         "Connection": "Verbindung",
         "Voice": "Stimme"
       },
@@ -1368,12 +1380,23 @@
         "Title": "KI-Einstellungen",
         "Description": "KI-Funktionen für Worterklärungen und Konversationsübungen konfigurieren.",
         "Provider": {
-          "Title": "KI-Anbieter",
+          "Title": "LLM-Anbieter",
           "Description": "Wählen Sie, wie KI-Modelle ausgeführt werden.",
           "Builtin": "Integriert",
           "BuiltinDescription": "Lokale Modelle direkt in der App ausführen. Keine externe Software erforderlich.",
           "Ollama": "Ollama",
-          "OllamaDescription": "Mit einem Ollama-Server für mehr Modelloptionen verbinden."
+          "OllamaDescription": "Mit einem Ollama-Server für mehr Modelloptionen verbinden.",
+          "Cloud": "Cloud",
+          "CloudDescription": "Verbindung zu einem Remote-OpenAI-kompatiblen LLM-Server."
+        },
+        "CloudConfig": {
+          "Title": "Cloud-LLM-Konfiguration",
+          "UrlHint": "Die Basis-URL des Remote-OpenAI-kompatiblen LLM-Servers.",
+          "TokenHint": "Authentifizierungstoken für den Cloud-LLM-Server.",
+          "TestConnection": "Verbindung testen",
+          "Testing": "Teste...",
+          "ConnectionSuccess": "Verbindung erfolgreich.",
+          "ConnectionFailed": "Verbindung zum Cloud-LLM fehlgeschlagen."
         },
         "BuiltinModel": {
           "Title": "Integriertes Modell",

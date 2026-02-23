@@ -18,7 +18,10 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
 import { getBridge } from '../../../shared/bridges';
 import { streamChat } from '../../services/llmProvider';
-import { Input, PillBtn, PillLabel, EmptyState, HintText, Btn, Spinner, SparklesIcon } from '../common';
+import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
+import { getWordsLearnedInApp } from '../../services/statsService';
+import { WORD_STATUS } from '../../../shared/constants';
+import { Input, PillLabel, EmptyState, HintText, Btn, Spinner, SparklesIcon } from '../common';
 import type {
   TutorWordSelection,
   PassiveWordKnowledge,
@@ -30,27 +33,23 @@ import './WordSelector.css';
 interface WordSelectorProps {
   selected: TutorWordSelection[];
   onSelectionChange: (selected: TutorWordSelection[]) => void;
+  customWords: TutorWordSelection[];
+  onCustomWordsChange: (words: TutorWordSelection[]) => void;
 }
-
-const INITIAL_DISPLAY_COUNT = 200;
-
-/** Returns true if a string is purely numeric (digits only) */
-const isNumeric = (s: string): boolean => /^\d+$/.test(s);
 
 /**
  * Get background color for a word cell based on ease value.
  * Lower ease = more red/struggling, higher ease = more green/known.
  */
 function getWordCellColor(ease: number, isDark: boolean): string {
+  // Unassessed words (generated/custom) get a neutral color
+  if (ease < 0) return isDark ? 'rgba(160, 160, 160, 0.25)' : 'rgba(160, 160, 160, 0.18)';
   if (ease < 1.5) return isDark ? 'rgba(255, 60, 89, 0.45)' : 'rgba(255, 60, 89, 0.25)';
   if (ease < 2.0) return isDark ? 'rgba(255, 141, 60, 0.45)' : 'rgba(255, 141, 60, 0.25)';
   if (ease < 2.5) return isDark ? 'rgba(255, 200, 60, 0.40)' : 'rgba(255, 200, 60, 0.25)';
   if (ease < 3.0) return isDark ? 'rgba(66, 214, 49, 0.35)' : 'rgba(66, 214, 49, 0.2)';
   return isDark ? 'rgba(66, 214, 49, 0.5)' : 'rgba(66, 214, 49, 0.3)';
 }
-
-/** Ease threshold below which a word is considered failed / struggled */
-const FAILED_EASE_THRESHOLD = 2.5;
 
 export const WordSelector: Component<WordSelectorProps> = (props) => {
   const { t } = useLocalization();
@@ -59,14 +58,18 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   const flashcardCtx = useFlashcards();
 
   const [searchQuery, setSearchQuery] = createSignal('');
-  const [displayCount, setDisplayCount] = createSignal(INITIAL_DISPLAY_COUNT);
   const [levelFilter, setLevelFilter] = createSignal<number | null>(null);
 
   // Media stats for failed-word extraction
   const [mediaStats, setMediaStats] = createSignal<MediaStats[]>([]);
 
-  // Custom words added by the user (not in wordKnowledge)
-  const [customWords, setCustomWords] = createSignal<TutorWordSelection[]>([]);
+  // Custom words are managed by the parent to survive tab switches
+  const customWords = () => props.customWords ?? [];
+  const setCustomWords = (updater: TutorWordSelection[] | ((prev: TutorWordSelection[]) => TutorWordSelection[])) => {
+    const prev = props.customWords ?? [];
+    const next = typeof updater === 'function' ? updater(prev) : updater;
+    props.onCustomWordsChange(next);
+  };
 
   // LLM vocabulary generation state
   const [topicInput, setTopicInput] = createSignal('');
@@ -92,14 +95,13 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     if (abortGeneration) abortGeneration();
   });
 
-  // Extract all failed words from media (excluding numbers), deduplicated, sorted by ease
-  const mediaFailedWords = createMemo((): PassiveWordKnowledge[] => {
+  // Extract all words from media stats, deduplicated, sorted by ease
+  const mediaWords = createMemo((): PassiveWordKnowledge[] => {
     const wordMap = new Map<string, PassiveWordKnowledge>();
 
     for (const media of mediaStats()) {
       for (const entry of Object.values(media.wordsEncountered)) {
-        if (entry.ease >= FAILED_EASE_THRESHOLD) continue;
-        if (isNumeric(entry.word)) continue;
+        if (!isWordInLanguageScript(entry.word, settings.language)) continue;
         // Keep the entry with the lowest ease if duplicated across media
         const existing = wordMap.get(entry.word);
         if (!existing || entry.ease < existing.ease) {
@@ -117,7 +119,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     return Array.from(wordMap.values()).sort((a, b) => a.ease - b.ease);
   });
 
-  // Tracked words from wordKnowledge for the current language (only interacted words)
+  // All tracked words from wordKnowledge for the current language
   const trackedWords = createMemo((): PassiveWordKnowledge[] => {
     const knowledge = flashcardCtx.store.wordKnowledge;
     const lang = settings.language;
@@ -127,8 +129,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       const entry = knowledge[key];
       if (!entry) continue;
       if (entry.language && entry.language !== lang) continue;
-      // Only include words the user has actually interacted with
-      if (entry.timesSeen <= 0 && entry.timesHovered <= 0) continue;
+      if (!isWordInLanguageScript(entry.word, lang)) continue;
       items.push(entry);
     }
 
@@ -136,26 +137,98 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     return items.sort((a, b) => a.ease - b.ease);
   });
 
-  // Combined word list: media-failed first, then remaining tracked words (deduped)
-  const allWords = createMemo((): PassiveWordKnowledge[] => {
-    const failed = mediaFailedWords();
-    const failedSet = new Set(failed.map(w => w.word));
-    const tracked = trackedWords().filter(w => !failedSet.has(w.word));
+  // Words from flashcards for the current language
+  const flashcardWords = createMemo((): PassiveWordKnowledge[] => {
+    const cards = flashcardCtx.store.flashcards;
+    const lang = settings.language;
+    const items: PassiveWordKnowledge[] = [];
 
-    // Also add custom words that aren't in either list
-    const knownSet = new Set([...failedSet, ...tracked.map(w => w.word)]);
-    const customs: PassiveWordKnowledge[] = customWords()
-      .filter(cw => !knownSet.has(cw.word))
-      .map(cw => ({
-        word: cw.word,
-        reading: cw.reading,
-        ease: cw.ease,
-        lastSeen: 0,
-        timesSeen: 0,
+    for (const id of Object.keys(cards)) {
+      const card = cards[id];
+      if (!card) continue;
+      if (card.language && card.language !== lang) continue;
+      const word = card.content.front || card.content.word;
+      if (!word || !isWordInLanguageScript(word, lang)) continue;
+      items.push({
+        word,
+        reading: card.content.reading || card.content.pronunciation,
+        ease: card.ease,
+        lastSeen: card.lastReviewed || card.createdAt,
+        timesSeen: card.reviews || 0,
         timesHovered: 0,
-      }));
+      });
+    }
 
-    return [...failed, ...tracked, ...customs];
+    return items;
+  });
+
+  const wordStatusMap = createMemo(() => getWordsLearnedInApp());
+
+  // Combined word list: media + tracked + flashcards, deduplicated, sorted by ease (least known first)
+  const allWords = createMemo((): PassiveWordKnowledge[] => {
+    const media = mediaWords();
+    const wordMap = new Map<string, PassiveWordKnowledge>();
+
+    // Add media words first
+    for (const w of media) {
+      wordMap.set(w.word, w);
+    }
+
+    // Add tracked words (keep lowest ease if duplicated)
+    for (const w of trackedWords()) {
+      const existing = wordMap.get(w.word);
+      if (!existing || w.ease < existing.ease) {
+        wordMap.set(w.word, w);
+      }
+    }
+
+    // Add flashcard words
+    for (const w of flashcardWords()) {
+      const existing = wordMap.get(w.word);
+      if (!existing || w.ease < existing.ease) {
+        wordMap.set(w.word, w);
+      }
+    }
+
+    // Include words from the word-status database used by Word DB editor.
+    for (const [word, status] of Object.entries(wordStatusMap())) {
+      if (!isWordInLanguageScript(word, settings.language)) continue;
+      const statusEase = status === WORD_STATUS.KNOWN
+        ? 4.5
+        : status === WORD_STATUS.LEARNING
+          ? 2.5
+          : 1.8;
+      const existing = wordMap.get(word);
+      if (!existing) {
+        wordMap.set(word, {
+          word,
+          ease: statusEase,
+          lastSeen: 0,
+          timesSeen: 0,
+          timesHovered: 0,
+        });
+      } else if (status === WORD_STATUS.KNOWN && existing.ease < statusEase) {
+        wordMap.set(word, { ...existing, ease: statusEase });
+      }
+    }
+
+    // Also add custom words that aren't in any list
+    for (const cw of customWords()) {
+      if (!wordMap.has(cw.word)) {
+        wordMap.set(cw.word, {
+          word: cw.word,
+          reading: cw.reading,
+          ease: cw.ease,
+          lastSeen: 0,
+          timesSeen: 0,
+          timesHovered: 0,
+        });
+      }
+    }
+
+    // Sort by ease ascending (least known first)
+    return Array.from(wordMap.values())
+      .sort((a, b) => a.ease - b.ease);
   });
 
   // Available frequency levels for filter pills
@@ -197,7 +270,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       );
     }
 
-    // Sort: selected first, then preserve combined order (media-failed → tracked → custom)
+    // Sort: selected first, then by ease ascending (least known first)
     const combined = allWords();
     const orderIndex = new Map<string, number>();
     for (let i = 0; i < combined.length; i++) {
@@ -215,7 +288,13 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     });
   });
 
-  const displayedWords = createMemo(() => filteredWords().slice(0, displayCount()));
+  const legendItems = createMemo(() => ([
+    { key: 'unassessed', color: getWordCellColor(-1, isDark()) },
+    { key: 'hard', color: getWordCellColor(1.4, isDark()) },
+    { key: 'struggling', color: getWordCellColor(1.9, isDark()) },
+    { key: 'reviewing', color: getWordCellColor(2.4, isDark()) },
+    { key: 'known', color: getWordCellColor(3.2, isDark()) },
+  ]));
 
   const toggleWord = (w: PassiveWordKnowledge) => {
     const isSelected = selectedWords().has(w.word);
@@ -228,10 +307,6 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
         ease: w.ease,
       }]);
     }
-  };
-
-  const handleShowMore = () => {
-    setDisplayCount(prev => prev + INITIAL_DISPLAY_COUNT);
   };
 
   // Custom word entry: when user types a word not in the list and presses Enter
@@ -253,7 +328,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     }
 
     // Add as custom word and auto-select
-    const newWord: TutorWordSelection = { word: query, ease: 2.5 };
+    const newWord: TutorWordSelection = { word: query, ease: -1 };
     batch(() => {
       setCustomWords(prev => [...prev, newWord]);
       props.onSelectionChange([...props.selected, newWord]);
@@ -286,7 +361,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     const messages: LLMChatMessage[] = [
       {
         role: 'system',
-        content: `You are a language learning vocabulary generator. Generate a list of useful vocabulary words for learning ${lang}. Output ONLY a JSON array of objects with "word" (the word in ${lang}) and optionally "reading" (pronunciation/reading if applicable). No markdown, no explanation, just the JSON array. Generate 15-25 diverse, practical words.`,
+        content: `You are a language learning vocabulary generator. Generate a list of useful vocabulary words for learning ${lang}. Output ONLY a valid JSON array of objects with "word" (the word in ${lang}) and optionally "reading" (pronunciation/reading if applicable). Do not wrap in markdown code fences. Do not include any explanation or commentary. Generate 10-15 diverse, practical words. Example format: [{"word":"example","reading":"ex"}]`,
       },
       {
         role: 'user',
@@ -306,14 +381,64 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
 
           // Parse the JSON response
           try {
+            // Strip <think>...</think> tags from response (Qwen3 thinking mode)
+            // Also handle unclosed <think> blocks (model may not close the tag)
+            let cleaned = finalContent.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+            // If there's still an unclosed <think>, strip everything from <think> onward
+            const unclosedThink = cleaned.indexOf('<think>');
+            if (unclosedThink >= 0) {
+              cleaned = cleaned.slice(0, unclosedThink).trim();
+            }
+            // Strip markdown code fences (```json ... ``` or ``` ... ```)
+            cleaned = cleaned.replace(/```(?:json)?\s*([\s\S]*?)```/g, '$1').trim();
+
+            // If response is empty after cleanup, try to extract JSON from within think tags
+            if (!cleaned) {
+              // The model may have placed its JSON inside <think> tags
+              const thinkMatch = finalContent.match(/<think>([\s\S]*?)(?:<\/think>|$)/);
+              if (thinkMatch) {
+                const thinkContent = thinkMatch[1].trim();
+                const thinkJson = thinkContent.match(/\[[\s\S]*\]/)?.[0];
+                if (thinkJson) {
+                  cleaned = thinkJson;
+                }
+              }
+              if (!cleaned) {
+                console.error('[VocabGen] Response was empty after stripping think tags and fences');
+                setGenerationError(t('mlearn.AITutorSetup.GenerateError'));
+                return;
+              }
+            }
             // Extract JSON array from response (handle potential markdown wrapping)
-            const jsonMatch = finalContent.match(/\[[\s\S]*\]/);
-            if (!jsonMatch) {
+            let jsonStr = cleaned.match(/\[[\s\S]*\]/)?.[0];
+            if (!jsonStr) {
+              // Try to find a truncated array start
+              const arrayStart = cleaned.indexOf('[');
+              if (arrayStart >= 0) {
+                jsonStr = cleaned.slice(arrayStart);
+              }
+            }
+            if (!jsonStr) {
+              console.error('[VocabGen] No JSON array found in response');
               setGenerationError(t('mlearn.AITutorSetup.GenerateError'));
               return;
             }
 
-            const parsed = JSON.parse(jsonMatch[0]) as Array<{ word: string; reading?: string }>;
+            // Attempt to fix truncated JSON: remove trailing partial objects and close the array
+            let parsed: Array<{ word: string; reading?: string }>;
+            try {
+              parsed = JSON.parse(jsonStr);
+            } catch (parseErr) {
+              // Try to salvage: find last complete object, trim remainder, close the array
+              console.warn('[VocabGen] Initial parse failed, attempting salvage:', parseErr);
+              const lastCloseBrace = jsonStr.lastIndexOf('}');
+              if (lastCloseBrace > 0) {
+                const salvaged = jsonStr.slice(0, lastCloseBrace + 1) + ']';
+                parsed = JSON.parse(salvaged);
+              } else {
+                throw new Error('No valid JSON objects found');
+              }
+            }
             if (!Array.isArray(parsed) || parsed.length === 0) {
               setGenerationError(t('mlearn.AITutorSetup.GenerateError'));
               return;
@@ -333,7 +458,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
               const entry: TutorWordSelection = {
                 word,
                 reading: item.reading,
-                ease: 2.5,
+                ease: -1,
               };
 
               if (!existingWords.has(word)) {
@@ -353,11 +478,13 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
               }
               setTopicInput('');
             });
-          } catch {
+          } catch (err) {
+            console.error('[VocabGen] Failed to parse generated vocabulary:', err);
             setGenerationError(t('mlearn.AITutorSetup.GenerateError'));
           }
         },
         onError: (error) => {
+          console.error('[VocabGen] LLM stream error:', error);
           setIsGenerating(false);
           abortGeneration = null;
           setGenerationError(error);
@@ -378,7 +505,6 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
           value={searchQuery()}
           onInput={(e) => {
             setSearchQuery(e.currentTarget.value);
-            setDisplayCount(INITIAL_DISPLAY_COUNT);
           }}
           onKeyDown={handleSearchKeyDown}
           placeholder={t('mlearn.AITutorSetup.SearchWords')}
@@ -404,10 +530,10 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
               size="sm"
               onClick={generateVocabulary}
               disabled={isGenerating() || !topicInput().trim()}
+              icon={isGenerating() ? <Spinner size={14} /> : <SparklesIcon size={14} />}
+              loading={isGenerating()}
             >
-              <Show when={isGenerating()} fallback={<><SparklesIcon size={14} /> {t('mlearn.AITutorSetup.GenerateBtn')}</>}>
-                <Spinner size={14} />
-              </Show>
+              {t('mlearn.AITutorSetup.GenerateBtn')}
             </Btn>
           </div>
           <Show when={generationError()}>
@@ -424,7 +550,6 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
             active={levelFilter() === null}
             onClick={() => {
               setLevelFilter(null);
-              setDisplayCount(INITIAL_DISPLAY_COUNT);
             }}
           >
             {t('mlearn.AITutorSetup.AllLevels')}
@@ -437,7 +562,6 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
                 active={levelFilter() === level}
                 onClick={() => {
                   setLevelFilter(level);
-                  setDisplayCount(INITIAL_DISPLAY_COUNT);
                 }}
               >
                 {levelNames()[String(level)] || String(level)}
@@ -446,6 +570,20 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
           </For>
         </div>
       </Show>
+
+      <div class="word-selector__legend" role="group" aria-label={t('mlearn.AITutorSetup.WordEaseLegendTitle')}>
+        <span class="word-selector__legend-title">{t('mlearn.AITutorSetup.WordEaseLegendTitle')}</span>
+        <For each={legendItems()}>
+          {(item) => (
+            <div class="word-selector__legend-item">
+              <span class="word-selector__legend-swatch" style={{ background: item.color }} />
+              <span class="word-selector__legend-label">
+                {t(`mlearn.AITutorSetup.WordEaseLegend.${item.key}`)}
+              </span>
+            </div>
+          )}
+        </For>
+      </div>
 
       <Show when={props.selected.length > 0}>
         <HintText>{t('mlearn.AITutorSetup.ItemsSelected', { count: String(props.selected.length) })}</HintText>
@@ -458,7 +596,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       </Show>
 
       <div class="word-selector__grid">
-        <For each={displayedWords()}>
+        <For each={filteredWords()}>
           {(w) => (
             <div
               class={`word-selector__cell ${selectedWords().has(w.word) ? 'selected' : ''}`}
@@ -474,11 +612,6 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
         </For>
       </div>
 
-      <Show when={displayCount() < filteredWords().length}>
-        <PillBtn onClick={handleShowMore}>
-          {t('mlearn.AITutorSetup.ShowMore')}
-        </PillBtn>
-      </Show>
     </div>
   );
 };

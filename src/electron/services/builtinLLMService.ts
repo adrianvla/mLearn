@@ -250,12 +250,18 @@ async function streamChat(
         };
         sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
       },
-      maxTokens: 512,
+      maxTokens: 2048,
       temperature: 0.3,
     };
 
     const response = await session.prompt(lastUserMsg.content, promptOptions);
-    void response; // The response text is already emitted via onTextChunk
+
+    if (tokenCount === 0 && response) {
+      // node-llama-cpp may suppress onTextChunk for think-tag content;
+      // forward the full response so the renderer can process it
+      const fallbackChunk: LLMStreamChunk = { content: response };
+      sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, fallbackChunk);
+    }
 
     const totalTime = Date.now() - startTime;
     const ttft = firstTokenTime ? firstTokenTime - startTime : 0;

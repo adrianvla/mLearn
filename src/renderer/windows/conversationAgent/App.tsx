@@ -20,12 +20,13 @@ import {
   formatKeybindDisplay, Tag,
   ChatIcon,
   EditIcon,
+  TrashIcon,
 } from '../../components/common';
 import type { TabItem, SelectOption } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
 import { useWordHover, useTranslation, useDictionary, getCachedTranslation } from '../../hooks';
 import { ChatBubble } from './ChatBubble';
-import { MediaStatsTab } from './MediaStatsTab';
+import { SessionContextTab } from './SessionContextTab';
 import { VoiceTab } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
 
@@ -154,7 +155,7 @@ export const ConversationContent: Component = () => {
   const topTabs = (): TabItem[] => [
     { id: 'chat', label: t('mlearn.ConversationAgent.Tab.Chat') },
     { id: 'voice', label: t('mlearn.ConversationAgent.Tab.Voice') },
-    { id: 'stats', label: t('mlearn.ConversationAgent.Tab.Stats') },
+    { id: 'stats', label: tutorConfig() ? t('mlearn.ConversationAgent.Tab.Context') : t('mlearn.ConversationAgent.Tab.Stats') },
   ];
 
   // Initialize agent
@@ -794,7 +795,12 @@ export const ConversationContent: Component = () => {
           class="ca-header-tabs"
         />
         <div class="ca-header-actions">
-          <IconBtn variant="ghost" onClick={handleClear} icon="trash" aria-label={t('mlearn.ConversationAgent.Clear')} />
+          <IconBtn
+            variant="ghost"
+            onClick={handleClear}
+            icon={<TrashIcon size={14} />}
+            aria-label={t('mlearn.ConversationAgent.Clear')}
+          />
         </div>
       </div>
 
@@ -1049,9 +1055,13 @@ export const ConversationContent: Component = () => {
         </Show>
       </TabPanel>
 
-      {/* Stats panel */}
-      <TabPanel tabId="stats" activeTab={activeTab()}>
-        <MediaStatsTab context={mediaContext()} />
+      {/* Stats / Context panel */}
+      <TabPanel tabId="stats" activeTab={activeTab()} class="ca-stats-panel">
+        <SessionContextTab
+          context={mediaContext()}
+          tutorConfig={tutorConfig()}
+          onTutorConfigChange={setTutorConfig}
+        />
       </TabPanel>
 
 

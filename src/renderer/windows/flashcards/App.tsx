@@ -26,6 +26,8 @@ import {
   ProgressBar,
   MicrophoneIcon,
   VoiceSamplePicker,
+  ToggleSwitch,
+  HintText,
 } from '../../components/common';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { getBridge } from '../../../shared/bridges';
@@ -345,6 +347,16 @@ export const FlashcardsContent: Component = () => {
     }
   };
 
+  // TTS provider display label
+  const ttsProviderLabel = createMemo(() => {
+    switch (settings.flashcardTtsProvider) {
+      case 'kokoro': return t('mlearn.AI.Settings.FlashcardTTS.Provider.Kokoro');
+      case 'qwen3': return t('mlearn.AI.Settings.FlashcardTTS.Provider.Qwen3');
+      case 'remote': return t('mlearn.AI.Settings.FlashcardTTS.Provider.Remote');
+      default: return settings.flashcardTtsProvider;
+    }
+  });
+
   // TTS provider options for the Generate tab select
   const ttsProviderOptions = createMemo(() => [
     { value: 'kokoro', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Kokoro') },
@@ -405,6 +417,16 @@ export const FlashcardsContent: Component = () => {
           </nav>
           
           <div class="flashcards-sidebar-actions">
+            <div class="flashcards-auto-tts">
+              <div class="flashcards-auto-tts-row">
+                <span class="flashcards-auto-tts-label">{t('mlearn.AI.Settings.FlashcardTTS.AutoGenerate.Label')}</span>
+                <ToggleSwitch
+                  checked={settings.flashcardAutoGenerateAudio}
+                  onChange={(v) => updateSettings({ flashcardAutoGenerateAudio: v })}
+                />
+              </div>
+              <HintText>{t('mlearn.Flashcards.AutoTts.BackendHint', { provider: ttsProviderLabel() })}</HintText>
+            </div>
             <Btn 
               size="sm" 
               variant="secondary" 

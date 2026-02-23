@@ -6,16 +6,14 @@
 .selectable-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: 0.5rem;
   padding: 1.5rem;
   min-width: 120px;
   min-height: 100px;
-  border-radius: var(--radius-lg, 12px);
-  background: var(--bg, rgba(255, 255, 255, 0.1));
-  backdrop-filter: blur(10px);
-  border: 2px solid transparent;
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  backdrop-filter: var(--backdrop-filter);
+  border: 1px solid var(--border-color);
   cursor: pointer;
   transition: all 0.2s ease;
   position: relative;
@@ -23,15 +21,16 @@
 }
 
 .selectable-card:hover:not(.disabled) {
-  background: var(--panel-bg-hover, rgba(255, 255, 255, 0.15));
-  border-color: var(--color-border-hover, rgba(255, 255, 255, 0.3));
-  transform: translateY(-2px);
+  background: var(--panel-bg-hover);
+  border-color: var(--color-border-hover);
 }
 
 .selectable-card.selected {
-  border-color: var(--color-primary, #3b82f6);
-  background: var(--panel-bg-selected, rgba(59, 130, 246, 0.1));
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  border-color: var(--color-primary);
+  background: var(--bg-intense);
+}
+.selectable-card.selected:hover{
+  border-color: var(--color-primary);
 }
 
 .selectable-card.disabled {
@@ -56,15 +55,15 @@
 .selectable-card__title {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text-primary, #fff);
-  text-align: center;
+  color: var(--text-primary);
   margin: 0;
+  padding-right:60px;
 }
 
 /* Subtitle */
 .selectable-card__subtitle {
   font-size: 0.75rem;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+  color: var(--text-secondary);
   text-align: center;
   margin: 0;
 }
@@ -90,12 +89,13 @@
 /* Checkmark indicator for selected state */
 .selectable-card__check {
   position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
+  bottom: 0.5rem;
+  right: 0.5rem;
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--color-primary, #3b82f6);
+  background: var(--color-primary);
+  border: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -142,4 +142,48 @@
 
 .selectable-card--lg .selectable-card__title {
   font-size: 1.25rem;
+}
+
+/* Horizontal layout — list-like card with title/subtitle on left, badge/meta on right */
+.selectable-card--horizontal {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  min-height: auto;
+  min-width: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.selectable-card--horizontal:hover:not(.disabled) {
+  transform: none;
+  border-color: var(--border-color-intense);
+}
+
+.selectable-card--horizontal .selectable-card__check {
+  position: static;
+  flex-shrink: 0;
+  order: -1;
+}
+
+.selectable-card--horizontal .selectable-card__title {
+  text-align: left;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.selectable-card--horizontal .selectable-card__subtitle {
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectable-card--horizontal .selectable-card__badge {
+  position: static;
+  margin-left: auto;
+  flex-shrink: 0;
 }
