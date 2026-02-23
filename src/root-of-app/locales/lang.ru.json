@@ -180,7 +180,15 @@
       "PressEnterToAdd": "Нажмите Enter, чтобы добавить это слово",
       "GenerateTopicPlaceholder": "Введите тему для генерации словаря...",
       "GenerateBtn": "Сгенерировать",
-      "GenerateError": "Не удалось сгенерировать словарь. Попробуйте ещё раз."
+      "GenerateError": "Не удалось сгенерировать словарь. Попробуйте ещё раз.",
+      "WordEaseLegendTitle": "Освоение слов:",
+      "WordEaseLegend": {
+        "unassessed": "Новые / неоценённые",
+        "hard": "Очень сложно",
+        "struggling": "Вызывают трудности",
+        "reviewing": "На повторении",
+        "known": "Известные"
+      }
     },
     "Video": {
       "Controls": {
@@ -331,6 +339,9 @@
         "ModeOlderThan": "Перегенерировать старше даты",
         "OlderThanDate": "Сгенерировано до",
         "EtaRemaining": "~{eta} осталось"
+      },
+      "AutoTts": {
+        "BackendHint": "Используется {provider}"
       },
       "EmptyState": {
         "NoCardsTitle": "Карточек пока нет",
@@ -1205,6 +1216,7 @@
       "Tab": {
         "Chat": "Чат",
         "Stats": "Статистика",
+        "Context": "Контекст",
         "Connection": "Подключение",
         "Voice": "Голос"
       },
@@ -1368,12 +1380,23 @@
         "Title": "Настройки AI",
         "Description": "Настройте AI-функции для объяснения слов и разговорной практики.",
         "Provider": {
-          "Title": "Провайдер AI",
+          "Title": "Провайдер LLM",
           "Description": "Выберите способ запуска AI-моделей.",
           "Builtin": "Встроенный",
           "BuiltinDescription": "Запуск локальных моделей прямо в приложении. Внешнее ПО не требуется.",
           "Ollama": "Ollama",
-          "OllamaDescription": "Подключение к серверу Ollama для доступа к большему количеству моделей."
+          "OllamaDescription": "Подключение к серверу Ollama для доступа к большему количеству моделей.",
+          "Cloud": "Облако",
+          "CloudDescription": "Подключение к удалённому OpenAI-совместимому LLM-серверу."
+        },
+        "CloudConfig": {
+          "Title": "Настройки облачной LLM",
+          "UrlHint": "Базовый URL удалённого OpenAI-совместимого LLM-сервера.",
+          "TokenHint": "Токен аутентификации для облачного LLM-сервера.",
+          "TestConnection": "Проверить подключение",
+          "Testing": "Проверка...",
+          "ConnectionSuccess": "Подключение успешно.",
+          "ConnectionFailed": "Не удалось подключиться к облачной LLM."
         },
         "BuiltinModel": {
           "Title": "Встроенная модель",

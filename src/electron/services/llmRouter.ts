@@ -47,6 +47,7 @@ export function setupLLMRouterIPC(): void {
         await builtinStreamChat(event.sender, messages, tools || []);
       }
     } catch (err) {
+      console.error('[LLMRouter] Stream error:', (err as Error).message);
       const errorChunk: LLMStreamChunk = {
         error: (err as Error).message || 'Failed to start LLM stream',
         done: true,

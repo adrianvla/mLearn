@@ -180,7 +180,15 @@
       "PressEnterToAdd": "Appuyez sur Entrée pour ajouter ce mot",
       "GenerateTopicPlaceholder": "Entrez un sujet pour générer du vocabulaire...",
       "GenerateBtn": "Générer",
-      "GenerateError": "Échec de la génération du vocabulaire. Veuillez réessayer."
+      "GenerateError": "Échec de la génération du vocabulaire. Veuillez réessayer.",
+      "WordEaseLegendTitle": "Niveau de maîtrise :",
+      "WordEaseLegend": {
+        "unassessed": "Nouveau / non évalué",
+        "hard": "Très difficile",
+        "struggling": "En difficulté",
+        "reviewing": "En révision",
+        "known": "Connu"
+      }
     },
     "Video": {
       "Controls": {
@@ -331,6 +339,9 @@
         "ModeOlderThan": "Régénérer antérieur à une date",
         "OlderThanDate": "Généré avant le",
         "EtaRemaining": "~{eta} restant"
+      },
+      "AutoTts": {
+        "BackendHint": "Utilise {provider}"
       },
       "EmptyState": {
         "NoCardsTitle": "Pas encore de cartes mémoire",
@@ -1205,6 +1216,7 @@
       "Tab": {
         "Chat": "Chat",
         "Stats": "Statistiques",
+        "Context": "Contexte",
         "Connection": "Connexion",
         "Voice": "Voix"
       },
@@ -1368,12 +1380,23 @@
         "Title": "Paramètres IA",
         "Description": "Configurez les fonctions IA pour l'explication des mots et la pratique conversationnelle.",
         "Provider": {
-          "Title": "Fournisseur IA",
+          "Title": "Fournisseur LLM",
           "Description": "Choisissez comment exécuter les modèles IA.",
           "Builtin": "Intégré",
           "BuiltinDescription": "Exécuter les modèles locaux directement dans l'application. Aucun logiciel externe requis.",
           "Ollama": "Ollama",
-          "OllamaDescription": "Se connecter à un serveur Ollama pour plus d'options de modèles."
+          "OllamaDescription": "Se connecter à un serveur Ollama pour plus d'options de modèles.",
+          "Cloud": "Cloud",
+          "CloudDescription": "Se connecter à un serveur LLM distant compatible OpenAI."
+        },
+        "CloudConfig": {
+          "Title": "Configuration LLM Cloud",
+          "UrlHint": "L'URL de base du serveur LLM distant compatible OpenAI.",
+          "TokenHint": "Jeton d'authentification pour le serveur LLM cloud.",
+          "TestConnection": "Tester la connexion",
+          "Testing": "Test en cours...",
+          "ConnectionSuccess": "Connexion réussie.",
+          "ConnectionFailed": "Impossible de se connecter au LLM cloud."
         },
         "BuiltinModel": {
           "Title": "Modèle intégré",

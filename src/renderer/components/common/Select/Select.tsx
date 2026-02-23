@@ -51,6 +51,7 @@ export const Select: Component<SelectProps> = (props) => {
         <option
           value={option.value}
           disabled={option.disabled}
+          selected={option.value === local.value}
         >
           {option.label}
         </option>

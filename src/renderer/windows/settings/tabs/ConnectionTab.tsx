@@ -1,7 +1,6 @@
 /**
  * Connection Settings Tab
- * Configure backend mode (Local / Tethered / Cloud), LLM cloud endpoint,
- * and connection testing for mobile tethering.
+ * Configure backend mode (Local / Tethered / Cloud) and connection testing for mobile tethering.
  */
 
 import { Component, Show, createSignal } from 'solid-js';
@@ -9,7 +8,6 @@ import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, CheckIcon, CrossIcon } from '../../../components/common';
 import { isMobile } from '../../../../shared/platform';
 import { getBackend, resetBackend } from '../../../../shared/backends';
-import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
 import { getNodeServer } from '../../../../shared/backends/nodeServerAdapter';
 import type { SelectOption } from '../../../components/common';
 import './ConnectionTab.css';
@@ -29,10 +27,6 @@ export const ConnectionTab: Component = () => {
   const [nodeStatus, setNodeStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
   const [nodeError, setNodeError] = createSignal('');
 
-  const [testingCloudLLM, setTestingCloudLLM] = createSignal(false);
-  const [cloudLLMStatus, setCloudLLMStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
-  const [cloudLLMError, setCloudLLMError] = createSignal('');
-
   // Backend mode options — hide 'local' on mobile
   const modeOptions = (): SelectOption[] => {
     const opts: SelectOption[] = [];
@@ -43,15 +37,6 @@ export const ConnectionTab: Component = () => {
       { value: 'tethered', label: t('mlearn.Connection.ModeTethered') || 'Tethered' },
       { value: 'cloud', label: t('mlearn.Connection.ModeCloud') || 'Cloud' },
     );
-    return opts;
-  };
-
-  const llmProviderOptions = (): SelectOption[] => {
-    const opts: SelectOption[] = [
-      { value: 'builtin', label: t('mlearn.Connection.LLMBuiltIn') || 'Built-in' },
-      { value: 'ollama', label: t('mlearn.Connection.LLMOllama') || 'Ollama' },
-      { value: 'cloud', label: t('mlearn.Connection.LLMCloud') || 'Cloud' },
-    ];
     return opts;
   };
 
@@ -94,22 +79,6 @@ export const ConnectionTab: Component = () => {
     }
   }
 
-  async function handleTestCloudLLM() {
-    setTestingCloudLLM(true);
-    setCloudLLMStatus('idle');
-    setCloudLLMError('');
-    try {
-      const adapter = new CloudLLMAdapter(settings.cloudLLMUrl, settings.cloudLLMToken);
-      const ok = await adapter.checkAvailability();
-      setCloudLLMStatus(ok ? 'success' : 'error');
-      if (!ok) setCloudLLMError(t('mlearn.Connection.Unreachable') || 'Unreachable');
-    } catch (e) {
-      setCloudLLMStatus('error');
-      setCloudLLMError(String(e));
-    } finally {
-      setTestingCloudLLM(false);
-    }
-  }
 
   return (
     <TabContent
@@ -208,51 +177,6 @@ export const ConnectionTab: Component = () => {
         </SettingGroup>
       </Show>
 
-      {/* ── Cloud LLM ── */}
-      <SettingGroup title={t('mlearn.Connection.CloudLLM') || 'Cloud LLM'}>
-        <SettingRow label={t('mlearn.Connection.LLMProvider') || 'LLM Provider'}>
-          <Select
-            options={llmProviderOptions()}
-            value={settings.llmProvider}
-            onChange={(e) => updateSetting('llmProvider', e.currentTarget.value as 'builtin' | 'ollama' | 'cloud')}
-          />
-        </SettingRow>
-
-        <Show when={settings.llmProvider === 'cloud'}>
-          <SettingRow label={t('mlearn.Connection.CloudLLMUrl') || 'Cloud LLM URL'}>
-            <Input
-              value={settings.cloudLLMUrl}
-              onInput={(e) => updateSetting('cloudLLMUrl', e.currentTarget.value)}
-              placeholder="https://your-llm-service.com"
-            />
-          </SettingRow>
-
-          <SettingRow label={t('mlearn.Connection.CloudLLMToken') || 'Cloud LLM Token'}>
-            <Input
-              value={settings.cloudLLMToken}
-              onInput={(e) => updateSetting('cloudLLMToken', e.currentTarget.value)}
-              placeholder="Bearer token"
-              type="password"
-            />
-          </SettingRow>
-
-          <SettingRow label="">
-            <div class="connection-test-row">
-              <Btn onClick={handleTestCloudLLM} disabled={testingCloudLLM()}>
-                {testingCloudLLM()
-                  ? (t('mlearn.Connection.Testing') || 'Testing...')
-                  : (t('mlearn.Connection.TestConnection') || 'Test Connection')}
-              </Btn>
-              <Show when={cloudLLMStatus() === 'success'}>
-                <span class="connection-status-ok"><CheckIcon size={14} /> {t('mlearn.Connection.Connected') || 'Connected'}</span>
-              </Show>
-              <Show when={cloudLLMStatus() === 'error'}>
-                <span class="connection-status-error"><CrossIcon size={14} /> {cloudLLMError()}</span>
-              </Show>
-            </div>
-          </SettingRow>
-        </Show>
-      </SettingGroup>
     </TabContent>
   );
 };

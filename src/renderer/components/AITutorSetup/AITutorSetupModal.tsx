@@ -27,6 +27,7 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
   const [activeTab, setActiveTab] = createSignal('grammar');
   const [selectedGrammar, setSelectedGrammar] = createSignal<TutorGrammarSelection[]>([]);
   const [selectedWords, setSelectedWords] = createSignal<TutorWordSelection[]>([]);
+  const [customWords, setCustomWords] = createSignal<TutorWordSelection[]>([]);
   const [selectedMedia, setSelectedMedia] = createSignal<TutorMediaSelection[]>([]);
   const [customInstructions, setCustomInstructions] = createSignal('');
 
@@ -75,6 +76,7 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
     // Reset state after starting
     setSelectedGrammar([]);
     setSelectedWords([]);
+    setCustomWords([]);
     setSelectedMedia([]);
     setCustomInstructions('');
     setActiveTab('grammar');
@@ -120,6 +122,8 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
             <WordSelector
               selected={selectedWords()}
               onSelectionChange={setSelectedWords}
+              customWords={customWords()}
+              onCustomWordsChange={setCustomWords}
             />
           </Show>
 

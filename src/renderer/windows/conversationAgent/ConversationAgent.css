@@ -83,6 +83,14 @@
   position: relative;
 }
 
+/* Stats/context panel */
+.ca-stats-panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Messages area — scrollable */
 .ca-messages {
   flex: 1;

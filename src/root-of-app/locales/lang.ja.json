@@ -180,7 +180,15 @@
       "PressEnterToAdd": "Enterキーを押してこの単語を追加",
       "GenerateTopicPlaceholder": "トピックを入力して語彙を生成...",
       "GenerateBtn": "生成",
-      "GenerateError": "語彙の生成に失敗しました。もう一度お試しください。"
+      "GenerateError": "語彙の生成に失敗しました。もう一度お試しください。",
+      "WordEaseLegendTitle": "単語の習熟度:",
+      "WordEaseLegend": {
+        "unassessed": "新規 / 未評価",
+        "hard": "とても難しい",
+        "struggling": "苦手",
+        "reviewing": "復習中",
+        "known": "既知"
+      }
     },
     "Video": {
       "Controls": {
@@ -331,6 +339,9 @@
         "ModeOlderThan": "指定日より古いものを再生成",
         "OlderThanDate": "生成日が以前",
         "EtaRemaining": "残り約{eta}"
+      },
+      "AutoTts": {
+        "BackendHint": "{provider}を使用中"
       },
       "EmptyState": {
         "NoCardsTitle": "フラッシュカードはまだありません",
@@ -1205,6 +1216,7 @@
       "Tab": {
         "Chat": "チャット",
         "Stats": "統計",
+        "Context": "コンテキスト",
         "Connection": "接続",
         "Voice": "音声"
       },
@@ -1368,12 +1380,23 @@
         "Title": "AI設定",
         "Description": "単語解説と会話練習のためのAI機能を設定します。",
         "Provider": {
-          "Title": "AIプロバイダー",
+          "Title": "LLMプロバイダー",
           "Description": "AIモデルの実行方法を選択します。",
           "Builtin": "内蔵",
           "BuiltinDescription": "アプリ内でローカルモデルを直接実行します。外部ソフトウェアは不要です。",
           "Ollama": "Ollama",
-          "OllamaDescription": "より多くのモデルオプションのためにOllamaサーバーに接続します。"
+          "OllamaDescription": "より多くのモデルオプションのためにOllamaサーバーに接続します。",
+          "Cloud": "クラウド",
+          "CloudDescription": "リモートのOpenAI互換LLMサーバーに接続します。"
+        },
+        "CloudConfig": {
+          "Title": "クラウドLLM設定",
+          "UrlHint": "リモートのOpenAI互換LLMサーバーのベースURL。",
+          "TokenHint": "クラウドLLMサーバーの認証トークン。",
+          "TestConnection": "接続テスト",
+          "Testing": "テスト中...",
+          "ConnectionSuccess": "接続成功。",
+          "ConnectionFailed": "クラウドLLMに接続できませんでした。"
         },
         "BuiltinModel": {
           "Title": "内蔵モデル",

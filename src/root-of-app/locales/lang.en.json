@@ -180,7 +180,15 @@
       "PressEnterToAdd": "Press Enter to add this word",
       "GenerateTopicPlaceholder": "Enter a topic to generate vocabulary...",
       "GenerateBtn": "Generate",
-      "GenerateError": "Failed to generate vocabulary. Please try again."
+      "GenerateError": "Failed to generate vocabulary. Please try again.",
+      "WordEaseLegendTitle": "Word familiarity:",
+      "WordEaseLegend": {
+        "unassessed": "New / unassessed",
+        "hard": "Very hard",
+        "struggling": "Struggling",
+        "reviewing": "Reviewing",
+        "known": "Known"
+      }
     },
     "Video": {
       "Controls": {
@@ -331,6 +339,9 @@
         "ModeOlderThan": "Regenerate older than date",
         "OlderThanDate": "Generated before",
         "EtaRemaining": "~{eta} remaining"
+      },
+      "AutoTts": {
+        "BackendHint": "Using {provider}"
       },
       "EmptyState": {
         "NoCardsTitle": "No flashcards yet",
@@ -1205,6 +1216,7 @@
       "Tab": {
         "Chat": "Chat",
         "Stats": "Stats",
+        "Context": "Context",
         "Connection": "Connection",
         "Voice": "Voice"
       },
@@ -1368,12 +1380,23 @@
         "Title": "AI Configuration",
         "Description": "Configure AI features for word explanations and conversation practice.",
         "Provider": {
-          "Title": "AI Provider",
+          "Title": "LLM Provider",
           "Description": "Choose how to run AI models.",
           "Builtin": "Built-in",
           "BuiltinDescription": "Run a local model directly in the app. No external software required.",
           "Ollama": "Ollama",
-          "OllamaDescription": "Connect to an Ollama server for more model options."
+          "OllamaDescription": "Connect to an Ollama server for more model options.",
+          "Cloud": "Cloud",
+          "CloudDescription": "Connect to a remote OpenAI-compatible LLM server."
+        },
+        "CloudConfig": {
+          "Title": "Cloud LLM Configuration",
+          "UrlHint": "The base URL of the remote OpenAI-compatible LLM server.",
+          "TokenHint": "Authentication token for the cloud LLM server.",
+          "TestConnection": "Test Connection",
+          "Testing": "Testing...",
+          "ConnectionSuccess": "Connection successful.",
+          "ConnectionFailed": "Could not connect to cloud LLM."
         },
         "BuiltinModel": {
           "Title": "Built-in Model",

@@ -7,12 +7,13 @@ import { Component, Show, createSignal, createEffect, onCleanup, For } from 'sol
 import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, SparklesIcon, ToggleSwitch, VoiceSamplePicker } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
+import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
 import type { LLMProvider, LLMModelStatus, TTSProvider } from '../../../../shared/types';
 import '../SettingsForm.css';
 import './AITab.css';
 
 export const AITab: Component = () => {
-  const { settings, updateSettings, updateSetting } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
 
   // Built-in model state
@@ -31,6 +32,11 @@ export const AITab: Component = () => {
   const [ollamaTestSuccess, setOllamaTestSuccess] = createSignal(false);
   const [ollamaModels, setOllamaModels] = createSignal<string[]>([]);
   const [loadingModels, setLoadingModels] = createSignal(false);
+
+  // Cloud LLM state
+  const [testingCloudLLM, setTestingCloudLLM] = createSignal(false);
+  const [cloudLLMStatus, setCloudLLMStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
+  const [cloudLLMError, setCloudLLMError] = createSignal('');
 
   // Check model status on mount
   createEffect(() => {
@@ -70,8 +76,7 @@ export const AITab: Component = () => {
   }
 
   function handleProviderChange(provider: LLMProvider) {
-    updateSetting('llmProvider', provider);
-    updateSetting('llmConfigured', true);
+    updateSettings({ llmProvider: provider, llmConfigured: true });
   }
 
   async function handleDownloadModel() {
@@ -105,11 +110,33 @@ export const AITab: Component = () => {
     setLoadingModels(true);
     try {
       const models = await getBridge().llm.ollamaListModels();
-      setOllamaModels((models || []) as string[]);
+      const modelList = (models || []) as string[];
+      setOllamaModels(modelList);
+      // If the current model isn't in the available list, auto-select the first available
+      if (modelList.length > 0 && !modelList.includes(settings.ollamaModel)) {
+        updateSettings({ ollamaModel: modelList[0] });
+      }
     } catch {
       setOllamaModels([]);
     } finally {
       setLoadingModels(false);
+    }
+  }
+
+  async function handleTestCloudLLM() {
+    setTestingCloudLLM(true);
+    setCloudLLMStatus('idle');
+    setCloudLLMError('');
+    try {
+      const adapter = new CloudLLMAdapter(settings.cloudLLMUrl, settings.cloudLLMToken);
+      const ok = await adapter.checkAvailability();
+      setCloudLLMStatus(ok ? 'success' : 'error');
+      if (!ok) setCloudLLMError(t('mlearn.Connection.Unreachable'));
+    } catch (e) {
+      setCloudLLMStatus('error');
+      setCloudLLMError(String(e));
+    } finally {
+      setTestingCloudLLM(false);
     }
   }
 
@@ -139,15 +166,13 @@ export const AITab: Component = () => {
           <Select
             class="setting-select"
             value={settings.llmProvider}
-            onInput={(e) => handleProviderChange(e.currentTarget.value as LLMProvider)}
-          >
-            <option value="builtin">
-              {t('mlearn.AI.Settings.Provider.Builtin')}
-            </option>
-            <option value="ollama">
-              {t('mlearn.AI.Settings.Provider.Ollama')}
-            </option>
-          </Select>
+            onChange={(e) => handleProviderChange(e.currentTarget.value as LLMProvider)}
+            options={[
+              { value: 'builtin', label: t('mlearn.AI.Settings.Provider.Builtin') },
+              { value: 'ollama', label: t('mlearn.AI.Settings.Provider.Ollama') },
+              { value: 'cloud', label: t('mlearn.AI.Settings.Provider.Cloud') },
+            ]}
+          />
         </SettingRow>
       </SettingGroup>
 
@@ -290,6 +315,60 @@ export const AITab: Component = () => {
         </SettingGroup>
       </Show>
 
+      {/* Cloud LLM Configuration */}
+      <Show when={settings.llmProvider === 'cloud'}>
+        <SettingGroup title={t('mlearn.AI.Settings.CloudConfig.Title')}>
+          <SettingRow
+            label={t('mlearn.Connection.CloudLLMUrl')}
+            description={t('mlearn.AI.Settings.CloudConfig.UrlHint')}
+          >
+            <Input
+              value={settings.cloudLLMUrl}
+              onInput={(e) => updateSettings({ cloudLLMUrl: e.currentTarget.value })}
+              placeholder="https://your-llm-service.com"
+              size="md"
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Connection.CloudLLMToken')}
+            description={t('mlearn.AI.Settings.CloudConfig.TokenHint')}
+          >
+            <Input
+              value={settings.cloudLLMToken}
+              onInput={(e) => updateSettings({ cloudLLMToken: e.currentTarget.value })}
+              placeholder="Bearer token"
+              type="password"
+              size="md"
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.AI.Settings.CloudConfig.TestConnection')}
+            description=""
+          >
+            <div class="ai-connection-test">
+              <Btn
+                size="sm"
+                variant={cloudLLMStatus() === 'success' ? 'success' : 'default'}
+                onClick={handleTestCloudLLM}
+                disabled={testingCloudLLM()}
+                loading={testingCloudLLM()}
+                icon={cloudLLMStatus() === 'success' ? 'check' : undefined}
+              >
+                {cloudLLMStatus() === 'success'
+                  ? t('mlearn.AI.Settings.CloudConfig.ConnectionSuccess')
+                  : t('mlearn.AI.Settings.CloudConfig.TestConnection')
+                }
+              </Btn>
+              <Show when={cloudLLMStatus() === 'error'}>
+                <span class="ai-status-error">{cloudLLMError()}</span>
+              </Show>
+            </div>
+          </SettingRow>
+        </SettingGroup>
+      </Show>
+
       {/* Flashcard TTS */}
       <SettingGroup title={t('mlearn.AI.Settings.FlashcardTTS.Title')}>
         <SettingRow
@@ -335,25 +414,24 @@ export const AITab: Component = () => {
             label={t('mlearn.AI.Settings.FlashcardTTS.RemoteUrl.Label')}
             description={t('mlearn.AI.Settings.FlashcardTTS.RemoteUrl.Description')}
           >
-            <input
-              type="text"
-              class="setting-input"
+            <Input
               value={settings.flashcardRemoteTtsUrl}
               onInput={(e) => updateSettings({ flashcardRemoteTtsUrl: e.currentTarget.value })}
               placeholder="https://example.com/tts"
-            />
-          </SettingRow>
-
-          <SettingRow
-            label={t('mlearn.AI.Settings.FlashcardTTS.AutoGenerate.Label')}
-            description={t('mlearn.AI.Settings.FlashcardTTS.AutoGenerate.Description')}
-          >
-            <ToggleSwitch
-              checked={settings.flashcardAutoGenerateAudio}
-              onChange={(v) => updateSettings({ flashcardAutoGenerateAudio: v })}
+              size="md"
             />
           </SettingRow>
         </Show>
+
+        <SettingRow
+          label={t('mlearn.AI.Settings.FlashcardTTS.AutoGenerate.Label')}
+          description={t('mlearn.AI.Settings.FlashcardTTS.AutoGenerate.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.flashcardAutoGenerateAudio}
+            onChange={(v) => updateSettings({ flashcardAutoGenerateAudio: v })}
+          />
+        </SettingRow>
       </SettingGroup>
     </TabContent>
   );

@@ -382,7 +382,7 @@ function streamChatUnified(
 ): void {
   const settings = loadSettings();
   const baseUrl = settings.ollamaUrl || 'http://localhost:11434';
-  const model = settings.ollamaModel || 'qwen3:4b';
+  const model = settings.ollamaModel || 'llama3.2';
   const url = `${baseUrl}/api/chat`;
 
   const { hostname, port, protocol, path } = parseUrl(url);
@@ -395,6 +395,10 @@ function streamChatUnified(
     model,
     messages: ollamaMessages,
     stream: true,
+    // Disable extended thinking for Qwen3 and similar models —
+    // thinking content goes into a separate `message.thinking` field
+    // that our streaming doesn't accumulate, causing empty responses.
+    think: false,
   };
   if (ollamaTools) {
     body.tools = ollamaTools;
@@ -411,6 +415,9 @@ function streamChatUnified(
   const req = lib.request(options, (res) => {
     let buffer = '';
     let doneSent = false;
+    // Track thinking state for models that still use thinking mode
+    // (fallback if `think: false` is not supported by the Ollama version)
+    let inThinking = false;
 
     res.on('data', (rawChunk: Buffer) => {
       buffer += rawChunk.toString();
@@ -421,11 +428,33 @@ function streamChatUnified(
         if (!line.trim()) continue;
         try {
           const parsed = JSON.parse(line);
+
           const chunk: LLMStreamChunk = {};
 
-          if (parsed.message?.content) {
-            chunk.content = parsed.message.content;
+          // Build content from both regular and thinking fields
+          const regularContent = parsed.message?.content || '';
+          const thinkingContent = parsed.message?.thinking || '';
+          let chunkContent = '';
+
+          if (thinkingContent) {
+            if (!inThinking) {
+              chunkContent += '<think>';
+              inThinking = true;
+            }
+            chunkContent += thinkingContent;
           }
+          if (regularContent) {
+            if (inThinking) {
+              chunkContent += '</think>';
+              inThinking = false;
+            }
+            chunkContent += regularContent;
+          }
+
+          if (chunkContent) {
+            chunk.content = chunkContent;
+          }
+
           if (parsed.message?.tool_calls) {
             chunk.toolCalls = parsed.message.tool_calls.map(
               (tc: { function: { name: string; arguments: Record<string, unknown> } }, i: number) => ({
@@ -436,6 +465,11 @@ function streamChatUnified(
             );
           }
           if (parsed.done) {
+            // Close any unclosed thinking block before finalizing
+            if (inThinking) {
+              chunk.content = (chunk.content || '') + '</think>';
+              inThinking = false;
+            }
             chunk.done = true;
             doneSent = true;
             if (parsed.eval_count != null) chunk.evalCount = parsed.eval_count;
@@ -456,8 +490,24 @@ function streamChatUnified(
       if (buffer.trim()) {
         try {
           const parsed = JSON.parse(buffer);
+          const regularContent = parsed.message?.content || '';
+          const thinkingContent = parsed.message?.thinking || '';
+          let finalContent = '';
+          if (thinkingContent) {
+            finalContent += inThinking ? thinkingContent : `<think>${thinkingContent}`;
+            inThinking = true;
+          }
+          if (regularContent) {
+            if (inThinking) finalContent += '</think>';
+            finalContent += regularContent;
+            inThinking = false;
+          }
+          if (inThinking) {
+            finalContent += '</think>';
+          }
+
           const chunk: LLMStreamChunk = {
-            content: parsed.message?.content || '',
+            content: finalContent,
             done: true,
           };
           if (parsed.message?.tool_calls) {

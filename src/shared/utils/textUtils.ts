@@ -97,6 +97,103 @@ export function isLatinOnly(text: string): boolean {
 // Text Normalization Functions
 // ============================================================================
 
+/**
+ * Check whether a word contains at least one character belonging to the scripts
+ * used by the given language. Useful for filtering out OCR garbage / tokenizer
+ * artifacts that are written in an entirely foreign script.
+ *
+ * Returns `true` if the word contains letters appropriate for the language,
+ * or `false` if it consists entirely of characters from unrelated scripts.
+ * Words that are purely numeric or punctuation return `false`.
+ */
+export function isWordInLanguageScript(word: string, language: string): boolean {
+  if (!word || word.length <= 1) return false;
+
+  // Reject words that are purely numbers, punctuation, or symbols (universal)
+  if (/^[\d.,;:%$€£¥₩\-–—\s]+$/.test(word)) return false;
+  if (/^[^\p{L}\p{N}]+$/u.test(word)) return false;
+
+  switch (language) {
+    case 'ja':
+      // Japanese: must contain kana or CJK ideographs
+      return HIRAGANA_REGEX.test(word) || KATAKANA_REGEX.test(word) || CJK_IDEOGRAPH_REGEX.test(word);
+
+    case 'zh':
+    case 'zh-CN':
+    case 'zh-TW':
+      // Chinese: must contain CJK ideographs
+      return CJK_IDEOGRAPH_REGEX.test(word);
+
+    case 'ko':
+      // Korean: must contain Hangul (Hanja/CJK also acceptable)
+      return HANGUL_REGEX.test(word) || CJK_IDEOGRAPH_REGEX.test(word);
+
+    default: {
+      // For all other languages: check via Intl.Locale.maximize() to discover
+      // the expected script, then verify the word contains letters of that
+      // script. Falls back to "has any letter" for unknown scripts.
+      let expectedScript = '';
+      try {
+        const locale = new Intl.Locale(language).maximize();
+        expectedScript = (locale.script || '').toLowerCase();
+      } catch {
+        // Unknown locale — accept any word that has letters
+      }
+
+      // Must contain at least one Unicode letter
+      if (!/\p{L}/u.test(word)) return false;
+
+      // If we couldn't determine script, accept anything with letters
+      if (!expectedScript) return true;
+
+      // Script-specific checks
+      switch (expectedScript) {
+        case 'latn':
+          return LATIN_LETTER_REGEX.test(word);
+        case 'cyrl':
+          return /[\u0400-\u04FF\u0500-\u052F]/u.test(word);
+        case 'arab':
+          return /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/u.test(word);
+        case 'deva':
+          return /[\u0900-\u097F]/u.test(word);
+        case 'thai':
+          return /[\u0E00-\u0E7F]/u.test(word);
+        case 'grek':
+          return /[\u0370-\u03FF\u1F00-\u1FFF]/u.test(word);
+        case 'hebr':
+          return /[\u0590-\u05FF\uFB1D-\uFB4F]/u.test(word);
+        case 'geor':
+          return /[\u10A0-\u10FF\u2D00-\u2D2F]/u.test(word);
+        case 'armn':
+          return /[\u0530-\u058F]/u.test(word);
+        case 'khmr':
+          return /[\u1780-\u17FF]/u.test(word);
+        case 'mymr':
+          return /[\u1000-\u109F]/u.test(word);
+        case 'beng':
+          return /[\u0980-\u09FF]/u.test(word);
+        case 'guru':
+          return /[\u0A00-\u0A7F]/u.test(word);
+        case 'taml':
+          return /[\u0B80-\u0BFF]/u.test(word);
+        case 'telu':
+          return /[\u0C00-\u0C7F]/u.test(word);
+        case 'knda':
+          return /[\u0C80-\u0CFF]/u.test(word);
+        case 'mlym':
+          return /[\u0D00-\u0D7F]/u.test(word);
+        case 'sinh':
+          return /[\u0D80-\u0DFF]/u.test(word);
+        case 'ethi':
+          return /[\u1200-\u137F]/u.test(word);
+        default:
+          // Unknown script — accept any word with letters
+          return true;
+      }
+    }
+  }
+}
+
 // ============================================================================
 // STT Script Validation
 // ============================================================================
