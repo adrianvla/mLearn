@@ -143,11 +143,44 @@
         "Settings": {
           "Title": "Paramètres",
           "Description": "Personnalisez mLearn"
+        },
+        "AITutor": {
+          "Title": "Tuteur IA",
+          "Description": "Entraînez-vous avec un partenaire de conversation IA"
         }
       },
       "Errors": {
         "UnableToOpen": "Impossible d'ouvrir le fichier. Le chemin du fichier n'a pas été correctement enregistré."
       }
+    },
+    "AITutorSetup": {
+      "Title": "Configuration du tuteur IA",
+      "GrammarTab": "Grammaire",
+      "WordsTab": "Mots",
+      "MediaTab": "Médias",
+      "InstructionsTab": "Instructions",
+      "StartSession": "Démarrer la session",
+      "NoGrammarSupport": "Les points de grammaire ne sont pas encore disponibles pour cette langue.",
+      "NoWordsYet": "Aucun mot rencontré. Regardez des vidéos ou lisez des livres pour enrichir votre vocabulaire.",
+      "NoMediaYet": "Aucun média enregistré. Regardez des vidéos ou lisez des livres pour suivre vos progrès.",
+      "SearchGrammar": "Rechercher des points de grammaire...",
+      "SearchWords": "Rechercher des mots...",
+      "SelectGrammarHint": "Sélectionnez les points de grammaire à pratiquer.",
+      "SelectWordsHint": "Sélectionnez les mots sur lesquels vous concentrer.",
+      "SelectMediaHint": "Sélectionnez les médias enregistrés pour inclure leur contexte.",
+      "InstructionsPlaceholder": "Décrivez un scénario, un jeu de rôle ou un sujet que vous souhaitez pratiquer. Par exemple : 'Pratiquons la commande au restaurant' ou 'Jouez le rôle d'un recruteur'.",
+      "ExcludeWords": "Exclure des mots",
+      "FailedWords": "Mots difficiles",
+      "FailedGrammar": "Grammaire difficile",
+      "AllLevels": "Tous",
+      "ShowMore": "Afficher plus",
+      "ItemsSelected": "{count} sélectionné(s)",
+      "LLMNotConfigured": "L'IA n'est pas configurée. Configurez-la d'abord dans les paramètres.",
+      "InstructionsLabel": "Instructions personnalisées",
+      "PressEnterToAdd": "Appuyez sur Entrée pour ajouter ce mot",
+      "GenerateTopicPlaceholder": "Entrez un sujet pour générer du vocabulaire...",
+      "GenerateBtn": "Générer",
+      "GenerateError": "Échec de la génération du vocabulaire. Veuillez réessayer."
     },
     "Video": {
       "Controls": {
@@ -1106,7 +1139,15 @@
         "Interval": "Intervalle :"
       },
       "RegenerateTts": "Régénérer TTS",
+      "GenerateTtsAction": "Générer",
+      "GeneratingTts": "Génération…",
+      "TtsGenerated": "Audio TTS régénéré avec succès",
+      "TtsGenerateFailed": "Échec de la génération de l'audio TTS",
+      "NoRemoteUrl": "Aucune URL TTS distante configurée. Définissez-la dans Paramètres → IA → TTS des cartes.",
       "RegenerateExample": "Régénérer l'exemple",
+      "RegeneratingExample": "Régénération…",
+      "ExampleGenerateFailed": "Échec de la régénération de l'exemple",
+      "UseReadingForTts": "Utiliser la lecture pour le TTS",
       "Hint": "Traduction : virgules ou retours à la ligne. L'accent tonal est la position mora de descente (0=plat)."
     },
     "PitchAccent": {

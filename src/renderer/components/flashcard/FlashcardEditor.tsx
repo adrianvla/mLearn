@@ -10,7 +10,7 @@ import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { useSettings, useLanguage, useLocalization, useFlashcards } from '../../context';
 import { getPitchAccentName } from '../../utils/pitchAccent';
 import { Input, Btn, PitchAccentOverlay } from '../common';
-import { getBridge } from '../../../shared/bridges';
+import { TtsGenerateModal } from './TtsGenerateModal';
 import { getBackend } from '../../../shared/backends';
 import { isElectron } from '../../../shared/platform';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
@@ -49,8 +49,8 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   const [context, setContext] = createSignal('');
 
   // TTS / generation state
-  const [regeneratingTts, setRegeneratingTts] = createSignal(false);
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
+  const [showTtsModal, setShowTtsModal] = createSignal(false);
 
   // ContentEditable refs
   let exampleRef: HTMLDivElement | undefined;
@@ -127,35 +127,6 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
     };
 
     props.onSave(content);
-  };
-
-  /** Regenerate TTS for the current flashcard (word + example) */
-  const handleRegenerateTts = async () => {
-    const card = props.flashcard;
-    if (!card || !isElectron()) return;
-
-    setRegeneratingTts(true);
-    const bridge = getBridge();
-    const provider = settings.flashcardTtsProvider;
-    const remoteUrl = settings.flashcardRemoteTtsUrl || undefined;
-    const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
-    const language = settings.language;
-
-    try {
-      const wordText = front().replace(/<[^>]*>/g, '');
-      if (wordText && wordText !== '-') {
-        await bridge.flashcards.generateFlashcardTts(card.id, wordText, language, 'word', provider, remoteUrl, voiceSampleId);
-      }
-      const exampleText = example().replace(/<[^>]*>/g, '');
-      if (exampleText && exampleText !== '-') {
-        await bridge.flashcards.generateFlashcardTts(card.id, exampleText, language, 'example', provider, remoteUrl, voiceSampleId);
-      }
-      showToast({ message: t('mlearn.CardEditor.RegenerateTts'), variant: 'success' });
-    } catch (e) {
-      console.warn('Failed to regenerate TTS:', e);
-    } finally {
-      setRegeneratingTts(false);
-    }
   };
 
   /** Regenerate example sentence using LLM */
@@ -360,11 +331,23 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
           <Btn
             size="sm"
             variant="secondary"
-            onClick={handleRegenerateTts}
-            disabled={regeneratingTts()}
+            onClick={() => setShowTtsModal(true)}
           >
             {t('mlearn.CardEditor.RegenerateTts')}
           </Btn>
+          <TtsGenerateModal
+            isOpen={showTtsModal()}
+            onClose={() => setShowTtsModal(false)}
+            cardId={props.flashcard!.id}
+            wordText={front()}
+            exampleText={example()}
+            reading={reading()}
+            cardBack={back()}
+            onExampleGenerated={(ex, exMeaning) => {
+              setExample(ex);
+              setExampleMeaning(exMeaning);
+            }}
+          />
         </div>
       </Show>
 

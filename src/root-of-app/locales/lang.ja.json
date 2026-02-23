@@ -143,11 +143,44 @@
         "Settings": {
           "Title": "設定",
           "Description": "mLearnをカスタマイズする"
+        },
+        "AITutor": {
+          "Title": "AIチューター",
+          "Description": "AI会話パートナーと練習する"
         }
       },
       "Errors": {
         "UnableToOpen": "ファイルを開けません。ファイルパスが正しく保存されていません。"
       }
+    },
+    "AITutorSetup": {
+      "Title": "AIチューター設定",
+      "GrammarTab": "文法",
+      "WordsTab": "単語",
+      "MediaTab": "メディア",
+      "InstructionsTab": "指示",
+      "StartSession": "セッション開始",
+      "NoGrammarSupport": "この言語の文法ポイントはまだ利用できません。",
+      "NoWordsYet": "まだ単語がありません。動画を視聴したり本を読んだりして語彙を増やしましょう。",
+      "NoMediaYet": "保存されたメディアがありません。動画を視聴したり本を読んだりして進捗を記録しましょう。",
+      "SearchGrammar": "文法ポイントを検索...",
+      "SearchWords": "単語を検索...",
+      "SelectGrammarHint": "練習したい文法ポイントを選択してください。",
+      "SelectWordsHint": "集中したい単語を選択してください。",
+      "SelectMediaHint": "コンテキストを含める保存済みメディアを選択してください。",
+      "InstructionsPlaceholder": "練習したいシナリオ、ロールプレイ、または特定のトピックを説明してください。例：「レストランでの注文を練習しましょう」や「面接官の役をしてください」。",
+      "ExcludeWords": "単語を除外",
+      "FailedWords": "苦手な単語",
+      "FailedGrammar": "苦手な文法",
+      "AllLevels": "すべて",
+      "ShowMore": "もっと表示",
+      "ItemsSelected": "{count}件選択中",
+      "LLMNotConfigured": "AIが設定されていません。先に設定で構成してください。",
+      "InstructionsLabel": "カスタム指示",
+      "PressEnterToAdd": "Enterキーを押してこの単語を追加",
+      "GenerateTopicPlaceholder": "トピックを入力して語彙を生成...",
+      "GenerateBtn": "生成",
+      "GenerateError": "語彙の生成に失敗しました。もう一度お試しください。"
     },
     "Video": {
       "Controls": {
@@ -1106,7 +1139,15 @@
         "Interval": "間隔:"
       },
       "RegenerateTts": "TTS再生成",
+      "GenerateTtsAction": "生成",
+      "GeneratingTts": "生成中…",
+      "TtsGenerated": "TTS音声を再生成しました",
+      "TtsGenerateFailed": "TTS音声の生成に失敗しました",
+      "NoRemoteUrl": "リモートTTS URLが設定されていません。設定→AI→フラッシュカードTTSで設定してください。",
       "RegenerateExample": "例文を再生成",
+      "RegeneratingExample": "再生成中…",
+      "ExampleGenerateFailed": "例文の再生成に失敗しました",
+      "UseReadingForTts": "読みをTTSに使用",
       "Hint": "翻訳: コンマまたは改行区切り。ピッチアクセントはモーラ下降位置（0=平板）。"
     },
     "PitchAccent": {

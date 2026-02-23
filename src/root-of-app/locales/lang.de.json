@@ -143,11 +143,44 @@
         "Settings": {
           "Title": "Einstellungen",
           "Description": "mLearn anpassen"
+        },
+        "AITutor": {
+          "Title": "KI-Tutor",
+          "Description": "Übe mit einem KI-Gesprächspartner"
         }
       },
       "Errors": {
         "UnableToOpen": "Datei kann nicht geöffnet werden. Der Dateipfad wurde nicht korrekt gespeichert."
       }
+    },
+    "AITutorSetup": {
+      "Title": "KI-Tutor einrichten",
+      "GrammarTab": "Grammatik",
+      "WordsTab": "Wörter",
+      "MediaTab": "Medien",
+      "InstructionsTab": "Anweisungen",
+      "StartSession": "Sitzung starten",
+      "NoGrammarSupport": "Grammatikpunkte sind für diese Sprache noch nicht verfügbar.",
+      "NoWordsYet": "Noch keine Wörter gefunden. Schaue Videos oder lies Bücher, um deinen Wortschatz aufzubauen.",
+      "NoMediaYet": "Noch keine gespeicherten Medien. Schaue Videos oder lies Bücher, um deinen Fortschritt zu verfolgen.",
+      "SearchGrammar": "Grammatikpunkte suchen...",
+      "SearchWords": "Wörter suchen...",
+      "SelectGrammarHint": "Wähle Grammatikpunkte zum Üben aus.",
+      "SelectWordsHint": "Wähle Wörter aus, auf die du dich konzentrieren möchtest.",
+      "SelectMediaHint": "Wähle gespeicherte Medien aus, deren Kontext einbezogen werden soll.",
+      "InstructionsPlaceholder": "Beschreibe ein Szenario, Rollenspiel oder ein bestimmtes Thema, das du üben möchtest. Zum Beispiel: 'Lass uns das Bestellen im Restaurant üben' oder 'Spiele einen Vorstellungsgesprächsleiter'.",
+      "ExcludeWords": "Wörter ausschließen",
+      "FailedWords": "Schwierige Wörter",
+      "FailedGrammar": "Schwierige Grammatik",
+      "AllLevels": "Alle",
+      "ShowMore": "Mehr anzeigen",
+      "ItemsSelected": "{count} ausgewählt",
+      "LLMNotConfigured": "KI ist nicht konfiguriert. Richte sie zuerst in den Einstellungen ein.",
+      "InstructionsLabel": "Benutzerdefinierte Anweisungen",
+      "PressEnterToAdd": "Eingabetaste drücken, um dieses Wort hinzuzufügen",
+      "GenerateTopicPlaceholder": "Thema eingeben, um Vokabeln zu generieren...",
+      "GenerateBtn": "Generieren",
+      "GenerateError": "Vokabeln konnten nicht generiert werden. Bitte erneut versuchen."
     },
     "Video": {
       "Controls": {
@@ -1106,7 +1139,15 @@
         "Interval": "Intervall:"
       },
       "RegenerateTts": "TTS neu generieren",
+      "GenerateTtsAction": "Generieren",
+      "GeneratingTts": "Wird generiert…",
+      "TtsGenerated": "TTS-Audio erfolgreich neu generiert",
+      "TtsGenerateFailed": "TTS-Audio konnte nicht generiert werden",
+      "NoRemoteUrl": "Keine Remote-TTS-URL konfiguriert. In Einstellungen → KI → Lernkarten-TTS festlegen.",
       "RegenerateExample": "Beispiel neu generieren",
+      "RegeneratingExample": "Wird generiert…",
+      "ExampleGenerateFailed": "Beispiel konnte nicht neu generiert werden",
+      "UseReadingForTts": "Lesung für TTS verwenden",
       "Hint": "Übersetzung: Komma oder Zeilenumbruch. Tonakzent ist die Mora-Absenkungsposition (0=flach)."
     },
     "PitchAccent": {

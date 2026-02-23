@@ -1,0 +1,87 @@
+/* WordSelector — word grid picker for AI tutor setup */
+
+.word-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  height: 100%;
+  min-height: 0;
+}
+
+.word-selector__search-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.word-selector__add-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.word-selector__generate-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.word-selector__generate-row {
+  display: flex;
+  gap: var(--spacing-2);
+  align-items: center;
+}
+
+.word-selector__generate-row .input-wrapper {
+  flex: 1;
+}
+
+.word-selector__generate-error {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+}
+
+.word-selector__level-pills {
+  display: flex;
+  gap: var(--spacing-1);
+  flex-wrap: wrap;
+}
+
+.word-selector__grid {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-content: flex-start;
+  min-height: 0;
+  padding: var(--spacing-1);
+}
+
+.word-selector__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.15s ease;
+  user-select: none;
+}
+
+.word-selector__cell:hover {
+  transform: scale(1.08);
+  z-index: 1;
+}
+
+.word-selector__cell.selected {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.word-selector__cell-text {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  white-space: nowrap;
+}

@@ -77,9 +77,13 @@
   font-size: 0.625rem;
   font-weight: 600;
   text-transform: uppercase;
+}
+
+/* Fallback styling for plain text badges (no child component) */
+.selectable-card__badge:not(:has(.label)) {
   padding: 0.125rem 0.375rem;
   border-radius: 4px;
-  background: var(--color-warning, #f59e0b);
+  background: var(--color-warning);
   color: #000;
 }
 

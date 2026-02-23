@@ -31,7 +31,7 @@ import { VoiceAftermath } from './VoiceAftermath';
 
 import { createConversationAgent } from '../../services/conversationAgent';
 import type { StreamCallbacks } from '../../services/conversationAgent';
-import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath } from '../../../shared/types';
+import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import { isLatinOnly } from '../../../shared/utils/textUtils';
 import './ConversationAgent.css';
@@ -98,6 +98,7 @@ export const ConversationContent: Component = () => {
 
   const [activeTab, setActiveTab] = createSignal<string>('chat');
   const [mediaContext, setMediaContext] = createSignal<ConversationAgentContext | null>(null);
+  const [tutorConfig, setTutorConfig] = createSignal<TutorSessionConfig | null>(null);
   const [messages, setMessages] = createSignal<ConversationMessage[]>([]);
   const [inputText, setInputText] = createSignal('');
   const [isStreaming, setIsStreaming] = createSignal(false);
@@ -163,6 +164,7 @@ export const ConversationContent: Component = () => {
     getLanguageName: () => langName(),
     getMediaContext: () => mediaContext(),
     getSceneContext: () => sceneContext(),
+    getTutorConfig: () => tutorConfig(),
     flashcardCtx,
     getFrequency,
     getTargetLevel: () => targetLevel(),
@@ -226,6 +228,13 @@ export const ConversationContent: Component = () => {
         }
         if (rawCtx.mediaHash) {
           setMediaContext(ctx as unknown as ConversationAgentContext);
+        }
+        if (rawCtx.tutorConfig) {
+          const config = rawCtx.tutorConfig as TutorSessionConfig;
+          setTutorConfig(config);
+          if (config.customInstructions) {
+            setSceneContext(config.customInstructions);
+          }
         }
       }
     });

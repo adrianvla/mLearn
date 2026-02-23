@@ -370,7 +370,9 @@ export function registerFlashcardAudioScheme(): void {
  */
 export function setupFlashcardAudioProtocol(): void {
   protocol.handle(SCHEME, (request) => {
-    const filename = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
+    // Strip query params (cache-busting) before resolving the file path
+    const raw = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
+    const filename = raw.split('?')[0];
     const filePath = path.join(getAudioDir(), filename);
     const fileUrl = `file://${filePath.replace(/\\/g, '/')}`;
     return net.fetch(fileUrl, { headers: request.headers });

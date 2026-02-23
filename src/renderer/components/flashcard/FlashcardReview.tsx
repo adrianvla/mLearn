@@ -6,8 +6,10 @@
 import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
 import { useFlashcards, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
-import { Button, Badge, Panel, ProgressBar } from '../common';
+import { TtsGenerateModal } from './TtsGenerateModal';
+import { Button, Badge, Panel, ProgressBar, MicrophoneIcon } from '../common';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
+import { isElectron } from '../../../shared/platform';
 import type { Flashcard } from '../../../shared/types';
 import type { Rating } from '../../services/srsAlgorithm';
 import './FlashcardReview.css';
@@ -38,6 +40,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [isComplete, setIsComplete] = createSignal(false);
   const [initialTotal, setInitialTotal] = createSignal(0);
   const [cardsAnswered, setCardsAnswered] = createSignal(0);
+  const [showTtsModal, setShowTtsModal] = createSignal(false);
 
   // TTS integration
   const { settings } = useSettings();
@@ -333,9 +336,23 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 </Button>
               </div>
             </Show>
-            <Show when={canUndo()}>
+            <Show when={canUndo()}
+            >
               <Button buttonType="default" variant="ghost" size="sm" onClick={() => { undoLastAction(); setCardsAnswered(prev => Math.max(0, prev - 1)); }} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
                 {t('mlearn.Flashcards.Review.Undo')}
+              </Button>
+            </Show>
+            <Show when={isElectron() && !isComplete() && currentCard()}>
+              <Button
+                buttonType="default"
+                variant="ghost"
+                size="sm"
+                class="flashcard-action-btn"
+                onClick={() => setShowTtsModal(true)}
+                title={t('mlearn.CardEditor.RegenerateTts')}
+              >
+                <MicrophoneIcon size={14} />
+                <span class="flashcard-action-label">{t('mlearn.CardEditor.RegenerateTts')}</span>
               </Button>
             </Show>
           </div>
@@ -426,6 +443,19 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             </div>
           </Show>
         </div>
+
+        {/* TTS Regenerate Modal */}
+        <Show when={currentCard()}>
+          <TtsGenerateModal
+            isOpen={showTtsModal()}
+            onClose={() => setShowTtsModal(false)}
+            cardId={currentCard()!.id}
+            wordText={currentCard()!.content.front}
+            exampleText={currentCard()!.content.example}
+            reading={currentCard()!.content.reading}
+            cardBack={currentCard()!.content.back}
+          />
+        </Show>
       </div>
   );
 };

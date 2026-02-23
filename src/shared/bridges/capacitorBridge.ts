@@ -440,6 +440,9 @@ const fileBridge: FileBridge = {
 // Window Bridge (mostly no-ops on mobile)
 // ============================================================================
 
+/** Registered callbacks for window context delivery on Capacitor */
+const windowContextCallbacks = new Set<(context: Record<string, unknown> | null) => void>();
+
 const windowBridge: WindowBridge = {
   changeTrafficLights: noop,
   resizeWindow: noop,
@@ -466,6 +469,16 @@ const windowBridge: WindowBridge = {
       licenses: '/licenses',
       'connect-qr': '/connect-qr',
     };
+
+    // Store context in sessionStorage so the target route can retrieve it
+    if (payload.context) {
+      try {
+        sessionStorage.setItem(`mlearn_window_ctx_${payload.type}`, JSON.stringify(payload.context));
+      } catch (e) {
+        console.error('[CapacitorBridge] Failed to store window context:', e);
+      }
+    }
+
     const route = routeMap[payload.type];
     if (route) {
       window.location.hash = `#${route}`;
@@ -477,8 +490,32 @@ const windowBridge: WindowBridge = {
     window.history.back();
   },
 
-  getWindowContext: noop,
-  onWindowContext: () => undefined,
+  getWindowContext(windowType: string) {
+    // Read context stored by openWindow and emit to registered callbacks
+    try {
+      const key = `mlearn_window_ctx_${windowType}`;
+      const raw = sessionStorage.getItem(key);
+      if (raw) {
+        sessionStorage.removeItem(key);
+        const ctx = JSON.parse(raw) as Record<string, unknown>;
+        // Emit asynchronously so listeners registered after getWindowContext are called
+        queueMicrotask(() => {
+          windowContextCallbacks.forEach(cb => cb(ctx));
+        });
+        return;
+      }
+    } catch (e) {
+      console.error('[CapacitorBridge] Failed to read window context:', e);
+    }
+    queueMicrotask(() => {
+      windowContextCallbacks.forEach(cb => cb(null));
+    });
+  },
+
+  onWindowContext(callback: (context: Record<string, unknown> | null) => void) {
+    windowContextCallbacks.add(callback);
+    return () => { windowContextCallbacks.delete(callback); };
+  },
   onOpenSettings: noopCleanup,
   onOpenAside: noopCleanup,
   onContextMenuCommand: (callback: (command: string) => void) => {
