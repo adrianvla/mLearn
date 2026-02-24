@@ -6,6 +6,15 @@
   gap: var(--spacing-3);
   height: 100%;
   min-height: 0;
+  overflow-y:auto;
+}
+.word-selector__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  background: var(--bg-nt-primary);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .word-selector__search-row {
@@ -44,12 +53,6 @@
   color: var(--color-error);
 }
 
-.word-selector__level-pills {
-  display: flex;
-  gap: var(--spacing-1);
-  flex-wrap: wrap;
-}
-
 .word-selector__legend {
   display: flex;
   flex-wrap: wrap;
@@ -82,9 +85,8 @@
 
 .word-selector__grid {
   flex: 1;
-  overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
   gap: var(--spacing-1);
   align-content: start;
   min-height: 0;
@@ -99,10 +101,11 @@
   min-height: calc(var(--spacing-8) + var(--spacing-2));
   padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--radius-md);
-  border: 2px solid transparent;
+  border: 1px solid var(--border-color);
   cursor: pointer;
   transition: transform 0.1s ease, border-color 0.15s ease;
   user-select: none;
+  box-shadow: var(--shadow-lg);
 }
 
 .word-selector__cell:hover {

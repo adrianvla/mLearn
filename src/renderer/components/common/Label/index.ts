@@ -19,6 +19,8 @@ export {
   type LabelSize,
   type StatusLabelProps,
 } from './Label';
+export { LevelPillsFilter } from './LevelPillsFilter';
 
 // Import CSS
 import './Label.css';
+import './LevelPillsFilter.css';

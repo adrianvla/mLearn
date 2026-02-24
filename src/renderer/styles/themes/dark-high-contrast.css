@@ -3,6 +3,8 @@
 body.theme-dark-high-contrast {
     /*--bg-opaque: #0a0a0a;*/
     --bg-opaque: #000;
+    --bg-nt-primary: rgb(26,26,26);
+    --bg-nt-secondary: rgb(38,38,38);
     --text-primary: white;
     --text-secondary: white;
     --text-tertiary: white;

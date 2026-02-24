@@ -63,7 +63,7 @@ export const TabContainer: Component<TabContainerProps> = (props) => {
           {(tab) => (
             <button
               role="tab"
-              class={`tab-item ${local.activeTab === tab.id ? 'active' : ''}`}
+              class={`tab-item ${local.activeTab === tab.id ? 'active' : ''} ${tab.badge !== undefined ? 'tab-item--with-badge' : ''}`}
               aria-selected={local.activeTab === tab.id}
               disabled={tab.disabled}
               onClick={() => !tab.disabled && local.onTabChange(tab.id)}
@@ -75,7 +75,9 @@ export const TabContainer: Component<TabContainerProps> = (props) => {
               </Show>
               <span class="tab-label">{tab.label}</span>
               <Show when={tab.badge !== undefined}>
-                <Badge class="tab-badge">{tab.badge}</Badge>
+                <span class="tab-badge-slot">
+                  <Badge class="tab-badge">{tab.badge}</Badge>
+                </span>
               </Show>
             </button>
           )}

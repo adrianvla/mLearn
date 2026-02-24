@@ -8,7 +8,7 @@ import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, SparklesIcon, ToggleSwitch, VoiceSamplePicker } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
-import type { LLMProvider, LLMModelStatus, TTSProvider } from '../../../../shared/types';
+import type { LLMProvider, LLMModelStatus, OCRProvider, TTSProvider } from '../../../../shared/types';
 import '../SettingsForm.css';
 import './AITab.css';
 
@@ -171,6 +171,23 @@ export const AITab: Component = () => {
               { value: 'builtin', label: t('mlearn.AI.Settings.Provider.Builtin') },
               { value: 'ollama', label: t('mlearn.AI.Settings.Provider.Ollama') },
               { value: 'cloud', label: t('mlearn.AI.Settings.Provider.Cloud') },
+            ]}
+          />
+        </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup title={t('mlearn.AI.Settings.OCR.Title')}>
+        <SettingRow
+          label={t('mlearn.AI.Settings.OCR.Provider.Label')}
+          description={t('mlearn.AI.Settings.OCR.Provider.Description')}
+        >
+          <Select
+            class="setting-select"
+            value={settings.ocrProvider ?? 'local'}
+            onChange={(e) => updateSettings({ ocrProvider: e.currentTarget.value as OCRProvider })}
+            options={[
+              { value: 'local', label: t('mlearn.AI.Settings.OCR.Provider.Local') },
+              { value: 'cloud', label: t('mlearn.AI.Settings.OCR.Provider.Cloud') },
             ]}
           />
         </SettingRow>

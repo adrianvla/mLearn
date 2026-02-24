@@ -114,6 +114,8 @@ export interface Settings {
   cloudLLMUrl: string;
   /** Auth token for cloud LLM endpoint */
   cloudLLMToken: string;
+  /** Whether cloud endpoint URL is manually overridden */
+  overrideCloudEndpointUrl: boolean;
   /** Timestamp of last settings modification (for sync conflict resolution) */
   lastModified: number;
 
@@ -156,6 +158,8 @@ export interface Settings {
   ocrFuriganaNeighborWindowMultiplier?: number;
   /** Number of boxes to look ahead when detecting furigana neighbors (default 3) */
   ocrFuriganaNeighborLookahead?: number;
+  /** OCR backend provider */
+  ocrProvider?: OCRProvider;
 
   // Reader word hover settings
   /** How word hover is triggered: 'hover', 'long-hover', 'key-hover' */
@@ -264,6 +268,7 @@ export const DEFAULT_SETTINGS: Settings = {
   nodeServerUrl: 'http://127.0.0.1:7753',
   cloudLLMUrl: '',
   cloudLLMToken: '',
+  overrideCloudEndpointUrl: false,
   lastModified: 0,
   openAside: true,
   llmEnabled: true,
@@ -291,6 +296,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ocrFuriganaWidthRatio: 1.5,
   ocrFuriganaNeighborWindowMultiplier: 2.4,
   ocrFuriganaNeighborLookahead: 3,
+  ocrProvider: 'local',
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'Shift',
   readerFuriganaHider: false,
@@ -841,6 +847,9 @@ export interface LLMResponse {
 
 /** LLM backend provider */
 export type LLMProvider = 'builtin' | 'ollama' | 'cloud';
+
+/** OCR backend provider */
+export type OCRProvider = 'local' | 'cloud';
 
 /** TTS backend provider */
 export type TTSProvider = 'kokoro' | 'qwen3' | 'remote';

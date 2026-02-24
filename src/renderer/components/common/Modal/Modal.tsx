@@ -23,6 +23,8 @@ export interface ModalProps {
   children?: JSX.Element;
   /** Whether the modal should take full viewport height (minus padding) */
   fullHeight?: boolean;
+  /** Optional class applied to the panel container */
+  panelClass?: string;
 }
 
 export const Modal: Component<ModalProps> = (props) => {
@@ -50,6 +52,7 @@ export const Modal: Component<ModalProps> = (props) => {
     'footer',
     'children',
     'fullHeight',
+    'panelClass',
   ]);
 
   // Handle escape key
@@ -129,9 +132,10 @@ export const Modal: Component<ModalProps> = (props) => {
           }}
         >
           <Panel
-            variant="default"
+            variant="solid"
             rounded="lg"
             padding="none"
+            class={local.panelClass}
             style={modalStyle()}
           >
             {/* Header */}
@@ -189,7 +193,7 @@ export const Modal: Component<ModalProps> = (props) => {
               style={{
                 flex: '1',
                 overflow: 'auto',
-                padding: 'var(--spacing-6)',
+                padding: 'var(--spacing-6) var(--spacing-6) 0',
               }}
             >
               {local.children}

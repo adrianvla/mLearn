@@ -5,9 +5,9 @@
 
 import { Component, Show, createSignal } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, CheckIcon, CrossIcon } from '../../../components/common';
+import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, CheckIcon, CrossIcon, ToggleSwitch } from '../../../components/common';
 import { isMobile } from '../../../../shared/platform';
-import { getBackend, resetBackend } from '../../../../shared/backends';
+import { DEFAULT_CLOUD_ENDPOINT, getBackend, resetBackend } from '../../../../shared/backends';
 import { getNodeServer } from '../../../../shared/backends/nodeServerAdapter';
 import type { SelectOption } from '../../../components/common';
 import './ConnectionTab.css';
@@ -17,6 +17,9 @@ type BackendMode = 'local' | 'tethered' | 'cloud';
 export const ConnectionTab: Component = () => {
   const { settings, updateSetting } = useSettings();
   const { t } = useLocalization();
+  const resolveCloudBackendUrl = () => (
+    settings.overrideCloudEndpointUrl ? settings.backendUrl : ''
+  );
 
   // Test connection state
   const [testingBackend, setTestingBackend] = createSignal(false);
@@ -48,7 +51,7 @@ export const ConnectionTab: Component = () => {
       resetBackend();
       const backend = getBackend({
         mode: settings.backendMode as BackendMode,
-        url: settings.backendUrl,
+        url: settings.backendMode === 'cloud' ? resolveCloudBackendUrl() : settings.backendUrl,
         authToken: settings.cloudAuthToken,
       });
       const ok = await backend.ping();
@@ -107,27 +110,53 @@ export const ConnectionTab: Component = () => {
         </HintText>
 
         {/* Tethered / Cloud URL */}
-        <Show when={settings.backendMode !== 'local'}>
+        <Show when={settings.backendMode === 'tethered'}>
           <SettingRow label={t('mlearn.Connection.BackendUrl') || 'Backend URL'}>
             <Input
               value={settings.backendUrl}
               onInput={(e) => updateSetting('backendUrl', e.currentTarget.value)}
-              placeholder={settings.backendMode === 'tethered' ? 'http://192.168.x.x:7752' : 'https://your-cloud-url.com'}
+              placeholder="http://192.168.x.x:7752"
             />
           </SettingRow>
         </Show>
 
-        {/* Cloud auth token */}
-        <Show when={settings.backendMode === 'cloud'}>
-          <SettingRow label={t('mlearn.Connection.AuthToken') || 'Auth Token'}>
+        <SettingRow
+          label={t('mlearn.Connection.OverrideCloudEndpointUrl')}
+          description={t('mlearn.Connection.OverrideCloudEndpointUrlDescription')}
+        >
+          <ToggleSwitch
+            checked={settings.overrideCloudEndpointUrl}
+            onChange={(checked) => {
+              updateSetting('overrideCloudEndpointUrl', checked);
+              if (checked && !settings.backendUrl) {
+                updateSetting('backendUrl', DEFAULT_CLOUD_ENDPOINT);
+              }
+            }}
+          />
+        </SettingRow>
+
+        <Show when={settings.overrideCloudEndpointUrl}>
+          <SettingRow label={t('mlearn.Connection.CloudEndpointUrl')}>
             <Input
-              value={settings.cloudAuthToken}
-              onInput={(e) => updateSetting('cloudAuthToken', e.currentTarget.value)}
-              placeholder="Bearer token"
-              type="password"
+              value={settings.backendUrl}
+              onInput={(e) => updateSetting('backendUrl', e.currentTarget.value)}
+              placeholder={DEFAULT_CLOUD_ENDPOINT}
             />
           </SettingRow>
         </Show>
+
+        <SettingRow label={t('mlearn.Connection.AuthToken') || 'Auth Token'}>
+          <Input
+            value={settings.cloudAuthToken}
+            onInput={(e) => updateSetting('cloudAuthToken', e.currentTarget.value)}
+            placeholder="Bearer token"
+            type="password"
+          />
+        </SettingRow>
+
+        <HintText>
+          {t('mlearn.Connection.DefaultCloudEndpoint', { endpoint: DEFAULT_CLOUD_ENDPOINT })}
+        </HintText>
 
         {/* Test connection button */}
         <Show when={settings.backendMode !== 'local'}>

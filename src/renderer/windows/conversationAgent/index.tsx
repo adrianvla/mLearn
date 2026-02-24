@@ -6,6 +6,7 @@ import { render } from 'solid-js/web';
 import { ConversationAgentApp } from './App';
 
 import '../../styles/index.css';
+import '../../styles/base.css';
 
 const root = document.getElementById('root');
 

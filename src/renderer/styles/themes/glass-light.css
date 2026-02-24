@@ -8,6 +8,8 @@ body.theme-glass-light .subtitle_hover {
 /* === Start index.css === */
 body.theme-glass-light {
   --bg-opaque: #f5f5f5;
+  --bg-nt-primary: rgb(238,238,238); /*non-translucent*/
+  --bg-nt-secondary: rgb(230,230,230); /*non-translucent*/
   --text-primary: #1a1a1a;
   --text-secondary: #666666;
   --text-tertiary: rgba(0, 0, 0, 0.4);

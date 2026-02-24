@@ -21,7 +21,7 @@ import { streamChat } from '../../services/llmProvider';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
 import { getWordsLearnedInApp } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
-import { Input, PillLabel, EmptyState, HintText, Btn, Spinner, SparklesIcon } from '../common';
+import { Input, LevelPillsFilter, EmptyState, HintText, Btn, Spinner, SparklesIcon, CollapsibleStickyHeader } from '../common';
 import type {
   TutorWordSelection,
   PassiveWordKnowledge,
@@ -76,6 +76,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   const [isGenerating, setIsGenerating] = createSignal(false);
   const [generationError, setGenerationError] = createSignal('');
   let abortGeneration: (() => void) | null = null;
+  const [wordGridRef, setWordGridRef] = createSignal<HTMLDivElement | undefined>(undefined);
 
   const isDark = () => settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker';
 
@@ -498,104 +499,93 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
 
   return (
     <div class="word-selector">
-      <HintText>{t('mlearn.AITutorSetup.SelectWordsHint')}</HintText>
+      <CollapsibleStickyHeader
+        class="word-selector__header"
+        getScrollContainer={wordGridRef}
+      >
+        <HintText>{t('mlearn.AITutorSetup.SelectWordsHint')}</HintText>
 
-      <div class="word-selector__search-row">
-        <Input
-          value={searchQuery()}
-          onInput={(e) => {
-            setSearchQuery(e.currentTarget.value);
-          }}
-          onKeyDown={handleSearchKeyDown}
-          placeholder={t('mlearn.AITutorSetup.SearchWords')}
-        />
-        <Show when={canAddCustom()}>
-          <span class="word-selector__add-hint">{t('mlearn.AITutorSetup.PressEnterToAdd')}</span>
-        </Show>
-      </div>
-
-      {/* LLM vocabulary generation */}
-      <Show when={settings.llmEnabled && settings.llmConfigured}>
-        <div class="word-selector__generate-section">
-          <div class="word-selector__generate-row">
-            <Input
-              value={topicInput()}
-              onInput={(e) => setTopicInput(e.currentTarget.value)}
-              onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter') generateVocabulary(); }}
-              placeholder={t('mlearn.AITutorSetup.GenerateTopicPlaceholder')}
-              disabled={isGenerating()}
-            />
-            <Btn
-              variant="ghost"
-              size="sm"
-              onClick={generateVocabulary}
-              disabled={isGenerating() || !topicInput().trim()}
-              icon={isGenerating() ? <Spinner size={14} /> : <SparklesIcon size={14} />}
-              loading={isGenerating()}
-            >
-              {t('mlearn.AITutorSetup.GenerateBtn')}
-            </Btn>
-          </div>
-          <Show when={generationError()}>
-            <span class="word-selector__generate-error">{generationError()}</span>
+        <div class="word-selector__search-row">
+          <Input
+            value={searchQuery()}
+            onInput={(e) => {
+              setSearchQuery(e.currentTarget.value);
+            }}
+            onKeyDown={handleSearchKeyDown}
+            placeholder={t('mlearn.AITutorSetup.SearchWords')}
+          />
+          <Show when={canAddCustom()}>
+            <span class="word-selector__add-hint">{t('mlearn.AITutorSetup.PressEnterToAdd')}</span>
           </Show>
         </div>
-      </Show>
 
-      <Show when={availableLevels().length > 1}>
-        <div class="word-selector__level-pills">
-          <PillLabel
-            variant="gray"
-            clickable
-            active={levelFilter() === null}
-            onClick={() => {
-              setLevelFilter(null);
-            }}
-          >
-            {t('mlearn.AITutorSetup.AllLevels')}
-          </PillLabel>
-          <For each={availableLevels()}>
-            {(level) => (
-              <PillLabel
-                level={level}
-                clickable
-                active={levelFilter() === level}
-                onClick={() => {
-                  setLevelFilter(level);
-                }}
+        {/* LLM vocabulary generation */}
+        <Show when={settings.llmEnabled && settings.llmConfigured}>
+          <div class="word-selector__generate-section">
+            <div class="word-selector__generate-row">
+              <Input
+                value={topicInput()}
+                onInput={(e) => setTopicInput(e.currentTarget.value)}
+                onKeyDown={(e: KeyboardEvent) => { if (e.key === 'Enter') generateVocabulary(); }}
+                placeholder={t('mlearn.AITutorSetup.GenerateTopicPlaceholder')}
+                disabled={isGenerating()}
+              />
+              <Btn
+                variant="default"
+                size="sm"
+                onClick={generateVocabulary}
+                disabled={isGenerating() || !topicInput().trim()}
+                icon={isGenerating() ? <Spinner size={14} /> : <SparklesIcon size={14} />}
+                loading={isGenerating()}
               >
-                {levelNames()[String(level)] || String(level)}
-              </PillLabel>
+                {t('mlearn.AITutorSetup.GenerateBtn')}
+              </Btn>
+            </div>
+            <Show when={generationError()}>
+              <span class="word-selector__generate-error">{generationError()}</span>
+            </Show>
+          </div>
+        </Show>
+
+        <LevelPillsFilter
+          levels={availableLevels()}
+          selectedLevel={levelFilter()}
+          onLevelChange={(level) => {
+            setLevelFilter(level);
+          }}
+          getLevelLabel={(level) => levelNames()[String(level)] || String(level)}
+          allLabel={t('mlearn.AITutorSetup.AllLevels')}
+        />
+
+        <div class="word-selector__legend" role="group" aria-label={t('mlearn.AITutorSetup.WordEaseLegendTitle')}>
+          <span class="word-selector__legend-title">{t('mlearn.AITutorSetup.WordEaseLegendTitle')}</span>
+          <For each={legendItems()}>
+            {(item) => (
+              <div class="word-selector__legend-item">
+                <span class="word-selector__legend-swatch" style={{ background: item.color }} />
+                <span class="word-selector__legend-label">
+                  {t(`mlearn.AITutorSetup.WordEaseLegend.${item.key}`)}
+                </span>
+              </div>
             )}
           </For>
         </div>
-      </Show>
 
-      <div class="word-selector__legend" role="group" aria-label={t('mlearn.AITutorSetup.WordEaseLegendTitle')}>
-        <span class="word-selector__legend-title">{t('mlearn.AITutorSetup.WordEaseLegendTitle')}</span>
-        <For each={legendItems()}>
-          {(item) => (
-            <div class="word-selector__legend-item">
-              <span class="word-selector__legend-swatch" style={{ background: item.color }} />
-              <span class="word-selector__legend-label">
-                {t(`mlearn.AITutorSetup.WordEaseLegend.${item.key}`)}
-              </span>
-            </div>
-          )}
-        </For>
-      </div>
+        {/*<Show when={props.selected.length > 0}>*/}
+          <HintText>{t('mlearn.AITutorSetup.ItemsSelected', { count: String(props.selected.length) })}</HintText>
+        {/*</Show>*/}
 
-      <Show when={props.selected.length > 0}>
-        <HintText>{t('mlearn.AITutorSetup.ItemsSelected', { count: String(props.selected.length) })}</HintText>
-      </Show>
+        <Show when={allWords().length === 0}>
+          <EmptyState
+            title={t('mlearn.AITutorSetup.NoWordsYet')}
+          />
+        </Show>
+      </CollapsibleStickyHeader>
 
-      <Show when={allWords().length === 0}>
-        <EmptyState
-          title={t('mlearn.AITutorSetup.NoWordsYet')}
-        />
-      </Show>
-
-      <div class="word-selector__grid">
+      <div
+        class="word-selector__grid"
+        ref={setWordGridRef}
+      >
         <For each={filteredWords()}>
           {(w) => (
             <div

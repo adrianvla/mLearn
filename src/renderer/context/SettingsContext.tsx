@@ -40,6 +40,11 @@ export const SettingsProvider: ParentComponent = (props) => {
   let pendingSettingsSnapshot: Settings | null = null;
 
   const serializeSettings = (value: Settings): Settings => JSON.parse(JSON.stringify(value)) as Settings;
+  const resolveBackendUrl = (nextSettings: Settings): string => (
+    nextSettings.backendMode === 'cloud'
+      ? (nextSettings.overrideCloudEndpointUrl ? nextSettings.backendUrl : '')
+      : nextSettings.backendUrl
+  );
 
   // Load settings from main process or platform bridge
   const loadSettings = () => {
@@ -59,7 +64,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       // Initialize the backend adapter with the loaded settings
       getBackend({
         mode: mergedSettings.backendMode,
-        url: mergedSettings.backendUrl,
+        url: resolveBackendUrl(mergedSettings),
         authToken: mergedSettings.cloudAuthToken,
       });
 
@@ -116,7 +121,12 @@ export const SettingsProvider: ParentComponent = (props) => {
   };
 
   // Keys that require backend adapter reconfiguration
-  const BACKEND_KEYS = new Set<keyof Settings>(['backendMode', 'backendUrl', 'cloudAuthToken']);
+  const BACKEND_KEYS = new Set<keyof Settings>([
+    'backendMode',
+    'backendUrl',
+    'cloudAuthToken',
+    'overrideCloudEndpointUrl',
+  ]);
 
   // Reconfigure backend adapter if needed
   const maybeReconfigureBackend = (nextSettings: Settings, changedKeys?: Set<keyof Settings>) => {
@@ -124,7 +134,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       resetBackend();
       getBackend({
         mode: nextSettings.backendMode,
-        url: nextSettings.backendUrl,
+        url: resolveBackendUrl(nextSettings),
         authToken: nextSettings.cloudAuthToken,
       });
     }

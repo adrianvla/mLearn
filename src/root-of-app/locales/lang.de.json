@@ -741,6 +741,29 @@
             "Label": "OCR-Zuschneiderand",
             "Description": "Pixel-Rand beim Zuschneiden von Text für Lernkarten"
           },
+          "Provider": {
+            "Label": "OCR-Backend",
+            "Description": "Wählen Sie aus, wo OCR-Anfragen verarbeitet werden.",
+            "Local": "Lokal / Backend",
+            "Cloud": "Cloud"
+          },
+          "Cloud": {
+            "Url": {
+              "Label": "Cloud-OCR-URL",
+              "Description": "Basis-URL des Cloud-OCR-Dienstes.",
+              "Placeholder": "https://your-ocr-service.com"
+            },
+            "Token": {
+              "Label": "Cloud-OCR-Token",
+              "Description": "Authentifizierungstoken für den Cloud-OCR-Dienst.",
+              "Placeholder": "Bearer token"
+            },
+            "Test": {
+              "Label": "Verbindung",
+              "Description": "Zugriff auf das Cloud-OCR-Backend prüfen.",
+              "Button": "Cloud OCR testen"
+            }
+          },
           "RamSaver": {
             "Label": "RAM-Sparer",
             "Description": "Verwendet eine leichte OpenCV-basierte Texterkennung anstelle des neuronalen Netzes. Spart ~1,5 GB RAM, kann aber bei komplexen Layouts weniger genau sein. Die Erkennungsqualität wird nicht beeinträchtigt."
@@ -800,6 +823,18 @@
           "Enable": {
             "Label": "LLM-Erklärungen aktivieren",
             "Description": "KI zur Erklärung von Wörtern und Grammatik verwenden"
+          },
+          "PassiveWordTracking": {
+            "Label": "Passives Wort-Tracking",
+            "Description": "Wortvertrautheit beim Lesen und Hovern automatisch verfolgen"
+          },
+          "Speech": {
+            "Label": "Sprache (Experimentell)",
+            "Description": "Text-to-Speech für KI-Antworten und Speech-to-Text-Eingabe aktivieren"
+          },
+          "AutoSpeak": {
+            "Label": "Antworten automatisch vorlesen",
+            "Description": "Antworten des KI-Tutors automatisch laut vorlesen"
           }
         },
         "Tips": {
@@ -1027,7 +1062,11 @@
       "LLMOllama": "Ollama",
       "LLMCloud": "Cloud",
       "CloudLLMUrl": "Cloud-LLM-URL",
-      "CloudLLMToken": "Cloud-LLM-Token"
+      "CloudLLMToken": "Cloud-LLM-Token",
+      "OverrideCloudEndpointUrl": "Cloud-Endpunkt-URL überschreiben",
+      "OverrideCloudEndpointUrlDescription": "Benutzerdefinierten Cloud-Endpunkt statt der Standard-Service-URL verwenden.",
+      "CloudEndpointUrl": "Cloud-Endpunkt-URL",
+      "DefaultCloudEndpoint": "Standard-Endpunkt: {endpoint}"
     },
     "About": {
       "Title": "mLearn",
@@ -1388,6 +1427,15 @@
           "OllamaDescription": "Mit einem Ollama-Server für mehr Modelloptionen verbinden.",
           "Cloud": "Cloud",
           "CloudDescription": "Verbindung zu einem Remote-OpenAI-kompatiblen LLM-Server."
+        },
+        "OCR": {
+          "Title": "OCR-Backend",
+          "Provider": {
+            "Label": "OCR-Anbieter",
+            "Description": "Wählen Sie, welches Backend OCR-Anfragen verarbeitet.",
+            "Local": "Lokal",
+            "Cloud": "Cloud"
+          }
         },
         "CloudConfig": {
           "Title": "Cloud-LLM-Konfiguration",
