@@ -741,6 +741,29 @@
             "Label": "OCR Crop Padding",
             "Description": "Extra pixels around text when cropping for flashcards"
           },
+          "Provider": {
+            "Label": "OCR Backend",
+            "Description": "Choose where OCR requests are processed.",
+            "Local": "Local / Backend",
+            "Cloud": "Cloud"
+          },
+          "Cloud": {
+            "Url": {
+              "Label": "Cloud OCR URL",
+              "Description": "Base URL of the cloud OCR service.",
+              "Placeholder": "https://your-ocr-service.com"
+            },
+            "Token": {
+              "Label": "Cloud OCR Token",
+              "Description": "Authentication token for the cloud OCR service.",
+              "Placeholder": "Bearer token"
+            },
+            "Test": {
+              "Label": "Connection",
+              "Description": "Verify access to the cloud OCR backend.",
+              "Button": "Test Cloud OCR"
+            }
+          },
           "RamSaver": {
             "Label": "Ram Saver",
             "Description": "Use lightweight OpenCV-based text detection instead of neural network detection. Reduces memory usage by ~1.5 GB but may lower accuracy on complex layouts. Recognition quality is unaffected."
@@ -800,6 +823,18 @@
           "Enable": {
             "Label": "Enable LLM Explanations",
             "Description": "Use AI to explain words and grammar"
+          },
+          "PassiveWordTracking": {
+            "Label": "Passive Word Tracking",
+            "Description": "Automatically track word familiarity from reading and hovering"
+          },
+          "Speech": {
+            "Label": "Speech (Experimental)",
+            "Description": "Enable text-to-speech for AI responses and speech-to-text input"
+          },
+          "AutoSpeak": {
+            "Label": "Auto-speak Responses",
+            "Description": "Automatically read AI tutor responses aloud"
           }
         },
         "Tips": {
@@ -1027,7 +1062,11 @@
       "LLMOllama": "Ollama",
       "LLMCloud": "Cloud",
       "CloudLLMUrl": "Cloud LLM URL",
-      "CloudLLMToken": "Cloud LLM Token"
+      "CloudLLMToken": "Cloud LLM Token",
+      "OverrideCloudEndpointUrl": "Overwrite cloud endpoint URL",
+      "OverrideCloudEndpointUrlDescription": "Use a custom cloud endpoint instead of the default service URL.",
+      "CloudEndpointUrl": "Cloud Endpoint URL",
+      "DefaultCloudEndpoint": "Default endpoint: {endpoint}"
     },
     "About": {
       "Title": "mLearn",
@@ -1388,6 +1427,15 @@
           "OllamaDescription": "Connect to an Ollama server for more model options.",
           "Cloud": "Cloud",
           "CloudDescription": "Connect to a remote OpenAI-compatible LLM server."
+        },
+        "OCR": {
+          "Title": "OCR Backend",
+          "Provider": {
+            "Label": "OCR Provider",
+            "Description": "Choose which backend handles OCR requests.",
+            "Local": "Local",
+            "Cloud": "Cloud"
+          }
         },
         "CloudConfig": {
           "Title": "Cloud LLM Configuration",

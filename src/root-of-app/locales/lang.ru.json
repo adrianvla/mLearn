@@ -741,6 +741,29 @@
             "Label": "Отступ обрезки OCR",
             "Description": "Отступ в пикселях при обрезке текста для карточек"
           },
+          "Provider": {
+            "Label": "OCR-бэкенд",
+            "Description": "Выберите, где обрабатываются OCR-запросы.",
+            "Local": "Локальный / Backend",
+            "Cloud": "Cloud"
+          },
+          "Cloud": {
+            "Url": {
+              "Label": "URL Cloud OCR",
+              "Description": "Базовый URL облачного OCR-сервиса.",
+              "Placeholder": "https://your-ocr-service.com"
+            },
+            "Token": {
+              "Label": "Токен Cloud OCR",
+              "Description": "Токен аутентификации для облачного OCR-сервиса.",
+              "Placeholder": "Bearer token"
+            },
+            "Test": {
+              "Label": "Подключение",
+              "Description": "Проверить доступ к облачному OCR-бэкенду.",
+              "Button": "Проверить Cloud OCR"
+            }
+          },
           "RamSaver": {
             "Label": "Экономия ОЗУ",
             "Description": "Использовать облегчённое обнаружение текста на базе OpenCV вместо нейросети. Экономит ~1,5 ГБ ОЗУ, но может быть менее точным для сложных макетов. Качество распознавания не затрагивается."
@@ -800,6 +823,18 @@
           "Enable": {
             "Label": "Включить объяснения LLM",
             "Description": "Использовать AI для объяснения слов и грамматики"
+          },
+          "PassiveWordTracking": {
+            "Label": "Пассивное отслеживание слов",
+            "Description": "Автоматически отслеживать знакомость слов при чтении и наведении"
+          },
+          "Speech": {
+            "Label": "Речь (экспериментально)",
+            "Description": "Включить озвучивание ответов AI и распознавание речи на вводе"
+          },
+          "AutoSpeak": {
+            "Label": "Автоозвучивание ответов",
+            "Description": "Автоматически озвучивать ответы AI-тьютора"
           }
         },
         "Tips": {
@@ -1027,7 +1062,11 @@
       "LLMOllama": "Ollama",
       "LLMCloud": "Облако",
       "CloudLLMUrl": "URL облачной LLM",
-      "CloudLLMToken": "Токен облачной LLM"
+      "CloudLLMToken": "Токен облачной LLM",
+      "OverrideCloudEndpointUrl": "Переопределить URL cloud endpoint",
+      "OverrideCloudEndpointUrlDescription": "Использовать пользовательский cloud endpoint вместо URL сервиса по умолчанию.",
+      "CloudEndpointUrl": "URL cloud endpoint",
+      "DefaultCloudEndpoint": "Эндпоинт по умолчанию: {endpoint}"
     },
     "About": {
       "Title": "mLearn",
@@ -1388,6 +1427,15 @@
           "OllamaDescription": "Подключение к серверу Ollama для доступа к большему количеству моделей.",
           "Cloud": "Облако",
           "CloudDescription": "Подключение к удалённому OpenAI-совместимому LLM-серверу."
+        },
+        "OCR": {
+          "Title": "OCR-бэкенд",
+          "Provider": {
+            "Label": "Провайдер OCR",
+            "Description": "Выберите бэкенд, который обрабатывает OCR-запросы.",
+            "Local": "Локальный",
+            "Cloud": "Cloud"
+          }
         },
         "CloudConfig": {
           "Title": "Настройки облачной LLM",

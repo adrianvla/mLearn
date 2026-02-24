@@ -741,6 +741,29 @@
             "Label": "Marge de recadrage OCR",
             "Description": "Pixels de marge lors du recadrage du texte pour les cartes"
           },
+          "Provider": {
+            "Label": "Backend OCR",
+            "Description": "Choisissez où les requêtes OCR sont traitées.",
+            "Local": "Local / Backend",
+            "Cloud": "Cloud"
+          },
+          "Cloud": {
+            "Url": {
+              "Label": "URL OCR Cloud",
+              "Description": "URL de base du service OCR cloud.",
+              "Placeholder": "https://your-ocr-service.com"
+            },
+            "Token": {
+              "Label": "Jeton OCR Cloud",
+              "Description": "Jeton d'authentification pour le service OCR cloud.",
+              "Placeholder": "Bearer token"
+            },
+            "Test": {
+              "Label": "Connexion",
+              "Description": "Vérifiez l'accès au backend OCR cloud.",
+              "Button": "Tester l'OCR cloud"
+            }
+          },
           "RamSaver": {
             "Label": "Économie de RAM",
             "Description": "Utilise une détection de texte légère basée sur OpenCV au lieu du réseau neuronal. Économise ~1,5 Go de RAM mais peut être moins précis pour les mises en page complexes. La qualité de reconnaissance n'est pas affectée."
@@ -800,6 +823,18 @@
           "Enable": {
             "Label": "Activer les explications LLM",
             "Description": "Utiliser l'IA pour expliquer les mots et la grammaire"
+          },
+          "PassiveWordTracking": {
+            "Label": "Suivi passif des mots",
+            "Description": "Suivre automatiquement la familiarité des mots via la lecture et le survol"
+          },
+          "Speech": {
+            "Label": "Voix (expérimental)",
+            "Description": "Activer la synthèse vocale pour les réponses IA et la reconnaissance vocale en entrée"
+          },
+          "AutoSpeak": {
+            "Label": "Lecture auto des réponses",
+            "Description": "Lire automatiquement les réponses du tuteur IA"
           }
         },
         "Tips": {
@@ -1027,7 +1062,11 @@
       "LLMOllama": "Ollama",
       "LLMCloud": "Cloud",
       "CloudLLMUrl": "URL LLM Cloud",
-      "CloudLLMToken": "Jeton LLM Cloud"
+      "CloudLLMToken": "Jeton LLM Cloud",
+      "OverrideCloudEndpointUrl": "Remplacer l'URL du point de terminaison cloud",
+      "OverrideCloudEndpointUrlDescription": "Utiliser un point de terminaison cloud personnalisé au lieu de l'URL du service par défaut.",
+      "CloudEndpointUrl": "URL du point de terminaison cloud",
+      "DefaultCloudEndpoint": "Point de terminaison par défaut : {endpoint}"
     },
     "About": {
       "Title": "mLearn",
@@ -1388,6 +1427,15 @@
           "OllamaDescription": "Se connecter à un serveur Ollama pour plus d'options de modèles.",
           "Cloud": "Cloud",
           "CloudDescription": "Se connecter à un serveur LLM distant compatible OpenAI."
+        },
+        "OCR": {
+          "Title": "Backend OCR",
+          "Provider": {
+            "Label": "Fournisseur OCR",
+            "Description": "Choisissez quel backend traite les requêtes OCR.",
+            "Local": "Local",
+            "Cloud": "Cloud"
+          }
         },
         "CloudConfig": {
           "Title": "Configuration LLM Cloud",

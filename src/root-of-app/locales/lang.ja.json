@@ -741,6 +741,29 @@
             "Label": "OCRクロッピングパディング",
             "Description": "フラッシュカード用にテキストをクロップする際の余白ピクセル数"
           },
+          "Provider": {
+            "Label": "OCRバックエンド",
+            "Description": "OCRリクエストの処理先を選択します。",
+            "Local": "ローカル / バックエンド",
+            "Cloud": "クラウド"
+          },
+          "Cloud": {
+            "Url": {
+              "Label": "Cloud OCR URL",
+              "Description": "クラウドOCRサービスのベースURL。",
+              "Placeholder": "https://your-ocr-service.com"
+            },
+            "Token": {
+              "Label": "Cloud OCRトークン",
+              "Description": "クラウドOCRサービスの認証トークン。",
+              "Placeholder": "Bearer token"
+            },
+            "Test": {
+              "Label": "接続",
+              "Description": "クラウドOCRバックエンドへのアクセスを確認します。",
+              "Button": "Cloud OCRをテスト"
+            }
+          },
           "RamSaver": {
             "Label": "RAMセーバー",
             "Description": "ニューラルネットワークの代わりに軽量なOpenCVベースのテキスト検出を使用します。メモリ使用量を約1.5 GB削減しますが、複雑なレイアウトでは精度が低下する可能性があります。認識品質は影響を受けません。"
@@ -800,6 +823,18 @@
           "Enable": {
             "Label": "LLM解説を有効にする",
             "Description": "AIを使って単語と文法を解説"
+          },
+          "PassiveWordTracking": {
+            "Label": "受動的な単語トラッキング",
+            "Description": "読書中の表示・ホバーをもとに単語の習熟度を自動追跡します"
+          },
+          "Speech": {
+            "Label": "音声（実験的）",
+            "Description": "AI応答の読み上げと音声入力を有効にします"
+          },
+          "AutoSpeak": {
+            "Label": "応答を自動読み上げ",
+            "Description": "AIチューターの応答を自動で音声再生します"
           }
         },
         "Tips": {
@@ -1027,7 +1062,11 @@
       "LLMOllama": "Ollama",
       "LLMCloud": "クラウド",
       "CloudLLMUrl": "クラウドLLM URL",
-      "CloudLLMToken": "クラウドLLMトークン"
+      "CloudLLMToken": "クラウドLLMトークン",
+      "OverrideCloudEndpointUrl": "クラウドエンドポイントURLを上書き",
+      "OverrideCloudEndpointUrlDescription": "デフォルトのサービスURLの代わりにカスタムクラウドエンドポイントを使用します。",
+      "CloudEndpointUrl": "クラウドエンドポイントURL",
+      "DefaultCloudEndpoint": "デフォルトエンドポイント: {endpoint}"
     },
     "About": {
       "Title": "mLearn",
@@ -1388,6 +1427,15 @@
           "OllamaDescription": "より多くのモデルオプションのためにOllamaサーバーに接続します。",
           "Cloud": "クラウド",
           "CloudDescription": "リモートのOpenAI互換LLMサーバーに接続します。"
+        },
+        "OCR": {
+          "Title": "OCRバックエンド",
+          "Provider": {
+            "Label": "OCRプロバイダー",
+            "Description": "OCRリクエストを処理するバックエンドを選択します。",
+            "Local": "ローカル",
+            "Cloud": "クラウド"
+          }
         },
         "CloudConfig": {
           "Title": "クラウドLLM設定",

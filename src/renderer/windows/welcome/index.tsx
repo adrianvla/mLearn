@@ -7,6 +7,7 @@ import { WelcomeApp } from './App';
 
 // Import global styles
 import '../../styles/index.css';
+import '../../styles/base.css';
 import '../../styles/subtitle.css';
 
 const root = document.getElementById('root');

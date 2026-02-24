@@ -7,6 +7,7 @@
 .tab-container {
   display: flex;
   flex-direction: column;
+  --tab-item-height: calc(var(--spacing-6) + var(--spacing-3));
 }
 
 .tab-container.vertical {
@@ -40,6 +41,7 @@
 .tab-item {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
   background: transparent;
@@ -51,6 +53,21 @@
   white-space: nowrap;
   border-radius: var(--radius-md);
   border:1px solid transparent;
+  height: var(--tab-item-height);
+  min-height: var(--tab-item-height);
+  box-sizing: border-box;
+}
+
+.tab-item--with-badge {
+  min-width: calc(var(--spacing-16) + var(--spacing-8));
+}
+
+.tab-container.horizontal .tab-item {
+  justify-content: center;
+}
+
+.tab-container.horizontal .tab-item--with-badge {
+  justify-content: space-between;
 }
 
 .tab-item:hover:not(:disabled) {
@@ -114,9 +131,17 @@
   font-size: 0.875rem;
 }
 
+.tab-container.sm {
+  --tab-item-height: calc(var(--spacing-6) + var(--spacing-2));
+}
+
 .tab-container.lg .tab-item {
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
+}
+
+.tab-container.lg {
+  --tab-item-height: calc(var(--spacing-8) + var(--spacing-3));
 }
 
 /* Tab icon */
@@ -125,6 +150,21 @@
   align-items: center;
   justify-content: center;
   font-size: 1.1em;
+}
+
+.tab-badge-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tab-label {
+  text-align: left;
+}
+
+.tab-container.horizontal .tab-label {
+  text-align: center;
 }
 
 /* Tab badge - using Badge component */
@@ -139,6 +179,7 @@
   color: var(--text-primary);
   border-radius: var(--radius-full);
   transition: all var(--transition-normal);
+  box-sizing: border-box;
 }
 
 .tab-item.active .tab-badge.label.label-badge {

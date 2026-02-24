@@ -12,5 +12,6 @@ export {
 } from './WindowLayout';
 
 // Import CSS
+import './Panel.css';
 import './PanelHeader.css';
 import './WindowLayout.css';

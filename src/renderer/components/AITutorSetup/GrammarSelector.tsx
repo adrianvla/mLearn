@@ -8,7 +8,7 @@ import { Component, createSignal, createMemo, For, Show } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
 import { useLanguage, type GrammarEntry } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
-import { Input, SelectableCard, PillLabel, EmptyState, Tag, HintText } from '../common';
+import { Input, SelectableCard, PillLabel, EmptyState, Tag, HintText, LevelPillsFilter, CollapsibleStickyHeader } from '../common';
 import type { TutorGrammarSelection } from '../../../shared/types';
 import './GrammarSelector.css';
 
@@ -25,6 +25,7 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
 
   const [searchQuery, setSearchQuery] = createSignal('');
   const [levelFilter, setLevelFilter] = createSignal<number | null>(null);
+  const [grammarListRef, setGrammarListRef] = createSignal<HTMLDivElement | undefined>(undefined);
 
   // Collect all grammar points from the current language
   const allGrammarPoints = createMemo((): GrammarEntry[] => {
@@ -103,7 +104,10 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
 
   return (
     <div class="grammar-selector">
-      <div class="grammar-header">
+      <CollapsibleStickyHeader
+        class="grammar-header"
+        getScrollContainer={grammarListRef}
+      >
         <HintText>{t('mlearn.AITutorSetup.SelectGrammarHint')}</HintText>
 
         <div class="grammar-selector__filters">
@@ -116,42 +120,26 @@ export const GrammarSelector: Component<GrammarSelectorProps> = (props) => {
           />
         </div>
 
-        <Show when={availableLevels().length > 1}>
-          <div class="grammar-selector__level-pills">
-            <PillLabel
-                variant="gray"
-                clickable
-                active={levelFilter() === null}
-                onClick={() => {
-                  setLevelFilter(null);
-                }}
-            >
-              {t('mlearn.AITutorSetup.AllLevels')}
-            </PillLabel>
-            <For each={availableLevels()}>
-              {(level) => (
-                  <PillLabel
-                      level={level}
-                      clickable
-                      active={levelFilter() === level}
-                      onClick={() => {
-                        setLevelFilter(level);
-                      }}
-                  >
-                    {getGrammarLevelName(level)}
-                  </PillLabel>
-              )}
-            </For>
-          </div>
-        </Show>
+        <LevelPillsFilter
+          levels={availableLevels()}
+          selectedLevel={levelFilter()}
+          onLevelChange={(level) => {
+            setLevelFilter(level);
+          }}
+          getLevelLabel={getGrammarLevelName}
+          allLabel={t('mlearn.AITutorSetup.AllLevels')}
+        />
 
         {/*<Show when={props.selected.length > 0}>*/}
         <HintText>{t('mlearn.AITutorSetup.ItemsSelected', { count: String(props.selected.length) })}</HintText>
         {/*</Show>*/}
 
-      </div>
+      </CollapsibleStickyHeader>
 
-      <div class="grammar-selector__list">
+      <div
+        class="grammar-selector__list"
+        ref={setGrammarListRef}
+      >
         <For each={filteredGrammar()}>
           {(gp) => {
             const knowledge = () => flashcardCtx.getGrammarKnowledge(gp.pattern);

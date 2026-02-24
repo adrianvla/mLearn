@@ -1,5 +1,11 @@
 /* AITutorSetupModal — modal for configuring an AI tutor session */
 
+.ai-tutor-setup-modal {
+  /* Keep this modal neutral so the sticky grammar header controls blur on its own. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .ai-tutor-setup-modal__body {
   display: flex;
   flex-direction: column;

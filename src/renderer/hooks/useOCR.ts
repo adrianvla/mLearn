@@ -6,6 +6,7 @@
 
 import { createSignal } from 'solid-js';
 import { useServer } from '../context';
+import { useSettings } from '../context/SettingsContext';
 import { getBackend } from '../../shared/backends';
 
 // Max target area for OCR (preserve aspect ratio) - matches legacy app
@@ -325,6 +326,7 @@ async function inputToBlobForOCR(
 async function sendImageForOCR(
   imageInput: Blob | HTMLCanvasElement | HTMLImageElement | string,
   ocrUrl: string,
+  headers?: Record<string, string>,
   turbo = true,
 ): Promise<OCRResult> {
   const prepared = await inputToBlobForOCR(imageInput, turbo);
@@ -336,6 +338,7 @@ async function sendImageForOCR(
 
   const response = await fetch(ocrUrl, {
     method: 'POST',
+    headers,
     body: form,
     // Do not set Content-Type manually for FormData
   });
@@ -358,17 +361,36 @@ async function sendImageForOCR(
 
 export function useOCR() {
   const { isConnected } = useServer();
+  const { settings } = useSettings();
   const [isProcessing, setIsProcessing] = createSignal(false);
   const [lastResult, setLastResult] = createSignal<OCRResult | null>(null);
   const [error, setError] = createSignal<string | null>(null);
 
-  const getOCRUrl = () => getBackend().buildUrl('/ocr');
+  const getOCRRequestConfig = (): { url: string; headers?: Record<string, string>; requiresLocalConnection: boolean } => {
+    if (settings.ocrProvider === 'cloud') {
+      const cloudUrl = settings.overrideCloudEndpointUrl ? (settings.backendUrl || '').trim() : '';
+      const cloudToken = (settings.cloudAuthToken || '').trim();
+      const backend = getBackend({ mode: 'cloud', url: cloudUrl, authToken: cloudToken });
+      const headers = cloudToken ? { Authorization: `Bearer ${cloudToken}` } : undefined;
+      return {
+        url: backend.buildUrl('/ocr'),
+        headers,
+        requiresLocalConnection: false,
+      };
+    }
+
+    return {
+      url: getBackend().buildUrl('/ocr'),
+      requiresLocalConnection: true,
+    };
+  };
 
   // Perform OCR on various input types
   const recognize = async (
     input: Blob | HTMLCanvasElement | HTMLImageElement | string
   ): Promise<OCRResult | null> => {
-    if (!isConnected()) {
+    const requestConfig = getOCRRequestConfig();
+    if (requestConfig.requiresLocalConnection && !isConnected()) {
       setError('Backend not connected');
       return null;
     }
@@ -377,7 +399,12 @@ export function useOCR() {
     setError(null);
 
     try {
-      const result = await sendImageForOCR(input, getOCRUrl());
+      const result = await sendImageForOCR(
+        input,
+        requestConfig.url,
+        requestConfig.headers,
+        settings.ocrTurboMode ?? true,
+      );
       setLastResult(result);
       return result;
     } catch (e) {

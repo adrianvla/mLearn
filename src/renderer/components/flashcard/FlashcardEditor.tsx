@@ -142,7 +142,9 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
         try {
           const backend = getBackend({
             mode: settings.backendMode,
-            url: settings.backendUrl,
+            url: settings.backendMode === 'cloud'
+              ? (settings.overrideCloudEndpointUrl ? settings.backendUrl : '')
+              : settings.backendUrl,
             authToken: settings.cloudAuthToken,
           });
           const tokens = await backend.tokenize(result.sentence, settings.language);

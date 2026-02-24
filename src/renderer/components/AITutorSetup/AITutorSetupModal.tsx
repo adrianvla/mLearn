@@ -99,6 +99,7 @@ export const AITutorSetupModal: Component<AITutorSetupModalProps> = (props) => {
       onClose={props.onClose}
       title={t('mlearn.AITutorSetup.Title')}
       size="lg"
+      panelClass="ai-tutor-setup-modal"
       footer={footer}
     >
       <div class="ai-tutor-setup-modal__body">

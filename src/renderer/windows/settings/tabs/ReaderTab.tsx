@@ -2,7 +2,7 @@
  * Reader Settings Tab
  */
 
-import { Component, createSignal, Show } from 'solid-js';
+import { Component, createSignal, onCleanup, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
@@ -18,6 +18,7 @@ export const ReaderTab: Component = () => {
   
   // Recording state for key capture
   const [isRecording, setIsRecording] = createSignal(false);
+  let stopRecordingListener: (() => void) | null = null;
 
   const handleTriggerModeChange = (e: Event) => {
     const value = (e.target as HTMLSelectElement).value as WordHoverTriggerMode;
@@ -28,9 +29,18 @@ export const ReaderTab: Component = () => {
     const value = (e.target as HTMLSelectElement).value;
     updateSettings({ readerWordHoverKey: value });
   };
-  
+
+  const stopRecording = () => {
+    if (stopRecordingListener) {
+      stopRecordingListener();
+      stopRecordingListener = null;
+    }
+    setIsRecording(false);
+  };
+
   // Allow user to press a key to set the keybind
   const startRecording = () => {
+    if (isRecording()) return;
     setIsRecording(true);
     
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -42,21 +52,24 @@ export const ReaderTab: Component = () => {
       if (['Shift', 'Control', 'Alt', 'Meta'].includes(key)) {
         updateSettings({ readerWordHoverKey: key });
       }
-      
-      setIsRecording(false);
-      window.removeEventListener('keydown', handleKeyDown);
+      stopRecording();
+    };
+
+    const handleWindowBlur = () => {
+      stopRecording();
     };
     
     window.addEventListener('keydown', handleKeyDown);
-    
-    // Cancel recording after 5 seconds
-    setTimeout(() => {
-      if (isRecording()) {
-        setIsRecording(false);
-        window.removeEventListener('keydown', handleKeyDown);
-      }
-    }, 5000);
+    window.addEventListener('blur', handleWindowBlur);
+    stopRecordingListener = () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
   };
+
+  onCleanup(() => {
+    stopRecording();
+  });
 
   return (
     <TabContent
@@ -90,7 +103,7 @@ export const ReaderTab: Component = () => {
             min={0}
             max={500}
             step={10}
-            onChange={(e) => updateSettings({ ocr_crop_padding: parseInt(e.currentTarget.value) })}
+            onChange={(e) => updateSettings({ ocr_crop_padding: Number.parseInt(e.currentTarget.value, 10) })}
           />
         </SettingRow>
 
@@ -286,50 +299,8 @@ export const ReaderTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="LLM Provider"
-          description="Use the built-in Python LLM or connect to a local Ollama instance"
-        >
-          <select
-            class="setting-select"
-            value={settings.llmProvider}
-            onChange={(e) => updateSettings({ llmProvider: e.currentTarget.value as 'builtin' | 'ollama' })}
-          >
-            <option value="builtin">Built-in</option>
-            <option value="ollama">Ollama</option>
-          </select>
-        </SettingRow>
-
-        <Show when={settings.llmProvider === 'ollama'}>
-          <SettingRow
-            label="Ollama URL"
-            description="URL of the local Ollama server"
-          >
-            <input
-              type="text"
-              class="setting-input"
-              value={settings.ollamaUrl}
-              onChange={(e) => updateSettings({ ollamaUrl: e.currentTarget.value })}
-              placeholder="http://localhost:11434"
-            />
-          </SettingRow>
-
-          <SettingRow
-            label="Ollama Model"
-            description="Model name to use for chat and explanations"
-          >
-            <input
-              type="text"
-              class="setting-input"
-              value={settings.ollamaModel}
-              onChange={(e) => updateSettings({ ollamaModel: e.currentTarget.value })}
-              placeholder="llama3.2"
-            />
-          </SettingRow>
-        </Show>
-
-        <SettingRow
-          label="Passive Word Tracking"
-          description="Automatically track word familiarity from reading and hovering"
+          label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Label')}
+          description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Description')}
         >
           <ToggleSwitch
             checked={settings.passiveEaseEnabled}
@@ -338,8 +309,8 @@ export const ReaderTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label="Speech (Experimental)"
-          description="Enable text-to-speech for AI responses and speech-to-text input"
+          label={t('mlearn.Settings.Reader.LlmIntegration.Speech.Label')}
+          description={t('mlearn.Settings.Reader.LlmIntegration.Speech.Description')}
         >
           <ToggleSwitch
             checked={settings.speechEnabled}
@@ -349,8 +320,8 @@ export const ReaderTab: Component = () => {
 
         <Show when={settings.speechEnabled}>
           <SettingRow
-            label="Auto-speak Responses"
-            description="Automatically read AI tutor responses aloud"
+            label={t('mlearn.Settings.Reader.LlmIntegration.AutoSpeak.Label')}
+            description={t('mlearn.Settings.Reader.LlmIntegration.AutoSpeak.Description')}
           >
             <ToggleSwitch
               checked={settings.autoSpeak}

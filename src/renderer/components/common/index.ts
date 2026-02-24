@@ -104,6 +104,7 @@ export { Select, type SelectProps, type SelectOption } from './Select';
 export { 
   Label,
   PillLabel,
+  LevelPillsFilter,
   StatusLabel,
   Badge,
   Tag,
@@ -171,6 +172,7 @@ export {
   Center,
   Spacer,
   StatusBar,
+  CollapsibleStickyHeader,
   type FlexProps,
   type StatusBarProps,
 } from './Layout';
