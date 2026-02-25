@@ -154,6 +154,9 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.SHOW_ASIDE, () => callback()),
   writeToClipboard: (text: string) => ipcRenderer.send(IPC_CHANNELS.WRITE_TO_CLIPBOARD, text),
   showContact: () => ipcRenderer.send(IPC_CHANNELS.SHOW_CONTACT),
+  openExternalUrl: (url: string): Promise<boolean> => ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL_URL, url),
+  onAuthDeepLink: (callback: (payload: { code: string | null; state: string | null; error: string | null }) => void) =>
+    ipcOn(IPC_CHANNELS.AUTH_DEEP_LINK, (_event, payload) => callback(payload)),
 
   // ========== Watch Together ==========
   watchTogetherSend: (message: string) => ipcRenderer.send(IPC_CHANNELS.WATCH_TOGETHER_SEND, message),

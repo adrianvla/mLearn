@@ -126,6 +126,8 @@ export const IPC_CHANNELS = {
   SHOW_ASIDE: 'show-aside',
   WRITE_TO_CLIPBOARD: 'write-to-clipboard',
   SHOW_CONTACT: 'show-contact',
+  OPEN_EXTERNAL_URL: 'open-external-url',
+  AUTH_DEEP_LINK: 'auth-deep-link',
   
   // Watch together
   WATCH_TOGETHER: 'watch-together',
@@ -290,4 +292,4 @@ export type WordHoverTriggerMode = typeof WORD_HOVER_TRIGGER_MODES[number];
 export const PYTHON_DOWNLOAD_BASE = 'https://github.com/adrianvla/packaged-python/raw/refs/heads/main/';
 
 // Update URL
-export const UPDATE_URL = 'https://mlearn-update.morisinc.net/version-info.json';
+export const UPDATE_URL = 'https://mlearn-versioning.kikan.net/version-info.json';

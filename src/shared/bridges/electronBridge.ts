@@ -87,6 +87,7 @@ const windowBridge: WindowBridge = {
   showCtxMenu: (opts) => getIPC().showCtxMenu(opts),
   showReaderCtxMenu: (opts) => getIPC().showReaderCtxMenu(opts),
   showContact: () => getIPC().showContact(),
+  openExternalUrl: (url) => getIPC().openExternalUrl(url),
   openWindow: (payload) => getIPC().openWindow(payload),
   closeWindow: () => getIPC().closeWindow(),
   getWindowContext: (type) => getIPC().getWindowContext(type),
@@ -98,6 +99,7 @@ const windowBridge: WindowBridge = {
   onOpenWordDbEditor: (cb) => getIPC().onOpenWordDbEditor(cb),
   onOpenKanjiGrid: (cb) => getIPC().onOpenKanjiGrid(cb),
   onOpenPrompt: (cb) => getIPC().onOpenPrompt(cb),
+  onAuthDeepLink: (cb) => getIPC().onAuthDeepLink(cb),
   promptOutput: (text) => getIPC().promptOutput(text),
 };
 

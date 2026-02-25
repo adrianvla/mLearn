@@ -88,6 +88,7 @@ export interface WindowBridge {
   showCtxMenu: (options?: { isWatchTogether?: boolean }) => void;
   showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean }) => void;
   showContact: () => void;
+  openExternalUrl: (url: string) => Promise<boolean>;
   openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
   getWindowContext: (windowType: string) => void;
@@ -99,6 +100,7 @@ export interface WindowBridge {
   onOpenWordDbEditor: (callback: () => void) => () => void;
   onOpenKanjiGrid: (callback: () => void) => () => void;
   onOpenPrompt: (callback: (data: { title: string; message: string }) => void) => () => void;
+  onAuthDeepLink: (callback: (payload: { code: string | null; state: string | null; error: string | null }) => void) => () => void;
   promptOutput: (text: string) => void;
 }
 

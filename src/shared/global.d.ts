@@ -50,6 +50,8 @@ export interface MLearnIPC {
   unPiP: () => void;
   showCtxMenu: (options?: { isWatchTogether?: boolean }) => void;
   showContact: () => void;
+  openExternalUrl: (url: string) => Promise<boolean>;
+  onAuthDeepLink: (callback: (payload: { code: string | null; state: string | null; error: string | null }) => void) => () => void;
   
   // App Control
   restartApp: () => void;

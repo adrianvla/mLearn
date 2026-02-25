@@ -12,3 +12,5 @@ src/root-of-app/dictionaries
 __pycache__
 scripts/scrapeGrammar.js
 package-lock.json
+website/.env.local
+website

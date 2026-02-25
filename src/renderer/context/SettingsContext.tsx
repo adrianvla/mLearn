@@ -10,7 +10,7 @@ import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { SubtitleTheme, AppTheme } from '../../shared/constants';
 import { APP_THEMES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
-import { getBackend, resetBackend } from '../../shared/backends';
+import { DEFAULT_CLOUD_ENDPOINT, getBackend, resetBackend } from '../../shared/backends';
 import { isCapacitor } from '../../shared/platform';
 
 // Context interface
@@ -40,10 +40,15 @@ export const SettingsProvider: ParentComponent = (props) => {
   let pendingSettingsSnapshot: Settings | null = null;
 
   const serializeSettings = (value: Settings): Settings => JSON.parse(JSON.stringify(value)) as Settings;
-  const resolveBackendUrl = (nextSettings: Settings): string => (
-    nextSettings.backendMode === 'cloud'
-      ? (nextSettings.overrideCloudEndpointUrl ? nextSettings.backendUrl : '')
-      : nextSettings.backendUrl
+  const resolveBackendUrl = (nextSettings: Settings): string => {
+    if (nextSettings.backendMode !== 'cloud') {
+      return nextSettings.backendUrl;
+    }
+    return (nextSettings.overrideCloudEndpointUrl ? nextSettings.backendUrl : DEFAULT_CLOUD_ENDPOINT).replace(/\/+$/, '');
+  };
+
+  const resolveCloudAccessToken = (nextSettings: Settings): string => (
+    nextSettings.cloudAuthAccessToken || nextSettings.cloudAuthToken
   );
 
   // Load settings from main process or platform bridge
@@ -65,7 +70,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       getBackend({
         mode: mergedSettings.backendMode,
         url: resolveBackendUrl(mergedSettings),
-        authToken: mergedSettings.cloudAuthToken,
+        authToken: resolveCloudAccessToken(mergedSettings),
       });
 
       applySettingsToDOM(mergedSettings);
@@ -125,6 +130,7 @@ export const SettingsProvider: ParentComponent = (props) => {
     'backendMode',
     'backendUrl',
     'cloudAuthToken',
+    'cloudAuthAccessToken',
     'overrideCloudEndpointUrl',
   ]);
 
@@ -135,7 +141,7 @@ export const SettingsProvider: ParentComponent = (props) => {
       getBackend({
         mode: nextSettings.backendMode,
         url: resolveBackendUrl(nextSettings),
-        authToken: nextSettings.cloudAuthToken,
+        authToken: resolveCloudAccessToken(nextSettings),
       });
     }
   };

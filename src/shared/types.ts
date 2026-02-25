@@ -108,6 +108,18 @@ export interface Settings {
   backendUrl: string;
   /** Bearer token for cloud backend auth */
   cloudAuthToken: string;
+  /** Session access token for signed-in cloud account */
+  cloudAuthAccessToken: string;
+  /** Session refresh token for signed-in cloud account */
+  cloudAuthRefreshToken: string;
+  /** Cloud account user id */
+  cloudAuthUserId: string;
+  /** Cloud account email */
+  cloudAuthUserEmail: string;
+  /** Unix timestamp (seconds) when access token expires */
+  cloudAuthExpiresAt: number;
+  /** Cloud auth status */
+  cloudAuthStatus: 'signed-out' | 'signed-in';
   /** URL of the Electron node server (port 7753) for tethered mode sync */
   nodeServerUrl: string;
   /** URL for cloud LLM endpoint */
@@ -265,6 +277,12 @@ export const DEFAULT_SETTINGS: Settings = {
   backendMode: 'local' as const,
   backendUrl: '',
   cloudAuthToken: '',
+  cloudAuthAccessToken: '',
+  cloudAuthRefreshToken: '',
+  cloudAuthUserId: '',
+  cloudAuthUserEmail: '',
+  cloudAuthExpiresAt: 0,
+  cloudAuthStatus: 'signed-out',
   nodeServerUrl: 'http://127.0.0.1:7753',
   cloudLLMUrl: '',
   cloudLLMToken: '',

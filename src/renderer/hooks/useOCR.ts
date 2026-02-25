@@ -369,7 +369,7 @@ export function useOCR() {
   const getOCRRequestConfig = (): { url: string; headers?: Record<string, string>; requiresLocalConnection: boolean } => {
     if (settings.ocrProvider === 'cloud') {
       const cloudUrl = settings.overrideCloudEndpointUrl ? (settings.backendUrl || '').trim() : '';
-      const cloudToken = (settings.cloudAuthToken || '').trim();
+      const cloudToken = (settings.cloudAuthAccessToken || settings.cloudAuthToken || '').trim();
       const backend = getBackend({ mode: 'cloud', url: cloudUrl, authToken: cloudToken });
       const headers = cloudToken ? { Authorization: `Bearer ${cloudToken}` } : undefined;
       return {

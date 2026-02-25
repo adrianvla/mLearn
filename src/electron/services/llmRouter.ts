@@ -16,7 +16,10 @@ let cloudAdapter: CloudLLMAdapter | null = null;
 function getCloudAdapter(): CloudLLMAdapter {
   const settings = loadSettings();
   // Recreate if settings changed
-  cloudAdapter = new CloudLLMAdapter(settings.cloudLLMUrl, settings.cloudLLMToken);
+  cloudAdapter = new CloudLLMAdapter(
+    settings.cloudLLMUrl,
+    settings.cloudAuthAccessToken || settings.cloudLLMToken || settings.cloudAuthToken,
+  );
   return cloudAdapter;
 }
 

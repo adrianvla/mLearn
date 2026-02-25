@@ -23,8 +23,18 @@ export function loadSettings(): Settings {
     if (fs.existsSync(settingsPath)) {
       const data = fs.readFileSync(settingsPath, 'utf-8');
       const loaded = JSON.parse(data) as Partial<Settings>;
+      const migrated: Partial<Settings> = { ...loaded };
+      if (!migrated.cloudAuthAccessToken && migrated.cloudAuthToken) {
+        migrated.cloudAuthAccessToken = migrated.cloudAuthToken;
+      }
+      if (!migrated.cloudAuthAccessToken && migrated.cloudLLMToken) {
+        migrated.cloudAuthAccessToken = migrated.cloudLLMToken;
+      }
+      if (migrated.cloudAuthAccessToken && !migrated.cloudAuthStatus) {
+        migrated.cloudAuthStatus = 'signed-in';
+      }
       // Merge with defaults to ensure all keys exist
-      return { ...DEFAULT_SETTINGS, ...loaded };
+      return { ...DEFAULT_SETTINGS, ...migrated };
     }
   } catch (error) {
     console.error('Failed to load settings:', error);

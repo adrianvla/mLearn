@@ -97,6 +97,14 @@
     "mac": {
       "category": "public.app-category.education",
       "icon": "build/icon.icns",
+      "protocols": [
+        {
+          "name": "mLearn Auth Callback",
+          "schemes": [
+            "mlearn"
+          ]
+        }
+      ],
       "target": [
         "dmg",
         "zip"
@@ -104,6 +112,14 @@
     },
     "win": {
       "icon": "build/icon.ico",
+      "protocols": [
+        {
+          "name": "mLearn Auth Callback",
+          "schemes": [
+            "mlearn"
+          ]
+        }
+      ],
       "target": [
         "nsis",
         "portable"
@@ -111,6 +127,14 @@
     },
     "linux": {
       "icon": "build/icon.png",
+      "protocols": [
+        {
+          "name": "mLearn Auth Callback",
+          "schemes": [
+            "mlearn"
+          ]
+        }
+      ],
       "target": [
         "AppImage",
         "deb"

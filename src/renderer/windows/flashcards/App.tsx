@@ -305,7 +305,7 @@ export const FlashcardsContent: Component = () => {
       url: settings.backendMode === 'cloud'
         ? (settings.overrideCloudEndpointUrl ? settings.backendUrl : '')
         : settings.backendUrl,
-      authToken: settings.cloudAuthToken,
+      authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
     });
 
     let generated = 0;
