@@ -457,6 +457,10 @@ const windowBridge: WindowBridge = {
     window.dispatchEvent(new CustomEvent('mlearn-ctx-menu', { detail: { type: 'reader', options } }));
   },
   showContact: noop,
+  openExternalUrl: async (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return true;
+  },
 
   openWindow(payload) {
     // On mobile, navigate via router instead of opening windows
@@ -531,6 +535,7 @@ const windowBridge: WindowBridge = {
   onOpenWordDbEditor: noopCleanup,
   onOpenKanjiGrid: noopCleanup,
   onOpenPrompt: noopCleanup,
+  onAuthDeepLink: noopCleanup,
   promptOutput: noop,
 };
 
@@ -620,7 +625,7 @@ const llmBridge: LLMBridge = {
     // On mobile, stream via HTTP to tethered desktop or cloud endpoint
     const settings = JSON.parse(localStorage.getItem('settings') || '{}');
     const cloudUrl = settings.cloudLLMUrl;
-    const cloudToken = settings.cloudLLMToken;
+    const cloudToken = settings.cloudAuthAccessToken || settings.cloudLLMToken || settings.cloudAuthToken;
     const nodeUrl = getNodeServerUrl();
 
     const url = cloudUrl

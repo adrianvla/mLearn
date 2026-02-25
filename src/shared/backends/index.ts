@@ -11,7 +11,7 @@ import { HttpBackend } from './httpBackend';
 
 export type { BackendAdapter, BackendMode, OCRResult } from './types';
 export { HttpBackend } from './httpBackend';
-export const DEFAULT_CLOUD_ENDPOINT = 'https://mlearn-cloud.kikan.net';
+export const DEFAULT_CLOUD_ENDPOINT = 'https://mlearn.kikan.net';
 
 let cached: BackendAdapter | null = null;
 let cachedKey = '';
@@ -24,7 +24,7 @@ function resolveBaseUrl(mode: BackendMode, userUrl?: string): string {
     case 'tethered':
       return userUrl?.replace(/\/+$/, '') || `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
     case 'cloud':
-      return userUrl?.replace(/\/+$/, '') || DEFAULT_CLOUD_ENDPOINT;
+      return `${(userUrl?.replace(/\/+$/, '') || DEFAULT_CLOUD_ENDPOINT)}/api/cloud`;
     case 'local':
     default:
       return `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;

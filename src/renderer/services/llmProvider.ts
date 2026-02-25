@@ -195,11 +195,11 @@ function streamChatMobile(
 
   if (settings.backendMode === 'cloud' && settings.cloudLLMUrl) {
     url = settings.cloudLLMUrl;
-    token = settings.cloudLLMToken;
+    token = settings.cloudAuthAccessToken || settings.cloudLLMToken || settings.cloudAuthToken;
   } else if (settings.backendMode === 'tethered' && settings.backendUrl) {
     // Tethered: forward through the desktop's web server
     url = settings.backendUrl.replace(/\/+$/, '');
-    token = settings.cloudAuthToken;
+    token = settings.cloudAuthAccessToken || settings.cloudAuthToken;
   } else {
     callbacks.onError('No LLM endpoint configured for mobile');
     return { abort: () => {} };
@@ -260,7 +260,10 @@ export async function checkAvailability(settings: Settings): Promise<{ available
     if (!settings.cloudLLMUrl) {
       return { available: false, reason: 'cloud_url_not_set' };
     }
-    const adapter = new CloudLLMAdapter(settings.cloudLLMUrl, settings.cloudLLMToken);
+    const adapter = new CloudLLMAdapter(
+      settings.cloudLLMUrl,
+      settings.cloudAuthAccessToken || settings.cloudLLMToken || settings.cloudAuthToken,
+    );
     const reachable = await adapter.checkAvailability();
     return reachable
       ? { available: true }

@@ -128,7 +128,10 @@ export const AITab: Component = () => {
     setCloudLLMStatus('idle');
     setCloudLLMError('');
     try {
-      const adapter = new CloudLLMAdapter(settings.cloudLLMUrl, settings.cloudLLMToken);
+      const adapter = new CloudLLMAdapter(
+        settings.cloudLLMUrl,
+        settings.cloudAuthAccessToken || settings.cloudLLMToken || settings.cloudAuthToken,
+      );
       const ok = await adapter.checkAvailability();
       setCloudLLMStatus(ok ? 'success' : 'error');
       if (!ok) setCloudLLMError(t('mlearn.Connection.Unreachable'));
@@ -348,16 +351,14 @@ export const AITab: Component = () => {
           </SettingRow>
 
           <SettingRow
-            label={t('mlearn.Connection.CloudLLMToken')}
+            label={t('mlearn.Connection.AuthStatus') || 'Cloud Account'}
             description={t('mlearn.AI.Settings.CloudConfig.TokenHint')}
           >
-            <Input
-              value={settings.cloudLLMToken}
-              onInput={(e) => updateSettings({ cloudLLMToken: e.currentTarget.value })}
-              placeholder="Bearer token"
-              type="password"
-              size="md"
-            />
+            <span class="setting-value">
+              {settings.cloudAuthStatus === 'signed-in'
+                ? (settings.cloudAuthUserEmail || (t('mlearn.Connection.Connected') || 'Connected'))
+                : (t('mlearn.Connection.SignIn') || 'Sign in from Connection settings')}
+            </span>
           </SettingRow>
 
           <SettingRow

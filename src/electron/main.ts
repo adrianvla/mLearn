@@ -4,6 +4,7 @@
 
 import { app, ipcMain, clipboard, shell } from 'electron';
 import { execSync } from 'child_process';
+import path from 'path';
 import { findPython, terminatePythonBackend, setupPythonBackendIPC } from './services/pythonBackend';
 import { startWebServer, stopWebServer } from './services/webServer';
 import { setupFlashcardIPC } from './services/flashcardStorage';
@@ -23,6 +24,74 @@ import { setupSpeechIPC } from './services/speechService';
 import { setupVoiceIPC } from './services/voiceService';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
+
+interface AuthDeepLinkPayload {
+  code: string | null;
+  state: string | null;
+  error: string | null;
+}
+
+const queuedAuthDeepLinks: AuthDeepLinkPayload[] = [];
+
+function parseAuthDeepLink(rawUrl: string): AuthDeepLinkPayload | null {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'mlearn:') {
+      return null;
+    }
+    const path = `${parsed.hostname}${parsed.pathname}`;
+    if (path !== 'auth/callback') {
+      return null;
+    }
+    return {
+      code: parsed.searchParams.get('code'),
+      state: parsed.searchParams.get('state'),
+      error: parsed.searchParams.get('error'),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function dispatchAuthDeepLink(payload: AuthDeepLinkPayload): void {
+  const { BrowserWindow } = require('electron');
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length === 0) {
+    queuedAuthDeepLinks.push(payload);
+    return;
+  }
+  for (const win of windows) {
+    if (!win.isDestroyed()) {
+      win.webContents.send(IPC_CHANNELS.AUTH_DEEP_LINK, payload);
+    }
+  }
+}
+
+function flushQueuedAuthDeepLinks(): void {
+  if (queuedAuthDeepLinks.length === 0) {
+    return;
+  }
+  const queue = queuedAuthDeepLinks.splice(0, queuedAuthDeepLinks.length);
+  for (const payload of queue) {
+    dispatchAuthDeepLink(payload);
+  }
+}
+
+function handlePossibleDeepLinkValue(value: string): void {
+  const payload = parseAuthDeepLink(value);
+  if (!payload) {
+    return;
+  }
+  dispatchAuthDeepLink(payload);
+}
+
+function handleDeepLinkArgs(args: string[]): void {
+  for (const arg of args) {
+    if (arg.startsWith('mlearn://')) {
+      handlePossibleDeepLinkValue(arg);
+    }
+  }
+}
 
 // Best-effort raise of system-wide file descriptor limits.
 // ML workloads (torch, transformers, ONNX) combined with Electron/Chromium
@@ -65,7 +134,15 @@ function setupBaseIPC(): void {
   });
 
   ipcMain.on(IPC_CHANNELS.SHOW_CONTACT, () => {
-    shell.openExternal('https://morisinc.net/');
+    shell.openExternal('https://mlearn.kikan.net/');
+  });
+
+  ipcMain.handle(IPC_CHANNELS.OPEN_EXTERNAL_URL, async (_event, url: string) => {
+    if (typeof url !== 'string' || !/^https?:\/\//.test(url)) {
+      throw new Error('Only http/https URLs can be opened');
+    }
+    await shell.openExternal(url);
+    return true;
   });
 }
 
@@ -111,6 +188,7 @@ async function createAppWindows(): Promise<void> {
   // Start web server for tethered mode AFTER window is created
   // This ensures any errors (like EADDRINUSE) can be displayed to the user
   startWebServer();
+  flushQueuedAuthDeepLinks();
 }
 
 // Main initialization
@@ -129,20 +207,45 @@ async function initialize(): Promise<void> {
 
   // Create windows and start services
   await createAppWindows();
+
+  if (!app.isDefaultProtocolClient('mlearn')) {
+    if (process.defaultApp && process.argv.length >= 2) {
+      app.setAsDefaultProtocolClient('mlearn', process.execPath, [path.resolve(process.argv[1])]);
+    } else {
+      app.setAsDefaultProtocolClient('mlearn');
+    }
+  }
 }
 
 // App lifecycle
-app.whenReady().then(() => {
-  initialize();
-
-  app.on('activate', () => {
-    // On macOS, recreate window when dock icon is clicked
-    const { BrowserWindow } = require('electron');
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createAppWindows();
-    }
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, commandLine) => {
+    handleDeepLinkArgs(commandLine);
   });
-});
+
+  app.on('open-url', (event, rawUrl) => {
+    event.preventDefault();
+    handlePossibleDeepLinkValue(rawUrl);
+  });
+
+  app.whenReady().then(() => {
+    if (process.platform !== 'darwin') {
+      handleDeepLinkArgs(process.argv);
+    }
+    initialize();
+
+    app.on('activate', () => {
+      // On macOS, recreate window when dock icon is clicked
+      const { BrowserWindow } = require('electron');
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createAppWindows();
+      }
+    });
+  });
+}
 
 app.on('before-quit', () => {
   console.log('App before-quit: terminating Python backend');
