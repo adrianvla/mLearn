@@ -203,7 +203,7 @@ export const ExplainerCards: Component<ExplainerCardsProps> = (props) => {
     <div class="explainer-cards">
       <Show when={props.loading}>
         <div class="explainer-cards__loading">
-          <Spinner size={32} />
+          <Spinner size={32} shape="square" />
         </div>
       </Show>
       

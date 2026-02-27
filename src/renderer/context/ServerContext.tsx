@@ -18,6 +18,7 @@ interface ServerContextValue {
   error: () => string | null;
   restart: () => void;
   forceRestart: () => void;
+  restartBackend: () => void;
 }
 
 const ServerContext = createContext<ServerContextValue>();
@@ -103,6 +104,13 @@ export const ServerProvider: ParentComponent = (props) => {
     getBridge().server.forceRestartApp();
   };
 
+  const restartBackend = () => {
+    setStatus('loading');
+    setStatusMessage('Restarting backend...');
+    setError(null);
+    getBridge().server.restartBackend();
+  };
+
   onMount(() => {
     setupListeners();
   });
@@ -120,6 +128,7 @@ export const ServerProvider: ParentComponent = (props) => {
     error,
     restart,
     forceRestart,
+    restartBackend,
   };
 
   return (

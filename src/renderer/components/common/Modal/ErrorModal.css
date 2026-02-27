@@ -1,38 +1,23 @@
 /**
  * ErrorModal Styles
- * Styles for the error modal component
+ * Error-specific styling applied to the Modal component
  */
 
-/* ========== Overlay ========== */
-.error-modal-overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--backdrop-filter);
-  z-index: var(--z-modal);
-  animation: fadeIn var(--transition-normal);
-  padding: var(--spacing-4);
-}
-
-/* ========== Panel ========== */
+/* ========== Panel Overrides ========== */
 .error-modal-panel {
   width: min(480px, 90vw);
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--shadow-lg);
+}
+.error-modal-panel > div:nth-child(1) {
+  background: var(--color-error-bg, rgba(239, 68, 68, 0.1));
+  overflow: hidden;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
-/* ========== Header ========== */
-.error-modal-header {
+/* ========== Header Icon ========== */
+.error-modal-header-icon {
   display: flex;
   align-items: center;
-  gap: var(--spacing-3);
-  padding: var(--spacing-5) var(--spacing-6);
-  border-bottom: 1px solid var(--border-color);
+  gap:var(--spacing-3);
 }
 
 .error-modal-icon {
@@ -40,35 +25,27 @@
   line-height: 1;
 }
 
-.error-modal-title {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-}
-
 /* ========== Severity Variants ========== */
-.error-modal--error .error-modal-header {
-  border-bottom-color: color-mix(in srgb, var(--color-error) 30%, transparent);
+.error-modal--error .error-modal-icon {
+  color: var(--color-error);
 }
 
-.error-modal--fatal .error-modal-header {
-  background: color-mix(in srgb, var(--color-error) 10%, transparent);
-  border-bottom-color: color-mix(in srgb, var(--color-error) 30%, transparent);
+.error-modal--fatal .error-modal-icon {
+  color: var(--color-error);
 }
 
-.error-modal--warning .error-modal-header {
-  border-bottom-color: color-mix(in srgb, var(--color-warning) 30%, transparent);
+.error-modal--warning .error-modal-icon {
+  color: var(--color-warning);
 }
 
 /* ========== Content ========== */
 .error-modal-content {
-  flex: 1;
-  overflow: auto;
-  padding: var(--spacing-5) var(--spacing-6);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
+}
+:has(> .error-modal-content){
+  padding: var(--spacing-6) !important;
 }
 
 .error-modal-message {
@@ -118,8 +95,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  padding: var(--spacing-4) var(--spacing-6);
-  border-top: 1px solid var(--border-color);
+  width: 100%;
 }
 
 .error-modal-actions-primary {

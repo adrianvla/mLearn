@@ -65,8 +65,8 @@ export const LoadingOverlay: Component<LoadingOverlayProps> = (props) => {
             class="loading-overlay-panel"
           >
             <div class="loading-overlay-content">
-              <Spinner size={merged.spinnerSize} />
-              
+              <Spinner size={merged.spinnerSize} shape="square" strokeWidth={8} cornerRadius={0}/>
+
               <Show when={merged.title}>
                 <h2 class="loading-overlay-title">{merged.title}</h2>
               </Show>

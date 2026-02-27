@@ -56,6 +56,7 @@ export interface MLearnIPC {
   // App Control
   restartApp: () => void;
   forceRestartApp: () => void;
+  restartBackend: () => void;
   getVersion: () => void;
   onVersionReceive: (callback: (version: string) => void) => () => void;
   

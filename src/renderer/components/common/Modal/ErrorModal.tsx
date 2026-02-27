@@ -1,12 +1,12 @@
 /**
  * ErrorModal Component
  * Modal for displaying critical errors from the main process
+ * Uses the Modal component for consistent styling
  * Includes retry, quit, and copy error actions
  */
 
 import { Component, Show, createSignal, JSX, mergeProps } from 'solid-js';
-import { Portal } from 'solid-js/web';
-import { Panel } from '../Panel';
+import { Modal } from './Modal';
 import { Btn } from '../Button';
 import { ErrorIcon, WarningIcon } from '../Misc/Icons';
 import { useLocalization } from '../../../context';
@@ -111,93 +111,89 @@ export const ErrorModal: Component<ErrorModalProps> = (props) => {
     }
   };
 
-  return (
-    <Show when={merged.isOpen}>
-      <Portal>
-        <div class={`error-modal-overlay ${config().colorClass}`}>
-          <Panel
-            variant="elevated"
-            rounded="lg"
-            padding="none"
-            class="error-modal-panel"
+  const handleClose = () => {
+    merged.onClose?.();
+  };
+
+  const hasClose = () => !!(merged.showClose && merged.onClose);
+
+  const footer = (
+    <div class="error-modal-actions">
+      <Btn
+        variant="ghost"
+        size="sm"
+        onClick={handleCopyError}
+      >
+        {copied() 
+          ? t('mlearn.ErrorModal.Copied')
+          : t('mlearn.ErrorModal.CopyError')
+        }
+      </Btn>
+      
+      <div class="error-modal-actions-primary">
+        {merged.actions}
+        
+        <Show when={merged.showRetry && merged.onRetry}>
+          <Btn
+            variant="primary"
+            onClick={handleRetry}
           >
-            {/* Header */}
-            <div class="error-modal-header">
-              <span class="error-modal-icon">{config().icon}</span>
-              <h2 class="error-modal-title">
-                {merged.title || config().defaultTitle}
-              </h2>
-            </div>
+            {t('mlearn.Global.TryAgain')}
+          </Btn>
+        </Show>
+        
+        <Show when={merged.showQuit}>
+          <Btn
+            variant={merged.severity === 'fatal' ? 'danger' : 'ghost'}
+            onClick={handleQuit}
+          >
+            {t('mlearn.ErrorModal.Quit')}
+          </Btn>
+        </Show>
+      </div>
+    </div>
+  );
 
-            {/* Content */}
-            <div class="error-modal-content">
-              <p class="error-modal-message">{merged.message}</p>
+  return (
+    <Modal
+      isOpen={merged.isOpen}
+      onClose={handleClose}
+      title={
+        <>
+          <div class="error-modal-header-icon">
+            {merged.title || config().defaultTitle}
+            <span class="error-modal-icon">{config().icon}</span>
+          </div>
+        </>
+      }
+      size="md"
+      closeOnEscape={hasClose()}
+      closeOnOverlay={hasClose()}
+      showCloseButton={hasClose()}
+      panelClass={`error-modal-panel ${config().colorClass}`}
+      footer={footer}
+    >
 
-              <Show when={merged.details}>
-                <button 
-                  class="error-modal-details-toggle"
-                  onClick={() => setShowDetails(!showDetails())}
-                >
-                  {showDetails() 
-                    ? t('mlearn.ErrorModal.HideDetails')
-                    : t('mlearn.ErrorModal.ShowDetails')
-                  }
-                </button>
-                
-                <Show when={showDetails()}>
-                  <pre class="error-modal-details">{merged.details}</pre>
-                </Show>
-              </Show>
-            </div>
+      <div class="error-modal-content">
+        <p class="error-modal-message">{merged.message}</p>
 
-            {/* Actions */}
-            <div class="error-modal-actions">
-              <Btn
-                variant="ghost"
-                size="sm"
-                onClick={handleCopyError}
-              >
-                {copied() 
-                  ? t('mlearn.ErrorModal.Copied')
-                  : t('mlearn.ErrorModal.CopyError')
-                }
-              </Btn>
-              
-              <div class="error-modal-actions-primary">
-                {merged.actions}
-                
-                <Show when={merged.showClose && merged.onClose}>
-                  <Btn
-                    variant="ghost"
-                    onClick={merged.onClose}
-                  >
-                    {t('mlearn.Global.Close')}
-                  </Btn>
-                </Show>
-                
-                <Show when={merged.showRetry && merged.onRetry}>
-                  <Btn
-                    variant="primary"
-                    onClick={handleRetry}
-                  >
-                    {t('mlearn.Global.TryAgain')}
-                  </Btn>
-                </Show>
-                
-                <Show when={merged.showQuit}>
-                  <Btn
-                    variant={merged.severity === 'fatal' ? 'danger' : 'ghost'}
-                    onClick={handleQuit}
-                  >
-                    {t('mlearn.ErrorModal.Quit')}
-                  </Btn>
-                </Show>
-              </div>
-            </div>
-          </Panel>
-        </div>
-      </Portal>
-    </Show>
+        <Show when={merged.details}>
+          <button 
+            class="error-modal-details-toggle"
+            onClick={() => setShowDetails(!showDetails())}
+          >
+            {showDetails() 
+              ? t('mlearn.ErrorModal.HideDetails')
+              : t('mlearn.ErrorModal.ShowDetails')
+            }
+          </button>
+          
+          <Show when={showDetails()}>
+            <pre class="error-modal-details">{merged.details}</pre>
+          </Show>
+        </Show>
+      </div>
+    </Modal>
   );
 };
 

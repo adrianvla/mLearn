@@ -46,11 +46,39 @@
 
 .loader-spinner-circle {
   /* Combined reader-spinner styles */
-  border: 3px solid var(--border-color);
+  border-style: solid;
+  border-color: var(--border-color);
   border-top-color: var(--text-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
-  /*background: var(--bg);*/
+}
+
+/* ============ Square Spinner ============ */
+@keyframes loader-square-spin {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -176;
+  }
+}
+
+.loader-spinner-square {
+  display: block;
+}
+
+.loader-spinner-square-track {
+  fill: none;
+  stroke: var(--border-color);
+}
+
+.loader-spinner-square-bar {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-linecap: square;
+  stroke-dasharray: 44 132;
+  stroke-dashoffset: 0;
+  animation: loader-square-spin 1.2s linear infinite;
 }
 
 /* ============ Progress Ring ============ */
@@ -74,6 +102,10 @@
   padding: 8px;
 }
 
+.loader-ring-wrapper--square {
+  border-radius: var(--radius-lg);
+}
+
 .loader-ring-svg {
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
@@ -88,6 +120,31 @@
   stroke-dasharray: 31.4 94.2; /* 1/4 circumference */
   stroke-dashoffset: 0;
   transition: none;
+}
+
+/* Square ring indeterminate: dash travels around the perimeter */
+@keyframes loader-square-ring-dash {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: calc(-1 * var(--square-ring-perimeter));
+  }
+}
+
+.loader-ring-svg--square {
+  /* No rotation for square rings */
+  transform: none;
+}
+
+.loader-ring-svg--square-indeterminate .loader-ring-progress {
+  animation: loader-square-ring-dash 1.2s linear infinite;
+  transition: none;
+}
+
+/* Square ring progress uses square linecap */
+.loader-ring-svg--square .loader-ring-progress {
+  stroke-linecap: square;
 }
 
 .loader-ring-track {

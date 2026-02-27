@@ -112,6 +112,7 @@ const serverBridge: ServerBridge = {
   onOcrStatusUpdate: (cb) => getIPC().onOcrStatusUpdate(cb),
   restartApp: () => getIPC().restartApp(),
   forceRestartApp: () => getIPC().forceRestartApp(),
+  restartBackend: () => getIPC().restartBackend(),
   getVersion: () => getIPC().getVersion(),
   onVersionReceive: (cb) => getIPC().onVersionReceive(cb),
 };

@@ -239,7 +239,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
         {/* Loading state (initial) */}
         <Show when={isLoading() && !hasContent()}>
           <div class="explainer-popup__loading">
-            <Spinner size={32} />
+            <Spinner size={32} shape="square" />
             <p>{t('mlearn.Explainer.Loading')}</p>
           </div>
         </Show>

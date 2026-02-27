@@ -366,7 +366,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         <Show when={phase() === 'showing-qr' || phase() === 'init'}>
           <div class="qr-container">
             <div class="qr-code" ref={qrCodeEl}>
-              <Spinner size={40} />
+              <Spinner size={40} shape="square" />
             </div>
             <p class="qr-hint">
               {t('mlearn.Flashcards.Sync.QRHint')}
@@ -398,7 +398,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         {/* Syncing */}
         <Show when={phase() === 'syncing' || phase() === 'connecting'}>
           <div class="sync-progress">
-            <Spinner size={48} text={t('mlearn.Flashcards.Sync.SyncingFlashcards')} />
+            <Spinner size={48} shape="square" text={t('mlearn.Flashcards.Sync.SyncingFlashcards')} />
             <ProgressBar value={progress()} showPercent variant="primary" animated />
           </div>
         </Show>

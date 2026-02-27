@@ -9,6 +9,8 @@ ios
 .idea
 src/root-of-app/dictionaries
 .github
+.vscode
+.venv
 __pycache__
 scripts/scrapeGrammar.js
 package-lock.json

@@ -1537,6 +1537,7 @@ export const ReaderRoute: Component = () => {
                               strokeWidth={5}
                               statusText={getStatusText()}
                               showPercent={false}
+                              shape={"circle"}
                           />
                         </div>
                         {/* OCR Overlay for each visible page */}

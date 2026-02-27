@@ -113,6 +113,7 @@ export interface ServerBridge {
   onOcrStatusUpdate: (callback: (message: string) => void) => () => void;
   restartApp: () => void;
   forceRestartApp: () => void;
+  restartBackend: () => void;
   getVersion: () => void;
   onVersionReceive: (callback: (version: string) => void) => () => void;
 }

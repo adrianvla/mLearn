@@ -17,6 +17,8 @@ export type LoaderType = 'spinner' | 'skeleton' | 'ring' | 'overlay';
 export interface LoaderProps {
   /** Type of loader to display */
   type?: LoaderType;
+  /** Shape of the spinner/ring track */
+  shape?: 'circle' | 'square';
   /** Size in pixels (for spinner, ring) */
   size?: number;
   /** Text to display with the loader */
@@ -43,6 +45,8 @@ export interface LoaderProps {
   visible?: boolean;
   /** Stroke width for ring */
   strokeWidth?: number;
+  /** Corner radius for square shape (default 4) */
+  cornerRadius?: number;
   /** Additional CSS class */
   class?: string;
   /** Custom inline styles */
@@ -51,16 +55,51 @@ export interface LoaderProps {
 
 // ============ Spinner Component ============
 
-const SpinnerContent: Component<{ size: number; text?: string }> = (props) => {
+const SpinnerContent: Component<{ size: number; text?: string; shape?: 'circle' | 'square'; strokeWidth?: number; cornerRadius?: number }> = (props) => {
+  const isSquare = () => props.shape === 'square';
+  const sw = () => props.strokeWidth ?? 3;
+  const cr = () => props.cornerRadius ?? 4;
+
   return (
     <div class="loader-spinner">
-      <div 
-        class="loader-spinner-circle" 
-        style={{ 
-          width: `${props.size}px`, 
-          height: `${props.size}px` 
-        }} 
-      />
+      <Show when={isSquare()} fallback={
+        <div 
+          class="loader-spinner-circle" 
+          style={{ 
+            width: `${props.size}px`, 
+            height: `${props.size}px`,
+            'border-width': `${sw()}px`,
+          }} 
+        />
+      }>
+        <svg
+          class="loader-spinner-square"
+          width={props.size}
+          height={props.size}
+          viewBox="0 0 50 50"
+        >
+          <rect
+            class="loader-spinner-square-track"
+            x="3"
+            y="3"
+            width="44"
+            height="44"
+            rx={cr()}
+            ry={cr()}
+            stroke-width={sw()}
+          />
+          <rect
+            class="loader-spinner-square-bar"
+            x="3"
+            y="3"
+            width="44"
+            height="44"
+            rx={cr()}
+            ry={cr()}
+            stroke-width={sw()}
+          />
+        </svg>
+      </Show>
       <Show when={props.text}>
         <span class="loader-text">{props.text}</span>
       </Show>
@@ -91,14 +130,11 @@ const SkeletonContent: Component<{ lines: number }> = (props) => {
 
 // ============ Ring Component ============
 
-const RingContent: Component<{
+const CircleRing: Component<{
   size: number;
   progress: number;
   indeterminate: boolean;
   strokeWidth: number;
-  showPercent: boolean;
-  text?: string;
-  statusText?: string;
 }> = (props) => {
   const radius = createMemo(() => (props.size - props.strokeWidth) / 2);
   const circumference = createMemo(() => 2 * Math.PI * radius());
@@ -107,6 +143,103 @@ const RingContent: Component<{
     const progress = Math.max(0, Math.min(100, props.progress));
     return circumference() - (progress / 100) * circumference();
   });
+
+  return (
+    <svg
+      class={`loader-ring-svg ${props.indeterminate ? 'indeterminate' : ''}`}
+      viewBox={`0 0 ${props.size} ${props.size}`}
+    >
+      <circle
+        class="loader-ring-track"
+        cx={props.size / 2}
+        cy={props.size / 2}
+        r={radius()}
+        stroke-width={props.strokeWidth}
+      />
+      <circle
+        class="loader-ring-progress"
+        cx={props.size / 2}
+        cy={props.size / 2}
+        r={radius()}
+        stroke-width={props.strokeWidth}
+        stroke-dasharray={props.indeterminate ? undefined : String(circumference())}
+        stroke-dashoffset={props.indeterminate ? undefined : String(strokeDashoffset())}
+      />
+    </svg>
+  );
+};
+
+const SquareRing: Component<{
+  size: number;
+  progress: number;
+  indeterminate: boolean;
+  strokeWidth: number;
+  cornerRadius: number;
+}> = (props) => {
+  const inset = createMemo(() => props.strokeWidth / 2 + 0.5);
+  const rectSize = createMemo(() => props.size - props.strokeWidth - 1);
+  const cr = () => props.cornerRadius;
+  // Perimeter of a rounded rect: 2*(w + h) - 8*r + 2*pi*r
+  const perimeter = createMemo(() => {
+    const s = rectSize();
+    return 2 * (s + s) - 8 * cr() + 2 * Math.PI * cr();
+  });
+  const strokeDashoffset = createMemo(() => {
+    if (props.indeterminate) return undefined;
+    const progress = Math.max(0, Math.min(100, props.progress));
+    return perimeter() - (progress / 100) * perimeter();
+  });
+  // For indeterminate: 1/4 visible, 3/4 gap
+  const indeterminateDasharray = createMemo(() => {
+    const p = perimeter();
+    return `${p / 4} ${(p * 3) / 4}`;
+  });
+
+  return (
+    <svg
+      class={`loader-ring-svg loader-ring-svg--square ${props.indeterminate ? 'loader-ring-svg--square-indeterminate' : ''}`}
+      viewBox={`0 0 ${props.size} ${props.size}`}
+      style={props.indeterminate ? { '--square-ring-perimeter': String(perimeter()) } as any : undefined}
+    >
+      <rect
+        class="loader-ring-track"
+        x={inset()}
+        y={inset()}
+        width={rectSize()}
+        height={rectSize()}
+        rx={cr()}
+        ry={cr()}
+        stroke-width={props.strokeWidth}
+      />
+      <rect
+        class="loader-ring-progress"
+        x={inset()}
+        y={inset()}
+        width={rectSize()}
+        height={rectSize()}
+        rx={cr()}
+        ry={cr()}
+        stroke-width={props.strokeWidth}
+        stroke-dasharray={props.indeterminate ? indeterminateDasharray() : String(perimeter())}
+        stroke-dashoffset={props.indeterminate ? undefined : String(strokeDashoffset())}
+      />
+    </svg>
+  );
+};
+
+const RingContent: Component<{
+  size: number;
+  progress: number;
+  indeterminate: boolean;
+  strokeWidth: number;
+  showPercent: boolean;
+  text?: string;
+  statusText?: string;
+  shape?: 'circle' | 'square';
+  cornerRadius?: number;
+}> = (props) => {
+  const isSquare = () => props.shape === 'square';
+  const cr = () => props.cornerRadius ?? 4;
   const progressValue = createMemo(() => Math.round(props.progress));
   
   // Keep the status text element in the DOM but hide it when empty
@@ -117,32 +250,25 @@ const RingContent: Component<{
   return (
     <div class="loader-ring">
       <div 
-        class="loader-ring-wrapper"
+        class={`loader-ring-wrapper ${isSquare() ? 'loader-ring-wrapper--square' : ''}`}
         style={{ width: `${props.size}px`, height: `${props.size}px` }}
       >
-          <svg
-              class={`loader-ring-svg ${props.indeterminate ? 'indeterminate' : ''}`}
-              viewBox={`0 0 ${props.size} ${props.size}`}
-          >
-              {/* Background track */}
-              <circle
-                  class={"loader-ring-track"}
-                  cx={props.size / 2}
-                  cy={props.size / 2}
-                  r={radius()}
-                  stroke-width={props.strokeWidth}
-              />
-              {/* Progress arc */}
-              <circle
-                  class={"loader-ring-progress"}
-                  cx={props.size / 2}
-                  cy={props.size / 2}
-                  r={radius()}
-                  stroke-width={props.strokeWidth}
-                  stroke-dasharray={props.indeterminate ? undefined : String(circumference())}
-                  stroke-dashoffset={props.indeterminate ? undefined : String(strokeDashoffset())}
-              />
-          </svg>
+          <Show when={isSquare()} fallback={
+            <CircleRing
+              size={props.size}
+              progress={props.progress}
+              indeterminate={props.indeterminate}
+              strokeWidth={props.strokeWidth}
+            />
+          }>
+            <SquareRing
+              size={props.size}
+              progress={props.progress}
+              indeterminate={props.indeterminate}
+              strokeWidth={props.strokeWidth}
+              cornerRadius={cr()}
+            />
+          </Show>
           <Show when={props.showPercent && !props.indeterminate}>
               <span class="loader-ring-percent">{progressValue()}%</span>
           </Show>
@@ -172,6 +298,9 @@ const OverlayContent: Component<{
   fullscreen: boolean;
   size: number;
   text?: string;
+  shape?: 'circle' | 'square';
+  strokeWidth?: number;
+  cornerRadius?: number;
 }> = (props) => {
   return (
     <Show when={props.visible}>
@@ -179,7 +308,7 @@ const OverlayContent: Component<{
         class={`loader-overlay ${props.backdrop ? 'with-backdrop' : ''} ${props.blur ? 'with-blur' : ''} ${props.fullscreen ? 'fullscreen' : ''}`}
       >
         <div class="loader-overlay-content">
-          <SpinnerContent size={props.size} text={props.text} />
+          <SpinnerContent size={props.size} text={props.text} shape={props.shape} strokeWidth={props.strokeWidth} cornerRadius={props.cornerRadius} />
         </div>
       </div>
     </Show>
@@ -200,11 +329,13 @@ export const Loader: Component<LoaderProps> = (props) => {
   const blur = () => props.blur === true;
   const fullscreen = () => props.fullscreen === true;
   const indeterminate = () => props.indeterminate === true;
+  const shape = () => props.shape || 'circle';
+  const cornerRadius = () => props.cornerRadius ?? 4;
 
   return (
     <div class={`loader loader-${type()} ${props.class || ''}`} style={props.style}>
       <Show when={type() === 'spinner'}>
-        <SpinnerContent size={size()} text={props.text} />
+        <SpinnerContent size={size()} text={props.text} shape={shape()} strokeWidth={strokeWidth()} cornerRadius={cornerRadius()} />
       </Show>
       
       <Show when={type() === 'skeleton'}>
@@ -220,6 +351,8 @@ export const Loader: Component<LoaderProps> = (props) => {
           showPercent={showPercent()}
           text={props.text}
           statusText={props.statusText}
+          shape={shape()}
+          cornerRadius={cornerRadius()}
         />
       </Show>
       
@@ -231,6 +364,9 @@ export const Loader: Component<LoaderProps> = (props) => {
           fullscreen={fullscreen()}
           size={size()}
           text={props.text}
+          shape={shape()}
+          strokeWidth={strokeWidth()}
+          cornerRadius={cornerRadius()}
         />
       </Show>
     </div>
