@@ -115,6 +115,7 @@ const mLearnIPC = {
   // ========== App Lifecycle ==========
   restartApp: () => ipcRenderer.send(IPC_CHANNELS.RESTART_APP),
   forceRestartApp: () => ipcRenderer.send(IPC_CHANNELS.RESTART_APP_FORCE),
+  restartBackend: () => ipcRenderer.send(IPC_CHANNELS.RESTART_BACKEND),
   getVersion: () => ipcRenderer.send(IPC_CHANNELS.GET_VERSION),
   onVersionReceive: (callback: (version: string) => void) =>
     ipcOn(IPC_CHANNELS.VERSION, (_event, version) => callback(version)),

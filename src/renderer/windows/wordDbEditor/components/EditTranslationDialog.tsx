@@ -215,7 +215,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
       title={t('mlearn.WordDbEditor.EditTranslation.Title', { word: props.word })}
     >
       <Show when={isLoading()}>
-        <Spinner size={32} text={t('mlearn.Global.Loading')} />
+        <Spinner size={32} shape="square" text={t('mlearn.Global.Loading')} />
       </Show>
       
       <Show when={!isLoading()}>

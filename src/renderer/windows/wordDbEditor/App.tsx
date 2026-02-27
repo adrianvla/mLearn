@@ -298,7 +298,7 @@ export const WordDbEditorContent: Component = () => {
         {/* Loading indicator while initializing or waiting for word frequency data */}
         <Show when={!isInitialized() || (!hasLoadedWords() && !isLoading())}>
           <div class="init-loading">
-            <Spinner size={40} text={t('mlearn.WordDbEditor.Loading')} />
+            <Spinner size={40} shape="square" text={t('mlearn.WordDbEditor.Loading')} />
           </div>
         </Show>
 

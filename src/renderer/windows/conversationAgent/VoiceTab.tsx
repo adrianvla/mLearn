@@ -757,7 +757,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       {/* Checking model status */}
       <Show when={isChecking()}>
         <div class="voice-download-section">
-          <Spinner size={32} />
+          <Spinner size={32} shape="square" />
         </div>
       </Show>
 

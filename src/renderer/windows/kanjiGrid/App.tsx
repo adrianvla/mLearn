@@ -332,7 +332,7 @@ export const KanjiGridContent: Component = () => {
           </Show>
           
           <Show when={isLoading()}>
-            <Spinner size={40} text={t('mlearn.KanjiGrid.Loading')} />
+            <Spinner size={40} shape="square" text={t('mlearn.KanjiGrid.Loading')} />
           </Show>
         </div>
 

@@ -100,6 +100,7 @@ export const IPC_CHANNELS = {
   // App lifecycle
   RESTART_APP: 'restart-app',
   RESTART_APP_FORCE: 'restart-app-force',
+  RESTART_BACKEND: 'restart-backend',
   GET_VERSION: 'get-version',
   VERSION: 'version',
   

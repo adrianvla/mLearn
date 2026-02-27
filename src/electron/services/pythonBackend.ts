@@ -676,6 +676,34 @@ export function terminatePythonBackend(): void {
   }, 400);
 }
 
+// Restart the Python backend without relaunching Electron
+export function restartPythonBackend(): void {
+  console.log('Restarting Python backend...');
+  
+  // Reset state
+  serverLoaded = false;
+  if (serverLoadCheckInterval) {
+    clearTimeout(serverLoadCheckInterval);
+    serverLoadCheckInterval = null;
+  }
+  
+  // Terminate existing process
+  terminatePythonBackend();
+  
+  // Wait for the process to fully terminate before respawning
+  const waitForExit = (attempts: number): void => {
+    if (attempts <= 0 || !pythonChildProcess || pythonChildProcess.killed) {
+      pythonChildProcess = null;
+      // Re-launch the backend
+      pythonFound();
+      return;
+    }
+    setTimeout(() => waitForExit(attempts - 1), 200);
+  };
+  
+  waitForExit(10); // up to 2 seconds
+}
+
 // Setup IPC handlers
 export function setupPythonBackendIPC(): void {
   ipcMain.on(IPC_CHANNELS.IS_SUCCESSFUL_INSTALL, (event) => {
@@ -703,5 +731,9 @@ export function setupPythonBackendIPC(): void {
       success: pythonSuccessInstall,
       options: pendingInstallOptions,
     } as InstallerState);
+  });
+
+  ipcMain.on(IPC_CHANNELS.RESTART_BACKEND, () => {
+    restartPythonBackend();
   });
 }

@@ -76,7 +76,7 @@ export const LoadingOverlay: Component = () => {
 
   const handleRetry = () => {
     setCriticalError(null);
-    server.forceRestart();
+    server.restartBackend();
   };
 
   const handleQuit = () => {

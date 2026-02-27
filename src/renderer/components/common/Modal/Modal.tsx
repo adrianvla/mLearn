@@ -13,7 +13,7 @@ import { useLocalization } from '../../../context';
 export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  title?: string;
+  title?: JSX.Element | string;
   subtitle?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   closeOnEscape?: boolean;
@@ -108,6 +108,7 @@ export const Modal: Component<ModalProps> = (props) => {
     padding: 'var(--spacing-4)',
     'z-index': 'var(--z-modal)',
     animation: 'fadeIn var(--transition-normal)',
+    "backdrop-filter": "blur(4px)",
   });
 
   const modalStyle = (): JSX.CSSProperties => ({
