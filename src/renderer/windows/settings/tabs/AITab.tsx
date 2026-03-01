@@ -8,6 +8,7 @@ import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, SparklesIcon, ToggleSwitch, VoiceSamplePicker } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
+import { resolveCloudApiUrl } from '../../../../shared/backends';
 import type { LLMProvider, LLMModelStatus, OCRProvider, TTSProvider } from '../../../../shared/types';
 import '../SettingsForm.css';
 import './AITab.css';
@@ -128,9 +129,10 @@ export const AITab: Component = () => {
     setCloudLLMStatus('idle');
     setCloudLLMError('');
     try {
+      const cloudApiUrl = resolveCloudApiUrl(settings);
       const adapter = new CloudLLMAdapter(
-        settings.cloudLLMUrl,
-        settings.cloudAuthAccessToken || settings.cloudLLMToken || settings.cloudAuthToken,
+        cloudApiUrl,
+        settings.cloudAuthAccessToken || settings.cloudAuthToken,
       );
       const ok = await adapter.checkAvailability();
       setCloudLLMStatus(ok ? 'success' : 'error');
@@ -339,18 +341,6 @@ export const AITab: Component = () => {
       <Show when={settings.llmProvider === 'cloud'}>
         <SettingGroup title={t('mlearn.AI.Settings.CloudConfig.Title')}>
           <SettingRow
-            label={t('mlearn.Connection.CloudLLMUrl')}
-            description={t('mlearn.AI.Settings.CloudConfig.UrlHint')}
-          >
-            <Input
-              value={settings.cloudLLMUrl}
-              onInput={(e) => updateSettings({ cloudLLMUrl: e.currentTarget.value })}
-              placeholder="https://your-llm-service.com"
-              size="md"
-            />
-          </SettingRow>
-
-          <SettingRow
             label={t('mlearn.Connection.AuthStatus') || 'Cloud Account'}
             description={t('mlearn.AI.Settings.CloudConfig.TokenHint')}
           >
@@ -384,6 +374,10 @@ export const AITab: Component = () => {
               </Show>
             </div>
           </SettingRow>
+
+          <HintText>
+            {t('mlearn.AI.Settings.CloudConfig.ApiUrlHint')}
+          </HintText>
         </SettingGroup>
       </Show>
 
@@ -409,12 +403,12 @@ export const AITab: Component = () => {
             options={[
               { value: 'kokoro', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Kokoro') },
               { value: 'qwen3', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Qwen3') },
-              { value: 'remote', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Remote') },
+              { value: 'cloud', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Cloud') },
             ]}
           />
         </SettingRow>
 
-        <Show when={settings.flashcardTtsProvider !== 'kokoro'}>
+        <Show when={settings.flashcardTtsProvider !== 'kokoro' && settings.flashcardTtsProvider !== 'cloud'}>
           <SettingRow
             label={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Label')}
             description={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Description')}
@@ -423,20 +417,6 @@ export const AITab: Component = () => {
               value={settings.flashcardVoiceSampleId}
               onChange={(id) => updateSettings({ flashcardVoiceSampleId: id })}
               ttsProvider={settings.flashcardTtsProvider}
-            />
-          </SettingRow>
-        </Show>
-
-        <Show when={settings.flashcardTtsProvider === 'remote'}>
-          <SettingRow
-            label={t('mlearn.AI.Settings.FlashcardTTS.RemoteUrl.Label')}
-            description={t('mlearn.AI.Settings.FlashcardTTS.RemoteUrl.Description')}
-          >
-            <Input
-              value={settings.flashcardRemoteTtsUrl}
-              onInput={(e) => updateSettings({ flashcardRemoteTtsUrl: e.currentTarget.value })}
-              placeholder="https://example.com/tts"
-              size="md"
             />
           </SettingRow>
         </Show>

@@ -51,8 +51,7 @@ _voice_tts_progress = 0.0
 _qwen3_model_loading = False  # True while model download/load is in progress
 
 # TTS provider config — reloaded from settings.json per-request
-_tts_provider: str = "kokoro"   # 'kokoro' | 'qwen3' | 'remote'
-_remote_tts_url: str = ""
+_tts_provider: str = "kokoro"   # 'kokoro' | 'qwen3' | 'cloud'
 
 # Kokoro language code mapping (mLearn lang → Kokoro lang_code)
 _KOKORO_LANG_MAP = {
@@ -82,7 +81,7 @@ _KOKORO_VOICE_MAP = {
 
 def _reload_tts_settings():
     """Reload TTS provider settings from settings.json (called per-request)."""
-    global _tts_provider, _remote_tts_url
+    global _tts_provider
     user_data = config.USER_DATA_PATH
     if not user_data:
         return
@@ -93,7 +92,6 @@ def _reload_tts_settings():
         with open(settings_path, 'r', encoding='utf-8') as f:
             settings = json.load(f)
             _tts_provider = settings.get("ttsProvider", "kokoro")
-            _remote_tts_url = settings.get("remoteTtsUrl", "")
     except Exception:
         pass
 
@@ -299,27 +297,15 @@ async def voice_stt_status():
 
 @router.get("/voice/tts/status")
 async def voice_tts_status():
-    if _tts_provider == "remote":
-        reachable = False
-        remote_loaded = False
-        if _remote_tts_url:
-            try:
-                import urllib.request
-                resp = urllib.request.urlopen(
-                    f"{_remote_tts_url.rstrip('/')}/voice/tts/status",
-                    timeout=3,
-                )
-                data = json.loads(resp.read())
-                reachable = True
-                remote_loaded = data.get("loaded", False)
-            except Exception:
-                pass
+    if _tts_provider == "cloud":
+        # Cloud TTS is handled entirely on the client side (CloudTTSAdapter).
+        # Report as "loaded" so the UI doesn't show download/loading spinners.
         return {
-            "downloaded": reachable,
-            "loaded": remote_loaded,
+            "downloaded": True,
+            "loaded": True,
             "downloading": False,
-            "progress": 1.0 if reachable else 0.0,
-            "modelName": "Remote TTS Server",
+            "progress": 1.0,
+            "modelName": "Cloud TTS",
         }
 
     # Kokoro or Qwen3 local
@@ -405,8 +391,11 @@ async def voice_tts_generate(req: TTSRequest):
     try:
         # Allow per-request provider override (e.g. flashcard TTS testing)
         provider = req.provider or _tts_provider
-        if provider == "remote" and _remote_tts_url:
-            return await _generate_tts_remote(req)
+        if provider == "cloud":
+            raise HTTPException(
+                status_code=400,
+                detail="Cloud TTS is handled on the client side. This endpoint should not be called for cloud provider.",
+            )
         if provider == "qwen3":
             return await _generate_tts_qwen3(req)
         return await _generate_tts_kokoro(req)
@@ -414,35 +403,6 @@ async def voice_tts_generate(req: TTSRequest):
         _log("TTS generation error:", e)
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
-
-async def _generate_tts_remote(req: TTSRequest):
-    """Forward TTS request to the remote TTS server."""
-    import urllib.request
-    url = f"{_remote_tts_url.rstrip('/')}/voice/tts"
-    body_bytes = json.dumps({
-        "text": req.text,
-        "language": req.language,
-        "voiceSamplePath": req.voiceSamplePath or "",
-        "speed": req.speed,
-    }).encode("utf-8")
-    http_req = urllib.request.Request(
-        url, data=body_bytes,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    resp = urllib.request.urlopen(http_req, timeout=60)
-    audio_bytes = resp.read()
-    boundaries = resp.headers.get("X-Sentence-Boundaries", "[]")
-    sample_rate = resp.headers.get("X-Sample-Rate", "24000")
-    return Response(
-        content=audio_bytes,
-        media_type="audio/wav",
-        headers={
-            "X-Sentence-Boundaries": boundaries,
-            "X-Sample-Rate": sample_rate,
-        },
-    )
 
 
 async def _generate_tts_kokoro(req: TTSRequest):

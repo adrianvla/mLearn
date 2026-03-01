@@ -27,8 +27,8 @@ export interface MLearnIPC {
   
   // Flashcard TTS
   getFlashcardTts: (cardId: string, field: string) => Promise<string | null>;
-  generateFlashcardTts: (cardId: string, text: string, language: string, field: string, provider: string, remoteUrl?: string, voiceSampleId?: string) => Promise<string | null>;
-  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: string }>, language: string, provider: string, remoteUrl?: string, voiceSampleId?: string) => Promise<Record<string, string>>;
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => Promise<string | null>;
+  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: string }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => Promise<Record<string, string>>;
   getFlashcardTtsMeta: (cardId: string, field: string) => Promise<{ provider: string; generatedAt: string; language: string } | null>;
   
   // Language Data

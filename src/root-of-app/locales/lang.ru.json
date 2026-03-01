@@ -1044,10 +1044,8 @@
       "Mode": "Режим",
       "ModeLocal": "Локальный",
       "ModeTethered": "Привязанный",
-      "ModeCloud": "Облако",
       "HintLocal": "Использует локальный Python-бэкенд на этом устройстве.",
       "HintTethered": "Подключается к Python-бэкенду на вашем компьютере.",
-      "HintCloud": "Подключается к удалённому облачному бэкенду.",
       "BackendUrl": "URL бэкенда",
       "AuthToken": "Токен авторизации",
       "AuthStatus": "Облачный аккаунт",
@@ -1068,12 +1066,19 @@
       "LLMBuiltIn": "Встроенный",
       "LLMOllama": "Ollama",
       "LLMCloud": "Облако",
-      "CloudLLMUrl": "URL облачной LLM",
-      "CloudLLMToken": "Токен облачной LLM",
-      "OverrideCloudEndpointUrl": "Переопределить URL cloud endpoint",
-      "OverrideCloudEndpointUrlDescription": "Использовать пользовательский cloud endpoint вместо URL сервиса по умолчанию.",
+      "OverrideCloudEndpointUrl": "Переопределить URL облака",
+      "OverrideCloudEndpointUrlDescription": "Использовать пользовательские URL облака вместо URL сервиса по умолчанию.",
       "CloudEndpointUrl": "URL cloud endpoint",
-      "DefaultCloudEndpoint": "Эндпоинт по умолчанию: {endpoint}"
+      "CloudLoginUrl": "URL входа в облако",
+      "CloudApiUrl": "URL API облака",
+      "DefaultCloudEndpoint": "Вход по умолчанию: {loginUrl} — API по умолчанию: {apiUrl}"
+    },
+    "CloudReLogin": {
+      "Title": "Сессия истекла",
+      "SessionExpired": "Ваша облачная сессия истекла. Пожалуйста, войдите снова, чтобы продолжить.",
+      "SessionRefreshed": "Сессия обновлена. Пожалуйста, попробуйте снова.",
+      "Hint": "Нажмите Войти, чтобы открыть страницу входа в браузере.",
+      "CodeHint": "Введите одноразовый код со страницы входа."
     },
     "About": {
       "Title": "mLearn",
@@ -1200,7 +1205,7 @@
       "GeneratingTts": "Генерация…",
       "TtsGenerated": "TTS-аудио успешно перегенерировано",
       "TtsGenerateFailed": "Не удалось сгенерировать TTS-аудио",
-      "NoRemoteUrl": "URL удалённого TTS не настроен. Настройте в Настройки → ИИ → TTS карточек.",
+      "NoCloudAuth": "Не аутентифицирован в облаке. Войдите через Настройки → Сервер.",
       "RegenerateExample": "Перегенерировать пример",
       "RegeneratingExample": "Генерация…",
       "ExampleGenerateFailed": "Не удалось перегенерировать пример",
@@ -1363,8 +1368,7 @@
         "TtsProvider": "Движок TTS",
         "LocalTts": "Локальный",
         "Qwen3Tts": "Qwen3",
-        "RemoteTts": "Удалённый",
-        "RemoteTtsUrl": "URL сервера",
+        "CloudTts": "Cloud",
         "Interrupted": "*Прервано пользователем*",
         "SilenceThreshold": "Порог тишины",
         "VoiceMode": "Режим ввода",
@@ -1375,7 +1379,7 @@
         "LoadingTtsModel": "Загрузка модели синтеза речи…",
         "DefaultVoice": "Голос по умолчанию",
         "VoiceSample": "Клон голоса",
-        "VoiceSampleDisabledLocal": "Загрузка пользовательского голоса доступна только с удалённым TTS-движком",
+        "VoiceSampleDisabledLocal": "Загрузка пользовательского голоса доступна только с Qwen3-TTS или Cloud TTS",
         "UploadSample": "Загрузить образец голоса",
         "Aftermath": {
           "Title": "Итоги сеанса",
@@ -1447,11 +1451,12 @@
         "CloudConfig": {
           "Title": "Настройки облачной LLM",
           "UrlHint": "Базовый URL удалённого OpenAI-совместимого LLM-сервера.",
-          "TokenHint": "Токен аутентификации для облачного LLM-сервера.",
+          "TokenHint": "Войдите через настройки подключения для аутентификации с облачной LLM.",
           "TestConnection": "Проверить подключение",
           "Testing": "Проверка...",
           "ConnectionSuccess": "Подключение успешно.",
-          "ConnectionFailed": "Не удалось подключиться к облачной LLM."
+          "ConnectionFailed": "Не удалось подключиться к облачной LLM.",
+          "ApiUrlHint": "URL API облака настраивается в параметрах подключения."
         },
         "BuiltinModel": {
           "Title": "Встроенная модель",
@@ -1484,10 +1489,10 @@
           },
           "Provider": {
             "Label": "Провайдер TTS",
-            "Description": "Выберите между локальным Kokoro TTS, Qwen3-TTS (клонирование голоса) или удалённым TTS-сервисом",
+            "Description": "Выберите между локальным Kokoro TTS, Qwen3-TTS (клонирование голоса) или Cloud TTS",
             "Kokoro": "Kokoro (локальный)",
             "Qwen3": "Qwen3-TTS (клонирование голоса)",
-            "Remote": "Удалённый сервер"
+            "Cloud": "Cloud"
           },
           "VoiceSample": {
             "Label": "Образец голоса",
@@ -1503,10 +1508,6 @@
             "TestPlaceholder": "Введите текст для тестирования TTS…",
             "TestTts": "Тестировать TTS",
             "ModelLoading": "Загрузка модели TTS…"
-          },
-          "RemoteUrl": {
-            "Label": "URL удалённого TTS",
-            "Description": "URL конечной точки удалённого TTS-сервера"
           },
           "AutoGenerate": {
             "Label": "Автогенерация аудио",

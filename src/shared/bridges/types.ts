@@ -52,8 +52,8 @@ export interface FlashcardBridge {
   resolveFlashcardImage: (imageUrl: string) => Promise<string | null>;
   deleteFlashcardImage: (cardId: string) => Promise<void>;
   getFlashcardTts: (cardId: string, field: 'word' | 'example') => Promise<string | null>;
-  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, remoteUrl?: string, voiceSampleId?: string) => Promise<string | null>;
-  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, remoteUrl?: string, voiceSampleId?: string) => Promise<Record<string, string>>;
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => Promise<string | null>;
+  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => Promise<Record<string, string>>;
   getFlashcardTtsMeta: (cardId: string, field: 'word' | 'example') => Promise<{ provider: string; generatedAt: string; language: string } | null>;
 }
 

@@ -36,4 +36,4 @@ export interface BackendAdapter {
 }
 
 /** Backend connection mode */
-export type BackendMode = 'local' | 'tethered' | 'cloud';
+export type BackendMode = 'local' | 'tethered';

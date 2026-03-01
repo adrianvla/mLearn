@@ -1,7 +1,7 @@
 /**
  * Sync Context
  * Provides sync status and control to the component tree.
- * Starts sync automatically when backendMode is 'tethered' or 'cloud'.
+ * Starts sync automatically when backendMode is 'tethered'.
  */
 
 import { createContext, useContext, ParentComponent, createSignal, onCleanup, createEffect, on } from 'solid-js';
@@ -51,7 +51,7 @@ export const SyncProvider: ParentComponent = (props) => {
   // Start/stop sync based on backend mode
   createEffect(() => {
     const mode = settings.backendMode;
-    if (mode === 'tethered' || mode === 'cloud') {
+    if (mode === 'tethered') {
       const cbs: SyncCallbacks = {
         onStatusChange: (s) => setStatus(s),
         onSettingsReceived: (remote: Partial<Settings>) => {
@@ -101,7 +101,7 @@ export const SyncProvider: ParentComponent = (props) => {
     on(
       () => settings.lastModified,
       (ts, prev) => {
-        if (prev !== undefined && ts && (settings.backendMode === 'tethered' || settings.backendMode === 'cloud')) {
+        if (prev !== undefined && ts && settings.backendMode === 'tethered') {
           queueSettingsPush(settings);
         }
       },
@@ -113,7 +113,7 @@ export const SyncProvider: ParentComponent = (props) => {
     on(
       () => Object.keys(flashcardCtx.store.flashcards).length,
       (_count, prev) => {
-        if (prev !== undefined && (settings.backendMode === 'tethered' || settings.backendMode === 'cloud')) {
+        if (prev !== undefined && settings.backendMode === 'tethered') {
           queueFlashcardsPush(flashcardCtx.store);
         }
       },

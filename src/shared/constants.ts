@@ -6,6 +6,10 @@
 export const PYTHON_BACKEND_PORT = 7752;
 export const PROXY_SERVER_PORT = 7753;
 
+// Cloud service URLs
+export const DEFAULT_CLOUD_LOGIN_URL = 'https://mlearn.kikan.net';
+export const DEFAULT_CLOUD_API_URL = 'https://mlearn-cloud.kikan.net';
+
 // Ports object for hooks
 export const PORTS = {
   PYTHON_BACKEND: PYTHON_BACKEND_PORT,
@@ -284,7 +288,7 @@ export const WORD_HOVER_TRIGGER_MODES = ['hover', 'long-hover', 'key-hover'] as 
 export type WordHoverTriggerMode = typeof WORD_HOVER_TRIGGER_MODES[number];
 
 // Python download URLs
-// NOTE: Voice TTS uses Kokoro-82M locally (fast, CPU/MPS) or a remote MOSS-TTS server (CUDA).
+// NOTE: Voice TTS uses Kokoro-82M locally (fast, CPU/MPS), Qwen3-TTS (voice cloning), or Cloud TTS.
 // Update packaged-python repo with 3.11 builds from indygreg/python-build-standalone:
 //   - aarch64-apple-darwin: cpython-3.11.x+...aarch64-apple-darwin-install_only.tar.gz
 //   - x86_64-apple-darwin:  cpython-3.11.x+...x86_64-apple-darwin-install_only.tar.gz

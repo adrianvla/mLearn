@@ -214,8 +214,9 @@ export const FlashcardsContent: Component = () => {
     const bridge = getBridge();
     const cards = flashcards();
     const provider = bulkTtsProvider();
-    const remoteUrl = settings.flashcardRemoteTtsUrl || undefined;
     const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
+    const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
+    const cloudApiUrl = settings.cloudApiUrl || undefined;
     const language = settings.language;
 
     const replaceAll = bulkMode() === 'replaceAll';
@@ -266,7 +267,7 @@ export const FlashcardsContent: Component = () => {
     let generated = 0;
     // Generate one-by-one so we can show progress
     for (const item of items) {
-      await bridge.flashcards.generateFlashcardTts(item.cardId, item.text, language, item.field, provider, remoteUrl, voiceSampleId);
+      await bridge.flashcards.generateFlashcardTts(item.cardId, item.text, language, item.field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
       generated++;
       setBulkProgress({ current: generated, total: items.length, label: t('mlearn.Flashcards.Bulk.TtsProgress'), startTime });
     }
@@ -302,9 +303,7 @@ export const FlashcardsContent: Component = () => {
 
     const backend = getBackend({
       mode: settings.backendMode,
-      url: settings.backendMode === 'cloud'
-        ? (settings.overrideCloudEndpointUrl ? settings.backendUrl : '')
-        : settings.backendUrl,
+      url: settings.backendUrl,
       authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
     });
 
@@ -354,7 +353,7 @@ export const FlashcardsContent: Component = () => {
     switch (settings.flashcardTtsProvider) {
       case 'kokoro': return t('mlearn.AI.Settings.FlashcardTTS.Provider.Kokoro');
       case 'qwen3': return t('mlearn.AI.Settings.FlashcardTTS.Provider.Qwen3');
-      case 'remote': return t('mlearn.AI.Settings.FlashcardTTS.Provider.Remote');
+      case 'cloud': return t('mlearn.AI.Settings.FlashcardTTS.Provider.Cloud');
       default: return settings.flashcardTtsProvider;
     }
   });
@@ -363,7 +362,7 @@ export const FlashcardsContent: Component = () => {
   const ttsProviderOptions = createMemo(() => [
     { value: 'kokoro', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Kokoro') },
     { value: 'qwen3', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Qwen3') },
-    { value: 'remote', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Remote') },
+    { value: 'cloud', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Cloud') },
   ]);
 
   // Bulk mode options
@@ -637,7 +636,7 @@ export const FlashcardsContent: Component = () => {
                       />
                     </div>
 
-                    <Show when={bulkTtsProvider() !== 'kokoro'}>
+                    <Show when={bulkTtsProvider() !== 'kokoro' && bulkTtsProvider() !== 'cloud'}>
                       <div class="flashcards-generate-option">
                         <label class="flashcards-generate-label">{t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Label')}</label>
                         <VoiceSamplePicker

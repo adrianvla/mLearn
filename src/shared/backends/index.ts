@@ -5,13 +5,35 @@
  * Cached per base URL — call `resetBackend()` when settings change.
  */
 
-import { PYTHON_BACKEND_PORT } from '../constants';
+import { PYTHON_BACKEND_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } from '../constants';
 import type { BackendAdapter, BackendMode } from './types';
 import { HttpBackend } from './httpBackend';
 
 export type { BackendAdapter, BackendMode, OCRResult } from './types';
 export { HttpBackend } from './httpBackend';
-export const DEFAULT_CLOUD_ENDPOINT = 'https://mlearn.kikan.net';
+export { CloudTTSAdapter } from './cloudTTSAdapter';
+export { CloudOCRAdapter } from './cloudOCRAdapter';
+export { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL };
+
+interface CloudUrlSettings {
+  overrideCloudEndpointUrl?: boolean;
+  cloudLoginUrl?: string;
+  cloudApiUrl?: string;
+}
+
+/** Resolve the cloud login/website URL from settings */
+export function resolveCloudLoginUrl(settings: CloudUrlSettings): string {
+  const url = settings.overrideCloudEndpointUrl && settings.cloudLoginUrl
+    ? settings.cloudLoginUrl : DEFAULT_CLOUD_LOGIN_URL;
+  return url.replace(/\/+$/, '');
+}
+
+/** Resolve the cloud API URL from settings */
+export function resolveCloudApiUrl(settings: CloudUrlSettings): string {
+  const url = settings.overrideCloudEndpointUrl && settings.cloudApiUrl
+    ? settings.cloudApiUrl : DEFAULT_CLOUD_API_URL;
+  return url.replace(/\/+$/, '');
+}
 
 let cached: BackendAdapter | null = null;
 let cachedKey = '';
@@ -23,8 +45,6 @@ function resolveBaseUrl(mode: BackendMode, userUrl?: string): string {
   switch (mode) {
     case 'tethered':
       return userUrl?.replace(/\/+$/, '') || `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
-    case 'cloud':
-      return `${(userUrl?.replace(/\/+$/, '') || DEFAULT_CLOUD_ENDPOINT)}/api/cloud`;
     case 'local':
     default:
       return `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
@@ -57,7 +77,7 @@ export function getBackend(opts: GetBackendOptions = {}): BackendAdapter {
 
   if (cached && cachedKey === key) return cached;
 
-  cached = new HttpBackend(baseUrl, authToken ? { authToken } : undefined);
+  cached = new HttpBackend(baseUrl, { authToken: authToken || undefined });
   cachedKey = key;
   return cached;
 }

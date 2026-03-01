@@ -216,11 +216,11 @@ const flashcardBridge: FlashcardBridge = {
     return null;
   },
 
-  async generateFlashcardTts() {
+  async generateFlashcardTts(_cardId: string, _text: string, _language: string, _field: 'word' | 'example', _provider: string, _voiceSampleId?: string, _cloudAuthToken?: string, _cloudApiUrl?: string) {
     return null;
   },
 
-  async batchGenerateFlashcardTts() {
+  async batchGenerateFlashcardTts(_items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, _language: string, _provider: string, _voiceSampleId?: string, _cloudAuthToken?: string, _cloudApiUrl?: string): Promise<Record<string, string>> {
     return {};
   },
 
@@ -628,12 +628,18 @@ const llmBridge: LLMBridge = {
   llmStream(messages, tools) {
     // On mobile, stream via HTTP to tethered desktop or cloud endpoint
     const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-    const cloudUrl = settings.cloudLLMUrl;
-    const cloudToken = settings.cloudAuthAccessToken || settings.cloudLLMToken || settings.cloudAuthToken;
+    const cloudToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
     const nodeUrl = getNodeServerUrl();
 
-    const url = cloudUrl
-      ? `${cloudUrl}/llm/stream`
+    // Resolve cloud API URL: use override if set, otherwise default
+    const overrideCloudEndpoint = settings.overrideCloudEndpointUrl && settings.cloudApiUrl;
+    const cloudApiUrl = overrideCloudEndpoint
+      ? settings.cloudApiUrl.replace(/\/+$/, '')
+      : 'https://mlearn-cloud.kikan.net';
+    const isCloudMode = settings.llmProvider === 'cloud';
+
+    const url = isCloudMode
+      ? `${cloudApiUrl}/api/llm/stream`
       : `${nodeUrl}/forward/llm/stream`;
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };

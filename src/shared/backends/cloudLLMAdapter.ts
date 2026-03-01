@@ -13,6 +13,74 @@ export interface CloudLLMCallbacks {
   onError: (error: string) => void;
 }
 
+/** OpenAI-format tool definition */
+interface OpenAITool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+/** OpenAI-format message */
+interface OpenAIMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+  }>;
+  tool_call_id?: string;
+}
+
+/**
+ * Convert provider-agnostic tool definitions to OpenAI format.
+ */
+function toOpenAITools(tools: LLMToolDefinition[]): OpenAITool[] {
+  return tools.map(t => ({
+    type: 'function' as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    },
+  }));
+}
+
+/**
+ * Convert provider-agnostic chat messages to OpenAI format.
+ * Transforms camelCase fields (toolCalls, toolName) to snake_case (tool_calls, tool_call_id).
+ */
+function toOpenAIMessages(messages: LLMChatMessage[]): OpenAIMessage[] {
+  return messages.map(m => {
+    const msg: OpenAIMessage = {
+      role: m.role,
+      content: m.content,
+    };
+
+    if (m.toolCalls && m.toolCalls.length > 0) {
+      msg.tool_calls = m.toolCalls.map(tc => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: {
+          name: tc.name,
+          arguments: typeof tc.arguments === 'string'
+            ? tc.arguments as string
+            : JSON.stringify(tc.arguments),
+        },
+      }));
+    }
+
+    if (m.role === 'tool' && m.toolName) {
+      msg.tool_call_id = m.toolName;
+    }
+
+    return msg;
+  });
+}
+
 export class CloudLLMAdapter {
   private readonly baseUrl: string;
   private readonly authToken: string;
@@ -25,7 +93,7 @@ export class CloudLLMAdapter {
 
   /**
    * Stream a chat completion from the cloud endpoint.
-   * Expects an OpenAI-compatible streaming API at `<baseUrl>/llm/stream`.
+   * Converts provider-agnostic types to OpenAI format before sending.
    */
   async streamChat(
     messages: LLMChatMessage[],
@@ -41,11 +109,17 @@ export class CloudLLMAdapter {
       headers['Authorization'] = `Bearer ${this.authToken}`;
     }
 
+    const openAIMessages = toOpenAIMessages(messages);
+    const openAITools = tools.length > 0 ? toOpenAITools(tools) : undefined;
+
     try {
-      const res = await fetch(`${this.baseUrl}/llm/stream`, {
+      const res = await fetch(`${this.baseUrl}/api/llm/stream`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ messages, tools }),
+        body: JSON.stringify({
+          messages: openAIMessages,
+          tools: openAITools,
+        }),
         signal: this.abortController.signal,
       });
 
@@ -133,7 +207,7 @@ export class CloudLLMAdapter {
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(`${this.baseUrl}/health`, {
+      const res = await fetch(`${this.baseUrl}/api/health`, {
         headers,
         signal: controller.signal,
       });

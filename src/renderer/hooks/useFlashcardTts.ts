@@ -136,16 +136,18 @@ export function useFlashcardTts() {
       if (myGenId !== generationId) return;
 
       const provider = settings.flashcardTtsProvider;
-      const remoteUrl = settings.flashcardRemoteTtsUrl || undefined;
       const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
+      const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
+      const cloudApiUrl = settings.cloudApiUrl || undefined;
       const generatedUrl = await bridge.flashcards.generateFlashcardTts(
         cardId,
         cleanText,
         language,
         field,
         provider,
-        remoteUrl,
         voiceSampleId,
+        cloudAuthToken,
+        cloudApiUrl,
       );
       if (myGenId !== generationId) { setState((s) => ({ ...s, isGenerating: false })); return; }
       setState((s) => ({ ...s, isGenerating: false }));

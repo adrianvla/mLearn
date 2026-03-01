@@ -7,7 +7,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ipcMain, protocol, net } from 'electron';
-import { IPC_CHANNELS, API_ENDPOINTS } from '../../shared/constants';
+import { IPC_CHANNELS, API_ENDPOINTS, DEFAULT_CLOUD_API_URL } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
 import { loadSamplesManifest, getVoiceSamplePath } from './voiceService';
 import http from 'http';
@@ -140,57 +140,101 @@ async function generateViaLocal(text: string, language: string, outputPath: stri
 }
 
 /**
- * Generate TTS audio via a remote TTS server and save as .ogg.
+ * Generate TTS audio via the mLearn cloud TTS service.
+ * Uses the BFF Worker's /api/tts/stream endpoint to get audio.
  */
-async function generateViaRemote(text: string, language: string, outputPath: string, remoteUrl: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const url = new URL('/tts', remoteUrl);
-    const body = JSON.stringify({ text, language, format: 'ogg' });
+async function generateViaCloud(text: string, language: string, outputPath: string, authToken: string, apiUrl?: string): Promise<boolean> {
+  try {
+    const baseUrl = (apiUrl || DEFAULT_CLOUD_API_URL).replace(/\/+$/, '');
+    const https = require('https');
+    const urlObj = new URL(`${baseUrl}/api/tts/stream`);
+    const body = JSON.stringify({ text, language, provider: 'moss-realtime' });
 
-    const protocol = url.protocol === 'https:' ? require('https') : http;
-    const req = protocol.request(
-      {
-        hostname: url.hostname,
-        port: url.port,
-        path: url.pathname,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
+    // Step 1: Get stream URL from BFF
+    const streamInfo = await new Promise<{ streamUrl: string }>((resolve, reject) => {
+      const proto = urlObj.protocol === 'https:' ? https : http;
+      const req = proto.request(
+        {
+          hostname: urlObj.hostname,
+          port: urlObj.port,
+          path: urlObj.pathname,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+            'Authorization': `Bearer ${authToken}`,
+          },
+          timeout: 30000,
         },
-        timeout: 60000,
-      },
-      (res: http.IncomingMessage) => {
-        if (res.statusCode !== 200) {
-          res.resume();
-          resolve(false);
-          return;
-        }
-
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk: Buffer) => chunks.push(chunk));
-        res.on('end', () => {
-          const data = Buffer.concat(chunks);
-          if (data.length > 0) {
-            ensureAudioDir();
-            fs.writeFileSync(outputPath, data);
-            resolve(true);
-          } else {
-            resolve(false);
+        (res: http.IncomingMessage) => {
+          if (res.statusCode !== 200) {
+            res.resume();
+            reject(new Error(`Cloud TTS stream setup failed: ${res.statusCode}`));
+            return;
           }
-        });
-        res.on('error', () => resolve(false));
-      },
-    );
-
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => {
-      req.destroy();
-      resolve(false);
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => {
+            try {
+              const data = JSON.parse(Buffer.concat(chunks).toString());
+              const streamUrl = data.actions?.stream_url;
+              if (!streamUrl) {
+                reject(new Error('Cloud TTS: missing stream_url'));
+                return;
+              }
+              resolve({ streamUrl });
+            } catch (e) {
+              reject(e);
+            }
+          });
+          res.on('error', reject);
+        },
+      );
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS setup timeout')); });
+      req.write(body);
+      req.end();
     });
-    req.write(body);
-    req.end();
-  });
+
+    // Step 2: Fetch audio from stream URL
+    const streamUrlObj = new URL(streamInfo.streamUrl);
+    const audioData = await new Promise<Buffer>((resolve, reject) => {
+      const proto = streamUrlObj.protocol === 'https:' ? https : http;
+      const req = proto.request(
+        {
+          hostname: streamUrlObj.hostname,
+          port: streamUrlObj.port,
+          path: streamUrlObj.pathname + streamUrlObj.search,
+          method: 'GET',
+          timeout: 60000,
+        },
+        (res: http.IncomingMessage) => {
+          if (res.statusCode !== 200) {
+            res.resume();
+            reject(new Error(`Cloud TTS audio fetch failed: ${res.statusCode}`));
+            return;
+          }
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => resolve(Buffer.concat(chunks)));
+          res.on('error', reject);
+        },
+      );
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS audio timeout')); });
+      req.end();
+    });
+
+    if (audioData.length > 0) {
+      ensureAudioDir();
+      fs.writeFileSync(outputPath, audioData);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error('[FlashcardTTS] Cloud generation failed:', e);
+    return false;
+  }
 }
 
 /**
@@ -202,8 +246,9 @@ async function generateFlashcardTts(
   language: string,
   field: 'word' | 'example',
   provider: string,
-  remoteUrl?: string,
   voiceSampleId?: string,
+  cloudAuthToken?: string,
+  cloudApiUrl?: string,
 ): Promise<string | null> {
   if (!text || text === '-') return null;
 
@@ -218,8 +263,8 @@ async function generateFlashcardTts(
     if (sample) voiceSamplePath = getVoiceSamplePath(sample);
   }
 
-  if (provider === 'remote' && remoteUrl) {
-    success = await generateViaRemote(text, language, output, remoteUrl);
+  if (provider === 'cloud' && cloudAuthToken) {
+    success = await generateViaCloud(text, language, output, cloudAuthToken, cloudApiUrl);
   } else {
     success = await generateViaLocal(text, language, output, provider, voiceSamplePath);
   }
@@ -239,109 +284,21 @@ async function batchGenerateFlashcardTts(
   items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>,
   language: string,
   provider: string,
-  remoteUrl?: string,
   voiceSampleId?: string,
+  cloudAuthToken?: string,
+  cloudApiUrl?: string,
 ): Promise<Record<string, string>> {
   const results: Record<string, string> = {};
 
-  if (provider === 'remote' && remoteUrl) {
-    // Try batch endpoint first
-    const batchResult = await tryBatchRemote(items, language, remoteUrl);
-    if (batchResult) return batchResult;
-  }
-
-  // Fallback: generate one by one
+  // Generate one by one (cloud and local providers)
   for (const item of items) {
-    const url = await generateFlashcardTts(item.cardId, item.text, language, item.field, provider, remoteUrl, voiceSampleId);
+    const url = await generateFlashcardTts(item.cardId, item.text, language, item.field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
     if (url) {
       results[`${item.cardId}-${item.field}`] = url;
     }
   }
 
   return results;
-}
-
-/**
- * Try to use a batch TTS endpoint on the remote server.
- * The batch endpoint accepts an array of texts and returns named files.
- */
-async function tryBatchRemote(
-  items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>,
-  language: string,
-  remoteUrl: string,
-): Promise<Record<string, string> | null> {
-  return new Promise((resolve) => {
-    const url = new URL('/tts/batch', remoteUrl);
-    const batchItems = items.map((item) => ({
-      id: `${item.cardId}-${item.field}`,
-      text: item.text,
-      language,
-      format: 'ogg',
-    }));
-    const body = JSON.stringify({ items: batchItems });
-
-    const protocol = url.protocol === 'https:' ? require('https') : http;
-    const req = protocol.request(
-      {
-        hostname: url.hostname,
-        port: url.port,
-        path: url.pathname,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-        },
-        timeout: 300000, // 5 min for batch
-      },
-      (res: http.IncomingMessage) => {
-        if (res.statusCode !== 200) {
-          res.resume();
-          resolve(null); // Batch not supported, fallback to individual
-          return;
-        }
-
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk: Buffer) => chunks.push(chunk));
-        res.on('end', () => {
-          try {
-            const data = Buffer.concat(chunks);
-            // Parse response: expect JSON with base64-encoded files
-            const response = JSON.parse(data.toString()) as { results: Array<{ id: string; audio: string }> };
-            const results: Record<string, string> = {};
-
-            ensureAudioDir();
-            for (const result of response.results) {
-              const audio = Buffer.from(result.audio, 'base64');
-              const [cardId, field] = result.id.split('-') as [string, 'word' | 'example'];
-              // Reconstruct the full cardId (UUID contains dashes)
-              const lastDash = result.id.lastIndexOf('-');
-              const actualCardId = result.id.substring(0, lastDash);
-              const actualField = result.id.substring(lastDash + 1) as 'word' | 'example';
-              const output = audioPath(actualCardId, actualField);
-              fs.writeFileSync(output, audio);
-              results[result.id] = toAudioUrl(output);
-              // suppress unused
-              void cardId;
-              void field;
-            }
-
-            resolve(results);
-          } catch {
-            resolve(null);
-          }
-        });
-        res.on('error', () => resolve(null));
-      },
-    );
-
-    req.on('error', () => resolve(null));
-    req.on('timeout', () => {
-      req.destroy();
-      resolve(null);
-    });
-    req.write(body);
-    req.end();
-  });
 }
 
 /**
@@ -395,15 +352,15 @@ export function setupFlashcardTtsIPC(): void {
 
   ipcMain.handle(
     IPC_CHANNELS.FLASHCARD_TTS_GENERATE,
-    (_event, cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, remoteUrl?: string, voiceSampleId?: string) => {
-      return generateFlashcardTts(cardId, text, language, field, provider, remoteUrl, voiceSampleId);
+    (_event, cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => {
+      return generateFlashcardTts(cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
     },
   );
 
   ipcMain.handle(
     IPC_CHANNELS.FLASHCARD_TTS_BATCH_GENERATE,
-    (_event, items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, remoteUrl?: string, voiceSampleId?: string) => {
-      return batchGenerateFlashcardTts(items, language, provider, remoteUrl, voiceSampleId);
+    (_event, items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => {
+      return batchGenerateFlashcardTts(items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
     },
   );
 

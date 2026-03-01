@@ -1,4 +1,4 @@
-import { DEFAULT_CLOUD_ENDPOINT } from '../../shared/backends';
+import { resolveCloudApiUrl, resolveCloudLoginUrl } from '../../shared/backends';
 import type { Settings } from '../../shared/types';
 
 export interface CloudLoginRequest {
@@ -14,8 +14,14 @@ export interface CloudExchangeResult {
   userEmail: string;
 }
 
-function getAuthBaseUrl(settings: Settings): string {
-  return (settings.overrideCloudEndpointUrl ? settings.backendUrl : DEFAULT_CLOUD_ENDPOINT).replace(/\/+$/, '');
+/** Auth API calls go to the cloud API URL */
+function getAuthApiUrl(settings: Settings): string {
+  return resolveCloudApiUrl(settings);
+}
+
+/** Browser-facing pages (login, dashboard) go to the cloud login URL */
+function getLoginSiteUrl(settings: Settings): string {
+  return resolveCloudLoginUrl(settings);
 }
 
 function randomUrlSafeString(byteLength: number): string {
@@ -36,7 +42,7 @@ export async function startCloudDesktopLogin(settings: Settings): Promise<CloudL
   const codeVerifier = randomUrlSafeString(64);
   const codeChallenge = await computeS256Challenge(codeVerifier);
 
-  const response = await fetch(`${getAuthBaseUrl(settings)}/api/auth/desktop/init`, {
+  const response = await fetch(`${getAuthApiUrl(settings)}/api/auth/desktop/init`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -63,7 +69,7 @@ export async function exchangeCloudDesktopCode(
   code: string,
   codeVerifier: string,
 ): Promise<CloudExchangeResult> {
-  const response = await fetch(`${getAuthBaseUrl(settings)}/api/auth/desktop/exchange`, {
+  const response = await fetch(`${getAuthApiUrl(settings)}/api/auth/desktop/exchange`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, codeVerifier }),
@@ -92,7 +98,7 @@ export async function refreshCloudSession(settings: Settings): Promise<{ accessT
     throw new Error('Missing cloud refresh token');
   }
 
-  const response = await fetch(`${getAuthBaseUrl(settings)}/api/auth/refresh`, {
+  const response = await fetch(`${getAuthApiUrl(settings)}/api/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
@@ -114,5 +120,62 @@ export async function refreshCloudSession(settings: Settings): Promise<{ accessT
 }
 
 export function getCloudDashboardUrl(settings: Settings): string {
-  return `${getAuthBaseUrl(settings)}/dashboard`;
+  return `${getLoginSiteUrl(settings)}/dashboard`;
+}
+
+/**
+ * Validate the current cloud access token by calling /api/auth/me.
+ * Returns true if the token is valid (200), false otherwise.
+ */
+export async function validateCloudAccessToken(settings: Settings): Promise<boolean> {
+  const accessToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
+  if (!accessToken) return false;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const response = await fetch(`${getAuthApiUrl(settings)}/api/auth/me`, {
+      headers: { 'Authorization': `Bearer ${accessToken}` },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export interface CloudSessionValidation {
+  status: 'valid' | 'refreshed' | 'expired';
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: number;
+}
+
+/**
+ * Validate the current session and attempt refresh if expired.
+ * Returns whether the session is valid, was refreshed, or is fully expired
+ * (meaning the user must re-authenticate).
+ */
+export async function validateAndRefreshCloudSession(settings: Settings): Promise<CloudSessionValidation> {
+  // First, check if the current access token works
+  const isValid = await validateCloudAccessToken(settings);
+  if (isValid) return { status: 'valid' };
+
+  // Access token invalid — try refreshing
+  if (!settings.cloudAuthRefreshToken) {
+    return { status: 'expired' };
+  }
+
+  try {
+    const refreshed = await refreshCloudSession(settings);
+    return {
+      status: 'refreshed',
+      accessToken: refreshed.accessToken,
+      refreshToken: refreshed.refreshToken,
+      expiresAt: refreshed.expiresAt,
+    };
+  } catch {
+    return { status: 'expired' };
+  }
 }

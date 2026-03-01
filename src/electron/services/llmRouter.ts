@@ -1,6 +1,6 @@
 /**
  * Unified LLM Router
- * Routes LLM_STREAM and LLM_STREAM_ABORT to the correct provider (builtin or ollama).
+ * Routes LLM_STREAM and LLM_STREAM_ABORT to the correct provider (builtin, ollama, or cloud).
  */
 
 import { ipcMain, type IpcMainEvent } from 'electron';
@@ -10,15 +10,19 @@ import { loadSettings } from './settings';
 import { ollamaStreamChatUnified, ollamaAbortStream } from './ollamaService';
 import { builtinStreamChat, builtinAbortStream } from './builtinLLMService';
 import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
+import { DEFAULT_CLOUD_API_URL } from '../../shared/constants';
 
 let cloudAdapter: CloudLLMAdapter | null = null;
 
 function getCloudAdapter(): CloudLLMAdapter {
   const settings = loadSettings();
+  const cloudApiUrl = (settings.overrideCloudEndpointUrl && settings.cloudApiUrl)
+    ? settings.cloudApiUrl.replace(/\/+$/, '')
+    : DEFAULT_CLOUD_API_URL;
   // Recreate if settings changed
   cloudAdapter = new CloudLLMAdapter(
-    settings.cloudLLMUrl,
-    settings.cloudAuthAccessToken || settings.cloudLLMToken || settings.cloudAuthToken,
+    cloudApiUrl,
+    settings.cloudAuthAccessToken || settings.cloudAuthToken,
   );
   return cloudAdapter;
 }

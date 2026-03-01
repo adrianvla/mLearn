@@ -1044,10 +1044,8 @@
       "Mode": "モード",
       "ModeLocal": "ローカル",
       "ModeTethered": "テザリング",
-      "ModeCloud": "クラウド",
       "HintLocal": "このマシンのローカルPythonバックエンドを使用します。",
       "HintTethered": "デスクトップで実行中のPythonバックエンドに接続します。",
-      "HintCloud": "リモートクラウドバックエンドに接続します。",
       "BackendUrl": "バックエンドURL",
       "AuthToken": "認証トークン",
       "AuthStatus": "クラウドアカウント",
@@ -1068,12 +1066,19 @@
       "LLMBuiltIn": "内蔵",
       "LLMOllama": "Ollama",
       "LLMCloud": "クラウド",
-      "CloudLLMUrl": "クラウドLLM URL",
-      "CloudLLMToken": "クラウドLLMトークン",
-      "OverrideCloudEndpointUrl": "クラウドエンドポイントURLを上書き",
-      "OverrideCloudEndpointUrlDescription": "デフォルトのサービスURLの代わりにカスタムクラウドエンドポイントを使用します。",
+      "OverrideCloudEndpointUrl": "クラウドURLを上書き",
+      "OverrideCloudEndpointUrlDescription": "デフォルトのサービスURLの代わりにカスタムクラウドURLを使用します。",
       "CloudEndpointUrl": "クラウドエンドポイントURL",
-      "DefaultCloudEndpoint": "デフォルトエンドポイント: {endpoint}"
+      "CloudLoginUrl": "クラウドログインURL",
+      "CloudApiUrl": "クラウドAPI URL",
+      "DefaultCloudEndpoint": "デフォルトログイン: {loginUrl} — デフォルトAPI: {apiUrl}"
+    },
+    "CloudReLogin": {
+      "Title": "セッション期限切れ",
+      "SessionExpired": "クラウドセッションの有効期限が切れました。続行するには再度ログインしてください。",
+      "SessionRefreshed": "セッションが更新されました。もう一度お試しください。",
+      "Hint": "サインインをクリックしてブラウザでログインページを開きます。",
+      "CodeHint": "ログインページのワンタイムコードを入力してください。"
     },
     "About": {
       "Title": "mLearn",
@@ -1200,7 +1205,7 @@
       "GeneratingTts": "生成中…",
       "TtsGenerated": "TTS音声を再生成しました",
       "TtsGenerateFailed": "TTS音声の生成に失敗しました",
-      "NoRemoteUrl": "リモートTTS URLが設定されていません。設定→AI→フラッシュカードTTSで設定してください。",
+      "NoCloudAuth": "クラウドに未認証です。設定→サーバーからログインしてください。",
       "RegenerateExample": "例文を再生成",
       "RegeneratingExample": "再生成中…",
       "ExampleGenerateFailed": "例文の再生成に失敗しました",
@@ -1363,8 +1368,7 @@
         "TtsProvider": "TTSエンジン",
         "LocalTts": "ローカル",
         "Qwen3Tts": "Qwen3",
-        "RemoteTts": "リモート",
-        "RemoteTtsUrl": "サーバーURL",
+        "CloudTts": "Cloud",
         "Interrupted": "*ユーザーによる中断*",
         "SilenceThreshold": "無音閾値",
         "VoiceMode": "入力モード",
@@ -1375,7 +1379,7 @@
         "LoadingTtsModel": "音声合成モデルを読み込み中…",
         "DefaultVoice": "デフォルトの声",
         "VoiceSample": "音声クローン",
-        "VoiceSampleDisabledLocal": "カスタム音声アップロードはリモートTTSエンジンでのみ利用可能です",
+        "VoiceSampleDisabledLocal": "カスタム音声アップロードはQwen3-TTSまたはCloud TTSでのみ利用可能です",
         "UploadSample": "音声サンプルをアップロード",
         "Aftermath": {
           "Title": "セッションサマリー",
@@ -1447,11 +1451,12 @@
         "CloudConfig": {
           "Title": "クラウドLLM設定",
           "UrlHint": "リモートのOpenAI互換LLMサーバーのベースURL。",
-          "TokenHint": "クラウドLLMサーバーの認証トークン。",
+          "TokenHint": "接続設定からサインインしてクラウドLLMの認証を行います。",
           "TestConnection": "接続テスト",
           "Testing": "テスト中...",
           "ConnectionSuccess": "接続成功。",
-          "ConnectionFailed": "クラウドLLMに接続できませんでした。"
+          "ConnectionFailed": "クラウドLLMに接続できませんでした。",
+          "ApiUrlHint": "クラウドAPI URLは接続設定で設定されます。"
         },
         "BuiltinModel": {
           "Title": "内蔵モデル",
@@ -1484,10 +1489,10 @@
           },
           "Provider": {
             "Label": "TTSプロバイダー",
-            "Description": "ローカルKokoro TTS、Qwen3-TTS（音声クローン）、またはリモートTTSサービスから選択",
+            "Description": "ローカルKokoro TTS、Qwen3-TTS（音声クローン）、またはCloud TTSから選択",
             "Kokoro": "Kokoro（ローカル）",
             "Qwen3": "Qwen3-TTS（音声クローン）",
-            "Remote": "リモートサーバー"
+            "Cloud": "Cloud"
           },
           "VoiceSample": {
             "Label": "音声サンプル",
@@ -1503,10 +1508,6 @@
             "TestPlaceholder": "TTSをテストするテキストを入力…",
             "TestTts": "TTSテスト",
             "ModelLoading": "TTSモデル読み込み中…"
-          },
-          "RemoteUrl": {
-            "Label": "リモートTTS URL",
-            "Description": "リモートTTSサーバーのエンドポイントURL"
           },
           "AutoGenerate": {
             "Label": "オーディオ自動生成",

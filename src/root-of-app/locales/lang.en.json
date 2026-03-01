@@ -1044,10 +1044,8 @@
       "Mode": "Mode",
       "ModeLocal": "Local",
       "ModeTethered": "Tethered",
-      "ModeCloud": "Cloud",
       "HintLocal": "Uses the local Python backend on this machine.",
       "HintTethered": "Connect to the Python backend running on your desktop.",
-      "HintCloud": "Connect to a remote cloud backend.",
       "BackendUrl": "Backend URL",
       "AuthToken": "Auth Token",
       "AuthStatus": "Cloud Account",
@@ -1068,12 +1066,19 @@
       "LLMBuiltIn": "Built-in",
       "LLMOllama": "Ollama",
       "LLMCloud": "Cloud",
-      "CloudLLMUrl": "Cloud LLM URL",
-      "CloudLLMToken": "Cloud LLM Token",
-      "OverrideCloudEndpointUrl": "Overwrite cloud endpoint URL",
-      "OverrideCloudEndpointUrlDescription": "Use a custom cloud endpoint instead of the default service URL.",
+      "OverrideCloudEndpointUrl": "Override cloud URLs",
+      "OverrideCloudEndpointUrlDescription": "Use custom cloud URLs instead of the default service URLs.",
       "CloudEndpointUrl": "Cloud Endpoint URL",
-      "DefaultCloudEndpoint": "Default endpoint: {endpoint}"
+      "CloudLoginUrl": "Cloud Login URL",
+      "CloudApiUrl": "Cloud API URL",
+      "DefaultCloudEndpoint": "Default login: {loginUrl} — Default API: {apiUrl}"
+    },
+    "CloudReLogin": {
+      "Title": "Session Expired",
+      "SessionExpired": "Your cloud session has expired. Please sign in again to continue.",
+      "SessionRefreshed": "Session refreshed. Please try again.",
+      "Hint": "Click Sign in to open the login page in your browser.",
+      "CodeHint": "Enter the one-time code from the login page."
     },
     "About": {
       "Title": "mLearn",
@@ -1200,7 +1205,7 @@
       "GeneratingTts": "Generating…",
       "TtsGenerated": "TTS audio regenerated successfully",
       "TtsGenerateFailed": "Failed to generate TTS audio",
-      "NoRemoteUrl": "No remote TTS URL configured. Set it in Settings → AI → Flashcard TTS.",
+      "NoCloudAuth": "Not authenticated with cloud. Sign in via Settings → Server.",
       "RegenerateExample": "Regenerate Example",
       "RegeneratingExample": "Regenerating…",
       "ExampleGenerateFailed": "Failed to regenerate example",
@@ -1363,8 +1368,7 @@
         "TtsProvider": "TTS engine",
         "LocalTts": "Local",
         "Qwen3Tts": "Qwen3",
-        "RemoteTts": "Remote",
-        "RemoteTtsUrl": "Server URL",
+        "CloudTts": "Cloud",
         "Interrupted": "*interrupted by user*",
         "SilenceThreshold": "Silence threshold",
         "VoiceMode": "Input mode",
@@ -1375,7 +1379,7 @@
         "LoadingTtsModel": "Loading speech model…",
         "DefaultVoice": "Default voice",
         "VoiceSample": "Voice clone",
-        "VoiceSampleDisabledLocal": "Custom voice upload is only available with the Remote TTS engine",
+        "VoiceSampleDisabledLocal": "Custom voice upload is only available with Qwen3-TTS or Cloud TTS",
         "UploadSample": "Upload voice sample",
         "Aftermath": {
           "Title": "Session Summary",
@@ -1447,11 +1451,12 @@
         "CloudConfig": {
           "Title": "Cloud LLM Configuration",
           "UrlHint": "The base URL of the remote OpenAI-compatible LLM server.",
-          "TokenHint": "Authentication token for the cloud LLM server.",
+          "TokenHint": "Sign in via Connection settings to authenticate with the cloud LLM.",
           "TestConnection": "Test Connection",
           "Testing": "Testing...",
           "ConnectionSuccess": "Connection successful.",
-          "ConnectionFailed": "Could not connect to cloud LLM."
+          "ConnectionFailed": "Could not connect to cloud LLM.",
+          "ApiUrlHint": "The cloud API URL is configured in Connection settings."
         },
         "BuiltinModel": {
           "Title": "Built-in Model",
@@ -1484,10 +1489,10 @@
           },
           "Provider": {
             "Label": "TTS Provider",
-            "Description": "Choose between local Kokoro TTS, Qwen3-TTS (voice cloning), or a remote TTS service",
+            "Description": "Choose between local Kokoro TTS, Qwen3-TTS (voice cloning), or cloud TTS",
             "Kokoro": "Kokoro (local)",
             "Qwen3": "Qwen3-TTS (voice cloning)",
-            "Remote": "Remote server"
+            "Cloud": "Cloud"
           },
           "VoiceSample": {
             "Label": "Voice sample",
@@ -1503,10 +1508,6 @@
             "TestPlaceholder": "Type text to test TTS…",
             "TestTts": "Test TTS",
             "ModelLoading": "Loading TTS model…"
-          },
-          "RemoteUrl": {
-            "Label": "Remote TTS URL",
-            "Description": "URL of the remote TTS server endpoint"
           },
           "AutoGenerate": {
             "Label": "Auto-generate audio",
