@@ -54,7 +54,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   const providerOptions = () => [
     { value: 'kokoro', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Kokoro') },
     { value: 'qwen3', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Qwen3') },
-    { value: 'remote', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Remote') },
+    { value: 'cloud', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Cloud') },
   ];
 
   const handleGenerate = async () => {
@@ -63,20 +63,21 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
 
     const bridge = getBridge();
     const prov = provider();
-    const remoteUrl = settings.flashcardRemoteTtsUrl || undefined;
     const sampleId = voiceSampleId() || undefined;
     const language = settings.language;
+    const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
+    const cloudApiUrl = settings.cloudApiUrl || undefined;
 
     try {
       const wordForTts = (useReadingForTts() && props.reading) ? props.reading : props.wordText;
       const clean = wordForTts.replace(/<[^>]*>/g, '');
       if (clean && clean !== '-') {
-        await bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, remoteUrl, sampleId);
+        await bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, cloudAuthToken, cloudApiUrl);
       }
       if (props.exampleText) {
         const cleanEx = props.exampleText.replace(/<[^>]*>/g, '');
         if (cleanEx && cleanEx !== '-') {
-          await bridge.flashcards.generateFlashcardTts(props.cardId, cleanEx, language, 'example', prov, remoteUrl, sampleId);
+          await bridge.flashcards.generateFlashcardTts(props.cardId, cleanEx, language, 'example', prov, sampleId, cloudAuthToken, cloudApiUrl);
         }
       }
 
@@ -106,9 +107,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         try {
           const backend = getBackend({
             mode: settings.backendMode,
-            url: settings.backendMode === 'cloud'
-              ? (settings.overrideCloudEndpointUrl ? settings.backendUrl : '')
-              : settings.backendUrl,
+            url: settings.backendUrl,
             authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
           });
           const tokens = await backend.tokenize(result.sentence, settings.language);
@@ -174,8 +173,8 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
           </div>
         </Show>
 
-        <Show when={provider() === 'remote' && !settings.flashcardRemoteTtsUrl}>
-          <p class="tts-generate-warning">{t('mlearn.CardEditor.NoRemoteUrl')}</p>
+        <Show when={provider() === 'cloud' && !settings.cloudAuthAccessToken}>
+          <p class="tts-generate-warning">{t('mlearn.CardEditor.NoCloudAuth')}</p>
         </Show>
 
         <Show when={showReadingToggle()}>

@@ -14,7 +14,7 @@ import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../
 import { parseKeybind } from '../../../components/common';
 import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
-import { getBackend } from '../../../../shared/backends';
+import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../../../shared/backends';
 import { isElectron } from '../../../../shared/platform';
 import { ReaderNav, ReaderSidebar, ReaderWelcomeCard, ReaderStatusBar } from './components';
 import { ProgressRing } from '../../../components/common';
@@ -461,32 +461,63 @@ export const ReaderRoute: Component = () => {
       const turbo = settings.ocrTurboMode ?? true;
       const prepared = await prepareBlobForOCR(imageBlob, turbo);
 
-      const formData = new FormData();
-      formData.append('file', prepared.blob, 'image.png');
-      formData.append('turbo', turbo ? '1' : '0');
-      formData.append('ram_saver', (settings.ocrRamSaver ?? false) ? '1' : '0');
-      if (settings.devMode) {
-        formData.append('dev_mode', '1');
-        // Dev-mode PaddleOCR downscale: compute max dimensions from scale percentage
-        const scale = paddleOcrScale();
-        if (!turbo && scale < 100) {
-          const maxW = Math.max(1, Math.round(prepared.sentW * (scale / 100)));
-          const maxH = Math.max(1, Math.round(prepared.sentH * (scale / 100)));
-          formData.append('paddle_max_width', String(maxW));
-          formData.append('paddle_max_height', String(maxH));
+      let result: OcrResult;
+
+      if (settings.ocrProvider === 'cloud') {
+        // Cloud OCR via HATEOAS job flow
+        const cloudApiUrl = resolveCloudApiUrl(settings);
+        const cloudToken = (settings.cloudAuthAccessToken || settings.cloudAuthToken || '').trim();
+        if (!cloudToken) throw new Error('Cloud OCR requires authentication');
+
+        const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
+        const language = settings.language || 'ja';
+        const engine = turbo ? 'rapid' : undefined;
+        const cloudResult = await adapter.recognize(prepared.blob, language, engine);
+
+        // Convert cloud box format {x,y,width,height} to reader OcrBox format {box: [[x1,y1]...]}
+        const convertedBoxes: OcrResult['boxes'] = (cloudResult.boxes || []).map(b => ({
+          box: [
+            [b.x, b.y],
+            [b.x + b.width, b.y],
+            [b.x + b.width, b.y + b.height],
+            [b.x, b.y + b.height],
+          ],
+          text: b.text,
+          score: b.confidence,
+        }));
+
+        result = {
+          boxes: convertedBoxes,
+        } as OcrResult;
+      } else {
+        // Local OCR via Python backend FormData
+        const formData = new FormData();
+        formData.append('file', prepared.blob, 'image.png');
+        formData.append('turbo', turbo ? '1' : '0');
+        formData.append('ram_saver', (settings.ocrRamSaver ?? false) ? '1' : '0');
+        if (settings.devMode) {
+          formData.append('dev_mode', '1');
+          // Dev-mode PaddleOCR downscale: compute max dimensions from scale percentage
+          const scale = paddleOcrScale();
+          if (!turbo && scale < 100) {
+            const maxW = Math.max(1, Math.round(prepared.sentW * (scale / 100)));
+            const maxH = Math.max(1, Math.round(prepared.sentH * (scale / 100)));
+            formData.append('paddle_max_width', String(maxW));
+            formData.append('paddle_max_height', String(maxH));
+          }
         }
+
+        const response = await fetch(getBackend().buildUrl('/ocr'), {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`OCR request failed: ${response.status}`);
+        }
+
+        result = (await response.json()) as OcrResult;
       }
-
-      const response = await fetch(getBackend().buildUrl('/ocr'), {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`OCR request failed: ${response.status}`);
-      }
-
-      const result = (await response.json()) as OcrResult;
 
       result.client_scale = prepared.clientScale;
       result.downscale_factor = prepared.clientScale > 0 ? 1 / prepared.clientScale : 1;

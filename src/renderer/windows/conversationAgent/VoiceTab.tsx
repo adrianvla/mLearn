@@ -16,7 +16,6 @@ import {
   AlertBanner,
   Spinner,
   Select,
-  Input,
   MicrophoneIcon,
 } from '../../components/common';
 import type { SelectOption } from '../../components/common';
@@ -307,7 +306,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       bargeInFrames = 0;
       // Generate TTS for the final assistant response with optional voice cloning
       const sampleId = selectedSampleId() || undefined;
-      getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId);
+      const provider = settings.ttsProvider || 'kokoro';
+      getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider);
     }
   });
 
@@ -623,10 +623,6 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   const setTtsProvider = (provider: TTSProvider) => {
     updateSettings({ ...settings, ttsProvider: provider });
-  };
-
-  const setRemoteTtsUrl = (url: string) => {
-    updateSettings({ ...settings, remoteTtsUrl: url });
   };
 
   const setTtsSpeed = (speed: number) => {
@@ -945,28 +941,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   </Btn>
                   <Btn
                     size="sm"
-                    variant={(settings.ttsProvider || 'kokoro') === 'remote' ? 'primary' : 'ghost'}
-                    onClick={() => setTtsProvider('remote')}
+                    variant={(settings.ttsProvider || 'kokoro') === 'cloud' ? 'primary' : 'ghost'}
+                    onClick={() => setTtsProvider('cloud')}
                     class="voice-mode-btn"
                   >
-                    {t('mlearn.ConversationAgent.Voice.RemoteTts')}
+                    {t('mlearn.ConversationAgent.Voice.CloudTts')}
                   </Btn>
                 </div>
-              </div>
-            </Show>
-
-            {/* Remote TTS server URL */}
-            <Show when={isCallActive() && !isInitializing() && (settings.ttsProvider || 'kokoro') === 'remote'}>
-              <div class="voice-speed-row">
-                <label>{t('mlearn.ConversationAgent.Voice.RemoteTtsUrl')}</label>
-                <Input
-                  type="text"
-                  size="sm"
-                  placeholder="http://192.168.1.100:7760"
-                  value={settings.remoteTtsUrl || ''}
-                  onInput={(e) => setRemoteTtsUrl(e.currentTarget.value)}
-                  fullWidth
-                />
               </div>
             </Show>
 
@@ -1002,8 +983,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
             {/* Voice sample selector */}
             <Show when={isCallActive() && !isInitializing()}>
-              <div class={`voice-sample-row ${(settings.ttsProvider || 'kokoro') === 'kokoro' ? 'disabled' : ''}`}
-                title={(settings.ttsProvider || 'kokoro') === 'kokoro' ? t('mlearn.ConversationAgent.Voice.VoiceSampleDisabledLocal') : undefined}
+              <div class={`voice-sample-row ${((settings.ttsProvider || 'kokoro') === 'kokoro' || (settings.ttsProvider || 'kokoro') === 'cloud') ? 'disabled' : ''}`}
+                title={((settings.ttsProvider || 'kokoro') === 'kokoro' || (settings.ttsProvider || 'kokoro') === 'cloud') ? t('mlearn.ConversationAgent.Voice.VoiceSampleDisabledLocal') : undefined}
               >
                 <label>{t('mlearn.ConversationAgent.Voice.VoiceSample')}</label>
                 <Select
@@ -1011,14 +992,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   value={selectedSampleId()}
                   onChange={(e) => setSelectedSampleId(e.currentTarget.value)}
                   size="sm"
-                  disabled={(settings.ttsProvider || 'kokoro') === 'kokoro'}
+                  disabled={(settings.ttsProvider || 'kokoro') === 'kokoro' || (settings.ttsProvider || 'kokoro') === 'cloud'}
                 />
                 <IconBtn
                   icon={<UploadIcon />}
                   variant="ghost"
                   size="sm"
                   onClick={handleSampleUpload}
-                  disabled={(settings.ttsProvider || 'kokoro') === 'kokoro'}
+                  disabled={(settings.ttsProvider || 'kokoro') === 'kokoro' || (settings.ttsProvider || 'kokoro') === 'cloud'}
                   aria-label={t('mlearn.ConversationAgent.Voice.UploadSample')}
                 />
               </div>

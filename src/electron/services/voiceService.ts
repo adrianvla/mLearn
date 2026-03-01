@@ -1,6 +1,6 @@
 /**
  * Voice Service — relays audio between renderer IPC and Python backend
- * for STT (faster-whisper), TTS (Kokoro / Qwen3-TTS / Remote), and VAD (Silero).
+ * for STT (faster-whisper), TTS (Kokoro / Qwen3-TTS / Cloud), and VAD (Silero).
  *
  * All speech models run in the Python backend (server.py).
  * Audio streams from renderer via IPC → this service → Python WebSocket.
@@ -11,8 +11,9 @@ import { ipcMain, app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
+import * as https from 'https';
 import { spawn } from 'child_process';
-import { IPC_CHANNELS, API_ENDPOINTS } from '../../shared/constants';
+import { IPC_CHANNELS, API_ENDPOINTS, DEFAULT_CLOUD_API_URL } from '../../shared/constants';
 import type {
   VoiceModelStatus,
   VoiceSTTResult,
@@ -29,6 +30,7 @@ import {
   getPythonExecutablePath,
   isWindows,
 } from '../utils/platform';
+import { loadSettings } from './settings';
 import WebSocket from 'ws';
 
 // ============================================================================
@@ -436,6 +438,166 @@ function sendSilenceThresholdUpdate(threshold: number): void {
 }
 
 // ============================================================================
+// TTS Generation via Cloud (BFF Worker → Modal)
+// ============================================================================
+
+async function generateCloudTTS(
+  text: string,
+  language: string,
+  sender: Electron.WebContents,
+): Promise<void> {
+  ttsAbortController = new AbortController();
+  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: false });
+
+  try {
+    const settings = loadSettings();
+    const authToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
+    if (!authToken) {
+      throw new Error('Cloud TTS requires authentication. Please sign in to mLearn Cloud.');
+    }
+
+    const baseUrl = ((settings.overrideCloudEndpointUrl && settings.cloudApiUrl)
+      ? settings.cloudApiUrl
+      : DEFAULT_CLOUD_API_URL).replace(/\/+$/, '');
+
+    // Step 1: Request stream URL from BFF
+    const streamUrlObj = new URL(`${baseUrl}/api/tts/stream`);
+    const body = JSON.stringify({ text, language, provider: 'moss-realtime' });
+
+    const streamInfo = await new Promise<{ streamUrl: string }>((resolve, reject) => {
+      if (ttsAbortController?.signal.aborted) { reject(new Error('Aborted')); return; }
+      const proto = streamUrlObj.protocol === 'https:' ? https : http;
+      const req = proto.request(
+        {
+          hostname: streamUrlObj.hostname,
+          port: streamUrlObj.port,
+          path: streamUrlObj.pathname,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body),
+            'Authorization': `Bearer ${authToken}`,
+          },
+          timeout: 30000,
+        },
+        (res: http.IncomingMessage) => {
+          if (res.statusCode !== 200) {
+            res.resume();
+            reject(new Error(`Cloud TTS setup failed: HTTP ${res.statusCode}`));
+            return;
+          }
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => {
+            try {
+              const data = JSON.parse(Buffer.concat(chunks).toString());
+              const url = data.actions?.stream_url;
+              if (!url) {
+                reject(new Error('Cloud TTS: no stream_url in response'));
+                return;
+              }
+              resolve({ streamUrl: url });
+            } catch (e) { reject(e); }
+          });
+          res.on('error', reject);
+        },
+      );
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS setup timeout')); });
+      req.write(body);
+      req.end();
+    });
+
+    if (ttsAbortController?.signal.aborted) return;
+
+    // Step 2: Stream audio from Modal endpoint
+    // The Modal endpoint returns chunked WAV — each chunk is a separate WAV file (~100ms of PCM_16 @ 24kHz)
+    const audioUrl = new URL(streamInfo.streamUrl);
+    const sampleRate = 24000;
+    const WAV_HEADER_SIZE = 44;
+
+    await new Promise<void>((resolve, reject) => {
+      if (ttsAbortController?.signal.aborted) { resolve(); return; }
+      const proto = audioUrl.protocol === 'https:' ? https : http;
+      const req = proto.request(
+        {
+          hostname: audioUrl.hostname,
+          port: audioUrl.port,
+          path: audioUrl.pathname + audioUrl.search,
+          method: 'GET',
+          timeout: 120000,
+        },
+        (res: http.IncomingMessage) => {
+          if (res.statusCode !== 200) {
+            res.resume();
+            reject(new Error(`Cloud TTS stream failed: HTTP ${res.statusCode}`));
+            return;
+          }
+
+          // Accumulate incoming data and extract WAV chunks.
+          // Each chunk from Modal is a full WAV file (header + PCM data).
+          let pending = Buffer.alloc(0);
+          let sentenceIndex = 0;
+
+          res.on('data', (chunk: Buffer) => {
+            if (ttsAbortController?.signal.aborted) {
+              res.destroy();
+              return;
+            }
+            pending = Buffer.concat([pending, chunk]);
+
+            // Try to extract complete WAV chunks from the buffer
+            while (pending.length > WAV_HEADER_SIZE) {
+              // Read data size from WAV header bytes 40-43 (little-endian uint32)
+              const dataSize = pending.readUInt32LE(40);
+              const totalSize = WAV_HEADER_SIZE + dataSize;
+              if (pending.length < totalSize) break;
+
+              // Extract this WAV chunk's PCM data
+              const pcmData = pending.subarray(WAV_HEADER_SIZE, totalSize);
+              pending = pending.subarray(totalSize);
+
+              // Convert Int16 PCM to Float32
+              const int16View = new Int16Array(
+                pcmData.buffer,
+                pcmData.byteOffset,
+                pcmData.byteLength / 2,
+              );
+              const float32Samples = new Float32Array(int16View.length);
+              for (let i = 0; i < int16View.length; i++) {
+                float32Samples[i] = int16View[i] / 32768;
+              }
+
+              const audio: VoiceTtsAudio = {
+                samples: float32Samples,
+                sampleRate,
+                sentenceIndex: sentenceIndex++,
+                sentenceText: '',
+                totalSentences: 0,
+              };
+              sender.send(IPC_CHANNELS.VOICE_TTS_AUDIO, audio);
+            }
+          });
+
+          res.on('end', resolve);
+          res.on('error', reject);
+        },
+      );
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Cloud TTS stream timeout')); });
+      req.end();
+    });
+  } catch (err) {
+    if (!ttsAbortController?.signal.aborted) {
+      console.error('[VoiceService] Cloud TTS error:', err);
+    }
+  }
+
+  ttsAbortController = null;
+  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+}
+
+// ============================================================================
 // TTS Generation via Python Backend
 // ============================================================================
 
@@ -447,6 +609,11 @@ async function generateTTS(
   sender: Electron.WebContents,
   provider?: string,
 ): Promise<void> {
+  // Cloud TTS has a completely different path — BFF → Modal streaming
+  if (provider === 'cloud') {
+    return generateCloudTTS(text, language, sender);
+  }
+
   ttsAbortController = new AbortController();
 
   // Check if TTS model is loaded — if not, signal that model loading is in progress

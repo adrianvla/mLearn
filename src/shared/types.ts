@@ -103,8 +103,8 @@ export interface Settings {
 
   // Backend connection mode
   /** How the renderer reaches the Python backend */
-  backendMode: 'local' | 'tethered' | 'cloud';
-  /** Base URL when mode is 'tethered' or 'cloud' (e.g. http://192.168.1.10:7752) */
+  backendMode: 'local' | 'tethered';
+  /** Base URL when mode is 'tethered' (e.g. http://192.168.1.10:7752) */
   backendUrl: string;
   /** Bearer token for cloud backend auth */
   cloudAuthToken: string;
@@ -122,12 +122,12 @@ export interface Settings {
   cloudAuthStatus: 'signed-out' | 'signed-in';
   /** URL of the Electron node server (port 7753) for tethered mode sync */
   nodeServerUrl: string;
-  /** URL for cloud LLM endpoint */
-  cloudLLMUrl: string;
-  /** Auth token for cloud LLM endpoint */
-  cloudLLMToken: string;
-  /** Whether cloud endpoint URL is manually overridden */
+  /** Whether cloud endpoint URLs are manually overridden */
   overrideCloudEndpointUrl: boolean;
+  /** Custom cloud login/website URL (when overrideCloudEndpointUrl is true) */
+  cloudLoginUrl: string;
+  /** Custom cloud API URL (when overrideCloudEndpointUrl is true) */
+  cloudApiUrl: string;
   /** Timestamp of last settings modification (for sync conflict resolution) */
   lastModified: number;
 
@@ -219,10 +219,8 @@ export interface Settings {
   // Voice call mode settings
   /** Voice input mode: hands-free VAD or push-to-talk */
   voiceMode: VoiceMode;
-  /** TTS backend provider: local Kokoro or remote MOSS-TTS server */
+  /** TTS backend provider: local Kokoro, Qwen3, or Cloud */
   ttsProvider: TTSProvider;
-  /** Remote TTS server URL (for 'remote' provider, e.g. http://192.168.1.100:7760) */
-  remoteTtsUrl: string;
   /** TTS speech speed multiplier */
   voiceTtsSpeed: number;
   /** Automatically send message after VAD silence detection */
@@ -236,11 +234,9 @@ export interface Settings {
   // Flashcard TTS settings
   /** Auto-play TTS when viewing flashcard front */
   flashcardAutoTts: boolean;
-  /** TTS provider for flashcard audio: 'kokoro' (local) or 'remote' */
+  /** TTS provider for flashcard audio: 'kokoro', 'qwen3', or 'cloud' */
   flashcardTtsProvider: TTSProvider;
-  /** Remote TTS server URL for flashcard audio generation */
-  flashcardRemoteTtsUrl: string;
-  /** Auto-generate .ogg files for new flashcards using remote TTS */
+  /** Auto-generate .ogg files for new flashcards */
   flashcardAutoGenerateAudio: boolean;
   /** Voice sample ID for flashcard TTS voice cloning (Qwen3/Remote) */
   flashcardVoiceSampleId: string;
@@ -284,9 +280,9 @@ export const DEFAULT_SETTINGS: Settings = {
   cloudAuthExpiresAt: 0,
   cloudAuthStatus: 'signed-out',
   nodeServerUrl: 'http://127.0.0.1:7753',
-  cloudLLMUrl: '',
-  cloudLLMToken: '',
   overrideCloudEndpointUrl: false,
+  cloudLoginUrl: '',
+  cloudApiUrl: '',
   lastModified: 0,
   openAside: true,
   llmEnabled: true,
@@ -337,14 +333,12 @@ export const DEFAULT_SETTINGS: Settings = {
   sttLanguage: '',
   voiceMode: 'vad',
   ttsProvider: 'kokoro',
-  remoteTtsUrl: '',
   voiceTtsSpeed: 1.0,
   voiceAutoSendOnSilence: true,
   voiceSilenceThreshold: 1.2,
   uiLanguage: 'en',
   flashcardAutoTts: true,
   flashcardTtsProvider: 'kokoro',
-  flashcardRemoteTtsUrl: '',
   flashcardAutoGenerateAudio: false,
   flashcardVoiceSampleId: '',
 };
@@ -870,7 +864,7 @@ export type LLMProvider = 'builtin' | 'ollama' | 'cloud';
 export type OCRProvider = 'local' | 'cloud';
 
 /** TTS backend provider */
-export type TTSProvider = 'kokoro' | 'qwen3' | 'remote';
+export type TTSProvider = 'kokoro' | 'qwen3' | 'cloud';
 
 /** Provider-agnostic chat message */
 export interface LLMChatMessage {

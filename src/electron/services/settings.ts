@@ -27,11 +27,13 @@ export function loadSettings(): Settings {
       if (!migrated.cloudAuthAccessToken && migrated.cloudAuthToken) {
         migrated.cloudAuthAccessToken = migrated.cloudAuthToken;
       }
-      if (!migrated.cloudAuthAccessToken && migrated.cloudLLMToken) {
-        migrated.cloudAuthAccessToken = migrated.cloudLLMToken;
-      }
       if (migrated.cloudAuthAccessToken && !migrated.cloudAuthStatus) {
         migrated.cloudAuthStatus = 'signed-in';
+      }
+      // Migrate single backendUrl → split cloudLoginUrl/cloudApiUrl for cloud override
+      if (migrated.overrideCloudEndpointUrl && migrated.backendUrl && !migrated.cloudApiUrl) {
+        migrated.cloudApiUrl = migrated.backendUrl;
+        migrated.cloudLoginUrl = migrated.backendUrl;
       }
       // Merge with defaults to ensure all keys exist
       return { ...DEFAULT_SETTINGS, ...migrated };

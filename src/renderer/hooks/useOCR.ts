@@ -7,7 +7,7 @@
 import { createSignal } from 'solid-js';
 import { useServer } from '../context';
 import { useSettings } from '../context/SettingsContext';
-import { getBackend } from '../../shared/backends';
+import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../shared/backends';
 
 // Max target area for OCR (preserve aspect ratio) - matches legacy app
 const MAX_OCR_AREA_TURBO = 1000 * 1600; // 1.6M pixels — turbo mode
@@ -366,22 +366,26 @@ export function useOCR() {
   const [lastResult, setLastResult] = createSignal<OCRResult | null>(null);
   const [error, setError] = createSignal<string | null>(null);
 
-  const getOCRRequestConfig = (): { url: string; headers?: Record<string, string>; requiresLocalConnection: boolean } => {
-    if (settings.ocrProvider === 'cloud') {
-      const cloudUrl = settings.overrideCloudEndpointUrl ? (settings.backendUrl || '').trim() : '';
-      const cloudToken = (settings.cloudAuthAccessToken || settings.cloudAuthToken || '').trim();
-      const backend = getBackend({ mode: 'cloud', url: cloudUrl, authToken: cloudToken });
-      const headers = cloudToken ? { Authorization: `Bearer ${cloudToken}` } : undefined;
-      return {
-        url: backend.buildUrl('/ocr'),
-        headers,
-        requiresLocalConnection: false,
-      };
-    }
+  const isCloudOCR = () => settings.ocrProvider === 'cloud';
+
+  const getLocalOCRUrl = (): string => {
+    return getBackend().buildUrl('/ocr');
+  };
+
+  /** Run OCR via the cloud HATEOAS job flow (CloudOCRAdapter) */
+  const recognizeViaCloud = async (imageBlob: Blob, turbo: boolean): Promise<OCRResult> => {
+    const cloudApiUrl = resolveCloudApiUrl(settings);
+    const cloudToken = (settings.cloudAuthAccessToken || settings.cloudAuthToken || '').trim();
+    if (!cloudToken) throw new Error('Cloud OCR requires authentication. Please log in to Cloud first.');
+
+    const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
+    const language = settings.language || 'ja';
+    const engine = turbo ? 'rapid' : undefined;
+    const result = await adapter.recognize(imageBlob, language, engine);
 
     return {
-      url: getBackend().buildUrl('/ocr'),
-      requiresLocalConnection: true,
+      text: result.text,
+      boxes: result.boxes,
     };
   };
 
@@ -389,8 +393,7 @@ export function useOCR() {
   const recognize = async (
     input: Blob | HTMLCanvasElement | HTMLImageElement | string
   ): Promise<OCRResult | null> => {
-    const requestConfig = getOCRRequestConfig();
-    if (requestConfig.requiresLocalConnection && !isConnected()) {
+    if (!isCloudOCR() && !isConnected()) {
       setError('Backend not connected');
       return null;
     }
@@ -399,11 +402,25 @@ export function useOCR() {
     setError(null);
 
     try {
+      const turbo = settings.ocrTurboMode ?? true;
+
+      if (isCloudOCR()) {
+        // Prepare the blob, then send via CloudOCRAdapter
+        const prepared = await inputToBlobForOCR(input, turbo);
+        const result = await recognizeViaCloud(prepared.blob, turbo);
+        result.client_scale = prepared.clientScale;
+        result.downscale_factor = prepared.clientScale > 0 ? 1 / prepared.clientScale : 1;
+        result.original_size = { width: prepared.originalW, height: prepared.originalH };
+        result.sent_size = { width: prepared.sentW, height: prepared.sentH };
+        setLastResult(result);
+        return result;
+      }
+
       const result = await sendImageForOCR(
         input,
-        requestConfig.url,
-        requestConfig.headers,
-        settings.ocrTurboMode ?? true,
+        getLocalOCRUrl(),
+        undefined,
+        turbo,
       );
       setLastResult(result);
       return result;

@@ -1,17 +1,16 @@
 /**
  * HTTP Backend Adapter
  *
- * Single implementation that works for all backend modes:
+ * Single implementation that works for both backend modes:
  * - `local`    → http://127.0.0.1:7752  (desktop, Python running locally)
  * - `tethered` → http://<host-ip>:7752  (mobile connecting to desktop)
- * - `cloud`    → https://<cloud-url>    (future cloud backend)
  */
 
 import type { Token, TranslationResponse } from '../types';
 import type { BackendAdapter, OCRResult } from './types';
 
 export interface HttpBackendOptions {
-  /** Bearer token for cloud auth (optional) */
+  /** Bearer token for auth (optional) */
   authToken?: string;
 }
 

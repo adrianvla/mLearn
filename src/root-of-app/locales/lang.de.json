@@ -1044,10 +1044,8 @@
       "Mode": "Modus",
       "ModeLocal": "Lokal",
       "ModeTethered": "Angebunden",
-      "ModeCloud": "Cloud",
       "HintLocal": "Verwendet das lokale Python-Backend auf diesem Gerät.",
       "HintTethered": "Verbindet sich mit dem Python-Backend auf Ihrem Desktop.",
-      "HintCloud": "Verbindet sich mit einem entfernten Cloud-Backend.",
       "BackendUrl": "Backend-URL",
       "AuthToken": "Auth-Token",
       "AuthStatus": "Cloud-Konto",
@@ -1068,12 +1066,19 @@
       "LLMBuiltIn": "Eingebaut",
       "LLMOllama": "Ollama",
       "LLMCloud": "Cloud",
-      "CloudLLMUrl": "Cloud-LLM-URL",
-      "CloudLLMToken": "Cloud-LLM-Token",
-      "OverrideCloudEndpointUrl": "Cloud-Endpunkt-URL überschreiben",
-      "OverrideCloudEndpointUrlDescription": "Benutzerdefinierten Cloud-Endpunkt statt der Standard-Service-URL verwenden.",
+      "OverrideCloudEndpointUrl": "Cloud-URLs überschreiben",
+      "OverrideCloudEndpointUrlDescription": "Benutzerdefinierte Cloud-URLs statt der Standard-Service-URLs verwenden.",
       "CloudEndpointUrl": "Cloud-Endpunkt-URL",
-      "DefaultCloudEndpoint": "Standard-Endpunkt: {endpoint}"
+      "CloudLoginUrl": "Cloud-Login-URL",
+      "CloudApiUrl": "Cloud-API-URL",
+      "DefaultCloudEndpoint": "Standard-Login: {loginUrl} — Standard-API: {apiUrl}"
+    },
+    "CloudReLogin": {
+      "Title": "Sitzung abgelaufen",
+      "SessionExpired": "Ihre Cloud-Sitzung ist abgelaufen. Bitte melden Sie sich erneut an, um fortzufahren.",
+      "SessionRefreshed": "Sitzung aktualisiert. Bitte versuchen Sie es erneut.",
+      "Hint": "Klicken Sie auf Anmelden, um die Anmeldeseite im Browser zu öffnen.",
+      "CodeHint": "Geben Sie den Einmalcode von der Anmeldeseite ein."
     },
     "About": {
       "Title": "mLearn",
@@ -1200,7 +1205,7 @@
       "GeneratingTts": "Wird generiert…",
       "TtsGenerated": "TTS-Audio erfolgreich neu generiert",
       "TtsGenerateFailed": "TTS-Audio konnte nicht generiert werden",
-      "NoRemoteUrl": "Keine Remote-TTS-URL konfiguriert. In Einstellungen → KI → Lernkarten-TTS festlegen.",
+      "NoCloudAuth": "Nicht bei Cloud angemeldet. Melden Sie sich unter Einstellungen → Server an.",
       "RegenerateExample": "Beispiel neu generieren",
       "RegeneratingExample": "Wird generiert…",
       "ExampleGenerateFailed": "Beispiel konnte nicht neu generiert werden",
@@ -1363,8 +1368,7 @@
         "TtsProvider": "TTS-Engine",
         "LocalTts": "Lokal",
         "Qwen3Tts": "Qwen3",
-        "RemoteTts": "Remote",
-        "RemoteTtsUrl": "Server-URL",
+        "CloudTts": "Cloud",
         "Interrupted": "*Vom Benutzer unterbrochen*",
         "SilenceThreshold": "Stille-Schwelle",
         "VoiceMode": "Eingabemodus",
@@ -1375,7 +1379,7 @@
         "LoadingTtsModel": "Sprachsynthesemodell wird geladen…",
         "DefaultVoice": "Standardstimme",
         "VoiceSample": "Stimmklon",
-        "VoiceSampleDisabledLocal": "Benutzerdefinierte Stimmen-Upload ist nur mit der Remote-TTS-Engine verfügbar",
+        "VoiceSampleDisabledLocal": "Benutzerdefinierter Stimmen-Upload ist nur mit Qwen3-TTS oder Cloud-TTS verfügbar",
         "UploadSample": "Stimmprobe hochladen",
         "Aftermath": {
           "Title": "Sitzungszusammenfassung",
@@ -1447,11 +1451,12 @@
         "CloudConfig": {
           "Title": "Cloud-LLM-Konfiguration",
           "UrlHint": "Die Basis-URL des Remote-OpenAI-kompatiblen LLM-Servers.",
-          "TokenHint": "Authentifizierungstoken für den Cloud-LLM-Server.",
+          "TokenHint": "Melden Sie sich über die Verbindungseinstellungen an, um sich beim Cloud-LLM zu authentifizieren.",
           "TestConnection": "Verbindung testen",
           "Testing": "Teste...",
           "ConnectionSuccess": "Verbindung erfolgreich.",
-          "ConnectionFailed": "Verbindung zum Cloud-LLM fehlgeschlagen."
+          "ConnectionFailed": "Verbindung zum Cloud-LLM fehlgeschlagen.",
+          "ApiUrlHint": "Die Cloud-API-URL wird in den Verbindungseinstellungen konfiguriert."
         },
         "BuiltinModel": {
           "Title": "Integriertes Modell",
@@ -1484,10 +1489,10 @@
           },
           "Provider": {
             "Label": "TTS-Anbieter",
-            "Description": "Wählen Sie zwischen lokalem Kokoro-TTS, Qwen3-TTS (Stimmklonen) oder einem Remote-TTS-Dienst",
+            "Description": "Wählen Sie zwischen lokalem Kokoro-TTS, Qwen3-TTS (Stimmklonen) oder Cloud-TTS",
             "Kokoro": "Kokoro (lokal)",
             "Qwen3": "Qwen3-TTS (Stimmklonen)",
-            "Remote": "Remote-Server"
+            "Cloud": "Cloud"
           },
           "VoiceSample": {
             "Label": "Stimmprobe",
@@ -1503,10 +1508,6 @@
             "TestPlaceholder": "Text eingeben, um TTS zu testen…",
             "TestTts": "TTS testen",
             "ModelLoading": "TTS-Modell wird geladen…"
-          },
-          "RemoteUrl": {
-            "Label": "Remote-TTS-URL",
-            "Description": "URL des Remote-TTS-Server-Endpunkts"
           },
           "AutoGenerate": {
             "Label": "Audio automatisch generieren",

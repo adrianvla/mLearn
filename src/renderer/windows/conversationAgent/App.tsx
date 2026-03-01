@@ -7,6 +7,10 @@ import { Component, Show, Index, createSignal, createEffect, onMount, onCleanup 
 import { WindowWrapper, useSettings, useLanguage, useLocalization } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
+import { CloudLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
+import { resolveCloudApiUrl } from '../../../shared/backends';
+import { validateAndRefreshCloudSession } from '../../services/cloudAuthService';
+import { CloudReLoginModal } from '../../components/cloud';
 import {
   IconBtn,
   TabContainer,
@@ -122,6 +126,9 @@ export const ConversationContent: Component = () => {
   // Level adaptation state
   const [targetLevel, setTargetLevel] = createSignal<number | null>(null);
 
+  // Cloud re-login modal state
+  const [showReLoginModal, setShowReLoginModal] = createSignal(false);
+
   // Word hover state
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
   const { translateWord } = useTranslation({ immediate: true });
@@ -146,11 +153,13 @@ export const ConversationContent: Component = () => {
     return currentLangData()?.name_translated || currentLangData()?.name || languageCode;
   };
 
-  const providerLabel = () => (
-    settings.llmProvider === 'ollama'
-      ? t('mlearn.AI.Settings.Provider.Ollama')
-      : t('mlearn.AI.Settings.Provider.Builtin')
-  );
+  const providerLabel = () => {
+    switch (settings.llmProvider) {
+      case 'cloud': return t('mlearn.AI.Settings.Provider.Cloud');
+      case 'ollama': return t('mlearn.AI.Settings.Provider.Ollama');
+      default: return t('mlearn.AI.Settings.Provider.Builtin');
+    }
+  };
 
   const topTabs = (): TabItem[] => [
     { id: 'chat', label: t('mlearn.ConversationAgent.Tab.Chat') },
@@ -185,12 +194,22 @@ export const ConversationContent: Component = () => {
     void settings.ollamaUrl;
     void settings.ollamaModel;
     void settings.llmConfigured;
+    void settings.cloudApiUrl;
+    void settings.overrideCloudEndpointUrl;
 
     setIsCheckingConnection(true);
 
     (async () => {
       try {
-        if (provider === 'ollama') {
+        if (provider === 'cloud') {
+          const cloudApiUrl = resolveCloudApiUrl(settings);
+          const adapter = new CloudLLMAdapter(
+            cloudApiUrl,
+            settings.cloudAuthAccessToken || settings.cloudAuthToken,
+          );
+          const reachable = await adapter.checkAvailability();
+          setIsConnected(reachable);
+        } else if (provider === 'ollama') {
           const connected = await getBridge().llm.ollamaCheck();
           setIsConnected(connected ?? false);
         } else {
@@ -210,7 +229,7 @@ export const ConversationContent: Component = () => {
     const bridge = getBridge();
 
     const cleanupStatus = bridge.llm.onLLMModelStatus((status: { downloaded: boolean }) => {
-      if (settings.llmProvider !== 'ollama') {
+      if (settings.llmProvider === 'builtin') {
         setIsConnected(status.downloaded);
       }
     });
@@ -480,6 +499,67 @@ export const ConversationContent: Component = () => {
       },
       onError: (error) => {
         setIsProcessingToolCall(false);
+        setIsStreaming(false);
+        setIsWaiting(false);
+
+        // Detect cloud 401 errors — attempt token refresh, then show re-login modal
+        const is401 = settings.llmProvider === 'cloud' && (
+          error.includes('401') || error.toLowerCase().includes('invalid session')
+        );
+
+        if (is401) {
+          validateAndRefreshCloudSession(settings).then((result) => {
+            if (result.status === 'refreshed' && result.accessToken && result.refreshToken) {
+              // Token was refreshed — update settings and inform user
+              updateSettings({
+                cloudAuthAccessToken: result.accessToken,
+                cloudAuthRefreshToken: result.refreshToken,
+                ...(result.expiresAt ? { cloudAuthExpiresAt: result.expiresAt } : {}),
+              });
+              setMessages((prev) => {
+                const updated = [...prev];
+                const lastIdx = updated.length - 1;
+                updated[lastIdx] = {
+                  ...updated[lastIdx],
+                  content: t('mlearn.CloudReLogin.SessionRefreshed'),
+                };
+                return updated;
+              });
+            } else {
+              // Session fully expired — show re-login modal
+              updateSettings({
+                cloudAuthAccessToken: '',
+                cloudAuthRefreshToken: '',
+                cloudAuthUserId: '',
+                cloudAuthUserEmail: '',
+                cloudAuthExpiresAt: 0,
+                cloudAuthStatus: 'signed-out',
+              });
+              setShowReLoginModal(true);
+              setMessages((prev) => {
+                const updated = [...prev];
+                const lastIdx = updated.length - 1;
+                updated[lastIdx] = {
+                  ...updated[lastIdx],
+                  content: t('mlearn.CloudReLogin.SessionExpired'),
+                };
+                return updated;
+              });
+            }
+          }).catch(() => {
+            setMessages((prev) => {
+              const updated = [...prev];
+              const lastIdx = updated.length - 1;
+              updated[lastIdx] = {
+                ...updated[lastIdx],
+                content: `Error: ${error}`,
+              };
+              return updated;
+            });
+          });
+          return;
+        }
+
         setMessages((prev) => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
@@ -489,8 +569,6 @@ export const ConversationContent: Component = () => {
           };
           return updated;
         });
-        setIsStreaming(false);
-        setIsWaiting(false);
       },
     };
   };
@@ -1064,7 +1142,14 @@ export const ConversationContent: Component = () => {
         />
       </TabPanel>
 
-
+      {/* Cloud re-login modal */}
+      <CloudReLoginModal
+        isOpen={showReLoginModal()}
+        onClose={() => setShowReLoginModal(false)}
+        onReLoginSuccess={() => {
+          setIsConnected(true);
+        }}
+      />
 
     </div>
   );

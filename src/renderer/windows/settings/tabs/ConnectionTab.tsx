@@ -1,28 +1,24 @@
 /**
  * Connection Settings Tab
- * Configure backend mode (Local / Tethered / Cloud) and connection testing for mobile tethering.
+ * Configure backend mode (Local / Tethered) and connection testing for mobile tethering.
  */
 
 import { Component, Show, createSignal, onCleanup } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, CheckIcon, CrossIcon, ToggleSwitch } from '../../../components/common';
 import { isMobile } from '../../../../shared/platform';
-import { DEFAULT_CLOUD_ENDPOINT, getBackend, resetBackend } from '../../../../shared/backends';
+import { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL, getBackend, resetBackend } from '../../../../shared/backends';
 import { getNodeServer } from '../../../../shared/backends/nodeServerAdapter';
 import { getBridge } from '../../../../shared/bridges';
 import { exchangeCloudDesktopCode, getCloudDashboardUrl, startCloudDesktopLogin } from '../../../services/cloudAuthService';
 import type { SelectOption } from '../../../components/common';
 import './ConnectionTab.css';
 
-type BackendMode = 'local' | 'tethered' | 'cloud';
+type BackendMode = 'local' | 'tethered';
 
 export const ConnectionTab: Component = () => {
   const { settings, updateSetting } = useSettings();
   const { t } = useLocalization();
-  const resolveCloudBackendUrl = () => (
-    settings.overrideCloudEndpointUrl ? settings.backendUrl : ''
-  );
-
   // Test connection state
   const [testingBackend, setTestingBackend] = createSignal(false);
   const [backendStatus, setBackendStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
@@ -44,7 +40,6 @@ export const ConnectionTab: Component = () => {
     }
     opts.push(
       { value: 'tethered', label: t('mlearn.Connection.ModeTethered') || 'Tethered' },
-      { value: 'cloud', label: t('mlearn.Connection.ModeCloud') || 'Cloud' },
     );
     return opts;
   };
@@ -57,7 +52,7 @@ export const ConnectionTab: Component = () => {
       resetBackend();
       const backend = getBackend({
         mode: settings.backendMode as BackendMode,
-        url: settings.backendMode === 'cloud' ? resolveCloudBackendUrl() : settings.backendUrl,
+        url: settings.backendUrl,
         authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
       });
       const ok = await backend.ping();
@@ -194,11 +189,9 @@ export const ConnectionTab: Component = () => {
         </SettingRow>
 
         <HintText>
-          {settings.backendMode === 'local'
-            ? (t('mlearn.Connection.HintLocal') || 'Uses the local Python backend on this machine.')
-            : settings.backendMode === 'tethered'
-              ? (t('mlearn.Connection.HintTethered') || 'Connect to the Python backend running on your desktop.')
-              : (t('mlearn.Connection.HintCloud') || 'Connect to a remote cloud backend.')}
+          {settings.backendMode === 'tethered'
+            ? (t('mlearn.Connection.HintTethered') || 'Connect to the Python backend running on your desktop.')
+            : (t('mlearn.Connection.HintLocal') || 'Uses the local Python backend on this machine.')}
         </HintText>
 
         {/* Tethered / Cloud URL */}
@@ -220,19 +213,29 @@ export const ConnectionTab: Component = () => {
             checked={settings.overrideCloudEndpointUrl}
             onChange={(checked) => {
               updateSetting('overrideCloudEndpointUrl', checked);
-              if (checked && !settings.backendUrl) {
-                updateSetting('backendUrl', DEFAULT_CLOUD_ENDPOINT);
+              if (checked && !settings.cloudLoginUrl) {
+                updateSetting('cloudLoginUrl', DEFAULT_CLOUD_LOGIN_URL);
+              }
+              if (checked && !settings.cloudApiUrl) {
+                updateSetting('cloudApiUrl', DEFAULT_CLOUD_API_URL);
               }
             }}
           />
         </SettingRow>
 
         <Show when={settings.overrideCloudEndpointUrl}>
-          <SettingRow label={t('mlearn.Connection.CloudEndpointUrl')}>
+          <SettingRow label={t('mlearn.Connection.CloudLoginUrl')}>
             <Input
-              value={settings.backendUrl}
-              onInput={(e) => updateSetting('backendUrl', e.currentTarget.value)}
-              placeholder={DEFAULT_CLOUD_ENDPOINT}
+              value={settings.cloudLoginUrl}
+              onInput={(e) => updateSetting('cloudLoginUrl', e.currentTarget.value)}
+              placeholder={DEFAULT_CLOUD_LOGIN_URL}
+            />
+          </SettingRow>
+          <SettingRow label={t('mlearn.Connection.CloudApiUrl')}>
+            <Input
+              value={settings.cloudApiUrl}
+              onInput={(e) => updateSetting('cloudApiUrl', e.currentTarget.value)}
+              placeholder={DEFAULT_CLOUD_API_URL}
             />
           </SettingRow>
         </Show>
@@ -277,7 +280,7 @@ export const ConnectionTab: Component = () => {
         </Show>
 
         <HintText>
-          {t('mlearn.Connection.DefaultCloudEndpoint', { endpoint: DEFAULT_CLOUD_ENDPOINT })}
+          {t('mlearn.Connection.DefaultCloudEndpoint', { loginUrl: DEFAULT_CLOUD_LOGIN_URL, apiUrl: DEFAULT_CLOUD_API_URL })}
         </HintText>
 
         {/* Test connection button */}

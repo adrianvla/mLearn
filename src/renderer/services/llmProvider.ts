@@ -8,6 +8,7 @@ import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, Se
 import { getBridge } from '../../shared/bridges';
 import { isMobile } from '../../shared/platform';
 import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
+import { resolveCloudApiUrl } from '../../shared/backends';
 
 // ============================================================================
 // Types
@@ -189,14 +190,11 @@ function streamChatMobile(
   let firstTokenTime = 0;
   const collectedToolCalls: LLMToolCall[] = [];
 
-  // Determine the cloud URL: direct cloud or tethered via desktop's forwarding endpoint
+  // Determine the cloud URL: tethered via desktop's forwarding endpoint
   let url: string;
   let token: string;
 
-  if (settings.backendMode === 'cloud' && settings.cloudLLMUrl) {
-    url = settings.cloudLLMUrl;
-    token = settings.cloudAuthAccessToken || settings.cloudLLMToken || settings.cloudAuthToken;
-  } else if (settings.backendMode === 'tethered' && settings.backendUrl) {
+  if (settings.backendMode === 'tethered' && settings.backendUrl) {
     // Tethered: forward through the desktop's web server
     url = settings.backendUrl.replace(/\/+$/, '');
     token = settings.cloudAuthAccessToken || settings.cloudAuthToken;
@@ -257,12 +255,10 @@ export async function checkAvailability(settings: Settings): Promise<{ available
   }
 
   if (settings.llmProvider === 'cloud') {
-    if (!settings.cloudLLMUrl) {
-      return { available: false, reason: 'cloud_url_not_set' };
-    }
+    const cloudApiUrl = resolveCloudApiUrl(settings);
     const adapter = new CloudLLMAdapter(
-      settings.cloudLLMUrl,
-      settings.cloudAuthAccessToken || settings.cloudLLMToken || settings.cloudAuthToken,
+      cloudApiUrl,
+      settings.cloudAuthAccessToken || settings.cloudAuthToken,
     );
     const reachable = await adapter.checkAvailability();
     return reachable

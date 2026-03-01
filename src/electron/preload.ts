@@ -65,10 +65,10 @@ const mLearnIPC = {
   // ========== Flashcard TTS ==========
   getFlashcardTts: (cardId: string, field: 'word' | 'example'): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET, cardId, field),
-  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, remoteUrl?: string, voiceSampleId?: string): Promise<string | null> =>
-    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GENERATE, cardId, text, language, field, provider, remoteUrl, voiceSampleId),
-  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, remoteUrl?: string, voiceSampleId?: string): Promise<Record<string, string>> =>
-    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_BATCH_GENERATE, items, language, provider, remoteUrl, voiceSampleId),
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GENERATE, cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl),
+  batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string): Promise<Record<string, string>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_BATCH_GENERATE, items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl),
   getFlashcardTtsMeta: (cardId: string, field: 'word' | 'example'): Promise<{ provider: string; generatedAt: string; language: string } | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET_META, cardId, field),
   

@@ -10,8 +10,11 @@ import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { SubtitleTheme, AppTheme } from '../../shared/constants';
 import { APP_THEMES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
-import { DEFAULT_CLOUD_ENDPOINT, getBackend, resetBackend } from '../../shared/backends';
+import { getBackend, resetBackend } from '../../shared/backends';
 import { isCapacitor } from '../../shared/platform';
+import { validateAndRefreshCloudSession } from '../services/cloudAuthService';
+import { showToast } from '../components/common/Feedback/Toast';
+import { useLocalization } from './LocalizationContext';
 
 // Context interface
 interface SettingsContextValue {
@@ -29,6 +32,7 @@ const SettingsContext = createContext<SettingsContextValue>();
 const SETTINGS_CHANNEL = 'mlearn-settings';
 
 export const SettingsProvider: ParentComponent = (props) => {
+  const { t } = useLocalization();
   const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS });
   const [isLoading, setIsLoading] = createSignal(true);
   // Track whether settings have been loaded from disk at least once
@@ -41,10 +45,7 @@ export const SettingsProvider: ParentComponent = (props) => {
 
   const serializeSettings = (value: Settings): Settings => JSON.parse(JSON.stringify(value)) as Settings;
   const resolveBackendUrl = (nextSettings: Settings): string => {
-    if (nextSettings.backendMode !== 'cloud') {
-      return nextSettings.backendUrl;
-    }
-    return (nextSettings.overrideCloudEndpointUrl ? nextSettings.backendUrl : DEFAULT_CLOUD_ENDPOINT).replace(/\/+$/, '');
+    return nextSettings.backendUrl;
   };
 
   const resolveCloudAccessToken = (nextSettings: Settings): string => (
@@ -78,6 +79,50 @@ export const SettingsProvider: ParentComponent = (props) => {
       if (pendingSettingsSnapshot) {
         bridge.settings.saveSettings(pendingSettingsSnapshot);
         pendingSettingsSnapshot = null;
+      }
+
+      // Validate cloud session in background if user appears signed-in
+      if (mergedSettings.cloudAuthStatus === 'signed-in' && (mergedSettings.cloudAuthAccessToken || mergedSettings.cloudAuthToken)) {
+        const clearExpiredSession = () => {
+          updateSettings({
+            cloudAuthAccessToken: '',
+            cloudAuthToken: '',
+            cloudAuthRefreshToken: '',
+            cloudAuthUserId: '',
+            cloudAuthUserEmail: '',
+            cloudAuthExpiresAt: 0,
+            cloudAuthStatus: 'signed-out',
+          });
+          const usesCloud = mergedSettings.ocrProvider === 'cloud'
+            || mergedSettings.llmProvider === 'cloud'
+            || mergedSettings.ttsProvider === 'cloud'
+            || mergedSettings.flashcardTtsProvider === 'cloud';
+          if (usesCloud) {
+            showToast({
+              message: t('mlearn.Connection.CloudReLogin.SessionExpired'),
+              variant: 'warning',
+              duration: 8000,
+            });
+          }
+        };
+
+        validateAndRefreshCloudSession(mergedSettings).then((result) => {
+          if (result.status === 'refreshed' && result.accessToken && result.refreshToken) {
+            // Token was refreshed — persist the new tokens
+            updateSettings({
+              cloudAuthAccessToken: result.accessToken,
+              cloudAuthRefreshToken: result.refreshToken,
+              ...(result.expiresAt ? { cloudAuthExpiresAt: result.expiresAt } : {}),
+            });
+          } else if (result.status === 'expired') {
+            clearExpiredSession();
+          }
+        }).catch(() => {
+          // Network error — check expiresAt timestamp to decide locally
+          if (mergedSettings.cloudAuthExpiresAt && mergedSettings.cloudAuthExpiresAt < Date.now()) {
+            clearExpiredSession();
+          }
+        });
       }
     }));
     bridge.settings.getSettings();

@@ -1197,9 +1197,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // Check backend availability
     const backend = getBackend({
       mode: settings.backendMode,
-      url: settings.backendMode === 'cloud'
-        ? (settings.overrideCloudEndpointUrl ? settings.backendUrl : '')
-        : settings.backendUrl,
+      url: settings.backendUrl,
       authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
     });
 

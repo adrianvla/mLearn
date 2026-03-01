@@ -2,7 +2,7 @@
  * Voice model metadata for the Python-backed voice pipeline.
  *
  * STT: faster-whisper (whisper-small) — downloaded by HuggingFace cache on first use.
- * TTS: Kokoro-82M (local) or MOSS-TTS-Realtime (remote GPU server).
+ * TTS: Kokoro-82M (local), Qwen3-TTS (voice cloning), or Cloud TTS.
  * VAD: Silero VAD — loaded via torch.hub on first use.
  *
  * All models are managed by the Python backend; this file only exports
