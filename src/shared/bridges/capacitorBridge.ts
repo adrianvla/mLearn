@@ -577,6 +577,14 @@ const serverBridge: ServerBridge = {
     return emitter.on('server-critical-error', callback as Listener);
   },
 
+  onAnkiConnectionError(callback) {
+    return emitter.on('anki-connection-error', callback as Listener);
+  },
+
+  restartBackendAnkiOverride() {
+    // No-op on Capacitor — Anki is only available on desktop
+  },
+
   onOcrStatusUpdate(callback) {
     return emitter.on('ocr-status-update', callback as Listener);
   },
@@ -709,7 +717,7 @@ const llmBridge: LLMBridge = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: settings.ollamaModel || 'qwen3:4b',
+        model: settings.ollamaModel || 'qwen3.5:9b',
         messages,
         tools,
         stream: true,
@@ -1014,6 +1022,15 @@ const genericBridge: GenericIPCBridge = {
 };
 
 // ============================================================================
+// Data Export/Import Bridge (not available on mobile)
+// ============================================================================
+
+const dataBridge = {
+  dataExport: async () => ({ success: false, error: 'Data export is not available on mobile. Use a desktop device.' }),
+  dataImport: async () => ({ success: false, error: 'Data import is not available on mobile. Use a desktop device.' }),
+};
+
+// ============================================================================
 // Factory
 // ============================================================================
 
@@ -1035,5 +1052,6 @@ export function createCapacitorBridge(): PlatformBridge {
     license: licenseBridge,
     migration: migrationBridge,
     generic: genericBridge,
+    data: dataBridge,
   };
 }

@@ -5,22 +5,24 @@
  */
 
 import { Component, createSignal, For, Show, onMount, createEffect, createMemo } from 'solid-js';
-import { WindowWrapper, useLanguage, useFlashcards, useLocalization } from '../../context';
+import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
 import {
   getWordsLearnedInApp,
   setWordStatus,
   loadWordsFromStorage,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
-import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, type WordEntry, type TranslationOverride } from './components';
+import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, type WordEntry, type TranslationOverride, type AnkiExportState } from './components';
 import { ModalLoadingOverlay, Spinner } from '../../components/common';
+import { useAnki } from '../../hooks/useAnki';
 import './WordDbEditorLayout.css';
 
 export const WordDbEditorContent: Component = () => {
   const { wordFrequency, getFreqLevelNames } = useLanguage();
   const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord } = useFlashcards();
   const { t } = useLocalization();
-  // useTranslation imported but translateWord used via EditTranslationDialog
+  const { settings } = useSettings();
+  const anki = useAnki();
   const [searchQuery, setSearchQuery] = createSignal('');
   const [entries, setEntries] = createSignal<WordEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = createSignal<WordEntry[]>([]);
@@ -33,9 +35,10 @@ export const WordDbEditorContent: Component = () => {
   // Track if we've already loaded words (prevent re-loading on every frequency change)
   const [hasLoadedWords, setHasLoadedWords] = createSignal(false);
 
-  // Edit dialog state
   const [editDialogOpen, setEditDialogOpen] = createSignal(false);
   const [editingEntry, setEditingEntry] = createSignal<WordEntry | null>(null);
+
+  const [ankiExportStates, setAnkiExportStates] = createSignal<Record<string, AnkiExportState>>({});
 
   // Level names - use dynamic level names from langData (e.g., JLPT N1-N5, HSK 1-6, etc.)
   const getLevelNames = (): Record<number, string> => {
@@ -293,6 +296,45 @@ export const WordDbEditorContent: Component = () => {
     console.log(`%cUpdated translation data for word "${entry.word}"`, 'color: lime;');
   };
 
+  const handleExportToAnki = async (entry: WordEntry) => {
+    const uuid = entry.uuid;
+    setAnkiExportStates(prev => ({ ...prev, [uuid]: 'exporting' }));
+
+    try {
+      const isConnected = await anki.checkConnection();
+      if (!isConnected) {
+        setAnkiExportStates(prev => ({ ...prev, [uuid]: 'error' }));
+        console.warn('Anki is not connected');
+        return;
+      }
+
+      const isDuplicate = await anki.checkDuplicate(entry.word);
+      if (isDuplicate) {
+        setAnkiExportStates(prev => ({ ...prev, [uuid]: 'duplicate' }));
+        return;
+      }
+
+      const meaning = entry.translation || entry.fullTranslation || entry.word;
+      const noteId = await anki.addNote({
+        word: entry.word,
+        reading: entry.reading || undefined,
+        meaning,
+      });
+
+      if (noteId) {
+        setAnkiExportStates(prev => ({ ...prev, [uuid]: 'exported' }));
+        console.log(`%cExported "${entry.word}" to Anki (noteId: ${noteId})`, 'color: cyan;');
+      } else {
+        setAnkiExportStates(prev => ({ ...prev, [uuid]: 'error' }));
+      }
+    } catch (e) {
+      console.error('Failed to export to Anki:', e);
+      setAnkiExportStates(prev => ({ ...prev, [uuid]: 'error' }));
+    }
+  };
+
+  const ankiEnabled = createMemo(() => settings.use_anki);
+
   return (
       <div class="word-db-editor">
         {/* Loading indicator while initializing or waiting for word frequency data */}
@@ -339,6 +381,8 @@ export const WordDbEditorContent: Component = () => {
                       onAddFlashcard={handleAddFlashcard}
                       onRemoveFlashcard={handleRemoveFlashcard}
                       onEdit={handleEdit}
+                      onExportToAnki={ankiEnabled() ? handleExportToAnki : undefined}
+                      ankiExportState={ankiExportStates()[entry.uuid] || 'idle'}
                   />
               )}
             </For>

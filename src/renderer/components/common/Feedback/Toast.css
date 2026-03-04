@@ -20,7 +20,7 @@
   align-items: flex-start;
   gap: var(--spacing-3);
   padding: var(--spacing-3) var(--spacing-4);
-  background: var(--bg-opaque);
+  background: var(--bg);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   border: 1px solid var(--toast-accent);
@@ -30,7 +30,6 @@
   transform: translateX(100%);
   transition: all var(--transition-slow);
   pointer-events: auto;
-  --toast-accent:yellow;
 }
 
 .toast--visible {

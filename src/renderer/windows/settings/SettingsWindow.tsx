@@ -31,12 +31,12 @@ interface SettingsTab {
 
 const TABS: SettingsTab[] = [
   { id: 'general', labelKey: 'mlearn.Settings.Tabs.General', icon: 'cog' },
-  { id: 'behaviour', labelKey: 'mlearn.Settings.Tabs.Behaviour', icon: 'bot' },
+  { id: 'behaviour', labelKey: 'mlearn.Settings.Tabs.Behaviour', icon: 'target' },
   { id: 'customization', labelKey: 'mlearn.Settings.Tabs.Appearance', icon: 'palette' },
   { id: 'srs', labelKey: 'mlearn.Settings.Tabs.SRS', icon: 'cards' },
   { id: 'reader', labelKey: 'mlearn.Settings.Tabs.Reader', icon: 'book' },
-  { id: 'ai', labelKey: 'mlearn.Settings.Tabs.AI', icon: 'stars' },
-  { id: 'connection', labelKey: 'mlearn.Settings.Tabs.Connection', icon: 'pin' },
+  { id: 'ai', labelKey: 'mlearn.Settings.Tabs.AI', icon: 'bot' },
+  { id: 'connection', labelKey: 'mlearn.Settings.Tabs.Connection', icon: 'link' },
   { id: 'about', labelKey: 'mlearn.Settings.Tabs.About', icon: 'star' },
 ];
 

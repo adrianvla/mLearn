@@ -66,6 +66,8 @@ export interface MLearnIPC {
   onServerLoad: (callback: (message: string) => void) => () => void;
   onServerStatusUpdate: (callback: (message: string) => void) => () => void;
   onServerCriticalError: (callback: (message: string) => void) => () => void;
+  onAnkiConnectionError: (callback: (reason: string) => void) => () => void;
+  restartBackendAnkiOverride: (disableAnki: boolean) => void;
   onOcrStatusUpdate: (callback: (message: string) => void) => () => void;
   
   // Python Installer
@@ -212,6 +214,10 @@ export interface MLearnIPC {
   voiceSampleRename: (id: string, newName: string) => Promise<boolean>;
   voiceSampleTranscribe: (id: string) => Promise<{ text: string; language: string }>;
   voiceSampleGetPath: (id: string) => Promise<string | null>;
+
+  // Data Export/Import
+  dataExport: () => Promise<{ success: boolean; filePath?: string | null; error?: string }>;
+  dataImport: () => Promise<{ success: boolean; error?: string }>;
 
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;

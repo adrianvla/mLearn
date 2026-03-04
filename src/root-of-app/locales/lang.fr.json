@@ -95,19 +95,24 @@
         "Error": "Erreur",
         "Fatal": "Erreur fatale",
         "Warning": "Avertissement",
-        "StartupError": "Erreur de démarrage"
+        "StartupError": "Erreur de démarrage",
+        "AnkiError": "Erreur de connexion Anki"
       },
       "Messages": {
         "PortInUse": "Une autre application utilise le port requis. Fermez les autres instances de mLearn ou redémarrez votre ordinateur.",
         "PermissionDenied": "Permission refusée. Vérifiez les permissions système ou lancez l'application en tant qu'administrateur.",
         "FileNotFound": "Un fichier requis est introuvable. Réinstallez l'application.",
-        "BackendStopped": "Le serveur s'est arrêté de manière inattendue. Redémarrez l'application."
+        "BackendStopped": "Le serveur s'est arrêté de manière inattendue. Redémarrez l'application.",
+        "AnkiConnectionFailed": "Impossible de se connecter à Anki. Assurez-vous qu'Anki est en cours d'exécution avec AnkiConnect installé, ou désactivez l'intégration Anki.",
+        "AnkiNoValidCards": "Connecté à Anki mais aucune carte valide trouvée. Vérifiez votre deck et la configuration des champs dans les paramètres."
       },
       "ShowDetails": "Afficher les détails",
       "HideDetails": "Masquer les détails",
       "CopyError": "Copier l'erreur",
       "Copied": "Copié !",
-      "Quit": "Quitter"
+      "Quit": "Quitter",
+      "AnkiDisableSession": "Désactiver Anki pour cette session",
+      "AnkiDisablePermanent": "Désactiver Anki définitivement"
     },
     "SubtitleSync": {
       "SyncToPrevious": "Synchroniser les sous-titres avec l'audio précédent",
@@ -567,6 +572,7 @@
       "Groups": {
         "Language": "Langue",
         "Appearance": "Apparence",
+        "Settings": "Paramètres",
         "Data": "Données",
         "WordStatus": "Statut des mots",
         "BlurEffect": "Effet de flou",
@@ -612,17 +618,27 @@
         }
       },
       "Data": {
-        "ExportData": {
-          "Label": "Exporter les données",
-          "Description": "Exporter les données d'apprentissage dans un fichier"
+        "ExportSettings": {
+          "Label": "Exporter les paramètres",
+          "Description": "Exporter les paramètres dans un fichier JSON"
         },
-        "ImportData": {
-          "Label": "Importer des données",
-          "Description": "Importer des données d'apprentissage depuis un fichier"
+        "ImportSettings": {
+          "Label": "Importer les paramètres",
+          "Description": "Importer les paramètres depuis un fichier JSON"
         },
         "ResetSettings": {
           "Label": "Réinitialiser les paramètres",
           "Description": "Remettre tous les paramètres aux valeurs par défaut"
+        },
+        "ExportAllData": {
+          "Label": "Exporter toutes les données",
+          "Description": "Exporter toutes les données d'apprentissage (cartes, statistiques, audio, images) en archive ZIP"
+        },
+        "ImportAllData": {
+          "Label": "Importer toutes les données",
+          "Description": "Importer toutes les données d'apprentissage depuis une archive ZIP. Les données existantes seront écrasées.",
+          "Confirm": "Toutes vos données actuelles (cartes, statistiques, audio, images) seront écrasées. L'application redémarrera après l'importation. Continuer ?",
+          "Success": "Données importées avec succès. L'application va maintenant redémarrer."
         }
       },
       "WordStatus": {
@@ -678,6 +694,10 @@
         "ImmediateFetch": {
           "Label": "Chargement immédiat",
           "Description": "Charger les données des mots dès l'apparition des sous-titres"
+        },
+        "OpenAside": {
+          "Label": "Panneau de traduction en direct",
+          "Description": "Afficher un panneau latéral avec les traductions des mots lors de l'apparition des sous-titres"
         }
       },
       "Performance": {
@@ -836,13 +856,6 @@
             "Label": "Lecture auto des réponses",
             "Description": "Lire automatiquement les réponses du tuteur IA"
           }
-        },
-        "Tips": {
-          "Title": "Conseils pour le lecteur",
-          "GettingStarted": "Pour commencer : glissez-déposez un dossier d'images ou un fichier PDF dans la fenêtre du lecteur.",
-          "OcrMode": "Mode OCR : cliquez sur « Lancer l'OCR » pour extraire le texte de la page courante. Survolez le texte détecté pour voir la traduction.",
-          "Navigation": "Navigation : utilisez les flèches ou les miniatures dans la barre latérale pour naviguer entre les pages.",
-          "DoublePage": "Astuce : le mode double page est idéal pour les doubles pages de manga !"
         }
       },
       "SRS": {
@@ -868,7 +881,7 @@
           "Title": "Intégration Anki",
           "Enable": {
             "Label": "Activer Anki",
-            "Description": "Envoyer les cartes à Anki via AnkiConnect"
+            "Description": "Récupérer les données de cartes depuis Anki via AnkiConnect. Les cartes Anki ont la priorité sur les cartes mLearn"
           },
           "ConnectUrl": {
             "Label": "URL AnkiConnect",
@@ -884,15 +897,39 @@
           "DeckName": {
             "Label": "Nom du paquet",
             "Description": "Paquet Anki pour les nouvelles cartes",
-            "Placeholder": "Par défaut"
+            "Placeholder": "Sélectionner un paquet"
           },
           "ModelName": {
             "Label": "Type de note",
-            "Description": "Type de note Anki à utiliser"
+            "Description": "Type de note Anki pour les nouvelles cartes",
+            "Placeholder": "Sélectionner un type de note"
+          },
+          "FieldMapping": {
+            "Title": "Correspondance des champs",
+            "Description": "Associer les champs de notes Anki aux champs de cartes mLearn",
+            "Expression": {
+              "Label": "Champ expression",
+              "Description": "Le champ contenant le mot ou l'expression"
+            },
+            "Reading": {
+              "Label": "Champ lecture",
+              "Description": "Le champ contenant la lecture ou la prononciation"
+            },
+            "Meaning": {
+              "Label": "Champ signification",
+              "Description": "Le champ contenant la définition ou la signification"
+            },
+            "Placeholder": "Sélectionner un champ",
+            "None": "(aucun)"
+          },
+          "Preview": {
+            "Title": "Aperçu de la carte",
+            "NoCard": "Aucune carte trouvée pour ce type de note",
+            "Loading": "Chargement de l'aperçu..."
           },
           "AddScreenshots": {
             "Label": "Ajouter des captures d'écran",
-            "Description": "Inclure une capture d'écran vidéo dans la carte"
+            "Description": "Inclure des captures d'écran de la vidéo et du lecteur dans les cartes"
           }
         },
         "BuiltInFlashcards": {
@@ -947,9 +984,20 @@
           "Title": "Gestion des données",
           "ResetSRS": {
             "Label": "Réinitialiser les données SRS",
-            "Description": "Effacer toute la progression des cartes (irréversible !)"
+            "Description": "Effacer toute la progression des cartes (irréversible !)",
+            "ModalWarning": "Toutes les données de planification SRS seront réinitialisées, y compris les intervalles, les facteurs de facilité, les compteurs de révision et la progression d'apprentissage. Le contenu des cartes sera conservé, mais toutes les cartes reviendront à l'état 'nouveau'.",
+            "TypePhrase": "Tapez \"{phrase}\" pour confirmer cette action.",
+            "Success": "Toutes les données SRS ont été réinitialisées."
           },
-          "ResetButton": "Réinitialiser le SRS"
+          "ResetButton": "Réinitialiser le SRS",
+          "NukeFlashcards": {
+            "Label": "Supprimer toutes les cartes",
+            "Description": "Supprimer définitivement toutes les cartes et tout réinitialiser (irréversible !)",
+            "ModalWarning": "Toutes vos cartes, données de suivi des mots, connaissances grammaticales, statistiques quotidiennes et toute la progression d'apprentissage seront définitivement supprimées. Cette action est irréversible et restaurera le système de cartes à son état initial vide, comme si l'application venait d'être installée.",
+            "TypePhrase": "Tapez \"{phrase}\" pour confirmer cette action.",
+            "Success": "Toutes les cartes ont été supprimées."
+          },
+          "NukeButton": "Tout supprimer"
         }
       },
       "Mobile": {
@@ -1165,6 +1213,13 @@
       "LevelNames": {
         "Common": "Courant",
         "Unlisted": "Non répertorié"
+      },
+      "Anki": {
+        "ExportToAnki": "Exporter vers Anki",
+        "Exported": "Exporté vers Anki",
+        "AlreadyInAnki": "Déjà dans Anki",
+        "ExportFailed": "Échec de l'export Anki",
+        "NotConnected": "Anki n'est pas connecté"
       }
     },
     "CardEditor": {

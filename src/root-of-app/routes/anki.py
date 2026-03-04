@@ -140,6 +140,7 @@ def get_all_cards() -> bool:
 
     if len(all_cards) == 0:
         _log("No valid cards found, maybe you have selected the wrong deck?")
+        _log("ANKI_ERROR", "no_valid_cards")
         sys.exit(-1)
         return False
 

@@ -5,7 +5,6 @@
  */
 
 import type { OcrBox } from '../components/reader/OcrOverlay';
-import { containsKanji } from '../../shared/utils/textUtils';
 
 // ============================================================================
 // Constants
@@ -13,7 +12,6 @@ import { containsKanji } from '../../shared/utils/textUtils';
 
 const DEFAULT_FURIGANA_RATIO = 1.5;
 const DEFAULT_NEIGHBOR_WINDOW_MULT = 2.4;
-const DEFAULT_NEIGHBOR_LOOKAHEAD = 3;
 
 // ============================================================================
 // Box Metrics
@@ -224,17 +222,41 @@ export interface FilterNarrowBoxesOptions {
   neighborLookahead?: number;
   /** Pass true when the current language supports vertical writing */
   supportsVerticalText?: boolean;
+  /** When provided, receives zone debug data for visualization */
+  debugOutput?: (zones: FilterDebugZone[]) => void;
+}
+
+/** Debug information for a single zone, used for visualization */
+export interface FilterDebugZone {
+  zoneIndex: number;
+  /** Indices into the original boxes array */
+  indices: number[];
+  /** Bounding rectangle of the zone */
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  /** Per-orientation statistics */
+  orientationStats: Array<{
+    orientation: 'vertical' | 'horizontal';
+    medianCross: number;
+    threshold: number;
+    /** Indices classified as furigana within this orientation group */
+    furiganaIndices: number[];
+  }>;
 }
 
 /**
  * Filter out narrow boxes that are likely furigana annotations within each text zone.
- * 
- * This works by first clustering boxes into spatially connected zones (e.g., speech bubbles),
- * then applying furigana detection locally within each zone. This prevents the algorithm
- * from being confused by boxes in other parts of the page with very different sizes
- * (e.g., large screaming text vs. regular dialogue).
- * 
- * Within each zone, narrow boxes positioned beside larger kanji boxes are identified as furigana.
+ *
+ * **Algorithm** (zone-local statistical approach):
+ *  1. Cluster boxes into spatially connected zones (speech bubbles / text blocks).
+ *  2. Within each zone, group boxes by orientation (vertical / horizontal).
+ *  3. For each orientation group, compute the **median cross-axis dimension**
+ *     (width for vertical text, height for horizontal text).
+ *  4. Boxes with a cross dimension below `median / ratio` are furigana candidates.
+ *  5. A candidate is confirmed only if it has a larger neighbor within a proximity
+ *     window (prevents false positives from isolated small text).
+ *
+ * This approach is **language-agnostic** — it relies on zone-local size
+ * distribution rather than script-specific checks (e.g. `containsKanji`).
  */
 export function filterNarrowBoxes(
   boxes: OcrBox[],
@@ -249,116 +271,117 @@ export function filterNarrowBoxes(
 
   const effectiveRatio = clampPositive(options.ratio, DEFAULT_FURIGANA_RATIO);
   const windowMultiplier = clampPositive(options.neighborWindowMultiplier, DEFAULT_NEIGHBOR_WINDOW_MULT);
-  const lookahead = Math.max(1, Math.floor(clampPositive(options.neighborLookahead, DEFAULT_NEIGHBOR_LOOKAHEAD)));
 
-  // Compute metrics for all boxes
   const metrics = boxes.map((box, idx) => computeBoxMetrics(box, idx));
-  
-  // Cluster boxes into zones (spatially connected groups)
   const zones = clusterBoxesIntoZones(metrics, options.supportsVerticalText);
-  
+
   const indicesToRemove = new Set<number>();
+  const debugZones: FilterDebugZone[] = [];
 
-  /**
-   * Process a single zone to detect furigana within it.
-   * This compares boxes only within the same zone, not globally.
-   */
-  const processZone = (zoneIndices: number[]) => {
-    if (zoneIndices.length < 2) return;
-    
+  for (let zi = 0; zi < zones.length; zi++) {
+    const zoneIndices = zones[zi];
+    if (zoneIndices.length < 2) {
+      if (options.debugOutput) {
+        const m = zoneIndices.length === 1 ? metrics[zoneIndices[0]] : null;
+        debugZones.push({
+          zoneIndex: zi,
+          indices: zoneIndices,
+          bounds: m
+            ? { minX: m.minX, minY: m.minY, maxX: m.maxX, maxY: m.maxY }
+            : { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+          orientationStats: [],
+        });
+      }
+      continue;
+    }
+
     const zoneMetrics = zoneIndices.map(idx => metrics[idx]);
-    
-    const considerOrientation = (orientation: 'vertical' | 'horizontal') => {
-      const filtered = zoneMetrics.filter(m => m.orientation === orientation);
-      if (filtered.length < 2) return;
 
-      // Sort by position for neighbor finding
-      const sorted = [...filtered].sort((a, b) => {
-        if (orientation === 'vertical') {
-          // For vertical text, sort right-to-left then top-to-bottom
-          const deltaX = Math.abs(a.centerX - b.centerX);
-          if (deltaX < Math.min(a.width, b.width) * 0.5) {
-            return a.centerY - b.centerY;
-          }
-          return b.centerX - a.centerX;
-        }
-        // For horizontal text, sort top-to-bottom then left-to-right
-        const deltaY = Math.abs(a.centerY - b.centerY);
-        if (deltaY < Math.min(a.height, b.height) * 0.5) {
-          return a.centerX - b.centerX;
-        }
-        return a.centerY - b.centerY;
-      });
+    // Compute zone bounding box
+    let zMinX = Infinity, zMinY = Infinity, zMaxX = -Infinity, zMaxY = -Infinity;
+    for (const m of zoneMetrics) {
+      if (m.minX < zMinX) zMinX = m.minX;
+      if (m.minY < zMinY) zMinY = m.minY;
+      if (m.maxX > zMaxX) zMaxX = m.maxX;
+      if (m.maxY > zMaxY) zMaxY = m.maxY;
+    }
 
-      for (let i = 0; i < sorted.length; i++) {
-        const curr = sorted[i];
-        const mainDim = orientation === 'vertical' ? curr.width : curr.height;
-        const crossDim = orientation === 'vertical' ? curr.height : curr.width;
+    const zoneBounds = { minX: zMinX, minY: zMinY, maxX: zMaxX, maxY: zMaxY };
+    const orientationStats: FilterDebugZone['orientationStats'] = [];
 
-        // Skip if already marked for removal or if it's not narrow
+    for (const orientation of ['vertical', 'horizontal'] as const) {
+      const oriented = zoneMetrics.filter(m => m.orientation === orientation);
+      if (oriented.length < 2) continue;
+
+      // Cross-axis dimension: the dimension furigana is narrow in
+      // Vertical text → furigana has narrow width
+      // Horizontal text → furigana has narrow height
+      const crossDims = oriented.map(m =>
+        orientation === 'vertical' ? m.width : m.height
+      );
+
+      // Compute median cross dimension for this orientation group
+      const sortedDims = [...crossDims].sort((a, b) => a - b);
+      const medianCross = sortedDims[Math.floor(sortedDims.length / 2)];
+      const furiganaThreshold = medianCross / effectiveRatio;
+
+      const localFurigana: number[] = [];
+
+      for (const curr of oriented) {
         if (indicesToRemove.has(curr.idx)) continue;
-        if (mainDim >= crossDim / effectiveRatio) continue;
 
-        // Check if this narrow box has a larger kanji neighbor within the same zone
-        const windowSize = mainDim * windowMultiplier;
-        let hasLargerNeighborWithKanji = false;
+        const crossDim = orientation === 'vertical' ? curr.width : curr.height;
+        if (crossDim >= furiganaThreshold) continue;
 
-        // Check subsequent boxes in sorted order
-        for (let j = 1; j <= lookahead && i + j < sorted.length; j++) {
-          const neighbor = sorted[i + j];
-          if (indicesToRemove.has(neighbor.idx)) continue;
+        // Candidate is narrow relative to zone peers — verify with neighbor check
+        const windowSize = crossDim * windowMultiplier;
+        let hasLargerNeighbor = false;
 
-          const neighborMain = orientation === 'vertical' ? neighbor.width : neighbor.height;
-          if (neighborMain <= mainDim * 1.2) continue;
+        for (const other of oriented) {
+          if (other.idx === curr.idx || indicesToRemove.has(other.idx)) continue;
 
-          // Check if neighbor is within window and contains kanji
-          const gap = orientation === 'vertical' 
-            ? horizontalGap(curr, neighbor) 
-            : verticalGap(curr, neighbor);
-          
-          if (gap <= windowSize && containsKanji(neighbor.text)) {
-            hasLargerNeighborWithKanji = true;
+          const otherCross = orientation === 'vertical' ? other.width : other.height;
+          if (otherCross <= crossDim * 1.2) continue;
+
+          const gap = orientation === 'vertical'
+            ? horizontalGap(curr, other)
+            : verticalGap(curr, other);
+
+          if (gap <= windowSize) {
+            hasLargerNeighbor = true;
             break;
           }
         }
 
-        // Also check previous boxes in sorted order
-        for (let j = 1; j <= lookahead && i - j >= 0; j++) {
-          if (hasLargerNeighborWithKanji) break;
-          
-          const neighbor = sorted[i - j];
-          if (indicesToRemove.has(neighbor.idx)) continue;
-
-          const neighborMain = orientation === 'vertical' ? neighbor.width : neighbor.height;
-          if (neighborMain <= mainDim * 1.2) continue;
-
-          const gap = orientation === 'vertical' 
-            ? horizontalGap(curr, neighbor) 
-            : verticalGap(curr, neighbor);
-          
-          if (gap <= windowSize && containsKanji(neighbor.text)) {
-            hasLargerNeighborWithKanji = true;
-            break;
-          }
-        }
-
-        if (hasLargerNeighborWithKanji) {
+        if (hasLargerNeighbor) {
           indicesToRemove.add(curr.idx);
+          localFurigana.push(curr.idx);
         }
       }
-    };
 
-    considerOrientation('vertical');
-    considerOrientation('horizontal');
-  };
+      orientationStats.push({
+        orientation,
+        medianCross,
+        threshold: furiganaThreshold,
+        furiganaIndices: localFurigana,
+      });
+    }
 
-  // Process each zone independently
-  for (const zone of zones) {
-    processZone(zone);
+    if (options.debugOutput) {
+      debugZones.push({
+        zoneIndex: zi,
+        indices: zoneIndices,
+        bounds: zoneBounds,
+        orientationStats,
+      });
+    }
+  }
+
+  if (options.debugOutput) {
+    options.debugOutput(debugZones);
   }
 
   if (indicesToRemove.size === 0) return boxes;
-
   return boxes.filter((_, idx) => !indicesToRemove.has(idx));
 }
 

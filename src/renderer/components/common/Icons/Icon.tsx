@@ -1,7 +1,6 @@
 import {Component, createMemo, Show} from 'solid-js';
 import {Dynamic} from 'solid-js/web';
 
-import Book from './raw/Book';
 import Bot from './raw/Bot';
 import Cards from './raw/Cards';
 import Check from './raw/Check';
@@ -22,6 +21,7 @@ import Stars from './raw/Stars';
 import Stats from './raw/Stats';
 import Subtitles from './raw/Subtitles';
 import Volume from './raw/Volume';
+import {BookIcon, LinkIcon, TargetIcon} from "@/renderer";
 
 interface IconProps {
     icon: string;
@@ -30,7 +30,7 @@ interface IconProps {
 }
 
 const iconMap = {
-    book: Book,
+    book: BookIcon,
     bot: Bot,
     cards: Cards,
     check: Check,
@@ -40,6 +40,7 @@ const iconMap = {
     cross2: Cross2,
     document: Document,
     'fast-forward': FastForward,
+    link:LinkIcon,
     palette: Palette,
     pause: Pause,
     pin: Pin,
@@ -50,6 +51,7 @@ const iconMap = {
     stars: Stars,
     stats: Stats,
     subtitles: Subtitles,
+    target: TargetIcon,
     volume: Volume,
 };
 

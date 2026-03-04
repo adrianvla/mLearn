@@ -95,19 +95,24 @@
         "Error": "Error",
         "Fatal": "Critical Error",
         "Warning": "Warning",
-        "StartupError": "Startup Error"
+        "StartupError": "Startup Error",
+        "AnkiError": "Anki Connection Error"
       },
       "Messages": {
         "PortInUse": "Another application is using the required port. Please close other instances of mLearn or restart your computer.",
         "PermissionDenied": "Permission denied. Please check your system permissions or run the application with elevated privileges.",
         "FileNotFound": "A required file was not found. Please try reinstalling the application.",
-        "BackendStopped": "The backend server stopped unexpectedly. Please restart the application."
+        "BackendStopped": "The backend server stopped unexpectedly. Please restart the application.",
+        "AnkiConnectionFailed": "Could not connect to Anki. Make sure Anki is running with AnkiConnect installed, or disable Anki integration.",
+        "AnkiNoValidCards": "Connected to Anki but no valid cards were found. Check your deck and field configuration in settings."
       },
       "ShowDetails": "Show details",
       "HideDetails": "Hide details",
       "CopyError": "Copy error",
       "Copied": "Copied!",
-      "Quit": "Quit"
+      "Quit": "Quit",
+      "AnkiDisableSession": "Disable Anki for this session",
+      "AnkiDisablePermanent": "Disable Anki permanently"
     },
     "SubtitleSync": {
       "SyncToPrevious": "Sync subtitle to previous audio",
@@ -567,6 +572,7 @@
       "Groups": {
         "Language": "Language",
         "Appearance": "Appearance",
+        "Settings": "Settings",
         "Data": "Data",
         "WordStatus": "Word Status",
         "BlurEffect": "Blur Effect",
@@ -612,17 +618,27 @@
         }
       },
       "Data": {
-        "ExportData": {
-          "Label": "Export Data",
-          "Description": "Export your learning data to a file"
+        "ExportSettings": {
+          "Label": "Export Settings",
+          "Description": "Export your settings to a JSON file"
         },
-        "ImportData": {
-          "Label": "Import Data",
-          "Description": "Import learning data from a file"
+        "ImportSettings": {
+          "Label": "Import Settings",
+          "Description": "Import settings from a JSON file"
         },
         "ResetSettings": {
           "Label": "Reset Settings",
           "Description": "Reset all settings to their default values"
+        },
+        "ExportAllData": {
+          "Label": "Export All Data",
+          "Description": "Export all learning data (flashcards, media stats, audio, images) as a ZIP archive"
+        },
+        "ImportAllData": {
+          "Label": "Import All Data",
+          "Description": "Import all learning data from a ZIP archive. This will overwrite existing data.",
+          "Confirm": "This will overwrite all your current data (flashcards, media stats, audio, images). The app will restart after import. Continue?",
+          "Success": "Data imported successfully. The app will now restart to apply changes."
         }
       },
       "WordStatus": {
@@ -678,6 +694,10 @@
         "ImmediateFetch": {
           "Label": "Immediate Fetch",
           "Description": "Fetch word data when subtitles appear"
+        },
+        "OpenAside": {
+          "Label": "Live Translation Panel",
+          "Description": "Show a side panel with word translations as subtitles appear"
         }
       },
       "Performance": {
@@ -836,13 +856,6 @@
             "Label": "Auto-speak Responses",
             "Description": "Automatically read AI tutor responses aloud"
           }
-        },
-        "Tips": {
-          "Title": "Reader Tips",
-          "GettingStarted": "Getting Started: Drag and drop a folder of images or a PDF file onto the reader window.",
-          "OcrMode": "OCR Mode: Click \"Run OCR\" to extract text from the current page. Hover over detected text to see translations.",
-          "Navigation": "Navigation: Use arrow keys or click thumbnails in the sidebar to navigate pages.",
-          "DoublePage": "Tip: Double-page mode works great for manga spreads!"
         }
       },
       "SRS": {
@@ -868,7 +881,7 @@
           "Title": "Anki Integration",
           "Enable": {
             "Label": "Enable Anki",
-            "Description": "Send flashcards to Anki via AnkiConnect"
+            "Description": "Source flashcard data from Anki via AnkiConnect. Anki cards take priority over mLearn's built-in cards"
           },
           "ConnectUrl": {
             "Label": "AnkiConnect URL",
@@ -884,15 +897,39 @@
           "DeckName": {
             "Label": "Deck Name",
             "Description": "Anki deck for new cards",
-            "Placeholder": "Default"
+            "Placeholder": "Select a deck"
           },
           "ModelName": {
-            "Label": "Model Name",
-            "Description": "Anki note type to use"
+            "Label": "Note Type",
+            "Description": "Anki note type to use for new cards",
+            "Placeholder": "Select a note type"
+          },
+          "FieldMapping": {
+            "Title": "Field Mapping",
+            "Description": "Map Anki note fields to mLearn flashcard fields",
+            "Expression": {
+              "Label": "Expression Field",
+              "Description": "The field containing the word or expression"
+            },
+            "Reading": {
+              "Label": "Reading Field",
+              "Description": "The field containing the reading or pronunciation"
+            },
+            "Meaning": {
+              "Label": "Meaning Field",
+              "Description": "The field containing the definition or meaning"
+            },
+            "Placeholder": "Select a field",
+            "None": "(none)"
+          },
+          "Preview": {
+            "Title": "Card Preview",
+            "NoCard": "No cards found for this note type",
+            "Loading": "Loading preview..."
           },
           "AddScreenshots": {
             "Label": "Add Screenshots",
-            "Description": "Include video screenshots in flashcards"
+            "Description": "Include screenshots from video and reader in flashcards"
           }
         },
         "BuiltInFlashcards": {
@@ -947,9 +984,20 @@
           "Title": "Data Management",
           "ResetSRS": {
             "Label": "Reset SRS Data",
-            "Description": "Clear all flashcard progress (cannot be undone!)"
+            "Description": "Clear all flashcard progress (cannot be undone!)",
+            "ModalWarning": "This will reset all flashcard scheduling data including intervals, ease factors, review counts, and learning progress. Your flashcard content will be preserved, but all cards will return to the 'new' state.",
+            "TypePhrase": "Type \"{phrase}\" to confirm this action.",
+            "Success": "All SRS data has been reset."
           },
-          "ResetButton": "Reset SRS"
+          "ResetButton": "Reset SRS",
+          "NukeFlashcards": {
+            "Label": "Delete All Flashcards",
+            "Description": "Permanently delete all flashcards and reset everything (cannot be undone!)",
+            "ModalWarning": "This will permanently delete all your flashcards, word tracking data, grammar knowledge, daily statistics, and all learning progress. This is irreversible and will restore the flashcard system to its initial empty state, as if the app was freshly installed.",
+            "TypePhrase": "Type \"{phrase}\" to confirm this action.",
+            "Success": "All flashcards have been deleted."
+          },
+          "NukeButton": "Delete All"
         }
       },
       "Mobile": {
@@ -1165,6 +1213,13 @@
       "LevelNames": {
         "Common": "Common",
         "Unlisted": "Unlisted"
+      },
+      "Anki": {
+        "ExportToAnki": "Export to Anki",
+        "Exported": "Exported to Anki",
+        "AlreadyInAnki": "Already in Anki",
+        "ExportFailed": "Export to Anki failed",
+        "NotConnected": "Anki is not connected"
       }
     },
     "CardEditor": {

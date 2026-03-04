@@ -81,6 +81,7 @@ async def startup_event():
             _log("Loaded from cache")
         else:
             _log("Failed to load from cache")
+            _log("ANKI_ERROR", "connection_failed")
             sys.exit(-1)
 
     # Faulthandler for crash diagnostics

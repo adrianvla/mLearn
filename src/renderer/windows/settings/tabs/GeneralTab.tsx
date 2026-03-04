@@ -2,11 +2,13 @@
  * General Settings Tab
  */
 
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, Show } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon } from '../../../components/common';
 import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/types';
 import { type AppTheme } from '../../../../shared/constants';
+import { getBridge } from '../../../../shared/bridges';
+import { isDesktop } from '../../../../shared/platform';
 import '../SettingsForm.css';
 
 export const GeneralTab: Component = () => {
@@ -14,6 +16,10 @@ export const GeneralTab: Component = () => {
   const { t } = useLocalization();
   const [exportError, setExportError] = createSignal<string | null>(null);
   const [importError, setImportError] = createSignal<string | null>(null);
+  const [dataExportError, setDataExportError] = createSignal<string | null>(null);
+  const [dataImportError, setDataImportError] = createSignal<string | null>(null);
+  const [dataExporting, setDataExporting] = createSignal(false);
+  const [dataImporting, setDataImporting] = createSignal(false);
 
   const handleExportSettings = async () => {
     setExportError(null);
@@ -74,6 +80,45 @@ export const GeneralTab: Component = () => {
       }
     };
     input.click();
+  };
+
+  const handleExportData = async () => {
+    setDataExportError(null);
+    setDataExporting(true);
+    try {
+      const result = await getBridge().data.dataExport();
+      if (!result.success) {
+        if (result.error) {
+          setDataExportError(result.error);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to export data:', e);
+      setDataExportError(String(e));
+    } finally {
+      setDataExporting(false);
+    }
+  };
+
+  const handleImportData = async () => {
+    setDataImportError(null);
+    if (!confirm(t('mlearn.Settings.Data.ImportAllData.Confirm'))) return;
+    setDataImporting(true);
+    try {
+      const result = await getBridge().data.dataImport();
+      if (result.success) {
+        alert(t('mlearn.Settings.Data.ImportAllData.Success'));
+        // Restart to reload all imported data
+        getBridge().server.restartApp();
+      } else if (result.error) {
+        setDataImportError(result.error);
+      }
+    } catch (e) {
+      console.error('Failed to import data:', e);
+      setDataImportError(String(e));
+    } finally {
+      setDataImporting(false);
+    }
   };
 
   const handleResetSettings = () => {
@@ -162,10 +207,10 @@ export const GeneralTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title={t('mlearn.Settings.Groups.Data')}>
+      <SettingGroup title={t('mlearn.Settings.Groups.Settings')}>
         <SettingRow
-          label={t('mlearn.Settings.Data.ExportData.Label')}
-          description={t('mlearn.Settings.Data.ExportData.Description')}
+          label={t('mlearn.Settings.Data.ExportSettings.Label')}
+          description={t('mlearn.Settings.Data.ExportSettings.Description')}
         >
           <Btn size="sm" onClick={handleExportSettings}>
             {t('mlearn.Global.Export')}
@@ -174,8 +219,8 @@ export const GeneralTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label={t('mlearn.Settings.Data.ImportData.Label')}
-          description={t('mlearn.Settings.Data.ImportData.Description')}
+          label={t('mlearn.Settings.Data.ImportSettings.Label')}
+          description={t('mlearn.Settings.Data.ImportSettings.Description')}
         >
           <Btn size="sm" onClick={handleImportSettings}>
             {t('mlearn.Global.Import')}
@@ -192,6 +237,30 @@ export const GeneralTab: Component = () => {
           </Btn>
         </SettingRow>
       </SettingGroup>
+
+      <Show when={isDesktop()}>
+        <SettingGroup title={t('mlearn.Settings.Groups.Data')}>
+          <SettingRow
+            label={t('mlearn.Settings.Data.ExportAllData.Label')}
+            description={t('mlearn.Settings.Data.ExportAllData.Description')}
+          >
+            <Btn size="sm" onClick={handleExportData} disabled={dataExporting()}>
+              {dataExporting() ? t('mlearn.Global.Loading') : t('mlearn.Global.Export')}
+            </Btn>
+            {dataExportError() && <span class="setting-error">{dataExportError()}</span>}
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.Data.ImportAllData.Label')}
+            description={t('mlearn.Settings.Data.ImportAllData.Description')}
+          >
+            <Btn size="sm" variant="danger" onClick={handleImportData} disabled={dataImporting()}>
+              {dataImporting() ? t('mlearn.Global.Loading') : t('mlearn.Global.Import')}
+            </Btn>
+            {dataImportError() && <span class="setting-error">{dataImportError()}</span>}
+          </SettingRow>
+        </SettingGroup>
+      </Show>
     </TabContent>
   );
 };

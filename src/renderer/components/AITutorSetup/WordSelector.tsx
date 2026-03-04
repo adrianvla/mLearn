@@ -21,7 +21,7 @@ import { streamChat } from '../../services/llmProvider';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
 import { getWordsLearnedInApp } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
-import { Input, LevelPillsFilter, EmptyState, HintText, Btn, Spinner, SparklesIcon, CollapsibleStickyHeader } from '../common';
+import { Input, LevelPillsFilter, EmptyState, HintText, Btn, SparklesIcon, CollapsibleStickyHeader } from '../common';
 import type {
   TutorWordSelection,
   PassiveWordKnowledge,
@@ -535,7 +535,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
                 size="sm"
                 onClick={generateVocabulary}
                 disabled={isGenerating() || !topicInput().trim()}
-                icon={isGenerating() ? <Spinner size={14} /> : <SparklesIcon size={14} />}
+                icon={<SparklesIcon size={14} />}
                 loading={isGenerating()}
               >
                 {t('mlearn.AITutorSetup.GenerateBtn')}

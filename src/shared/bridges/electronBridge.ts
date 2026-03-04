@@ -25,6 +25,7 @@ import type {
   LicenseBridge,
   MigrationBridge,
   GenericIPCBridge,
+  DataBridge,
 } from './types';
 
 function getIPC(): MLearnIPC {
@@ -109,6 +110,8 @@ const serverBridge: ServerBridge = {
   onServerLoad: (cb) => getIPC().onServerLoad(cb),
   onServerStatusUpdate: (cb) => getIPC().onServerStatusUpdate(cb),
   onServerCriticalError: (cb) => getIPC().onServerCriticalError(cb),
+  onAnkiConnectionError: (cb) => getIPC().onAnkiConnectionError(cb),
+  restartBackendAnkiOverride: (disableAnki) => getIPC().restartBackendAnkiOverride(disableAnki),
   onOcrStatusUpdate: (cb) => getIPC().onOcrStatusUpdate(cb),
   restartApp: () => getIPC().restartApp(),
   forceRestartApp: () => getIPC().forceRestartApp(),
@@ -231,6 +234,11 @@ const genericBridge: GenericIPCBridge = {
   fetchUrl: (url) => getIPC().fetchUrl(url),
 };
 
+const dataBridge: DataBridge = {
+  dataExport: () => getIPC().dataExport(),
+  dataImport: () => getIPC().dataImport(),
+};
+
 export function createElectronBridge(): PlatformBridge {
   return {
     settings: settingsBridge,
@@ -249,5 +257,6 @@ export function createElectronBridge(): PlatformBridge {
     license: licenseBridge,
     migration: migrationBridge,
     generic: genericBridge,
+    data: dataBridge,
   };
 }

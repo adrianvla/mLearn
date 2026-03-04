@@ -5,7 +5,7 @@
 
 import { Component, Show, createSignal, onCleanup } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, CheckIcon, CrossIcon, ToggleSwitch } from '../../../components/common';
+import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, ToggleSwitch } from '../../../components/common';
 import { isMobile } from '../../../../shared/platform';
 import { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL, getBackend, resetBackend } from '../../../../shared/backends';
 import { getNodeServer } from '../../../../shared/backends/nodeServerAdapter';
@@ -22,11 +22,11 @@ export const ConnectionTab: Component = () => {
   // Test connection state
   const [testingBackend, setTestingBackend] = createSignal(false);
   const [backendStatus, setBackendStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
-  const [backendError, setBackendError] = createSignal('');
+  const [, setBackendError] = createSignal('');
 
   const [testingNode, setTestingNode] = createSignal(false);
   const [nodeStatus, setNodeStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
-  const [nodeError, setNodeError] = createSignal('');
+  const [, setNodeError] = createSignal('');
   const [cloudLoginPending, setCloudLoginPending] = createSignal(false);
   const [pendingState, setPendingState] = createSignal('');
   const [pendingVerifier, setPendingVerifier] = createSignal('');
@@ -286,19 +286,19 @@ export const ConnectionTab: Component = () => {
         {/* Test connection button */}
         <Show when={settings.backendMode !== 'local'}>
           <SettingRow label="">
-            <div class="connection-test-row">
-              <Btn onClick={handleTestBackend} disabled={testingBackend()}>
-                {testingBackend()
-                  ? (t('mlearn.Connection.Testing') || 'Testing...')
-                  : (t('mlearn.Connection.TestConnection') || 'Test Connection')}
-              </Btn>
-              <Show when={backendStatus() === 'success'}>
-                <span class="connection-status-ok"><CheckIcon size={14} /> {t('mlearn.Connection.Connected') || 'Connected'}</span>
-              </Show>
-              <Show when={backendStatus() === 'error'}>
-                <span class="connection-status-error"><CrossIcon size={14} /> {backendError()}</span>
-              </Show>
-            </div>
+            <Btn
+              onClick={handleTestBackend}
+              loading={testingBackend()}
+              variant={backendStatus() === 'success' ? 'success' : backendStatus() === 'error' ? 'danger' : 'default'}
+              icon={backendStatus() === 'success' ? 'check' : undefined}
+            >
+              {backendStatus() === 'success'
+                ? (t('mlearn.Connection.Connected') || 'Connected')
+                : backendStatus() === 'error'
+                  ? (t('mlearn.Connection.Unreachable') || 'Unreachable')
+                  : (t('mlearn.Connection.TestConnection') || 'Test Connection')
+              }
+            </Btn>
           </SettingRow>
         </Show>
       </SettingGroup>
@@ -314,19 +314,19 @@ export const ConnectionTab: Component = () => {
             />
           </SettingRow>
           <SettingRow label="">
-            <div class="connection-test-row">
-              <Btn onClick={handleTestNodeServer} disabled={testingNode()}>
-                {testingNode()
-                  ? (t('mlearn.Connection.Testing') || 'Testing...')
-                  : (t('mlearn.Connection.TestConnection') || 'Test Connection')}
-              </Btn>
-              <Show when={nodeStatus() === 'success'}>
-                <span class="connection-status-ok"><CheckIcon size={14} /> {t('mlearn.Connection.Connected') || 'Connected'}</span>
-              </Show>
-              <Show when={nodeStatus() === 'error'}>
-                <span class="connection-status-error"><CrossIcon size={14} /> {nodeError()}</span>
-              </Show>
-            </div>
+            <Btn
+              onClick={handleTestNodeServer}
+              loading={testingNode()}
+              variant={nodeStatus() === 'success' ? 'success' : nodeStatus() === 'error' ? 'danger' : 'default'}
+              icon={nodeStatus() === 'success' ? 'check' : undefined}
+            >
+              {nodeStatus() === 'success'
+                ? (t('mlearn.Connection.Connected') || 'Connected')
+                : nodeStatus() === 'error'
+                  ? (t('mlearn.Connection.Unreachable') || 'Unreachable')
+                  : (t('mlearn.Connection.TestConnection') || 'Test Connection')
+              }
+            </Btn>
           </SettingRow>
         </SettingGroup>
       </Show>

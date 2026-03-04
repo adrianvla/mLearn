@@ -9,7 +9,6 @@ import { useLocalization } from '../../../context';
 import { Modal } from './Modal';
 import { Btn } from '../Button';
 import { WarningIcon, InfoIcon } from '../Misc/Icons';
-import { Spinner } from '../Loader';
 
 export type ConfirmVariant = 'danger' | 'warning' | 'info';
 
@@ -77,11 +76,8 @@ export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
       <Btn
         variant={config().confirmVariant}
         onClick={handleConfirm}
-        disabled={isLoading()}
+        loading={isLoading()}
       >
-        <Show when={isLoading()}>
-          <Spinner size={14} />
-        </Show>
         {props.confirmText ?? config().defaultConfirmText}
       </Btn>
     </div>

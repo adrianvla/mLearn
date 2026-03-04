@@ -141,8 +141,8 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label={t('mlearn.Settings.DisplayOptions.ImmediateFetch.Label')}
-          description={t('mlearn.Settings.DisplayOptions.ImmediateFetch.Description')}
+          label={t('mlearn.Settings.DisplayOptions.OpenAside.Label')}
+          description={t('mlearn.Settings.DisplayOptions.OpenAside.Description')}
         >
           <ToggleSwitch
             checked={settings.openAside}

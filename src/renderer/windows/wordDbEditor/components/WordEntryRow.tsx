@@ -12,6 +12,9 @@ import type { TranslationResponse, TranslationEntry } from '../../../../shared/t
 import { getBackend } from '../../../../shared/backends';
 import './WordEntryRow.css';
 
+/** Export result state for per-row Anki feedback */
+export type AnkiExportState = 'idle' | 'exporting' | 'exported' | 'duplicate' | 'error';
+
 /**
  * Shared translation fetch queue to avoid overwhelming the backend.
  * Processes translation requests in batches with concurrency control.
@@ -89,6 +92,8 @@ export interface WordEntryRowProps {
   onAddFlashcard: (entry: WordEntry) => void;
   onRemoveFlashcard: (entry: WordEntry) => void;
   onEdit?: (entry: WordEntry) => void;
+  onExportToAnki?: (entry: WordEntry) => void;
+  ankiExportState?: AnkiExportState;
 }
 
 export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
@@ -139,7 +144,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   return (
     <div class="entry" ref={rowRef}>
       <div class="col word">
-        <span class="word-text" style={{ position: 'relative' }}>
+        <span class="word-text">
           <PitchAccentOverlay
             word={props.entry.word}
             reading={props.entry.reading || props.entry.word}
@@ -192,6 +197,24 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             onClick={() => props.onAddFlashcard(props.entry)}
           >
             {t('mlearn.Global.Add')}
+          </Btn>
+        </Show>
+        <Show when={props.onExportToAnki}>
+          <Btn
+            variant={props.ankiExportState === 'exported' || props.ankiExportState === 'duplicate' ? 'ghost' : 'secondary'}
+            size="sm"
+            loading={props.ankiExportState === 'exporting'}
+            disabled={props.ankiExportState === 'exported' || props.ankiExportState === 'duplicate'}
+            onClick={() => props.onExportToAnki?.(props.entry)}
+            title={t('mlearn.WordDbEditor.Anki.ExportToAnki')}
+          >
+            {props.ankiExportState === 'exported'
+              ? t('mlearn.WordDbEditor.Anki.Exported')
+              : props.ankiExportState === 'duplicate'
+                ? t('mlearn.WordDbEditor.Anki.AlreadyInAnki')
+                : props.ankiExportState === 'error'
+                  ? t('mlearn.WordDbEditor.Anki.ExportFailed')
+                  : 'Anki'}
           </Btn>
         </Show>
       </div>

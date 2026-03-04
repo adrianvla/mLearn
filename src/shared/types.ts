@@ -327,7 +327,7 @@ export const DEFAULT_SETTINGS: Settings = {
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',
   ollamaModel: '',
-  builtinModel: 'Qwen3-4B-Instruct-Q4_K_M.gguf',
+  builtinModel: 'Qwen3.5-9B-Q4_K_M.gguf',
   speechEnabled: false,
   autoSpeak: false,
   sttLanguage: '',

@@ -6,7 +6,7 @@
  */
 
 import { Component, Show, createSignal, createMemo } from 'solid-js';
-import { Modal, Btn, Select, Spinner, VoiceSamplePicker, ToggleSwitch } from '../common';
+import { Modal, Btn, Select, VoiceSamplePicker, ToggleSwitch } from '../common';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { getBackend } from '../../../shared/backends';
@@ -143,11 +143,8 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
           <Btn onClick={props.onClose} disabled={generating()}>
             {t('mlearn.Global.Cancel')}
           </Btn>
-          <Btn variant="primary" onClick={handleGenerate} disabled={generating()}>
-            <Show when={generating()} fallback={t('mlearn.CardEditor.GenerateTtsAction')}>
-              <Spinner size={16} />
-              <span>{t('mlearn.CardEditor.GeneratingTts')}</span>
-            </Show>
+          <Btn variant="primary" onClick={handleGenerate} loading={generating()}>
+            {generating() ? t('mlearn.CardEditor.GeneratingTts') : t('mlearn.CardEditor.GenerateTtsAction')}
           </Btn>
         </>
       }
@@ -193,12 +190,9 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
             <Btn
               variant="secondary"
               onClick={handleRegenerateExample}
-              disabled={regeneratingExample()}
+              loading={regeneratingExample()}
             >
-              <Show when={regeneratingExample()} fallback={t('mlearn.CardEditor.RegenerateExample')}>
-                <Spinner size={16} />
-                <span>{t('mlearn.CardEditor.RegeneratingExample')}</span>
-              </Show>
+              {regeneratingExample() ? t('mlearn.CardEditor.RegeneratingExample') : t('mlearn.CardEditor.RegenerateExample')}
             </Btn>
           </div>
         </Show>
