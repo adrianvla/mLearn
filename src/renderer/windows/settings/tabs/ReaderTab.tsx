@@ -2,74 +2,16 @@
  * Reader Settings Tab
  */
 
-import { Component, createSignal, onCleanup, Show } from 'solid-js';
+import { Component, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon, Select } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
 import '../SettingsForm.css';
-
-/** Key options for hover trigger keybind */
-const KEY_OPTIONS = ['Shift', 'Control', 'Alt', 'Meta'] as const;
 
 export const ReaderTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const { currentLangData } = useLanguage();
-  
-  // Recording state for key capture
-  const [isRecording, setIsRecording] = createSignal(false);
-  let stopRecordingListener: (() => void) | null = null;
-
-  const handleTriggerModeChange = (e: Event) => {
-    const value = (e.target as HTMLSelectElement).value as WordHoverTriggerMode;
-    updateSettings({ readerWordHoverTrigger: value });
-  };
-  
-  const handleKeyChange = (e: Event) => {
-    const value = (e.target as HTMLSelectElement).value;
-    updateSettings({ readerWordHoverKey: value });
-  };
-
-  const stopRecording = () => {
-    if (stopRecordingListener) {
-      stopRecordingListener();
-      stopRecordingListener = null;
-    }
-    setIsRecording(false);
-  };
-
-  // Allow user to press a key to set the keybind
-  const startRecording = () => {
-    if (isRecording()) return;
-    setIsRecording(true);
-    
-    const handleKeyDown = (e: KeyboardEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      // Only accept modifier keys for simplicity
-      const key = e.key;
-      if (['Shift', 'Control', 'Alt', 'Meta'].includes(key)) {
-        updateSettings({ readerWordHoverKey: key });
-      }
-      stopRecording();
-    };
-
-    const handleWindowBlur = () => {
-      stopRecording();
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('blur', handleWindowBlur);
-    stopRecordingListener = () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('blur', handleWindowBlur);
-    };
-  };
-
-  onCleanup(() => {
-    stopRecording();
-  });
 
   return (
     <TabContent
@@ -147,15 +89,15 @@ export const ReaderTab: Component = () => {
           label={t('mlearn.Settings.Reader.WordHoverBehavior.TriggerMode.Label')}
           description={t('mlearn.Settings.Reader.WordHoverBehavior.TriggerMode.Description')}
         >
-          <select
-            class="setting-input"
+          <Select
             value={settings.readerWordHoverTrigger ?? 'hover'}
-            onChange={handleTriggerModeChange}
-          >
-            <option value="hover">{t('mlearn.Settings.Reader.WordHoverBehavior.Modes.Hover')}</option>
-            <option value="long-hover">{t('mlearn.Settings.Reader.WordHoverBehavior.Modes.LongHover')}</option>
-            <option value="key-hover">{t('mlearn.Settings.Reader.WordHoverBehavior.Modes.KeyHover', { key: settings.readerWordHoverKey ?? 'Shift' })}</option>
-          </select>
+            onChange={(e) => updateSettings({ readerWordHoverTrigger: e.currentTarget.value as WordHoverTriggerMode })}
+            options={[
+              { value: 'hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.Hover') },
+              { value: 'long-hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.LongHover') },
+              { value: 'key-hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.KeyHover', { key: settings.readerWordHoverKey ?? 'Shift' }) },
+            ]}
+          />
         </SettingRow>
         
         <Show when={settings.readerWordHoverTrigger === 'key-hover'}>
@@ -163,32 +105,11 @@ export const ReaderTab: Component = () => {
             label={t('mlearn.Settings.Reader.WordHoverBehavior.HoverKey.Label')}
             description={t('mlearn.Settings.Reader.WordHoverBehavior.HoverKey.Description')}
           >
-            <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
-              <select
-                class="setting-input"
-                value={settings.readerWordHoverKey ?? 'Shift'}
-                onChange={handleKeyChange}
-              >
-                {KEY_OPTIONS.map((key) => (
-                  <option value={key}>{key}</option>
-                ))}
-              </select>
-              <button
-                class="setting-button"
-                onClick={startRecording}
-                style={{
-                  padding: '4px 8px',
-                  'font-size': '0.85rem',
-                  background: isRecording() ? 'var(--accent)' : 'rgba(255,255,255,0.1)',
-                  border: '1px solid var(--border-color)',
-                  'border-radius': '4px',
-                  color: 'var(--text)',
-                  cursor: 'pointer',
-                }}
-              >
-                {isRecording() ? t('mlearn.Settings.Reader.WordHoverBehavior.PressAKey') : t('mlearn.Settings.Reader.WordHoverBehavior.RecordKey')}
-              </button>
-            </div>
+            <KeybindInput
+              value={settings.readerWordHoverKey ?? 'Shift'}
+              onChange={(key) => updateSettings({ readerWordHoverKey: key })}
+              allowModifierOnly={true}
+            />
           </SettingRow>
         </Show>
       </SettingGroup>
@@ -249,8 +170,7 @@ export const ReaderTab: Component = () => {
                 }
               }}
             />
-            {/*TODO: make actual layout because hardcoding the width is meh*/}
-            <span style={{ color: 'var(--text-secondary)', 'font-size': '0.9rem' , 'width': '16px'}}>x</span>
+            <span class="setting-hint">x</span>
           </div>
         </SettingRow>
 
@@ -282,7 +202,7 @@ export const ReaderTab: Component = () => {
                 }
               }}
             />
-            <span style={{ color: 'var(--text-secondary)', 'font-size': '0.9rem' }}>px</span>
+            <span class="setting-hint">px</span>
           </div>
         </SettingRow>
       </SettingGroup>
@@ -329,23 +249,6 @@ export const ReaderTab: Component = () => {
             />
           </SettingRow>
         </Show>
-      </SettingGroup>
-
-      <SettingGroup title={t('mlearn.Settings.Reader.Tips.Title')}>
-        <div style={{ color: "rgba(255,255,255,0.7)", "font-size": "0.9rem", "line-height": "1.6" }}>
-          <p style={{ "margin-bottom": "12px" }}>
-            {t('mlearn.Settings.Reader.Tips.GettingStarted')}
-          </p>
-          <p style={{ "margin-bottom": "12px" }}>
-            {t('mlearn.Settings.Reader.Tips.OcrMode')}
-          </p>
-          <p style={{ "margin-bottom": "12px" }}>
-            {t('mlearn.Settings.Reader.Tips.Navigation')}
-          </p>
-          <p>
-            {t('mlearn.Settings.Reader.Tips.DoublePage')}
-          </p>
-        </div>
       </SettingGroup>
     </TabContent>
   );

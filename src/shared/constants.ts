@@ -113,6 +113,8 @@ export const IPC_CHANNELS = {
   SERVER_LOAD: 'server-load',
   SERVER_STATUS_UPDATE: 'server-status-update',
   SERVER_CRITICAL_ERROR: 'server-critical-error',
+  ANKI_CONNECTION_ERROR: 'anki-connection-error',
+  RESTART_BACKEND_ANKI_OVERRIDE: 'restart-backend-anki-override',
   OCR_STATUS_UPDATE: 'ocr-status-update',
   
   // Installation
@@ -246,6 +248,10 @@ export const IPC_CHANNELS = {
   FLASHCARD_TTS_GENERATE: 'flashcard-tts-generate',
   FLASHCARD_TTS_BATCH_GENERATE: 'flashcard-tts-batch-generate',
   FLASHCARD_TTS_GET_META: 'flashcard-tts-get-meta',
+
+  // Data export/import
+  DATA_EXPORT: 'data-export',
+  DATA_IMPORT: 'data-import',
 } as const;
 
 // Window types

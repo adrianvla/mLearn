@@ -7,7 +7,7 @@ import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup
 import type { Token } from '../../../shared/types';
 import { useTokenizer, warmTranslationCache } from '../../hooks';
 import { useLanguage, useSettings } from '../../context';
-import { buildOcrContextMap, filterNarrowBoxes } from '../../utils/ocrUtils';
+import { buildOcrContextMap, filterNarrowBoxes, type FilterDebugZone } from '../../utils/ocrUtils';
 import { OcrWord } from './OcrWord';
 import { FuriganaHider } from './FuriganaHider';
 import './OcrOverlay.css';
@@ -123,9 +123,9 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const [contextMap, setContextMap] = createSignal<Map<number, string>>(new Map());
   const [observedWidth, setObservedWidth] = createSignal(0);
   const [observedHeight, setObservedHeight] = createSignal(0);
-  // Track the image's offset position within its parent container
   const [imageOffsetLeft, setImageOffsetLeft] = createSignal(0);
   const [imageOffsetTop, setImageOffsetTop] = createSignal(0);
+  const [debugZones, setDebugZones] = createSignal<FilterDebugZone[]>([]);
 
   // Check if vertical text is supported by the current language
   const langFeatures = createMemo(() => getLanguageFeatures());
@@ -208,8 +208,8 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     const filtered = filterNarrowBoxes(boxesWithIdx, {
       ratio: settings.ocrFuriganaWidthRatio,
       neighborWindowMultiplier: settings.ocrFuriganaNeighborWindowMultiplier,
-      neighborLookahead: settings.ocrFuriganaNeighborLookahead,
       supportsVerticalText: langFeatures().supportsVerticalText,
+      debugOutput: props.debugOcr ? setDebugZones : undefined,
     });
     
     return filtered;
@@ -363,6 +363,52 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                   }}
                   title={`[Furigana] ${box.text}`}
                 />
+              );
+            }}
+          </For>
+        </div>
+      </Show>
+
+      {/* Debug overlay for zone boundaries */}
+      <Show when={props.debugOcr && debugZones().length > 0}>
+        <div
+          class="ocr-overlay"
+          style={{
+            left: `${imageOffsetLeft()}px`,
+            top: `${imageOffsetTop()}px`,
+            width: `${observedWidth()}px`,
+            height: `${observedHeight()}px`,
+            opacity: 1,
+          }}
+        >
+          <For each={debugZones()}>
+            {(zone) => {
+              const getScale = () => scaleFactor();
+              const hue = () => (zone.zoneIndex * 137) % 360;
+              const b = zone.bounds;
+              const statsText = () => zone.orientationStats
+                .map(s => `${s.orientation}: median=${s.medianCross.toFixed(0)} thresh=${s.threshold.toFixed(0)} furigana=${s.furiganaIndices.length}`)
+                .join(' | ');
+              return (
+                <div
+                  class="ocr-debug-zone"
+                  style={{
+                    left: `${b.minX * getScale()}px`,
+                    top: `${b.minY * getScale()}px`,
+                    width: `${(b.maxX - b.minX) * getScale()}px`,
+                    height: `${(b.maxY - b.minY) * getScale()}px`,
+                    'border-color': `hsl(${hue()}, 70%, 55%)`,
+                    'background-color': `hsla(${hue()}, 70%, 55%, 0.06)`,
+                  }}
+                  title={`Zone ${zone.zoneIndex} (${zone.indices.length} boxes) ${statsText()}`}
+                >
+                  <span
+                    class="ocr-debug-zone-label"
+                    style={{ 'background-color': `hsl(${hue()}, 70%, 55%)` }}
+                  >
+                    Z{zone.zoneIndex}
+                  </span>
+                </div>
               );
             }}
           </For>

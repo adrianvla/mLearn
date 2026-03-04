@@ -80,27 +80,6 @@
   border-top: 1px solid var(--border-color);
 }
 
-.flashcards-auto-tts {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border-color);
-  margin-bottom: 0.25rem;
-}
-
-.flashcards-auto-tts-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.flashcards-auto-tts-label {
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-}
-
 .flashcards-sidebar-btn {
   width: 100%;
   justify-content: center;

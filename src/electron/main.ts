@@ -22,6 +22,7 @@ import { setupBuiltinLLMIPC } from './services/builtinLLMService';
 import { setupLLMRouterIPC } from './services/llmRouter';
 import { setupSpeechIPC } from './services/speechService';
 import { setupVoiceIPC } from './services/voiceService';
+import { setupDataExportImportIPC } from './services/dataExportImport';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 
@@ -170,6 +171,7 @@ function setupAllIPC(): void {
   setupLLMRouterIPC();
   setupSpeechIPC();
   setupVoiceIPC();
+  setupDataExportImportIPC();
   setupKillHandlers();
 }
 

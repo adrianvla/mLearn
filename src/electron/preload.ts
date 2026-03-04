@@ -129,6 +129,10 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.SERVER_STATUS_UPDATE, (_event, message) => callback(message)),
   onServerCriticalError: (callback: (message: string) => void) =>
     ipcOn(IPC_CHANNELS.SERVER_CRITICAL_ERROR, (_event, message) => callback(message)),
+  onAnkiConnectionError: (callback: (reason: string) => void) =>
+    ipcOn(IPC_CHANNELS.ANKI_CONNECTION_ERROR, (_event, reason) => callback(reason)),
+  restartBackendAnkiOverride: (disableAnki: boolean) =>
+    ipcRenderer.send(IPC_CHANNELS.RESTART_BACKEND_ANKI_OVERRIDE, disableAnki),
   onOcrStatusUpdate: (callback: (message: string) => void) =>
     ipcOn(IPC_CHANNELS.OCR_STATUS_UPDATE, (_event, message) => callback(message)),
 
@@ -332,6 +336,12 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_TRANSCRIBE, id),
   voiceSampleGetPath: (id: string): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.VOICE_SAMPLE_GET_PATH, id),
+
+  // ========== Data Export/Import ==========
+  dataExport: (): Promise<{ success: boolean; filePath?: string | null; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DATA_EXPORT),
+  dataImport: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DATA_IMPORT),
 };
 
 // Expose API to renderer

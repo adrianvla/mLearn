@@ -1,0 +1,52 @@
+/**
+ * Anki Field Preview Styles
+ * Shown in settings when configuring Anki field mappings.
+ */
+
+.anki-field-preview {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  background: var(--bg-secondary);
+}
+
+.anki-field-preview__title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.anki-field-preview__grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: var(--font-size-sm);
+}
+
+.anki-field-preview__label {
+  color: var(--text-tertiary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.anki-field-preview__value {
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.anki-field-preview__empty {
+  color: var(--text-tertiary);
+  font-style: italic;
+  font-size: var(--font-size-sm);
+  text-align: center;
+  padding: 8px;
+}
+
+.anki-status-text--connected {
+  color: var(--color-success);
+}
+
+.anki-status-text--error {
+  color: var(--color-error);
+}

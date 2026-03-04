@@ -11,8 +11,8 @@ import { downloadFileWithProgress } from '../utils/downloadManager';
 import type { LLMStreamChunk, LLMModelStatus, LLMChatMessage, LLMToolDefinition, LLMToolCall } from '../../shared/types';
 
 // Default model configuration
-const DEFAULT_MODEL_REPO = 'Qwen/Qwen3-4B-GGUF';
-const DEFAULT_MODEL_FILE = 'qwen3-4b-q4_k_m.gguf';
+const DEFAULT_MODEL_REPO = 'unsloth/Qwen3.5-9B-GGUF';
+const DEFAULT_MODEL_FILE = 'Qwen3.5-9B-Q4_K_M.gguf';
 const DEFAULT_MODEL_URL = `https://huggingface.co/${DEFAULT_MODEL_REPO}/resolve/main/${DEFAULT_MODEL_FILE}`;
 const MODEL_DIR_NAME = 'models';
 const IDLE_UNLOAD_MS = 10 * 60 * 1000; // 10 minutes

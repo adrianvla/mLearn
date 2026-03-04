@@ -5,11 +5,14 @@
 
 import { Component, Show, createSignal, createEffect, onCleanup, For } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, SparklesIcon, ToggleSwitch, VoiceSamplePicker } from '../../../components/common';
+import {
+  SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText,
+  BotIcon
+} from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../../shared/backends';
-import type { LLMProvider, LLMModelStatus, OCRProvider, TTSProvider } from '../../../../shared/types';
+import type { LLMProvider, LLMModelStatus, OCRProvider } from '../../../../shared/types';
 import '../SettingsForm.css';
 import './AITab.css';
 
@@ -37,7 +40,6 @@ export const AITab: Component = () => {
   // Cloud LLM state
   const [testingCloudLLM, setTestingCloudLLM] = createSignal(false);
   const [cloudLLMStatus, setCloudLLMStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
-  const [cloudLLMError, setCloudLLMError] = createSignal('');
 
   // Check model status on mount
   createEffect(() => {
@@ -127,7 +129,6 @@ export const AITab: Component = () => {
   async function handleTestCloudLLM() {
     setTestingCloudLLM(true);
     setCloudLLMStatus('idle');
-    setCloudLLMError('');
     try {
       const cloudApiUrl = resolveCloudApiUrl(settings);
       const adapter = new CloudLLMAdapter(
@@ -136,10 +137,8 @@ export const AITab: Component = () => {
       );
       const ok = await adapter.checkAvailability();
       setCloudLLMStatus(ok ? 'success' : 'error');
-      if (!ok) setCloudLLMError(t('mlearn.Connection.Unreachable'));
-    } catch (e) {
+    } catch {
       setCloudLLMStatus('error');
-      setCloudLLMError(String(e));
     } finally {
       setTestingCloudLLM(false);
     }
@@ -158,7 +157,7 @@ export const AITab: Component = () => {
       header={{
         title: t('mlearn.AI.Settings.Title'),
         description: t('mlearn.AI.Settings.Description'),
-        icon: <SparklesIcon size={20} />,
+        icon: <BotIcon size={20} />,
       }}
       padding="lg"
     >
@@ -181,31 +180,14 @@ export const AITab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title={t('mlearn.AI.Settings.OCR.Title')}>
-        <SettingRow
-          label={t('mlearn.AI.Settings.OCR.Provider.Label')}
-          description={t('mlearn.AI.Settings.OCR.Provider.Description')}
-        >
-          <Select
-            class="setting-select"
-            value={settings.ocrProvider ?? 'local'}
-            onChange={(e) => updateSettings({ ocrProvider: e.currentTarget.value as OCRProvider })}
-            options={[
-              { value: 'local', label: t('mlearn.AI.Settings.OCR.Provider.Local') },
-              { value: 'cloud', label: t('mlearn.AI.Settings.OCR.Provider.Cloud') },
-            ]}
-          />
-        </SettingRow>
-      </SettingGroup>
-
       {/* Built-in Model Section */}
       <Show when={settings.llmProvider === 'builtin'}>
         <SettingGroup title={t('mlearn.AI.Settings.BuiltinModel.Title')}>
           <SettingRow
             label={t('mlearn.AI.Settings.BuiltinModel.ModelName')}
-            description={t('mlearn.AI.Settings.BuiltinModel.DiskSpace', { size: '~2.8 GB' })}
+            description={t('mlearn.AI.Settings.BuiltinModel.DiskSpace', { size: '~5.7 GB' })}
           >
-            <span class="setting-value">{settings.builtinModel || 'Qwen3-4B-Instruct-Q4_K_M.gguf'}</span>
+            <span class="setting-value">{settings.builtinModel || 'Qwen3.5-9B-Q4_K_M.gguf'}</span>
           </SettingRow>
 
           <SettingRow
@@ -302,24 +284,21 @@ export const AITab: Component = () => {
             label={t('mlearn.AI.Settings.OllamaConfig.TestConnection')}
             description=""
           >
-            <div class="ai-connection-test">
-              <Btn
-                size="sm"
-                variant={ollamaTestSuccess() ? 'success' : 'default'}
-                onClick={handleTestOllama}
-                disabled={ollamaTesting()}
-                loading={ollamaTesting()}
-                icon={ollamaTestSuccess() ? 'check' : undefined}
-              >
-                {ollamaTestSuccess()
-                  ? t('mlearn.AI.Settings.OllamaConfig.ConnectionSuccess')
+            <Btn
+              size="sm"
+              variant={ollamaTestSuccess() ? 'success' : ollamaConnected() === false ? 'danger' : 'default'}
+              onClick={handleTestOllama}
+              disabled={ollamaTesting()}
+              loading={ollamaTesting()}
+              icon={ollamaTestSuccess() ? 'check' : undefined}
+            >
+              {ollamaTestSuccess()
+                ? t('mlearn.AI.Settings.OllamaConfig.ConnectionSuccess')
+                : ollamaConnected() === false
+                  ? t('mlearn.Connection.Unreachable')
                   : t('mlearn.AI.Settings.OllamaConfig.TestConnection')
-                }
-              </Btn>
-              <Show when={ollamaConnected() === false}>
-                <span class="ai-status-error">{t('mlearn.AI.Settings.OllamaConfig.ConnectionFailed')}</span>
-              </Show>
-            </div>
+              }
+            </Btn>
           </SettingRow>
 
           <SettingRow
@@ -355,24 +334,21 @@ export const AITab: Component = () => {
             label={t('mlearn.AI.Settings.CloudConfig.TestConnection')}
             description=""
           >
-            <div class="ai-connection-test">
-              <Btn
-                size="sm"
-                variant={cloudLLMStatus() === 'success' ? 'success' : 'default'}
-                onClick={handleTestCloudLLM}
-                disabled={testingCloudLLM()}
-                loading={testingCloudLLM()}
-                icon={cloudLLMStatus() === 'success' ? 'check' : undefined}
-              >
-                {cloudLLMStatus() === 'success'
-                  ? t('mlearn.AI.Settings.CloudConfig.ConnectionSuccess')
+            <Btn
+              size="sm"
+              variant={cloudLLMStatus() === 'success' ? 'success' : cloudLLMStatus() === 'error' ? 'danger' : 'default'}
+              onClick={handleTestCloudLLM}
+              disabled={testingCloudLLM()}
+              loading={testingCloudLLM()}
+              icon={cloudLLMStatus() === 'success' ? 'check' : undefined}
+            >
+              {cloudLLMStatus() === 'success'
+                ? t('mlearn.AI.Settings.CloudConfig.ConnectionSuccess')
+                : cloudLLMStatus() === 'error'
+                  ? t('mlearn.Connection.Unreachable')
                   : t('mlearn.AI.Settings.CloudConfig.TestConnection')
-                }
-              </Btn>
-              <Show when={cloudLLMStatus() === 'error'}>
-                <span class="ai-status-error">{cloudLLMError()}</span>
-              </Show>
-            </div>
+              }
+            </Btn>
           </SettingRow>
 
           <HintText>
@@ -381,56 +357,24 @@ export const AITab: Component = () => {
         </SettingGroup>
       </Show>
 
-      {/* Flashcard TTS */}
-      <SettingGroup title={t('mlearn.AI.Settings.FlashcardTTS.Title')}>
-        <SettingRow
-          label={t('mlearn.AI.Settings.FlashcardTTS.AutoPlay.Label')}
-          description={t('mlearn.AI.Settings.FlashcardTTS.AutoPlay.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.flashcardAutoTts}
-            onChange={(v) => updateSettings({ flashcardAutoTts: v })}
-          />
-        </SettingRow>
 
+      <SettingGroup title={t('mlearn.AI.Settings.OCR.Title')}>
         <SettingRow
-          label={t('mlearn.AI.Settings.FlashcardTTS.Provider.Label')}
-          description={t('mlearn.AI.Settings.FlashcardTTS.Provider.Description')}
+            label={t('mlearn.AI.Settings.OCR.Provider.Label')}
+            description={t('mlearn.AI.Settings.OCR.Provider.Description')}
         >
           <Select
-            value={settings.flashcardTtsProvider}
-            onChange={(e) => updateSettings({ flashcardTtsProvider: e.currentTarget.value as TTSProvider })}
-            options={[
-              { value: 'kokoro', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Kokoro') },
-              { value: 'qwen3', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Qwen3') },
-              { value: 'cloud', label: t('mlearn.AI.Settings.FlashcardTTS.Provider.Cloud') },
-            ]}
-          />
-        </SettingRow>
-
-        <Show when={settings.flashcardTtsProvider !== 'kokoro' && settings.flashcardTtsProvider !== 'cloud'}>
-          <SettingRow
-            label={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Label')}
-            description={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.Description')}
-          >
-            <VoiceSamplePicker
-              value={settings.flashcardVoiceSampleId}
-              onChange={(id) => updateSettings({ flashcardVoiceSampleId: id })}
-              ttsProvider={settings.flashcardTtsProvider}
-            />
-          </SettingRow>
-        </Show>
-
-        <SettingRow
-          label={t('mlearn.AI.Settings.FlashcardTTS.AutoGenerate.Label')}
-          description={t('mlearn.AI.Settings.FlashcardTTS.AutoGenerate.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.flashcardAutoGenerateAudio}
-            onChange={(v) => updateSettings({ flashcardAutoGenerateAudio: v })}
+              class="setting-select"
+              value={settings.ocrProvider ?? 'local'}
+              onChange={(e) => updateSettings({ ocrProvider: e.currentTarget.value as OCRProvider })}
+              options={[
+                { value: 'local', label: t('mlearn.AI.Settings.OCR.Provider.Local') },
+                { value: 'cloud', label: t('mlearn.AI.Settings.OCR.Provider.Cloud') },
+              ]}
           />
         </SettingRow>
       </SettingGroup>
+
     </TabContent>
   );
 };

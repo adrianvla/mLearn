@@ -13,7 +13,7 @@ import { Btn } from '../Button/Button';
 import { IconBtn } from '../Button/Button';
 import { ProgressBar } from '../Feedback/ProgressBar';
 import { ConfirmDialog } from '../Modal/ConfirmDialog';
-import { PlayIcon, PauseIcon, TrashIcon, Spinner } from '../../common';
+import { PlayIcon, PauseIcon, TrashIcon } from '../../common';
 import type { VoiceSample, VoiceTtsAudio } from '../../../../shared/types';
 import './VoiceSamplePicker.css';
 
@@ -353,46 +353,47 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
         </div>
       </Show>
 
-      {/* TTS test input */}
-      <div class="voice-sample-picker-tts-test">
-        <Show when={ttsModelLoading()}>
-          <div class="voice-sample-picker-status">
-            <span class="voice-sample-picker-status-label">
-              {t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.ModelLoading')}
-            </span>
-            <ProgressBar
-              value={Math.round(ttsDownloadProgress() * 100)}
-              size="xs"
-              variant="primary"
-              showPercent
-              animated={ttsDownloadProgress() < 0.05}
-            />
-          </div>
-        </Show>
-        <input
-          type="text"
-          class="voice-sample-picker-tts-input"
-          placeholder={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestPlaceholder')}
-          value={ttsTestText()}
-          onInput={(e) => setTtsTestText(e.currentTarget.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleTtsTest(); }}
-          disabled={ttsGenerating()}
-        />
-        <IconBtn
-          size="sm"
-          icon={
-            ttsGenerating()
-              ? <Spinner />
-              : ttsPlaying()
+      {/* TTS test input — only shown when a voice sample is selected */}
+      <Show when={props.value}>
+        <div class="voice-sample-picker-tts-test">
+          <Show when={ttsModelLoading()}>
+            <div class="voice-sample-picker-status">
+              <span class="voice-sample-picker-status-label">
+                {t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.ModelLoading')}
+              </span>
+              <ProgressBar
+                value={Math.round(ttsDownloadProgress() * 100)}
+                size="xs"
+                variant="primary"
+                showPercent
+                animated={ttsDownloadProgress() < 0.05}
+              />
+            </div>
+          </Show>
+          <input
+            type="text"
+            class="voice-sample-picker-tts-input"
+            placeholder={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestPlaceholder')}
+            value={ttsTestText()}
+            onInput={(e) => setTtsTestText(e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleTtsTest(); }}
+            disabled={ttsGenerating()}
+          />
+          <IconBtn
+            size="sm"
+            loading={ttsGenerating()}
+            icon={
+              ttsPlaying()
                 ? <PauseIcon size={14} />
                 : <PlayIcon size={14} />
-          }
-          onClick={handleTtsTest}
-          disabled={!ttsTestText().trim() && !ttsGenerating() && !ttsPlaying()}
-          aria-label={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestTts')}
-          title={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestTts')}
-        />
-      </div>
+            }
+            onClick={handleTtsTest}
+            disabled={!ttsTestText().trim() && !ttsGenerating() && !ttsPlaying()}
+            aria-label={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestTts')}
+            title={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestTts')}
+          />
+        </div>
+      </Show>
 
       <ConfirmDialog
         isOpen={deleteConfirmOpen()}

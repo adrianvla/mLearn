@@ -95,19 +95,24 @@
         "Error": "エラー",
         "Fatal": "重大なエラー",
         "Warning": "警告",
-        "StartupError": "起動エラー"
+        "StartupError": "起動エラー",
+        "AnkiError": "Anki接続エラー"
       },
       "Messages": {
         "PortInUse": "別のアプリケーションが必要なポートを使用しています。他のmLearnインスタンスを閉じるか、コンピュータを再起動してください。",
         "PermissionDenied": "権限が拒否されました。システムの権限を確認するか、管理者権限でアプリケーションを実行してください。",
         "FileNotFound": "必要なファイルが見つかりません。アプリケーションを再インストールしてください。",
-        "BackendStopped": "バックエンドサーバーが予期せず停止しました。アプリケーションを再起動してください。"
+        "BackendStopped": "バックエンドサーバーが予期せず停止しました。アプリケーションを再起動してください。",
+        "AnkiConnectionFailed": "Ankiに接続できませんでした。AnkiConnectがインストールされた状態でAnkiが実行中であることを確認するか、Anki連携を無効にしてください。",
+        "AnkiNoValidCards": "Ankiに接続しましたが、有効なカードが見つかりませんでした。設定でデッキとフィールドの構成を確認してください。"
       },
       "ShowDetails": "詳細を表示",
       "HideDetails": "詳細を非表示",
       "CopyError": "エラーをコピー",
       "Copied": "コピーしました！",
-      "Quit": "終了"
+      "Quit": "終了",
+      "AnkiDisableSession": "このセッションのみAnkiを無効にする",
+      "AnkiDisablePermanent": "Ankiを恒久的に無効にする"
     },
     "SubtitleSync": {
       "SyncToPrevious": "前の音声に字幕を同期",
@@ -567,6 +572,7 @@
       "Groups": {
         "Language": "言語",
         "Appearance": "外観",
+        "Settings": "設定",
         "Data": "データ",
         "WordStatus": "単語の状態",
         "BlurEffect": "ぼかし効果",
@@ -612,17 +618,27 @@
         }
       },
       "Data": {
-        "ExportData": {
-          "Label": "データをエクスポート",
-          "Description": "学習データをファイルにエクスポート"
+        "ExportSettings": {
+          "Label": "設定をエクスポート",
+          "Description": "設定をJSONファイルにエクスポート"
         },
-        "ImportData": {
-          "Label": "データをインポート",
-          "Description": "ファイルから学習データをインポート"
+        "ImportSettings": {
+          "Label": "設定をインポート",
+          "Description": "JSONファイルから設定をインポート"
         },
         "ResetSettings": {
           "Label": "設定をリセット",
           "Description": "すべての設定をデフォルト値にリセット"
+        },
+        "ExportAllData": {
+          "Label": "すべてのデータをエクスポート",
+          "Description": "すべての学習データ（フラッシュカード、メディア統計、音声、画像）をZIPアーカイブとしてエクスポート"
+        },
+        "ImportAllData": {
+          "Label": "すべてのデータをインポート",
+          "Description": "ZIPアーカイブからすべての学習データをインポートします。既存のデータは上書きされます。",
+          "Confirm": "現在のすべてのデータ（フラッシュカード、メディア統計、音声、画像）が上書きされます。インポート後にアプリが再起動します。続行しますか？",
+          "Success": "データが正常にインポートされました。変更を適用するためにアプリを再起動します。"
         }
       },
       "WordStatus": {
@@ -678,6 +694,10 @@
         "ImmediateFetch": {
           "Label": "即時取得",
           "Description": "字幕が表示されたらすぐに単語データを取得"
+        },
+        "OpenAside": {
+          "Label": "ライブ翻訳パネル",
+          "Description": "字幕が表示されたときに単語の翻訳をサイドパネルに表示"
         }
       },
       "Performance": {
@@ -836,13 +856,6 @@
             "Label": "応答を自動読み上げ",
             "Description": "AIチューターの応答を自動で音声再生します"
           }
-        },
-        "Tips": {
-          "Title": "リーダーのヒント",
-          "GettingStarted": "始め方: 画像フォルダまたはPDFファイルをリーダーウィンドウにドラッグ＆ドロップします。",
-          "OcrMode": "OCRモード: 「OCR実行」をクリックして現在のページからテキストを抽出します。検出されたテキストにホバーして翻訳を確認できます。",
-          "Navigation": "ナビゲーション: 矢印キーを使用するか、サイドバーのサムネイルをクリックしてページ移動できます。",
-          "DoublePage": "ヒント: 見開きモードは漫画の見開きページに最適です！"
         }
       },
       "SRS": {
@@ -868,7 +881,7 @@
           "Title": "Anki連携",
           "Enable": {
             "Label": "Ankiを有効にする",
-            "Description": "AnkiConnectを使用してフラッシュカードをAnkiに送信"
+            "Description": "AnkiConnectを通じてAnkiからカードデータを取得します。Ankiカードがmlearn内蔵カードより優先されます"
           },
           "ConnectUrl": {
             "Label": "AnkiConnect URL",
@@ -884,15 +897,39 @@
           "DeckName": {
             "Label": "デッキ名",
             "Description": "新しいカードのAnkiデッキ",
-            "Placeholder": "デフォルト"
+            "Placeholder": "デッキを選択"
           },
           "ModelName": {
-            "Label": "モデル名",
-            "Description": "使用するAnkiノートタイプ"
+            "Label": "ノートタイプ",
+            "Description": "新しいカードに使用するAnkiノートタイプ",
+            "Placeholder": "ノートタイプを選択"
+          },
+          "FieldMapping": {
+            "Title": "フィールドマッピング",
+            "Description": "Ankiのノートフィールドをmlearn flashcardフィールドに対応付ける",
+            "Expression": {
+              "Label": "表現フィールド",
+              "Description": "単語や表現を含むフィールド"
+            },
+            "Reading": {
+              "Label": "読みフィールド",
+              "Description": "読みや発音を含むフィールド"
+            },
+            "Meaning": {
+              "Label": "意味フィールド",
+              "Description": "定義や意味を含むフィールド"
+            },
+            "Placeholder": "フィールドを選択",
+            "None": "(なし)"
+          },
+          "Preview": {
+            "Title": "カードプレビュー",
+            "NoCard": "このノートタイプにはカードがありません",
+            "Loading": "プレビューを読み込み中..."
           },
           "AddScreenshots": {
             "Label": "スクリーンショットを追加",
-            "Description": "フラッシュカードに動画のスクリーンショットを含める"
+            "Description": "動画とリーダーのスクリーンショットをカードに含める"
           }
         },
         "BuiltInFlashcards": {
@@ -947,9 +984,20 @@
           "Title": "データ管理",
           "ResetSRS": {
             "Label": "SRSデータをリセット",
-            "Description": "すべてのフラッシュカードの進捗をクリア（取り消し不可！）"
+            "Description": "すべてのフラッシュカードの進捗をクリア（取り消し不可！）",
+            "ModalWarning": "間隔、容易さ係数、復習回数、学習進捗を含むすべてのSRSスケジューリングデータがリセットされます。フラッシュカードの内容は保持されますが、すべてのカードは「新規」状態に戻ります。",
+            "TypePhrase": "この操作を確認するには「{phrase}」と入力してください。",
+            "Success": "すべてのSRSデータがリセットされました。"
           },
-          "ResetButton": "SRSをリセット"
+          "ResetButton": "SRSをリセット",
+          "NukeFlashcards": {
+            "Label": "すべてのフラッシュカードを削除",
+            "Description": "すべてのフラッシュカードを完全に削除し、すべてをリセット（取り消し不可！）",
+            "ModalWarning": "すべてのフラッシュカード、単語追跡データ、文法知識、日別統計、すべての学習進捗が完全に削除されます。この操作は取り消せず、アプリを新しくインストールしたときのようにフラッシュカードシステムが初期状態に戻ります。",
+            "TypePhrase": "この操作を確認するには「{phrase}」と入力してください。",
+            "Success": "すべてのフラッシュカードが削除されました。"
+          },
+          "NukeButton": "すべて削除"
         }
       },
       "Mobile": {
@@ -1165,6 +1213,13 @@
       "LevelNames": {
         "Common": "一般",
         "Unlisted": "未分類"
+      },
+      "Anki": {
+        "ExportToAnki": "Ankiにエクスポート",
+        "Exported": "Ankiにエクスポートしました",
+        "AlreadyInAnki": "Ankiに登録済み",
+        "ExportFailed": "Ankiへのエクスポートに失敗",
+        "NotConnected": "Ankiが接続されていません"
       }
     },
     "CardEditor": {

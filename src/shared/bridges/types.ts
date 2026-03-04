@@ -110,6 +110,8 @@ export interface ServerBridge {
   onServerLoad: (callback: (message: string) => void) => () => void;
   onServerStatusUpdate: (callback: (message: string) => void) => () => void;
   onServerCriticalError: (callback: (message: string) => void) => () => void;
+  onAnkiConnectionError: (callback: (reason: string) => void) => () => void;
+  restartBackendAnkiOverride: (disableAnki: boolean) => void;
   onOcrStatusUpdate: (callback: (message: string) => void) => () => void;
   restartApp: () => void;
   forceRestartApp: () => void;
@@ -234,6 +236,11 @@ export interface GenericIPCBridge {
   fetchUrl: (url: string) => Promise<{ content: string; error?: string }>;
 }
 
+export interface DataBridge {
+  dataExport: () => Promise<{ success: boolean; filePath?: string | null; error?: string }>;
+  dataImport: () => Promise<{ success: boolean; error?: string }>;
+}
+
 // ============================================================================
 // Combined PlatformBridge
 // ============================================================================
@@ -255,4 +262,5 @@ export interface PlatformBridge {
   license: LicenseBridge;
   migration: MigrationBridge;
   generic: GenericIPCBridge;
+  data: DataBridge;
 }

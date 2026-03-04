@@ -95,19 +95,24 @@
         "Error": "Fehler",
         "Fatal": "Schwerwiegender Fehler",
         "Warning": "Warnung",
-        "StartupError": "Startfehler"
+        "StartupError": "Startfehler",
+        "AnkiError": "Anki-Verbindungsfehler"
       },
       "Messages": {
         "PortInUse": "Eine andere Anwendung belegt den benötigten Port. Schließen Sie andere mLearn-Instanzen oder starten Sie den Computer neu.",
         "PermissionDenied": "Zugriff verweigert. Überprüfen Sie die Systemberechtigungen oder starten Sie die Anwendung als Administrator.",
         "FileNotFound": "Eine benötigte Datei wurde nicht gefunden. Installieren Sie die Anwendung neu.",
-        "BackendStopped": "Der Backend-Server wurde unerwartet beendet. Starten Sie die Anwendung neu."
+        "BackendStopped": "Der Backend-Server wurde unerwartet beendet. Starten Sie die Anwendung neu.",
+        "AnkiConnectionFailed": "Verbindung zu Anki fehlgeschlagen. Stellen Sie sicher, dass Anki mit AnkiConnect gestartet ist, oder deaktivieren Sie die Anki-Integration.",
+        "AnkiNoValidCards": "Anki verbunden, aber keine gültigen Karten gefunden. Überprüfen Sie Ihr Deck und die Feldkonfiguration in den Einstellungen."
       },
       "ShowDetails": "Details anzeigen",
       "HideDetails": "Details ausblenden",
       "CopyError": "Fehler kopieren",
       "Copied": "Kopiert!",
-      "Quit": "Beenden"
+      "Quit": "Beenden",
+      "AnkiDisableSession": "Anki für diese Sitzung deaktivieren",
+      "AnkiDisablePermanent": "Anki dauerhaft deaktivieren"
     },
     "SubtitleSync": {
       "SyncToPrevious": "Untertitel zum vorherigen Audio synchronisieren",
@@ -567,6 +572,7 @@
       "Groups": {
         "Language": "Sprache",
         "Appearance": "Erscheinungsbild",
+        "Settings": "Einstellungen",
         "Data": "Daten",
         "WordStatus": "Wortstatus",
         "BlurEffect": "Unschärfe-Effekt",
@@ -612,17 +618,27 @@
         }
       },
       "Data": {
-        "ExportData": {
-          "Label": "Daten exportieren",
-          "Description": "Lerndaten in eine Datei exportieren"
+        "ExportSettings": {
+          "Label": "Einstellungen exportieren",
+          "Description": "Einstellungen als JSON-Datei exportieren"
         },
-        "ImportData": {
-          "Label": "Daten importieren",
-          "Description": "Lerndaten aus einer Datei importieren"
+        "ImportSettings": {
+          "Label": "Einstellungen importieren",
+          "Description": "Einstellungen aus einer JSON-Datei importieren"
         },
         "ResetSettings": {
           "Label": "Einstellungen zurücksetzen",
           "Description": "Alle Einstellungen auf Standardwerte zurücksetzen"
+        },
+        "ExportAllData": {
+          "Label": "Alle Daten exportieren",
+          "Description": "Alle Lerndaten (Lernkarten, Medienstatistiken, Audio, Bilder) als ZIP-Archiv exportieren"
+        },
+        "ImportAllData": {
+          "Label": "Alle Daten importieren",
+          "Description": "Alle Lerndaten aus einem ZIP-Archiv importieren. Vorhandene Daten werden überschrieben.",
+          "Confirm": "Alle aktuellen Daten (Lernkarten, Medienstatistiken, Audio, Bilder) werden überschrieben. Die App wird nach dem Import neu gestartet. Fortfahren?",
+          "Success": "Daten erfolgreich importiert. Die App wird jetzt neu gestartet."
         }
       },
       "WordStatus": {
@@ -678,6 +694,10 @@
         "ImmediateFetch": {
           "Label": "Sofort laden",
           "Description": "Wortdaten sofort beim Erscheinen der Untertitel laden"
+        },
+        "OpenAside": {
+          "Label": "Live-Übersetzungspanel",
+          "Description": "Seitenpanel mit Wortübersetzungen anzeigen, wenn Untertitel erscheinen"
         }
       },
       "Performance": {
@@ -836,13 +856,6 @@
             "Label": "Antworten automatisch vorlesen",
             "Description": "Antworten des KI-Tutors automatisch laut vorlesen"
           }
-        },
-        "Tips": {
-          "Title": "Reader-Tipps",
-          "GettingStarted": "Erste Schritte: Ziehen Sie einen Bilderordner oder eine PDF-Datei in das Reader-Fenster.",
-          "OcrMode": "OCR-Modus: Klicken Sie auf „OCR ausführen“, um Text von der aktuellen Seite zu extrahieren. Hovern Sie über erkannten Text für Übersetzungen.",
-          "Navigation": "Navigation: Verwenden Sie die Pfeiltasten oder Miniaturansichten in der Seitenleiste zum Blättern.",
-          "DoublePage": "Tipp: Der Doppelseiten-Modus ist ideal für Manga-Doppelseiten!"
         }
       },
       "SRS": {
@@ -868,7 +881,7 @@
           "Title": "Anki-Integration",
           "Enable": {
             "Label": "Anki aktivieren",
-            "Description": "Lernkarten über AnkiConnect an Anki senden"
+            "Description": "Kartendaten aus Anki über AnkiConnect beziehen. Anki-Karten haben Vorrang vor mLearn-Karten"
           },
           "ConnectUrl": {
             "Label": "AnkiConnect-URL",
@@ -884,15 +897,39 @@
           "DeckName": {
             "Label": "Stapelname",
             "Description": "Anki-Stapel für neue Karten",
-            "Placeholder": "Standard"
+            "Placeholder": "Stapel auswählen"
           },
           "ModelName": {
             "Label": "Notiztyp",
-            "Description": "Zu verwendender Anki-Notiztyp"
+            "Description": "Anki-Notiztyp für neue Karten",
+            "Placeholder": "Notiztyp auswählen"
+          },
+          "FieldMapping": {
+            "Title": "Feldzuordnung",
+            "Description": "Anki-Notizfelder den mLearn-Kartenfeldern zuordnen",
+            "Expression": {
+              "Label": "Ausdrucksfeld",
+              "Description": "Das Feld mit dem Wort oder Ausdruck"
+            },
+            "Reading": {
+              "Label": "Lesungsfeld",
+              "Description": "Das Feld mit der Lesung oder Aussprache"
+            },
+            "Meaning": {
+              "Label": "Bedeutungsfeld",
+              "Description": "Das Feld mit der Definition oder Bedeutung"
+            },
+            "Placeholder": "Feld auswählen",
+            "None": "(keins)"
+          },
+          "Preview": {
+            "Title": "Kartenvorschau",
+            "NoCard": "Keine Karten für diesen Notiztyp gefunden",
+            "Loading": "Vorschau wird geladen..."
           },
           "AddScreenshots": {
             "Label": "Screenshots hinzufügen",
-            "Description": "Video-Screenshots zu Lernkarten hinzufügen"
+            "Description": "Screenshots aus Video und Reader in Lernkarten einfügen"
           }
         },
         "BuiltInFlashcards": {
@@ -947,9 +984,20 @@
           "Title": "Datenverwaltung",
           "ResetSRS": {
             "Label": "SRS-Daten zurücksetzen",
-            "Description": "Gesamten Lernkartenfortschritt löschen (nicht rückgängig machbar!)"
+            "Description": "Gesamten Lernkartenfortschritt löschen (nicht rückgängig machbar!)",
+            "ModalWarning": "Alle SRS-Planungsdaten werden zurückgesetzt, einschließlich Intervalle, Leichtigkeitsfaktoren, Wiederholungszähler und Lernfortschritt. Der Inhalt der Lernkarten bleibt erhalten, aber alle Karten kehren in den Status 'Neu' zurück.",
+            "TypePhrase": "Geben Sie \"{phrase}\" ein, um diese Aktion zu bestätigen.",
+            "Success": "Alle SRS-Daten wurden zurückgesetzt."
           },
-          "ResetButton": "SRS zurücksetzen"
+          "ResetButton": "SRS zurücksetzen",
+          "NukeFlashcards": {
+            "Label": "Alle Lernkarten löschen",
+            "Description": "Alle Lernkarten dauerhaft löschen und alles zurücksetzen (nicht rückgängig machbar!)",
+            "ModalWarning": "Alle Ihre Lernkarten, Wortverfolgungsdaten, Grammatikkenntnisse, Tagesstatistiken und der gesamte Lernfortschritt werden dauerhaft gelöscht. Dies ist nicht rückgängig zu machen und setzt das Lernkartensystem auf den leeren Anfangszustand zurück, als wäre die App gerade installiert worden.",
+            "TypePhrase": "Geben Sie \"{phrase}\" ein, um diese Aktion zu bestätigen.",
+            "Success": "Alle Lernkarten wurden gelöscht."
+          },
+          "NukeButton": "Alle löschen"
         }
       },
       "Mobile": {
@@ -1165,6 +1213,13 @@
       "LevelNames": {
         "Common": "Allgemein",
         "Unlisted": "Nicht gelistet"
+      },
+      "Anki": {
+        "ExportToAnki": "Nach Anki exportieren",
+        "Exported": "Nach Anki exportiert",
+        "AlreadyInAnki": "Bereits in Anki",
+        "ExportFailed": "Export nach Anki fehlgeschlagen",
+        "NotConnected": "Anki ist nicht verbunden"
       }
     },
     "CardEditor": {

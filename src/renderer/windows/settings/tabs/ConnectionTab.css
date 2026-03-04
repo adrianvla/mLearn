@@ -6,8 +6,7 @@
 
 .connection-status-ok {
   color: var(--color-success);
-}
-
-.connection-status-error {
-  color: var(--color-error);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }

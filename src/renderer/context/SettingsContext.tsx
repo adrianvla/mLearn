@@ -99,7 +99,7 @@ export const SettingsProvider: ParentComponent = (props) => {
             || mergedSettings.flashcardTtsProvider === 'cloud';
           if (usesCloud) {
             showToast({
-              message: t('mlearn.Connection.CloudReLogin.SessionExpired'),
+              message: t('mlearn.CloudReLogin.SessionExpired'),
               variant: 'warning',
               duration: 8000,
             });

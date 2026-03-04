@@ -177,6 +177,10 @@ interface FlashcardContextValue {
   startSession: () => void;
   refreshQueue: () => void;
 
+  // Data management
+  resetSRS: () => void;
+  nukeAllFlashcards: () => void;
+
   // LLM example generation
   generateExampleSentenceWithLLM: (word: string, definition: string, language: string) => Promise<{ sentence: string; meaning: string }>;
 
@@ -498,6 +502,46 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const startSession = () => {
     setSessionStartTime(Date.now());
     refreshQueue();
+  };
+
+  // Reset all SRS progress — resets every card to 'new' state while keeping content
+  const resetSRS = () => {
+    const now = Date.now();
+    setStore(produce((s) => {
+      for (const id of Object.keys(s.flashcards)) {
+        const card = s.flashcards[id];
+        card.state = 'new';
+        card.ease = 2.5;
+        card.interval = 0;
+        card.dueDate = now;
+        card.reviews = 0;
+        card.lapses = 0;
+        card.learningStep = 0;
+        card.lastReviewed = 0;
+        card.lastUpdated = now;
+        card.suspended = false;
+        card.buried = false;
+      }
+      // Reset daily stats
+      s.meta.newCardsToday = 0;
+      s.meta.reviewsToday = 0;
+      s.meta.newCardsDate = SRS.getTodayDateString(newDayHour());
+      // Reset word knowledge and stats maps
+      s.wordStatsMap = {};
+      s.wordKnowledge = {};
+      s.grammarKnowledge = {};
+      s.dailyStats = {};
+    }));
+    refreshQueue();
+    saveFlashcards();
+  };
+
+  // Nuke all flashcards — factory reset, wipes everything
+  const nukeAllFlashcards = () => {
+    setStore(reconcile(getDefaultStore()));
+    setQueue({ newQueue: [], learningQueue: [], reviewQueue: [], relearnQueue: [] });
+    setUndoStack([]);
+    saveFlashcards();
   };
 
   // Push undo state
@@ -904,23 +948,47 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   // =========== Synchronous Lookup Methods ===========
-  // These iterate through cards directly by checking content.front
-  // They're O(n) but fully reactive with SolidJS, unlike async methods
-  // TODO: instead of O(n), maybe using a Map of word to card IDs would be better for performance
+  // Memoized index: word text -> card IDs for O(1) lookup
+  const wordFrontIndex = createMemo(() => {
+    const index = new Map<string, string[]>();
+    for (const [id, card] of Object.entries(store.flashcards)) {
+      const word = card.content.front;
+      if (!word) continue;
+      const existing = index.get(word);
+      if (existing) {
+        existing.push(id);
+      } else {
+        index.set(word, [id]);
+      }
+    }
+    return index;
+  });
+
+  // Helper: get cards for a word from the index, filtered by current language
+  const getCardsFromIndex = (word: string): Flashcard[] => {
+    const ids = wordFrontIndex().get(word);
+    if (!ids) return [];
+    const lang = settings.language;
+    const result: Flashcard[] = [];
+    for (const id of ids) {
+      const card = store.flashcards[id];
+      if (card && (card.language === lang || !card.language)) {
+        result.push(card);
+      }
+    }
+    return result;
+  };
+
   // Synchronous check if word has flashcard (for current language)
   const hasWordSync = (word: string): boolean => {
     if (!word) return false;
-    const lang = settings.language;
-    const allCards = Object.values(store.flashcards);
-    return allCards.some(card => card.content.front === word && (card.language === lang || !card.language));
+    return getCardsFromIndex(word).length > 0;
   };
   
   // Synchronous get all cards for a word (for current language)
   const getCardsByWordSync = (word: string): Flashcard[] => {
     if (!word) return [];
-    const lang = settings.language;
-    const allCards = Object.values(store.flashcards);
-    return allCards.filter(card => card.content.front === word && (card.language === lang || !card.language));
+    return getCardsFromIndex(word);
   };
   
   // Synchronous get the best card for a word (highest state/ease)
@@ -1582,6 +1650,8 @@ Translation: [English translation]`;
     getGrammarKnowledge,
     startSession,
     refreshQueue,
+    resetSRS,
+    nukeAllFlashcards,
     generateExampleSentenceWithLLM,
     intervalToString: (ms: number) => SRS.intervalToString(ms, t),
     dueDateToString: (dueDate: number) => SRS.dueDateToString(dueDate, t),

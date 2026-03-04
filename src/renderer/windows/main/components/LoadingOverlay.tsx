@@ -7,6 +7,7 @@
 import { Component, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { useServer, useSettings, useLanguage, useLocalization } from '../../../context';
 import { LoadingOverlay as BaseLoadingOverlay, ErrorModal } from '../../../components/common/Modal';
+import { Btn } from '../../../components/common/Button';
 import { getBridge } from '../../../../shared/bridges';
 
 export const LoadingOverlay: Component = () => {
@@ -17,6 +18,8 @@ export const LoadingOverlay: Component = () => {
   
   // Track critical errors from the server
   const [criticalError, setCriticalError] = createSignal<{ message: string; details?: string } | null>(null);
+  // Track Anki-specific connection errors
+  const [ankiError, setAnkiError] = createSignal<string | null>(null);
 
   const isLoading = createMemo(
     () => !server.isConnected() || settings.isLoading() || language.isLoading()
@@ -70,8 +73,23 @@ export const LoadingOverlay: Component = () => {
         setCriticalError({ message: friendlyMessage, details });
       };
 
-    const cleanup = getBridge().server.onServerCriticalError(handleCriticalError);
-    onCleanup(cleanup);
+    const handleAnkiError = (reason: string) => {
+      console.error('[LoadingOverlay] Anki connection error received:', reason);
+      setAnkiError(reason);
+    };
+
+    const bridge = getBridge();
+    const cleanupCritical = bridge.server.onServerCriticalError(handleCriticalError);
+    let cleanupAnki: (() => void) | undefined;
+    try {
+      cleanupAnki = bridge.server.onAnkiConnectionError(handleAnkiError);
+    } catch (e) {
+      console.warn('[LoadingOverlay] onAnkiConnectionError not available:', e);
+    }
+    onCleanup(() => {
+      cleanupCritical();
+      cleanupAnki?.();
+    });
   });
 
   const handleRetry = () => {
@@ -83,10 +101,71 @@ export const LoadingOverlay: Component = () => {
     getBridge().window.closeWindow();
   };
 
+  // Anki recovery actions
+  const handleAnkiDisableSession = () => {
+    setAnkiError(null);
+    server.resetToLoading();
+    getBridge().server.restartBackendAnkiOverride(true);
+  };
+
+  const handleAnkiDisablePermanent = () => {
+    setAnkiError(null);
+    settings.updateSettings({ use_anki: false });
+    server.resetToLoading();
+    getBridge().server.restartBackendAnkiOverride(false);
+  };
+
+  const handleAnkiTryAgain = () => {
+    setAnkiError(null);
+    server.restartBackend();
+  };
+
+  const ankiErrorMessage = createMemo(() => {
+    const reason = ankiError();
+    if (reason === 'no_valid_cards') {
+      return t('mlearn.ErrorModal.Messages.AnkiNoValidCards');
+    }
+    return t('mlearn.ErrorModal.Messages.AnkiConnectionFailed');
+  });
+
   return (
     <>
+      {/* Anki connection error modal */}
+      <Show when={ankiError()}>
+        <ErrorModal
+          isOpen={true}
+          severity="error"
+          title={t('mlearn.ErrorModal.Title.AnkiError')}
+          message={ankiErrorMessage()}
+          showRetry={false}
+          showQuit={false}
+          actions={
+            <>
+              <Btn
+                variant="primary"
+                onClick={handleAnkiDisableSession}
+              >
+                {t('mlearn.ErrorModal.AnkiDisableSession')}
+              </Btn>
+              <Btn
+                variant="ghost"
+                onClick={handleAnkiDisablePermanent}
+              >
+                {t('mlearn.ErrorModal.AnkiDisablePermanent')}
+              </Btn>
+              <Btn
+                variant="ghost"
+                onClick={handleAnkiTryAgain}
+              >
+                {t('mlearn.Global.TryAgain')}
+              </Btn>
+            </>
+          }
+        />
+      </Show>
+
       {/* Error modal - shown when there's a critical error */}
-      <Show when={criticalError()}>
+      <Show when={!ankiError() ? criticalError() : null}>
         {(error) => (
           <ErrorModal
             isOpen={true}
@@ -103,7 +182,7 @@ export const LoadingOverlay: Component = () => {
       </Show>
 
       {/* Loading overlay - shown during initialization when no error */}
-      <Show when={!criticalError()}>
+      <Show when={!criticalError() && !ankiError()}>
         <BaseLoadingOverlay
           isOpen={isLoading()}
           title={t('mlearn.Global.AppName')}
