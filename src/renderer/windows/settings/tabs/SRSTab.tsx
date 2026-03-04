@@ -355,15 +355,15 @@ export const SRSTab: Component = () => {
                         <div class="anki-field-preview__grid">
                           <Show when={exprField && fields[exprField]}>
                             <span class="anki-field-preview__label">{exprField}:</span>
-                            <span class="anki-field-preview__value">{fields[exprField]?.value || ''}</span>
+                            <span class="anki-field-preview__value" innerHTML={fields[exprField]?.value || ''} />
                           </Show>
                           <Show when={readField && fields[readField]}>
                             <span class="anki-field-preview__label">{readField}:</span>
-                            <span class="anki-field-preview__value">{fields[readField]?.value || ''}</span>
+                            <span class="anki-field-preview__value" innerHTML={fields[readField]?.value || ''} />
                           </Show>
                           <Show when={meanField && fields[meanField]}>
                             <span class="anki-field-preview__label">{meanField}:</span>
-                            <span class="anki-field-preview__value">{fields[meanField]?.value || ''}</span>
+                            <span class="anki-field-preview__value" innerHTML={fields[meanField]?.value || ''} />
                           </Show>
                         </div>
                       </div>

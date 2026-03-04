@@ -87,6 +87,13 @@
       "Connecting": "Connecting...",
       "Error": "Error"
     },
+    "Notifications": {
+      "AnkiCacheLoaded": "Anki flashcards loaded from cache (Anki appears offline)",
+      "MigrationComplete": "Data Migration Complete",
+      "MigrationWordStatuses": "Migrated {count} word statuses from v1. A backup has been created.",
+      "MigrationFlashcards": "Your flashcards have been migrated from v{version}. A backup was created.",
+      "MigrationFlashcardsNoBackup": "Your flashcards have been migrated from v{version}."
+    },
     "ConfirmDialog": {
       "Title": "Confirm"
     },
@@ -313,6 +320,14 @@
       "Tooltip": {
         "SelectionMode": "Selection mode"
       }
+    },
+    "FlashcardChoice": {
+      "Title": "Save Flashcard",
+      "SaveToSRS": "Save to SRS",
+      "ExportToAnki": "Export to Anki",
+      "AnkiSuccess": "Flashcard exported to Anki",
+      "AnkiError": "Failed to export to Anki",
+      "Example": "Example"
     },
     "Flashcards": {
       "UI": {
@@ -588,7 +603,8 @@
         "SubtitleAppearance": "Subtitle Appearance",
         "SubtitleTiming": "Subtitle Timing",
         "ThemePreview": "Theme Preview",
-        "PosColors": "Part of Speech Colors"
+        "PosColors": "Part of Speech Colors",
+        "CustomColors": "Custom Color Overrides"
       },
       "Language": {
         "LearningLanguage": {
@@ -663,6 +679,11 @@
           "Label": "Known Threshold",
           "Description": "Ease value at which a word is considered known"
         }
+      },
+      "CustomColors": {
+        "Description": "Override specific colors that apply globally regardless of theme. Leave empty to use the theme's default color.",
+        "Reset": "Reset",
+        "ResetAll": "Reset All Colors"
       },
       "BlurEffect": {
         "BlurWords": {
@@ -1189,7 +1210,9 @@
       "EditTranslation": {
         "Title": "Edit translation – {word}",
         "Tooltip": "Edit word overrides",
-        "RemoveOverride": "Remove Override"
+        "RemoveOverride": "Remove Override",
+        "PitchError": "Failed to fetch pitch accent data",
+        "RevertError": "Failed to revert translation override"
       },
       "Fields": {
         "Word": "Word",
@@ -1219,7 +1242,11 @@
         "Exported": "Exported to Anki",
         "AlreadyInAnki": "Already in Anki",
         "ExportFailed": "Export to Anki failed",
-        "NotConnected": "Anki is not connected"
+        "NotConnected": "Anki is not connected",
+        "NoCardFound": "No Anki card found for this word",
+        "PreviewTitle": "Anki Preview – {word}",
+        "Preview": "Preview",
+        "EmptyField": "(empty)"
       }
     },
     "CardEditor": {

@@ -142,19 +142,19 @@ export const LoadingOverlay: Component = () => {
           actions={
             <>
               <Btn
-                variant="primary"
+                variant="default"
                 onClick={handleAnkiDisableSession}
               >
                 {t('mlearn.ErrorModal.AnkiDisableSession')}
               </Btn>
               <Btn
-                variant="ghost"
+                variant="danger"
                 onClick={handleAnkiDisablePermanent}
               >
                 {t('mlearn.ErrorModal.AnkiDisablePermanent')}
               </Btn>
               <Btn
-                variant="ghost"
+                variant="primary"
                 onClick={handleAnkiTryAgain}
               >
                 {t('mlearn.Global.TryAgain')}

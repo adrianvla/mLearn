@@ -8,8 +8,9 @@ import { SettingsProvider, useSettings } from './SettingsContext';
 import './WindowWrapper.css';
 import { LanguageProvider } from './LanguageContext';
 import { FlashcardProvider } from './FlashcardContext';
-import { ServerProvider } from './ServerContext';
-import { LocalizationProvider } from './LocalizationContext';
+import { FlashcardCreationChoiceModal } from '../components/flashcard';
+import { ServerProvider, useServer } from './ServerContext';
+import { LocalizationProvider, useLocalization } from './LocalizationContext';
 import { ResponsiveProvider } from './ResponsiveContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
@@ -25,14 +26,16 @@ import { isElectron } from '../../shared/platform';
  * This handler only shows the migration toast notification.
  */
 const MigrationHandler: ParentComponent = (props) => {
+  const { t } = useLocalization();
+
   onMount(() => {
     // Check if localStorage migration occurred (word statuses already loaded by statsService)
     const lsInfo = getLocalStorageMigrationInfo();
     if (lsInfo.occurred) {
       showToast({
         variant: 'info',
-        title: 'Data Migration Complete',
-        message: `Migrated ${lsInfo.migratedWordCount} word statuses from v1. A backup has been created.`,
+        title: t('mlearn.Notifications.MigrationComplete'),
+        message: t('mlearn.Notifications.MigrationWordStatuses', { count: lsInfo.migratedWordCount }),
         duration: 8000,
       });
       resetLocalStorageMigrationInfo();
@@ -45,10 +48,10 @@ const MigrationHandler: ParentComponent = (props) => {
       if (info?.occurred) {
         showToast({
           variant: 'success',
-          title: 'Flashcard Migration Complete',
+          title: t('mlearn.Notifications.MigrationComplete'),
           message: info.backupPath 
-            ? `Your flashcards have been migrated from v${info.fromVersion}. A backup was created.`
-            : `Your flashcards have been migrated from v${info.fromVersion}.`,
+            ? t('mlearn.Notifications.MigrationFlashcards', { version: info.fromVersion })
+            : t('mlearn.Notifications.MigrationFlashcardsNoBackup', { version: info.fromVersion }),
           duration: 10000,
         });
       }
@@ -118,6 +121,33 @@ const WindowLoadingScreen: Component = () => {
 // };
 
 /**
+ * ServerStatusObserver - Watches server status messages and shows localized toasts.
+ * Must be inside LocalizationProvider to access t().
+ */
+const ServerStatusObserver: Component = () => {
+  const { statusMessage } = useServer();
+  const { t } = useLocalization();
+  let prevMessage = '';
+
+  createEffect(() => {
+    const msg = statusMessage();
+    if (msg === prevMessage) return;
+    prevMessage = msg;
+
+    if (msg.includes('Loaded from cache')) {
+      showToast({
+        message: t('mlearn.Notifications.AnkiCacheLoaded'),
+        variant: 'info',
+        duration: 5000,
+      });
+    }
+  });
+
+  return null;
+};
+
+
+/**
  * WindowWrapper wraps all window entry points with necessary providers
  * This ensures consistent context availability across all windows
  * 
@@ -128,6 +158,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean }> = (pro
   return (
     <ServerProvider>
       <LocalizationProvider>
+        <ServerStatusObserver />
         <ResponsiveProvider>
           <SettingsProvider>
             <WindowLoadingScreen />
@@ -139,6 +170,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean }> = (pro
                     <WindowDragRegion />
                   </Show>
                   {props.children}
+                  <FlashcardCreationChoiceModal />
                 </FlashcardProvider>
                 <ToastContainer />
               </MigrationHandler>

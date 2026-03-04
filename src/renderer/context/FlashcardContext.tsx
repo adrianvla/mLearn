@@ -103,6 +103,13 @@ interface UndoEntry {
 
 const MAX_UNDO_STACK_SIZE = 50;
 
+/** Pending flashcard creation requesting user choice between SRS and Anki */
+export interface PendingFlashcardChoice {
+  content: Partial<FlashcardContent> & { front: string; back: string };
+  initialEase?: number;
+  resolve: (target: 'srs' | 'anki' | 'cancel') => void;
+}
+
 // Context interface
 interface FlashcardContextValue {
   // Store access
@@ -114,7 +121,7 @@ interface FlashcardContextValue {
   queueCounts: () => { new: number; learning: number; review: number; total: number };
 
   // Card management
-  addFlashcard: (content: Partial<FlashcardContent> & { front: string; back: string }, initialEase?: number) => Promise<string>;
+  addFlashcard: (content: Partial<FlashcardContent> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean) => Promise<string>;
   removeFlashcard: (id: string, neverShowAgain?: boolean) => Promise<boolean>;
   updateFlashcard: (id: string, updates: Partial<Flashcard>) => void;
   updateFlashcardContent: (id: string, content: Partial<FlashcardContent>) => void;
@@ -187,6 +194,10 @@ interface FlashcardContextValue {
   // Utility
   intervalToString: (ms: number) => string;
   dueDateToString: (dueDate: number) => string;
+
+  // Anki creation choice
+  pendingFlashcardChoice: () => PendingFlashcardChoice | null;
+  resolvePendingFlashcardChoice: (target: 'srs' | 'anki' | 'cancel') => void;
 }
 
 // Create context
@@ -205,6 +216,17 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const [undoStack, setUndoStack] = createSignal<UndoEntry[]>([]);
   // Used for tracking session start time (could be used for session stats)
   const [, setSessionStartTime] = createSignal<number>(0);
+
+  // Pending flashcard creation choice (SRS vs Anki)
+  const [pendingFlashcardChoice, setPendingFlashcardChoice] = createSignal<PendingFlashcardChoice | null>(null);
+
+  const resolvePendingFlashcardChoice = (target: 'srs' | 'anki' | 'cancel') => {
+    const pending = pendingFlashcardChoice();
+    if (pending) {
+      pending.resolve(target);
+      setPendingFlashcardChoice(null);
+    }
+  };
 
   let broadcastChannel: BroadcastChannel | null = null;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -582,8 +604,28 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const canUndo = () => undoStack().length > 0;
 
   // Add new flashcard - now supports multiple cards per word
-  const addFlashcard = async (content: Partial<FlashcardContent> & { front: string; back: string }, initialEase?: number): Promise<string> => {
+  // When use_anki is enabled, shows a choice modal (SRS vs Anki) before creation
+  const addFlashcard = async (content: Partial<FlashcardContent> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean): Promise<string> => {
     console.log('%caddFlashcard called with:', 'color: magenta; font-weight: bold;', content.front);
+
+    // Intercept: if Anki integration is enabled, let user choose SRS vs Anki
+    if (settings.use_anki && !skipAnkiChoice) {
+      const target = await new Promise<'srs' | 'anki' | 'cancel'>((resolve) => {
+        setPendingFlashcardChoice({ content, initialEase, resolve });
+      });
+
+      if (target === 'cancel') {
+        console.log(`Flashcard creation for "${content.front}" was cancelled by user.`);
+        return '';
+      }
+      if (target === 'anki') {
+        // The modal handles Anki export; we don't create a local SRS card
+        console.log(`Flashcard for "${content.front}" was exported to Anki.`);
+        return '';
+      }
+      // target === 'srs' → continue with normal SRS creation below
+    }
+
     const word = content.front;
     const wordHash = await SRS.hashWord(word);
     const lang = settings.language;
@@ -1361,7 +1403,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           definition: definitionArr,
         };
 
-        await addFlashcard(content);
+        await addFlashcard(content, undefined, true);
         createdCount++;
 
         // Remove from word candidates after successful creation
@@ -1655,6 +1697,8 @@ Translation: [English translation]`;
     generateExampleSentenceWithLLM,
     intervalToString: (ms: number) => SRS.intervalToString(ms, t),
     dueDateToString: (dueDate: number) => SRS.dueDateToString(dueDate, t),
+    pendingFlashcardChoice,
+    resolvePendingFlashcardChoice,
   };
 
   return (

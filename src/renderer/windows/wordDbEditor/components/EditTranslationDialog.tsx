@@ -1,13 +1,24 @@
 /**
  * Edit Translation Dialog Component
  * Modal dialog for editing word translation data (reading, pitch accent, definitions)
- * Ported from openEditTranslationDialog in stats.js
  */
 
 import { Component, createSignal, onMount, Show } from 'solid-js';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useLocalization } from '../../../context';
-import { Btn, Input, Modal, Spinner, PitchAccentOverlay } from '../../../components/common';
+import {
+  Input,
+  Modal,
+  ModalFooter,
+  Spinner,
+  PitchAccentOverlay,
+  FormField,
+  Textarea,
+  ContentEditable,
+  AlertBanner,
+  Btn,
+} from '../../../components/common';
+import type { TranslationResponse } from '@shared/types';
 import './EditTranslationDialog.css';
 
 export interface EditTranslationDialogProps {
@@ -35,6 +46,37 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
   const [structuredContent, setStructuredContent] = createSignal('');
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+
+  /** Parse translation response data into form fields */
+  const applyTranslationData = (data: unknown[]) => {
+    const firstEntry = data[0] as Record<string, unknown> | undefined;
+    const secondEntry = data[1] as Record<string, unknown> | undefined;
+    const pitchEntry = data[2] as unknown;
+
+    if (firstEntry) {
+      setReading((firstEntry.reading as string) || '');
+      const defs = firstEntry.definitions;
+      setDefinitions(Array.isArray(defs) ? defs.join('\n') : (defs as string || ''));
+    }
+    if (secondEntry?.definitions) {
+      setStructuredContent(String(secondEntry.definitions));
+    } else {
+      setStructuredContent('');
+    }
+    if (pitchEntry) {
+      let pitchVal: number | null = null;
+      if (Array.isArray(pitchEntry) && (pitchEntry[2] as Record<string, unknown>)?.pitches) {
+        const pitches = (pitchEntry[2] as Record<string, unknown>).pitches as Array<{ position?: number }>;
+        if (pitches?.[0]?.position !== undefined) pitchVal = pitches[0].position;
+      } else if ((pitchEntry as Record<string, unknown>)?.pitches) {
+        const pitches = (pitchEntry as Record<string, unknown>).pitches as Array<{ position?: number }>;
+        if (pitches?.[0]?.position !== undefined) pitchVal = pitches[0].position;
+      }
+      setPitch(pitchVal !== null ? String(pitchVal) : '');
+    } else {
+      setPitch('');
+    }
+  };
   
   // Load initial data when dialog opens
   onMount(async () => {
@@ -44,35 +86,11 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
       setDefinitions(props.initialData.definitions.join('\n'));
       setStructuredContent(props.initialData.structuredContent || '');
     } else {
-      // Fetch from backend
       setIsLoading(true);
       try {
         const translation = await translateWord(props.word);
         if (translation?.data) {
-          const firstEntry = translation.data[0] as any;
-          const secondEntry = translation.data[1] as any;
-          const pitchEntry = translation.data[2] as any;
-          
-          if (firstEntry) {
-            setReading(firstEntry.reading || '');
-            const defs = firstEntry.definitions;
-            setDefinitions(Array.isArray(defs) ? defs.join('\n') : (defs || ''));
-          }
-          if (secondEntry?.definitions) {
-            setStructuredContent(String(secondEntry.definitions));
-          }
-          if (pitchEntry) {
-            // Handle various pitch data formats
-            let pitchVal: number | null = null;
-            if (Array.isArray(pitchEntry) && pitchEntry[2]?.pitches?.[0]?.position !== undefined) {
-              pitchVal = pitchEntry[2].pitches[0].position;
-            } else if (pitchEntry?.pitches?.[0]?.position !== undefined) {
-              pitchVal = pitchEntry.pitches[0].position;
-            }
-            if (pitchVal !== null) {
-              setPitch(String(pitchVal));
-            }
-          }
+          applyTranslationData(translation.data);
         }
       } catch (e) {
         console.error('Failed to load translation data:', e);
@@ -82,7 +100,6 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
     }
   });
   
-  // Get pitch type name
   const pitchTypeName = (p: number | null): string => {
     if (p === null || p === undefined || Number.isNaN(p)) return '—';
     if (p === 0) return t('mlearn.PitchAccent.Heiban');
@@ -105,40 +122,33 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
       const pitchNum = pitchVal === '' ? null : Number(pitchVal);
       
       if (pitchNum !== null && (!Number.isFinite(pitchNum) || pitchNum < 0)) {
-        setError('Pitch accent must be a non-negative integer or empty');
+        setError(t('mlearn.WordDbEditor.EditTranslation.PitchError'));
         return;
       }
       
-      // Build override data structure matching backend format
-      const overrideData: any = { data: [] };
+      const overrideData: TranslationResponse = { data: [] };
       
-      // Primary entry with reading and definitions
-      overrideData.data.push({
+      overrideData.data[0] = {
         reading: reading().trim(),
         definitions: defsArr,
-      });
+      };
       
-      // Structured content (optional)
       const struct = structuredContent().trim();
       if (struct) {
-        overrideData.data.push({
+        overrideData.data[1] = {
           reading: reading().trim(),
           definitions: struct,
-        });
+        };
       }
       
-      // Pitch entry (optional)
       if (pitchNum !== null) {
-        overrideData.data.push([props.word, 'pitch', {
-          reading: reading().trim(),
+        overrideData.data[2] = {
           pitches: [{ position: pitchNum }],
-        }]);
+        };
       }
       
-      // Save to local storage via translation hook
       setOverride(props.word, overrideData);
       
-      // Notify parent
       props.onSave({
         reading: reading().trim(),
         pitch: pitchNum,
@@ -154,41 +164,14 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
   
   const handleRevert = async () => {
     try {
-      // Clear the override
       setOverride(props.word, null);
-      
-      // Fetch fresh data from backend
       setIsLoading(true);
       const translation = await translateWord(props.word);
       if (translation?.data) {
-        const firstEntry = translation.data[0] as any;
-        const secondEntry = translation.data[1] as any;
-        const pitchEntry = translation.data[2] as any;
-        
-        if (firstEntry) {
-          setReading(firstEntry.reading || '');
-          const defs = firstEntry.definitions;
-          setDefinitions(Array.isArray(defs) ? defs.join('\n') : (defs || ''));
-        }
-        if (secondEntry?.definitions) {
-          setStructuredContent(String(secondEntry.definitions));
-        } else {
-          setStructuredContent('');
-        }
-        if (pitchEntry) {
-          let pitchVal: number | null = null;
-          if (Array.isArray(pitchEntry) && pitchEntry[2]?.pitches?.[0]?.position !== undefined) {
-            pitchVal = pitchEntry[2].pitches[0].position;
-          } else if (pitchEntry?.pitches?.[0]?.position !== undefined) {
-            pitchVal = pitchEntry.pitches[0].position;
-          }
-          setPitch(pitchVal !== null ? String(pitchVal) : '');
-        } else {
-          setPitch('');
-        }
+        applyTranslationData(translation.data);
       }
     } catch (e) {
-      setError('Failed to revert: ' + String(e));
+      setError(t('mlearn.WordDbEditor.EditTranslation.RevertError') + ': ' + String(e));
     } finally {
       setIsLoading(false);
     }
@@ -197,7 +180,6 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
   const handlePitchChange = (e: Event) => {
     const target = e.target as HTMLInputElement;
     let val = target.value.trim();
-    // Enforce minimum >= 0
     if (val !== '') {
       const num = Number(val);
       if (!Number.isFinite(num) || num < 0) {
@@ -207,36 +189,49 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
     }
     setPitch(val);
   };
+
+  const footer = () => (
+    <ModalFooter
+      leftContent={
+        <Btn variant="danger" size="sm" onClick={handleRevert}>
+          {t('mlearn.WordDbEditor.EditTranslation.RemoveOverride')}
+        </Btn>
+      }
+      cancelText={t('mlearn.Global.Cancel')}
+      onCancel={props.onClose}
+      confirmText={t('mlearn.Global.Save')}
+      onConfirm={handleSave}
+      confirmVariant="primary"
+    />
+  );
   
   return (
     <Modal
       isOpen={props.isOpen}
       onClose={props.onClose}
       title={t('mlearn.WordDbEditor.EditTranslation.Title', { word: props.word })}
+      footer={footer()}
     >
       <Show when={isLoading()}>
         <Spinner size={32} shape="square" text={t('mlearn.Global.Loading')} />
       </Show>
       
       <Show when={!isLoading()}>
-        <div class="dialog-content">
-          <div class="form-field">
-            <label>{t('mlearn.CardEditor.Fields.Word')}</label>
+        <div class="edit-translation-dialog__body">
+          <FormField label={t('mlearn.CardEditor.Fields.Word')}>
             <Input value={props.word} disabled />
-          </div>
+          </FormField>
           
-          <div class="form-field">
-            <label>{t('mlearn.CardEditor.Fields.Reading')}</label>
+          <FormField label={t('mlearn.CardEditor.Fields.Reading')}>
             <Input
               value={reading()}
               onInput={(e) => setReading((e.target as HTMLInputElement).value)}
               placeholder={t('mlearn.CardEditor.Fields.ReadingPlaceholder')}
             />
-          </div>
+          </FormField>
           
-          <div class="form-field">
-            <label>{t('mlearn.CardEditor.Fields.PitchAccent')}</label>
-            <div class="pitch-row">
+          <FormField label={t('mlearn.CardEditor.Fields.PitchAccent')}>
+            <div class="edit-translation-dialog__pitch-row">
               <Input
                 type="number"
                 inputMode="numeric"
@@ -244,10 +239,10 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
                 value={pitch()}
                 onInput={handlePitchChange}
                 placeholder={t('mlearn.CardEditor.Fields.PitchAccentPlaceholder')}
-                class="pitch-input"
+                class="edit-translation-dialog__pitch-input"
               />
-              <span class="pitch-name">{pitchTypeName(pitch() === '' ? null : Number(pitch()))}</span>
-              <div class="pitch-preview">
+              <span class="edit-translation-dialog__pitch-name">{pitchTypeName(pitch() === '' ? null : Number(pitch()))}</span>
+              <div class="edit-translation-dialog__pitch-preview">
                 <PitchAccentOverlay
                   word={props.word}
                   reading={reading()}
@@ -258,43 +253,29 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
                 />
               </div>
             </div>
-          </div>
+          </FormField>
           
-          <div class="form-field">
-            <label>{t('mlearn.CardEditor.Fields.Definitions')}</label>
-            <textarea
+          <FormField label={t('mlearn.CardEditor.Fields.Definitions')}>
+            <Textarea
               value={definitions()}
               onInput={(e) => setDefinitions((e.target as HTMLTextAreaElement).value)}
               placeholder={t('mlearn.CardEditor.Fields.DefinitionsPlaceholder')}
               rows={6}
             />
-          </div>
+          </FormField>
           
-          <div class="form-field">
-            <label>{t('mlearn.CardEditor.Fields.StructuredContent')}</label>
-            <div
-              class="structured-content-editor"
-              contentEditable
-              innerHTML={structuredContent()}
-              onInput={(e) => setStructuredContent((e.target as HTMLDivElement).innerHTML)}
+          <FormField label={t('mlearn.CardEditor.Fields.StructuredContent')}>
+            <ContentEditable
+              value={structuredContent()}
+              onChange={setStructuredContent}
+              minHeight={80}
+              maxHeight={200}
             />
-          </div>
+          </FormField>
           
           <Show when={error()}>
-            <div class="error-message">{error()}</div>
+            <AlertBanner variant="error" message={error()!} />
           </Show>
-        </div>
-        
-        <div class="dialog-footer">
-          <Btn variant="danger" onClick={handleRevert}>
-            {t('mlearn.WordDbEditor.EditTranslation.RemoveOverride')}
-          </Btn>
-          <Btn variant="ghost" onClick={props.onClose}>
-            {t('mlearn.Global.Cancel')}
-          </Btn>
-          <Btn variant="primary" onClick={handleSave}>
-            {t('mlearn.Global.Save')}
-          </Btn>
         </div>
       </Show>
     </Modal>
