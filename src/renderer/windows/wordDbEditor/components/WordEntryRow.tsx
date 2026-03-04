@@ -93,6 +93,7 @@ export interface WordEntryRowProps {
   onRemoveFlashcard: (entry: WordEntry) => void;
   onEdit?: (entry: WordEntry) => void;
   onExportToAnki?: (entry: WordEntry) => void;
+  onAnkiPreview?: (entry: WordEntry) => void;
   ankiExportState?: AnkiExportState;
 }
 
@@ -197,6 +198,16 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             onClick={() => props.onAddFlashcard(props.entry)}
           >
             {t('mlearn.Global.Add')}
+          </Btn>
+        </Show>
+        <Show when={props.onAnkiPreview}>
+          <Btn
+            variant="ghost"
+            size="sm"
+            onClick={() => props.onAnkiPreview?.(props.entry)}
+            title={t('mlearn.WordDbEditor.Anki.PreviewTitle', { word: props.entry.word })}
+          >
+            {t('mlearn.WordDbEditor.Anki.Preview')}
           </Btn>
         </Show>
         <Show when={props.onExportToAnki}>

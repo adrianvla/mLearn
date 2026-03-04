@@ -3,7 +3,7 @@
  * A styled select dropdown component
  */
 
-import { Component, JSX, splitProps, mergeProps, For } from 'solid-js';
+import { Component, JSX, splitProps, mergeProps, For, createRenderEffect } from 'solid-js';
 import './Select.css';
 
 // ============ Types ============
@@ -36,8 +36,19 @@ export const Select: Component<SelectProps> = (props) => {
 
   const [local, others] = splitProps(merged, ['options', 'placeholder', 'class', 'value']);
 
+  let selectRef: HTMLSelectElement | undefined;
+
+  // Ensure the DOM value is synced after children mount and when value changes
+  createRenderEffect(() => {
+    const v = local.value;
+    if (selectRef && v !== undefined) {
+      selectRef.value = String(v);
+    }
+  });
+
   return (
     <select
+      ref={selectRef}
       {...others}
       class={`${local.class || ''}`}
       value={local.value}

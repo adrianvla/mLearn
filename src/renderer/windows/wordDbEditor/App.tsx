@@ -12,7 +12,7 @@ import {
   loadWordsFromStorage,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
-import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, type WordEntry, type TranslationOverride, type AnkiExportState } from './components';
+import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState } from './components';
 import { ModalLoadingOverlay, Spinner } from '../../components/common';
 import { useAnki } from '../../hooks/useAnki';
 import './WordDbEditorLayout.css';
@@ -39,6 +39,10 @@ export const WordDbEditorContent: Component = () => {
   const [editingEntry, setEditingEntry] = createSignal<WordEntry | null>(null);
 
   const [ankiExportStates, setAnkiExportStates] = createSignal<Record<string, AnkiExportState>>({});
+
+  // Anki card preview state
+  const [ankiPreviewOpen, setAnkiPreviewOpen] = createSignal(false);
+  const [ankiPreviewEntry, setAnkiPreviewEntry] = createSignal<WordEntry | null>(null);
 
   // Level names - use dynamic level names from langData (e.g., JLPT N1-N5, HSK 1-6, etc.)
   const getLevelNames = (): Record<number, string> => {
@@ -296,6 +300,11 @@ export const WordDbEditorContent: Component = () => {
     console.log(`%cUpdated translation data for word "${entry.word}"`, 'color: lime;');
   };
 
+  const handleAnkiPreview = (entry: WordEntry) => {
+    setAnkiPreviewEntry(entry);
+    setAnkiPreviewOpen(true);
+  };
+
   const handleExportToAnki = async (entry: WordEntry) => {
     const uuid = entry.uuid;
     setAnkiExportStates(prev => ({ ...prev, [uuid]: 'exporting' }));
@@ -382,6 +391,7 @@ export const WordDbEditorContent: Component = () => {
                       onRemoveFlashcard={handleRemoveFlashcard}
                       onEdit={handleEdit}
                       onExportToAnki={ankiEnabled() ? handleExportToAnki : undefined}
+                      onAnkiPreview={ankiEnabled() ? handleAnkiPreview : undefined}
                       ankiExportState={ankiExportStates()[entry.uuid] || 'idle'}
                   />
               )}
@@ -396,6 +406,24 @@ export const WordDbEditorContent: Component = () => {
             showProgress={true}
             showPercent={false}
           />
+
+          {/* Anki Card Preview Modal */}
+          <Show when={ankiPreviewOpen() && ankiPreviewEntry()}>
+            <AnkiCardPreviewModal
+                word={ankiPreviewEntry()!.word}
+                isOpen={ankiPreviewOpen()}
+                onClose={() => {
+                  setAnkiPreviewOpen(false);
+                  setAnkiPreviewEntry(null);
+                }}
+                onExport={() => {
+                  const entry = ankiPreviewEntry();
+                  if (entry) handleExportToAnki(entry);
+                  setAnkiPreviewOpen(false);
+                  setAnkiPreviewEntry(null);
+                }}
+            />
+          </Show>
 
           {/* Edit Translation Dialog */}
           <Show when={editDialogOpen() && editingEntry()}>

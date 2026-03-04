@@ -7,6 +7,7 @@ import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, TabContent, Select, Btn } from '../../../components/common';
 import Icon from '../../../components/common/Icons/Icon';
 import '../SettingsForm.css';
+import './CustomizationTab.css';
 import { CUSTOMIZABLE_CSS_VARS, CustomColorOverrides } from '@shared/types';
 
 /** Labels for CSS variables (user-friendly names) */
@@ -164,37 +165,42 @@ export const CustomizationTab: Component = () => {
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.ThemePreview')}>
-        <div style={{ padding: "20px", background: "#000", "border-radius": "8px" }}>
+        <div class="theme-preview__container">
           <p
+            class="theme-preview__text"
             style={{
               "font-size": `${settings.subtitle_font_size}px`,
               "font-weight": settings.subtitle_font_weight,
-              "text-align": "center",
-              color: "white",
-              "text-shadow": settings.subtitleTheme === 'shadow' 
-                ? '2px 2px 4px rgba(0,0,0,0.8)' 
-                : 'none',
-              background: settings.subtitleTheme === 'background' 
-                ? 'rgba(0,0,0,0.7)' 
-                : settings.subtitleTheme === 'marker'
-                ? 'linear-gradient(transparent 60%, rgba(255,255,0,0.4) 60%)'
-                : 'none',
-              padding: "10px",
+            }}
+            classList={{
+              'theme-preview__text--shadow': settings.subtitleTheme === 'shadow',
+              'theme-preview__text--background': settings.subtitleTheme === 'background',
+              'theme-preview__text--marker': settings.subtitleTheme === 'marker',
             }}
           >
-            日本語を勉強しています
+            <For each={posEntries()}>
+              {(entry) => {
+                const color = () => entry.userColor || entry.defaultColor;
+                return (
+                  <span
+                    class="theme-preview__token"
+                    style={{ color: settings.do_colour_codes && color() ? color() : undefined }}
+                  >
+                    {entry.pos}
+                  </span>
+                );
+              }}
+            </For>
+            <Show when={posEntries().length === 0}>
+              <span class="theme-preview__token">Sample Text</span>
+            </Show>
           </p>
         </div>
       </SettingGroup>
 
       <Show when={posEntries().length > 0}>
         <SettingGroup title={t('mlearn.Settings.Groups.PosColors')}>
-          <p style={{
-            "font-size": "var(--font-size-sm)",
-            color: "var(--text-secondary)",
-            "margin-bottom": "var(--spacing-4)",
-            "line-height": "var(--line-height-normal)"
-          }}>
+          <p class="pos-colors__description">
             {t('mlearn.Settings.WordStatus.PosColors.Description')}
           </p>
 
@@ -204,28 +210,19 @@ export const CustomizationTab: Component = () => {
 
               return (
                 <SettingRow label={entry.pos}>
-                  <div style={{ display: 'flex', gap: 'var(--spacing-2)', "align-items": 'center' }}>
+                  <div class="pos-colors__row">
                     <input
                       type="color"
+                      class="pos-colors__color-input"
                       value={effectiveColor() || '#000000'}
                       onChange={(e) => updatePosColor(entry.pos, e.currentTarget.value)}
-                      style={{
-                        width: '40px',
-                        height: '32px',
-                        padding: '2px',
-                        border: '1px solid var(--border-color)',
-                        "border-radius": 'var(--radius-sm)',
-                        cursor: 'pointer',
-                        background: 'var(--bg)',
-                      }}
                     />
                     <input
                       type="text"
-                      class="setting-input"
+                      class="setting-input pos-colors__text-input"
                       placeholder={entry.defaultColor || '#000000'}
                       value={entry.userColor}
                       onChange={(e) => updatePosColor(entry.pos, e.currentTarget.value || null)}
-                      style={{ width: '100px' }}
                     />
                     <Show when={entry.userColor}>
                       <Btn
@@ -243,7 +240,7 @@ export const CustomizationTab: Component = () => {
           </For>
 
           <Show when={hasPosColorOverrides()}>
-            <div style={{ "margin-top": "var(--spacing-4)", "text-align": "right" }}>
+            <div class="pos-colors__reset-row">
               <Btn variant="ghost" size="sm" onClick={resetAllPosColors}>
                 {t('mlearn.Settings.WordStatus.PosColors.ResetAll')}
               </Btn>
@@ -252,15 +249,9 @@ export const CustomizationTab: Component = () => {
         </SettingGroup>
       </Show>
 
-      <SettingGroup title="Custom Color Overrides">
-        <p style={{ 
-          "font-size": "0.85em", 
-          color: "var(--text-secondary)", 
-          "margin-bottom": "16px",
-          "line-height": "1.5"
-        }}>
-          Override specific colors that apply globally regardless of theme. 
-          Leave empty to use the theme's default color.
+      <SettingGroup title={t('mlearn.Settings.Groups.CustomColors')}>
+        <p class="custom-colors__description">
+          {t('mlearn.Settings.CustomColors.Description')}
         </p>
 
         <For each={[...CUSTOMIZABLE_CSS_VARS]}>
@@ -273,37 +264,28 @@ export const CustomizationTab: Component = () => {
                 label={info.label}
                 description={info.description}
               >
-                <div style={{ display: 'flex', gap: '8px', "align-items": 'center' }}>
+                <div class="custom-colors__row">
                   <input
                     type="color"
+                    class="custom-colors__color-input"
                     value={currentValue() || '#000000'}
                     onChange={(e) => updateCustomColor(varName as keyof CustomColorOverrides, e.currentTarget.value)}
-                    style={{
-                      width: '40px',
-                      height: '32px',
-                      padding: '2px',
-                      border: '1px solid var(--border-color)',
-                      "border-radius": '4px',
-                      cursor: 'pointer',
-                      background: 'var(--bg-opaque)',
-                    }}
                   />
                   <input
                     type="text"
-                    class="setting-input"
+                    class="setting-input custom-colors__text-input"
                     placeholder="#000000"
                     value={currentValue()}
                     onChange={(e) => updateCustomColor(varName as keyof CustomColorOverrides, e.currentTarget.value || null)}
-                    style={{ width: '100px' }}
                   />
                   <Show when={currentValue()}>
-                    <button
-                      class="btn-secondary"
+                    <Btn
+                      variant="ghost"
+                      size="sm"
                       onClick={() => updateCustomColor(varName as keyof CustomColorOverrides, null)}
-                      style={{ padding: '4px 8px', "font-size": '0.8em' }}
                     >
-                      Reset
-                    </button>
+                      {t('mlearn.Settings.CustomColors.Reset')}
+                    </Btn>
                   </Show>
                 </div>
               </SettingRow>
@@ -312,13 +294,10 @@ export const CustomizationTab: Component = () => {
         </For>
 
         <Show when={hasCustomColors()}>
-          <div style={{ "margin-top": "16px", "text-align": "right" }}>
-            <button
-              class="btn-secondary"
-              onClick={resetAllCustomColors}
-            >
-              Reset All Colors
-            </button>
+          <div class="custom-colors__reset-row">
+            <Btn variant="ghost" size="sm" onClick={resetAllCustomColors}>
+              {t('mlearn.Settings.CustomColors.ResetAll')}
+            </Btn>
           </div>
         </Show>
       </SettingGroup>

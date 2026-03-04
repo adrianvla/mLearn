@@ -166,7 +166,7 @@ export const ErrorModal: Component<ErrorModalProps> = (props) => {
           </div>
         </>
       }
-      size="md"
+      size="lg"
       closeOnEscape={hasClose()}
       closeOnOverlay={hasClose()}
       showCloseButton={hasClose()}

@@ -1,0 +1,103 @@
+/* CustomizationTab - Theme Preview */
+
+/* Preview simulates a video subtitle overlay — hardcoded dark bg + white text is intentional */
+.theme-preview__container {
+  padding: var(--spacing-5);
+  background: #000;
+  border-radius: var(--radius-md);
+}
+
+.theme-preview__text {
+  text-align: center;
+  color: #fff;
+  padding: var(--spacing-3);
+  margin: 0;
+  line-height: var(--line-height-relaxed);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3em;
+}
+
+/* Subtitle theme variants — hardcoded values simulate real subtitle rendering */
+.theme-preview__text--shadow {
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.theme-preview__text--background {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.theme-preview__text--marker {
+  background: linear-gradient(transparent 60%, rgba(255, 255, 0, 0.4) 60%);
+}
+
+.theme-preview__token {
+  display: inline-block;
+}
+
+/* POS color editor */
+.pos-colors__description {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-4);
+  line-height: var(--line-height-normal);
+}
+
+.pos-colors__row {
+  display: flex;
+  gap: var(--spacing-2);
+  align-items: center;
+}
+
+.pos-colors__color-input {
+  width: 40px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: var(--bg);
+}
+
+.pos-colors__text-input {
+  width: 100px;
+}
+
+.pos-colors__reset-row {
+  margin-top: var(--spacing-4);
+  text-align: right;
+}
+
+/* Custom color overrides */
+.custom-colors__description {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-4);
+  line-height: var(--line-height-normal);
+}
+
+.custom-colors__row {
+  display: flex;
+  gap: var(--spacing-2);
+  align-items: center;
+}
+
+.custom-colors__color-input {
+  width: 40px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  background: var(--bg-opaque);
+}
+
+.custom-colors__text-input {
+  width: 100px;
+}
+
+.custom-colors__reset-row {
+  margin-top: var(--spacing-4);
+  text-align: right;
+}

@@ -25,6 +25,7 @@ export interface ModalProps {
   fullHeight?: boolean;
   /** Optional class applied to the panel container */
   panelClass?: string;
+  noBottomPadding?: boolean;
 }
 
 export const Modal: Component<ModalProps> = (props) => {
@@ -36,6 +37,7 @@ export const Modal: Component<ModalProps> = (props) => {
       closeOnOverlay: true,
       showCloseButton: true,
       fullHeight: false,
+      noBottomPadding: false
     },
     props
   );
@@ -53,6 +55,7 @@ export const Modal: Component<ModalProps> = (props) => {
     'children',
     'fullHeight',
     'panelClass',
+    'noBottomPadding'
   ]);
 
   // Handle escape key
@@ -194,7 +197,7 @@ export const Modal: Component<ModalProps> = (props) => {
               style={{
                 flex: '1',
                 overflow: 'auto',
-                padding: 'var(--spacing-6) var(--spacing-6) 0',
+                padding: local.noBottomPadding ? 'var(--spacing-6) var(--spacing-6) 0' : 'var(--spacing-6)',
               }}
             >
               {local.children}

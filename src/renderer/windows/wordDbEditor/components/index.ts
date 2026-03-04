@@ -6,3 +6,4 @@ export { WordEntryRow, type WordEntry, type WordEntryRowProps, type AnkiExportSt
 export { SearchBar, type SearchBarProps } from './SearchBar';
 export { EntriesHeader, type EntriesHeaderProps } from './EntriesHeader';
 export { EditTranslationDialog, type EditTranslationDialogProps, type TranslationOverride } from './EditTranslationDialog';
+export { AnkiCardPreviewModal, type AnkiCardPreviewModalProps } from './AnkiCardPreviewModal';

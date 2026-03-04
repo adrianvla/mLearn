@@ -10,3 +10,4 @@ export { FlashcardSyncModal, type FlashcardSyncModalProps } from './FlashcardSyn
 export { FlashcardPitchAccent, type FlashcardPitchAccentProps } from './FlashcardPitchAccent';
 export { FlashcardStats, type FlashcardStatsProps } from './FlashcardStats';
 export { TtsGenerateModal, type TtsGenerateModalProps } from './TtsGenerateModal';
+export { FlashcardCreationChoiceModal } from './FlashcardCreationChoiceModal';

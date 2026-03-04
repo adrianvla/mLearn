@@ -8,6 +8,8 @@
   border-radius: var(--radius-md);
   padding: 12px;
   background: var(--bg-secondary);
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .anki-field-preview__title {
@@ -22,6 +24,8 @@
   grid-template-columns: auto 1fr;
   gap: 4px 12px;
   font-size: var(--font-size-sm);
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .anki-field-preview__label {
@@ -33,6 +37,14 @@
 .anki-field-preview__value {
   color: var(--text-primary);
   word-break: break-word;
+  overflow: hidden;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.anki-field-preview__value img {
+  max-width: 100%;
+  height: auto;
 }
 
 .anki-field-preview__empty {
