@@ -27,12 +27,14 @@
   top: 0;
   font-size: 0.8em;
   display: flex;
+  overflow: visible;
   pointer-events: none;
 }
 
 /* Pitch accent box - each mora gets one */
 .mLearn-pitch-accent .box {
-  width: 100%;
+  flex: 1 1 0%;
+  min-width: 0;
   height: 100%;
   box-sizing: border-box;
   position: relative;
@@ -126,6 +128,9 @@
   position: relative;
   padding-bottom: 2px;
 }
+.pitch-accent-pill .mLearn-pitch-accent{
+  padding-left:var(--pitch-accent-height);
+}
 
 /* Variant sizes for pitch accent */
 ruby .mLearn-pitch-accent {
@@ -181,6 +186,13 @@ span:not(ruby) .mLearn-pitch-accent {
   --pitch-accent-height: 2px;
 }
 
+/* POS label inside pitch accent pill */
+.pitch-pill-pos {
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  margin-left: 2px;
+}
+
 /* ============================
    PitchAccentOverlay Styles
    ============================ */
@@ -199,6 +211,7 @@ span:not(ruby) .mLearn-pitch-accent {
   right: 0;
   top: 0;
   display: flex;
+  overflow: visible;
   pointer-events: none;
 }
 
@@ -222,5 +235,6 @@ span:not(ruby) .mLearn-pitch-accent {
   right: 0;
   top: 0;
   display: flex;
+  overflow: visible;
   pointer-events: none;
 }

@@ -149,7 +149,6 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-2);
-  margin-top: 1rem;
 }
 
 /* TTS play button */
@@ -174,6 +173,11 @@
   margin-bottom: 1rem;
 }
 
+/* Example group - wraps example row + meaning, shows regenerate on hover */
+.flashcard-example-group {
+  position: relative;
+}
+
 /* Example sentence */
 .flashcard-example {
   font-size: var(--font-size-2xl);
@@ -182,6 +186,31 @@
   color: var(--text-primary);
   margin-top: 1rem;
   height: max-content;
+}
+
+/* Regenerate example button - hidden until hover */
+.flashcard-regenerate-btn {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  color: var(--text-tertiary);
+}
+
+.flashcard-example-group:hover .flashcard-regenerate-btn {
+  opacity: 1;
+}
+
+.flashcard-regenerate-btn:hover {
+  color: var(--text-primary);
+}
+
+@keyframes spinning {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.flashcard-regenerate-btn .spinning {
+  animation: spinning 1s linear infinite;
 }
 
 /* Hint text */
@@ -216,7 +245,6 @@
 .flashcard-translation {
   font-size: var(--font-size-lg);
   color: var(--text-primary);
-  margin-bottom: 40px;
   line-height: 1.6;
 }
 

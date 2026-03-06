@@ -42,27 +42,3 @@
   align-items: center;
   margin-top: 0.5rem;
 }
-
-.voice-sample-picker-tts-input {
-  flex: 1;
-  padding: 6px 10px;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: var(--font-size-xs);
-}
-
-.voice-sample-picker-tts-input::placeholder {
-  color: var(--text-tertiary);
-}
-
-.voice-sample-picker-tts-input:focus {
-  outline: none;
-  border-color: var(--border-color-intense);
-}
-
-.voice-sample-picker-tts-input:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}

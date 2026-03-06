@@ -31,9 +31,6 @@ body.theme-light-high-contrast {
     --overlay-bg: rgba(0, 0, 0, 0.6);
     --overlay-bg-soft: rgba(0, 0, 0, 0.4);
 
-    --window-loading-bg: var(--bg-opaque);
-    --window-loading-spinner-track: var(--bg);
-    --window-loading-spinner-color: var(--text-primary);
 }
 
 /* === End index.css === */

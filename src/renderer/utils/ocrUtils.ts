@@ -12,6 +12,8 @@ import type { OcrBox } from '../components/reader/OcrOverlay';
 
 const DEFAULT_FURIGANA_RATIO = 1.5;
 const DEFAULT_NEIGHBOR_WINDOW_MULT = 2.4;
+const DEFAULT_ZONE_GAP_THRESHOLD = 1.5;
+const DEFAULT_OUTLIER_AREA_MULT = 6;
 
 // ============================================================================
 // Box Metrics
@@ -119,96 +121,102 @@ function verticalGap(infoA: BoxMetrics, infoB: BoxMetrics): number {
  *   aspect-ratio heuristic (individual characters may be roughly square).
  * @returns Array of zones, where each zone is an array of metrics indices
  */
-function clusterBoxesIntoZones(metrics: BoxMetrics[], supportsVerticalText = false): number[][] {
+interface ClusterOptions {
+  supportsVerticalText?: boolean;
+  /** Max gap between box edges as a ratio of avg box size on the clustering axis (default 1.5) */
+  zoneGapThreshold?: number;
+  /** Boxes with area > median * this are isolated into their own zone (default 6) */
+  outlierAreaMultiplier?: number;
+}
+
+function clusterBoxesIntoZones(metrics: BoxMetrics[], opts: ClusterOptions = {}): number[][] {
   if (metrics.length === 0) return [];
-  
-  // Build adjacency graph based on spatial proximity and orientation
+
+  const supportsVerticalText = opts.supportsVerticalText ?? false;
+  const gapThreshold = opts.zoneGapThreshold ?? DEFAULT_ZONE_GAP_THRESHOLD;
+  const outlierMult = opts.outlierAreaMultiplier ?? DEFAULT_OUTLIER_AREA_MULT;
+
+  // Isolate abnormally large boxes (onomatopoeia / SFX) into their own zones
+  const outliers = new Set<number>();
+  if (metrics.length > 2) {
+    const areas = metrics.map(m => m.width * m.height);
+    const sorted = [...areas].sort((a, b) => a - b);
+    const medianArea = sorted[Math.floor(sorted.length / 2)];
+    for (let i = 0; i < metrics.length; i++) {
+      if (areas[i] > medianArea * outlierMult) outliers.add(i);
+    }
+  }
+
+  // Build adjacency graph.
+  // For vertical text: cluster purely by x-axis proximity (horizontal gap
+  //   between box edges relative to average box width).
+  // For horizontal text: cluster purely by y-axis proximity (vertical gap
+  //   between box edges relative to average box height).
   const neighbors = new Map<number, number[]>();
-  
+
   for (let i = 0; i < metrics.length; i++) {
+    if (outliers.has(i)) { neighbors.set(i, []); continue; }
     const info = metrics[i];
     const adj: number[] = [];
-    
+
     for (let j = 0; j < metrics.length; j++) {
-      if (i === j) continue;
+      if (i === j || outliers.has(j)) continue;
       const other = metrics[j];
 
       if (supportsVerticalText) {
-        // When the language can be written vertically, individual character
-        // boxes may be roughly square and mis-classified as horizontal.
-        // Use orientation-agnostic proximity: two boxes are adjacent if they
-        // satisfy EITHER the vertical-text OR horizontal-text adjacency rule.
-        const yOverlapRatio = overlapAmount(info.minY, info.maxY, other.minY, other.maxY)
-          / Math.max(1, Math.min(info.height, other.height));
-        const hGapRatio = horizontalGap(info, other)
-          / Math.max(1, (info.width + other.width) / 2);
-        const xOverlapRatio = overlapAmount(info.minX, info.maxX, other.minX, other.maxX)
-          / Math.max(1, Math.min(info.width, other.width));
-        const vGapRatio = verticalGap(info, other)
-          / Math.max(1, (info.height + other.height) / 2);
-
-        const isVerticalAdj = yOverlapRatio >= 0.3 && hGapRatio <= 1.8;
-        const isHorizontalAdj = xOverlapRatio >= 0.25 && vGapRatio <= 1.5;
-
-        if (isVerticalAdj || isHorizontalAdj) {
+        // Pure x-axis clustering: gap between horizontal edges of the two
+        // boxes, normalised by their average width.
+        const hGap = horizontalGap(info, other);
+        const avgWidth = (info.width + other.width) / 2;
+        if (hGap <= avgWidth * gapThreshold) {
           adj.push(j);
         }
       } else {
-        // Languages without vertical text: strict orientation filtering
+        // Languages without vertical text: cluster purely by y-axis.
         if (info.orientation !== other.orientation) continue;
 
         if (info.orientation === 'vertical') {
-          const overlapRatio = overlapAmount(info.minY, info.maxY, other.minY, other.maxY)
-            / Math.max(1, Math.min(info.height, other.height));
-          const gapRatio = horizontalGap(info, other)
-            / Math.max(1, (info.width + other.width) / 2);
-
-          if (overlapRatio >= 0.3 && gapRatio <= 1.8) {
-            adj.push(j);
-          }
+          const hGap = horizontalGap(info, other);
+          const avgWidth = (info.width + other.width) / 2;
+          if (hGap <= avgWidth * gapThreshold) adj.push(j);
         } else {
-          const overlapRatio = overlapAmount(info.minX, info.maxX, other.minX, other.maxX)
-            / Math.max(1, Math.min(info.width, other.width));
-          const gapRatio = verticalGap(info, other)
-            / Math.max(1, (info.height + other.height) / 2);
-
-          if (overlapRatio >= 0.25 && gapRatio <= 1.5) {
-            adj.push(j);
-          }
+          const vGap = verticalGap(info, other);
+          const avgHeight = (info.height + other.height) / 2;
+          if (vGap <= avgHeight * gapThreshold) adj.push(j);
         }
       }
     }
-    
+
     neighbors.set(i, adj);
   }
-  
+
   // Find connected components using DFS
   const visited = new Set<number>();
   const zones: number[][] = [];
-  
+
   for (let i = 0; i < metrics.length; i++) {
     if (visited.has(i)) continue;
-    
+
     const zone: number[] = [];
     const stack = [i];
-    
+
     while (stack.length) {
       const idx = stack.pop()!;
       if (visited.has(idx)) continue;
       visited.add(idx);
       zone.push(idx);
-      
+
       const adj = neighbors.get(idx) || [];
       for (const neigh of adj) {
         if (!visited.has(neigh)) stack.push(neigh);
       }
     }
-    
+
     if (zone.length > 0) {
       zones.push(zone);
     }
   }
-  
+
   return zones;
 }
 
@@ -222,6 +230,10 @@ export interface FilterNarrowBoxesOptions {
   neighborLookahead?: number;
   /** Pass true when the current language supports vertical writing */
   supportsVerticalText?: boolean;
+  /** Max gap between box edges as a ratio of avg box dimension for zone clustering (default 1.5) */
+  zoneGapThreshold?: number;
+  /** Boxes with area > median * this are isolated as outliers (default 6) */
+  outlierAreaMultiplier?: number;
   /** When provided, receives zone debug data for visualization */
   debugOutput?: (zones: FilterDebugZone[]) => void;
 }
@@ -273,7 +285,11 @@ export function filterNarrowBoxes(
   const windowMultiplier = clampPositive(options.neighborWindowMultiplier, DEFAULT_NEIGHBOR_WINDOW_MULT);
 
   const metrics = boxes.map((box, idx) => computeBoxMetrics(box, idx));
-  const zones = clusterBoxesIntoZones(metrics, options.supportsVerticalText);
+  const zones = clusterBoxesIntoZones(metrics, {
+    supportsVerticalText: options.supportsVerticalText,
+    zoneGapThreshold: options.zoneGapThreshold,
+    outlierAreaMultiplier: options.outlierAreaMultiplier,
+  });
 
   const indicesToRemove = new Set<number>();
   const debugZones: FilterDebugZone[] = [];
@@ -320,9 +336,27 @@ export function filterNarrowBoxes(
         orientation === 'vertical' ? m.width : m.height
       );
 
-      // Compute median cross dimension for this orientation group
+      // Compute median cross dimension for this orientation group.
+      // Exclude onomatopoeia outliers (disproportionately large boxes) that
+      // would inflate the median and cause normal text to be misclassified
+      // as furigana.
       const sortedDims = [...crossDims].sort((a, b) => a - b);
-      const medianCross = sortedDims[Math.floor(sortedDims.length / 2)];
+      const rawMedian = sortedDims[Math.floor(sortedDims.length / 2)];
+
+      // Scan from the top of sorted dims: find the first significant gap
+      // (ratio > 1.8) where the upper value exceeds the raw median.
+      // Everything above that gap is an onomatopoeia-class outlier.
+      let trimEnd = sortedDims.length;
+      for (let i = sortedDims.length - 1; i > 0; i--) {
+        if (sortedDims[i] > rawMedian && sortedDims[i] / sortedDims[i - 1] > 1.8) {
+          trimEnd = i;
+          break;
+        }
+      }
+      const trimmedDims = sortedDims.slice(0, trimEnd);
+      const medianCross = trimmedDims.length >= 2
+        ? trimmedDims[Math.floor(trimmedDims.length / 2)]
+        : rawMedian;
       const furiganaThreshold = medianCross / effectiveRatio;
 
       const localFurigana: number[] = [];
@@ -342,6 +376,13 @@ export function filterNarrowBoxes(
 
           const otherCross = orientation === 'vertical' ? other.width : other.height;
           if (otherCross <= crossDim * 1.2) continue;
+
+          // Furigana runs alongside its parent text: require main-axis overlap
+          const mainOverlap = orientation === 'vertical'
+            ? overlapAmount(curr.minY, curr.maxY, other.minY, other.maxY)
+            : overlapAmount(curr.minX, curr.maxX, other.minX, other.maxX);
+          const mainDim = orientation === 'vertical' ? curr.height : curr.width;
+          if (mainOverlap < mainDim * 0.2) continue;
 
           const gap = orientation === 'vertical'
             ? horizontalGap(curr, other)
@@ -465,7 +506,7 @@ export function buildOcrContextMap(
     const infos = boxes.map((box, idx) => computeBoxMetrics(box, idx));
     
     // Use the shared zone clustering algorithm
-    const zones = clusterBoxesIntoZones(infos, options.supportsVerticalText);
+    const zones = clusterBoxesIntoZones(infos, { supportsVerticalText: options.supportsVerticalText });
     
     for (const cluster of zones) {
       if (cluster.length === 0) continue;

@@ -16,6 +16,7 @@ import { Panel, PillLabel, IconBtn } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { FlashcardPitchAccent } from './FlashcardPitchAccent';
 import type { TtsMetadata } from '../../hooks/useFlashcardTts';
+import { RefreshIcon } from '../common';
 import './FlashcardDisplay.css';
 
 export interface FlashcardDisplayProps {
@@ -26,6 +27,8 @@ export interface FlashcardDisplayProps {
   ttsPlayingField?: 'word' | 'example' | null;
   ttsGenerating?: boolean;
   ttsMetadata?: TtsMetadata | null;
+  onRegenerateExample?: (cardId: string) => void;
+  regeneratingExample?: boolean;
   style?: JSX.CSSProperties;
 }
 
@@ -224,28 +227,41 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           <div class="flashcard-translation" innerHTML={meaning()} />
 
           <Show when={content().example && content().example !== '-'}>
-            <div class="flashcard-example-row">
-              <div class="flashcard-example" innerHTML={content().example} />
-              <Show when={props.onPlayTts}>
-                <IconBtn
-                  icon="volume"
-                  size="sm"
-                  variant="ghost"
-                  class="flashcard-tts-btn"
-                  classList={{ 'flashcard-tts-btn--active': props.ttsPlayingField === 'example' }}
-                  onClick={(e: MouseEvent) => handleTtsClick('example', content().example!, e)}
-                  disabled={props.ttsGenerating}
-                  title={t('mlearn.Flashcards.Card.PlayExample')}
-                />
-              </Show>
+            <div class="flashcard-example-group">
+              <div class="flashcard-example-row">
+                <div class="flashcard-example" innerHTML={content().example} />
+                <Show when={props.onPlayTts}>
+                  <IconBtn
+                    icon="volume"
+                    size="sm"
+                    variant="ghost"
+                    class="flashcard-tts-btn"
+                    classList={{ 'flashcard-tts-btn--active': props.ttsPlayingField === 'example' }}
+                    onClick={(e: MouseEvent) => handleTtsClick('example', content().example!, e)}
+                    disabled={props.ttsGenerating}
+                    title={t('mlearn.Flashcards.Card.PlayExample')}
+                  />
+                </Show>
+                <Show when={props.onRegenerateExample}>
+                  <IconBtn
+                    size="sm"
+                    variant="ghost"
+                    class="flashcard-regenerate-btn"
+                    icon={<RefreshIcon size={14} class={props.regeneratingExample ? 'spinning' : ''} />}
+                    onClick={(e: MouseEvent) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      props.onRegenerateExample?.(props.flashcard.id);
+                    }}
+                    disabled={props.regeneratingExample}
+                    title={t('mlearn.Flashcards.Card.RegenerateExample')}
+                  />
+                </Show>
+              </div>
             </div>
           </Show>
           <Show when={content().exampleMeaning}>
             <div class="flashcard-example-meaning">{content().exampleMeaning}</div>
-          </Show>
-
-          <Show when={content().context}>
-            <div class="flashcard-context">{content().context}</div>
           </Show>
 
           <Show when={displayImageUrl()}>

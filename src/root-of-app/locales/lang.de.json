@@ -289,7 +289,11 @@
         "TimingPerBox": "Ø/Box",
         "TimingTotal": "Gesamt",
         "PaddleDownscaleLabel": "PaddleOCR-Skalierung: {value}%",
-        "PaddleDownscaleTitle": "Bild vor PaddleOCR-Verarbeitung herunterskalieren (dev)"
+        "PaddleDownscaleTitle": "Bild vor PaddleOCR-Verarbeitung herunterskalieren (dev)",
+        "ZoneGapLabel": "Zonen-Abstand: {value}",
+        "ZoneGapTitle": "Maximaler Abstand zwischen Boxkanten für Zonen-Clustering",
+        "OutlierMultLabel": "Ausreißer-Mult: {value}x",
+        "OutlierMultTitle": "Boxen mit Fläche über Median × diesen Wert werden isoliert"
       },
       "Status": {
         "NothingLoaded": "Nichts geladen",
@@ -480,7 +484,8 @@
         "RateHint": "Bewerten mit 1–4 • Klicken zum Zurückdrehen",
         "ReviewsCount": "{count} Wiederholungen",
         "PlayWord": "Wortaussprache abspielen",
-        "PlayExample": "Beispielsatz abspielen"
+        "PlayExample": "Beispielsatz abspielen",
+        "RegenerateExample": "Beispiel mit KI neu generieren"
       },
       "Table": {
         "Word": "Wort",
@@ -492,6 +497,14 @@
       "Leech": {
         "Title": "Blutegel erkannt",
         "Message": "Das Wort „{word}“ wurde {count} Mal falsch beantwortet und benötigt möglicherweise besondere Aufmerksamkeit"
+      },
+      "PostCreate": {
+        "TranslatingTitle": "Beispiel wird übersetzt",
+        "TranslatingMessage": "Der Beispielsatz wird übersetzt...",
+        "GeneratingTtsTitle": "Audio wird erzeugt",
+        "GeneratingTtsMessage": "TTS-Audio für die Lernkarte wird erzeugt...",
+        "TtsDone": "TTS-Audio erzeugt",
+        "TtsFailed": "TTS-Audio konnte nicht erzeugt werden"
       }
     },
     "WordHover": {
@@ -1181,6 +1194,7 @@
       "Loading": "Wortdatenbank wird geladen...",
       "EmptyState": "Keine Wörter gefunden. Klicken Sie auf „Alle laden“, um die Wortdatenbank zu laden.",
       "LoadingMore": "Weitere laden...",
+      "Searching": "Suche...",
       "SearchPlaceholder": "Wörter suchen...",
       "AllLevels": "Alle Stufen",
       "LoadAll": "Alle laden",
@@ -1265,6 +1279,18 @@
       "RegeneratingExample": "Wird generiert…",
       "ExampleGenerateFailed": "Beispiel konnte nicht neu generiert werden",
       "UseReadingForTts": "Lesung für TTS verwenden",
+      "Regenerate": {
+        "Title": "Neu generieren",
+        "WordTts": "Wort-TTS",
+        "ExampleTts": "Beispiel-TTS",
+        "Translation": "Übersetzung",
+        "ExamplePhrase": "Beispielsatz",
+        "UseReadings": "Lesungen verwenden",
+        "AllCompleted": "Alle Aufgaben abgeschlossen",
+        "SomeFailed": "Einige Aufgaben fehlgeschlagen",
+        "NoTasksSelected": "Mindestens eine Aufgabe auswählen"
+      },
+      "AudioUnavailable": "Audio nicht verfügbar. Verwende die Regenerieren-Schaltfläche, um es zu generieren.",
       "Hint": "Übersetzung: Komma oder Zeilenumbruch. Tonakzent ist die Mora-Absenkungsposition (0=flach)."
     },
     "PitchAccent": {

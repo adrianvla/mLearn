@@ -289,7 +289,11 @@
         "TimingPerBox": "平均/ボックス",
         "TimingTotal": "合計",
         "PaddleDownscaleLabel": "PaddleOCRスケール: {value}%",
-        "PaddleDownscaleTitle": "PaddleOCR処理前に画像を縮小する（開発用）"
+        "PaddleDownscaleTitle": "PaddleOCR処理前に画像を縮小する（開発用）",
+        "ZoneGapLabel": "ゾーン間隔: {value}",
+        "ZoneGapTitle": "ゾーンクラスタリングのボックス端間の最大間隔",
+        "OutlierMultLabel": "外れ値倍率: {value}x",
+        "OutlierMultTitle": "面積が中央値×この値を超えるボックスは独立したゾーンになります"
       },
       "Status": {
         "NothingLoaded": "何も読み込まれていません",
@@ -480,7 +484,8 @@
         "RateHint": "1〜4で評価 • クリックで裏に戻す",
         "ReviewsCount": "{count}回復習",
         "PlayWord": "単語の発音を再生",
-        "PlayExample": "例文を再生"
+        "PlayExample": "例文を再生",
+        "RegenerateExample": "AIで例文を再生成"
       },
       "Table": {
         "Word": "単語",
@@ -492,6 +497,14 @@
       "Leech": {
         "Title": "リーチ検出",
         "Message": "「{word}」は{count}回失敗しており、特別な注意が必要かもしれません"
+      },
+      "PostCreate": {
+        "TranslatingTitle": "例文を翻訳中",
+        "TranslatingMessage": "例文を翻訳しています...",
+        "GeneratingTtsTitle": "音声を生成中",
+        "GeneratingTtsMessage": "フラッシュカードのTTS音声を生成しています...",
+        "TtsDone": "TTS音声を生成しました",
+        "TtsFailed": "TTS音声の生成に失敗しました"
       }
     },
     "WordHover": {
@@ -1181,6 +1194,7 @@
       "Loading": "単語データベースを読み込み中...",
       "EmptyState": "単語が見つかりません。「すべて読み込む」をクリックして単語データベースを読み込んでください。",
       "LoadingMore": "さらに読み込み中...",
+      "Searching": "検索中...",
       "SearchPlaceholder": "単語を検索...",
       "AllLevels": "全レベル",
       "LoadAll": "すべて読み込む",
@@ -1265,6 +1279,18 @@
       "RegeneratingExample": "再生成中…",
       "ExampleGenerateFailed": "例文の再生成に失敗しました",
       "UseReadingForTts": "読みをTTSに使用",
+      "Regenerate": {
+        "Title": "再生成",
+        "WordTts": "単語TTS",
+        "ExampleTts": "例文TTS",
+        "Translation": "翻訳",
+        "ExamplePhrase": "例文",
+        "UseReadings": "読みを使用",
+        "AllCompleted": "すべてのタスクが完了しました",
+        "SomeFailed": "一部のタスクが失敗しました",
+        "NoTasksSelected": "少なくとも1つのタスクを選択してください"
+      },
+      "AudioUnavailable": "音声が利用できません。再生成ボタンを使用して生成してください。",
       "Hint": "翻訳: コンマまたは改行区切り。ピッチアクセントはモーラ下降位置（0=平板）。"
     },
     "PitchAccent": {

@@ -516,12 +516,12 @@ export function getNewCards(cards: Record<string, Flashcard>): Flashcard[] {
 }
 
 /**
- * Get learning cards (in learning or relearning phase)
+ * Get learning cards (in learning phase only — relearning cards go to relearnQueue)
  */
 export function getLearningCards(cards: Record<string, Flashcard>): Flashcard[] {
     const now = Date.now();
     return Object.values(cards)
-        .filter(c => (c.state === 'learning' || c.state === 'relearning') && !c.suspended && !c.buried && c.dueDate <= now)
+        .filter(c => c.state === 'learning' && !c.suspended && !c.buried && c.dueDate <= now)
         .sort((a, b) => a.dueDate - b.dueDate);
 }
 
@@ -592,6 +592,9 @@ export function buildReviewQueue(
 /**
  * Get the next card to review from the queue
  * Priority: relearning > learning > new (interleaved) > review
+ *
+ * Each queue section verifies the card's state matches expectations to prevent
+ * stale queue entries from causing duplicate card appearances.
  */
 export function getNextCard(
     queue: ReviewQueue,
@@ -602,7 +605,7 @@ export function getNextCard(
     // Check relearning cards first (most urgent)
     for (const id of queue.relearnQueue) {
         const card = cards[id];
-        if (card && card.dueDate <= now && !card.suspended && !card.buried) {
+        if (card && card.state === 'relearning' && card.dueDate <= now && !card.suspended && !card.buried) {
             return card;
         }
     }
@@ -610,7 +613,7 @@ export function getNextCard(
     // Check learning cards
     for (const id of queue.learningQueue) {
         const card = cards[id];
-        if (card && card.dueDate <= now && !card.suspended && !card.buried) {
+        if (card && card.state === 'learning' && card.dueDate <= now && !card.suspended && !card.buried) {
             return card;
         }
     }
@@ -619,32 +622,38 @@ export function getNextCard(
     // Show new card if: there are new cards and (no review cards or every 10th card)
     // Review cards in the queue are already filtered to be due today (end-of-SRS-day cutoff),
     // so we don't re-check dueDate here.
-    const hasNewCards = queue.newQueue.length > 0;
+    const hasNewCards = queue.newQueue.some(id => {
+        const card = cards[id];
+        return card && card.state === 'new' && !card.suspended && !card.buried;
+    });
     const hasReviewCards = queue.reviewQueue.some(id => {
         const card = cards[id];
-        return card && !card.suspended && !card.buried;
+        return card && card.state === 'review' && !card.suspended && !card.buried;
     });
 
     if (hasNewCards && (!hasReviewCards || Math.random() < 0.1)) {
-        const id = queue.newQueue[0];
-        const card = cards[id];
-        if (card && !card.suspended && !card.buried) {
-            return card;
+        for (const id of queue.newQueue) {
+            const card = cards[id];
+            if (card && card.state === 'new' && !card.suspended && !card.buried) {
+                return card;
+            }
         }
     }
 
     // Check review cards (already filtered to be due today, no dueDate re-check needed)
     for (const id of queue.reviewQueue) {
         const card = cards[id];
-        if (card && !card.suspended && !card.buried) {
+        if (card && card.state === 'review' && !card.suspended && !card.buried) {
             return card;
         }
     }
 
-    // Return first new card if nothing else
-    if (hasNewCards) {
-        const id = queue.newQueue[0];
-        return cards[id] || null;
+    // Return first valid new card if nothing else
+    for (const id of queue.newQueue) {
+        const card = cards[id];
+        if (card && card.state === 'new' && !card.suspended && !card.buried) {
+            return card;
+        }
     }
 
     return null;

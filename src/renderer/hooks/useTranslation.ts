@@ -68,8 +68,8 @@ function writeOverrides(map: Record<string, TranslationResponse>): void {
   }
 }
 
-// Fetch translation from backend
-async function fetchTranslation(word: string): Promise<TranslationResponse> {
+// Fetch translation from backend (also exported for use by batch queues)
+export async function fetchTranslation(word: string): Promise<TranslationResponse> {
   // Check override first
   const overrides = readOverrides();
   if (overrides[word]) {

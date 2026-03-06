@@ -6,8 +6,9 @@
 
 import { createSignal, onCleanup } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
-import { useSettings } from '../context';
+import { useSettings, useLocalization } from '../context';
 import { isElectron } from '../../shared/platform';
+import { showToast } from '../components/common/Feedback/Toast';
 
 interface FlashcardTtsState {
   isPlaying: boolean;
@@ -26,6 +27,7 @@ let generationId = 0;
 
 export function useFlashcardTts() {
   const { settings } = useSettings();
+  const { t } = useLocalization();
   const [state, setState] = createSignal<FlashcardTtsState>({
     isPlaying: false,
     isGenerating: false,
@@ -163,6 +165,13 @@ export function useFlashcardTts() {
           if (myGenId !== generationId) return;
         }
       }
+
+      // No saved audio and generation failed — notify the user
+      if (myGenId === generationId) {
+        showToast({ message: t('mlearn.CardEditor.AudioUnavailable'), variant: 'warning' });
+        setState({ isPlaying: false, isGenerating: false, playingField: null });
+      }
+      return;
     }
 
     // Fallback: system TTS (works on all platforms)

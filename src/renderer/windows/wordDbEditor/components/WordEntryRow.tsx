@@ -4,12 +4,12 @@
  * Lazily fetches translation from backend when visible
  */
 
-import { Component, Show, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
+import { Component, Show, For, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
 import { Btn, PillLabel, StatusLabel, numericToStatus, statusToNumeric, getNextStatus, PitchAccentOverlay } from '../../../components/common';
 import { useLocalization } from '../../../context';
-import { getCachedTranslation } from '../../../hooks/useTranslation';
+import { getCachedTranslation, getCachedReading, fetchTranslation } from '../../../hooks/useTranslation';
 import type { TranslationResponse, TranslationEntry } from '../../../../shared/types';
-import { getBackend } from '../../../../shared/backends';
+import { containsKanji, isAllKana } from '../../../../shared/utils/textUtils';
 import './WordEntryRow.css';
 
 /** Export result state for per-row Anki feedback */
@@ -17,14 +17,15 @@ export type AnkiExportState = 'idle' | 'exporting' | 'exported' | 'duplicate' | 
 
 /**
  * Shared translation fetch queue to avoid overwhelming the backend.
- * Processes translation requests in batches with concurrency control.
+ * Uses fetchTranslation which populates the global translation cache,
+ * so getCachedReading/getCachedTranslation work after fetch.
  */
-const translationQueue: Array<{ word: string; resolve: (t: string) => void }> = [];
+const translationQueue: Array<{ word: string; resolve: () => void }> = [];
 let isProcessingQueue = false;
 const BATCH_SIZE = 5;
 const BATCH_DELAY = 50;
 
-function enqueueTranslation(word: string): Promise<string> {
+function enqueueTranslationFetch(word: string): Promise<void> {
   return new Promise((resolve) => {
     translationQueue.push({ word, resolve });
     if (!isProcessingQueue) {
@@ -36,25 +37,15 @@ function enqueueTranslation(word: string): Promise<string> {
 async function processQueue(): Promise<void> {
   if (isProcessingQueue) return;
   isProcessingQueue = true;
-  const backend = getBackend();
 
   while (translationQueue.length > 0) {
     const batch = translationQueue.splice(0, BATCH_SIZE);
     await Promise.all(
       batch.map(async ({ word, resolve }) => {
         try {
-          const data = await backend.translate(word);
-          const entry = data?.data?.[0] as TranslationEntry | undefined;
-          if (entry?.definitions) {
-            const defs = Array.isArray(entry.definitions) ? entry.definitions : [entry.definitions];
-            const short = defs.slice(0, 3).join(', ');
-            resolve(short);
-          } else {
-            resolve('');
-          }
-        } catch {
-          resolve('');
-        }
+          await fetchTranslation(word);
+        } catch { /* ignore */ }
+        resolve();
       })
     );
     if (translationQueue.length > 0) {
@@ -73,6 +64,35 @@ function extractTranslation(resp: TranslationResponse): string {
   return defs.slice(0, 3).join(', ');
 }
 
+/** Extract pitch accent position from cached translation data */
+function extractPitchFromCache(word: string): number | null {
+  const cached = getCachedTranslation(word);
+  if (!cached?.data) return null;
+  const pitchEntry = cached.data[2];
+  if (!pitchEntry) return null;
+  if (Array.isArray(pitchEntry) && (pitchEntry as any)[2]?.pitches?.[0]?.position !== undefined) {
+    return (pitchEntry as any)[2].pitches[0].position;
+  }
+  if ((pitchEntry as any)?.pitches?.[0]?.position !== undefined) {
+    return (pitchEntry as any).pitches[0].position;
+  }
+  if (typeof pitchEntry === 'object') {
+    const findPitch = (obj: any): number | null => {
+      if (!obj || typeof obj !== 'object') return null;
+      if (obj.pitches?.[0]?.position !== undefined) return obj.pitches[0].position;
+      for (const val of Object.values(obj)) {
+        if (val && typeof val === 'object') {
+          const found = findPitch(val);
+          if (found !== null) return found;
+        }
+      }
+      return null;
+    };
+    return findPitch(pitchEntry);
+  }
+  return null;
+}
+
 export interface WordEntry {
   uuid: string;
   word: string;
@@ -83,6 +103,8 @@ export interface WordEntry {
   status: number;
   fullTranslation?: string;
   pitch?: number | null;
+  /** Additional readings for words that have multiple independent senses */
+  alternateReadings?: string[];
 }
 
 export interface WordEntryRowProps {
@@ -91,6 +113,7 @@ export interface WordEntryRowProps {
   onStatusChange: (entry: WordEntry, newStatus: number) => void;
   onAddFlashcard: (entry: WordEntry) => void;
   onRemoveFlashcard: (entry: WordEntry) => void;
+  onEditFlashcard?: (entry: WordEntry) => void;
   onEdit?: (entry: WordEntry) => void;
   onExportToAnki?: (entry: WordEntry) => void;
   onAnkiPreview?: (entry: WordEntry) => void;
@@ -99,27 +122,69 @@ export interface WordEntryRowProps {
 
 export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { t } = useLocalization();
-  const [fetchedTranslation, setFetchedTranslation] = createSignal('');
+  // Signals bumped after fetch to trigger re-reads of cache
+  const [fetchVersion, setFetchVersion] = createSignal(0);
   let rowRef: HTMLDivElement | undefined;
   let observer: IntersectionObserver | undefined;
   let fetched = false;
 
-  // Determine the translation to display: prop > fetched > cache > empty
+  // Effective reading: translation cache reading > freq data > word
+  const effectiveReading = createMemo(() => {
+    fetchVersion(); // re-evaluate when fetch completes
+    const cached = getCachedReading(props.entry.word);
+    return cached || props.entry.reading || props.entry.word;
+  });
+
+  // Effective pitch: explicit prop > cache (reactive via fetchVersion)
+  const effectivePitch = createMemo((): number | null => {
+    if (props.entry.pitch !== undefined && props.entry.pitch !== null) {
+      return props.entry.pitch;
+    }
+    fetchVersion(); // re-evaluate when fetch completes
+    return extractPitchFromCache(props.entry.word);
+  });
+
+  // Whether the word needs furigana (has kanji and reading differs)
+  const needsFurigana = createMemo(() => {
+    const word = props.entry.word;
+    const reading = effectiveReading();
+    if (!reading || reading === word) return false;
+    if (isAllKana(word)) return false;
+    return containsKanji(word);
+  });
+
+  // Determine the translation to display: prop > cache > empty
   const displayTranslation = createMemo(() => {
+    fetchVersion(); // re-evaluate when fetch completes
     if (props.entry.translation) return props.entry.translation;
-    if (fetchedTranslation()) return fetchedTranslation();
     const cached = getCachedTranslation(props.entry.word);
     if (cached) return extractTranslation(cached);
     return '';
   });
 
-  // Lazily fetch translation when the row becomes visible
+  // Alternate readings to show: all known readings that differ from the displayed one
+  const visibleAlternateReadings = createMemo(() => {
+    const displayed = effectiveReading();
+    const primary = props.entry.reading;
+    const alternates = props.entry.alternateReadings || [];
+    // Collect all unique readings from freq data (primary + alternates)
+    const all = new Set<string>();
+    if (primary) all.add(primary);
+    for (const r of alternates) all.add(r);
+    // Remove the currently displayed one
+    all.delete(displayed);
+    return Array.from(all);
+  });
+
+  // Lazily fetch translation when the row becomes visible.
+  // Uses fetchTranslation which populates the global cache (reading + translation + pitch).
   onMount(() => {
-    if (props.entry.translation || getCachedTranslation(props.entry.word)) {
-      // Already have translation, no need to fetch
-      if (!props.entry.translation && getCachedTranslation(props.entry.word)) {
-        setFetchedTranslation(extractTranslation(getCachedTranslation(props.entry.word)!));
-      }
+    if (props.entry.translation && getCachedTranslation(props.entry.word)) {
+      return;
+    }
+    // If already cached, just bump version to read from cache
+    if (getCachedTranslation(props.entry.word)) {
+      setFetchVersion((v) => v + 1);
       return;
     }
 
@@ -128,8 +193,8 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         if (entries[0]?.isIntersecting && !fetched) {
           fetched = true;
           observer?.disconnect();
-          enqueueTranslation(props.entry.word).then((t) => {
-            if (t) setFetchedTranslation(t);
+          enqueueTranslationFetch(props.entry.word).then(() => {
+            setFetchVersion((v) => v + 1);
           });
         }
       },
@@ -146,27 +211,59 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     <div class="entry" ref={rowRef}>
       <div class="col word">
         <span class="word-text">
-          <PitchAccentOverlay
-            word={props.entry.word}
-            reading={props.entry.reading || props.entry.word}
-            pitchPosition={props.entry.pitch}
-            mode="overlay"
-            homogenous={true}
-          >
-            {props.entry.word}
-          </PitchAccentOverlay>
+          <Show when={needsFurigana()} fallback={
+            <PitchAccentOverlay
+              word={props.entry.word}
+              reading={effectiveReading()}
+              pitchPosition={effectivePitch()}
+              mode="overlay"
+              homogenous={true}
+            >
+              {props.entry.word}
+            </PitchAccentOverlay>
+          }>
+            <ruby class="word-db-ruby">
+              {props.entry.word}
+              <rt>
+                <span class="word-db-ruby-rt">
+                  <PitchAccentOverlay
+                    word={props.entry.word}
+                    reading={effectiveReading()}
+                    pitchPosition={effectivePitch()}
+                    mode="overlay"
+                    homogenous={true}
+                  >
+                    {effectiveReading()}
+                  </PitchAccentOverlay>
+                </span>
+              </rt>
+            </ruby>
+          </Show>
         </span>
-        <Show when={props.entry.reading && props.entry.reading !== props.entry.word}>
-          <span class="reading">{props.entry.reading}</span>
-        </Show>
         <Show when={props.onEdit}>
-          <button
-            class="edit-btn"
+          <Btn
+            variant="ghost"
+            size="sm"
             onClick={() => props.onEdit?.(props.entry)}
             title={t('mlearn.WordDbEditor.EditTranslation.Tooltip')}
           >
             {t('mlearn.Global.Edit')}
-          </button>
+          </Btn>
+        </Show>
+        <Show when={visibleAlternateReadings().length > 0}>
+          <span class="word-db-alt-readings">
+            <For each={visibleAlternateReadings()}>
+              {(altReading) => (
+                <PitchAccentOverlay
+                  word={props.entry.word}
+                  reading={altReading}
+                  mode="pill"
+                  showParticleBox={true}
+                  homogenous={true}
+                />
+              )}
+            </For>
+          </span>
         </Show>
       </div>
       <div class="col translation" title={props.entry.fullTranslation || displayTranslation()}>
@@ -183,6 +280,15 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
       <div class="col tracker">
         <span class="tracker-label">{props.entry.tracker}</span>
         <Show when={props.entry.tracker === 'flashcards'}>
+          <Show when={props.onEditFlashcard}>
+            <Btn
+              variant="ghost"
+              size="sm"
+              onClick={() => props.onEditFlashcard?.(props.entry)}
+            >
+              {t('mlearn.Global.Edit')}
+            </Btn>
+          </Show>
           <Btn
             variant="danger"
             size="sm"

@@ -51,9 +51,9 @@ function buildAccentPattern(accentType: number, reading: string): boolean[] {
 
 export function getPitchAccentInfo(accentType: number | undefined | null, reading: string): PitchAccentInfo | null {
   if (accentType === undefined || accentType === null) return null;
-  if (typeof reading !== "string" || reading.length <= 1) return null;
+  if (typeof reading !== "string" || reading.length === 0) return null;
   const pattern = buildAccentPattern(accentType, reading);
-  if (pattern.length <= 1) return null;
+  if (pattern.length === 0) return null;
   return {
     accentType,
     pattern,
@@ -98,7 +98,7 @@ export function buildPitchAccentHtml(info: PitchAccentInfo | null, realWordLengt
     if (bottom) classString += " bottom";
     if (top) classString += " top";
     if (left) classString += " left";
-    html += `<div class="${classString}" ${options.homogenous ? '' : `style="margin-right:${marginPercent}%;"`}></div>`;
+    html += `<div class="${classString}" style="margin-right:${marginPercent}%;"></div>`;
   }
 
   if (padTo && padTo > unitCount) {

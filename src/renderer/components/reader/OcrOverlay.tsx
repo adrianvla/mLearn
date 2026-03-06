@@ -44,6 +44,10 @@ export interface OcrOverlayProps {
   visible?: boolean;
   /** Show debug overlay coloring for text vs furigana boxes */
   debugOcr?: boolean;
+  /** Live-tuneable zone gap threshold (dev mode) */
+  zoneGapThreshold?: number;
+  /** Live-tuneable outlier area multiplier (dev mode) */
+  outlierAreaMultiplier?: number;
   onBoxClick?: (box: OcrBox, rect: DOMRect) => void;
   /** Called when hovering over a word. Includes context phrase from neighboring boxes. */
   onWordHover?: (token: Token, rect: DOMRect, contextPhrase: string) => void;
@@ -209,6 +213,8 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
       ratio: settings.ocrFuriganaWidthRatio,
       neighborWindowMultiplier: settings.ocrFuriganaNeighborWindowMultiplier,
       supportsVerticalText: langFeatures().supportsVerticalText,
+      zoneGapThreshold: props.zoneGapThreshold,
+      outlierAreaMultiplier: props.outlierAreaMultiplier,
       debugOutput: props.debugOcr ? setDebugZones : undefined,
     });
     

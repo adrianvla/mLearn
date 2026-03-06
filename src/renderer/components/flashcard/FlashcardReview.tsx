@@ -10,6 +10,9 @@ import { TtsGenerateModal } from './TtsGenerateModal';
 import { Button, Badge, Panel, ProgressBar, MicrophoneIcon } from '../common';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
+import { getBackend } from '../../../shared/backends';
+import { tokensToColoredHtml } from '../../utils/subtitleParsing';
+import { showToast } from '../common/Feedback/Toast';
 import type { Flashcard } from '../../../shared/types';
 import type { Rating } from '../../services/srsAlgorithm';
 import './FlashcardReview.css';
@@ -34,6 +37,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     canUndo,
     refreshQueue,
     dueDateToString,
+    generateExampleSentenceWithLLM,
+    updateFlashcardContent,
   } = useFlashcards();
 
   const [showAnswer, setShowAnswer] = createSignal(false);
@@ -41,6 +46,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [initialTotal, setInitialTotal] = createSignal(0);
   const [cardsAnswered, setCardsAnswered] = createSignal(0);
   const [showTtsModal, setShowTtsModal] = createSignal(false);
+  const [regeneratingExample, setRegeneratingExample] = createSignal(false);
 
   // TTS integration
   const { settings } = useSettings();
@@ -208,6 +214,42 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     setShowAnswer(true);
   };
 
+  const handleRegenerateExample = async (cardId: string) => {
+    const card = currentCard();
+    if (!card || card.id !== cardId || regeneratingExample()) return;
+
+    setRegeneratingExample(true);
+    try {
+      const result = await generateExampleSentenceWithLLM(card.content.front, card.content.back, settings.language);
+      if (result.sentence) {
+        let exampleHtml = result.sentence;
+        try {
+          const backend = getBackend({
+            mode: settings.backendMode,
+            url: settings.backendUrl,
+            authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
+          });
+          const tokens = await backend.tokenize(result.sentence, settings.language);
+          if (tokens.length > 0) {
+            const colourCodes = settings.colour_codes || {};
+            exampleHtml = tokensToColoredHtml(tokens, colourCodes, card.content.front);
+          }
+        } catch {
+          // Use plain text if tokenization fails
+        }
+        updateFlashcardContent(cardId, {
+          example: exampleHtml,
+          exampleMeaning: result.meaning || undefined,
+        });
+        showToast({ message: t('mlearn.CardEditor.RegenerateExample'), variant: 'success' });
+      }
+    } catch (e) {
+      console.warn('Failed to regenerate example:', e);
+    } finally {
+      setRegeneratingExample(false);
+    }
+  };
+
   const handleStartOver = () => {
     refreshQueue();
     setShowAnswer(false);
@@ -349,10 +391,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 size="sm"
                 class="flashcard-action-btn"
                 onClick={() => setShowTtsModal(true)}
-                title={t('mlearn.CardEditor.RegenerateTts')}
+                title={t('mlearn.CardEditor.Regenerate.Title')}
               >
                 <MicrophoneIcon size={14} />
-                <span class="flashcard-action-label">{t('mlearn.CardEditor.RegenerateTts')}</span>
+                <span class="flashcard-action-label">{t('mlearn.CardEditor.Regenerate.Title')}</span>
               </Button>
             </Show>
           </div>
@@ -410,6 +452,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   ttsPlayingField={ttsPlayingField()}
                   ttsGenerating={ttsGenerating()}
                   ttsMetadata={ttsMetadata()}
+                  onRegenerateExample={handleRegenerateExample}
+                  regeneratingExample={regeneratingExample()}
               />
             )}
           </Show>

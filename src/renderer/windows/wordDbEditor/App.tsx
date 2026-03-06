@@ -12,14 +12,16 @@ import {
   loadWordsFromStorage,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
+import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState } from './components';
-import { ModalLoadingOverlay, Spinner } from '../../components/common';
+import { Modal, ModalLoadingOverlay, Spinner } from '../../components/common';
+import { FlashcardEditor } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
 import './WordDbEditorLayout.css';
 
 export const WordDbEditorContent: Component = () => {
   const { wordFrequency, getFreqLevelNames } = useLanguage();
-  const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord } = useFlashcards();
+  const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, isLoading: flashcardsLoading } = useFlashcards();
   const { t } = useLocalization();
   const { settings } = useSettings();
   const anki = useAnki();
@@ -43,6 +45,10 @@ export const WordDbEditorContent: Component = () => {
   // Anki card preview state
   const [ankiPreviewOpen, setAnkiPreviewOpen] = createSignal(false);
   const [ankiPreviewEntry, setAnkiPreviewEntry] = createSignal<WordEntry | null>(null);
+
+  // Flashcard edit modal state
+  const [editFlashcardOpen, setEditFlashcardOpen] = createSignal(false);
+  const [editingFlashcard, setEditingFlashcard] = createSignal<Flashcard | null>(null);
 
   // Level names - use dynamic level names from langData (e.g., JLPT N1-N5, HSK 1-6, etc.)
   const getLevelNames = (): Record<number, string> => {
@@ -73,14 +79,15 @@ export const WordDbEditorContent: Component = () => {
     }
   });
   
-  // Auto-load words when wordFrequency data becomes available
-  // This handles the case where langData loads asynchronously
+  // Auto-load words when wordFrequency data becomes available AND flashcards are loaded
+  // This handles the case where langData and flashcards load asynchronously
   createEffect(() => {
     const freqWords = Object.keys(wordFrequency);
     const totalWords = freqWords.length;
+    const fcLoading = flashcardsLoading();
     
-    // Only auto-load once when we have data and haven't loaded yet
-    if (isInitialized() && totalWords > 0 && !hasLoadedWords() && !isLoading()) {
+    // Only auto-load once when we have data, flashcards are ready, and haven't loaded yet
+    if (isInitialized() && totalWords > 0 && !fcLoading && !hasLoadedWords() && !isLoading()) {
       console.log(`Word DB Editor: Auto-loading ${totalWords} words from frequency data`);
       loadAllWords();
     }
@@ -126,6 +133,7 @@ export const WordDbEditorContent: Component = () => {
           level: freqEntry.raw_level ?? -1,
           tracker: isTracked ? 'flashcards' : 'nothing',
           status,
+          alternateReadings: freqEntry.alternateReadings,
         });
 
         // Update progress every 100 words
@@ -144,21 +152,28 @@ export const WordDbEditorContent: Component = () => {
     }
   };
 
-  // Search words
-  const handleSearch = async () => {
+  const [isSearching, setIsSearching] = createSignal(false);
+
+  // Search words — show a loader while filtering large datasets
+  const handleSearch = () => {
     const query = searchQuery().toLowerCase().trim();
     if (!query) {
       setFilteredEntries(entries());
       return;
     }
 
-    const filtered = entries().filter(entry =>
-        entry.word.toLowerCase().includes(query) ||
-        entry.translation.toLowerCase().includes(query) ||
-        entry.reading.toLowerCase().includes(query)
-    );
-
-    setFilteredEntries(filtered);
+    setIsSearching(true);
+    // Yield to the event loop so the loader overlay paints before the sync work
+    requestAnimationFrame(() => {
+      const filtered = entries().filter(entry =>
+          entry.word.toLowerCase().includes(query) ||
+          entry.translation.toLowerCase().includes(query) ||
+          entry.reading.toLowerCase().includes(query) ||
+          entry.alternateReadings?.some(r => r.toLowerCase().includes(query))
+      );
+      setFilteredEntries(filtered);
+      setIsSearching(false);
+    });
   };
 
   // Sort entries
@@ -305,6 +320,27 @@ export const WordDbEditorContent: Component = () => {
     setAnkiPreviewOpen(true);
   };
 
+  // Open flashcard editor for a tracked word
+  const handleEditFlashcard = (entry: WordEntry) => {
+    const card = getCardByWordSync(entry.word);
+    if (!card) return;
+    setEditingFlashcard(card);
+    setEditFlashcardOpen(true);
+  };
+
+  const handleEditFlashcardSave = (content: FlashcardContent) => {
+    const card = editingFlashcard();
+    if (!card) return;
+    updateFlashcardContent(card.id, content);
+    setEditFlashcardOpen(false);
+    setEditingFlashcard(null);
+  };
+
+  const handleEditFlashcardCancel = () => {
+    setEditFlashcardOpen(false);
+    setEditingFlashcard(null);
+  };
+
   const handleExportToAnki = async (entry: WordEntry) => {
     const uuid = entry.uuid;
     setAnkiExportStates(prev => ({ ...prev, [uuid]: 'exporting' }));
@@ -349,7 +385,8 @@ export const WordDbEditorContent: Component = () => {
         {/* Loading indicator while initializing or waiting for word frequency data */}
         <Show when={!isInitialized() || (!hasLoadedWords() && !isLoading())}>
           <div class="init-loading">
-            <Spinner size={40} shape="square" text={t('mlearn.WordDbEditor.Loading')} />
+            <Spinner size={44} shape="square" strokeWidth={8} cornerRadius={0} text={t('mlearn.WordDbEditor.Loading')}/>
+            {/*<Spinner size={40} shape="square" text={t('mlearn.WordDbEditor.Loading')} />*/}
           </div>
         </Show>
 
@@ -389,6 +426,7 @@ export const WordDbEditorContent: Component = () => {
                       onStatusChange={handleStatusChange}
                       onAddFlashcard={handleAddFlashcard}
                       onRemoveFlashcard={handleRemoveFlashcard}
+                      onEditFlashcard={handleEditFlashcard}
                       onEdit={handleEdit}
                       onExportToAnki={ankiEnabled() ? handleExportToAnki : undefined}
                       onAnkiPreview={ankiEnabled() ? handleAnkiPreview : undefined}
@@ -405,6 +443,12 @@ export const WordDbEditorContent: Component = () => {
             progress={loadProgress()}
             showProgress={true}
             showPercent={false}
+          />
+
+          {/* Search Overlay */}
+          <ModalLoadingOverlay
+            isOpen={isSearching()}
+            message={t('mlearn.WordDbEditor.Searching')}
           />
 
           {/* Anki Card Preview Modal */}
@@ -442,6 +486,23 @@ export const WordDbEditorContent: Component = () => {
                 } : null}
             />
           </Show>
+
+          {/* Edit Flashcard Modal */}
+          <Modal
+            isOpen={editFlashcardOpen()}
+            onClose={handleEditFlashcardCancel}
+            title={`${t('mlearn.Flashcards.Modals.EditCard.Title')} – ${editingFlashcard()?.content.front || ''}`}
+            size="lg"
+          >
+            <Show when={editingFlashcard()}>
+              <FlashcardEditor
+                flashcard={editingFlashcard()!}
+                onSave={handleEditFlashcardSave}
+                onCancel={handleEditFlashcardCancel}
+                showStats={true}
+              />
+            </Show>
+          </Modal>
         </Show>
       </div>
   );

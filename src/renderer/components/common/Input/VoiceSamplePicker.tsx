@@ -5,10 +5,11 @@
  * sample playback, and TTS test input.
  */
 
-import { Component, For, Show, createSignal, onMount, onCleanup } from 'solid-js';
+import { Component, For, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { Select } from '../Select/Select';
+import { Input } from './Input';
 import { Btn } from '../Button/Button';
 import { IconBtn } from '../Button/Button';
 import { ProgressBar } from '../Feedback/ProgressBar';
@@ -51,12 +52,16 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
   let ttsQueueIndex = 0;
   let ttsCleanups: Array<() => void> = [];
 
+  // Reactively sync transcript whenever props.value or voice samples change
+  createEffect(() => {
+    updateTranscriptFromSelected(voiceSamples(), props.value);
+  });
+
   onMount(async () => {
     try {
       const samples = await getBridge().voice.voiceSampleList();
       if (samples) {
         setVoiceSamples(samples);
-        updateTranscriptFromSelected(samples, props.value);
       }
     } catch {
       // Voice samples not available (e.g., mobile)
@@ -113,7 +118,6 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
   function handleSelectionChange(e: Event) {
     const value = (e.currentTarget as HTMLSelectElement).value;
     props.onChange(value);
-    updateTranscriptFromSelected(voiceSamples(), value);
   }
 
   async function handleUpload() {
@@ -353,47 +357,45 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
         </div>
       </Show>
 
-      {/* TTS test input — only shown when a voice sample is selected */}
-      <Show when={props.value}>
-        <div class="voice-sample-picker-tts-test">
-          <Show when={ttsModelLoading()}>
-            <div class="voice-sample-picker-status">
-              <span class="voice-sample-picker-status-label">
-                {t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.ModelLoading')}
-              </span>
-              <ProgressBar
-                value={Math.round(ttsDownloadProgress() * 100)}
-                size="xs"
-                variant="primary"
-                showPercent
-                animated={ttsDownloadProgress() < 0.05}
-              />
-            </div>
-          </Show>
-          <input
-            type="text"
-            class="voice-sample-picker-tts-input"
-            placeholder={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestPlaceholder')}
-            value={ttsTestText()}
-            onInput={(e) => setTtsTestText(e.currentTarget.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleTtsTest(); }}
-            disabled={ttsGenerating()}
-          />
-          <IconBtn
-            size="sm"
-            loading={ttsGenerating()}
-            icon={
-              ttsPlaying()
-                ? <PauseIcon size={14} />
-                : <PlayIcon size={14} />
-            }
-            onClick={handleTtsTest}
-            disabled={!ttsTestText().trim() && !ttsGenerating() && !ttsPlaying()}
-            aria-label={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestTts')}
-            title={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestTts')}
-          />
-        </div>
-      </Show>
+      {/* TTS test input */}
+      <div class="voice-sample-picker-tts-test">
+        <Show when={ttsModelLoading()}>
+          <div class="voice-sample-picker-status">
+            <span class="voice-sample-picker-status-label">
+              {t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.ModelLoading')}
+            </span>
+            <ProgressBar
+              value={Math.round(ttsDownloadProgress() * 100)}
+              size="xs"
+              variant="primary"
+              showPercent
+              animated={ttsDownloadProgress() < 0.05}
+            />
+          </div>
+        </Show>
+        <Input
+          size="sm"
+          fullWidth
+          placeholder={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestPlaceholder')}
+          value={ttsTestText()}
+          onInput={(e) => setTtsTestText(e.currentTarget.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleTtsTest(); }}
+          disabled={ttsGenerating()}
+        />
+        <IconBtn
+          size="sm"
+          loading={ttsGenerating()}
+          icon={
+            ttsPlaying()
+              ? <PauseIcon size={14} />
+              : <PlayIcon size={14} />
+          }
+          onClick={handleTtsTest}
+          disabled={!ttsTestText().trim() && !ttsGenerating() && !ttsPlaying()}
+          aria-label={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestTts')}
+          title={t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.TestTts')}
+        />
+      </div>
 
       <ConfirmDialog
         isOpen={deleteConfirmOpen()}

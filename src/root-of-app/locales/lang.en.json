@@ -296,7 +296,11 @@
         "TimingPerBox": "Avg/box",
         "TimingTotal": "Total",
         "PaddleDownscaleLabel": "PaddleOCR Scale: {value}%",
-        "PaddleDownscaleTitle": "Downscale image before PaddleOCR processing (dev)"
+        "PaddleDownscaleTitle": "Downscale image before PaddleOCR processing (dev)",
+        "ZoneGapLabel": "Zone Gap: {value}",
+        "ZoneGapTitle": "Max gap between box edges for zone clustering (ratio of avg box size)",
+        "OutlierMultLabel": "Outlier Mult: {value}x",
+        "OutlierMultTitle": "Boxes with area above median × this value are isolated into their own zone"
       },
       "Status": {
         "NothingLoaded": "Nothing Loaded",
@@ -495,7 +499,8 @@
         "RateHint": "Press 1-4 to rate • Click to flip back",
         "ReviewsCount": "{count} reviews",
         "PlayWord": "Play word pronunciation",
-        "PlayExample": "Play example sentence"
+        "PlayExample": "Play example sentence",
+        "RegenerateExample": "Regenerate example with AI"
       },
       "Table": {
         "Word": "Word",
@@ -507,6 +512,14 @@
       "Leech": {
         "Title": "Leech Detected",
         "Message": "\"{word}\" has lapsed {count} times and may need extra attention"
+      },
+      "PostCreate": {
+        "TranslatingTitle": "Translating example",
+        "TranslatingMessage": "Translating the example sentence...",
+        "GeneratingTtsTitle": "Generating audio",
+        "GeneratingTtsMessage": "Generating TTS audio for the flashcard...",
+        "TtsDone": "TTS audio generated",
+        "TtsFailed": "Failed to generate TTS audio"
       }
     },
     "WordHover": {
@@ -1202,6 +1215,7 @@
       "Loading": "Loading word database...",
       "EmptyState": "No words found. Click 'Load All' to load your word database.",
       "LoadingMore": "Loading more...",
+      "Searching": "Searching...",
       "SearchPlaceholder": "Search word...",
       "AllLevels": "All Levels",
       "LoadAll": "Load All",
@@ -1292,6 +1306,18 @@
       "RegeneratingExample": "Regenerating…",
       "ExampleGenerateFailed": "Failed to regenerate example",
       "UseReadingForTts": "Use reading for TTS",
+      "Regenerate": {
+        "Title": "Regenerate",
+        "WordTts": "Word TTS",
+        "ExampleTts": "Example TTS",
+        "Translation": "Translation",
+        "ExamplePhrase": "Example phrase",
+        "UseReadings": "Use readings",
+        "AllCompleted": "All tasks completed",
+        "SomeFailed": "Some tasks failed",
+        "NoTasksSelected": "Select at least one task"
+      },
+      "AudioUnavailable": "Audio not available. Use the regenerate button to generate it.",
       "Hint": "Translations: comma or newline separated. Pitch accent is mora drop position (0=heiban)."
     },
     "PitchAccent": {

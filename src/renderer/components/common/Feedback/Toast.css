@@ -24,6 +24,7 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   border: 1px solid var(--toast-accent);
+  backdrop-filter: var(--backdrop-filter);
   max-width: 360px;
   min-width: 280px;
   opacity: 0;
@@ -114,7 +115,7 @@
   border: none;
   padding: var(--spacing-1);
   cursor: pointer;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   transition: color var(--transition-normal);
   border-radius: var(--radius-sm);
 }
