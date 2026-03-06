@@ -112,6 +112,7 @@ export const Modal: Component<ModalProps> = (props) => {
     'z-index': 'var(--z-modal)',
     animation: 'fadeIn var(--transition-normal)',
     "backdrop-filter": "blur(4px)",
+    "-webkit-app-region": "no-drag",
   });
 
   const modalStyle = (): JSX.CSSProperties => ({

@@ -41,6 +41,8 @@ export interface PitchAccentOverlayProps {
   showParticleBox?: boolean;
   /** Use homogenous styling (no particle fade effect) */
   homogenous?: boolean;
+  /** Part of speech label to display inside the pill (pill mode only) */
+  posLabel?: string;
 }
 
 /** Extract pitch position from translation cache data */
@@ -91,6 +93,28 @@ function extractReadingFromCache(word: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Check whether the given POS can take a following particle.
+ * Returns false for verbs, i-adjectives, adverbs, conjunctions,
+ * interjections, pre-noun adjectivals, and auxiliary verbs.
+ */
+function posCanTakeParticle(pos: string): boolean {
+  if (!pos) return true;
+  const p = pos.toLowerCase();
+  // Japanese POS names
+  if (p.includes('動詞') || p.includes('形容詞') || p.includes('副詞') ||
+      p.includes('接続詞') || p.includes('感動詞') || p.includes('連体詞') ||
+      p.includes('助動詞')) {
+    return false;
+  }
+  // Romanised / English POS names
+  if (p.includes('verb') || p.includes('adjective') || p.includes('adverb') ||
+      p.includes('conjunction') || p.includes('interjection')) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -162,17 +186,17 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
   // Whether to include particle box
   const includeParticleBox = createMemo(() => {
     if (props.showParticleBox !== undefined) return props.showParticleBox;
+    const reading = effectiveReading();
+    // Always show particle box for 1-mora words — without it the diagram is meaningless
+    if (reading.length === 1) return true;
     const pos = props.pos || '';
     const nextPos = props.nextPos || '';
     // Suppress particle box for verbs followed by verbs (conjugation chain)
     if (pos && nextPos) {
-      const isVerb = pos.includes('動詞') || pos.toLowerCase().includes('verb');
-      const nextIsVerb = nextPos.includes('動詞') || nextPos.toLowerCase().includes('verb');
-      if (isVerb && nextIsVerb) return false;
+      if (!posCanTakeParticle(pos) && !posCanTakeParticle(nextPos)) return false;
     }
-    // Suppress particle box for standalone verbs in certain contexts
-    const isVerb = pos && (pos.includes('動詞') || pos === '動詞' || pos.toLowerCase().includes('verb'));
-    if (isVerb) return false;
+    // Suppress for any POS that doesn't take a following particle
+    if (pos && !posCanTakeParticle(pos)) return false;
     return true;
   });
 
@@ -182,13 +206,17 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
     const pitch = effectivePitch();
     if (pitch === null) return '';
     const reading = effectiveReading();
-    if (!reading || reading.length <= 1) return '';
+    if (!reading) return '';
 
     const info = getPitchAccentInfo(pitch, reading);
     if (!info) return '';
 
+    const isPill = (props.mode || 'overlay') === 'pill';
     return buildPitchAccentHtml(info, reading.length, {
       includeParticleBox: includeParticleBox(),
+      // In pill mode the particle character is rendered as real text,
+      // so the diagram box must not use a negative margin to overlap.
+      particleMarginPercent: isPill ? 0 : undefined,
       padTo: reading.length,
       homogenous: props.homogenous ?? false,
     });
@@ -201,9 +229,12 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
     <Show when={pitchHtml()}>
       <PillLabel variant="gray" class={`pitch-accent-pill ${props.class || ''}`}>
         <span class="pitch-accent-word">
-          {effectiveReading()}✦
+          {effectiveReading()}{includeParticleBox() ? '✦' : ''}
           <span class="mLearn-pitch-accent" aria-hidden="true" innerHTML={pitchHtml()} />
         </span>
+        <Show when={props.posLabel}>
+          <span class="pitch-pill-pos">{props.posLabel}</span>
+        </Show>
       </PillLabel>
     </Show>
   );

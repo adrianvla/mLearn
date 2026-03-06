@@ -728,6 +728,8 @@ export interface WordFrequencyEntry {
   reading: string;
   level: string;
   raw_level: number;
+  /** Additional readings for words that have multiple independent senses */
+  alternateReadings?: string[];
 }
 
 export interface WordFrequencyMap {

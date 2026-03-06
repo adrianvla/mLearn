@@ -289,7 +289,11 @@
         "TimingPerBox": "Сред/бокс",
         "TimingTotal": "Итого",
         "PaddleDownscaleLabel": "Масштаб PaddleOCR: {value}%",
-        "PaddleDownscaleTitle": "Уменьшить изображение перед обработкой PaddleOCR (dev)"
+        "PaddleDownscaleTitle": "Уменьшить изображение перед обработкой PaddleOCR (dev)",
+        "ZoneGapLabel": "Зазор зоны: {value}",
+        "ZoneGapTitle": "Макс. зазор между краями боксов для кластеризации зон",
+        "OutlierMultLabel": "Множ. выбросов: {value}x",
+        "OutlierMultTitle": "Боксы с площадью выше медианы × это значение изолируются"
       },
       "Status": {
         "NothingLoaded": "Ничего не загружено",
@@ -480,7 +484,8 @@
         "RateHint": "Оцените от 1 до 4 • Нажмите, чтобы вернуться",
         "ReviewsCount": "{count} повторений",
         "PlayWord": "Воспроизвести произношение слова",
-        "PlayExample": "Воспроизвести пример предложения"
+        "PlayExample": "Воспроизвести пример предложения",
+        "RegenerateExample": "Сгенерировать пример с помощью ИИ"
       },
       "Table": {
         "Word": "Слово",
@@ -492,6 +497,14 @@
       "Leech": {
         "Title": "Обнаружена пиявка",
         "Message": "Слово «{word}» было провалено {count} раз(а) и может требовать особого внимания"
+      },
+      "PostCreate": {
+        "TranslatingTitle": "Перевод примера",
+        "TranslatingMessage": "Переводим пример предложения...",
+        "GeneratingTtsTitle": "Генерация аудио",
+        "GeneratingTtsMessage": "Генерация TTS-аудио для карточки...",
+        "TtsDone": "TTS-аудио сгенерировано",
+        "TtsFailed": "Не удалось сгенерировать TTS-аудио"
       }
     },
     "WordHover": {
@@ -1181,6 +1194,7 @@
       "Loading": "Загрузка базы слов...",
       "EmptyState": "Слова не найдены. Нажмите «Загрузить все» для загрузки базы слов.",
       "LoadingMore": "Загрузка...",
+      "Searching": "Поиск...",
       "SearchPlaceholder": "Поиск слов...",
       "AllLevels": "Все уровни",
       "LoadAll": "Загрузить все",
@@ -1265,6 +1279,18 @@
       "RegeneratingExample": "Генерация…",
       "ExampleGenerateFailed": "Не удалось перегенерировать пример",
       "UseReadingForTts": "Использовать чтение для TTS",
+      "Regenerate": {
+        "Title": "Перегенерировать",
+        "WordTts": "TTS слова",
+        "ExampleTts": "TTS примера",
+        "Translation": "Перевод",
+        "ExamplePhrase": "Пример предложения",
+        "UseReadings": "Использовать чтения",
+        "AllCompleted": "Все задачи выполнены",
+        "SomeFailed": "Некоторые задачи не выполнены",
+        "NoTasksSelected": "Выберите хотя бы одну задачу"
+      },
+      "AudioUnavailable": "Аудио недоступно. Используйте кнопку регенерации для его создания.",
       "Hint": "Перевод: через запятую или перенос строки. Тоновое ударение — позиция моры понижения (0=плоское)."
     },
     "PitchAccent": {

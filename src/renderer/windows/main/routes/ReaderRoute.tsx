@@ -170,7 +170,11 @@ export const ReaderRoute: Component = () => {
   const toggleOcrDebugOverlay = () => setOcrDebugOverlay(!ocrDebugOverlay());
 
   // PaddleOCR downscale slider (dev mode only, non-turbo)
-  const [paddleOcrScale, setPaddleOcrScale] = createSignal(100);
+  const [paddleOcrScale, setPaddleOcrScale] = createSignal(80);
+
+  // Dev-mode live-tuneable OCR zone clustering parameters
+  const [zoneGapThreshold, setZoneGapThreshold] = createSignal(1.5);
+  const [outlierAreaMultiplier, setOutlierAreaMultiplier] = createSignal(6);
 
   // OCR generation counter — incremented when turbo mode changes to invalidate stale results
   const [ocrGeneration, setOcrGeneration] = createSignal(0);
@@ -1578,6 +1582,8 @@ export const ReaderRoute: Component = () => {
                               imageElement={imageRefs()[page.id]}
                               visible={showOcrOverlay()}
                               debugOcr={ocrDebugOverlay()}
+                              zoneGapThreshold={zoneGapThreshold()}
+                              outlierAreaMultiplier={outlierAreaMultiplier()}
                               onWordHover={handleOcrWordHover}
                               onWordLeave={handleOcrWordLeave}
                               onContextMenu={handleOcrContextMenu}
@@ -1607,6 +1613,10 @@ export const ReaderRoute: Component = () => {
             lastOcrTiming={lastOcrTiming}
             paddleOcrScale={paddleOcrScale}
             onPaddleOcrScaleChange={setPaddleOcrScale}
+            zoneGapThreshold={zoneGapThreshold}
+            onZoneGapThresholdChange={setZoneGapThreshold}
+            outlierAreaMultiplier={outlierAreaMultiplier}
+            onOutlierAreaMultiplierChange={setOutlierAreaMultiplier}
         />
 
         <Show when={ocrHoverData() && ocrHoverData()!.token}>

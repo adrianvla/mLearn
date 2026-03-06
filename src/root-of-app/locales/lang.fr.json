@@ -289,7 +289,11 @@
         "TimingPerBox": "Moy/boîte",
         "TimingTotal": "Total",
         "PaddleDownscaleLabel": "Échelle PaddleOCR : {value}%",
-        "PaddleDownscaleTitle": "Réduire l'image avant le traitement PaddleOCR (dev)"
+        "PaddleDownscaleTitle": "Réduire l'image avant le traitement PaddleOCR (dev)",
+        "ZoneGapLabel": "Écart zone : {value}",
+        "ZoneGapTitle": "Écart maximal entre les bords des boîtes pour le regroupement en zones",
+        "OutlierMultLabel": "Mult. aberrant : {value}x",
+        "OutlierMultTitle": "Les boîtes dont la surface dépasse la médiane × cette valeur sont isolées"
       },
       "Status": {
         "NothingLoaded": "Rien n'est chargé",
@@ -480,7 +484,8 @@
         "RateHint": "Notez de 1 à 4 • Cliquez pour revenir au verso",
         "ReviewsCount": "{count} révisions",
         "PlayWord": "Écouter la prononciation du mot",
-        "PlayExample": "Écouter la phrase d'exemple"
+        "PlayExample": "Écouter la phrase d'exemple",
+        "RegenerateExample": "Régénérer l'exemple avec l'IA"
       },
       "Table": {
         "Word": "Mot",
@@ -492,6 +497,14 @@
       "Leech": {
         "Title": "Sangsue détectée",
         "Message": "Le mot « {word} » a échoué {count} fois et peut nécessiter une attention particulière"
+      },
+      "PostCreate": {
+        "TranslatingTitle": "Traduction de l'exemple",
+        "TranslatingMessage": "Traduction de la phrase d'exemple en cours...",
+        "GeneratingTtsTitle": "Génération audio",
+        "GeneratingTtsMessage": "Génération de l'audio TTS pour la carte...",
+        "TtsDone": "Audio TTS générée",
+        "TtsFailed": "Échec de la génération audio TTS"
       }
     },
     "WordHover": {
@@ -1181,6 +1194,7 @@
       "Loading": "Chargement de la base de mots...",
       "EmptyState": "Aucun mot trouvé. Cliquez sur « Tout charger » pour charger la base de mots.",
       "LoadingMore": "Chargement...",
+      "Searching": "Recherche...",
       "SearchPlaceholder": "Rechercher des mots...",
       "AllLevels": "Tous les niveaux",
       "LoadAll": "Tout charger",
@@ -1265,6 +1279,18 @@
       "RegeneratingExample": "Régénération…",
       "ExampleGenerateFailed": "Échec de la régénération de l'exemple",
       "UseReadingForTts": "Utiliser la lecture pour le TTS",
+      "Regenerate": {
+        "Title": "Régénérer",
+        "WordTts": "TTS du mot",
+        "ExampleTts": "TTS de l'exemple",
+        "Translation": "Traduction",
+        "ExamplePhrase": "Phrase d'exemple",
+        "UseReadings": "Utiliser les lectures",
+        "AllCompleted": "Toutes les tâches terminées",
+        "SomeFailed": "Certaines tâches ont échoué",
+        "NoTasksSelected": "Sélectionnez au moins une tâche"
+      },
+      "AudioUnavailable": "Audio non disponible. Utilisez le bouton de régénération pour le générer.",
       "Hint": "Traduction : virgules ou retours à la ligne. L'accent tonal est la position mora de descente (0=plat)."
     },
     "PitchAccent": {

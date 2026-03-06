@@ -61,7 +61,6 @@ export const ModalFooter: Component<ModalFooterProps> = (props) => {
             buttonType="default"
             variant="secondary"
             onClick={props.onCancel}
-            class="modal-footer-btn-cancel"
           >
             {props.cancelText || 'Cancel'}
           </Button>

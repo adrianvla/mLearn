@@ -124,11 +124,23 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
       const levelName = levelNames[String(level)] || `Level ${level}`;
 
-      freqMap[entry[0]] = {
-        reading: entry[1],
-        level: levelName,
-        raw_level: level,
-      };
+      // Preserve first occurrence as primary (earlier = more common in frequency-ordered lists)
+      // and collect subsequent readings as alternates
+      const existing = freqMap[entry[0]];
+      if (existing) {
+        if (!existing.alternateReadings) {
+          existing.alternateReadings = [];
+        }
+        if (entry[1] !== existing.reading && !existing.alternateReadings.includes(entry[1])) {
+          existing.alternateReadings.push(entry[1]);
+        }
+      } else {
+        freqMap[entry[0]] = {
+          reading: entry[1],
+          level: levelName,
+          raw_level: level,
+        };
+      }
     }
 
     setWordFrequency(reconcile(freqMap));

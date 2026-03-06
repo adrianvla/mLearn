@@ -46,7 +46,6 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
   const [exampleMeaning, setExampleMeaning] = createSignal('');
   const [level, setLevel] = createSignal<number | undefined>(undefined);
   const [imageUrl, setImageUrl] = createSignal('');
-  const [context, setContext] = createSignal('');
 
   // TTS / generation state
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
@@ -69,7 +68,6 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
       setExampleMeaning(content.exampleMeaning || '');
       setLevel(content.level);
       setImageUrl(content.imageUrl || '');
-      setContext(content.context || '');
     }
   });
 
@@ -123,7 +121,6 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
       example: example() || undefined,
       exampleMeaning: exampleMeaning() || undefined,
       imageUrl: imageUrl() || undefined,
-      context: context() || undefined,
     };
 
     props.onSave(content);
@@ -306,17 +303,6 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
           />
         </div>
 
-        {/* Context where the word was found */}
-        <div class="editor-field">
-          <label>{t('mlearn.CardEditor.Fields.Context')}</label>
-          <Input
-            value={context()}
-            onInput={(e) => setContext(e.currentTarget.value)}
-            placeholder={t('mlearn.CardEditor.Fields.ContextPlaceholder')}
-            fullWidth
-          />
-        </div>
-
         {/* Screenshot preview */}
         <Show when={imageUrl()}>
           <div class="screenshot-preview">
@@ -333,7 +319,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
             variant="secondary"
             onClick={() => setShowTtsModal(true)}
           >
-            {t('mlearn.CardEditor.RegenerateTts')}
+            {t('mlearn.CardEditor.Regenerate.Title')}
           </Btn>
           <TtsGenerateModal
             isOpen={showTtsModal()}

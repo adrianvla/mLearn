@@ -199,11 +199,6 @@
   /* ========== Flashcard Highlight ========== */
   --flashcard-highlight: #356ee8;
 
-  /* ========== Window Loading Overlay ========== */
-  --window-loading-bg: var(--bg-opaque);
-  --window-loading-spinner-track: var(--bg);
-  --window-loading-spinner-color: var(--text-primary);
-
   /* ========== Additional Theming Variables ========== */
   /* Panel/surface hover states */
   --panel-bg: var(--bg);

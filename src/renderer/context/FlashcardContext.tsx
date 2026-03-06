@@ -13,7 +13,7 @@ import { migrationListenerReady } from './migrationSignals';
 import { useSettings } from './SettingsContext';
 import { useLocalization } from './LocalizationContext';
 import { changeKnownStatus as changeKnownStatusInStats } from '../services/statsService';
-import { showToast } from '../components/common/Feedback/Toast';
+import { showToast, updateToast, removeToast } from '../components/common/Feedback/Toast';
 import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
@@ -25,6 +25,15 @@ const CURRENT_VERSION = 5;
 /** Build a language-prefixed composite key for per-language maps */
 function langKey(language: string, hash: string): string {
   return language + ':' + hash;
+}
+
+/** Map a language code to its English display name for LLM prompts */
+function getLanguageDisplayName(code: string): string {
+  const map: Record<string, string> = {
+    en: 'English', de: 'German', fr: 'French', ja: 'Japanese', ru: 'Russian',
+    zh: 'Chinese', ko: 'Korean', es: 'Spanish', it: 'Italian', pt: 'Portuguese',
+  };
+  return map[code] || code;
 }
 
 /**
@@ -190,6 +199,7 @@ interface FlashcardContextValue {
 
   // LLM example generation
   generateExampleSentenceWithLLM: (word: string, definition: string, language: string) => Promise<{ sentence: string; meaning: string }>;
+  translateExampleSentence: (sentence: string, sourceLanguage: string) => Promise<string>;
 
   // Utility
   intervalToString: (ms: number) => string;
@@ -697,7 +707,92 @@ export const FlashcardProvider: ParentComponent = (props) => {
     refreshQueue();
     saveFlashcards();
     console.log(`Created new flashcard for word: ${word} (now has ${store.wordToCardMap[lk]?.length || 1} cards)`);
+
+    // Post-creation async tasks: translate example and generate TTS
+    // Only run for user-initiated creation (skipAnkiChoice is true for batch/auto creation)
+    if (!skipAnkiChoice) {
+      postFlashcardCreation(id, newCard);
+    }
+
     return id;
+  };
+
+  /**
+   * Post-flashcard-creation tasks: translate example sentence and generate TTS.
+   * Runs asynchronously after card creation with toast notifications.
+   */
+  const postFlashcardCreation = (cardId: string, card: Flashcard) => {
+    const hasExample = card.content.example && card.content.example !== '-' && card.content.example.replace(/<[^>]*>/g, '').trim().length > 0;
+    const needsTranslation = hasExample && !card.content.exampleMeaning;
+    const needsTts = settings.flashcardAutoGenerateAudio && isElectron() && settings.flashcardTtsProvider !== 'kokoro';
+
+    // Translate example sentence via LLM
+    if (needsTranslation && settings.llmEnabled) {
+      const translationToastId = showToast({
+        variant: 'info',
+        title: t('mlearn.Flashcards.PostCreate.TranslatingTitle'),
+        message: t('mlearn.Flashcards.PostCreate.TranslatingMessage'),
+        duration: 0,
+      });
+
+      translateExampleSentence(card.content.example!, getLanguageDisplayName(settings.language))
+        .then((translation) => {
+          if (translation) {
+            updateFlashcardContent(cardId, { exampleMeaning: translation });
+          }
+          removeToast(translationToastId);
+        })
+        .catch((err) => {
+          console.warn('Failed to translate example sentence:', err);
+          removeToast(translationToastId);
+        });
+    }
+
+    // Auto-generate TTS audio
+    if (needsTts) {
+      const ttsToastId = showToast({
+        variant: 'info',
+        title: t('mlearn.Flashcards.PostCreate.GeneratingTtsTitle'),
+        message: t('mlearn.Flashcards.PostCreate.GeneratingTtsMessage'),
+        duration: 0,
+      });
+
+      const bridge = getBridge();
+      const provider = settings.flashcardTtsProvider;
+      const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
+      const language = settings.language;
+      const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
+      const cloudApiUrl = settings.cloudApiUrl || undefined;
+
+      (async () => {
+        try {
+          const cleanWord = card.content.front.replace(/<[^>]*>/g, '').trim();
+          if (cleanWord && cleanWord !== '-') {
+            await bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+          }
+          if (hasExample) {
+            const cleanExample = card.content.example!.replace(/<[^>]*>/g, '').trim();
+            if (cleanExample && cleanExample !== '-') {
+              await bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+            }
+          }
+          updateToast(ttsToastId, {
+            variant: 'success',
+            title: undefined,
+            message: t('mlearn.Flashcards.PostCreate.TtsDone'),
+            duration: 3000,
+          });
+        } catch (err) {
+          console.warn('Failed to auto-generate TTS:', err);
+          updateToast(ttsToastId, {
+            variant: 'error',
+            title: undefined,
+            message: t('mlearn.Flashcards.PostCreate.TtsFailed'),
+            duration: 4000,
+          });
+        }
+      })();
+    }
   };
 
   // Helper to recalculate word stats after card changes
@@ -1424,13 +1519,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   /**
    * Generate an example sentence for a word using the LLM.
-   * Returns { sentence, meaning }.
+   * Returns { sentence, meaning }. The meaning is translated to the user's app language.
    */
   const generateExampleSentenceWithLLM = (word: string, definition: string, language: string): Promise<{ sentence: string; meaning: string }> => {
     return new Promise((resolve, reject) => {
-      const prompt = `Generate a simple, natural example sentence using the word "${word}" (meaning: ${definition}) in ${language}. Then provide an English translation of the sentence. Format your response exactly as:
+      const targetLang = getLanguageDisplayName(settings.uiLanguage || 'en');
+      const prompt = `Generate a simple, natural example sentence using the word "${word}" (meaning: ${definition}) in ${language}. Then provide a ${targetLang} translation of the sentence. Format your response exactly as:
 Sentence: [sentence in ${language}]
-Translation: [English translation]`;
+Translation: [${targetLang} translation]`;
 
       const messages = [
         { role: 'system' as const, content: 'You are a helpful language learning assistant. Generate natural, simple example sentences.' },
@@ -1462,6 +1558,47 @@ Translation: [English translation]`;
       }, 30_000);
 
       // Clear timeout on completion (handled by onDone/onError above)
+      const origResolve = resolve;
+      const origReject = reject;
+      resolve = (val) => { clearTimeout(safetyTimeout); origResolve(val); };
+      reject = (err) => { clearTimeout(safetyTimeout); origReject(err); };
+    });
+  };
+
+  /**
+   * Translate an example sentence to the user's app language using the LLM.
+   */
+  const translateExampleSentence = (sentence: string, sourceLanguage: string): Promise<string> => {
+    // Strip HTML tags for translation
+    const plainText = sentence.replace(/<[^>]*>/g, '').trim();
+    if (!plainText || plainText === '-') return Promise.resolve('');
+
+    const targetLang = getLanguageDisplayName(settings.uiLanguage || 'en');
+
+    return new Promise((resolve, reject) => {
+      const prompt = `Translate the following ${sourceLanguage} sentence to ${targetLang}. Respond with ONLY the translation, nothing else.\n\n${plainText}`;
+
+      const messages = [
+        { role: 'system' as const, content: `You are a translator. Provide only the translation to ${targetLang}, no explanations.` },
+        { role: 'user' as const, content: prompt },
+      ];
+
+      const { abort } = streamChat(messages, [], {
+        onChunk: () => {},
+        onToolCall: () => {},
+        onDone: (finalContent: string) => {
+          resolve(finalContent.trim());
+        },
+        onError: (error: string) => {
+          reject(new Error(error));
+        },
+      }, settings);
+
+      const safetyTimeout = setTimeout(() => {
+        abort();
+        reject(new Error('LLM translation timeout'));
+      }, 30_000);
+
       const origResolve = resolve;
       const origReject = reject;
       resolve = (val) => { clearTimeout(safetyTimeout); origResolve(val); };
@@ -1695,6 +1832,7 @@ Translation: [English translation]`;
     resetSRS,
     nukeAllFlashcards,
     generateExampleSentenceWithLLM,
+    translateExampleSentence,
     intervalToString: (ms: number) => SRS.intervalToString(ms, t),
     dueDateToString: (dueDate: number) => SRS.dueDateToString(dueDate, t),
     pendingFlashcardChoice,

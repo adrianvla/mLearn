@@ -14,8 +14,10 @@ export interface ToastProps {
   variant: ToastVariant;
   /** Toast title */
   title?: string;
-  /** Toast message */
-  message: string;
+  /** Toast message (plain text) */
+  message?: string;
+  /** Custom JSX content rendered inside the toast (replaces message when provided) */
+  content?: JSX.Element;
   /** Duration in ms before auto-dismiss (default 5000, 0 = no auto-dismiss) */
   duration?: number;
   /** Close handler */
@@ -123,7 +125,11 @@ const ToastItem: Component<ToastProps> = (props) => {
         <Show when={props.title}>
           <div class="toast__title">{props.title}</div>
         </Show>
-        <div class="toast__message">{props.message}</div>
+        <Show when={props.content} fallback={
+          <div class="toast__message">{props.message}</div>
+        }>
+          <div class="toast__message">{props.content}</div>
+        </Show>
       </div>
       <button class="toast__close" onClick={handleClose} aria-label="Close">
         <CloseIcon />
@@ -137,8 +143,11 @@ interface ToastItemData {
   id: number;
   variant: ToastVariant;
   title?: string;
-  message: string;
+  message?: string;
+  content?: JSX.Element;
   duration?: number;
+  icon?: JSX.Element;
+  class?: string;
 }
 
 const [toasts, setToasts] = createSignal<ToastItemData[]>([]);
@@ -151,6 +160,13 @@ export function showToast(options: Omit<ToastProps, 'onClose'>): number {
   const id = ++toastIdCounter;
   setToasts((prev) => [...prev, { id, ...options }]);
   return id;
+}
+
+/**
+ * Update an existing toast by id (e.g., change message or variant after async work completes)
+ */
+export function updateToast(id: number, updates: Partial<Omit<ToastItemData, 'id'>>): void {
+  setToasts((prev) => prev.map((t) => t.id === id ? { ...t, ...updates } : t));
 }
 
 /**
@@ -174,7 +190,10 @@ export const ToastContainer: Component = () => {
               variant={toast.variant}
               title={toast.title}
               message={toast.message}
+              content={toast.content}
               duration={toast.duration}
+              icon={toast.icon}
+              class={toast.class}
               onClose={() => removeToast(toast.id)}
             />
           )}

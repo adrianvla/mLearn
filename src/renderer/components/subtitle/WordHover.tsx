@@ -730,14 +730,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       example: exampleHtml,
       exampleMeaning: '',
       imageUrl: screenshot,
-      context: props.contextPhrase,
       // Legacy fields for backwards compatibility
       word: word,
       pronunciation: reading || word,
       translation: translationArr,
       definition: definitionHtml ?? (props.token.meaning ? [props.token.meaning] : undefined),
       screenshotUrl: screenshot,
-      contextPhrase: props.contextPhrase,
     };
     
     console.log('%cFlashcard content prepared:', 'color: cyan; font-weight: bold;', {
