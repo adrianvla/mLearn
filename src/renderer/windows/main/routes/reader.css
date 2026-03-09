@@ -24,6 +24,7 @@
   justify-content: center;
   padding: 1rem;
   background: var(--bg-opaque);
+  -webkit-app-region: no-drag;
   /* Account for fixed nav (48px) and status bar (30px) */
   height: calc(100vh - 48px - 30px);
   margin-top: 48px; /* Push below fixed nav */
@@ -53,6 +54,10 @@
 
 .reader-main.with-sidebar {
   margin-left: 160px;
+}
+
+.reader-main.with-word-sidebar {
+  margin-right: 320px;
 }
 
 /* Page Container */
@@ -203,6 +208,7 @@
 
 /* Hide sidebar toggle and page-mode controls on mobile — always single + fit-width */
 .mobile-layout .reader-nav .sidebar-btn,
+.mobile-layout .reader-nav .sidebar-btn-right,
 .mobile-layout .reader-nav .book-title-nav,
 .mobile-layout .reader-nav select {
   display: none;
@@ -218,8 +224,14 @@
   display: none;
 }
 
-.mobile-layout .reader-main.with-sidebar {
+.mobile-layout .reader-unknown-words-sidebar {
+  display: none;
+}
+
+.mobile-layout .reader-main.with-sidebar,
+.mobile-layout .reader-main.with-word-sidebar {
   margin-left: 0;
+  margin-right: 0;
 }
 
 /* Page image fills width on mobile (always fit-width behavior) */

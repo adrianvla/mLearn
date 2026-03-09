@@ -4,7 +4,7 @@
 
 import { Component, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon, Select } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon, Select, formatKeybindDisplay } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
 import '../SettingsForm.css';
 
@@ -95,7 +95,7 @@ export const ReaderTab: Component = () => {
             options={[
               { value: 'hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.Hover') },
               { value: 'long-hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.LongHover') },
-              { value: 'key-hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.KeyHover', { key: settings.readerWordHoverKey ?? 'Shift' }) },
+              { value: 'key-hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.KeyHover', { key: formatKeybindDisplay(settings.readerWordHoverKey ?? 'shift', t) }) },
             ]}
           />
         </SettingRow>

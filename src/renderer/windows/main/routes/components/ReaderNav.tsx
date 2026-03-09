@@ -3,9 +3,10 @@
  * Top navigation bar for the reader with controls
  */
 
-import {Component, Accessor} from 'solid-js';
+import {Component, Accessor, Show} from 'solid-js';
 import { NavBtn, Tag, Select, ChevronLeftIcon, ChevronRightIcon } from '../../../../components/common';
 import { useLocalization } from '../../../../context';
+import { isElectron } from '@shared/platform';
 import './ReaderNav.css';
 import Icon from "@renderer/components/common/Icons/Icon";
 
@@ -19,6 +20,7 @@ interface ReaderNavProps {
   hasOcrResult: Accessor<boolean>;
   onGoHome: () => void;
   onToggleSidebar: () => void;
+  onToggleWordSidebar: () => void;
   onFitModeChange: (mode: string) => void;
   onPageModeChange: (mode: string) => void;
   onToggleFirstPageSingle: () => void;
@@ -33,6 +35,12 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
 
   return (
     <nav class={`reader-nav panel`}>
+      {/* Childless drag overlay: avoids Chromium bug where -webkit-app-region: drag
+          on a complex element with children corrupts the OS drag hitbox bitmap,
+          freezing all mouse events window-wide (electron/electron#1354) */}
+      <Show when={isElectron()}>
+        <div class="reader-nav-drag-region" />
+      </Show>
       <div
         class="nav-group"
         style={`${props.marginLeft ? `margin-left: ${props.marginLeft}` : ''}`}
@@ -85,6 +93,12 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       <div class="nav-group nav-arrows">
         <NavBtn onClick={props.onPrevPage}><ChevronLeftIcon size={16} /></NavBtn>
         <NavBtn onClick={props.onNextPage}><ChevronRightIcon size={16} /></NavBtn>
+      </div>
+
+      <div class="nav-group">
+        <NavBtn class="sidebar-btn sidebar-btn-right" onClick={props.onToggleWordSidebar} title={t('mlearn.Reader.Toolbar.ToggleUnknownWordsSidebar')}>
+          <Icon icon="sidebar" color={"currentColor"} class={"reader-nav-icon-mirrored"} />
+        </NavBtn>
       </div>
     </nav>
   );

@@ -365,3 +365,24 @@ export function stripFurigana(text: string): string {
   
   return result.trim();
 }
+
+/**
+ * Replace ruby-annotated text with their readings, stripping remaining HTML.
+ * Used for "use readings" TTS mode.
+ * Example: "<ruby>漢字<rt>かんじ</rt></ruby>です" -> "かんじです"
+ */
+export function applyRubyReadings(text: string): string {
+  if (!text) return '';
+
+  // For each <ruby>...</ruby> block, extract the <rt> content as the replacement
+  let result = text.replace(/<ruby[^>]*>([\s\S]*?)<\/ruby>/gi, (_match, inner: string) => {
+    const rtMatch = inner.match(/<rt[^>]*>([\s\S]*?)<\/rt>/i);
+    if (rtMatch) return rtMatch[1];
+    // No <rt> found, strip tags from inner content
+    return inner.replace(/<[^>]*>/g, '');
+  });
+
+  // Strip any remaining HTML tags
+  result = result.replace(/<[^>]*>/g, '');
+  return result.trim();
+}

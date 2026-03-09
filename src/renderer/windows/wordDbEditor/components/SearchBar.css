@@ -26,6 +26,10 @@
   min-width: 150px;
 }
 
+.mode-select {
+  min-width: 180px;
+}
+
 .load-progress {
   width: 150px;
 }

@@ -5,11 +5,12 @@
  * A single progress toast shows per-task status with spinners.
  */
 
-import { Component, Show, createSignal, createMemo, For, JSX } from 'solid-js';
-import { Modal, Btn, Select, VoiceSamplePicker, ToggleSwitch, Spinner } from '../common';
+import { Component, Show, createSignal, createMemo } from 'solid-js';
+import { Modal, Btn, Select, VoiceSamplePicker, ToggleSwitch, TaskProgressContent, type TaskState, type TaskStatus } from '../common';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { getBackend } from '../../../shared/backends';
+import { stripFurigana, applyRubyReadings } from '../../../shared/utils/textUtils';
 import { showToast, updateToast, removeToast } from '../common/Feedback/Toast';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import type { TTSProvider } from '../../../shared/types';
@@ -25,47 +26,6 @@ export interface TtsGenerateModalProps {
   cardBack?: string;
   onGenerated?: () => void;
   onExampleGenerated?: (example: string, exampleMeaning: string) => void;
-}
-
-type TaskStatus = 'pending' | 'running' | 'done' | 'error';
-
-interface TaskState {
-  key: string;
-  label: string;
-  status: TaskStatus;
-}
-
-const TaskCheckIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-    <polyline points="3 8 7 12 13 4" />
-  </svg>
-);
-
-const TaskErrorIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-    <line x1="4" y1="4" x2="12" y2="12" />
-    <line x1="12" y1="4" x2="4" y2="12" />
-  </svg>
-);
-
-function TaskProgressContent(props: { tasks: () => TaskState[] }): JSX.Element {
-  return (
-    <div class="tts-task-progress">
-      <For each={props.tasks()}>
-        {(task) => (
-          <div class="tts-task-row">
-            <span class="tts-task-status">
-              {task.status === 'running' && <Spinner size={14} />}
-              {task.status === 'done' && <span class="tts-task-check"><TaskCheckIcon /></span>}
-              {task.status === 'error' && <span class="tts-task-error"><TaskErrorIcon /></span>}
-              {task.status === 'pending' && <span class="tts-task-pending" />}
-            </span>
-            <span class="tts-task-label">{task.label}</span>
-          </div>
-        )}
-      </For>
-    </div>
-  );
 }
 
 export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
@@ -94,7 +54,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   });
 
   const hasExample = createMemo(() => {
-    const ex = props.exampleText?.replace(/<[^>]*>/g, '').trim();
+    const ex = stripFurigana(props.exampleText || '');
     return !!ex && ex !== '-';
   });
 
@@ -109,20 +69,21 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   ];
 
   const buildReadingText = async (text: string): Promise<string> => {
-    const plain = text.replace(/<[^>]*>/g, '').trim();
-    if (!plain) return text;
+    // Apply ruby readings first (replaces base text with rt readings)
+    const withReadings = applyRubyReadings(text);
+    if (!withReadings) return stripFurigana(text);
     try {
       const backend = getBackend({
         mode: settings.backendMode,
         url: settings.backendUrl,
         authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
       });
-      const tokens = await backend.tokenize(plain, settings.language);
+      const tokens = await backend.tokenize(withReadings, settings.language);
       if (tokens.length > 0) {
         return tokens.map(tok => tok.reading || tok.word).join('');
       }
     } catch { /* fall through to original */ }
-    return plain;
+    return withReadings;
   };
 
   const handleGenerate = async () => {
@@ -213,7 +174,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         if (useReadingForWord() && showReadingToggles() && props.reading) {
           wordForTts = props.reading;
         }
-        const clean = wordForTts.replace(/<[^>]*>/g, '');
+        const clean = stripFurigana(wordForTts);
         if (clean && clean !== '-') {
           await bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, cloudAuthToken, cloudApiUrl);
         }
@@ -229,9 +190,11 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
       updateTask('exampleTts', 'running');
       try {
         const exText = latestExampleText || props.exampleText || '';
-        let textForTts = exText.replace(/<[^>]*>/g, '').trim();
-        if (useReadingForExample() && showReadingToggles() && textForTts) {
-          textForTts = await buildReadingText(textForTts);
+        let textForTts: string;
+        if (useReadingForExample() && showReadingToggles()) {
+          textForTts = await buildReadingText(exText);
+        } else {
+          textForTts = stripFurigana(exText);
         }
         if (textForTts && textForTts !== '-') {
           await bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, cloudAuthToken, cloudApiUrl);
@@ -248,7 +211,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
       updateTask('translation', 'running');
       try {
         const exText = latestExampleText || props.exampleText || '';
-        const plain = exText.replace(/<[^>]*>/g, '').trim();
+        const plain = stripFurigana(exText);
         if (plain && plain !== '-') {
           const langDisplayMap: Record<string, string> = {
             en: 'English', de: 'German', fr: 'French', ja: 'Japanese', ru: 'Russian',

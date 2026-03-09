@@ -54,6 +54,8 @@ export interface OcrOverlayProps {
   onWordLeave?: () => void;
   /** Called on right-click with context phrase for the clicked area */
   onContextMenu?: (contextPhrase: string, boxIndex: number) => void;
+  /** Called whenever the overlay has OCR token/context data ready for the current page. */
+  onTokenDataChange?: (entries: Array<{ boxIndex: number; box: OcrBox; tokens: Token[]; contextPhrase: string }>) => void;
 }
 
 /**
@@ -257,6 +259,9 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     }
   };
 
+  // Persistent cache: box text → Token[] (survives across reactive recalculations)
+  const ocrTokenCache = new Map<string, Token[]>();
+
   // Tokenize filtered boxes and build token map
   createEffect(() => {
     const boxes = filteredBoxes();
@@ -265,24 +270,38 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
       return;
     }
     const next = new Map<number, Token[]>();
-    setTokenMap(next);
-    
-    // Tokenize all boxes and pre-warm translation cache
+    const toFetch: { text: string; idx: number }[] = [];
+
+    // Reuse cached tokens synchronously to avoid flash of untokenized text
     boxes.forEach((box, idx) => {
       if (!box?.text || !box.text.trim()) return;
-      tokenize(box.text)
+      const cached = ocrTokenCache.get(box.text);
+      if (cached) {
+        next.set(idx, cached);
+      } else {
+        toFetch.push({ text: box.text, idx });
+      }
+    });
+
+    // Set token map with all cached entries immediately (no async gap)
+    setTokenMap(next);
+
+    // Only tokenize texts we haven't seen before
+    toFetch.forEach(({ text, idx }) => {
+      tokenize(text)
         .then(async (tokens) => {
+          ocrTokenCache.set(text, tokens as Token[]);
           setTokenMap((prev) => {
             const updated = new Map(prev);
             updated.set(idx, tokens as Token[]);
             return updated;
           });
-          
+
           // Pre-warm translation cache for translatable words
           const translatableWords = (tokens as Token[])
             .filter((t) => t.actual_word && isTranslatable(t.type))
             .map((t) => t.actual_word);
-          
+
           if (translatableWords.length > 0) {
             warmTranslationCache(translatableWords);
           }
@@ -291,6 +310,26 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
           /* ignore tokenization errors */
         });
     });
+  });
+
+  createEffect(() => {
+    const callback = props.onTokenDataChange;
+    if (!callback) return;
+
+    const boxes = filteredBoxes();
+    const tokensByBox = tokenMap();
+    const contexts = contextMap();
+
+    const entries = boxes
+      .map((box, index) => ({
+        boxIndex: index,
+        box,
+        tokens: tokensByBox.get(index) || [],
+        contextPhrase: contexts.get(index) || '',
+      }))
+      .filter((entry) => entry.tokens.length > 0);
+
+    callback(entries);
   });
 
   const handleBoxHover = (box: OcrBox) => {

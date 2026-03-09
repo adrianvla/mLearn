@@ -8,6 +8,7 @@ import { createSignal, onCleanup } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
 import { useSettings, useLocalization } from '../context';
 import { isElectron } from '../../shared/platform';
+import { stripFurigana } from '../../shared/utils/textUtils';
 import { showToast } from '../components/common/Feedback/Toast';
 
 interface FlashcardTtsState {
@@ -107,8 +108,8 @@ export function useFlashcardTts() {
 
     if (!text || text === '-') return;
 
-    // Strip HTML tags from text for TTS
-    const cleanText = text.replace(/<[^>]*>/g, '');
+    // Strip ruby annotations (keep base text, remove readings) then strip remaining HTML
+    const cleanText = stripFurigana(text);
     if (!cleanText.trim()) return;
 
     const myGenId = generationId;

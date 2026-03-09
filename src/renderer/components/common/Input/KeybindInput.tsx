@@ -134,6 +134,42 @@ export const formatKeybindDisplay = (value: string, t: (key: string) => string):
   return parts.join(' + ') || value;
 };
 
+/**
+ * Check whether a KeyboardEvent matches a stored keybind string.
+ * Handles the internal lowercase format from KeybindInput (e.g., "shift", "ctrl+c")
+ * as well as legacy capitalized format (e.g., "Shift").
+ */
+export const matchesKeybind = (e: KeyboardEvent, keybind: string): boolean => {
+  const { modifiers, key } = parseKeybind(keybind);
+
+  // Check modifier state matches exactly
+  const needsCtrl = modifiers.includes('ctrl');
+  const needsAlt = modifiers.includes('alt');
+  const needsShift = modifiers.includes('shift');
+  const needsMeta = modifiers.includes('meta');
+
+  if (e.ctrlKey !== needsCtrl) return false;
+  if (e.altKey !== needsAlt) return false;
+  if (e.shiftKey !== needsShift) return false;
+  if (e.metaKey !== needsMeta) return false;
+
+  // If there's a non-modifier key, match it
+  if (key) {
+    return e.key.toLowerCase() === key;
+  }
+
+  // Modifier-only keybind: the pressed key itself must be one of the required modifiers
+  const pressedKeyLower = e.key.toLowerCase();
+  const modifierKeyMap: Record<string, string> = {
+    'control': 'ctrl',
+    'alt': 'alt',
+    'shift': 'shift',
+    'meta': 'meta',
+  };
+  const pressedMod = modifierKeyMap[pressedKeyLower];
+  return !!pressedMod && modifiers.includes(pressedMod);
+};
+
 export const KeybindInput: Component<KeybindInputProps> = (props) => {
   const { t } = useLocalization();
   const [isFocused, setIsFocused] = createSignal(false);
