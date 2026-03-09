@@ -7,6 +7,7 @@ import { Component, Show, For, createSignal, createMemo, createEffect, onMount, 
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { formatClockTime } from '../../utils/timeFormatting';
 import { Btn, Input, Spinner, IconBtn, RefreshIcon, CheckIcon, CrossIcon, ScissorsIcon } from '../../components';
+import { matchesKeybind } from '../../components/common/Input/KeybindInput';
 import { MarkdownRenderer, parseMarkdownToHtml } from './MarkdownRenderer';
 import type { ConversationMessage, Token, QuizWidgetData, MistakeWidgetData, StreamStats } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
@@ -538,8 +539,8 @@ const ChatToken: Component<ChatTokenProps> = (props) => {
   const handleKeyDown = (e: KeyboardEvent) => {
     const mode = settings.readerWordHoverTrigger ?? props.triggerMode;
     if (mode !== 'key-hover') return;
-    const targetKey = settings.readerWordHoverKey ?? props.triggerKey;
-    if (e.key === targetKey && !isKeyHeld()) {
+    const keybind = settings.readerWordHoverKey ?? props.triggerKey;
+    if (matchesKeybind(e, keybind) && !isKeyHeld()) {
       setIsKeyHeld(true);
       if (isMouseOver()) triggerHoverFromElement();
     }
@@ -548,8 +549,8 @@ const ChatToken: Component<ChatTokenProps> = (props) => {
   const handleKeyUp = (e: KeyboardEvent) => {
     const mode = settings.readerWordHoverTrigger ?? props.triggerMode;
     if (mode !== 'key-hover') return;
-    const targetKey = settings.readerWordHoverKey ?? props.triggerKey;
-    if (e.key === targetKey) {
+    const keybind = settings.readerWordHoverKey ?? props.triggerKey;
+    if (matchesKeybind(e, keybind)) {
       setIsKeyHeld(false);
     }
   };

@@ -43,7 +43,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
     switch (mode) {
       case 'hover': return t('mlearn.Reader.StatusBar.TriggerHover');
       case 'long-hover': return t('mlearn.Reader.StatusBar.TriggerLongHover');
-      case 'key-hover': return t('mlearn.Reader.StatusBar.TriggerKeyHover', { key });
+      case 'key-hover': return t('mlearn.Reader.StatusBar.TriggerKeyHover', { key: formatKeybindDisplay(key, t) });
       default: return mode;
     }
   };
@@ -72,7 +72,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
   });
 
   const currentTriggerMode = () => settings.readerWordHoverTrigger ?? 'hover';
-  const currentKey = () => settings.readerWordHoverKey ?? 'Shift';
+  const currentKey = () => settings.readerWordHoverKey ?? 'shift';
 
   const handleTriggerModeChange = (e: Event) => {
     const value = (e.target as HTMLSelectElement).value as WordHoverTriggerMode;

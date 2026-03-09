@@ -15,7 +15,7 @@ export { ToggleSwitch, type ToggleSwitchProps } from './ToggleSwitch';
 export { FormField, type FormFieldProps } from './FormField';
 export { DropZone, type DropZoneProps } from './DropZone';
 export { RangeInput, type RangeInputProps } from './RangeInput';
-export { KeybindInput, type KeybindInputProps, parseKeybind, formatKeybindDisplay, getLocalizedKeyName } from './KeybindInput';
+export { KeybindInput, type KeybindInputProps, parseKeybind, formatKeybindDisplay, getLocalizedKeyName, matchesKeybind } from './KeybindInput';
 export { VoiceSamplePicker, type VoiceSamplePickerProps } from './VoiceSamplePicker';
 
 // Import CSS

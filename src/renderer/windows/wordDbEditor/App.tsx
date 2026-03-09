@@ -4,7 +4,7 @@
  * Ported from adjustWordsByLevel in stats.js
  */
 
-import { Component, createSignal, For, Show, onMount, createEffect, createMemo } from 'solid-js';
+import { Component, createSignal, For, Show, onMount, createEffect, createMemo, on } from 'solid-js';
 import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
 import {
   getWordsLearnedInApp,
@@ -13,7 +13,7 @@ import {
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
-import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState } from './components';
+import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
 import { Modal, ModalLoadingOverlay, Spinner } from '../../components/common';
 import { FlashcardEditor } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
@@ -21,7 +21,7 @@ import './WordDbEditorLayout.css';
 
 export const WordDbEditorContent: Component = () => {
   const { wordFrequency, getFreqLevelNames } = useLanguage();
-  const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, isLoading: flashcardsLoading } = useFlashcards();
+  const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage } = useFlashcards();
   const { t } = useLocalization();
   const { settings } = useSettings();
   const anki = useAnki();
@@ -31,6 +31,7 @@ export const WordDbEditorContent: Component = () => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [loadProgress, setLoadProgress] = createSignal(0);
   const [selectedLevel, setSelectedLevel] = createSignal<number | null>(null);
+  const [browseMode, setBrowseMode] = createSignal<WordDbBrowseMode>('all');
   const [sortKey, setSortKey] = createSignal<string>('word');
   const [sortDir, setSortDir] = createSignal<1 | -1>(1);
   const [isInitialized, setIsInitialized] = createSignal(false);
@@ -93,6 +94,53 @@ export const WordDbEditorContent: Component = () => {
     }
   });
 
+  const buildFilteredEntries = (sourceEntries: WordEntry[]): WordEntry[] => {
+    const query = searchQuery().toLowerCase().trim();
+    const level = selectedLevel();
+
+    return sourceEntries.filter((entry) => {
+      if (level !== null && entry.level !== level) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      return (
+        entry.word.toLowerCase().includes(query) ||
+        entry.translation.toLowerCase().includes(query) ||
+        entry.reading.toLowerCase().includes(query) ||
+        entry.alternateReadings?.some((reading) => reading.toLowerCase().includes(query))
+      );
+    });
+  };
+
+  const ignoredEntries = createMemo<WordEntry[]>(() => {
+    return getIgnoredWordsSync()
+      .map((ignored) => {
+        const freqEntry = wordFrequency[ignored.word];
+        return {
+          uuid: `ignored:${ignored.word}`,
+          word: ignored.word,
+          translation: '',
+          reading: ignored.reading || freqEntry?.reading || '',
+          level: freqEntry?.raw_level ?? -1,
+          tracker: 'ignored',
+          status: getWordsLearnedInApp()[ignored.word] ?? WORD_STATUS.UNKNOWN,
+          alternateReadings: freqEntry?.alternateReadings,
+          ignoredAt: ignored.ignoredAt,
+        };
+      })
+      .sort((a, b) => (b.ignoredAt ?? 0) - (a.ignoredAt ?? 0) || a.word.localeCompare(b.word));
+  });
+
+  createEffect(on([entries, ignoredEntries, selectedLevel, browseMode, hasLoadedWords], () => {
+    if (browseMode() === 'all' && !hasLoadedWords()) {
+      return;
+    }
+    const sourceEntries = browseMode() === 'ignored' ? ignoredEntries() : entries();
+    setFilteredEntries(buildFilteredEntries(sourceEntries));
+  }, { defer: true }));
+
   // Load all words from word frequency data
   const loadAllWords = async () => {
     setIsLoading(true);
@@ -143,7 +191,7 @@ export const WordDbEditorContent: Component = () => {
       }
 
       setEntries(wordEntries);
-      setFilteredEntries(wordEntries);
+      setFilteredEntries(buildFilteredEntries(wordEntries));
       setLoadProgress(100);
     } catch (e) {
       console.error('Failed to load words:', e);
@@ -156,22 +204,12 @@ export const WordDbEditorContent: Component = () => {
 
   // Search words — show a loader while filtering large datasets
   const handleSearch = () => {
-    const query = searchQuery().toLowerCase().trim();
-    if (!query) {
-      setFilteredEntries(entries());
-      return;
-    }
+    const sourceEntries = browseMode() === 'ignored' ? ignoredEntries() : entries();
 
     setIsSearching(true);
     // Yield to the event loop so the loader overlay paints before the sync work
     requestAnimationFrame(() => {
-      const filtered = entries().filter(entry =>
-          entry.word.toLowerCase().includes(query) ||
-          entry.translation.toLowerCase().includes(query) ||
-          entry.reading.toLowerCase().includes(query) ||
-          entry.alternateReadings?.some(r => r.toLowerCase().includes(query))
-      );
-      setFilteredEntries(filtered);
+      setFilteredEntries(buildFilteredEntries(sourceEntries));
       setIsSearching(false);
     });
   };
@@ -279,6 +317,14 @@ export const WordDbEditorContent: Component = () => {
     }
   };
 
+  const handleUnignore = async (entry: WordEntry) => {
+    try {
+      await unignoreWordForLanguage(entry.word);
+    } catch (e) {
+      console.error('Failed to unignore word:', e);
+    }
+  };
+
   // Reactive level names from langData - uses createMemo for reactivity
   // This ensures the level names update when langData loads asynchronously
   const levelNames = createMemo(() => getLevelNames());
@@ -383,20 +429,22 @@ export const WordDbEditorContent: Component = () => {
   return (
       <div class="word-db-editor">
         {/* Loading indicator while initializing or waiting for word frequency data */}
-        <Show when={!isInitialized() || (!hasLoadedWords() && !isLoading())}>
+        <Show when={!isInitialized() || (browseMode() === 'all' && !hasLoadedWords() && !isLoading())}>
           <div class="init-loading">
             <Spinner size={44} shape="square" strokeWidth={8} cornerRadius={0} text={t('mlearn.WordDbEditor.Loading')}/>
             {/*<Spinner size={40} shape="square" text={t('mlearn.WordDbEditor.Loading')} />*/}
           </div>
         </Show>
 
-        <Show when={isInitialized() && (hasLoadedWords() || isLoading())}>
+        <Show when={isInitialized() && (browseMode() === 'ignored' || hasLoadedWords() || isLoading())}>
           {/* Search Bar */}
           <SearchBar
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
               selectedLevel={selectedLevel}
               setSelectedLevel={setSelectedLevel}
+              browseMode={browseMode}
+              setBrowseMode={setBrowseMode}
               isLoading={isLoading}
               loadProgress={loadProgress}
               levelNames={levelNames()}
@@ -412,9 +460,9 @@ export const WordDbEditorContent: Component = () => {
 
           {/* Entries List */}
           <div class="entries-list">
-            <Show when={!isLoading() && filteredEntries().length === 0 && hasLoadedWords()}>
+            <Show when={!isLoading() && filteredEntries().length === 0 && (browseMode() === 'ignored' || hasLoadedWords())}>
               <div class="empty-state">
-                <p>{t('mlearn.WordDbEditor.EmptyState')}</p>
+                <p>{browseMode() === 'ignored' ? t('mlearn.WordDbEditor.EmptyIgnoredState') : t('mlearn.WordDbEditor.EmptyState')}</p>
               </div>
             </Show>
 
@@ -426,6 +474,7 @@ export const WordDbEditorContent: Component = () => {
                       onStatusChange={handleStatusChange}
                       onAddFlashcard={handleAddFlashcard}
                       onRemoveFlashcard={handleRemoveFlashcard}
+                      onUnignore={handleUnignore}
                       onEditFlashcard={handleEditFlashcard}
                       onEdit={handleEdit}
                       onExportToAnki={ankiEnabled() ? handleExportToAnki : undefined}

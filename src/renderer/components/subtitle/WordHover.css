@@ -11,7 +11,7 @@
 .word-hover-container {
   position: fixed;
   z-index: 1000;
-  pointer-events: auto;
+  pointer-events: none;
   /* CSS handles width: fit-content flows up from .subtitle_hover */
   transition: opacity var(--transition-normal);
 }
@@ -260,6 +260,8 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   padding: 5px 10px;
   background-color: var(--accent-bg);
   border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Known status modifier */

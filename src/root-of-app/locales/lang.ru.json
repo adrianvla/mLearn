@@ -1,1600 +1,1372 @@
 {
   "mlearn": {
-    "Tabs": {
-      "Home": "Главная",
-      "Video": "Видео",
-      "Reader": "Читалка",
-      "Flashcards": "Карточки",
-      "Settings": "Настройки"
+    "AI": {
+      "DownloadModel": "Скачать модель",
+      "ModelNotDownloaded": "Модель ещё не скачана.",
+      "ModelReady": "Модель готова.",
+      "OllamaInstallGuide": "Установить Ollama",
+      "OllamaInstallGuideUrl": "https://ollama.com/download",
+      "OllamaNotReachable": "Не удаётся подключиться к серверу Ollama. Убедитесь, что Ollama запущен и URL верный.",
+      "Settings": {
+        "BuiltinModel": {
+          "DiskSpace": "Требуется дискового пространства: ~{size}",
+          "ModelName": "Модель",
+          "Redownload": "Скачать заново",
+          "Status": "Состояние",
+          "Title": "Встроенная модель"
+        },
+        "CloudConfig": {
+          "ApiUrlHint": "URL API облака настраивается в параметрах подключения.",
+          "ConnectionSuccess": "Подключение успешно.",
+          "TestConnection": "Проверить подключение",
+          "Title": "Настройки облачной LLM",
+          "TokenHint": "Войдите через настройки подключения для аутентификации с облачной LLM."
+        },
+        "Description": "Настройте AI-функции для объяснения слов и разговорной практики.",
+        "FlashcardTTS": {
+          "AutoGenerate": {
+            "Description": "Автоматически генерировать и кэшировать аудиофайлы для новых карточек",
+            "Label": "Автогенерация аудио"
+          },
+          "AutoPlay": {
+            "Description": "Автоматически воспроизводить произношение слова при показе карточки во время повторения",
+            "Label": "Автовоспроизведение TTS"
+          },
+          "Provider": {
+            "Cloud": "Cloud",
+            "Description": "Выберите между локальным Kokoro TTS, Qwen3-TTS (клонирование голоса) или Cloud TTS",
+            "Kokoro": "Kokoro (локальный)",
+            "Label": "Провайдер TTS",
+            "Qwen3": "Qwen3-TTS (клонирование голоса)"
+          },
+          "Title": "TTS карточек",
+          "VoiceSample": {
+            "DefaultVoice": "Голос по умолчанию",
+            "DeleteConfirm": "Вы уверены, что хотите удалить этот голосовой образец? Это действие нельзя отменить.",
+            "DeleteSample": "Удалить голосовой образец",
+            "Description": "Выберите образец голоса для клонирования",
+            "Label": "Образец голоса",
+            "ModelLoading": "Загрузка модели TTS…",
+            "NoTranscript": "Транскрипция недоступна",
+            "PlaySample": "Воспроизвести образец",
+            "TestPlaceholder": "Введите текст для тестирования TTS…",
+            "TestTts": "Тестировать TTS",
+            "Transcribing": "Транскрибирование аудио…",
+            "Transcript": "Транскрипция:",
+            "Upload": "Загрузить образец голоса"
+          }
+        },
+        "OCR": {
+          "Provider": {
+            "Cloud": "Cloud",
+            "Description": "Выберите бэкенд, который обрабатывает OCR-запросы.",
+            "Label": "Провайдер OCR",
+            "Local": "Локальный"
+          },
+          "Title": "OCR-бэкенд"
+        },
+        "OllamaConfig": {
+          "ConnectionSuccess": "Подключение успешно.",
+          "InstallHintPrefix": "Нет Ollama?",
+          "InstallHintSuffix": "для начала работы.",
+          "LoadingModels": "Загрузка моделей...",
+          "Model": "Модель",
+          "ModelHint": "Выберите или введите название модели Ollama.",
+          "ServerUrl": "URL сервера",
+          "ServerUrlHint": "Адрес сервера Ollama.",
+          "TestConnection": "Проверить подключение",
+          "Title": "Настройки Ollama"
+        },
+        "Provider": {
+          "Builtin": "Встроенный",
+          "Cloud": "Облако",
+          "Description": "Выберите способ запуска AI-моделей.",
+          "Ollama": "Ollama",
+          "Title": "Провайдер LLM"
+        },
+        "Title": "Настройки AI"
+      },
+      "SetupRequired": "Для AI-функций требуется настройка. Открываю настройки..."
     },
-    "Global": {
-      "AppName": "mLearn",
-      "Loading": "Загрузка...",
-      "Ready": "Готово",
-      "Cancel": "Отмена",
-      "Save": "Сохранить",
-      "Delete": "Удалить",
-      "Edit": "Редактировать",
-      "Add": "Добавить",
-      "Remove": "Удалить",
-      "Close": "Закрыть",
-      "Search": "Поиск",
-      "Test": "Тест",
-      "Export": "Экспорт",
-      "Import": "Импорт",
-      "Reset": "Сбросить",
-      "Back": "Назад",
-      "Continue": "Продолжить",
-      "TryAgain": "Попробовать снова",
-      "Yes": "Да",
-      "No": "Нет",
-      "Ok": "ОК",
-      "Error": "Ошибка",
-      "Success": "Успешно",
-      "Warning": "Предупреждение",
-      "Info": "Информация",
-      "Unknown": "Неизвестно",
-      "None": "Нет",
-      "All": "Все",
-      "Default": "По умолчанию",
-      "Flashcard": "Карточка",
-      "RequiresRestart": "Требуется перезапуск",
-      "ComingSoon": "Скоро",
-      "Aria": {
-        "CloseModal": "Закрыть окно",
-        "CloseAlert": "Закрыть уведомление",
-        "PlayPause": "Воспроизвести/Пауза",
-        "Play": "Воспроизвести",
-        "Pause": "Пауза",
-        "ToggleSubtitles": "Переключить субтитры",
-        "PictureInPicture": "Картинка в картинке",
-        "Fullscreen": "Полный экран",
-        "ExitFullscreen": "Выйти из полного экрана"
+    "AITutorSetup": {
+      "AllLevels": "Все",
+      "FailedWords": "Сложные слова",
+      "GenerateBtn": "Сгенерировать",
+      "GenerateError": "Не удалось сгенерировать словарь. Попробуйте ещё раз.",
+      "GenerateTopicPlaceholder": "Введите тему для генерации словаря...",
+      "GrammarTab": "Грамматика",
+      "InstructionsLabel": "Пользовательские инструкции",
+      "InstructionsPlaceholder": "Опишите сценарий, ролевую игру или тему для практики. Например: 'Давайте попрактикуем заказ еды в ресторане' или 'Сыграйте роль интервьюера'.",
+      "InstructionsTab": "Инструкции",
+      "ItemsSelected": "{count} выбрано",
+      "LLMNotConfigured": "ИИ не настроен. Сначала настройте его в параметрах.",
+      "MediaTab": "Медиа",
+      "NoGrammarSupport": "Грамматические правила для этого языка пока недоступны.",
+      "NoMediaYet": "Сохранённых медиа пока нет. Смотрите видео или читайте книги для отслеживания прогресса.",
+      "NoWordsYet": "Слова ещё не встречались. Смотрите видео или читайте книги, чтобы пополнить словарь.",
+      "PressEnterToAdd": "Нажмите Enter, чтобы добавить это слово",
+      "SearchGrammar": "Поиск грамматики...",
+      "SearchWords": "Поиск слов...",
+      "SelectGrammarHint": "Выберите грамматические правила для практики.",
+      "SelectMediaHint": "Выберите сохранённые медиа для включения контекста.",
+      "SelectWordsHint": "Выберите слова, на которых хотите сосредоточиться.",
+      "StartSession": "Начать сессию",
+      "Title": "Настройка ИИ-репетитора",
+      "WordEaseLegendTitle": "Освоение слов:",
+      "WordsTab": "Слова"
+    },
+    "About": {
+      "Description": "mLearn — инструмент для изучения языков через погружение. Смотрите видео, читайте мангу и естественно учите слова с умными субтитрами и интервальным повторением.",
+      "KeyboardShortcuts": {
+        "F": "Полный экран",
+        "LeftRight": "Перемотка на 5 секунд",
+        "M": "Звук вкл/выкл",
+        "Numbers": "Оценка карточки",
+        "Space": "Воспроизведение/пауза видео",
+        "Title": "Горячие клавиши",
+        "Undo": "Отменить действие с карточкой",
+        "UpDown": "Регулировка громкости"
       },
-      "Status": {
-        "StartingBackend": "Запуск бэкенда...",
-        "LoadingModels": "Загрузка моделей...",
-        "WaitingForBackend": "Ожидание бэкенда...",
-        "Tokenizing": "Токенизация...",
-        "Translating": "Перевод...",
-        "Adding": "Добавление...",
-        "Installing": "Установка...",
-        "Syncing": "Синхронизация...",
-        "LoadingDatabase": "Загрузка базы слов...",
-        "LoadingSettings": "Загрузка настроек...",
-        "LoadingLanguageData": "Загрузка языковых данных..."
+      "Licenses": "Лицензии",
+      "Title": "mLearn",
+      "VersionLabel": "Версия {version}",
+      "Website": "Веб-сайт"
+    },
+    "CardEditor": {
+      "AudioUnavailable": "Аудио недоступно. Используйте кнопку регенерации для его создания.",
+      "Fields": {
+        "Definitions": "Определения (по одному на строку)",
+        "DefinitionsPlaceholder": "По одному определению на строку",
+        "ExampleSentence": "Пример предложения (HTML допускается)",
+        "ExampleTranslation": "Перевод примера",
+        "PitchAccent": "Тоновое ударение",
+        "PitchAccentPlaceholder": "0 (плоское), 1, 2, 3…",
+        "Reading": "Чтение (фуригана)",
+        "ReadingPlaceholder": "Кана / чтение",
+        "StructuredContent": "Структурированное содержимое (произвольный HTML)",
+        "SurfaceNote": "(слово)",
+        "Translation": "Перевод (через запятую или перенос строки)",
+        "Word": "Слово",
+        "WordPlaceholder": "Введите слово..."
       },
-      "Actions": {
-        "SaveChanges": "Сохранить изменения",
-        "RemoveOverride": "Удалить переопределение",
-        "LoadAll": "Загрузить все"
+      "GenerateTtsAction": "Сгенерировать",
+      "Hint": "Перевод: через запятую или перенос строки. Тоновое ударение — позиция моры понижения (0=плоское).",
+      "NoCloudAuth": "Не аутентифицирован в облаке. Войдите через Настройки → Сервер.",
+      "Regenerate": {
+        "AllCompleted": "Все задачи выполнены",
+        "ExamplePhrase": "Пример предложения",
+        "ExampleTts": "TTS примера",
+        "SomeFailed": "Некоторые задачи не выполнены",
+        "Title": "Перегенерировать",
+        "Translation": "Перевод",
+        "UseReadings": "Использовать чтения",
+        "WordTts": "TTS слова"
       },
-      "Time": {
-        "ShortHour": "{value}ч",
-        "ShortMinute": "{value}м",
-        "ShortSecond": "{value}с",
-        "ShortDay": "{value}д",
-        "ShortYear": "{value}г",
-        "HoursMinutes": "{hours}ч {minutes}м",
-        "MinutesSeconds": "{minutes}м {seconds}с",
-        "LessThanMinute": "< 1м",
-        "Now": "Сейчас"
+      "RegenerateExample": "Перегенерировать пример",
+      "Statistics": {
+        "Ease": "Лёгкость:",
+        "Interval": "Интервал:",
+        "Lapses": "Провалов:",
+        "LastReviewed": "Последнее повторение:",
+        "Reviews": "Повторений:",
+        "State": "Состояние:",
+        "Title": "Статистика"
       }
     },
-    "ConnectionStatus": {
-      "Connected": "Подключено",
-      "Disconnected": "Отключено",
-      "Connecting": "Подключение...",
-      "Error": "Ошибка"
+    "CloudReLogin": {
+      "CodeHint": "Введите одноразовый код со страницы входа.",
+      "Hint": "Нажмите Войти, чтобы открыть страницу входа в браузере.",
+      "SessionExpired": "Ваша облачная сессия истекла. Пожалуйста, войдите снова, чтобы продолжить.",
+      "SessionRefreshed": "Сессия обновлена. Пожалуйста, попробуйте снова.",
+      "Title": "Сессия истекла"
+    },
+    "Components": {
+      "LogConsole": {
+        "ClearTooltip": "Очистить логи",
+        "DefaultTitle": "Консоль",
+        "NoLogs": "Нет записей для отображения"
+      }
     },
     "ConfirmDialog": {
       "Title": "Подтверждение"
     },
-    "ErrorModal": {
-      "Title": {
-        "Error": "Ошибка",
-        "Fatal": "Критическая ошибка",
-        "Warning": "Предупреждение",
-        "StartupError": "Ошибка запуска",
-        "AnkiError": "Ошибка подключения к Anki"
-      },
-      "Messages": {
-        "PortInUse": "Другое приложение использует необходимый порт. Закройте другие экземпляры mLearn или перезагрузите компьютер.",
-        "PermissionDenied": "В доступе отказано. Проверьте системные разрешения или запустите приложение от имени администратора.",
-        "FileNotFound": "Необходимый файл не найден. Переустановите приложение.",
-        "BackendStopped": "Бэкенд-сервер неожиданно остановился. Перезапустите приложение.",
-        "AnkiConnectionFailed": "Не удалось подключиться к Anki. Убедитесь, что Anki запущен с установленным AnkiConnect, или отключите интеграцию с Anki.",
-        "AnkiNoValidCards": "Подключение к Anki установлено, но действительных карточек не найдено. Проверьте колоду и настройку полей в параметрах."
-      },
-      "ShowDetails": "Показать подробности",
-      "HideDetails": "Скрыть подробности",
-      "CopyError": "Копировать ошибку",
-      "Copied": "Скопировано!",
-      "Quit": "Выход",
-      "AnkiDisableSession": "Отключить Anki для этой сессии",
-      "AnkiDisablePermanent": "Отключить Anki навсегда"
-    },
-    "SubtitleSync": {
-      "SyncToPrevious": "Синхронизировать субтитры с предыдущим аудио",
-      "SyncToNext": "Синхронизировать субтитры со следующим аудио",
-      "PreviousTooltip": "Синхронизировать с предыдущим субтитром",
-      "NextTooltip": "Синхронизировать со следующим субтитром",
-      "BackwardMs": "← {ms}мс",
-      "ForwardMs": "{ms}мс →",
-      "Backward": "Назад",
-      "Forward": "Вперёд"
-    },
-    "Home": {
-      "UI": {
-        "Title": "mLearn",
-        "TitleDescription": "Изучайте языки через погружение",
-        "ContinueLearning": "Продолжить обучение",
-        "ChangeLanguage": "Сменить язык",
-        "LearningLanguage": "Изучаю {language}"
-      },
-      "Cards": {
-        "Video": {
-          "Title": "Видео",
-          "Description": "Смотрите видео с интерактивными субтитрами"
-        },
-        "Reader": {
-          "Title": "Читалка",
-          "Description": "Читайте мангу и документы с OCR"
-        },
-        "Flashcards": {
-          "Title": "Карточки",
-          "Description": "Повторяйте слова с интервальным повторением"
-        },
-        "Settings": {
-          "Title": "Настройки",
-          "Description": "Настройте mLearn под себя"
-        },
-        "AITutor": {
-          "Title": "ИИ-репетитор",
-          "Description": "Практикуйтесь с ИИ-собеседником"
-        }
-      },
-      "Errors": {
-        "UnableToOpen": "Невозможно открыть файл. Путь к файлу сохранён некорректно."
-      }
-    },
-    "AITutorSetup": {
-      "Title": "Настройка ИИ-репетитора",
-      "GrammarTab": "Грамматика",
-      "WordsTab": "Слова",
-      "MediaTab": "Медиа",
-      "InstructionsTab": "Инструкции",
-      "StartSession": "Начать сессию",
-      "NoGrammarSupport": "Грамматические правила для этого языка пока недоступны.",
-      "NoWordsYet": "Слова ещё не встречались. Смотрите видео или читайте книги, чтобы пополнить словарь.",
-      "NoMediaYet": "Сохранённых медиа пока нет. Смотрите видео или читайте книги для отслеживания прогресса.",
-      "SearchGrammar": "Поиск грамматики...",
-      "SearchWords": "Поиск слов...",
-      "SelectGrammarHint": "Выберите грамматические правила для практики.",
-      "SelectWordsHint": "Выберите слова, на которых хотите сосредоточиться.",
-      "SelectMediaHint": "Выберите сохранённые медиа для включения контекста.",
-      "InstructionsPlaceholder": "Опишите сценарий, ролевую игру или тему для практики. Например: 'Давайте попрактикуем заказ еды в ресторане' или 'Сыграйте роль интервьюера'.",
-      "ExcludeWords": "Исключить слова",
-      "FailedWords": "Сложные слова",
-      "FailedGrammar": "Сложная грамматика",
-      "AllLevels": "Все",
-      "ShowMore": "Показать ещё",
-      "ItemsSelected": "{count} выбрано",
-      "LLMNotConfigured": "ИИ не настроен. Сначала настройте его в параметрах.",
-      "InstructionsLabel": "Пользовательские инструкции",
-      "PressEnterToAdd": "Нажмите Enter, чтобы добавить это слово",
-      "GenerateTopicPlaceholder": "Введите тему для генерации словаря...",
-      "GenerateBtn": "Сгенерировать",
-      "GenerateError": "Не удалось сгенерировать словарь. Попробуйте ещё раз.",
-      "WordEaseLegendTitle": "Освоение слов:",
-      "WordEaseLegend": {
-        "unassessed": "Новые / неоценённые",
-        "hard": "Очень сложно",
-        "struggling": "Вызывают трудности",
-        "reviewing": "На повторении",
-        "known": "Известные"
-      }
-    },
-    "Video": {
-      "Controls": {
-        "Unmute": "Включить звук",
-        "Mute": "Выключить звук",
-        "PlaybackSpeed": "Скорость воспроизведения"
-      },
-      "UI": {
-        "DropVideoHere": "Перетащите видеофайл сюда",
-        "OrClickToBrowse": "или нажмите для выбора",
-        "OpenVideo": "Открыть видео",
-        "OpenSubtitles": "Открыть субтитры",
-        "GoHome": "← Домой",
-        "OpenConversationAgent": "AI-репетитор"
-      },
-      "Tooltip": {
-        "GoHome": "Вернуться на главную",
-        "OpenConversationAgent": "Открыть AI-репетитора"
-      }
-    },
-    "Reader": {
-      "UI": {
-        "WelcomeSplash": {
-          "Title": "Добро пожаловать в Читалку",
-          "TitleDescription": "Перетащите папку с изображениями или .pdf файл в это окно.",
-          "DropZone": "Перетащите файлы сюда для импорта",
-          "Footer": "Перетащите что-нибудь, чтобы начать — этот экран приветствия уступит место вашей истории.",
-          "OpenFolder": "Открыть папку с изображениями",
-          "OpenPdf": "Открыть PDF"
-        },
-        "Tips": {
-          "ShapeView": {
-            "Title": "Настройте вид",
-            "Description": "Используйте боковую панель или горячие клавиши для переключения между разворотом и одной страницей."
-          },
-          "SummonOcr": {
-            "Title": "Используйте OCR",
-            "Description": "При отображении страницы можно запустить OCR для интерактивного распознавания текста."
-          },
-          "NeverLosePlace": {
-            "Title": "Закладка автоматическая",
-            "Description": "Позиция страницы сохраняется автоматически."
-          }
-        },
-        "NothingLoaded": "Ничего не загружено"
-      },
-      "Controls": {
-        "OcrStatus": "Состояние OCR",
-        "ModeLabels": {
-          "Hover": "Наведение",
-          "LongHover": "Длительное наведение",
-          "KeyHover": "{key} + наведение"
-        }
-      },
-      "Toolbar": {
-        "FitHeight": "По высоте ↕",
-        "FitWidth": "По ширине ↔",
-        "DoublePage": "Разворот",
-        "SinglePage": "Одна страница",
-        "BackToHome": "Вернуться на главную",
-        "Home": "← Домой",
-        "FirstPageSingleTooltip": "Первая страница одиночная (обложка)",
-        "FirstPagePairedTooltip": "Первая страница парная",
-        "PageLayoutSingle": "1|2+3",
-        "PageLayoutPaired": "1+2|3+4"
-      },
-      "Sidebar": {
-        "Pages": "Страницы"
-      },
-      "StatusBar": {
-        "ShowTooltipOn": "Подсказка при:",
-        "TriggerTitle": "Как вызывать всплывающую подсказку",
-        "OpenConversationAgent": "AI-репетитор",
-        "OpenConversationAgentTitle": "Открыть AI-репетитора",
-        "TriggerHover": "Наведение",
-        "TriggerLongHover": "Длительное наведение",
-        "TriggerKeyHover": "{key} + наведение",
-        "Ready": "Готово",
-        "Tokenizing": "Токенизация...",
-        "Translating": "Перевод...",
-        "MagnifierHint": "Нажмите {key} для лупы",
-        "TurboMode": "Турбо",
-        "TurboModeOn": "Турбо: Вкл",
-        "TurboModeOff": "Турбо: Выкл",
-        "FuriganaDetection": "Обнаружение фуриганы",
-        "FuriganaDetectionOn": "Фуригана: Вкл",
-        "FuriganaDetectionOff": "Фуригана: Выкл",
-        "DebugOverlayTitle": "Переключить отладочное наложение для визуализации OCR-текста и обнаружения фуриганы",
-        "DebugOverlayOn": "Отладка: Вкл",
-        "DebugOverlayOff": "Отладка: Выкл",
-        "TimingDetection": "Обн",
-        "TimingRecognition": "Расп",
-        "TimingPerBox": "Сред/бокс",
-        "TimingTotal": "Итого",
-        "PaddleDownscaleLabel": "Масштаб PaddleOCR: {value}%",
-        "PaddleDownscaleTitle": "Уменьшить изображение перед обработкой PaddleOCR (dev)",
-        "ZoneGapLabel": "Зазор зоны: {value}",
-        "ZoneGapTitle": "Макс. зазор между краями боксов для кластеризации зон",
-        "OutlierMultLabel": "Множ. выбросов: {value}x",
-        "OutlierMultTitle": "Боксы с площадью выше медианы × это значение изолируются"
-      },
-      "Status": {
-        "NothingLoaded": "Ничего не загружено",
-        "Loading": "Загрузка...",
-        "LoadingBook": "Загрузка медиа...",
-        "LoadingPdf": "Загрузка PDF...",
-        "Ready": "Готово",
-        "Recognizing": "Распознавание...",
-        "Processing": "Обработка {x}/{y}",
-        "Caching": "Кэширование {x}/{y}",
-        "CleaningUp": "Очистка…",
-        "LoadingNeuralNetwork": "Загрузка нейронной сети...",
-        "NoImagesFound": "Изображения не найдены",
-        "FailedToLoad": "Ошибка загрузки",
-        "FailedToLoadPdf": "Ошибка загрузки PDF",
-        "Pending": "Ожидание...",
-        "Queued": "В очереди...",
-        "PdfDocument": "PDF-документ",
-        "ImportedBook": "Импортированная книга"
-      },
-      "Tooltip": {
-        "SelectionMode": "Режим выделения"
-      }
-    },
-    "Flashcards": {
-      "UI": {
-        "Title": "Карточки",
-        "Tabs": {
-          "Review": "Повторение",
-          "Browse": "Обзор",
-          "Generate": "Генерация",
-          "Statistics": "Статистика"
-        },
-        "Sync": "Синхронизация",
-        "AddCard": "+ Добавить карточку"
-      },
-      "Bulk": {
-        "TtsButton": "Генерировать TTS",
-        "TtsTooltip": "Генерировать TTS-аудио для всех слов и примеров карточек",
-        "TtsProgress": "Генерация TTS…",
-        "TtsDone": "TTS сгенерирован для {count} элементов",
-        "TtsAllDone": "Все карточки уже имеют TTS-аудио",
-        "ExamplesButton": "Генерировать примеры",
-        "ExamplesTooltip": "Генерировать примеры предложений с помощью LLM для карточек без примеров",
-        "ExamplesProgress": "Генерация примеров…",
-        "ExamplesDone": "Примеры сгенерированы для {count} карточек",
-        "ExamplesAllDone": "Все карточки уже имеют примеры",
-        "GenerateDescription": "Пакетная генерация аудио и примеров предложений для ваших карточек",
-        "ModeChoice": "Режим генерации",
-        "ModeOnlyEmpty": "Только карточки без данных",
-        "ModeReplaceAll": "Перегенерировать все (заменить существующие)",
-        "ModeOlderThan": "Перегенерировать старше даты",
-        "OlderThanDate": "Сгенерировано до",
-        "EtaRemaining": "~{eta} осталось"
-      },
-      "AutoTts": {
-        "BackendHint": "Используется {provider}"
-      },
-      "EmptyState": {
-        "NoCardsTitle": "Карточек пока нет",
-        "NoCardsDescription": "Начните учить слова при просмотре видео или чтении, и они появятся здесь!",
-        "NoCardsDueTitle": "Всё пройдено!",
-        "NoCardsDueDescription": "Сейчас нет карточек для повторения. Отличная работа!",
-        "NoCardsDueAction": "Вернитесь позже или добавьте новые карточки"
-      },
-      "State": {
-        "New": "Новая",
-        "Learning": "Изучение",
-        "Relearning": "Переучивание",
-        "Review": "Повторение"
-      },
-      "Browse": {
-        "NoWordsFound": "Совпадающие карточки не найдены.",
-        "SearchPlaceholder": "Поиск слов...",
-        "AllLevels": "Все уровни",
-        "ShowingCount": "Показано {count} из {total}",
-        "SortBy": "Сортировка",
-        "SortDefault": "По умолчанию",
-        "SortEaseAsc": "Лёгкость (по возрастанию)",
-        "SortEaseDesc": "Лёгкость (по убыванию)",
-        "SortDueDateAsc": "Срок (ранние)",
-        "SortDueDateDesc": "Срок (поздние)"
-      },
-      "Statistics": {
-        "TotalCards": "Всего карточек",
-        "DueToday": "На сегодня",
-        "Mature": "Зрелые",
-        "CardBreakdown": "Разбивка карточек",
-        "New": "Новые",
-        "Learning": "Изучение",
-        "Review": "Повторение",
-        "Suspended": "Приостановлены",
-        "TodayProgress": "Прогресс за сегодня",
-        "NewCardsStudied": "Изучено новых карточек",
-        "ReviewsCompleted": "Завершено повторений",
-        "LearningLimits": "Дневные лимиты",
-        "MaxNewCardsPerDay": "Макс. новых карточек в день",
-        "MaxReviewsPerDay": "Макс. повторений в день",
-        "LimitHint": "-1 для безлимита",
-        "Advanced": {
-          "RetentionRate": "Процент запоминания",
-          "Last30Days": "Последние 30 дней",
-          "AverageEase": "Средняя лёгкость",
-          "AvgTimePerDay": "Среднее время в день",
-          "DaysStudied": "Дней обучения",
-          "DailyActivity": "Ежедневная активность",
-          "TotalReviews": "Всего повторений",
-          "TotalNewLearned": "Выучено новых",
-          "TotalLapses": "Всего провалов",
-          "EaseDistribution": "Распределение лёгкости",
-          "IntervalDistribution": "Распределение интервалов",
-          "CardMaturity": "Зрелость карточек",
-          "Young": "Молодые",
-          "Mature": "Зрелые"
-        }
-      },
-      "Modals": {
-        "DeleteCard": {
-          "Title": "Удалить карточку",
-          "Confirm": "Вы уверены, что хотите удалить эту карточку? Это действие нельзя отменить."
-        },
-        "AddCard": {
-          "Title": "Добавить новую карточку",
-          "Submit": "Добавить карточку",
-          "WordLabel": "Слово",
-          "WordPlaceholder": "Введите слово...",
-          "ReadingLabel": "Чтение (необязательно)",
-          "ReadingPlaceholder": "Произношение...",
-          "MeaningLabel": "Значение",
-          "MeaningPlaceholder": "Определение..."
-        },
-        "EditCard": {
-          "Title": "Редактировать карточку"
-        }
-      },
-      "Review": {
-        "Again": "Снова",
-        "Hard": "Трудно",
-        "Ok": "Хорошо",
-        "Easy": "Легко",
-        "PitchWrong": "Ударение неверно",
-        "ShowLater": "Показать позже",
-        "Hide": "Скрыть",
-        "Left": "Осталось:",
-        "New": "Новые:",
-        "LearningLabel": "Изучение:",
-        "Undo": "↩",
-        "UndoTooltip": "Отменить",
-        "Complete": "Повторение завершено!",
-        "CompleteDescription": "Вы повторили все карточки на сегодня. Отличная работа!",
-        "ReviewMore": "Повторить ещё",
-        "ShowAnswer": "Показать ответ",
-        "Remove": "Удалить",
-        "Bury": "Отложить",
-        "NewCard": "Новая карточка",
-        "LearningCard": "Изучаемая карточка",
-        "RelearningCard": "Переучиваемая карточка",
-        "ReviewCard": "Карточка повторения",
-        "PressKeyTooltip": "Нажмите {key}",
-        "Review": "Повторение:"
-      },
-      "Sync": {
-        "Title": "Синхронизация карточек",
-        "Initializing": "Инициализация...",
-        "LoadingLibraries": "Загрузка библиотек...",
-        "GeneratingCode": "Генерация кода подключения...",
-        "ScanInstructions": "Введите {numChunks} в приложении mLearn, затем отсканируйте этот QR-код",
-        "ConnectedSyncing": "Подключено! Синхронизация...",
-        "PointCamera": "Наведите камеру на QR-код...",
-        "EstablishingConnection": "Установка соединения...",
-        "Complete": "Синхронизация завершена!",
-        "QRHint": "Отсканируйте QR-код в мобильном приложении mLearn для синхронизации",
-        "ScanQRInstead": "Сканировать QR",
-        "ShowQRInstead": "Показать QR",
-        "SyncingFlashcards": "Синхронизация карточек...",
-        "SyncedSuccessfully": "Карточки синхронизированы!",
-        "Error": {
-          "LoadLibraries": "Не удалось загрузить необходимые библиотеки: {error}",
-          "Connection": "Не удалось установить соединение",
-          "CameraAccess": "Доступ к камере запрещён"
-        }
-      },
-      "Card": {
-        "Tracked": "Отслеживается",
-        "Ease": "Лёгкость:",
-        "ScreenshotAlt": "Скриншот",
-        "RevealHint": "Нажмите или пробел, чтобы показать ответ",
-        "RateHint": "Оцените от 1 до 4 • Нажмите, чтобы вернуться",
-        "ReviewsCount": "{count} повторений",
-        "PlayWord": "Воспроизвести произношение слова",
-        "PlayExample": "Воспроизвести пример предложения",
-        "RegenerateExample": "Сгенерировать пример с помощью ИИ"
-      },
-      "Table": {
-        "Word": "Слово",
-        "Translation": "Перевод",
-        "Level": "Уровень",
-        "TrackedBy": "Источник",
-        "Status": "Состояние"
-      },
-      "Leech": {
-        "Title": "Обнаружена пиявка",
-        "Message": "Слово «{word}» было провалено {count} раз(а) и может требовать особого внимания"
-      },
-      "PostCreate": {
-        "TranslatingTitle": "Перевод примера",
-        "TranslatingMessage": "Переводим пример предложения...",
-        "GeneratingTtsTitle": "Генерация аудио",
-        "GeneratingTtsMessage": "Генерация TTS-аудио для карточки...",
-        "TtsDone": "TTS-аудио сгенерировано",
-        "TtsFailed": "Не удалось сгенерировать TTS-аудио"
-      }
-    },
-    "WordHover": {
-      "NoTranslation": "Перевод не найден",
-      "Explain": "Объяснить",
-      "Loading": "Загрузка...",
-      "NoExplanationAvailable": "Объяснение недоступно",
-      "Status": {
-        "Unknown": "Неизвестное",
-        "Learning": "Изучаемое",
-        "Known": "Известное"
-      },
-      "Alerts": {
-        "CopiedToClipboard": "Скопировано в буфер обмена!",
-        "ExplainRequiresLlm": "Функция объяснения требует локальную AI-модель. Включите LLM в настройках и перезапустите приложение."
-      },
-      "Errors": {
-        "FailedToAddFlashcard": "Не удалось добавить карточку: {error}"
-      }
-    },
-    "Explainer": {
-      "Title": "AI-объяснение",
-      "Translation": "Перевод",
-      "Explanation": "Объяснение",
-      "ExplanationOf": "Объяснение использования {word}",
-      "GrammarPoints": "Основные грамматические моменты",
-      "ShowRaw": "Текстовый вид",
-      "ShowParsed": "Разобранный вид",
-      "GeneratedBy": "Сгенерировано локальным AI",
-      "Generating": "Генерация...",
-      "Loading": "Загрузка AI-объяснения..."
-    },
-    "Settings": {
-      "UI": {
-        "Title": "Настройки",
-        "Description": "Настройте mLearn под себя",
-        "ResetConfirm": "Вы уверены, что хотите сбросить все настройки до значений по умолчанию? Это действие нельзя отменить.",
-        "ResetSuccess": "Настройки сброшены до значений по умолчанию",
-        "SaveError": "Не удалось сохранить настройки"
-      },
-      "Keybind": {
-        "PressKey": "Нажмите клавишу...",
-        "Tooltip": "Нажмите для записи, затем нажмите клавишу для назначения",
-        "Keys": {
-          "Ctrl": "Ctrl",
-          "Alt": "Alt",
-          "Shift": "Shift",
-          "Meta": "Cmd",
-          "Space": "Пробел",
-          "Enter": "Enter",
-          "Escape": "Esc",
-          "Backspace": "Backspace",
-          "Delete": "Delete",
-          "Tab": "Tab",
-          "CapsLock": "CapsLock",
-          "ArrowUp": "↑",
-          "ArrowDown": "↓",
-          "ArrowLeft": "←",
-          "ArrowRight": "→",
-          "Home": "Home",
-          "End": "End",
-          "PageUp": "PageUp",
-          "PageDown": "PageDown",
-          "Insert": "Insert"
-        }
-      },
-      "Tabs": {
-        "General": "Общие",
-        "Behaviour": "Поведение",
-        "Appearance": "Внешний вид",
-        "SRS": "Карточки",
-        "Reader": "Читалка",
-        "Statistics": "Статистика",
-        "AI": "ИИ",
-        "Connection": "Подключение",
-        "About": "О программе"
-      },
-      "Groups": {
-        "Language": "Язык",
-        "Appearance": "Внешний вид",
-        "Settings": "Настройки",
-        "Data": "Данные",
-        "WordStatus": "Состояние слов",
-        "BlurEffect": "Эффект размытия",
-        "DisplayOptions": "Параметры отображения",
-        "Performance": "Производительность",
-        "AnkiIntegration": "Интеграция с Anki",
-        "BuiltInFlashcards": "Встроенные карточки",
-        "DataManagement": "Управление данными",
-        "Tokenizer": "Токенизатор",
-        "WordHoverBehavior": "Поведение подсказки при наведении",
-        "Furigana": "Фуригана",
-        "LlmIntegration": "Интеграция с LLM",
-        "SubtitleAppearance": "Внешний вид субтитров",
-        "SubtitleTiming": "Тайминг субтитров",
-        "ThemePreview": "Предпросмотр темы",
-        "PosColors": "Цвета частей речи"
-      },
-      "Language": {
-        "LearningLanguage": {
-          "Label": "Изучаемый язык",
-          "Description": "Выберите язык для изучения"
-        },
-        "AppLanguage": {
-          "Label": "Язык приложения",
-          "Description": "Выберите язык интерфейса"
-        }
-      },
-      "Appearance": {
-        "Theme": {
-          "Label": "Тема",
-          "Description": "Выберите визуальную тему приложения",
-          "Light": "Светлая",
-          "Dark": "Тёмная",
-          "Darker": "Самая тёмная",
-          "LightHighContrast": "Светлая высококонтрастная",
-          "DarkHighContrast": "Тёмная высококонтрастная",
-          "GlassLight": "Стеклянная светлая",
-          "GlassDark": "Стеклянная тёмная"
-        },
-        "SubtitleFontSize": {
-          "Label": "Размер шрифта субтитров",
-          "Description": "Размер текста субтитров в пикселях"
-        }
-      },
-      "Data": {
-        "ExportSettings": {
-          "Label": "Экспорт настроек",
-          "Description": "Экспортировать настройки в файл JSON"
-        },
-        "ImportSettings": {
-          "Label": "Импорт настроек",
-          "Description": "Импортировать настройки из файла JSON"
-        },
-        "ResetSettings": {
-          "Label": "Сбросить настройки",
-          "Description": "Сбросить все настройки до значений по умолчанию"
-        },
-        "ExportAllData": {
-          "Label": "Экспорт всех данных",
-          "Description": "Экспортировать все данные обучения (карточки, статистику, аудио, изображения) в ZIP-архив"
-        },
-        "ImportAllData": {
-          "Label": "Импорт всех данных",
-          "Description": "Импортировать все данные обучения из ZIP-архива. Существующие данные будут перезаписаны.",
-          "Confirm": "Все текущие данные (карточки, статистика, аудио, изображения) будут перезаписаны. Приложение перезапустится после импорта. Продолжить?",
-          "Success": "Данные успешно импортированы. Приложение сейчас перезапустится."
-        }
-      },
-      "WordStatus": {
-        "ColourKnown": {
-          "Label": "Выделять известные слова цветом",
-          "Description": "Подсвечивать цветом уже выученные слова"
-        },
-        "KnownColour": {
-          "Label": "Цвет известных слов",
-          "Description": "Цвет для выделения известных слов"
-        },
-        "ColourCodes": {
-          "Label": "Цвета частей речи",
-          "Description": "Маркировать слова цветом по части речи"
-        },
-        "PosColors": {
-          "Description": "Настройте цвета для каждого тега части речи. Эти цвета используются для выделения слов в субтитрах, читалке и диалоге с AI.",
-          "Reset": "Сбросить",
-          "ResetAll": "Сбросить все цвета частей речи"
-        },
-        "KnownThreshold": {
-          "Label": "Порог «известного» слова",
-          "Description": "Значение лёгкости, при котором слово считается известным"
-        }
-      },
-      "BlurEffect": {
-        "BlurWords": {
-          "Label": "Размывать неизвестные слова",
-          "Description": "Размывать слова, которые ещё не выучены"
-        },
-        "BlurKnownSubtitles": {
-          "Label": "Размывать субтитры с известными словами",
-          "Description": "Размывать субтитры, в которых все слова уже известны"
-        },
-        "BlurAmount": {
-          "Label": "Степень размытия",
-          "Description": "Интенсивность эффекта размытия"
-        }
-      },
-      "DisplayOptions": {
-        "ShowPos": {
-          "Label": "Показывать часть речи",
-          "Description": "Отображать грамматическую информацию о словах"
-        },
-        "ShowFurigana": {
-          "Label": "Показывать фуригану",
-          "Description": "Отображать чтение над словами"
-        },
-        "ShowPitchAccent": {
-          "Label": "Показывать тоновое ударение",
-          "Description": "Отображать информацию о тоновом ударении слов"
-        },
-        "ImmediateFetch": {
-          "Label": "Немедленная загрузка",
-          "Description": "Загружать данные слов сразу при появлении субтитров"
-        },
-        "OpenAside": {
-          "Label": "Панель живого перевода",
-          "Description": "Показывать боковую панель с переводами слов при появлении субтитров"
-        }
-      },
-      "Performance": {
-        "HoverKnownGetFromDictionary": {
-          "Label": "Искать известные слова",
-          "Description": "Получать данные из словаря даже для известных слов"
-        },
-        "DevMode": {
-          "Label": "Режим разработчика",
-          "Description": "Включить инструменты разработчика и функции отладки"
-        }
-      },
-      "BuiltInFlashcards": {
-        "ResetSrsConfirm": "Вы уверены, что хотите сбросить все данные SRS? Это действие нельзя отменить!",
-        "ResetSrsConfirm2": "Весь прогресс карточек будет удалён. Вы точно хотите продолжить?"
-      },
-      "Subtitle": {
-        "Theme": {
-          "Label": "Стиль субтитров",
-          "Description": "Визуальный стиль фона субтитров"
-        },
-        "Themes": {
-          "Shadow": "Тень",
-          "Background": "Фон",
-          "Marker": "Маркер"
-        },
-        "FontSize": {
-          "Label": "Размер шрифта",
-          "Description": "Размер текста субтитров"
-        },
-        "FontWeight": {
-          "Label": "Толщина шрифта",
-          "Description": "Жирность текста субтитров"
-        },
-        "FontWeights": {
-          "Thin": "Тонкий (100)",
-          "ExtraLight": "Сверхлёгкий (200)",
-          "Light": "Лёгкий (300)",
-          "Normal": "Обычный (400)",
-          "Medium": "Средний (500)",
-          "SemiBold": "Полужирный (600)",
-          "Bold": "Жирный (700)",
-          "ExtraBold": "Сверхжирный (800)",
-          "Black": "Чёрный (900)"
-        },
-        "Offset": {
-          "Label": "Смещение субтитров",
-          "Description": "Смещение тайминга субтитров в мс"
-        }
-      },
-      "Reader": {
-        "Title": "Читалка",
-        "Description": "Настройки OCR и читалки",
-        "OcrSettings": {
-          "Title": "Настройки OCR",
-          "Enable": {
-            "Label": "Включить OCR",
-            "Description": "Включить оптическое распознавание символов для изображений"
-          },
-          "CropPadding": {
-            "Label": "Отступ обрезки OCR",
-            "Description": "Отступ в пикселях при обрезке текста для карточек"
-          },
-          "Provider": {
-            "Label": "OCR-бэкенд",
-            "Description": "Выберите, где обрабатываются OCR-запросы.",
-            "Local": "Локальный / Backend",
-            "Cloud": "Cloud"
-          },
-          "Cloud": {
-            "Url": {
-              "Label": "URL Cloud OCR",
-              "Description": "Базовый URL облачного OCR-сервиса.",
-              "Placeholder": "https://your-ocr-service.com"
-            },
-            "Token": {
-              "Label": "Токен Cloud OCR",
-              "Description": "Токен аутентификации для облачного OCR-сервиса.",
-              "Placeholder": "Bearer token"
-            },
-            "Test": {
-              "Label": "Подключение",
-              "Description": "Проверить доступ к облачному OCR-бэкенду.",
-              "Button": "Проверить Cloud OCR"
-            }
-          },
-          "RamSaver": {
-            "Label": "Экономия ОЗУ",
-            "Description": "Использовать облегчённое обнаружение текста на базе OpenCV вместо нейросети. Экономит ~1,5 ГБ ОЗУ, но может быть менее точным для сложных макетов. Качество распознавания не затрагивается."
-          },
-          "TurboMode": {
-            "Label": "Турборежим",
-            "Description": "Использовать быстрые настройки обнаружения. Без этого режима используется обнаружение с более высоким разрешением, которое медленнее, но точнее, особенно для вертикального текста."
-          },
-          "FuriganaDetection": {
-            "Label": "Обнаружение фуриганы",
-            "Description": "Определять и фильтровать аннотации фуриганы в результатах OCR. При отключении обнаруженные текстовые блоки отображаются как есть."
-          }
-        },
-        "WordHoverBehavior": {
-          "Title": "Поведение всплывающей подсказки",
-          "TriggerMode": {
-            "Label": "Режим активации",
-            "Description": "Как вызывать всплывающую подсказку с переводом в читалке"
-          },
-          "Modes": {
-            "Hover": "Наведение (мгновенно)",
-            "LongHover": "Длительное наведение (задержка 500мс)",
-            "KeyHover": "{key} + наведение"
-          },
-          "HoverKey": {
-            "Label": "Клавиша наведения",
-            "Description": "Клавиша, которую нужно удерживать для показа подсказки при наведении"
-          },
-          "RecordKey": "Записать клавишу",
-          "PressAKey": "Нажмите клавишу..."
-        },
-        "Furigana": {
-          "Title": "Фуригана",
-          "Hide": {
-            "Label": "Скрыть фуригану",
-            "Description": "Закрыть обнаруженную фуригану белым блоком, показывать при наведении (для практики чтения)"
-          }
-        },
-        "Magnifier": {
-          "Title": "Лупа",
-          "Hotkey": {
-            "Label": "Горячая клавиша лупы",
-            "Description": "Удерживайте эту клавишу для увеличения изображения",
-            "Hint": "Удерживайте для увеличения"
-          },
-          "Zoom": {
-            "Label": "Уровень увеличения",
-            "Description": "Коэффициент увеличения лупы"
-          },
-          "Size": {
-            "Label": "Размер линзы",
-            "Description": "Размер линзы лупы в пикселях"
-          }
-        },
-        "LlmIntegration": {
-          "Title": "Интеграция с LLM",
-          "Enable": {
-            "Label": "Включить объяснения LLM",
-            "Description": "Использовать AI для объяснения слов и грамматики"
-          },
-          "PassiveWordTracking": {
-            "Label": "Пассивное отслеживание слов",
-            "Description": "Автоматически отслеживать знакомость слов при чтении и наведении"
-          },
-          "Speech": {
-            "Label": "Речь (экспериментально)",
-            "Description": "Включить озвучивание ответов AI и распознавание речи на вводе"
-          },
-          "AutoSpeak": {
-            "Label": "Автоозвучивание ответов",
-            "Description": "Автоматически озвучивать ответы AI-тьютора"
-          }
-        }
-      },
-      "SRS": {
-        "Title": "Интервальное повторение",
-        "Description": "Настройки карточек и Anki",
-        "LearningLimits": {
-          "Title": "Дневные лимиты обучения",
-          "NewDayHour": {
-            "Label": "Час начала нового дня",
-            "Description": "Время сброса дня SRS (0–23). Повторения до этого часа считаются за предыдущий день. По умолчанию: 4 (4:00)"
-          },
-          "MaxNewCardsLearning": {
-            "Label": "Макс. новых карточек для изучения",
-            "Description": "Максимальное количество новых карточек в день (-1 = без ограничений)"
-          },
-          "MaxReviews": {
-            "Label": "Макс. повторений в день",
-            "Description": "Максимальное количество повторений в день (-1 = без ограничений)"
-          },
-          "UnlimitedHint": "-1 = без ограничений"
-        },
-        "AnkiIntegration": {
-          "Title": "Интеграция с Anki",
-          "Enable": {
-            "Label": "Включить Anki",
-            "Description": "Получать данные карточек из Anki через AnkiConnect. Карточки Anki имеют приоритет над встроенными карточками mLearn"
-          },
-          "ConnectUrl": {
-            "Label": "URL AnkiConnect",
-            "Description": "URL сервера AnkiConnect"
-          },
-          "ConnectionStatus": {
-            "Label": "Состояние подключения",
-            "Description": "Проверить подключение к AnkiConnect"
-          },
-          "Test": "Тест",
-          "Connected": "Подключено",
-          "Failed": "Ошибка",
-          "DeckName": {
-            "Label": "Название колоды",
-            "Description": "Колода Anki для новых карточек",
-            "Placeholder": "Выберите колоду"
-          },
-          "ModelName": {
-            "Label": "Тип записи",
-            "Description": "Тип записи Anki для новых карточек",
-            "Placeholder": "Выберите тип записи"
-          },
-          "FieldMapping": {
-            "Title": "Сопоставление полей",
-            "Description": "Сопоставить поля заметок Anki с полями карточек mLearn",
-            "Expression": {
-              "Label": "Поле выражения",
-              "Description": "Поле, содержащее слово или выражение"
-            },
-            "Reading": {
-              "Label": "Поле чтения",
-              "Description": "Поле, содержащее чтение или произношение"
-            },
-            "Meaning": {
-              "Label": "Поле значения",
-              "Description": "Поле, содержащее определение или значение"
-            },
-            "Placeholder": "Выберите поле",
-            "None": "(нет)"
-          },
-          "Preview": {
-            "Title": "Предпросмотр карточки",
-            "NoCard": "Карточки для этого типа записи не найдены",
-            "Loading": "Загрузка предпросмотра..."
-          },
-          "AddScreenshots": {
-            "Label": "Добавлять скриншоты",
-            "Description": "Включать скриншоты из видео и читалки в карточки"
-          }
-        },
-        "BuiltInFlashcards": {
-          "Title": "Встроенные карточки",
-          "Enable": {
-            "Label": "Использовать SRS mLearn",
-            "Description": "Использовать встроенную систему интервального повторения mLearn вместо Anki"
-          },
-          "AutomaticCreation": {
-            "Label": "Автоматическое создание карточек",
-            "Description": "Автоматически создавать карточки из слов, встречающихся при изучении"
-          },
-          "MaxNewCards": {
-            "Label": "Макс. новых в день",
-            "Description": "Лимит автоматически создаваемых карточек"
-          },
-          "ExamCardProportion": {
-            "Label": "Доля экзаменационных карточек",
-            "Description": "Доля автоматически создаваемых карточек экзаменационного уровня (0–1)"
-          },
-          "PreparedExamLevel": {
-            "Label": "Целевой уровень экзамена",
-            "Description": "Целевой уровень для автоматически создаваемых карточек"
-          },
-          "CreateUnseenCards": {
-            "Label": "Создавать карточки для новых слов",
-            "Description": "Автоматически создавать карточки для новых слов целевого уровня"
-          },
-          "LLMExamples": {
-            "Label": "Генерировать примеры предложений",
-            "Description": "Использовать LLM для генерации примеров предложений при автоматическом создании карточек (требуется подключение к бэкенду)"
-          },
-          "FlipAnimation": {
-            "Label": "Анимация переворота",
-            "Description": "Показывать 3D-анимацию переворота при показе ответа"
-          },
-          "LeechThreshold": {
-            "Label": "Порог пиявки",
-            "Description": "Количество провалов до пометки карточки как пиявки (0 = отключено)"
-          },
-          "ForceRecreate": {
-            "Title": "Пересоздать карточки",
-            "Confirm": "Создать новые карточки из отслеживаемых слов-кандидатов. Продолжить?",
-            "ConfirmWithLLM": "Сгенерировать примеры предложений с помощью LLM для новых карточек?",
-            "Creating": "Создание карточек...",
-            "Created": "Создано {count} новых карточек.",
-            "NoCandidates": "Нет доступных слов-кандидатов. Просматривайте больше контента для отслеживания новых слов.",
-            "BackendUnavailable": "Бэкенд недоступен. Убедитесь, что сервер Python запущен."
-          }
-        },
-        "DataManagement": {
-          "Title": "Управление данными",
-          "ResetSRS": {
-            "Label": "Сбросить данные SRS",
-            "Description": "Очистить весь прогресс карточек (необратимо!)",
-            "ModalWarning": "Все данные планирования SRS будут сброшены, включая интервалы, коэффициенты лёгкости, счётчики повторений и прогресс обучения. Содержание карточек сохранится, но все карточки вернутся в состояние 'новая'.",
-            "TypePhrase": "Введите \"{phrase}\", чтобы подтвердить это действие.",
-            "Success": "Все данные SRS были сброшены."
-          },
-          "ResetButton": "Сбросить SRS",
-          "NukeFlashcards": {
-            "Label": "Удалить все карточки",
-            "Description": "Безвозвратно удалить все карточки и сбросить всё (необратимо!)",
-            "ModalWarning": "Все ваши карточки, данные отслеживания слов, знания грамматики, дневная статистика и весь прогресс обучения будут безвозвратно удалены. Это действие необратимо и вернёт систему карточек в начальное пустое состояние, как при первой установке приложения.",
-            "TypePhrase": "Введите \"{phrase}\", чтобы подтвердить это действие.",
-            "Success": "Все карточки были удалены."
-          },
-          "NukeButton": "Удалить все"
-        }
-      },
-      "Mobile": {
-        "GeneralDesc": "Язык, тема и данные",
-        "BehaviourDesc": "Статус слов, отображение и производительность",
-        "AppearanceDesc": "Субтитры, цвета и темы",
-        "SRSDesc": "Лимиты карточек и интеграция",
-        "ReaderDesc": "OCR, наведение и инструменты чтения",
-        "StatsDesc": "Статистика обучения и прогресс",
-        "AIDesc": "Провайдеры языковых моделей",
-        "ConnectionDesc": "Режим бэкенда и синхронизация",
-        "AboutDesc": "Версия, ссылки и горячие клавиши"
-      }
-    },
-    "Installer": {
-      "Instructions": {
-        "ChooseComponents": "Выберите компоненты для установки и нажмите «Установить».",
-        "LanguageUnlocks": "Выбор языка будет доступен после завершения настройки.",
-        "ForgetSomething": "Если вы забыли что-то установить, удалите mLearn и перезапустите установщик.",
-        "DownloadNote": "Все загрузки обрабатываются автоматически. Рекомендуется стабильное подключение.",
-        "ClickToBegin": "Нажмите «Установить» для начала."
-      },
-      "Status": {
-        "Installing": "Установка, пожалуйста подождите...",
-        "NotStarted": "Ожидание начала установки...",
-        "Complete": "Установка завершена! Выберите язык для завершения настройки.",
-        "LlmWillInstall": "Зависимости локальной AI-модели будут установлены.",
-        "LlmSkip": "Зависимости локальной AI-модели будут пропущены.",
-        "OcrWillInstall": "Зависимости OCR-читалки будут установлены.",
-        "OcrSkip": "Зависимости OCR-читалки будут пропущены.",
-        "VoiceWillInstall": "Зависимости голоса и TTS будут установлены.",
-        "VoiceSkip": "Зависимости голоса и TTS будут пропущены.",
-        "CouldNotStart": "Не удалось запустить процесс установки.",
-        "LanguageInstalledRestarting": "Язык установлен! Перезапуск...",
-        "ErrorOccurred": "Произошла ошибка. Проверьте журнал ниже.",
-        "InstallingPackages": "Установка пакетов...",
-        "Collecting": "Сбор",
-        "Downloading": "Загрузка",
-        "AlreadySatisfied": "Уже установлено:"
-      },
-      "Components": {
-        "ExplainAi": {
-          "Title": "Установить модуль mLearn Explain AI",
-          "Description": "Устанавливает локальную нейросеть LLM. Снимите флажок, чтобы пропустить ~3 ГБ зависимостей."
-        },
-        "Reader": {
-          "Title": "Установить модуль читалки mLearn",
-          "Description": "Устанавливает OCR для чтения манги/изображений. Снимите флажок, чтобы пропустить ~2 ГБ зависимостей."
-        },
-        "Voice": {
-          "Title": "Установить голосовой и TTS модуль",
-          "Description": "Устанавливает распознавание речи, синтез речи и клонирование голоса. Снимите флажок, чтобы пропустить ~4 ГБ зависимостей."
-        }
-      },
-      "Buttons": {
-        "StartInstallation": "Начать установку",
-        "Installing": "Установка...",
-        "Continue": "Продолжить"
-      },
-      "Alerts": {
-        "NetworkError": "Произошла сетевая ошибка. Проверьте подключение и попробуйте снова."
-      }
-    },
-    "Statistics": {
-      "Title": "Статистика обучения",
-      "Description": "Отслеживайте прогресс и учебный путь",
-      "TimeWatched": "Время просмотра",
-      "WordsTracked": "Слов отслеживается",
-      "WordsLearned": "Слов выучено",
-      "CurrentlyLearning": "Изучается сейчас",
-      "WordsByStatus": "Слова по статусу",
-      "WordsByExamLevel": "Слова по уровню экзамена",
-      "LevelColumn": "Уровень",
-      "EmptyState": {
-        "Title": "Данных о словах пока нет",
-        "Description": "Начните смотреть видео, чтобы отслеживать слова!"
-      },
-      "Legend": {
-        "Learned": "Выучено",
-        "Learning": "Изучается",
-        "Viewed": "Просмотрено"
-      },
-      "Actions": {
-        "ViewKanjiGrid": "Таблица кандзи",
-        "EditWordDatabase": "Редактор базы слов",
-        "OpenAiAnalytics": "AI-анализ медиа"
-      }
-    },
     "Connection": {
-      "Title": "Подключение",
+      "AuthStatus": "Облачный аккаунт",
       "BackendMode": "Режим бэкенда",
+      "BackendUrl": "URL бэкенда",
+      "CloudApiUrl": "URL API облака",
+      "CloudLoginUrl": "URL входа в облако",
+      "CompleteSignIn": "Завершить вход",
+      "Connected": "Подключено",
+      "DefaultCloudEndpoint": "Вход по умолчанию: {loginUrl} — API по умолчанию: {apiUrl}",
+      "DesktopCode": "Одноразовый код для десктопа",
+      "HintLocal": "Использует локальный Python-бэкенд на этом устройстве.",
+      "HintTethered": "Подключается к Python-бэкенду на вашем компьютере.",
       "Mode": "Режим",
       "ModeLocal": "Локальный",
       "ModeTethered": "Привязанный",
-      "HintLocal": "Использует локальный Python-бэкенд на этом устройстве.",
-      "HintTethered": "Подключается к Python-бэкенду на вашем компьютере.",
-      "BackendUrl": "URL бэкенда",
-      "AuthToken": "Токен авторизации",
-      "AuthStatus": "Облачный аккаунт",
-      "SignIn": "Войти",
-      "SigningIn": "Вход...",
-      "OpenDashboard": "Открыть панель",
-      "SignOut": "Выйти",
-      "CompleteSignIn": "Завершить вход",
-      "DesktopCode": "Одноразовый код для десктопа",
-      "TestConnection": "Проверить подключение",
-      "Testing": "Проверка...",
-      "Connected": "Подключено",
-      "Unreachable": "Недоступен",
       "NodeServer": "Сервер на ПК",
       "NodeServerUrl": "URL сервера",
-      "CloudLLM": "Облачная LLM",
-      "LLMProvider": "Провайдер LLM",
-      "LLMBuiltIn": "Встроенный",
-      "LLMOllama": "Ollama",
-      "LLMCloud": "Облако",
+      "OpenDashboard": "Открыть панель",
       "OverrideCloudEndpointUrl": "Переопределить URL облака",
       "OverrideCloudEndpointUrlDescription": "Использовать пользовательские URL облака вместо URL сервиса по умолчанию.",
-      "CloudEndpointUrl": "URL cloud endpoint",
-      "CloudLoginUrl": "URL входа в облако",
-      "CloudApiUrl": "URL API облака",
-      "DefaultCloudEndpoint": "Вход по умолчанию: {loginUrl} — API по умолчанию: {apiUrl}"
-    },
-    "CloudReLogin": {
-      "Title": "Сессия истекла",
-      "SessionExpired": "Ваша облачная сессия истекла. Пожалуйста, войдите снова, чтобы продолжить.",
-      "SessionRefreshed": "Сессия обновлена. Пожалуйста, попробуйте снова.",
-      "Hint": "Нажмите Войти, чтобы открыть страницу входа в браузере.",
-      "CodeHint": "Введите одноразовый код со страницы входа."
-    },
-    "About": {
-      "Title": "mLearn",
-      "VersionLabel": "Версия {version}",
-      "Description": "mLearn — инструмент для изучения языков через погружение. Смотрите видео, читайте мангу и естественно учите слова с умными субтитрами и интервальным повторением.",
-      "Website": "Веб-сайт",
-      "Licenses": "Лицензии",
-      "KeyboardShortcuts": {
-        "Title": "Горячие клавиши",
-        "Space": "Воспроизведение/пауза видео",
-        "LeftRight": "Перемотка на 5 секунд",
-        "UpDown": "Регулировка громкости",
-        "F": "Полный экран",
-        "M": "Звук вкл/выкл",
-        "Numbers": "Оценка карточки",
-        "Undo": "Отменить действие с карточкой"
-      }
-    },
-    "KanjiGrid": {
-      "Title": "Освоение иероглифов",
-      "Description": "Цвета: изучается (оранжевый→жёлтый), известный (зелёный→светло-зелёный), неизвестный (серый). Наведите для подробностей.",
-      "CharactersByExamLevel": "Иероглифы по уровню экзамена:",
-      "LevelFallback": "Уровень {level}",
-      "EmptyState": {
-        "Title": "Отслеживаемых иероглифов пока нет",
-        "Description": "Когда вы встретите иероглифы в видео или тексте, они появятся здесь.",
-        "Hint": "Начните смотреть или читать контент для начала отслеживания!"
-      },
-      "Loading": "Загрузка данных об иероглифах...",
-      "Legend": {
-        "Learning": "Изучается:",
-        "Known": "Известный:",
-        "Unknown": "Неизвестный:"
-      },
-      "Stats": {
-        "Known": "Известных:",
-        "Learning": "Изучается:",
-        "Unknown": "Неизвестных:",
-        "TotalFound": "Всего:"
-      },
-      "Filter": "Фильтр иероглифов...",
-      "Tooltip": {
-        "WordsContaining": "Слова с {char}",
-        "Category": "Категория",
-        "Score": "Оценка",
-        "KnownCount": "Известных",
-        "LearningCount": "Изучается"
-      }
-    },
-    "WordDbEditor": {
-      "Title": "Редактор базы слов",
-      "Loading": "Загрузка базы слов...",
-      "EmptyState": "Слова не найдены. Нажмите «Загрузить все» для загрузки базы слов.",
-      "LoadingMore": "Загрузка...",
-      "Searching": "Поиск...",
-      "SearchPlaceholder": "Поиск слов...",
-      "AllLevels": "Все уровни",
-      "LoadAll": "Загрузить все",
-      "SearchHint": "Введите 2+ символов для поиска или нажмите «Загрузить все»",
-      "SearchHintDetailed": "Enter для поиска. Точные совпадения приоритетны. Сначала нажмите «Загрузить все».",
-      "EditTranslation": {
-        "Title": "Редактировать перевод — {word}",
-        "Tooltip": "Редактировать переопределение слова",
-        "RemoveOverride": "Удалить переопределение"
-      },
-      "Fields": {
-        "Word": "Слово",
-        "Reading": "Чтение",
-        "ReadingPlaceholder": "Чтение (кана)...",
-        "PitchAccent": "Тоновое ударение",
-        "PitchAccentPlaceholder": "0 (плоское), 1, 2, 3…",
-        "Translation": "Перевод",
-        "TranslationPlaceholder": "Переводы через запятую...",
-        "StructuredContent": "Структурированное содержимое (произвольный HTML)",
-        "PartOfSpeech": "Часть речи",
-        "PosPlaceholder": "n, v, adj и т.д."
-      },
-      "Columns": {
-        "Word": "Слово",
-        "Translation": "Перевод",
-        "Level": "Уровень",
-        "TrackedBy": "Источник",
-        "Status": "Состояние"
-      },
-      "LevelNames": {
-        "Common": "Общее",
-        "Unlisted": "Не в списке"
-      },
-      "Anki": {
-        "ExportToAnki": "Экспорт в Anki",
-        "Exported": "Экспортировано в Anki",
-        "AlreadyInAnki": "Уже в Anki",
-        "ExportFailed": "Ошибка экспорта в Anki",
-        "NotConnected": "Anki не подключён"
-      }
-    },
-    "CardEditor": {
-      "Title": "Редактировать карточку",
-      "Fields": {
-        "Word": "Слово",
-        "WordPlaceholder": "Введите слово...",
-        "Reading": "Чтение (фуригана)",
-        "ReadingPlaceholder": "Кана / чтение",
-        "PitchAccent": "Тоновое ударение",
-        "PitchAccentPlaceholder": "0 (плоское), 1, 2, 3…",
-        "Surface": "Поверхностная форма",
-        "SurfaceNote": "(слово)",
-        "PartOfSpeech": "Часть речи",
-        "PosPlaceholder": "n, v, adj и т.д.",
-        "Translation": "Перевод (через запятую или перенос строки)",
-        "ExampleSentence": "Пример предложения (HTML допускается)",
-        "ExampleTranslation": "Перевод примера",
-        "Definition": "Определение (HTML допускается)",
-        "Definitions": "Определения (по одному на строку)",
-        "DefinitionsPlaceholder": "По одному определению на строку",
-        "StructuredContent": "Структурированное содержимое (произвольный HTML)",
-        "Context": "Контекст",
-        "ContextPlaceholder": "Где вы встретили это слово..."
-      },
-      "Statistics": {
-        "Title": "Статистика",
-        "Ease": "Лёгкость:",
-        "Reviews": "Повторений:",
-        "State": "Состояние:",
-        "Lapses": "Провалов:",
-        "LastReviewed": "Последнее повторение:",
-        "Never": "Никогда",
-        "Interval": "Интервал:"
-      },
-      "RegenerateTts": "Перегенерировать TTS",
-      "GenerateTtsAction": "Сгенерировать",
-      "GeneratingTts": "Генерация…",
-      "TtsGenerated": "TTS-аудио успешно перегенерировано",
-      "TtsGenerateFailed": "Не удалось сгенерировать TTS-аудио",
-      "NoCloudAuth": "Не аутентифицирован в облаке. Войдите через Настройки → Сервер.",
-      "RegenerateExample": "Перегенерировать пример",
-      "RegeneratingExample": "Генерация…",
-      "ExampleGenerateFailed": "Не удалось перегенерировать пример",
-      "UseReadingForTts": "Использовать чтение для TTS",
-      "Regenerate": {
-        "Title": "Перегенерировать",
-        "WordTts": "TTS слова",
-        "ExampleTts": "TTS примера",
-        "Translation": "Перевод",
-        "ExamplePhrase": "Пример предложения",
-        "UseReadings": "Использовать чтения",
-        "AllCompleted": "Все задачи выполнены",
-        "SomeFailed": "Некоторые задачи не выполнены",
-        "NoTasksSelected": "Выберите хотя бы одну задачу"
-      },
-      "AudioUnavailable": "Аудио недоступно. Используйте кнопку регенерации для его создания.",
-      "Hint": "Перевод: через запятую или перенос строки. Тоновое ударение — позиция моры понижения (0=плоское)."
-    },
-    "PitchAccent": {
-      "Heiban": "Плоское (хэйбан)",
-      "Atamadaka": "Начальное повышение (атамадака)",
-      "Nakadaka": "Среднее повышение (накадака)",
-      "Odaka": "Конечное повышение (одака)",
-      "DropAfterMora": "Понижение после моры {mora}"
-    },
-    "Components": {
-      "LogConsole": {
-        "DefaultTitle": "Консоль",
-        "ClearTooltip": "Очистить логи",
-        "NoLogs": "Нет записей для отображения"
-      }
-    },
-    "Languages": {
-      "ja": "Японский",
-      "de": "Немецкий",
-      "zh": "Китайский",
-      "ko": "Корейский",
-      "es": "Испанский",
-      "fr": "Французский",
-      "it": "Итальянский",
-      "pt": "Португальский",
-      "ru": "Русский"
-    },
-    "LocaleNames": {
-      "en": "English",
-      "ja": "日本語",
-      "de": "Deutsch",
-      "fr": "Français",
-      "ru": "Русский"
-    },
-    "Errors": {
-      "FirstArgumentMustBeString": "Первый аргумент должен быть строкой",
-      "ChunkSizeMustBePositive": "Размер блока должен быть положительным числом",
-      "InvalidLanguage": "Неверный язык",
-      "FailedToLoad": "Ошибка загрузки",
-      "NetworkError": "Ошибка сети"
+      "SignIn": "Войти",
+      "SignOut": "Выйти",
+      "SigningIn": "Вход...",
+      "TestConnection": "Проверить подключение",
+      "Title": "Подключение",
+      "Unreachable": "Недоступен"
     },
     "ConversationAgent": {
-      "Title": "AI-собеседник",
-      "ModelLabel": "Модель",
-      "Connected": "Подключено",
-      "Disconnected": "Отключено",
-      "ExperimentalBanner": "Экспериментальная функция — ответы AI могут содержать ошибки. Проверяйте важные языковые моменты.",
-      "Placeholder": "Сообщение на целевом языке...",
-      "Speaking": "Говорит...",
-      "StopRecording": "Остановить запись",
-      "StartRecording": "Начать запись",
-      "Send": "Отправить сообщение",
       "Clear": "Очистить беседу",
-      "Regenerate": "Сгенерировать заново",
-      "Tab": {
-        "Chat": "Чат",
-        "Stats": "Статистика",
-        "Context": "Контекст",
-        "Connection": "Подключение",
-        "Voice": "Голос"
-      },
       "Connection": {
-        "Title": "Подключение к LLM",
+        "AvailableModels": "Доступные модели",
+        "ConnectionFailed": "Ошибка подключения",
+        "ConnectionSuccess": "Подключение успешно",
+        "FetchModels": "Загрузить модели",
         "Hint": "Настройте подключение к провайдеру LLM.",
-        "ServerUrl": "URL сервера",
-        "ServerUrlHint": "Базовый URL LLM-сервера (например, Ollama, LM Studio или совместимый с OpenAI).",
+        "LoadingModels": "Загрузка моделей...",
         "Model": "Модель",
         "ModelHint": "Идентификатор модели для чат-ответов.",
-        "TestConnection": "Проверить подключение",
-        "Testing": "Проверка...",
-        "ConnectionSuccess": "Подключение успешно",
-        "ConnectionFailed": "Ошибка подключения",
+        "NoModelsFound": "На сервере модели не найдены",
         "Save": "Сохранить",
         "Saved": "Сохранено",
-        "AvailableModels": "Доступные модели",
-        "NoModelsFound": "На сервере модели не найдены",
-        "LoadingModels": "Загрузка моделей...",
-        "FetchModels": "Загрузить модели"
+        "ServerUrl": "URL сервера",
+        "ServerUrlHint": "Базовый URL LLM-сервера (например, Ollama, LM Studio или совместимый с OpenAI).",
+        "TestConnection": "Проверить подключение",
+        "Testing": "Проверка...",
+        "Title": "Подключение к LLM"
+      },
+      "Debug": {
+        "TimeToFirstToken": "TTFT: {value}мс",
+        "TokensPerSecond": "{value} ток/с",
+        "TotalTime": "Всего: {value}мс"
       },
       "Empty": {
-        "Title": "Начните беседу",
         "Hint": "Практикуйте целевой язык с AI-репетитором. Он исправит ошибки, задаст вопросы и поможет в обучении.",
-        "StartConversation": "Пусть ИИ начнёт"
+        "StartConversation": "Пусть ИИ начнёт",
+        "Title": "Начните беседу"
       },
+      "ExperimentalBanner": "Экспериментальная функция — ответы AI могут содержать ошибки. Проверяйте важные языковые моменты.",
       "InputPlaceholder": "Сообщение на {language}...",
-      "Stats": {
-        "Overview": "Обзор",
-        "FailedWords": "Проблемные слова",
-        "Grammar": "Грамматика",
-        "Levels": "Уровни",
-        "NoMedia": "Статистика медиа ещё не сохранена",
-        "NoMediaHint": "Смотрите видео или читайте книги, и здесь появится аналитика.",
-        "Current": "Текущий",
-        "AssessedLevel": "Оценённый уровень",
-        "UnknownWords": "Неизвестные слова",
-        "FailedGrammarCount": "Ошибки в грамматике",
-        "UniqueWords": "Уникальных слов",
-        "WordLevelDistribution": "Распределение слов по уровням",
-        "NoFailedWords": "Проблемных слов пока нет — продолжайте погружение!",
-        "Seen": "Просмотрено",
-        "Hovered": "Наведений",
-        "Failed": "Ошибки",
-        "NoFailedGrammar": "Грамматических ошибок пока нет.",
-        "WordLevels": "Уровни слов",
-        "GrammarLevels": "Уровни грамматики",
-        "NoLevelData": "Недостаточно данных для расчёта распределения по уровням.",
-        "Unique": "Уникальные",
-        "ByOccurrence": "По частоте"
-      },
-      "SceneContext": "Контекст сцены",
-      "SceneContextPlaceholder": "Опишите, что происходит в сцене (например, действия персонажей, сюжетные события). Можно на любом языке.",
-      "StopStreaming": "Стоп",
-      "ShowTooltipOn": "Подсказка при:",
-      "TriggerHover": "Наведение",
-      "TriggerLongHover": "Длительное наведение",
-      "TriggerKeyHover": "{key} + наведение",
       "LevelAdapt": {
         "Label": "Адаптировать уровень:",
         "None": "Нет"
       },
       "Quiz": {
-        "TextInputPlaceholder": "Введите ответ...",
         "BlankInputAriaLabel": "Пропуск {index}",
         "Correct": "Правильно!",
-        "IncorrectAnswer": "Ответ: {answer}"
+        "IncorrectAnswer": "Ответ: {answer}",
+        "TextInputPlaceholder": "Введите ответ..."
       },
-      "Mistake": {
-        "GrammarCorrection": "Грамматическая поправка",
-        "Correction": "Исправление",
-        "RelatedPattern": "Связанная конструкция: {pattern}"
+      "Regenerate": "Сгенерировать заново",
+      "SceneContext": "Контекст сцены",
+      "SceneContextPlaceholder": "Опишите, что происходит в сцене (например, действия персонажей, сюжетные события). Можно на любом языке.",
+      "Send": "Отправить сообщение",
+      "ShowTooltipOn": "Подсказка при:",
+      "Speaking": "Говорит...",
+      "StartRecording": "Начать запись",
+      "Stats": {
+        "AssessedLevel": "Оценённый уровень",
+        "ByOccurrence": "По частоте",
+        "Current": "Текущий",
+        "Failed": "Ошибки",
+        "FailedGrammarCount": "Ошибки в грамматике",
+        "FailedWords": "Проблемные слова",
+        "Grammar": "Грамматика",
+        "GrammarLevels": "Уровни грамматики",
+        "Hovered": "Наведений",
+        "Levels": "Уровни",
+        "NoFailedGrammar": "Грамматических ошибок пока нет.",
+        "NoFailedWords": "Проблемных слов пока нет — продолжайте погружение!",
+        "NoLevelData": "Недостаточно данных для расчёта распределения по уровням.",
+        "NoMedia": "Статистика медиа ещё не сохранена",
+        "NoMediaHint": "Смотрите видео или читайте книги, и здесь появится аналитика.",
+        "Overview": "Обзор",
+        "Seen": "Просмотрено",
+        "Unique": "Уникальные",
+        "UniqueWords": "Уникальных слов",
+        "UnknownWords": "Неизвестные слова",
+        "WordLevelDistribution": "Распределение слов по уровням",
+        "WordLevels": "Уровни слов"
       },
-      "Debug": {
-        "TokensPerSecond": "{value} ток/с",
-        "TimeToFirstToken": "TTFT: {value}мс",
-        "TotalTime": "Всего: {value}мс"
+      "StopRecording": "Остановить запись",
+      "StopStreaming": "Стоп",
+      "Tab": {
+        "Chat": "Чат",
+        "Context": "Контекст",
+        "Stats": "Статистика",
+        "Voice": "Голос"
       },
+      "Title": "AI-собеседник",
+      "TriggerHover": "Наведение",
+      "TriggerKeyHover": "{key} + наведение",
+      "TriggerLongHover": "Длительное наведение",
       "Voice": {
-        "DownloadModels": "Скачать голосовые модели",
-        "DownloadProgress": "Скачивание голосовых моделей… {progress}%",
-        "InstallingDependencies": "Установка голосовых зависимостей…",
-        "DownloadingModels": "Скачивание голосовых моделей…",
-        "Listening": "Слушаю…",
-        "Processing": "Обработка…",
-        "Speaking": "Говорю…",
-        "Stage.STT": "STT",
-        "Stage.LLM": "LLM",
-        "Stage.TTS": "TTS",
-        "CallEnded": "Звонок завершён",
-        "StartCall": "Начать голосовой звонок",
-        "EndCall": "Завершить звонок",
-        "PushToTalk": "Нажми и говори",
-        "HandsFree": "Свободные руки",
-        "ModelsRequired": "Для этой функции требуются голосовые модели. Скачайте их, чтобы начать.",
-        "DownloadFailed": "Не удалось скачать голосовые модели. Возможно, не установлены необходимые зависимости. Переустановите приложение или проверьте логи.",
-        "TtsSpeed": "Скорость речи",
-        "TtsProvider": "Движок TTS",
-        "LocalTts": "Локальный",
-        "Qwen3Tts": "Qwen3",
-        "CloudTts": "Cloud",
-        "Interrupted": "*Прервано пользователем*",
-        "SilenceThreshold": "Порог тишины",
-        "VoiceMode": "Режим ввода",
-        "HoldToSpeak": "Удерживайте для записи",
-        "MicPermission": "Для голосового звонка требуется доступ к микрофону.",
-        "EmptyHint": "Начните голосовой звонок, чтобы практиковать разговорную речь с AI-репетитором.",
-        "Initializing": "Загрузка голосового движка…",
-        "LoadingTtsModel": "Загрузка модели синтеза речи…",
-        "DefaultVoice": "Голос по умолчанию",
-        "VoiceSample": "Клон голоса",
-        "VoiceSampleDisabledLocal": "Загрузка пользовательского голоса доступна только с Qwen3-TTS или Cloud TTS",
-        "UploadSample": "Загрузить образец голоса",
         "Aftermath": {
-          "Title": "Итоги сеанса",
           "Duration": "Длительность",
           "Messages": "Сообщений",
           "Mistakes": "Отмечено ошибок",
-          "NoMistakes": "Ошибок не отмечено. Отличная работа!"
-        }
+          "NoMistakes": "Ошибок не отмечено. Отличная работа!",
+          "Title": "Итоги сеанса"
+        },
+        "CloudTts": "Cloud",
+        "DefaultVoice": "Голос по умолчанию",
+        "DownloadFailed": "Не удалось скачать голосовые модели. Возможно, не установлены необходимые зависимости. Переустановите приложение или проверьте логи.",
+        "DownloadModels": "Скачать голосовые модели",
+        "DownloadingModels": "Скачивание голосовых моделей…",
+        "EmptyHint": "Начните голосовой звонок, чтобы практиковать разговорную речь с AI-репетитором.",
+        "EndCall": "Завершить звонок",
+        "HandsFree": "Свободные руки",
+        "Initializing": "Загрузка голосового движка…",
+        "InstallingDependencies": "Установка голосовых зависимостей…",
+        "Interrupted": "*Прервано пользователем*",
+        "Listening": "Слушаю…",
+        "LoadingTtsModel": "Загрузка модели синтеза речи…",
+        "LocalTts": "Локальный",
+        "MicPermission": "Для голосового звонка требуется доступ к микрофону.",
+        "ModelsRequired": "Для этой функции требуются голосовые модели. Скачайте их, чтобы начать.",
+        "Processing": "Обработка…",
+        "PushToTalk": "Нажми и говори",
+        "Qwen3Tts": "Qwen3",
+        "SilenceThreshold": "Порог тишины",
+        "Speaking": "Говорю…",
+        "Stage": {
+          "LLM": "LLM",
+          "STT": "STT",
+          "TTS": "TTS"
+        },
+        "StartCall": "Начать голосовой звонок",
+        "TtsProvider": "Движок TTS",
+        "TtsSpeed": "Скорость речи",
+        "UploadSample": "Загрузить образец голоса",
+        "VoiceSample": "Клон голоса",
+        "VoiceSampleDisabledLocal": "Загрузка пользовательского голоса доступна только с Qwen3-TTS или Cloud TTS"
       }
+    },
+    "ErrorModal": {
+      "AnkiDisablePermanent": "Отключить Anki навсегда",
+      "AnkiDisableSession": "Отключить Anki для этой сессии",
+      "Copied": "Скопировано!",
+      "CopyError": "Копировать ошибку",
+      "HideDetails": "Скрыть подробности",
+      "Messages": {
+        "AnkiConnectionFailed": "Не удалось подключиться к Anki. Убедитесь, что Anki запущен с установленным AnkiConnect, или отключите интеграцию с Anki.",
+        "AnkiNoValidCards": "Подключение к Anki установлено, но действительных карточек не найдено. Проверьте колоду и настройку полей в параметрах.",
+        "BackendStopped": "Бэкенд-сервер неожиданно остановился. Перезапустите приложение.",
+        "FileNotFound": "Необходимый файл не найден. Переустановите приложение.",
+        "PermissionDenied": "В доступе отказано. Проверьте системные разрешения или запустите приложение от имени администратора.",
+        "PortInUse": "Другое приложение использует необходимый порт. Закройте другие экземпляры mLearn или перезагрузите компьютер."
+      },
+      "Quit": "Выход",
+      "ShowDetails": "Показать подробности",
+      "Title": {
+        "AnkiError": "Ошибка подключения к Anki",
+        "Error": "Ошибка",
+        "Fatal": "Критическая ошибка",
+        "StartupError": "Ошибка запуска",
+        "Warning": "Предупреждение"
+      }
+    },
+    "Explainer": {
+      "Explanation": "Объяснение",
+      "GeneratedBy": "Сгенерировано локальным AI",
+      "Generating": "Генерация...",
+      "GrammarPoints": "Основные грамматические моменты",
+      "Loading": "Загрузка AI-объяснения...",
+      "ShowParsed": "Разобранный вид",
+      "ShowRaw": "Текстовый вид",
+      "Title": "AI-объяснение",
+      "Translation": "Перевод"
+    },
+    "FlashcardChoice": {
+      "AnkiError": "Не удалось экспортировать в Anki",
+      "AnkiSuccess": "Карточка экспортирована в Anki",
+      "Example": "Пример",
+      "ExportToAnki": "Экспортировать в Anki",
+      "SaveToSRS": "Сохранить в SRS",
+      "Title": "Сохранить карточку"
+    },
+    "Flashcards": {
+      "Browse": {
+        "NoWordsFound": "Совпадающие карточки не найдены.",
+        "SearchPlaceholder": "Поиск слов...",
+        "ShowingCount": "Показано {count} из {total}",
+        "SortDefault": "По умолчанию",
+        "SortDueDateAsc": "Срок (ранние)",
+        "SortDueDateDesc": "Срок (поздние)",
+        "SortEaseAsc": "Лёгкость (по возрастанию)",
+        "SortEaseDesc": "Лёгкость (по убыванию)"
+      },
+      "Bulk": {
+        "EtaRemaining": "~{eta} осталось",
+        "ExamplesAllDone": "Все карточки уже имеют примеры",
+        "ExamplesButton": "Генерировать примеры",
+        "ExamplesDone": "Примеры сгенерированы для {count} карточек",
+        "ExamplesProgress": "Генерация примеров…",
+        "ExamplesTooltip": "Генерировать примеры предложений с помощью LLM для карточек без примеров",
+        "GenerateDescription": "Пакетная генерация аудио и примеров предложений для ваших карточек",
+        "ModeChoice": "Режим генерации",
+        "ModeOlderThan": "Перегенерировать старше даты",
+        "ModeOnlyEmpty": "Только карточки без данных",
+        "ModeReplaceAll": "Перегенерировать все (заменить существующие)",
+        "OlderThanDate": "Сгенерировано до",
+        "TtsAllDone": "Все карточки уже имеют TTS-аудио",
+        "TtsButton": "Генерировать TTS",
+        "TtsDone": "TTS сгенерирован для {count} элементов",
+        "TtsProgress": "Генерация TTS…",
+        "TtsTooltip": "Генерировать TTS-аудио для всех слов и примеров карточек"
+      },
+      "Card": {
+        "Ease": "Лёгкость:",
+        "PlayExample": "Воспроизвести пример предложения",
+        "PlayWord": "Воспроизвести произношение слова",
+        "RateHint": "Оцените от 1 до 4 • Нажмите, чтобы вернуться",
+        "RegenerateExample": "Сгенерировать пример с помощью ИИ",
+        "RevealHint": "Нажмите или пробел, чтобы показать ответ",
+        "ScreenshotAlt": "Скриншот",
+        "Tracked": "Отслеживается"
+      },
+      "EmptyState": {
+        "NoCardsDescription": "Начните учить слова при просмотре видео или чтении, и они появятся здесь!",
+        "NoCardsDueDescription": "Сейчас нет карточек для повторения. Отличная работа!",
+        "NoCardsDueTitle": "Всё пройдено!",
+        "NoCardsTitle": "Карточек пока нет"
+      },
+      "Leech": {
+        "Message": "Слово «{word}» было провалено {count} раз(а) и может требовать особого внимания",
+        "Title": "Обнаружена пиявка"
+      },
+      "Modals": {
+        "AddCard": {
+          "MeaningLabel": "Значение",
+          "MeaningPlaceholder": "Определение...",
+          "ReadingLabel": "Чтение (необязательно)",
+          "ReadingPlaceholder": "Произношение...",
+          "Submit": "Добавить карточку",
+          "Title": "Добавить новую карточку",
+          "WordLabel": "Слово",
+          "WordPlaceholder": "Введите слово..."
+        },
+        "DeleteCard": {
+          "Confirm": "Вы уверены, что хотите удалить эту карточку? Это действие нельзя отменить.",
+          "Title": "Удалить карточку"
+        },
+        "EditCard": {
+          "Title": "Редактировать карточку"
+        }
+      },
+      "PostCreate": {
+        "AllDone": "Все задачи выполнены",
+        "ExampleTts": "Аудио примера",
+        "SomeFailed": "Некоторые задачи не выполнены",
+        "ToastTitle": "Генерация содержимого карточки",
+        "Translation": "Перевод",
+        "WordTts": "Аудио слова"
+      },
+      "Review": {
+        "Again": "Снова",
+        "Bury": "Отложить",
+        "Complete": "Повторение завершено!",
+        "CompleteDescription": "Вы повторили все карточки на сегодня. Отличная работа!",
+        "Easy": "Легко",
+        "Hard": "Трудно",
+        "LearningCard": "Изучаемая карточка",
+        "LearningLabel": "Изучение:",
+        "New": "Новые:",
+        "NewCard": "Новая карточка",
+        "Ok": "Хорошо",
+        "PressKeyTooltip": "Нажмите {key}",
+        "RelearningCard": "Переучиваемая карточка",
+        "Remove": "Удалить",
+        "Review": "Повторение:",
+        "ReviewCard": "Карточка повторения",
+        "ReviewMore": "Повторить ещё",
+        "ShowAnswer": "Показать ответ",
+        "Undo": "↩",
+        "UndoTooltip": "Отменить"
+      },
+      "State": {
+        "Learning": "Изучение",
+        "New": "Новая",
+        "Relearning": "Переучивание",
+        "Review": "Повторение"
+      },
+      "Statistics": {
+        "Advanced": {
+          "AverageEase": "Средняя лёгкость",
+          "AvgTimePerDay": "Среднее время в день",
+          "CardMaturity": "Зрелость карточек",
+          "DailyActivity": "Ежедневная активность",
+          "DaysStudied": "Дней обучения",
+          "EaseDistribution": "Распределение лёгкости",
+          "IntervalDistribution": "Распределение интервалов",
+          "Last30Days": "Последние 30 дней",
+          "Mature": "Зрелые",
+          "RetentionRate": "Процент запоминания",
+          "TotalLapses": "Всего провалов",
+          "TotalNewLearned": "Выучено новых",
+          "TotalReviews": "Всего повторений",
+          "Young": "Молодые"
+        },
+        "CardBreakdown": "Разбивка карточек",
+        "DueToday": "На сегодня",
+        "Learning": "Изучение",
+        "LearningLimits": "Дневные лимиты",
+        "LimitHint": "-1 для безлимита",
+        "Mature": "Зрелые",
+        "MaxNewCardsPerDay": "Макс. новых карточек в день",
+        "MaxReviewsPerDay": "Макс. повторений в день",
+        "New": "Новые",
+        "NewCardsStudied": "Изучено новых карточек",
+        "Review": "Повторение",
+        "ReviewsCompleted": "Завершено повторений",
+        "Suspended": "Приостановлены",
+        "TodayProgress": "Прогресс за сегодня",
+        "TotalCards": "Всего карточек"
+      },
+      "Sync": {
+        "Complete": "Синхронизация завершена!",
+        "ConnectedSyncing": "Подключено! Синхронизация...",
+        "Error": {
+          "CameraAccess": "Доступ к камере запрещён",
+          "Connection": "Не удалось установить соединение",
+          "LoadLibraries": "Не удалось загрузить необходимые библиотеки: {error}"
+        },
+        "EstablishingConnection": "Установка соединения...",
+        "GeneratingCode": "Генерация кода подключения...",
+        "LoadingLibraries": "Загрузка библиотек...",
+        "PointCamera": "Наведите камеру на QR-код...",
+        "QRHint": "Отсканируйте QR-код в мобильном приложении mLearn для синхронизации",
+        "ScanInstructions": "Введите {numChunks} в приложении mLearn, затем отсканируйте этот QR-код",
+        "ScanQRInstead": "Сканировать QR",
+        "ShowQRInstead": "Показать QR",
+        "SyncedSuccessfully": "Карточки синхронизированы!",
+        "SyncingFlashcards": "Синхронизация карточек...",
+        "Title": "Синхронизация карточек"
+      },
+      "UI": {
+        "AddCard": "+ Добавить карточку",
+        "Sync": "Синхронизация",
+        "Tabs": {
+          "Browse": "Обзор",
+          "Generate": "Генерация",
+          "Review": "Повторение",
+          "Statistics": "Статистика"
+        },
+        "Title": "Карточки"
+      }
+    },
+    "Global": {
+      "Actions": {
+        "SaveChanges": "Сохранить изменения"
+      },
+      "Add": "Добавить",
+      "AppName": "mLearn",
+      "Aria": {
+        "CloseAlert": "Закрыть уведомление",
+        "CloseModal": "Закрыть окно",
+        "ExitFullscreen": "Выйти из полного экрана",
+        "Fullscreen": "Полный экран",
+        "Pause": "Пауза",
+        "PictureInPicture": "Картинка в картинке",
+        "Play": "Воспроизвести",
+        "ToggleSubtitles": "Переключить субтитры"
+      },
+      "Back": "Назад",
+      "Cancel": "Отмена",
+      "Close": "Закрыть",
+      "ComingSoon": "Скоро",
+      "Continue": "Продолжить",
+      "Delete": "Удалить",
+      "Edit": "Редактировать",
+      "Export": "Экспорт",
+      "Flashcard": "Карточка",
+      "Import": "Импорт",
+      "Loading": "Загрузка...",
+      "Ok": "ОК",
+      "Ready": "Готово",
+      "Remove": "Удалить",
+      "RequiresRestart": "Требуется перезапуск",
+      "Reset": "Сбросить",
+      "Save": "Сохранить",
+      "Search": "Поиск",
+      "Status": {
+        "Adding": "Добавление...",
+        "LoadingLanguageData": "Загрузка языковых данных...",
+        "LoadingSettings": "Загрузка настроек...",
+        "StartingBackend": "Запуск бэкенда..."
+      },
+      "Success": "Успешно",
+      "Time": {
+        "HoursMinutes": "{hours}ч {minutes}м",
+        "LessThanMinute": "< 1м",
+        "MinutesSeconds": "{minutes}м {seconds}с",
+        "Now": "Сейчас",
+        "ShortDay": "{value}д",
+        "ShortHour": "{value}ч",
+        "ShortMinute": "{value}м",
+        "ShortSecond": "{value}с",
+        "ShortYear": "{value}г"
+      },
+      "TryAgain": "Попробовать снова"
+    },
+    "Home": {
+      "Cards": {
+        "AITutor": {
+          "Description": "Практикуйтесь с ИИ-собеседником",
+          "Title": "ИИ-репетитор"
+        },
+        "Flashcards": {
+          "Description": "Повторяйте слова с интервальным повторением",
+          "Title": "Карточки"
+        },
+        "Reader": {
+          "Description": "Читайте мангу и документы с OCR",
+          "Title": "Читалка"
+        },
+        "Settings": {
+          "Description": "Настройте mLearn под себя",
+          "Title": "Настройки"
+        },
+        "Video": {
+          "Description": "Смотрите видео с интерактивными субтитрами",
+          "Title": "Видео"
+        }
+      },
+      "Errors": {
+        "UnableToOpen": "Невозможно открыть файл. Путь к файлу сохранён некорректно."
+      },
+      "UI": {
+        "ChangeLanguage": "Сменить язык",
+        "ContinueLearning": "Продолжить обучение",
+        "LearningLanguage": "Изучаю {language}",
+        "Title": "mLearn",
+        "TitleDescription": "Изучайте языки через погружение"
+      }
+    },
+    "Installer": {
+      "Alerts": {
+        "NetworkError": "Произошла сетевая ошибка. Проверьте подключение и попробуйте снова."
+      },
+      "Buttons": {
+        "Continue": "Продолжить",
+        "Installing": "Установка...",
+        "StartInstallation": "Начать установку"
+      },
+      "Components": {
+        "ExplainAi": {
+          "Description": "Устанавливает локальную нейросеть LLM. Снимите флажок, чтобы пропустить ~3 ГБ зависимостей.",
+          "Title": "Установить модуль mLearn Explain AI"
+        },
+        "Reader": {
+          "Description": "Устанавливает OCR для чтения манги/изображений. Снимите флажок, чтобы пропустить ~2 ГБ зависимостей.",
+          "Title": "Установить модуль читалки mLearn"
+        },
+        "Voice": {
+          "Description": "Устанавливает распознавание речи, синтез речи и клонирование голоса. Снимите флажок, чтобы пропустить ~4 ГБ зависимостей.",
+          "Title": "Установить голосовой и TTS модуль"
+        }
+      },
+      "Instructions": {
+        "ChooseComponents": "Выберите компоненты для установки и нажмите «Установить».",
+        "ClickToBegin": "Нажмите «Установить» для начала.",
+        "DownloadNote": "Все загрузки обрабатываются автоматически. Рекомендуется стабильное подключение.",
+        "ForgetSomething": "Если вы забыли что-то установить, удалите mLearn и перезапустите установщик.",
+        "LanguageUnlocks": "Выбор языка будет доступен после завершения настройки."
+      },
+      "Status": {
+        "Complete": "Установка завершена! Выберите язык для завершения настройки.",
+        "CouldNotStart": "Не удалось запустить процесс установки.",
+        "ErrorOccurred": "Произошла ошибка. Проверьте журнал ниже.",
+        "Installing": "Установка, пожалуйста подождите...",
+        "InstallingPackages": "Установка пакетов...",
+        "LanguageInstalledRestarting": "Язык установлен! Перезапуск...",
+        "LlmSkip": "Зависимости локальной AI-модели будут пропущены.",
+        "LlmWillInstall": "Зависимости локальной AI-модели будут установлены.",
+        "NotStarted": "Ожидание начала установки...",
+        "OcrSkip": "Зависимости OCR-читалки будут пропущены.",
+        "OcrWillInstall": "Зависимости OCR-читалки будут установлены.",
+        "VoiceSkip": "Зависимости голоса и TTS будут пропущены.",
+        "VoiceWillInstall": "Зависимости голоса и TTS будут установлены."
+      }
+    },
+    "KanjiGrid": {
+      "CharactersByExamLevel": "Иероглифы по уровню экзамена:",
+      "Description": "Цвета: изучается (оранжевый→жёлтый), известный (зелёный→светло-зелёный), неизвестный (серый). Наведите для подробностей.",
+      "EmptyState": {
+        "Description": "Когда вы встретите иероглифы в видео или тексте, они появятся здесь.",
+        "Hint": "Начните смотреть или читать контент для начала отслеживания!",
+        "Title": "Отслеживаемых иероглифов пока нет"
+      },
+      "Legend": {
+        "Known": "Известный:",
+        "Learning": "Изучается:",
+        "Unknown": "Неизвестный:"
+      },
+      "LevelFallback": "Уровень {level}",
+      "Loading": "Загрузка данных об иероглифах...",
+      "Stats": {
+        "Known": "Известных:",
+        "Learning": "Изучается:",
+        "TotalFound": "Всего:",
+        "Unknown": "Неизвестных:"
+      },
+      "Title": "Освоение иероглифов",
+      "Tooltip": {
+        "KnownCount": "Известных",
+        "LearningCount": "Изучается",
+        "Score": "Оценка",
+        "WordsContaining": "Слова с {char}"
+      }
+    },
+    "Languages": {
+      "de": "Немецкий",
+      "ja": "Японский"
+    },
+    "LocaleNames": {
+      "de": "Deutsch",
+      "en": "English",
+      "fr": "Français",
+      "ja": "日本語",
+      "ru": "Русский"
     },
     "MediaStats": {
-      "Title": "Статистика медиа",
-      "Difficulty": "Сложность",
-      "TimeSpent": "Затрачено времени",
       "Sessions": "Сеансов",
-      "WordsSeen": "Встречено слов",
-      "UnknownWords": "Неизвестные слова",
-      "GrammarPoints": "Грамматические темы",
-      "ReviewWithAI": "Повторить с AI",
-      "NoWords": "Слова ещё не встречались.",
-      "NoGrammar": "Грамматические темы ещё не обнаружены.",
-      "AllKnown": "Все слова известны!",
-      "NotAssessed": "Не оценено",
-      "Tabs": {
-        "Summary": "Сводка",
-        "Words": "Слова",
-        "Grammar": "Грамматика",
-        "Unknown": "Неизвестные"
+      "TimeSpent": "Затрачено времени"
+    },
+    "Notifications": {
+      "AnkiCacheLoaded": "Карточки Anki загружены из кэша (похоже, Anki сейчас недоступен)",
+      "MigrationComplete": "Миграция данных завершена",
+      "MigrationFlashcards": "Ваши карточки были перенесены из v{version}. Создана резервная копия.",
+      "MigrationFlashcardsNoBackup": "Ваши карточки были перенесены из v{version}.",
+      "MigrationWordStatuses": "Перенесено {count} статусов слов из v1. Создана резервная копия."
+    },
+    "PitchAccent": {
+      "Atamadaka": "Начальное повышение (атамадака)",
+      "DropAfterMora": "Понижение после моры {mora}",
+      "Heiban": "Плоское (хэйбан)",
+      "Nakadaka": "Среднее повышение (накадака)",
+      "Odaka": "Конечное повышение (одака)"
+    },
+    "Reader": {
+      "CopyPhrase": "Копировать фразу",
+      "HideFurigana": "Скрыть фуригану",
+      "ShowFurigana": "Показать фуригану",
+      "Sidebar": {
+        "AddAllFlashcards": "Добавить все",
+        "AddingAllFlashcards": "Добавление...",
+        "IgnoreWord": "Игнорировать",
+        "Pages": "Страницы",
+        "UnknownWords": "Незнакомые слова",
+        "UnknownWordsCount": "{count} слов",
+        "UnknownWordsEmpty": "На текущей странице не найдено незнакомых слов."
+      },
+      "Status": {
+        "Caching": "Кэширование {x}/{y}",
+        "CleaningUp": "Очистка…",
+        "FailedToLoad": "Ошибка загрузки",
+        "FailedToLoadPdf": "Ошибка загрузки PDF",
+        "ImportedBook": "Импортированная книга",
+        "Loading": "Загрузка...",
+        "LoadingNeuralNetwork": "Загрузка нейронной сети...",
+        "LoadingPdf": "Загрузка PDF...",
+        "NoImagesFound": "Изображения не найдены",
+        "PdfDocument": "PDF-документ",
+        "Pending": "Ожидание...",
+        "Processing": "Обработка {x}/{y}",
+        "Queued": "В очереди...",
+        "Ready": "Готово",
+        "Recognizing": "Распознавание..."
+      },
+      "StatusBar": {
+        "DebugOverlayOff": "Отладка: Выкл",
+        "DebugOverlayOn": "Отладка: Вкл",
+        "DebugOverlayTitle": "Переключить отладочное наложение для визуализации OCR-текста и обнаружения фуриганы",
+        "FuriganaDetectionOff": "Фуригана: Выкл",
+        "FuriganaDetectionOn": "Фуригана: Вкл",
+        "MagnifierHint": "Нажмите {key} для лупы",
+        "OpenConversationAgent": "AI-репетитор",
+        "OpenConversationAgentTitle": "Открыть AI-репетитора",
+        "OutlierMultLabel": "Множ. выбросов: {value}x",
+        "OutlierMultTitle": "Боксы с площадью выше медианы × это значение изолируются",
+        "PaddleDownscaleLabel": "Масштаб PaddleOCR: {value}%",
+        "PaddleDownscaleTitle": "Уменьшить изображение перед обработкой PaddleOCR (dev)",
+        "Ready": "Готово",
+        "ShowTooltipOn": "Подсказка при:",
+        "TimingDetection": "Обн",
+        "TimingPerBox": "Сред/бокс",
+        "TimingRecognition": "Расп",
+        "TimingTotal": "Итого",
+        "Tokenizing": "Токенизация...",
+        "Translating": "Перевод...",
+        "TriggerHover": "Наведение",
+        "TriggerKeyHover": "{key} + наведение",
+        "TriggerLongHover": "Длительное наведение",
+        "TriggerTitle": "Как вызывать всплывающую подсказку",
+        "TurboModeOff": "Турбо: Выкл",
+        "TurboModeOn": "Турбо: Вкл",
+        "ZoneGapLabel": "Зазор зоны: {value}",
+        "ZoneGapTitle": "Макс. зазор между краями боксов для кластеризации зон"
+      },
+      "Toolbar": {
+        "BackToHome": "Вернуться на главную",
+        "DoublePage": "Разворот",
+        "FirstPagePairedTooltip": "Первая страница парная",
+        "FirstPageSingleTooltip": "Первая страница одиночная (обложка)",
+        "FitHeight": "По высоте ↕",
+        "FitWidth": "По ширине ↔",
+        "Home": "← Домой",
+        "PageLayoutPaired": "1+2|3+4",
+        "PageLayoutSingle": "1|2+3",
+        "SinglePage": "Одна страница",
+        "ToggleUnknownWordsSidebar": "Переключить боковую панель незнакомых слов"
+      },
+      "UI": {
+        "Tips": {
+          "NeverLosePlace": {
+            "Description": "Позиция страницы сохраняется автоматически.",
+            "Title": "Закладка автоматическая"
+          },
+          "ShapeView": {
+            "Description": "Используйте боковую панель или горячие клавиши для переключения между разворотом и одной страницей.",
+            "Title": "Настройте вид"
+          },
+          "SummonOcr": {
+            "Description": "При отображении страницы можно запустить OCR для интерактивного распознавания текста.",
+            "Title": "Используйте OCR"
+          }
+        },
+        "WelcomeSplash": {
+          "DropZone": "Перетащите файлы сюда для импорта",
+          "Footer": "Перетащите что-нибудь, чтобы начать — этот экран приветствия уступит место вашей истории.",
+          "OpenFolder": "Открыть папку с изображениями",
+          "OpenPdf": "Открыть PDF",
+          "Title": "Добро пожаловать в Читалку",
+          "TitleDescription": "Перетащите папку с изображениями или .pdf файл в это окно."
+        }
       }
     },
-    "AI": {
-      "SetupRequired": "Для AI-функций требуется настройка. Открываю настройки...",
-      "SetupRequiredAction": "Для использования этой функции настройте AI в настройках.",
-      "DownloadModel": "Скачать модель",
-      "DownloadingModel": "Скачивание модели...",
-      "DownloadProgress": "Скачано {percent}% ({downloaded} / {total})",
-      "DownloadComplete": "Модель скачана.",
-      "DownloadFailed": "Ошибка скачивания модели: {error}",
-      "ModelReady": "Модель готова.",
-      "ModelNotDownloaded": "Модель ещё не скачана.",
-      "ModelLoading": "Загрузка модели...",
-      "ModelLoaded": "Модель загружена и готова.",
-      "OllamaNotReachable": "Не удаётся подключиться к серверу Ollama. Убедитесь, что Ollama запущен и URL верный.",
-      "OllamaConnected": "Подключено к Ollama.",
-      "OllamaInstallGuide": "Установить Ollama",
-      "OllamaInstallGuideUrl": "https://ollama.com/download",
-      "Settings": {
-        "Title": "Настройки AI",
-        "Description": "Настройте AI-функции для объяснения слов и разговорной практики.",
-        "Provider": {
-          "Title": "Провайдер LLM",
-          "Description": "Выберите способ запуска AI-моделей.",
-          "Builtin": "Встроенный",
-          "BuiltinDescription": "Запуск локальных моделей прямо в приложении. Внешнее ПО не требуется.",
-          "Ollama": "Ollama",
-          "OllamaDescription": "Подключение к серверу Ollama для доступа к большему количеству моделей.",
-          "Cloud": "Облако",
-          "CloudDescription": "Подключение к удалённому OpenAI-совместимому LLM-серверу."
+    "Settings": {
+      "Appearance": {
+        "Theme": {
+          "Dark": "Тёмная",
+          "DarkHighContrast": "Тёмная высококонтрастная",
+          "Darker": "Самая тёмная",
+          "Description": "Выберите визуальную тему приложения",
+          "GlassDark": "Стеклянная тёмная",
+          "GlassLight": "Стеклянная светлая",
+          "Label": "Тема",
+          "Light": "Светлая",
+          "LightHighContrast": "Светлая высококонтрастная"
+        }
+      },
+      "BlurEffect": {
+        "BlurAmount": {
+          "Description": "Интенсивность эффекта размытия",
+          "Label": "Степень размытия"
         },
-        "OCR": {
-          "Title": "OCR-бэкенд",
-          "Provider": {
-            "Label": "Провайдер OCR",
-            "Description": "Выберите бэкенд, который обрабатывает OCR-запросы.",
-            "Local": "Локальный",
-            "Cloud": "Cloud"
+        "BlurKnownSubtitles": {
+          "Description": "Размывать субтитры, в которых все слова уже известны",
+          "Label": "Размывать субтитры с известными словами"
+        },
+        "BlurWords": {
+          "Description": "Размывать слова, которые ещё не выучены",
+          "Label": "Размывать неизвестные слова"
+        }
+      },
+      "CustomColors": {
+        "Description": "Переопределяет отдельные цвета глобально, независимо от темы. Оставьте пустым, чтобы использовать цвет темы по умолчанию.",
+        "Reset": "Сбросить",
+        "ResetAll": "Сбросить все цвета"
+      },
+      "Data": {
+        "ExportAllData": {
+          "Description": "Экспортировать все данные обучения (карточки, статистику, аудио, изображения) в ZIP-архив",
+          "Label": "Экспорт всех данных"
+        },
+        "ExportSettings": {
+          "Description": "Экспортировать настройки в файл JSON",
+          "Label": "Экспорт настроек"
+        },
+        "ImportAllData": {
+          "Confirm": "Все текущие данные (карточки, статистика, аудио, изображения) будут перезаписаны. Приложение перезапустится после импорта. Продолжить?",
+          "Description": "Импортировать все данные обучения из ZIP-архива. Существующие данные будут перезаписаны.",
+          "Label": "Импорт всех данных",
+          "Success": "Данные успешно импортированы. Приложение сейчас перезапустится."
+        },
+        "ImportSettings": {
+          "Description": "Импортировать настройки из файла JSON",
+          "Label": "Импорт настроек"
+        },
+        "ResetSettings": {
+          "Description": "Сбросить все настройки до значений по умолчанию",
+          "Label": "Сбросить настройки"
+        }
+      },
+      "DisplayOptions": {
+        "ImmediateFetch": {
+          "Description": "Загружать данные слов сразу при появлении субтитров",
+          "Label": "Немедленная загрузка"
+        },
+        "OpenAside": {
+          "Description": "Показывать боковую панель с переводами слов при появлении субтитров",
+          "Label": "Панель живого перевода"
+        },
+        "ShowFurigana": {
+          "Description": "Отображать чтение над словами",
+          "Label": "Показывать фуригану"
+        },
+        "ShowPitchAccent": {
+          "Description": "Отображать информацию о тоновом ударении слов",
+          "Label": "Показывать тоновое ударение"
+        },
+        "ShowPos": {
+          "Description": "Отображать грамматическую информацию о словах",
+          "Label": "Показывать часть речи"
+        }
+      },
+      "Groups": {
+        "Appearance": "Внешний вид",
+        "BlurEffect": "Эффект размытия",
+        "CustomColors": "Пользовательские переопределения цветов",
+        "Data": "Данные",
+        "DisplayOptions": "Параметры отображения",
+        "Language": "Язык",
+        "Performance": "Производительность",
+        "PosColors": "Цвета частей речи",
+        "Settings": "Настройки",
+        "SubtitleAppearance": "Внешний вид субтитров",
+        "SubtitleTiming": "Тайминг субтитров",
+        "ThemePreview": "Предпросмотр темы",
+        "WordStatus": "Состояние слов"
+      },
+      "Keybind": {
+        "PressKey": "Нажмите клавишу...",
+        "Tooltip": "Нажмите для записи, затем нажмите клавишу для назначения"
+      },
+      "Language": {
+        "AppLanguage": {
+          "Description": "Выберите язык интерфейса",
+          "Label": "Язык приложения"
+        },
+        "LearningLanguage": {
+          "Description": "Выберите язык для изучения",
+          "Label": "Изучаемый язык"
+        }
+      },
+      "Performance": {
+        "DevMode": {
+          "Description": "Включить инструменты разработчика и функции отладки",
+          "Label": "Режим разработчика"
+        },
+        "HoverKnownGetFromDictionary": {
+          "Description": "Получать данные из словаря даже для известных слов",
+          "Label": "Искать известные слова"
+        }
+      },
+      "Reader": {
+        "Description": "Настройки OCR и читалки",
+        "Furigana": {
+          "Hide": {
+            "Description": "Закрыть обнаруженную фуригану белым блоком, показывать при наведении (для практики чтения)",
+            "Label": "Скрыть фуригану"
+          },
+          "Title": "Фуригана"
+        },
+        "LlmIntegration": {
+          "AutoSpeak": {
+            "Description": "Автоматически озвучивать ответы AI-тьютора",
+            "Label": "Автоозвучивание ответов"
+          },
+          "Enable": {
+            "Description": "Использовать AI для объяснения слов и грамматики",
+            "Label": "Включить объяснения LLM"
+          },
+          "PassiveWordTracking": {
+            "Description": "Автоматически отслеживать знакомость слов при чтении и наведении",
+            "Label": "Пассивное отслеживание слов"
+          },
+          "Speech": {
+            "Description": "Включить озвучивание ответов AI и распознавание речи на вводе",
+            "Label": "Речь (экспериментально)"
+          },
+          "Title": "Интеграция с LLM"
+        },
+        "Magnifier": {
+          "Hotkey": {
+            "Description": "Удерживайте эту клавишу для увеличения изображения",
+            "Hint": "Удерживайте для увеличения",
+            "Label": "Горячая клавиша лупы"
+          },
+          "Size": {
+            "Description": "Размер линзы лупы в пикселях",
+            "Label": "Размер линзы"
+          },
+          "Title": "Лупа",
+          "Zoom": {
+            "Description": "Коэффициент увеличения лупы",
+            "Label": "Уровень увеличения"
           }
         },
-        "CloudConfig": {
-          "Title": "Настройки облачной LLM",
-          "UrlHint": "Базовый URL удалённого OpenAI-совместимого LLM-сервера.",
-          "TokenHint": "Войдите через настройки подключения для аутентификации с облачной LLM.",
-          "TestConnection": "Проверить подключение",
-          "Testing": "Проверка...",
-          "ConnectionSuccess": "Подключение успешно.",
-          "ConnectionFailed": "Не удалось подключиться к облачной LLM.",
-          "ApiUrlHint": "URL API облака настраивается в параметрах подключения."
-        },
-        "BuiltinModel": {
-          "Title": "Встроенная модель",
-          "ModelName": "Модель",
-          "Status": "Состояние",
-          "DiskSpace": "Требуется дискового пространства: ~{size}",
-          "Redownload": "Скачать заново"
-        },
-        "OllamaConfig": {
-          "Title": "Настройки Ollama",
-          "ServerUrl": "URL сервера",
-          "ServerUrlHint": "Адрес сервера Ollama.",
-          "Model": "Модель",
-          "ModelHint": "Выберите или введите название модели Ollama.",
-          "TestConnection": "Проверить подключение",
-          "Testing": "Проверка...",
-          "ConnectionSuccess": "Подключение успешно.",
-          "ConnectionFailed": "Не удалось подключиться к Ollama.",
-          "FetchModels": "Загрузить модели",
-          "LoadingModels": "Загрузка моделей...",
-          "NoModels": "Модели не найдены.",
-          "InstallHintPrefix": "Нет Ollama?",
-          "InstallHintSuffix": "для начала работы."
-        },
-        "FlashcardTTS": {
-          "Title": "TTS карточек",
-          "AutoPlay": {
-            "Label": "Автовоспроизведение TTS",
-            "Description": "Автоматически воспроизводить произношение слова при показе карточки во время повторения"
+        "OcrSettings": {
+          "CropPadding": {
+            "Description": "Отступ в пикселях при обрезке текста для карточек",
+            "Label": "Отступ обрезки OCR"
           },
-          "Provider": {
-            "Label": "Провайдер TTS",
-            "Description": "Выберите между локальным Kokoro TTS, Qwen3-TTS (клонирование голоса) или Cloud TTS",
-            "Kokoro": "Kokoro (локальный)",
-            "Qwen3": "Qwen3-TTS (клонирование голоса)",
-            "Cloud": "Cloud"
+          "Enable": {
+            "Description": "Включить оптическое распознавание символов для изображений",
+            "Label": "Включить OCR"
           },
-          "VoiceSample": {
-            "Label": "Образец голоса",
-            "Description": "Выберите образец голоса для клонирования",
-            "DefaultVoice": "Голос по умолчанию",
-            "Upload": "Загрузить образец голоса",
-            "Transcribing": "Транскрибирование аудио…",
-            "Transcript": "Транскрипция:",
-            "NoTranscript": "Транскрипция недоступна",
-            "PlaySample": "Воспроизвести образец",
-            "DeleteSample": "Удалить голосовой образец",
-            "DeleteConfirm": "Вы уверены, что хотите удалить этот голосовой образец? Это действие нельзя отменить.",
-            "TestPlaceholder": "Введите текст для тестирования TTS…",
-            "TestTts": "Тестировать TTS",
-            "ModelLoading": "Загрузка модели TTS…"
+          "FuriganaDetection": {
+            "Description": "Определять и фильтровать аннотации фуриганы в результатах OCR. При отключении обнаруженные текстовые блоки отображаются как есть.",
+            "Label": "Обнаружение фуриганы"
           },
-          "AutoGenerate": {
-            "Label": "Автогенерация аудио",
-            "Description": "Автоматически генерировать и кэшировать аудиофайлы для новых карточек"
+          "RamSaver": {
+            "Description": "Использовать облегчённое обнаружение текста на базе OpenCV вместо нейросети. Экономит ~1,5 ГБ ОЗУ, но может быть менее точным для сложных макетов. Качество распознавания не затрагивается.",
+            "Label": "Экономия ОЗУ"
+          },
+          "Title": "Настройки OCR",
+          "TurboMode": {
+            "Description": "Использовать быстрые настройки обнаружения. Без этого режима используется обнаружение с более высоким разрешением, которое медленнее, но точнее, особенно для вертикального текста.",
+            "Label": "Турборежим"
+          }
+        },
+        "Title": "Читалка",
+        "WordHoverBehavior": {
+          "HoverKey": {
+            "Description": "Клавиша, которую нужно удерживать для показа подсказки при наведении",
+            "Label": "Клавиша наведения"
+          },
+          "Modes": {
+            "Hover": "Наведение (мгновенно)",
+            "KeyHover": "{key} + наведение",
+            "LongHover": "Длительное наведение (задержка 500мс)"
+          },
+          "Title": "Поведение всплывающей подсказки",
+          "TriggerMode": {
+            "Description": "Как вызывать всплывающую подсказку с переводом в читалке",
+            "Label": "Режим активации"
           }
         }
+      },
+      "SRS": {
+        "AnkiIntegration": {
+          "AddScreenshots": {
+            "Description": "Включать скриншоты из видео и читалки в карточки",
+            "Label": "Добавлять скриншоты"
+          },
+          "ConnectUrl": {
+            "Description": "URL сервера AnkiConnect",
+            "Label": "URL AnkiConnect"
+          },
+          "Connected": "Подключено",
+          "ConnectionStatus": {
+            "Description": "Проверить подключение к AnkiConnect",
+            "Label": "Состояние подключения"
+          },
+          "DeckName": {
+            "Description": "Колода Anki для новых карточек",
+            "Label": "Название колоды",
+            "Placeholder": "Выберите колоду"
+          },
+          "Enable": {
+            "Description": "Получать данные карточек из Anki через AnkiConnect. Карточки Anki имеют приоритет над встроенными карточками mLearn",
+            "Label": "Включить Anki"
+          },
+          "Failed": "Ошибка",
+          "FieldMapping": {
+            "Description": "Сопоставить поля заметок Anki с полями карточек mLearn",
+            "Expression": {
+              "Description": "Поле, содержащее слово или выражение",
+              "Label": "Поле выражения"
+            },
+            "Meaning": {
+              "Description": "Поле, содержащее определение или значение",
+              "Label": "Поле значения"
+            },
+            "None": "(нет)",
+            "Placeholder": "Выберите поле",
+            "Reading": {
+              "Description": "Поле, содержащее чтение или произношение",
+              "Label": "Поле чтения"
+            }
+          },
+          "ModelName": {
+            "Description": "Тип записи Anki для новых карточек",
+            "Label": "Тип записи",
+            "Placeholder": "Выберите тип записи"
+          },
+          "Preview": {
+            "Loading": "Загрузка предпросмотра...",
+            "NoCard": "Карточки для этого типа записи не найдены",
+            "Title": "Предпросмотр карточки"
+          },
+          "Test": "Тест",
+          "Title": "Интеграция с Anki"
+        },
+        "BuiltInFlashcards": {
+          "AutomaticCreation": {
+            "Description": "Автоматически создавать карточки из слов, встречающихся при изучении",
+            "Label": "Автоматическое создание карточек"
+          },
+          "CreateUnseenCards": {
+            "Description": "Автоматически создавать карточки для новых слов целевого уровня",
+            "Label": "Создавать карточки для новых слов"
+          },
+          "Enable": {
+            "Description": "Использовать встроенную систему интервального повторения mLearn вместо Anki",
+            "Label": "Использовать SRS mLearn"
+          },
+          "ExamCardProportion": {
+            "Description": "Доля автоматически создаваемых карточек экзаменационного уровня (0–1)",
+            "Label": "Доля экзаменационных карточек"
+          },
+          "FlipAnimation": {
+            "Description": "Показывать 3D-анимацию переворота при показе ответа",
+            "Label": "Анимация переворота"
+          },
+          "ForceRecreate": {
+            "BackendUnavailable": "Бэкенд недоступен. Убедитесь, что сервер Python запущен.",
+            "Created": "Создано {count} новых карточек."
+          },
+          "LLMExamples": {
+            "Description": "Использовать LLM для генерации примеров предложений при автоматическом создании карточек (требуется подключение к бэкенду)",
+            "Label": "Генерировать примеры предложений"
+          },
+          "LeechThreshold": {
+            "Description": "Количество провалов до пометки карточки как пиявки (0 = отключено)",
+            "Label": "Порог пиявки"
+          },
+          "MaxNewCards": {
+            "Description": "Лимит автоматически создаваемых карточек",
+            "Label": "Макс. новых в день"
+          },
+          "PreparedExamLevel": {
+            "Description": "Целевой уровень для автоматически создаваемых карточек",
+            "Label": "Целевой уровень экзамена"
+          },
+          "Title": "Встроенные карточки"
+        },
+        "DataManagement": {
+          "NukeButton": "Удалить все",
+          "NukeFlashcards": {
+            "Description": "Безвозвратно удалить все карточки и сбросить всё (необратимо!)",
+            "Label": "Удалить все карточки",
+            "ModalWarning": "Все ваши карточки, данные отслеживания слов, знания грамматики, дневная статистика и весь прогресс обучения будут безвозвратно удалены. Это действие необратимо и вернёт систему карточек в начальное пустое состояние, как при первой установке приложения.",
+            "Success": "Все карточки были удалены.",
+            "TypePhrase": "Введите \"{phrase}\", чтобы подтвердить это действие."
+          },
+          "ResetButton": "Сбросить SRS",
+          "ResetSRS": {
+            "Description": "Очистить весь прогресс карточек (необратимо!)",
+            "Label": "Сбросить данные SRS",
+            "ModalWarning": "Все данные планирования SRS будут сброшены, включая интервалы, коэффициенты лёгкости, счётчики повторений и прогресс обучения. Содержание карточек сохранится, но все карточки вернутся в состояние 'новая'.",
+            "Success": "Все данные SRS были сброшены.",
+            "TypePhrase": "Введите \"{phrase}\", чтобы подтвердить это действие."
+          },
+          "Title": "Управление данными"
+        },
+        "Description": "Настройки карточек и Anki",
+        "LearningLimits": {
+          "MaxNewCardsLearning": {
+            "Description": "Максимальное количество новых карточек в день (-1 = без ограничений)",
+            "Label": "Макс. новых карточек для изучения"
+          },
+          "MaxReviews": {
+            "Description": "Максимальное количество повторений в день (-1 = без ограничений)",
+            "Label": "Макс. повторений в день"
+          },
+          "NewDayHour": {
+            "Description": "Время сброса дня SRS (0–23). Повторения до этого часа считаются за предыдущий день. По умолчанию: 4 (4:00)",
+            "Label": "Час начала нового дня"
+          },
+          "Title": "Дневные лимиты обучения",
+          "UnlimitedHint": "-1 = без ограничений"
+        },
+        "Title": "Интервальное повторение"
+      },
+      "Subtitle": {
+        "FontSize": {
+          "Description": "Размер текста субтитров",
+          "Label": "Размер шрифта"
+        },
+        "FontWeight": {
+          "Description": "Жирность текста субтитров",
+          "Label": "Толщина шрифта"
+        },
+        "FontWeights": {
+          "Black": "Чёрный (900)",
+          "Bold": "Жирный (700)",
+          "ExtraBold": "Сверхжирный (800)",
+          "ExtraLight": "Сверхлёгкий (200)",
+          "Light": "Лёгкий (300)",
+          "Medium": "Средний (500)",
+          "Normal": "Обычный (400)",
+          "SemiBold": "Полужирный (600)",
+          "Thin": "Тонкий (100)"
+        },
+        "Offset": {
+          "Description": "Смещение тайминга субтитров в мс",
+          "Label": "Смещение субтитров"
+        },
+        "Theme": {
+          "Description": "Визуальный стиль фона субтитров",
+          "Label": "Стиль субтитров"
+        },
+        "Themes": {
+          "Background": "Фон",
+          "Marker": "Маркер",
+          "Shadow": "Тень"
+        }
+      },
+      "UI": {
+        "Description": "Настройте mLearn под себя",
+        "ResetConfirm": "Вы уверены, что хотите сбросить все настройки до значений по умолчанию? Это действие нельзя отменить.",
+        "ResetSuccess": "Настройки сброшены до значений по умолчанию",
+        "SaveError": "Не удалось сохранить настройки",
+        "Title": "Настройки"
+      },
+      "WordStatus": {
+        "ColourCodes": {
+          "Description": "Маркировать слова цветом по части речи",
+          "Label": "Цвета частей речи"
+        },
+        "ColourKnown": {
+          "Description": "Подсвечивать цветом уже выученные слова",
+          "Label": "Выделять известные слова цветом"
+        },
+        "KnownColour": {
+          "Description": "Цвет для выделения известных слов",
+          "Label": "Цвет известных слов"
+        },
+        "KnownThreshold": {
+          "Description": "Значение лёгкости, при котором слово считается известным",
+          "Label": "Порог «известного» слова"
+        },
+        "PosColors": {
+          "Description": "Настройте цвета для каждого тега части речи. Эти цвета используются для выделения слов в субтитрах, читалке и диалоге с AI.",
+          "Reset": "Сбросить",
+          "ResetAll": "Сбросить все цвета частей речи"
+        }
+      }
+    },
+    "Statistics": {
+      "Actions": {
+        "EditWordDatabase": "Редактор базы слов",
+        "OpenAiAnalytics": "AI-анализ медиа",
+        "ViewKanjiGrid": "Таблица кандзи"
+      },
+      "CurrentlyLearning": "Изучается сейчас",
+      "Description": "Отслеживайте прогресс и учебный путь",
+      "Legend": {
+        "Learned": "Выучено",
+        "Learning": "Изучается",
+        "Viewed": "Просмотрено"
+      },
+      "LevelColumn": "Уровень",
+      "TimeWatched": "Время просмотра",
+      "Title": "Статистика обучения",
+      "WordsByExamLevel": "Слова по уровню экзамена",
+      "WordsByStatus": "Слова по статусу",
+      "WordsLearned": "Слов выучено",
+      "WordsTracked": "Слов отслеживается"
+    },
+    "SubtitleSync": {
+      "NextTooltip": "Синхронизировать со следующим субтитром",
+      "PreviousTooltip": "Синхронизировать с предыдущим субтитром"
+    },
+    "Video": {
+      "Controls": {
+        "Mute": "Выключить звук",
+        "PlaybackSpeed": "Скорость воспроизведения",
+        "Unmute": "Включить звук"
+      },
+      "CopySubtitle": "Копировать субтитры",
+      "SyncSubtitles": "Синхронизировать субтитры",
+      "Tooltip": {
+        "GoHome": "Вернуться на главную",
+        "OpenConversationAgent": "Открыть AI-репетитора"
+      },
+      "UI": {
+        "DropVideoHere": "Перетащите видеофайл сюда",
+        "GoHome": "← Домой",
+        "OpenConversationAgent": "AI-репетитор",
+        "OpenSubtitles": "Открыть субтитры",
+        "OpenVideo": "Открыть видео",
+        "OrClickToBrowse": "или нажмите для выбора"
+      },
+      "WatchTogether": "Смотреть вместе"
+    },
+    "WordDbEditor": {
+      "Actions": {
+        "Unignore": "Перестать игнорировать"
+      },
+      "AllLevels": "Все уровни",
+      "Anki": {
+        "AlreadyInAnki": "Уже в Anki",
+        "EmptyField": "(пусто)",
+        "ExportFailed": "Ошибка экспорта в Anki",
+        "ExportToAnki": "Экспорт в Anki",
+        "Exported": "Экспортировано в Anki",
+        "NoCardFound": "Для этого слова не найдена карточка Anki",
+        "NotConnected": "Anki не подключён",
+        "Preview": "Предпросмотр",
+        "PreviewTitle": "Предпросмотр Anki — {word}"
+      },
+      "BrowseMode": {
+        "AllWords": "Все слова",
+        "IgnoredWords": "Игнорируемые слова"
+      },
+      "Columns": {
+        "Level": "Уровень",
+        "Status": "Состояние",
+        "TrackedBy": "Источник",
+        "Translation": "Перевод",
+        "Word": "Слово"
+      },
+      "EditTranslation": {
+        "PitchError": "Не удалось получить данные о тоновом ударении",
+        "RemoveOverride": "Удалить переопределение",
+        "RevertError": "Не удалось отменить переопределение перевода",
+        "Title": "Редактировать перевод — {word}",
+        "Tooltip": "Редактировать переопределение слова"
+      },
+      "EmptyIgnoredState": "Для этого языка нет игнорируемых слов.",
+      "EmptyState": "Слова не найдены. Нажмите «Загрузить все» для загрузки базы слов.",
+      "Fields": {
+        "PartOfSpeech": "Часть речи",
+        "PosPlaceholder": "n, v, adj и т.д."
+      },
+      "LevelNames": {
+        "Common": "Общее",
+        "Unlisted": "Не в списке"
+      },
+      "Loading": "Загрузка базы слов...",
+      "LoadingMore": "Загрузка...",
+      "SearchHintDetailed": "Enter для поиска. Точные совпадения приоритетны. Сначала нажмите «Загрузить все».",
+      "SearchPlaceholder": "Поиск слов...",
+      "Searching": "Поиск...",
+      "Trackers": {
+        "Flashcards": "Карточки",
+        "Ignored": "Игнорируется",
+        "Nothing": "Не отслеживается"
+      }
+    },
+    "WordHover": {
+      "Alerts": {
+        "ExplainRequiresLlm": "Функция объяснения требует локальную AI-модель. Включите LLM в настройках и перезапустите приложение."
+      },
+      "Errors": {
+        "FailedToAddFlashcard": "Не удалось добавить карточку: {error}"
+      },
+      "Explain": "Объяснить",
+      "Loading": "Загрузка...",
+      "NoTranslation": "Перевод не найден",
+      "Status": {
+        "Known": "Известное",
+        "Learning": "Изучаемое",
+        "Unknown": "Неизвестное"
       }
     }
   }

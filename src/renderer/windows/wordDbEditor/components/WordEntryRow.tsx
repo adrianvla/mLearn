@@ -103,6 +103,7 @@ export interface WordEntry {
   status: number;
   fullTranslation?: string;
   pitch?: number | null;
+  ignoredAt?: number;
   /** Additional readings for words that have multiple independent senses */
   alternateReadings?: string[];
 }
@@ -113,6 +114,7 @@ export interface WordEntryRowProps {
   onStatusChange: (entry: WordEntry, newStatus: number) => void;
   onAddFlashcard: (entry: WordEntry) => void;
   onRemoveFlashcard: (entry: WordEntry) => void;
+  onUnignore?: (entry: WordEntry) => void;
   onEditFlashcard?: (entry: WordEntry) => void;
   onEdit?: (entry: WordEntry) => void;
   onExportToAnki?: (entry: WordEntry) => void;
@@ -174,6 +176,12 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     // Remove the currently displayed one
     all.delete(displayed);
     return Array.from(all);
+  });
+
+  const trackerLabel = createMemo(() => {
+    if (props.entry.tracker === 'flashcards') return t('mlearn.WordDbEditor.Trackers.Flashcards');
+    if (props.entry.tracker === 'ignored') return t('mlearn.WordDbEditor.Trackers.Ignored');
+    return t('mlearn.WordDbEditor.Trackers.Nothing');
   });
 
   // Lazily fetch translation when the row becomes visible.
@@ -278,7 +286,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         <Show when={props.entry.level < 0}>-</Show>
       </div>
       <div class="col tracker">
-        <span class="tracker-label">{props.entry.tracker}</span>
+        <span class="tracker-label">{trackerLabel()}</span>
         <Show when={props.entry.tracker === 'flashcards'}>
           <Show when={props.onEditFlashcard}>
             <Btn
@@ -297,7 +305,16 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             {t('mlearn.Global.Remove')}
           </Btn>
         </Show>
-        <Show when={props.entry.tracker !== 'flashcards'}>
+        <Show when={props.entry.tracker === 'ignored' && props.onUnignore}>
+          <Btn
+            variant="secondary"
+            size="sm"
+            onClick={() => props.onUnignore?.(props.entry)}
+          >
+            {t('mlearn.WordDbEditor.Actions.Unignore')}
+          </Btn>
+        </Show>
+        <Show when={props.entry.tracker !== 'flashcards' && props.entry.tracker !== 'ignored'}>
           <Btn
             variant="primary"
             size="sm"

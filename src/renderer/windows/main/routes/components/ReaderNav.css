@@ -13,7 +13,6 @@
   background: var(--bg);
   backdrop-filter: var(--backdrop-filter-nodim);
   z-index: 100;
-  -webkit-app-region: drag; /* make the nav draggable for the Electron window */
   position: fixed;
   top: 0;
   left: 0;
@@ -21,14 +20,19 @@
   color: var(--text-secondary);
 }
 
-/* Remove the previous pseudo-element approach and instead mark interactive
-   areas as no-drag so they remain clickable while the rest of the nav is draggable. */
-
-.reader-nav * *:not(span){
-  -webkit-app-region: no-drag; /* interactive elements must be no-drag */
+/* Simple childless drag overlay behind all nav content.
+   Avoids Chromium drag region bitmap corruption (electron/electron#1354)
+   that occurs when -webkit-app-region: drag is on a complex element with children. */
+.reader-nav-drag-region {
+  position: absolute;
+  inset: 0;
+  -webkit-app-region: drag;
 }
 
+/* All interactive nav content sits above the drag region */
 .reader-nav .nav-group {
+  -webkit-app-region: no-drag;
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -43,6 +47,10 @@
   align-items: center;
   justify-content: center;
   padding: 0;
+}
+
+.reader-nav .reader-nav-icon-mirrored {
+  transform: scaleX(-1);
 }
 
 .reader-nav .nav-arrows {

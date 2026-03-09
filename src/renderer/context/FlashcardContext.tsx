@@ -7,17 +7,19 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, WordStats, FlashcardState, PassiveWordKnowledge, GrammarKnowledgeEntry, TranslationEntry } from '../../shared/types';
+import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, WordStats, FlashcardState, PassiveWordKnowledge, GrammarKnowledgeEntry, TranslationEntry, IgnoredWordEntry } from '../../shared/types';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady } from './migrationSignals';
 import { useSettings } from './SettingsContext';
 import { useLocalization } from './LocalizationContext';
 import { changeKnownStatus as changeKnownStatusInStats } from '../services/statsService';
-import { showToast, updateToast, removeToast } from '../components/common/Feedback/Toast';
+import { showToast, updateToast } from '../components/common/Feedback/Toast';
+import { GroupedTaskProgressContent, type TaskState, type TaskStatus, type TaskGroup } from '../components/common/TaskProgress/TaskProgress';
 import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
 import { streamChat } from '../services/llmProvider';
+import { stripFurigana } from '../../shared/utils/textUtils';
 
 // Current store version
 const CURRENT_VERSION = 5;
@@ -95,6 +97,7 @@ function getDefaultStore(): FlashcardStore {
     wordToCardMap: {},
     wordStatsMap: {},
     knownUntracked: {},
+    ignoredWords: {},
     wordKnowledge: {},
     grammarKnowledge: {},
     meta: SRS.getDefaultMeta(),
@@ -163,6 +166,10 @@ interface FlashcardContextValue {
   getCardByWordSync: (word: string) => Flashcard | null;
   /** Synchronous get all cards for a word - iterates cards directly, O(n) but reactive */
   getCardsByWordSync: (word: string) => Flashcard[];
+  /** Synchronous check if word is ignored for the current language */
+  isWordIgnoredSync: (word: string) => boolean;
+  /** Synchronous get ignored words for the current language */
+  getIgnoredWordsSync: () => IgnoredWordEntry[];
 
   // Settings
   updateMeta: (updates: Partial<FlashcardMeta>) => void;
@@ -174,7 +181,8 @@ interface FlashcardContextValue {
 
   // Word tracking
   trackWordAppearance: (word: string, reading?: string) => Promise<void>;
-  markWordAsKnown: (word: string) => Promise<void>;
+  ignoreWordForLanguage: (word: string, reading?: string) => Promise<void>;
+  unignoreWordForLanguage: (word: string) => Promise<void>;
 
   // Passive word knowledge tracking
   trackWordSeen: (word: string, reading?: string, easeBump?: number) => void;
@@ -442,6 +450,15 @@ export const FlashcardProvider: ParentComponent = (props) => {
         }
       }
 
+      const newIgnoredWords: Record<string, IgnoredWordEntry> = {};
+      for (const [hash, entry] of Object.entries<IgnoredWordEntry>(partial.ignoredWords || {})) {
+        if (!hash.includes(':')) {
+          newIgnoredWords[langKey(lang, hash)] = { ...entry, language: lang };
+        } else {
+          newIgnoredWords[hash] = entry;
+        }
+      }
+
       // Re-key wordCandidates
       const newWordCandidates: Record<string, any> = {};
       for (const [hash, entry] of Object.entries(partial.wordCandidates || {})) {
@@ -458,6 +475,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         wordToCardMap,
         wordStatsMap,
         knownUntracked: newKnownUntracked,
+        ignoredWords: newIgnoredWords,
         wordKnowledge: newWordKnowledge,
         grammarKnowledge: newGrammarKnowledge,
         meta,
@@ -472,6 +490,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       wordToCardMap,
       wordStatsMap,
       knownUntracked: partial.knownUntracked || {},
+      ignoredWords: partial.ignoredWords || {},
       wordKnowledge: partial.wordKnowledge || {},
       grammarKnowledge: partial.grammarKnowledge || {},
       meta,
@@ -718,45 +737,104 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   /**
+   * Multi-card post-creation toast system.
+   * Combines all concurrent flashcard generation tasks into a single grouped toast.
+   */
+  let postCreateToastId: number | null = null;
+  const [postCreateGroups, setPostCreateGroups] = createSignal<TaskGroup[]>([]);
+
+  /** Re-render the shared toast with current group state */
+  const refreshPostCreateToast = () => {
+    if (postCreateToastId === null) {
+      postCreateToastId = showToast({
+        variant: 'info',
+        title: t('mlearn.Flashcards.PostCreate.ToastTitle'),
+        content: <GroupedTaskProgressContent groups={postCreateGroups} />,
+        duration: 0,
+      });
+    } else {
+      updateToast(postCreateToastId, {
+        content: <GroupedTaskProgressContent groups={postCreateGroups} />,
+      });
+    }
+  };
+
+  /** Check if all tasks in all groups are terminal (done/error), then auto-dismiss */
+  const checkPostCreateCompletion = () => {
+    const groups = postCreateGroups();
+    const allTerminal = groups.every(g => g.tasks.every(tk => tk.status === 'done' || tk.status === 'error'));
+    if (!allTerminal) return;
+
+    const hadError = groups.some(g => g.tasks.some(tk => tk.status === 'error'));
+    if (postCreateToastId !== null) {
+      updateToast(postCreateToastId, {
+        variant: hadError ? 'warning' : 'success',
+        title: hadError ? t('mlearn.Flashcards.PostCreate.SomeFailed') : t('mlearn.Flashcards.PostCreate.AllDone'),
+        content: <GroupedTaskProgressContent groups={postCreateGroups} />,
+        duration: 4000,
+      });
+    }
+    // Reset for next batch
+    postCreateToastId = null;
+    setPostCreateGroups([]);
+  };
+
+  /** Update a specific task's status within a group (identified by groupKey + taskKey) */
+  const updatePostCreateTask = (groupKey: string, taskKey: string, status: TaskStatus) => {
+    setPostCreateGroups(prev => prev.map(g =>
+      g.label === groupKey
+        ? { ...g, tasks: g.tasks.map(tk => tk.key === taskKey ? { ...tk, status } : tk) }
+        : g
+    ));
+    refreshPostCreateToast();
+    checkPostCreateCompletion();
+  };
+
+  /**
    * Post-flashcard-creation tasks: translate example sentence and generate TTS.
    * Runs asynchronously after card creation with toast notifications.
+   * Multiple concurrent calls are combined into a single grouped toast.
    */
   const postFlashcardCreation = (cardId: string, card: Flashcard) => {
     const hasExample = card.content.example && card.content.example !== '-' && card.content.example.replace(/<[^>]*>/g, '').trim().length > 0;
-    const needsTranslation = hasExample && !card.content.exampleMeaning;
+    const needsTranslation = hasExample && !card.content.exampleMeaning && settings.llmEnabled;
     const needsTts = settings.flashcardAutoGenerateAudio && isElectron() && settings.flashcardTtsProvider !== 'kokoro';
 
-    // Translate example sentence via LLM
-    if (needsTranslation && settings.llmEnabled) {
-      const translationToastId = showToast({
-        variant: 'info',
-        title: t('mlearn.Flashcards.PostCreate.TranslatingTitle'),
-        message: t('mlearn.Flashcards.PostCreate.TranslatingMessage'),
-        duration: 0,
-      });
+    if (!needsTranslation && !needsTts) return;
 
-      translateExampleSentence(card.content.example!, getLanguageDisplayName(settings.language))
-        .then((translation) => {
-          if (translation) {
-            updateFlashcardContent(cardId, { exampleMeaning: translation });
-          }
-          removeToast(translationToastId);
-        })
-        .catch((err) => {
-          console.warn('Failed to translate example sentence:', err);
-          removeToast(translationToastId);
-        });
+    // Build tasks for this card
+    const wordLabel = card.content.front;
+    const tasks: TaskState[] = [];
+    if (needsTranslation) tasks.push({ key: 'translation', label: t('mlearn.Flashcards.PostCreate.Translation'), status: 'pending' });
+    if (needsTts) {
+      tasks.push({ key: 'wordTts', label: t('mlearn.Flashcards.PostCreate.WordTts'), status: 'pending' });
+      if (hasExample) {
+        tasks.push({ key: 'exampleTts', label: t('mlearn.Flashcards.PostCreate.ExampleTts'), status: 'pending' });
+      }
     }
 
-    // Auto-generate TTS audio
-    if (needsTts) {
-      const ttsToastId = showToast({
-        variant: 'info',
-        title: t('mlearn.Flashcards.PostCreate.GeneratingTtsTitle'),
-        message: t('mlearn.Flashcards.PostCreate.GeneratingTtsMessage'),
-        duration: 0,
-      });
+    // Add this card's group to the shared toast
+    setPostCreateGroups(prev => [...prev, { label: wordLabel, tasks }]);
+    refreshPostCreateToast();
 
+    // Run tasks concurrently
+    const runTranslation = async () => {
+      if (!needsTranslation) return;
+      updatePostCreateTask(wordLabel, 'translation', 'running');
+      try {
+        const translation = await translateExampleSentence(card.content.example!, getLanguageDisplayName(settings.language));
+        if (translation) {
+          updateFlashcardContent(cardId, { exampleMeaning: translation });
+        }
+        updatePostCreateTask(wordLabel, 'translation', 'done');
+      } catch (err) {
+        console.warn('Failed to translate example sentence:', err);
+        updatePostCreateTask(wordLabel, 'translation', 'error');
+      }
+    };
+
+    const runTts = async () => {
+      if (!needsTts) return;
       const bridge = getBridge();
       const provider = settings.flashcardTtsProvider;
       const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
@@ -764,35 +842,38 @@ export const FlashcardProvider: ParentComponent = (props) => {
       const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
       const cloudApiUrl = settings.cloudApiUrl || undefined;
 
-      (async () => {
-        try {
-          const cleanWord = card.content.front.replace(/<[^>]*>/g, '').trim();
-          if (cleanWord && cleanWord !== '-') {
-            await bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
-          }
-          if (hasExample) {
-            const cleanExample = card.content.example!.replace(/<[^>]*>/g, '').trim();
-            if (cleanExample && cleanExample !== '-') {
-              await bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
-            }
-          }
-          updateToast(ttsToastId, {
-            variant: 'success',
-            title: undefined,
-            message: t('mlearn.Flashcards.PostCreate.TtsDone'),
-            duration: 3000,
-          });
-        } catch (err) {
-          console.warn('Failed to auto-generate TTS:', err);
-          updateToast(ttsToastId, {
-            variant: 'error',
-            title: undefined,
-            message: t('mlearn.Flashcards.PostCreate.TtsFailed'),
-            duration: 4000,
-          });
+      // Word TTS
+      updatePostCreateTask(wordLabel, 'wordTts', 'running');
+      try {
+        const cleanWord = stripFurigana(card.content.front);
+        if (cleanWord && cleanWord !== '-') {
+          await bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
         }
-      })();
-    }
+        updatePostCreateTask(wordLabel, 'wordTts', 'done');
+      } catch (err) {
+        console.warn('Failed to generate word TTS:', err);
+        updatePostCreateTask(wordLabel, 'wordTts', 'error');
+      }
+
+      // Example TTS
+      if (hasExample) {
+        updatePostCreateTask(wordLabel, 'exampleTts', 'running');
+        try {
+          const cleanExample = stripFurigana(card.content.example!);
+          if (cleanExample && cleanExample !== '-') {
+            await bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+          }
+          updatePostCreateTask(wordLabel, 'exampleTts', 'done');
+        } catch (err) {
+          console.warn('Failed to generate example TTS:', err);
+          updatePostCreateTask(wordLabel, 'exampleTts', 'error');
+        }
+      }
+    };
+
+    // Fire both concurrently — translation doesn't depend on TTS
+    runTranslation();
+    runTts();
   };
 
   // Helper to recalculate word stats after card changes
@@ -833,6 +914,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
           
           if (neverShowAgain) {
             s.knownUntracked[lk] = true;
+            s.ignoredWords[lk] = {
+              word,
+              reading: card.content.reading,
+              language: lang,
+              ignoredAt: Date.now(),
+            };
           }
         } else {
           // Recalculate stats for remaining cards
@@ -1143,6 +1230,21 @@ export const FlashcardProvider: ParentComponent = (props) => {
     })[0];
   };
 
+  const isWordIgnoredSync = (word: string): boolean => {
+    if (!word) return false;
+    const wordHash = SRS.hashWordSync(word);
+    const key = langKey(settings.language, wordHash);
+    return !!store.knownUntracked[key] || !!store.ignoredWords[key];
+  };
+
+  const getIgnoredWordsSync = (): IgnoredWordEntry[] => {
+    const prefix = `${settings.language}:`;
+    return Object.entries(store.ignoredWords)
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([, entry]) => entry)
+      .sort((a, b) => b.ignoredAt - a.ignoredAt);
+  };
+
   // Update metadata
   const updateMeta = (updates: Partial<FlashcardMeta>) => {
     setStore(produce((s) => {
@@ -1176,11 +1278,30 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
-  // Mark word as known (won't create flashcard)
-  const markWordAsKnown = async (word: string) => {
+  // Ignore a word for the current language and stop tracking it.
+  const ignoreWordForLanguage = async (word: string, reading?: string) => {
     const wordHash = await SRS.hashWord(word);
     const lang = settings.language;
     const lk = langKey(lang, wordHash);
+
+    const existingTimer = hoverTimers.get(lk);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      hoverTimers.delete(lk);
+    }
+
+    setStore(produce((s) => {
+      s.knownUntracked[lk] = true;
+      s.ignoredWords[lk] = {
+        word,
+        reading,
+        language: lang,
+        ignoredAt: Date.now(),
+      };
+      delete s.wordCandidates[lk];
+      delete s.wordKnowledge[lk];
+    }));
+    saveFlashcards();
 
     // If there are flashcards, remove all of them
     const cardIds = store.wordToCardMap[lk];
@@ -1189,13 +1310,18 @@ export const FlashcardProvider: ParentComponent = (props) => {
       for (const cardId of [...cardIds]) {
         await removeFlashcard(cardId, true);
       }
-    } else {
-      setStore(produce((s) => {
-        s.knownUntracked[lk] = true;
-        delete s.wordCandidates[lk];
-      }));
-      saveFlashcards();
     }
+  };
+
+  const unignoreWordForLanguage = async (word: string) => {
+    const wordHash = await SRS.hashWord(word);
+    const lk = langKey(settings.language, wordHash);
+
+    setStore(produce((s) => {
+      delete s.knownUntracked[lk];
+      delete s.ignoredWords[lk];
+    }));
+    saveFlashcards();
   };
 
   // ========================
@@ -1211,6 +1337,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const wordHash = SRS.hashWordSync(word);
     const lang = settings.language;
     const lk = langKey(lang, wordHash);
+    if (store.knownUntracked[lk]) return;
     const now = Date.now();
 
     setStore(produce((s) => {
@@ -1243,6 +1370,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const wordHash = SRS.hashWordSync(word);
     const lang = settings.language;
     const lk = langKey(lang, wordHash);
+    if (store.knownUntracked[lk]) return;
 
     // Cancel existing timer if any
     const existing = hoverTimers.get(lk);
@@ -1812,12 +1940,15 @@ Translation: [${targetLang} translation]`;
     hasWordSync,
     getCardByWordSync,
     getCardsByWordSync,
+    isWordIgnoredSync,
+    getIgnoredWordsSync,
     updateMeta,
     pushUndoState,
     undoLastAction,
     canUndo,
     trackWordAppearance,
-    markWordAsKnown,
+    ignoreWordForLanguage,
+    unignoreWordForLanguage,
     trackWordSeen,
     trackWordHovered,
     cancelWordHover,

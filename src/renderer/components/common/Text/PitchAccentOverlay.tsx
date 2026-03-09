@@ -212,11 +212,12 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
     if (!info) return '';
 
     const isPill = (props.mode || 'overlay') === 'pill';
+    // For 1-mora words in overlay mode, use 0 margin so the particle box is visible
+    // (the default formula -100/unitCount would be -100%, fully hiding the particle)
+    const particleMargin = isPill ? 0 : (reading.length <= 1 ? 0 : undefined);
     return buildPitchAccentHtml(info, reading.length, {
       includeParticleBox: includeParticleBox(),
-      // In pill mode the particle character is rendered as real text,
-      // so the diagram box must not use a negative margin to overlap.
-      particleMarginPercent: isPill ? 0 : undefined,
+      particleMarginPercent: particleMargin,
       padTo: reading.length,
       homogenous: props.homogenous ?? false,
     });

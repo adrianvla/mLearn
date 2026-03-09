@@ -1,0 +1,91 @@
+.reader-unknown-words-sidebar {
+  position: fixed;
+  top: 48px;
+  right: 0;
+  width: 320px;
+  height: calc(100vh - 48px - 30px);
+  padding: var(--spacing-4);
+  border-left: 1px solid var(--border-color);
+  overflow-y: auto;
+  z-index: 90;
+  user-select: none;
+}
+
+.reader-unknown-words-sidebar-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+}
+
+.reader-unknown-words-sidebar-title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.reader-unknown-words-sidebar-count {
+  margin-top: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.reader-unknown-words-empty {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.reader-unknown-words-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.reader-unknown-words-item {
+  padding: var(--spacing-3);
+}
+
+.reader-unknown-words-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.reader-unknown-words-item-word {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.reader-unknown-words-item-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-3);
+  align-items: stretch;
+}
+
+.reader-unknown-words-item-pills .label-pill,
+.reader-unknown-words-item-pills .btn-pill {
+  font-size: 0.8em;
+  padding: 5px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  height: auto;
+  min-height: unset;
+  box-sizing: border-box;
+}
+
+.reader-unknown-words-ease {
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  padding: 5px 10px;
+  background-color: var(--accent-bg);
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}

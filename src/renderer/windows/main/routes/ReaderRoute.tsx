@@ -3,25 +3,28 @@
  * Manga/Image OCR reader integrated into main window via router
  */
 
-import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
+import { Component, createSignal, For, Show, onMount, onCleanup, createEffect, createMemo, batch, on } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
-import { OcrOverlay, MagnifyingGlass, type OcrResult, type OcrProcessingTimes } from '../../../components/reader';
+import { OcrOverlay, MagnifyingGlass, type OcrBox, type OcrResult, type OcrProcessingTimes } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
-import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats } from '../../../hooks';
+import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats } from '../../../hooks';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { parseKeybind } from '../../../components/common';
 import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext } from '../../../../shared/types';
+import { WORD_STATUS } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../../../shared/backends';
 import { isElectron } from '../../../../shared/platform';
-import { ReaderNav, ReaderSidebar, ReaderWelcomeCard, ReaderStatusBar } from './components';
+import { ReaderNav, ReaderSidebar, ReaderUnknownWordsSidebar, ReaderWelcomeCard, ReaderStatusBar, type ReaderUnknownWordEntry } from './components';
 import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages } from '../../../services/pdfService';
 import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumbnailService';
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
+import { wordsLearnedInApp } from '../../../services/statsService';
+import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import './reader.css';
 
 interface PageImage {
@@ -34,6 +37,16 @@ interface PageImage {
 
 type FitMode = 'fit-height' | 'fit-width';
 type PageMode = 'double' | 'single';
+
+interface ReaderPageWordSource {
+  key: string;
+  word: string;
+  token: Token;
+  contextPhrase: string;
+  pageId: string;
+  box: OcrBox;
+  boxIndex: number;
+}
 
 // OCR results cache by page id
 const [ocrResults, setOcrResults] = createStore<Record<string, OcrResult>>({});
@@ -98,8 +111,9 @@ export const ReaderRoute: Component = () => {
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
   const langCtx = useLanguage();
-  const { detectGrammarInText, supportsGrammar } = langCtx;
+  const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData } = langCtx;
   const { translateWord } = useTranslation({ immediate: true });
+  const { tokenize } = useTokenizer();
   const { lookup } = useDictionary();
   const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
 
@@ -137,6 +151,7 @@ export const ReaderRoute: Component = () => {
     }
   };
   const [showSidebar, setShowSidebar] = createSignal(true);
+  const [showWordSidebar, setShowWordSidebar] = createSignal(true);
   const [bookTitle, setBookTitle] = createSignal('');
   const [ocrStatus, setOcrStatus] = createSignal('');
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -201,6 +216,9 @@ export const ReaderRoute: Component = () => {
   // References for OCR overlay positioning
   let pageContainerRef: HTMLDivElement | undefined;
   const [imageRefs, setImageRefs] = createSignal<Record<string, HTMLImageElement>>({});
+  const [ocrPageWords, setOcrPageWords] = createStore<Record<string, ReaderPageWordSource[]>>({});
+  const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
+  const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
 
   // Helper function to get file path using Electron's webUtils API (Electron 32+)
   // Falls back to legacy File.path property for older Electron versions
@@ -319,6 +337,157 @@ export const ReaderRoute: Component = () => {
       if (p[curr + 1]) result.push(p[curr + 1]);
       return result;
     }
+  };
+
+  createEffect(on(currentBookId, () => {
+    setOcrPageWords(reconcile({}));
+    setAddingSidebarWords(new Set<string>());
+    setIsAddingAllSidebarWords(false);
+  }));
+
+  const handlePageTokenData = (pageId: string, entries: Array<{ boxIndex: number; box: OcrBox; tokens: Token[]; contextPhrase: string }>) => {
+    const nextEntries: ReaderPageWordSource[] = [];
+
+    for (const entry of entries) {
+      for (const token of entry.tokens) {
+        const word = token.actual_word ?? token.surface ?? token.word;
+        if (!word || !isTranslatable(token.type)) {
+          continue;
+        }
+
+        nextEntries.push({
+          key: `${pageId}:${entry.boxIndex}:${word}`,
+          word,
+          token,
+          contextPhrase: entry.contextPhrase,
+          pageId,
+          box: entry.box,
+          boxIndex: entry.boxIndex,
+        });
+      }
+    }
+
+    setOcrPageWords(pageId, nextEntries);
+  };
+
+  const getAnchorRectForWord = (entry: ReaderPageWordSource): DOMRect | null => {
+    const image = imageRefs()[entry.pageId];
+    const result = ocrResults[entry.pageId];
+    if (!image || !result) return null;
+
+    const imageRect = image.getBoundingClientRect();
+    const sentWidth = result.sent_size?.width || (result.original_size?.width || 0) * (result.client_scale || 1) || image.naturalWidth;
+    const sentHeight = result.sent_size?.height || (result.original_size?.height || 0) * (result.client_scale || 1) || image.naturalHeight;
+    if (!sentWidth || !sentHeight) return null;
+
+    const xs = entry.box.box.map((point) => point[0]);
+    const ys = entry.box.box.map((point) => point[1]);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const maxX = Math.max(...xs);
+    const maxY = Math.max(...ys);
+    const scaleX = imageRect.width / sentWidth;
+    const scaleY = imageRect.height / sentHeight;
+    const left = imageRect.left + minX * scaleX;
+    const top = imageRect.top + minY * scaleY;
+    const width = Math.max(1, (maxX - minX) * scaleX);
+    const height = Math.max(1, (maxY - minY) * scaleY);
+
+    return new DOMRect(left, top, width, height);
+  };
+
+  const visibleUnknownWords = createMemo<ReaderUnknownWordEntry[]>(() => {
+    const manualStatuses = wordsLearnedInApp();
+    const deduped = new Map<string, ReaderUnknownWordEntry>();
+
+    for (const page of visiblePages()) {
+      const pageWords = ocrPageWords[page.id] || [];
+      for (const entry of pageWords) {
+        if (deduped.has(entry.word)) {
+          continue;
+        }
+
+        if (flashcardCtx.isWordIgnoredSync(entry.word)) {
+          continue;
+        }
+
+        const manualStatus = numericToWordStatus(manualStatuses[entry.word] ?? WORD_STATUS.UNKNOWN);
+        const effectiveStatus = getEffectiveWordStatus(flashcardCtx.getCardByWordSync(entry.word), manualStatus);
+        if (effectiveStatus === 'known') {
+          continue;
+        }
+
+        deduped.set(entry.word, entry);
+      }
+    }
+
+    return Array.from(deduped.values());
+  });
+
+  const addReaderWordFlashcard = async (entry: ReaderPageWordSource) => {
+    setAddingSidebarWords((prev) => {
+      const next = new Set(prev);
+      next.add(entry.key);
+      return next;
+    });
+
+    try {
+      const translationData = getCachedTranslation(entry.word) ?? await translateWord(entry.word);
+      const image = imageRefs()[entry.pageId] || null;
+      const anchorRect = getAnchorRectForWord(entry);
+      const manualStatus = numericToWordStatus(wordsLearnedInApp()[entry.word] ?? WORD_STATUS.UNKNOWN);
+      const frequency = langCtx.getFrequency(entry.word);
+      const { content, ease } = await buildWordHoverFlashcardContent({
+        token: entry.token,
+        word: entry.word,
+        translationData: translationData || undefined,
+        contextPhrase: entry.contextPhrase,
+        isOcr: true,
+        ocrImageElement: image,
+        anchorRect: anchorRect || undefined,
+        level: frequency?.raw_level ?? -1,
+        manualStatus,
+        colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
+        ocrCropPadding: settings.ocr_crop_padding,
+        tokenize,
+      });
+      await flashcardCtx.addFlashcard(content, ease);
+    } finally {
+      setAddingSidebarWords((prev) => {
+        const next = new Set(prev);
+        next.delete(entry.key);
+        return next;
+      });
+    }
+  };
+
+  const handleAddSidebarWord = async (entry: ReaderUnknownWordEntry) => {
+    if (addingSidebarWords().has(entry.key) || flashcardCtx.hasWordSync(entry.word) || flashcardCtx.isWordIgnoredSync(entry.word)) {
+      return;
+    }
+    await addReaderWordFlashcard(entry);
+  };
+
+  const handleAddAllSidebarWords = async (entries: ReaderUnknownWordEntry[]) => {
+    if (isAddingAllSidebarWords() || entries.length === 0) {
+      return;
+    }
+
+    setIsAddingAllSidebarWords(true);
+    try {
+      for (const entry of entries) {
+        if (flashcardCtx.hasWordSync(entry.word) || flashcardCtx.isWordIgnoredSync(entry.word)) {
+          continue;
+        }
+        await addReaderWordFlashcard(entry);
+      }
+    } finally {
+      setIsAddingAllSidebarWords(false);
+    }
+  };
+
+  const handleIgnoreSidebarWord = async (entry: ReaderUnknownWordEntry) => {
+    await flashcardCtx.ignoreWordForLanguage(entry.word, entry.token.reading);
   };
 
   // Automatic OCR + cache next pages
@@ -1429,6 +1598,7 @@ export const ReaderRoute: Component = () => {
             hasOcrResult={hasOcrResult}
             onGoHome={goHome}
             onToggleSidebar={() => setShowSidebar(!showSidebar())}
+            onToggleWordSidebar={() => setShowWordSidebar(!showWordSidebar())}
             onFitModeChange={(mode) => setFitMode(mode as FitMode)}
             onPageModeChange={(mode) => setPageMode(mode as PageMode)}
             onToggleFirstPageSingle={() => {
@@ -1468,7 +1638,7 @@ export const ReaderRoute: Component = () => {
         </Show>
 
         {/* Main Content */}
-        <main class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${fitMode()}`}>
+        <main class={`reader-main ${showSidebar() ? 'with-sidebar' : ''} ${showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}`}>
           <Show
               when={pages().length > 0}
               fallback={<ReaderWelcomeCard isDragging={isDragging} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenPdf} />}
@@ -1587,6 +1757,7 @@ export const ReaderRoute: Component = () => {
                               onWordHover={handleOcrWordHover}
                               onWordLeave={handleOcrWordLeave}
                               onContextMenu={handleOcrContextMenu}
+                              onTokenDataChange={(entries) => handlePageTokenData(page.id, entries)}
                           />
                         </Show>
                       </div>
@@ -1596,6 +1767,17 @@ export const ReaderRoute: Component = () => {
             </div>
           </Show>
         </main>
+
+        <Show when={showWordSidebar()}>
+          <ReaderUnknownWordsSidebar
+              words={visibleUnknownWords}
+              addingWordKeys={addingSidebarWords}
+              isAddingAll={isAddingAllSidebarWords}
+              onAddWord={handleAddSidebarWord}
+              onAddAll={handleAddAllSidebarWords}
+              onIgnoreWord={handleIgnoreSidebarWord}
+          />
+        </Show>
 
         {/* Status Bar */}
         <ReaderStatusBar

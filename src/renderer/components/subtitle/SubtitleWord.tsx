@@ -3,13 +3,17 @@
  * Individual word/token in a subtitle with hover and click functionality
  */
 
-import { Component, createMemo, createSignal, createEffect, Show } from 'solid-js';
+import { Component, createMemo, createSignal, createEffect, Show, onCleanup } from 'solid-js';
 import type { Token } from '../../../shared/types';
 import { containsKanji, isAllKana } from '../../../shared/utils/textUtils';
 import { useSettings, useLanguage } from '../../context';
 import { getCachedReading, getCachedTranslation } from '../../hooks/useTranslation';
 import { PitchAccentOverlay, FrequencyStars } from '../common';
+import { matchesKeybind } from '../common/Input/KeybindInput';
 import type { JSX } from 'solid-js/jsx-runtime';
+
+/** Delay in ms for long-hover mode before triggering */
+const LONG_HOVER_DELAY = 500;
 
 export interface SubtitleWordProps {
   token: Token;
@@ -30,6 +34,24 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     }
     return Math.random().toString(36).slice(2, 10);
   })();
+
+  // For key-hover / long-hover trigger modes
+  let longHoverTimeout: ReturnType<typeof setTimeout> | null = null;
+  const [isMouseOver, setIsMouseOver] = createSignal(false);
+  const [isKeyHeld, setIsKeyHeld] = createSignal(false);
+
+  const clearLongHoverTimeout = () => {
+    if (longHoverTimeout) {
+      clearTimeout(longHoverTimeout);
+      longHoverTimeout = null;
+    }
+  };
+
+  const triggerHoverFromElement = () => {
+    if (!wordRef || !props.onHover) return;
+    const rect = wordRef.getBoundingClientRect();
+    props.onHover(props.token, rect, wordRef);
+  };
 
   // Helper to get display word (surface or word)
   const displayWord = () => props.token.surface ?? props.token.word;
@@ -78,10 +100,29 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const handleMouseEnter = () => {
     // Only trigger hover for translatable words
     if (!isWordTranslatable()) return;
-    if (wordRef && props.onHover) {
-      const rect = wordRef.getBoundingClientRect();
-      props.onHover(props.token, rect, wordRef);
+    setIsMouseOver(true);
+
+    const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
+    switch (triggerMode) {
+      case 'hover':
+        triggerHoverFromElement();
+        break;
+      case 'long-hover':
+        clearLongHoverTimeout();
+        longHoverTimeout = setTimeout(() => {
+          if (isMouseOver()) triggerHoverFromElement();
+        }, LONG_HOVER_DELAY);
+        break;
+      case 'key-hover':
+        if (isKeyHeld()) triggerHoverFromElement();
+        break;
     }
+  };
+
+  const handleMouseLeave = () => {
+    setIsMouseOver(false);
+    clearLongHoverTimeout();
+    props.onLeave?.();
   };
 
   const handleClick = () => {
@@ -89,6 +130,36 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     if (!isWordTranslatable()) return;
     props.onClick?.(props.token);
   };
+
+  // Key event handlers for key-hover mode
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if ((settings.readerWordHoverTrigger ?? 'hover') !== 'key-hover') return;
+    const keybind = settings.readerWordHoverKey ?? 'shift';
+    if (matchesKeybind(e, keybind) && !isKeyHeld()) {
+      setIsKeyHeld(true);
+      if (isMouseOver() && isWordTranslatable()) triggerHoverFromElement();
+    }
+  };
+
+  const handleKeyUp = (e: KeyboardEvent) => {
+    if ((settings.readerWordHoverTrigger ?? 'hover') !== 'key-hover') return;
+    const keybind = settings.readerWordHoverKey ?? 'shift';
+    if (matchesKeybind(e, keybind)) {
+      setIsKeyHeld(false);
+      if (isMouseOver()) props.onLeave?.();
+    }
+  };
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    onCleanup(() => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      clearLongHoverTimeout();
+    });
+  }
 
   // Get color from colour_codes based on POS (like the old app did)
   const getWordColor = createMemo((): string | undefined => {
@@ -295,7 +366,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
         ...(pitchAccentHeight() ? { '--pitch-accent-height': pitchAccentHeight() } as JSX.CSSProperties : {}),
       }}
       onMouseEnter={handleMouseEnter}
-      onMouseLeave={props.onLeave}
+      onMouseLeave={handleMouseLeave}
       onClick={handleClick}
       data-token-index={props.index}
       data-word-id={randomId}

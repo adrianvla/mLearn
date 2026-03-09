@@ -312,7 +312,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ocrFuriganaNeighborLookahead: 3,
   ocrProvider: 'local',
   readerWordHoverTrigger: 'hover',
-  readerWordHoverKey: 'Shift',
+  readerWordHoverKey: 'shift',
   readerFuriganaHider: false,
   readerMagnifierHotkey: 'z',
   readerMagnifierZoom: 2,
@@ -640,6 +640,8 @@ export interface FlashcardStore {
   wordStatsMap: Record<string, WordStats>;
   /** Words marked as known but not tracked as flashcards (word hash -> true) */
   knownUntracked: Record<string, boolean>;
+  /** Persisted ignored-word metadata keyed by language-prefixed word hash */
+  ignoredWords: Record<string, IgnoredWordEntry>;
   /** Unified passive word knowledge (word hash -> PassiveWordKnowledge) */
   wordKnowledge: Record<string, PassiveWordKnowledge>;
   /** Grammar knowledge tracking (pattern -> GrammarKnowledgeEntry) */
@@ -704,6 +706,18 @@ export interface PassiveWordKnowledge {
   reading?: string;
   /** Language this knowledge entry belongs to */
   language?: string;
+}
+
+/** Ignored word entry tracked per language for browse/unignore workflows */
+export interface IgnoredWordEntry {
+  /** The raw word text */
+  word: string;
+  /** Reading/pronunciation if available */
+  reading?: string;
+  /** Language this ignore entry belongs to */
+  language?: string;
+  /** Timestamp when the word was ignored */
+  ignoredAt: number;
 }
 
 /** Grammar knowledge entry tracked in FlashcardStore */

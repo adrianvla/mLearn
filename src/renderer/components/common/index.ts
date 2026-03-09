@@ -67,6 +67,7 @@ export {
   parseKeybind,
   formatKeybindDisplay,
   getLocalizedKeyName,
+  matchesKeybind,
   VoiceSamplePicker,
   type InputProps,
   type TextareaProps,
@@ -145,6 +146,15 @@ export {
   type ConnectionState,
   type ProgressBarProps,
 } from './Feedback';
+
+// Task Progress Components
+export {
+  TaskProgressContent,
+  GroupedTaskProgressContent,
+  type TaskStatus,
+  type TaskState,
+  type TaskGroup,
+} from './TaskProgress/TaskProgress';
 
 // Text Components
 export { 

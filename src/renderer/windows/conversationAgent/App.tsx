@@ -784,7 +784,7 @@ export const ConversationContent: Component = () => {
 
   // Hover trigger mode controls (same as ReaderStatusBar)
   const currentTriggerMode = () => settings.readerWordHoverTrigger ?? 'hover';
-  const currentKey = () => settings.readerWordHoverKey ?? 'Shift';
+  const currentKey = () => settings.readerWordHoverKey ?? 'shift';
 
   const getHoverTriggerLabel = (mode: WordHoverTriggerMode): string => {
     switch (mode) {

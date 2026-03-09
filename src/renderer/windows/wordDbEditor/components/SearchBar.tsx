@@ -7,11 +7,15 @@ import { Btn, ProgressBar, HintText, Select, Input } from '../../../components/c
 import { useLocalization } from '../../../context';
 import './SearchBar.css';
 
+export type WordDbBrowseMode = 'all' | 'ignored';
+
 export interface SearchBarProps {
   searchQuery: Accessor<string>;
   setSearchQuery: Setter<string>;
   selectedLevel: Accessor<number | null>;
   setSelectedLevel: Setter<number | null>;
+  browseMode: Accessor<WordDbBrowseMode>;
+  setBrowseMode: Setter<WordDbBrowseMode>;
   isLoading: Accessor<boolean>;
   loadProgress: Accessor<number>;
   levelNames: Record<number, string>;
@@ -32,6 +36,15 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
         size="md"
       />
       <Btn onClick={props.onSearch}>{t('mlearn.Global.Search')}</Btn>
+
+      <Select
+        class="mode-select"
+        value={props.browseMode()}
+        onChange={(e) => props.setBrowseMode(e.currentTarget.value as WordDbBrowseMode)}
+      >
+        <option value="all">{t('mlearn.WordDbEditor.BrowseMode.AllWords')}</option>
+        <option value="ignored">{t('mlearn.WordDbEditor.BrowseMode.IgnoredWords')}</option>
+      </Select>
       
       <Show when={props.isLoading()}>
         <ProgressBar 

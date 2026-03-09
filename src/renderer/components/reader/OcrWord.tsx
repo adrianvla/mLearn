@@ -7,6 +7,7 @@
 import { Component, createSignal, onCleanup } from 'solid-js';
 import type { Token } from '../../../shared/types';
 import { useSettings, useFlashcards } from '../../context';
+import { matchesKeybind } from '../common/Input/KeybindInput';
 import './OcrOverlay.css';
 
 export interface OcrWordProps {
@@ -110,10 +111,9 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
     if (triggerMode !== 'key-hover') return;
     
-    const targetKey = settings.readerWordHoverKey ?? 'Shift';
-    if (e.key === targetKey && !isKeyHeld()) {
+    const keybind = settings.readerWordHoverKey ?? 'shift';
+    if (matchesKeybind(e, keybind) && !isKeyHeld()) {
       setIsKeyHeld(true);
-      // If mouse is already over this word, trigger hover using element reference
       if (isMouseOver()) {
         triggerHoverFromElement();
       }
@@ -124,10 +124,9 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
     if (triggerMode !== 'key-hover') return;
     
-    const targetKey = settings.readerWordHoverKey ?? 'Shift';
-    if (e.key === targetKey) {
+    const keybind = settings.readerWordHoverKey ?? 'shift';
+    if (matchesKeybind(e, keybind)) {
       setIsKeyHeld(false);
-      // Hide hover when key is released (if mouse is not hovering in normal mode)
       if (isMouseOver()) {
         props.onWordLeave?.();
       }
