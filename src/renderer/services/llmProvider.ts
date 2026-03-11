@@ -152,6 +152,9 @@ export function streamChat(
   }
 
   // Start the stream
+  if (settings?.devMode) {
+    console.log('[LLMProvider] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
+  }
   bridge.llm.llmStream(messages, tools);
 
   return {

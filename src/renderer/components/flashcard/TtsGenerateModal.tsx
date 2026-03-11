@@ -10,7 +10,7 @@ import { Modal, Btn, Select, VoiceSamplePicker, ToggleSwitch, TaskProgressConten
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { getBackend } from '../../../shared/backends';
-import { stripFurigana, applyRubyReadings } from '../../../shared/utils/textUtils';
+import { stripFurigana, applyRubyReadings, getLanguageDisplayName } from '../../../shared/utils/textUtils';
 import { showToast, updateToast, removeToast } from '../common/Feedback/Toast';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import type { TTSProvider } from '../../../shared/types';
@@ -213,11 +213,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         const exText = latestExampleText || props.exampleText || '';
         const plain = stripFurigana(exText);
         if (plain && plain !== '-') {
-          const langDisplayMap: Record<string, string> = {
-            en: 'English', de: 'German', fr: 'French', ja: 'Japanese', ru: 'Russian',
-            zh: 'Chinese', ko: 'Korean', es: 'Spanish', it: 'Italian', pt: 'Portuguese',
-          };
-          const sourceLangName = langDisplayMap[language] || language;
+          const sourceLangName = getLanguageDisplayName(language);
           const translated = await translateExampleSentence(plain, sourceLangName);
           if (translated) {
             updateFlashcardContent(props.cardId, { exampleMeaning: translated });

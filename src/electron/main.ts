@@ -23,6 +23,7 @@ import { setupLLMRouterIPC } from './services/llmRouter';
 import { setupSpeechIPC } from './services/speechService';
 import { setupVoiceIPC } from './services/voiceService';
 import { setupDataExportImportIPC } from './services/dataExportImport';
+import { setupKVStoreIPC } from './services/kvStore';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 
@@ -172,6 +173,7 @@ function setupAllIPC(): void {
   setupSpeechIPC();
   setupVoiceIPC();
   setupDataExportImportIPC();
+  setupKVStoreIPC();
   setupKillHandlers();
 }
 

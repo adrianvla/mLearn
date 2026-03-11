@@ -215,6 +215,13 @@ export interface MLearnIPC {
   voiceSampleTranscribe: (id: string) => Promise<{ text: string; language: string }>;
   voiceSampleGetPath: (id: string) => Promise<string | null>;
 
+  // KV Store
+  kvGet: (key: string) => Promise<string | null>;
+  kvSet: (key: string, value: string) => Promise<void>;
+  kvRemove: (key: string) => Promise<void>;
+  kvGetAll: () => Promise<Record<string, string>>;
+  kvSetBatch: (entries: Record<string, string>) => Promise<void>;
+
   // Data Export/Import
   dataExport: () => Promise<{ success: boolean; filePath?: string | null; error?: string }>;
   dataImport: () => Promise<{ success: boolean; error?: string }>;

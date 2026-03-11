@@ -84,6 +84,17 @@
           "Ollama": "Ollama",
           "Title": "LLM Provider"
         },
+        "AgentMemory": {
+          "Enable": {
+            "Label": "Agent memory",
+            "Description": "Allow the AI tutor to remember facts about you across conversations"
+          },
+          "Shared": {
+            "Label": "Share memories across agents",
+            "Description": "When enabled, all agents can access all memories. When disabled, each agent only sees its own."
+          },
+          "Title": "Agent Memory"
+        },
         "Title": "AI Configuration"
       },
       "SetupRequired": "AI features require setup. Opening settings..."
@@ -112,6 +123,13 @@
       "SelectWordsHint": "Select words you want to focus on.",
       "StartSession": "Start Session",
       "Title": "AI Tutor Setup",
+      "WordEaseLegend": {
+        "unassessed": "Unassessed",
+        "hard": "Hard",
+        "struggling": "Struggling",
+        "reviewing": "Reviewing",
+        "known": "Known"
+      },
       "WordEaseLegendTitle": "Word familiarity:",
       "WordsTab": "Words"
     },
@@ -134,6 +152,7 @@
     },
     "CardEditor": {
       "AudioUnavailable": "Audio not available. Use the regenerate button to generate it.",
+      "TtsMissing": "{field} not found. Regenerate it from the card editor.",
       "Fields": {
         "Definitions": "Definitions (one per line)",
         "DefinitionsPlaceholder": "Definition per line",
@@ -218,6 +237,21 @@
       "Unreachable": "Unreachable"
     },
     "ConversationAgent": {
+      "Agents": {
+        "Create": "Create agent",
+        "Delete": "Delete agent",
+        "DeleteConfirm": "Type the agent's name to confirm deletion:",
+        "DeleteConfirmPlaceholder": "Agent name",
+        "DeleteConfirmTitle": "Delete agent",
+        "Edit": "Edit agent",
+        "EditTitle": "Edit agent",
+        "Empty": "No agents yet. Create one to get started.",
+        "Memories": "Memories",
+        "NoMemories": "No memories saved yet.",
+        "Save": "Save",
+        "Title": "Agents",
+        "Unnamed": "Unnamed agent"
+      },
       "Clear": "Clear conversation",
       "Connection": {
         "AvailableModels": "Available Models",
@@ -293,6 +327,7 @@
       "StopRecording": "Stop recording",
       "StopStreaming": "Stop",
       "Tab": {
+        "Agents": "Agents",
         "Chat": "Chat",
         "Context": "Context",
         "Stats": "Stats",
@@ -342,6 +377,89 @@
         "UploadSample": "Upload voice sample",
         "VoiceSample": "Voice clone",
         "VoiceSampleDisabledLocal": "Custom voice upload is only available with Qwen3-TTS or Cloud TTS"
+      },
+      "Memory": {
+        "ClearAll": "Clear all memories",
+        "ClearAllConfirm": "Are you sure you want to delete all agent memories? This cannot be undone.",
+        "Delete": "Delete memory",
+        "Empty": "No memories saved yet. The agent will save important facts as you converse.",
+        "Title": "Agent Memory"
+      },
+      "Personality": {
+        "Casual": "Casual",
+        "CasualDescription": "Relaxed, friendly, uses slang and informal language",
+        "Label": "Personality",
+        "Polite": "Polite",
+        "PoliteDescription": "Formal, structured, educational tone",
+        "Roleplay": "Roleplay",
+        "RoleplayDescription": "Custom character with a name and backstory",
+        "RoleplayFormality": "Formality",
+        "RoleplayLore": "Character backstory",
+        "RoleplayLorePlaceholder": "Describe the character's personality, backstory, and how they should interact...",
+        "RoleplayName": "Character name",
+        "RoleplayNamePlaceholder": "Enter a name for the character...",
+        "RoleplayQuotes": "Sample quotes",
+        "RoleplayQuotesHint": "2-4 short quotes that show different aspects of the character's voice. The AI will match this style.",
+        "RoleplayQuotePlaceholder": "Enter a quote...",
+        "AddQuote": "Add quote",
+        "FandomUrl": "Fandom wiki URL",
+        "FandomUrlHint": "The URL of the Fandom wiki for this character's series. Enables the search_fandom tool.",
+        "FandomUrlPlaceholder": "e.g. https://myheroacademia.fandom.com"
+      },
+      "Reset": "Reset agent",
+      "ResetConfirm": "This will clear the agent's name, personality, and all memories. The setup process will start again. Continue?",
+      "Setup": {
+        "Cancel": "Cancel",
+        "NameLabel": "Give your agent a name",
+        "NamePlaceholder": "Leave blank for no name",
+        "PersonalityLabel": "Choose a personality",
+        "ProfilePhoto": "Profile photo",
+        "ProfilePhotoHint": "Upload an image for this agent's avatar",
+        "ProfilePhotoRemove": "Remove photo",
+        "Start": "Start",
+        "Title": "Set up your AI tutor",
+        "UserNameLabel": "Your name",
+        "UserNamePlaceholder": "What should the agent call you?",
+        "AboutMeLabel": "About you",
+        "AboutMeHint": "Tell the agent about yourself so it can personalize conversations.",
+        "AboutMePlaceholder": "e.g. I'm a university student, I enjoy manga, I've been learning for 6 months...",
+        "VoiceSample": "Default voice",
+        "ManualSetup": "Manual setup",
+        "ManualSetupHint": "Fill in the character details yourself."
+      },
+      "Topics": {
+        "DebugLabel": "Topics:",
+        "Generating": "Generating topics...",
+        "Title": "Planned topics"
+      },
+      "QuickStart": {
+        "Button": "Quick start from Fandom",
+        "Hint": "Automatically fill roleplay fields by searching a Fandom wiki.",
+        "Title": "Quick start roleplay character - {name}",
+        "CharacterNameLabel": "Character name",
+        "CharacterNamePlaceholder": "e.g. Izuku Midoriya",
+        "FandomUrlLabel": "Fandom wiki URL",
+        "FandomUrlHint": "Enter the base URL of the Fandom wiki, or just the wiki name (e.g. myheroacademia).",
+        "FandomUrlPlaceholder": "e.g. myheroacademia or https://myheroacademia.fandom.com",
+        "Next": "Next",
+        "Back": "Back",
+        "Search": "Search",
+        "Searching": "Searching Fandom wiki...",
+        "NoResults": "No results found. Try a different name or check the wiki URL.",
+        "SelectResult": "Multiple results found. Select the correct one:",
+        "MediaTypeLabel": "Media type",
+        "ProgressPointLabel": "Your current progress",
+        "ProgressPointHint": "Use a format like 'Chapter 43', 'Episode 30', or type 'all' for the full story.",
+        "ProgressPointPlaceholder": "e.g. Chapter 43, Episode 30, all",
+        "InvalidProgressPoint": "Please use a recognized format like 'Chapter 43', 'Episode 30', a number, or 'all'.",
+        "Generate": "Generate persona",
+        "Generating": "Building character persona...",
+        "Confirm": "Use this character",
+        "ReviewName": "Character",
+        "ReviewLore": "Persona",
+        "ReviewQuotes": "Sample quotes",
+        "ReviewContext": "Story context",
+        "ReviewFandom": "Fandom wiki"
       }
     },
     "ErrorModal": {
@@ -688,7 +806,10 @@
         "OcrSkip": "Skipping OCR reader dependencies.",
         "OcrWillInstall": "OCR reader dependencies will be installed.",
         "VoiceSkip": "Skipping Voice & TTS dependencies.",
-        "VoiceWillInstall": "Voice & TTS dependencies will be installed."
+        "VoiceWillInstall": "Voice & TTS dependencies will be installed.",
+        "AlreadySatisfied": "Already satisfied",
+        "Collecting": "Collecting dependencies…",
+        "Downloading": "Downloading…"
       }
     },
     "KanjiGrid": {
@@ -943,7 +1064,29 @@
       },
       "Keybind": {
         "PressKey": "Press a key...",
-        "Tooltip": "Click to record, then press a key to set the keybind"
+        "Tooltip": "Click to record, then press a key to set the keybind",
+        "Keys": {
+          "Ctrl": "Ctrl",
+          "Alt": "Alt",
+          "Shift": "Shift",
+          "Meta": "Meta",
+          "Space": "Space",
+          "Enter": "Enter",
+          "Escape": "Escape",
+          "Backspace": "Backspace",
+          "Delete": "Delete",
+          "Tab": "Tab",
+          "CapsLock": "CapsLock",
+          "ArrowUp": "Arrow Up",
+          "ArrowDown": "Arrow Down",
+          "ArrowLeft": "Arrow Left",
+          "ArrowRight": "Arrow Right",
+          "Home": "Home",
+          "End": "End",
+          "PageUp": "Page Up",
+          "PageDown": "Page Down",
+          "Insert": "Insert"
+        }
       },
       "Language": {
         "AppLanguage": {
@@ -957,6 +1100,7 @@
       },
       "Performance": {
         "DevMode": {
+          "AutoEnabled": "Automatically enabled in development mode",
           "Description": "Enable developer tools and debugging features",
           "Label": "Developer Mode"
         },
@@ -1249,6 +1393,20 @@
           "Reset": "Reset",
           "ResetAll": "Reset All POS Colors"
         }
+      },
+      "About": {
+        "Licenses": "Licenses"
+      },
+      "Tabs": {
+        "AI": "AI",
+        "About": "About",
+        "Appearance": "Appearance",
+        "Behaviour": "Behaviour",
+        "Connection": "Connection",
+        "General": "General",
+        "Reader": "Reader",
+        "SRS": "SRS",
+        "Statistics": "Statistics"
       }
     },
     "Statistics": {
@@ -1351,7 +1509,8 @@
         "Flashcards": "Flashcards",
         "Ignored": "Ignored",
         "Nothing": "Untracked"
-      }
+      },
+      "Title": "Word Database"
     },
     "WordHover": {
       "Alerts": {
@@ -1368,6 +1527,19 @@
         "Learning": "Learning",
         "Unknown": "Unknown"
       }
+    },
+    "ConnectionStatus": {
+      "Connected": "Connected",
+      "Connecting": "Connecting…",
+      "Disconnected": "Disconnected",
+      "Error": "Connection error"
+    },
+    "Tabs": {
+      "Flashcards": "Flashcards",
+      "Home": "Home",
+      "Reader": "Reader",
+      "Settings": "Settings",
+      "Video": "Video"
     }
   }
 }

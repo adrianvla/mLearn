@@ -9,6 +9,7 @@ import type { LLMToolCall } from '../../../shared/types';
 import { DraggablePopup, IconBtn } from '../common';
 import { EyeIcon, EyeOffIcon, BotIcon } from '../common/Misc/Icons';
 import { useSettings, useLocalization } from '../../context';
+import { getLanguageDisplayName } from '../../../shared/utils/textUtils';
 import { streamExplanation, getCachedExplanation, checkAvailability, requiresSetup } from '../../services/llmProvider';
 import type { ParsedExplainer, ExplainerSection, GrammarPoint } from './ExplainerCards';
 import { ExplainerCards } from './ExplainerCards';
@@ -152,7 +153,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     }
 
     // Stream via unified provider
-    const language = settings.language || 'Japanese';
+    const language = getLanguageDisplayName(settings.language);
     const handle = streamExplanation(
       props.word,
       props.contextPhrase,

@@ -27,7 +27,11 @@
   },
   "fixed_settings": {},
   "usesLatinScript": false,
-  "supportedScripts": ["Hira", "Kana", "Han"],
+  "supportedScripts": [
+    "Hira",
+    "Kana",
+    "Han"
+  ],
   "hasOcrRamSaver": true,
   "supportsVerticalText": true,
   "hasFurigana": true,
@@ -134084,5 +134088,13 @@
     "1": "JLPT N1"
   },
   "hasGrammar": true,
-  "usesCJKParentheses": true
+  "usesCJKParentheses": true,
+  "hasPitchAccent": true,
+  "hasCharacterNames": true,
+  "freq_level_boundaries": [
+    1500,
+    5000,
+    15000,
+    30000
+  ]
 }

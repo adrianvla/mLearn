@@ -3,10 +3,10 @@
  * Configure AI provider (built-in vs Ollama), model download, and connection settings.
  */
 
-import { Component, Show, createSignal, createEffect, onCleanup, For } from 'solid-js';
+import { Component, Show, createSignal, createEffect, onCleanup } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
 import {
-  SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText,
+  SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, ToggleSwitch,
   BotIcon
 } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
@@ -268,11 +268,8 @@ export const AITab: Component = () => {
                   onChange={(e) => {
                     updateSettings({ ollamaModel: e.currentTarget.value });
                   }}
-                >
-                  <For each={ollamaModels()}>
-                    {(model) => <option value={model}>{model}</option>}
-                  </For>
-                </Select>
+                  options={ollamaModels().map((model) => ({ value: model, label: model }))}
+                />
               </Show>
             </div>
             <Show when={loadingModels()}>
@@ -357,6 +354,28 @@ export const AITab: Component = () => {
         </SettingGroup>
       </Show>
 
+
+      {/* Agent Memory */}
+      <SettingGroup title={t('mlearn.AI.Settings.AgentMemory.Title')}>
+        <SettingRow
+          label={t('mlearn.AI.Settings.AgentMemory.Enable.Label')}
+          description={t('mlearn.AI.Settings.AgentMemory.Enable.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.agentMemoryEnabled}
+            onChange={(checked) => updateSettings({ agentMemoryEnabled: checked })}
+          />
+        </SettingRow>
+        <SettingRow
+          label={t('mlearn.AI.Settings.AgentMemory.Shared.Label')}
+          description={t('mlearn.AI.Settings.AgentMemory.Shared.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.agentMemoryShared}
+            onChange={(checked) => updateSettings({ agentMemoryShared: checked })}
+          />
+        </SettingRow>
+      </SettingGroup>
 
       <SettingGroup title={t('mlearn.AI.Settings.OCR.Title')}>
         <SettingRow

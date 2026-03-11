@@ -244,3 +244,32 @@
   50% { transform: scaleY(0.4); }
 }
 
+/* Topic plan debug strip */
+.ca-topic-debug {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ca-topic-debug-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ca-topic-debug-list {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Agents panel wrapper */
+.ca-agents-panel {
+  overflow-y: auto;
+  height: 100%;
+}
+

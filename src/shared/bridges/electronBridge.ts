@@ -26,6 +26,7 @@ import type {
   MigrationBridge,
   GenericIPCBridge,
   DataBridge,
+  KVStoreBridge,
 } from './types';
 
 function getIPC(): MLearnIPC {
@@ -239,6 +240,14 @@ const dataBridge: DataBridge = {
   dataImport: () => getIPC().dataImport(),
 };
 
+const kvStoreBridge: KVStoreBridge = {
+  kvGet: (key) => getIPC().kvGet(key),
+  kvSet: (key, value) => getIPC().kvSet(key, value),
+  kvRemove: (key) => getIPC().kvRemove(key),
+  kvGetAll: () => getIPC().kvGetAll(),
+  kvSetBatch: (entries) => getIPC().kvSetBatch(entries),
+};
+
 export function createElectronBridge(): PlatformBridge {
   return {
     settings: settingsBridge,
@@ -258,5 +267,6 @@ export function createElectronBridge(): PlatformBridge {
     migration: migrationBridge,
     generic: genericBridge,
     data: dataBridge,
+    kvStore: kvStoreBridge,
   };
 }

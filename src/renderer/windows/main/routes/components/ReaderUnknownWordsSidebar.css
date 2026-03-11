@@ -44,6 +44,9 @@
 
 .reader-unknown-words-item {
   padding: var(--spacing-3);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius:var(--radius-lg);
 }
 
 .reader-unknown-words-item-header {
@@ -58,6 +61,17 @@
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   word-break: break-word;
+}
+
+.reader-unknown-words-item-word ruby {
+  ruby-align: center;
+}
+
+.reader-unknown-words-item-word ruby rt {
+  /*font-size: var(--font-size-xxs);*/
+  font-weight: var(--font-weight-normal);
+  color: var(--text-primary);
+  letter-spacing: 0.05em;
 }
 
 .reader-unknown-words-item-pills {

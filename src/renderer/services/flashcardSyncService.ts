@@ -7,7 +7,7 @@
  * Supports multiple flashcards per word with O(1) word stats lookup
  */
 
-import type { FlashcardStore, Flashcard, WordCandidate, WordStats, FlashcardState } from '../../shared/types';
+import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type WordCandidate, type WordStats, type FlashcardState } from '../../shared/types';
 
 // Chunk size for sending data over WebRTC
 const CHUNK_SIZE = 16000;
@@ -222,7 +222,7 @@ export async function mergeFlashcards(
     const word = card.content.front;
     if (word) {
       const wordHash = await toUniqueIdentifier(word);
-      const lang = card.language || 'ja';
+      const lang = card.language || DEFAULT_SETTINGS.language;
       const lk = lang + ':' + wordHash;
       if (!newWordToCardMap[lk]) {
         newWordToCardMap[lk] = [];

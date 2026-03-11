@@ -2,6 +2,7 @@
  * Shared TypeScript types between main and renderer processes
  */
 
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from './constants';
 import type { SubtitleTheme, WordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme } from './constants';
 
 // Re-export WindowType
@@ -241,6 +242,12 @@ export interface Settings {
   /** Voice sample ID for flashcard TTS voice cloning (Qwen3/Remote) */
   flashcardVoiceSampleId: string;
 
+  // Conversation agent settings
+  /** Whether the agent memory feature is enabled */
+  agentMemoryEnabled: boolean;
+  /** Whether memories are shared across all agents or compartmentalized */
+  agentMemoryShared: boolean;
+
   // First-run tracking
   hasCompletedSetup?: boolean;
 }
@@ -265,10 +272,10 @@ export const DEFAULT_SETTINGS: Settings = {
   automaticFlashcardCreation: false,
   flashcard_deck: null,
   flashcards_add_picture: true,
-  getCardUrl: 'http://127.0.0.1:7752/getCard',
-  tokeniserUrl: 'http://127.0.0.1:7752/tokenize',
-  getTranslationUrl: 'http://127.0.0.1:7752/translate',
-  ankiUrl: 'http://127.0.0.1:7753/api/fwd-to-anki',
+  getCardUrl: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/getCard`,
+  tokeniserUrl: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/tokenize`,
+  getTranslationUrl: `http://127.0.0.1:${PYTHON_BACKEND_PORT}/translate`,
+  ankiUrl: `http://127.0.0.1:${PROXY_SERVER_PORT}/api/fwd-to-anki`,
   ankiConnectUrl: 'http://127.0.0.1:8765',
   backendMode: 'local' as const,
   backendUrl: '',
@@ -279,7 +286,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cloudAuthUserEmail: '',
   cloudAuthExpiresAt: 0,
   cloudAuthStatus: 'signed-out',
-  nodeServerUrl: 'http://127.0.0.1:7753',
+  nodeServerUrl: `http://127.0.0.1:${PROXY_SERVER_PORT}`,
   overrideCloudEndpointUrl: false,
   cloudLoginUrl: '',
   cloudApiUrl: '',
@@ -341,6 +348,8 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardTtsProvider: 'kokoro',
   flashcardAutoGenerateAudio: false,
   flashcardVoiceSampleId: '',
+  agentMemoryEnabled: true,
+  agentMemoryShared: true,
 };
 
 // ============================================================================
@@ -386,6 +395,12 @@ export interface LanguageData {
   usesLatinScript?: boolean;
   /** Unicode script tags used by this language (e.g., ["Latn"], ["Hira","Kana","Han"]) */
   supportedScripts?: string[];
+  /** Whether this language has pitch accent data */
+  hasPitchAccent?: boolean;
+  /** Whether the language supports character name detection in subtitles */
+  hasCharacterNames?: boolean;
+  /** Frequency boundaries for level assignment [level5Max, level4Max, level3Max, level2Max] */
+  freq_level_boundaries?: number[];
 }
 
 export interface LanguageDataMap {
@@ -879,6 +894,9 @@ export type LLMProvider = 'builtin' | 'ollama' | 'cloud';
 /** OCR backend provider */
 export type OCRProvider = 'local' | 'cloud';
 
+/** Conversation agent personality mode */
+export type AgentPersonality = 'polite' | 'casual' | 'roleplay';
+
 /** TTS backend provider */
 export type TTSProvider = 'kokoro' | 'qwen3' | 'cloud';
 
@@ -1120,6 +1138,57 @@ export interface OllamaToolDefinition {
 // ============================================================================
 // Speech Types
 // ============================================================================
+
+// ============================================================================
+// Conversation Agent Config & Memory Types
+// ============================================================================
+
+/** Roleplay formality sub-option */
+export type RoleplayFormality = 'polite' | 'casual';
+
+/** Persistent agent configuration (stored in KV store) */
+export interface AgentConfig {
+  /** Unique identifier for this agent */
+  id: string;
+  /** Agent display name (empty = unnamed) */
+  agentName: string;
+  /** User's display name */
+  userName: string;
+  /** Personality mode */
+  personality: AgentPersonality;
+  /** Roleplay character name (only when personality === 'roleplay') */
+  roleplayName: string;
+  /** Roleplay character lore/description (only when personality === 'roleplay') */
+  roleplayLore: string;
+  /** Whether the initial setup has been completed */
+  setupComplete: boolean;
+  /** Formality sub-option for roleplay personality */
+  roleplayFormality?: RoleplayFormality;
+  /** Default voice sample ID for this agent's TTS */
+  voiceSampleId?: string;
+  /** Profile photo as base64 data URI */
+  profilePhoto?: string;
+  /** User's self-description — used as context for the agent */
+  aboutMe?: string;
+  /** Sample quotes for roleplay characters (2-4 short quotes) */
+  roleplayQuotes?: string[];
+  /** Fandom wiki base URL for roleplay character lookup (e.g. https://myheroacademia.fandom.com) */
+  roleplayFandomUrl?: string;
+  /** Story context summary for roleplay — plot summary up to the user's progress point */
+  roleplayContext?: string;
+}
+
+/** A single memory entry stored by the agent */
+export interface AgentMemoryEntry {
+  /** Unique ID */
+  id: string;
+  /** ID of the agent that created this memory */
+  agentId: string;
+  /** Memory content */
+  content: string;
+  /** Timestamp of when the memory was created */
+  timestamp: number;
+}
 
 // ============================================================================
 // Conversation Agent Context Types

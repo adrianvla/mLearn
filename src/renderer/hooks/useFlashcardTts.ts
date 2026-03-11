@@ -6,7 +6,7 @@
 
 import { createSignal, onCleanup } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
-import { useSettings, useLocalization } from '../context';
+import { useLocalization } from '../context';
 import { isElectron } from '../../shared/platform';
 import { stripFurigana } from '../../shared/utils/textUtils';
 import { showToast } from '../components/common/Feedback/Toast';
@@ -27,7 +27,6 @@ export interface TtsMetadata {
 let generationId = 0;
 
 export function useFlashcardTts() {
-  const { settings } = useSettings();
   const { t } = useLocalization();
   const [state, setState] = createSignal<FlashcardTtsState>({
     isPlaying: false,
@@ -115,69 +114,46 @@ export function useFlashcardTts() {
     const myGenId = generationId;
     const bridge = getBridge();
 
-    if (isElectron()) {
-      // Try existing audio file first
-      const existingUrl = await bridge.flashcards.getFlashcardTts(cardId, field);
-      if (myGenId !== generationId) return; // Stale
+    try {
+      if (isElectron()) {
+        // Try existing audio file first
+        const existingUrl = await bridge.flashcards.getFlashcardTts(cardId, field);
+        if (myGenId !== generationId) return; // Stale
 
-      if (existingUrl) {
-        try {
-          // Load metadata in parallel with starting playback
-          bridge.flashcards.getFlashcardTtsMeta(cardId, field).then(m => {
-            if (m && myGenId === generationId) setMetadata(m);
-          });
-          // Append cache-buster to avoid stale audio after regeneration
-          await playUrl(existingUrl + '?t=' + Date.now(), myGenId);
-          return;
-        } catch {
-          if (myGenId !== generationId) return;
+        if (existingUrl) {
+          try {
+            // Load metadata in parallel with starting playback
+            bridge.flashcards.getFlashcardTtsMeta(cardId, field).then(m => {
+              if (m && myGenId === generationId) setMetadata(m);
+            });
+            // Append cache-buster to avoid stale audio after regeneration
+            await playUrl(existingUrl + '?t=' + Date.now(), myGenId);
+            return;
+          } catch {
+            if (myGenId !== generationId) return;
+          }
         }
+
+        // No saved audio — notify the user to regenerate
+        if (myGenId === generationId) {
+          const fieldLabel = field === 'word'
+            ? t('mlearn.Flashcards.PostCreate.WordTts')
+            : t('mlearn.Flashcards.PostCreate.ExampleTts');
+          showToast({ message: t('mlearn.CardEditor.TtsMissing', { field: fieldLabel }), variant: 'warning' });
+          setState({ isPlaying: false, isGenerating: false, playingField: null });
+        }
+        return;
       }
 
-      // Generate via configured provider
-      setState((s) => ({ ...s, isGenerating: true }));
-      if (myGenId !== generationId) return;
-
-      const provider = settings.flashcardTtsProvider;
-      const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
-      const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
-      const cloudApiUrl = settings.cloudApiUrl || undefined;
-      const generatedUrl = await bridge.flashcards.generateFlashcardTts(
-        cardId,
-        cleanText,
-        language,
-        field,
-        provider,
-        voiceSampleId,
-        cloudAuthToken,
-        cloudApiUrl,
-      );
-      if (myGenId !== generationId) { setState((s) => ({ ...s, isGenerating: false })); return; }
-      setState((s) => ({ ...s, isGenerating: false }));
-
-      if (generatedUrl) {
-        try {
-          bridge.flashcards.getFlashcardTtsMeta(cardId, field).then(m => {
-            if (m && myGenId === generationId) setMetadata(m);
-          });
-          await playUrl(generatedUrl + '?t=' + Date.now(), myGenId);
-          return;
-        } catch {
-          if (myGenId !== generationId) return;
-        }
-      }
-
-      // No saved audio and generation failed — notify the user
+      // Fallback: system TTS (works on all platforms)
       if (myGenId === generationId) {
-        showToast({ message: t('mlearn.CardEditor.AudioUnavailable'), variant: 'warning' });
+        bridge.speech.ttsSpeak(cleanText, language);
+      }
+    } catch {
+      // Ensure state is always reset on any error to prevent stuck buttons
+      if (myGenId === generationId) {
         setState({ isPlaying: false, isGenerating: false, playingField: null });
       }
-      return;
-    }
-
-    // Fallback: system TTS (works on all platforms)
-    if (myGenId === generationId) {
-      bridge.speech.ttsSpeak(cleanText, language);
     }
   };
 

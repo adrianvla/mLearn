@@ -6,6 +6,7 @@
 import { createSignal, createResource } from 'solid-js';
 import type { TranslationResponse, TranslationEntry, DictionaryEntry } from '../../shared/types';
 import { getBackend } from '../../shared/backends';
+import { getBridge } from '../../shared/bridges';
 
 // Translation cache - globally accessible for all components
 const translationCache = new Map<string, TranslationResponse>();
@@ -48,30 +49,30 @@ export function getCachedReading(word: string): string | null {
   return null;
 }
 
-// Read overrides from localStorage
-function readOverrides(): Record<string, TranslationResponse> {
+// In-memory cache of overrides, loaded once from KV store
+let overridesCache: Record<string, TranslationResponse> | null = null;
+
+async function readOverrides(): Promise<Record<string, TranslationResponse>> {
+  if (overridesCache) return overridesCache;
   try {
-    const raw = localStorage.getItem(OVERRIDE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw);
+    const raw = await getBridge().kvStore.kvGet(OVERRIDE_KEY);
+    overridesCache = raw ? JSON.parse(raw) : {};
   } catch {
-    return {};
+    overridesCache = {};
   }
+  return overridesCache!;
 }
 
-// Write overrides to localStorage
+// Write overrides to KV store
 function writeOverrides(map: Record<string, TranslationResponse>): void {
-  try {
-    localStorage.setItem(OVERRIDE_KEY, JSON.stringify(map));
-  } catch {
-    // Ignore quota errors
-  }
+  overridesCache = map;
+  getBridge().kvStore.kvSet(OVERRIDE_KEY, JSON.stringify(map));
 }
 
 // Fetch translation from backend (also exported for use by batch queues)
 export async function fetchTranslation(word: string): Promise<TranslationResponse> {
   // Check override first
-  const overrides = readOverrides();
+  const overrides = await readOverrides();
   if (overrides[word]) {
     return overrides[word];
   }
@@ -113,8 +114,8 @@ export function useTranslation(options: UseTranslationOptions = {}) {
     return fetchTranslation(word);
   };
 
-  const setOverride = (word: string, value: TranslationResponse | null) => {
-    const overrides = readOverrides();
+  const setOverride = async (word: string, value: TranslationResponse | null) => {
+    const overrides = await readOverrides();
     if (value === null) {
       delete overrides[word];
     } else {

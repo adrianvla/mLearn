@@ -41,6 +41,12 @@ export {
   type DraggablePopupProps,
 } from './Modal';
 
+// ModalForm Components
+export {
+  ModalForm,
+  type ModalFormProps,
+} from './ModalForm';
+
 // Panel Components
 export { 
   Panel,

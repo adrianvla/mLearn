@@ -20,6 +20,8 @@ import type {
   WordFrequencyEntry,
   VoiceMistake,
   TutorSessionConfig,
+  AgentConfig,
+  AgentMemoryEntry,
 } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
@@ -51,6 +53,14 @@ interface AgentDeps {
   onVoiceMistake?: (mistake: VoiceMistake) => void;
   /** Tutor session configuration (grammar, words, media, custom instructions) */
   getTutorConfig?: () => TutorSessionConfig | null;
+  /** Agent config (name, personality, roleplay, etc.) */
+  getAgentConfig?: () => AgentConfig | null;
+  /** Agent memories */
+  getAgentMemories?: () => AgentMemoryEntry[];
+  /** Callback when agent saves a new memory */
+  onMemorySaved?: (content: string) => void;
+  /** Callback when topic plan is generated */
+  onTopicPlan?: (topics: string[]) => void;
 }
 
 /** Callback for streaming chunks to the UI */
@@ -71,15 +81,74 @@ export interface AgentInstance {
   continueWithContext: (context: string, callbacks: StreamCallbacks) => void;
   /** Replace the last assistant message in history with the truncated spoken text and add interruption context */
   markInterrupted: (spokenText: string) => void;
+  /** Generate a list of conversation topics based on current context, returned via onTopicPlan callback */
+  generateTopicPlan: () => void;
 }
 
 // ============================================================================
 // System Prompt Builder
 // ============================================================================
 
-function buildSystemPrompt(_langCode: string, langName: string, mediaCtx: ConversationAgentContext | null, userSceneContext?: string, targetLevelName?: string, tutorConfig?: TutorSessionConfig | null): string {
+function buildSystemPrompt(
+  _langCode: string,
+  langName: string,
+  mediaCtx: ConversationAgentContext | null,
+  userSceneContext?: string,
+  targetLevelName?: string,
+  tutorConfig?: TutorSessionConfig | null,
+  agentConfig?: AgentConfig | null,
+  memories?: AgentMemoryEntry[],
+  topicPlan?: string[],
+): string {
+  // Build personality section
+  let personalitySection: string;
+  if (agentConfig?.personality === 'polite') {
+    personalitySection = `## Personality
+- Polite, professional, and structured.
+- Use formal ${langName} — proper grammar and respectful language.
+- Give clear explanations and structured feedback.
+- Celebrate progress respectfully.
+- When the learner struggles, offer structured guidance.`;
+  } else if (agentConfig?.personality === 'roleplay' && agentConfig.roleplayName) {
+    const formalityNote = agentConfig.roleplayFormality === 'polite'
+      ? `- Use formal, polite ${langName} — proper grammar and respectful language.`
+      : `- Use casual, informal ${langName} only. NEVER use formal or polite register — no honorifics, no deferential verb forms, no polite sentence endings. Speak like a close friend.`;
+    const quotesSection = agentConfig.roleplayQuotes && agentConfig.roleplayQuotes.length > 0
+      ? `\nSample quotes (match the style, don't repeat these lines verbatim):\n${agentConfig.roleplayQuotes.map((q) => `- "${q}"`).join('\n')}`
+      : '';
+    const contextSection = agentConfig.roleplayContext
+      ? `\n\n## Story Context\n${agentConfig.roleplayContext}`
+      : '';
+    personalitySection = `## Personality & Character
+You are roleplaying as "${agentConfig.roleplayName}".
+${agentConfig.roleplayLore ? `Character description: ${agentConfig.roleplayLore}` : ''}
+- Stay in character at all times while still fulfilling your role as a language tutor.
+- Speak and act as this character would.
+${formalityNote}
+- Correct mistakes and quiz the learner as part of the roleplay scenario.${quotesSection}${contextSection}`;
+  } else {
+    personalitySection = `## Personality
+- Patient, encouraging, and warm.
+- Use casual, colloquial ${langName} — speak like a close friend, NOT like a teacher or textbook.
+- NEVER use formal or polite register. Use informal verb forms, contractions, and casual sentence endings. Avoid honorific or deferential language entirely.
+- Celebrate progress and good usage.
+- When the learner struggles, simplify rather than switch languages entirely.`;
+  }
+
+  // Agent name/user name section
+  let identitySection = '';
+  if (agentConfig?.agentName) {
+    identitySection += `\nYour name is "${agentConfig.agentName}".`;
+  }
+  if (agentConfig?.userName) {
+    identitySection += `\nThe learner's name is "${agentConfig.userName}".`;
+  }
+  if (agentConfig?.aboutMe) {
+    identitySection += `\nAbout the learner: ${agentConfig.aboutMe}`;
+  }
+
   let prompt = `You are a friendly and encouraging language tutor for ${langName}.
-Your primary role is to have natural conversations in ${langName} with the learner.
+Your primary role is to have natural conversations in ${langName} with the learner.${identitySection}
 
 ## Rules
 - Respond ONLY in ${langName} for all user-visible assistant messages.
@@ -91,11 +160,7 @@ Your primary role is to have natural conversations in ${langName} with the learn
 - Base conversation topics on the media the learner is consuming — discuss scenes, character actions, plot, and themes rather than generic topics like weather or hobbies.
 - Do not quiz the reader on character readings if ${langName} has any. 
 
-## Personality
-- Patient, encouraging, and warm.
-- Use natural, colloquial ${langName} — not textbook language.
-- Celebrate progress and good usage.
-- When the learner struggles, simplify rather than switch languages entirely.
+${personalitySection}
 
 ## Tool Usage Guidelines
 - Use "correct_mistake" when you notice grammar, vocabulary, or spelling errors in the learner's messages. Attach it to your response subtly.
@@ -109,7 +174,9 @@ Your primary role is to have natural conversations in ${langName} with the learn
 - "correct_mistake" must ALWAYS be called at the very end of your response.
 - "correct_mistake" must ALWAYS be called if the user makes a mistake.
 - If you want to create a quiz, do NOT write in plain text the quiz, but USE the tool "create_quiz" accordingly.
-- Use "fetch_url" to look up grammar explanations or vocabulary from language learning resources if the learner asks about a specific topic.
+- Use "fetch_url" to look up grammar explanations or vocabulary from language learning resources if the learner asks about a specific topic. The fetched content will be returned as machine-readable text.
+- Use "search_wikipedia" to search for general knowledge, cultural references, or background information that comes up in conversation.
+- Use "search_fandom" to search the configured Fandom wiki for media-specific characters, lore, episodes, or plot details. Only works if the learner has set a Fandom wiki URL.
 - Use "get_media_stats" to retrieve the learner's analytics for their current media to personalize your teaching.
 - Do NOT overuse tools — the conversation should feel natural, not like a test.`;
 
@@ -205,6 +272,28 @@ ${wordList}`;
 The learner has specific instructions for this session. Follow them:
 ${tutorConfig.customInstructions}`;
     }
+  }
+
+  // Inject agent memories
+  if (memories && memories.length > 0) {
+    const memoryLines = memories.map((m) => `- ${m.content}`).join('\n');
+    prompt += `\n\n## Things You Remember About the Learner
+You have saved these facts from previous conversations. Use them naturally — do not explicitly mention that you "remember" them, just act on the knowledge:
+${memoryLines}`;
+  }
+
+  // Inject topic plan
+  if (topicPlan && topicPlan.length > 0) {
+    const topicLines = topicPlan.map((t, i) => `${i + 1}. ${t}`).join('\n');
+    prompt += `\n\n## Conversation Plan
+You have planned the following topics to cover during this conversation. Move through them naturally as the conversation flows — do not announce them or list them out. Transition between topics smoothly.
+${topicLines}`;
+  }
+
+  // Memory tool instruction
+  if (memories !== undefined) {
+    prompt += `\n\n## Memory
+You have a "save_memory" tool. Use it to save important facts about the learner (preferences, goals, study habits, life details, skill level observations). Save sparingly — only genuinely useful facts. Do NOT save trivial conversation details.`;
   }
 
   return prompt;
@@ -319,6 +408,48 @@ const AGENT_TOOLS: LLMToolDefinition[] = [
       required: [],
     },
   },
+  {
+    name: 'save_memory',
+    description: 'Save an important fact about the learner for future reference. Use for: study goals, preferences, skill observations, personal details they share. Do NOT save trivial things.',
+    parameters: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+          description: 'The fact to remember (concise, one sentence)',
+        },
+      },
+      required: ['content'],
+    },
+  },
+  {
+    name: 'search_wikipedia',
+    description: 'Search Wikipedia for articles related to a query. Returns a list of article titles and snippets. Use this to look up facts, cultural references, or background information mentioned in the conversation.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search query to look up on Wikipedia',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'search_fandom',
+    description: 'Search a Fandom wiki for articles related to a query. Use this when discussing media-specific characters, lore, episodes, or plot points. Only available when the learner has configured a Fandom wiki URL for the current agent.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search query to look up on the Fandom wiki',
+        },
+      },
+      required: ['query'],
+    },
+  },
 ];
 
 // ============================================================================
@@ -378,6 +509,48 @@ const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
       type: 'object',
       properties: {},
       required: [],
+    },
+  },
+  {
+    name: 'save_memory',
+    description: 'Save an important fact about the learner for future reference. Use for: study goals, preferences, skill observations, personal details they share.',
+    parameters: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+          description: 'The fact to remember (concise, one sentence)',
+        },
+      },
+      required: ['content'],
+    },
+  },
+  {
+    name: 'search_wikipedia',
+    description: 'Search Wikipedia for articles related to a query. Returns a list of article titles and snippets.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search query to look up on Wikipedia',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'search_fandom',
+    description: 'Search a Fandom wiki for articles related to a query. Only available when the learner has configured a Fandom wiki URL.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search query to look up on the Fandom wiki',
+        },
+      },
+      required: ['query'],
     },
   },
 ];
@@ -510,6 +683,14 @@ function executeTool(toolCall: ToolCall, deps: AgentDeps): ChatWidget | ChatWidg
       return { type: 'quiz', data: data as unknown as Record<string, unknown> };
     }
 
+    case 'save_memory': {
+      const content = (args.content as string)?.trim();
+      if (content) {
+        deps.onMemorySaved?.(content);
+      }
+      return null;
+    }
+
     default:
       return null;
   }
@@ -531,13 +712,34 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
       return `Mistake noted: "${args.word}" → "${args.correction}"`;
     }
 
+    case 'save_memory': {
+      return `Memory saved: "${args.content}"`;
+    }
+
     case 'fetch_url': {
       const url = args.url as string;
       if (!url) return 'Error: No URL provided';
       try {
         const result = await getBridge().generic.fetchUrl(url);
         if (result?.error) return `Error fetching URL: ${result.error}`;
-        const content = result?.content || '';
+        let content = result?.content || '';
+        // Strip HTML to produce machine-readable text
+        content = content
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')
+          .replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '')
+          .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#039;/g, "'")
+          .replace(/\s{2,}/g, ' ')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
         // Truncate to avoid overwhelming the context
         return content.length > 3000 ? content.slice(0, 3000) + '\n\n[Content truncated]' : content;
       } catch (err) {
@@ -586,6 +788,60 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
       }
 
       return lines.join('\n');
+    }
+
+    case 'search_wikipedia': {
+      const query = (args.query as string)?.trim();
+      if (!query) return 'Error: No search query provided';
+      try {
+        const encodedQuery = encodeURIComponent(query);
+        const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodedQuery}&format=json&formatversion=2&srlimit=5`;
+        const result = await getBridge().generic.fetchUrl(url);
+        if (result?.error) return `Error searching Wikipedia: ${result.error}`;
+        const data = JSON.parse(result.content);
+        const results = data?.query?.search;
+        if (!results || results.length === 0) return `No Wikipedia results found for "${query}".`;
+
+        const lines: string[] = [`Wikipedia results for "${query}":\n`];
+        for (const entry of results) {
+          const snippet = (entry.snippet as string || '').replace(/<[^>]*>/g, '');
+          lines.push(`- **${entry.title}** (https://en.wikipedia.org/wiki/${encodeURIComponent(entry.title)})`);
+          lines.push(`  ${snippet}\n`);
+        }
+        return lines.join('\n');
+      } catch (err) {
+        return `Error searching Wikipedia: ${(err as Error).message}`;
+      }
+    }
+
+    case 'search_fandom': {
+      const query = (args.query as string)?.trim();
+      if (!query) return 'Error: No search query provided';
+
+      const agentCfg = deps.getAgentConfig?.();
+      const fandomUrl = agentCfg?.roleplayFandomUrl?.replace(/\/+$/, '');
+      if (!fandomUrl) return 'Error: No Fandom wiki URL configured for this agent. The learner needs to set a Fandom wiki URL in the agent settings.';
+
+      try {
+        const encodedQuery = encodeURIComponent(query);
+        const apiUrl = `${fandomUrl}/api.php?action=query&list=search&srsearch=${encodedQuery}&format=json&formatversion=2&srlimit=5`;
+        const result = await getBridge().generic.fetchUrl(apiUrl);
+        if (result?.error) return `Error searching Fandom: ${result.error}`;
+        const data = JSON.parse(result.content);
+        const results = data?.query?.search;
+        if (!results || results.length === 0) return `No Fandom results found for "${query}".`;
+
+        const lines: string[] = [`Fandom wiki results for "${query}":\n`];
+        for (const entry of results) {
+          const snippet = (entry.snippet as string || '').replace(/<[^>]*>/g, '');
+          const pageUrl = `${fandomUrl}/wiki/${encodeURIComponent(entry.title)}`;
+          lines.push(`- **${entry.title}** (${pageUrl})`);
+          if (snippet) lines.push(`  ${snippet}\n`);
+        }
+        return lines.join('\n');
+      } catch (err) {
+        return `Error searching Fandom: ${(err as Error).message}`;
+      }
     }
 
     default:
@@ -727,6 +983,7 @@ function streamReformulation(
   difficultWords: Array<{ word: string; levelName: string }>,
   targetLevelName: string,
   langName: string,
+  devMode?: boolean,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const bridge = getBridge();
@@ -760,6 +1017,10 @@ function streamReformulation(
       }
     });
 
+    if (devMode) {
+      console.log('[ConversationAgent:Reformulation] Prompt sent to LLM:', JSON.stringify([systemMsg, userMsg], null, 2));
+    }
+
     bridge.llm.llmStream([systemMsg, userMsg], []);
   });
 }
@@ -772,9 +1033,11 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   let conversationHistory: LLMChatMessage[] = [];
   let aborted = false;
   let streamCleanup: (() => void) | null = null;
+  let currentTopicPlan: string[] | undefined;
 
   function clearHistory(): void {
     conversationHistory = [];
+    currentTopicPlan = undefined;
   }
 
   function abortStream(): void {
@@ -821,6 +1084,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
             difficult,
             targetLevelName,
             langName,
+            deps.getSettings().devMode,
           );
           if (reformulated && reformulated !== finalContent) {
             finalContent = reformulated;
@@ -868,7 +1132,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const terminalToolCalls: ToolCall[] = [];
 
     for (const toolCall of toolCalls) {
-      if (toolCall.name === 'correct_mistake' || toolCall.name === 'note_mistake') {
+      if (toolCall.name === 'correct_mistake' || toolCall.name === 'note_mistake' || toolCall.name === 'save_memory') {
         terminalToolCalls.push(toolCall);
       } else {
         nonTerminalToolCalls.push(toolCall);
@@ -959,24 +1223,39 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const sceneCtx = deps.getSceneContext();
 
     const isVoice = deps.isVoiceMode?.() ?? false;
-    const tools = isVoice ? VOICE_AGENT_TOOLS : AGENT_TOOLS;
+    const settingsObj = deps.getSettings();
+    const memoryEnabled = settingsObj.agentMemoryEnabled;
+
+    const tutorCfg = deps.getTutorConfig?.() ?? null;
+    const agentCfg = deps.getAgentConfig?.() ?? null;
+    const memories = memoryEnabled ? (deps.getAgentMemories?.() ?? []) : [];
+
+    // Filter tools: only include save_memory if memory is enabled, exclude search_fandom if no URL configured
+    const baseTools = isVoice ? VOICE_AGENT_TOOLS : AGENT_TOOLS;
+    const hasFandomUrl = !!agentCfg?.roleplayFandomUrl;
+    let tools = baseTools;
+    if (!memoryEnabled) tools = tools.filter((t) => t.name !== 'save_memory');
+    if (!hasFandomUrl) tools = tools.filter((t) => t.name !== 'search_fandom');
 
     const targetLevel = deps.getTargetLevel?.() ?? null;
     const targetLevelName = targetLevel !== null ? (deps.getLevelName?.(targetLevel) ?? undefined) : undefined;
-
-    const tutorCfg = deps.getTutorConfig?.() ?? null;
 
     const systemMsg: LLMChatMessage = {
       role: 'system',
       content: isVoice
         ? buildVoiceSystemPrompt(langName, mediaCtx)
-        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg),
+        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, currentTopicPlan),
     };
 
     const messages: LLMChatMessage[] = [
       systemMsg,
       ...conversationHistory,
     ];
+
+    // Debug logging when devMode is enabled
+    if (settingsObj.devMode) {
+      console.log('[ConversationAgent] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
+    }
 
     let accumulated = '';
     const collectedToolCalls: ToolCall[] = [];
@@ -1150,5 +1429,75 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     }
   }
 
-  return { processMessage, abortStream, clearHistory, tokenize, continueWithContext, markInterrupted };
+  /**
+   * Generate a list of conversation topics based on current context.
+   * The topics are injected into the system prompt for the agent to naturally cover.
+   */
+  function generateTopicPlan(): void {
+    const bridge = getBridge();
+    const langName = deps.getLanguageName();
+    const mediaCtx = deps.getMediaContext();
+    const tutorCfg = deps.getTutorConfig?.() ?? null;
+    const memories = deps.getAgentMemories?.() ?? [];
+
+    let contextDesc = `The learner is studying ${langName}.`;
+    if (mediaCtx) {
+      contextDesc += ` They are ${mediaCtx.mediaType === 'video' ? 'watching' : 'reading'} "${mediaCtx.mediaName}".`;
+      if (mediaCtx.failedWords.length > 0) {
+        const words = mediaCtx.failedWords.slice(0, 10).map((w) => w.word).join(', ');
+        contextDesc += ` They struggle with: ${words}.`;
+      }
+    }
+    if (tutorCfg?.selectedGrammar.length) {
+      contextDesc += ` Grammar focus: ${tutorCfg.selectedGrammar.map((g) => g.pattern).join(', ')}.`;
+    }
+    if (memories.length > 0) {
+      contextDesc += ` Known about learner: ${memories.map((m) => m.content).join('; ')}.`;
+    }
+
+    const systemMsg: LLMChatMessage = {
+      role: 'system',
+      content: `You are a conversation planner for a ${langName} language tutor. Generate a list of 3-5 conversation topics that would be natural and educational. Each topic should be a brief phrase. Output ONLY a JSON array of strings, nothing else. Example: ["Discussing weekend plans", "Practicing restaurant vocabulary", "Talking about a movie scene"]`,
+    };
+
+    const userMsg: LLMChatMessage = {
+      role: 'user',
+      content: contextDesc,
+    };
+
+    let accumulated = '';
+
+    const cleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
+      if (chunk.content) {
+        accumulated += chunk.content;
+      }
+      if (chunk.done) {
+        cleanup();
+        try {
+          // Extract JSON array from accumulated text
+          const match = accumulated.match(/\[[\s\S]*\]/);
+          if (match) {
+            const topics = JSON.parse(match[0]) as string[];
+            if (Array.isArray(topics) && topics.length > 0) {
+              currentTopicPlan = topics;
+              deps.onTopicPlan?.(topics);
+            }
+          }
+        } catch {
+          // Failed to parse — ignore
+        }
+      }
+      if (chunk.error) {
+        cleanup();
+      }
+    });
+
+    if (deps.getSettings().devMode) {
+      console.log('[ConversationAgent:TopicPlan] Prompt sent to LLM:', JSON.stringify([systemMsg, userMsg], null, 2));
+    }
+
+    bridge.llm.llmStream([systemMsg, userMsg], []);
+  }
+
+  return { processMessage, abortStream, clearHistory, tokenize, continueWithContext, markInterrupted, generateTopicPlan };
 }

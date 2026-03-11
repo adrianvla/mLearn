@@ -379,7 +379,7 @@ export function useOCR() {
     if (!cloudToken) throw new Error('Cloud OCR requires authentication. Please log in to Cloud first.');
 
     const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
-    const language = settings.language || 'ja';
+    const language = settings.language;
     const engine = turbo ? 'rapid' : undefined;
     const result = await adapter.recognize(imageBlob, language, engine);
 

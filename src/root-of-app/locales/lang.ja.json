@@ -84,6 +84,17 @@
           "Ollama": "Ollama",
           "Title": "LLMプロバイダー"
         },
+        "AgentMemory": {
+          "Enable": {
+            "Label": "エージェントの記憶",
+            "Description": "AIチューターが会話を越えてあなたに関する情報を記憶することを許可する"
+          },
+          "Shared": {
+            "Label": "エージェント間で記憶を共有",
+            "Description": "有効にすると、すべてのエージェントがすべての記憶にアクセスできます。無効にすると、各エージェントは自分の記憶のみ参照します。"
+          },
+          "Title": "エージェントの記憶"
+        },
         "Title": "AI設定"
       },
       "SetupRequired": "AI機能にはセットアップが必要です。設定を開いています..."
@@ -112,6 +123,13 @@
       "SelectWordsHint": "集中したい単語を選択してください。",
       "StartSession": "セッション開始",
       "Title": "AIチューター設定",
+      "WordEaseLegend": {
+        "unassessed": "未評価",
+        "hard": "難しい",
+        "struggling": "苦戦中",
+        "reviewing": "復習中",
+        "known": "習得済み"
+      },
       "WordEaseLegendTitle": "単語の習熟度:",
       "WordsTab": "単語"
     },
@@ -134,6 +152,7 @@
     },
     "CardEditor": {
       "AudioUnavailable": "音声が利用できません。再生成ボタンを使用して生成してください。",
+      "TtsMissing": "{field}が見つかりません。カードエディターから再生成してください。",
       "Fields": {
         "Definitions": "定義（1行に1つ）",
         "DefinitionsPlaceholder": "1行に1つの定義",
@@ -218,6 +237,21 @@
       "Unreachable": "到達不能"
     },
     "ConversationAgent": {
+      "Agents": {
+        "Create": "エージェントを作成",
+        "Delete": "エージェントを削除",
+        "DeleteConfirm": "削除を確認するにはエージェント名を入力してください：",
+        "DeleteConfirmPlaceholder": "エージェント名",
+        "DeleteConfirmTitle": "エージェントを削除",
+        "Edit": "エージェントを編集",
+        "EditTitle": "エージェントを編集",
+        "Empty": "エージェントがまだありません。作成して始めましょう。",
+        "Memories": "記憶",
+        "NoMemories": "まだ記憶が保存されていません。",
+        "Save": "保存",
+        "Title": "エージェント",
+        "Unnamed": "名前なしのエージェント"
+      },
       "Clear": "会話をクリア",
       "Connection": {
         "AvailableModels": "利用可能なモデル",
@@ -293,6 +327,7 @@
       "StopRecording": "録音を停止",
       "StopStreaming": "停止",
       "Tab": {
+        "Agents": "エージェント",
         "Chat": "チャット",
         "Context": "コンテキスト",
         "Stats": "統計",
@@ -342,6 +377,89 @@
         "UploadSample": "音声サンプルをアップロード",
         "VoiceSample": "音声クローン",
         "VoiceSampleDisabledLocal": "カスタム音声アップロードはQwen3-TTSまたはCloud TTSでのみ利用可能です"
+      },
+      "Memory": {
+        "ClearAll": "すべての記憶を消去",
+        "ClearAllConfirm": "エージェントのすべての記憶を削除しますか？この操作は取り消せません。",
+        "Delete": "記憶を削除",
+        "Empty": "まだ記憶がありません。会話の中でエージェントが重要な情報を保存します。",
+        "Title": "エージェントの記憶"
+      },
+      "Personality": {
+        "Casual": "カジュアル",
+        "CasualDescription": "リラックスした、フレンドリーな、くだけた言葉遣い",
+        "Label": "性格",
+        "Polite": "丁寧",
+        "PoliteDescription": "フォーマルで構造的、教育的なトーン",
+        "Roleplay": "ロールプレイ",
+        "RoleplayDescription": "名前とバックストーリーを持つカスタムキャラクター",
+        "RoleplayFormality": "丁寧さ",
+        "RoleplayLore": "キャラクターの背景",
+        "RoleplayLorePlaceholder": "キャラクターの性格、背景、対話方法を記述してください...",
+        "RoleplayName": "キャラクター名",
+        "RoleplayNamePlaceholder": "キャラクターの名前を入力...",
+        "RoleplayQuotes": "サンプル台詞",
+        "RoleplayQuotesHint": "キャラクターの声の異なる側面を示す2〜4個の短い台詞。AIはこのスタイルに合わせます。",
+        "RoleplayQuotePlaceholder": "台詞を入力...",
+        "AddQuote": "台詞を追加",
+        "FandomUrl": "Fandom WikiのURL",
+        "FandomUrlHint": "このキャラクターのシリーズのFandom WikiのURL。Fandom検索ツールを有効にします。",
+        "FandomUrlPlaceholder": "例: https://myheroacademia.fandom.com"
+      },
+      "Reset": "エージェントをリセット",
+      "ResetConfirm": "エージェントの名前、性格、すべての記憶が消去されます。セットアップが最初からやり直しになります。続行しますか？",
+      "Setup": {
+        "Cancel": "キャンセル",
+        "NameLabel": "エージェントに名前をつける",
+        "NamePlaceholder": "空欄のままで名前なし",
+        "PersonalityLabel": "性格を選択",
+        "ProfilePhoto": "プロフィール写真",
+        "ProfilePhotoHint": "このエージェントのアバター用の画像をアップロード",
+        "ProfilePhotoRemove": "写真を削除",
+        "Start": "開始",
+        "Title": "AIチューターを設定",
+        "UserNameLabel": "あなたの名前",
+        "UserNamePlaceholder": "エージェントにどう呼んでほしいですか？",
+        "AboutMeLabel": "あなたについて",
+        "AboutMeHint": "会話をパーソナライズできるように、自分のことを教えてください。",
+        "AboutMePlaceholder": "例：大学生です、漫画が好きです、6ヶ月間学んでいます...",
+        "VoiceSample": "デフォルトボイス",
+        "ManualSetup": "手動設定",
+        "ManualSetupHint": "キャラクターの詳細を自分で入力します。"
+      },
+      "Topics": {
+        "DebugLabel": "トピック：",
+        "Generating": "トピックを生成中...",
+        "Title": "予定トピック"
+      },
+      "QuickStart": {
+        "Button": "Fandomからクイックスタート",
+        "Hint": "Fandom Wikiを検索してロールプレイフィールドを自動入力します。",
+        "Title": "ロールプレイキャラの簡単作成 - {name}",
+        "CharacterNameLabel": "キャラクター名",
+        "CharacterNamePlaceholder": "例: 緑谷出久",
+        "FandomUrlLabel": "Fandom WikiのURL",
+        "FandomUrlHint": "Fandom WikiのベースURLまたはWiki名を入力してください（例: myheroacademia）。",
+        "FandomUrlPlaceholder": "例: myheroacademia または https://myheroacademia.fandom.com",
+        "Next": "次へ",
+        "Back": "戻る",
+        "Search": "検索",
+        "Searching": "Fandom Wikiを検索中...",
+        "NoResults": "結果が見つかりません。別の名前を試すか、WikiのURLを確認してください。",
+        "SelectResult": "複数の結果が見つかりました。正しいものを選択してください：",
+        "MediaTypeLabel": "メディアタイプ",
+        "ProgressPointLabel": "現在の進捗",
+        "ProgressPointHint": "'Chapter 43'、'Episode 30'のような形式を使用するか、全体の場合は'all'と入力してください。",
+        "ProgressPointPlaceholder": "例: Chapter 43, Episode 30, all",
+        "InvalidProgressPoint": "'Chapter 43'、'Episode 30'、数字、または'all'などの認識された形式を使用してください。",
+        "Generate": "ペルソナ生成",
+        "Generating": "キャラクターペルソナを作成中...",
+        "Confirm": "このキャラクターを使用",
+        "ReviewName": "キャラクター",
+        "ReviewLore": "ペルソナ",
+        "ReviewQuotes": "サンプル台詞",
+        "ReviewContext": "ストーリーの背景",
+        "ReviewFandom": "Fandom Wiki"
       }
     },
     "ErrorModal": {
@@ -688,7 +806,10 @@
         "OcrSkip": "OCRリーダーの依存関係をスキップします。",
         "OcrWillInstall": "OCRリーダーの依存関係がインストールされます。",
         "VoiceSkip": "音声・TTSの依存関係をスキップします。",
-        "VoiceWillInstall": "音声・TTSの依存関係がインストールされます。"
+        "VoiceWillInstall": "音声・TTSの依存関係がインストールされます。",
+        "AlreadySatisfied": "既にインストール済み",
+        "Collecting": "依存関係を収集中…",
+        "Downloading": "ダウンロード中…"
       }
     },
     "KanjiGrid": {
@@ -943,7 +1064,29 @@
       },
       "Keybind": {
         "PressKey": "キーを押してください...",
-        "Tooltip": "クリックして記録し、キーを押して設定します"
+        "Tooltip": "クリックして記録し、キーを押して設定します",
+        "Keys": {
+          "Ctrl": "Ctrl",
+          "Alt": "Alt",
+          "Shift": "Shift",
+          "Meta": "Meta",
+          "Space": "スペース",
+          "Enter": "Enter",
+          "Escape": "Escape",
+          "Backspace": "Backspace",
+          "Delete": "Delete",
+          "Tab": "Tab",
+          "CapsLock": "CapsLock",
+          "ArrowUp": "↑",
+          "ArrowDown": "↓",
+          "ArrowLeft": "←",
+          "ArrowRight": "→",
+          "Home": "Home",
+          "End": "End",
+          "PageUp": "Page Up",
+          "PageDown": "Page Down",
+          "Insert": "Insert"
+        }
       },
       "Language": {
         "AppLanguage": {
@@ -957,6 +1100,7 @@
       },
       "Performance": {
         "DevMode": {
+          "AutoEnabled": "開発モードで自動的に有効",
           "Description": "開発者ツールとデバッグ機能を有効にする",
           "Label": "開発者モード"
         },
@@ -1249,6 +1393,20 @@
           "Reset": "リセット",
           "ResetAll": "すべての品詞カラーをリセット"
         }
+      },
+      "About": {
+        "Licenses": "ライセンス"
+      },
+      "Tabs": {
+        "AI": "AI",
+        "About": "アプリについて",
+        "Appearance": "外観",
+        "Behaviour": "動作",
+        "Connection": "接続",
+        "General": "一般",
+        "Reader": "リーダー",
+        "SRS": "SRS",
+        "Statistics": "統計"
       }
     },
     "Statistics": {
@@ -1351,7 +1509,8 @@
         "Flashcards": "フラッシュカード",
         "Ignored": "無視済み",
         "Nothing": "未追跡"
-      }
+      },
+      "Title": "単語データベース"
     },
     "WordHover": {
       "Alerts": {
@@ -1368,6 +1527,19 @@
         "Learning": "学習中",
         "Unknown": "未知"
       }
+    },
+    "ConnectionStatus": {
+      "Connected": "接続済み",
+      "Connecting": "接続中…",
+      "Disconnected": "切断済み",
+      "Error": "接続エラー"
+    },
+    "Tabs": {
+      "Flashcards": "フラッシュカード",
+      "Home": "ホーム",
+      "Reader": "リーダー",
+      "Settings": "設定",
+      "Video": "動画"
     }
   }
 }

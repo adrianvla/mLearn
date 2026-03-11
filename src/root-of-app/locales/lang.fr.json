@@ -84,6 +84,17 @@
           "Ollama": "Ollama",
           "Title": "Fournisseur LLM"
         },
+        "AgentMemory": {
+          "Enable": {
+            "Label": "Mémoire de l'agent",
+            "Description": "Permettre au tuteur IA de se souvenir de faits vous concernant entre les conversations"
+          },
+          "Shared": {
+            "Label": "Partager les souvenirs entre les agents",
+            "Description": "Si activé, tous les agents peuvent accéder à tous les souvenirs. Si désactivé, chaque agent ne voit que les siens."
+          },
+          "Title": "Mémoire de l'agent"
+        },
         "Title": "Paramètres IA"
       },
       "SetupRequired": "Les fonctions IA nécessitent une configuration. Ouverture des paramètres..."
@@ -112,6 +123,13 @@
       "SelectWordsHint": "Sélectionnez les mots sur lesquels vous concentrer.",
       "StartSession": "Démarrer la session",
       "Title": "Configuration du tuteur IA",
+      "WordEaseLegend": {
+        "unassessed": "Non évalué",
+        "hard": "Difficile",
+        "struggling": "En difficulté",
+        "reviewing": "En révision",
+        "known": "Connu"
+      },
       "WordEaseLegendTitle": "Niveau de maîtrise :",
       "WordsTab": "Mots"
     },
@@ -134,6 +152,7 @@
     },
     "CardEditor": {
       "AudioUnavailable": "Audio non disponible. Utilisez le bouton de régénération pour le générer.",
+      "TtsMissing": "{field} introuvable. Régénérez-le depuis l'éditeur de carte.",
       "Fields": {
         "Definitions": "Définitions (une par ligne)",
         "DefinitionsPlaceholder": "Une définition par ligne",
@@ -218,6 +237,21 @@
       "Unreachable": "Injoignable"
     },
     "ConversationAgent": {
+      "Agents": {
+        "Create": "Créer un agent",
+        "Delete": "Supprimer l'agent",
+        "DeleteConfirm": "Tapez le nom de l'agent pour confirmer la suppression :",
+        "DeleteConfirmPlaceholder": "Nom de l'agent",
+        "DeleteConfirmTitle": "Supprimer l'agent",
+        "Edit": "Modifier l'agent",
+        "EditTitle": "Modifier l'agent",
+        "Empty": "Aucun agent pour le moment. Créez-en un pour commencer.",
+        "Memories": "Mémoires",
+        "NoMemories": "Aucune mémoire enregistrée.",
+        "Save": "Enregistrer",
+        "Title": "Agents",
+        "Unnamed": "Agent sans nom"
+      },
       "Clear": "Effacer la conversation",
       "Connection": {
         "AvailableModels": "Modèles disponibles",
@@ -293,6 +327,7 @@
       "StopRecording": "Arrêter l'enregistrement",
       "StopStreaming": "Stop",
       "Tab": {
+        "Agents": "Agents",
         "Chat": "Chat",
         "Context": "Contexte",
         "Stats": "Statistiques",
@@ -342,6 +377,89 @@
         "UploadSample": "Téléverser un échantillon vocal",
         "VoiceSample": "Clone vocal",
         "VoiceSampleDisabledLocal": "L'envoi de voix personnalisée n'est disponible qu'avec Qwen3-TTS ou Cloud TTS"
+      },
+      "Memory": {
+        "ClearAll": "Effacer toutes les mémoires",
+        "ClearAllConfirm": "Voulez-vous vraiment supprimer toutes les mémoires de l'agent ? Cette action est irréversible.",
+        "Delete": "Supprimer la mémoire",
+        "Empty": "Aucune mémoire enregistrée. L'agent retiendra les faits importants au fil de vos conversations.",
+        "Title": "Mémoire de l'agent"
+      },
+      "Personality": {
+        "Casual": "Décontracté",
+        "CasualDescription": "Détendu, amical, utilise un langage familier",
+        "Label": "Personnalité",
+        "Polite": "Poli",
+        "PoliteDescription": "Formel, structuré, ton éducatif",
+        "Roleplay": "Jeu de rôle",
+        "RoleplayDescription": "Personnage personnalisé avec un nom et une histoire",
+        "RoleplayFormality": "Formalité",
+        "RoleplayLore": "Histoire du personnage",
+        "RoleplayLorePlaceholder": "Décrivez la personnalité, l'histoire et la manière dont le personnage doit interagir...",
+        "RoleplayName": "Nom du personnage",
+        "RoleplayNamePlaceholder": "Entrez un nom pour le personnage...",
+        "RoleplayQuotes": "Citations exemple",
+        "RoleplayQuotesHint": "2-4 courtes citations montrant différents aspects de la voix du personnage. L'IA imitera ce style.",
+        "RoleplayQuotePlaceholder": "Entrez une citation...",
+        "AddQuote": "Ajouter une citation",
+        "FandomUrl": "URL du wiki Fandom",
+        "FandomUrlHint": "L'URL du wiki Fandom pour la série de ce personnage. Active l'outil de recherche Fandom.",
+        "FandomUrlPlaceholder": "ex. https://myheroacademia.fandom.com"
+      },
+      "Reset": "Réinitialiser l'agent",
+      "ResetConfirm": "Cela effacera le nom, la personnalité et toutes les mémoires de l'agent. Le processus de configuration recommencera. Continuer ?",
+      "Setup": {
+        "Cancel": "Annuler",
+        "NameLabel": "Donnez un nom à votre agent",
+        "NamePlaceholder": "Laisser vide pour aucun nom",
+        "PersonalityLabel": "Choisir une personnalité",
+        "ProfilePhoto": "Photo de profil",
+        "ProfilePhotoHint": "Télécharger une image pour l'avatar de cet agent",
+        "ProfilePhotoRemove": "Supprimer la photo",
+        "Start": "Commencer",
+        "Title": "Configurer votre tuteur IA",
+        "UserNameLabel": "Votre nom",
+        "UserNamePlaceholder": "Comment l'agent doit-il vous appeler ?",
+        "AboutMeLabel": "À propos de vous",
+        "AboutMeHint": "Parlez de vous à l'agent pour qu'il puisse personnaliser les conversations.",
+        "AboutMePlaceholder": "ex. Je suis étudiant, j'aime les mangas, j'apprends depuis 6 mois...",
+        "VoiceSample": "Voix par défaut",
+        "ManualSetup": "Configuration manuelle",
+        "ManualSetupHint": "Remplissez les détails du personnage vous-même."
+      },
+      "Topics": {
+        "DebugLabel": "Sujets :",
+        "Generating": "Génération des sujets...",
+        "Title": "Sujets prévus"
+      },
+      "QuickStart": {
+        "Button": "Démarrage rapide via Fandom",
+        "Hint": "Remplir automatiquement les champs de jeu de rôle en cherchant sur un wiki Fandom.",
+        "Title": "Création rapide de personnage - {name}",
+        "CharacterNameLabel": "Nom du personnage",
+        "CharacterNamePlaceholder": "ex. Izuku Midoriya",
+        "FandomUrlLabel": "URL du wiki Fandom",
+        "FandomUrlHint": "Entrez l'URL de base du wiki Fandom, ou juste le nom du wiki (ex. myheroacademia).",
+        "FandomUrlPlaceholder": "ex. myheroacademia ou https://myheroacademia.fandom.com",
+        "Next": "Suivant",
+        "Back": "Retour",
+        "Search": "Rechercher",
+        "Searching": "Recherche sur le wiki Fandom...",
+        "NoResults": "Aucun résultat. Essayez un autre nom ou vérifiez l'URL du wiki.",
+        "SelectResult": "Plusieurs résultats trouvés. Sélectionnez le bon :",
+        "MediaTypeLabel": "Type de média",
+        "ProgressPointLabel": "Votre progression actuelle",
+        "ProgressPointHint": "Utilisez un format comme 'Chapter 43', 'Episode 30' ou tapez 'all' pour toute l'histoire.",
+        "ProgressPointPlaceholder": "ex. Chapter 43, Episode 30, all",
+        "InvalidProgressPoint": "Veuillez utiliser un format reconnu comme 'Chapter 43', 'Episode 30', un nombre ou 'all'.",
+        "Generate": "Générer le persona",
+        "Generating": "Création du persona du personnage...",
+        "Confirm": "Utiliser ce personnage",
+        "ReviewName": "Personnage",
+        "ReviewLore": "Persona",
+        "ReviewQuotes": "Citations exemple",
+        "ReviewContext": "Contexte de l'histoire",
+        "ReviewFandom": "Wiki Fandom"
       }
     },
     "ErrorModal": {
@@ -688,7 +806,10 @@
         "OcrSkip": "Les dépendances du lecteur OCR seront ignorées.",
         "OcrWillInstall": "Les dépendances du lecteur OCR seront installées.",
         "VoiceSkip": "Les dépendances vocales et TTS seront ignorées.",
-        "VoiceWillInstall": "Les dépendances vocales et TTS seront installées."
+        "VoiceWillInstall": "Les dépendances vocales et TTS seront installées.",
+        "AlreadySatisfied": "Déjà satisfait",
+        "Collecting": "Collecte des dépendances…",
+        "Downloading": "Téléchargement…"
       }
     },
     "KanjiGrid": {
@@ -943,7 +1064,29 @@
       },
       "Keybind": {
         "PressKey": "Appuyez sur une touche...",
-        "Tooltip": "Cliquez pour enregistrer, puis appuyez sur une touche pour l'assigner"
+        "Tooltip": "Cliquez pour enregistrer, puis appuyez sur une touche pour l'assigner",
+        "Keys": {
+          "Ctrl": "Ctrl",
+          "Alt": "Alt",
+          "Shift": "Maj",
+          "Meta": "Meta",
+          "Space": "Espace",
+          "Enter": "Entrée",
+          "Escape": "Échap",
+          "Backspace": "Retour arrière",
+          "Delete": "Suppr",
+          "Tab": "Tab",
+          "CapsLock": "Verr Maj",
+          "ArrowUp": "Flèche haut",
+          "ArrowDown": "Flèche bas",
+          "ArrowLeft": "Flèche gauche",
+          "ArrowRight": "Flèche droite",
+          "Home": "Début",
+          "End": "Fin",
+          "PageUp": "Page haut",
+          "PageDown": "Page bas",
+          "Insert": "Inser"
+        }
       },
       "Language": {
         "AppLanguage": {
@@ -957,6 +1100,7 @@
       },
       "Performance": {
         "DevMode": {
+          "AutoEnabled": "Activé automatiquement en mode développement",
           "Description": "Activer les outils de développement et les fonctions de débogage",
           "Label": "Mode développeur"
         },
@@ -1249,6 +1393,20 @@
           "Reset": "Réinitialiser",
           "ResetAll": "Réinitialiser toutes les couleurs"
         }
+      },
+      "About": {
+        "Licenses": "Licences"
+      },
+      "Tabs": {
+        "AI": "IA",
+        "About": "À propos",
+        "Appearance": "Apparence",
+        "Behaviour": "Comportement",
+        "Connection": "Connexion",
+        "General": "Général",
+        "Reader": "Lecteur",
+        "SRS": "SRS",
+        "Statistics": "Statistiques"
       }
     },
     "Statistics": {
@@ -1351,7 +1509,8 @@
         "Flashcards": "Cartes mémoire",
         "Ignored": "Ignoré",
         "Nothing": "Non suivi"
-      }
+      },
+      "Title": "Base de mots"
     },
     "WordHover": {
       "Alerts": {
@@ -1368,6 +1527,19 @@
         "Learning": "En apprentissage",
         "Unknown": "Inconnu"
       }
+    },
+    "ConnectionStatus": {
+      "Connected": "Connecté",
+      "Connecting": "Connexion en cours…",
+      "Disconnected": "Déconnecté",
+      "Error": "Erreur de connexion"
+    },
+    "Tabs": {
+      "Flashcards": "Cartes",
+      "Home": "Accueil",
+      "Reader": "Lecteur",
+      "Settings": "Paramètres",
+      "Video": "Vidéo"
     }
   }
 }
