@@ -3,10 +3,13 @@
  * Page thumbnails sidebar
  */
 
-import {Component, For, Accessor, Show, createEffect} from 'solid-js';
+import {Component, For, Accessor, Show, createEffect, onCleanup} from 'solid-js';
 import { Tag, Indicator } from '../../../../components/common';
 import { useLocalization } from '../../../../context';
 import './ReaderSidebar.css';
+
+/** Maximum thumbnail width in pixels — keeps images crisp at sidebar size without aliasing */
+const THUMB_MAX_WIDTH = 200;
 
 interface PageImage {
   id: string;
@@ -28,7 +31,51 @@ interface ReaderSidebarProps {
 export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
   const { t } = useLocalization();
   const thumbRefs = new Map<number, HTMLDivElement>();
+  const thumbUrlCache = new Map<string, string>();
   let sidebarRef: HTMLElement | undefined;
+
+  // Revoke all cached thumbnail blob URLs on cleanup
+  onCleanup(() => {
+    for (const url of thumbUrlCache.values()) URL.revokeObjectURL(url);
+    thumbUrlCache.clear();
+  });
+
+  /**
+   * Downscale a full-resolution image URL to a small thumbnail blob URL.
+   * Uses an offscreen canvas and caches the result per src.
+   */
+  const loadThumbnail = (src: string, imgEl: HTMLImageElement) => {
+    const cached = thumbUrlCache.get(src);
+    if (cached) {
+      imgEl.src = cached;
+      return;
+    }
+
+    const full = new Image();
+    full.crossOrigin = 'anonymous';
+    full.onload = () => {
+      const scale = Math.min(1, THUMB_MAX_WIDTH / full.naturalWidth);
+      const w = Math.round(full.naturalWidth * scale);
+      const h = Math.round(full.naturalHeight * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(full, 0, 0, w, h);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const thumbUrl = URL.createObjectURL(blob);
+            thumbUrlCache.set(src, thumbUrl);
+            imgEl.src = thumbUrl;
+          }
+        }, 'image/jpeg', 0.85);
+      }
+    };
+    full.src = src;
+  };
 
   // Determine which pages are currently active based on page mode
   const isPageActive = (pageIndex: number): boolean => {
@@ -108,7 +155,7 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
                     class={`page-thumb ${isPageActive(page.index) ? 'active' : ''}`}
                     onClick={() => props.onGoToPage(page.index)}
                 >
-                  <img src={page.src} alt={page.name} />
+                  <img ref={(el) => loadThumbnail(page.src, el)} alt={page.name} />
                   <Tag class="page-number">{page.index + 1}</Tag>
                   <Show when={props.hasOcrForPage(page.id)}>
                     <Indicator class="ocr-indicator" variant="primary" />

@@ -24,6 +24,7 @@ import type {
   LicenseBridge,
   MigrationBridge,
   GenericIPCBridge,
+  KVStoreBridge,
 } from './types';
 import type {
   Settings,
@@ -35,6 +36,7 @@ import type {
   VoiceSample,
 } from '../types';
 import { DEFAULT_SETTINGS } from '../types';
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 
 // ============================================================================
 // Simple Event Emitter for local pub/sub
@@ -108,12 +110,12 @@ async function storageSet(key: string, value: string): Promise<void> {
 function getBackendUrl(): string {
   // Read from stored settings or use default
   const stored = localStorage.getItem('mlearn-backend-url');
-  return stored || 'http://127.0.0.1:7752';
+  return stored || `http://127.0.0.1:${PYTHON_BACKEND_PORT}`;
 }
 
 function getNodeServerUrl(): string {
   const stored = localStorage.getItem('mlearn-node-server-url');
-  return stored || 'http://127.0.0.1:7753';
+  return stored || `http://127.0.0.1:${PROXY_SERVER_PORT}`;
 }
 
 // ============================================================================
@@ -278,7 +280,7 @@ const localizationBridge: LocalizationBridge = {
     const loadBundled = async () => {
       try {
         const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-        const lang = settings.language || 'ja';
+        const lang = settings.language || DEFAULT_SETTINGS.language;
         const mod = await import(`../../root-of-app/languages/${lang}.json`);
         emitter.emit('lang-data', mod.default || mod);
       } catch {
@@ -1031,6 +1033,35 @@ const dataBridge = {
 };
 
 // ============================================================================
+// KV Store Bridge (delegates to storageGet/storageSet helpers)
+// ============================================================================
+
+const kvStoreBridge: KVStoreBridge = {
+  kvGet: (key) => storageGet(key),
+  kvSet: (key, value) => storageSet(key, value),
+  kvRemove: async (key) => {
+    localStorage.removeItem(key);
+    try {
+      const mod = await getPreferencesModule();
+      if (mod) await mod.Preferences.remove({ key });
+    } catch { /* ignore */ }
+  },
+  kvGetAll: async () => {
+    const result: Record<string, string> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) result[key] = localStorage.getItem(key) ?? '';
+    }
+    return result;
+  },
+  kvSetBatch: async (entries) => {
+    for (const [key, value] of Object.entries(entries)) {
+      await storageSet(key, value);
+    }
+  },
+};
+
+// ============================================================================
 // Factory
 // ============================================================================
 
@@ -1053,5 +1084,6 @@ export function createCapacitorBridge(): PlatformBridge {
     migration: migrationBridge,
     generic: genericBridge,
     data: dataBridge,
+    kvStore: kvStoreBridge,
   };
 }

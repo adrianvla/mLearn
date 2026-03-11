@@ -5,7 +5,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import type { LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings, GrammarPoint, Token } from '../../shared/types';
+import { DEFAULT_SETTINGS, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 
 // Grammar entry with parsed data for lookup
@@ -77,11 +77,17 @@ interface LanguageContextValue {
 // Create context
 const LanguageContext = createContext<LanguageContextValue>();
 
+/** Compute default frequency level boundaries by dividing evenly into 5 levels */
+function defaultFreqBoundaries(totalEntries: number): number[] {
+  const step = Math.floor(totalEntries / 5);
+  return [step, step * 2, step * 3, step * 4];
+}
+
 export const LanguageProvider: ParentComponent<{ language?: string }> = (props) => {
   const [langData, setLangData] = createStore<LanguageDataMap>({});
   const [wordFrequency, setWordFrequency] = createStore<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
-  const [currentLang] = createSignal<string>(props.language || 'ja');
+  const [currentLang] = createSignal<string>(props.language || DEFAULT_SETTINGS.language);
   const ipcCleanups: Array<() => void> = [];
 
   // Grammar lookup structures
@@ -111,16 +117,18 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     const freqMap: WordFrequencyMap = {};
     const freq = langInfo.freq;
     const levelNames = langInfo.freq_level_names || {};
+    // Use per-language frequency boundaries, or spread evenly across 5 levels
+    const boundaries = langInfo.freq_level_boundaries || defaultFreqBoundaries(freq.length);
 
     for (let i = 0; i < freq.length; i++) {
       const entry = freq[i];
       if (!entry || entry.length < 2) continue;
 
       let level = 1;
-      if (i <= 1500) level = 5;
-      else if (i <= 5000) level = 4;
-      else if (i <= 15000) level = 3;
-      else if (i <= 30000) level = 2;
+      if (i <= boundaries[0]) level = 5;
+      else if (i <= boundaries[1]) level = 4;
+      else if (i <= boundaries[2]) level = 3;
+      else if (i <= boundaries[3]) level = 2;
 
       const levelName = levelNames[String(level)] || `Level ${level}`;
 
@@ -258,47 +266,30 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   // Get language feature capabilities based on fixed_settings and language code
   const getLanguageFeatures = (): LanguageFeatures => {
     const data = currentLangData();
-    const lang = currentLang();
     const fixedSettings = data?.fixed_settings || {};
     const fixedKeys = Object.keys(fixedSettings) as (keyof Settings)[];
+    const scripts = data?.supportedScripts || [];
     
-    // Language-specific defaults
-    const isJapanese = lang === 'ja';
-    const isChinese = lang === 'zh' || lang === 'zh-CN' || lang === 'zh-TW';
-    const isKorean = lang === 'ko';
-    const isArabic = lang === 'ar';
-    const isHebrew = lang === 'he';
-    
-    // CJK languages are logographic (use characters that may need readings)
-    const isLogographic = isJapanese || isChinese || isKorean;
-    
-    // RTL languages
-    const isRTL = isArabic || isHebrew;
+    // Derive script-based capabilities from language data
+    const CJK_SCRIPTS = ['Han', 'Hira', 'Kana', 'Hang', 'Bopo'];
+    const RTL_SCRIPTS = ['Arab', 'Hebr', 'Syrc', 'Thaa'];
+    const isLogographic = scripts.some(s => CJK_SCRIPTS.includes(s));
+    const isRTL = scripts.some(s => RTL_SCRIPTS.includes(s));
 
     let usesLatinScript: boolean;
     if (typeof data?.usesLatinScript === 'boolean') {
       usesLatinScript = data.usesLatinScript;
+    } else if (scripts.length > 0) {
+      usesLatinScript = scripts.includes('Latn');
     } else {
-      let localeScript = '';
-      try {
-        const locale = new Intl.Locale(lang).maximize();
-        localeScript = (locale.script || '').toLowerCase();
-      } catch {
-        localeScript = '';
-      }
-
-      if (localeScript) {
-        usesLatinScript = localeScript === 'latn';
-      } else {
-        usesLatinScript = !isLogographic && !isRTL;
-      }
+      usesLatinScript = !isLogographic && !isRTL;
     }
     
     return {
       // Languages with readings (furigana/pinyin) — driven by language data
-      supportsReadings: fixedSettings.furigana !== false && (data?.hasFurigana === true || isJapanese || isChinese),
-      // Only Japanese has pitch accent data in this app
-      supportsPitchAccent: fixedSettings.showPitchAccent !== false && isJapanese,
+      supportsReadings: fixedSettings.furigana !== false && data?.hasFurigana === true,
+      // Pitch accent data — driven by language data
+      supportsPitchAccent: fixedSettings.showPitchAccent !== false && data?.hasPitchAccent === true,
       isLogographic,
       isRTL,
       usesLatinScript,
@@ -308,9 +299,9 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       supportsFrequencyLevels: Boolean(data?.freq && data.freq.length > 0),
       hasFixedSettings: fixedKeys.length > 0,
       fixedSettingKeys: fixedKeys,
-      // Character name detection primarily for Japanese anime subtitles
-      supportsCharacterNames: isJapanese,
-      // Vertical text support — driven by language data, not hardcoded language checks
+      // Character name detection — driven by language data
+      supportsCharacterNames: data?.hasCharacterNames === true,
+      // Vertical text support — driven by language data
       supportsVerticalText: data?.supportsVerticalText === true,
       // Grammar data available
       supportsGrammar: data?.hasGrammar === true,

@@ -7,7 +7,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, WordStats, FlashcardState, PassiveWordKnowledge, GrammarKnowledgeEntry, TranslationEntry, IgnoredWordEntry } from '../../shared/types';
+import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry } from '../../shared/types';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady } from './migrationSignals';
 import { useSettings } from './SettingsContext';
@@ -19,7 +19,7 @@ import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
 import { streamChat } from '../services/llmProvider';
-import { stripFurigana } from '../../shared/utils/textUtils';
+import { stripFurigana, getLanguageDisplayName } from '../../shared/utils/textUtils';
 
 // Current store version
 const CURRENT_VERSION = 5;
@@ -27,15 +27,6 @@ const CURRENT_VERSION = 5;
 /** Build a language-prefixed composite key for per-language maps */
 function langKey(language: string, hash: string): string {
   return language + ':' + hash;
-}
-
-/** Map a language code to its English display name for LLM prompts */
-function getLanguageDisplayName(code: string): string {
-  const map: Record<string, string> = {
-    en: 'English', de: 'German', fr: 'French', ja: 'Japanese', ru: 'Russian',
-    zh: 'Chinese', ko: 'Korean', es: 'Spanish', it: 'Italian', pt: 'Portuguese',
-  };
-  return map[code] || code;
 }
 
 /**
@@ -312,19 +303,23 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (isElectron()) {
       getBridge().flashcards.getFlashcards();
     } else {
-      // Try localStorage for tethered mode
-      try {
-        const stored = localStorage.getItem('mlearn-flashcards');
+      // Try KV store for tethered/mobile mode
+      getBridge().kvStore.kvGet('mlearn-flashcards').then((stored) => {
         if (stored) {
-          const parsed = JSON.parse(stored);
-          const checked = ensureStoreFields(parsed);
-          setStore(reconcile(checked));
-          refreshQueue();
+          try {
+            const parsed = JSON.parse(stored);
+            const checked = ensureStoreFields(parsed);
+            setStore(reconcile(checked));
+            refreshQueue();
+          } catch (e) {
+            console.error('Failed to parse flashcards from KV store:', e);
+          }
         }
-      } catch (e) {
-        console.error('Failed to load flashcards from localStorage:', e);
-      }
-      setIsLoading(false);
+        setIsLoading(false);
+      }).catch((e) => {
+        console.error('Failed to load flashcards from KV store:', e);
+        setIsLoading(false);
+      });
     }
   };
 
@@ -389,7 +384,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     // Handle migration from v4 to v5 (per-language keying)
     if (version < 5) {
-      const lang = settings.language || 'ja';
+      const lang = settings.language || DEFAULT_SETTINGS.language;
 
       // Add language field to each flashcard
       for (const card of Object.values(flashcards) as Flashcard[]) {
@@ -520,11 +515,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (isElectron()) {
       getBridge().flashcards.saveFlashcards(serializedStore);
     } else {
-      try {
-        localStorage.setItem('mlearn-flashcards', JSON.stringify(serializedStore));
-      } catch (e) {
-        console.error('Failed to save flashcards to localStorage:', e);
-      }
+      getBridge().kvStore.kvSet('mlearn-flashcards', JSON.stringify(serializedStore));
     }
 
     // Broadcast to other windows
@@ -1877,15 +1868,14 @@ Translation: [${targetLang} translation]`;
         try {
           const updates: Array<{ name: string; screenshotUrl: string; videoUrl: string }> = JSON.parse(data as string);
           for (const update of updates) {
-            try {
-              const stored = localStorage.getItem('mlearn_recently_watched');
+            bridge.kvStore.kvGet('mlearn_recently_watched').then((stored) => {
               const list: Array<{ name: string; screenshotUrl: string; videoUrl: string; timestamp: number }> = stored ? JSON.parse(stored) : [];
               list.unshift({ ...update, timestamp: Date.now() });
               if (list.length > 20) list.length = 20;
-              localStorage.setItem('mlearn_recently_watched', JSON.stringify(list));
-            } catch (e) {
+              bridge.kvStore.kvSet('mlearn_recently_watched', JSON.stringify(list));
+            }).catch((e) => {
               console.warn('[Tethered] Failed to save last watched:', e);
-            }
+            });
           }
         } catch (e) {
           console.error('[Tethered] Failed to process last watched updates:', e);

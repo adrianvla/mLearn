@@ -198,11 +198,15 @@ export const GeneralTab: Component = () => {
 
         <SettingRow
           label={t('mlearn.Settings.Performance.DevMode.Label')}
-          description={t('mlearn.Settings.Performance.DevMode.Description')}
+          description={import.meta.env.DEV
+            ? t('mlearn.Settings.Performance.DevMode.AutoEnabled')
+            : t('mlearn.Settings.Performance.DevMode.Description')
+          }
         >
           <ToggleSwitch
-            checked={settings.devMode}
+            checked={import.meta.env.DEV || settings.devMode}
             onChange={(checked) => updateSettings({ devMode: checked })}
+            disabled={import.meta.env.DEV}
           />
         </SettingRow>
       </SettingGroup>

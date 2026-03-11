@@ -3,6 +3,8 @@
  * Captures thumbnails from video and images for recent items
  */
 
+import { getBridge } from '../../shared/bridges';
+
 /**
  * Capture a screenshot from a video element and return as a data URL
  * @param video - The video element to capture from
@@ -132,18 +134,17 @@ const MAX_ITEMS = 10;
  * Save an item to recent items with optional thumbnail
  * Note: Items without a path will be saved but cannot be reopened from the welcome screen
  */
-export function saveToRecentItems(
+export async function saveToRecentItems(
   item: Omit<RecentItem, 'lastWatched'>,
   thumbnail?: string
-): void {
+): Promise<void> {
   try {
     // Warn if saving without path - these items won't be openable
     if (!item.path || !item.path.trim()) {
       console.warn(`[Recent] Saving item "${item.name}" without path - it cannot be reopened from welcome screen`);
     }
     
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const items: RecentItem[] = stored ? JSON.parse(stored) : [];
+    const items = await getRecentItems();
     
     // Preserve existing thumbnail when no new one is provided
     const existing = items.find((i) => i.name === item.name);
@@ -161,7 +162,7 @@ export function saveToRecentItems(
     // Add new item at the beginning
     const updated = [newItem, ...filtered].slice(0, MAX_ITEMS);
     
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(updated));
   } catch (e) {
     console.error('Failed to save recent item:', e);
   }
@@ -170,9 +171,9 @@ export function saveToRecentItems(
 /**
  * Get all recent items
  */
-export function getRecentItems(): RecentItem[] {
+export async function getRecentItems(): Promise<RecentItem[]> {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = await getBridge().kvStore.kvGet(STORAGE_KEY);
     return stored ? JSON.parse(stored) : [];
   } catch (e) {
     console.error('Failed to get recent items:', e);
@@ -183,13 +184,13 @@ export function getRecentItems(): RecentItem[] {
 /**
  * Update thumbnail for an existing recent item
  */
-export function updateRecentItemThumbnail(name: string, thumbnail: string): void {
+export async function updateRecentItemThumbnail(name: string, thumbnail: string): Promise<void> {
   try {
-    const items = getRecentItems();
+    const items = await getRecentItems();
     const index = items.findIndex((i) => i.name === name);
     if (index !== -1) {
       items[index].thumbnail = thumbnail;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
     }
   } catch (e) {
     console.error('Failed to update recent item thumbnail:', e);
@@ -199,14 +200,14 @@ export function updateRecentItemThumbnail(name: string, thumbnail: string): void
 /**
  * Update progress for an existing recent item
  */
-export function updateRecentItemProgress(name: string, progress: number): void {
+export async function updateRecentItemProgress(name: string, progress: number): Promise<void> {
   try {
-    const items = getRecentItems();
+    const items = await getRecentItems();
     const index = items.findIndex((i) => i.name === name);
     if (index !== -1) {
       items[index].progress = progress;
       items[index].lastWatched = Date.now();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
     }
   } catch (e) {
     console.error('Failed to update recent item progress:', e);

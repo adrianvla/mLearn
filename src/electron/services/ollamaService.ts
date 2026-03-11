@@ -19,8 +19,40 @@ function parseUrl(urlStr: string): { hostname: string; port: number; protocol: s
     hostname: url.hostname,
     port: url.port ? parseInt(url.port) : (url.protocol === 'https:' ? 443 : 80),
     protocol: url.protocol,
-    path: url.pathname,
+    path: url.pathname + url.search,
   };
+}
+
+/** Fetch a URL returning raw text, following redirects */
+function fetchUrlRaw(urlStr: string, timeoutMs: number, redirectsLeft = 5): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const { hostname, port, protocol, path } = parseUrl(urlStr);
+    const lib = protocol === 'https:' ? https : http;
+
+    const options: http.RequestOptions = {
+      hostname,
+      port,
+      path,
+      method: 'GET',
+      headers: { 'User-Agent': 'mLearn/2.0', Accept: '*/*' },
+      timeout: timeoutMs,
+    };
+
+    const req = lib.request(options, (res) => {
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        if (redirectsLeft <= 0) { reject(new Error('Too many redirects')); return; }
+        fetchUrlRaw(new URL(res.headers.location, urlStr).toString(), timeoutMs, redirectsLeft - 1).then(resolve, reject);
+        return;
+      }
+      let data = '';
+      res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+      res.on('end', () => resolve(data));
+    });
+
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out')); });
+    req.end();
+  });
 }
 
 /**
@@ -605,8 +637,8 @@ export function setupOllamaIPC(): void {
   // URL fetch (for conversation agent web lookups)
   ipcMain.handle(IPC_CHANNELS.FETCH_URL, async (_event: IpcMainInvokeEvent, url: string) => {
     try {
-      const content = (await jsonRequest(url, 'GET', undefined, 15_000)) as string;
-      return { content: typeof content === 'string' ? content : JSON.stringify(content) };
+      const content = await fetchUrlRaw(url, 15_000);
+      return { content };
     } catch (err) {
       return { content: '', error: (err as Error).message };
     }

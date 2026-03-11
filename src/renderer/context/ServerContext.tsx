@@ -33,16 +33,34 @@ export const ServerProvider: ParentComponent = (props) => {
   // Check if we're in Electron or tethered mode
   const isElectronApp = isElectron();
 
-  // Send localStorage snapshot to main process so the web server
-  // can serve it to tethered clients via /settings.js
-  const sendLocalStorageToMain = () => {
-    if (!isElectronApp) return;
+  // One-time migration: move localStorage data into the KV store (file-based on Electron).
+  // After migration the KV store is the source of truth once the app has restarted.
+  const migrateLocalStorageToKVStore = async () => {
+    const bridge = getBridge();
+    const already = await bridge.kvStore.kvGet('_ls_migrated');
+    if (already) return;
+
     const data: Record<string, string> = {};
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key) data[key] = localStorage.getItem(key) ?? '';
     }
-    getBridge().generic.sendLS(data);
+    if (Object.keys(data).length > 0) {
+      data['_ls_migrated'] = '1';
+      await bridge.kvStore.kvSetBatch(data);
+    } else {
+      await bridge.kvStore.kvSet('_ls_migrated', '1');
+    }
+    console.log('[ServerContext] Migrated localStorage → KV store');
+  };
+
+  // Send KV store snapshot to main process so the web server
+  // can serve it to tethered clients via /settings.js
+  const sendKVStoreToMain = async () => {
+    if (!isElectronApp) return;
+    const bridge = getBridge();
+    const data = await bridge.kvStore.kvGetAll();
+    bridge.generic.sendLS(data);
   };
 
   const setupListeners = () => {
@@ -56,8 +74,8 @@ export const ServerProvider: ParentComponent = (props) => {
 
     const bridge = getBridge();
 
-    // Send localStorage data to main process for tethered clients
-    sendLocalStorageToMain();
+    // Migrate localStorage → KV store, then send KV data to main process
+    migrateLocalStorageToKVStore().then(() => sendKVStoreToMain());
 
     // Request initial status
     bridge.server.isLoaded();

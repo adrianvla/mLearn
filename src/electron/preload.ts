@@ -202,6 +202,14 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.READ_DIRECTORY_IMAGES, directoryPath),
   readPdfFile: (filePath: string): Promise<{ data: ArrayBuffer }> => 
     ipcRenderer.invoke(IPC_CHANNELS.READ_PDF_FILE, filePath),
+  selectVideoFile: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SELECT_VIDEO_FILE),
+  selectSubtitleFile: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SELECT_SUBTITLE_FILE),
+  selectBookFolder: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SELECT_BOOK_FOLDER),
+  selectPdfFile: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SELECT_PDF_FILE),
     
   /**
    * Get filesystem path for a File object.
@@ -342,6 +350,18 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.DATA_EXPORT),
   dataImport: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC_CHANNELS.DATA_IMPORT),
+
+  // ========== KV Store ==========
+  kvGet: (key: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KV_GET, key),
+  kvSet: (key: string, value: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KV_SET, key, value),
+  kvRemove: (key: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KV_REMOVE, key),
+  kvGetAll: (): Promise<Record<string, string>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KV_GET_ALL),
+  kvSetBatch: (entries: Record<string, string>): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.KV_SET_BATCH, entries),
 };
 
 // Expose API to renderer

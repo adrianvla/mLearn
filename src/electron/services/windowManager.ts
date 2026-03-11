@@ -6,7 +6,7 @@
 import { BrowserWindow, app, ipcMain, Menu, dialog, shell, clipboard } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { IPC_CHANNELS, WindowType } from '../../shared/constants';
+import { IPC_CHANNELS, WindowType, PROXY_SERVER_PORT } from '../../shared/constants';
 import type { WindowSize, OpenWindowPayload } from '../../shared/types';
 import { isMac, isLinux, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
@@ -444,7 +444,7 @@ function setupAppMenu(): void {
         {
           label: 'Install UserScript',
           click: () => {
-            shell.openExternal('http://127.0.0.1:7753/mLearn.user.js');
+            shell.openExternal(`http://127.0.0.1:${PROXY_SERVER_PORT}/mLearn.user.js`);
           },
         },
       ],

@@ -386,3 +386,20 @@ export function applyRubyReadings(text: string): string {
   result = result.replace(/<[^>]*>/g, '');
   return result.trim();
 }
+
+// ============================================================================
+// Language Display Names
+// ============================================================================
+
+/** Language code → English display name mapping (for LLM prompts and display) */
+const LANGUAGE_DISPLAY_NAMES: Record<string, string> = {
+  en: 'English', de: 'German', fr: 'French', ja: 'Japanese', ru: 'Russian',
+  zh: 'Chinese', ko: 'Korean', es: 'Spanish', it: 'Italian', pt: 'Portuguese',
+  ar: 'Arabic', he: 'Hebrew', hi: 'Hindi', th: 'Thai', vi: 'Vietnamese',
+  tr: 'Turkish', pl: 'Polish', nl: 'Dutch', sv: 'Swedish', uk: 'Ukrainian',
+};
+
+/** Map a language code to its English display name (for LLM prompts, display) */
+export function getLanguageDisplayName(code: string): string {
+  return LANGUAGE_DISPLAY_NAMES[code] || code;
+}

@@ -77,6 +77,8 @@ export interface VoiceTabProps {
   triggerKey?: string;
   isConnected: boolean;
   language: string;
+  /** Default voice sample from the agent config */
+  defaultVoiceSampleId?: string;
 }
 
 // ============================================================================
@@ -106,7 +108,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   // Voice sample state
   const [voiceSamples, setVoiceSamples] = createSignal<VoiceSample[]>([]);
-  const [selectedSampleId, setSelectedSampleId] = createSignal<string>('');
+  const [selectedSampleId, setSelectedSampleId] = createSignal<string>(props.defaultVoiceSampleId || '');
 
   // Refs
   let messagesRef: HTMLDivElement | undefined;

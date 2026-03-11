@@ -9,6 +9,7 @@ import { WindowWrapper } from '../../context';
 import { useSettings, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import type { Settings, InstallOptions, InstallerState, PipProgress } from '../../../shared/types';
+import { PROXY_SERVER_PORT } from '../../../shared/constants';
 import { Panel, Btn, SelectableCard, AlertBanner, LogConsole, CheckboxCard, ProgressBar } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
 import './welcome.css';
@@ -111,7 +112,7 @@ const WelcomeContent: Component = () => {
       settingsSavedCleanup();
       setOverallStatus(t('mlearn.Installer.Status.LanguageInstalledRestarting'));
       setTimeout(() => {
-        fetch('http://127.0.0.1:7753/quit', {
+        fetch(`http://127.0.0.1:${PROXY_SERVER_PORT}/quit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: '{}',

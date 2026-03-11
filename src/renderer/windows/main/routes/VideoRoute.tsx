@@ -48,7 +48,7 @@ export const VideoRoute: Component = () => {
   const [showStatsPanel, setShowStatsPanel] = createSignal(false);
 
   // Media stats for this video session
-  const mediaStats = useMediaStats({ mediaType: 'video', language: settings.language || 'ja' });
+  const mediaStats = useMediaStats({ mediaType: 'video', language: settings.language });
 
   // Activate media stats when a video name is available
   createEffect(() => {
@@ -208,7 +208,7 @@ export const VideoRoute: Component = () => {
     if (videoEl && name && videoEl.readyState >= 2) {
       const thumbnail = captureVideoThumbnail(videoEl);
       if (thumbnail) {
-        updateRecentItemThumbnail(name, thumbnail);
+        void updateRecentItemThumbnail(name, thumbnail);
       }
     }
   };
@@ -218,7 +218,7 @@ export const VideoRoute: Component = () => {
     const name = currentVideoName();
     if (videoEl && name && videoEl.duration && isFinite(videoEl.duration)) {
       const progress = videoEl.currentTime / videoEl.duration;
-      updateRecentItemProgress(name, progress);
+      void updateRecentItemProgress(name, progress);
     }
   };
 
@@ -263,7 +263,7 @@ export const VideoRoute: Component = () => {
         setCurrentVideoName(file.name);
         // Only save to recent items if we have a valid path (can be reopened)
         if (filePath) {
-          saveToRecentItems({
+          await saveToRecentItems({
             type: 'video',
             name: file.name,
             path: filePath,
@@ -305,7 +305,7 @@ export const VideoRoute: Component = () => {
           setCurrentVideoName(file.name);
           // Only save to recent items if we have a valid path (can be reopened)
           if (filePath) {
-            saveToRecentItems({
+            await saveToRecentItems({
               type: 'video',
               name: file.name,
               path: filePath,
@@ -330,7 +330,7 @@ export const VideoRoute: Component = () => {
       setCurrentVideoPath(path);
       setShowDropZone(false);
       setCurrentVideoName(videoName);
-      saveToRecentItems({
+      await saveToRecentItems({
         type: 'video',
         name: videoName,
         path: path,
@@ -374,7 +374,7 @@ export const VideoRoute: Component = () => {
   const openConversationAgent = () => {
     const s = mediaStats.stats();
     const name = currentVideoName();
-    const lang = settings.language || 'ja';
+    const lang = settings.language;
 
     // Build level percentages from current media stats
     const freqLookup = { getFrequency: langCtx.getFrequency, getFreqLevelNames: langCtx.getFreqLevelNames };

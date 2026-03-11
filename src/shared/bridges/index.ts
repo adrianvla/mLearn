@@ -38,13 +38,6 @@ export function getBridge(): PlatformBridge {
   return bridge;
 }
 
-/**
- * Check if bridge is available (always true after first call).
- */
-export function hasBridge(): boolean {
-  return bridge !== null;
-}
-
 export type { PlatformBridge } from './types';
 export type {
   SettingsBridge,

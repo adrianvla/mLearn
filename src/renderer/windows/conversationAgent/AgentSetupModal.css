@@ -1,0 +1,130 @@
+.agent-setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+}
+
+.agent-setup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}
+
+/* Wizard: personality step */
+.agent-setup-personality-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+}
+
+.agent-setup-personality-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.agent-setup-personality-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-3);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.agent-setup-personality-card:hover {
+  border-color: var(--border-color-intense);
+  background: var(--bg-secondary);
+}
+
+.agent-setup-personality-card-title {
+  font-weight: 600;
+  font-size: var(--font-size-md);
+}
+
+.agent-setup-personality-card-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* Wizard: roleplay method step */
+.agent-setup-roleplay-method {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+}
+
+/* Profile photo section */
+.agent-setup-photo-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.agent-setup-photo-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+  border: 2px dashed var(--border-color);
+  transition: border-color var(--transition-fast);
+}
+
+.agent-setup-photo-preview:hover {
+  border-color: var(--accent-primary);
+}
+
+.agent-setup-photo-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  color: var(--text-tertiary);
+}
+
+.agent-setup-photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.agent-setup-photo-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.agent-setup-photo-input {
+  display: none;
+}
+
+/* Quotes */
+.agent-setup-quotes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.agent-setup-quote-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.agent-setup-quote-row > :first-child {
+  flex: 1;
+}

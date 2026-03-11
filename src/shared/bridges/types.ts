@@ -241,6 +241,14 @@ export interface DataBridge {
   dataImport: () => Promise<{ success: boolean; error?: string }>;
 }
 
+export interface KVStoreBridge {
+  kvGet: (key: string) => Promise<string | null>;
+  kvSet: (key: string, value: string) => Promise<void>;
+  kvRemove: (key: string) => Promise<void>;
+  kvGetAll: () => Promise<Record<string, string>>;
+  kvSetBatch: (entries: Record<string, string>) => Promise<void>;
+}
+
 // ============================================================================
 // Combined PlatformBridge
 // ============================================================================
@@ -263,4 +271,5 @@ export interface PlatformBridge {
   migration: MigrationBridge;
   generic: GenericIPCBridge;
   data: DataBridge;
+  kvStore: KVStoreBridge;
 }

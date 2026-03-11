@@ -50,7 +50,7 @@ export interface ReadingOverride {
  *
  * @returns The cleaned text and any reading overrides found
  */
-export function parseSubtitle(text: string, _language: string = 'ja'): {
+export function parseSubtitle(text: string, _language: string): {
   text: string;
   readingOverrides: ReadingOverride[];
 } {

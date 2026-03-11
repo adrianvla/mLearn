@@ -280,7 +280,7 @@ export function useSubtitles() {
     try {
       // Parse subtitle for inline furigana annotations like 百夜優一郎(ひゃくやゆういちろう)
       // This extracts reading overrides and cleans the text
-      const { text: cleanedText, readingOverrides } = parseSubtitle(sub.text);
+      const { text: cleanedText, readingOverrides } = parseSubtitle(sub.text, settings.language);
       
       const newTokens = await tokenize(cleanedText);
       if (Array.isArray(newTokens) && newTokens.length > 0) {

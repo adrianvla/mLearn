@@ -26,6 +26,7 @@ export interface ModalProps {
   /** Optional class applied to the panel container */
   panelClass?: string;
   noBottomPadding?: boolean;
+  headerDraggable?: boolean;
 }
 
 export const Modal: Component<ModalProps> = (props) => {
@@ -37,7 +38,8 @@ export const Modal: Component<ModalProps> = (props) => {
       closeOnOverlay: true,
       showCloseButton: true,
       fullHeight: false,
-      noBottomPadding: false
+      noBottomPadding: false,
+      headerDraggable: false,
     },
     props
   );
@@ -55,7 +57,8 @@ export const Modal: Component<ModalProps> = (props) => {
     'children',
     'fullHeight',
     'panelClass',
-    'noBottomPadding'
+    'noBottomPadding',
+    'headerDraggable'
   ]);
 
   // Handle escape key
@@ -152,6 +155,7 @@ export const Modal: Component<ModalProps> = (props) => {
                   'justify-content': 'space-between',
                   padding: 'var(--spacing-4) var(--spacing-6)',
                   'border-bottom': '1px solid var(--border-color)',
+                  'app-region': local.headerDraggable ? 'drag' : 'no-drag',
                 }}
               >
                 <div style={{ display: 'flex', 'flex-direction': 'column', gap: 'var(--spacing-1)' }}>
@@ -185,7 +189,7 @@ export const Modal: Component<ModalProps> = (props) => {
                     size="sm"
                     aria-label={t('mlearn.Global.Aria.CloseModal')}
                     onClick={local.onClose}
-                    style={{ 'margin-left': 'var(--spacing-4)', 'flex-shrink': 0 }}
+                    style={{ 'margin-left': 'var(--spacing-4)', 'flex-shrink': 0, 'app-region': 'no-drag' }}
                   >
                     <CloseIcon />
                   </IconBtn>

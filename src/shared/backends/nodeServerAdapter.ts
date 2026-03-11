@@ -8,6 +8,7 @@
 
 import type { Settings } from '../types';
 import type { FlashcardStore } from '../types';
+import { PROXY_SERVER_PORT } from '../constants';
 
 export interface NodeServerAdapter {
   /** Base URL of the node server (e.g. http://192.168.1.10:7753) */
@@ -108,7 +109,7 @@ export class HttpNodeServerAdapter implements NodeServerAdapter {
 let cached: NodeServerAdapter | null = null;
 
 export function getNodeServer(baseUrl?: string): NodeServerAdapter {
-  const url = baseUrl || 'http://127.0.0.1:7753';
+  const url = baseUrl || `http://127.0.0.1:${PROXY_SERVER_PORT}`;
   if (cached && (cached as HttpNodeServerAdapter).getBaseUrl() === url) return cached;
   cached = new HttpNodeServerAdapter(url);
   return cached;

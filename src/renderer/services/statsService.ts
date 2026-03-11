@@ -203,36 +203,26 @@ export async function getKnownStatus(word: string, srsCheck?: (word: string) => 
 }
 
 /**
- * Load words from storage synchronously
- * Can be called at module init time to ensure data is available immediately
+ * Load words from storage via KV store bridge
  * Safe to call multiple times - will only load once
  */
-export function loadWordsFromStorageSync(): void {
+export async function loadWordsFromStorage(): Promise<void> {
   if (wordStatusesLoaded) return;
   wordStatusesLoaded = true;
   
   try {
-    // Check for existing v2 data in localStorage first
-    const stored = localStorage.getItem('mlearn_words_learned');
+    // Check for existing v2 data in KV store
+    const stored = await getBridge().kvStore.kvGet('mlearn_words_learned');
     if (stored) {
       setWordsLearnedInApp(JSON.parse(stored));
-      console.log('[statsService] Loaded word statuses from v2 format');
-      return;
-    }
-    
-    // Check for v1 data (knownAdjustment) in current localStorage
-    // This may not work in dev mode due to different origins, but try anyway
-    const v1KnownAdjustment = localStorage.getItem('knownAdjustment');
-    if (v1KnownAdjustment) {
-      console.log('[statsService] Detected v1 localStorage data (same origin), starting migration...');
-      migrateFromV1Data(JSON.parse(v1KnownAdjustment));
+      console.log('[statsService] Loaded word statuses from KV store');
       return;
     }
     
     // No local data found - check for data migrated by main process
     // This handles the case where old app used file:// and new app uses localhost
     console.log('[statsService] No local data found, will check main process migration data');
-    loadFromMainProcessMigration();
+    await loadFromMainProcessMigration();
   } catch (e) {
     console.error('[statsService] Failed to load words from storage:', e);
   }
@@ -245,8 +235,8 @@ function migrateFromV1Data(knownAdjustment: Record<string, number>): void {
   try {
     setWordsLearnedInApp(knownAdjustment);
     
-    // Save in new format
-    localStorage.setItem('mlearn_words_learned', JSON.stringify(knownAdjustment));
+    // Save in new format via KV store
+    getBridge().kvStore.kvSet('mlearn_words_learned', JSON.stringify(knownAdjustment));
     
     // Track migration
     localStorageMigrationInfo = {
@@ -280,20 +270,11 @@ async function loadFromMainProcessMigration(): Promise<void> {
 }
 
 /**
- * Load words from storage (localStorage or IPC)
- * Also handles migration from v1 (old app) localStorage format
- * @deprecated Use loadWordsFromStorageSync instead for immediate availability
- */
-export async function loadWordsFromStorage(): Promise<void> {
-  loadWordsFromStorageSync();
-}
-
-/**
  * Save words to storage
  */
 export async function saveWordsToStorage(): Promise<void> {
   try {
-    localStorage.setItem('mlearn_words_learned', JSON.stringify(wordsLearnedInApp()));
+    await getBridge().kvStore.kvSet('mlearn_words_learned', JSON.stringify(wordsLearnedInApp()));
   } catch (e) {
     console.error('Failed to save words to storage:', e);
   }
@@ -442,7 +423,8 @@ export {
 
 // Auto-load word statuses when module initializes
 // This ensures data is available before any component tries to access it
-if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-  loadWordsFromStorageSync();
-  console.log('[statsService] Auto-initialized word statuses on module load');
+if (typeof window !== 'undefined') {
+  loadWordsFromStorage().then(() => {
+    console.log('[statsService] Auto-initialized word statuses on module load');
+  });
 }

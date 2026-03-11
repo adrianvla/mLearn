@@ -16,6 +16,7 @@ import {
   type WordStatus,
 } from '../../../../components/subtitle/wordHoverHelpers';
 import { normalizeReading } from '../../../../../shared/utils/textUtils';
+import { containsKanji, isAllKana } from '../../../../../shared/utils/textUtils';
 import './ReaderUnknownWordsSidebar.css';
 
 const ICON_CROSS2 = 'cross2';
@@ -74,6 +75,18 @@ const UnknownWordRow: Component<{
     return { reading, position };
   });
 
+  const effectiveReading = createMemo(() => {
+    return pitchData()?.reading || props.entry.word;
+  });
+
+  const needsFurigana = createMemo(() => {
+    const word = props.entry.word;
+    const reading = effectiveReading();
+    if (!reading || reading === word) return false;
+    if (isAllKana(word)) return false;
+    return containsKanji(word);
+  });
+
   const levelData = createMemo(() => {
     const freq = getFrequency(props.entry.word);
     if (freq) {
@@ -111,24 +124,46 @@ const UnknownWordRow: Component<{
   };
 
   return (
-    <article class="reader-unknown-words-item panel">
+    <article class="reader-unknown-words-item">
       <div class="reader-unknown-words-item-header">
-        <div class="reader-unknown-words-item-word">{props.entry.word}</div>
+        <div class="reader-unknown-words-item-word">
+          <Show when={pitchData()} fallback={
+            <Show when={needsFurigana()} fallback={props.entry.word}>
+              <ruby>{props.entry.word}<rt>{effectiveReading()}</rt></ruby>
+            </Show>
+          }>
+            {(pitch) => (
+              <Show when={needsFurigana()} fallback={
+                <PitchAccentOverlay
+                  word={props.entry.word}
+                  reading={pitch().reading}
+                  pitchPosition={pitch().position}
+                  mode="overlay"
+                  homogenous={true}
+                >
+                  {props.entry.word}
+                </PitchAccentOverlay>
+              }>
+                <ruby>
+                  {props.entry.word}
+                  <rt>
+                    <PitchAccentOverlay
+                      word={props.entry.word}
+                      reading={pitch().reading}
+                      pitchPosition={pitch().position}
+                      mode="overlay"
+                      homogenous={true}
+                    >
+                      {pitch().reading}
+                    </PitchAccentOverlay>
+                  </rt>
+                </ruby>
+              </Show>
+            )}
+          </Show>
+        </div>
       </div>
       <div class="reader-unknown-words-item-pills">
-        <Show when={pitchData()}>
-          {(pitch) => (
-            <PitchAccentOverlay
-              word={props.entry.word}
-              reading={pitch().reading}
-              pitchPosition={pitch().position}
-              pos={posLabel()}
-              mode="pill"
-              showParticleBox={true}
-              homogenous={true}
-            />
-          )}
-        </Show>
         <Show when={levelData()}>
           {(level) => (
             <PillLabel level={level().level}>{level().name || getLevelName(level().level)}</PillLabel>

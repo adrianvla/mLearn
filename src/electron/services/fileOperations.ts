@@ -3,7 +3,7 @@
  * Handles reading files from the filesystem for the renderer process
  */
 
-import { ipcMain } from 'electron';
+import { ipcMain, dialog, BrowserWindow } from 'electron';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { IPC_CHANNELS } from '../../shared/constants';
@@ -52,5 +52,57 @@ export function setupFileOperationsIPC(): void {
       console.error('[FileOps] Failed to read PDF file:', error);
       throw error;
     }
+  });
+
+  // Select a video file
+  ipcMain.handle(IPC_CHANNELS.SELECT_VIDEO_FILE, async () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog({
+      ...(focusedWindow ? { browserWindow: focusedWindow } : {}),
+      properties: ['openFile'],
+      filters: [
+        { name: 'Video Files', extensions: ['mp4', 'mkv', 'avi', 'webm', 'mov', 'flv', 'wmv', 'm4v', 'mpg', 'mpeg', 'ogv'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    } as Electron.OpenDialogOptions);
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+
+  // Select a subtitle file
+  ipcMain.handle(IPC_CHANNELS.SELECT_SUBTITLE_FILE, async () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog({
+      ...(focusedWindow ? { browserWindow: focusedWindow } : {}),
+      properties: ['openFile'],
+      filters: [
+        { name: 'Subtitle Files', extensions: ['srt', 'vtt', 'ass', 'ssa'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    } as Electron.OpenDialogOptions);
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+
+  // Select a book folder (directory of images)
+  ipcMain.handle(IPC_CHANNELS.SELECT_BOOK_FOLDER, async () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog({
+      ...(focusedWindow ? { browserWindow: focusedWindow } : {}),
+      properties: ['openDirectory'],
+    } as Electron.OpenDialogOptions);
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+
+  // Select a PDF file
+  ipcMain.handle(IPC_CHANNELS.SELECT_PDF_FILE, async () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog({
+      ...(focusedWindow ? { browserWindow: focusedWindow } : {}),
+      properties: ['openFile'],
+      filters: [
+        { name: 'PDF Files', extensions: ['pdf'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+    } as Electron.OpenDialogOptions);
+    return result.canceled ? null : result.filePaths[0] ?? null;
   });
 }

@@ -25,6 +25,7 @@ import { parseWorkName } from '../../../utils/subtitleParsing';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { wordsLearnedInApp } from '../../../services/statsService';
 import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import './reader.css';
 
 interface PageImage {
@@ -64,10 +65,10 @@ const [processingTask, setProcessingTask] = createSignal<OcrTask | null>(null);
 const STORAGE_KEY_PREFIX = 'reader:last-page:';
 const makeStorageKey = (bookId: string) => `${STORAGE_KEY_PREFIX}${bookId}`;
 
-const loadSavedPageIndex = (bookId: string | null): number | null => {
+const loadSavedPageIndex = async (bookId: string | null): Promise<number | null> => {
   if (!bookId) return null;
   try {
-    const raw = localStorage.getItem(makeStorageKey(bookId));
+    const raw = await getBridge().kvStore.kvGet(makeStorageKey(bookId));
     if (raw === null) return null;
     const val = parseInt(raw, 10);
     return Number.isFinite(val) ? val : null;
@@ -80,11 +81,7 @@ const loadSavedPageIndex = (bookId: string | null): number | null => {
 const persistPageIndex = (bookId: string | null, pageIndex: number, totalPages: number) => {
   if (!bookId || totalPages === 0) return;
   const normalized = Math.min(Math.max(pageIndex, 0), totalPages - 1);
-  try {
-    localStorage.setItem(makeStorageKey(bookId), String(normalized));
-  } catch (err) {
-    console.warn('[Reader] Failed to persist page index', err);
-  }
+  getBridge().kvStore.kvSet(makeStorageKey(bookId), String(normalized));
 };
 
 // Extract folder name from a path or first file
@@ -118,7 +115,7 @@ export const ReaderRoute: Component = () => {
   const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
 
   // Media stats for this reader session
-  const mediaStats = useMediaStats({ mediaType: 'book', language: settings.language || 'ja' });
+  const mediaStats = useMediaStats({ mediaType: 'book', language: settings.language });
 
   const [pages, setPages] = createSignal<PageImage[]>([]);
   const [currentPage, setCurrentPage] = createSignal(0);
@@ -417,6 +414,10 @@ export const ReaderRoute: Component = () => {
           continue;
         }
 
+        if (!isWordInLanguageScript(entry.word, settings.language)) {
+          continue;
+        }
+
         deduped.set(entry.word, entry);
       }
     }
@@ -643,7 +644,7 @@ export const ReaderRoute: Component = () => {
         if (!cloudToken) throw new Error('Cloud OCR requires authentication');
 
         const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
-        const language = settings.language || 'ja';
+        const language = settings.language;
         const engine = turbo ? 'rapid' : undefined;
         const cloudResult = await adapter.recognize(prepared.blob, language, engine);
 
@@ -844,7 +845,7 @@ export const ReaderRoute: Component = () => {
         // Store the path for recent items persistence
         setCurrentBookPath(bookPath);
 
-        const savedPageIndex = loadSavedPageIndex(bookId);
+        const savedPageIndex = await loadSavedPageIndex(bookId);
         const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pdfImages.length
             ? savedPageIndex : 0;
 
@@ -883,7 +884,7 @@ export const ReaderRoute: Component = () => {
         // Store the path for recent items persistence
         setCurrentBookPath(bookPath);
 
-        const savedPageIndex = loadSavedPageIndex(bookId);
+        const savedPageIndex = await loadSavedPageIndex(bookId);
         const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < result.files.length
             ? savedPageIndex : 0;
 
@@ -944,7 +945,7 @@ export const ReaderRoute: Component = () => {
       setCurrentBookId(bookId);
       setCurrentBookPath('');
 
-      const savedPageIndex = loadSavedPageIndex(bookId);
+      const savedPageIndex = await loadSavedPageIndex(bookId);
       const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < files.length ? savedPageIndex : 0;
 
       const newPages: PageImage[] = files.map((file, index) => ({
@@ -991,7 +992,7 @@ export const ReaderRoute: Component = () => {
         setCurrentBookId(bookId);
         setCurrentBookPath('');
 
-        const savedPageIndex = loadSavedPageIndex(bookId);
+        const savedPageIndex = await loadSavedPageIndex(bookId);
         const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pdfImages.length ? savedPageIndex : 0;
 
         const newPages: PageImage[] = pdfImages.map((img, index) => ({
@@ -1196,7 +1197,7 @@ export const ReaderRoute: Component = () => {
     if (title && currentPages.length > 0 && currentPages[page]?.blob) {
       captureBlobThumbnail(currentPages[page].blob!).then((thumbnail) => {
         if (thumbnail) {
-          saveToRecentItems({ type: 'book', name: title, path, progress: page }, thumbnail);
+          void saveToRecentItems({ type: 'book', name: title, path, progress: page }, thumbnail);
         }
       });
     }
@@ -1230,7 +1231,7 @@ export const ReaderRoute: Component = () => {
         setCurrentBookPath(pdfPath);
 
         // Check for saved page position
-        const savedPageIndex = loadSavedPageIndex(bookId);
+        const savedPageIndex = await loadSavedPageIndex(bookId);
         let startPage = 0;
 
         if (savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pdfImages.length) {
@@ -1308,7 +1309,7 @@ export const ReaderRoute: Component = () => {
     setCurrentBookPath(bookPath);
 
     // Check for saved page position using the per-book storage key
-    const savedPageIndex = loadSavedPageIndex(bookId);
+    const savedPageIndex = await loadSavedPageIndex(bookId);
     let startPage = 0;
 
     if (savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < files.length) {
@@ -1351,7 +1352,7 @@ export const ReaderRoute: Component = () => {
         thumbnail = await captureBlobThumbnail(coverBlob);
       }
 
-      saveToRecentItems({
+      await saveToRecentItems({
         type,
         name,
         path,
@@ -1519,7 +1520,7 @@ export const ReaderRoute: Component = () => {
   const openConversationAgent = () => {
     const s = mediaStats.stats();
     const name = bookTitle();
-    const lang = settings.language || 'ja';
+    const lang = settings.language;
 
     const freqLookup = { getFrequency: langCtx.getFrequency, getFreqLevelNames: langCtx.getFreqLevelNames };
     const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };

@@ -67,6 +67,11 @@ export const SettingsProvider: ParentComponent = (props) => {
       setIsLoading(false);
       setHasLoaded(true);
 
+      // In dev builds, always force devMode on
+      if (import.meta.env.DEV) {
+        setSettings('devMode', true);
+      }
+
       // Initialize the backend adapter with the loaded settings
       getBackend({
         mode: mergedSettings.backendMode,

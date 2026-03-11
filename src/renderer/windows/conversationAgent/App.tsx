@@ -12,6 +12,21 @@ import { resolveCloudApiUrl } from '../../../shared/backends';
 import { validateAndRefreshCloudSession } from '../../services/cloudAuthService';
 import { CloudReLoginModal } from '../../components/cloud';
 import {
+  loadAgents,
+  addAgent,
+  updateAgent,
+  deleteAgent,
+  loadActiveAgentId,
+  saveActiveAgentId,
+  migrateIfNeeded,
+  loadAllMemories,
+  filterMemories,
+  addAgentMemory,
+  removeAgentMemory,
+  clearAgentMemories,
+  generateAgentId,
+} from '../../services/agentConfigService';
+import {
   IconBtn,
   TabContainer,
   TabPanel,
@@ -25,6 +40,7 @@ import {
   ChatIcon,
   EditIcon,
   TrashIcon,
+  RefreshIcon,
 } from '../../components/common';
 import type { TabItem, SelectOption } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
@@ -33,10 +49,12 @@ import { ChatBubble } from './ChatBubble';
 import { SessionContextTab } from './SessionContextTab';
 import { VoiceTab } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
+import { AgentSetupModal } from './AgentSetupModal';
+import { AgentListPanel } from './AgentListPanel';
 
 import { createConversationAgent } from '../../services/conversationAgent';
 import type { StreamCallbacks } from '../../services/conversationAgent';
-import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig } from '../../../shared/types';
+import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import { isLatinOnly } from '../../../shared/utils/textUtils';
 import './ConversationAgent.css';
@@ -129,6 +147,26 @@ export const ConversationContent: Component = () => {
   // Cloud re-login modal state
   const [showReLoginModal, setShowReLoginModal] = createSignal(false);
 
+  // Agent setup & memory state
+  const [agents, setAgents] = createSignal<AgentConfig[]>([]);
+  const [activeAgentId, setActiveAgentId] = createSignal<string | null>(null);
+  const [allMemories, setAllMemories] = createSignal<AgentMemoryEntry[]>([]);
+  const [showSetupModal, setShowSetupModal] = createSignal(false);
+  const [editingAgent, setEditingAgent] = createSignal<AgentConfig | null>(null);
+  const [topicPlan, setTopicPlan] = createSignal<string[]>([]);
+
+  const activeAgent = (): AgentConfig | null => {
+    const id = activeAgentId();
+    if (!id) return null;
+    return agents().find((a) => a.id === id) || null;
+  };
+
+  const visibleMemories = (): AgentMemoryEntry[] => {
+    const id = activeAgentId();
+    if (!id) return [];
+    return filterMemories(allMemories(), id, settings.agentMemoryShared);
+  };
+
   // Word hover state
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
   const { translateWord } = useTranslation({ immediate: true });
@@ -164,13 +202,14 @@ export const ConversationContent: Component = () => {
   const topTabs = (): TabItem[] => [
     { id: 'chat', label: t('mlearn.ConversationAgent.Tab.Chat') },
     { id: 'voice', label: t('mlearn.ConversationAgent.Tab.Voice') },
+    { id: 'agents', label: t('mlearn.ConversationAgent.Tab.Agents') },
     { id: 'stats', label: tutorConfig() ? t('mlearn.ConversationAgent.Tab.Context') : t('mlearn.ConversationAgent.Tab.Stats') },
   ];
 
   // Initialize agent
   const agent = createConversationAgent({
     getSettings: () => settings,
-    getLanguage: () => settings.language || 'ja',
+    getLanguage: () => settings.language,
     getLanguageName: () => langName(),
     getMediaContext: () => mediaContext(),
     getSceneContext: () => sceneContext(),
@@ -185,7 +224,144 @@ export const ConversationContent: Component = () => {
       // Lower ease of the word in flashcard context
       flashcardCtx.trackGrammarFailed(mistake.word);
     },
+    getAgentConfig: () => activeAgent(),
+    getAgentMemories: () => visibleMemories(),
+    onMemorySaved: (content: string) => {
+      const agentId = activeAgentId();
+      if (!agentId) return;
+      addAgentMemory(content, agentId).then((entry) => {
+        setAllMemories((prev) => [...prev, entry]);
+      });
+    },
+    onTopicPlan: (topics: string[]) => {
+      setTopicPlan(topics);
+    },
   });
+
+  // Load agents and memories on mount (with migration from old format)
+  onMount(async () => {
+    await migrateIfNeeded();
+    const loadedAgents = await loadAgents();
+    setAgents(loadedAgents);
+
+    const storedActiveId = await loadActiveAgentId();
+    if (storedActiveId && loadedAgents.some((a) => a.id === storedActiveId)) {
+      setActiveAgentId(storedActiveId);
+    } else if (loadedAgents.length > 0) {
+      setActiveAgentId(loadedAgents[0].id);
+      await saveActiveAgentId(loadedAgents[0].id);
+    } else {
+      // No agents — show setup modal
+      setShowSetupModal(true);
+    }
+
+    const mems = await loadAllMemories();
+    setAllMemories(mems);
+  });
+
+  const handleSetupComplete = async (config: AgentConfig, intro: string) => {
+    let updatedAgents: AgentConfig[];
+    if (config.id) {
+      // Edit existing agent
+      updatedAgents = await updateAgent(config);
+      setAgents(updatedAgents);
+    } else {
+      // Create new agent
+      const newConfig = { ...config, id: generateAgentId() };
+      updatedAgents = await addAgent(newConfig);
+      setAgents(updatedAgents);
+      setActiveAgentId(newConfig.id);
+      await saveActiveAgentId(newConfig.id);
+    }
+    setShowSetupModal(false);
+    setEditingAgent(null);
+
+    // Only run intro + topic generation for newly created agents
+    if (!config.id && intro.trim() && isConnected() && messages().length === 0) {
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', content: intro.trim(), timestamp: Date.now() },
+        { role: 'assistant', content: '', timestamp: Date.now() },
+      ]);
+      setIsStreaming(true);
+      setIsWaiting(true);
+      setIsProcessingToolCall(false);
+
+      const introContext = `[The learner just introduced themselves: "${intro.trim()}". Greet them warmly, acknowledge what they told you, and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
+      const baseCallbacks = buildStreamCallbacks();
+      agent.continueWithContext(introContext, {
+        ...baseCallbacks,
+        onDone: (...args) => {
+          baseCallbacks.onDone(...args);
+          // Generate topic plan after the intro stream finishes
+          agent.generateTopicPlan();
+        },
+      });
+    } else {
+      // No intro — just generate topics
+      agent.generateTopicPlan();
+    }
+  };
+
+  const handleResetAgent = async () => {
+    const id = activeAgentId();
+    if (!id) return;
+    const updatedAgents = await deleteAgent(id);
+    setAgents(updatedAgents);
+    setAllMemories((prev) => prev.filter((m) => m.agentId !== id));
+    setTopicPlan([]);
+    setMessages([]);
+    agent.clearHistory();
+
+    if (updatedAgents.length > 0) {
+      setActiveAgentId(updatedAgents[0].id);
+      await saveActiveAgentId(updatedAgents[0].id);
+    } else {
+      setActiveAgentId(null);
+      setShowSetupModal(true);
+    }
+  };
+
+  const handleDeleteMemory = (id: string) => {
+    removeAgentMemory(id).then(setAllMemories);
+  };
+
+  const handleSelectAgent = async (id: string) => {
+    setActiveAgentId(id);
+    await saveActiveAgentId(id);
+    // Clear conversation when switching agents
+    setMessages([]);
+    setTopicPlan([]);
+    agent.clearHistory();
+  };
+
+  const handleCreateAgent = () => {
+    setEditingAgent(null);
+    setShowSetupModal(true);
+  };
+
+  const handleEditAgent = (agentCfg: AgentConfig) => {
+    setEditingAgent(agentCfg);
+    setShowSetupModal(true);
+  };
+
+  const handleDeleteAgent = async (id: string) => {
+    const updatedAgents = await deleteAgent(id);
+    setAgents(updatedAgents);
+    setAllMemories((prev) => prev.filter((m) => m.agentId !== id));
+
+    if (activeAgentId() === id) {
+      if (updatedAgents.length > 0) {
+        setActiveAgentId(updatedAgents[0].id);
+        await saveActiveAgentId(updatedAgents[0].id);
+      } else {
+        setActiveAgentId(null);
+      }
+      setMessages([]);
+      setTopicPlan([]);
+      agent.clearHistory();
+    }
+  };
 
   // Check LLM availability reactively when provider/config changes
   createEffect(() => {
@@ -389,6 +565,7 @@ export const ConversationContent: Component = () => {
         setMessages((prev) => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
+          if (lastIdx < 0) return updated;
           updated[lastIdx] = { ...updated[lastIdx], content: visibleContent };
           return updated;
         });
@@ -464,6 +641,7 @@ export const ConversationContent: Component = () => {
               }
             }
             const lastIdx = updated.length - 1;
+            if (lastIdx < 0) return updated;
             updated[lastIdx] = {
               ...updated[lastIdx],
               content: finalContent,
@@ -478,6 +656,7 @@ export const ConversationContent: Component = () => {
           setMessages((prev) => {
             const updated = [...prev];
             const lastIdx = updated.length - 1;
+            if (lastIdx < 0) return updated;
             updated[lastIdx] = {
               ...updated[lastIdx],
               content: finalContent,
@@ -493,7 +672,7 @@ export const ConversationContent: Component = () => {
         setIsWaiting(false);
 
         if (settings.autoSpeak && settings.speechEnabled && finalContent) {
-          const langCode = settings.language || 'ja';
+          const langCode = settings.language;
           getBridge().speech.ttsSpeak(finalContent, langCode);
         }
       },
@@ -670,9 +849,6 @@ export const ConversationContent: Component = () => {
         break;
       }
     }
-    if (userMsgIndex === -1) return;
-
-    const userText = msgs[userMsgIndex].content;
 
     // Remove the assistant message to regenerate
     setMessages((prev) => {
@@ -690,7 +866,14 @@ export const ConversationContent: Component = () => {
     setIsWaiting(true);
     setIsProcessingToolCall(false);
 
-    agent.processMessage(userText, messages(), buildStreamCallbacks());
+    if (userMsgIndex === -1) {
+      // AI-initiated message with no preceding user message — re-request a greeting
+      const context = `[The learner is waiting. Greet them and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
+      agent.continueWithContext(context, buildStreamCallbacks());
+    } else {
+      const userText = msgs[userMsgIndex].content;
+      agent.processMessage(userText, messages(), buildStreamCallbacks());
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -771,7 +954,7 @@ export const ConversationContent: Component = () => {
       getBridge().speech.sttStop();
       setIsRecording(false);
     } else {
-      const lang = settings.sttLanguage || settings.language || 'ja';
+      const lang = settings.sttLanguage || settings.language;
       getBridge().speech.sttStart(lang);
       setIsRecording(true);
     }
@@ -779,6 +962,7 @@ export const ConversationContent: Component = () => {
 
   const handleClear = () => {
     setMessages([]);
+    setTopicPlan([]);
     agent.clearHistory();
   };
 
@@ -875,6 +1059,12 @@ export const ConversationContent: Component = () => {
         <div class="ca-header-actions">
           <IconBtn
             variant="ghost"
+            onClick={handleResetAgent}
+            icon={<RefreshIcon size={14} />}
+            aria-label={t('mlearn.ConversationAgent.Reset')}
+          />
+          <IconBtn
+            variant="ghost"
             onClick={handleClear}
             icon={<TrashIcon size={14} />}
             aria-label={t('mlearn.ConversationAgent.Clear')}
@@ -894,6 +1084,14 @@ export const ConversationContent: Component = () => {
               closable
               onClose={() => setShowBanner(false)}
             />
+          </Show>
+
+          {/* Topic plan debug info (devMode only) */}
+          <Show when={settings.devMode && topicPlan().length > 0}>
+            <div class="ca-topic-debug">
+              <span class="ca-topic-debug-label">{t('mlearn.ConversationAgent.Topics.DebugLabel')}</span>
+              <span class="ca-topic-debug-list">{topicPlan().join(' · ')}</span>
+            </div>
           </Show>
 
           {/* TTS indicator */}
@@ -1075,6 +1273,7 @@ export const ConversationContent: Component = () => {
           onSendMessage={sendTextMessage}
           onRequestGreeting={handleRequestGreeting}
           onAbort={handleAbort}
+          defaultVoiceSampleId={activeAgent()?.voiceSampleId}
           onCallStateChange={(active) => {
             setIsVoiceCallActive(active);
             if (active) {
@@ -1119,7 +1318,7 @@ export const ConversationContent: Component = () => {
           triggerMode={currentTriggerMode()}
           triggerKey={currentKey()}
           isConnected={isConnected()}
-          language={settings.language || 'ja'}
+          language={settings.language}
         />
 
         {/* Voice session aftermath overlay — scoped inside voice panel */}
@@ -1131,6 +1330,21 @@ export const ConversationContent: Component = () => {
             />
           )}
         </Show>
+      </TabPanel>
+
+      {/* Agents panel */}
+      <TabPanel tabId="agents" activeTab={activeTab()} class="ca-agents-panel">
+        <AgentListPanel
+          agents={agents()}
+          activeAgentId={activeAgentId()}
+          memories={allMemories()}
+          onSelect={handleSelectAgent}
+          onCreate={handleCreateAgent}
+          onEdit={handleEditAgent}
+          onDelete={handleDeleteAgent}
+          onDeleteMemory={handleDeleteMemory}
+          onClearAgentMemories={(agentId) => clearAgentMemories(agentId).then(setAllMemories)}
+        />
       </TabPanel>
 
       {/* Stats / Context panel */}
@@ -1149,6 +1363,14 @@ export const ConversationContent: Component = () => {
         onReLoginSuccess={() => {
           setIsConnected(true);
         }}
+      />
+
+      {/* Agent setup modal */}
+      <AgentSetupModal
+        isOpen={showSetupModal()}
+        onComplete={handleSetupComplete}
+        onClose={() => { setShowSetupModal(false); setEditingAgent(null); }}
+        initialConfig={editingAgent()}
       />
 
     </div>

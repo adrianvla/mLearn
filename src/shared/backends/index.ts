@@ -9,9 +9,6 @@ import { PYTHON_BACKEND_PORT, DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL } f
 import type { BackendAdapter, BackendMode } from './types';
 import { HttpBackend } from './httpBackend';
 
-export type { BackendAdapter, BackendMode, OCRResult } from './types';
-export { HttpBackend } from './httpBackend';
-export { CloudTTSAdapter } from './cloudTTSAdapter';
 export { CloudOCRAdapter } from './cloudOCRAdapter';
 export { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL };
 

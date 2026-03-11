@@ -2,10 +2,14 @@
  * TaskProgress Component
  * Reusable task progress display showing a list of tasks with status indicators.
  * Used in toasts for flashcard generation, TTS regeneration, etc.
+ *
+ * These components use .map() instead of <For> because they are rendered
+ * inside toast content created from event handlers / async callbacks (outside
+ * a SolidJS reactive root). The toast system re-creates the content on every
+ * update (via updateToast), so internal reactivity is not needed.
  */
 
-import { For, JSX } from 'solid-js';
-import { Spinner } from '../Loader/Loader';
+import { JSX, untrack } from 'solid-js';
 import './TaskProgress.css';
 
 export type TaskStatus = 'pending' | 'running' | 'done' | 'error';
@@ -34,52 +38,52 @@ const TaskErrorIcon = () => (
   </svg>
 );
 
-function TaskStatusIcon(props: { status: TaskStatus }): JSX.Element {
-  return (
-    <span class="task-progress-status">
-      {props.status === 'running' && <Spinner size={14} />}
-      {props.status === 'done' && <span class="task-progress-check"><TaskCheckIcon /></span>}
-      {props.status === 'error' && <span class="task-progress-error"><TaskErrorIcon /></span>}
-      {props.status === 'pending' && <span class="task-progress-pending" />}
-    </span>
-  );
+/** Renders a status icon using plain conditionals and CSS-only spinner to avoid
+ *  creating SolidJS computations (this runs outside reactive roots in toast content). */
+function renderStatusIcon(status: TaskStatus): JSX.Element {
+  switch (status) {
+    case 'running':
+      return <span class="task-progress-spinner" />;
+    case 'done':
+      return <span class="task-progress-check"><TaskCheckIcon /></span>;
+    case 'error':
+      return <span class="task-progress-error"><TaskErrorIcon /></span>;
+    default:
+      return <span class="task-progress-pending" />;
+  }
 }
 
-/** Flat task list (no grouping) */
+/** Flat task list (no grouping) — static render, no reactive tracking */
 export function TaskProgressContent(props: { tasks: () => TaskState[] }): JSX.Element {
+  const tasks = untrack(props.tasks);
   return (
     <div class="task-progress">
-      <For each={props.tasks()}>
-        {(task) => (
-          <div class="task-progress-row">
-            <TaskStatusIcon status={task.status} />
-            <span class="task-progress-label">{task.label}</span>
-          </div>
-        )}
-      </For>
+      {tasks.map(task => (
+        <div class="task-progress-row">
+          <span class="task-progress-status">{renderStatusIcon(task.status)}</span>
+          <span class="task-progress-label">{task.label}</span>
+        </div>
+      ))}
     </div>
   );
 }
 
-/** Grouped task list (multiple cards, each with sub-tasks) */
+/** Grouped task list (multiple cards, each with sub-tasks) — static render, no reactive tracking */
 export function GroupedTaskProgressContent(props: { groups: () => TaskGroup[] }): JSX.Element {
+  const groups = untrack(props.groups);
   return (
     <div class="task-progress">
-      <For each={props.groups()}>
-        {(group) => (
-          <div class="task-progress-group">
-            <div class="task-progress-group-label">{group.label}</div>
-            <For each={group.tasks}>
-              {(task) => (
-                <div class="task-progress-row task-progress-row--indented">
-                  <TaskStatusIcon status={task.status} />
-                  <span class="task-progress-label">{task.label}</span>
-                </div>
-              )}
-            </For>
-          </div>
-        )}
-      </For>
+      {groups.map(group => (
+        <div class="task-progress-group">
+          <div class="task-progress-group-label">{group.label}</div>
+          {group.tasks.map(task => (
+            <div class="task-progress-row task-progress-row--indented">
+              <span class="task-progress-status">{renderStatusIcon(task.status)}</span>
+              <span class="task-progress-label">{task.label}</span>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

@@ -7,6 +7,7 @@
 
 import { createSignal } from 'solid-js';
 import { useSettings } from '../context';
+import { PROXY_SERVER_PORT } from '../../shared/constants';
 
 const ANKI_CONNECT_VERSION = 6;
 
@@ -58,7 +59,7 @@ export function useAnki() {
   const [models, setModels] = createSignal<string[]>([]);
 
   /** Get the proxy URL that forwards to AnkiConnect (avoids CORS) */
-  const getProxyUrl = (): string => settings.ankiUrl || 'http://127.0.0.1:7753/api/fwd-to-anki';
+  const getProxyUrl = (): string => settings.ankiUrl || `http://127.0.0.1:${PROXY_SERVER_PORT}/api/fwd-to-anki`;
 
   const checkConnection = async (): Promise<boolean> => {
     try {

@@ -122,7 +122,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
     const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
 
     for (const entry of Object.values(stats.wordsEncountered)) {
-      const lang = settings.language || 'ja';
+      const lang = settings.language;
       const globalEntry = wordKnowledge[lang + ':' + entry.word] || wordKnowledge[entry.word];
       if (globalEntry) {
         // Use the lower ease (harder) between per-media and global knowledge

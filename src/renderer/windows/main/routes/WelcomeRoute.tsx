@@ -11,6 +11,7 @@ import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { ActionCard, RecentCard, Btn, VideoIcon, BookIcon, SettingsIcon, BotIcon, type RecentItem } from '../../../components/common';
 import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
+import { getRecentItems } from '../../../services/thumbnailService';
 import Icon from '../../../components/common/Icons/Icon';
 import './welcome.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
@@ -23,13 +24,10 @@ export const WelcomeRoute: Component = () => {
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
   const [showTutorModal, setShowTutorModal] = createSignal(false);
 
-  onMount(() => {
-    // Load recent items from localStorage
+  onMount(async () => {
     try {
-      const stored = localStorage.getItem('mlearn_recent_items');
-      if (stored) {
-        setRecentItems(JSON.parse(stored));
-      }
+      const items = await getRecentItems();
+      setRecentItems(items);
     } catch (e) {
       console.error('Failed to load recent items:', e);
     }

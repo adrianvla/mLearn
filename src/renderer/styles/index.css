@@ -208,7 +208,23 @@
   
   /* Accent primary (alias for consistency) */
   --accent-primary: var(--color-primary);
-  
+
+  /* Translucent state backgrounds */
+  --bg-success: rgba(88, 195, 51, 0.08);
+  --bg-success-hover: rgba(88, 195, 51, 0.14);
+  --bg-danger: rgba(231, 76, 60, 0.08);
+  --bg-danger-hover: rgba(231, 76, 60, 0.14);
+  --bg-warning: rgba(241, 196, 15, 0.08);
+  --bg-warning-hover: rgba(241, 196, 15, 0.14);
+  --bg-info: rgba(52, 152, 219, 0.08);
+  --bg-info-hover: rgba(52, 152, 219, 0.14);
+  --bg-primary-tint: rgba(74, 144, 217, 0.08);
+  --bg-primary-tint-hover: rgba(74, 144, 217, 0.14);
+  --border-success: rgba(88, 195, 51, 0.35);
+  --border-danger: rgba(231, 76, 60, 0.35);
+  --border-warning: rgba(241, 196, 15, 0.35);
+  --border-info: rgba(52, 152, 219, 0.35);
+
   /* Background aliases for common patterns */
   --bg-primary: var(--bg);
   --bg-secondary: var(--bg-intense);

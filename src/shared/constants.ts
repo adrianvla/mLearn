@@ -252,6 +252,13 @@ export const IPC_CHANNELS = {
   // Data export/import
   DATA_EXPORT: 'data-export',
   DATA_IMPORT: 'data-import',
+
+  // KV Store
+  KV_GET: 'kv-get',
+  KV_SET: 'kv-set',
+  KV_REMOVE: 'kv-remove',
+  KV_GET_ALL: 'kv-get-all',
+  KV_SET_BATCH: 'kv-set-batch',
 } as const;
 
 // Window types

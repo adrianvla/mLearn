@@ -84,6 +84,17 @@
           "Ollama": "Ollama",
           "Title": "Провайдер LLM"
         },
+        "AgentMemory": {
+          "Enable": {
+            "Label": "Память агента",
+            "Description": "Разрешить ИИ-репетитору запоминать факты о вас между разговорами"
+          },
+          "Shared": {
+            "Label": "Общие воспоминания для всех агентов",
+            "Description": "При включении все агенты имеют доступ ко всем воспоминаниям. При выключении каждый агент видит только свои."
+          },
+          "Title": "Память агента"
+        },
         "Title": "Настройки AI"
       },
       "SetupRequired": "Для AI-функций требуется настройка. Открываю настройки..."
@@ -112,6 +123,13 @@
       "SelectWordsHint": "Выберите слова, на которых хотите сосредоточиться.",
       "StartSession": "Начать сессию",
       "Title": "Настройка ИИ-репетитора",
+      "WordEaseLegend": {
+        "unassessed": "Не оценено",
+        "hard": "Сложное",
+        "struggling": "Затруднения",
+        "reviewing": "На повторении",
+        "known": "Изучено"
+      },
       "WordEaseLegendTitle": "Освоение слов:",
       "WordsTab": "Слова"
     },
@@ -134,6 +152,7 @@
     },
     "CardEditor": {
       "AudioUnavailable": "Аудио недоступно. Используйте кнопку регенерации для его создания.",
+      "TtsMissing": "{field} не найдено. Перегенерируйте в редакторе карточки.",
       "Fields": {
         "Definitions": "Определения (по одному на строку)",
         "DefinitionsPlaceholder": "По одному определению на строку",
@@ -218,6 +237,21 @@
       "Unreachable": "Недоступен"
     },
     "ConversationAgent": {
+      "Agents": {
+        "Create": "Создать агента",
+        "Delete": "Удалить агента",
+        "DeleteConfirm": "Введите имя агента для подтверждения удаления:",
+        "DeleteConfirmPlaceholder": "Имя агента",
+        "DeleteConfirmTitle": "Удалить агента",
+        "Edit": "Редактировать агента",
+        "EditTitle": "Редактировать агента",
+        "Empty": "Агентов пока нет. Создайте одного, чтобы начать.",
+        "Memories": "Воспоминания",
+        "NoMemories": "Воспоминаний пока нет.",
+        "Save": "Сохранить",
+        "Title": "Агенты",
+        "Unnamed": "Безымянный агент"
+      },
       "Clear": "Очистить беседу",
       "Connection": {
         "AvailableModels": "Доступные модели",
@@ -293,6 +327,7 @@
       "StopRecording": "Остановить запись",
       "StopStreaming": "Стоп",
       "Tab": {
+        "Agents": "Агенты",
         "Chat": "Чат",
         "Context": "Контекст",
         "Stats": "Статистика",
@@ -342,6 +377,89 @@
         "UploadSample": "Загрузить образец голоса",
         "VoiceSample": "Клон голоса",
         "VoiceSampleDisabledLocal": "Загрузка пользовательского голоса доступна только с Qwen3-TTS или Cloud TTS"
+      },
+      "Memory": {
+        "ClearAll": "Очистить все воспоминания",
+        "ClearAllConfirm": "Вы уверены, что хотите удалить все воспоминания агента? Это действие необратимо.",
+        "Delete": "Удалить воспоминание",
+        "Empty": "Пока нет сохранённых воспоминаний. Агент будет сохранять важные факты по мере ваших бесед.",
+        "Title": "Память агента"
+      },
+      "Personality": {
+        "Casual": "Непринуждённый",
+        "CasualDescription": "Расслабленный, дружелюбный, использует разговорный язык",
+        "Label": "Личность",
+        "Polite": "Вежливый",
+        "PoliteDescription": "Формальный, структурированный, обучающий тон",
+        "Roleplay": "Ролевая игра",
+        "RoleplayDescription": "Пользовательский персонаж с именем и предысторией",
+        "RoleplayFormality": "Формальность",
+        "RoleplayLore": "Предыстория персонажа",
+        "RoleplayLorePlaceholder": "Опишите личность, предысторию и стиль общения персонажа...",
+        "RoleplayName": "Имя персонажа",
+        "RoleplayNamePlaceholder": "Введите имя персонажа...",
+        "RoleplayQuotes": "Примеры цитат",
+        "RoleplayQuotesHint": "2-4 короткие цитаты, каждая показывающая разные стороны голоса персонажа. ИИ будет имитировать этот стиль.",
+        "RoleplayQuotePlaceholder": "Введите цитату...",
+        "AddQuote": "Добавить цитату",
+        "FandomUrl": "URL вики Fandom",
+        "FandomUrlHint": "URL вики Fandom для серии этого персонажа. Включает инструмент поиска Fandom.",
+        "FandomUrlPlaceholder": "например https://myheroacademia.fandom.com"
+      },
+      "Reset": "Сбросить агента",
+      "ResetConfirm": "Это удалит имя, личность и все воспоминания агента. Процесс настройки начнётся заново. Продолжить?",
+      "Setup": {
+        "Cancel": "Отмена",
+        "NameLabel": "Дайте агенту имя",
+        "NamePlaceholder": "Оставьте пустым, если имя не нужно",
+        "PersonalityLabel": "Выберите личность",
+        "ProfilePhoto": "Фото профиля",
+        "ProfilePhotoHint": "Загрузите изображение для аватара этого агента",
+        "ProfilePhotoRemove": "Удалить фото",
+        "Start": "Начать",
+        "Title": "Настройка ИИ-репетитора",
+        "UserNameLabel": "Ваше имя",
+        "UserNamePlaceholder": "Как агент должен вас называть?",
+        "AboutMeLabel": "О вас",
+        "AboutMeHint": "Расскажите агенту о себе, чтобы он мог персонализировать беседы.",
+        "AboutMePlaceholder": "напр. Я студент, увлекаюсь мангой, учу язык 6 месяцев...",
+        "VoiceSample": "Голос по умолчанию",
+        "ManualSetup": "Ручная настройка",
+        "ManualSetupHint": "Заполните данные персонажа самостоятельно."
+      },
+      "Topics": {
+        "DebugLabel": "Темы:",
+        "Generating": "Генерация тем...",
+        "Title": "Запланированные темы"
+      },
+      "QuickStart": {
+        "Button": "Быстрый старт через Fandom",
+        "Hint": "Автоматически заполнить поля ролевой игры, выполнив поиск по Fandom Wiki.",
+        "Title": "Быстрое создание персонажа - {name}",
+        "CharacterNameLabel": "Имя персонажа",
+        "CharacterNamePlaceholder": "напр. Изуку Мидория",
+        "FandomUrlLabel": "URL Fandom Wiki",
+        "FandomUrlHint": "Введите базовый URL Fandom Wiki или просто название вики (напр. myheroacademia).",
+        "FandomUrlPlaceholder": "напр. myheroacademia или https://myheroacademia.fandom.com",
+        "Next": "Далее",
+        "Back": "Назад",
+        "Search": "Поиск",
+        "Searching": "Поиск по Fandom Wiki...",
+        "NoResults": "Результатов не найдено. Попробуйте другое имя или проверьте URL вики.",
+        "SelectResult": "Найдено несколько результатов. Выберите правильный:",
+        "MediaTypeLabel": "Тип медиа",
+        "ProgressPointLabel": "Ваш текущий прогресс",
+        "ProgressPointHint": "Используйте формат вроде 'Chapter 43', 'Episode 30' или введите 'all' для всего сюжета.",
+        "ProgressPointPlaceholder": "напр. Chapter 43, Episode 30, all",
+        "InvalidProgressPoint": "Пожалуйста, используйте распознанный формат: 'Chapter 43', 'Episode 30', число или 'all'.",
+        "Generate": "Сгенерировать персону",
+        "Generating": "Создание персоны персонажа...",
+        "Confirm": "Использовать этого персонажа",
+        "ReviewName": "Персонаж",
+        "ReviewLore": "Персона",
+        "ReviewQuotes": "Примеры цитат",
+        "ReviewContext": "Контекст истории",
+        "ReviewFandom": "Fandom Wiki"
       }
     },
     "ErrorModal": {
@@ -688,7 +806,10 @@
         "OcrSkip": "Зависимости OCR-читалки будут пропущены.",
         "OcrWillInstall": "Зависимости OCR-читалки будут установлены.",
         "VoiceSkip": "Зависимости голоса и TTS будут пропущены.",
-        "VoiceWillInstall": "Зависимости голоса и TTS будут установлены."
+        "VoiceWillInstall": "Зависимости голоса и TTS будут установлены.",
+        "AlreadySatisfied": "Уже установлено",
+        "Collecting": "Сбор зависимостей…",
+        "Downloading": "Загрузка…"
       }
     },
     "KanjiGrid": {
@@ -943,7 +1064,29 @@
       },
       "Keybind": {
         "PressKey": "Нажмите клавишу...",
-        "Tooltip": "Нажмите для записи, затем нажмите клавишу для назначения"
+        "Tooltip": "Нажмите для записи, затем нажмите клавишу для назначения",
+        "Keys": {
+          "Ctrl": "Ctrl",
+          "Alt": "Alt",
+          "Shift": "Shift",
+          "Meta": "Meta",
+          "Space": "Пробел",
+          "Enter": "Enter",
+          "Escape": "Escape",
+          "Backspace": "Backspace",
+          "Delete": "Delete",
+          "Tab": "Tab",
+          "CapsLock": "CapsLock",
+          "ArrowUp": "Стрелка вверх",
+          "ArrowDown": "Стрелка вниз",
+          "ArrowLeft": "Стрелка влево",
+          "ArrowRight": "Стрелка вправо",
+          "Home": "Home",
+          "End": "End",
+          "PageUp": "Page Up",
+          "PageDown": "Page Down",
+          "Insert": "Insert"
+        }
       },
       "Language": {
         "AppLanguage": {
@@ -957,6 +1100,7 @@
       },
       "Performance": {
         "DevMode": {
+          "AutoEnabled": "Автоматически включено в режиме разработки",
           "Description": "Включить инструменты разработчика и функции отладки",
           "Label": "Режим разработчика"
         },
@@ -1249,6 +1393,20 @@
           "Reset": "Сбросить",
           "ResetAll": "Сбросить все цвета частей речи"
         }
+      },
+      "About": {
+        "Licenses": "Лицензии"
+      },
+      "Tabs": {
+        "AI": "ИИ",
+        "About": "О приложении",
+        "Appearance": "Внешний вид",
+        "Behaviour": "Поведение",
+        "Connection": "Подключение",
+        "General": "Общие",
+        "Reader": "Читалка",
+        "SRS": "SRS",
+        "Statistics": "Статистика"
       }
     },
     "Statistics": {
@@ -1351,7 +1509,8 @@
         "Flashcards": "Карточки",
         "Ignored": "Игнорируется",
         "Nothing": "Не отслеживается"
-      }
+      },
+      "Title": "База слов"
     },
     "WordHover": {
       "Alerts": {
@@ -1368,6 +1527,19 @@
         "Learning": "Изучаемое",
         "Unknown": "Неизвестное"
       }
+    },
+    "ConnectionStatus": {
+      "Connected": "Подключено",
+      "Connecting": "Подключение…",
+      "Disconnected": "Отключено",
+      "Error": "Ошибка подключения"
+    },
+    "Tabs": {
+      "Flashcards": "Карточки",
+      "Home": "Главная",
+      "Reader": "Читалка",
+      "Settings": "Настройки",
+      "Video": "Видео"
     }
   }
 }
