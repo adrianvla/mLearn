@@ -392,10 +392,12 @@
         "Polite": "Poli",
         "PoliteDescription": "Formel, structuré, ton éducatif",
         "Roleplay": "Jeu de rôle",
-        "RoleplayDescription": "Personnage personnalisé avec un nom et une histoire",
+        "RoleplayDescription": "Personnage personnalisé avec un nom et une description",
         "RoleplayFormality": "Formalité",
-        "RoleplayLore": "Histoire du personnage",
-        "RoleplayLorePlaceholder": "Décrivez la personnalité, l'histoire et la manière dont le personnage doit interagir...",
+        "RoleplayLore": "Description du personnage",
+        "RoleplayLorePlaceholder": "Décrivez la personnalité, les traits et la manière dont le personnage doit interagir...",
+        "RoleplayBackstory": "Contexte narratif",
+        "RoleplayBackstoryPlaceholder": "Contexte de l'histoire résumé à partir des médias...",
         "RoleplayName": "Nom du personnage",
         "RoleplayNamePlaceholder": "Entrez un nom pour le personnage...",
         "RoleplayQuotes": "Citations exemple",
@@ -428,7 +430,6 @@
         "ManualSetupHint": "Remplissez les détails du personnage vous-même."
       },
       "Topics": {
-        "DebugLabel": "Sujets :",
         "Generating": "Génération des sujets...",
         "Title": "Sujets prévus"
       },
@@ -456,9 +457,9 @@
         "Generating": "Création du persona du personnage...",
         "Confirm": "Utiliser ce personnage",
         "ReviewName": "Personnage",
-        "ReviewLore": "Persona",
+        "ReviewLore": "Description du personnage",
         "ReviewQuotes": "Citations exemple",
-        "ReviewContext": "Contexte de l'histoire",
+        "ReviewContext": "Contexte narratif",
         "ReviewFandom": "Wiki Fandom"
       }
     },
@@ -909,8 +910,6 @@
         "MagnifierHint": "Appuyez sur {key} pour la loupe",
         "OpenConversationAgent": "Tuteur IA",
         "OpenConversationAgentTitle": "Ouvrir le tuteur conversationnel IA",
-        "OutlierMultLabel": "Mult. aberrant : {value}x",
-        "OutlierMultTitle": "Les boîtes dont la surface dépasse la médiane × cette valeur sont isolées",
         "PaddleDownscaleLabel": "Échelle PaddleOCR : {value}%",
         "PaddleDownscaleTitle": "Réduire l'image avant le traitement PaddleOCR (dev)",
         "Ready": "Prêt",
@@ -927,8 +926,8 @@
         "TriggerTitle": "Comment déclencher l'info-bulle des mots",
         "TurboModeOff": "Turbo : Désactivé",
         "TurboModeOn": "Turbo : Activé",
-        "ZoneGapLabel": "Écart zone : {value}",
-        "ZoneGapTitle": "Écart maximal entre les bords des boîtes pour le regroupement en zones"
+        "ZoneDeltaLabel": "Delta zone : {value}px",
+        "ZoneDeltaTitle": "Distance maximale en pixels entre les bords des boîtes pour le regroupement en zones"
       },
       "Toolbar": {
         "BackToHome": "Retour à l'accueil",

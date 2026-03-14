@@ -44,10 +44,8 @@ export interface OcrOverlayProps {
   visible?: boolean;
   /** Show debug overlay coloring for text vs furigana boxes */
   debugOcr?: boolean;
-  /** Live-tuneable zone gap threshold (dev mode) */
-  zoneGapThreshold?: number;
-  /** Live-tuneable outlier area multiplier (dev mode) */
-  outlierAreaMultiplier?: number;
+  /** Live-tuneable zone delta threshold in pixels (dev mode) */
+  zoneDeltaThreshold?: number;
   onBoxClick?: (box: OcrBox, rect: DOMRect) => void;
   /** Called when hovering over a word. Includes context phrase from neighboring boxes. */
   onWordHover?: (token: Token, rect: DOMRect, contextPhrase: string) => void;
@@ -56,6 +54,8 @@ export interface OcrOverlayProps {
   onContextMenu?: (contextPhrase: string, boxIndex: number) => void;
   /** Called whenever the overlay has OCR token/context data ready for the current page. */
   onTokenDataChange?: (entries: Array<{ boxIndex: number; box: OcrBox; tokens: Token[]; contextPhrase: string }>) => void;
+  /** Set of original box indices to highlight (e.g. from sidebar hover) */
+  highlightedOriginalIndices?: Set<number>;
 }
 
 /**
@@ -214,9 +214,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     const filtered = filterNarrowBoxes(boxesWithIdx, {
       ratio: settings.ocrFuriganaWidthRatio,
       neighborWindowMultiplier: settings.ocrFuriganaNeighborWindowMultiplier,
-      supportsVerticalText: langFeatures().supportsVerticalText,
-      zoneGapThreshold: props.zoneGapThreshold,
-      outlierAreaMultiplier: props.outlierAreaMultiplier,
+      zoneDeltaThreshold: props.zoneDeltaThreshold,
       debugOutput: props.debugOcr ? setDebugZones : undefined,
     });
     
@@ -489,6 +487,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                   class="ocr-box"
                   classList={{
                     'hovered': isHovered(),
+                    'sidebar-highlighted': box.__originalIdx != null && (props.highlightedOriginalIndices?.has(box.__originalIdx) ?? false),
                     'vertical-box': useVerticalLayout(),
                     'debug-text': props.debugOcr === true,
                   }}

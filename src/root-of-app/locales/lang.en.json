@@ -392,10 +392,12 @@
         "Polite": "Polite",
         "PoliteDescription": "Formal, structured, educational tone",
         "Roleplay": "Roleplay",
-        "RoleplayDescription": "Custom character with a name and backstory",
+        "RoleplayDescription": "Custom character with a name and description",
         "RoleplayFormality": "Formality",
-        "RoleplayLore": "Character backstory",
-        "RoleplayLorePlaceholder": "Describe the character's personality, backstory, and how they should interact...",
+        "RoleplayLore": "Character description",
+        "RoleplayLorePlaceholder": "Describe the character's personality, traits, and how they should interact...",
+        "RoleplayBackstory": "Backstory",
+        "RoleplayBackstoryPlaceholder": "Story context summarized from media...",
         "RoleplayName": "Character name",
         "RoleplayNamePlaceholder": "Enter a name for the character...",
         "RoleplayQuotes": "Sample quotes",
@@ -428,7 +430,6 @@
         "ManualSetupHint": "Fill in the character details yourself."
       },
       "Topics": {
-        "DebugLabel": "Topics:",
         "Generating": "Generating topics...",
         "Title": "Planned topics"
       },
@@ -456,9 +457,9 @@
         "Generating": "Building character persona...",
         "Confirm": "Use this character",
         "ReviewName": "Character",
-        "ReviewLore": "Persona",
+        "ReviewLore": "Character description",
         "ReviewQuotes": "Sample quotes",
-        "ReviewContext": "Story context",
+        "ReviewContext": "Backstory",
         "ReviewFandom": "Fandom wiki"
       }
     },
@@ -909,8 +910,6 @@
         "MagnifierHint": "Press {key} to open magnifier",
         "OpenConversationAgent": "AI Tutor",
         "OpenConversationAgentTitle": "Open AI conversation tutor",
-        "OutlierMultLabel": "Outlier Mult: {value}x",
-        "OutlierMultTitle": "Boxes with area above median × this value are isolated into their own zone",
         "PaddleDownscaleLabel": "PaddleOCR Scale: {value}%",
         "PaddleDownscaleTitle": "Downscale image before PaddleOCR processing (dev)",
         "Ready": "Ready",
@@ -927,8 +926,8 @@
         "TriggerTitle": "How word hover is triggered",
         "TurboModeOff": "Turbo: Off",
         "TurboModeOn": "Turbo: On",
-        "ZoneGapLabel": "Zone Gap: {value}",
-        "ZoneGapTitle": "Max gap between box edges for zone clustering (ratio of avg box size)"
+        "ZoneDeltaLabel": "Zone Delta: {value}px",
+        "ZoneDeltaTitle": "Max pixel distance between box edges for zone clustering"
       },
       "Toolbar": {
         "BackToHome": "Back to Home",

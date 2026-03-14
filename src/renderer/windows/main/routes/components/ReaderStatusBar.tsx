@@ -27,10 +27,8 @@ interface ReaderStatusBarProps {
   lastOcrTiming?: Accessor<OcrProcessingTimes | null>;
   paddleOcrScale?: Accessor<number>;
   onPaddleOcrScaleChange?: (value: number) => void;
-  zoneGapThreshold?: Accessor<number>;
-  onZoneGapThresholdChange?: (value: number) => void;
-  outlierAreaMultiplier?: Accessor<number>;
-  onOutlierAreaMultiplierChange?: (value: number) => void;
+  zoneDeltaThreshold?: Accessor<number>;
+  onZoneDeltaThresholdChange?: (value: number) => void;
 }
 
 export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
@@ -189,32 +187,17 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
               />
             </div>
           </Show>
-          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && props.debugOcr?.() && props.zoneGapThreshold && props.onZoneGapThresholdChange}>
-            <div class="paddle-downscale-section" title={t('mlearn.Reader.StatusBar.ZoneGapTitle')}>
+          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && props.debugOcr?.() && props.zoneDeltaThreshold && props.onZoneDeltaThresholdChange}>
+            <div class="paddle-downscale-section" title={t('mlearn.Reader.StatusBar.ZoneDeltaTitle')}>
               <span class="paddle-downscale-label">
-                {t('mlearn.Reader.StatusBar.ZoneGapLabel', { value: props.zoneGapThreshold!().toFixed(1) })}
+                {t('mlearn.Reader.StatusBar.ZoneDeltaLabel', { value: props.zoneDeltaThreshold!().toFixed(0) })}
               </span>
               <RangeInput
-                min={0.03}
-                max={5}
-                step={0.01}
-                value={props.zoneGapThreshold!()}
-                onChange={props.onZoneGapThresholdChange!}
-                class="paddle-downscale-slider"
-              />
-            </div>
-          </Show>
-          <Show when={(settings.devMode || import.meta.env.DEV) && settings.ocrEnabled && props.debugOcr?.() && props.outlierAreaMultiplier && props.onOutlierAreaMultiplierChange}>
-            <div class="paddle-downscale-section" title={t('mlearn.Reader.StatusBar.OutlierMultTitle')}>
-              <span class="paddle-downscale-label">
-                {t('mlearn.Reader.StatusBar.OutlierMultLabel', { value: props.outlierAreaMultiplier!().toFixed(0) })}
-              </span>
-              <RangeInput
-                min={0.5}
-                max={20}
-                step={0.5}
-                value={props.outlierAreaMultiplier!()}
-                onChange={props.onOutlierAreaMultiplierChange!}
+                min={1}
+                max={300}
+                step={1}
+                value={props.zoneDeltaThreshold!()}
+                onChange={props.onZoneDeltaThresholdChange!}
                 class="paddle-downscale-slider"
               />
             </div>

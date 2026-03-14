@@ -22,6 +22,14 @@
   padding: var(--spacing-4) 0;
 }
 
+.quickstart-extracting {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  padding: var(--spacing-2) 0;
+}
+
 .quickstart-search-results {
   display: flex;
   flex-direction: column;
@@ -40,9 +48,6 @@
   width: 100%;
   max-height: 300px;
   overflow-y: auto;
-  padding: var(--spacing-2);
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
 }
 
 .quickstart-review {

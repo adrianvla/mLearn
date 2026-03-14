@@ -171,6 +171,9 @@ export const ReaderRoute: Component = () => {
   // Magnifying glass state
   const [magnifierActive, setMagnifierActive] = createSignal(false);
 
+  // Sidebar word hover → OCR box highlight
+  const [sidebarHoveredEntry, setSidebarHoveredEntry] = createSignal<ReaderUnknownWordEntry | null>(null);
+
   // Activate media stats when a book is loaded
   createEffect(() => {
     const title = bookTitle();
@@ -185,8 +188,7 @@ export const ReaderRoute: Component = () => {
   const [paddleOcrScale, setPaddleOcrScale] = createSignal(80);
 
   // Dev-mode live-tuneable OCR zone clustering parameters
-  const [zoneGapThreshold, setZoneGapThreshold] = createSignal(1.5);
-  const [outlierAreaMultiplier, setOutlierAreaMultiplier] = createSignal(6);
+  const [zoneDeltaThreshold, setZoneDeltaThreshold] = createSignal(50);
 
   // OCR generation counter — incremented when turbo mode changes to invalidate stale results
   const [ocrGeneration, setOcrGeneration] = createSignal(0);
@@ -1753,12 +1755,16 @@ export const ReaderRoute: Component = () => {
                               imageElement={imageRefs()[page.id]}
                               visible={showOcrOverlay()}
                               debugOcr={ocrDebugOverlay()}
-                              zoneGapThreshold={zoneGapThreshold()}
-                              outlierAreaMultiplier={outlierAreaMultiplier()}
+                              zoneDeltaThreshold={zoneDeltaThreshold()}
                               onWordHover={handleOcrWordHover}
                               onWordLeave={handleOcrWordLeave}
                               onContextMenu={handleOcrContextMenu}
                               onTokenDataChange={(entries) => handlePageTokenData(page.id, entries)}
+                              highlightedOriginalIndices={(() => {
+                                const entry = sidebarHoveredEntry();
+                                if (!entry || entry.pageId !== page.id || entry.box.__originalIdx == null) return undefined;
+                                return new Set([entry.box.__originalIdx]);
+                              })()}
                           />
                         </Show>
                       </div>
@@ -1777,6 +1783,8 @@ export const ReaderRoute: Component = () => {
               onAddWord={handleAddSidebarWord}
               onAddAll={handleAddAllSidebarWords}
               onIgnoreWord={handleIgnoreSidebarWord}
+              onWordHover={setSidebarHoveredEntry}
+              onWordLeave={() => setSidebarHoveredEntry(null)}
           />
         </Show>
 
@@ -1796,10 +1804,8 @@ export const ReaderRoute: Component = () => {
             lastOcrTiming={lastOcrTiming}
             paddleOcrScale={paddleOcrScale}
             onPaddleOcrScaleChange={setPaddleOcrScale}
-            zoneGapThreshold={zoneGapThreshold}
-            onZoneGapThresholdChange={setZoneGapThreshold}
-            outlierAreaMultiplier={outlierAreaMultiplier}
-            onOutlierAreaMultiplierChange={setOutlierAreaMultiplier}
+            zoneDeltaThreshold={zoneDeltaThreshold}
+            onZoneDeltaThresholdChange={setZoneDeltaThreshold}
         />
 
         <Show when={ocrHoverData() && ocrHoverData()!.token}>

@@ -38,7 +38,6 @@ import {
   Select,
   formatKeybindDisplay, Tag,
   ChatIcon,
-  EditIcon,
   TrashIcon,
   RefreshIcon,
 } from '../../components/common';
@@ -131,7 +130,7 @@ export const ConversationContent: Component = () => {
   const [isRecording, setIsRecording] = createSignal(false);
   const [isSpeaking, setIsSpeaking] = createSignal(false);
   const [sceneContext, setSceneContext] = createSignal('');
-  const [showSceneContext, setShowSceneContext] = createSignal(false);
+
   const [showBanner, setShowBanner] = createSignal(true);
   const [isProcessingToolCall, setIsProcessingToolCall] = createSignal(false);
 
@@ -259,7 +258,7 @@ export const ConversationContent: Component = () => {
     setAllMemories(mems);
   });
 
-  const handleSetupComplete = async (config: AgentConfig, intro: string) => {
+  const handleSetupComplete = async (config: AgentConfig) => {
     let updatedAgents: AgentConfig[];
     if (config.id) {
       // Edit existing agent
@@ -276,29 +275,28 @@ export const ConversationContent: Component = () => {
     setShowSetupModal(false);
     setEditingAgent(null);
 
-    // Only run intro + topic generation for newly created agents
-    if (!config.id && intro.trim() && isConnected() && messages().length === 0) {
+    // Only run greeting + topic generation for newly created agents
+    if (!config.id && isConnected() && messages().length === 0) {
       setMessages((prev) => [
         ...prev,
-        { role: 'user', content: intro.trim(), timestamp: Date.now() },
         { role: 'assistant', content: '', timestamp: Date.now() },
       ]);
       setIsStreaming(true);
       setIsWaiting(true);
       setIsProcessingToolCall(false);
 
-      const introContext = `[The learner just introduced themselves: "${intro.trim()}". Greet them warmly, acknowledge what they told you, and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
+      const greetingContext = `[The learner just opened the chat. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
       const baseCallbacks = buildStreamCallbacks();
-      agent.continueWithContext(introContext, {
+      agent.continueWithContext(greetingContext, {
         ...baseCallbacks,
         onDone: (...args) => {
           baseCallbacks.onDone(...args);
-          // Generate topic plan after the intro stream finishes
+          // Generate topic plan after the greeting stream finishes
           agent.generateTopicPlan();
         },
       });
     } else {
-      // No intro — just generate topics
+      // No greeting needed — just generate topics
       agent.generateTopicPlan();
     }
   };
@@ -1086,11 +1084,15 @@ export const ConversationContent: Component = () => {
             />
           </Show>
 
-          {/* Topic plan debug info (devMode only) */}
-          <Show when={settings.devMode && topicPlan().length > 0}>
-            <div class="ca-topic-debug">
-              <span class="ca-topic-debug-label">{t('mlearn.ConversationAgent.Topics.DebugLabel')}</span>
-              <span class="ca-topic-debug-list">{topicPlan().join(' · ')}</span>
+          {/* Topic plan list */}
+          <Show when={topicPlan().length > 0}>
+            <div class="ca-topic-list">
+              <span class="ca-topic-list-label">{t('mlearn.ConversationAgent.Topics.Title')}</span>
+              <ul class="ca-topic-list-items">
+                <Index each={topicPlan()}>
+                  {(topic) => <li class="ca-topic-list-item">{topic()}</li>}
+                </Index>
+              </ul>
             </div>
           </Show>
 
@@ -1165,31 +1167,6 @@ export const ConversationContent: Component = () => {
 
           {/* Input */}
           <div class="ca-input-area">
-            {/* Scene context toggle + textarea */}
-            <div class="ca-scene-context-section">
-              <button
-                class={`ca-scene-context-toggle ${showSceneContext() ? 'active' : ''}`}
-                onClick={() => setShowSceneContext(!showSceneContext())}
-              >
-                <span class="ca-scene-context-icon"><EditIcon size={14} /></span>
-                {t('mlearn.ConversationAgent.SceneContext')}
-                <Show when={sceneContext().trim()}>
-                  <span class="ca-scene-context-badge" />
-                </Show>
-              </button>
-              <Show when={showSceneContext()}>
-                <Textarea
-                  class="ca-scene-context-textarea"
-                  placeholder={t('mlearn.ConversationAgent.SceneContextPlaceholder')}
-                  value={sceneContext()}
-                  onInput={(e) => setSceneContext(e.currentTarget.value)}
-                  rows={3}
-                  resize="vertical"
-                  ghost
-                />
-              </Show>
-            </div>
-
             <div class="ca-input-row">
               <Show when={settings.speechEnabled}>
                 <IconBtn

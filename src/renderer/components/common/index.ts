@@ -151,6 +151,8 @@ export {
   type ConnectionStatusProps,
   type ConnectionState,
   type ProgressBarProps,
+  FloatingStatus,
+  type FloatingStatusProps,
 } from './Feedback';
 
 // Task Progress Components

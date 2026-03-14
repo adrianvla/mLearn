@@ -36,7 +36,6 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
 
   const [provider, setProvider] = createSignal<TTSProvider>(settings.flashcardTtsProvider);
   const [voiceSampleId, setVoiceSampleId] = createSignal(settings.flashcardVoiceSampleId || '');
-  const [generating, setGenerating] = createSignal(false);
 
   // Task toggles
   const [doWordTts, setDoWordTts] = createSignal(true);
@@ -87,8 +86,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   };
 
   const handleGenerate = async () => {
-    if (generating() || !hasAnySelected()) return;
-    setGenerating(true);
+    if (!hasAnySelected()) return;
 
     const bridge = getBridge();
     const prov = provider();
@@ -105,7 +103,6 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
     if (doTranslation() && (hasExample() || doExamplePhrase())) taskList.push({ key: 'translation', label: t('mlearn.CardEditor.Regenerate.Translation'), status: 'pending' });
 
     if (taskList.length === 0) {
-      setGenerating(false);
       return;
     }
 
@@ -243,7 +240,6 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
     }
 
     props.onGenerated?.();
-    setGenerating(false);
   };
 
   return (
@@ -254,10 +250,10 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
       size="md"
       footer={
         <>
-          <Btn onClick={props.onClose} disabled={generating()}>
+          <Btn onClick={props.onClose}>
             {t('mlearn.Global.Cancel')}
           </Btn>
-          <Btn variant="primary" onClick={handleGenerate} loading={generating()} disabled={!hasAnySelected()}>
+          <Btn variant="primary" onClick={handleGenerate} disabled={!hasAnySelected()}>
             {t('mlearn.CardEditor.GenerateTtsAction')}
           </Btn>
         </>
