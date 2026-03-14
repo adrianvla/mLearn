@@ -12,8 +12,7 @@ import type { OcrBox } from '../components/reader/OcrOverlay';
 
 const DEFAULT_FURIGANA_RATIO = 1.5;
 const DEFAULT_NEIGHBOR_WINDOW_MULT = 2.4;
-const DEFAULT_ZONE_GAP_THRESHOLD = 1.5;
-const DEFAULT_OUTLIER_AREA_MULT = 6;
+const DEFAULT_ZONE_DELTA_THRESHOLD = 50;
 
 // ============================================================================
 // Box Metrics
@@ -110,83 +109,45 @@ function verticalGap(infoA: BoxMetrics, infoB: BoxMetrics): number {
 // ============================================================================
 
 /**
- * Cluster boxes into spatially connected zones based on proximity and orientation.
- * Boxes in the same zone are likely part of the same speech bubble or text block.
- * This enables zone-local processing (e.g., furigana detection) that doesn't get
- * confused by boxes in other parts of the page with very different sizes.
- * 
+ * Cluster boxes into spatially connected zones based on proximity.
+ * Vertical and horizontal boxes are always in separate zones.
+ * Within each orientation group, boxes whose edges are within
+ * `zoneDeltaThreshold` pixels of each other are grouped together.
+ *
  * @param metrics Array of box metrics
- * @param supportsVerticalText When true, use orientation-agnostic proximity so
- *   boxes from vertical-text columns aren't incorrectly split by the per-box
- *   aspect-ratio heuristic (individual characters may be roughly square).
  * @returns Array of zones, where each zone is an array of metrics indices
  */
 interface ClusterOptions {
-  supportsVerticalText?: boolean;
-  /** Max gap between box edges as a ratio of avg box size on the clustering axis (default 1.5) */
-  zoneGapThreshold?: number;
-  /** Boxes with area > median * this are isolated into their own zone (default 6) */
-  outlierAreaMultiplier?: number;
+  /** Max pixel distance between box edges on the clustering axis (default 50) */
+  zoneDeltaThreshold?: number;
 }
 
-function clusterBoxesIntoZones(metrics: BoxMetrics[], opts: ClusterOptions = {}): number[][] {
-  if (metrics.length === 0) return [];
+/**
+ * Cluster a set of same-orientation box indices by edge proximity.
+ * Two boxes are adjacent only when the gap on BOTH axes is within the threshold.
+ * This prevents transitive chains on one axis from spanning the entire other axis
+ * (e.g. vertical boxes at similar X but very different Y being grouped together).
+ */
+function clusterByProximity(
+  indices: number[],
+  metrics: BoxMetrics[],
+  deltaThreshold: number,
+): number[][] {
+  if (indices.length === 0) return [];
 
-  const supportsVerticalText = opts.supportsVerticalText ?? false;
-  const gapThreshold = opts.zoneGapThreshold ?? DEFAULT_ZONE_GAP_THRESHOLD;
-  const outlierMult = opts.outlierAreaMultiplier ?? DEFAULT_OUTLIER_AREA_MULT;
-
-  // Isolate abnormally large boxes (onomatopoeia / SFX) into their own zones
-  const outliers = new Set<number>();
-  if (metrics.length > 2) {
-    const areas = metrics.map(m => m.width * m.height);
-    const sorted = [...areas].sort((a, b) => a - b);
-    const medianArea = sorted[Math.floor(sorted.length / 2)];
-    for (let i = 0; i < metrics.length; i++) {
-      if (areas[i] > medianArea * outlierMult) outliers.add(i);
-    }
-  }
-
-  // Build adjacency graph.
-  // For vertical text: cluster purely by x-axis proximity (horizontal gap
-  //   between box edges relative to average box width).
-  // For horizontal text: cluster purely by y-axis proximity (vertical gap
-  //   between box edges relative to average box height).
+  // Build adjacency graph — require proximity on both axes
   const neighbors = new Map<number, number[]>();
 
-  for (let i = 0; i < metrics.length; i++) {
-    if (outliers.has(i)) { neighbors.set(i, []); continue; }
-    const info = metrics[i];
+  for (const i of indices) {
     const adj: number[] = [];
-
-    for (let j = 0; j < metrics.length; j++) {
-      if (i === j || outliers.has(j)) continue;
-      const other = metrics[j];
-
-      if (supportsVerticalText) {
-        // Pure x-axis clustering: gap between horizontal edges of the two
-        // boxes, normalised by their average width.
-        const hGap = horizontalGap(info, other);
-        const avgWidth = (info.width + other.width) / 2;
-        if (hGap <= avgWidth * gapThreshold) {
-          adj.push(j);
-        }
-      } else {
-        // Languages without vertical text: cluster purely by y-axis.
-        if (info.orientation !== other.orientation) continue;
-
-        if (info.orientation === 'vertical') {
-          const hGap = horizontalGap(info, other);
-          const avgWidth = (info.width + other.width) / 2;
-          if (hGap <= avgWidth * gapThreshold) adj.push(j);
-        } else {
-          const vGap = verticalGap(info, other);
-          const avgHeight = (info.height + other.height) / 2;
-          if (vGap <= avgHeight * gapThreshold) adj.push(j);
-        }
+    for (const j of indices) {
+      if (i === j) continue;
+      const hGap = horizontalGap(metrics[i], metrics[j]);
+      const vGap = verticalGap(metrics[i], metrics[j]);
+      if (hGap <= deltaThreshold && vGap <= deltaThreshold) {
+        adj.push(j);
       }
     }
-
     neighbors.set(i, adj);
   }
 
@@ -194,7 +155,7 @@ function clusterBoxesIntoZones(metrics: BoxMetrics[], opts: ClusterOptions = {})
   const visited = new Set<number>();
   const zones: number[][] = [];
 
-  for (let i = 0; i < metrics.length; i++) {
+  for (const i of indices) {
     if (visited.has(i)) continue;
 
     const zone: number[] = [];
@@ -206,18 +167,40 @@ function clusterBoxesIntoZones(metrics: BoxMetrics[], opts: ClusterOptions = {})
       visited.add(idx);
       zone.push(idx);
 
-      const adj = neighbors.get(idx) || [];
-      for (const neigh of adj) {
+      for (const neigh of neighbors.get(idx) || []) {
         if (!visited.has(neigh)) stack.push(neigh);
       }
     }
 
-    if (zone.length > 0) {
-      zones.push(zone);
-    }
+    if (zone.length > 0) zones.push(zone);
   }
 
   return zones;
+}
+
+function clusterBoxesIntoZones(metrics: BoxMetrics[], opts: ClusterOptions = {}): number[][] {
+  if (metrics.length === 0) return [];
+
+  const delta = opts.zoneDeltaThreshold ?? DEFAULT_ZONE_DELTA_THRESHOLD;
+
+  // Separate boxes by orientation — vertical and horizontal are never in the same zone
+  const verticalIndices: number[] = [];
+  const horizontalIndices: number[] = [];
+
+  for (let i = 0; i < metrics.length; i++) {
+    if (metrics[i].orientation === 'vertical') {
+      verticalIndices.push(i);
+    } else {
+      horizontalIndices.push(i);
+    }
+  }
+
+  // Vertical boxes: group by proximity (both X and Y gaps within threshold)
+  // Horizontal boxes: group by proximity (both X and Y gaps within threshold)
+  return [
+    ...clusterByProximity(verticalIndices, metrics, delta),
+    ...clusterByProximity(horizontalIndices, metrics, delta),
+  ];
 }
 
 // ============================================================================
@@ -228,12 +211,8 @@ export interface FilterNarrowBoxesOptions {
   ratio?: number;
   neighborWindowMultiplier?: number;
   neighborLookahead?: number;
-  /** Pass true when the current language supports vertical writing */
-  supportsVerticalText?: boolean;
-  /** Max gap between box edges as a ratio of avg box dimension for zone clustering (default 1.5) */
-  zoneGapThreshold?: number;
-  /** Boxes with area > median * this are isolated as outliers (default 6) */
-  outlierAreaMultiplier?: number;
+  /** Max pixel distance between box edges for zone clustering (default 50) */
+  zoneDeltaThreshold?: number;
   /** When provided, receives zone debug data for visualization */
   debugOutput?: (zones: FilterDebugZone[]) => void;
 }
@@ -286,9 +265,7 @@ export function filterNarrowBoxes(
 
   const metrics = boxes.map((box, idx) => computeBoxMetrics(box, idx));
   const zones = clusterBoxesIntoZones(metrics, {
-    supportsVerticalText: options.supportsVerticalText,
-    zoneGapThreshold: options.zoneGapThreshold,
-    outlierAreaMultiplier: options.outlierAreaMultiplier,
+    zoneDeltaThreshold: options.zoneDeltaThreshold,
   });
 
   const indicesToRemove = new Set<number>();
@@ -506,7 +483,7 @@ export function buildOcrContextMap(
     const infos = boxes.map((box, idx) => computeBoxMetrics(box, idx));
     
     // Use the shared zone clustering algorithm
-    const zones = clusterBoxesIntoZones(infos, { supportsVerticalText: options.supportsVerticalText });
+    const zones = clusterBoxesIntoZones(infos);
     
     for (const cluster of zones) {
       if (cluster.length === 0) continue;

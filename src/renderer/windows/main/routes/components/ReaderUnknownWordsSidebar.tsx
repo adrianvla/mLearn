@@ -3,7 +3,7 @@ import { createStore } from 'solid-js/store';
 import { WORD_STATUS } from '../../../../../shared/constants';
 import type { Token, TranslationResponse } from '../../../../../shared/types';
 import type { OcrBox } from '../../../../components/reader/OcrOverlay';
-import { Btn, ClockIcon, PillBtn, PillLabel, PitchAccentOverlay } from '../../../../components/common';
+import { Btn, ClockIcon, CollapsibleStickyHeader, PillBtn, PillLabel, PitchAccentOverlay } from '../../../../components/common';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../../../context';
 import { getCachedTranslation, useTranslation } from '../../../../hooks/useTranslation';
 import { setWordStatus, wordsLearnedInApp } from '../../../../services/statsService';
@@ -39,6 +39,8 @@ interface ReaderUnknownWordsSidebarProps {
   onAddWord: (entry: ReaderUnknownWordEntry) => void | Promise<void>;
   onAddAll: (entries: ReaderUnknownWordEntry[]) => void | Promise<void>;
   onIgnoreWord: (entry: ReaderUnknownWordEntry) => void | Promise<void>;
+  onWordHover?: (entry: ReaderUnknownWordEntry) => void;
+  onWordLeave?: () => void;
 }
 
 const UnknownWordRow: Component<{
@@ -48,6 +50,8 @@ const UnknownWordRow: Component<{
   isIgnored: boolean;
   onAddWord: (entry: ReaderUnknownWordEntry) => void | Promise<void>;
   onIgnoreWord: (entry: ReaderUnknownWordEntry) => void | Promise<void>;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }> = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
@@ -124,7 +128,11 @@ const UnknownWordRow: Component<{
   };
 
   return (
-    <article class="reader-unknown-words-item">
+    <article
+      class="reader-unknown-words-item"
+      onMouseEnter={props.onMouseEnter}
+      onMouseLeave={props.onMouseLeave}
+    >
       <div class="reader-unknown-words-item-header">
         <div class="reader-unknown-words-item-word">
           <Show when={pitchData()} fallback={
@@ -257,23 +265,30 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
 
   const addableEntries = createMemo(() => props.words().filter((entry) => !props.addingWordKeys().has(entry.key) && !hasWordSync(entry.word) && !isWordIgnoredSync(entry.word)));
 
+  let sidebarRef: HTMLElement | undefined;
+
   return (
-    <aside class="reader-unknown-words-sidebar panel">
-      <div class="reader-unknown-words-sidebar-header">
-        <div>
-          <h2 class="reader-unknown-words-sidebar-title">{t('mlearn.Reader.Sidebar.UnknownWords')}</h2>
-          <div class="reader-unknown-words-sidebar-count">
-            {t('mlearn.Reader.Sidebar.UnknownWordsCount', { count: props.words().length })}
+    <aside class="reader-unknown-words-sidebar panel" ref={sidebarRef}>
+      <CollapsibleStickyHeader
+        getScrollContainer={() => sidebarRef}
+        class="reader-unknown-words-sticky-header"
+      >
+        <div class="reader-unknown-words-sidebar-header">
+          <div>
+            <h2 class="reader-unknown-words-sidebar-title">{t('mlearn.Reader.Sidebar.UnknownWords')}</h2>
+            <div class="reader-unknown-words-sidebar-count">
+              {t('mlearn.Reader.Sidebar.UnknownWordsCount', { count: props.words().length })}
+            </div>
           </div>
+          <Btn
+            size="sm"
+            variant="primary"
+            label={props.isAddingAll() ? t('mlearn.Reader.Sidebar.AddingAllFlashcards') : t('mlearn.Reader.Sidebar.AddAllFlashcards')}
+            onClick={() => props.onAddAll(addableEntries())}
+            disabled={props.isAddingAll() || addableEntries().length === 0}
+          />
         </div>
-        <Btn
-          size="sm"
-          variant="primary"
-          label={props.isAddingAll() ? t('mlearn.Reader.Sidebar.AddingAllFlashcards') : t('mlearn.Reader.Sidebar.AddAllFlashcards')}
-          onClick={() => props.onAddAll(addableEntries())}
-          disabled={props.isAddingAll() || addableEntries().length === 0}
-        />
-      </div>
+      </CollapsibleStickyHeader>
       <Show
         when={props.words().length > 0}
         fallback={<div class="reader-unknown-words-empty">{t('mlearn.Reader.Sidebar.UnknownWordsEmpty')}</div>}
@@ -287,8 +302,8 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
                 isAdding={props.addingWordKeys().has(entry.key)}
                 isIgnored={isWordIgnoredSync(entry.word)}
                 onAddWord={props.onAddWord}
-                onIgnoreWord={props.onIgnoreWord}
-              />
+                onIgnoreWord={props.onIgnoreWord}                onMouseEnter={() => props.onWordHover?.(entry)}
+                onMouseLeave={props.onWordLeave}              />
             )}
           </For>
         </div>

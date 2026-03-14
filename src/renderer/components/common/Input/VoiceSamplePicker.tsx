@@ -5,7 +5,7 @@
  * sample playback, and TTS test input.
  */
 
-import { Component, For, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
+import { Component, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { Select } from '../Select/Select';
@@ -291,6 +291,16 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
     setDeleteConfirmOpen(false);
   }
 
+  const sampleOptions = () => {
+    const opts: Array<{ value: string; label: string }> = [
+      { value: '', label: t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.DefaultVoice') },
+    ];
+    for (const s of voiceSamples()) {
+      opts.push({ value: s.id, label: s.name });
+    }
+    return opts;
+  };
+
   const selectedSample = () => {
     const id = props.value;
     if (!id) return undefined;
@@ -301,15 +311,11 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
     <div>
       <div class="voice-sample-picker-row">
         <Select
+          options={sampleOptions()}
           value={props.value}
           onChange={handleSelectionChange}
           class={props.selectClass}
-        >
-          <option value="">{t('mlearn.AI.Settings.FlashcardTTS.VoiceSample.DefaultVoice')}</option>
-          <For each={voiceSamples()}>
-            {(sample) => <option value={sample.id}>{sample.name}</option>}
-          </For>
-        </Select>
+        />
         <Show when={props.value}>
           <IconBtn
             size="sm"

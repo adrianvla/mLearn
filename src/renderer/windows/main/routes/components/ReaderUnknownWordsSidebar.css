@@ -9,6 +9,17 @@
   overflow-y: auto;
   z-index: 90;
   user-select: none;
+  background: var(--bg-nt-primary);
+}
+
+.reader-unknown-words-sticky-header {
+  background: var(--bg);
+  margin: calc(-1 * var(--spacing-4));
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-4);
+  top: calc(-1 * var(--spacing-4));
+  backdrop-filter: var(--backdrop-filter);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .reader-unknown-words-sidebar-header {
@@ -16,7 +27,6 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--spacing-3);
-  margin-bottom: var(--spacing-4);
 }
 
 .reader-unknown-words-sidebar-title {
@@ -44,7 +54,7 @@
 
 .reader-unknown-words-item {
   padding: var(--spacing-3);
-  background: var(--bg);
+  background: var(--bg-nt-secondary);
   border: 1px solid var(--border-color);
   border-radius:var(--radius-lg);
 }

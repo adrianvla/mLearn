@@ -29,6 +29,14 @@
   opacity: 1;
 }
 
+.ocr-box.sidebar-highlighted {
+  opacity: 1;
+  background: transparent;
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .ocr-text {
   width: 100%;
   height: 100%;

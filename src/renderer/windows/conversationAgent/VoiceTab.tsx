@@ -29,19 +29,19 @@ import './VoiceTab.css';
 // ============================================================================
 
 const PhoneIcon: Component = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
     <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
   </svg>
 );
 
 const PhoneOffIcon: Component = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
     <path d="M10.68 13.31a16 16 0 003.41 2.6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.42 19.42 0 01-3.33-2.67M1 1l22 22M4.22 4.22A19.13 19.13 0 002.12 4.18 2 2 0 004.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91" />
   </svg>
 );
 
 const MicIcon: Component = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
     <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
     <path d="M19 10v2a7 7 0 01-14 0v-2" />
     <line x1="12" y1="19" x2="12" y2="23" />
@@ -755,7 +755,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       {/* Checking model status */}
       <Show when={isChecking()}>
         <div class="voice-download-section">
-          <Spinner size={32} shape="square" />
+          <Spinner size={32} shape="square" cornerRadius={0} />
         </div>
       </Show>
 
@@ -807,7 +807,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             {/* Initializing engines indicator */}
             <Show when={isInitializing()}>
               <div class="voice-initializing">
-                <Spinner size={20} />
+                <Spinner size={32} shape="square" cornerRadius={0} />
                 <span class="voice-initializing-text">
                   {t('mlearn.ConversationAgent.Voice.Initializing')}
                 </span>
@@ -817,7 +817,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             {/* TTS model loading indicator */}
             <Show when={!isInitializing() && ttsModelLoading()}>
               <div class="voice-initializing">
-                <Spinner size={20} />
+                <Spinner size={32} shape="square" cornerRadius={0} />
                 <span class="voice-initializing-text">
                   {t('mlearn.ConversationAgent.Voice.LoadingTtsModel')}
                 </span>

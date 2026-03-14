@@ -3,8 +3,8 @@
  * Page thumbnails sidebar
  */
 
-import {Component, For, Accessor, Show, createEffect, onCleanup} from 'solid-js';
-import { Tag, Indicator } from '../../../../components/common';
+import {Component, For, Accessor, Show, createEffect, createSignal, onCleanup} from 'solid-js';
+import { Tag, Indicator, Spinner } from '../../../../components/common';
 import { useLocalization } from '../../../../context';
 import './ReaderSidebar.css';
 
@@ -32,7 +32,14 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
   const { t } = useLocalization();
   const thumbRefs = new Map<number, HTMLDivElement>();
   const thumbUrlCache = new Map<string, string>();
+  const [loadedPages, setLoadedPages] = createSignal<Set<number>>(new Set());
   let sidebarRef: HTMLElement | undefined;
+
+  // Reset loaded state when pages change (new book loaded)
+  createEffect(() => {
+    props.pages(); // track
+    setLoadedPages(new Set<number>());
+  });
 
   // Revoke all cached thumbnail blob URLs on cleanup
   onCleanup(() => {
@@ -44,10 +51,19 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
    * Downscale a full-resolution image URL to a small thumbnail blob URL.
    * Uses an offscreen canvas and caches the result per src.
    */
-  const loadThumbnail = (src: string, imgEl: HTMLImageElement) => {
+  const markPageLoaded = (pageIndex: number) => {
+    setLoadedPages(prev => {
+      const next = new Set(prev);
+      next.add(pageIndex);
+      return next;
+    });
+  };
+
+  const loadThumbnail = (src: string, imgEl: HTMLImageElement, pageIndex: number) => {
     const cached = thumbUrlCache.get(src);
     if (cached) {
       imgEl.src = cached;
+      markPageLoaded(pageIndex);
       return;
     }
 
@@ -70,6 +86,7 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
             const thumbUrl = URL.createObjectURL(blob);
             thumbUrlCache.set(src, thumbUrl);
             imgEl.src = thumbUrl;
+            markPageLoaded(pageIndex);
           }
         }, 'image/jpeg', 0.85);
       }
@@ -155,7 +172,16 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
                     class={`page-thumb ${isPageActive(page.index) ? 'active' : ''}`}
                     onClick={() => props.onGoToPage(page.index)}
                 >
-                  <img ref={(el) => loadThumbnail(page.src, el)} alt={page.name} />
+                  <Show when={!loadedPages().has(page.index)}>
+                    <div class="page-thumb-spinner">
+                      <Spinner size={20} />
+                    </div>
+                  </Show>
+                  <img
+                    class={loadedPages().has(page.index) ? 'page-thumb-loaded' : 'page-thumb-loading'}
+                    ref={(el) => loadThumbnail(page.src, el, page.index)}
+                    alt={page.name}
+                  />
                   <Tag class="page-number">{page.index + 1}</Tag>
                   <Show when={props.hasOcrForPage(page.id)}>
                     <Indicator class="ocr-indicator" variant="primary" />

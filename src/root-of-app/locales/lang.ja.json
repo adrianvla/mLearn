@@ -392,10 +392,12 @@
         "Polite": "丁寧",
         "PoliteDescription": "フォーマルで構造的、教育的なトーン",
         "Roleplay": "ロールプレイ",
-        "RoleplayDescription": "名前とバックストーリーを持つカスタムキャラクター",
+        "RoleplayDescription": "名前と説明を持つカスタムキャラクター",
         "RoleplayFormality": "丁寧さ",
-        "RoleplayLore": "キャラクターの背景",
-        "RoleplayLorePlaceholder": "キャラクターの性格、背景、対話方法を記述してください...",
+        "RoleplayLore": "キャラクター説明",
+        "RoleplayLorePlaceholder": "キャラクターの性格、特徴、対話方法を記述してください...",
+        "RoleplayBackstory": "バックストーリー",
+        "RoleplayBackstoryPlaceholder": "メディアから要約されたストーリーの背景...",
         "RoleplayName": "キャラクター名",
         "RoleplayNamePlaceholder": "キャラクターの名前を入力...",
         "RoleplayQuotes": "サンプル台詞",
@@ -428,7 +430,6 @@
         "ManualSetupHint": "キャラクターの詳細を自分で入力します。"
       },
       "Topics": {
-        "DebugLabel": "トピック：",
         "Generating": "トピックを生成中...",
         "Title": "予定トピック"
       },
@@ -456,9 +457,9 @@
         "Generating": "キャラクターペルソナを作成中...",
         "Confirm": "このキャラクターを使用",
         "ReviewName": "キャラクター",
-        "ReviewLore": "ペルソナ",
+        "ReviewLore": "キャラクター説明",
         "ReviewQuotes": "サンプル台詞",
-        "ReviewContext": "ストーリーの背景",
+        "ReviewContext": "バックストーリー",
         "ReviewFandom": "Fandom Wiki"
       }
     },
@@ -909,8 +910,6 @@
         "MagnifierHint": "{key}を押すと拡大鏡を開きます",
         "OpenConversationAgent": "AIチューター",
         "OpenConversationAgentTitle": "AI会話チューターを開く",
-        "OutlierMultLabel": "外れ値倍率: {value}x",
-        "OutlierMultTitle": "面積が中央値×この値を超えるボックスは独立したゾーンになります",
         "PaddleDownscaleLabel": "PaddleOCRスケール: {value}%",
         "PaddleDownscaleTitle": "PaddleOCR処理前に画像を縮小する（開発用）",
         "Ready": "準備完了",
@@ -927,8 +926,8 @@
         "TriggerTitle": "単語ホバーのトリガー方法",
         "TurboModeOff": "ターボ: オフ",
         "TurboModeOn": "ターボ: オン",
-        "ZoneGapLabel": "ゾーン間隔: {value}",
-        "ZoneGapTitle": "ゾーンクラスタリングのボックス端間の最大間隔"
+        "ZoneDeltaLabel": "ゾーンデルタ: {value}px",
+        "ZoneDeltaTitle": "ゾーンクラスタリングのボックス端間の最大ピクセル距離"
       },
       "Toolbar": {
         "BackToHome": "ホームに戻る",

@@ -4,7 +4,7 @@
  * by searching a Fandom wiki, extracting character info, and building a persona.
  */
 
-import { Component, createSignal, createMemo, Show, For, Match, Switch } from 'solid-js';
+import { Component, createSignal, createMemo, createEffect, Show, For, Match, Switch } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
 import {
   ModalForm,
@@ -14,6 +14,7 @@ import {
   FormField,
   Select,
   Spinner,
+  FloatingStatus,
 } from '../../components/common';
 import type { AgentConfig, LLMChatMessage, LLMStreamChunk } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
@@ -245,7 +246,7 @@ async function fetchChapterSummaries(
 
   for (let i = 0; i < chaptersToFetch.length; i += BATCH_SIZE) {
     const batch = chaptersToFetch.slice(i, i + BATCH_SIZE);
-    onProgress?.(`Fetching chapters ${i + 1}-${Math.min(i + BATCH_SIZE, chaptersToFetch.length)} of ${chaptersToFetch.length}...`);
+    onProgress?.(`Fetching chapters ${batch[0].num}-${batch[batch.length - 1].num}...`);
 
     const titles = batch.map((c) => c.title).join('|');
     const batchUrl = `${baseUrl}/api.php?action=query&prop=revisions&rvprop=content&rvslots=main&titles=${encodeURIComponent(titles)}&format=json&formatversion=2`;
@@ -846,36 +847,43 @@ Generate the JSON object now.`,
           </Match>
 
           <Match when={step() === 'extracting'}>
-            <div class="quickstart-loading">
-              <Spinner />
-              <HintText>
-                {parsedProgress().isFetching
+            <div class="quickstart-extracting">
+              <div class="quickstart-live-preview" ref={(el) => {
+                createEffect(() => {
+                  // Auto-scroll to bottom as content streams in
+                  parsedProgress();
+                  el.scrollTop = el.scrollHeight;
+                });
+              }}>
+                <Show when={parsedProgress().lore}>
+                  <FormField label={t('mlearn.ConversationAgent.QuickStart.ReviewLore')}>
+                    <p class="quickstart-review-text">{parsedProgress().lore}</p>
+                  </FormField>
+                </Show>
+                <Show when={parsedProgress().quotes.length > 0}>
+                  <FormField label={t('mlearn.ConversationAgent.QuickStart.ReviewQuotes')}>
+                    <ul class="quickstart-review-quotes">
+                      <For each={parsedProgress().quotes}>
+                        {(q) => <li>"{q}"</li>}
+                      </For>
+                    </ul>
+                  </FormField>
+                </Show>
+                <Show when={parsedProgress().context}>
+                  <FormField label={t('mlearn.ConversationAgent.QuickStart.ReviewContext')}>
+                    <p class="quickstart-review-text">{parsedProgress().context}</p>
+                  </FormField>
+                </Show>
+              </div>
+              <FloatingStatus
+                visible={step() === 'extracting'}
+                indeterminate
+                statusText={parsedProgress().isFetching
                   ? llmProgress()
                   : t('mlearn.ConversationAgent.QuickStart.Generating')}
-              </HintText>
-              <Show when={parsedProgress().lore || parsedProgress().quotes.length > 0 || parsedProgress().context}>
-                <div class="quickstart-live-preview">
-                  <Show when={parsedProgress().lore}>
-                    <FormField label={t('mlearn.ConversationAgent.QuickStart.ReviewLore')}>
-                      <p class="quickstart-review-text">{parsedProgress().lore}</p>
-                    </FormField>
-                  </Show>
-                  <Show when={parsedProgress().quotes.length > 0}>
-                    <FormField label={t('mlearn.ConversationAgent.QuickStart.ReviewQuotes')}>
-                      <ul class="quickstart-review-quotes">
-                        <For each={parsedProgress().quotes}>
-                          {(q) => <li>"{q}"</li>}
-                        </For>
-                      </ul>
-                    </FormField>
-                  </Show>
-                  <Show when={parsedProgress().context}>
-                    <FormField label={t('mlearn.ConversationAgent.QuickStart.ReviewContext')}>
-                      <p class="quickstart-review-text">{parsedProgress().context}</p>
-                    </FormField>
-                  </Show>
-                </div>
-              </Show>
+                size={36}
+                strokeWidth={4}
+              />
             </div>
           </Match>
 

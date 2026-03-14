@@ -392,10 +392,12 @@
         "Polite": "Вежливый",
         "PoliteDescription": "Формальный, структурированный, обучающий тон",
         "Roleplay": "Ролевая игра",
-        "RoleplayDescription": "Пользовательский персонаж с именем и предысторией",
+        "RoleplayDescription": "Пользовательский персонаж с именем и описанием",
         "RoleplayFormality": "Формальность",
-        "RoleplayLore": "Предыстория персонажа",
-        "RoleplayLorePlaceholder": "Опишите личность, предысторию и стиль общения персонажа...",
+        "RoleplayLore": "Описание персонажа",
+        "RoleplayLorePlaceholder": "Опишите личность, черты характера и стиль общения персонажа...",
+        "RoleplayBackstory": "Предыстория",
+        "RoleplayBackstoryPlaceholder": "Контекст сюжета, обобщённый из медиа...",
         "RoleplayName": "Имя персонажа",
         "RoleplayNamePlaceholder": "Введите имя персонажа...",
         "RoleplayQuotes": "Примеры цитат",
@@ -428,7 +430,6 @@
         "ManualSetupHint": "Заполните данные персонажа самостоятельно."
       },
       "Topics": {
-        "DebugLabel": "Темы:",
         "Generating": "Генерация тем...",
         "Title": "Запланированные темы"
       },
@@ -456,9 +457,9 @@
         "Generating": "Создание персоны персонажа...",
         "Confirm": "Использовать этого персонажа",
         "ReviewName": "Персонаж",
-        "ReviewLore": "Персона",
+        "ReviewLore": "Описание персонажа",
         "ReviewQuotes": "Примеры цитат",
-        "ReviewContext": "Контекст истории",
+        "ReviewContext": "Предыстория",
         "ReviewFandom": "Fandom Wiki"
       }
     },
@@ -909,8 +910,6 @@
         "MagnifierHint": "Нажмите {key} для лупы",
         "OpenConversationAgent": "AI-репетитор",
         "OpenConversationAgentTitle": "Открыть AI-репетитора",
-        "OutlierMultLabel": "Множ. выбросов: {value}x",
-        "OutlierMultTitle": "Боксы с площадью выше медианы × это значение изолируются",
         "PaddleDownscaleLabel": "Масштаб PaddleOCR: {value}%",
         "PaddleDownscaleTitle": "Уменьшить изображение перед обработкой PaddleOCR (dev)",
         "Ready": "Готово",
@@ -927,8 +926,8 @@
         "TriggerTitle": "Как вызывать всплывающую подсказку",
         "TurboModeOff": "Турбо: Выкл",
         "TurboModeOn": "Турбо: Вкл",
-        "ZoneGapLabel": "Зазор зоны: {value}",
-        "ZoneGapTitle": "Макс. зазор между краями боксов для кластеризации зон"
+        "ZoneDeltaLabel": "Дельта зоны: {value}px",
+        "ZoneDeltaTitle": "Макс. расстояние в пикселях между краями боксов для кластеризации зон"
       },
       "Toolbar": {
         "BackToHome": "Вернуться на главную",

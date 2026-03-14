@@ -392,10 +392,12 @@
         "Polite": "Höflich",
         "PoliteDescription": "Formell, strukturiert, lehrreich",
         "Roleplay": "Rollenspiel",
-        "RoleplayDescription": "Eigener Charakter mit Name und Hintergrundgeschichte",
+        "RoleplayDescription": "Eigener Charakter mit Name und Beschreibung",
         "RoleplayFormality": "Förmlichkeit",
-        "RoleplayLore": "Charakter-Hintergrund",
-        "RoleplayLorePlaceholder": "Beschreibe die Persönlichkeit, Hintergrundgeschichte und wie der Charakter interagieren soll...",
+        "RoleplayLore": "Charakterbeschreibung",
+        "RoleplayLorePlaceholder": "Beschreibe die Persönlichkeit, Eigenschaften und wie der Charakter interagieren soll...",
+        "RoleplayBackstory": "Hintergrundgeschichte",
+        "RoleplayBackstoryPlaceholder": "Aus Medien zusammengefasster Story-Kontext...",
         "RoleplayName": "Charaktername",
         "RoleplayNamePlaceholder": "Einen Namen für den Charakter eingeben...",
         "RoleplayQuotes": "Beispielzitate",
@@ -428,7 +430,6 @@
         "ManualSetupHint": "Charakterdetails selbst eingeben."
       },
       "Topics": {
-        "DebugLabel": "Themen:",
         "Generating": "Themen werden generiert...",
         "Title": "Geplante Themen"
       },
@@ -456,9 +457,9 @@
         "Generating": "Charakter-Persona wird erstellt...",
         "Confirm": "Diesen Charakter verwenden",
         "ReviewName": "Charakter",
-        "ReviewLore": "Persona",
+        "ReviewLore": "Charakterbeschreibung",
         "ReviewQuotes": "Beispielzitate",
-        "ReviewContext": "Story-Kontext",
+        "ReviewContext": "Hintergrundgeschichte",
         "ReviewFandom": "Fandom-Wiki"
       }
     },
@@ -909,8 +910,6 @@
         "MagnifierHint": "{key} drücken für Lupe",
         "OpenConversationAgent": "KI-Tutor",
         "OpenConversationAgentTitle": "KI-Konversationstutor öffnen",
-        "OutlierMultLabel": "Ausreißer-Mult: {value}x",
-        "OutlierMultTitle": "Boxen mit Fläche über Median × diesen Wert werden isoliert",
         "PaddleDownscaleLabel": "PaddleOCR-Skalierung: {value}%",
         "PaddleDownscaleTitle": "Bild vor PaddleOCR-Verarbeitung herunterskalieren (dev)",
         "Ready": "Bereit",
@@ -927,8 +926,8 @@
         "TriggerTitle": "Wie das Wort-Tooltip ausgelöst wird",
         "TurboModeOff": "Turbo: Aus",
         "TurboModeOn": "Turbo: Ein",
-        "ZoneGapLabel": "Zonen-Abstand: {value}",
-        "ZoneGapTitle": "Maximaler Abstand zwischen Boxkanten für Zonen-Clustering"
+        "ZoneDeltaLabel": "Zonen-Delta: {value}px",
+        "ZoneDeltaTitle": "Maximaler Pixelabstand zwischen Boxkanten für Zonen-Clustering"
       },
       "Toolbar": {
         "BackToHome": "Zur Startseite",

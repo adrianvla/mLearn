@@ -6,6 +6,7 @@ export { EmptyState, type EmptyStateProps, type EmptyStateAction } from './Empty
 export { AlertBanner, type AlertBannerProps, type AlertVariant } from './AlertBanner';
 export { ConnectionStatus, type ConnectionStatusProps, type ConnectionState } from './ConnectionStatus';
 export { ProgressBar, type ProgressBarProps } from './ProgressBar';
+export { FloatingStatus, type FloatingStatusProps } from './FloatingStatus';
 export { Toast, ToastContainer, showToast, updateToast, removeToast, type ToastProps, type ToastVariant } from './Toast';
 
 // Import CSS

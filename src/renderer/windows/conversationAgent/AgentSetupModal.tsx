@@ -24,7 +24,7 @@ import './AgentSetupModal.css';
 
 interface AgentSetupModalProps {
   isOpen: boolean;
-  onComplete: (config: AgentConfig, intro: string) => void;
+  onComplete: (config: AgentConfig) => void;
   onClose?: () => void;
   /** When set, the modal is in edit mode and prefills from this config */
   initialConfig?: AgentConfig | null;
@@ -148,7 +148,7 @@ export const AgentSetupModal: Component<AgentSetupModalProps> = (props) => {
       roleplayContext: personality() === 'roleplay' && roleplayContext().trim() ? roleplayContext().trim() : undefined,
       setupComplete: true,
     };
-    props.onComplete(config, aboutMe().trim());
+    props.onComplete(config);
   };
 
   const selectPersonality = (p: AgentPersonality) => {
@@ -406,6 +406,18 @@ export const AgentSetupModal: Component<AgentSetupModalProps> = (props) => {
                   resize="vertical"
                 />
               </FormField>
+
+              <Show when={roleplayContext()}>
+                <FormField label={t('mlearn.ConversationAgent.Personality.RoleplayBackstory')}>
+                  <Textarea
+                    value={roleplayContext()}
+                    onInput={(e) => setRoleplayContext(e.currentTarget.value)}
+                    placeholder={t('mlearn.ConversationAgent.Personality.RoleplayBackstoryPlaceholder')}
+                    rows={4}
+                    resize="vertical"
+                  />
+                </FormField>
+              </Show>
 
               <FormField
                 label={t('mlearn.ConversationAgent.Personality.RoleplayQuotes')}

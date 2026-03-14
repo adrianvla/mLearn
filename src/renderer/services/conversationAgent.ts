@@ -117,7 +117,7 @@ function buildSystemPrompt(
       ? `\nSample quotes (match the style, don't repeat these lines verbatim):\n${agentConfig.roleplayQuotes.map((q) => `- "${q}"`).join('\n')}`
       : '';
     const contextSection = agentConfig.roleplayContext
-      ? `\n\n## Story Context\n${agentConfig.roleplayContext}`
+      ? `\n\n## Backstory\n${agentConfig.roleplayContext}`
       : '';
     personalitySection = `## Personality & Character
 You are roleplaying as "${agentConfig.roleplayName}".
