@@ -1,9 +1,9 @@
-import { Component, For, Show, createEffect, createMemo } from 'solid-js';
+import { Component, For, Show, createEffect, createMemo, createSignal } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { WORD_STATUS } from '../../../../../shared/constants';
-import type { Token, TranslationResponse } from '../../../../../shared/types';
+import type { Token, TranslationEntry, TranslationResponse } from '../../../../../shared/types';
 import type { OcrBox } from '../../../../components/reader/OcrOverlay';
-import { Btn, ClockIcon, CollapsibleStickyHeader, PillBtn, PillLabel, PitchAccentOverlay } from '../../../../components/common';
+import { Btn, ClockIcon, CollapsibleStickyHeader, PillBtn, PillLabel, PitchAccentOverlay, ToggleSwitch } from '../../../../components/common';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../../../context';
 import { getCachedTranslation, useTranslation } from '../../../../hooks/useTranslation';
 import { setWordStatus, wordsLearnedInApp } from '../../../../services/statsService';
@@ -17,10 +17,22 @@ import {
 } from '../../../../components/subtitle/wordHoverHelpers';
 import { normalizeReading } from '../../../../../shared/utils/textUtils';
 import { containsKanji, isAllKana } from '../../../../../shared/utils/textUtils';
+import { AddAllFlashcardsModal } from './AddAllFlashcardsModal';
 import './ReaderUnknownWordsSidebar.css';
 
 const ICON_CROSS2 = 'cross2';
 const ICON_CHECK = 'check';
+
+function hasDictionaryEntry(translation: TranslationResponse | null | undefined): boolean {
+  if (!translation?.data) return false;
+  for (const entry of translation.data) {
+    if (entry && 'definitions' in entry) {
+      const defs = (entry as TranslationEntry).definitions;
+      if (Array.isArray(defs) ? defs.length > 0 : Boolean(defs)) return true;
+    }
+  }
+  return false;
+}
 
 export interface ReaderUnknownWordEntry {
   key: string;
@@ -120,6 +132,17 @@ const UnknownWordRow: Component<{
 
   const posLabel = createMemo(() => props.entry.token.partOfSpeech || props.entry.token.type || '');
 
+  const shortMeaning = createMemo(() => {
+    const entry = props.translation?.data?.[0];
+    if (!entry || !('definitions' in entry)) return '';
+    const defs = entry.definitions;
+    if (!defs) return '';
+    const first = Array.isArray(defs) ? defs[0] : defs;
+    if (!first) return '';
+    const clean = first.replace(/<[^>]*>/g, '').trim();
+    return clean.length > 40 ? clean.slice(0, 40) + '…' : clean;
+  });
+
   const cycleStatus = () => {
     const order: WordStatus[] = ['unknown', 'learning', 'known'];
     const current = manualStatus();
@@ -170,6 +193,9 @@ const UnknownWordRow: Component<{
             )}
           </Show>
         </div>
+        <Show when={shortMeaning()}>
+          <span class="reader-unknown-words-item-meaning">{shortMeaning()}</span>
+        </Show>
       </div>
       <div class="reader-unknown-words-item-pills">
         <Show when={levelData()}>
@@ -265,6 +291,21 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
 
   const addableEntries = createMemo(() => props.words().filter((entry) => !props.addingWordKeys().has(entry.key) && !hasWordSync(entry.word) && !isWordIgnoredSync(entry.word)));
 
+  const [isModalOpen, setIsModalOpen] = createSignal(false);
+  const [dictionaryOnly, setDictionaryOnly] = createSignal(true);
+
+  const dictionaryFoundWords = createMemo(() =>
+    props.words().filter((entry) => hasDictionaryEntry(translations[entry.word]))
+  );
+
+  const dictionaryFoundAddableEntries = createMemo(() =>
+    addableEntries().filter((entry) => hasDictionaryEntry(translations[entry.word]))
+  );
+
+  const visibleWords = createMemo(() =>
+    dictionaryOnly() ? dictionaryFoundWords() : props.words()
+  );
+
   let sidebarRef: HTMLElement | undefined;
 
   return (
@@ -277,16 +318,23 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
           <div>
             <h2 class="reader-unknown-words-sidebar-title">{t('mlearn.Reader.Sidebar.UnknownWords')}</h2>
             <div class="reader-unknown-words-sidebar-count">
-              {t('mlearn.Reader.Sidebar.UnknownWordsCount', { count: props.words().length })}
+              {t('mlearn.Reader.Sidebar.UnknownWordsCount', { count: visibleWords().length })}
             </div>
           </div>
-          <Btn
+          <div class="reader-unknown-words-sidebar-actions">
+            <ToggleSwitch
+              checked={dictionaryOnly()}
+              onChange={setDictionaryOnly}
+              label={t('mlearn.Reader.Sidebar.DictionaryOnly')}
+            />
+            <Btn
             size="sm"
             variant="primary"
             label={props.isAddingAll() ? t('mlearn.Reader.Sidebar.AddingAllFlashcards') : t('mlearn.Reader.Sidebar.AddAllFlashcards')}
-            onClick={() => props.onAddAll(addableEntries())}
+            onClick={() => setIsModalOpen(true)}
             disabled={props.isAddingAll() || addableEntries().length === 0}
           />
+          </div>
         </div>
       </CollapsibleStickyHeader>
       <Show
@@ -294,7 +342,7 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
         fallback={<div class="reader-unknown-words-empty">{t('mlearn.Reader.Sidebar.UnknownWordsEmpty')}</div>}
       >
         <div class="reader-unknown-words-list">
-          <For each={props.words()}>
+          <For each={visibleWords()}>
             {(entry) => (
               <UnknownWordRow
                 entry={entry}
@@ -308,6 +356,13 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
           </For>
         </div>
       </Show>
+      <AddAllFlashcardsModal
+        isOpen={isModalOpen()}
+        onClose={() => setIsModalOpen(false)}
+        allEntries={addableEntries()}
+        dictionaryEntries={dictionaryFoundAddableEntries()}
+        onAdd={(entries) => props.onAddAll(entries)}
+      />
     </aside>
   );
 };

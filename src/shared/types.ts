@@ -247,6 +247,8 @@ export interface Settings {
   agentMemoryEnabled: boolean;
   /** Whether memories are shared across all agents or compartmentalized */
   agentMemoryShared: boolean;
+  /** Whether to use a separate checker agent for correcting mistakes */
+  agentSplitChecker: boolean;
 
   // First-run tracking
   hasCompletedSetup?: boolean;
@@ -350,6 +352,7 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardVoiceSampleId: '',
   agentMemoryEnabled: true,
   agentMemoryShared: true,
+  agentSplitChecker: true,
 };
 
 // ============================================================================
@@ -1034,6 +1037,11 @@ export interface MediaStats {
 
 export type ConversationRole = 'system' | 'user' | 'assistant' | 'tool';
 
+export interface ConversationPlanItem {
+  text: string;
+  done: boolean;
+}
+
 export interface ConversationMessage {
   role: ConversationRole;
   content: string;
@@ -1099,12 +1107,16 @@ export interface MistakeWidgetData {
   userMessageIndex: number;
   errorSpan: string;
   correction: string;
-  errorType: 'grammar' | 'word' | 'typo' | 'other';
+  errorType: 'grammar' | 'word' | 'typo' | 'unnatural' | 'other';
   affectedPattern?: string;
   /** Text immediately before the error span for disambiguation */
   contextBefore?: string;
   /** Text immediately after the error span for disambiguation */
   contextAfter?: string;
+  /** Source of this correction: 'agent' (inline from tutor) or 'checker' (separate checker agent) */
+  source?: 'agent' | 'checker';
+  /** Alternative corrections suggested by the checker agent */
+  alternatives?: string[];
 }
 
 // ============================================================================

@@ -568,6 +568,13 @@ export function setupWindowIPC(): void {
     if (payload.context) {
       windowContextStore.set(payload.type, payload.context);
     }
+    const existing = childWindows.get(payload.type);
+    if (existing && !existing.isDestroyed()) {
+      // Re-send context to existing window so it can update
+      if (payload.context) {
+        existing.webContents.send(IPC_CHANNELS.WINDOW_CONTEXT, payload.context);
+      }
+    }
     createChildWindow(payload.type, payload.options);
   });
 

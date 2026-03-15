@@ -107,24 +107,11 @@ async def startup_event():
     except Exception as e:
         _log("Failed to enable faulthandler:", e)
 
-    # Pre-import transformers so MangaOCR init doesn't hit FD limits later
+    # Mark transformers preimport as not yet done; it will be triggered
+    # lazily via POST /ocr/warmup when the reader is first opened,
+    # avoiding unnecessary CPU usage on startup.
     preimport_event = ocr.get_transformers_preimport_event()
-    if config.OCR_ALLOWED:
-        try:
-            _log("Pre-importing transformers for MangaOCR...")
-            from transformers import (  # noqa: F401
-                ViTImageProcessor,
-                AutoTokenizer,
-                VisionEncoderDecoderModel,
-                GenerationMixin,
-            )
-            gc.collect()
-            _log("Transformers pre-import done")
-        except Exception as _e:
-            _log("Transformers pre-import failed (non-fatal):", _e)
-        finally:
-            preimport_event.set()
-    else:
+    if not config.OCR_ALLOWED:
         preimport_event.set()
 
 

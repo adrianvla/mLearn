@@ -6,7 +6,7 @@
 
 import { Component, createSignal, onCleanup } from 'solid-js';
 import type { Token } from '../../../shared/types';
-import { useSettings, useFlashcards } from '../../context';
+import { useSettings, useFlashcards, useLanguage } from '../../context';
 import { matchesKeybind } from '../common/Input/KeybindInput';
 import './OcrOverlay.css';
 
@@ -22,6 +22,7 @@ const LONG_HOVER_DELAY = 500;
 export const OcrWord: Component<OcrWordProps> = (props) => {
   const { settings } = useSettings();
   const flashcardCtx = useFlashcards();
+  const { getCanonicalForm } = useLanguage();
   
   // Reference to the word span element - used to get stable getBoundingClientRect
   // This is necessary because event.currentTarget becomes null after event handlers return,
@@ -58,7 +59,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     
     // Track word hover for passive knowledge
     const lookupWord = props.token.actual_word ?? props.token.surface ?? props.token.word;
-    flashcardCtx.trackWordHovered(lookupWord, props.token.reading);
+    flashcardCtx.trackWordHovered(getCanonicalForm(lookupWord), props.token.reading);
 
     const triggerMode = settings.readerWordHoverTrigger ?? 'hover';
     
@@ -101,7 +102,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     
     // Cancel hover timer for passive knowledge
     const lookupWord = props.token.actual_word ?? props.token.surface ?? props.token.word;
-    flashcardCtx.cancelWordHover(lookupWord);
+    flashcardCtx.cancelWordHover(getCanonicalForm(lookupWord));
 
     props.onWordLeave?.();
   };

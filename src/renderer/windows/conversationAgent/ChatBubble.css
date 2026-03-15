@@ -116,6 +116,29 @@
   line-height: 1.2;
 }
 
+/* ============ Checker Correction (unnatural = yellow, alternatives) ============ */
+
+.chat-correction-group.unnatural .chat-correction-original {
+  text-decoration-color: var(--color-warning);
+}
+
+.chat-correction-group.unnatural .chat-correction-replacement {
+  color: var(--color-warning);
+}
+
+.chat-correction-alternatives {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.85em;
+  line-height: 1.2;
+}
+
+.chat-correction-alternative {
+  color: var(--color-warning);
+  opacity: 0.75;
+}
+
 /* ============ Chat timestamp & actions ============ */
 
 .chat-bubble-footer {

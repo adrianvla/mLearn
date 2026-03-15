@@ -26,7 +26,17 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  flex-direction: column;
   gap: var(--spacing-3);
+}
+
+.reader-unknown-words-sidebar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+  width:100%;
 }
 
 .reader-unknown-words-sidebar-title {
@@ -71,6 +81,19 @@
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   word-break: break-word;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.reader-unknown-words-item-meaning {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .reader-unknown-words-item-word ruby {

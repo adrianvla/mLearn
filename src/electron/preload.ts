@@ -162,6 +162,8 @@ const mLearnIPC = {
   openExternalUrl: (url: string): Promise<boolean> => ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL_URL, url),
   onAuthDeepLink: (callback: (payload: { code: string | null; state: string | null; error: string | null }) => void) =>
     ipcOn(IPC_CHANNELS.AUTH_DEEP_LINK, (_event, payload) => callback(payload)),
+  onLookupDeepLink: (callback: (word: string) => void) =>
+    ipcOn(IPC_CHANNELS.LOOKUP_DEEP_LINK, (_event, word) => callback(word)),
 
   // ========== Watch Together ==========
   watchTogetherSend: (message: string) => ipcRenderer.send(IPC_CHANNELS.WATCH_TOGETHER_SEND, message),

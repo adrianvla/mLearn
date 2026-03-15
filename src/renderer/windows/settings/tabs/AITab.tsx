@@ -377,6 +377,19 @@ export const AITab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
+      {/* Checker Agent */}
+      <SettingGroup title={t('mlearn.AI.Settings.SplitChecker.Title')}>
+        <SettingRow
+          label={t('mlearn.AI.Settings.SplitChecker.Label')}
+          description={t('mlearn.AI.Settings.SplitChecker.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.agentSplitChecker}
+            onChange={(checked) => updateSettings({ agentSplitChecker: checked })}
+          />
+        </SettingRow>
+      </SettingGroup>
+
       <SettingGroup title={t('mlearn.AI.Settings.OCR.Title')}>
         <SettingRow
             label={t('mlearn.AI.Settings.OCR.Provider.Label')}

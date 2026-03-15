@@ -392,8 +392,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 class="flashcard-action-btn"
                 onClick={() => setShowTtsModal(true)}
                 title={t('mlearn.CardEditor.Regenerate.Title')}
+                icon={<MicrophoneIcon size={14} />}
               >
-                <MicrophoneIcon size={14} />
                 <span class="flashcard-action-label">{t('mlearn.CardEditor.Regenerate.Title')}</span>
               </Button>
             </Show>

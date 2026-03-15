@@ -244,9 +244,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     
     // Build context map for neighboring text boxes
     // The map is indexed by position in filteredBoxes array
-    const ctx = buildOcrContextMap(boxes, {
-      supportsVerticalText: langFeatures().supportsVerticalText,
-    });
+    const ctx = buildOcrContextMap(boxes);
     setContextMap(ctx);
   });
 

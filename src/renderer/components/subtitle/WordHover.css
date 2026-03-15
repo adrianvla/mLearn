@@ -106,6 +106,9 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   min-height: 0; /* Allow shrinking for scroll */
   max-width:600px;
 }
+.subtitle_hover_content a{
+  color: var(--text-primary);
+}
 
 /* Footer - NOT absolute, so pills width + padding (20px) drives parent's fit-content width */
 .subtitle_hover .footer {

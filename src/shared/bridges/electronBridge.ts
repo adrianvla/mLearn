@@ -102,6 +102,7 @@ const windowBridge: WindowBridge = {
   onOpenKanjiGrid: (cb) => getIPC().onOpenKanjiGrid(cb),
   onOpenPrompt: (cb) => getIPC().onOpenPrompt(cb),
   onAuthDeepLink: (cb) => getIPC().onAuthDeepLink(cb),
+  onLookupDeepLink: (cb) => getIPC().onLookupDeepLink(cb),
   promptOutput: (text) => getIPC().promptOutput(text),
 };
 

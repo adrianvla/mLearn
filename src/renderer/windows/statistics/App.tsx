@@ -9,7 +9,7 @@ import { WindowWrapper } from '../../context';
 import { Dashboard } from './Dashboard';
 import './Statistics.css';
 
-const StatisticsContent: Component = () => {
+export const StatisticsContent: Component = () => {
   return (
     <div class="statistics-window">
       <Dashboard />

@@ -95,6 +95,11 @@
           },
           "Title": "Agent Memory"
         },
+        "SplitChecker": {
+          "Label": "Separate checker agent",
+          "Description": "Use a separate LLM pass to detect and correct mistakes instead of the conversation agent.",
+          "Title": "Checker Agent"
+        },
         "Title": "AI Configuration"
       },
       "SetupRequired": "AI features require setup. Opening settings..."
@@ -240,6 +245,11 @@
       "Agents": {
         "Create": "Create agent",
         "Delete": "Delete agent",
+        "DeleteAll": "Delete all agents",
+        "DeleteAllConfirm": "This will permanently delete all agents, their memories, and conversation data. Type the word below to confirm:",
+        "DeleteAllConfirmPlaceholder": "Type to confirm",
+        "DeleteAllConfirmWord": "DELETE",
+        "DeleteAllTitle": "Delete all agents",
         "DeleteConfirm": "Type the agent's name to confirm deletion:",
         "DeleteConfirmPlaceholder": "Agent name",
         "DeleteConfirmTitle": "Delete agent",
@@ -282,10 +292,15 @@
         "Title": "Start a conversation"
       },
       "ExperimentalBanner": "Experimental — AI responses may contain errors. Verify important language points.",
+      "Disclaimer": "This is AI and can make mistakes. Please double-check responses.",
+      "IncludeKnowledge": "Include knowledge info",
       "InputPlaceholder": "Message in {language}...",
       "LevelAdapt": {
         "Label": "Adapt to level:",
         "None": "None"
+      },
+      "Checker": {
+        "Alternatives": "Alternatives"
       },
       "Quiz": {
         "BlankInputAriaLabel": "Blank {index}",
@@ -430,8 +445,14 @@
         "ManualSetupHint": "Fill in the character details yourself."
       },
       "Topics": {
+        "Easier": "Generate easier topics",
         "Generating": "Generating topics...",
+        "Harder": "Generate harder topics",
         "Title": "Planned topics"
+      },
+      "Plan": {
+        "Show": "Show plan",
+        "Hide": "Hide plan"
       },
       "QuickStart": {
         "Button": "Quick start from Fandom",
@@ -751,6 +772,18 @@
         "Video": {
           "Description": "Watch videos with interactive subtitles",
           "Title": "Video"
+        },
+        "Statistics": {
+          "Description": "Track your progress and learning journey",
+          "Title": "Statistics"
+        },
+        "WordDatabase": {
+          "Description": "Browse and manage your tracked vocabulary",
+          "Title": "Word Database"
+        },
+        "CharacterGrid": {
+          "Description": "Visual overview of your character knowledge",
+          "Title": "Character Grid"
         }
       },
       "Errors": {
@@ -878,11 +911,21 @@
       "Sidebar": {
         "AddAllFlashcards": "Add All",
         "AddingAllFlashcards": "Adding...",
+        "DictionaryOnly": "Dictionary only",
         "IgnoreWord": "Ignore",
         "Pages": "Pages",
         "UnknownWords": "Unknown Words",
         "UnknownWordsCount": "{count} words",
-        "UnknownWordsEmpty": "No unknown words found on the current page."
+        "UnknownWordsEmpty": "No unknown words found on the current page.",
+        "AddModal": {
+          "Title": "Add Flashcards",
+          "LevelFilter": "Below level threshold",
+          "LevelFilterDescription": "Add words with a discovered level at the selected threshold or easier",
+          "DictionaryFilter": "Found in dictionary",
+          "DictionaryFilterDescription": "Add all words that were found in the dictionary",
+          "AddAll": "Add All ({count})",
+          "AddSelected": "Add Selected ({count})"
+        }
       },
       "Status": {
         "Caching": "Caching {x}/{y}",

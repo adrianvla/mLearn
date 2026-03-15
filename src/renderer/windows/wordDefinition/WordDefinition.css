@@ -1,0 +1,110 @@
+.word-definition {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-opaque);
+}
+
+.word-definition__header {
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  margin-top:var(--spacing-4);
+}
+
+.word-definition__title {
+  font-size: var(--font-size-2xl);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  word-break: break-word;
+}
+
+.word-definition__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  font-size: var(--font-size-xl);
+  line-height: 1.6;
+}
+
+.word-definition__body a {
+  color: var(--text-primary);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.word-definition__body a:hover {
+  opacity: 0.8;
+}
+
+.word-definition__loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.word-definition__translation {
+  color: var(--text-primary);
+}
+
+.word-definition__reading {
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  margin-top: 2px;
+}
+
+.word-definition__divider {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 8px 0;
+}
+
+.word-definition__empty {
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+}
+
+.word-definition__footer {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-nt-primary);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-normal);
+  flex-shrink: 0;
+}
+
+.word-definition__pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.word-definition__pills .label-pill,
+.word-definition__pills .btn-pill {
+  font-size: 0.8em;
+  padding: 5px 10px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  height: auto;
+  min-height: unset;
+  box-sizing: border-box;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: subpixel-antialiased;
+}
+
+.word-definition__ease {
+  display: flex;
+  align-items: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}

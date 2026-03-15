@@ -3,13 +3,14 @@
  * Displays the current subtitle with interactive words
  */
 
-import { Component, JSX, Show, For, createSignal, createMemo, createEffect } from 'solid-js';
+import { Component, JSX, Show, For, createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
 import type { Token, DictionaryEntry, TranslationResponse } from '../../../shared/types';
 import { useSettings, useLanguage, useFlashcards } from '../../context';
 import { useWordHover, useDictionary, useTranslation, getCachedTranslation } from '../../hooks';
 import { SubtitleWord } from './SubtitleWord';
 import { WordHover, WordStatus } from './WordHover';
 import { ExplainerPopup } from './ExplainerPopup';
+import { initWordLookupBridge } from '../../services/wordLookupService';
 
 export interface SubtitleContainerProps {
   tokens: Token[];
@@ -22,7 +23,7 @@ export interface SubtitleContainerProps {
 
 export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const { settings } = useSettings();
-  const { isTranslatable, detectGrammarInText, supportsGrammar } = useLanguage();
+  const { isTranslatable, detectGrammarInText, supportsGrammar, getCanonicalForm } = useLanguage();
   const flashcardCtx = useFlashcards();
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
   const { lookup } = useDictionary();
@@ -39,6 +40,10 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const [explainerWord, setExplainerWord] = createSignal('');
   const [explainerContext, setExplainerContext] = createSignal('');
   const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Initialize deep link bridge for mlearn://lookup
+  const cleanupBridgeLookup = initWordLookupBridge();
+  onCleanup(cleanupBridgeLookup);
 
   let hoverRequestId = 0;
   let lastSubtitleKey = '';
@@ -76,7 +81,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
     // Track hover (signals potential unknown word, debounced in FlashcardContext)
     const lookupWord = token.actual_word ?? token.surface ?? token.word;
-    flashcardCtx.trackWordHovered(lookupWord, token.reading);
+    flashcardCtx.trackWordHovered(getCanonicalForm(lookupWord), token.reading);
     
     const requestId = ++hoverRequestId;
     const position = {
@@ -169,7 +174,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     const token = currentHoverToken();
     if (token) {
       const word = token.actual_word ?? token.surface ?? token.word;
-      flashcardCtx.cancelWordHover(word);
+      flashcardCtx.cancelWordHover(getCanonicalForm(word));
     }
     hideHover();
   };
@@ -207,7 +212,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       // Non-translatable tokens (particles, punctuation) don't affect known status
       if (!isTranslatable(pos)) return true;
       const word = t.actual_word ?? t.surface ?? t.word;
-      return flashcardCtx.isWordKnownByText(word);
+      return flashcardCtx.isWordKnownByText(getCanonicalForm(word));
     });
   });
 
@@ -244,7 +249,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       if (!lookupWord) continue;
 
       // Passive word tracking
-      flashcardCtx.trackWordSeen(lookupWord, token.reading);
+      flashcardCtx.trackWordSeen(getCanonicalForm(lookupWord), token.reading);
     }
 
     // Passive grammar encounter tracking
@@ -291,7 +296,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       liveTranslatorSeen.add(displayWord);
 
       // Higher ease bump for words shown in live translator (+0.02 vs +0.01)
-      flashcardCtx.trackWordSeen(lookupWord, token.reading, 0.02);
+      flashcardCtx.trackWordSeen(getCanonicalForm(lookupWord), token.reading, 0.02);
       
       (async () => {
         try {
@@ -398,6 +403,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
         contextPhrase={explainerContext()}
         initialPosition={explainerPosition()}
       />
+
     </>
   );
 };

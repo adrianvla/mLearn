@@ -7,6 +7,7 @@
 import type {
   ConversationMessage,
   ConversationAgentContext,
+  ConversationPlanItem,
   Token,
   ToolCall,
   ChatWidget,
@@ -61,6 +62,14 @@ interface AgentDeps {
   onMemorySaved?: (content: string) => void;
   /** Callback when topic plan is generated */
   onTopicPlan?: (topics: string[]) => void;
+  /** Whether to include knowledge info (failed words, grammar) in system prompt */
+  getIncludeKnowledgeInfo?: () => boolean;
+  /** Get the current conversation plan */
+  getPlan?: () => ConversationPlanItem[];
+  /** Callback when agent adds items to the plan */
+  onPlanAdd?: (items: string[]) => void;
+  /** Callback when agent marks the current plan item as done */
+  onPlanMarkDone?: () => void;
 }
 
 /** Callback for streaming chunks to the UI */
@@ -71,18 +80,25 @@ export interface StreamCallbacks {
   onError: (error: string) => void;
 }
 
+export type PlanDifficulty = 'up' | 'down' | null;
+
 export interface AgentInstance {
   processMessage: (text: string, history: ConversationMessage[], callbacks: StreamCallbacks) => void;
   abortStream: () => void;
   clearHistory: () => void;
+  /** Remove the last N entries from internal conversation history */
+  popHistory: (count: number) => void;
+  /** Re-run the LLM stream using the current conversation history without modifying it */
+  restartStream: (callbacks: StreamCallbacks) => void;
   /** Tokenize arbitrary text using the backend tokenizer */
   tokenize: (text: string) => Promise<Token[]>;
   /** Continue the conversation with context (e.g., quiz result) without a visible user message */
   continueWithContext: (context: string, callbacks: StreamCallbacks) => void;
   /** Replace the last assistant message in history with the truncated spoken text and add interruption context */
   markInterrupted: (spokenText: string) => void;
-  /** Generate a list of conversation topics based on current context, returned via onTopicPlan callback */
-  generateTopicPlan: () => void;
+  /** Generate a list of conversation topics based on current context, returned via onTopicPlan callback.
+   *  Pass difficulty 'up' or 'down' to adjust based on previous plan, or null for fresh generation. */
+  generateTopicPlan: (difficulty?: PlanDifficulty) => void;
 }
 
 // ============================================================================
@@ -98,7 +114,9 @@ function buildSystemPrompt(
   tutorConfig?: TutorSessionConfig | null,
   agentConfig?: AgentConfig | null,
   memories?: AgentMemoryEntry[],
-  topicPlan?: string[],
+  plan?: ConversationPlanItem[],
+  includeKnowledgeInfo?: boolean,
+  splitChecker?: boolean,
 ): string {
   // Build personality section
   let personalitySection: string;
@@ -124,6 +142,7 @@ You are roleplaying as "${agentConfig.roleplayName}".
 ${agentConfig.roleplayLore ? `Character description: ${agentConfig.roleplayLore}` : ''}
 - Stay in character at all times while still fulfilling your role as a language tutor.
 - Speak and act as this character would.
+- When talking about yourself in the story, always use the first person as if you had just experienced it.
 ${formalityNote}
 - Correct mistakes and quiz the learner as part of the roleplay scenario.${quotesSection}${contextSection}`;
   } else {
@@ -153,8 +172,8 @@ Your primary role is to have natural conversations in ${langName} with the learn
 ## Rules
 - Respond ONLY in ${langName} for all user-visible assistant messages.
 - Adjust your language level based on the learner's apparent proficiency.
-- Keep responses concise (2-4 sentences typically) to maintain conversational flow.
-- Naturally correct mistakes the learner makes using the "correct_mistake" tool.
+- Keep responses concise (2-4 sentences typically) to maintain conversational flow.${splitChecker ? '' : `
+- Naturally correct mistakes the learner makes using the "correct_mistake" tool.`}
 - Periodically quiz the learner using the "create_quiz" tool based on vocabulary or grammar used in the conversation.
 - If the learner writes in another language, reply in ${langName} and gently guide them back to ${langName}.
 - Base conversation topics on the media the learner is consuming — discuss scenes, character actions, plot, and themes rather than generic topics like weather or hobbies.
@@ -162,22 +181,27 @@ Your primary role is to have natural conversations in ${langName} with the learn
 
 ${personalitySection}
 
-## Tool Usage Guidelines
+## Tool Usage Guidelines${splitChecker ? '' : `
 - Use "correct_mistake" when you notice grammar, vocabulary, or spelling errors in the learner's messages. Attach it to your response subtly.
   - If the learner makes multiple mistakes, use a single "correct_mistake" call with all corrections in the "corrections" array.
   - If the learner explicitly asks you to call a tool or to mark/correct a specific span, you MUST call the appropriate tool even for meta/tool-testing requests and even when the text is not in ${langName}.
   - IMPORTANT: The error_span must be copied EXACTLY from the learner's message. Do not translate or alter it.
   - When the same word or phrase appears multiple times in the learner's message, provide context_before and/or context_after to identify which occurrence to correct.
   - Only correct actual mistakes in the target language; do not "correct" text that is already correct or translate it.
+  - Be LENIENT with casual, colloquial, or informal speech. Casual register is valid and should NOT be corrected. Only correct things that are actually wrong — not things that are simply informal. If a native speaker would say it the same way in casual conversation, it is NOT a mistake.`}
 - Use "create_quiz" when a good teaching moment arises. Vary between MCQ, text-input, and fill-in types. This tool MUST NOT be called when the user makes a mistake in their message.
-- When making multiple quizzes in one turn, call "create_quiz" multiple times in the exact order they should appear.
+- When making multiple quizzes in one turn, call "create_quiz" multiple times in the exact order they should appear.${splitChecker ? '' : `
 - "correct_mistake" must ALWAYS be called at the very end of your response.
-- "correct_mistake" must ALWAYS be called if the user makes a mistake.
+- "correct_mistake" must ALWAYS be called if the user makes a mistake.`}
 - If you want to create a quiz, do NOT write in plain text the quiz, but USE the tool "create_quiz" accordingly.
 - Use "fetch_url" to look up grammar explanations or vocabulary from language learning resources if the learner asks about a specific topic. The fetched content will be returned as machine-readable text.
 - Use "search_wikipedia" to search for general knowledge, cultural references, or background information that comes up in conversation.
 - Use "search_fandom" to search the configured Fandom wiki for media-specific characters, lore, episodes, or plot details. Only works if the learner has set a Fandom wiki URL.
-- Use "get_media_stats" to retrieve the learner's analytics for their current media to personalize your teaching.
+- Use "get_media_stats" to retrieve the learner's analytics for their current media to personalize your teaching.${splitChecker ? `
+- Do NOT correct the learner's mistakes. A separate system handles corrections. Focus on natural conversation, quizzes, and teaching.` : ''}
+- Use "add_to_plan" to create a structured conversation plan at the start of the session. Add items like topics to discuss, grammar to practice, or exercises to complete.
+- Use "mark_plan_done" after you finish covering a plan item. This helps track progress.
+- Use "get_current_plan" to check what to work on next if you lose track of the plan.
 - Do NOT overuse tools — the conversation should feel natural, not like a test.`;
 
   if (mediaCtx) {
@@ -188,7 +212,7 @@ The learner is currently ${mediaCtx.mediaType === 'video' ? 'watching' : 'readin
       prompt += `\nAssessed difficulty level: ${mediaCtx.assessedLevelName}`;
     }
 
-    if (mediaCtx.failedWords.length > 0) {
+    if (includeKnowledgeInfo !== false && mediaCtx.failedWords.length > 0) {
       const topFailed = mediaCtx.failedWords
         .sort((a, b) => a.ease - b.ease)
         .slice(0, 15)
@@ -197,7 +221,7 @@ The learner is currently ${mediaCtx.mediaType === 'video' ? 'watching' : 'readin
       prompt += `\nConsider naturally incorporating these words into the conversation or quizzing on them.`;
     }
 
-    if (mediaCtx.failedGrammar.length > 0) {
+    if (includeKnowledgeInfo !== false && mediaCtx.failedGrammar.length > 0) {
       const topGrammar = mediaCtx.failedGrammar
         .sort((a, b) => a.ease - b.ease)
         .slice(0, 10)
@@ -231,8 +255,7 @@ ${userSceneContext}`;
 IMPORTANT: The learner's proficiency level is set to "${targetLevelName}". You MUST restrict your vocabulary to words at or below this level. Do not use words that are above this proficiency level. If you need to express a complex idea, rephrase it using simpler vocabulary that fits within the "${targetLevelName}" level. This applies to all your responses in ${langName}.`;
   }
 
-  // Tutor session configuration (from welcome page setup)
-  if (tutorConfig) {
+  if (includeKnowledgeInfo !== false && tutorConfig) {
     if (tutorConfig.selectedGrammar.length > 0) {
       const grammarList = tutorConfig.selectedGrammar
         .map((g) => `- ${g.pattern}${g.meaning ? ` (${g.meaning})` : ''}${g.level ? ` [${g.level}]` : ''}`)
@@ -266,12 +289,12 @@ ${wordList}`;
         }
       }
     }
+  }
 
-    if (tutorConfig.customInstructions) {
-      prompt += `\n\n## Session Instructions (provided by the learner)
+  if (tutorConfig?.customInstructions) {
+    prompt += `\n\n## Session Instructions (provided by the learner)
 The learner has specific instructions for this session. Follow them:
 ${tutorConfig.customInstructions}`;
-    }
   }
 
   // Inject agent memories
@@ -282,18 +305,20 @@ You have saved these facts from previous conversations. Use them naturally — d
 ${memoryLines}`;
   }
 
-  // Inject topic plan
-  if (topicPlan && topicPlan.length > 0) {
-    const topicLines = topicPlan.map((t, i) => `${i + 1}. ${t}`).join('\n');
+  // Inject conversation plan
+  if (plan && plan.length > 0) {
+    const planLines = plan.map((item, i) => `${i + 1}. ${item.done ? '[Done]' : '[ ]'} ${item.text}`).join('\n');
+    const current = plan.find((item) => !item.done);
     prompt += `\n\n## Conversation Plan
-You have planned the following topics to cover during this conversation. Move through them naturally as the conversation flows — do not announce them or list them out. Transition between topics smoothly.
-${topicLines}`;
+Current plan state:
+${planLines}${current ? `\nCurrent focus: ${current.text}` : '\nAll items completed.'}
+Move through the plan naturally. Use "mark_plan_done" when you finish a topic. Use "add_to_plan" to add new items if needed.`;
   }
 
   // Memory tool instruction
   if (memories !== undefined) {
     prompt += `\n\n## Memory
-You have a "save_memory" tool. Use it to save important facts about the learner (preferences, goals, study habits, life details, skill level observations). Save sparingly — only genuinely useful facts. Do NOT save trivial conversation details.`;
+You have a "save_memory" tool. When the learner shares personal facts (name, occupation, study goals, preferred topics, life experiences, hobbies, skill level, learning difficulties), save them using save_memory. This helps you personalize conversations across sessions. Save one clear fact per call. Do not save conversation-level details like "we talked about X".`;
   }
 
   return prompt;
@@ -448,6 +473,39 @@ const AGENT_TOOLS: LLMToolDefinition[] = [
         },
       },
       required: ['query'],
+    },
+  },
+  {
+    name: 'add_to_plan',
+    description: 'Add one or more items to the conversation plan. Use this to organize what topics or exercises to cover during the session.',
+    parameters: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Items to add to the plan',
+        },
+      },
+      required: ['items'],
+    },
+  },
+  {
+    name: 'mark_plan_done',
+    description: 'Mark the current (first undone) plan item as completed. Call this when you have finished covering a topic or exercise from the plan.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: 'get_current_plan',
+    description: 'Get the current plan item (the first undone item). Use this to check what you should be working on next.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
     },
   },
 ];
@@ -691,6 +749,19 @@ function executeTool(toolCall: ToolCall, deps: AgentDeps): ChatWidget | ChatWidg
       return null;
     }
 
+    case 'add_to_plan': {
+      const items = args.items as string[] | undefined;
+      if (items && items.length > 0) {
+        deps.onPlanAdd?.(items);
+      }
+      return null;
+    }
+
+    case 'mark_plan_done': {
+      deps.onPlanMarkDone?.();
+      return null;
+    }
+
     default:
       return null;
   }
@@ -844,6 +915,31 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
       }
     }
 
+    case 'add_to_plan': {
+      const items = args.items as string[] | undefined;
+      if (!items || items.length === 0) return 'No items provided.';
+      return `Added ${items.length} item(s) to the plan: ${items.join(', ')}`;
+    }
+
+    case 'mark_plan_done': {
+      const plan = deps.getPlan?.() ?? [];
+      const current = plan.find((item) => !item.done);
+      return current ? `Marked "${current.text}" as done.` : 'No pending plan items.';
+    }
+
+    case 'get_current_plan': {
+      const plan = deps.getPlan?.() ?? [];
+      if (plan.length === 0) return 'The plan is empty. Consider using add_to_plan to create a plan.';
+      const current = plan.find((item) => !item.done);
+      if (!current) return 'All plan items are completed.';
+      const doneCount = plan.filter((item) => item.done).length;
+      const lines: string[] = [`Current plan (${doneCount}/${plan.length} done):`];
+      for (const item of plan) {
+        lines.push(`${item.done ? '[x]' : '[ ]'} ${item.text}${!item.done && item === current ? ' ← current' : ''}`);
+      }
+      return lines.join('\n');
+    }
+
     default:
       return null;
   }
@@ -983,7 +1079,6 @@ function streamReformulation(
   difficultWords: Array<{ word: string; levelName: string }>,
   targetLevelName: string,
   langName: string,
-  devMode?: boolean,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const bridge = getBridge();
@@ -1017,9 +1112,7 @@ function streamReformulation(
       }
     });
 
-    if (devMode) {
-      console.log('[ConversationAgent:Reformulation] Prompt sent to LLM:', JSON.stringify([systemMsg, userMsg], null, 2));
-    }
+    console.log('[ConversationAgent:Reformulation] Prompt:', JSON.stringify([systemMsg, userMsg], null, 2));
 
     bridge.llm.llmStream([systemMsg, userMsg], []);
   });
@@ -1033,11 +1126,15 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   let conversationHistory: LLMChatMessage[] = [];
   let aborted = false;
   let streamCleanup: (() => void) | null = null;
-  let currentTopicPlan: string[] | undefined;
 
   function clearHistory(): void {
     conversationHistory = [];
-    currentTopicPlan = undefined;
+  }
+
+  function popHistory(count: number): void {
+    if (count > 0 && count <= conversationHistory.length) {
+      conversationHistory.splice(-count);
+    }
   }
 
   function abortStream(): void {
@@ -1084,7 +1181,6 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
             difficult,
             targetLevelName,
             langName,
-            deps.getSettings().devMode,
           );
           if (reformulated && reformulated !== finalContent) {
             finalContent = reformulated;
@@ -1132,7 +1228,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const terminalToolCalls: ToolCall[] = [];
 
     for (const toolCall of toolCalls) {
-      if (toolCall.name === 'correct_mistake' || toolCall.name === 'note_mistake' || toolCall.name === 'save_memory') {
+      if (toolCall.name === 'correct_mistake' || toolCall.name === 'note_mistake' || toolCall.name === 'save_memory' || toolCall.name === 'add_to_plan' || toolCall.name === 'mark_plan_done') {
         terminalToolCalls.push(toolCall);
       } else {
         nonTerminalToolCalls.push(toolCall);
@@ -1217,6 +1313,10 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     contentPrefix = '',
     deferredTerminalToolCalls: ToolCall[] = [],
   ): void {
+    // Clean up any stale listener (e.g. from generateTopicPlan) before registering a new one
+    streamCleanup?.();
+    streamCleanup = null;
+
     const bridge = getBridge();
 
     const mediaCtx = deps.getMediaContext();
@@ -1233,18 +1333,24 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     // Filter tools: only include save_memory if memory is enabled, exclude search_fandom if no URL configured
     const baseTools = isVoice ? VOICE_AGENT_TOOLS : AGENT_TOOLS;
     const hasFandomUrl = !!agentCfg?.roleplayFandomUrl;
+    const splitChecker = settingsObj.agentSplitChecker && !isVoice;
     let tools = baseTools;
     if (!memoryEnabled) tools = tools.filter((t) => t.name !== 'save_memory');
     if (!hasFandomUrl) tools = tools.filter((t) => t.name !== 'search_fandom');
+    if (splitChecker) tools = tools.filter((t) => t.name !== 'correct_mistake');
 
     const targetLevel = deps.getTargetLevel?.() ?? null;
     const targetLevelName = targetLevel !== null ? (deps.getLevelName?.(targetLevel) ?? undefined) : undefined;
+
+    const includeKnowledge = deps.getIncludeKnowledgeInfo?.() ?? true;
+
+    const currentPlan = deps.getPlan?.() ?? [];
 
     const systemMsg: LLMChatMessage = {
       role: 'system',
       content: isVoice
         ? buildVoiceSystemPrompt(langName, mediaCtx)
-        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, currentTopicPlan),
+        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, currentPlan.length > 0 ? currentPlan : undefined, includeKnowledge, splitChecker),
     };
 
     const messages: LLMChatMessage[] = [
@@ -1252,10 +1358,8 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       ...conversationHistory,
     ];
 
-    // Debug logging when devMode is enabled
-    if (settingsObj.devMode) {
-      console.log('[ConversationAgent] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
-    }
+    // Always log prompts for debugging
+    console.log('[ConversationAgent] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
 
     let accumulated = '';
     const collectedToolCalls: ToolCall[] = [];
@@ -1404,6 +1508,13 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     startStream(callbacks, language, langName);
   }
 
+  function restartStream(callbacks: StreamCallbacks): void {
+    const language = deps.getLanguage();
+    const langName = deps.getLanguageName();
+    aborted = false;
+    startStream(callbacks, language, langName);
+  }
+
   function tokenize(text: string): Promise<Token[]> {
     return tokenizeText(text, deps.getLanguage());
   }
@@ -1432,13 +1543,16 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   /**
    * Generate a list of conversation topics based on current context.
    * The topics are injected into the system prompt for the agent to naturally cover.
+   * Pass difficulty 'up' or 'down' to adjust the level based on the previous plan.
    */
-  function generateTopicPlan(): void {
+  function generateTopicPlan(difficulty: PlanDifficulty = null): void {
     const bridge = getBridge();
     const langName = deps.getLanguageName();
     const mediaCtx = deps.getMediaContext();
     const tutorCfg = deps.getTutorConfig?.() ?? null;
     const memories = deps.getAgentMemories?.() ?? [];
+    const agentCfg = deps.getAgentConfig?.() ?? null;
+    const currentPlan = deps.getPlan?.() ?? [];
 
     let contextDesc = `The learner is studying ${langName}.`;
     if (mediaCtx) {
@@ -1454,10 +1568,23 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     if (memories.length > 0) {
       contextDesc += ` Known about learner: ${memories.map((m) => m.content).join('; ')}.`;
     }
+    if (agentCfg?.personality === 'roleplay' && agentCfg.roleplayName) {
+      contextDesc += ` The tutor is roleplaying as "${agentCfg.roleplayName}".`;
+    }
+
+    // Difficulty adjustment context
+    if (difficulty && currentPlan.length > 0) {
+      const previousTopics = currentPlan.map((item) => item.text).join(', ');
+      if (difficulty === 'up') {
+        contextDesc += ` The previous plan was: [${previousTopics}]. The learner wants MORE challenging topics — use more complex vocabulary, abstract themes, nuanced discussions, and deeper analysis.`;
+      } else {
+        contextDesc += ` The previous plan was: [${previousTopics}]. The learner wants EASIER topics — use simpler vocabulary, concrete everyday themes, and basic conversation patterns.`;
+      }
+    }
 
     const systemMsg: LLMChatMessage = {
       role: 'system',
-      content: `You are a conversation planner for a ${langName} language tutor. Generate a list of 3-5 conversation topics that would be natural and educational. Each topic should be a brief phrase. Output ONLY a JSON array of strings, nothing else. Example: ["Discussing weekend plans", "Practicing restaurant vocabulary", "Talking about a movie scene"]`,
+      content: `You are a conversation planner for a ${langName} language tutor. Generate a list of 3-5 creative and engaging conversation topics that feel natural and immersive — avoid generic textbook topics like "weekend plans" or "hobbies". Instead, think of interesting scenarios, cultural discussions, storytelling prompts, debates, hypothetical situations, or media-related discussions that would make the learner actually enjoy practicing.${mediaCtx ? ` Prefer topics tied to the media the learner is consuming.` : ''} If ${langName} has readings, do not mention them. Each topic should be a brief phrase. Output ONLY a JSON array of strings, nothing else. Example: ["What would you do if you found a mysterious letter?", "Debating the villain's motivations", "Describing your dream adventure", "Ordering at an unusual restaurant"]`,
     };
 
     const userMsg: LLMChatMessage = {
@@ -1467,19 +1594,19 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
     let accumulated = '';
 
-    const cleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
+    streamCleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
       if (chunk.content) {
         accumulated += chunk.content;
       }
       if (chunk.done) {
-        cleanup();
+        streamCleanup?.();
+        streamCleanup = null;
         try {
           // Extract JSON array from accumulated text
           const match = accumulated.match(/\[[\s\S]*\]/);
           if (match) {
             const topics = JSON.parse(match[0]) as string[];
             if (Array.isArray(topics) && topics.length > 0) {
-              currentTopicPlan = topics;
               deps.onTopicPlan?.(topics);
             }
           }
@@ -1488,16 +1615,15 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
         }
       }
       if (chunk.error) {
-        cleanup();
+        streamCleanup?.();
+        streamCleanup = null;
       }
     });
 
-    if (deps.getSettings().devMode) {
-      console.log('[ConversationAgent:TopicPlan] Prompt sent to LLM:', JSON.stringify([systemMsg, userMsg], null, 2));
-    }
+    console.log('[ConversationAgent:TopicPlan] Prompt:', JSON.stringify([systemMsg, userMsg], null, 2));
 
     bridge.llm.llmStream([systemMsg, userMsg], []);
   }
 
-  return { processMessage, abortStream, clearHistory, tokenize, continueWithContext, markInterrupted, generateTopicPlan };
+  return { processMessage, abortStream, clearHistory, popHistory, restartStream, tokenize, continueWithContext, markInterrupted, generateTopicPlan };
 }

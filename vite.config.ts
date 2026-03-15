@@ -87,6 +87,7 @@ export default defineConfig(({ mode }) => {
               licenses: resolve(__dirname, 'src/html/licenses.html'),
               'connect-qr': resolve(__dirname, 'src/html/connect-qr.html'),
               'conversation-agent': resolve(__dirname, 'src/html/conversation-agent.html'),
+              'word-definition': resolve(__dirname, 'src/html/word-definition.html'),
             },
         external: isCapacitor ? ['electron'] : [],
       },

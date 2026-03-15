@@ -109,7 +109,6 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
 
   return (
       <StatusBar class="reader-status">
-        <span class="statusbar-text truncate">{props.bookTitle()}</span>
         <span class="statusbar-text">{props.progressString()}</span>
 
         {/* Word Hover Trigger Mode Select */}

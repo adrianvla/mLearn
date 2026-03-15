@@ -101,6 +101,7 @@ export interface WindowBridge {
   onOpenKanjiGrid: (callback: () => void) => () => void;
   onOpenPrompt: (callback: (data: { title: string; message: string }) => void) => () => void;
   onAuthDeepLink: (callback: (payload: { code: string | null; state: string | null; error: string | null }) => void) => () => void;
+  onLookupDeepLink: (callback: (word: string) => void) => () => void;
   promptOutput: (text: string) => void;
 }
 
