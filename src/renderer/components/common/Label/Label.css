@@ -228,8 +228,7 @@
 /* Gray */
 .label-gray {
   color: var(--pill-level-7-text);
-  /*background-color: var(--pill-level-7-bg);*/
-  background-color:var(--bg);
+  background-color: var(--pill-level-7-bg);
 }
 
 .label-gray.label-indicator {

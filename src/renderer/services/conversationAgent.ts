@@ -7,7 +7,6 @@
 import type {
   ConversationMessage,
   ConversationAgentContext,
-  ConversationPlanItem,
   Token,
   ToolCall,
   ChatWidget,
@@ -60,16 +59,10 @@ interface AgentDeps {
   getAgentMemories?: () => AgentMemoryEntry[];
   /** Callback when agent saves a new memory */
   onMemorySaved?: (content: string) => void;
-  /** Callback when topic plan is generated */
-  onTopicPlan?: (topics: string[]) => void;
   /** Whether to include knowledge info (failed words, grammar) in system prompt */
   getIncludeKnowledgeInfo?: () => boolean;
-  /** Get the current conversation plan */
-  getPlan?: () => ConversationPlanItem[];
-  /** Callback when agent adds items to the plan */
-  onPlanAdd?: (items: string[]) => void;
-  /** Callback when agent marks the current plan item as done */
-  onPlanMarkDone?: () => void;
+  /** Set of tool names the user has manually disabled */
+  getDisabledTools?: () => Set<string>;
 }
 
 /** Callback for streaming chunks to the UI */
@@ -79,8 +72,6 @@ export interface StreamCallbacks {
   onDone: (finalContent: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined, streamStats?: StreamStats) => void;
   onError: (error: string) => void;
 }
-
-export type PlanDifficulty = 'up' | 'down' | null;
 
 export interface AgentInstance {
   processMessage: (text: string, history: ConversationMessage[], callbacks: StreamCallbacks) => void;
@@ -96,9 +87,6 @@ export interface AgentInstance {
   continueWithContext: (context: string, callbacks: StreamCallbacks) => void;
   /** Replace the last assistant message in history with the truncated spoken text and add interruption context */
   markInterrupted: (spokenText: string) => void;
-  /** Generate a list of conversation topics based on current context, returned via onTopicPlan callback.
-   *  Pass difficulty 'up' or 'down' to adjust based on previous plan, or null for fresh generation. */
-  generateTopicPlan: (difficulty?: PlanDifficulty) => void;
 }
 
 // ============================================================================
@@ -114,9 +102,10 @@ function buildSystemPrompt(
   tutorConfig?: TutorSessionConfig | null,
   agentConfig?: AgentConfig | null,
   memories?: AgentMemoryEntry[],
-  plan?: ConversationPlanItem[],
   includeKnowledgeInfo?: boolean,
   splitChecker?: boolean,
+  inlineBackstory?: boolean,
+  disabledTools?: Set<string>,
 ): string {
   // Build personality section
   let personalitySection: string;
@@ -134,17 +123,18 @@ function buildSystemPrompt(
     const quotesSection = agentConfig.roleplayQuotes && agentConfig.roleplayQuotes.length > 0
       ? `\nSample quotes (match the style, don't repeat these lines verbatim):\n${agentConfig.roleplayQuotes.map((q) => `- "${q}"`).join('\n')}`
       : '';
-    const contextSection = agentConfig.roleplayContext
-      ? `\n\n## Backstory\n${agentConfig.roleplayContext}`
+    const backstoryInstruction = agentConfig.roleplayContext
+      ? (inlineBackstory
+        ? `\n\n## Your Backstory\n${agentConfig.roleplayContext}`
+        : `\n- You have a detailed backstory available. If you ever need to recall specific events, relationships, or details from your past, call the "recall_backstory" tool. Do NOT guess or make up backstory details — always use the tool if you are unsure.`)
       : '';
     personalitySection = `## Personality & Character
 You are roleplaying as "${agentConfig.roleplayName}".
 ${agentConfig.roleplayLore ? `Character description: ${agentConfig.roleplayLore}` : ''}
 - Stay in character at all times while still fulfilling your role as a language tutor.
 - Speak and act as this character would.
-- When talking about yourself in the story, always use the first person as if you had just experienced it.
 ${formalityNote}
-- Correct mistakes and quiz the learner as part of the roleplay scenario.${quotesSection}${contextSection}`;
+- Correct mistakes and quiz the learner as part of the roleplay scenario.${quotesSection}${backstoryInstruction}`;
   } else {
     personalitySection = `## Personality
 - Patient, encouraging, and warm.
@@ -166,42 +156,45 @@ ${formalityNote}
     identitySection += `\nAbout the learner: ${agentConfig.aboutMe}`;
   }
 
-  let prompt = `You are a friendly and encouraging language tutor for ${langName}.
-Your primary role is to have natural conversations in ${langName} with the learner.${identitySection}
+  const isToolDisabled = (name: string) => disabledTools?.has(name) ?? false;
+  const correctMistakeDisabled = splitChecker || isToolDisabled('correct_mistake');
+
+  let prompt = agentConfig?.personality === 'roleplay' ? `` : `You are a language tutor for ${langName}.Your primary role is to have natural conversations in ${langName} with the learner.`;
+
+  prompt += `
+${identitySection}
 
 ## Rules
 - Respond ONLY in ${langName} for all user-visible assistant messages.
 - Adjust your language level based on the learner's apparent proficiency.
-- Keep responses concise (2-4 sentences typically) to maintain conversational flow.${splitChecker ? '' : `
-- Naturally correct mistakes the learner makes using the "correct_mistake" tool.`}
-- Periodically quiz the learner using the "create_quiz" tool based on vocabulary or grammar used in the conversation.
+- Keep responses concise (2-4 sentences typically) to maintain conversational flow.${correctMistakeDisabled ? '' : `
+- Naturally correct mistakes the learner makes using the "correct_mistake" tool.`}${isToolDisabled('create_quiz') ? '' : `
+- Periodically quiz the learner using the "create_quiz" tool based on vocabulary or grammar used in the conversation.`}
 - If the learner writes in another language, reply in ${langName} and gently guide them back to ${langName}.
 - Base conversation topics on the media the learner is consuming — discuss scenes, character actions, plot, and themes rather than generic topics like weather or hobbies.
 - Do not quiz the reader on character readings if ${langName} has any. 
 
 ${personalitySection}
 
-## Tool Usage Guidelines${splitChecker ? '' : `
+## Tool Usage Guidelines${correctMistakeDisabled ? '' : `
 - Use "correct_mistake" when you notice grammar, vocabulary, or spelling errors in the learner's messages. Attach it to your response subtly.
   - If the learner makes multiple mistakes, use a single "correct_mistake" call with all corrections in the "corrections" array.
   - If the learner explicitly asks you to call a tool or to mark/correct a specific span, you MUST call the appropriate tool even for meta/tool-testing requests and even when the text is not in ${langName}.
   - IMPORTANT: The error_span must be copied EXACTLY from the learner's message. Do not translate or alter it.
   - When the same word or phrase appears multiple times in the learner's message, provide context_before and/or context_after to identify which occurrence to correct.
   - Only correct actual mistakes in the target language; do not "correct" text that is already correct or translate it.
-  - Be LENIENT with casual, colloquial, or informal speech. Casual register is valid and should NOT be corrected. Only correct things that are actually wrong — not things that are simply informal. If a native speaker would say it the same way in casual conversation, it is NOT a mistake.`}
+  - Be LENIENT with casual, colloquial, or informal speech. Casual register is valid and should NOT be corrected. Only correct things that are actually wrong — not things that are simply informal. If a native speaker would say it the same way in casual conversation, it is NOT a mistake.`}${isToolDisabled('create_quiz') ? '' : `
 - Use "create_quiz" when a good teaching moment arises. Vary between MCQ, text-input, and fill-in types. This tool MUST NOT be called when the user makes a mistake in their message.
-- When making multiple quizzes in one turn, call "create_quiz" multiple times in the exact order they should appear.${splitChecker ? '' : `
+- When making multiple quizzes in one turn, call "create_quiz" multiple times in the exact order they should appear.`}${correctMistakeDisabled ? '' : `
 - "correct_mistake" must ALWAYS be called at the very end of your response.
-- "correct_mistake" must ALWAYS be called if the user makes a mistake.`}
-- If you want to create a quiz, do NOT write in plain text the quiz, but USE the tool "create_quiz" accordingly.
-- Use "fetch_url" to look up grammar explanations or vocabulary from language learning resources if the learner asks about a specific topic. The fetched content will be returned as machine-readable text.
-- Use "search_wikipedia" to search for general knowledge, cultural references, or background information that comes up in conversation.
-- Use "search_fandom" to search the configured Fandom wiki for media-specific characters, lore, episodes, or plot details. Only works if the learner has set a Fandom wiki URL.
-- Use "get_media_stats" to retrieve the learner's analytics for their current media to personalize your teaching.${splitChecker ? `
+- "correct_mistake" must ALWAYS be called if the user makes a mistake.`}${isToolDisabled('create_quiz') ? '' : `
+- If you want to create a quiz, do NOT write in plain text the quiz, but USE the tool "create_quiz" accordingly.`}${isToolDisabled('fetch_url') ? '' : `
+- Use "fetch_url" to look up grammar explanations or vocabulary from language learning resources if the learner asks about a specific topic. The fetched content will be returned as machine-readable text.`}${isToolDisabled('search_wikipedia') ? '' : `
+- Use "search_wikipedia" to search for general knowledge, cultural references, or background information that comes up in conversation.`}${isToolDisabled('search_fandom') ? '' : `
+- Use "search_fandom" to search the configured Fandom wiki for media-specific characters, lore, episodes, or plot details. Only works if the learner has set a Fandom wiki URL.`}${isToolDisabled('recall_backstory') ? '' : `
+- Use "recall_backstory" when you need to remember specific details about your past, relationships, or backstory events. Do not invent backstory details — always use this tool if unsure.`}${isToolDisabled('get_media_stats') ? '' : `
+- Use "get_media_stats" to retrieve the learner's analytics for their current media to personalize your teaching.`}${splitChecker ? `
 - Do NOT correct the learner's mistakes. A separate system handles corrections. Focus on natural conversation, quizzes, and teaching.` : ''}
-- Use "add_to_plan" to create a structured conversation plan at the start of the session. Add items like topics to discuss, grammar to practice, or exercises to complete.
-- Use "mark_plan_done" after you finish covering a plan item. This helps track progress.
-- Use "get_current_plan" to check what to work on next if you lose track of the plan.
 - Do NOT overuse tools — the conversation should feel natural, not like a test.`;
 
   if (mediaCtx) {
@@ -303,16 +296,6 @@ ${tutorConfig.customInstructions}`;
     prompt += `\n\n## Things You Remember About the Learner
 You have saved these facts from previous conversations. Use them naturally — do not explicitly mention that you "remember" them, just act on the knowledge:
 ${memoryLines}`;
-  }
-
-  // Inject conversation plan
-  if (plan && plan.length > 0) {
-    const planLines = plan.map((item, i) => `${i + 1}. ${item.done ? '[Done]' : '[ ]'} ${item.text}`).join('\n');
-    const current = plan.find((item) => !item.done);
-    prompt += `\n\n## Conversation Plan
-Current plan state:
-${planLines}${current ? `\nCurrent focus: ${current.text}` : '\nAll items completed.'}
-Move through the plan naturally. Use "mark_plan_done" when you finish a topic. Use "add_to_plan" to add new items if needed.`;
   }
 
   // Memory tool instruction
@@ -476,32 +459,8 @@ const AGENT_TOOLS: LLMToolDefinition[] = [
     },
   },
   {
-    name: 'add_to_plan',
-    description: 'Add one or more items to the conversation plan. Use this to organize what topics or exercises to cover during the session.',
-    parameters: {
-      type: 'object',
-      properties: {
-        items: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Items to add to the plan',
-        },
-      },
-      required: ['items'],
-    },
-  },
-  {
-    name: 'mark_plan_done',
-    description: 'Mark the current (first undone) plan item as completed. Call this when you have finished covering a topic or exercise from the plan.',
-    parameters: {
-      type: 'object',
-      properties: {},
-      required: [],
-    },
-  },
-  {
-    name: 'get_current_plan',
-    description: 'Get the current plan item (the first undone item). Use this to check what you should be working on next.',
+    name: 'recall_backstory',
+    description: 'Recall your detailed backstory and past experiences. Call this when the conversation touches on your history, relationships, or specific events from your past, and you need to verify or remember the details. The backstory will be returned to you silently.',
     parameters: {
       type: 'object',
       properties: {},
@@ -609,6 +568,15 @@ const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
         },
       },
       required: ['query'],
+    },
+  },
+  {
+    name: 'recall_backstory',
+    description: 'Recall your detailed backstory and past experiences. Call this when the conversation touches on your history, relationships, or specific events from your past, and you need to verify or remember the details.',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
     },
   },
 ];
@@ -746,19 +714,6 @@ function executeTool(toolCall: ToolCall, deps: AgentDeps): ChatWidget | ChatWidg
       if (content) {
         deps.onMemorySaved?.(content);
       }
-      return null;
-    }
-
-    case 'add_to_plan': {
-      const items = args.items as string[] | undefined;
-      if (items && items.length > 0) {
-        deps.onPlanAdd?.(items);
-      }
-      return null;
-    }
-
-    case 'mark_plan_done': {
-      deps.onPlanMarkDone?.();
       return null;
     }
 
@@ -915,29 +870,10 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
       }
     }
 
-    case 'add_to_plan': {
-      const items = args.items as string[] | undefined;
-      if (!items || items.length === 0) return 'No items provided.';
-      return `Added ${items.length} item(s) to the plan: ${items.join(', ')}`;
-    }
-
-    case 'mark_plan_done': {
-      const plan = deps.getPlan?.() ?? [];
-      const current = plan.find((item) => !item.done);
-      return current ? `Marked "${current.text}" as done.` : 'No pending plan items.';
-    }
-
-    case 'get_current_plan': {
-      const plan = deps.getPlan?.() ?? [];
-      if (plan.length === 0) return 'The plan is empty. Consider using add_to_plan to create a plan.';
-      const current = plan.find((item) => !item.done);
-      if (!current) return 'All plan items are completed.';
-      const doneCount = plan.filter((item) => item.done).length;
-      const lines: string[] = [`Current plan (${doneCount}/${plan.length} done):`];
-      for (const item of plan) {
-        lines.push(`${item.done ? '[x]' : '[ ]'} ${item.text}${!item.done && item === current ? ' ← current' : ''}`);
-      }
-      return lines.join('\n');
+    case 'recall_backstory': {
+      const agentCfg = deps.getAgentConfig?.();
+      if (!agentCfg?.roleplayContext) return 'No backstory is available.';
+      return `## Your Backstory\n${agentCfg.roleplayContext}`;
     }
 
     default:
@@ -1126,6 +1062,8 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   let conversationHistory: LLMChatMessage[] = [];
   let aborted = false;
   let streamCleanup: (() => void) | null = null;
+  /** Monotonically increasing counter to correlate stream chunks with the request that produced them */
+  let streamRequestId = 0;
 
   function clearHistory(): void {
     conversationHistory = [];
@@ -1228,7 +1166,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const terminalToolCalls: ToolCall[] = [];
 
     for (const toolCall of toolCalls) {
-      if (toolCall.name === 'correct_mistake' || toolCall.name === 'note_mistake' || toolCall.name === 'save_memory' || toolCall.name === 'add_to_plan' || toolCall.name === 'mark_plan_done') {
+      if (toolCall.name === 'correct_mistake' || toolCall.name === 'note_mistake' || toolCall.name === 'save_memory') {
         terminalToolCalls.push(toolCall);
       } else {
         nonTerminalToolCalls.push(toolCall);
@@ -1313,9 +1251,17 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     contentPrefix = '',
     deferredTerminalToolCalls: ToolCall[] = [],
   ): void {
-    // Clean up any stale listener (e.g. from generateTopicPlan) before registering a new one
+    // Track whether a stream was active — aborting it will produce a stale response chunk
+    const hadActiveStream = streamCleanup !== null;
+
+    // Abort any in-flight LLM stream (e.g. from generateTopicPlan) before starting a new one
     streamCleanup?.();
     streamCleanup = null;
+    if (hadActiveStream) {
+      getBridge().llm.llmStreamAbort();
+    }
+
+    const myRequestId = ++streamRequestId;
 
     const bridge = getBridge();
 
@@ -1334,23 +1280,29 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const baseTools = isVoice ? VOICE_AGENT_TOOLS : AGENT_TOOLS;
     const hasFandomUrl = !!agentCfg?.roleplayFandomUrl;
     const splitChecker = settingsObj.agentSplitChecker && !isVoice;
+    const disabledTools = deps.getDisabledTools?.() ?? new Set<string>();
     let tools = baseTools;
     if (!memoryEnabled) tools = tools.filter((t) => t.name !== 'save_memory');
     if (!hasFandomUrl) tools = tools.filter((t) => t.name !== 'search_fandom');
+    const isRoleplay = agentCfg?.personality === 'roleplay' && !!agentCfg.roleplayContext;
+    if (!isRoleplay) tools = tools.filter((t) => t.name !== 'recall_backstory');
     if (splitChecker) tools = tools.filter((t) => t.name !== 'correct_mistake');
+    // Apply user-disabled tools
+    if (disabledTools.size > 0) tools = tools.filter((t) => !disabledTools.has(t.name));
+
+    // If recall_backstory is disabled but the agent has a backstory, inline it in the prompt
+    const inlineBackstory = isRoleplay && disabledTools.has('recall_backstory');
 
     const targetLevel = deps.getTargetLevel?.() ?? null;
     const targetLevelName = targetLevel !== null ? (deps.getLevelName?.(targetLevel) ?? undefined) : undefined;
 
     const includeKnowledge = deps.getIncludeKnowledgeInfo?.() ?? true;
 
-    const currentPlan = deps.getPlan?.() ?? [];
-
     const systemMsg: LLMChatMessage = {
       role: 'system',
       content: isVoice
         ? buildVoiceSystemPrompt(langName, mediaCtx)
-        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, currentPlan.length > 0 ? currentPlan : undefined, includeKnowledge, splitChecker),
+        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, includeKnowledge, splitChecker, inlineBackstory, disabledTools),
     };
 
     const messages: LLMChatMessage[] = [
@@ -1366,9 +1318,25 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const widgets = [...existingWidgets];
     const requestStartTime = Date.now();
     let firstTokenTime = 0;
+    // When we preemptively aborted an active stream, its abort response will arrive
+    // on our new listener before the real stream produces any content. Absorb it.
+    let skipStaleAbort = hadActiveStream;
 
     streamCleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
-      if (aborted) return;
+      if (aborted || myRequestId !== streamRequestId) return;
+
+      // Absorb the stale abort/done response from the preemptive llmStreamAbort() call.
+      // It always arrives before the new stream produces any real content.
+      if (skipStaleAbort) {
+        if (chunk.content && chunk.content.length > 0) {
+          // Real content arrived — the stale response was already absorbed or never came
+          skipStaleAbort = false;
+        } else if (chunk.done || chunk.error) {
+          // This is the stale abort response — absorb it and keep listening
+          skipStaleAbort = false;
+          return;
+        }
+      }
 
       if (chunk.error) {
         streamCleanup?.();
@@ -1477,7 +1445,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
     // Timeout after 90 seconds
     setTimeout(() => {
-      if (streamCleanup && !aborted) {
+      if (streamCleanup && !aborted && myRequestId === streamRequestId) {
         streamCleanup();
         streamCleanup = null;
         if (accumulated) {
@@ -1540,90 +1508,5 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     }
   }
 
-  /**
-   * Generate a list of conversation topics based on current context.
-   * The topics are injected into the system prompt for the agent to naturally cover.
-   * Pass difficulty 'up' or 'down' to adjust the level based on the previous plan.
-   */
-  function generateTopicPlan(difficulty: PlanDifficulty = null): void {
-    const bridge = getBridge();
-    const langName = deps.getLanguageName();
-    const mediaCtx = deps.getMediaContext();
-    const tutorCfg = deps.getTutorConfig?.() ?? null;
-    const memories = deps.getAgentMemories?.() ?? [];
-    const agentCfg = deps.getAgentConfig?.() ?? null;
-    const currentPlan = deps.getPlan?.() ?? [];
-
-    let contextDesc = `The learner is studying ${langName}.`;
-    if (mediaCtx) {
-      contextDesc += ` They are ${mediaCtx.mediaType === 'video' ? 'watching' : 'reading'} "${mediaCtx.mediaName}".`;
-      if (mediaCtx.failedWords.length > 0) {
-        const words = mediaCtx.failedWords.slice(0, 10).map((w) => w.word).join(', ');
-        contextDesc += ` They struggle with: ${words}.`;
-      }
-    }
-    if (tutorCfg?.selectedGrammar.length) {
-      contextDesc += ` Grammar focus: ${tutorCfg.selectedGrammar.map((g) => g.pattern).join(', ')}.`;
-    }
-    if (memories.length > 0) {
-      contextDesc += ` Known about learner: ${memories.map((m) => m.content).join('; ')}.`;
-    }
-    if (agentCfg?.personality === 'roleplay' && agentCfg.roleplayName) {
-      contextDesc += ` The tutor is roleplaying as "${agentCfg.roleplayName}".`;
-    }
-
-    // Difficulty adjustment context
-    if (difficulty && currentPlan.length > 0) {
-      const previousTopics = currentPlan.map((item) => item.text).join(', ');
-      if (difficulty === 'up') {
-        contextDesc += ` The previous plan was: [${previousTopics}]. The learner wants MORE challenging topics — use more complex vocabulary, abstract themes, nuanced discussions, and deeper analysis.`;
-      } else {
-        contextDesc += ` The previous plan was: [${previousTopics}]. The learner wants EASIER topics — use simpler vocabulary, concrete everyday themes, and basic conversation patterns.`;
-      }
-    }
-
-    const systemMsg: LLMChatMessage = {
-      role: 'system',
-      content: `You are a conversation planner for a ${langName} language tutor. Generate a list of 3-5 creative and engaging conversation topics that feel natural and immersive — avoid generic textbook topics like "weekend plans" or "hobbies". Instead, think of interesting scenarios, cultural discussions, storytelling prompts, debates, hypothetical situations, or media-related discussions that would make the learner actually enjoy practicing.${mediaCtx ? ` Prefer topics tied to the media the learner is consuming.` : ''} If ${langName} has readings, do not mention them. Each topic should be a brief phrase. Output ONLY a JSON array of strings, nothing else. Example: ["What would you do if you found a mysterious letter?", "Debating the villain's motivations", "Describing your dream adventure", "Ordering at an unusual restaurant"]`,
-    };
-
-    const userMsg: LLMChatMessage = {
-      role: 'user',
-      content: contextDesc,
-    };
-
-    let accumulated = '';
-
-    streamCleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
-      if (chunk.content) {
-        accumulated += chunk.content;
-      }
-      if (chunk.done) {
-        streamCleanup?.();
-        streamCleanup = null;
-        try {
-          // Extract JSON array from accumulated text
-          const match = accumulated.match(/\[[\s\S]*\]/);
-          if (match) {
-            const topics = JSON.parse(match[0]) as string[];
-            if (Array.isArray(topics) && topics.length > 0) {
-              deps.onTopicPlan?.(topics);
-            }
-          }
-        } catch {
-          // Failed to parse — ignore
-        }
-      }
-      if (chunk.error) {
-        streamCleanup?.();
-        streamCleanup = null;
-      }
-    });
-
-    console.log('[ConversationAgent:TopicPlan] Prompt:', JSON.stringify([systemMsg, userMsg], null, 2));
-
-    bridge.llm.llmStream([systemMsg, userMsg], []);
-  }
-
-  return { processMessage, abortStream, clearHistory, popHistory, restartStream, tokenize, continueWithContext, markInterrupted, generateTopicPlan };
+  return { processMessage, abortStream, clearHistory, popHistory, restartStream, tokenize, continueWithContext, markInterrupted };
 }

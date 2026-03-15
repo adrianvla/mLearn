@@ -302,6 +302,19 @@
       "Checker": {
         "Alternatives": "Alternatives"
       },
+      "Commands": {
+        "NewTopic": "Nouveau sujet",
+        "NewTopicDesc": "Passer à un nouveau sujet de conversation"
+      },
+      "Tools": {
+        "CorrectMistake": "Corriger les erreurs",
+        "CreateQuiz": "Créer des quiz",
+        "FetchUrl": "Récupérer des URLs",
+        "GetMediaStats": "Stats des médias",
+        "SearchWikipedia": "Chercher sur Wikipédia",
+        "SearchFandom": "Chercher sur Fandom",
+        "RecallBackstory": "Rappeler l'histoire"
+      },
       "Quiz": {
         "BlankInputAriaLabel": "Blanc {index}",
         "Correct": "Correct !",
@@ -444,16 +457,6 @@
         "ManualSetup": "Configuration manuelle",
         "ManualSetupHint": "Remplissez les détails du personnage vous-même."
       },
-      "Topics": {
-        "Easier": "Générer des sujets plus faciles",
-        "Generating": "Génération des sujets...",
-        "Harder": "Générer des sujets plus difficiles",
-        "Title": "Sujets prévus"
-      },
-      "Plan": {
-        "Show": "Afficher le plan",
-        "Hide": "Masquer le plan"
-      },
       "QuickStart": {
         "Button": "Démarrage rapide via Fandom",
         "Hint": "Remplir automatiquement les champs de jeu de rôle en cherchant sur un wiki Fandom.",
@@ -481,7 +484,10 @@
         "ReviewLore": "Description du personnage",
         "ReviewQuotes": "Citations exemple",
         "ReviewContext": "Contexte narratif",
-        "ReviewFandom": "Wiki Fandom"
+        "ReviewFandom": "Wiki Fandom",
+        "FetchingChapters": "Récupération des résumés de chapitres...",
+        "ExploringWiki": "Exploration du wiki pour le contexte narratif...",
+        "ExploringWikiDetail": "Exploration du wiki : {detail}"
       }
     },
     "ErrorModal": {
@@ -602,7 +608,16 @@
         "SomeFailed": "Certaines tâches ont échoué",
         "ToastTitle": "Génération du contenu de la carte",
         "Translation": "Traduction",
-        "WordTts": "Audio du mot"
+        "WordTts": "Audio du mot",
+        "TtsFailed": "Échec de la génération TTS"
+      },
+      "Repair": {
+        "Description": "{count} fichiers audio de cartes sont manquants. Voulez-vous les régénérer ?",
+        "Done": "{count} fichiers audio de cartes réparés",
+        "DoneWithErrors": "{total} fichiers audio réparés ({failed} échoués)",
+        "RepairButton": "Réparer",
+        "Title": "Audio de cartes manquant",
+        "ToastTitle": "Réparation de l'audio des cartes…"
       },
       "Review": {
         "Again": "Encore",
@@ -924,7 +939,17 @@
           "DictionaryFilter": "Trouvé dans le dictionnaire",
           "DictionaryFilterDescription": "Ajouter tous les mots trouvés dans le dictionnaire",
           "AddAll": "Tout ajouter ({count})",
-          "AddSelected": "Ajouter la sélection ({count})"
+          "AddSelected": "Ajouter la sélection ({count})",
+          "SelectAll": "Tout sélectionner",
+          "DeselectAll": "Tout désélectionner",
+          "AddChecked": "Ajouter sélectionnés ({count})",
+          "WordListTitle": "Mots à ajouter"
+        },
+        "SortBy": {
+          "Label": "Trier par",
+          "OCROrder": "Ordre de lecture",
+          "Level": "Niveau",
+          "Word": "Alphabétique"
         }
       },
       "Status": {
@@ -1288,6 +1313,29 @@
             "NoCard": "Aucune carte trouvée pour ce type de note",
             "Title": "Aperçu de la carte"
           },
+          "Templates": {
+            "Description": "Définir le contenu des champs Anki. Variables : {word}, {reading}, {meaning}, {example}, {exampleMeaning}",
+            "Expression": {
+              "Label": "Modèle d'expression"
+            },
+            "Reading": {
+              "Label": "Modèle de lecture"
+            },
+            "Meaning": {
+              "Label": "Modèle de sens"
+            },
+            "Preview": {
+              "Label": "Aperçu du modèle",
+              "Description": "Aperçu des champs avec des données d'exemple"
+            },
+            "Sample": {
+              "Word": "mot",
+              "Reading": "lecture",
+              "Meaning": "définition",
+              "Example": "Phrase d'exemple.",
+              "ExampleMeaning": "Traduction de la phrase d'exemple."
+            }
+          },
           "Test": "Tester",
           "Title": "Intégration Anki"
         },
@@ -1458,6 +1506,70 @@
         "ViewKanjiGrid": "Grille de kanji"
       },
       "CurrentlyLearning": "En cours d'apprentissage",
+      "Dashboard": {
+        "AverageEase": "Facilité moyenne",
+        "BestStreak": "Meilleure série",
+        "CardState": {
+          "Learning": "En apprentissage",
+          "New": "Nouveau",
+          "Review": "Révision",
+          "Suspended": "Suspendu"
+        },
+        "CardStates": "États des cartes",
+        "CenterLabel": {
+          "Cards": "cartes",
+          "Mature": "matures",
+          "Words": "mots"
+        },
+        "CurrentStreak": "Série actuelle",
+        "DaysStudied": "Jours étudiés",
+        "EaseDistribution": "Distribution de facilité",
+        "Forecast": "Prévision de révision sur 14 jours",
+        "Graduated": "Terminées",
+        "ImmersionTime": "Temps d'immersion",
+        "IntervalDistribution": "Distribution des intervalles",
+        "Lapses": "Échecs",
+        "Maturity": {
+          "Mature": "Mature (\u226521j)",
+          "Title": "Maturité",
+          "Young": "Récent (<21j)"
+        },
+        "NewLearned": "Nouveaux appris",
+        "Overdue": "En retard",
+        "RetentionRate": "Taux de rétention",
+        "ReviewActivity": "Activité de révision (30 derniers jours)",
+        "ReviewHeatmap": "Carte thermique de révision",
+        "ReviewStudyTime": "Temps de révision",
+        "Reviews": "Révisions",
+        "SrsConfig": "Configuration SRS",
+        "Srs": {
+          "EasyInterval": "Intervalle facile",
+          "GraduatingInterval": "Intervalle de graduation",
+          "LearningSteps": "Étapes d'apprentissage",
+          "MaxInterval": "Intervalle max.",
+          "MaxReviewsPerDay": "Révisions max./jour",
+          "NewCardsPerDay": "Nouvelles cartes/jour",
+          "NewIntervalMod": "Mod. nouvel intervalle",
+          "RelearnSteps": "Étapes de réapprentissage",
+          "ReviewIntervalMod": "Mod. intervalle révision"
+        },
+        "StudyTime": "Temps d'étude",
+        "TimeRead": "Temps de lecture",
+        "TimeWatched": "Temps visionné",
+        "Today": "Aujourd'hui",
+        "TodaysSession": "Session du jour",
+        "TotalCards": "Total des cartes",
+        "TotalImmersion": "Immersion totale",
+        "TotalReviews": "Total des révisions",
+        "TotalTime": "Temps total",
+        "WordAcquisition": {
+          "AvgEncounters": "Rencontres moy.",
+          "MedianEncounters": "Rencontres médianes",
+          "Title": "Acquisition de mots",
+          "WordsTracked": "Mots suivis"
+        },
+        "WordKnowledge": "Connaissance des mots"
+      },
       "Description": "Suivez votre progression et votre parcours d'apprentissage",
       "Legend": {
         "Learned": "Appris",
@@ -1548,6 +1660,7 @@
       "SearchPlaceholder": "Rechercher des mots...",
       "Searching": "Recherche...",
       "Trackers": {
+        "Anki": "Anki",
         "Flashcards": "Cartes mémoire",
         "Ignored": "Ignoré",
         "Nothing": "Non suivi"

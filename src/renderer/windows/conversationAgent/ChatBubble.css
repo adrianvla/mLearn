@@ -25,6 +25,25 @@
   align-self: flex-start;
 }
 
+.chat-bubble.assistant.has-avatar {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+}
+
+.chat-bubble-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.chat-bubble-inner {
+  min-width: 0;
+}
+
 .chat-bubble.system {
   align-self: center;
   max-width: 90%;
@@ -111,7 +130,7 @@
 }
 
 .chat-correction-replacement {
-  color: var(--color-success);
+  color: var(--color-danger);
   font-size: 0.85em;
   line-height: 1.2;
 }

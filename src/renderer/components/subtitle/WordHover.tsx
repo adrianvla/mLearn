@@ -70,7 +70,7 @@ export interface WordHoverProps {
 
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings } = useSettings();
-  const { addFlashcard, hasWordSync, getCardByWordSync } = useFlashcards();
+  const { addFlashcard, hasWordSync, getCardByWordSync, trackWordStatusChange } = useFlashcards();
   const { getFrequency, getLevelName, getLanguageFeatures, currentLangData } = useLanguage();
   const { tokenize } = useTokenizer();
   const { t } = useLocalization();
@@ -320,7 +320,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const word = actualWord();
     if (word) {
       setWordStatus(word, wordStatusToNumeric(newStatus));
-      // saveWordsToStorage is called inside setWordStatus now
+      trackWordStatusChange(word);
     }
     
     props.onStatusChange?.(newStatus);
@@ -527,12 +527,22 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const isTracked = createMemo(() => isInSRS() || props.isInSRS === true);
 
   const EasePill = () => {
+    const ease = currentEase() ?? props.ease;
+    if (ease === undefined) {
+      return (
+        <PillBtn
+          variant="green"
+          icon={ICON_CHECK}
+          label={t('mlearn.Flashcards.Card.Tracked')}
+        />
+      );
+    }
     return (
-      <Show when={(currentEase() ?? props.ease) !== undefined}>
-        <div class="ease-indicator">
-          <span>{t('mlearn.Flashcards.Card.Ease')} {Math.round((currentEase() ?? props.ease ?? 0) * 100) / 100}</span>
-        </div>
-      </Show>
+      <PillBtn
+        variant="green"
+        icon={ICON_CHECK}
+        label={`${t('mlearn.Flashcards.Card.Ease')} ${Math.round(ease * 100) / 100}`}
+      />
     );
   };
 
@@ -672,13 +682,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                   />
                 </Show>
               }>
-                <PillBtn
-                  variant="green"
-                  icon={ICON_CHECK}
-                  label={t('mlearn.Flashcards.Card.Tracked')}
-                />
-              </Show>
-              <Show when={isTracked()}>
                 <EasePill />
               </Show>
               <LLMPill />

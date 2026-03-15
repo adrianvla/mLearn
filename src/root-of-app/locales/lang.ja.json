@@ -302,6 +302,19 @@
       "Checker": {
         "Alternatives": "代替表現"
       },
+      "Commands": {
+        "NewTopic": "新しいトピック",
+        "NewTopicDesc": "新しい会話トピックに切り替える"
+      },
+      "Tools": {
+        "CorrectMistake": "間違いを訂正",
+        "CreateQuiz": "クイズ作成",
+        "FetchUrl": "URL取得",
+        "GetMediaStats": "メディア統計",
+        "SearchWikipedia": "Wikipedia検索",
+        "SearchFandom": "Fandom検索",
+        "RecallBackstory": "バックストーリーを思い出す"
+      },
       "Quiz": {
         "BlankInputAriaLabel": "空欄 {index}",
         "Correct": "正解！",
@@ -444,16 +457,6 @@
         "ManualSetup": "手動設定",
         "ManualSetupHint": "キャラクターの詳細を自分で入力します。"
       },
-      "Topics": {
-        "Easier": "より簡単なトピックを生成",
-        "Generating": "トピックを生成中...",
-        "Harder": "より難しいトピックを生成",
-        "Title": "予定トピック"
-      },
-      "Plan": {
-        "Show": "プランを表示",
-        "Hide": "プランを非表示"
-      },
       "QuickStart": {
         "Button": "Fandomからクイックスタート",
         "Hint": "Fandom Wikiを検索してロールプレイフィールドを自動入力します。",
@@ -481,7 +484,10 @@
         "ReviewLore": "キャラクター説明",
         "ReviewQuotes": "サンプル台詞",
         "ReviewContext": "バックストーリー",
-        "ReviewFandom": "Fandom Wiki"
+        "ReviewFandom": "Fandom Wiki",
+        "FetchingChapters": "チャプター要約を取得中...",
+        "ExploringWiki": "Wikiからストーリー情報を探索中...",
+        "ExploringWikiDetail": "Wiki探索中: {detail}"
       }
     },
     "ErrorModal": {
@@ -602,7 +608,16 @@
         "SomeFailed": "一部のタスクが失敗しました",
         "ToastTitle": "フラッシュカードコンテンツ生成中",
         "Translation": "翻訳",
-        "WordTts": "単語の音声"
+        "WordTts": "単語の音声",
+        "TtsFailed": "TTS生成に失敗しました"
+      },
+      "Repair": {
+        "Description": "{count}件のフラッシュカード音声ファイルが不足しています。再生成しますか？",
+        "Done": "{count}件のフラッシュカード音声を修復しました",
+        "DoneWithErrors": "{total}件の音声を修復しました（{failed}件失敗）",
+        "RepairButton": "修復",
+        "Title": "フラッシュカード音声の不足",
+        "ToastTitle": "フラッシュカード音声を修復中…"
       },
       "Review": {
         "Again": "もう一度",
@@ -924,7 +939,17 @@
           "DictionaryFilter": "辞書で見つかった単語",
           "DictionaryFilterDescription": "辞書で見つかったすべての単語を追加",
           "AddAll": "すべて追加（{count}）",
-          "AddSelected": "選択を追加（{count}）"
+          "AddSelected": "選択を追加（{count}）",
+          "SelectAll": "すべて選択",
+          "DeselectAll": "すべて解除",
+          "AddChecked": "選択したものを追加 ({count})",
+          "WordListTitle": "追加する単語"
+        },
+        "SortBy": {
+          "Label": "並び替え",
+          "OCROrder": "読み順",
+          "Level": "レベル",
+          "Word": "アルファベット順"
         }
       },
       "Status": {
@@ -1288,6 +1313,29 @@
             "NoCard": "このノートタイプにはカードがありません",
             "Title": "カードプレビュー"
           },
+          "Templates": {
+            "Description": "各Ankiフィールドの内容を定義。プレースホルダー: {word}, {reading}, {meaning}, {example}, {exampleMeaning}",
+            "Expression": {
+              "Label": "表現テンプレート"
+            },
+            "Reading": {
+              "Label": "読みテンプレート"
+            },
+            "Meaning": {
+              "Label": "意味テンプレート"
+            },
+            "Preview": {
+              "Label": "テンプレートプレビュー",
+              "Description": "サンプルデータによるフィールドのプレビュー"
+            },
+            "Sample": {
+              "Word": "単語",
+              "Reading": "よみ",
+              "Meaning": "意味",
+              "Example": "例文。",
+              "ExampleMeaning": "例文の翻訳。"
+            }
+          },
           "Test": "テスト",
           "Title": "Anki連携"
         },
@@ -1458,6 +1506,70 @@
         "ViewKanjiGrid": "漢字グリッドを表示"
       },
       "CurrentlyLearning": "学習中",
+      "Dashboard": {
+        "AverageEase": "平均容易度",
+        "BestStreak": "最高連続日数",
+        "CardState": {
+          "Learning": "学習中",
+          "New": "新規",
+          "Review": "復習",
+          "Suspended": "停止中"
+        },
+        "CardStates": "カード状態",
+        "CenterLabel": {
+          "Cards": "枚",
+          "Mature": "成熟",
+          "Words": "語"
+        },
+        "CurrentStreak": "現在の連続日数",
+        "DaysStudied": "学習日数",
+        "EaseDistribution": "容易度分布",
+        "Forecast": "14日間の復習予測",
+        "Graduated": "修了",
+        "ImmersionTime": "没入時間",
+        "IntervalDistribution": "間隔分布",
+        "Lapses": "失敗",
+        "Maturity": {
+          "Mature": "成熟 (\u226521日)",
+          "Title": "成熟度",
+          "Young": "若い (<21日)"
+        },
+        "NewLearned": "新規学習",
+        "Overdue": "期限超過",
+        "RetentionRate": "記憶率",
+        "ReviewActivity": "復習アクティビティ（過去30日間）",
+        "ReviewHeatmap": "復習ヒートマップ",
+        "ReviewStudyTime": "復習学習時間",
+        "Reviews": "復習",
+        "SrsConfig": "SRS設定",
+        "Srs": {
+          "EasyInterval": "簡単な間隔",
+          "GraduatingInterval": "修了間隔",
+          "LearningSteps": "学習ステップ",
+          "MaxInterval": "最大間隔",
+          "MaxReviewsPerDay": "1日の最大復習数",
+          "NewCardsPerDay": "1日の新規カード数",
+          "NewIntervalMod": "新規間隔修正",
+          "RelearnSteps": "再学習ステップ",
+          "ReviewIntervalMod": "復習間隔修正"
+        },
+        "StudyTime": "学習時間",
+        "TimeRead": "読書時間",
+        "TimeWatched": "視聴時間",
+        "Today": "今日",
+        "TodaysSession": "今日のセッション",
+        "TotalCards": "カード合計",
+        "TotalImmersion": "没入合計",
+        "TotalReviews": "復習合計",
+        "TotalTime": "合計時間",
+        "WordAcquisition": {
+          "AvgEncounters": "平均遭遇回数",
+          "MedianEncounters": "中央値遭遇回数",
+          "Title": "単語習得",
+          "WordsTracked": "追跡中の単語"
+        },
+        "WordKnowledge": "語彙知識"
+      },
       "Description": "進捗と学習の旅を追跡",
       "Legend": {
         "Learned": "習得済み",
@@ -1548,6 +1660,7 @@
       "SearchPlaceholder": "単語を検索...",
       "Searching": "検索中...",
       "Trackers": {
+        "Anki": "Anki",
         "Flashcards": "フラッシュカード",
         "Ignored": "無視済み",
         "Nothing": "未追跡"

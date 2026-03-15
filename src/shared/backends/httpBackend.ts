@@ -104,6 +104,16 @@ export class HttpBackend implements BackendAdapter {
     return res.json();
   }
 
+  async getAnkiWords(): Promise<string[]> {
+    const res = await fetch(this.buildUrl('/ankiWords'), {
+      method: 'GET',
+      headers: this.headers(),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.words || [];
+  }
+
   async ping(): Promise<boolean> {
     try {
       const controller = new AbortController();

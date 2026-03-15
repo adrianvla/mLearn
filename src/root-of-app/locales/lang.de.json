@@ -302,6 +302,19 @@
       "Checker": {
         "Alternatives": "Alternativen"
       },
+      "Commands": {
+        "NewTopic": "Neues Thema",
+        "NewTopicDesc": "Zu einem neuen Gesprächsthema wechseln"
+      },
+      "Tools": {
+        "CorrectMistake": "Fehler korrigieren",
+        "CreateQuiz": "Quiz erstellen",
+        "FetchUrl": "URLs abrufen",
+        "GetMediaStats": "Medienstatistiken",
+        "SearchWikipedia": "Wikipedia durchsuchen",
+        "SearchFandom": "Fandom durchsuchen",
+        "RecallBackstory": "Hintergrundgeschichte abrufen"
+      },
       "Quiz": {
         "BlankInputAriaLabel": "Lücke {index}",
         "Correct": "Richtig!",
@@ -444,16 +457,6 @@
         "ManualSetup": "Manuelles Setup",
         "ManualSetupHint": "Charakterdetails selbst eingeben."
       },
-      "Topics": {
-        "Easier": "Einfachere Themen generieren",
-        "Generating": "Themen werden generiert...",
-        "Harder": "Schwierigere Themen generieren",
-        "Title": "Geplante Themen"
-      },
-      "Plan": {
-        "Show": "Plan anzeigen",
-        "Hide": "Plan ausblenden"
-      },
       "QuickStart": {
         "Button": "Schnellstart über Fandom",
         "Hint": "Rollenspielfelder automatisch über ein Fandom-Wiki ausfüllen.",
@@ -481,7 +484,10 @@
         "ReviewLore": "Charakterbeschreibung",
         "ReviewQuotes": "Beispielzitate",
         "ReviewContext": "Hintergrundgeschichte",
-        "ReviewFandom": "Fandom-Wiki"
+        "ReviewFandom": "Fandom-Wiki",
+        "FetchingChapters": "Kapitelzusammenfassungen werden abgerufen...",
+        "ExploringWiki": "Wiki wird nach Handlungskontext durchsucht...",
+        "ExploringWikiDetail": "Wiki-Erkundung: {detail}"
       }
     },
     "ErrorModal": {
@@ -602,7 +608,16 @@
         "SomeFailed": "Einige Aufgaben fehlgeschlagen",
         "ToastTitle": "Lernkarteninhalt wird generiert",
         "Translation": "Übersetzung",
-        "WordTts": "Wort-Audio"
+        "WordTts": "Wort-Audio",
+        "TtsFailed": "TTS-Generierung fehlgeschlagen"
+      },
+      "Repair": {
+        "Description": "{count} Lernkarten-Audiodateien fehlen. Möchten Sie diese neu generieren?",
+        "Done": "{count} Lernkarten-Audiodateien repariert",
+        "DoneWithErrors": "{total} Audiodateien repariert ({failed} fehlgeschlagen)",
+        "RepairButton": "Reparieren",
+        "Title": "Fehlende Lernkarten-Audio",
+        "ToastTitle": "Lernkarten-Audio wird repariert…"
       },
       "Review": {
         "Again": "Nochmal",
@@ -924,7 +939,17 @@
           "DictionaryFilter": "Im Wörterbuch gefunden",
           "DictionaryFilterDescription": "Alle Wörter hinzufügen, die im Wörterbuch gefunden wurden",
           "AddAll": "Alle hinzufügen ({count})",
-          "AddSelected": "Ausgewählte hinzufügen ({count})"
+          "AddSelected": "Ausgewählte hinzufügen ({count})",
+          "SelectAll": "Alle auswählen",
+          "DeselectAll": "Alle abwählen",
+          "AddChecked": "Ausgewählte hinzufügen ({count})",
+          "WordListTitle": "Hinzuzufügende Wörter"
+        },
+        "SortBy": {
+          "Label": "Sortieren nach",
+          "OCROrder": "Lesereihenfolge",
+          "Level": "Stufe",
+          "Word": "Alphabetisch"
         }
       },
       "Status": {
@@ -1288,6 +1313,29 @@
             "NoCard": "Keine Karten für diesen Notiztyp gefunden",
             "Title": "Kartenvorschau"
           },
+          "Templates": {
+            "Description": "Inhalt der Anki-Felder definieren. Platzhalter: {word}, {reading}, {meaning}, {example}, {exampleMeaning}",
+            "Expression": {
+              "Label": "Ausdruck-Vorlage"
+            },
+            "Reading": {
+              "Label": "Lesung-Vorlage"
+            },
+            "Meaning": {
+              "Label": "Bedeutung-Vorlage"
+            },
+            "Preview": {
+              "Label": "Vorlagen-Vorschau",
+              "Description": "Vorschau der Felder mit Beispieldaten"
+            },
+            "Sample": {
+              "Word": "Wort",
+              "Reading": "Lesung",
+              "Meaning": "Bedeutung",
+              "Example": "Beispielsatz.",
+              "ExampleMeaning": "Übersetzung des Beispielsatzes."
+            }
+          },
           "Test": "Testen",
           "Title": "Anki-Integration"
         },
@@ -1458,6 +1506,70 @@
         "ViewKanjiGrid": "Kanji-Raster anzeigen"
       },
       "CurrentlyLearning": "Aktuell lernend",
+      "Dashboard": {
+        "AverageEase": "Durchschn. Leichtigkeit",
+        "BestStreak": "Beste Serie",
+        "CardState": {
+          "Learning": "Lernend",
+          "New": "Neu",
+          "Review": "Wiederholen",
+          "Suspended": "Ausgesetzt"
+        },
+        "CardStates": "Kartenstatus",
+        "CenterLabel": {
+          "Cards": "Karten",
+          "Mature": "Reif",
+          "Words": "Wörter"
+        },
+        "CurrentStreak": "Aktuelle Serie",
+        "DaysStudied": "Tage gelernt",
+        "EaseDistribution": "Leichtigkeitsverteilung",
+        "Forecast": "14-Tage-Wiederholungsvorhersage",
+        "Graduated": "Abgeschlossen",
+        "ImmersionTime": "Immersionszeit",
+        "IntervalDistribution": "Intervallverteilung",
+        "Lapses": "Fehler",
+        "Maturity": {
+          "Mature": "Reif (\u226521T)",
+          "Title": "Reife",
+          "Young": "Jung (<21T)"
+        },
+        "NewLearned": "Neu gelernt",
+        "Overdue": "Überfällig",
+        "RetentionRate": "Behaltensrate",
+        "ReviewActivity": "Wiederholungsaktivität (Letzte 30 Tage)",
+        "ReviewHeatmap": "Wiederholungs-Heatmap",
+        "ReviewStudyTime": "Wiederholungs-Lernzeit",
+        "Reviews": "Wiederholungen",
+        "SrsConfig": "SRS-Konfiguration",
+        "Srs": {
+          "EasyInterval": "Leichtes Intervall",
+          "GraduatingInterval": "Abschlussintervall",
+          "LearningSteps": "Lernschritte",
+          "MaxInterval": "Max. Intervall",
+          "MaxReviewsPerDay": "Max. Wiederholungen/Tag",
+          "NewCardsPerDay": "Neue Karten/Tag",
+          "NewIntervalMod": "Neues Intervall Mod.",
+          "RelearnSteps": "Wiederholschritte",
+          "ReviewIntervalMod": "Wiederh. Intervall Mod."
+        },
+        "StudyTime": "Lernzeit",
+        "TimeRead": "Lesezeit",
+        "TimeWatched": "Geschaute Zeit",
+        "Today": "Heute",
+        "TodaysSession": "Heutige Sitzung",
+        "TotalCards": "Karten gesamt",
+        "TotalImmersion": "Gesamte Immersion",
+        "TotalReviews": "Wiederholungen gesamt",
+        "TotalTime": "Gesamtzeit",
+        "WordAcquisition": {
+          "AvgEncounters": "Durchschn. Begegnungen",
+          "MedianEncounters": "Median Begegnungen",
+          "Title": "Worterwerb",
+          "WordsTracked": "Verfolgte Wörter"
+        },
+        "WordKnowledge": "Wortwissen"
+      },
       "Description": "Verfolgen Sie Ihren Fortschritt und Ihre Lernreise",
       "Legend": {
         "Learned": "Gelernt",
@@ -1548,6 +1660,7 @@
       "SearchPlaceholder": "Wörter suchen...",
       "Searching": "Suche...",
       "Trackers": {
+        "Anki": "Anki",
         "Flashcards": "Lernkarten",
         "Ignored": "Ignoriert",
         "Nothing": "Unverfolgt"

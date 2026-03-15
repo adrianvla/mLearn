@@ -8,7 +8,7 @@
 
 .bar-chart {
   display: flex;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 2px;
   width: 100%;
 }
@@ -39,6 +39,7 @@
 
 .bar-chart-bar-stacked {
   width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column-reverse;
   align-items: stretch;
@@ -55,6 +56,8 @@
 
 .bar-chart-label {
   font-size: 9px;
+  line-height: 1;
+  height: 9px;
   color: var(--text-tertiary);
   margin-top: 4px;
   text-align: center;

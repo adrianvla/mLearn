@@ -10,6 +10,7 @@
   background: var(--bg-secondary);
   max-width: 100%;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .anki-field-preview__title {
@@ -21,7 +22,7 @@
 
 .anki-field-preview__grid {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 4px 12px;
   font-size: var(--font-size-sm);
   max-width: 100%;
@@ -40,6 +41,7 @@
   overflow: hidden;
   max-height: 120px;
   overflow-y: auto;
+  min-width: 0;
 }
 
 .anki-field-preview__value img {

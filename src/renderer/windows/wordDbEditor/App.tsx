@@ -37,6 +37,8 @@ export const WordDbEditorContent: Component = () => {
   const [isInitialized, setIsInitialized] = createSignal(false);
   // Track if we've already loaded words (prevent re-loading on every frequency change)
   const [hasLoadedWords, setHasLoadedWords] = createSignal(false);
+  // Track whether Anki word cache is ready (or not needed)
+  const [ankiWordsReady, setAnkiWordsReady] = createSignal(false);
 
   const [editDialogOpen, setEditDialogOpen] = createSignal(false);
   const [editingEntry, setEditingEntry] = createSignal<WordEntry | null>(null);
@@ -79,17 +81,32 @@ export const WordDbEditorContent: Component = () => {
       setIsInitialized(true);
     }
   });
-  
+
+  // Reactively fetch Anki words when ankiEnabled becomes true (settings arrive async via IPC)
+  createEffect(() => {
+    const enabled = ankiEnabled();
+    if (!enabled) {
+      setAnkiWordsReady(true);
+      return;
+    }
+    setAnkiWordsReady(false);
+    anki.fetchAnkiWords().then(() => {
+      setAnkiWordsReady(true);
+    }).catch(() => {
+      setAnkiWordsReady(true);
+    });
+  });
+
   // Auto-load words when wordFrequency data becomes available AND flashcards are loaded
   // This handles the case where langData and flashcards load asynchronously
   createEffect(() => {
     const freqWords = Object.keys(wordFrequency);
     const totalWords = freqWords.length;
     const fcLoading = flashcardsLoading();
+    const ankiReady = ankiWordsReady();
     
-    // Only auto-load once when we have data, flashcards are ready, and haven't loaded yet
-    if (isInitialized() && totalWords > 0 && !fcLoading && !hasLoadedWords() && !isLoading()) {
-      console.log(`Word DB Editor: Auto-loading ${totalWords} words from frequency data`);
+    // Only auto-load once when we have data, flashcards are ready, anki cache is ready, and haven't loaded yet
+    if (isInitialized() && totalWords > 0 && !fcLoading && ankiReady && !hasLoadedWords() && !isLoading()) {
       loadAllWords();
     }
   });
@@ -172,6 +189,7 @@ export const WordDbEditorContent: Component = () => {
         const status = trackedWords[word] ?? WORD_STATUS.UNKNOWN;
         // Check if word is actually tracked as a flashcard (sync for better performance)
         const isTracked = hasWordSync(word);
+        const inAnki = ankiEnabled() && anki.isWordInAnki(word);
 
         wordEntries.push({
           uuid,
@@ -179,7 +197,7 @@ export const WordDbEditorContent: Component = () => {
           translation: '', // Would need API call to get translation
           reading: freqEntry.reading || '',
           level: freqEntry.raw_level ?? -1,
-          tracker: isTracked ? 'flashcards' : 'nothing',
+          tracker: isTracked ? 'flashcards' : inAnki ? 'anki' : 'nothing',
           status,
           alternateReadings: freqEntry.alternateReadings,
         });
@@ -406,10 +424,14 @@ export const WordDbEditorContent: Component = () => {
       }
 
       const meaning = entry.translation || entry.fullTranslation || entry.word;
+      // Pull example sentence from flashcard if available
+      const card = getCardByWordSync(entry.word);
       const noteId = await anki.addNote({
         word: entry.word,
         reading: entry.reading || undefined,
         meaning,
+        sentence: card?.content?.example || undefined,
+        sentenceMeaning: card?.content?.exampleMeaning || undefined,
       });
 
       if (noteId) {
@@ -479,8 +501,7 @@ export const WordDbEditorContent: Component = () => {
                       onEdit={handleEdit}
                       onExportToAnki={ankiEnabled() ? handleExportToAnki : undefined}
                       onAnkiPreview={ankiEnabled() ? handleAnkiPreview : undefined}
-                      ankiExportState={ankiExportStates()[entry.uuid] || 'idle'}
-                  />
+                      ankiExportState={ankiExportStates()[entry.uuid] || 'idle'}                      isInAnki={ankiEnabled() ? anki.isWordInAnki(entry.word) : false}                  />
               )}
             </For>
           </div>

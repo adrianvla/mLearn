@@ -18,6 +18,7 @@ import {
 } from '../../components/common';
 import type { AgentConfig, LLMChatMessage, LLMStreamChunk } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
+import { exploreWikiForStoryContext } from './wikiExplorationAgent';
 import './RoleplayQuickStart.css';
 
 type Step = 'character-name' | 'fandom-url' | 'searching' | 'media-type' | 'progress-point' | 'extracting' | 'review';
@@ -106,12 +107,15 @@ interface ChapterLink {
  * Also tries to extract trailing numbers from titles like "Naruto Uzumaki!! (chapter 1)".
  */
 function extractChapterNumber(title: string): number | null {
-  // "Chapter 43", "Episode 12", "Chapter 43: Some Title"
-  const explicit = title.match(/(?:chapter|episode|ch\.?|ep\.?)\s*(\d+)/i);
+  // "Chapter 43", "Episode 12", "Ch. 5", "Ep 10", "Vol 3"
+  const explicit = title.match(/(?:chapter|episode|ch\.?|ep\.?|vol\.?)\s*(\d+)/i);
   if (explicit) return parseInt(explicit[1], 10);
   // Trailing number in parens: "Title (chapter 1)"
-  const paren = title.match(/\((?:chapter|episode|ch\.?|ep\.?)\s*(\d+)\)/i);
+  const paren = title.match(/\((?:chapter|episode|ch\.?|ep\.?|vol\.?)\s*(\d+)\)/i);
   if (paren) return parseInt(paren[1], 10);
+  // Hash-style: "#43" or "No. 43"
+  const hash = title.match(/(?:#|no\.?)\s*(\d+)/i);
+  if (hash) return parseInt(hash[1], 10);
   return null;
 }
 
@@ -448,7 +452,13 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
 
       // Search the wiki for story summary pages (chapters, episodes, arcs)
       let foundStoryPage = '';
-      const storySearchTerms = ['Chapters and Volumes', 'List of Volumes', 'Episodes', 'Story Arcs', 'Arcs', 'Saga'];
+      const storySearchTerms = [
+        'Chapters and Volumes', 'Chapters', 'List of Chapters',
+        'List of Volumes', 'Volumes', 'Chapter List',
+        'Episodes', 'List of Episodes', 'Episode List',
+        'Story Arcs', 'Arcs', 'Arc', 'Saga',
+      ];
+      const storyPageKeywords = ['chapter', 'volume', 'episode', 'arc', 'saga', 'storyline'];
       for (const term of storySearchTerms) {
         const searchUrl = `${base}/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&format=json&formatversion=2&srlimit=5`;
         try {
@@ -456,10 +466,13 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
           const searchData = JSON.parse(searchResult.content);
           const results = searchData?.query?.search as FandomSearchResult[] | undefined;
           if (results && results.length > 0) {
-            // Prefer exact title match, then match without subpages (no "/" in title)
+            // Prefer exact title match
             const exactMatch = results.find((r) => r.title.toLowerCase() === term.toLowerCase());
-            const noSubpage = results.find((r) => !r.title.includes('/') && r.title.toLowerCase().includes(term.toLowerCase().split(' ')[0]));
-            const match = exactMatch || noSubpage;
+            // Then match any result (no subpages) whose title contains a story keyword
+            const keywordMatch = results.find(
+              (r) => !r.title.includes('/') && storyPageKeywords.some((kw) => r.title.toLowerCase().includes(kw)),
+            );
+            const match = exactMatch || keywordMatch;
             if (match) {
               foundStoryPage = match.title;
               break;
@@ -561,7 +574,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
     let chapterSummaries = '';
     const storyPage = storyPageTitle();
     if (storyPage && progressPoint().trim()) {
-      setLlmProgress('Fetching chapter summaries...');
+      setLlmProgress(t('mlearn.ConversationAgent.QuickStart.FetchingChapters'));
       try {
         chapterSummaries = await fetchChapterSummaries(
           ext.fandomUrl,
@@ -574,6 +587,30 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
       }
     }
 
+    // Fallback: use LLM agent to explore the wiki when chapter summaries couldn't be fetched.
+    // The character page story section is just a brief overview — the agent can find
+    // detailed chapter/arc data that standard scraping missed.
+    let exploredContext = '';
+    if (!chapterSummaries && settings.llmEnabled) {
+      setLlmProgress(t('mlearn.ConversationAgent.QuickStart.ExploringWiki'));
+      try {
+        const exploration = await exploreWikiForStoryContext(
+          ext.fandomUrl,
+          ext.name,
+          ext.lore,
+          selectedMediaType(),
+          progressPoint().trim(),
+          (msg) => setLlmProgress(t('mlearn.ConversationAgent.QuickStart.ExploringWikiDetail', { detail: msg })),
+        );
+        exploredContext = exploration.storyContext;
+        if (exploration.storyPageTitle && !storyPage) {
+          setStoryPageTitle(exploration.storyPageTitle);
+        }
+      } catch {
+        // Continue without explored context
+      }
+    }
+
     const loreSnippet = ext.lore.slice(0, 3000);
     const quotesText = ext.quotes.length > 0
       ? ext.quotes.slice(0, 8).map((q) => `- "${q}"`).join('\n')
@@ -582,10 +619,12 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
       ? `The user has progressed up to: ${progressPoint().trim()} (${selectedMediaType()}). The character should be at this point in the story — do not reference events after this point.`
       : '';
 
-    // Build story context section for the LLM — prefer chapter summaries over arc names
+    // Build story context section for the LLM — prefer chapter summaries over arc names, then explored context
     let storySection = '';
     if (chapterSummaries) {
       storySection = `\n\nChapter summaries from the wiki (up to the user's progress point):\n${chapterSummaries.slice(0, 30000)}`;
+    } else if (exploredContext) {
+      storySection = `\n\nStory context gathered from wiki exploration:\n${exploredContext.slice(0, 15000)}`;
     } else {
       const story = ext.storyContext || storyContext();
       if (story) {
@@ -593,7 +632,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
       }
     }
 
-    const hasStoryData = !!chapterSummaries || !!ext.storyContext || !!storyContext();
+    const hasStoryData = !!chapterSummaries || !!exploredContext || !!ext.storyContext || !!storyContext();
     const language = langName();
 
     const systemMsg: LLMChatMessage = {
@@ -601,9 +640,9 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
       content: `You are a helpful assistant that creates roleplay character cards for a language learning app where the user is learning ${language}.
 
 Output ONLY a JSON object with these fields:
-- "lore": A detailed persona card (5-8 sentences) in English. Describe the character's core personality traits, attitudes, emotional tendencies, taboos (things they would never say or do), and distinctive speaking style. Be specific and vivid. ${progressInfo}
-- "quotes": An array of 2-4 of the BEST original quotes from the reference quotes below. Pick quotes that best capture the character's personality and voice. Keep them in their original language (English is fine). If no reference quotes are provided, write 2-4 characteristic quotes in English.${hasStoryData ? `
-- "context": A comprehensive story summary (10-20 sentences) in English. Summarize the plot up to the user's progress point. Focus on major events, character development, key relationships, and current story state. This will be used as context for roleplay conversations — make it detailed enough that someone unfamiliar with the story could understand the character's current situation. Do NOT mention events past the user's progress point.` : ''}
+- "lore": A detailed persona card (5-8 sentences) in ${language}. Describe the character's core personality traits, attitudes, emotional tendencies, taboos (things they would never say or do), and distinctive speaking style. Be specific and vivid. ${progressInfo}
+- "quotes": An array of 2-4 of the BEST original quotes from the reference quotes below. Pick quotes that best capture the character's personality and voice. Keep them in their original language. If no reference quotes are provided, write 2-4 characteristic quotes in ${language}.${hasStoryData ? `
+- "context": A comprehensive story summary (10-20 sentences) in ${language}. Summarize the plot up to the user's progress point. Focus on major events, character development, key relationships, and current story state. This will be used as context for roleplay conversations — make it detailed enough that someone unfamiliar with the story could understand the character's current situation. Do NOT mention events past the user's progress point.` : ''}
 
 Do not include any other text outside the JSON object. No markdown fences.`,
     };

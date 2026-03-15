@@ -8,6 +8,7 @@
 import { createSignal } from 'solid-js';
 import { useSettings } from '../context';
 import { PROXY_SERVER_PORT } from '../../shared/constants';
+import { getBackend } from '../../shared/backends';
 
 const ANKI_CONNECT_VERSION = 6;
 
@@ -57,6 +58,7 @@ export function useAnki() {
   const [isConnected, setIsConnected] = createSignal(false);
   const [decks, setDecks] = createSignal<string[]>([]);
   const [models, setModels] = createSignal<string[]>([]);
+  const [ankiWords, setAnkiWords] = createSignal<Set<string>>(new Set());
 
   /** Get the proxy URL that forwards to AnkiConnect (avoids CORS) */
   const getProxyUrl = (): string => settings.ankiUrl || `http://127.0.0.1:${PROXY_SERVER_PORT}/api/fwd-to-anki`;
@@ -127,13 +129,34 @@ export function useAnki() {
     const fieldReading = settings.anki_field_reading || 'Reading';
     const fieldMeaning = settings.anki_field_meaning || 'Meaning';
 
-    const fields: Record<string, string> = {
-      [fieldExpression]: params.word,
-      [fieldMeaning]: params.meaning,
+    // Apply templates — replace placeholders with actual values
+    const applyTemplate = (template: string): string => {
+      return template
+        .replace(/\{word\}/g, params.word)
+        .replace(/\{reading\}/g, params.reading || '')
+        .replace(/\{meaning\}/g, params.meaning)
+        .replace(/\{example\}/g, params.sentence || '')
+        .replace(/\{exampleMeaning\}/g, params.sentenceMeaning || '');
     };
 
-    if (params.reading) {
-      fields[fieldReading] = params.reading;
+    const templateExpression = settings.ankiTemplateExpression || '{word}';
+    const templateReading = settings.ankiTemplateReading || '{reading}';
+    const templateMeaning = settings.ankiTemplateMeaning || '{meaning}';
+
+    // Ensure the deck exists before adding
+    try {
+      await ankiRequest(getProxyUrl(), 'createDeck', { deck: deckName });
+    } catch {
+      // Ignore - deck may already exist
+    }
+
+    const fields: Record<string, string> = {
+      [fieldExpression]: applyTemplate(templateExpression),
+      [fieldMeaning]: applyTemplate(templateMeaning),
+    };
+
+    if (fieldReading) {
+      fields[fieldReading] = applyTemplate(templateReading);
     }
 
     const note: Record<string, unknown> = {
@@ -167,7 +190,7 @@ export function useAnki() {
       return await ankiRequest<number>(getProxyUrl(), 'addNote', { note });
     } catch (e) {
       console.error('Failed to add note:', e);
-      return null;
+      throw new Error(`Failed to add note: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -232,10 +255,29 @@ export function useAnki() {
     }
   };
 
+  /** Fetch all words currently in Anki from the Python backend cache */
+  const fetchAnkiWords = async (): Promise<Set<string>> => {
+    try {
+      const words = await getBackend().getAnkiWords();
+      const wordSet = new Set<string>(words);
+      setAnkiWords(wordSet);
+      return wordSet;
+    } catch (e) {
+      console.error('Failed to fetch Anki words from backend:', e);
+      return new Set();
+    }
+  };
+
+  /** Check if a word exists in the Anki cache */
+  const isWordInAnki = (word: string): boolean => {
+    return ankiWords().has(word);
+  };
+
   return {
     isConnected,
     decks,
     models,
+    ankiWords,
 
     checkConnection,
     fetchDecks,
@@ -249,6 +291,8 @@ export function useAnki() {
     fetchSampleNote,
     sync,
     openDeck,
+    fetchAnkiWords,
+    isWordInAnki,
   };
 }
 

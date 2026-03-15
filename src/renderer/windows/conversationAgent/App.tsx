@@ -49,12 +49,15 @@ import { VoiceTab } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
 import { AgentSetupModal } from './AgentSetupModal';
 import { AgentListPanel } from './AgentListPanel';
-import { ConversationPlan } from './ConversationPlan';
+import { CommandPalette } from './CommandPalette';
+import type { SlashCommand } from './CommandPalette';
+import { ToolMenu } from './ToolMenu';
+import type { ToolMenuItem } from './ToolMenu';
 
 import { createConversationAgent } from '../../services/conversationAgent';
 import { createCheckerAgent } from '../../services/checkerAgent';
-import type { StreamCallbacks, PlanDifficulty } from '../../services/conversationAgent';
-import type { ConversationMessage, ConversationAgentContext, ConversationPlanItem, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
+import type { StreamCallbacks } from '../../services/conversationAgent';
+import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import { isLatinOnly } from '../../../shared/utils/textUtils';
 import './ConversationAgent.css';
@@ -63,7 +66,7 @@ import './ConversationAgent.css';
  * Known tool names used by the conversation agent.
  * Used to detect and hide partial tool call text during streaming.
  */
-const TOOL_NAMES = ['correct_mistake', 'create_quiz', 'fetch_url', 'get_media_stats', 'note_mistake', 'add_to_plan', 'mark_plan_done', 'get_current_plan'];
+const TOOL_NAMES = ['correct_mistake', 'create_quiz', 'fetch_url', 'get_media_stats', 'note_mistake', 'recall_backstory', 'save_memory', 'search_wikipedia', 'search_fandom'];
 
 function isSameCorrection(a: MistakeWidgetData, b: MistakeWidgetData): boolean {
   return (
@@ -148,6 +151,10 @@ export const ConversationContent: Component = () => {
   const [messages, setMessages] = createSignal<ConversationMessage[]>([]);
   const [inputText, setInputText] = createSignal('');
   const [isStreaming, setIsStreaming] = createSignal(false);
+
+  // Command palette state
+  const [showCommandPalette, setShowCommandPalette] = createSignal(false);
+  const [commandSelectedIndex, setCommandSelectedIndex] = createSignal(0);
   const [isWaiting, setIsWaiting] = createSignal(false);
   const [isConnected, setIsConnected] = createSignal(false);
   const [isCheckingConnection, setIsCheckingConnection] = createSignal(true);
@@ -159,6 +166,9 @@ export const ConversationContent: Component = () => {
 
   // Knowledge info toggle — controls whether failed words/grammar are included in the LLM context
   const [includeKnowledgeInfo, setIncludeKnowledgeInfo] = createSignal(true);
+
+  // Disabled tools — user-toggled tool restrictions
+  const [disabledTools, setDisabledTools] = createSignal<Set<string>>(new Set());
 
   // Voice mode state
   const [isVoiceCallActive, setIsVoiceCallActive] = createSignal(false);
@@ -178,7 +188,6 @@ export const ConversationContent: Component = () => {
   const [allMemories, setAllMemories] = createSignal<AgentMemoryEntry[]>([]);
   const [showSetupModal, setShowSetupModal] = createSignal(false);
   const [editingAgent, setEditingAgent] = createSignal<AgentConfig | null>(null);
-  const [topicPlan, setTopicPlan] = createSignal<ConversationPlanItem[]>([]);
 
   const activeAgent = (): AgentConfig | null => {
     const id = activeAgentId();
@@ -258,23 +267,8 @@ export const ConversationContent: Component = () => {
         setAllMemories((prev) => [...prev, entry]);
       });
     },
-    onTopicPlan: (topics: string[]) => {
-      setTopicPlan(topics.map((text) => ({ text, done: false })));
-    },
     getIncludeKnowledgeInfo: () => includeKnowledgeInfo(),
-    getPlan: () => topicPlan(),
-    onPlanAdd: (items: string[]) => {
-      setTopicPlan((prev) => [...prev, ...items.map((text) => ({ text, done: false }))]);
-    },
-    onPlanMarkDone: () => {
-      setTopicPlan((prev) => {
-        const idx = prev.findIndex((item) => !item.done);
-        if (idx === -1) return prev;
-        const updated = [...prev];
-        updated[idx] = { ...updated[idx], done: true };
-        return updated;
-      });
-    },
+    getDisabledTools: () => disabledTools(),
   });
 
   // Checker agent for split-checker mode
@@ -352,18 +346,7 @@ export const ConversationContent: Component = () => {
       setIsProcessingToolCall(false);
 
       const greetingContext = `[The learner just opened the chat. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
-      const baseCallbacks = buildStreamCallbacks();
-      agent.continueWithContext(greetingContext, {
-        ...baseCallbacks,
-        onDone: (...args) => {
-          baseCallbacks.onDone(...args);
-          // Generate topic plan after the greeting stream finishes
-          agent.generateTopicPlan();
-        },
-      });
-    } else {
-      // No greeting needed — just generate topics
-      agent.generateTopicPlan();
+      agent.continueWithContext(greetingContext, buildStreamCallbacks());
     }
   };
 
@@ -376,7 +359,6 @@ export const ConversationContent: Component = () => {
     await clearAgentMemories();
     setAgents([]);
     setAllMemories([]);
-    setTopicPlan([]);
     setMessages([]);
     agent.clearHistory();
     setActiveAgentId(null);
@@ -392,7 +374,6 @@ export const ConversationContent: Component = () => {
     await saveActiveAgentId(id);
     // Clear conversation when switching agents
     setMessages([]);
-    setTopicPlan([]);
     agent.clearHistory();
   };
 
@@ -419,7 +400,6 @@ export const ConversationContent: Component = () => {
         setActiveAgentId(null);
       }
       setMessages([]);
-      setTopicPlan([]);
       agent.clearHistory();
     }
   };
@@ -533,12 +513,85 @@ export const ConversationContent: Component = () => {
     checkerAgent.abort();
   });
 
-  // Auto-resize textarea
+  // Slash commands
+  const slashCommands = (): SlashCommand[] => [
+    { id: 'newtopic', label: t('mlearn.ConversationAgent.Commands.NewTopic'), description: t('mlearn.ConversationAgent.Commands.NewTopicDesc') },
+  ];
+
+  const filteredCommands = (): SlashCommand[] => {
+    const text = inputText().trim();
+    if (!text.startsWith('/')) return [];
+    const query = text.slice(1).toLowerCase();
+    return slashCommands().filter((cmd) => cmd.id.startsWith(query));
+  };
+
+  const executeCommand = (command: SlashCommand) => {
+    setInputText('');
+    setShowCommandPalette(false);
+    setCommandSelectedIndex(0);
+    if (textareaRef) textareaRef.style.height = 'auto';
+
+    if (command.id === 'newtopic') {
+      if (isStreaming() || !isConnected()) return;
+
+      setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
+      setIsStreaming(true);
+      setIsWaiting(true);
+      setIsProcessingToolCall(false);
+
+      const hasMessages = messages().length > 1;
+      const context = hasMessages
+        ? `[The learner wants to change the topic. Smoothly transition to a new, interesting, and creative topic. Pick something engaging and different from what was discussed before. Start naturally with a question or interesting statement in ${langName()}. Keep it concise — 1 to 3 sentences.]`
+        : `[The learner wants you to pick a topic. Start a natural conversation about something interesting and creative in ${langName()}. Keep it concise — 1 to 3 sentences.]`;
+      agent.continueWithContext(context, buildStreamCallbacks());
+    }
+  };
+
+  // Tool menu items — tools the user can toggle
+  const toolMenuItems = (): ToolMenuItem[] => {
+    const items: ToolMenuItem[] = [
+      { id: 'correct_mistake', label: t('mlearn.ConversationAgent.Tools.CorrectMistake') },
+      { id: 'create_quiz', label: t('mlearn.ConversationAgent.Tools.CreateQuiz') },
+      { id: 'fetch_url', label: t('mlearn.ConversationAgent.Tools.FetchUrl') },
+      { id: 'get_media_stats', label: t('mlearn.ConversationAgent.Tools.GetMediaStats') },
+      { id: 'search_wikipedia', label: t('mlearn.ConversationAgent.Tools.SearchWikipedia') },
+    ];
+    const agentCfg = activeAgent();
+    if (agentCfg?.roleplayFandomUrl) {
+      items.push({ id: 'search_fandom', label: t('mlearn.ConversationAgent.Tools.SearchFandom') });
+    }
+    if (agentCfg?.personality === 'roleplay' && agentCfg.roleplayContext) {
+      items.push({ id: 'recall_backstory', label: t('mlearn.ConversationAgent.Tools.RecallBackstory') });
+    }
+    return items;
+  };
+
+  const handleToolToggle = (toolId: string, enabled: boolean) => {
+    setDisabledTools((prev) => {
+      const next = new Set(prev);
+      if (enabled) {
+        next.delete(toolId);
+      } else {
+        next.add(toolId);
+      }
+      return next;
+    });
+  };
+
+  // Auto-resize textarea + command palette detection
   const handleTextareaInput = (e: InputEvent) => {
     const target = e.currentTarget as HTMLTextAreaElement;
     setInputText(target.value);
     target.style.height = 'auto';
     target.style.height = Math.min(target.scrollHeight, 120) + 'px';
+
+    const text = target.value.trim();
+    if (text.startsWith('/')) {
+      setShowCommandPalette(true);
+      setCommandSelectedIndex(0);
+    } else {
+      setShowCommandPalette(false);
+    }
   };
 
   // Word hover handler for chat tokens
@@ -871,14 +924,7 @@ export const ConversationContent: Component = () => {
     setIsProcessingToolCall(false);
 
     const context = `[The learner opened the chat. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
-    const baseCallbacks = buildStreamCallbacks();
-    agent.continueWithContext(context, {
-      ...baseCallbacks,
-      onDone: (...args) => {
-        baseCallbacks.onDone(...args);
-        agent.generateTopicPlan();
-      },
-    });
+    agent.continueWithContext(context, buildStreamCallbacks());
   };
 
   const handleSend = () => {
@@ -898,6 +944,14 @@ export const ConversationContent: Component = () => {
     setIsStreaming(false);
     setIsWaiting(false);
     setIsProcessingToolCall(false);
+
+    // If the only message is an empty/partial first assistant greeting with no
+    // user messages yet, clear everything so the welcome screen returns.
+    const msgs = messages();
+    const hasUserMessage = msgs.some((m) => m.role === 'user');
+    if (!hasUserMessage) {
+      handleClear();
+    }
   };
 
   const handleRegenerate = (messageIndex: number) => {
@@ -943,6 +997,31 @@ export const ConversationContent: Component = () => {
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    if (showCommandPalette() && filteredCommands().length > 0) {
+      const cmds = filteredCommands();
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setCommandSelectedIndex((i) => (i > 0 ? i - 1 : cmds.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setCommandSelectedIndex((i) => (i < cmds.length - 1 ? i + 1 : 0));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        executeCommand(cmds[commandSelectedIndex()]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowCommandPalette(false);
+        setInputText('');
+        if (textareaRef) textareaRef.style.height = 'auto';
+        return;
+      }
+    }
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSend();
@@ -1028,7 +1107,6 @@ export const ConversationContent: Component = () => {
 
   const handleClear = () => {
     setMessages([]);
-    setTopicPlan([]);
     agent.clearHistory();
   };
 
@@ -1135,14 +1213,6 @@ export const ConversationContent: Component = () => {
       {/* Chat panel */}
       <TabPanel tabId="chat" activeTab={activeTab()}>
         <div class="ca-chat-panel">
-          {/* Conversation plan */}
-          <Show when={topicPlan().length > 0}>
-            <ConversationPlan
-              plan={topicPlan()}
-              onAdjustDifficulty={(direction: PlanDifficulty) => agent.generateTopicPlan(direction)}
-            />
-          </Show>
-
           {/* TTS indicator */}
           <Show when={isSpeaking()}>
             <div class="ca-tts-indicator">
@@ -1188,6 +1258,7 @@ export const ConversationContent: Component = () => {
                       triggerKey={currentKey()}
                       onQuizAnswer={(widgetIndex, answer) => handleQuizAnswer(index, widgetIndex, answer)}
                       onRegenerate={msg().role === 'assistant' ? () => handleRegenerate(index) : undefined}
+                      avatarSrc={activeAgent()?.profilePhoto}
                     />
                   </Show>
                 )}
@@ -1228,6 +1299,14 @@ export const ConversationContent: Component = () => {
               </Show>
 
               <div class="ca-input-wrapper">
+                <Show when={showCommandPalette()}>
+                  <CommandPalette
+                    commands={filteredCommands()}
+                    selectedIndex={commandSelectedIndex()}
+                    onSelect={executeCommand}
+                  />
+                </Show>
+
                 <Textarea
                   ref={textareaRef}
                   class="ca-chat-textarea"
@@ -1292,6 +1371,11 @@ export const ConversationContent: Component = () => {
                 />
               </div>
             </Show>
+            <ToolMenu
+              tools={toolMenuItems()}
+              disabledTools={disabledTools()}
+              onToggle={handleToolToggle}
+            />
           </StatusBar>
         </div>
 
