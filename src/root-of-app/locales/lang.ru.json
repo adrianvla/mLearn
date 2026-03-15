@@ -302,6 +302,19 @@
       "Checker": {
         "Alternatives": "Альтернативы"
       },
+      "Commands": {
+        "NewTopic": "Новая тема",
+        "NewTopicDesc": "Перейти к новой теме разговора"
+      },
+      "Tools": {
+        "CorrectMistake": "Исправление ошибок",
+        "CreateQuiz": "Создание викторин",
+        "FetchUrl": "Загрузка URL",
+        "GetMediaStats": "Статистика медиа",
+        "SearchWikipedia": "Поиск в Википедии",
+        "SearchFandom": "Поиск в Fandom",
+        "RecallBackstory": "Вспомнить предысторию"
+      },
       "Quiz": {
         "BlankInputAriaLabel": "Пропуск {index}",
         "Correct": "Правильно!",
@@ -444,16 +457,6 @@
         "ManualSetup": "Ручная настройка",
         "ManualSetupHint": "Заполните данные персонажа самостоятельно."
       },
-      "Topics": {
-        "Easier": "Сгенерировать более простые темы",
-        "Generating": "Генерация тем...",
-        "Harder": "Сгенерировать более сложные темы",
-        "Title": "Запланированные темы"
-      },
-      "Plan": {
-        "Show": "Показать план",
-        "Hide": "Скрыть план"
-      },
       "QuickStart": {
         "Button": "Быстрый старт через Fandom",
         "Hint": "Автоматически заполнить поля ролевой игры, выполнив поиск по Fandom Wiki.",
@@ -481,7 +484,10 @@
         "ReviewLore": "Описание персонажа",
         "ReviewQuotes": "Примеры цитат",
         "ReviewContext": "Предыстория",
-        "ReviewFandom": "Fandom Wiki"
+        "ReviewFandom": "Fandom Wiki",
+        "FetchingChapters": "Загрузка кратких содержаний глав...",
+        "ExploringWiki": "Исследование вики для контекста сюжета...",
+        "ExploringWikiDetail": "Исследование вики: {detail}"
       }
     },
     "ErrorModal": {
@@ -602,7 +608,16 @@
         "SomeFailed": "Некоторые задачи не выполнены",
         "ToastTitle": "Генерация содержимого карточки",
         "Translation": "Перевод",
-        "WordTts": "Аудио слова"
+        "WordTts": "Аудио слова",
+        "TtsFailed": "Ошибка генерации TTS"
+      },
+      "Repair": {
+        "Description": "{count} аудиофайлов карточек отсутствуют. Хотите сгенерировать их заново?",
+        "Done": "Восстановлено {count} аудиофайлов карточек",
+        "DoneWithErrors": "Восстановлено {total} аудиофайлов ({failed} с ошибками)",
+        "RepairButton": "Восстановить",
+        "Title": "Отсутствующее аудио карточек",
+        "ToastTitle": "Восстановление аудио карточек…"
       },
       "Review": {
         "Again": "Снова",
@@ -924,7 +939,17 @@
           "DictionaryFilter": "Найдено в словаре",
           "DictionaryFilterDescription": "Добавить все слова, найденные в словаре",
           "AddAll": "Добавить все ({count})",
-          "AddSelected": "Добавить выбранное ({count})"
+          "AddSelected": "Добавить выбранное ({count})",
+          "SelectAll": "Выбрать все",
+          "DeselectAll": "Снять выбор",
+          "AddChecked": "Добавить выбранные ({count})",
+          "WordListTitle": "Слова для добавления"
+        },
+        "SortBy": {
+          "Label": "Сортировать по",
+          "OCROrder": "Порядок чтения",
+          "Level": "Уровень",
+          "Word": "По алфавиту"
         }
       },
       "Status": {
@@ -1288,6 +1313,29 @@
             "NoCard": "Карточки для этого типа записи не найдены",
             "Title": "Предпросмотр карточки"
           },
+          "Templates": {
+            "Description": "Определите содержимое полей Anki. Заполнители: {word}, {reading}, {meaning}, {example}, {exampleMeaning}",
+            "Expression": {
+              "Label": "Шаблон выражения"
+            },
+            "Reading": {
+              "Label": "Шаблон чтения"
+            },
+            "Meaning": {
+              "Label": "Шаблон значения"
+            },
+            "Preview": {
+              "Label": "Предпросмотр шаблона",
+              "Description": "Предпросмотр полей с примерными данными"
+            },
+            "Sample": {
+              "Word": "слово",
+              "Reading": "чтение",
+              "Meaning": "определение",
+              "Example": "Пример предложения.",
+              "ExampleMeaning": "Перевод примера предложения."
+            }
+          },
           "Test": "Тест",
           "Title": "Интеграция с Anki"
         },
@@ -1458,6 +1506,70 @@
         "ViewKanjiGrid": "Таблица кандзи"
       },
       "CurrentlyLearning": "Изучается сейчас",
+      "Dashboard": {
+        "AverageEase": "Средняя лёгкость",
+        "BestStreak": "Лучшая серия",
+        "CardState": {
+          "Learning": "Изучается",
+          "New": "Новые",
+          "Review": "Повторение",
+          "Suspended": "Приостановлено"
+        },
+        "CardStates": "Состояния карточек",
+        "CenterLabel": {
+          "Cards": "карт.",
+          "Mature": "зрелые",
+          "Words": "слов"
+        },
+        "CurrentStreak": "Текущая серия",
+        "DaysStudied": "Дней обучения",
+        "EaseDistribution": "Распределение лёгкости",
+        "Forecast": "Прогноз повторений на 14 дней",
+        "Graduated": "Завершено",
+        "ImmersionTime": "Время погружения",
+        "IntervalDistribution": "Распределение интервалов",
+        "Lapses": "Провалы",
+        "Maturity": {
+          "Mature": "Зрелые (\u226521д)",
+          "Title": "Зрелость",
+          "Young": "Молодые (<21д)"
+        },
+        "NewLearned": "Новые изученные",
+        "Overdue": "Просрочено",
+        "RetentionRate": "Процент запоминания",
+        "ReviewActivity": "Активность повторений (30 дней)",
+        "ReviewHeatmap": "Тепловая карта повторений",
+        "ReviewStudyTime": "Время повторений",
+        "Reviews": "Повторения",
+        "SrsConfig": "Настройки SRS",
+        "Srs": {
+          "EasyInterval": "Лёгкий интервал",
+          "GraduatingInterval": "Интервал выпуска",
+          "LearningSteps": "Шаги обучения",
+          "MaxInterval": "Макс. интервал",
+          "MaxReviewsPerDay": "Макс. повторений/день",
+          "NewCardsPerDay": "Новых карточек/день",
+          "NewIntervalMod": "Мод. нового интервала",
+          "RelearnSteps": "Шаги переобучения",
+          "ReviewIntervalMod": "Мод. интервала повторения"
+        },
+        "StudyTime": "Время обучения",
+        "TimeRead": "Время чтения",
+        "TimeWatched": "Время просмотра",
+        "Today": "Сегодня",
+        "TodaysSession": "Сегодняшняя сессия",
+        "TotalCards": "Всего карточек",
+        "TotalImmersion": "Всего погружения",
+        "TotalReviews": "Всего повторений",
+        "TotalTime": "Общее время",
+        "WordAcquisition": {
+          "AvgEncounters": "Средн. встреч",
+          "MedianEncounters": "Медиана встреч",
+          "Title": "Усвоение слов",
+          "WordsTracked": "Слов отслеживается"
+        },
+        "WordKnowledge": "Знание слов"
+      },
       "Description": "Отслеживайте прогресс и учебный путь",
       "Legend": {
         "Learned": "Выучено",
@@ -1548,6 +1660,7 @@
       "SearchPlaceholder": "Поиск слов...",
       "Searching": "Поиск...",
       "Trackers": {
+        "Anki": "Anki",
         "Flashcards": "Карточки",
         "Ignored": "Игнорируется",
         "Nothing": "Не отслеживается"

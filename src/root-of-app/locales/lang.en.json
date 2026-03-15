@@ -302,6 +302,19 @@
       "Checker": {
         "Alternatives": "Alternatives"
       },
+      "Commands": {
+        "NewTopic": "New topic",
+        "NewTopicDesc": "Switch to a new conversation topic"
+      },
+      "Tools": {
+        "CorrectMistake": "Correct mistakes",
+        "CreateQuiz": "Create quizzes",
+        "FetchUrl": "Fetch URLs",
+        "GetMediaStats": "Media stats",
+        "SearchWikipedia": "Search Wikipedia",
+        "SearchFandom": "Search Fandom",
+        "RecallBackstory": "Recall backstory"
+      },
       "Quiz": {
         "BlankInputAriaLabel": "Blank {index}",
         "Correct": "Correct!",
@@ -444,16 +457,6 @@
         "ManualSetup": "Manual setup",
         "ManualSetupHint": "Fill in the character details yourself."
       },
-      "Topics": {
-        "Easier": "Generate easier topics",
-        "Generating": "Generating topics...",
-        "Harder": "Generate harder topics",
-        "Title": "Planned topics"
-      },
-      "Plan": {
-        "Show": "Show plan",
-        "Hide": "Hide plan"
-      },
       "QuickStart": {
         "Button": "Quick start from Fandom",
         "Hint": "Automatically fill roleplay fields by searching a Fandom wiki.",
@@ -481,7 +484,10 @@
         "ReviewLore": "Character description",
         "ReviewQuotes": "Sample quotes",
         "ReviewContext": "Backstory",
-        "ReviewFandom": "Fandom wiki"
+        "ReviewFandom": "Fandom wiki",
+        "FetchingChapters": "Fetching chapter summaries...",
+        "ExploringWiki": "Exploring wiki for story context...",
+        "ExploringWikiDetail": "Exploring wiki: {detail}"
       }
     },
     "ErrorModal": {
@@ -602,7 +608,16 @@
         "SomeFailed": "Some tasks failed",
         "ToastTitle": "Generating flashcard content",
         "Translation": "Translation",
-        "WordTts": "Word audio"
+        "WordTts": "Word audio",
+        "TtsFailed": "TTS generation failed"
+      },
+      "Repair": {
+        "Description": "{count} flashcard audio files are missing. Would you like to regenerate them?",
+        "Done": "Repaired {count} flashcard audio files",
+        "DoneWithErrors": "Repaired {total} audio files ({failed} failed)",
+        "RepairButton": "Repair",
+        "Title": "Missing flashcard audio",
+        "ToastTitle": "Repairing flashcard audio…"
       },
       "Review": {
         "Again": "Again",
@@ -924,7 +939,17 @@
           "DictionaryFilter": "Found in dictionary",
           "DictionaryFilterDescription": "Add all words that were found in the dictionary",
           "AddAll": "Add All ({count})",
-          "AddSelected": "Add Selected ({count})"
+          "AddSelected": "Add Selected ({count})",
+          "SelectAll": "Select all",
+          "DeselectAll": "Deselect all",
+          "AddChecked": "Add Checked ({count})",
+          "WordListTitle": "Words to add"
+        },
+        "SortBy": {
+          "Label": "Sort by",
+          "OCROrder": "Reading order",
+          "Level": "Level",
+          "Word": "Alphabetical"
         }
       },
       "Status": {
@@ -1288,6 +1313,29 @@
             "NoCard": "No cards found for this note type",
             "Title": "Card Preview"
           },
+          "Templates": {
+            "Description": "Define the content for each Anki field. Placeholders: {word}, {reading}, {meaning}, {example}, {exampleMeaning}",
+            "Expression": {
+              "Label": "Expression Template"
+            },
+            "Reading": {
+              "Label": "Reading Template"
+            },
+            "Meaning": {
+              "Label": "Meaning Template"
+            },
+            "Preview": {
+              "Label": "Template Preview",
+              "Description": "Preview of how fields will look with sample data"
+            },
+            "Sample": {
+              "Word": "word",
+              "Reading": "reading",
+              "Meaning": "definition",
+              "Example": "Example sentence.",
+              "ExampleMeaning": "Example sentence translation."
+            }
+          },
           "Test": "Test",
           "Title": "Anki Integration"
         },
@@ -1458,6 +1506,70 @@
         "ViewKanjiGrid": "View Kanji Grid"
       },
       "CurrentlyLearning": "Currently Learning",
+      "Dashboard": {
+        "AverageEase": "Average Ease",
+        "BestStreak": "Best streak",
+        "CardState": {
+          "Learning": "Learning",
+          "New": "New",
+          "Review": "Review",
+          "Suspended": "Suspended"
+        },
+        "CardStates": "Card States",
+        "CenterLabel": {
+          "Cards": "cards",
+          "Mature": "mature",
+          "Words": "words"
+        },
+        "CurrentStreak": "Current Streak",
+        "DaysStudied": "Days studied",
+        "EaseDistribution": "Ease Factor Distribution",
+        "Forecast": "14-Day Review Forecast",
+        "Graduated": "Graduated",
+        "ImmersionTime": "Immersion Time",
+        "IntervalDistribution": "Interval Distribution",
+        "Lapses": "Lapses",
+        "Maturity": {
+          "Mature": "Mature (\u226521d)",
+          "Title": "Maturity",
+          "Young": "Young (<21d)"
+        },
+        "NewLearned": "New Learned",
+        "Overdue": "Overdue",
+        "RetentionRate": "Retention Rate",
+        "ReviewActivity": "Review Activity (Last 30 Days)",
+        "ReviewHeatmap": "Review Heatmap",
+        "ReviewStudyTime": "Review Study Time",
+        "Reviews": "Reviews",
+        "SrsConfig": "SRS Configuration",
+        "Srs": {
+          "EasyInterval": "Easy Interval",
+          "GraduatingInterval": "Graduating Interval",
+          "LearningSteps": "Learning Steps",
+          "MaxInterval": "Max Interval",
+          "MaxReviewsPerDay": "Max Reviews/Day",
+          "NewCardsPerDay": "New Cards/Day",
+          "NewIntervalMod": "New Interval Mod",
+          "RelearnSteps": "Relearn Steps",
+          "ReviewIntervalMod": "Review Interval Mod"
+        },
+        "StudyTime": "Study Time",
+        "TimeRead": "Time Read",
+        "TimeWatched": "Time Watched",
+        "Today": "Today",
+        "TodaysSession": "Today's Session",
+        "TotalCards": "Total Cards",
+        "TotalImmersion": "Total Immersion",
+        "TotalReviews": "Total Reviews",
+        "TotalTime": "Total time",
+        "WordAcquisition": {
+          "AvgEncounters": "Avg. Encounters",
+          "MedianEncounters": "Median Encounters",
+          "Title": "Word Acquisition",
+          "WordsTracked": "Words Tracked"
+        },
+        "WordKnowledge": "Word Knowledge"
+      },
       "Description": "Track your progress and learning journey",
       "Legend": {
         "Learned": "Learned",
@@ -1548,6 +1660,7 @@
       "SearchPlaceholder": "Search word...",
       "Searching": "Searching...",
       "Trackers": {
+        "Anki": "Anki",
         "Flashcards": "Flashcards",
         "Ignored": "Ignored",
         "Nothing": "Untracked"

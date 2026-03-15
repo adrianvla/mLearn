@@ -4,7 +4,7 @@
  * Modernized UI with sidebar navigation
  */
 
-import { Component, Show, For, createSignal, createMemo, onCleanup } from 'solid-js';
+import { Component, Show, For, createSignal, createMemo, onCleanup, onMount } from 'solid-js';
 import { WindowWrapper, useLocalization, useSettings } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditor, FlashcardSyncModal, FlashcardStats, FlashcardPitchAccent } from '../../components/flashcard';
@@ -27,7 +27,8 @@ import {
   MicrophoneIcon,
   VoiceSamplePicker,
 } from '../../components/common';
-import { showToast } from '../../components/common/Feedback/Toast';
+import { showToast, updateToast, removeToast } from '../../components/common/Feedback/Toast';
+import { stripFurigana } from '../../../shared/utils/textUtils';
 import { getBridge } from '../../../shared/bridges';
 import { getBackend } from '../../../shared/backends';
 import { isElectron } from '../../../shared/platform';
@@ -40,6 +41,13 @@ import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
 
 type TabId = 'review' | 'browse' | 'generate' | 'stats';
+
+interface TtsRepairJob {
+  cardId: string;
+  cardFront: string;
+  text: string;
+  field: 'word' | 'example';
+}
 
 /** Format milliseconds into a human-readable ETA string (e.g. "2m 30s") */
 const formatEta = (ms: number): string => {
@@ -97,6 +105,107 @@ export const FlashcardsContent: Component = () => {
   // Browse TTS hook
   const { playTts: browseTtsPlay, playingField: browseTtsPlayingField, isGenerating: browseTtsGenerating, stop: browseTtsStop } = useFlashcardTts();
   const [browseTtsCardId, setBrowseTtsCardId] = createSignal<string | null>(null);
+
+  // TTS repair state
+  const [repairJobs, setRepairJobs] = createSignal<TtsRepairJob[]>([]);
+  const [showRepairModal, setShowRepairModal] = createSignal(false);
+  const [, setRepairRunning] = createSignal(false);
+
+  // Scan for broken TTS on mount
+  onMount(async () => {
+    if (!isElectron()) return;
+    const bridge = getBridge();
+    const cards = getAllCards();
+    if (cards.length === 0) return;
+
+    const jobs: TtsRepairJob[] = [];
+    for (const card of cards) {
+      const front = card.content.front;
+      const cleanFront = front ? stripFurigana(front) : '';
+      if (cleanFront && cleanFront !== '-') {
+        const existing = await bridge.flashcards.getFlashcardTts(card.id, 'word');
+        if (!existing) {
+          jobs.push({ cardId: card.id, cardFront: front, text: cleanFront, field: 'word' });
+        }
+      }
+      const example = card.content.example;
+      const cleanExample = example ? stripFurigana(example) : '';
+      if (cleanExample && cleanExample !== '-') {
+        const existing = await bridge.flashcards.getFlashcardTts(card.id, 'example');
+        if (!existing) {
+          jobs.push({ cardId: card.id, cardFront: front, text: cleanExample, field: 'example' });
+        }
+      }
+    }
+    if (jobs.length > 0) {
+      setRepairJobs(jobs);
+      setShowRepairModal(true);
+    }
+  });
+
+  // Handle TTS repair
+  const handleRepairTts = async () => {
+    const jobs = repairJobs();
+    if (jobs.length === 0) return;
+    setShowRepairModal(false);
+    setRepairRunning(true);
+
+    const bridge = getBridge();
+    const provider = settings.flashcardTtsProvider;
+    const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
+    const language = settings.language;
+    const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
+    const cloudApiUrl = settings.cloudApiUrl || undefined;
+    const total = jobs.length;
+    let completed = 0;
+    let failed = 0;
+
+    const toastId = showToast({
+      variant: 'info',
+      title: t('mlearn.Flashcards.Repair.ToastTitle'),
+      content: (
+        <ProgressBar value={0} size="sm" variant="primary" showPercent percentPosition="below" />
+      ),
+      duration: 0,
+    });
+
+    for (const job of jobs) {
+      try {
+        const result = await bridge.flashcards.generateFlashcardTts(
+          job.cardId, job.text, language, job.field, provider,
+          voiceSampleId, cloudAuthToken, cloudApiUrl
+        );
+        if (!result) failed++;
+      } catch {
+        failed++;
+      }
+      completed++;
+      const pct = Math.round((completed / total) * 100);
+      updateToast(toastId, {
+        content: (
+          <ProgressBar value={pct} size="sm" variant="primary" showPercent percentPosition="below" />
+        ),
+      });
+    }
+
+    removeToast(toastId);
+    setRepairRunning(false);
+    setRepairJobs([]);
+
+    if (failed > 0) {
+      showToast({
+        variant: 'warning',
+        title: t('mlearn.Flashcards.Repair.DoneWithErrors', { total: completed, failed }),
+        duration: 5000,
+      });
+    } else {
+      showToast({
+        variant: 'success',
+        title: t('mlearn.Flashcards.Repair.Done', { count: completed }),
+        duration: 4000,
+      });
+    }
+  };
 
   const handleBrowseTts = (cardId: string, text: string) => {
     if (browseTtsCardId() === cardId && browseTtsPlayingField() === 'word') {
@@ -773,6 +882,22 @@ export const FlashcardsContent: Component = () => {
         isOpen={showSyncModal()}
         onClose={() => setShowSyncModal(false)}
       />
+
+      {/* TTS Repair Modal */}
+      <Modal
+        isOpen={showRepairModal()}
+        onClose={() => setShowRepairModal(false)}
+        title={t('mlearn.Flashcards.Repair.Title')}
+        size="sm"
+        footer={
+          <>
+            <Btn onClick={() => setShowRepairModal(false)}>{t('mlearn.Global.Close')}</Btn>
+            <Btn variant="primary" onClick={handleRepairTts}>{t('mlearn.Flashcards.Repair.RepairButton')}</Btn>
+          </>
+        }
+      >
+        <p>{t('mlearn.Flashcards.Repair.Description', { count: repairJobs().length })}</p>
+      </Modal>
     </div>
   );
 };

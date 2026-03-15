@@ -6,8 +6,12 @@
 import { Component, createSignal, For, Show, onMount } from 'solid-js';
 import { useLocalization } from '../../../context';
 import { Modal, Spinner, AlertBanner, ModalFooter } from '../../../components/common';
-import { useAnki, type AnkiNoteInfo } from '../../../hooks/useAnki';
+import { getBackend } from '../../../../shared/backends';
 import './AnkiCardPreviewModal.css';
+
+interface CardFields {
+  [fieldName: string]: { value: string; order: number };
+}
 
 export interface AnkiCardPreviewModalProps {
   word: string;
@@ -19,25 +23,17 @@ export interface AnkiCardPreviewModalProps {
 
 export const AnkiCardPreviewModal: Component<AnkiCardPreviewModalProps> = (props) => {
   const { t } = useLocalization();
-  const anki = useAnki();
   const [loading, setLoading] = createSignal(true);
-  const [note, setNote] = createSignal<AnkiNoteInfo | null>(null);
+  const [cardFields, setCardFields] = createSignal<CardFields | null>(null);
   const [error, setError] = createSignal<string | null>(null);
 
   onMount(async () => {
     try {
-      const connected = await anki.checkConnection();
-      if (!connected) {
-        setError(t('mlearn.WordDbEditor.Anki.NotConnected'));
-        setLoading(false);
-        return;
-      }
-
-      const noteIds = await anki.findNotes(props.word);
-      if (noteIds.length > 0) {
-        const notes = await anki.getNotesInfo(noteIds);
-        if (notes.length > 0) {
-          setNote(notes[0]);
+      const result = await getBackend().getCard({ word: props.word }) as { cards: any[]; error: boolean };
+      if (!result.error && result.cards.length > 0) {
+        const card = result.cards[0];
+        if (card.fields) {
+          setCardFields(card.fields);
         } else {
           setError(t('mlearn.WordDbEditor.Anki.NoCardFound'));
         }
@@ -52,14 +48,14 @@ export const AnkiCardPreviewModal: Component<AnkiCardPreviewModalProps> = (props
   });
 
   const sortedFields = () => {
-    const n = note();
-    if (!n) return [];
-    return Object.entries(n.fields)
+    const fields = cardFields();
+    if (!fields) return [];
+    return Object.entries(fields)
       .sort(([, a], [, b]) => a.order - b.order);
   };
 
   const footer = () => {
-    if (props.onExport && !note()) {
+    if (props.onExport && !cardFields()) {
       return (
         <ModalFooter
           cancelText={t('mlearn.Global.Close')}
@@ -88,18 +84,8 @@ export const AnkiCardPreviewModal: Component<AnkiCardPreviewModalProps> = (props
         <AlertBanner variant="warning" message={error()!} />
       </Show>
 
-      <Show when={!loading() && note()}>
+      <Show when={!loading() && cardFields()}>
         <div class="anki-card-preview-modal__content">
-          <div class="anki-card-preview-modal__meta">
-            <span class="anki-card-preview-modal__model">{note()!.modelName}</span>
-            <Show when={note()!.tags.length > 0}>
-              <span class="anki-card-preview-modal__tags">
-                <For each={note()!.tags}>{(tag) =>
-                  <span class="anki-card-preview-modal__tag">{tag}</span>
-                }</For>
-              </span>
-            </Show>
-          </div>
           <div class="anki-card-preview-modal__fields">
             <For each={sortedFields()}>{([fieldName, fieldData]) =>
               <div class="anki-card-preview-modal__field">

@@ -95,6 +95,10 @@ function buildCheckerPrompt(langName: string, customInstructions?: string): stri
 - When the same word or phrase appears multiple times, provide context_before and/or context_after for disambiguation.
 - Provide alternatives when there are multiple valid ways to express the same thing.
 - Do NOT correct text that is not in ${langName} — the learner may mix languages occasionally.
+- Do NOT correct names.
+- Do NOT correct formality.
+- Do NOT correct anything if it's just to rewrite the sentence.
+- If you believe that there is nothing to correct, respond with an empty message (no tool call).
 
 ## Casual Speech Policy
 - Be LENIENT with casual, colloquial, or informal speech. Casual register is VALID and should NOT be corrected.

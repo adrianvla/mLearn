@@ -12,6 +12,7 @@ import {
   Btn,
   Select,
   Input,
+  Textarea,
   Modal,
   ModalFooter,
   VoiceSamplePicker
@@ -332,6 +333,79 @@ export const SRSTab: Component = () => {
                 placeholder={t('mlearn.Settings.SRS.AnkiIntegration.FieldMapping.Placeholder')}
                 options={ankiFields().map(f => ({ value: f, label: f }))}
               />
+            </SettingRow>
+
+            {/* Field Templates */}
+            <SettingRow
+              label={t('mlearn.Settings.SRS.AnkiIntegration.Templates.Expression.Label')}
+              description={t('mlearn.Settings.SRS.AnkiIntegration.Templates.Description')}
+            >
+              <Textarea
+                value={settings.ankiTemplateExpression}
+                onInput={(e) => updateSettings({ ankiTemplateExpression: e.currentTarget.value })}
+                rows={2}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label={t('mlearn.Settings.SRS.AnkiIntegration.Templates.Reading.Label')}
+              description={t('mlearn.Settings.SRS.AnkiIntegration.Templates.Description')}
+            >
+              <Textarea
+                value={settings.ankiTemplateReading}
+                onInput={(e) => updateSettings({ ankiTemplateReading: e.currentTarget.value })}
+                rows={2}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label={t('mlearn.Settings.SRS.AnkiIntegration.Templates.Meaning.Label')}
+              description={t('mlearn.Settings.SRS.AnkiIntegration.Templates.Description')}
+            >
+              <Textarea
+                value={settings.ankiTemplateMeaning}
+                onInput={(e) => updateSettings({ ankiTemplateMeaning: e.currentTarget.value })}
+                rows={3}
+              />
+            </SettingRow>
+
+            <SettingRow
+              label={t('mlearn.Settings.SRS.AnkiIntegration.Templates.Preview.Label')}
+              description={t('mlearn.Settings.SRS.AnkiIntegration.Templates.Preview.Description')}
+            >
+              <div class="anki-field-preview">
+                <div class="anki-field-preview__grid">
+                  <span class="anki-field-preview__label">{settings.anki_field_expression}:</span>
+                  <span class="anki-field-preview__value">
+                    {(settings.ankiTemplateExpression || '{word}')
+                      .replace(/\{word\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Word'))
+                      .replace(/\{reading\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Reading'))
+                      .replace(/\{meaning\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Meaning'))
+                      .replace(/\{example\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Example'))
+                      .replace(/\{exampleMeaning\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.ExampleMeaning'))}
+                  </span>
+                  <Show when={settings.anki_field_reading}>
+                    <span class="anki-field-preview__label">{settings.anki_field_reading}:</span>
+                    <span class="anki-field-preview__value">
+                      {(settings.ankiTemplateReading || '{reading}')
+                        .replace(/\{word\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Word'))
+                        .replace(/\{reading\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Reading'))
+                        .replace(/\{meaning\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Meaning'))
+                        .replace(/\{example\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Example'))
+                        .replace(/\{exampleMeaning\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.ExampleMeaning'))}
+                    </span>
+                  </Show>
+                  <span class="anki-field-preview__label">{settings.anki_field_meaning}:</span>
+                  <span class="anki-field-preview__value">
+                    {(settings.ankiTemplateMeaning || '{meaning}')
+                      .replace(/\{word\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Word'))
+                      .replace(/\{reading\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Reading'))
+                      .replace(/\{meaning\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Meaning'))
+                      .replace(/\{example\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.Example'))
+                      .replace(/\{exampleMeaning\}/g, t('mlearn.Settings.SRS.AnkiIntegration.Templates.Sample.ExampleMeaning'))}
+                  </span>
+                </div>
+              </div>
             </SettingRow>
 
             {/* Card Preview */}

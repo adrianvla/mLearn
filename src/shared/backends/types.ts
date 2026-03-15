@@ -27,6 +27,8 @@ export interface BackendAdapter {
   ocr(imageData: string | Blob): Promise<OCRResult>;
   /** Get Anki-compatible card data */
   getCard(params: Record<string, unknown>): Promise<unknown>;
+  /** Get the list of all expression values from the Anki cache */
+  getAnkiWords(): Promise<string[]>;
   /** Ping the backend to check if it's alive */
   ping(): Promise<boolean>;
   /** Get the base URL of the backend */

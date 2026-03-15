@@ -173,9 +173,16 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         }
         const clean = stripFurigana(wordForTts);
         if (clean && clean !== '-') {
-          await bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, cloudAuthToken, cloudApiUrl);
+          const result = await bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, cloudAuthToken, cloudApiUrl);
+          if (result) {
+            updateTask('wordTts', 'done');
+          } else {
+            updateTask('wordTts', 'error');
+            hadError = true;
+          }
+        } else {
+          updateTask('wordTts', 'done');
         }
-        updateTask('wordTts', 'done');
       } catch {
         updateTask('wordTts', 'error');
         hadError = true;
@@ -194,9 +201,16 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
           textForTts = stripFurigana(exText);
         }
         if (textForTts && textForTts !== '-') {
-          await bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, cloudAuthToken, cloudApiUrl);
+          const result = await bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, cloudAuthToken, cloudApiUrl);
+          if (result) {
+            updateTask('exampleTts', 'done');
+          } else {
+            updateTask('exampleTts', 'error');
+            hadError = true;
+          }
+        } else {
+          updateTask('exampleTts', 'done');
         }
-        updateTask('exampleTts', 'done');
       } catch {
         updateTask('exampleTts', 'error');
         hadError = true;

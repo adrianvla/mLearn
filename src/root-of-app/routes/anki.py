@@ -263,3 +263,16 @@ def quit_endpoint():
         os._exit(0)
     threading.Timer(0.2, _shutdown).start()
     return {"response": "quitting"}
+
+
+@router.get("/ankiWords")
+def anki_words():
+    """Return the set of all expression values loaded in the Anki cache."""
+    words = set()
+    for card in all_cards:
+        val = card.get('fields', {}).get('Expression', {}).get('value', '')
+        if val:
+            clean = re.sub(r'<[^>]*>', '', val).strip()
+            if clean:
+                words.add(clean)
+    return {"words": list(words)}

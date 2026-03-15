@@ -91,6 +91,10 @@
   gap: var(--spacing-2);
 }
 
+.horizontal-bars-spaced {
+  margin-top: var(--spacing-3);
+}
+
 .h-bar-row {
   display: flex;
   align-items: center;

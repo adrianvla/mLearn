@@ -81,6 +81,8 @@ interface ChatBubbleProps {
   triggerKey?: string;
   onQuizAnswer?: (widgetIndex: number, answer: string) => void;
   onRegenerate?: () => void;
+  /** Base64 data URI for the agent's profile photo — shown to the left of assistant bubbles */
+  avatarSrc?: string;
 }
 
 export const ChatBubble: Component<ChatBubbleProps> = (props) => {
@@ -131,7 +133,11 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
   };
 
   return (
-    <div class={`chat-bubble ${props.message.role}`}>
+    <div class={`chat-bubble ${props.message.role}${props.avatarSrc && isAssistant() ? ' has-avatar' : ''}`}>
+      <Show when={props.avatarSrc && isAssistant()}>
+        <img class="chat-bubble-avatar" src={props.avatarSrc} alt="" />
+      </Show>
+      <div class="chat-bubble-inner">
       <div class="chat-bubble-content">
         {/* State 1: Waiting for stream to begin (spinner) */}
         <Show when={isAssistantEmpty() && props.isStreaming && props.isWaiting}>
@@ -243,6 +249,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
           </Show>
         </div>
       </Show>
+      </div>
     </div>
   );
 };

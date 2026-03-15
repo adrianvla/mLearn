@@ -183,6 +183,7 @@ interface FlashcardContextValue {
   getWordKnowledge: (wordHash: string) => PassiveWordKnowledge | undefined;
   isWordKnown: (wordHash: string) => boolean;
   isWordKnownByText: (word: string) => boolean;
+  trackWordStatusChange: (word: string) => void;
 
   // Grammar knowledge tracking
   trackGrammarEncountered: (pattern: string, level?: number) => void;
@@ -842,9 +843,15 @@ export const FlashcardProvider: ParentComponent = (props) => {
       try {
         const cleanWord = stripFurigana(card.content.front);
         if (cleanWord && cleanWord !== '-') {
-          await bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+          const result = await bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+          if (result) {
+            updatePostCreateTask(wordLabel, 'wordTts', 'done');
+          } else {
+            updatePostCreateTask(wordLabel, 'wordTts', 'error');
+          }
+        } else {
+          updatePostCreateTask(wordLabel, 'wordTts', 'done');
         }
-        updatePostCreateTask(wordLabel, 'wordTts', 'done');
       } catch (err) {
         console.warn('Failed to generate word TTS:', err);
         updatePostCreateTask(wordLabel, 'wordTts', 'error');
@@ -856,9 +863,15 @@ export const FlashcardProvider: ParentComponent = (props) => {
         try {
           const cleanExample = stripFurigana(card.content.example!);
           if (cleanExample && cleanExample !== '-') {
-            await bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+            const result = await bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+            if (result) {
+              updatePostCreateTask(wordLabel, 'exampleTts', 'done');
+            } else {
+              updatePostCreateTask(wordLabel, 'exampleTts', 'error');
+            }
+          } else {
+            updatePostCreateTask(wordLabel, 'exampleTts', 'done');
           }
-          updatePostCreateTask(wordLabel, 'exampleTts', 'done');
         } catch (err) {
           console.warn('Failed to generate example TTS:', err);
           updatePostCreateTask(wordLabel, 'exampleTts', 'error');
@@ -1473,6 +1486,28 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return false;
   };
 
+  // Record when a user manually changes the word status pill
+  // Only records the first manual change; skips words changed within first 3 encounters
+  const trackWordStatusChange = (word: string) => {
+    const canonical = getCanonicalForm(word);
+    const wordHash = SRS.hashWordSync(canonical);
+    const lk = langKey(settings.language, wordHash);
+    const k = store.wordKnowledge[lk];
+    if (!k) return;
+    // Already recorded a manual status change for this word
+    if (k.statusChangedAtSeen !== undefined) return;
+    // Skip words the user already knew (changed within first 3 encounters)
+    if (k.timesSeen <= 3) return;
+
+    setStore(produce((s) => {
+      const entry = s.wordKnowledge[lk];
+      if (entry && entry.statusChangedAtSeen === undefined) {
+        entry.statusChangedAtSeen = entry.timesSeen;
+      }
+    }));
+    saveFlashcards();
+  };
+
   // ========================
   // Grammar Knowledge
   // ========================
@@ -1986,6 +2021,7 @@ Translation: [${targetLang} translation]`;
     getWordKnowledge,
     isWordKnown,
     isWordKnownByText,
+    trackWordStatusChange,
     trackGrammarEncountered,
     trackGrammarFailed,
     getGrammarKnowledge,

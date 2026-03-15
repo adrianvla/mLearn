@@ -3,7 +3,7 @@ import { createStore } from 'solid-js/store';
 import { WORD_STATUS } from '../../../../../shared/constants';
 import type { Token, TranslationEntry, TranslationResponse } from '../../../../../shared/types';
 import type { OcrBox } from '../../../../components/reader/OcrOverlay';
-import { Btn, ClockIcon, CollapsibleStickyHeader, PillBtn, PillLabel, PitchAccentOverlay, ToggleSwitch } from '../../../../components/common';
+import { Btn, ClockIcon, CollapsibleStickyHeader, PillBtn, PillLabel, PitchAccentOverlay, Select, ToggleSwitch } from '../../../../components/common';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../../../context';
 import { getCachedTranslation, useTranslation } from '../../../../hooks/useTranslation';
 import { setWordStatus, wordsLearnedInApp } from '../../../../services/statsService';
@@ -237,7 +237,10 @@ const UnknownWordRow: Component<{
               <PillBtn
                 variant="green"
                 icon={ICON_CHECK}
-                label={t('mlearn.Flashcards.Card.Tracked')}
+                label={currentEase() !== undefined
+                  ? `${t('mlearn.Flashcards.Card.Ease')} ${Math.round((currentEase()!) * 100) / 100}`
+                  : t('mlearn.Flashcards.Card.Tracked')
+                }
               />
             }
           >
@@ -249,22 +252,21 @@ const UnknownWordRow: Component<{
             />
           </Show>
         </Show>
-        <Show when={isTracked() && (currentEase() !== undefined)}>
-          <div class="reader-unknown-words-ease">
-            <span>{t('mlearn.Flashcards.Card.Ease')} {Math.round((currentEase() ?? 0) * 100) / 100}</span>
-          </div>
-        </Show>
       </div>
     </article>
   );
 };
 
+type SidebarSortKey = 'ocr' | 'level' | 'word';
+
 export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps> = (props) => {
   const { t } = useLocalization();
   const { hasWordSync, isWordIgnoredSync } = useFlashcards();
+  const { getFrequency } = useLanguage();
   const { translateWord } = useTranslation({ immediate: true });
   const [translations, setTranslations] = createStore<Record<string, TranslationResponse | null | undefined>>({});
   const requestedWords = new Set<string>();
+  const [sortKey, setSortKey] = createSignal<SidebarSortKey>('ocr');
 
   createEffect(() => {
     for (const entry of props.words()) {
@@ -302,9 +304,30 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
     addableEntries().filter((entry) => hasDictionaryEntry(translations[entry.word]))
   );
 
-  const visibleWords = createMemo(() =>
-    dictionaryOnly() ? dictionaryFoundWords() : props.words()
-  );
+  const sortedBase = createMemo(() => {
+    const base = dictionaryOnly() ? dictionaryFoundWords() : props.words();
+    const key = sortKey();
+    if (key === 'ocr') return base;
+    const sorted = [...base];
+    if (key === 'level') {
+      sorted.sort((a, b) => {
+        const fa = getFrequency(a.word);
+        const fb = getFrequency(b.word);
+        return (fb?.raw_level ?? -1) - (fa?.raw_level ?? -1);
+      });
+    } else if (key === 'word') {
+      sorted.sort((a, b) => a.word.localeCompare(b.word));
+    }
+    return sorted;
+  });
+
+  const visibleWords = createMemo(() => sortedBase());
+
+  const sortOptions = createMemo(() => [
+    { value: 'ocr', label: t('mlearn.Reader.Sidebar.SortBy.OCROrder') },
+    { value: 'level', label: t('mlearn.Reader.Sidebar.SortBy.Level') },
+    { value: 'word', label: t('mlearn.Reader.Sidebar.SortBy.Word') },
+  ]);
 
   let sidebarRef: HTMLElement | undefined;
 
@@ -315,11 +338,19 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
         class="reader-unknown-words-sticky-header"
       >
         <div class="reader-unknown-words-sidebar-header">
-          <div>
-            <h2 class="reader-unknown-words-sidebar-title">{t('mlearn.Reader.Sidebar.UnknownWords')}</h2>
-            <div class="reader-unknown-words-sidebar-count">
-              {t('mlearn.Reader.Sidebar.UnknownWordsCount', { count: visibleWords().length })}
+          <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+            <div style="display:flex;justify-content:center;flex-direction:column">
+              <h2 class="reader-unknown-words-sidebar-title">{t('mlearn.Reader.Sidebar.UnknownWords')}</h2>
+              <div class="reader-unknown-words-sidebar-count">
+                {t('mlearn.Reader.Sidebar.UnknownWordsCount', { count: visibleWords().length })}
+              </div>
             </div>
+              <Select
+                class="reader-unknown-words-sort-select"
+                value={sortKey()}
+                onChange={(e) => setSortKey(e.currentTarget.value as SidebarSortKey)}
+                options={sortOptions()}
+              />
           </div>
           <div class="reader-unknown-words-sidebar-actions">
             <ToggleSwitch

@@ -120,6 +120,7 @@ export interface WordEntryRowProps {
   onExportToAnki?: (entry: WordEntry) => void;
   onAnkiPreview?: (entry: WordEntry) => void;
   ankiExportState?: AnkiExportState;
+  isInAnki?: boolean;
 }
 
 export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
@@ -180,9 +181,41 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
 
   const trackerLabel = createMemo(() => {
     if (props.entry.tracker === 'flashcards') return t('mlearn.WordDbEditor.Trackers.Flashcards');
+    if (props.entry.tracker === 'anki') return t('mlearn.WordDbEditor.Trackers.Anki');
     if (props.entry.tracker === 'ignored') return t('mlearn.WordDbEditor.Trackers.Ignored');
     return t('mlearn.WordDbEditor.Trackers.Nothing');
   });
+
+  // Anki hover preview state
+  const [ankiHoverOpen, setAnkiHoverOpen] = createSignal(false);
+  const [ankiHoverCard, setAnkiHoverCard] = createSignal<Record<string, { value: string; order: number }> | null>(null);
+  const [ankiHoverLoading, setAnkiHoverLoading] = createSignal(false);
+  let ankiHoverRef: HTMLSpanElement | undefined;
+  let ankiHoverFetched = false;
+
+  const handleAnkiHoverEnter = async () => {
+    if (props.entry.tracker !== 'anki') return;
+    setAnkiHoverOpen(true);
+    if (ankiHoverFetched) return;
+    ankiHoverFetched = true;
+    setAnkiHoverLoading(true);
+    try {
+      const { getBackend } = await import('../../../../shared/backends');
+      const result = await getBackend().getCard({ word: props.entry.word }) as { cards: any[]; error: boolean };
+      if (!result.error && result.cards.length > 0) {
+        const card = result.cards[0];
+        setAnkiHoverCard(card.fields || null);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setAnkiHoverLoading(false);
+    }
+  };
+
+  const handleAnkiHoverLeave = () => {
+    setAnkiHoverOpen(false);
+  };
 
   // Lazily fetch translation when the row becomes visible.
   // Uses fetchTranslation which populates the global cache (reading + translation + pitch).
@@ -286,7 +319,48 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         <Show when={props.entry.level < 0}>-</Show>
       </div>
       <div class="col tracker">
-        <span class="tracker-label">{trackerLabel()}</span>
+        <span
+          class={`tracker-label ${props.entry.tracker === 'anki' ? 'tracker-label--anki' : ''}`}
+          ref={ankiHoverRef}
+          onMouseEnter={handleAnkiHoverEnter}
+          onMouseLeave={handleAnkiHoverLeave}
+        >
+          {trackerLabel()}
+          <Show when={ankiHoverOpen() && props.entry.tracker === 'anki'}>
+            <div class="anki-hover-preview">
+              <Show when={ankiHoverLoading()}>
+                <span class="anki-hover-preview__loading">{t('mlearn.Global.Loading')}</span>
+              </Show>
+              <Show when={!ankiHoverLoading() && ankiHoverCard()}>
+                {(fields) => (
+                  <div class="anki-hover-preview__fields">
+                    <Show when={fields().Expression}>
+                      <div class="anki-hover-preview__field">
+                        <span class="anki-hover-preview__label">Expression</span>
+                        <span class="anki-hover-preview__value" innerHTML={fields().Expression.value} />
+                      </div>
+                    </Show>
+                    <Show when={fields().Reading}>
+                      <div class="anki-hover-preview__field">
+                        <span class="anki-hover-preview__label">Reading</span>
+                        <span class="anki-hover-preview__value" innerHTML={fields().Reading.value} />
+                      </div>
+                    </Show>
+                    <Show when={fields().Meaning}>
+                      <div class="anki-hover-preview__field">
+                        <span class="anki-hover-preview__label">Meaning</span>
+                        <span class="anki-hover-preview__value" innerHTML={fields().Meaning.value} />
+                      </div>
+                    </Show>
+                  </div>
+                )}
+              </Show>
+              <Show when={!ankiHoverLoading() && !ankiHoverCard()}>
+                <span class="anki-hover-preview__loading">{t('mlearn.WordDbEditor.Anki.NoCardFound')}</span>
+              </Show>
+            </div>
+          </Show>
+        </span>
         <Show when={props.entry.tracker === 'flashcards'}>
           <Show when={props.onEditFlashcard}>
             <Btn
@@ -314,7 +388,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             {t('mlearn.WordDbEditor.Actions.Unignore')}
           </Btn>
         </Show>
-        <Show when={props.entry.tracker !== 'flashcards' && props.entry.tracker !== 'ignored'}>
+        <Show when={props.entry.tracker !== 'flashcards' && props.entry.tracker !== 'ignored' && props.entry.tracker !== 'anki'}>
           <Btn
             variant="primary"
             size="sm"
@@ -323,7 +397,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             {t('mlearn.Global.Add')}
           </Btn>
         </Show>
-        <Show when={props.onAnkiPreview}>
+        <Show when={props.onAnkiPreview && props.isInAnki}>
           <Btn
             variant="ghost"
             size="sm"
@@ -333,7 +407,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
             {t('mlearn.WordDbEditor.Anki.Preview')}
           </Btn>
         </Show>
-        <Show when={props.onExportToAnki}>
+        <Show when={props.onExportToAnki && !props.isInAnki}>
           <Btn
             variant={props.ankiExportState === 'exported' || props.ankiExportState === 'duplicate' ? 'ghost' : 'secondary'}
             size="sm"
@@ -348,7 +422,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
                 ? t('mlearn.WordDbEditor.Anki.AlreadyInAnki')
                 : props.ankiExportState === 'error'
                   ? t('mlearn.WordDbEditor.Anki.ExportFailed')
-                  : 'Anki'}
+                  : t('mlearn.WordDbEditor.Anki.ExportToAnki')}
           </Btn>
         </Show>
       </div>

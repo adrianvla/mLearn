@@ -39,6 +39,13 @@
   width:100%;
 }
 
+.reader-unknown-words-sort-select {
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-1) var(--spacing-2);
+  min-width: 0;
+  max-width: 120px;
+}
+
 .reader-unknown-words-sidebar-title {
   margin: 0;
   font-size: var(--font-size-sm);
@@ -127,12 +134,4 @@
   box-sizing: border-box;
 }
 
-.reader-unknown-words-ease {
-  font-size: 0.8em;
-  color: var(--text-secondary);
-  padding: 5px 10px;
-  background-color: var(--accent-bg);
-  border-radius: 10px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
+/* end of pills */

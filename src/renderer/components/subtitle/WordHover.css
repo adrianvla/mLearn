@@ -256,17 +256,6 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   z-index: -1;
 }
 
-/* Ease indicator */
-.ease-indicator {
-  font-size: 0.8em;
-  color: var(--text-secondary);
-  padding: 5px 10px;
-  background-color: var(--accent-bg);
-  border-radius: 10px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 /* Known status modifier */
 .subtitle_hover.known {
   border-color: var(--color-success);

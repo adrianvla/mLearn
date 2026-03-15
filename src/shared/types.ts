@@ -76,6 +76,9 @@ export interface Settings {
   ankiConnectUrl: string;
   ankiDeckName?: string;
   ankiModelName?: string; // Alias for anki_model_name
+  ankiTemplateExpression: string;
+  ankiTemplateReading: string;
+  ankiTemplateMeaning: string;
 
   // Flashcard settings
   enable_flashcard_creation: boolean;
@@ -330,6 +333,9 @@ export const DEFAULT_SETTINGS: Settings = {
   anki_field_reading: 'Reading',
   anki_field_meaning: 'Meaning',
   anki_model_name: 'Basic',
+  ankiTemplateExpression: '{word}',
+  ankiTemplateReading: '{reading}',
+  ankiTemplateMeaning: '{meaning}',
   passiveEaseEnabled: true,
   passiveHoverDelayMs: 150,
   llmConfigured: false,
@@ -724,6 +730,8 @@ export interface PassiveWordKnowledge {
   reading?: string;
   /** Language this knowledge entry belongs to */
   language?: string;
+  /** timesSeen when user first manually changed status (undefined = never changed) */
+  statusChangedAtSeen?: number;
 }
 
 /** Ignored word entry tracked per language for browse/unignore workflows */
@@ -1036,11 +1044,6 @@ export interface MediaStats {
 // ============================================================================
 
 export type ConversationRole = 'system' | 'user' | 'assistant' | 'tool';
-
-export interface ConversationPlanItem {
-  text: string;
-  done: boolean;
-}
 
 export interface ConversationMessage {
   role: ConversationRole;
