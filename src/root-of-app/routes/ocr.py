@@ -327,6 +327,9 @@ def _get_manga_ocr():
 
 def _init_manga_ocr():
     global _manga_ocr
+    # If warmup hasn't been triggered yet, do the preimport inline
+    if not _transformers_preimport_done.is_set():
+        _ensure_warmup_started()
     _transformers_preimport_done.wait(timeout=120)
     try:
         _fd_count = len(os.listdir('/dev/fd'))
@@ -633,6 +636,63 @@ class OcrProcessingTimes(BaseModel):
 class OcrResponse(BaseModel):
     boxes: List[OcrBox]
     processing_times: OcrProcessingTimes | None = None
+
+
+# ── Warmup endpoint ──
+
+_warmup_lock = threading.Lock()
+_warmup_started = False
+
+
+def _do_warmup():
+    """Run the heavy transformers pre-import in the current thread."""
+    try:
+        _log_ocr_init("Pre-importing transformers for MangaOCR (lazy warmup)...")
+        from transformers import (  # noqa: F401
+            ViTImageProcessor,
+            AutoTokenizer,
+            VisionEncoderDecoderModel,
+            GenerationMixin,
+        )
+        gc.collect()
+        _log_ocr_init("Transformers pre-import done (lazy warmup)")
+    except Exception as e:
+        _log_ocr_init("Transformers pre-import failed (non-fatal):", e)
+    finally:
+        _transformers_preimport_done.set()
+
+
+def _ensure_warmup_started():
+    """Start the warmup thread if not already running."""
+    global _warmup_started
+    with _warmup_lock:
+        if _warmup_started or _transformers_preimport_done.is_set():
+            return
+        _warmup_started = True
+    t = threading.Thread(target=_do_warmup, daemon=True)
+    t.start()
+
+
+@router.post("/ocr/warmup")
+async def ocr_warmup():
+    """Trigger lazy pre-import of transformers for MangaOCR.
+
+    Called when the reader is first opened so the heavy imports happen
+    on-demand rather than at server startup.
+    """
+    if not config.OCR_ALLOWED:
+        return {"status": "disabled"}
+
+    if _transformers_preimport_done.is_set():
+        return {"status": "already_done"}
+
+    global _warmup_started
+    with _warmup_lock:
+        if _warmup_started:
+            return {"status": "in_progress"}
+
+    _ensure_warmup_started()
+    return {"status": "started"}
 
 
 # ── Main endpoint ──

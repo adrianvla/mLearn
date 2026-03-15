@@ -538,6 +538,7 @@ const windowBridge: WindowBridge = {
   onOpenKanjiGrid: noopCleanup,
   onOpenPrompt: noopCleanup,
   onAuthDeepLink: noopCleanup,
+  onLookupDeepLink: noopCleanup,
   promptOutput: noop,
 };
 

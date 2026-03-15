@@ -12,6 +12,7 @@ import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady } from './migrationSignals';
 import { useSettings } from './SettingsContext';
 import { useLocalization } from './LocalizationContext';
+import { useLanguage } from './LanguageContext';
 import { changeKnownStatus as changeKnownStatusInStats } from '../services/statsService';
 import { showToast, updateToast } from '../components/common/Feedback/Toast';
 import { GroupedTaskProgressContent, type TaskState, type TaskStatus, type TaskGroup } from '../components/common/TaskProgress/TaskProgress';
@@ -217,6 +218,7 @@ const FLASHCARD_CHANNEL = 'mlearn-flashcards';
 export const FlashcardProvider: ParentComponent = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
+  const { getCanonicalForm } = useLanguage();
   const newDayHour = () => settings.newDayHour ?? 4;
 
   const [store, setStore] = createStore<FlashcardStore>(getDefaultStore());
@@ -286,7 +288,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             clearInterval(checkReady);
             dispatchMigrationEvent();
           }
-        }, 50);
+        }, 200);
         setTimeout(() => {
           clearInterval(checkReady);
           if (!migrationListenerReady()) {
@@ -647,7 +649,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }
 
     const word = content.front;
-    const wordHash = await SRS.hashWord(word);
+    // Use canonical form for hashing so kana and kanji forms share the same key
+    const canonical = getCanonicalForm(word);
+    const wordHash = await SRS.hashWord(canonical);
     const lang = settings.language;
     const lk = langKey(lang, wordHash);
     console.log('%caddFlashcard: wordHash generated:', 'color: magenta;', wordHash);
@@ -886,7 +890,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (!card) return false;
 
     const word = card.content.front;
-    const wordHash = await SRS.hashWord(word);
+    const canonical = getCanonicalForm(word);
+    const wordHash = await SRS.hashWord(canonical);
     const lang = card.language || settings.language;
     const lk = langKey(lang, wordHash);
 
@@ -1090,7 +1095,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     
     // Recalculate word stats after answering (async)
     (async () => {
-      const wordHash = await SRS.hashWord(card.content.front);
+      const canonical = getCanonicalForm(card.content.front);
+      const wordHash = await SRS.hashWord(canonical);
       const lk = langKey(card.language || settings.language, wordHash);
       recalculateWordStats(lk);
     })();
@@ -1110,7 +1116,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Get all cards for a word (supports multiple cards per word)
   const getCardsByWord = async (word: string): Promise<Flashcard[]> => {
-    const wordHash = await SRS.hashWord(word);
+    const canonical = getCanonicalForm(word);
+    const wordHash = await SRS.hashWord(canonical);
     const lk = langKey(settings.language, wordHash);
     const ids = store.wordToCardMap[lk];
     if (!ids || ids.length === 0) return [];
@@ -1119,7 +1126,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Get the first/best card for a word (backwards compatible)
   const getCardByWord = async (word: string): Promise<Flashcard | null> => {
-    const wordHash = await SRS.hashWord(word);
+    const canonical = getCanonicalForm(word);
+    const wordHash = await SRS.hashWord(canonical);
     const lk = langKey(settings.language, wordHash);
     const ids = store.wordToCardMap[lk];
     if (!ids || ids.length === 0) return null;
@@ -1139,7 +1147,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Check if word has flashcard
   const hasWord = async (word: string): Promise<boolean> => {
-    const wordHash = await SRS.hashWord(word);
+    const canonical = getCanonicalForm(word);
+    const wordHash = await SRS.hashWord(canonical);
     const lk = langKey(settings.language, wordHash);
     const ids = store.wordToCardMap[lk];
     return !!ids && ids.length > 0;
@@ -1147,7 +1156,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Get aggregated word statistics for O(1) lookup
   const getWordStats = async (word: string): Promise<WordStats | null> => {
-    const wordHash = await SRS.hashWord(word);
+    const canonical = getCanonicalForm(word);
+    const wordHash = await SRS.hashWord(canonical);
     const lk = langKey(settings.language, wordHash);
     return store.wordStatsMap[lk] || null;
   };
@@ -1179,18 +1189,27 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return index;
   });
 
-  // Helper: get cards for a word from the index, filtered by current language
+  // Helper: get cards for a word from the index, filtered by current language.
+  // Also checks the canonical form (e.g. kana → kanji) to unify lookup.
   const getCardsFromIndex = (word: string): Flashcard[] => {
-    const ids = wordFrontIndex().get(word);
-    if (!ids) return [];
     const lang = settings.language;
     const result: Flashcard[] = [];
-    for (const id of ids) {
-      const card = store.flashcards[id];
-      if (card && (card.language === lang || !card.language)) {
-        result.push(card);
+    const seen = new Set<string>();
+    const tryWord = (w: string) => {
+      const ids = wordFrontIndex().get(w);
+      if (!ids) return;
+      for (const id of ids) {
+        if (seen.has(id)) continue;
+        const card = store.flashcards[id];
+        if (card && (card.language === lang || !card.language)) {
+          seen.add(id);
+          result.push(card);
+        }
       }
-    }
+    };
+    tryWord(word);
+    const canonical = getCanonicalForm(word);
+    if (canonical !== word) tryWord(canonical);
     return result;
   };
 
@@ -1225,7 +1244,15 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (!word) return false;
     const wordHash = SRS.hashWordSync(word);
     const key = langKey(settings.language, wordHash);
-    return !!store.knownUntracked[key] || !!store.ignoredWords[key];
+    if (store.knownUntracked[key] || store.ignoredWords[key]) return true;
+    // Also check the canonical form (kana → kanji)
+    const canonical = getCanonicalForm(word);
+    if (canonical !== word) {
+      const cHash = SRS.hashWordSync(canonical);
+      const cKey = langKey(settings.language, cHash);
+      return !!store.knownUntracked[cKey] || !!store.ignoredWords[cKey];
+    }
+    return false;
   };
 
   const getIgnoredWordsSync = (): IgnoredWordEntry[] => {
@@ -1247,7 +1274,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Track word appearance for auto-creation
   const trackWordAppearance = async (word: string, reading?: string) => {
-    const wordHash = await SRS.hashWord(word);
+    const canonical = getCanonicalForm(word);
+    const wordHash = await SRS.hashWord(canonical);
     const lang = settings.language;
     const lk = langKey(lang, wordHash);
     const now = Date.now();
@@ -1260,7 +1288,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     setStore(produce((s) => {
       if (!s.wordCandidates[lk]) {
-        s.wordCandidates[lk] = { count: 0, lastSeen: now, word, reading, language: lang };
+        s.wordCandidates[lk] = { count: 0, lastSeen: now, word: canonical, reading, language: lang };
       }
       s.wordCandidates[lk].count++;
       s.wordCandidates[lk].lastSeen = now;
@@ -1271,7 +1299,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Ignore a word for the current language and stop tracking it.
   const ignoreWordForLanguage = async (word: string, reading?: string) => {
-    const wordHash = await SRS.hashWord(word);
+    const canonical = getCanonicalForm(word);
+    const wordHash = await SRS.hashWord(canonical);
     const lang = settings.language;
     const lk = langKey(lang, wordHash);
 
@@ -1305,7 +1334,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   const unignoreWordForLanguage = async (word: string) => {
-    const wordHash = await SRS.hashWord(word);
+    const canonical = getCanonicalForm(word);
+    const wordHash = await SRS.hashWord(canonical);
     const lk = langKey(settings.language, wordHash);
 
     setStore(produce((s) => {
@@ -1325,7 +1355,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Track that a word was seen (displayed on screen)
   const trackWordSeen = (word: string, reading?: string, easeBump = 0.01) => {
     if (!settings.passiveEaseEnabled) return;
-    const wordHash = SRS.hashWordSync(word);
+    // Canonicalize: resolve kana to kanji when possible so different forms track together
+    const canonical = getCanonicalForm(word);
+    const wordHash = SRS.hashWordSync(canonical);
     const lang = settings.language;
     const lk = langKey(lang, wordHash);
     if (store.knownUntracked[lk]) return;
@@ -1338,7 +1370,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           lastSeen: now,
           timesSeen: 0,
           timesHovered: 0,
-          word,
+          word: canonical,
           reading,
           language: lang,
         };
@@ -1358,7 +1390,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Track that a word was hovered (user doesn't know it)
   // Debounce: call this on hover start, cancel on hover end
   const trackWordHovered = (word: string, reading?: string) => {
-    const wordHash = SRS.hashWordSync(word);
+    const canonical = getCanonicalForm(word);
+    const wordHash = SRS.hashWordSync(canonical);
     const lang = settings.language;
     const lk = langKey(lang, wordHash);
     if (store.knownUntracked[lk]) return;
@@ -1378,7 +1411,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             lastSeen: now,
             timesSeen: 0,
             timesHovered: 0,
-            word,
+            word: canonical,
             reading,
             language: lang,
           };
@@ -1401,7 +1434,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Cancel a hover timer (call on hover end)
   const cancelWordHover = (word: string) => {
-    const wordHash = SRS.hashWordSync(word);
+    const canonical = getCanonicalForm(word);
+    const wordHash = SRS.hashWordSync(canonical);
     const lk = langKey(settings.language, wordHash);
     const timer = hoverTimers.get(lk);
     if (timer) {
@@ -1429,7 +1463,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Convenience: check if word is known by raw word text (sync hash)
   const isWordKnownByText = (word: string): boolean => {
     const wordHash = SRS.hashWordSync(word);
-    return isWordKnown(langKey(settings.language, wordHash));
+    if (isWordKnown(langKey(settings.language, wordHash))) return true;
+    // Also check the canonical form (kana → kanji)
+    const canonical = getCanonicalForm(word);
+    if (canonical !== word) {
+      const cHash = SRS.hashWordSync(canonical);
+      return isWordKnown(langKey(settings.language, cHash));
+    }
+    return false;
   };
 
   // ========================

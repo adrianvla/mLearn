@@ -13,6 +13,7 @@ import { setWordStatus, toUniqueIdentifier, wordsLearnedInApp } from '../../serv
 import { getCachedExplanation } from '../../services/llmProvider';
 import { useTokenizer } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, PitchAccentOverlay, ClockIcon } from '../common';
+import { openWordLookup } from '../../services/wordLookupService';
 import {
   buildWordHoverFlashcardContent,
   extractPitchAccentFromTranslationData,
@@ -572,7 +573,14 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         onMouseLeave={() => props.onMouseLeave?.()}
       >
         <div class="subtitle_hover_relative">
-          <div class="subtitle_hover_content">
+          <div class="subtitle_hover_content" onClick={(e) => {
+            const anchor = (e.target as HTMLElement).closest('a');
+            if (!anchor) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const text = anchor.textContent?.trim();
+            if (text) openWordLookup(text);
+          }}>
             {/* Loading state */}
             <Show when={props.isLoading}>
               <div class="hover_loading">{t('mlearn.WordHover.Loading')}</div>

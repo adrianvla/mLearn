@@ -7,6 +7,7 @@ import { createContext, useContext, ParentComponent, onMount, onCleanup, createS
 import { createStore, reconcile } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
+import { isAllKana, katakanaToHiragana, containsKanji } from '../../shared/utils/textUtils';
 
 // Grammar entry with parsed data for lookup
 export interface GrammarEntry extends GrammarPoint {
@@ -72,6 +73,8 @@ interface LanguageContextValue {
   getGrammarLevelName: (level: number) => string;
   /** Get all grammar level names */
   getGrammarLevelNames: () => Record<string, string>;
+  /** Resolve a pure-kana word to its canonical (kanji) form using frequency data */
+  getCanonicalForm: (word: string) => string;
 }
 
 // Create context
@@ -87,6 +90,8 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const [langData, setLangData] = createStore<LanguageDataMap>({});
   const [wordFrequency, setWordFrequency] = createStore<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
+  // Maps hiragana reading → canonical kanji form (first/most-common entry from freq data)
+  let readingToCanonical: Record<string, string> = {};
   const [currentLang] = createSignal<string>(props.language || DEFAULT_SETTINGS.language);
   const ipcCleanups: Array<() => void> = [];
 
@@ -151,6 +156,23 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       }
     }
 
+    // Build reverse map: hiragana reading → canonical kanji form
+    // Only the first (most common) form for each reading is kept
+    const rMap: Record<string, string> = {};
+    for (let i = 0; i < freq.length; i++) {
+      const entry = freq[i];
+      if (!entry || entry.length < 2) continue;
+      const word = entry[0];
+      const reading = entry[1];
+      // Skip if the word itself is pure kana (no kanji to normalize to)
+      if (!reading || !containsKanji(word)) continue;
+      const hiragana = katakanaToHiragana(reading);
+      if (hiragana && !rMap[hiragana]) {
+        rMap[hiragana] = word;
+      }
+    }
+    readingToCanonical = rMap;
+
     setWordFrequency(reconcile(freqMap));
   };
 
@@ -160,9 +182,33 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   // Get current language data
   const currentLangData = () => langData[currentLang()] || null;
 
-  // Get frequency for a word
+  // Get frequency for a word, with fallback to reading-based lookup
   const getFrequency = (word: string): WordFrequencyEntry | null => {
-    return wordFrequency[word] || null;
+    const direct = wordFrequency[word];
+    if (direct) return direct;
+    // If word is pure kana, try to find its canonical kanji form in freq data
+    if (isAllKana(word)) {
+      const hiragana = katakanaToHiragana(word);
+      const canonical = readingToCanonical[hiragana];
+      if (canonical) return wordFrequency[canonical] || null;
+    }
+    return null;
+  };
+
+  // Resolve a pure-kana word to its canonical (kanji) form using freq data.
+  // Words that already contain kanji or have no known canonical form are returned as-is.
+  const getCanonicalForm = (word: string): string => {
+    if (!word) return word;
+    // Already contains kanji — no normalization needed
+    if (containsKanji(word)) return word;
+    // Already in freq data as-is (some words are natively kana, e.g. ところ)
+    if (wordFrequency[word]) return word;
+    // Not pure kana (e.g. Latin text) — skip
+    if (!isAllKana(word)) return word;
+    // Look up canonical form via reading
+    const hiragana = katakanaToHiragana(word);
+    const canonical = readingToCanonical[hiragana];
+    return canonical || word;
   };
 
   // Get level name from langdata (e.g., "JLPT N5" for level 5)
@@ -354,6 +400,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     supportsGrammar,
     getGrammarLevelName,
     getGrammarLevelNames,
+    getCanonicalForm,
   };
 
   return (

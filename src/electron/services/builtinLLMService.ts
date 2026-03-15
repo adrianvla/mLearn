@@ -266,11 +266,10 @@ async function streamChat(
     const totalTime = Date.now() - startTime;
     const ttft = firstTokenTime ? firstTokenTime - startTime : 0;
 
-    // Emit final done chunk
+    // Emit final done chunk (tool calls already emitted individually — don't re-include)
     const doneChunk: LLMStreamChunk = {
       content: '',
       done: true,
-      toolCalls: collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
       evalCount: tokenCount,
       totalDuration: totalTime * 1_000_000, // convert to nanoseconds
       promptEvalDuration: ttft * 1_000_000,

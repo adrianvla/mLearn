@@ -30,16 +30,15 @@ import {
   IconBtn,
   TabContainer,
   TabPanel,
-  AlertBanner,
   EmptyState,
   ConnectionStatus,
   StatusBar,
   Textarea,
   Select,
+  ToggleSwitch,
   formatKeybindDisplay, Tag,
   ChatIcon,
   TrashIcon,
-  RefreshIcon,
 } from '../../components/common';
 import type { TabItem, SelectOption } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
@@ -50,10 +49,12 @@ import { VoiceTab } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
 import { AgentSetupModal } from './AgentSetupModal';
 import { AgentListPanel } from './AgentListPanel';
+import { ConversationPlan } from './ConversationPlan';
 
 import { createConversationAgent } from '../../services/conversationAgent';
-import type { StreamCallbacks } from '../../services/conversationAgent';
-import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
+import { createCheckerAgent } from '../../services/checkerAgent';
+import type { StreamCallbacks, PlanDifficulty } from '../../services/conversationAgent';
+import type { ConversationMessage, ConversationAgentContext, ConversationPlanItem, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import { isLatinOnly } from '../../../shared/utils/textUtils';
 import './ConversationAgent.css';
@@ -62,7 +63,30 @@ import './ConversationAgent.css';
  * Known tool names used by the conversation agent.
  * Used to detect and hide partial tool call text during streaming.
  */
-const TOOL_NAMES = ['correct_mistake', 'create_quiz', 'fetch_url', 'get_media_stats', 'note_mistake'];
+const TOOL_NAMES = ['correct_mistake', 'create_quiz', 'fetch_url', 'get_media_stats', 'note_mistake', 'add_to_plan', 'mark_plan_done', 'get_current_plan'];
+
+function isSameCorrection(a: MistakeWidgetData, b: MistakeWidgetData): boolean {
+  return (
+    a.errorSpan === b.errorSpan
+    && a.correction === b.correction
+    && a.errorType === b.errorType
+    && a.contextBefore === b.contextBefore
+    && a.contextAfter === b.contextAfter
+    && a.affectedPattern === b.affectedPattern
+    && a.source === b.source
+  );
+}
+
+function appendUniqueCorrection(
+  existing: MistakeWidgetData[] | undefined,
+  incoming: MistakeWidgetData,
+): MistakeWidgetData[] {
+  const corrections = existing || [];
+  if (corrections.some((c) => isSameCorrection(c, incoming))) {
+    return corrections;
+  }
+  return [...corrections, incoming];
+}
 
 /**
  * Strip any trailing partial tool call text from streamed content.
@@ -131,8 +155,10 @@ export const ConversationContent: Component = () => {
   const [isSpeaking, setIsSpeaking] = createSignal(false);
   const [sceneContext, setSceneContext] = createSignal('');
 
-  const [showBanner, setShowBanner] = createSignal(true);
   const [isProcessingToolCall, setIsProcessingToolCall] = createSignal(false);
+
+  // Knowledge info toggle — controls whether failed words/grammar are included in the LLM context
+  const [includeKnowledgeInfo, setIncludeKnowledgeInfo] = createSignal(true);
 
   // Voice mode state
   const [isVoiceCallActive, setIsVoiceCallActive] = createSignal(false);
@@ -152,7 +178,7 @@ export const ConversationContent: Component = () => {
   const [allMemories, setAllMemories] = createSignal<AgentMemoryEntry[]>([]);
   const [showSetupModal, setShowSetupModal] = createSignal(false);
   const [editingAgent, setEditingAgent] = createSignal<AgentConfig | null>(null);
-  const [topicPlan, setTopicPlan] = createSignal<string[]>([]);
+  const [topicPlan, setTopicPlan] = createSignal<ConversationPlanItem[]>([]);
 
   const activeAgent = (): AgentConfig | null => {
     const id = activeAgentId();
@@ -233,9 +259,49 @@ export const ConversationContent: Component = () => {
       });
     },
     onTopicPlan: (topics: string[]) => {
-      setTopicPlan(topics);
+      setTopicPlan(topics.map((text) => ({ text, done: false })));
+    },
+    getIncludeKnowledgeInfo: () => includeKnowledgeInfo(),
+    getPlan: () => topicPlan(),
+    onPlanAdd: (items: string[]) => {
+      setTopicPlan((prev) => [...prev, ...items.map((text) => ({ text, done: false }))]);
+    },
+    onPlanMarkDone: () => {
+      setTopicPlan((prev) => {
+        const idx = prev.findIndex((item) => !item.done);
+        if (idx === -1) return prev;
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], done: true };
+        return updated;
+      });
     },
   });
+
+  // Checker agent for split-checker mode
+  const checkerAgent = createCheckerAgent();
+
+  /**
+   * Run the checker agent on user text and apply corrections to the user message.
+   * Only called when agentSplitChecker is enabled.
+   */
+  const runCheckerOnMessage = (userText: string, userMsgIndex: number) => {
+    const customInstructions = tutorConfig()?.customInstructions || undefined;
+    checkerAgent.checkMessage(userText, langName(), customInstructions).then((result) => {
+      if (result.corrections.length === 0) return;
+      setMessages((prev) => {
+        const updated = [...prev];
+        if (!updated[userMsgIndex] || updated[userMsgIndex].role !== 'user') return updated;
+        let corrections = updated[userMsgIndex].corrections || [];
+        for (const incoming of result.corrections) {
+          if (!corrections.some((c) => isSameCorrection(c, incoming))) {
+            corrections = [...corrections, incoming];
+          }
+        }
+        updated[userMsgIndex] = { ...updated[userMsgIndex], corrections };
+        return updated;
+      });
+    });
+  };
 
   // Load agents and memories on mount (with migration from old format)
   onMount(async () => {
@@ -301,23 +367,20 @@ export const ConversationContent: Component = () => {
     }
   };
 
-  const handleResetAgent = async () => {
-    const id = activeAgentId();
-    if (!id) return;
-    const updatedAgents = await deleteAgent(id);
-    setAgents(updatedAgents);
-    setAllMemories((prev) => prev.filter((m) => m.agentId !== id));
+  const handleDeleteAllAgents = async () => {
+    // Delete all agents one by one
+    const allAgents = agents();
+    for (const a of allAgents) {
+      await deleteAgent(a.id);
+    }
+    await clearAgentMemories();
+    setAgents([]);
+    setAllMemories([]);
     setTopicPlan([]);
     setMessages([]);
     agent.clearHistory();
-
-    if (updatedAgents.length > 0) {
-      setActiveAgentId(updatedAgents[0].id);
-      await saveActiveAgentId(updatedAgents[0].id);
-    } else {
-      setActiveAgentId(null);
-      setShowSetupModal(true);
-    }
+    setActiveAgentId(null);
+    setShowSetupModal(true);
   };
 
   const handleDeleteMemory = (id: string) => {
@@ -465,6 +528,11 @@ export const ConversationContent: Component = () => {
     onCleanup(cleanup);
   });
 
+  // Clean up checker agent on unmount
+  onCleanup(() => {
+    checkerAgent.abort();
+  });
+
   // Auto-resize textarea
   const handleTextareaInput = (e: InputEvent) => {
     const target = e.currentTarget as HTMLTextAreaElement;
@@ -524,26 +592,6 @@ export const ConversationContent: Component = () => {
 
   const handleTokenLeave = () => {
     hideHover();
-  };
-
-  const isSameCorrection = (a: MistakeWidgetData, b: MistakeWidgetData): boolean => (
-    a.errorSpan === b.errorSpan
-    && a.correction === b.correction
-    && a.errorType === b.errorType
-    && a.contextBefore === b.contextBefore
-    && a.contextAfter === b.contextAfter
-    && a.affectedPattern === b.affectedPattern
-  );
-
-  const appendUniqueCorrection = (
-    existing: MistakeWidgetData[] | undefined,
-    incoming: MistakeWidgetData,
-  ): MistakeWidgetData[] => {
-    const corrections = existing || [];
-    if (corrections.some((c) => isSameCorrection(c, incoming))) {
-      return corrections;
-    }
-    return [...corrections, incoming];
   };
 
   /**
@@ -784,7 +832,20 @@ export const ConversationContent: Component = () => {
     setIsWaiting(true);
     setIsProcessingToolCall(false);
 
-    agent.processMessage(text, messages(), buildStreamCallbacks());
+    const baseCallbacks = buildStreamCallbacks();
+
+    // When split checker is enabled, run the checker after agent finishes
+    if (settings.agentSplitChecker) {
+      agent.processMessage(text, messages(), {
+        ...baseCallbacks,
+        onDone: (...args) => {
+          baseCallbacks.onDone(...args);
+          runCheckerOnMessage(text, userMsgIndex);
+        },
+      });
+    } else {
+      agent.processMessage(text, messages(), baseCallbacks);
+    }
   };
 
   const handleRequestGreeting = () => {
@@ -810,7 +871,14 @@ export const ConversationContent: Component = () => {
     setIsProcessingToolCall(false);
 
     const context = `[The learner opened the chat. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
-    agent.continueWithContext(context, buildStreamCallbacks());
+    const baseCallbacks = buildStreamCallbacks();
+    agent.continueWithContext(context, {
+      ...baseCallbacks,
+      onDone: (...args) => {
+        baseCallbacks.onDone(...args);
+        agent.generateTopicPlan();
+      },
+    });
   };
 
   const handleSend = () => {
@@ -855,9 +923,6 @@ export const ConversationContent: Component = () => {
       return updated;
     });
 
-    // Remove the last assistant entry from conversation history so the agent re-generates
-    agent.clearHistory();
-
     // Add placeholder assistant message for streaming
     setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
     setIsStreaming(true);
@@ -865,12 +930,15 @@ export const ConversationContent: Component = () => {
     setIsProcessingToolCall(false);
 
     if (userMsgIndex === -1) {
-      // AI-initiated message with no preceding user message — re-request a greeting
+      // AI-initiated message with no preceding user message — remove context + assistant from history,
+      // then re-request with a fresh context so the LLM produces a different greeting
+      agent.popHistory(2);
       const context = `[The learner is waiting. Greet them and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
       agent.continueWithContext(context, buildStreamCallbacks());
     } else {
-      const userText = msgs[userMsgIndex].content;
-      agent.processMessage(userText, messages(), buildStreamCallbacks());
+      // Remove only the last assistant entry from history, keep the user message and all prior context
+      agent.popHistory(1);
+      agent.restartStream(buildStreamCallbacks());
     }
   };
 
@@ -1057,12 +1125,6 @@ export const ConversationContent: Component = () => {
         <div class="ca-header-actions">
           <IconBtn
             variant="ghost"
-            onClick={handleResetAgent}
-            icon={<RefreshIcon size={14} />}
-            aria-label={t('mlearn.ConversationAgent.Reset')}
-          />
-          <IconBtn
-            variant="ghost"
             onClick={handleClear}
             icon={<TrashIcon size={14} />}
             aria-label={t('mlearn.ConversationAgent.Clear')}
@@ -1073,27 +1135,12 @@ export const ConversationContent: Component = () => {
       {/* Chat panel */}
       <TabPanel tabId="chat" activeTab={activeTab()}>
         <div class="ca-chat-panel">
-          {/* Experimental banner */}
-          <Show when={showBanner()}>
-            <AlertBanner
-              variant="warning"
-              message={t('mlearn.ConversationAgent.ExperimentalBanner')}
-              size="sm"
-              closable
-              onClose={() => setShowBanner(false)}
-            />
-          </Show>
-
-          {/* Topic plan list */}
+          {/* Conversation plan */}
           <Show when={topicPlan().length > 0}>
-            <div class="ca-topic-list">
-              <span class="ca-topic-list-label">{t('mlearn.ConversationAgent.Topics.Title')}</span>
-              <ul class="ca-topic-list-items">
-                <Index each={topicPlan()}>
-                  {(topic) => <li class="ca-topic-list-item">{topic()}</li>}
-                </Index>
-              </ul>
-            </div>
+            <ConversationPlan
+              plan={topicPlan()}
+              onAdjustDifficulty={(direction: PlanDifficulty) => agent.generateTopicPlan(direction)}
+            />
           </Show>
 
           {/* TTS indicator */}
@@ -1165,6 +1212,8 @@ export const ConversationContent: Component = () => {
             />
           </Show>
 
+          {/* AI disclaimer */}
+          <div class="ca-disclaimer">{t('mlearn.ConversationAgent.Disclaimer')}</div>
           {/* Input */}
           <div class="ca-input-area">
             <div class="ca-input-row">
@@ -1189,33 +1238,32 @@ export const ConversationContent: Component = () => {
                   rows={1}
                   resize="none"
                   disabled={isStreaming() || !isConnected()}
-                  fullWidth
                   ghost
                 />
-              </div>
 
-              <Show
-                when={!isStreaming()}
-                fallback={
+                <Show
+                  when={!isStreaming()}
+                  fallback={
+                    <IconBtn
+                      icon={<StopIcon />}
+                      variant="danger"
+                      onClick={handleAbort}
+                      aria-label={t('mlearn.ConversationAgent.StopStreaming')}
+                    />
+                  }
+                >
                   <IconBtn
-                    icon={<StopIcon />}
-                    variant="danger"
-                    onClick={handleAbort}
-                    aria-label={t('mlearn.ConversationAgent.StopStreaming')}
+                    icon={<SendIcon />}
+                    variant="default"
+                    onClick={handleSend}
+                    disabled={!inputText().trim() || !isConnected()}
+                    aria-label={t('mlearn.ConversationAgent.Send')}
                   />
-                }
-              >
-                <IconBtn
-                  icon={<SendIcon />}
-                  variant="primary"
-                  onClick={handleSend}
-                  disabled={!inputText().trim() || !isConnected()}
-                  aria-label={t('mlearn.ConversationAgent.Send')}
-                />
-              </Show>
+                </Show>
+              </div>
             </div>
           </div>
-          {/* Status bar with hover trigger selector and level adaptation */}
+          {/* Status bar with hover trigger selector, knowledge toggle, and level adaptation */}
           <StatusBar>
             <div class="hover-trigger-section">
               <label class="hover-trigger-label">{t('mlearn.ConversationAgent.ShowTooltipOn')}</label>
@@ -1224,6 +1272,13 @@ export const ConversationContent: Component = () => {
                   options={triggerOptions()}
                   value={currentTriggerMode()}
                   onChange={handleTriggerModeChange}
+              />
+            </div>
+            <div class="hover-trigger-section">
+              <ToggleSwitch
+                checked={includeKnowledgeInfo()}
+                onChange={setIncludeKnowledgeInfo}
+                label={t('mlearn.ConversationAgent.IncludeKnowledge')}
               />
             </div>
             <Show when={hasLevelData()}>
@@ -1321,6 +1376,7 @@ export const ConversationContent: Component = () => {
           onDelete={handleDeleteAgent}
           onDeleteMemory={handleDeleteMemory}
           onClearAgentMemories={(agentId) => clearAgentMemories(agentId).then(setAllMemories)}
+          onDeleteAll={handleDeleteAllAgents}
         />
       </TabPanel>
 

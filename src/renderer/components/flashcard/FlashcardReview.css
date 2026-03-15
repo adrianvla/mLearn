@@ -45,8 +45,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  width: 100%;
-  max-width: 600px;
+  width: max-content;
+  max-width: 700px;
   padding: 0.5rem 1rem;
   background: var(--bg);
   backdrop-filter: var(--backdrop-filter);
@@ -56,13 +56,14 @@
   position: sticky;
   top: 0;
   z-index: var(--z-foreground);
+  gap:var(--spacing-6);
 }
 
 /* Header right side - bury/remove + undo */
 .flashcard-header-actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
 }
 
 /* Undo button */
@@ -299,7 +300,7 @@
 /* Stats display */
 .flashcard-status {
   display: flex;
-  gap: 1.5rem;
+  gap: var(--spacing-6);
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }

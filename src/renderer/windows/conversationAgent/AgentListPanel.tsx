@@ -33,12 +33,15 @@ interface AgentListPanelProps {
   onDelete: (id: string) => void;
   onDeleteMemory: (id: string) => void;
   onClearAgentMemories: (agentId: string) => void;
+  onDeleteAll: () => void;
 }
 
 export const AgentListPanel: Component<AgentListPanelProps> = (props) => {
   const { t } = useLocalization();
   const [deleteAgent, setDeleteAgent] = createSignal<AgentConfig | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = createSignal('');
+  const [showDeleteAll, setShowDeleteAll] = createSignal(false);
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = createSignal('');
   const [expandedMemories, setExpandedMemories] = createSignal<Set<string>>(new Set());
 
   const getDisplayName = (agent: AgentConfig): string => {
@@ -226,9 +229,21 @@ export const AgentListPanel: Component<AgentListPanelProps> = (props) => {
             }}
           </For>
         </div>
+
+        {/* Delete all section at bottom */}
+        <div class="agent-list-danger-zone">
+          <Btn
+            variant="danger"
+            size="sm"
+            icon={<TrashIcon size={14} />}
+            onClick={() => { setShowDeleteAll(true); setDeleteAllConfirmText(''); }}
+          >
+            {t('mlearn.ConversationAgent.Agents.DeleteAll')}
+          </Btn>
+        </div>
       </Show>
 
-      {/* Delete confirmation modal */}
+      {/* Delete single agent confirmation modal */}
       <Modal
         isOpen={!!deleteAgent()}
         onClose={() => setDeleteAgent(null)}
@@ -256,6 +271,44 @@ export const AgentListPanel: Component<AgentListPanelProps> = (props) => {
             value={deleteConfirmName()}
             onInput={(e) => setDeleteConfirmName(e.currentTarget.value)}
             placeholder={t('mlearn.ConversationAgent.Agents.DeleteConfirmPlaceholder')}
+            size="md"
+          />
+        </div>
+      </Modal>
+
+      {/* Delete all agents confirmation modal */}
+      <Modal
+        isOpen={showDeleteAll()}
+        onClose={() => setShowDeleteAll(false)}
+        title={t('mlearn.ConversationAgent.Agents.DeleteAllTitle')}
+        size="sm"
+        footer={
+          <div class="agent-delete-modal-footer">
+            <Btn variant="ghost" onClick={() => setShowDeleteAll(false)}>
+              {t('mlearn.ConversationAgent.Setup.Cancel')}
+            </Btn>
+            <Btn
+              variant="danger"
+              onClick={() => {
+                props.onDeleteAll();
+                setShowDeleteAll(false);
+              }}
+              disabled={deleteAllConfirmText().trim().toLowerCase() !== t('mlearn.ConversationAgent.Agents.DeleteAllConfirmWord').toLowerCase()}
+            >
+              {t('mlearn.ConversationAgent.Agents.DeleteAll')}
+            </Btn>
+          </div>
+        }
+      >
+        <div class="agent-delete-modal-body">
+          <p class="agent-delete-modal-message">
+            {t('mlearn.ConversationAgent.Agents.DeleteAllConfirm')}
+          </p>
+          <p class="agent-delete-modal-name">{t('mlearn.ConversationAgent.Agents.DeleteAllConfirmWord')}</p>
+          <Input
+            value={deleteAllConfirmText()}
+            onInput={(e) => setDeleteAllConfirmText(e.currentTarget.value)}
+            placeholder={t('mlearn.ConversationAgent.Agents.DeleteAllConfirmPlaceholder')}
             size="md"
           />
         </div>

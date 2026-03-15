@@ -8,11 +8,12 @@ import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { ActionCard, RecentCard, Btn, VideoIcon, BookIcon, SettingsIcon, BotIcon, type RecentItem } from '../../../components/common';
+import { ActionCard, RecentCard, Btn, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, GridIcon, SearchIcon, type RecentItem } from '../../../components/common';
 import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
 import { getRecentItems } from '../../../services/thumbnailService';
 import Icon from '../../../components/common/Icons/Icon';
+import { isMobile } from '../../../../shared/platform';
 import './welcome.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
 
@@ -47,6 +48,30 @@ export const WelcomeRoute: Component = () => {
 
   const openFlashcards = () => {
     getBridge().window.openWindow({ type: 'flashcards' });
+  };
+
+  const openStatistics = () => {
+    if (isMobile()) {
+      navigate('/statistics');
+    } else {
+      getBridge().window.openWindow({ type: 'statistics' });
+    }
+  };
+
+  const openWordDatabase = () => {
+    if (isMobile()) {
+      navigate('/word-db-editor');
+    } else {
+      getBridge().window.openWindow({ type: 'word-db-editor' });
+    }
+  };
+
+  const openCharacterGrid = () => {
+    if (isMobile()) {
+      navigate('/kanji-grid');
+    } else {
+      getBridge().window.openWindow({ type: 'kanji-grid' });
+    }
   };
 
   const openAITutor = () => {
@@ -134,6 +159,27 @@ export const WelcomeRoute: Component = () => {
           title={t('mlearn.Home.Cards.Settings.Title')}
           description={t('mlearn.Home.Cards.Settings.Description')}
           onClick={openSettings}
+        />
+
+        <ActionCard
+          icon={<BarChartIcon size={24} />}
+          title={t('mlearn.Home.Cards.Statistics.Title')}
+          description={t('mlearn.Home.Cards.Statistics.Description')}
+          onClick={openStatistics}
+        />
+
+        <ActionCard
+          icon={<SearchIcon size={24} />}
+          title={t('mlearn.Home.Cards.WordDatabase.Title')}
+          description={t('mlearn.Home.Cards.WordDatabase.Description')}
+          onClick={openWordDatabase}
+        />
+
+        <ActionCard
+          icon={<GridIcon size={24} />}
+          title={t('mlearn.Home.Cards.CharacterGrid.Title')}
+          description={t('mlearn.Home.Cards.CharacterGrid.Description')}
+          onClick={openCharacterGrid}
         />
 
         <ActionCard

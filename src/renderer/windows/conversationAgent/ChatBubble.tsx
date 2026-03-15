@@ -257,7 +257,7 @@ const CorrectedUserText: Component<CorrectedUserTextProps> = (props) => {
   /** Build segments of plain text and corrected spans */
   const segments = createMemo(() => {
     const text = props.content;
-    const result: Array<{ type: 'text'; value: string } | { type: 'correction'; original: string; correction: string; errorType: string }> = [];
+    const result: Array<{ type: 'text'; value: string } | { type: 'correction'; original: string; correction: string; errorType: string; source?: 'agent' | 'checker'; alternatives?: string[] }> = [];
 
     // Sort corrections by their position in the text using context-aware matching
     const sorted = [...props.corrections].sort((a, b) => {
@@ -281,6 +281,8 @@ const CorrectedUserText: Component<CorrectedUserTextProps> = (props) => {
         original: corr.errorSpan,
         correction: corr.correction,
         errorType: corr.errorType,
+        source: corr.source,
+        alternatives: corr.alternatives,
       });
 
       lastIndex = idx + corr.errorSpan.length;
@@ -299,14 +301,29 @@ const CorrectedUserText: Component<CorrectedUserTextProps> = (props) => {
       <For each={segments()}>
         {(seg) => (
           <Show when={seg.type === 'correction'} fallback={<span>{(seg as { value: string }).value}</span>}>
-            <span class="chat-correction-group">
-              <span class="chat-correction-original">
-                {(seg as { original: string }).original}
-              </span>
-              <span class="chat-correction-replacement">
-                {(seg as { correction: string }).correction}
-              </span>
-            </span>
+            {(() => {
+              const corr = seg as { original: string; correction: string; errorType: string; source?: 'agent' | 'checker'; alternatives?: string[] };
+              const isUnnatural = corr.errorType === 'unnatural';
+              return (
+                <span class={`chat-correction-group${isUnnatural ? ' unnatural' : ''}`}>
+                  <span class="chat-correction-original">
+                    {corr.original}
+                  </span>
+                  <span class="chat-correction-replacement">
+                    {corr.correction}
+                  </span>
+                  <Show when={corr.alternatives && corr.alternatives.length > 0}>
+                    <span class="chat-correction-alternatives">
+                      <For each={corr.alternatives!}>
+                        {(alt) => (
+                          <span class="chat-correction-alternative">{alt}</span>
+                        )}
+                      </For>
+                    </span>
+                  </Show>
+                </span>
+              );
+            })()}
           </Show>
         )}
       </For>
@@ -428,14 +445,29 @@ const CorrectedTokenizedText: Component<CorrectedTokenizedTextProps> = (props) =
               />
             }
           >
-            <span class="chat-correction-group">
-              <span class="chat-correction-original">
-                {(group as { type: 'correction-group'; tokens: Token[] }).tokens.map((t) => t.word).join('')}
-              </span>
-              <span class="chat-correction-replacement">
-                {(group as { type: 'correction-group'; correction: MistakeWidgetData }).correction.correction}
-              </span>
-            </span>
+            {(() => {
+              const corrGroup = group as { type: 'correction-group'; tokens: Token[]; correction: MistakeWidgetData };
+              const isUnnatural = corrGroup.correction.errorType === 'unnatural';
+              return (
+                <span class={`chat-correction-group${isUnnatural ? ' unnatural' : ''}`}>
+                  <span class="chat-correction-original">
+                    {corrGroup.tokens.map((t) => t.word).join('')}
+                  </span>
+                  <span class="chat-correction-replacement">
+                    {corrGroup.correction.correction}
+                  </span>
+                  <Show when={corrGroup.correction.alternatives && corrGroup.correction.alternatives.length > 0}>
+                    <span class="chat-correction-alternatives">
+                      <For each={corrGroup.correction.alternatives!}>
+                        {(alt) => (
+                          <span class="chat-correction-alternative">{alt}</span>
+                        )}
+                      </For>
+                    </span>
+                  </Show>
+                </span>
+              );
+            })()}
           </Show>
         )}
       </For>

@@ -95,6 +95,11 @@
           },
           "Title": "エージェントの記憶"
         },
+        "SplitChecker": {
+          "Label": "別の校正エージェント",
+          "Description": "会話エージェントの代わりに、別のLLMパスでミスを検出・修正します。",
+          "Title": "校正エージェント"
+        },
         "Title": "AI設定"
       },
       "SetupRequired": "AI機能にはセットアップが必要です。設定を開いています..."
@@ -240,6 +245,11 @@
       "Agents": {
         "Create": "エージェントを作成",
         "Delete": "エージェントを削除",
+        "DeleteAll": "すべてのエージェントを削除",
+        "DeleteAllConfirm": "すべてのエージェント、記憶、会話データが完全に削除されます。確認のため以下の単語を入力してください：",
+        "DeleteAllConfirmPlaceholder": "確認のため入力",
+        "DeleteAllConfirmWord": "削除",
+        "DeleteAllTitle": "すべてのエージェントを削除",
         "DeleteConfirm": "削除を確認するにはエージェント名を入力してください：",
         "DeleteConfirmPlaceholder": "エージェント名",
         "DeleteConfirmTitle": "エージェントを削除",
@@ -282,10 +292,15 @@
         "Title": "会話を始める"
       },
       "ExperimentalBanner": "実験的機能 — AIの回答にはエラーが含まれる場合があります。重要な言語ポイントは確認してください。",
+      "Disclaimer": "AIは間違えることがあります。回答を再確認してください。",
+      "IncludeKnowledge": "知識情報を含める",
       "InputPlaceholder": "{language}でメッセージ...",
       "LevelAdapt": {
         "Label": "レベルに合わせる:",
         "None": "なし"
+      },
+      "Checker": {
+        "Alternatives": "代替表現"
       },
       "Quiz": {
         "BlankInputAriaLabel": "空欄 {index}",
@@ -430,8 +445,14 @@
         "ManualSetupHint": "キャラクターの詳細を自分で入力します。"
       },
       "Topics": {
+        "Easier": "より簡単なトピックを生成",
         "Generating": "トピックを生成中...",
+        "Harder": "より難しいトピックを生成",
         "Title": "予定トピック"
+      },
+      "Plan": {
+        "Show": "プランを表示",
+        "Hide": "プランを非表示"
       },
       "QuickStart": {
         "Button": "Fandomからクイックスタート",
@@ -751,6 +772,18 @@
         "Video": {
           "Description": "インタラクティブな字幕付きの動画を視聴",
           "Title": "動画"
+        },
+        "Statistics": {
+          "Description": "進捗と学習の旅を追跡",
+          "Title": "統計"
+        },
+        "WordDatabase": {
+          "Description": "追跡中の語彙を閲覧・管理",
+          "Title": "単語データベース"
+        },
+        "CharacterGrid": {
+          "Description": "文字の習得状況を視覚的に確認",
+          "Title": "文字グリッド"
         }
       },
       "Errors": {
@@ -878,11 +911,21 @@
       "Sidebar": {
         "AddAllFlashcards": "すべて追加",
         "AddingAllFlashcards": "追加中...",
+        "DictionaryOnly": "辞書のみ",
         "IgnoreWord": "無視",
         "Pages": "ページ",
         "UnknownWords": "未習得の単語",
         "UnknownWordsCount": "{count}語",
-        "UnknownWordsEmpty": "現在のページには未習得の単語がありません。"
+        "UnknownWordsEmpty": "現在のページには未習得の単語がありません。",
+        "AddModal": {
+          "Title": "フラッシュカードを追加",
+          "LevelFilter": "レベル閾値以下",
+          "LevelFilterDescription": "選択した閾値以下のレベルの単語を追加",
+          "DictionaryFilter": "辞書で見つかった単語",
+          "DictionaryFilterDescription": "辞書で見つかったすべての単語を追加",
+          "AddAll": "すべて追加（{count}）",
+          "AddSelected": "選択を追加（{count}）"
+        }
       },
       "Status": {
         "Caching": "キャッシュ中 {x}/{y}",

@@ -9,6 +9,7 @@ import { useNavigate } from '@solidjs/router';
 import { OcrOverlay, MagnifyingGlass, type OcrBox, type OcrResult, type OcrProcessingTimes } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
+import { initWordLookupBridge } from '../../../services/wordLookupService';
 import { useOCR, prepareBlobForOCR, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats } from '../../../hooks';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { parseKeybind } from '../../../components/common';
@@ -108,7 +109,7 @@ export const ReaderRoute: Component = () => {
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
   const langCtx = useLanguage();
-  const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData } = langCtx;
+  const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm } = langCtx;
   const { translateWord } = useTranslation({ immediate: true });
   const { tokenize } = useTokenizer();
   const { lookup } = useDictionary();
@@ -167,6 +168,10 @@ export const ReaderRoute: Component = () => {
   const [explainerWord, setExplainerWord] = createSignal('');
   const [explainerContext, setExplainerContext] = createSignal('');
   const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Initialize deep link bridge for mlearn://lookup
+  const cleanupBridgeLookup = initWordLookupBridge();
+  onCleanup(cleanupBridgeLookup);
 
   // Magnifying glass state
   const [magnifierActive, setMagnifierActive] = createSignal(false);
@@ -1029,6 +1034,13 @@ export const ReaderRoute: Component = () => {
       sessionStorage.removeItem('mlearn_open_book');
       loadBookFromPath(pendingBook);
     }
+
+    // Trigger lazy warmup of OCR transformers on the backend.
+    // This avoids loading heavy ML models at server startup;
+    // the preimport only happens when the reader is actually opened.
+    if (settings.ocrEnabled !== false) {
+      fetch(getBackend().buildUrl('/ocr/warmup'), { method: 'POST' }).catch(() => {/* non-fatal */});
+    }
   });
 
   // Furigana hider state comes from settings
@@ -1461,7 +1473,7 @@ export const ReaderRoute: Component = () => {
     const displayWord = token.surface ?? token.word;
 
     // Track word encounter for passive knowledge
-    flashcardCtx.trackWordSeen(lookupWord, token.reading);
+    flashcardCtx.trackWordSeen(getCanonicalForm(lookupWord), token.reading);
 
     // Track grammar encounters in OCR context
     if (supportsGrammar() && contextPhrase) {

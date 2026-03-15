@@ -95,6 +95,11 @@
           },
           "Title": "Mémoire de l'agent"
         },
+        "SplitChecker": {
+          "Label": "Agent correcteur séparé",
+          "Description": "Utiliser un passage LLM séparé pour détecter et corriger les erreurs au lieu de l'agent de conversation.",
+          "Title": "Agent correcteur"
+        },
         "Title": "Paramètres IA"
       },
       "SetupRequired": "Les fonctions IA nécessitent une configuration. Ouverture des paramètres..."
@@ -240,6 +245,11 @@
       "Agents": {
         "Create": "Créer un agent",
         "Delete": "Supprimer l'agent",
+        "DeleteAll": "Supprimer tous les agents",
+        "DeleteAllConfirm": "Cela supprimera définitivement tous les agents, leurs mémoires et les données de conversation. Tapez le mot ci-dessous pour confirmer :",
+        "DeleteAllConfirmPlaceholder": "Taper pour confirmer",
+        "DeleteAllConfirmWord": "SUPPRIMER",
+        "DeleteAllTitle": "Supprimer tous les agents",
         "DeleteConfirm": "Tapez le nom de l'agent pour confirmer la suppression :",
         "DeleteConfirmPlaceholder": "Nom de l'agent",
         "DeleteConfirmTitle": "Supprimer l'agent",
@@ -282,10 +292,15 @@
         "Title": "Démarrer une conversation"
       },
       "ExperimentalBanner": "Fonctionnalité expérimentale — les réponses de l'IA peuvent contenir des erreurs. Vérifiez les points linguistiques importants.",
+      "Disclaimer": "Ceci est une IA et peut faire des erreurs. Veuillez vérifier les réponses.",
+      "IncludeKnowledge": "Inclure les informations de connaissances",
       "InputPlaceholder": "Message en {language}...",
       "LevelAdapt": {
         "Label": "Adapter au niveau :",
         "None": "Aucun"
+      },
+      "Checker": {
+        "Alternatives": "Alternatives"
       },
       "Quiz": {
         "BlankInputAriaLabel": "Blanc {index}",
@@ -430,8 +445,14 @@
         "ManualSetupHint": "Remplissez les détails du personnage vous-même."
       },
       "Topics": {
+        "Easier": "Générer des sujets plus faciles",
         "Generating": "Génération des sujets...",
+        "Harder": "Générer des sujets plus difficiles",
         "Title": "Sujets prévus"
+      },
+      "Plan": {
+        "Show": "Afficher le plan",
+        "Hide": "Masquer le plan"
       },
       "QuickStart": {
         "Button": "Démarrage rapide via Fandom",
@@ -751,6 +772,18 @@
         "Video": {
           "Description": "Regardez des vidéos avec sous-titres interactifs",
           "Title": "Vidéo"
+        },
+        "Statistics": {
+          "Description": "Suivez votre progression et votre parcours d'apprentissage",
+          "Title": "Statistiques"
+        },
+        "WordDatabase": {
+          "Description": "Parcourir et gérer votre vocabulaire suivi",
+          "Title": "Base de mots"
+        },
+        "CharacterGrid": {
+          "Description": "Aperçu visuel de votre connaissance des caractères",
+          "Title": "Grille de caractères"
         }
       },
       "Errors": {
@@ -878,11 +911,21 @@
       "Sidebar": {
         "AddAllFlashcards": "Tout ajouter",
         "AddingAllFlashcards": "Ajout en cours...",
+        "DictionaryOnly": "Dictionnaire uniquement",
         "IgnoreWord": "Ignorer",
         "Pages": "Pages",
         "UnknownWords": "Mots inconnus",
         "UnknownWordsCount": "{count} mots",
-        "UnknownWordsEmpty": "Aucun mot inconnu trouvé sur la page actuelle."
+        "UnknownWordsEmpty": "Aucun mot inconnu trouvé sur la page actuelle.",
+        "AddModal": {
+          "Title": "Ajouter des flashcards",
+          "LevelFilter": "Sous le seuil de niveau",
+          "LevelFilterDescription": "Ajouter les mots dont le niveau est au seuil sélectionné ou en dessous",
+          "DictionaryFilter": "Trouvé dans le dictionnaire",
+          "DictionaryFilterDescription": "Ajouter tous les mots trouvés dans le dictionnaire",
+          "AddAll": "Tout ajouter ({count})",
+          "AddSelected": "Ajouter la sélection ({count})"
+        }
       },
       "Status": {
         "Caching": "Mise en cache {x}/{y}",

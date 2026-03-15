@@ -187,3 +187,9 @@
   color: var(--text-primary);
   font-size: var(--font-size-base);
 }
+
+.agent-list-danger-zone {
+  padding: var(--spacing-4) var(--spacing-3);
+  border-top: 1px solid var(--border-color);
+  margin-top: var(--spacing-3);
+}

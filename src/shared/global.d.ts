@@ -52,6 +52,7 @@ export interface MLearnIPC {
   showContact: () => void;
   openExternalUrl: (url: string) => Promise<boolean>;
   onAuthDeepLink: (callback: (payload: { code: string | null; state: string | null; error: string | null }) => void) => () => void;
+  onLookupDeepLink: (callback: (word: string) => void) => () => void;
   
   // App Control
   restartApp: () => void;

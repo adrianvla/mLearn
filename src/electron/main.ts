@@ -34,6 +34,7 @@ interface AuthDeepLinkPayload {
 }
 
 const queuedAuthDeepLinks: AuthDeepLinkPayload[] = [];
+const queuedLookupWords: string[] = [];
 
 function parseAuthDeepLink(rawUrl: string): AuthDeepLinkPayload | null {
   try {
@@ -55,6 +56,22 @@ function parseAuthDeepLink(rawUrl: string): AuthDeepLinkPayload | null {
   }
 }
 
+function parseLookupDeepLink(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'mlearn:') {
+      return null;
+    }
+    if (parsed.hostname !== 'lookup') {
+      return null;
+    }
+    const word = parsed.searchParams.get('word');
+    return word && word.trim() ? word.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 function dispatchAuthDeepLink(payload: AuthDeepLinkPayload): void {
   const { BrowserWindow } = require('electron');
   const windows = BrowserWindow.getAllWindows();
@@ -69,6 +86,21 @@ function dispatchAuthDeepLink(payload: AuthDeepLinkPayload): void {
   }
 }
 
+function dispatchLookupDeepLink(word: string): void {
+  const { BrowserWindow } = require('electron');
+  const windows = BrowserWindow.getAllWindows();
+  if (windows.length === 0) {
+    queuedLookupWords.push(word);
+    return;
+  }
+  for (const win of windows) {
+    if (!win.isDestroyed()) {
+      win.webContents.send(IPC_CHANNELS.LOOKUP_DEEP_LINK, word);
+      return;
+    }
+  }
+}
+
 function flushQueuedAuthDeepLinks(): void {
   if (queuedAuthDeepLinks.length === 0) {
     return;
@@ -79,12 +111,26 @@ function flushQueuedAuthDeepLinks(): void {
   }
 }
 
-function handlePossibleDeepLinkValue(value: string): void {
-  const payload = parseAuthDeepLink(value);
-  if (!payload) {
+function flushQueuedLookupDeepLinks(): void {
+  if (queuedLookupWords.length === 0) {
     return;
   }
-  dispatchAuthDeepLink(payload);
+  const queue = queuedLookupWords.splice(0, queuedLookupWords.length);
+  for (const word of queue) {
+    dispatchLookupDeepLink(word);
+  }
+}
+
+function handlePossibleDeepLinkValue(value: string): void {
+  const authPayload = parseAuthDeepLink(value);
+  if (authPayload) {
+    dispatchAuthDeepLink(authPayload);
+    return;
+  }
+  const lookupWord = parseLookupDeepLink(value);
+  if (lookupWord) {
+    dispatchLookupDeepLink(lookupWord);
+  }
 }
 
 function handleDeepLinkArgs(args: string[]): void {
@@ -193,6 +239,7 @@ async function createAppWindows(): Promise<void> {
   // This ensures any errors (like EADDRINUSE) can be displayed to the user
   startWebServer();
   flushQueuedAuthDeepLinks();
+  flushQueuedLookupDeepLinks();
 }
 
 // Main initialization

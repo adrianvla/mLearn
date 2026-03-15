@@ -54,6 +54,20 @@ def _ensure_tokenizer():
     return tokenizer_obj
 
 
+def _katakana_to_hiragana(text):
+    """Convert katakana characters to hiragana."""
+    result = []
+    for ch in text:
+        cp = ord(ch)
+        if 0x30A1 <= cp <= 0x30F6:
+            result.append(chr(cp - 0x60))
+        elif ch == 'ー':
+            result.append(ch)
+        else:
+            result.append(ch)
+    return ''.join(result)
+
+
 def LANGUAGE_TOKENIZE(text):
     tokenizer_inst = _ensure_tokenizer()
     token_list = []
@@ -63,11 +77,13 @@ def LANGUAGE_TOKENIZE(text):
         surface = token.surface()
         pos = token.part_of_speech()[0]
         actual_word = token.dictionary_form()
+        reading = _katakana_to_hiragana(token.reading_form())
         if surface and pos != "空白":
             token_list.append({
                 'word': surface,
                 'actual_word': actual_word,
-                'type': pos
+                'type': pos,
+                'reading': reading,
             })
     for token in token_list:
         if token['word'] == 'じゃ' and token['type'] == '助動詞':

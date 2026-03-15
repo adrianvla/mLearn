@@ -110,23 +110,21 @@ function verticalGap(infoA: BoxMetrics, infoB: BoxMetrics): number {
 
 /**
  * Cluster boxes into spatially connected zones based on proximity.
- * Vertical and horizontal boxes are always in separate zones.
- * Within each orientation group, boxes whose edges are within
- * `zoneDeltaThreshold` pixels of each other are grouped together.
+ * All boxes are clustered together regardless of individual orientation;
+ * zone-level orientation is determined afterwards via `determineZoneOrientation`.
+ * Two boxes are adjacent when the gap on BOTH axes is within the threshold.
  *
  * @param metrics Array of box metrics
  * @returns Array of zones, where each zone is an array of metrics indices
  */
 interface ClusterOptions {
-  /** Max pixel distance between box edges on the clustering axis (default 50) */
+  /** Max pixel distance between box edges on each axis (default 50) */
   zoneDeltaThreshold?: number;
 }
 
 /**
- * Cluster a set of same-orientation box indices by edge proximity.
+ * Cluster box indices by edge proximity on both axes simultaneously.
  * Two boxes are adjacent only when the gap on BOTH axes is within the threshold.
- * This prevents transitive chains on one axis from spanning the entire other axis
- * (e.g. vertical boxes at similar X but very different Y being grouped together).
  */
 function clusterByProximity(
   indices: number[],
@@ -183,24 +181,12 @@ function clusterBoxesIntoZones(metrics: BoxMetrics[], opts: ClusterOptions = {})
 
   const delta = opts.zoneDeltaThreshold ?? DEFAULT_ZONE_DELTA_THRESHOLD;
 
-  // Separate boxes by orientation — vertical and horizontal are never in the same zone
-  const verticalIndices: number[] = [];
-  const horizontalIndices: number[] = [];
-
-  for (let i = 0; i < metrics.length; i++) {
-    if (metrics[i].orientation === 'vertical') {
-      verticalIndices.push(i);
-    } else {
-      horizontalIndices.push(i);
-    }
-  }
-
-  // Vertical boxes: group by proximity (both X and Y gaps within threshold)
-  // Horizontal boxes: group by proximity (both X and Y gaps within threshold)
-  return [
-    ...clusterByProximity(verticalIndices, metrics, delta),
-    ...clusterByProximity(horizontalIndices, metrics, delta),
-  ];
+  // Cluster ALL boxes by spatial proximity, regardless of per-box orientation.
+  // Small furigana characters may have square bounding boxes that would be
+  // misclassified as horizontal — keeping them in the same zone as their
+  // parent text ensures the zone-level orientation drives furigana detection.
+  const allIndices = Array.from({ length: metrics.length }, (_, i) => i);
+  return clusterByProximity(allIndices, metrics, delta);
 }
 
 // ============================================================================
@@ -239,10 +225,11 @@ export interface FilterDebugZone {
  *
  * **Algorithm** (zone-local statistical approach):
  *  1. Cluster boxes into spatially connected zones (speech bubbles / text blocks).
- *  2. Within each zone, group boxes by orientation (vertical / horizontal).
- *  3. For each orientation group, compute the **median cross-axis dimension**
- *     (width for vertical text, height for horizontal text).
- *  4. Boxes with a cross dimension below `median / ratio` are furigana candidates.
+ *  2. Determine zone-level orientation via majority vote / bounding-box shape.
+ *     This avoids misclassifying small square furigana chars as horizontal.
+ *  3. Compute the dominant **cross-axis dimension** using area-weighted
+ *     histogram mode (width for vertical zones, height for horizontal).
+ *  4. Boxes with a cross dimension below `dominant / ratio` are furigana candidates.
  *  5. A candidate is confirmed only if it has a larger neighbor within a proximity
  *     window (prevents false positives from isolated small text).
  *
@@ -302,88 +289,107 @@ export function filterNarrowBoxes(
     const zoneBounds = { minX: zMinX, minY: zMinY, maxX: zMaxX, maxY: zMaxY };
     const orientationStats: FilterDebugZone['orientationStats'] = [];
 
-    for (const orientation of ['vertical', 'horizontal'] as const) {
-      const oriented = zoneMetrics.filter(m => m.orientation === orientation);
-      if (oriented.length < 2) continue;
+    // Determine zone-level orientation rather than relying on per-box orientation.
+    // Small furigana characters can have near-square bounding boxes that the
+    // per-box heuristic misclassifies; using zone orientation keeps them in the
+    // same comparison pool as their parent text.
+    const orientation = determineZoneOrientation(zoneIndices, metrics, boxes);
 
-      // Cross-axis dimension: the dimension furigana is narrow in
-      // Vertical text → furigana has narrow width
-      // Horizontal text → furigana has narrow height
-      const crossDims = oriented.map(m =>
-        orientation === 'vertical' ? m.width : m.height
-      );
+    // Cross-axis dimension: the dimension furigana is narrow in
+    // Vertical zone → furigana has narrow width
+    // Horizontal zone → furigana has narrow height
+    const crossDims = zoneMetrics.map(m =>
+      orientation === 'vertical' ? m.width : m.height
+    );
 
-      // Compute median cross dimension for this orientation group.
-      // Exclude onomatopoeia outliers (disproportionately large boxes) that
-      // would inflate the median and cause normal text to be misclassified
-      // as furigana.
-      const sortedDims = [...crossDims].sort((a, b) => a - b);
-      const rawMedian = sortedDims[Math.floor(sortedDims.length / 2)];
+    // Compute the dominant cross-axis dimension using area-weighted
+    // histogram mode (Bjerregaard et al., "Detection of Furigana Text
+    // in Images", 2022).  A sliding bin finds the cross-axis range where
+    // the most total box area is concentrated.  This is robust against
+    // wrapped / multi-line text boxes whose inflated cross-axis dimension
+    // would otherwise skew a simple median upward.
+    const minDim = Math.min(...crossDims);
+    const maxDim = Math.max(...crossDims);
+    let dominantCross: number;
 
-      // Scan from the top of sorted dims: find the first significant gap
-      // (ratio > 1.8) where the upper value exceeds the raw median.
-      // Everything above that gap is an onomatopoeia-class outlier.
-      let trimEnd = sortedDims.length;
-      for (let i = sortedDims.length - 1; i > 0; i--) {
-        if (sortedDims[i] > rawMedian && sortedDims[i] / sortedDims[i - 1] > 1.8) {
-          trimEnd = i;
-          break;
-        }
-      }
-      const trimmedDims = sortedDims.slice(0, trimEnd);
-      const medianCross = trimmedDims.length >= 2
-        ? trimmedDims[Math.floor(trimmedDims.length / 2)]
-        : rawMedian;
-      const furiganaThreshold = medianCross / effectiveRatio;
+    if (maxDim - minDim < 1) {
+      dominantCross = minDim;
+    } else {
+      const binSize = Math.max(3, Math.round((maxDim - minDim) * 0.15));
+      let bestFontSize = minDim;
+      let bestArea = 0;
 
-      const localFurigana: number[] = [];
+      for (let start = Math.floor(minDim); start <= maxDim; start++) {
+        let area = 0;
+        let dimSum = 0;
+        let count = 0;
 
-      for (const curr of oriented) {
-        if (indicesToRemove.has(curr.idx)) continue;
-
-        const crossDim = orientation === 'vertical' ? curr.width : curr.height;
-        if (crossDim >= furiganaThreshold) continue;
-
-        // Candidate is narrow relative to zone peers — verify with neighbor check
-        const windowSize = crossDim * windowMultiplier;
-        let hasLargerNeighbor = false;
-
-        for (const other of oriented) {
-          if (other.idx === curr.idx || indicesToRemove.has(other.idx)) continue;
-
-          const otherCross = orientation === 'vertical' ? other.width : other.height;
-          if (otherCross <= crossDim * 1.2) continue;
-
-          // Furigana runs alongside its parent text: require main-axis overlap
-          const mainOverlap = orientation === 'vertical'
-            ? overlapAmount(curr.minY, curr.maxY, other.minY, other.maxY)
-            : overlapAmount(curr.minX, curr.maxX, other.minX, other.maxX);
-          const mainDim = orientation === 'vertical' ? curr.height : curr.width;
-          if (mainOverlap < mainDim * 0.2) continue;
-
-          const gap = orientation === 'vertical'
-            ? horizontalGap(curr, other)
-            : verticalGap(curr, other);
-
-          if (gap <= windowSize) {
-            hasLargerNeighbor = true;
-            break;
+        for (let k = 0; k < zoneMetrics.length; k++) {
+          const dim = crossDims[k];
+          if (dim >= start && dim <= start + binSize) {
+            area += zoneMetrics[k].width * zoneMetrics[k].height;
+            dimSum += dim;
+            count++;
           }
         }
 
-        if (hasLargerNeighbor) {
-          indicesToRemove.add(curr.idx);
-          localFurigana.push(curr.idx);
+        if (area > bestArea && count > 0) {
+          bestArea = area;
+          bestFontSize = dimSum / count;
         }
       }
 
-      orientationStats.push({
-        orientation,
-        medianCross,
-        threshold: furiganaThreshold,
-        furiganaIndices: localFurigana,
-      });
+      dominantCross = bestFontSize;
     }
+
+    const furiganaThreshold = dominantCross / effectiveRatio;
+    const localFurigana: number[] = [];
+
+    for (const curr of zoneMetrics) {
+      if (indicesToRemove.has(curr.idx)) continue;
+
+      const crossDim = orientation === 'vertical' ? curr.width : curr.height;
+      if (crossDim >= furiganaThreshold) continue;
+
+      // Candidate is narrow relative to zone peers — verify with neighbor check
+      const windowSize = crossDim * windowMultiplier;
+      let hasLargerNeighbor = false;
+
+      for (const other of zoneMetrics) {
+        if (other.idx === curr.idx || indicesToRemove.has(other.idx)) continue;
+
+        const otherCross = orientation === 'vertical' ? other.width : other.height;
+        if (otherCross <= crossDim * 1.2) continue;
+
+        // Furigana runs alongside its parent text: require main-axis overlap
+        const mainOverlap = orientation === 'vertical'
+          ? overlapAmount(curr.minY, curr.maxY, other.minY, other.maxY)
+          : overlapAmount(curr.minX, curr.maxX, other.minX, other.maxX);
+        const mainDim = orientation === 'vertical' ? curr.height : curr.width;
+        if (mainOverlap < mainDim * 0.2) continue;
+
+        const gap = orientation === 'vertical'
+          ? horizontalGap(curr, other)
+          : verticalGap(curr, other);
+
+        if (gap <= windowSize) {
+          hasLargerNeighbor = true;
+          break;
+        }
+      }
+
+      if (hasLargerNeighbor) {
+        indicesToRemove.add(curr.idx);
+        localFurigana.push(curr.idx);
+      }
+    }
+
+    orientationStats.push({
+      orientation,
+      medianCross: dominantCross,
+      threshold: furiganaThreshold,
+      furiganaIndices: localFurigana,
+    });
 
     if (options.debugOutput) {
       debugZones.push({
@@ -413,16 +419,15 @@ export function filterNarrowBoxes(
  * Strategy:
  *  1. If the backend explicitly flagged boxes as vertical/horizontal via
  *     `is_vertical`, use majority vote among the flagged boxes.
- *  2. Otherwise, when `supportsVerticalText` is true, fall back to the
- *     bounding-box aspect ratio of the entire zone — if the zone is taller
- *     than it is wide the text is most likely arranged in vertical columns.
+ *  2. Otherwise fall back to the bounding-box aspect ratio of the entire
+ *     zone — if the zone is taller than it is wide the text is most likely
+ *     arranged in vertical columns.
  *  3. As a last resort, use the first box's individual orientation.
  */
 function determineZoneOrientation(
   cluster: number[],
   infos: BoxMetrics[],
   boxes: OcrBox[],
-  supportsVerticalText?: boolean,
 ): 'vertical' | 'horizontal' {
   // 1. Majority vote from backend-provided is_vertical flags
   let vertCount = 0;
@@ -436,8 +441,8 @@ function determineZoneOrientation(
     return vertCount >= horizCount ? 'vertical' : 'horizontal';
   }
 
-  // 2. Zone bounding-box shape (only when vertical text is possible)
-  if (supportsVerticalText && cluster.length > 1) {
+  // 2. Zone bounding-box shape
+  if (cluster.length > 1) {
     let zMinX = Infinity, zMaxX = -Infinity;
     let zMinY = Infinity, zMaxY = -Infinity;
     for (const i of cluster) {
@@ -468,12 +473,10 @@ function determineZoneOrientation(
  * grouping of boxes into speech bubbles / text blocks.
  * 
  * @param boxes Array of OCR boxes
- * @param options Optional settings for vertical text support
  * @returns Map from box index to context phrase string
  */
 export function buildOcrContextMap(
   boxes: OcrBox[],
-  options: { supportsVerticalText?: boolean } = {},
 ): Map<number, string> {
   const contextMap = new Map<number, string>();
   
@@ -488,7 +491,7 @@ export function buildOcrContextMap(
     for (const cluster of zones) {
       if (cluster.length === 0) continue;
       
-      const orient = determineZoneOrientation(cluster, infos, boxes, options.supportsVerticalText);
+      const orient = determineZoneOrientation(cluster, infos, boxes);
       
       // Sort cluster by reading order
       const sorted = cluster.slice().sort((aIdx, bIdx) => {

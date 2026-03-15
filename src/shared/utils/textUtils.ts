@@ -60,6 +60,25 @@ export function isAllKana(text: string): boolean {
 }
 
 /**
+ * Convert katakana characters to hiragana.
+ * Non-katakana characters (including hiragana) are passed through unchanged.
+ */
+export function katakanaToHiragana(text: string): string {
+  if (!text) return '';
+  let result = '';
+  for (let i = 0; i < text.length; i++) {
+    const cp = text.charCodeAt(i);
+    // Katakana range ァ(0x30A1)–ヶ(0x30F6) → shift to hiragana
+    if (cp >= 0x30A1 && cp <= 0x30F6) {
+      result += String.fromCharCode(cp - 0x60);
+    } else {
+      result += text[i];
+    }
+  }
+  return result;
+}
+
+/**
  * Extract only kana characters from mixed text
  */
 export function extractKana(text: string): string {

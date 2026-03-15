@@ -68,6 +68,13 @@
   flex-shrink: 0;
 }
 
+/* Force tab-panels to flex-fill the remaining space under the header */
+.conversation-agent > .tab-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Chat panel — fills remaining space below tabs, contains its own scroll */
 .ca-chat-panel {
   display: flex;
@@ -75,7 +82,7 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  height:100%;
+  height: 100%;
 }
 
 /* Voice panel — needs relative positioning to scope the aftermath overlay */
@@ -125,7 +132,7 @@
 /* ============ Input area — fixed at bottom ============ */
 
 .ca-input-area {
-  padding: var(--spacing-3) var(--spacing-5) var(--spacing-4);
+  padding: var(--spacing-3) var(--spacing-5);
   border-top: 1px solid var(--border-color);
   flex-shrink: 0;
 }
@@ -140,23 +147,51 @@
 .ca-input-wrapper {
   flex: 1;
   position: relative;
+  display: flex;
+  align-items: center;
   background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   transition: border-color var(--transition-fast);
+}
+.ca-input-wrapper button{
+  margin-right:2px;
+}
+.ca-input-wrapper button{
+  border: 1px solid transparent;
+  background: transparent;
+}
+.ca-input-wrapper button:hover{
+  background:var(--bg);
 }
 
 .ca-input-wrapper:focus-within {
   border-color: var(--border-color-intense);
 }
 
-.ca-chat-textarea textarea,
-.ca-chat-textarea .glass-input {
-  max-height: 120px;
-  min-height: 40px;
+/* Textarea container — remove Textarea component's wrapper gap/sizing */
+.ca-input-wrapper > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Override inline min-height from Textarea component */
+textarea.ca-chat-textarea,
+.ca-chat-textarea.glass-input {
+  max-height: 120px !important;
+  min-height: unset !important;
+  height: auto;
   padding: var(--spacing-2) var(--spacing-3);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+  border: none !important;
+  background: transparent !important;
+}
+
+/* Send/stop button positioned inside the input wrapper */
+.ca-input-wrapper .icon-btn {
+  flex-shrink: 0;
+  margin: var(--spacing-1);
 }
 
 /* ============ Speech button ============ */
@@ -177,7 +212,7 @@
   align-items: center;
   gap: var(--spacing-1);
   font-size: var(--font-size-xs);
-  color: var(--color-accent);
+  color: var(--color-primary);
   padding: 4px 0;
 }
 
@@ -190,7 +225,7 @@
 
 .ca-tts-bar {
   width: 3px;
-  background: var(--color-accent);
+  background: var(--color-primary);
   border-radius: 1px;
   animation: ttsBar 0.6s ease-in-out infinite;
 }
@@ -205,36 +240,19 @@
   50% { transform: scaleY(0.4); }
 }
 
-/* Topic plan debug strip */
-.ca-topic-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 12px;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-  background: var(--color-surface-alt);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.ca-topic-list-label {
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.ca-topic-list-items {
-  margin: 0;
-  padding-left: 20px;
-  list-style: disc;
-}
-
-.ca-topic-list-item {
-  line-height: 1.4;
-}
-
-/* Agents panel wrapper */
+/* ============ Agents panel ============ */
 .ca-agents-panel {
   overflow-y: auto;
   height: 100%;
+}
+
+/* AI disclaimer — faint centered text above status bar */
+.ca-disclaimer {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  padding: var(--spacing-1) var(--spacing-2);
+  user-select: none;
+  flex-shrink: 0;
 }
 

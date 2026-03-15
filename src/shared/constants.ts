@@ -135,6 +135,7 @@ export const IPC_CHANNELS = {
   SHOW_CONTACT: 'show-contact',
   OPEN_EXTERNAL_URL: 'open-external-url',
   AUTH_DEEP_LINK: 'auth-deep-link',
+  LOOKUP_DEEP_LINK: 'lookup-deep-link',
   
   // Watch together
   WATCH_TOGETHER: 'watch-together',
@@ -276,6 +277,7 @@ export const WINDOW_TYPES = {
   CONNECT_QR: 'connect-qr',
   CONVERSATION_AGENT: 'conversation-agent',
   STATISTICS: 'statistics',
+  WORD_DEFINITION: 'word-definition',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];

@@ -95,6 +95,11 @@
           },
           "Title": "Agenten-Gedächtnis"
         },
+        "SplitChecker": {
+          "Label": "Separater Korrektur-Agent",
+          "Description": "Einen separaten LLM-Durchgang verwenden, um Fehler zu erkennen und zu korrigieren, statt den Gesprächsagenten.",
+          "Title": "Korrektur-Agent"
+        },
         "Title": "KI-Einstellungen"
       },
       "SetupRequired": "KI-Funktionen erfordern Einrichtung. Einstellungen werden geöffnet..."
@@ -240,6 +245,11 @@
       "Agents": {
         "Create": "Agent erstellen",
         "Delete": "Agent löschen",
+        "DeleteAll": "Alle Agenten löschen",
+        "DeleteAllConfirm": "Dies löscht dauerhaft alle Agenten, deren Erinnerungen und Gesprächsdaten. Gib das Wort unten ein, um zu bestätigen:",
+        "DeleteAllConfirmPlaceholder": "Zum Bestätigen tippen",
+        "DeleteAllConfirmWord": "LÖSCHEN",
+        "DeleteAllTitle": "Alle Agenten löschen",
         "DeleteConfirm": "Gib den Namen des Agenten ein, um das Löschen zu bestätigen:",
         "DeleteConfirmPlaceholder": "Agentenname",
         "DeleteConfirmTitle": "Agent löschen",
@@ -282,10 +292,15 @@
         "Title": "Gespräch beginnen"
       },
       "ExperimentalBanner": "Experimentelle Funktion — KI-Antworten können Fehler enthalten. Überprüfen Sie wichtige sprachliche Punkte.",
+      "Disclaimer": "Dies ist KI und kann Fehler machen. Bitte Antworten überprüfen.",
+      "IncludeKnowledge": "Wissensinformationen einbeziehen",
       "InputPlaceholder": "Nachricht auf {language}...",
       "LevelAdapt": {
         "Label": "An Stufe anpassen:",
         "None": "Keine"
+      },
+      "Checker": {
+        "Alternatives": "Alternativen"
       },
       "Quiz": {
         "BlankInputAriaLabel": "Lücke {index}",
@@ -430,8 +445,14 @@
         "ManualSetupHint": "Charakterdetails selbst eingeben."
       },
       "Topics": {
+        "Easier": "Einfachere Themen generieren",
         "Generating": "Themen werden generiert...",
+        "Harder": "Schwierigere Themen generieren",
         "Title": "Geplante Themen"
+      },
+      "Plan": {
+        "Show": "Plan anzeigen",
+        "Hide": "Plan ausblenden"
       },
       "QuickStart": {
         "Button": "Schnellstart über Fandom",
@@ -751,6 +772,18 @@
         "Video": {
           "Description": "Videos mit interaktiven Untertiteln ansehen",
           "Title": "Video"
+        },
+        "Statistics": {
+          "Description": "Verfolgen Sie Ihren Fortschritt und Ihre Lernreise",
+          "Title": "Statistiken"
+        },
+        "WordDatabase": {
+          "Description": "Gespeicherte Vokabeln durchsuchen und verwalten",
+          "Title": "Wortdatenbank"
+        },
+        "CharacterGrid": {
+          "Description": "Visuelle Übersicht über Ihre Zeichenkenntnis",
+          "Title": "Zeichenraster"
         }
       },
       "Errors": {
@@ -878,11 +911,21 @@
       "Sidebar": {
         "AddAllFlashcards": "Alle hinzufügen",
         "AddingAllFlashcards": "Wird hinzugefügt...",
+        "DictionaryOnly": "Nur Wörterbuch",
         "IgnoreWord": "Ignorieren",
         "Pages": "Seiten",
         "UnknownWords": "Unbekannte Wörter",
         "UnknownWordsCount": "{count} Wörter",
-        "UnknownWordsEmpty": "Auf der aktuellen Seite wurden keine unbekannten Wörter gefunden."
+        "UnknownWordsEmpty": "Auf der aktuellen Seite wurden keine unbekannten Wörter gefunden.",
+        "AddModal": {
+          "Title": "Karteikarten hinzufügen",
+          "LevelFilter": "Unter Niveauschwelle",
+          "LevelFilterDescription": "Wörter hinzufügen, deren Niveau auf oder unter der ausgewählten Schwelle liegt",
+          "DictionaryFilter": "Im Wörterbuch gefunden",
+          "DictionaryFilterDescription": "Alle Wörter hinzufügen, die im Wörterbuch gefunden wurden",
+          "AddAll": "Alle hinzufügen ({count})",
+          "AddSelected": "Ausgewählte hinzufügen ({count})"
+        }
       },
       "Status": {
         "Caching": "Zwischenspeichern {x}/{y}",
