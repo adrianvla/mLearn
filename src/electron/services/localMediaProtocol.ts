@@ -8,9 +8,39 @@
  * Usage in renderer: `local-media:///path/to/video.mp4`
  */
 
-import { protocol, net } from 'electron';
+import { protocol } from 'electron';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 const SCHEME = 'local-media';
+
+/** Simple MIME lookup for common media types */
+const MIME_TYPES: Record<string, string> = {
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mkv': 'video/x-matroska',
+  '.avi': 'video/x-msvideo',
+  '.mov': 'video/quicktime',
+  '.m4v': 'video/mp4',
+  '.ogv': 'video/ogg',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.wav': 'audio/wav',
+  '.flac': 'audio/flac',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+};
+
+function getMimeType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  return MIME_TYPES[ext] || 'application/octet-stream';
+}
 
 /**
  * Register the `local-media://` protocol scheme as privileged.
@@ -34,12 +64,13 @@ export function registerLocalMediaScheme(): void {
 /**
  * Set up the protocol handler that maps `local-media://` to the local filesystem.
  * Must be called AFTER app.whenReady().
+ *
+ * Manually handles HTTP Range requests so that video seeking works correctly.
+ * Chromium's file:// handler via net.fetch does not reliably support Range headers,
+ * which causes seeks to snap to position 0.
  */
 export function setupLocalMediaProtocol(): void {
-  protocol.handle(SCHEME, (request) => {
-    // Strip the scheme to get the file path
-    // local-media:///Users/foo/bar.mp4 -> /Users/foo/bar.mp4
-    // local-media://C:/foo/bar.mp4     -> C:/foo/bar.mp4
+  protocol.handle(SCHEME, async (request) => {
     let filePath = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
 
     // On Windows, paths may start with / before drive letter — strip it
@@ -47,11 +78,68 @@ export function setupLocalMediaProtocol(): void {
       filePath = filePath.slice(1);
     }
 
-    // Delegate to net.fetch with a file:// URL which the main process can access.
-    // net.fetch handles range requests, MIME types, and streaming automatically.
-    const fileUrl = `file://${filePath}`;
-    return net.fetch(fileUrl, {
-      headers: request.headers,
+    let stat: fs.Stats;
+    try {
+      stat = await fs.promises.stat(filePath);
+    } catch {
+      return new Response('File not found', { status: 404 });
+    }
+
+    const fileSize = stat.size;
+    const mimeType = getMimeType(filePath);
+    const rangeHeader = request.headers.get('Range');
+
+    if (rangeHeader) {
+      const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+      if (match) {
+        const start = parseInt(match[1], 10);
+        const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
+        const chunkSize = end - start + 1;
+
+        const nodeStream = fs.createReadStream(filePath, { start, end });
+        const readable = new ReadableStream({
+          start(controller) {
+            nodeStream.on('data', (chunk) => controller.enqueue(new Uint8Array(chunk as Buffer)));
+            nodeStream.on('end', () => controller.close());
+            nodeStream.on('error', (err) => controller.error(err));
+          },
+          cancel() {
+            nodeStream.destroy();
+          },
+        });
+
+        return new Response(readable, {
+          status: 206,
+          headers: {
+            'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': String(chunkSize),
+            'Content-Type': mimeType,
+          },
+        });
+      }
+    }
+
+    // No range — serve full file with Accept-Ranges so the browser knows seeking is supported
+    const nodeStream = fs.createReadStream(filePath);
+    const readable = new ReadableStream({
+      start(controller) {
+        nodeStream.on('data', (chunk) => controller.enqueue(new Uint8Array(chunk as Buffer)));
+        nodeStream.on('end', () => controller.close());
+        nodeStream.on('error', (err) => controller.error(err));
+      },
+      cancel() {
+        nodeStream.destroy();
+      },
+    });
+
+    return new Response(readable, {
+      status: 200,
+      headers: {
+        'Content-Length': String(fileSize),
+        'Content-Type': mimeType,
+        'Accept-Ranges': 'bytes',
+      },
     });
   });
 }

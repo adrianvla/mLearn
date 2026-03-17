@@ -706,45 +706,53 @@ async def _generate_tts_qwen3(req: TTSRequest):
         sr = 24000  # Qwen3-TTS output at 24kHz
 
         for i, sentence in enumerate(sentences):
-            try:
-                gen_kwargs = {
-                    "text": sentence,
-                    "language": lang,
-                }
-                if voice_prompt is not None:
-                    audio = model.generate_voice_clone(
-                        **gen_kwargs,
-                        voice_clone_prompt=voice_prompt,
-                    )
-                else:
-                    audio = model.generate(**gen_kwargs)
-
-                if audio is not None:
-                    # generate_voice_clone may return (audio, sr) tuple
-                    if isinstance(audio, (tuple, list)):
-                        audio = audio[0]
-                    if hasattr(audio, 'numpy'):
-                        audio = audio.numpy()
-                    audio_np = np.asarray(audio, dtype=np.float32).flatten()
-
-                    # Apply speed adjustment if not 1.0
-                    if req.speed != 1.0 and req.speed > 0:
-                        import librosa
-                        audio_np = librosa.effects.time_stretch(
-                            audio_np, rate=req.speed
-                        )
-
-                    num_samples = len(audio_np)
-                    sentence_boundaries.append({
-                        "index": i,
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    gen_kwargs = {
                         "text": sentence,
-                        "sampleOffset": sample_offset,
-                        "sampleCount": num_samples,
-                    })
-                    sample_offset += num_samples
-                    all_audio.append(audio_np)
-            except Exception as e:
-                _log(f"Qwen3-TTS error on sentence {i}:", e)
+                        "language": lang,
+                    }
+                    if voice_prompt is not None:
+                        audio = model.generate_voice_clone(
+                            **gen_kwargs,
+                            voice_clone_prompt=voice_prompt,
+                        )
+                    else:
+                        audio = model.generate(**gen_kwargs)
+
+                    if audio is not None:
+                        # generate_voice_clone may return (audio, sr) tuple
+                        if isinstance(audio, (tuple, list)):
+                            audio = audio[0]
+                        if hasattr(audio, 'numpy'):
+                            audio = audio.numpy()
+                        audio_np = np.asarray(audio, dtype=np.float32).flatten()
+
+                        # Apply speed adjustment if not 1.0
+                        if req.speed != 1.0 and req.speed > 0:
+                            import librosa
+                            audio_np = librosa.effects.time_stretch(
+                                audio_np, rate=req.speed
+                            )
+
+                        num_samples = len(audio_np)
+                        sentence_boundaries.append({
+                            "index": i,
+                            "text": sentence,
+                            "sampleOffset": sample_offset,
+                            "sampleCount": num_samples,
+                        })
+                        sample_offset += num_samples
+                        all_audio.append(audio_np)
+                    break  # Success or None result, stop retrying
+                except Exception as e:
+                    is_retryable = "probability tensor" in str(e) or "inf" in str(e) or "nan" in str(e)
+                    if is_retryable and attempt < max_retries - 1:
+                        _log(f"Qwen3-TTS retryable error on sentence {i} (attempt {attempt + 1}/{max_retries}):", e)
+                        continue
+                    _log(f"Qwen3-TTS error on sentence {i}:", e)
+                    break
 
         if not all_audio:
             raise HTTPException(status_code=500, detail="No audio generated")

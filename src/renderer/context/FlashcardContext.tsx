@@ -631,8 +631,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const addFlashcard = async (content: Partial<FlashcardContent> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean): Promise<string> => {
     console.log('%caddFlashcard called with:', 'color: magenta; font-weight: bold;', content.front);
 
-    // Intercept: if Anki integration is enabled, let user choose SRS vs Anki
-    if (settings.use_anki && !skipAnkiChoice) {
+    // Intercept: if Anki integration is enabled and choice not skipped, let user choose SRS vs Anki
+    if (settings.use_anki && !skipAnkiChoice && !settings.flashcardSkipAnkiChoice) {
       const target = await new Promise<'srs' | 'anki' | 'cancel'>((resolve) => {
         setPendingFlashcardChoice({ content, initialEase, resolve });
       });
@@ -1087,9 +1087,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // Update queue - remove from current position, may need to re-add if still learning
     let newQueue = SRS.removeFromQueue(queue(), card.id);
 
-    // If card is still in learning/relearning and due soon, add back to queue
-    if ((updated.state === 'learning' || updated.state === 'relearning') &&
-        updated.dueDate <= Date.now() + 10 * 60 * 1000) { // Due within 10 minutes
+    // If card is still in learning/relearning, keep it in the queue so the review
+    // session waits for it instead of declaring "all done"
+    if (updated.state === 'learning' || updated.state === 'relearning') {
       newQueue = SRS.addToQueue(newQueue, updated);
     }
 

@@ -20,15 +20,21 @@ interface FlashcardCreationChoiceModalProps {
 }
 
 const FlashcardCreationChoiceModalInner: Component<FlashcardCreationChoiceModalProps> = (props) => {
-  const { settings } = useSettings();
+  const { settings, updateSetting } = useSettings();
   const { t } = useLocalization();
   const anki = useAnki();
   const [useAnkiTarget, setUseAnkiTarget] = createSignal(true);
   const [isExporting, setIsExporting] = createSignal(false);
+  const [dontShowAgain, setDontShowAgain] = createSignal(false);
 
   const content = createMemo(() => props.choice.content);
 
   const handleConfirm = async () => {
+    // If "don't show again" is checked and SRS is selected, persist the setting
+    if (dontShowAgain() && !useAnkiTarget()) {
+      updateSetting('flashcardSkipAnkiChoice', true);
+    }
+
     if (useAnkiTarget()) {
       // Export to Anki
       setIsExporting(true);
@@ -136,6 +142,13 @@ const FlashcardCreationChoiceModalInner: Component<FlashcardCreationChoiceModalP
               <Show when={content().reading}>
                 <div class="flashcard-choice__srs-reading">{content().reading}</div>
               </Show>
+              <Show when={content().example}>
+                <div class="flashcard-choice__srs-divider" />
+                <div class="flashcard-choice__srs-example" innerHTML={content().example} />
+                <Show when={content().exampleMeaning}>
+                  <div class="flashcard-choice__srs-example-meaning">{content().exampleMeaning}</div>
+                </Show>
+              </Show>
             </div>
           </Show>
         </div>
@@ -143,6 +156,18 @@ const FlashcardCreationChoiceModalInner: Component<FlashcardCreationChoiceModalP
         <Show when={content().imageUrl}>
           <div class="flashcard-choice__image">
             <img src={content().imageUrl} alt="" />
+          </div>
+        </Show>
+
+        <Show when={!useAnkiTarget()}>
+          <div class="flashcard-choice__dont-show-row">
+            <ToggleSwitch
+              checked={dontShowAgain()}
+              onChange={setDontShowAgain}
+            />
+            <span class="flashcard-choice__dont-show-label">
+              {t('mlearn.FlashcardChoice.DontShowAgain')}
+            </span>
           </div>
         </Show>
       </div>

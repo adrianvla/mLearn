@@ -696,6 +696,29 @@ export function addToQueue(queue: ReviewQueue, card: Flashcard): ReviewQueue {
 }
 
 /**
+ * Get the earliest due date among learning/relearning cards in the queue that
+ * are not yet due. Returns null if no such cards exist.
+ */
+export function getNextPendingLearningDueDate(
+    queue: ReviewQueue,
+    cards: Record<string, Flashcard>
+): number | null {
+    const now = Date.now();
+    let earliest: number | null = null;
+
+    for (const id of [...queue.learningQueue, ...queue.relearnQueue]) {
+        const card = cards[id];
+        if (!card || card.suspended || card.buried) continue;
+        if (card.dueDate > now) {
+            if (earliest === null || card.dueDate < earliest) {
+                earliest = card.dueDate;
+            }
+        }
+    }
+    return earliest;
+}
+
+/**
  * Get queue counts for display
  */
 export function getQueueCounts(queue: ReviewQueue, cards: Record<string, Flashcard>): {

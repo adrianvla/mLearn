@@ -165,7 +165,7 @@
         "ExampleTranslation": "Übersetzung des Beispiels",
         "PitchAccent": "Tonakzent",
         "PitchAccentPlaceholder": "0 (flach), 1, 2, 3…",
-        "Reading": "Lesung (Furigana)",
+        "Reading": "Lesung",
         "ReadingPlaceholder": "Kana / Lesung",
         "StructuredContent": "Strukturierter Inhalt (beliebiges HTML)",
         "SurfaceNote": "(Wort)",
@@ -528,6 +528,7 @@
     "FlashcardChoice": {
       "AnkiError": "Export nach Anki fehlgeschlagen",
       "AnkiSuccess": "Lernkarte nach Anki exportiert",
+      "DontShowAgain": "Nicht mehr anzeigen (immer im SRS speichern)",
       "Example": "Beispiel",
       "ExportToAnki": "Nach Anki exportieren",
       "SaveToSRS": "Im SRS speichern",
@@ -624,6 +625,8 @@
         "Bury": "Vergraben",
         "Complete": "Wiederholung abgeschlossen!",
         "CompleteDescription": "Sie haben alle heutigen Karten wiederholt. Gute Arbeit!",
+        "WaitingTitle": "Warten auf Karten…",
+        "WaitingDescription": "Nächste Karte fällig in {time}",
         "Easy": "Leicht",
         "Hard": "Schwer",
         "LearningCard": "Lernkarte",
@@ -902,8 +905,26 @@
       "ru": "Русский"
     },
     "MediaStats": {
+      "AllWordsKnown": "Alle Wörter sind bekannt!",
+      "Difficulty": "Schwierigkeit",
+      "Failed": "{count}x fehlgeschlagen",
+      "GrammarPoints": "Grammatikpunkte",
+      "Hovered": "{count}x hervorgehoben",
+      "NoGrammarYet": "Noch keine Grammatikpunkte erkannt.",
+      "NoWordsYet": "Noch keine Wörter gefunden.",
+      "NotAssessed": "Nicht bewertet",
+      "ReviewWithAI": "Mit KI überprüfen",
+      "Seen": "{count}x gesehen",
       "Sessions": "Sitzungen",
-      "TimeSpent": "Aufgewendete Zeit"
+      "Tab": {
+        "Grammar": "Grammatik",
+        "Summary": "Übersicht",
+        "Unknown": "Unbekannt",
+        "Words": "Wörter"
+      },
+      "TimeSpent": "Aufgewendete Zeit",
+      "UnknownWords": "Unbekannte Wörter",
+      "WordsSeen": "Gesehene Wörter"
     },
     "Notifications": {
       "AnkiCacheLoaded": "Anki-Lernkarten aus dem Cache geladen (Anki scheint offline zu sein)",
@@ -921,16 +942,10 @@
     },
     "Reader": {
       "CopyPhrase": "Satz kopieren",
-      "HideFurigana": "Furigana ausblenden",
-      "ShowFurigana": "Furigana anzeigen",
+      "HideFurigana": "Lesung ausblenden",
+      "ShowFurigana": "Lesung anzeigen",
       "Sidebar": {
-        "AddAllFlashcards": "Alle hinzufügen",
-        "AddingAllFlashcards": "Wird hinzugefügt...",
-        "DictionaryOnly": "Nur Wörterbuch",
-        "IgnoreWord": "Ignorieren",
         "Pages": "Seiten",
-        "UnknownWords": "Unbekannte Wörter",
-        "UnknownWordsCount": "{count} Wörter",
         "UnknownWordsEmpty": "Auf der aktuellen Seite wurden keine unbekannten Wörter gefunden.",
         "AddModal": {
           "Title": "Karteikarten hinzufügen",
@@ -947,9 +962,7 @@
         },
         "SortBy": {
           "Label": "Sortieren nach",
-          "OCROrder": "Lesereihenfolge",
-          "Level": "Stufe",
-          "Word": "Alphabetisch"
+          "OCROrder": "Lesereihenfolge"
         }
       },
       "Status": {
@@ -972,9 +985,9 @@
       "StatusBar": {
         "DebugOverlayOff": "Debug: Aus",
         "DebugOverlayOn": "Debug: Ein",
-        "DebugOverlayTitle": "Debug-Overlay für OCR-Text und Furigana-Erkennung umschalten",
-        "FuriganaDetectionOff": "Furigana: Aus",
-        "FuriganaDetectionOn": "Furigana: Ein",
+        "DebugOverlayTitle": "Debug-Overlay für OCR-Text und Lesungserkennung umschalten",
+        "FuriganaDetectionOff": "Lesung: Aus",
+        "FuriganaDetectionOn": "Lesung: Ein",
         "MagnifierHint": "{key} drücken für Lupe",
         "OpenConversationAgent": "KI-Tutor",
         "OpenConversationAgentTitle": "KI-Konversationstutor öffnen",
@@ -1103,7 +1116,11 @@
         },
         "ShowFurigana": {
           "Description": "Lesung über Wörtern anzeigen",
-          "Label": "Furigana anzeigen"
+          "Label": "Lesung anzeigen"
+        },
+        "HideReadingForKnownWords": {
+          "Description": "Lesungen für bereits bekannte Wörter automatisch ausblenden",
+          "Label": "Lesung bei bekannten Wörtern ausblenden"
         },
         "ShowPitchAccent": {
           "Description": "Tonakzent-Informationen zu Wörtern anzeigen",
@@ -1180,10 +1197,10 @@
         "Description": "OCR- und Reader-Einstellungen",
         "Furigana": {
           "Hide": {
-            "Description": "Erkannte Furigana mit weißem Block abdecken, beim Hovern anzeigen (zum Leseüben)",
-            "Label": "Furigana verbergen"
+            "Description": "Erkannte Lesungsannotationen mit weißem Block abdecken, beim Hovern anzeigen (zum Leseüben)",
+            "Label": "Lesung verbergen"
           },
-          "Title": "Furigana"
+          "Title": "Lesung"
         },
         "LlmIntegration": {
           "AutoSpeak": {
@@ -1230,8 +1247,8 @@
             "Label": "OCR aktivieren"
           },
           "FuriganaDetection": {
-            "Description": "Furigana-Annotationen in OCR-Ergebnissen erkennen und filtern. Deaktiviert werden erkannte Textblöcke unverändert angezeigt.",
-            "Label": "Furigana-Erkennung"
+            "Description": "Lesungsannotationen in OCR-Ergebnissen erkennen und filtern. Deaktiviert werden erkannte Textblöcke unverändert angezeigt.",
+            "Label": "Lesungserkennung"
           },
           "RamSaver": {
             "Description": "Verwendet eine leichte OpenCV-basierte Texterkennung anstelle des neuronalen Netzes. Spart ~1,5 GB RAM, kann aber bei komplexen Layouts weniger genau sein. Die Erkennungsqualität wird nicht beeinträchtigt.",
@@ -1530,7 +1547,7 @@
         "IntervalDistribution": "Intervallverteilung",
         "Lapses": "Fehler",
         "Maturity": {
-          "Mature": "Reif (\u226521T)",
+          "Mature": "Reif (≥21T)",
           "Title": "Reife",
           "Young": "Jung (<21T)"
         },
@@ -1606,7 +1623,14 @@
         "OpenConversationAgent": "KI-Tutor",
         "OpenSubtitles": "Untertitel öffnen",
         "OpenVideo": "Video öffnen",
-        "OrClickToBrowse": "oder klicken zum Durchsuchen"
+        "OrClickToBrowse": "oder klicken zum Durchsuchen",
+        "ToggleWordSidebar": "Wörter-Seitenleiste umschalten"
+      },
+      "Sidebar": {
+        "UnknownWordsEmpty": "Noch keine unbekannten Wörter gefunden. Video mit Untertiteln abspielen.",
+        "SortBy": {
+          "SubtitleOrder": "Untertitelreihenfolge"
+        }
       },
       "WatchTogether": "Gemeinsam ansehen"
     },
@@ -1695,6 +1719,18 @@
       "Reader": "Leser",
       "Settings": "Einstellungen",
       "Video": "Video"
+    },
+    "Sidebar": {
+      "AddAll": "Alle hinzufügen",
+      "AddingAll": "Wird hinzugefügt...",
+      "DictionaryOnly": "Nur Wörterbuch",
+      "Ignore": "Ignorieren",
+      "SortBy": {
+        "Level": "Stufe",
+        "Word": "Alphabetisch"
+      },
+      "UnknownWords": "Unbekannte Wörter",
+      "WordCount": "{count} Wörter"
     }
   }
 }

@@ -267,7 +267,7 @@ interface ReaderContextMenuOptions {
 function showReaderContextMenu(sender: Electron.WebContents, options: ReaderContextMenuOptions): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     {
-      label: options.furiganaHiderEnabled ? 'Show Furigana' : 'Hide Furigana',
+      label: options.furiganaHiderEnabled ? 'Show Reading' : 'Hide Reading',
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-furigana'),
     },
     { type: 'separator' },

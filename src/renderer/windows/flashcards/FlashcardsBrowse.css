@@ -59,6 +59,9 @@
   position: relative;
 }
 
+.flashcards-grid .flashcard-translation{
+  margin-bottom:calc(2rem + 2px + var(--spacing-4));
+}
 .flashcard-footer {
   display: flex;
   gap: var(--spacing-2);

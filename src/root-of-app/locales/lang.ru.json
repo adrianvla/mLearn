@@ -528,6 +528,7 @@
     "FlashcardChoice": {
       "AnkiError": "Не удалось экспортировать в Anki",
       "AnkiSuccess": "Карточка экспортирована в Anki",
+      "DontShowAgain": "Больше не показывать (всегда сохранять в SRS)",
       "Example": "Пример",
       "ExportToAnki": "Экспортировать в Anki",
       "SaveToSRS": "Сохранить в SRS",
@@ -624,6 +625,8 @@
         "Bury": "Отложить",
         "Complete": "Повторение завершено!",
         "CompleteDescription": "Вы повторили все карточки на сегодня. Отличная работа!",
+        "WaitingTitle": "Ожидание карточек…",
+        "WaitingDescription": "Следующая карточка через {time}",
         "Easy": "Легко",
         "Hard": "Трудно",
         "LearningCard": "Изучаемая карточка",
@@ -902,8 +905,26 @@
       "ru": "Русский"
     },
     "MediaStats": {
+      "AllWordsKnown": "Все слова известны!",
+      "Difficulty": "Сложность",
+      "Failed": "ошибок {count}x",
+      "GrammarPoints": "Грамматика",
+      "Hovered": "наведено {count}x",
+      "NoGrammarYet": "Грамматические конструкции ещё не обнаружены.",
+      "NoWordsYet": "Слова ещё не найдены.",
+      "NotAssessed": "Не оценено",
+      "ReviewWithAI": "Повторить с ИИ",
+      "Seen": "встречено {count}x",
       "Sessions": "Сеансов",
-      "TimeSpent": "Затрачено времени"
+      "Tab": {
+        "Grammar": "Грамматика",
+        "Summary": "Обзор",
+        "Unknown": "Незнакомые",
+        "Words": "Слова"
+      },
+      "TimeSpent": "Затрачено времени",
+      "UnknownWords": "Незнакомые слова",
+      "WordsSeen": "Слов встречено"
     },
     "Notifications": {
       "AnkiCacheLoaded": "Карточки Anki загружены из кэша (похоже, Anki сейчас недоступен)",
@@ -921,16 +942,10 @@
     },
     "Reader": {
       "CopyPhrase": "Копировать фразу",
-      "HideFurigana": "Скрыть фуригану",
-      "ShowFurigana": "Показать фуригану",
+      "HideFurigana": "Скрыть чтение",
+      "ShowFurigana": "Показать чтение",
       "Sidebar": {
-        "AddAllFlashcards": "Добавить все",
-        "AddingAllFlashcards": "Добавление...",
-        "DictionaryOnly": "Только из словаря",
-        "IgnoreWord": "Игнорировать",
         "Pages": "Страницы",
-        "UnknownWords": "Незнакомые слова",
-        "UnknownWordsCount": "{count} слов",
         "UnknownWordsEmpty": "На текущей странице не найдено незнакомых слов.",
         "AddModal": {
           "Title": "Добавить карточки",
@@ -947,9 +962,7 @@
         },
         "SortBy": {
           "Label": "Сортировать по",
-          "OCROrder": "Порядок чтения",
-          "Level": "Уровень",
-          "Word": "По алфавиту"
+          "OCROrder": "Порядок чтения"
         }
       },
       "Status": {
@@ -973,8 +986,8 @@
         "DebugOverlayOff": "Отладка: Выкл",
         "DebugOverlayOn": "Отладка: Вкл",
         "DebugOverlayTitle": "Переключить отладочное наложение для визуализации OCR-текста и обнаружения фуриганы",
-        "FuriganaDetectionOff": "Фуригана: Выкл",
-        "FuriganaDetectionOn": "Фуригана: Вкл",
+        "FuriganaDetectionOff": "Чтение: Выкл",
+        "FuriganaDetectionOn": "Чтение: Вкл",
         "MagnifierHint": "Нажмите {key} для лупы",
         "OpenConversationAgent": "AI-репетитор",
         "OpenConversationAgentTitle": "Открыть AI-репетитора",
@@ -1103,7 +1116,11 @@
         },
         "ShowFurigana": {
           "Description": "Отображать чтение над словами",
-          "Label": "Показывать фуригану"
+          "Label": "Показывать чтение"
+        },
+        "HideReadingForKnownWords": {
+          "Description": "Автоматически скрывать чтение для уже известных слов",
+          "Label": "Скрывать чтение для известных слов"
         },
         "ShowPitchAccent": {
           "Description": "Отображать информацию о тоновом ударении слов",
@@ -1180,10 +1197,10 @@
         "Description": "Настройки OCR и читалки",
         "Furigana": {
           "Hide": {
-            "Description": "Закрыть обнаруженную фуригану белым блоком, показывать при наведении (для практики чтения)",
-            "Label": "Скрыть фуригану"
+            "Description": "Закрыть обнаруженные аннотации чтения белым блоком, показывать при наведении (для практики чтения)",
+            "Label": "Скрыть чтение"
           },
-          "Title": "Фуригана"
+          "Title": "Чтение"
         },
         "LlmIntegration": {
           "AutoSpeak": {
@@ -1230,8 +1247,8 @@
             "Label": "Включить OCR"
           },
           "FuriganaDetection": {
-            "Description": "Определять и фильтровать аннотации фуриганы в результатах OCR. При отключении обнаруженные текстовые блоки отображаются как есть.",
-            "Label": "Обнаружение фуриганы"
+            "Description": "Определять и фильтровать аннотации чтения в результатах OCR. При отключении обнаруженные текстовые блоки отображаются как есть.",
+            "Label": "Обнаружение чтения"
           },
           "RamSaver": {
             "Description": "Использовать облегчённое обнаружение текста на базе OpenCV вместо нейросети. Экономит ~1,5 ГБ ОЗУ, но может быть менее точным для сложных макетов. Качество распознавания не затрагивается.",
@@ -1530,7 +1547,7 @@
         "IntervalDistribution": "Распределение интервалов",
         "Lapses": "Провалы",
         "Maturity": {
-          "Mature": "Зрелые (\u226521д)",
+          "Mature": "Зрелые (≥21д)",
           "Title": "Зрелость",
           "Young": "Молодые (<21д)"
         },
@@ -1606,7 +1623,14 @@
         "OpenConversationAgent": "AI-репетитор",
         "OpenSubtitles": "Открыть субтитры",
         "OpenVideo": "Открыть видео",
-        "OrClickToBrowse": "или нажмите для выбора"
+        "OrClickToBrowse": "или нажмите для выбора",
+        "ToggleWordSidebar": "Панель слов"
+      },
+      "Sidebar": {
+        "UnknownWordsEmpty": "Незнакомые слова ещё не найдены. Воспроизведите видео с загруженными субтитрами.",
+        "SortBy": {
+          "SubtitleOrder": "По субтитрам"
+        }
       },
       "WatchTogether": "Смотреть вместе"
     },
@@ -1695,6 +1719,18 @@
       "Reader": "Читалка",
       "Settings": "Настройки",
       "Video": "Видео"
+    },
+    "Sidebar": {
+      "AddAll": "Добавить все",
+      "AddingAll": "Добавление...",
+      "DictionaryOnly": "Только из словаря",
+      "Ignore": "Игнорировать",
+      "SortBy": {
+        "Level": "Уровень",
+        "Word": "По алфавиту"
+      },
+      "UnknownWords": "Незнакомые слова",
+      "WordCount": "{count} слов"
     }
   }
 }

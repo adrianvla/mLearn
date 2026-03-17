@@ -3,20 +3,25 @@
  * Video player with subtitle display and all video-related functionality
  */
 
-import { Component, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
+import { Component, Show, createSignal, createEffect, onMount, onCleanup, createMemo } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useIPC, useSubtitles, useWatchTogether, useMediaStats } from '../../../hooks';
 import { useLocalization, useSettings, useLanguage, useFlashcards } from '../../../context';
-import { VideoPlayer } from '../../../components/video';
+import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
+import type { VideoWordEntry } from '../../../components/video';
 import { MediaStatsPanel } from '../../../components/statistics/MediaStatsPanel';
 import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { LiveWordTranslator, SubtitleSync } from '../../../components/subtitle';
-import { IPC_CHANNELS } from '../../../../shared/constants';
+import { IPC_CHANNELS, WORD_STATUS } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
+import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, saveToRecentItems, updateRecentItemThumbnail, updateRecentItemProgress } from '../../../services/thumbnailService';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
+import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { wordsLearnedInApp } from '../../../services/statsService';
+import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hooks/useTranslation';
 import type { ConversationAgentContext } from '../../../../shared/types';
 import './video.css';
 
@@ -46,6 +51,16 @@ export const VideoRoute: Component = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_currentVideoPath, setCurrentVideoPath] = createSignal<string>('');
   const [showStatsPanel, setShowStatsPanel] = createSignal(false);
+  const [showWordSidebar, setShowWordSidebar] = createSignal(false);
+
+  // Accumulated unknown words from subtitles
+  const [accumulatedWords, setAccumulatedWords] = createSignal<VideoWordEntry[]>([]);
+  const seenWords = new Set<string>();
+  const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
+  const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
+
+  const { tokenize } = useTokenizer();
+  const { translateWord } = useTranslation({ immediate: true });
 
   // Media stats for this video session
   const mediaStats = useMediaStats({ mediaType: 'video', language: settings.language });
@@ -55,6 +70,107 @@ export const VideoRoute: Component = () => {
     const name = currentVideoName();
     if (name) mediaStats.setMedia(name);
   });
+
+  // Accumulate unknown words from subtitle tokens as they appear
+  createEffect(() => {
+    const tokens = subtitles.tokens();
+    const idx = subtitles.currentIndex();
+    if (!tokens.length || idx < 0) return;
+
+    const currentSub = subtitles.currentSubtitle();
+    const contextPhrase = currentSub?.text || '';
+    const newEntries: VideoWordEntry[] = [];
+
+    for (const token of tokens) {
+      const word = token.actual_word ?? token.surface ?? token.word;
+      if (!word || !langCtx.isTranslatable(token.type)) continue;
+      if (!isWordInLanguageScript(word, settings.language)) continue;
+      if (seenWords.has(word)) continue;
+      if (flashcardCtx.isWordIgnoredSync(word)) continue;
+
+      const manualStatus = numericToWordStatus(wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN);
+      const effectiveStatus = getEffectiveWordStatus(flashcardCtx.getCardByWordSync(word), manualStatus);
+      if (effectiveStatus === 'known') continue;
+
+      seenWords.add(word);
+      newEntries.push({
+        key: `sub:${idx}:${word}`,
+        word,
+        token,
+        contextPhrase,
+        subtitleIndex: idx,
+      });
+    }
+
+    if (newEntries.length > 0) {
+      setAccumulatedWords(prev => [...prev, ...newEntries]);
+    }
+  });
+
+  // Visible unknown words: filter out words that became known/ignored since accumulation
+  const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
+    const manualStatuses = wordsLearnedInApp();
+
+    return accumulatedWords().filter(entry => {
+      if (flashcardCtx.isWordIgnoredSync(entry.word)) return false;
+      const manualStatus = numericToWordStatus(manualStatuses[entry.word] ?? WORD_STATUS.UNKNOWN);
+      const effectiveStatus = getEffectiveWordStatus(flashcardCtx.getCardByWordSync(entry.word), manualStatus);
+      return effectiveStatus !== 'known';
+    });
+  });
+
+  const addVideoWordFlashcard = async (entry: VideoWordEntry) => {
+    setAddingSidebarWords(prev => {
+      const next = new Set(prev);
+      next.add(entry.key);
+      return next;
+    });
+    try {
+      const word = entry.word;
+      const cached = getCachedTranslation(word);
+      let translationData = cached;
+      if (!translationData) {
+        try { translationData = await translateWord(word); } catch { /* ignore */ }
+      }
+      const freq = langCtx.getFrequency(word);
+      const manualStatus = numericToWordStatus(wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN);
+      const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
+
+      const { content, ease } = await buildWordHoverFlashcardContent({
+        token: entry.token,
+        word,
+        translationData: translationData || undefined,
+        contextPhrase: entry.contextPhrase,
+        isOcr: false,
+        level: freq?.raw_level ?? -1,
+        manualStatus,
+        colourCodes,
+        tokenize,
+      });
+
+      await flashcardCtx.addFlashcard(content, ease);
+    } catch (err) {
+      console.error('Failed to add flashcard from video sidebar:', err);
+    } finally {
+      setAddingSidebarWords(prev => {
+        const next = new Set(prev);
+        next.delete(entry.key);
+        return next;
+      });
+    }
+  };
+
+  const addAllVideoWords = async (entries: VideoWordEntry[]) => {
+    setIsAddingAllSidebarWords(true);
+    for (const entry of entries) {
+      await addVideoWordFlashcard(entry);
+    }
+    setIsAddingAllSidebarWords(false);
+  };
+
+  const ignoreVideoWord = async (entry: VideoWordEntry) => {
+    await flashcardCtx.ignoreWordForLanguage(entry.word);
+  };
   
   let thumbnailInterval: number | null = null;
   let progressInterval: number | null = null;
@@ -426,9 +542,16 @@ export const VideoRoute: Component = () => {
     getBridge().window.openWindow({ type: 'conversation-agent', context: context as unknown as Record<string, unknown> });
   };
 
+  const videoRouteClass = () => {
+    const classes = ['video-route'];
+    if (showWordSidebar() && !showDropZone()) classes.push('with-word-sidebar');
+    if (showStatsPanel() && mediaStats.isActive() && !showDropZone()) classes.push('with-stats-sidebar');
+    return classes.join(' ');
+  };
+
   return (
     <div
-      class="video-route"
+      class={videoRouteClass()}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -476,11 +599,13 @@ export const VideoRoute: Component = () => {
         <VideoPlayer
           src={videoSrc()}
           subtitleContent={subtitleContent()}
+          subtitles={subtitles}
           ctxMenuOptions={{ isWatchTogether: watchTogether.isActive() }}
-          style={{ flex: '1' }}
           onTimeUpdate={(time) => setCurrentVideoTime(time)}
           showStats={showStatsPanel()}
           onToggleStats={() => setShowStatsPanel(prev => !prev)}
+          showWordSidebar={showWordSidebar()}
+          onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
         />
       </Show>
 
@@ -499,6 +624,19 @@ export const VideoRoute: Component = () => {
             openConversationAgent();
             setShowStatsPanel(false);
           }}
+        />
+      </Show>
+
+      {/* Unknown words sidebar */}
+      <Show when={showWordSidebar() && !showDropZone()}>
+        <VideoUnknownWordsSidebar
+          words={visibleUnknownWords}
+          addingWordKeys={() => addingSidebarWords()}
+          isAddingAll={() => isAddingAllSidebarWords()}
+          onAddWord={addVideoWordFlashcard}
+          onAddAll={addAllVideoWords}
+          onIgnoreWord={ignoreVideoWord}
+          onClose={() => setShowWordSidebar(false)}
         />
       </Show>
     </div>

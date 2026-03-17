@@ -4,7 +4,8 @@
  */
 
 import { Component, JSX, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
-import { useVideo, useVideoKeyboard, useSubtitles, useCursorVisibility } from '../../hooks';
+import { useVideo, useVideoKeyboard, useCursorVisibility } from '../../hooks';
+import type { useSubtitles } from '../../hooks';
 import { useVideoTouch } from '../../hooks/useVideoTouch';
 import { useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
@@ -18,6 +19,8 @@ export interface VideoPlayerProps {
   src?: string;
   /** Subtitle file content (SRT/VTT/ASS) */
   subtitleContent?: string;
+  /** External subtitles hook instance (shared with route for word tracking) */
+  subtitles: ReturnType<typeof useSubtitles>;
   /** Autoplay video on load */
   autoplay?: boolean;
   /** Callback when video time updates */
@@ -30,6 +33,10 @@ export interface VideoPlayerProps {
   showStats?: boolean;
   /** Toggle stats panel visibility */
   onToggleStats?: () => void;
+  /** Whether the word sidebar is shown */
+  showWordSidebar?: boolean;
+  /** Toggle word sidebar visibility */
+  onToggleWordSidebar?: () => void;
   /** Additional CSS class */
   class?: string;
   /** Additional inline styles */
@@ -39,7 +46,7 @@ export interface VideoPlayerProps {
 export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   const { settings } = useSettings();
   const video = useVideo();
-  const subtitles = useSubtitles();
+  const subtitles = props.subtitles;
 
   // Cursor visibility with 2s timeout - matches legacy behavior
   const { isVisible: controlsVisible } = useCursorVisibility({
@@ -151,6 +158,8 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
             isControlsVisible={controlsVisible()}
             showStats={props.showStats}
             onToggleStats={props.onToggleStats}
+            showWordSidebar={props.showWordSidebar}
+            onToggleWordSidebar={props.onToggleWordSidebar}
         />
       </div>
   );

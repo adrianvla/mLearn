@@ -4,7 +4,7 @@
  * Modernized UI with sidebar navigation
  */
 
-import { Component, Show, For, createSignal, createMemo, onCleanup, onMount } from 'solid-js';
+import { Component, Show, For, createSignal, createMemo, createEffect, on, onCleanup } from 'solid-js';
 import { WindowWrapper, useLocalization, useSettings } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditor, FlashcardSyncModal, FlashcardStats, FlashcardPitchAccent } from '../../components/flashcard';
@@ -70,6 +70,7 @@ export const FlashcardsContent: Component = () => {
     updateFlashcardContent,
     intervalToString,
     generateExampleSentenceWithLLM,
+    isLoading,
   } = useFlashcards();
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
@@ -111,37 +112,43 @@ export const FlashcardsContent: Component = () => {
   const [showRepairModal, setShowRepairModal] = createSignal(false);
   const [, setRepairRunning] = createSignal(false);
 
-  // Scan for broken TTS on mount
-  onMount(async () => {
+  // Scan for broken TTS after flashcards finish loading
+  let ttsRepairScanned = false;
+  createEffect(on(isLoading, (loading) => {
+    if (loading || ttsRepairScanned) return;
+    ttsRepairScanned = true;
     if (!isElectron()) return;
-    const bridge = getBridge();
-    const cards = getAllCards();
-    if (cards.length === 0) return;
 
-    const jobs: TtsRepairJob[] = [];
-    for (const card of cards) {
-      const front = card.content.front;
-      const cleanFront = front ? stripFurigana(front) : '';
-      if (cleanFront && cleanFront !== '-') {
-        const existing = await bridge.flashcards.getFlashcardTts(card.id, 'word');
-        if (!existing) {
-          jobs.push({ cardId: card.id, cardFront: front, text: cleanFront, field: 'word' });
+    (async () => {
+      const bridge = getBridge();
+      const cards = getAllCards();
+      if (cards.length === 0) return;
+
+      const jobs: TtsRepairJob[] = [];
+      for (const card of cards) {
+        const front = card.content.front;
+        const cleanFront = front ? stripFurigana(front) : '';
+        if (cleanFront && cleanFront !== '-') {
+          const existing = await bridge.flashcards.getFlashcardTts(card.id, 'word');
+          if (!existing) {
+            jobs.push({ cardId: card.id, cardFront: front, text: cleanFront, field: 'word' });
+          }
+        }
+        const example = card.content.example;
+        const cleanExample = example ? stripFurigana(example) : '';
+        if (cleanExample && cleanExample !== '-') {
+          const existing = await bridge.flashcards.getFlashcardTts(card.id, 'example');
+          if (!existing) {
+            jobs.push({ cardId: card.id, cardFront: front, text: cleanExample, field: 'example' });
+          }
         }
       }
-      const example = card.content.example;
-      const cleanExample = example ? stripFurigana(example) : '';
-      if (cleanExample && cleanExample !== '-') {
-        const existing = await bridge.flashcards.getFlashcardTts(card.id, 'example');
-        if (!existing) {
-          jobs.push({ cardId: card.id, cardFront: front, text: cleanExample, field: 'example' });
-        }
+      if (jobs.length > 0) {
+        setRepairJobs(jobs);
+        setShowRepairModal(true);
       }
-    }
-    if (jobs.length > 0) {
-      setRepairJobs(jobs);
-      setShowRepairModal(true);
-    }
-  });
+    })();
+  }));
 
   // Handle TTS repair
   const handleRepairTts = async () => {

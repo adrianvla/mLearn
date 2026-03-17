@@ -12,7 +12,7 @@ import type { OcrBox } from '../components/reader/OcrOverlay';
 
 const DEFAULT_FURIGANA_RATIO = 1.5;
 const DEFAULT_NEIGHBOR_WINDOW_MULT = 2.4;
-const DEFAULT_ZONE_DELTA_THRESHOLD = 50;
+const DEFAULT_ZONE_DELTA_THRESHOLD = 15;
 
 // ============================================================================
 // Box Metrics
