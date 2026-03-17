@@ -165,7 +165,7 @@
         "ExampleTranslation": "Example Translation",
         "PitchAccent": "Pitch accent",
         "PitchAccentPlaceholder": "0 (Heiban), 1, 2, 3…",
-        "Reading": "Reading (furigana)",
+        "Reading": "Reading",
         "ReadingPlaceholder": "かな / reading",
         "StructuredContent": "Structured content (optional HTML)",
         "SurfaceNote": "(Word)",
@@ -528,6 +528,7 @@
     "FlashcardChoice": {
       "AnkiError": "Failed to export to Anki",
       "AnkiSuccess": "Flashcard exported to Anki",
+      "DontShowAgain": "Don't show this again (always save to SRS)",
       "Example": "Example",
       "ExportToAnki": "Export to Anki",
       "SaveToSRS": "Save to SRS",
@@ -624,6 +625,8 @@
         "Bury": "Bury",
         "Complete": "Review Complete!",
         "CompleteDescription": "You've reviewed all cards for now. Great job!",
+        "WaitingTitle": "Waiting for cards…",
+        "WaitingDescription": "Next card due in {time}",
         "Easy": "Easy",
         "Hard": "Hard",
         "LearningCard": "Learning Card",
@@ -902,8 +905,26 @@
       "ru": "Русский"
     },
     "MediaStats": {
+      "AllWordsKnown": "All words are known!",
+      "Difficulty": "Difficulty",
+      "Failed": "failed {count}x",
+      "GrammarPoints": "Grammar Points",
+      "Hovered": "hovered {count}x",
+      "NoGrammarYet": "No grammar points detected yet.",
+      "NoWordsYet": "No words encountered yet.",
+      "NotAssessed": "Not assessed",
+      "ReviewWithAI": "Review with AI",
+      "Seen": "seen {count}x",
       "Sessions": "Sessions",
-      "TimeSpent": "Time Spent"
+      "Tab": {
+        "Grammar": "Grammar",
+        "Summary": "Summary",
+        "Unknown": "Unknown",
+        "Words": "Words"
+      },
+      "TimeSpent": "Time Spent",
+      "UnknownWords": "Unknown Words",
+      "WordsSeen": "Words Seen"
     },
     "Notifications": {
       "AnkiCacheLoaded": "Anki flashcards loaded from cache (Anki appears offline)",
@@ -921,16 +942,10 @@
     },
     "Reader": {
       "CopyPhrase": "Copy phrase",
-      "HideFurigana": "Hide furigana",
-      "ShowFurigana": "Show furigana",
+      "HideFurigana": "Hide reading",
+      "ShowFurigana": "Show reading",
       "Sidebar": {
-        "AddAllFlashcards": "Add All",
-        "AddingAllFlashcards": "Adding...",
-        "DictionaryOnly": "Dictionary only",
-        "IgnoreWord": "Ignore",
         "Pages": "Pages",
-        "UnknownWords": "Unknown Words",
-        "UnknownWordsCount": "{count} words",
         "UnknownWordsEmpty": "No unknown words found on the current page.",
         "AddModal": {
           "Title": "Add Flashcards",
@@ -947,9 +962,7 @@
         },
         "SortBy": {
           "Label": "Sort by",
-          "OCROrder": "Reading order",
-          "Level": "Level",
-          "Word": "Alphabetical"
+          "OCROrder": "Reading order"
         }
       },
       "Status": {
@@ -972,9 +985,9 @@
       "StatusBar": {
         "DebugOverlayOff": "Debug: Off",
         "DebugOverlayOn": "Debug: On",
-        "DebugOverlayTitle": "Toggle debug overlay to visualize OCR text and furigana detection",
-        "FuriganaDetectionOff": "Furigana Det.: Off",
-        "FuriganaDetectionOn": "Furigana Det.: On",
+        "DebugOverlayTitle": "Toggle debug overlay to visualize OCR text and reading annotation detection",
+        "FuriganaDetectionOff": "Reading Det.: Off",
+        "FuriganaDetectionOn": "Reading Det.: On",
         "MagnifierHint": "Press {key} to open magnifier",
         "OpenConversationAgent": "AI Tutor",
         "OpenConversationAgentTitle": "Open AI conversation tutor",
@@ -1103,7 +1116,11 @@
         },
         "ShowFurigana": {
           "Description": "Display readings above words",
-          "Label": "Show Furigana"
+          "Label": "Show Reading"
+        },
+        "HideReadingForKnownWords": {
+          "Description": "Automatically hide readings for words you already know",
+          "Label": "Hide Reading for Known Words"
         },
         "ShowPitchAccent": {
           "Description": "Display pitch accent information for words",
@@ -1180,10 +1197,10 @@
         "Description": "Configure OCR and manga reader settings",
         "Furigana": {
           "Hide": {
-            "Description": "Cover detected furigana with white boxes that reveal on hover (for reading practice)",
-            "Label": "Hide Furigana"
+            "Description": "Cover detected reading annotations with white boxes that reveal on hover (for reading practice)",
+            "Label": "Hide Reading"
           },
-          "Title": "Furigana"
+          "Title": "Reading"
         },
         "LlmIntegration": {
           "AutoSpeak": {
@@ -1230,8 +1247,8 @@
             "Label": "Enable OCR"
           },
           "FuriganaDetection": {
-            "Description": "Detect and filter furigana annotations from OCR results. When disabled, all detected text boxes are shown as-is without furigana filtering.",
-            "Label": "Furigana Detection"
+            "Description": "Detect and filter reading annotations from OCR results. When disabled, all detected text boxes are shown as-is without reading annotation filtering.",
+            "Label": "Reading Annotation Detection"
           },
           "RamSaver": {
             "Description": "Use lightweight OpenCV-based text detection instead of neural network detection. Reduces memory usage by ~1.5 GB but may lower accuracy on complex layouts. Recognition quality is unaffected.",
@@ -1530,7 +1547,7 @@
         "IntervalDistribution": "Interval Distribution",
         "Lapses": "Lapses",
         "Maturity": {
-          "Mature": "Mature (\u226521d)",
+          "Mature": "Mature (≥21d)",
           "Title": "Maturity",
           "Young": "Young (<21d)"
         },
@@ -1606,7 +1623,14 @@
         "OpenConversationAgent": "AI Tutor",
         "OpenSubtitles": "Open Subtitles",
         "OpenVideo": "Open Video",
-        "OrClickToBrowse": "Or click below to browse"
+        "OrClickToBrowse": "Or click below to browse",
+        "ToggleWordSidebar": "Toggle word sidebar"
+      },
+      "Sidebar": {
+        "UnknownWordsEmpty": "No unknown words found yet. Play the video with subtitles loaded.",
+        "SortBy": {
+          "SubtitleOrder": "Subtitle order"
+        }
       },
       "WatchTogether": "Watch together"
     },
@@ -1695,6 +1719,18 @@
       "Reader": "Reader",
       "Settings": "Settings",
       "Video": "Video"
+    },
+    "Sidebar": {
+      "AddAll": "Add All",
+      "AddingAll": "Adding...",
+      "DictionaryOnly": "Dictionary only",
+      "Ignore": "Ignore",
+      "SortBy": {
+        "Level": "Level",
+        "Word": "Alphabetical"
+      },
+      "UnknownWords": "Unknown Words",
+      "WordCount": "{count} words"
     }
   }
 }

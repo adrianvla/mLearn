@@ -64,11 +64,14 @@ export interface Settings {
   show_pos: boolean;
   furigana: boolean;
   showFurigana?: boolean; // Alias for furigana
+  hideReadingForKnownWords?: boolean;
   showPitchAccent: boolean;
   showDictionary?: boolean; // Show dictionary on hover
 
   // Anki settings
   use_anki: boolean;
+  /** Skip the SRS/Anki choice modal and always save to SRS */
+  flashcardSkipAnkiChoice: boolean;
   anki_field_expression: string;
   anki_field_reading: string;
   anki_field_meaning: string;
@@ -272,6 +275,7 @@ export const DEFAULT_SETTINGS: Settings = {
   show_pos: true,
   language: 'ja',
   use_anki: false,
+  flashcardSkipAnkiChoice: false,
   furigana: true,
   enable_flashcard_creation: true,
   automaticFlashcardCreation: false,
@@ -326,6 +330,7 @@ export const DEFAULT_SETTINGS: Settings = {
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'shift',
   readerFuriganaHider: false,
+  hideReadingForKnownWords: false,
   readerMagnifierHotkey: 'z',
   readerMagnifierZoom: 2,
   readerMagnifierSize: 200,

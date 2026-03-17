@@ -165,7 +165,7 @@
         "ExampleTranslation": "Traduction de l'exemple",
         "PitchAccent": "Accent tonal",
         "PitchAccentPlaceholder": "0 (plat), 1, 2, 3…",
-        "Reading": "Lecture (furigana)",
+        "Reading": "Lecture",
         "ReadingPlaceholder": "Kana / lecture",
         "StructuredContent": "Contenu structuré (HTML libre)",
         "SurfaceNote": "(mot)",
@@ -528,6 +528,7 @@
     "FlashcardChoice": {
       "AnkiError": "Échec de l'export vers Anki",
       "AnkiSuccess": "Carte exportée vers Anki",
+      "DontShowAgain": "Ne plus afficher (toujours enregistrer dans le SRS)",
       "Example": "Exemple",
       "ExportToAnki": "Exporter vers Anki",
       "SaveToSRS": "Enregistrer dans le SRS",
@@ -624,6 +625,8 @@
         "Bury": "Enterrer",
         "Complete": "Révision terminée !",
         "CompleteDescription": "Vous avez révisé toutes vos cartes du jour. Excellent travail !",
+        "WaitingTitle": "En attente de cartes…",
+        "WaitingDescription": "Prochaine carte dans {time}",
         "Easy": "Facile",
         "Hard": "Difficile",
         "LearningCard": "Carte en apprentissage",
@@ -902,8 +905,26 @@
       "ru": "Русский"
     },
     "MediaStats": {
+      "AllWordsKnown": "Tous les mots sont connus !",
+      "Difficulty": "Difficulté",
+      "Failed": "échoué {count}x",
+      "GrammarPoints": "Points de grammaire",
+      "Hovered": "survolé {count}x",
+      "NoGrammarYet": "Aucun point de grammaire détecté.",
+      "NoWordsYet": "Aucun mot rencontré.",
+      "NotAssessed": "Non évalué",
+      "ReviewWithAI": "Réviser avec l'IA",
+      "Seen": "vu {count}x",
       "Sessions": "Sessions",
-      "TimeSpent": "Temps passé"
+      "Tab": {
+        "Grammar": "Grammaire",
+        "Summary": "Résumé",
+        "Unknown": "Inconnus",
+        "Words": "Mots"
+      },
+      "TimeSpent": "Temps passé",
+      "UnknownWords": "Mots inconnus",
+      "WordsSeen": "Mots vus"
     },
     "Notifications": {
       "AnkiCacheLoaded": "Cartes Anki chargées depuis le cache (Anki semble hors ligne)",
@@ -921,16 +942,10 @@
     },
     "Reader": {
       "CopyPhrase": "Copier la phrase",
-      "HideFurigana": "Masquer les furigana",
-      "ShowFurigana": "Afficher les furigana",
+      "HideFurigana": "Masquer la lecture",
+      "ShowFurigana": "Afficher la lecture",
       "Sidebar": {
-        "AddAllFlashcards": "Tout ajouter",
-        "AddingAllFlashcards": "Ajout en cours...",
-        "DictionaryOnly": "Dictionnaire uniquement",
-        "IgnoreWord": "Ignorer",
         "Pages": "Pages",
-        "UnknownWords": "Mots inconnus",
-        "UnknownWordsCount": "{count} mots",
         "UnknownWordsEmpty": "Aucun mot inconnu trouvé sur la page actuelle.",
         "AddModal": {
           "Title": "Ajouter des flashcards",
@@ -947,9 +962,7 @@
         },
         "SortBy": {
           "Label": "Trier par",
-          "OCROrder": "Ordre de lecture",
-          "Level": "Niveau",
-          "Word": "Alphabétique"
+          "OCROrder": "Ordre de lecture"
         }
       },
       "Status": {
@@ -972,9 +985,9 @@
       "StatusBar": {
         "DebugOverlayOff": "Débogage : Désactivé",
         "DebugOverlayOn": "Débogage : Activé",
-        "DebugOverlayTitle": "Basculer la couche de débogage pour visualiser le texte OCR et la détection des furigana",
-        "FuriganaDetectionOff": "Furigana : Désactivé",
-        "FuriganaDetectionOn": "Furigana : Activé",
+        "DebugOverlayTitle": "Basculer la couche de débogage pour visualiser le texte OCR et la détection des annotations de lecture",
+        "FuriganaDetectionOff": "Lecture : Désactivé",
+        "FuriganaDetectionOn": "Lecture : Activé",
         "MagnifierHint": "Appuyez sur {key} pour la loupe",
         "OpenConversationAgent": "Tuteur IA",
         "OpenConversationAgentTitle": "Ouvrir le tuteur conversationnel IA",
@@ -1103,7 +1116,11 @@
         },
         "ShowFurigana": {
           "Description": "Afficher la lecture au-dessus des mots",
-          "Label": "Afficher les furigana"
+          "Label": "Afficher la lecture"
+        },
+        "HideReadingForKnownWords": {
+          "Description": "Masquer automatiquement la lecture pour les mots déjà connus",
+          "Label": "Masquer la lecture des mots connus"
         },
         "ShowPitchAccent": {
           "Description": "Afficher les informations d'accent tonal des mots",
@@ -1180,10 +1197,10 @@
         "Description": "Paramètres OCR et lecteur",
         "Furigana": {
           "Hide": {
-            "Description": "Couvrir les furigana détectés avec un bloc blanc, révéler au survol (pour pratiquer la lecture)",
-            "Label": "Masquer les furigana"
+            "Description": "Couvrir les annotations de lecture détectées avec un bloc blanc, révéler au survol (pour pratiquer la lecture)",
+            "Label": "Masquer la lecture"
           },
-          "Title": "Furigana"
+          "Title": "Lecture"
         },
         "LlmIntegration": {
           "AutoSpeak": {
@@ -1230,8 +1247,8 @@
             "Label": "Activer l'OCR"
           },
           "FuriganaDetection": {
-            "Description": "Détecter et filtrer les annotations furigana dans les résultats OCR. Désactivé, les blocs de texte détectés sont affichés tels quels.",
-            "Label": "Détection des furigana"
+            "Description": "Détecter et filtrer les annotations de lecture dans les résultats OCR. Désactivé, les blocs de texte détectés sont affichés tels quels.",
+            "Label": "Détection des annotations de lecture"
           },
           "RamSaver": {
             "Description": "Utilise une détection de texte légère basée sur OpenCV au lieu du réseau neuronal. Économise ~1,5 Go de RAM mais peut être moins précis pour les mises en page complexes. La qualité de reconnaissance n'est pas affectée.",
@@ -1530,7 +1547,7 @@
         "IntervalDistribution": "Distribution des intervalles",
         "Lapses": "Échecs",
         "Maturity": {
-          "Mature": "Mature (\u226521j)",
+          "Mature": "Mature (≥21j)",
           "Title": "Maturité",
           "Young": "Récent (<21j)"
         },
@@ -1606,7 +1623,14 @@
         "OpenConversationAgent": "Tuteur IA",
         "OpenSubtitles": "Ouvrir des sous-titres",
         "OpenVideo": "Ouvrir une vidéo",
-        "OrClickToBrowse": "ou cliquez pour parcourir"
+        "OrClickToBrowse": "ou cliquez pour parcourir",
+        "ToggleWordSidebar": "Afficher/masquer la barre de mots"
+      },
+      "Sidebar": {
+        "UnknownWordsEmpty": "Aucun mot inconnu trouvé. Lisez la vidéo avec des sous-titres chargés.",
+        "SortBy": {
+          "SubtitleOrder": "Ordre des sous-titres"
+        }
       },
       "WatchTogether": "Regarder ensemble"
     },
@@ -1695,6 +1719,18 @@
       "Reader": "Lecteur",
       "Settings": "Paramètres",
       "Video": "Vidéo"
+    },
+    "Sidebar": {
+      "AddAll": "Tout ajouter",
+      "AddingAll": "Ajout en cours...",
+      "DictionaryOnly": "Dictionnaire uniquement",
+      "Ignore": "Ignorer",
+      "SortBy": {
+        "Level": "Niveau",
+        "Word": "Alphabétique"
+      },
+      "UnknownWords": "Mots inconnus",
+      "WordCount": "{count} mots"
     }
   }
 }

@@ -2,14 +2,15 @@
  * Behaviour Settings Tab
  */
 
-import { Component } from 'solid-js';
-import { useSettings, useLocalization } from '../../../context';
+import { Component, Show } from 'solid-js';
+import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, RangeInput, TargetIcon } from '../../../components/common';
 import '../SettingsForm.css';
 
 export const BehaviourTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
+  const { getLanguageFeatures } = useLanguage();
 
   return (
     <TabContent
@@ -119,6 +120,18 @@ export const BehaviourTab: Component = () => {
             onChange={(checked) => updateSettings({ furigana: checked })}
           />
         </SettingRow>
+
+        <Show when={getLanguageFeatures().supportsReadings && settings.furigana}>
+          <SettingRow
+            label={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Label')}
+            description={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Description')}
+          >
+            <ToggleSwitch
+              checked={settings.hideReadingForKnownWords ?? false}
+              onChange={(checked) => updateSettings({ hideReadingForKnownWords: checked })}
+            />
+          </SettingRow>
+        </Show>
 
         <SettingRow
           label={t('mlearn.Settings.DisplayOptions.ShowPitchAccent.Label')}

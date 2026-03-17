@@ -89,6 +89,28 @@
   margin-top: var(--spacing-1);
 }
 
+.flashcard-choice__srs-example {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  padding: var(--spacing-2) 0;
+}
+
+.flashcard-choice__srs-example-meaning {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.flashcard-choice__dont-show-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.flashcard-choice__dont-show-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
 .flashcard-choice__image {
   text-align: center;
 }

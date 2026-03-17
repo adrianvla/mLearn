@@ -6,7 +6,7 @@
 import { Component, createMemo, createSignal, createEffect, Show, onCleanup } from 'solid-js';
 import type { Token } from '../../../shared/types';
 import { containsKanji, isAllKana } from '../../../shared/utils/textUtils';
-import { useSettings, useLanguage } from '../../context';
+import { useSettings, useLanguage, useFlashcards } from '../../context';
 import { getCachedReading, getCachedTranslation } from '../../hooks/useTranslation';
 import { PitchAccentOverlay, FrequencyStars } from '../common';
 import { matchesKeybind } from '../common/Input/KeybindInput';
@@ -26,7 +26,8 @@ export interface SubtitleWordProps {
 
 export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const { settings } = useSettings();
-  const { currentLangData, isTranslatable, getFrequency, getLanguageFeatures } = useLanguage();
+  const { currentLangData, isTranslatable, getFrequency, getLanguageFeatures, getCanonicalForm } = useLanguage();
+  const flashcardCtx = useFlashcards();
   let wordRef: HTMLSpanElement | undefined;
   const randomId = (() => {
     if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -66,11 +67,18 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return isTranslatable(pos);
   });
 
+  // Check if this word is known via the passive knowledge system
+  const wordIsKnown = createMemo(() => {
+    const word = props.token.actual_word ?? props.token.surface ?? props.token.word;
+    if (!word) return false;
+    return props.token.isKnown || flashcardCtx.isWordKnownByText(getCanonicalForm(word));
+  });
+
   // Determine word class based on token type
   const getWordClass = createMemo(() => {
     const classes = ['subtitle-word', 'subtitle_word', `word_${randomId}`];
     
-    if (props.token.isKnown) {
+    if (wordIsKnown()) {
       classes.push('known');
     }
     
@@ -79,7 +87,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     }
 
     // Blur individual words when blur_words is enabled and word is known
-    if (settings.blur_words && props.token.isKnown) {
+    if (settings.blur_words && wordIsKnown()) {
       classes.push('blur');
     }
     
@@ -248,6 +256,10 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     
     const furiganaEnabled = settings.showFurigana ?? settings.furigana;
     if (!furiganaEnabled) return false;
+
+    // Hide reading for known words if the setting is enabled
+    if (settings.hideReadingForKnownWords && wordIsKnown()) return false;
+
     const reading = effectiveReading();
     if (!reading) return false;
     const word = displayWord();
@@ -286,7 +298,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   // Custom attributes for CSS selectors
   const customAttrs = createMemo(() => ({
-    known: props.token.isKnown ? 'true' : 'false',
+    known: wordIsKnown() ? 'true' : 'false',
     grammar: getPos(),
   }));
 

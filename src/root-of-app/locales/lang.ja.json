@@ -528,6 +528,7 @@
     "FlashcardChoice": {
       "AnkiError": "Ankiへのエクスポートに失敗しました",
       "AnkiSuccess": "フラッシュカードをAnkiにエクスポートしました",
+      "DontShowAgain": "次回から表示しない（常にSRSに保存）",
       "Example": "例文",
       "ExportToAnki": "Ankiにエクスポート",
       "SaveToSRS": "SRSに保存",
@@ -624,6 +625,8 @@
         "Bury": "埋める",
         "Complete": "復習完了！",
         "CompleteDescription": "すべてのカードの復習が完了しました。お疲れ様でした！",
+        "WaitingTitle": "カードを待っています…",
+        "WaitingDescription": "次のカードまで {time}",
         "Easy": "簡単",
         "Hard": "難しい",
         "LearningCard": "学習中カード",
@@ -902,8 +905,26 @@
       "ru": "Русский"
     },
     "MediaStats": {
+      "AllWordsKnown": "すべての単語は既知です！",
+      "Difficulty": "難易度",
+      "Failed": "{count}回失敗",
+      "GrammarPoints": "文法項目",
+      "Hovered": "{count}回ホバー",
+      "NoGrammarYet": "文法項目はまだ検出されていません。",
+      "NoWordsYet": "まだ単語が見つかっていません。",
+      "NotAssessed": "未評価",
+      "ReviewWithAI": "AIで復習",
+      "Seen": "{count}回表示",
       "Sessions": "セッション",
-      "TimeSpent": "所要時間"
+      "Tab": {
+        "Grammar": "文法",
+        "Summary": "概要",
+        "Unknown": "未知",
+        "Words": "単語"
+      },
+      "TimeSpent": "所要時間",
+      "UnknownWords": "未知の単語",
+      "WordsSeen": "見た単語"
     },
     "Notifications": {
       "AnkiCacheLoaded": "Ankiフラッシュカードをキャッシュから読み込みました（Ankiはオフラインのようです）",
@@ -921,16 +942,10 @@
     },
     "Reader": {
       "CopyPhrase": "フレーズをコピー",
-      "HideFurigana": "ふりがなを隠す",
-      "ShowFurigana": "ふりがなを表示",
+      "HideFurigana": "読みを隠す",
+      "ShowFurigana": "読みを表示",
       "Sidebar": {
-        "AddAllFlashcards": "すべて追加",
-        "AddingAllFlashcards": "追加中...",
-        "DictionaryOnly": "辞書のみ",
-        "IgnoreWord": "無視",
         "Pages": "ページ",
-        "UnknownWords": "未習得の単語",
-        "UnknownWordsCount": "{count}語",
         "UnknownWordsEmpty": "現在のページには未習得の単語がありません。",
         "AddModal": {
           "Title": "フラッシュカードを追加",
@@ -947,9 +962,7 @@
         },
         "SortBy": {
           "Label": "並び替え",
-          "OCROrder": "読み順",
-          "Level": "レベル",
-          "Word": "アルファベット順"
+          "OCROrder": "読み順"
         }
       },
       "Status": {
@@ -973,8 +986,8 @@
         "DebugOverlayOff": "デバッグ: オフ",
         "DebugOverlayOn": "デバッグ: オン",
         "DebugOverlayTitle": "OCRテキストとふりがな検出を視覚化するデバッグオーバーレイの切り替え",
-        "FuriganaDetectionOff": "ふりがな検出: オフ",
-        "FuriganaDetectionOn": "ふりがな検出: オン",
+        "FuriganaDetectionOff": "読み検出: オフ",
+        "FuriganaDetectionOn": "読み検出: オン",
         "MagnifierHint": "{key}を押すと拡大鏡を開きます",
         "OpenConversationAgent": "AIチューター",
         "OpenConversationAgentTitle": "AI会話チューターを開く",
@@ -1103,7 +1116,11 @@
         },
         "ShowFurigana": {
           "Description": "単語の上に読みを表示",
-          "Label": "ふりがなを表示"
+          "Label": "読みを表示"
+        },
+        "HideReadingForKnownWords": {
+          "Description": "既知の単語の読みを自動的に非表示にする",
+          "Label": "既知語の読みを隠す"
         },
         "ShowPitchAccent": {
           "Description": "単語のピッチアクセント情報を表示",
@@ -1180,10 +1197,10 @@
         "Description": "OCRとリーダーの設定",
         "Furigana": {
           "Hide": {
-            "Description": "検出されたふりがなを白いボックスで覆い、ホバーで表示（読みの練習用）",
-            "Label": "ふりがなを隠す"
+            "Description": "検出された読み注釈を白いボックスで覆い、ホバーで表示（読みの練習用）",
+            "Label": "読みを隠す"
           },
-          "Title": "ふりがな"
+          "Title": "読み"
         },
         "LlmIntegration": {
           "AutoSpeak": {
@@ -1230,8 +1247,8 @@
             "Label": "OCRを有効にする"
           },
           "FuriganaDetection": {
-            "Description": "OCR結果からふりがな注釈を検出してフィルタリングします。無効にすると、検出されたテキストボックスがそのまま表示されます。",
-            "Label": "ふりがな検出"
+            "Description": "OCR結果から読み注釈を検出してフィルタリングします。無効にすると、検出されたテキストボックスがそのまま表示されます。",
+            "Label": "読み検出"
           },
           "RamSaver": {
             "Description": "ニューラルネットワークの代わりに軽量なOpenCVベースのテキスト検出を使用します。メモリ使用量を約1.5 GB削減しますが、複雑なレイアウトでは精度が低下する可能性があります。認識品質は影響を受けません。",
@@ -1530,7 +1547,7 @@
         "IntervalDistribution": "間隔分布",
         "Lapses": "失敗",
         "Maturity": {
-          "Mature": "成熟 (\u226521日)",
+          "Mature": "成熟 (≥21日)",
           "Title": "成熟度",
           "Young": "若い (<21日)"
         },
@@ -1606,7 +1623,14 @@
         "OpenConversationAgent": "AIチューター",
         "OpenSubtitles": "字幕を開く",
         "OpenVideo": "動画を開く",
-        "OrClickToBrowse": "またはクリックして参照"
+        "OrClickToBrowse": "またはクリックして参照",
+        "ToggleWordSidebar": "単語サイドバーを切り替え"
+      },
+      "Sidebar": {
+        "UnknownWordsEmpty": "未知の単語はまだ見つかっていません。字幕付きで動画を再生してください。",
+        "SortBy": {
+          "SubtitleOrder": "字幕順"
+        }
       },
       "WatchTogether": "一緒に見る"
     },
@@ -1695,6 +1719,18 @@
       "Reader": "リーダー",
       "Settings": "設定",
       "Video": "動画"
+    },
+    "Sidebar": {
+      "AddAll": "すべて追加",
+      "AddingAll": "追加中...",
+      "DictionaryOnly": "辞書のみ",
+      "Ignore": "無視",
+      "SortBy": {
+        "Level": "レベル",
+        "Word": "アルファベット順"
+      },
+      "UnknownWords": "未習得の単語",
+      "WordCount": "{count}語"
     }
   }
 }
