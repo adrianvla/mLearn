@@ -11,6 +11,7 @@ import { SubtitleWord } from './SubtitleWord';
 import { WordHover, WordStatus } from './WordHover';
 import { ExplainerPopup } from './ExplainerPopup';
 import { initWordLookupBridge } from '../../services/wordLookupService';
+import './SubtitleContainer.css';
 
 export interface SubtitleContainerProps {
   tokens: Token[];
@@ -130,7 +131,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     // Live word translator
     {
       const translation = translationData();
-      if (settings.openAside && typeof window !== 'undefined' && (window as any).mLearnLiveTranslator && translation) {
+      if (settings.showLiveTranslator !== false && typeof window !== 'undefined' && (window as any).mLearnLiveTranslator && translation) {
         const first = translation?.data?.[0] as { definitions?: string | string[]; reading?: string } | undefined;
         let translationText = '';
         if (first?.definitions) {
@@ -277,12 +278,12 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   // Append live translator entries as subtitles appear (not just on hover)
   // Only for translatable words
   createEffect(() => {
-    if (!settings.openAside) return;
+    if (settings.showLiveTranslator === false) return;
+    const tokens = props.tokens || [];
+    if (!tokens.length) return;
     if (typeof window === 'undefined') return;
     const translator = (window as any).mLearnLiveTranslator;
     if (!translator || typeof translator.addCard !== 'function') return;
-    const tokens = props.tokens || [];
-    if (!tokens.length) return;
 
     for (const token of tokens) {
       const pos = token.partOfSpeech ?? token.type ?? '';
@@ -293,6 +294,13 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       const lookupWord = token.actual_word ?? displayWord;
       
       if (!displayWord || liveTranslatorSeen.has(displayWord)) continue;
+
+      // Skip known words unless liveTranslatorIncludeKnown is enabled
+      if (!settings.liveTranslatorIncludeKnown) {
+        const isKnown = flashcardCtx.isWordKnownByText(getCanonicalForm(lookupWord));
+        if (isKnown) continue;
+      }
+
       liveTranslatorSeen.add(displayWord);
 
       // Higher ease bump for words shown in live translator (+0.02 vs +0.01)

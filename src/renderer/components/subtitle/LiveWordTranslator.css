@@ -1,10 +1,10 @@
 /**
  * Live Word Translator Styles
  * Aside panel for displaying automatic word translations
- * Matches the legacy .aside styling from the old JS version
+ * Cards persist on screen; only the background/header fade on idle
  */
 
-/* Main container - matches .aside */
+/* Main container */
 .live-word-translator {
   position: absolute;
   left: 10px;
@@ -14,37 +14,43 @@
   display: flex;
   flex-direction: row;
   gap: 10px;
-  height: 95px;
+  min-height: 50px;
   background: transparent;
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  overflow: visible;
   transition: background var(--transition-normal),
-  top var(--transition-normal),
-  left var(--transition-normal),
-  opacity var(--transition-normal);
+    top var(--transition-normal);
 }
 
-/* Hidden state - matches .opacity0 */
-.live-word-translator.hidden {
+/* Idle state — only fades background/header, cards remain visible */
+.live-word-translator.idle .panel-header {
   opacity: 0;
   pointer-events: none;
 }
 
-/* Move down and hide when cursor is hidden */
+/* Cursor hidden (fullscreen idle) — keep cards, hide chrome */
 body.hide-cursor .live-word-translator {
   top: 10px;
+}
+
+body.hide-cursor .live-word-translator .panel-header {
   opacity: 0;
   pointer-events: none;
 }
 
-/* Hover state shows glass background - matches .aside:hover */
+/* Hover state shows glass background */
 .live-word-translator:hover {
-  background: rgba(60, 60, 60, 0.5);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--panel-bg);
+  backdrop-filter: var(--backdrop-filter);
 }
 
-/* Container for cards - matches .aside .c */
+/* Close button color */
+.live-word-translator .panel-header .btn img {
+  filter: invert(1);
+  opacity: 0.7;
+}
+
+/* Container for cards — wraps on 2 lines */
 .translator-cards-container {
   display: flex;
   padding-top: 10px;
@@ -52,20 +58,20 @@ body.hide-cursor .live-word-translator {
   gap: 10px;
   flex-direction: column;
   flex-wrap: wrap;
-  overflow-x: auto;
+  overflow: hidden;
   padding-right: 10px;
-  height: 75px;
+  align-content: flex-start;
+  max-height:95px;
 }
 
 .translator-cards-container::-webkit-scrollbar {
   display: none;
 }
 
-/* Individual card styling - matches .aside .card */
+/* Individual card styling */
 .translator-card {
-  background-color: rgba(60, 60, 60, 0.60);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background-color: var(--panel-bg);
+  backdrop-filter: var(--backdrop-filter);
   padding-inline: 20px;
   width: 300px;
   height: 30px;
@@ -80,46 +86,42 @@ body.hide-cursor .live-word-translator {
   gap: 10px;
   overflow: hidden;
   animation: fadeInCard var(--transition-normal) ease-out;
+  font-weight:var(--font-weight-medium);
 }
 
-/* Text truncation - matches .aside .card * */
+/* Text truncation */
 .translator-card * {
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* Show full text on hover - matches .aside .card:hover * */
+/* Show full text on hover */
 .translator-card:hover * {
   overflow: visible;
 }
 
-/* Hide extra children (3rd+) - matches .aside .card *:nth-child(n+3) */
+/* Hide extra children (3rd+) */
 .translator-card *:nth-child(n+3) {
   display: none;
 }
 
-/* Translation (h1) styling - left side, matches .card h1 */
+/* Translation (h1) styling - left side */
 .translator-card-translation {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-normal);
   max-width: 60%;
   margin: 0;
+  text-overflow: ellipsis;
 }
 
-/* Reading (p) styling - right side, matches .card p */
+/* Reading (p) styling - right side */
 .translator-card-reading {
   margin: 0;
   text-align: center;
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   color: var(--text-secondary);
-}
-
-/* Ruby text support */
-.translator-card-reading rt {
-  font-size: 0.7em;
-  color: var(--color-primary);
 }
 
 /* Animation for cards appearing */

@@ -19,11 +19,12 @@ import {
   StatsTab,
   AITab,
   ConnectionTab,
-  AboutTab
+  AboutTab,
+  VideoPlayerTab
 } from './tabs';
 import './MobileSettingsView.css';
 
-type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'stats' | 'ai' | 'connection' | 'about';
+type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'stats' | 'video-player' | 'ai' | 'connection' | 'about';
 
 interface SettingsCategory {
   id: TabId;
@@ -41,6 +42,7 @@ const CATEGORY_GROUPS: SettingsCategory[][] = [
   [
     { id: 'srs', labelKey: 'mlearn.Settings.Tabs.SRS', icon: 'cards' },
     { id: 'reader', labelKey: 'mlearn.Settings.Tabs.Reader', icon: 'book' },
+    { id: 'video-player', labelKey: 'mlearn.Settings.Tabs.VideoPlayer', icon: 'play' },
     { id: 'stats', labelKey: 'mlearn.Settings.Tabs.Statistics', icon: 'stats' },
   ],
   [
@@ -58,6 +60,7 @@ const TAB_COMPONENTS: Record<TabId, Component> = {
   customization: CustomizationTab,
   srs: SRSTab,
   reader: ReaderTab,
+  'video-player': VideoPlayerTab,
   stats: StatsTab,
   ai: AITab,
   connection: ConnectionTab,

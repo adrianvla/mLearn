@@ -11,6 +11,7 @@ import { getCachedReading, getCachedTranslation } from '../../hooks/useTranslati
 import { PitchAccentOverlay, FrequencyStars } from '../common';
 import { matchesKeybind } from '../common/Input/KeybindInput';
 import type { JSX } from 'solid-js/jsx-runtime';
+import './SubtitleWord.css';
 
 /** Delay in ms for long-hover mode before triggering */
 const LONG_HOVER_DELAY = 500;
@@ -86,8 +87,12 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       classes.push('has-hover');
     }
 
-    // Blur individual words when blur_words is enabled and word is known
-    if (settings.blur_words && wordIsKnown()) {
+    // Blur unknown words when blur_words is enabled
+    if (settings.blur_words && !wordIsKnown()) {
+      classes.push('blur');
+    }
+    // Blur known words when blurKnownWords is enabled
+    if (settings.blurKnownWords && wordIsKnown()) {
       classes.push('blur');
     }
     
@@ -369,6 +374,11 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return freq !== null && freq.raw_level !== undefined && freq.raw_level > 0;
   });
 
+  // Whether to hide pitch accent for known words (when hiding reading for known words)
+  const hidePitchForKnown = createMemo(() => {
+    return !!(settings.hideReadingForKnownWords && wordIsKnown());
+  });
+
   return (
     <span
       ref={wordRef}
@@ -387,16 +397,18 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       <Show
         when={showFurigana()}
         fallback={
-          <PitchAccentOverlay
-            word={actualWord()}
-            reading={effectiveReading() || displayWord()}
-            pos={getPos()}
-            nextPos={props.lookAheadPos}
-            mode="overlay"
-            isKanaOnly={isWordAllKana()}
-          >
-            {displayWord()}
-          </PitchAccentOverlay>
+          hidePitchForKnown()
+            ? <>{displayWord()}</>
+            : <PitchAccentOverlay
+                word={actualWord()}
+                reading={effectiveReading() || displayWord()}
+                pos={getPos()}
+                nextPos={props.lookAheadPos}
+                mode="overlay"
+                isKanaOnly={isWordAllKana()}
+              >
+                {displayWord()}
+              </PitchAccentOverlay>
         }
       >
         <ruby>

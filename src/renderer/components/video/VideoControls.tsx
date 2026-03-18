@@ -67,14 +67,6 @@ const SubtitleIcon: Component = () => (
     </svg>
 );
 
-const StatsIcon: Component = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="18" y1="20" x2="18" y2="10" />
-        <line x1="12" y1="20" x2="12" y2="4" />
-        <line x1="6" y1="20" x2="6" y2="14" />
-    </svg>
-);
-
 const WordListIcon: Component = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="8" y1="6" x2="21" y2="6" />
@@ -97,10 +89,6 @@ export interface VideoControlsProps {
     containerRef?: HTMLDivElement;
     /** Whether controls should be visible (from cursor visibility hook) */
     isControlsVisible?: boolean;
-    /** Whether the stats panel is currently shown */
-    showStats?: boolean;
-    /** Toggle stats panel visibility */
-    onToggleStats?: () => void;
     /** Whether the word sidebar is shown */
     showWordSidebar?: boolean;
     /** Toggle word sidebar visibility */
@@ -242,19 +230,6 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                         >
                             <SubtitleIcon />
                         </IconBtn>
-
-                        {/* Stats toggle */}
-                        <Show when={props.onToggleStats}>
-                            <IconBtn
-                                variant="ghost"
-                                active={props.showStats}
-                                class={props.showStats ? '' : 'inactive'}
-                                onClick={() => props.onToggleStats?.()}
-                                aria-label="Toggle media statistics"
-                            >
-                                <StatsIcon />
-                            </IconBtn>
-                        </Show>
 
                         {/* Word sidebar toggle */}
                         <Show when={props.onToggleWordSidebar}>

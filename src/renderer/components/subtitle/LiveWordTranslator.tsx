@@ -6,7 +6,7 @@
  * Layout: Translation/definition (h1) on left, Reading (p) on right
  */
 
-import { Component, createSignal, For, onCleanup, createEffect } from 'solid-js';
+import { Component, createSignal, For, onCleanup, createEffect, Show } from 'solid-js';
 import { useSettings } from '../../context';
 import { PanelHeader } from '../common';
 import { IPC_CHANNELS } from '../../../shared/constants';
@@ -21,8 +21,8 @@ interface TranslationCard {
 }
 
 export const LiveWordTranslator: Component = () => {
-  const { updateSetting } = useSettings();
-  const [isVisible, setIsVisible] = createSignal(false);
+  const { settings, updateSetting } = useSettings();
+  const [isActive, setIsActive] = createSignal(false);
   const [cards, setCards] = createSignal<TranslationCard[]>([]);
   const [isHovered, setIsHovered] = createSignal(false);
 
@@ -66,7 +66,7 @@ export const LiveWordTranslator: Component = () => {
       return updated;
     });
 
-    setIsVisible(true);
+    setIsActive(true);
     resetHideTimeout();
   };
 
@@ -75,7 +75,7 @@ export const LiveWordTranslator: Component = () => {
     setCards((prev) => prev.filter(c => c.id !== cardId));
   };
 
-  // Reset the hide timeout
+  // Reset the hide timeout — only fades the background, cards remain
   const resetHideTimeout = () => {
     if (hideTimeout) {
       clearTimeout(hideTimeout);
@@ -83,19 +83,18 @@ export const LiveWordTranslator: Component = () => {
 
     if (!isHovered()) {
       hideTimeout = setTimeout(() => {
-        setIsVisible(false);
-        setTimeout(() => setCards([]), 300);
+        setIsActive(false);
       }, HIDE_DELAY);
     }
   };
 
-  // Handle mouse hover to keep panel visible
+  // Handle mouse hover to keep panel background visible
   const handleMouseEnter = () => {
     setIsHovered(true);
     if (hideTimeout) {
       clearTimeout(hideTimeout);
     }
-    setIsVisible(true);
+    setIsActive(true);
   };
 
   const handleMouseLeave = () => {
@@ -106,7 +105,7 @@ export const LiveWordTranslator: Component = () => {
   // Listen for IPC events to show aside
   createEffect(() => {
     const handleShowAside = () => {
-      setIsVisible(true);
+      setIsActive(true);
       resetHideTimeout();
     };
 
@@ -124,15 +123,16 @@ export const LiveWordTranslator: Component = () => {
         addCard,
         removeCard,
         show: () => {
-          setIsVisible(true);
+          setIsActive(true);
           updateSetting('openAside', true);
           resetHideTimeout();
         },
         hide: () => {
-          setIsVisible(false);
+          setIsActive(false);
+          setCards([]);
           updateSetting('openAside', false);
         },
-        isVisible: () => isVisible(),
+        isVisible: () => cards().length > 0,
       };
     }
   });
@@ -145,20 +145,21 @@ export const LiveWordTranslator: Component = () => {
 
   const containerClass = () => {
     const classes = ['live-word-translator'];
-    if (!isVisible()) {
-      classes.push('hidden');
+    if (!isActive()) {
+      classes.push('idle');
     }
     return classes.join(' ');
   };
 
   return (
+    <Show when={settings.showLiveTranslator !== false}>
       <div
           class={containerClass()}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
       >
         {/* Header with close button */}
-        <PanelHeader onClose={() => setIsVisible(false)} />
+        <PanelHeader onClose={() => { setIsActive(false); setCards([]); }} />
 
         {/* Card container */}
         <div class="translator-cards-container">
@@ -172,6 +173,7 @@ export const LiveWordTranslator: Component = () => {
           </For>
         </div>
       </div>
+    </Show>
   );
 };
 

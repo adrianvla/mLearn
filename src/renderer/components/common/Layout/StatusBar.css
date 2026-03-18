@@ -90,14 +90,6 @@
   flex-shrink: 0;
 }
 
-.statusbar .statusbar-text.truncate {
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex-shrink: 1;
-}
-
 /* Status pulse animation */
 .statusbar .statusbar-text.active {
   animation: statusbar-pulse 1.5s ease-in-out infinite;

@@ -1144,7 +1144,9 @@
         "SubtitleAppearance": "Untertitel-Erscheinungsbild",
         "SubtitleTiming": "Untertitel-Timing",
         "ThemePreview": "Theme-Vorschau",
-        "WordStatus": "Wortstatus"
+        "VideoPlayerBehaviour": "Videoplayer-Verhalten",
+        "WordStatus": "Wortstatus",
+        "LiveTranslator": "Live-Wort\u00fcbersetzer"
       },
       "Keybind": {
         "PressKey": "Taste drücken...",
@@ -1501,6 +1503,60 @@
           "ResetAll": "Alle Wortart-Farben zurücksetzen"
         }
       },
+      "VideoPlayer": {
+        "Title": "Videoplayer",
+        "Description": "Konfiguriere Videoplayer und Untertitel-Verhalten",
+        "LiveTranslator": {
+          "Show": {
+            "Label": "Live-\u00dcbersetzer anzeigen",
+            "Description": "Das Live-Wort\u00fcbersetzungspanel neben dem Video anzeigen"
+          },
+          "IncludeKnown": {
+            "Label": "Bekannte W\u00f6rter einschlie\u00dfen",
+            "Description": "Auch bereits bekannte W\u00f6rter zum Live-\u00dcbersetzer hinzuf\u00fcgen"
+          }
+        },
+        "KnownWords": {
+          "BlurKnown": {
+            "Label": "Bekannte W\u00f6rter verwischen",
+            "Description": "Einen Unsch\u00e4rfeeffekt auf bekannte W\u00f6rter in Untertiteln anwenden"
+          }
+        },
+        "Playback": {
+          "VideoFit": {
+            "Label": "Video-Anpassung",
+            "Description": "Wie das Video im Playerbereich skaliert wird",
+            "Contain": "Einpassen",
+            "Cover": "Abdecken",
+            "Fill": "F\u00fcllen"
+          },
+          "ShowSubtitles": {
+            "Label": "Untertitel anzeigen",
+            "Description": "Untertitel im Videoplayer ein-/ausblenden"
+          },
+          "ShowTranslation": {
+            "Label": "\u00dcbersetzung anzeigen",
+            "Description": "\u00dcbersetzungszeile unter den Untertiteln anzeigen"
+          },
+          "SubtitlePosition": {
+            "Label": "Untertitel-Position",
+            "Description": "Position der Untertitel auf dem Bildschirm",
+            "Top": "Oben",
+            "Bottom": "Unten"
+          }
+        },
+        "SubtitleProcessing": {
+          "Title": "Untertitel-Verarbeitung",
+          "RemoveParentheses": {
+            "Label": "Klammerinhalt entfernen",
+            "Description": "Text in Klammern aus Untertiteln entfernen"
+          },
+          "RemoveSpeakerNames": {
+            "Label": "Sprechernamen entfernen",
+            "Description": "Sprechernamen-Pr\u00e4fixe aus Untertiteln entfernen"
+          }
+        }
+      },
       "About": {
         "Licenses": "Lizenzen"
       },
@@ -1513,7 +1569,8 @@
         "General": "Allgemein",
         "Reader": "Leser",
         "SRS": "SRS",
-        "Statistics": "Statistiken"
+        "Statistics": "Statistiken",
+        "VideoPlayer": "Videoplayer"
       }
     },
     "Statistics": {

@@ -212,9 +212,7 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
     if (!info) return '';
 
     const isPill = (props.mode || 'overlay') === 'pill';
-    // For 1-mora words in overlay mode, use 0 margin so the particle box is visible
-    // (the default formula -100/unitCount would be -100%, fully hiding the particle)
-    const particleMargin = isPill ? 0 : (reading.length <= 1 ? 0 : undefined);
+    const particleMargin = isPill ? 0 : undefined;
     return buildPitchAccentHtml(info, reading.length, {
       includeParticleBox: includeParticleBox(),
       particleMarginPercent: particleMargin,
