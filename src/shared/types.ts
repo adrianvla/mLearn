@@ -155,6 +155,14 @@ export interface Settings {
   removeParentheses?: boolean; // Remove content in parentheses from subtitles
   removeSpeakerNames?: boolean; // Remove speaker name prefixes from subtitles
 
+  // Video player settings
+  /** Show or hide the live word translator panel */
+  showLiveTranslator?: boolean;
+  /** Include known words in the live word translator */
+  liveTranslatorIncludeKnown?: boolean;
+  /** Blur known words individually in subtitles */
+  blurKnownWords?: boolean;
+
   // Feature flags
   llmEnabled: boolean;
   ocrEnabled: boolean;
@@ -307,7 +315,7 @@ export const DEFAULT_SETTINGS: Settings = {
   immediateFetch: false,
   subtitleTheme: 'shadow',
   subtitle_font_size: 40,
-  subtitle_font_weight: 300,
+  subtitle_font_weight: 400,
   showPitchAccent: true,
   timeWatched: 0,
   maxNewCardsPerDay: 10,
@@ -320,6 +328,9 @@ export const DEFAULT_SETTINGS: Settings = {
   leechThreshold: 10,
   devMode: false,
   ocr_crop_padding: 200,
+  showLiveTranslator: true,
+  liveTranslatorIncludeKnown: false,
+  blurKnownWords: false,
   ocrRamSaver: false,
   ocrTurboMode: true,
   ocrFuriganaDetection: true,

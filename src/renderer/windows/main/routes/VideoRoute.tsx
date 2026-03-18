@@ -9,10 +9,9 @@ import { useIPC, useSubtitles, useWatchTogether, useMediaStats } from '../../../
 import { useLocalization, useSettings, useLanguage, useFlashcards } from '../../../context';
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
-import { MediaStatsPanel } from '../../../components/statistics/MediaStatsPanel';
 import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { LiveWordTranslator, SubtitleSync } from '../../../components/subtitle';
+import { SubtitleSync } from '../../../components/subtitle';
 import { IPC_CHANNELS, WORD_STATUS } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
@@ -50,7 +49,6 @@ export const VideoRoute: Component = () => {
   const [currentVideoName, setCurrentVideoName] = createSignal('');
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_currentVideoPath, setCurrentVideoPath] = createSignal<string>('');
-  const [showStatsPanel, setShowStatsPanel] = createSignal(false);
   const [showWordSidebar, setShowWordSidebar] = createSignal(false);
 
   // Accumulated unknown words from subtitles
@@ -521,7 +519,7 @@ export const VideoRoute: Component = () => {
       }
     }
 
-    const failedWords = Array.from(mediaWords.values()).filter((w) => w.ease < 2.5);
+    const failedWords = Array.from(mediaWords.values()).filter((w) => w.ease < 2.5 || w.timesHovered > 0);
     const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
 
     const context: ConversationAgentContext = {
@@ -545,7 +543,6 @@ export const VideoRoute: Component = () => {
   const videoRouteClass = () => {
     const classes = ['video-route'];
     if (showWordSidebar() && !showDropZone()) classes.push('with-word-sidebar');
-    if (showStatsPanel() && mediaStats.isActive() && !showDropZone()) classes.push('with-stats-sidebar');
     return classes.join(' ');
   };
 
@@ -602,30 +599,15 @@ export const VideoRoute: Component = () => {
           subtitles={subtitles}
           ctxMenuOptions={{ isWatchTogether: watchTogether.isActive() }}
           onTimeUpdate={(time) => setCurrentVideoTime(time)}
-          showStats={showStatsPanel()}
-          onToggleStats={() => setShowStatsPanel(prev => !prev)}
           showWordSidebar={showWordSidebar()}
           onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
         />
       </Show>
 
-      <LiveWordTranslator />
       <SubtitleSync 
         currentVideoTime={currentVideoTime}
         subtitles={subtitles.subtitles()}
       />
-
-      {/* Media Stats Panel overlay */}
-      <Show when={showStatsPanel() && mediaStats.isActive()}>
-        <MediaStatsPanel
-          stats={mediaStats.stats()}
-          onClose={() => setShowStatsPanel(false)}
-          onReviewWithAI={() => {
-            openConversationAgent();
-            setShowStatsPanel(false);
-          }}
-        />
-      </Show>
 
       {/* Unknown words sidebar */}
       <Show when={showWordSidebar() && !showDropZone()}>

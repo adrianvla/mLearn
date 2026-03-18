@@ -1144,7 +1144,9 @@
         "SubtitleAppearance": "字幕の外観",
         "SubtitleTiming": "字幕のタイミング",
         "ThemePreview": "テーマプレビュー",
-        "WordStatus": "単語の状態"
+        "VideoPlayerBehaviour": "動画プレーヤーの動作",
+        "WordStatus": "単語の状態",
+        "LiveTranslator": "ライブ単語翻訳"
       },
       "Keybind": {
         "PressKey": "キーを押してください...",
@@ -1501,6 +1503,60 @@
           "ResetAll": "すべての品詞カラーをリセット"
         }
       },
+      "VideoPlayer": {
+        "Title": "動画プレーヤー",
+        "Description": "動画プレーヤーと字幕の動作を設定",
+        "LiveTranslator": {
+          "Show": {
+            "Label": "ライブ翻訳を表示",
+            "Description": "動画の横にライブ単語翻訳パネルを表示する"
+          },
+          "IncludeKnown": {
+            "Label": "既知の単語を含める",
+            "Description": "既に知っている単語もライブ翻訳に追加する"
+          }
+        },
+        "KnownWords": {
+          "BlurKnown": {
+            "Label": "既知の単語をぼかす",
+            "Description": "字幕の既知の単語にぼかし効果を適用する"
+          }
+        },
+        "Playback": {
+          "VideoFit": {
+            "Label": "動画フィット",
+            "Description": "プレーヤー領域内での動画の表示方法",
+            "Contain": "収める",
+            "Cover": "カバー",
+            "Fill": "埋める"
+          },
+          "ShowSubtitles": {
+            "Label": "字幕を表示",
+            "Description": "動画プレーヤーの字幕表示を切り替える"
+          },
+          "ShowTranslation": {
+            "Label": "翻訳を表示",
+            "Description": "字幕の下に翻訳行を表示する"
+          },
+          "SubtitlePosition": {
+            "Label": "字幕の位置",
+            "Description": "画面上の字幕の位置",
+            "Top": "上",
+            "Bottom": "下"
+          }
+        },
+        "SubtitleProcessing": {
+          "Title": "字幕処理",
+          "RemoveParentheses": {
+            "Label": "括弧内のテキストを削除",
+            "Description": "字幕から括弧内のテキストを除去する"
+          },
+          "RemoveSpeakerNames": {
+            "Label": "話者名を削除",
+            "Description": "字幕から話者名の接頭辞を除去する"
+          }
+        }
+      },
       "About": {
         "Licenses": "ライセンス"
       },
@@ -1513,7 +1569,8 @@
         "General": "一般",
         "Reader": "リーダー",
         "SRS": "SRS",
-        "Statistics": "統計"
+        "Statistics": "統計",
+        "VideoPlayer": "動画プレーヤー"
       }
     },
     "Statistics": {

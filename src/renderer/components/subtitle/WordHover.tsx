@@ -526,23 +526,103 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   // Flashcard pill - computed values for reactivity
   const isTracked = createMemo(() => isInSRS() || props.isInSRS === true);
 
+  // Anki hover preview state
+  const [ankiHoverOpen, setAnkiHoverOpen] = createSignal(false);
+  const [ankiHoverCard, setAnkiHoverCard] = createSignal<Record<string, { value: string; order: number }> | null>(null);
+  const [ankiHoverLoading, setAnkiHoverLoading] = createSignal(false);
+  let ankiHoverFetched = false;
+  let previousAnkiWord = '';
+
+  const handleAnkiPillEnter = async () => {
+    if (!settings.use_anki) return;
+    setAnkiHoverOpen(true);
+    const word = actualWord();
+    if (ankiHoverFetched && previousAnkiWord === word) return;
+    ankiHoverFetched = true;
+    previousAnkiWord = word;
+    setAnkiHoverLoading(true);
+    try {
+      const { getBackend } = await import('../../../shared/backends');
+      const result = await getBackend().getCard({ word }) as { cards: { fields: Record<string, { value: string; order: number }> }[]; error: boolean };
+      if (!result.error && result.cards.length > 0) {
+        setAnkiHoverCard(result.cards[0].fields || null);
+      } else {
+        setAnkiHoverCard(null);
+      }
+    } catch {
+      setAnkiHoverCard(null);
+    } finally {
+      setAnkiHoverLoading(false);
+    }
+  };
+
+  const handleAnkiPillLeave = () => {
+    setAnkiHoverOpen(false);
+  };
+
   const EasePill = () => {
     const ease = currentEase() ?? props.ease;
-    if (ease === undefined) {
+    const pillContent = () => {
+      if (ease === undefined) {
+        return (
+          <PillBtn
+            variant="green"
+            icon={ICON_CHECK}
+            label={t('mlearn.Flashcards.Card.Tracked')}
+          />
+        );
+      }
       return (
         <PillBtn
           variant="green"
           icon={ICON_CHECK}
-          label={t('mlearn.Flashcards.Card.Tracked')}
+          label={`${t('mlearn.Flashcards.Card.Ease')} ${Math.round(ease * 100) / 100}`}
         />
       );
-    }
+    };
+
     return (
-      <PillBtn
-        variant="green"
-        icon={ICON_CHECK}
-        label={`${t('mlearn.Flashcards.Card.Ease')} ${Math.round(ease * 100) / 100}`}
-      />
+      <span
+        class="ease-pill-wrapper"
+        onMouseEnter={handleAnkiPillEnter}
+        onMouseLeave={handleAnkiPillLeave}
+      >
+        {pillContent()}
+        <Show when={ankiHoverOpen() && settings.use_anki}>
+          <div class="anki-hover-preview">
+            <Show when={ankiHoverLoading()}>
+              <span class="anki-hover-preview__loading">{t('mlearn.Global.Loading')}</span>
+            </Show>
+            <Show when={!ankiHoverLoading() && ankiHoverCard()}>
+              {(fields) => (
+                <div class="anki-hover-preview__fields">
+                  <Show when={fields().Expression}>
+                    <div class="anki-hover-preview__field">
+                      <span class="anki-hover-preview__label">Expression</span>
+                      <span class="anki-hover-preview__value" innerHTML={fields().Expression.value} />
+                    </div>
+                  </Show>
+                  <Show when={fields().Reading}>
+                    <div class="anki-hover-preview__field">
+                      <span class="anki-hover-preview__label">Reading</span>
+                      <span class="anki-hover-preview__value" innerHTML={fields().Reading.value} />
+                    </div>
+                  </Show>
+                  <Show when={fields().Meaning}>
+                    <div class="anki-hover-preview__field">
+                      <span class="anki-hover-preview__label">Meaning</span>
+                      <span class="anki-hover-preview__value" innerHTML={fields().Meaning.value} />
+                    </div>
+                  </Show>
+                </div>
+              )}
+            </Show>
+            <Show when={!ankiHoverLoading() && !ankiHoverCard()}>
+              <span class="anki-hover-preview__loading">{t('mlearn.WordDbEditor.Anki.NoCardFound')}</span>
+            </Show>
+          </div>
+        </Show>
+      </span>
     );
   };
 

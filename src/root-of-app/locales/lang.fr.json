@@ -1144,7 +1144,9 @@
         "SubtitleAppearance": "Apparence des sous-titres",
         "SubtitleTiming": "Timing des sous-titres",
         "ThemePreview": "Aperçu du thème",
-        "WordStatus": "Statut des mots"
+        "VideoPlayerBehaviour": "Comportement du lecteur vid\u00e9o",
+        "WordStatus": "Statut des mots",
+        "LiveTranslator": "Traducteur de mots en direct"
       },
       "Keybind": {
         "PressKey": "Appuyez sur une touche...",
@@ -1501,19 +1503,74 @@
           "ResetAll": "Réinitialiser toutes les couleurs"
         }
       },
+      "VideoPlayer": {
+        "Title": "Lecteur vid\u00e9o",
+        "Description": "Configurer le lecteur vid\u00e9o et le comportement des sous-titres",
+        "LiveTranslator": {
+          "Show": {
+            "Label": "Afficher le traducteur en direct",
+            "Description": "Afficher le panneau de traduction en direct \u00e0 c\u00f4t\u00e9 de la vid\u00e9o"
+          },
+          "IncludeKnown": {
+            "Label": "Inclure les mots connus",
+            "Description": "Ajouter \u00e9galement les mots connus au traducteur en direct"
+          }
+        },
+        "KnownWords": {
+          "BlurKnown": {
+            "Label": "Flouter les mots connus",
+            "Description": "Appliquer un effet de flou aux mots connus dans les sous-titres"
+          }
+        },
+        "Playback": {
+          "VideoFit": {
+            "Label": "Ajustement vid\u00e9o",
+            "Description": "Comment la vid\u00e9o est mise \u00e0 l'\u00e9chelle dans la zone du lecteur",
+            "Contain": "Contenir",
+            "Cover": "Couvrir",
+            "Fill": "Remplir"
+          },
+          "ShowSubtitles": {
+            "Label": "Afficher les sous-titres",
+            "Description": "Afficher ou masquer les sous-titres dans le lecteur"
+          },
+          "ShowTranslation": {
+            "Label": "Afficher la traduction",
+            "Description": "Afficher la ligne de traduction sous les sous-titres"
+          },
+          "SubtitlePosition": {
+            "Label": "Position des sous-titres",
+            "Description": "Position des sous-titres \u00e0 l'\u00e9cran",
+            "Top": "Haut",
+            "Bottom": "Bas"
+          }
+        },
+        "SubtitleProcessing": {
+          "Title": "Traitement des sous-titres",
+          "RemoveParentheses": {
+            "Label": "Supprimer le contenu entre parenth\u00e8ses",
+            "Description": "Retirer le texte entre parenth\u00e8ses des sous-titres"
+          },
+          "RemoveSpeakerNames": {
+            "Label": "Supprimer les noms des locuteurs",
+            "Description": "Retirer les pr\u00e9fixes de noms de locuteurs des sous-titres"
+          }
+        }
+      },
       "About": {
         "Licenses": "Licences"
       },
       "Tabs": {
         "AI": "IA",
-        "About": "À propos",
+        "About": "\u00c0 propos",
         "Appearance": "Apparence",
         "Behaviour": "Comportement",
         "Connection": "Connexion",
-        "General": "Général",
+        "General": "G\u00e9n\u00e9ral",
         "Reader": "Lecteur",
         "SRS": "SRS",
-        "Statistics": "Statistiques"
+        "Statistics": "Statistiques",
+        "VideoPlayer": "Lecteur vid\u00e9o"
       }
     },
     "Statistics": {

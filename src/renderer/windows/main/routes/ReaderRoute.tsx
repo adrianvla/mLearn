@@ -1562,7 +1562,7 @@ export const ReaderRoute: Component = () => {
       }
     }
 
-    const failedWords = Array.from(mediaWords.values()).filter((w) => w.ease < 2.5);
+    const failedWords = Array.from(mediaWords.values()).filter((w) => w.ease < 2.5 || w.timesHovered > 0);
     const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
 
     const context: ConversationAgentContext = {

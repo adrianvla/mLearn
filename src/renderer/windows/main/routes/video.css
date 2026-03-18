@@ -12,15 +12,6 @@
   margin-right: 320px;
 }
 
-.video-route.with-stats-sidebar {
-  margin-left: 320px;
-}
-
-.video-route.with-stats-sidebar.with-word-sidebar {
-  margin-left: 320px;
-  margin-right: 320px;
-}
-
 .video-route > .video-player {
   flex: 1;
   min-height: 0;

@@ -1138,12 +1138,14 @@
         "Data": "Data",
         "DisplayOptions": "Display Options",
         "Language": "Language",
+        "LiveTranslator": "Live Word Translator",
         "Performance": "Performance",
         "PosColors": "Part of Speech Colors",
         "Settings": "Settings",
         "SubtitleAppearance": "Subtitle Appearance",
         "SubtitleTiming": "Subtitle Timing",
         "ThemePreview": "Theme Preview",
+        "VideoPlayerBehaviour": "Video Player Behaviour",
         "WordStatus": "Word Status"
       },
       "Keybind": {
@@ -1504,6 +1506,60 @@
       "About": {
         "Licenses": "Licenses"
       },
+      "VideoPlayer": {
+        "Title": "Video Player",
+        "Description": "Configure video player and subtitle behaviour",
+        "LiveTranslator": {
+          "Show": {
+            "Label": "Show Live Translator",
+            "Description": "Display the live word translator panel alongside the video"
+          },
+          "IncludeKnown": {
+            "Label": "Include Known Words",
+            "Description": "Also add words you already know to the live translator"
+          }
+        },
+        "KnownWords": {
+          "BlurKnown": {
+            "Label": "Blur Known Words",
+            "Description": "Apply a blur effect to words you already know in subtitles"
+          }
+        },
+        "Playback": {
+          "VideoFit": {
+            "Label": "Video Fit",
+            "Description": "How the video scales within the player area",
+            "Contain": "Contain",
+            "Cover": "Cover",
+            "Fill": "Fill"
+          },
+          "ShowSubtitles": {
+            "Label": "Show Subtitles",
+            "Description": "Toggle subtitle visibility in the video player"
+          },
+          "ShowTranslation": {
+            "Label": "Show Translation",
+            "Description": "Show the translation line below subtitles"
+          },
+          "SubtitlePosition": {
+            "Label": "Subtitle Position",
+            "Description": "Position of the subtitles on screen",
+            "Top": "Top",
+            "Bottom": "Bottom"
+          }
+        },
+        "SubtitleProcessing": {
+          "Title": "Subtitle Processing",
+          "RemoveParentheses": {
+            "Label": "Remove Parentheses Content",
+            "Description": "Strip text enclosed in parentheses from subtitles"
+          },
+          "RemoveSpeakerNames": {
+            "Label": "Remove Speaker Names",
+            "Description": "Strip speaker name prefixes from subtitle lines"
+          }
+        }
+      },
       "Tabs": {
         "AI": "AI",
         "About": "About",
@@ -1513,7 +1569,8 @@
         "General": "General",
         "Reader": "Reader",
         "SRS": "SRS",
-        "Statistics": "Statistics"
+        "Statistics": "Statistics",
+        "VideoPlayer": "Video Player"
       }
     },
     "Statistics": {

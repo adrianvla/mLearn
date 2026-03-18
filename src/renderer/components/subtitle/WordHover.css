@@ -307,3 +307,65 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
+
+/* Ease pill wrapper for Anki hover preview */
+.ease-pill-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.ease-pill-wrapper .anki-hover-preview {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  z-index: 100;
+  min-width: 220px;
+  max-width: 340px;
+  padding: 8px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  white-space: normal;
+  margin-bottom: 4px;
+  backdrop-filter: var(--backdrop-filter);
+  pointer-events: auto;
+}
+
+.ease-pill-wrapper .anki-hover-preview__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ease-pill-wrapper .anki-hover-preview__field {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: var(--font-size-sm);
+}
+
+.ease-pill-wrapper .anki-hover-preview__label {
+  color: var(--text-tertiary);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ease-pill-wrapper .anki-hover-preview__value {
+  color: var(--text-primary);
+  word-break: break-word;
+  overflow: hidden;
+  max-height: 80px;
+}
+
+.ease-pill-wrapper .anki-hover-preview__value img {
+  max-width: 100%;
+  height: auto;
+}
+
+.ease-pill-wrapper .anki-hover-preview__loading {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+}

@@ -1,0 +1,60 @@
+/**
+ * SubtitleWord Component Styles
+ * Individual word styling, furigana, blur, known state, and frequency star positioning
+ */
+
+/* ========== Subtitle Word ========== */
+.subtitle_word {
+  display: inline-block;
+  cursor: pointer;
+  position: relative;
+  white-space: nowrap;
+  transition: color var(--transition-fast);
+}
+
+.subtitle_word:hover {
+  color: var(--color-primary);
+}
+
+.subtitle_word[known="true"] {
+  color: var(--color-success);
+}
+
+.subtitle_word.blur {
+  filter: blur(var(--word-blur-amount));
+  transition: filter var(--transition-normal);
+}
+
+.subtitle_word.blur:hover {
+  filter: blur(0);
+}
+
+.subtitle_word.defined {
+  text-decoration: underline;
+  text-decoration-color: var(--color-primary);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+/* ========== Furigana (Ruby) ========== */
+.subtitle_word ruby {
+  ruby-align: center;
+}
+
+.subtitle_word ruby rt {
+  font-size: 0.45em;
+  font-weight: var(--font-weight-normal);
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+}
+
+/* ========== Frequency Stars (subtitle positioning) ========== */
+.subtitle_word .frequency {
+  position: absolute;
+  bottom: -10px;
+  left: 0;
+  right: 0;
+  font-size: 0.8em;
+  padding: 5px;
+  text-align: center;
+}

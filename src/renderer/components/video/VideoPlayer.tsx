@@ -11,6 +11,7 @@ import { useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { isElectron } from '../../../shared/platform';
 import { SubtitleContainer } from '../subtitle/SubtitleContainer';
+import { LiveWordTranslator } from '../subtitle/LiveWordTranslator';
 import { VideoControls } from './VideoControls';
 import './VideoPlayer.css';
 
@@ -29,10 +30,6 @@ export interface VideoPlayerProps {
   onEnded?: () => void;
   /** Options forwarded to the native context menu */
   ctxMenuOptions?: { isWatchTogether?: boolean };
-  /** Whether the stats panel is currently shown */
-  showStats?: boolean;
-  /** Toggle stats panel visibility */
-  onToggleStats?: () => void;
   /** Whether the word sidebar is shown */
   showWordSidebar?: boolean;
   /** Toggle word sidebar visibility */
@@ -150,14 +147,15 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
             originalText={subtitles.currentSubtitle()?.text}
         />
 
+        {/* Live word translator (inside player for fullscreen support) */}
+        <LiveWordTranslator />
+
         {/* Video controls */}
         <VideoControls
             video={video}
             subtitles={subtitles}
             containerRef={containerRef}
             isControlsVisible={controlsVisible()}
-            showStats={props.showStats}
-            onToggleStats={props.onToggleStats}
             showWordSidebar={props.showWordSidebar}
             onToggleWordSidebar={props.onToggleWordSidebar}
         />
