@@ -11,7 +11,7 @@
 
 import { ipcMain, type IpcMainEvent } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import { exec, type ChildProcess } from 'child_process';
+import { execFile, type ChildProcess } from 'child_process';
 import { isMac, isLinux } from '../utils/platform';
 
 let ttsProcess: ChildProcess | null = null;
@@ -30,8 +30,7 @@ function speak(text: string, language: string, sender: Electron.WebContents): vo
     sender.send(IPC_CHANNELS.TTS_STATUS, { speaking: true, progress: 0 });
   }
 
-  // Sanitize text for shell
-  const sanitized = text.replace(/['"\\]/g, '').replace(/\n/g, ' ').substring(0, 500);
+  const sanitized = text.replace(/\n/g, ' ').substring(0, 500);
 
   if (isMac) {
     // macOS: use built-in `say` command
@@ -50,7 +49,7 @@ function speak(text: string, language: string, sender: Electron.WebContents): vo
     };
 
     const voice = voiceMap[language] || voiceMap.en;
-    ttsProcess = exec(`say -v "${voice}" "${sanitized}"`, () => {
+    ttsProcess = execFile('say', ['-v', voice, sanitized], () => {
       ttsProcess = null;
       if (!sender.isDestroyed()) {
         sender.send(IPC_CHANNELS.TTS_STATUS, { speaking: false, progress: 1 });
@@ -58,7 +57,7 @@ function speak(text: string, language: string, sender: Electron.WebContents): vo
     });
   } else if (isLinux) {
     // Linux: try espeak
-    ttsProcess = exec(`espeak -v ${language} "${sanitized}"`, () => {
+    ttsProcess = execFile('espeak', ['-v', language, sanitized], () => {
       ttsProcess = null;
       if (!sender.isDestroyed()) {
         sender.send(IPC_CHANNELS.TTS_STATUS, { speaking: false, progress: 1 });
@@ -66,8 +65,8 @@ function speak(text: string, language: string, sender: Electron.WebContents): vo
     });
   } else {
     // Windows: use PowerShell
-    const psCommand = `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak('${sanitized}')`;
-    ttsProcess = exec(`powershell -Command "${psCommand}"`, () => {
+    const psCommand = `Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; $s.Speak('${sanitized.replace(/'/g, "''")}')`;
+    ttsProcess = execFile('powershell', ['-Command', psCommand], () => {
       ttsProcess = null;
       if (!sender.isDestroyed()) {
         sender.send(IPC_CHANNELS.TTS_STATUS, { speaking: false, progress: 1 });

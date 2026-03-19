@@ -11,17 +11,14 @@ import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidat
 import { getUserDataPath } from '../utils/platform';
 import { extractBase64Images } from './flashcardImageStorage';
 
-// Current store version - increment when making breaking changes
-const CURRENT_VERSION = 4;
+const CURRENT_VERSION = 5;
 
-// Migration tracking - sent to renderer to notify user
 let migrationInfo: { occurred: boolean; backupPath: string | null; fromVersion: number | null } = {
   occurred: false,
   backupPath: null,
   fromVersion: null,
 };
 
-// Default flashcard store (matching new UUID-keyed structure)
 const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
   flashcards: {},
   wordCandidates: {},
@@ -37,7 +34,7 @@ const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
     newCardsDate: new Date().toISOString().split('T')[0],
     maxNewCardsPerDay: 10,
     maxNewCardsPerDayLearning: 20,
-    maxReviewsPerDay: -1, // -1 = unlimited
+    maxReviewsPerDay: -1,
     learningSteps: [1, 10],
     relearnSteps: [10],
     graduatingInterval: 1,
@@ -50,22 +47,21 @@ const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
   version: CURRENT_VERSION,
 };
 
-// Get flashcard storage path
+let writeQueue: Promise<void> = Promise.resolve();
+function enqueueWrite(fn: () => Promise<void>): Promise<void> {
+  writeQueue = writeQueue.then(fn, fn);
+  return writeQueue;
+}
+
 function getFlashcardsPath(): string {
   return path.join(getUserDataPath(), 'flashcards.json');
 }
 
-/**
- * Compare flashcard states - returns positive if a is "better" than b
- */
 function compareStates(a: FlashcardState, b: FlashcardState): number {
   const order: Record<FlashcardState, number> = { 'new': 0, 'learning': 1, 'relearning': 2, 'review': 3 };
   return order[a] - order[b];
 }
 
-/**
- * Calculate aggregated word stats from all cards for a word
- */
 function calculateWordStats(cards: Flashcard[]): WordStats {
   if (cards.length === 0) {
     return {
@@ -106,28 +102,22 @@ function calculateWordStats(cards: Flashcard[]): WordStats {
   };
 }
 
-/**
- * Migrate from v2 (single card per word) to v3 (multiple cards per word)
- */
 function migrateV2ToV3(store: any): FlashcardStore {
   console.log('Migrating flashcard store from v2 to v3...');
   
   const newWordToCardMap: Record<string, string[]> = {};
   const wordStatsMap: Record<string, WordStats> = {};
   
-  // Convert wordToCardMap from Record<string, string> to Record<string, string[]>
   if (store.wordToCardMap) {
     for (const [wordHash, cardId] of Object.entries(store.wordToCardMap)) {
       if (typeof cardId === 'string') {
         newWordToCardMap[wordHash] = [cardId];
       } else if (Array.isArray(cardId)) {
-        // Already an array (shouldn't happen but handle gracefully)
         newWordToCardMap[wordHash] = cardId as string[];
       }
     }
   }
   
-  // Build wordStatsMap from flashcards
   const wordToCards: Record<string, Flashcard[]> = {};
   for (const [wordHash, cardIds] of Object.entries(newWordToCardMap)) {
     const cards: Flashcard[] = [];
@@ -157,9 +147,6 @@ function migrateV2ToV3(store: any): FlashcardStore {
   };
 }
 
-/**
- * Generate a simple UUID-like string
- */
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = Math.random() * 16 | 0;
@@ -168,19 +155,116 @@ function generateUUID(): string {
   });
 }
 
-/**
- * Synchronous word hash using Node's crypto (for migration)
- */
 function generateWordHashSync(word: string): string {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const crypto = require('crypto');
-  const hash = crypto.createHash('sha256').update(word).digest('hex');
-  return hash.substring(0, 16);
+  const nodeCrypto = require('crypto') as typeof import('crypto');
+  return nodeCrypto.createHash('sha256').update(Buffer.from(word)).digest('hex');
 }
 
-/**
- * V1 flashcard content structure (from old app)
- */
+function isSha256Hex(key: string): boolean {
+  return /^[0-9a-f]{64}$/.test(key);
+}
+
+function migrateV4ToV5(store: FlashcardStore): FlashcardStore {
+  console.log('[flashcardStorage] Migrating store from v4 to v5 (canonical SHA-256 keys)...');
+
+  const newWordToCardMap: Record<string, string[]> = {};
+  const newWordStatsMap: Record<string, WordStats> = {};
+  const newWordCandidates = { ...store.wordCandidates };
+  const newWordKnowledge = { ...store.wordKnowledge };
+  const newKnownUntracked = { ...store.knownUntracked };
+  const newIgnoredWords = { ...store.ignoredWords };
+
+  for (const [oldKey, cardIds] of Object.entries(store.wordToCardMap)) {
+    if (isSha256Hex(oldKey)) {
+      newWordToCardMap[oldKey] = cardIds;
+      continue;
+    }
+    const firstCard = cardIds.map(id => store.flashcards[id]).find(c => c?.content?.front);
+    if (firstCard) {
+      const newKey = generateWordHashSync(firstCard.content.front);
+      const existing = newWordToCardMap[newKey];
+      newWordToCardMap[newKey] = existing ? [...new Set([...existing, ...cardIds])] : cardIds;
+    }
+    // Legacy key with no recoverable word text: cards remain accessible by their UUID
+  }
+
+  for (const [wordKey, cardIds] of Object.entries(newWordToCardMap)) {
+    const cards = cardIds.map(id => store.flashcards[id]).filter(Boolean);
+    newWordStatsMap[wordKey] = calculateWordStats(cards);
+  }
+
+  for (const [oldKey, candidate] of Object.entries(store.wordCandidates)) {
+    if (isSha256Hex(oldKey)) continue;
+    if (candidate.word) {
+      const newKey = generateWordHashSync(candidate.word);
+      if (!newWordCandidates[newKey]) newWordCandidates[newKey] = candidate;
+      delete newWordCandidates[oldKey];
+    } else {
+      delete newWordCandidates[oldKey];
+    }
+  }
+
+  for (const [oldKey, entry] of Object.entries(store.wordKnowledge)) {
+    const hash = oldKey.includes(':') ? oldKey.split(':')[1] : oldKey;
+    if (isSha256Hex(hash)) continue;
+    const lang = entry.language ?? (oldKey.includes(':') ? oldKey.split(':')[0] : '');
+    if (entry.word) {
+      const newKey = lang ? `${lang}:${generateWordHashSync(entry.word)}` : generateWordHashSync(entry.word);
+      if (!newWordKnowledge[newKey]) newWordKnowledge[newKey] = entry;
+      delete newWordKnowledge[oldKey];
+    } else {
+      delete newWordKnowledge[oldKey];
+    }
+  }
+
+  // knownUntracked has no embedded word text — recover from co-located ignoredWords/wordKnowledge entries
+  for (const [oldKey, value] of Object.entries(store.knownUntracked)) {
+    const hash = oldKey.includes(':') ? oldKey.split(':')[1] : oldKey;
+    if (isSha256Hex(hash)) continue;
+    const word = store.ignoredWords[oldKey]?.word ?? store.wordKnowledge[oldKey]?.word;
+    if (word) {
+      const lang = oldKey.includes(':') ? oldKey.split(':')[0] : (store.ignoredWords[oldKey]?.language ?? '');
+      const newKey = lang ? `${lang}:${generateWordHashSync(word)}` : generateWordHashSync(word);
+      if (!(newKey in newKnownUntracked)) newKnownUntracked[newKey] = value;
+      delete newKnownUntracked[oldKey];
+    } else {
+      delete newKnownUntracked[oldKey];
+    }
+  }
+
+  for (const [oldKey, entry] of Object.entries(store.ignoredWords)) {
+    const hash = oldKey.includes(':') ? oldKey.split(':')[1] : oldKey;
+    if (isSha256Hex(hash)) continue;
+    if (entry.word) {
+      const lang = entry.language ?? (oldKey.includes(':') ? oldKey.split(':')[0] : '');
+      const newKey = lang ? `${lang}:${generateWordHashSync(entry.word)}` : generateWordHashSync(entry.word);
+      if (!newIgnoredWords[newKey]) newIgnoredWords[newKey] = entry;
+      delete newIgnoredWords[oldKey];
+    } else {
+      delete newIgnoredWords[oldKey];
+    }
+  }
+
+  const migrated: FlashcardStore = {
+    ...store,
+    wordToCardMap: newWordToCardMap,
+    wordStatsMap: newWordStatsMap,
+    wordCandidates: newWordCandidates,
+    wordKnowledge: newWordKnowledge,
+    knownUntracked: newKnownUntracked,
+    ignoredWords: newIgnoredWords,
+    version: 5,
+  };
+
+  const upgradedCount =
+    Object.keys(store.wordToCardMap).filter(k => !isSha256Hex(k)).length +
+    Object.keys(store.wordKnowledge).filter(k => !isSha256Hex(k.includes(':') ? k.split(':')[1] : k)).length;
+  console.log(`[flashcardStorage] v4→v5: re-hashed ${upgradedCount} legacy keys`);
+
+  return migrated;
+}
+
 interface V1FlashcardContent {
   word: string;
   pitchAccent?: number;
@@ -194,9 +278,6 @@ interface V1FlashcardContent {
   level?: number;
 }
 
-/**
- * V1 flashcard structure (from old app)
- */
 interface V1Flashcard {
   content: V1FlashcardContent;
   dueDate: number;
@@ -206,34 +287,23 @@ interface V1Flashcard {
   reviews: number;
 }
 
-/**
- * V1 store structure (from old app)
- */
 interface V1FlashcardStore {
-  flashcards: V1Flashcard[];  // Array in v1, object in v2+
+  flashcards: V1Flashcard[];
   wordCandidates: Record<string, number | { count: number; lastSeen: number; word: string }>;
   alreadyCreated: Record<string, boolean>;
-  knownUnTracked: Record<string, boolean>;  // Capital T in v1
+  knownUnTracked: Record<string, boolean>;
   meta: {
     flashcardsCreatedToday: number;
     lastFlashcardCreatedDate: number;
   };
 }
 
-/**
- * Detect if the store is v1 format (old app)
- */
 function isV1Store(store: any): store is V1FlashcardStore {
-  // V1 has flashcards as an array, not an object
-  // V1 also has knownUnTracked (capital T) and alreadyCreated
   return Array.isArray(store.flashcards) || 
          store.alreadyCreated !== undefined || 
          store.knownUnTracked !== undefined;
 }
 
-/**
- * Create backup of old flashcards file
- */
 function createBackup(originalPath: string): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPath = originalPath.replace('.json', `-backup-v1-${timestamp}.json`);
@@ -247,13 +317,9 @@ function createBackup(originalPath: string): string {
   return backupPath;
 }
 
-/**
- * Migrate from v1 (old app format) to v3 (new format)
- */
 function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardStore {
   console.log('Migrating flashcard store from v1 (old app) to v3...');
   
-  // Track migration for notification
   migrationInfo = {
     occurred: true,
     backupPath,
@@ -265,7 +331,6 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
   const wordStatsMap: Record<string, WordStats> = {};
   const newWordCandidates: Record<string, WordCandidate> = {};
   
-  // Convert array of flashcards to UUID-keyed object
   for (const v1Card of store.flashcards || []) {
     if (!v1Card.content?.word) continue;
     
@@ -273,18 +338,12 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
     const wordHash = generateWordHashSync(word);
     const cardId = generateUUID();
     
-    // Convert v1 ease (0-10 scale roughly) to v3 ease (2.5 default, min 1.3)
-    // Old app ease was based on countToEase and knownStatusToEaseFunction
-    // countToEase: Math.atan(x/10)+1.01 (roughly 1-2.5 range)
-    // knownStatusToEaseFunction: Math.max((status-1)*0.25,0) + 1.3 (1.3-1.8 range)
     const v1Ease = v1Card.ease || 0;
     let newEase = 2.5;
     if (v1Ease > 0) {
-      // Scale from v1 range (roughly 1-3) to v3 range (1.3-3.0)
       newEase = Math.max(1.3, Math.min(3.0, v1Ease * 1.2));
     }
     
-    // Determine state based on ease and reviews
     let state: FlashcardState = 'new';
     if (v1Card.reviews > 0) {
       if (newEase >= 2.5) {
@@ -294,7 +353,6 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
       }
     }
     
-    // Convert v1 content to v3 content
     const newContent: FlashcardContent = {
       type: 'word',
       front: word,
@@ -308,7 +366,6 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
       example: v1Card.content.example !== '-' ? v1Card.content.example : undefined,
       exampleMeaning: v1Card.content.exampleMeaning || undefined,
       imageUrl: v1Card.content.screenshotUrl || undefined,
-      // Legacy fields for backwards compatibility
       word: word,
       pronunciation: v1Card.content.pronunciation,
       translation: Array.isArray(v1Card.content.translation) 
@@ -320,7 +377,6 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
       screenshotUrl: v1Card.content.screenshotUrl,
     };
     
-    // Calculate interval from due date and last reviewed
     const interval = Math.max(0, v1Card.dueDate - v1Card.lastReviewed);
     
     const newCard: Flashcard = {
@@ -340,27 +396,23 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
     
     newFlashcards[cardId] = newCard;
     
-    // Map word to card
     if (!wordToCardMap[wordHash]) {
       wordToCardMap[wordHash] = [];
     }
     wordToCardMap[wordHash].push(cardId);
   }
   
-  // Build word stats
   for (const [wordHash, cardIds] of Object.entries(wordToCardMap)) {
     const cards = cardIds.map(id => newFlashcards[id]).filter(Boolean);
     wordStatsMap[wordHash] = calculateWordStats(cards);
   }
   
-  // Convert word candidates
   for (const [key, value] of Object.entries(store.wordCandidates || {})) {
     if (typeof value === 'number') {
-      // Old format: just a count
       newWordCandidates[key] = {
         count: value,
         lastSeen: Date.now(),
-        word: '', // We don't have the word text in this case
+        word: '',
       };
     } else if (typeof value === 'object' && value !== null) {
       newWordCandidates[key] = {
@@ -371,13 +423,11 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
     }
   }
   
-  // Convert knownUnTracked (capital T) to knownUntracked (lowercase)
   const knownUntracked: Record<string, boolean> = {};
   for (const [key, value] of Object.entries(store.knownUnTracked || {})) {
     knownUntracked[key] = value;
   }
   
-  // Convert meta
   const today = new Date().toISOString().split('T')[0];
   const meta = {
     ...DEFAULT_FLASHCARD_STORE.meta,
@@ -402,24 +452,34 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
   };
 }
 
-// Check and fill missing fields in loaded flashcard store, with migrations
+function isValidFlashcardStore(value: unknown): value is FlashcardStore {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    'flashcards' in v && typeof v.flashcards === 'object' && v.flashcards !== null &&
+    typeof v.version === 'number'
+  );
+}
+
 function checkFlashcards(fc_to_check: any): FlashcardStore {
-  // Detect v1 (old app format) first
   if (isV1Store(fc_to_check)) {
     const backupPath = createBackup(getFlashcardsPath());
     fc_to_check = migrateV1ToV3(fc_to_check as V1FlashcardStore, backupPath);
     return fc_to_check;
   }
   
-  // Handle version migrations for v2+
   const version = fc_to_check.version || 1;
   
   if (version < 3) {
     fc_to_check = migrateV2ToV3(fc_to_check);
   }
-  
-  // Ensure all required fields exist
-  const result: FlashcardStore = {
+
+  if (!isValidFlashcardStore(fc_to_check)) {
+    console.warn('[flashcardStorage] Loaded store has unexpected structure — using defaults');
+    return { ...DEFAULT_FLASHCARD_STORE };
+  }
+
+  let result: FlashcardStore = {
     flashcards: fc_to_check.flashcards || {},
     wordCandidates: fc_to_check.wordCandidates || {},
     wordToCardMap: fc_to_check.wordToCardMap || {},
@@ -430,59 +490,70 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     grammarKnowledge: fc_to_check.grammarKnowledge || {},
     meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...fc_to_check.meta },
     dailyStats: fc_to_check.dailyStats || {},
-    version: CURRENT_VERSION,
+    version: version,
   };
+
+  if (result.version < 5) {
+    result = migrateV4ToV5(result);
+  }
+
+  result.version = CURRENT_VERSION;
   
   return result;
 }
 
-// Load flashcards from disk
-export function loadFlashcards(): FlashcardStore {
+export async function loadFlashcards(): Promise<FlashcardStore> {
   try {
     const filePath = getFlashcardsPath();
-    if (fs.existsSync(filePath)) {
-      const data = fs.readFileSync(filePath, 'utf-8');
-      const loaded = JSON.parse(data) as Partial<FlashcardStore>;
-      const store = checkFlashcards(loaded);
-
-      // Extract any leftover base64 images to files
-      if (extractBase64Images(store)) {
-        // Re-save with file references instead of base64
-        const dir = path.dirname(filePath);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(filePath, JSON.stringify(store, null, 2));
-      }
-
-      return store;
+    try {
+      await fs.promises.access(filePath);
+    } catch {
+      return { ...DEFAULT_FLASHCARD_STORE };
     }
+    const data = await fs.promises.readFile(filePath, 'utf-8');
+    const parsed: unknown = JSON.parse(data);
+
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      console.warn('[flashcardStorage] Loaded JSON is not a plain object — using defaults');
+      return { ...DEFAULT_FLASHCARD_STORE };
+    }
+
+    const store = checkFlashcards(parsed);
+
+    if (extractBase64Images(store)) {
+      await saveFlashcards(store);
+    }
+
+    return store;
   } catch (error) {
     console.error('Failed to load flashcards:', error);
   }
   return { ...DEFAULT_FLASHCARD_STORE };
 }
 
-// Save flashcards to disk
-export function saveFlashcards(store: FlashcardStore): void {
-  try {
-    // Extract any base64 images to files before saving
-    extractBase64Images(store);
+export async function saveFlashcards(store: FlashcardStore): Promise<void> {
+  return enqueueWrite(async () => {
+    try {
+      extractBase64Images(store);
 
-    const filePath = getFlashcardsPath();
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+      const filePath = getFlashcardsPath();
+      const tmpPath = `${filePath}.tmp`;
+      const dir = path.dirname(filePath);
+      try {
+        await fs.promises.access(dir);
+      } catch {
+        await fs.promises.mkdir(dir, { recursive: true });
+      }
+      await fs.promises.writeFile(tmpPath, JSON.stringify(store, null, 2));
+      await fs.promises.rename(tmpPath, filePath);
+    } catch (error) {
+      console.error('Failed to save flashcards:', error);
     }
-    fs.writeFileSync(filePath, JSON.stringify(store, null, 2));
-  } catch (error) {
-    console.error('Failed to save flashcards:', error);
-  }
+  });
 }
 
-// Get flashcard ease as a hashmap for quick lookups
-export function getFlashcardEaseMap(): Record<string, number> {
-  const store = loadFlashcards();
+export async function getFlashcardEaseMap(): Promise<Record<string, number>> {
+  const store = await loadFlashcards();
   const map: Record<string, number> = {};
   
   for (const [, flashcard] of Object.entries(store.flashcards)) {
@@ -494,33 +565,26 @@ export function getFlashcardEaseMap(): Record<string, number> {
   return map;
 }
 
-// Setup IPC handlers
 export function setupFlashcardIPC(): void {
-  ipcMain.on(IPC_CHANNELS.GET_FLASHCARDS, (event) => {
-    const flashcards = loadFlashcards();
+  ipcMain.on(IPC_CHANNELS.GET_FLASHCARDS, async (event) => {
+    const flashcards = await loadFlashcards();
     event.reply(IPC_CHANNELS.FLASHCARDS_LOADED, flashcards);
     
-    // If migration occurred, notify the renderer
     if (migrationInfo.occurred) {
       event.reply(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, migrationInfo);
-      // Reset after sending to prevent multiple notifications
       migrationInfo = { occurred: false, backupPath: null, fromVersion: null };
     }
   });
 
   ipcMain.on(IPC_CHANNELS.SAVE_FLASHCARDS, (_event, store: FlashcardStore) => {
-    saveFlashcards(store);
+    void saveFlashcards(store);
   });
   
-  // Handler to get migration info if needed
   ipcMain.on(IPC_CHANNELS.GET_FLASHCARD_MIGRATION_INFO, (event) => {
     event.reply(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, migrationInfo);
   });
 }
 
-/**
- * Get migration info (for testing or checking status)
- */
 export function getMigrationInfo() {
   return migrationInfo;
 }

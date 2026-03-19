@@ -155,7 +155,7 @@ export const Modal: Component<ModalProps> = (props) => {
                   'justify-content': 'space-between',
                   padding: 'var(--spacing-4) var(--spacing-6)',
                   'border-bottom': '1px solid var(--border-color)',
-                  'app-region': local.headerDraggable ? 'drag' : 'no-drag',
+                  '-webkit-app-region': local.headerDraggable ? 'drag' : 'no-drag',
                 }}
               >
                 <div style={{ display: 'flex', 'flex-direction': 'column', gap: 'var(--spacing-1)' }}>
@@ -189,7 +189,7 @@ export const Modal: Component<ModalProps> = (props) => {
                     size="sm"
                     aria-label={t('mlearn.Global.Aria.CloseModal')}
                     onClick={local.onClose}
-                    style={{ 'margin-left': 'var(--spacing-4)', 'flex-shrink': 0, 'app-region': 'no-drag' }}
+                     style={{ 'margin-left': 'var(--spacing-4)', 'flex-shrink': 0, '-webkit-app-region': 'no-drag' }}
                   >
                     <CloseIcon />
                   </IconBtn>

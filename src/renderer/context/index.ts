@@ -8,3 +8,4 @@ export { useFlashcards } from './FlashcardContext';
 export { useServer } from './ServerContext';
 export { useLocalization } from './LocalizationContext';
 export { WindowWrapper } from './WindowWrapper';
+export { useLowPowerGate } from './LowPowerGateContext';

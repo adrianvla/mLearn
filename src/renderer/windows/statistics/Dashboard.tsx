@@ -11,7 +11,7 @@ import { PieChart, BarChart, Heatmap } from './charts';
 import type { PieSegment, BarChartDataPoint } from './charts';
 import type { MediaStats } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
-import { isElectron } from '../../../shared/platform';
+
 import {
   initTimeWatched,
   getWordsLearnedInAppStats,
@@ -32,7 +32,6 @@ export const Dashboard: Component = () => {
   const [mediaStatsList, setMediaStatsList] = createSignal<MediaStats[]>([]);
 
   onMount(() => {
-    if (!isElectron()) return;
     const bridge = getBridge();
     const cleanup = bridge.mediaStats.onMediaStatsList((stats) => {
       setMediaStatsList(stats);

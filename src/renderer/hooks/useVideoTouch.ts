@@ -11,7 +11,7 @@ import { onCleanup, onMount } from 'solid-js';
 import { isMobile } from '../../shared/platform';
 
 interface VideoTouchTarget {
-  state: () => { currentTime: number };
+  state: { currentTime: number };
   seek: (time: number) => void;
   togglePlay: () => void;
 }
@@ -58,7 +58,7 @@ export function useVideoTouch(video: VideoTouchTarget, containerRef: () => HTMLE
       const dx = touch.clientX - touchStartX;
       if (isSwiping && Math.abs(dx) >= SWIPE_MIN_PX) {
         const dir = dx > 0 ? 1 : -1;
-        video.seek(video.state().currentTime + dir * 10);
+        video.seek(video.state.currentTime + dir * 10);
         return;
       }
 
@@ -72,9 +72,9 @@ export function useVideoTouch(video: VideoTouchTarget, containerRef: () => HTMLE
         const relX = (tapX - rect.left) / rect.width;
 
         if (relX < 0.33) {
-          video.seek(video.state().currentTime - 5);
+          video.seek(video.state.currentTime - 5);
         } else if (relX > 0.67) {
-          video.seek(video.state().currentTime + 5);
+          video.seek(video.state.currentTime + 5);
         } else {
           video.togglePlay();
         }

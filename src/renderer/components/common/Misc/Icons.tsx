@@ -302,6 +302,13 @@ export const MicrophoneIcon = createIcon([
   'M8 23h8',
 ]);
 
+/** Battery icon for low power mode indicator */
+export const BatteryLowIcon = createIcon([
+  'M3 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z',
+  'M23 10v4',
+  'M5 10v4',
+]);
+
 /** Scissors icon */
 export const ScissorsIcon = createIcon([
   'M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
@@ -352,6 +359,7 @@ export default {
   SparklesIcon,
   BookIcon,
   BarChartIcon,
+  BatteryLowIcon,
   StarIcon,
   GridIcon,
   SortAscIcon,

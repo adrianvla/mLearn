@@ -561,6 +561,7 @@
         "TtsAllDone": "すべてのフラッシュカードにTTS音声があります",
         "TtsButton": "TTS生成",
         "TtsDone": "{count}件のTTSを生成しました",
+        "TtsDoneWithErrors": "{count}件のTTSを生成、{failed}件失敗",
         "TtsProgress": "TTS生成中…",
         "TtsTooltip": "すべてのフラッシュカードの単語と例文にTTS音声を生成"
       },
@@ -768,6 +769,15 @@
         "ShortYear": "{value}年"
       },
       "TryAgain": "再試行"
+    },
+    "LowPowerGate": {
+      "Allow": "許可",
+      "AllowSession": "セッション中は許可",
+      "Deny": "拒否",
+      "DenySession": "セッション中は拒否",
+      "Message": "操作がローカルニューラルネットワーク（{{backendType}}）を使用しようとしています。省電力モード中に許可しますか？",
+      "StatusBarTooltip": "省電力モード有効",
+      "Title": "ローカル処理リクエスト"
     },
     "Home": {
       "Cards": {
@@ -1193,6 +1203,10 @@
         "HoverKnownGetFromDictionary": {
           "Description": "既知の単語でも辞書データを取得",
           "Label": "既知の単語を検索"
+        },
+        "LowBatteryMode": {
+          "Description": "ローカルニューラルネットワーク（LLM、TTS、OCR）の実行前に確認する",
+          "Label": "省電力モード"
         }
       },
       "Reader": {
@@ -1555,6 +1569,19 @@
             "Label": "話者名を削除",
             "Description": "字幕から話者名の接頭辞を除去する"
           }
+        },
+        "FlashcardMedia": {
+          "Title": "カードメディア",
+          "MediaType": {
+            "Label": "メディアタイプ",
+            "Description": "新しいカードに字幕セグメントのスクリーンショットまたはビデオクリップを添付する",
+            "Image": "画像",
+            "Video": "動画"
+          },
+          "VideoMargin": {
+            "Label": "ビデオクリップの余白",
+            "Description": "ビデオクリップに含める字幕前後の追加時間"
+          }
         }
       },
       "About": {
@@ -1689,6 +1716,7 @@
           "SubtitleOrder": "字幕順"
         }
       },
+      "VideoClipFailed": "動画クリップの作成に失敗しました。スクリーンショットを使用します",
       "WatchTogether": "一緒に見る"
     },
     "WordDbEditor": {
@@ -1779,15 +1807,15 @@
     },
     "Sidebar": {
       "AddAll": "すべて追加",
-      "AddingAll": "追加中...",
+      "AddingAll": "追加中…",
       "DictionaryOnly": "辞書のみ",
       "Ignore": "無視",
       "SortBy": {
         "Level": "レベル",
-        "Word": "アルファベット順"
+        "Word": "単語"
       },
-      "UnknownWords": "未習得の単語",
-      "WordCount": "{count}語"
+      "UnknownWords": "未知の単語",
+      "WordCount": "{count} 語"
     }
   }
 }

@@ -4,8 +4,10 @@ mLearn NLP Backend — FastAPI entrypoint.
 All route logic lives in the ``routes/`` package.  This file wires up
 configuration, CORS, middleware, the startup event, and the Uvicorn server.
 """
+
 import gc
 import os
+import secrets
 import sys
 import traceback
 
@@ -18,8 +20,12 @@ import config
 
 config.init()
 
+config.QUIT_TOKEN = secrets.token_hex(32)
+
 # ── Logging ──
 from logging_utils import _log, _process_stats
+
+_log(f"::QUIT_TOKEN::{config.QUIT_TOKEN}")
 
 # ── Route modules ──
 from routes import anki, nlp, ocr, llm, voice
@@ -29,7 +35,14 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:7753",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:7753",
+        "http://localhost:7752",
+        "http://127.0.0.1:7752",
+    ],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,6 +57,7 @@ app.include_router(voice.router)
 
 
 # ── Middleware ──
+
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -60,6 +74,7 @@ async def log_requests(request: Request, call_next):
 
 # ── Health endpoint ──
 
+
 @app.get("/health")
 async def health():
     _process_stats("health")
@@ -67,6 +82,7 @@ async def health():
 
 
 # ── Startup ──
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -88,9 +104,10 @@ async def startup_event():
     try:
         import faulthandler
         import signal
-        crash_log_path = os.path.join(config.RESPATH, 'python_crash.log')
+
+        crash_log_path = os.path.join(config.RESPATH, "python_crash.log")
         global _crash_log
-        _crash_log = open(crash_log_path, 'a')
+        _crash_log = open(crash_log_path, "a")
         faulthandler.enable(_crash_log)
         for _sig in (
             getattr(signal, n, None)

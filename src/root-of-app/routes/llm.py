@@ -5,6 +5,8 @@ LLM inference has moved to node-llama-cpp in the Electron main process.
 These endpoints are retained for backward compatibility and will eventually
 be removed.
 """
+
+import asyncio
 import gc
 import importlib
 import json
@@ -17,7 +19,7 @@ from typing import List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import config
 from logging_utils import _log
@@ -56,15 +58,14 @@ AutoModelForCausalLM = None
 
 # ── Idle management ──
 
+
 def _llm_touch():
     global _llm_last_used, _llm_idle_timer
     _llm_last_used = time.monotonic()
     with _llm_idle_lock:
         if _llm_idle_timer is not None:
             _llm_idle_timer.cancel()
-        _llm_idle_timer = threading.Timer(
-            _LLM_IDLE_TIMEOUT_SECONDS, _llm_check_idle
-        )
+        _llm_idle_timer = threading.Timer(_LLM_IDLE_TIMEOUT_SECONDS, _llm_check_idle)
         _llm_idle_timer.daemon = True
         _llm_idle_timer.start()
 
@@ -101,9 +102,9 @@ def _llm_unload():
         torch = config.torch
         if torch is not None:
             try:
-                if hasattr(torch, 'cuda') and torch.cuda.is_available():
+                if hasattr(torch, "cuda") and torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                if hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
+                if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
                     torch.mps.empty_cache()
             except Exception:
                 pass
@@ -111,6 +112,7 @@ def _llm_unload():
 
 
 # ── Cache helpers ──
+
 
 def _llm_cache_root() -> Path:
     env_cache = os.environ.get("TRANSFORMERS_CACHE")
@@ -217,6 +219,7 @@ def _llm_download_bytes() -> Tuple[int, bool]:
 
 # ── Model loading ──
 
+
 def _ensure_llm_loaded():
     global _llm_tokenizer, _llm_model, _llm_device, _llm_dtype
     global AutoTokenizer, AutoModelForCausalLM
@@ -235,21 +238,16 @@ def _ensure_llm_loaded():
             if AutoTokenizer is None or AutoModelForCausalLM is None:
                 transformers_mod = importlib.import_module("transformers")
                 AutoTokenizer = getattr(transformers_mod, "AutoTokenizer")
-                AutoModelForCausalLM = getattr(
-                    transformers_mod, "AutoModelForCausalLM"
-                )
+                AutoModelForCausalLM = getattr(transformers_mod, "AutoModelForCausalLM")
         except Exception as exc:
-            raise RuntimeError(
-                "torch/transformers dependencies are missing"
-            ) from exc
+            raise RuntimeError("torch/transformers dependencies are missing") from exc
 
         try:
             _set_expected_llm_size()
             if torch.cuda.is_available():
                 device = "cuda"
                 dtype = torch.bfloat16
-            elif (hasattr(torch.backends, "mps")
-                  and torch.backends.mps.is_available()):
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 device = "mps"
                 dtype = torch.float16
             else:
@@ -257,12 +255,9 @@ def _ensure_llm_loaded():
                 dtype = torch.float32
             _log("Initializing LLM", {"device": device, "dtype": str(dtype)})
 
-            tokenizer = AutoTokenizer.from_pretrained(
-                LLM_MODEL_ID, trust_remote_code=True
-            )
+            tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_ID)
             load_kwargs = {
                 "torch_dtype": dtype,
-                "trust_remote_code": True,
                 "low_cpu_mem_usage": True,
             }
             if device == "cuda":
@@ -273,13 +268,14 @@ def _ensure_llm_loaded():
                     LLM_MODEL_ID, **load_kwargs
                 )
             except Exception as first_exc:
-                if (device == "cpu"
-                        and load_kwargs.get("torch_dtype") is not torch.float32):
+                if (
+                    device == "cpu"
+                    and load_kwargs.get("torch_dtype") is not torch.float32
+                ):
                     load_kwargs["torch_dtype"] = torch.float32
                     _log(
                         "LLM load retry",
-                        {"reason": "float32 fallback",
-                         "error": str(first_exc)},
+                        {"reason": "float32 fallback", "error": str(first_exc)},
                     )
                     model = AutoModelForCausalLM.from_pretrained(
                         LLM_MODEL_ID, **load_kwargs
@@ -290,11 +286,9 @@ def _ensure_llm_loaded():
 
             if device != "cuda":
                 model.to(device)
-            if (tokenizer.pad_token_id is None
-                    and tokenizer.eos_token_id is not None):
+            if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
                 tokenizer.pad_token = tokenizer.eos_token
-            if (model.config.pad_token_id is None
-                    and tokenizer.pad_token_id is not None):
+            if model.config.pad_token_id is None and tokenizer.pad_token_id is not None:
                 model.config.pad_token_id = tokenizer.pad_token_id
 
             model.eval()
@@ -314,8 +308,9 @@ def _ensure_llm_loaded():
 
 # ── Pydantic models ──
 
+
 class LlmRequest(BaseModel):
-    prompt: str
+    prompt: str = Field(..., max_length=50000)
     max_new_tokens: int = 128
     temperature: float = 0.0
 
@@ -326,6 +321,7 @@ class LlmResponse(BaseModel):
 
 
 # ── Endpoints ──
+
 
 @router.get("/llm/status")
 async def llm_status():
@@ -349,9 +345,7 @@ async def llm_status():
     downloaded_bytes, snapshot_ready = _llm_download_bytes()
     progress_ratio = 0.0
     if expected_bytes > 0:
-        progress_ratio = min(
-            float(downloaded_bytes) / float(expected_bytes), 1.0
-        )
+        progress_ratio = min(float(downloaded_bytes) / float(expected_bytes), 1.0)
     in_progress = bool(downloaded_bytes and not snapshot_ready)
     return {
         "allowed": True,
@@ -368,10 +362,13 @@ async def llm_status():
 @router.post("/llm", response_model=LlmResponse)
 async def llm_endpoint(req: LlmRequest):
     """DEPRECATED: LLM inference has moved to node-llama-cpp."""
-    _log("LLM request", {
-        "chars": len(req.prompt),
-        "max_new_tokens": req.max_new_tokens,
-    })
+    _log(
+        "LLM request",
+        {
+            "chars": len(req.prompt),
+            "max_new_tokens": req.max_new_tokens,
+        },
+    )
     if not config.LLM_ALLOWED:
         raise HTTPException(status_code=403, detail="LLM disabled by user")
     try:
@@ -386,25 +383,27 @@ async def llm_endpoint(req: LlmRequest):
 
     _llm_touch()
     try:
-        inputs = _llm_tokenizer(req.prompt, return_tensors="pt")
-        tensor_inputs = {
-            k: v.to(_llm_device) for k, v in inputs.items()
-        }
-        max_new_tokens = max(1, min(req.max_new_tokens, 512))
-        gen_opts = {
-            "max_new_tokens": max_new_tokens,
-            "do_sample": False,
-            "pad_token_id": _llm_tokenizer.pad_token_id,
-            "eos_token_id": _llm_tokenizer.eos_token_id,
-        }
-        if req.temperature > 0:
-            gen_opts["temperature"] = float(req.temperature)
-            gen_opts["do_sample"] = True
-        with torch.no_grad():
-            output_ids = _llm_model.generate(**tensor_inputs, **gen_opts)
-        text = _llm_tokenizer.decode(
-            output_ids[0], skip_special_tokens=True
-        ).strip()
+
+        def _run_inference():
+            inputs = _llm_tokenizer(req.prompt, return_tensors="pt")
+            tensor_inputs = {k: v.to(_llm_device) for k, v in inputs.items()}
+            max_new_tokens = max(1, min(req.max_new_tokens, 512))
+            gen_opts = {
+                "max_new_tokens": max_new_tokens,
+                "do_sample": False,
+                "pad_token_id": _llm_tokenizer.pad_token_id,
+                "eos_token_id": _llm_tokenizer.eos_token_id,
+            }
+            if req.temperature > 0:
+                gen_opts["temperature"] = float(req.temperature)
+                gen_opts["do_sample"] = True
+            with torch.no_grad():
+                output_ids = _llm_model.generate(**tensor_inputs, **gen_opts)
+            return _llm_tokenizer.decode(
+                output_ids[0], skip_special_tokens=True
+            ).strip()
+
+        text = await asyncio.to_thread(_run_inference)
         return {"output": text, "device": _llm_device}
     except Exception as exc:
         _log("LLM generation error", exc)
@@ -414,10 +413,13 @@ async def llm_endpoint(req: LlmRequest):
 @router.post("/llm/stream")
 async def llm_stream_endpoint(req: LlmRequest):
     """DEPRECATED: Streaming LLM endpoint."""
-    _log("LLM stream request", {
-        "chars": len(req.prompt),
-        "max_new_tokens": req.max_new_tokens,
-    })
+    _log(
+        "LLM stream request",
+        {
+            "chars": len(req.prompt),
+            "max_new_tokens": req.max_new_tokens,
+        },
+    )
     if not config.LLM_ALLOWED:
         raise HTTPException(status_code=403, detail="LLM disabled by user")
     try:
@@ -437,9 +439,7 @@ async def llm_stream_endpoint(req: LlmRequest):
             from transformers import TextIteratorStreamer
 
             inputs = _llm_tokenizer(req.prompt, return_tensors="pt")
-            tensor_inputs = {
-                k: v.to(_llm_device) for k, v in inputs.items()
-            }
+            tensor_inputs = {k: v.to(_llm_device) for k, v in inputs.items()}
             max_new_tokens = max(1, min(req.max_new_tokens, 512))
 
             streamer = TextIteratorStreamer(
@@ -460,9 +460,7 @@ async def llm_stream_endpoint(req: LlmRequest):
                 gen_opts["do_sample"] = True
 
             generation_thread = threading.Thread(
-                target=lambda: _llm_model.generate(
-                    **tensor_inputs, **gen_opts
-                )
+                target=lambda: _llm_model.generate(**tensor_inputs, **gen_opts)
             )
             generation_thread.start()
 

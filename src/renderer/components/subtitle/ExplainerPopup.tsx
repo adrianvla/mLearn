@@ -8,7 +8,7 @@ import { Component, Show, createSignal, createEffect, createMemo, onCleanup } fr
 import type { LLMToolCall } from '../../../shared/types';
 import { DraggablePopup, IconBtn } from '../common';
 import { EyeIcon, EyeOffIcon, BotIcon } from '../common/Misc/Icons';
-import { useSettings, useLocalization } from '../../context';
+import { useSettings, useLocalization, useLowPowerGate } from '../../context';
 import { getLanguageDisplayName } from '../../../shared/utils/textUtils';
 import { streamExplanation, getCachedExplanation, checkAvailability, requiresSetup } from '../../services/llmProvider';
 import type { ParsedExplainer, ExplainerSection, GrammarPoint } from './ExplainerCards';
@@ -70,6 +70,7 @@ function toolCallsToParsedExplainer(toolCalls: LLMToolCall[], rawText: string): 
 export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
+  const { requestAccess } = useLowPowerGate();
 
   // State
   const [rawText, setRawText] = createSignal('');
@@ -154,6 +155,17 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
 
     // Stream via unified provider
     const language = getLanguageDisplayName(settings.language);
+
+    // Low power gate: prompt before local LLM call
+    if (settings.llmProvider !== 'cloud') {
+      const allowed = await requestAccess('llm');
+      if (!allowed) {
+        setIsLoading(false);
+        setIsComplete(true);
+        return;
+      }
+    }
+
     const handle = streamExplanation(
       props.word,
       props.contextPhrase,

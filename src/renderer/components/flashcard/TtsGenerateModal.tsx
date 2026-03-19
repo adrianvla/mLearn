@@ -7,10 +7,10 @@
 
 import { Component, Show, createSignal, createMemo } from 'solid-js';
 import { Modal, Btn, Select, VoiceSamplePicker, ToggleSwitch, TaskProgressContent, type TaskState, type TaskStatus } from '../common';
-import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../context';
+import { useSettings, useLocalization, useLanguage, useFlashcards, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { getBackend } from '../../../shared/backends';
-import { stripFurigana, applyRubyReadings, getLanguageDisplayName } from '../../../shared/utils/textUtils';
+import { stripHtmlForTts, applyRubyReadings, getLanguageDisplayName } from '../../../shared/utils/textUtils';
 import { showToast, updateToast, removeToast } from '../common/Feedback/Toast';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import type { TTSProvider } from '../../../shared/types';
@@ -33,6 +33,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   const { t } = useLocalization();
   const { getLanguageFeatures } = useLanguage();
   const { generateExampleSentenceWithLLM, updateFlashcardContent, translateExampleSentence } = useFlashcards();
+  const { requestAccess } = useLowPowerGate();
 
   const [provider, setProvider] = createSignal<TTSProvider>(settings.flashcardTtsProvider);
   const [voiceSampleId, setVoiceSampleId] = createSignal(settings.flashcardVoiceSampleId || '');
@@ -53,7 +54,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   });
 
   const hasExample = createMemo(() => {
-    const ex = stripFurigana(props.exampleText || '');
+    const ex = stripHtmlForTts(props.exampleText || '');
     return !!ex && ex !== '-';
   });
 
@@ -70,7 +71,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   const buildReadingText = async (text: string): Promise<string> => {
     // Apply ruby readings first (replaces base text with rt readings)
     const withReadings = applyRubyReadings(text);
-    if (!withReadings) return stripFurigana(text);
+    if (!withReadings) return stripHtmlForTts(text);
     try {
       const backend = getBackend({
         mode: settings.backendMode,
@@ -171,14 +172,23 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         if (useReadingForWord() && showReadingToggles() && props.reading) {
           wordForTts = props.reading;
         }
-        const clean = stripFurigana(wordForTts);
+        const clean = stripHtmlForTts(wordForTts);
         if (clean && clean !== '-') {
-          const result = await bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, cloudAuthToken, cloudApiUrl);
-          if (result) {
-            updateTask('wordTts', 'done');
-          } else {
+          let wordGateAllowed = true;
+          if (prov !== 'cloud') {
+            wordGateAllowed = await requestAccess('tts');
+          }
+          if (!wordGateAllowed) {
             updateTask('wordTts', 'error');
             hadError = true;
+          } else {
+            const result = await bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, cloudAuthToken, cloudApiUrl);
+            if (result) {
+              updateTask('wordTts', 'done');
+            } else {
+              updateTask('wordTts', 'error');
+              hadError = true;
+            }
           }
         } else {
           updateTask('wordTts', 'done');
@@ -198,15 +208,24 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         if (useReadingForExample() && showReadingToggles()) {
           textForTts = await buildReadingText(exText);
         } else {
-          textForTts = stripFurigana(exText);
+          textForTts = stripHtmlForTts(exText);
         }
         if (textForTts && textForTts !== '-') {
-          const result = await bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, cloudAuthToken, cloudApiUrl);
-          if (result) {
-            updateTask('exampleTts', 'done');
-          } else {
+          let exGateAllowed = true;
+          if (prov !== 'cloud') {
+            exGateAllowed = await requestAccess('tts');
+          }
+          if (!exGateAllowed) {
             updateTask('exampleTts', 'error');
             hadError = true;
+          } else {
+            const result = await bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, cloudAuthToken, cloudApiUrl);
+            if (result) {
+              updateTask('exampleTts', 'done');
+            } else {
+              updateTask('exampleTts', 'error');
+              hadError = true;
+            }
           }
         } else {
           updateTask('exampleTts', 'done');
@@ -222,7 +241,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
       updateTask('translation', 'running');
       try {
         const exText = latestExampleText || props.exampleText || '';
-        const plain = stripFurigana(exText);
+        const plain = stripHtmlForTts(exText);
         if (plain && plain !== '-') {
           const sourceLangName = getLanguageDisplayName(language);
           const translated = await translateExampleSentence(plain, sourceLangName);

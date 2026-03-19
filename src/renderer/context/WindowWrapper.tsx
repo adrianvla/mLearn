@@ -16,6 +16,7 @@ import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
 import { setMigrationListenerReady } from './migrationSignals';
+import { LowPowerGateProvider } from './LowPowerGateContext';
 import { isElectron } from '../../shared/platform';
 
 /**
@@ -166,6 +167,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean }> = (pro
           <SettingsProvider>
             <WindowLoadingScreen />
             {/*<DevToastTester />*/}
+            <LowPowerGateProvider>
             <LanguageProvider>
             <MigrationHandler>
                 <FlashcardProvider>
@@ -178,6 +180,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean }> = (pro
                 <ToastContainer />
               </MigrationHandler>
             </LanguageProvider>
+            </LowPowerGateProvider>
           </SettingsProvider>
         </ResponsiveProvider>
       </LocalizationProvider>

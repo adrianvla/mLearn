@@ -12,7 +12,7 @@ import type { VideoWordEntry } from '../../../components/video';
 import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { SubtitleSync } from '../../../components/subtitle';
-import { IPC_CHANNELS, WORD_STATUS } from '../../../../shared/constants';
+import { WORD_STATUS } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, saveToRecentItems, updateRecentItemThumbnail, updateRecentItemProgress } from '../../../services/thumbnailService';
@@ -20,6 +20,7 @@ import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMedi
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { wordsLearnedInApp } from '../../../services/statsService';
+import { showToast } from '../../../components/common/Feedback/Toast';
 import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hooks/useTranslation';
 import type { ConversationAgentContext } from '../../../../shared/types';
 import './video.css';
@@ -97,6 +98,8 @@ export const VideoRoute: Component = () => {
         token,
         contextPhrase,
         subtitleIndex: idx,
+        subtitleStart: currentSub?.start,
+        subtitleEnd: currentSub?.end,
       });
     }
 
@@ -144,7 +147,29 @@ export const VideoRoute: Component = () => {
         manualStatus,
         colourCodes,
         tokenize,
+        flashcardMediaType: settings.flashcardMediaType === 'video' ? 'video' : 'image',
       });
+
+      // If video mode, clip and save the video segment
+      if (settings.flashcardMediaType === 'video' && videoSrc() && entry.subtitleStart != null && entry.subtitleEnd != null) {
+        const { clipVideo } = await import('../../../services/videoClipService');
+        const margin = (settings.flashcardVideoMargin ?? 300) / 1000;
+        const start = Math.max(0, entry.subtitleStart - margin);
+        const end = entry.subtitleEnd + margin;
+        const videoData = await clipVideo(videoSrc(), start, end);
+        if (videoData) {
+          const { toUniqueIdentifier } = await import('../../../services/statsService');
+          const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
+          const videoUrl = await getBridge().flashcards.saveFlashcardVideo(cardId, videoData.buffer as ArrayBuffer);
+          if (videoUrl) {
+            content.videoUrl = videoUrl;
+          } else {
+            showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
+          }
+        } else {
+          showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
+        }
+      }
 
       await flashcardCtx.addFlashcard(content, ease);
     } catch (err) {
@@ -194,17 +219,15 @@ export const VideoRoute: Component = () => {
     const bridge = getBridge();
 
     // Show aside (Live Word Translator)
-    ipcCleanups.push(bridge.generic.on(IPC_CHANNELS.SHOW_ASIDE, () => {
+    ipcCleanups.push(bridge.window.onOpenAside(() => {
       if ((window as any).mLearnLiveTranslator) {
         (window as any).mLearnLiveTranslator.show();
       }
     }));
 
     // Context menu commands
-    ipcCleanups.push(bridge.generic.on(IPC_CHANNELS.CTX_MENU_COMMAND, (...args: unknown[]) => {
-      if (typeof args[0] === 'string') {
-        handleContextMenuCommand(args[0]);
-      }
+    ipcCleanups.push(bridge.window.onContextMenuCommand((command: string) => {
+      handleContextMenuCommand(command);
     }));
     
     // Set up thumbnail capture interval

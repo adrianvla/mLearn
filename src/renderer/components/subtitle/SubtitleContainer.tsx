@@ -20,6 +20,12 @@ export interface SubtitleContainerProps {
   isLoading?: boolean;
   onWordClick?: (token: Token) => void;
   style?: JSX.CSSProperties;
+  /** Subtitle start time in seconds (for video clip flashcards) */
+  subtitleStart?: number;
+  /** Subtitle end time in seconds (for video clip flashcards) */
+  subtitleEnd?: number;
+  /** Video source URL (for video clip flashcards) */
+  videoSrc?: string;
 }
 
 export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
@@ -400,6 +406,9 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
           onMouseEnter={cancelHide}
           onMouseLeave={hideHover}
           onOpenExplainer={handleOpenExplainer}
+          subtitleStart={props.subtitleStart}
+          subtitleEnd={props.subtitleEnd}
+          videoSrc={props.videoSrc}
         />
       </Show>
       

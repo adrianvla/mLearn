@@ -23,6 +23,9 @@ import {
   wordStatusToNumeric,
   type WordStatus,
 } from './wordHoverHelpers';
+import { clipVideo } from '../../services/videoClipService';
+import { getBridge } from '../../../shared/bridges';
+import { showToast } from '../common/Feedback/Toast';
 import './WordHover.css';
 
 export type { WordStatus } from './wordHoverHelpers';
@@ -66,6 +69,12 @@ export interface WordHoverProps {
   visible?: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  /** Subtitle start time in seconds (for video clip flashcards) */
+  subtitleStart?: number;
+  /** Subtitle end time in seconds (for video clip flashcards) */
+  subtitleEnd?: number;
+  /** Video source URL (for video clip flashcards) */
+  videoSrc?: string;
 }
 
 export const WordHover: Component<WordHoverProps> = (props) => {
@@ -360,6 +369,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     } else {
       try {
         const freq = wordFreqEntry();
+        const isVideoMode = settings.flashcardMediaType === 'video';
         const { content, ease } = await buildWordHoverFlashcardContent({
           token: props.token,
           word,
@@ -375,7 +385,28 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
           ocrCropPadding: settings.ocr_crop_padding,
           tokenize,
+          flashcardMediaType: isVideoMode ? 'video' : 'image',
         });
+
+        // If video mode, clip and save the video segment
+        if (isVideoMode && props.videoSrc && props.subtitleStart != null && props.subtitleEnd != null) {
+          const margin = (settings.flashcardVideoMargin ?? 300) / 1000;
+          const start = Math.max(0, props.subtitleStart - margin);
+          const end = props.subtitleEnd + margin;
+          const videoData = await clipVideo(props.videoSrc, start, end);
+          if (videoData) {
+            const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
+            const videoUrl = await getBridge().flashcards.saveFlashcardVideo(cardId, videoData.buffer as ArrayBuffer);
+            if (videoUrl) {
+              content.videoUrl = videoUrl;
+            } else {
+              showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
+            }
+          } else {
+            showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
+          }
+        }
+
         await addFlashcard(content, ease);
         // isInSRS and currentEase are now reactive memos that will update automatically
         // when the flashcard is added to the store via BroadcastChannel sync

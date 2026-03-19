@@ -212,6 +212,39 @@ export const VideoPlayerTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
+      <SettingGroup title={t('mlearn.Settings.VideoPlayer.FlashcardMedia.Title')}>
+        <SettingRow
+          label={t('mlearn.Settings.VideoPlayer.FlashcardMedia.MediaType.Label')}
+          description={t('mlearn.Settings.VideoPlayer.FlashcardMedia.MediaType.Description')}
+        >
+          <Select
+            class="setting-select"
+            value={settings.flashcardMediaType || 'image'}
+            onChange={(e) => updateSettings({ flashcardMediaType: e.currentTarget.value as 'image' | 'video' })}
+          >
+            <option value="image">{t('mlearn.Settings.VideoPlayer.FlashcardMedia.MediaType.Image')}</option>
+            <option value="video">{t('mlearn.Settings.VideoPlayer.FlashcardMedia.MediaType.Video')}</option>
+          </Select>
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.VideoPlayer.FlashcardMedia.VideoMargin.Label')}
+          description={t('mlearn.Settings.VideoPlayer.FlashcardMedia.VideoMargin.Description')}
+          disabled={settings.flashcardMediaType !== 'video'}
+        >
+          <RangeInput
+            min={0}
+            max={2000}
+            step={100}
+            value={settings.flashcardVideoMargin ?? 300}
+            onChange={(value) => updateSettings({ flashcardVideoMargin: value })}
+            class="setting-range"
+            disabled={settings.flashcardMediaType !== 'video'}
+          />
+          <span class="setting-hint">{settings.flashcardVideoMargin ?? 300}ms</span>
+        </SettingRow>
+      </SettingGroup>
+
       <SettingGroup title={t('mlearn.Settings.Groups.Performance')}>
         <SettingRow
           label={t('mlearn.Settings.DisplayOptions.ImmediateFetch.Label')}

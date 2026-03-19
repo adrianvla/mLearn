@@ -235,29 +235,40 @@ export function useSubtitles() {
   };
 
   // Get current subtitle for a given time
-  const getCurrentSubtitle = (time: number): Subtitle | null => {
+  const getCurrentSubtitle = (time: number): { sub: Subtitle; idx: number } | null => {
     const adjustedTime = time + settings.subsOffsetTime;
     const subs = subtitles();
+    if (subs.length === 0) return null;
 
-    for (let i = 0; i < subs.length; i++) {
-      if (adjustedTime >= subs[i].start && adjustedTime <= subs[i].end) {
-        return subs[i];
+    // Binary search: find the last subtitle where start <= adjustedTime
+    let lo = 0;
+    let hi = subs.length - 1;
+    let found = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >>> 1;
+      if (subs[mid].start <= adjustedTime) {
+        found = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
       }
     }
-    return null;
+
+    if (found === -1) return null;
+    if (adjustedTime > subs[found].end) return null;
+    return { sub: subs[found], idx: found };
   };
 
-  // Update current subtitle and tokenize
   const updateTime = async (time: number) => {
-    const sub = getCurrentSubtitle(time);
+    const result = getCurrentSubtitle(time);
     
-    if (!sub) {
+    if (!result) {
       setCurrentIndex(-1);
       setTokens([]);
       return;
     }
 
-    const idx = subtitles().indexOf(sub);
+    const { sub, idx } = result;
     if (idx === currentIndex()) return;
 
     setCurrentIndex(idx);
@@ -278,13 +289,10 @@ export function useSubtitles() {
     };
 
     try {
-      // Parse subtitle for inline furigana annotations like 百夜優一郎(ひゃくやゆういちろう)
-      // This extracts reading overrides and cleans the text
       const { text: cleanedText, readingOverrides } = parseSubtitle(sub.text, settings.language);
       
       const newTokens = await tokenize(cleanedText);
       if (Array.isArray(newTokens) && newTokens.length > 0) {
-        // Apply reading overrides from inline annotations
         if (readingOverrides.length > 0) {
           for (const token of newTokens) {
             const override = readingOverrides.find(o => 

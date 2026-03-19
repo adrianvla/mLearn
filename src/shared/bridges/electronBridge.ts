@@ -52,6 +52,8 @@ const flashcardBridge: FlashcardBridge = {
   saveFlashcardImage: (cardId, dataUrl) => getIPC().saveFlashcardImage(cardId, dataUrl),
   resolveFlashcardImage: (imageUrl) => getIPC().resolveFlashcardImage(imageUrl),
   deleteFlashcardImage: (cardId) => getIPC().deleteFlashcardImage(cardId),
+  saveFlashcardVideo: (cardId, data) => getIPC().saveFlashcardVideo(cardId, data),
+  deleteFlashcardVideo: (cardId) => getIPC().deleteFlashcardVideo(cardId),
   getFlashcardTts: (cardId, field) => getIPC().getFlashcardTts(cardId, field),
   generateFlashcardTts: (cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl) => getIPC().generateFlashcardTts(cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl),
   batchGenerateFlashcardTts: (items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl) => getIPC().batchGenerateFlashcardTts(items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl),
@@ -229,9 +231,6 @@ const migrationBridge: MigrationBridge = {
 };
 
 const genericBridge: GenericIPCBridge = {
-  send: (ch, data) => getIPC().send(ch, data),
-  on: (ch, cb) => getIPC().on(ch, cb),
-  removeListener: (ch, cb) => getIPC().removeListener(ch, cb),
   sendLS: (data) => getIPC().sendLS(data),
   fetchUrl: (url) => getIPC().fetchUrl(url),
 };

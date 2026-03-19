@@ -3,13 +3,15 @@
  */
 
 import { app, ipcMain, clipboard, shell } from 'electron';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import path from 'path';
 import { findPython, terminatePythonBackend, setupPythonBackendIPC } from './services/pythonBackend';
 import { startWebServer, stopWebServer } from './services/webServer';
 import { setupFlashcardIPC } from './services/flashcardStorage';
 import { setupFlashcardImageIPC, registerFlashcardImageScheme, setupFlashcardImageProtocol } from './services/flashcardImageStorage';
 import { setupFlashcardTtsIPC, registerFlashcardAudioScheme, setupFlashcardAudioProtocol } from './services/flashcardTtsStorage';
+import { setupFlashcardVideoIPC, registerFlashcardVideoScheme, setupFlashcardVideoProtocol } from './services/flashcardVideoStorage';
 import { setupSettingsIPC } from './services/settings';
 import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
@@ -141,39 +143,38 @@ function handleDeepLinkArgs(args: string[]): void {
   }
 }
 
-// Best-effort raise of system-wide file descriptor limits.
-// ML workloads (torch, transformers, ONNX) combined with Electron/Chromium
-// easily exhaust default OS limits (e.g. kern.maxfiles=50 000 on macOS).
-// These calls require root so they will silently fail for non-admin users.
-if (process.platform === 'darwin') {
-  const TARGET_MAXFILES = 524288;
-  try {
-    const current = parseInt(
-      execSync('sysctl -n kern.maxfiles', { encoding: 'utf8', timeout: 2000 }).trim(),
-      10,
-    );
-    if (!isNaN(current) && current < TARGET_MAXFILES) {
-      execSync(
-        `sysctl -w kern.maxfiles=${TARGET_MAXFILES} kern.maxfilesperproc=${TARGET_MAXFILES}`,
-        { stdio: 'ignore', timeout: 2000 },
+const execAsync = promisify(exec);
+
+async function raiseFileDescriptorLimits(): Promise<void> {
+  if (process.platform === 'darwin') {
+    const TARGET_MAXFILES = 524288;
+    try {
+      const { stdout } = await execAsync('sysctl -n kern.maxfiles', { timeout: 2000 });
+      const current = parseInt(stdout.trim(), 10);
+      if (!isNaN(current) && current < TARGET_MAXFILES) {
+        await execAsync(
+          `sysctl -w kern.maxfiles=${TARGET_MAXFILES} kern.maxfilesperproc=${TARGET_MAXFILES}`,
+          { timeout: 2000 },
+        );
+      }
+    } catch {
+      console.warn(
+        `Could not raise kern.maxfiles (needs root). If OCR fails, run: ` +
+        `sudo sysctl -w kern.maxfiles=524288 kern.maxfilesperproc=524288`,
       );
     }
-  } catch {
-    console.warn(
-      `Could not raise kern.maxfiles (needs root). If OCR fails, run: ` +
-      `sudo sysctl -w kern.maxfiles=${TARGET_MAXFILES} kern.maxfilesperproc=${TARGET_MAXFILES}`,
-    );
+  } else if (process.platform === 'linux') {
+    try {
+      await execAsync('sysctl -w fs.file-max=524288', { timeout: 2000 });
+    } catch { /* best-effort, needs root */ }
   }
-} else if (process.platform === 'linux') {
-  try {
-    execSync('sysctl -w fs.file-max=524288', { stdio: 'ignore', timeout: 2000 });
-  } catch { /* best-effort, needs root */ }
 }
 
 // Register custom protocol schemes before app is ready
 registerLocalMediaScheme();
 registerFlashcardImageScheme();
 registerFlashcardAudioScheme();
+registerFlashcardVideoScheme();
 
 // Initialize IPC handlers (called once)
 function setupBaseIPC(): void {
@@ -208,6 +209,7 @@ function setupAllIPC(): void {
   setupFlashcardIPC();
   setupFlashcardImageIPC();
   setupFlashcardTtsIPC();
+  setupFlashcardVideoIPC();
   setupWindowIPC();
   setupPythonBackendIPC();
   setupFileOperationsIPC();
@@ -244,13 +246,15 @@ async function createAppWindows(): Promise<void> {
 
 // Main initialization
 async function initialize(): Promise<void> {
-  // Setup all IPC handlers once
+  await raiseFileDescriptorLimits();
+
   setupAllIPC();
 
   // Set up custom protocols for serving local files to renderer
   setupLocalMediaProtocol();
   setupFlashcardImageProtocol();
   setupFlashcardAudioProtocol();
+  setupFlashcardVideoProtocol();
 
   // Perform localStorage migration before creating windows
   // This migrates data from the old app's file:// localStorage to file-based storage

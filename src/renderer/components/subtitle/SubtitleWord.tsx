@@ -3,11 +3,11 @@
  * Individual word/token in a subtitle with hover and click functionality
  */
 
-import { Component, createMemo, createSignal, createEffect, Show, onCleanup } from 'solid-js';
+import { Component, createMemo, createSignal, Show, onCleanup } from 'solid-js';
 import type { Token } from '../../../shared/types';
 import { containsKanji, isAllKana } from '../../../shared/utils/textUtils';
 import { useSettings, useLanguage, useFlashcards } from '../../context';
-import { getCachedReading, getCachedTranslation } from '../../hooks/useTranslation';
+import { getCachedReading, getCachedTranslation, cacheVersion } from '../../hooks/useTranslation';
 import { PitchAccentOverlay, FrequencyStars } from '../common';
 import { matchesKeybind } from '../common/Input/KeybindInput';
 import type { JSX } from 'solid-js/jsx-runtime';
@@ -207,45 +207,11 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     };
   };
 
-  // Get reading from token or cached translation
-  // This signal will update when cache is populated (e.g., after hover)
-  const [cachedReadingVal, setCachedReadingVal] = createSignal<string | null>(null);
-  
-  // Check for cached reading - poll frequently until cache is populated
-  // The old app updates readings immediately; we need aggressive polling
-  createEffect(() => {
+  const cachedReadingVal = createMemo((): string | null => {
+    cacheVersion(); // reactive dependency: recompute when cache changes
     const word = props.token.actual_word ?? displayWord();
-    if (!word) return;
-    
-    // Initial check
-    const checkCache = () => {
-      const cached = getCachedReading(word);
-      if (cached) {
-        setCachedReadingVal(cached);
-        return true;
-      }
-      return false;
-    };
-    
-    if (checkCache()) return; // Already cached
-    
-    // Poll rapidly at first (every 50ms for first 500ms), then slower
-    let attempts = 0;
-    const maxAttempts = 20; // 20 * 50ms = 1000ms total
-    
-    const poll = () => {
-      if (checkCache()) return;
-      attempts++;
-      if (attempts < maxAttempts) {
-        const delay = attempts < 10 ? 50 : 100; // Faster for first 500ms
-        setTimeout(poll, delay);
-      }
-    };
-    
-    // Start polling immediately
-    const timer = setTimeout(poll, 50);
-    
-    return () => clearTimeout(timer);
+    if (!word) return null;
+    return getCachedReading(word);
   });
 
   // Get effective reading (token.reading takes precedence, then cached)
@@ -313,41 +279,11 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return word ? getFrequency(word) : null;
   });
 
-  // Cached translation data (for pitch accent and determining if word has hover)
-  const [cachedTranslation, setCachedTranslation] = createSignal<any>(null);
-  
-  // Check for cached translation - poll frequently like reading cache
-  createEffect(() => {
+  const cachedTranslation = createMemo(() => {
+    cacheVersion(); // reactive dependency: recompute when cache changes
     const word = props.token.actual_word ?? displayWord();
-    if (!word) return;
-    
-    const checkCache = () => {
-      const cached = getCachedTranslation(word);
-      if (cached) {
-        setCachedTranslation(cached);
-        return true;
-      }
-      return false;
-    };
-    
-    if (checkCache()) return; // Already cached
-    
-    // Poll rapidly at first
-    let attempts = 0;
-    const maxAttempts = 20;
-    
-    const poll = () => {
-      if (checkCache()) return;
-      attempts++;
-      if (attempts < maxAttempts) {
-        const delay = attempts < 10 ? 50 : 100;
-        setTimeout(poll, delay);
-      }
-    };
-    
-    const timer = setTimeout(poll, 50);
-    
-    return () => clearTimeout(timer);
+    if (!word) return null;
+    return getCachedTranslation(word);
   });
 
   // The actual word for pitch accent lookup

@@ -10,7 +10,7 @@
   left: 10px;
   top: 38px;
   right: 10px;
-  z-index: var(--z-popover);
+  z-index: var(--z-sticky);
   display: flex;
   flex-direction: row;
   gap: 10px;

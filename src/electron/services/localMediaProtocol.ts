@@ -8,7 +8,7 @@
  * Usage in renderer: `local-media:///path/to/video.mp4`
  */
 
-import { protocol } from 'electron';
+import { protocol, app } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -55,7 +55,7 @@ export function registerLocalMediaScheme(): void {
         secure: true,
         supportFetchAPI: true,
         stream: true,
-        bypassCSP: true,
+        bypassCSP: false,
       },
     },
   ]);
@@ -78,15 +78,25 @@ export function setupLocalMediaProtocol(): void {
       filePath = filePath.slice(1);
     }
 
+    const resolvedPath = path.resolve(filePath);
+    const allowedBases = [
+      app.getPath('home'),
+      app.getPath('userData'),
+    ];
+    const isAllowed = allowedBases.some(base => resolvedPath.startsWith(base + path.sep) || resolvedPath === base);
+    if (!isAllowed) {
+      return new Response('Access denied', { status: 403 });
+    }
+
     let stat: fs.Stats;
     try {
-      stat = await fs.promises.stat(filePath);
+      stat = await fs.promises.stat(resolvedPath);
     } catch {
       return new Response('File not found', { status: 404 });
     }
 
     const fileSize = stat.size;
-    const mimeType = getMimeType(filePath);
+    const mimeType = getMimeType(resolvedPath);
     const rangeHeader = request.headers.get('Range');
 
     if (rangeHeader) {
@@ -96,7 +106,7 @@ export function setupLocalMediaProtocol(): void {
         const end = match[2] ? parseInt(match[2], 10) : fileSize - 1;
         const chunkSize = end - start + 1;
 
-        const nodeStream = fs.createReadStream(filePath, { start, end });
+        const nodeStream = fs.createReadStream(resolvedPath, { start, end });
         const readable = new ReadableStream({
           start(controller) {
             nodeStream.on('data', (chunk) => controller.enqueue(new Uint8Array(chunk as Buffer)));
@@ -120,8 +130,7 @@ export function setupLocalMediaProtocol(): void {
       }
     }
 
-    // No range — serve full file with Accept-Ranges so the browser knows seeking is supported
-    const nodeStream = fs.createReadStream(filePath);
+    const nodeStream = fs.createReadStream(resolvedPath);
     const readable = new ReadableStream({
       start(controller) {
         nodeStream.on('data', (chunk) => controller.enqueue(new Uint8Array(chunk as Buffer)));

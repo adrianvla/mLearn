@@ -406,6 +406,22 @@ export function applyRubyReadings(text: string): string {
   return result.trim();
 }
 
+/**
+ * Strip all HTML from text for TTS consumption.
+ * Handles ruby annotations based on `useReadings`:
+ *   - true:  replace kanji with their <rt> readings, then strip remaining HTML
+ *   - false: remove <rt> readings, keep kanji, then strip remaining HTML
+ */
+export function stripHtmlForTts(text: string, useReadings = false): string {
+  if (!text) return '';
+  if (useReadings) return applyRubyReadings(text);
+
+  // Remove readings first (preserving kanji), then strip all remaining tags
+  let result = stripFurigana(text);
+  result = result.replace(/<[^>]*>/g, '');
+  return result.trim();
+}
+
 // ============================================================================
 // Language Display Names
 // ============================================================================

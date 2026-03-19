@@ -13,6 +13,7 @@
 
 import http from 'http';
 import https from 'https';
+import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import fs from 'fs';
@@ -45,9 +46,34 @@ let localStorageData: Record<string, unknown> = {};
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Auth-Token',
   'Access-Control-Max-Age': '86400',
 };
+
+// Generated once at process start; exported so tethered clients can receive it via QR code.
+export const SERVER_AUTH_TOKEN = crypto.randomBytes(32).toString('hex');
+
+// Allowlisted proxy domains — only these hostnames may be fetched via /?url=
+const ALLOWED_PROXY_DOMAINS = new Set([
+  'fonts.googleapis.com',
+  'fonts.gstatic.com',
+  'cdn.jsdelivr.net',
+  'unpkg.com',
+]);
+
+// Matches RFC 1918, loopback, and link-local addresses to block SSRF to internal services
+const PRIVATE_IP_PATTERNS = [
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^::1$/,
+  /^fc00:/i,
+  /^fd[0-9a-f]{2}:/i,
+  /^169\.254\./,
+  /^0\./,
+  /^localhost$/i,
+];
 
 // Send message to all connected WebSocket clients
 export function broadcastToClients(message: string): void {
@@ -216,8 +242,17 @@ function serveStaticFile(res: http.ServerResponse, filePath: string): void {
   res.on('error', () => stream.destroy());
 }
 
+function requireAuth(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+  if (req.headers['x-auth-token'] !== SERVER_AUTH_TOKEN) {
+    res.writeHead(401, { ...corsHeaders, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return false;
+  }
+  return true;
+}
+
 // HTTP request handler
-function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const urlObj = new URL(req.url || '/', `http://localhost:${PROXY_SERVER_PORT}`);
   const pathname = urlObj.pathname;
   const query = Object.fromEntries(urlObj.searchParams);
@@ -299,11 +334,12 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
 
   // Serve settings.js - dynamic JavaScript with settings, lang data, localStorage, and word knowledge
   if (pathname === '/settings.js') {
+    if (!requireAuth(req, res)) return;
     try {
       const settings = loadSettings();
       const langData = loadLangData();
-      const easeHashmap = getFlashcardEaseMap();
-      const flashcardStore = loadFlashcards();
+      const easeHashmap = await getFlashcardEaseMap();
+      const flashcardStore = await loadFlashcards();
       
       // Build word-keyed knowledge map from the flashcard store
       // This avoids hash function mismatches between Node and browser crypto
@@ -343,7 +379,8 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
       
       let js = '';
       js += `globalThis.lang_data = ${JSON.stringify(langData)};\n`;
-      js += `globalThis.settings = ${JSON.stringify(settings)};\n`;
+      const { cloudAuthAccessToken: _a, cloudAuthToken: _b, ...sanitizedSettings } = settings;
+      js += `globalThis.settings = ${JSON.stringify(sanitizedSettings)};\n`;
       js += `globalThis.lS = ${JSON.stringify(localStorageData)};\n`;
       js += `globalThis.easeHashmap = ${JSON.stringify(easeHashmap)};\n`;
       js += `globalThis.wordKnowledgeMap = ${JSON.stringify(wordKnowledgeMap)};\n`;
@@ -609,6 +646,27 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
       targetUrl = 'https://' + targetUrl;
     }
 
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(targetUrl);
+    } catch {
+      res.writeHead(400, corsHeaders);
+      res.end('Invalid URL');
+      return;
+    }
+
+    if (!ALLOWED_PROXY_DOMAINS.has(parsedUrl.hostname)) {
+      res.writeHead(403, corsHeaders);
+      res.end('Proxy domain not allowed');
+      return;
+    }
+
+    if (PRIVATE_IP_PATTERNS.some(p => p.test(parsedUrl.hostname))) {
+      res.writeHead(403, corsHeaders);
+      res.end('Proxy to private addresses not allowed');
+      return;
+    }
+
     const client = targetUrl.startsWith('https') ? https : http;
 
     const externalReq = client.get(targetUrl, (targetRes) => {
@@ -642,17 +700,20 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
 
   // API: Settings (GET/POST)
   if (pathname === '/api/settings') {
+    if (!requireAuth(req, res)) return;
     if (req.method === 'GET') {
-      sendJsonResponse(res, loadSettings());
+      const rawSettings = loadSettings();
+      const { cloudAuthAccessToken: _a, cloudAuthToken: _b, ...safeSettings } = rawSettings;
+      sendJsonResponse(res, safeSettings);
       return;
     }
     if (req.method === 'POST') {
       let body = '';
       req.on('data', (chunk) => { body += chunk.toString(); });
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const incoming = JSON.parse(body);
-          saveSettings(incoming);
+          await saveSettings(incoming);
           sendJsonResponse(res, { status: 'ok' });
         } catch {
           sendJsonResponse(res, { error: 'Invalid JSON' }, 400);
@@ -664,17 +725,18 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
 
   // API: Flashcards (GET/POST)
   if (pathname === '/api/flashcards') {
+    if (!requireAuth(req, res)) return;
     if (req.method === 'GET') {
-      sendJsonResponse(res, loadFlashcards());
+      sendJsonResponse(res, await loadFlashcards());
       return;
     }
     if (req.method === 'POST') {
       let body = '';
       req.on('data', (chunk) => { body += chunk.toString(); });
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const incoming = JSON.parse(body);
-          saveFlashcards(incoming);
+          await saveFlashcards(incoming);
           sendJsonResponse(res, { status: 'ok' });
         } catch {
           sendJsonResponse(res, { error: 'Invalid JSON' }, 400);
@@ -686,6 +748,7 @@ function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse):
 
   // API: Localization (GET /api/localization/:lang)
   if (pathname.startsWith('/api/localization/')) {
+    if (!requireAuth(req, res)) return;
     const lang = decodeURIComponent(pathname.replace('/api/localization/', ''));
     if (lang) {
       const data = loadLocalization(lang);

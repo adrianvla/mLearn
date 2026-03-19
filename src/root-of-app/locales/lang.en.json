@@ -561,6 +561,7 @@
         "TtsAllDone": "All flashcards already have TTS audio",
         "TtsButton": "Generate TTS",
         "TtsDone": "Generated TTS for {count} items",
+        "TtsDoneWithErrors": "Generated TTS for {count} items, {failed} failed",
         "TtsProgress": "Generating TTS…",
         "TtsTooltip": "Generate TTS audio for all flashcard words and examples"
       },
@@ -768,6 +769,15 @@
         "ShortYear": "{value}y"
       },
       "TryAgain": "Try Again"
+    },
+    "LowPowerGate": {
+      "Allow": "Allow",
+      "AllowSession": "Allow for Session",
+      "Deny": "Deny",
+      "DenySession": "Deny for Session",
+      "Message": "An operation wants to use a local neural network ({{backendType}}). Allow this while in low battery mode?",
+      "StatusBarTooltip": "Low battery mode active",
+      "Title": "Local Processing Request"
     },
     "Home": {
       "Cards": {
@@ -1193,6 +1203,10 @@
         "HoverKnownGetFromDictionary": {
           "Description": "Fetch dictionary data even for known words",
           "Label": "Lookup Known Words"
+        },
+        "LowBatteryMode": {
+          "Description": "Prompt before running local neural networks (LLM, TTS, OCR) to conserve resources",
+          "Label": "Low Battery Mode"
         }
       },
       "Reader": {
@@ -1504,7 +1518,8 @@
         }
       },
       "About": {
-        "Licenses": "Licenses"
+        "Licenses": "Licenses",
+        "LicensesLoadError": "Unable to load license information."
       },
       "VideoPlayer": {
         "Title": "Video Player",
@@ -1557,6 +1572,19 @@
           "RemoveSpeakerNames": {
             "Label": "Remove Speaker Names",
             "Description": "Strip speaker name prefixes from subtitle lines"
+          }
+        },
+        "FlashcardMedia": {
+          "Title": "Flashcard Media",
+          "MediaType": {
+            "Label": "Media Type",
+            "Description": "Attach a screenshot or a video clip from the subtitle segment to new flashcards",
+            "Image": "Image",
+            "Video": "Video"
+          },
+          "VideoMargin": {
+            "Label": "Video Clip Margin",
+            "Description": "Extra time before and after the subtitle to include in the video clip"
           }
         }
       },
@@ -1689,6 +1717,7 @@
           "SubtitleOrder": "Subtitle order"
         }
       },
+      "VideoClipFailed": "Video clip failed, using screenshot instead",
       "WatchTogether": "Watch together"
     },
     "WordDbEditor": {
@@ -1779,12 +1808,12 @@
     },
     "Sidebar": {
       "AddAll": "Add All",
-      "AddingAll": "Adding...",
+      "AddingAll": "Adding…",
       "DictionaryOnly": "Dictionary only",
       "Ignore": "Ignore",
       "SortBy": {
         "Level": "Level",
-        "Word": "Alphabetical"
+        "Word": "Word"
       },
       "UnknownWords": "Unknown Words",
       "WordCount": "{count} words"

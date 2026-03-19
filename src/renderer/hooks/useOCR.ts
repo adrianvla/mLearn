@@ -5,7 +5,7 @@
  */
 
 import { createSignal } from 'solid-js';
-import { useServer } from '../context';
+import { useServer, useLowPowerGate } from '../context';
 import { useSettings } from '../context/SettingsContext';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../shared/backends';
 
@@ -362,6 +362,7 @@ async function sendImageForOCR(
 export function useOCR() {
   const { isConnected } = useServer();
   const { settings } = useSettings();
+  const { requestAccess } = useLowPowerGate();
   const [isProcessing, setIsProcessing] = createSignal(false);
   const [lastResult, setLastResult] = createSignal<OCRResult | null>(null);
   const [error, setError] = createSignal<string | null>(null);
@@ -400,6 +401,15 @@ export function useOCR() {
 
     setIsProcessing(true);
     setError(null);
+
+    // Low power gate: prompt before using local neural network for OCR
+    if (!isCloudOCR()) {
+      const allowed = await requestAccess('ocr');
+      if (!allowed) {
+        setIsProcessing(false);
+        return null;
+      }
+    }
 
     try {
       const turbo = settings.ocrTurboMode ?? true;

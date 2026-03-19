@@ -62,6 +62,12 @@ const mLearnIPC = {
   deleteFlashcardImage: (cardId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_IMAGE_DELETE, cardId),
 
+  // ========== Flashcard Videos ==========
+  saveFlashcardVideo: (cardId: string, data: ArrayBuffer): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_VIDEO_SAVE, cardId, data),
+  deleteFlashcardVideo: (cardId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_VIDEO_DELETE, cardId),
+
   // ========== Flashcard TTS ==========
   getFlashcardTts: (cardId: string, field: 'word' | 'example'): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET, cardId, field),
@@ -224,21 +230,6 @@ const mLearnIPC = {
     } catch {
       return '';
     }
-  },
-
-  // ========== Generic IPC Methods ==========
-  // Generic send for any channel
-  send: (channel: string, data?: unknown) => {
-    ipcRenderer.send(channel, data);
-  },
-  
-  // Generic on for any channel (returns cleanup function)
-  on: (channel: string, callback: (...args: unknown[]) => void) =>
-    ipcOn(channel, (_event, ...args) => callback(...args)),
-  
-  // Remove listener
-  removeListener: (channel: string, callback: (...args: unknown[]) => void) => {
-    ipcRenderer.removeListener(channel, callback);
   },
 
   // ========== Media Stats ==========

@@ -5,6 +5,8 @@ import './VideoUnknownWordsSidebar.css';
 
 export interface VideoWordEntry extends SidebarWordEntry {
   subtitleIndex: number;
+  subtitleStart?: number;
+  subtitleEnd?: number;
 }
 
 interface VideoUnknownWordsSidebarProps {
