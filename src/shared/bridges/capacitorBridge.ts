@@ -24,6 +24,7 @@ import type {
   LicenseBridge,
   MigrationBridge,
   GenericIPCBridge,
+  DataBridge,
   KVStoreBridge,
 } from './types';
 import type {
@@ -37,6 +38,7 @@ import type {
 } from '../types';
 import { DEFAULT_SETTINGS } from '../types';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
+import { isCapacitor } from '../platform';
 
 // ============================================================================
 // Simple Event Emitter for local pub/sub
@@ -51,6 +53,10 @@ class EventEmitter {
     if (!this.listeners.has(event)) this.listeners.set(event, new Set());
     this.listeners.get(event)!.add(fn);
     return () => this.listeners.get(event)?.delete(fn);
+  }
+
+  off(event: string, fn: Listener): void {
+    this.listeners.get(event)?.delete(fn);
   }
 
   emit(event: string, ...args: unknown[]) {
@@ -101,6 +107,195 @@ async function storageSet(key: string, value: string): Promise<void> {
   } catch (e) {
     console.log('[CapacitorBridge] Preferences.set failed, data saved to localStorage only:', e);
   }
+}
+
+// ============================================================================
+// Filesystem helpers for flashcard media (images/videos)
+// ============================================================================
+
+const FLASHCARD_IMAGES_DIR = 'flashcard-images';
+const FLASHCARD_VIDEOS_DIR = 'flashcard-videos';
+
+let filesystemModulePromise: Promise<typeof import('@capacitor/filesystem') | null> | null = null;
+
+function getFilesystemModule(): Promise<typeof import('@capacitor/filesystem') | null> {
+  if (!filesystemModulePromise) {
+    filesystemModulePromise = import('@capacitor/filesystem').catch(() => null);
+  }
+  return filesystemModulePromise;
+}
+
+/**
+ * Convert a native file:// URI to a web view-renderable URL using
+ * Capacitor.convertFileSrc. On native platforms this maps to the local
+ * server URL (capacitor://localhost/_capacitor_file_/ on iOS, etc.).
+ */
+function convertToWebViewUrl(fileUri: string): string {
+  if (!isCapacitor()) return fileUri;
+  try {
+    const cap = (globalThis as Record<string, unknown>).Capacitor as
+      { convertFileSrc?: (path: string) => string } | undefined;
+    if (cap?.convertFileSrc) {
+      return cap.convertFileSrc(fileUri);
+    }
+  } catch {
+    // Fall through
+  }
+  return fileUri;
+}
+
+function extensionFromDataUrl(dataUrl: string): string {
+  const match = dataUrl.match(/^data:image\/(\w+)/);
+  if (!match) return 'jpg';
+  const mime = match[1].toLowerCase();
+  if (mime === 'jpeg') return 'jpg';
+  return mime;
+}
+
+function base64FromDataUrl(dataUrl: string): string | null {
+  const match = dataUrl.match(/^data:[^;]+;base64,(.+)$/);
+  return match ? match[1] : null;
+}
+
+function isBase64DataUrl(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith('data:image/');
+}
+
+/**
+ * Ensure a directory exists under Directory.Data.
+ */
+async function ensureDir(dirPath: string): Promise<void> {
+  const mod = await getFilesystemModule();
+  if (!mod) return;
+  try {
+    await mod.Filesystem.mkdir({
+      path: dirPath,
+      directory: mod.Directory.Data,
+      recursive: true,
+    });
+  } catch {
+    // Directory may already exist — ignore
+  }
+}
+
+/**
+ * Save a base64 data URL as a file. Returns web-view-renderable URL.
+ */
+async function saveImageFile(cardId: string, dataUrl: string): Promise<string | null> {
+  if (!isBase64DataUrl(dataUrl)) return dataUrl;
+  const mod = await getFilesystemModule();
+  if (!mod) return dataUrl;
+
+  const ext = extensionFromDataUrl(dataUrl);
+  const base64 = base64FromDataUrl(dataUrl);
+  if (!base64) return dataUrl;
+
+  await ensureDir(FLASHCARD_IMAGES_DIR);
+  const filePath = `${FLASHCARD_IMAGES_DIR}/${cardId}.${ext}`;
+  await mod.Filesystem.writeFile({
+    path: filePath,
+    data: base64,
+    directory: mod.Directory.Data,
+  });
+
+  const { uri } = await mod.Filesystem.getUri({
+    path: filePath,
+    directory: mod.Directory.Data,
+  });
+  return convertToWebViewUrl(uri);
+}
+
+/**
+ * Save an ArrayBuffer as an mp4 video file. Returns web-view-renderable URL.
+ */
+async function saveVideoFile(cardId: string, data: ArrayBuffer): Promise<string | null> {
+  const mod = await getFilesystemModule();
+  if (!mod) return null;
+
+  await ensureDir(FLASHCARD_VIDEOS_DIR);
+  const filePath = `${FLASHCARD_VIDEOS_DIR}/${cardId}.mp4`;
+
+  // Convert ArrayBuffer to base64 for Capacitor Filesystem
+  const bytes = new Uint8Array(data);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+
+  await mod.Filesystem.writeFile({
+    path: filePath,
+    data: base64,
+    directory: mod.Directory.Data,
+  });
+
+  const { uri } = await mod.Filesystem.getUri({
+    path: filePath,
+    directory: mod.Directory.Data,
+  });
+  return convertToWebViewUrl(uri);
+}
+
+/**
+ * Delete a flashcard image file.
+ */
+async function deleteImageFile(cardId: string): Promise<void> {
+  const mod = await getFilesystemModule();
+  if (!mod) return;
+
+  for (const ext of ['jpg', 'png', 'webp', 'gif']) {
+    try {
+      await mod.Filesystem.deleteFile({
+        path: `${FLASHCARD_IMAGES_DIR}/${cardId}.${ext}`,
+        directory: mod.Directory.Data,
+      });
+    } catch {
+      // File may not exist with this extension — ignore
+    }
+  }
+}
+
+/**
+ * Delete a flashcard video file.
+ */
+async function deleteVideoFile(cardId: string): Promise<void> {
+  const mod = await getFilesystemModule();
+  if (!mod) return;
+
+  try {
+    await mod.Filesystem.deleteFile({
+      path: `${FLASHCARD_VIDEOS_DIR}/${cardId}.mp4`,
+      directory: mod.Directory.Data,
+    });
+  } catch {
+    // File may not exist — ignore
+  }
+}
+
+/**
+ * Migrate inline base64 images in a flashcard store to filesystem files.
+ * Modifies the store in place and returns whether any changes were made.
+ */
+async function extractBase64ImagesToFiles(store: FlashcardStore): Promise<boolean> {
+  let modified = false;
+  for (const [cardId, card] of Object.entries(store.flashcards)) {
+    if (!card.content) continue;
+    if (isBase64DataUrl(card.content.imageUrl)) {
+      const url = await saveImageFile(cardId, card.content.imageUrl);
+      if (url && url !== card.content.imageUrl) {
+        card.content.imageUrl = url;
+        modified = true;
+      }
+    }
+    if (isBase64DataUrl(card.content.screenshotUrl)) {
+      const url = await saveImageFile(cardId, card.content.screenshotUrl);
+      if (url && url !== card.content.screenshotUrl) {
+        card.content.screenshotUrl = url;
+        modified = true;
+      }
+    }
+  }
+  return modified;
 }
 
 // ============================================================================
@@ -163,14 +358,160 @@ const settingsBridge: SettingsBridge = {
 };
 
 // ============================================================================
+// Flashcard sharded storage helpers
+// ============================================================================
+
+const FLASHCARD_SHARD_COUNT = 16;
+const FLASHCARD_META_KEY = 'flashcards_meta';
+const FLASHCARD_CARDS_SHARD_PREFIX = 'flashcards_cards_shard_';
+const FLASHCARD_STATS_SHARD_PREFIX = 'flashcards_stats_shard_';
+const FLASHCARD_LEGACY_KEY = 'flashcards';
+
+function getShardIndex(hexKey: string): number {
+  return parseInt(hexKey.substring(0, 2), 16) % FLASHCARD_SHARD_COUNT;
+}
+
+function splitIntoShards<T>(map: Record<string, T>): Record<string, T>[] {
+  const shards: Record<string, T>[] = Array.from({ length: FLASHCARD_SHARD_COUNT }, () => ({}));
+  for (const [key, value] of Object.entries(map)) {
+    shards[getShardIndex(key)][key] = value;
+  }
+  return shards;
+}
+
+interface FlashcardShardMeta {
+  version: number;
+  shardCount: number;
+  lastUpdated: string;
+  flashcards: FlashcardStore['flashcards'];
+  wordCandidates: FlashcardStore['wordCandidates'];
+  knownUntracked: FlashcardStore['knownUntracked'];
+  ignoredWords: FlashcardStore['ignoredWords'];
+  wordKnowledge: FlashcardStore['wordKnowledge'];
+  grammarKnowledge: FlashcardStore['grammarKnowledge'];
+  dailyStats: FlashcardStore['dailyStats'];
+  storeMeta: FlashcardStore['meta'];
+  storeVersion: FlashcardStore['version'];
+}
+
+async function loadShardedFlashcards(): Promise<FlashcardStore> {
+  const metaRaw = await storageGet(FLASHCARD_META_KEY);
+
+  if (!metaRaw) {
+    const legacyRaw = await storageGet(FLASHCARD_LEGACY_KEY);
+    if (legacyRaw) {
+      const legacy = JSON.parse(legacyRaw) as FlashcardStore;
+      await saveShardedFlashcards(legacy);
+      try {
+        const mod = await getPreferencesModule();
+        if (mod) await mod.Preferences.remove({ key: FLASHCARD_LEGACY_KEY });
+        localStorage.removeItem(FLASHCARD_LEGACY_KEY);
+      } catch { /* ignore */ }
+      return legacy;
+    }
+    return { flashcards: {}, wordCandidates: {} } as FlashcardStore;
+  }
+
+  const meta = JSON.parse(metaRaw) as FlashcardShardMeta;
+
+  const allShardRaws = await Promise.all(
+    Array.from({ length: FLASHCARD_SHARD_COUNT * 2 }, (_, idx) => {
+      const i = idx % FLASHCARD_SHARD_COUNT;
+      const prefix = idx < FLASHCARD_SHARD_COUNT ? FLASHCARD_CARDS_SHARD_PREFIX : FLASHCARD_STATS_SHARD_PREFIX;
+      return storageGet(`${prefix}${i}`);
+    })
+  );
+
+  const wordToCardMap: FlashcardStore['wordToCardMap'] = {};
+  const wordStatsMap: FlashcardStore['wordStatsMap'] = {};
+
+  for (let i = 0; i < FLASHCARD_SHARD_COUNT; i++) {
+    const cardRaw = allShardRaws[i];
+    const statsRaw = allShardRaws[FLASHCARD_SHARD_COUNT + i];
+    if (cardRaw) Object.assign(wordToCardMap, JSON.parse(cardRaw) as FlashcardStore['wordToCardMap']);
+    if (statsRaw) Object.assign(wordStatsMap, JSON.parse(statsRaw) as FlashcardStore['wordStatsMap']);
+  }
+
+  return {
+    flashcards: meta.flashcards ?? {},
+    wordCandidates: meta.wordCandidates ?? {},
+    wordToCardMap,
+    wordStatsMap,
+    knownUntracked: meta.knownUntracked ?? {},
+    ignoredWords: meta.ignoredWords ?? {},
+    wordKnowledge: meta.wordKnowledge ?? {},
+    grammarKnowledge: meta.grammarKnowledge ?? {},
+    dailyStats: meta.dailyStats ?? {},
+    meta: meta.storeMeta ?? ({} as FlashcardStore['meta']),
+    version: meta.storeVersion ?? 0,
+  };
+}
+
+let cachedCardShards: Record<string, string[]>[] | null = null;
+let cachedStatsShards: Record<string, FlashcardStore['wordStatsMap'][string]>[] | null = null;
+
+async function saveShardedFlashcards(store: FlashcardStore): Promise<void> {
+  const newCardShards = splitIntoShards(store.wordToCardMap);
+  const newStatsShards = splitIntoShards(store.wordStatsMap);
+
+  const changedCardShards = new Set<number>();
+  const changedStatsShards = new Set<number>();
+
+  for (let i = 0; i < FLASHCARD_SHARD_COUNT; i++) {
+    const newCardJson = JSON.stringify(newCardShards[i]);
+    const newStatsJson = JSON.stringify(newStatsShards[i]);
+
+    if (!cachedCardShards || JSON.stringify(cachedCardShards[i]) !== newCardJson) {
+      changedCardShards.add(i);
+    }
+    if (!cachedStatsShards || JSON.stringify(cachedStatsShards[i]) !== newStatsJson) {
+      changedStatsShards.add(i);
+    }
+  }
+
+  cachedCardShards = newCardShards;
+  cachedStatsShards = newStatsShards;
+
+  const shardMeta: FlashcardShardMeta = {
+    version: 1,
+    shardCount: FLASHCARD_SHARD_COUNT,
+    lastUpdated: new Date().toISOString(),
+    flashcards: store.flashcards,
+    wordCandidates: store.wordCandidates,
+    knownUntracked: store.knownUntracked,
+    ignoredWords: store.ignoredWords,
+    wordKnowledge: store.wordKnowledge,
+    grammarKnowledge: store.grammarKnowledge,
+    dailyStats: store.dailyStats,
+    storeMeta: store.meta,
+    storeVersion: store.version,
+  };
+
+  const writes: Promise<void>[] = [storageSet(FLASHCARD_META_KEY, JSON.stringify(shardMeta))];
+
+  for (const i of changedCardShards) {
+    writes.push(storageSet(`${FLASHCARD_CARDS_SHARD_PREFIX}${i}`, JSON.stringify(newCardShards[i])));
+  }
+  for (const i of changedStatsShards) {
+    writes.push(storageSet(`${FLASHCARD_STATS_SHARD_PREFIX}${i}`, JSON.stringify(newStatsShards[i])));
+  }
+
+  await Promise.all(writes);
+}
+
+// ============================================================================
 // Flashcard Bridge
 // ============================================================================
 
 const flashcardBridge: FlashcardBridge = {
   getFlashcards() {
-    storageGet('flashcards')
-      .then(raw => {
-        const data = raw ? JSON.parse(raw) : { flashcards: {}, wordCandidates: {} };
+    loadShardedFlashcards()
+      .then(async data => {
+        const migrated = await extractBase64ImagesToFiles(data);
+        if (migrated) {
+          saveShardedFlashcards(data)
+            .catch(e => console.error('[CapacitorBridge] Failed to save migrated flashcards:', e));
+        }
         emitter.emit('flashcards', data);
       })
       .catch(e => {
@@ -180,7 +521,7 @@ const flashcardBridge: FlashcardBridge = {
   },
 
   saveFlashcards(flashcards: FlashcardStore) {
-    storageSet('flashcards', JSON.stringify(flashcards))
+    saveShardedFlashcards(flashcards)
       .catch(e => console.error('[CapacitorBridge] Failed to save flashcards:', e));
   },
 
@@ -200,18 +541,26 @@ const flashcardBridge: FlashcardBridge = {
     return emitter.on('review-flashcard-request', callback as Listener);
   },
 
-  async saveFlashcardImage(_cardId: string, dataUrl: string) {
-    // On mobile, keep base64 inline — no file extraction
-    return dataUrl;
+  async saveFlashcardImage(cardId: string, dataUrl: string) {
+    return saveImageFile(cardId, dataUrl) ?? dataUrl;
   },
 
   async resolveFlashcardImage(imageUrl: string) {
-    // On mobile, imageUrl is already usable (base64 or http)
+    // flashcard-image:// is an Electron-only custom protocol — not resolvable on mobile
+    if (imageUrl.startsWith('flashcard-image://')) return null;
     return imageUrl;
   },
 
-  async deleteFlashcardImage() {
-    // No-op on mobile - images stay inline
+  async deleteFlashcardImage(cardId: string) {
+    await deleteImageFile(cardId);
+  },
+
+  async saveFlashcardVideo(cardId: string, data: ArrayBuffer) {
+    return saveVideoFile(cardId, data);
+  },
+
+  async deleteFlashcardVideo(cardId: string) {
+    await deleteVideoFile(cardId);
   },
 
   async getFlashcardTts() {
@@ -469,6 +818,7 @@ const windowBridge: WindowBridge = {
     const routeMap: Record<string, string> = {
       settings: '/settings',
       flashcards: '/flashcards',
+      statistics: '/statistics',
       'conversation-agent': '/conversation-agent',
       'word-db-editor': '/word-db-editor',
       'kanji-grid': '/kanji-grid',
@@ -635,8 +985,19 @@ const installerBridge: InstallerBridge = {
 // LLM Bridge
 // ============================================================================
 
+/** Active LLM stream abort controller — allows cancellation of in-flight requests */
+let llmAbortController: AbortController | null = null;
+
+/** Active Ollama stream abort controller — allows cancellation of in-flight Ollama requests */
+let ollamaAbortController: AbortController | null = null;
+
 const llmBridge: LLMBridge = {
   llmStream(messages, tools) {
+    // Abort any previous stream
+    llmAbortController?.abort();
+    llmAbortController = new AbortController();
+    const { signal } = llmAbortController;
+
     // On mobile, stream via HTTP to tethered desktop or cloud endpoint
     const settings = JSON.parse(localStorage.getItem('settings') || '{}');
     const cloudToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
@@ -660,6 +1021,7 @@ const llmBridge: LLMBridge = {
       method: 'POST',
       headers,
       body: JSON.stringify({ messages, tools }),
+      signal,
     })
       .then(async res => {
         const reader = res.body?.getReader();
@@ -687,12 +1049,14 @@ const llmBridge: LLMBridge = {
         emitter.emit('llm-stream-chunk', { done: true });
       })
       .catch(err => {
+        if (signal.aborted) return;
         emitter.emit('llm-stream-chunk', { done: true, error: String(err) });
       });
   },
 
   llmStreamAbort() {
-    // Abort would require an AbortController — simplified for now
+    llmAbortController?.abort();
+    llmAbortController = null;
     emitter.emit('llm-stream-chunk', { done: true });
   },
 
@@ -713,6 +1077,10 @@ const llmBridge: LLMBridge = {
   ollamaChat: noop,
 
   ollamaChatStream(messages, tools) {
+    ollamaAbortController?.abort();
+    ollamaAbortController = new AbortController();
+    const { signal } = ollamaAbortController;
+
     const settings = JSON.parse(localStorage.getItem('settings') || '{}');
     const ollamaUrl = settings.ollamaUrl || 'http://localhost:11434';
 
@@ -725,6 +1093,7 @@ const llmBridge: LLMBridge = {
         tools,
         stream: true,
       }),
+      signal,
     })
       .then(async res => {
         const reader = res.body?.getReader();
@@ -756,11 +1125,15 @@ const llmBridge: LLMBridge = {
         }
       })
       .catch(err => {
+        if (signal.aborted) return;
         emitter.emit('ollama-chat-stream', { done: true, error: String(err) });
       });
   },
 
-  ollamaChatStreamAbort: noop,
+  ollamaChatStreamAbort() {
+    ollamaAbortController?.abort();
+    ollamaAbortController = null;
+  },
 
   onOllamaChatStream(callback) {
     return emitter.on('ollama-chat-stream', callback as Listener);
@@ -996,21 +1369,6 @@ const migrationBridge: MigrationBridge = {
 // ============================================================================
 
 const genericBridge: GenericIPCBridge = {
-  send(channel, data) {
-    emitter.emit(channel, data);
-  },
-
-  on(channel, callback) {
-    return emitter.on(channel, callback);
-  },
-
-  removeListener(channel, callback) {
-    // EventEmitter doesn't expose remove by ref — use the cleanup from on()
-    // This is a best-effort no-op for compatibility
-    void channel;
-    void callback;
-  },
-
   sendLS: noop,
 
   async fetchUrl(url: string) {
@@ -1025,12 +1383,87 @@ const genericBridge: GenericIPCBridge = {
 };
 
 // ============================================================================
-// Data Export/Import Bridge (not available on mobile)
+// Data Export/Import Bridge (JSON-based on mobile)
 // ============================================================================
 
-const dataBridge = {
-  dataExport: async () => ({ success: false, error: 'Data export is not available on mobile. Use a desktop device.' }),
-  dataImport: async () => ({ success: false, error: 'Data import is not available on mobile. Use a desktop device.' }),
+const dataBridge: DataBridge = {
+  async dataExport() {
+    try {
+      const [settingsRaw, flashcardStore, mediaStatsRaw] = await Promise.all([
+        storageGet('settings'),
+        loadShardedFlashcards(),
+        storageGet('mediaStats'),
+      ]);
+
+      const exportData = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        platform: 'mobile',
+        settings: settingsRaw ? JSON.parse(settingsRaw) : null,
+        flashcards: flashcardStore,
+        mediaStats: mediaStatsRaw ? JSON.parse(mediaStatsRaw) : null,
+      };
+
+      const json = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `mlearn-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: String(e) };
+    }
+  },
+
+  async dataImport() {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,application/json';
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) { resolve({ success: false }); return; }
+
+        try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+
+          if (typeof data !== 'object' || data === null) {
+            resolve({ success: false, error: 'Invalid backup file format' });
+            return;
+          }
+
+          if (!data.settings && !data.flashcards) {
+            resolve({ success: false, error: 'Backup must contain settings or flashcards' });
+            return;
+          }
+
+          if (data.settings && typeof data.settings === 'object') {
+            await storageSet('settings', JSON.stringify(data.settings));
+          }
+          if (data.flashcards && typeof data.flashcards === 'object') {
+            await saveShardedFlashcards(data.flashcards as FlashcardStore);
+          }
+          if (data.mediaStats && typeof data.mediaStats === 'object') {
+            await storageSet('mediaStats', JSON.stringify(data.mediaStats));
+          }
+
+          resolve({ success: true });
+        } catch (e) {
+          resolve({ success: false, error: String(e) });
+        }
+      };
+      input.addEventListener('cancel', () => resolve({ success: false }));
+      input.click();
+    });
+  },
 };
 
 // ============================================================================

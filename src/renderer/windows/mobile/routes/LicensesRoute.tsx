@@ -5,8 +5,11 @@
  */
 
 import { Component, onMount, createSignal } from 'solid-js';
+import { useLocalization } from '../../../context';
+import './LicensesRoute.css';
 
 export const LicensesRoute: Component = () => {
+  const { t } = useLocalization();
   const [html, setHtml] = createSignal('');
 
   onMount(async () => {
@@ -21,13 +24,13 @@ export const LicensesRoute: Component = () => {
         }
       }
     } catch {
-      setHtml('<p>Unable to load license information.</p>');
+      setHtml(`<p>${t('mlearn.Settings.About.LicensesLoadError')}</p>`);
     }
   });
 
   return (
     <div
-      style={{ padding: '16px', overflow: 'auto', height: '100%' }}
+      class="licenses-content"
       innerHTML={html()}
     />
   );

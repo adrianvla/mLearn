@@ -24,6 +24,8 @@ export interface BuildWordHoverFlashcardContentParams {
   colourCodes: Record<string, string>;
   ocrCropPadding?: number;
   tokenize: (text: string) => Promise<Token[]>;
+  /** When 'video', the caller will clip a video segment and attach it post-build */
+  flashcardMediaType?: 'image' | 'video';
 }
 
 export function numericToWordStatus(num: number): WordStatus {
@@ -311,6 +313,7 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
     example: exampleHtml,
     exampleMeaning: '',
     imageUrl: screenshot,
+    skipExampleTts: params.flashcardMediaType === 'video' ? true : undefined,
     word,
     pronunciation: reading || word,
     translation: translationArr,

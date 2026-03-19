@@ -6,72 +6,121 @@
 
 import fs from 'fs';
 import path from 'path';
-import { ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
 
 let store: Record<string, string> | null = null;
 
+// Write queue for serialising concurrent async writes
+let writeQueue: Promise<void> = Promise.resolve();
+function enqueueWrite(fn: () => Promise<void>): Promise<void> {
+  writeQueue = writeQueue.then(fn, fn);
+  return writeQueue;
+}
+
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingWrite = false;
+
 function getStorePath(): string {
   return path.join(getUserDataPath(), 'kv-store.json');
 }
 
-function loadStore(): Record<string, string> {
+async function loadStore(): Promise<Record<string, string>> {
   if (store) return store;
   try {
     const storePath = getStorePath();
-    if (fs.existsSync(storePath)) {
-      const data = fs.readFileSync(storePath, 'utf-8');
-      store = JSON.parse(data);
-      return store!;
+    try {
+      await fs.promises.access(storePath);
+    } catch {
+      store = {};
+      return store;
     }
+    const data = await fs.promises.readFile(storePath, 'utf-8');
+    const parsed: unknown = JSON.parse(data);
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      store = parsed as Record<string, string>;
+    } else {
+      console.warn('[kvStore] Loaded data is not a plain object — using empty store');
+      store = {};
+    }
+    return store;
   } catch (error) {
     console.error('[kvStore] Failed to load store:', error);
+    store = {};
+    return store;
   }
-  store = {};
-  return store;
 }
 
-function persistStore(): void {
+async function persistStore(): Promise<void> {
   try {
     const storePath = getStorePath();
+    const tmpPath = `${storePath}.tmp`;
     const dir = path.dirname(storePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    try {
+      await fs.promises.access(dir);
+    } catch {
+      await fs.promises.mkdir(dir, { recursive: true });
     }
-    fs.writeFileSync(storePath, JSON.stringify(store, null, 2));
+    await fs.promises.writeFile(tmpPath, JSON.stringify(store, null, 2));
+    await fs.promises.rename(tmpPath, storePath);
   } catch (error) {
     console.error('[kvStore] Failed to persist store:', error);
   }
 }
 
+function schedulePersist(): void {
+  pendingWrite = true;
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+  }
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null;
+    if (pendingWrite) {
+      pendingWrite = false;
+      enqueueWrite(() => persistStore());
+    }
+  }, 100);
+}
+
+function flushPending(): void {
+  if (pendingWrite && debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+    pendingWrite = false;
+    enqueueWrite(() => persistStore());
+  }
+}
+
 export function setupKVStoreIPC(): void {
-  ipcMain.handle(IPC_CHANNELS.KV_GET, (_event, key: string): string | null => {
-    const s = loadStore();
+  app.on('before-quit', () => flushPending());
+
+  ipcMain.handle(IPC_CHANNELS.KV_GET, async (_event, key: string): Promise<string | null> => {
+    const s = await loadStore();
     return s[key] ?? null;
   });
 
-  ipcMain.handle(IPC_CHANNELS.KV_SET, (_event, key: string, value: string): void => {
-    const s = loadStore();
+  ipcMain.handle(IPC_CHANNELS.KV_SET, async (_event, key: string, value: string): Promise<void> => {
+    const s = await loadStore();
     s[key] = value;
-    persistStore();
+    schedulePersist();
   });
 
-  ipcMain.handle(IPC_CHANNELS.KV_REMOVE, (_event, key: string): void => {
-    const s = loadStore();
+  ipcMain.handle(IPC_CHANNELS.KV_REMOVE, async (_event, key: string): Promise<void> => {
+    const s = await loadStore();
     delete s[key];
-    persistStore();
+    schedulePersist();
   });
 
-  ipcMain.handle(IPC_CHANNELS.KV_GET_ALL, (): Record<string, string> => {
-    return { ...loadStore() };
+  ipcMain.handle(IPC_CHANNELS.KV_GET_ALL, async (): Promise<Record<string, string>> => {
+    return { ...(await loadStore()) };
   });
 
-  ipcMain.handle(IPC_CHANNELS.KV_SET_BATCH, (_event, entries: Record<string, string>): void => {
-    const s = loadStore();
+  ipcMain.handle(IPC_CHANNELS.KV_SET_BATCH, async (_event, entries: Record<string, string>): Promise<void> => {
+    const s = await loadStore();
     for (const [key, value] of Object.entries(entries)) {
       s[key] = value;
     }
-    persistStore();
+    schedulePersist();
   });
 }

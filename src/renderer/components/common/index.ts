@@ -277,6 +277,7 @@ export {
   SparklesIcon,
   BookIcon,
   BarChartIcon,
+  BatteryLowIcon,
   StarIcon,
   GridIcon,
   SortAscIcon,

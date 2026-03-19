@@ -101,6 +101,10 @@ export interface Settings {
   flashcardFlipAnimation: boolean;
   /** Number of lapses before a card is flagged as a leech (0 = disabled) */
   leechThreshold: number;
+  /** Whether flashcards capture a screenshot or video clip: 'image' or 'video' */
+  flashcardMediaType: 'image' | 'video';
+  /** Extra ms added before and after the subtitle when clipping video for flashcard (default 300) */
+  flashcardVideoMargin: number;
 
   // API URLs
   getCardUrl: string;
@@ -167,6 +171,9 @@ export interface Settings {
   llmEnabled: boolean;
   ocrEnabled: boolean;
   devMode: boolean;
+
+  /** Low battery mode: intercepts local neural network calls (LLM, TTS, OCR) with a user prompt */
+  lowBatteryMode: boolean;
 
   /** Whether the user has completed initial LLM provider setup */
   llmConfigured: boolean;
@@ -326,7 +333,10 @@ export const DEFAULT_SETTINGS: Settings = {
   newDayHour: 4,
   flashcardFlipAnimation: true,
   leechThreshold: 10,
+  flashcardMediaType: 'image',
+  flashcardVideoMargin: 300,
   devMode: false,
+  lowBatteryMode: false,
   ocr_crop_padding: 200,
   showLiveTranslator: true,
   liveTranslatorIncludeKnown: false,
@@ -522,6 +532,10 @@ export interface FlashcardContent {
   context?: string;
   /** Source (video name, book name, etc.) */
   source?: string;
+  /** Video clip URL (flashcard-video:// protocol or Capacitor file URL) */
+  videoUrl?: string;
+  /** When true, skip automatic TTS generation for the example field (e.g. video clip provides audio) */
+  skipExampleTts?: boolean;
   /** Custom fields for extensibility */
   extra?: Record<string, unknown>;
   

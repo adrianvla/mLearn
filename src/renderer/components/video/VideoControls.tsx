@@ -114,27 +114,24 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
     const [isHovered, setIsHovered] = createSignal(false);
     const [isDragging, setIsDragging] = createSignal(false);
 
-    const state = () => props.video.state();
+    const state = props.video.state;
 
-    // Controls visible if: mouse moved recently, OR hovering controls, OR video paused
     const shouldShowControls = () => {
-        return (props.isControlsVisible ?? true) || isHovered() || !state().isPlaying;
+        return (props.isControlsVisible ?? true) || isHovered() || !state.isPlaying;
     };
 
-    // Determine volume icon based on level
     const volumeIconLevel = createMemo((): 'high' | 'low' | 'muted' => {
-        if (state().isMuted || state().volume === 0) return 'muted';
-        if (state().volume < 0.5) return 'low';
+        if (state.isMuted || state.volume === 0) return 'muted';
+        if (state.volume < 0.5) return 'low';
         return 'high';
     });
 
-    // Handle progress bar drag
     const handleProgressDrag = (e: MouseEvent) => {
         if (!isDragging()) return;
         const bar = e.currentTarget as HTMLDivElement;
         const rect = bar.getBoundingClientRect();
         const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        const newTime = percent * state().duration;
+        const newTime = percent * state.duration;
         props.video.seek(newTime);
     };
 
@@ -163,7 +160,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                     interactive
                     trackClass="video-progress-bar"
                     fillClass={`video-progress-fill ${isDragging() ? 'dragging' : ''}`}
-                    onClick={(percent) => props.video.seek((percent / 100) * state().duration)}
+                    onClick={(percent) => props.video.seek((percent / 100) * state.duration)}
                     onMouseDown={() => setIsDragging(true)}
                     onMouseUp={() => setIsDragging(false)}
                     onMouseMove={handleProgressDrag}
@@ -179,8 +176,8 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                         <IconBtn
                             variant="ghost"
                             onClick={() => props.video.togglePlay()}
-                            aria-label={state().isPlaying ? t('mlearn.Global.Aria.Pause') : t('mlearn.Global.Aria.Play')}
-                            icon={state().isPlaying ? 'pause' : 'play'}
+                            aria-label={state.isPlaying ? t('mlearn.Global.Aria.Pause') : t('mlearn.Global.Aria.Play')}
+                            icon={state.isPlaying ? 'pause' : 'play'}
                         />
 
                         {/* Volume */}
@@ -188,7 +185,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                             <IconBtn
                                 variant="ghost"
                                 onClick={() => props.video.toggleMute()}
-                                aria-label={state().isMuted ? t('mlearn.Video.Controls.Unmute') : t('mlearn.Video.Controls.Mute')}
+                                aria-label={state.isMuted ? t('mlearn.Video.Controls.Unmute') : t('mlearn.Video.Controls.Mute')}
                             >
                                 <VolumeIcon level={volumeIconLevel()} />
                             </IconBtn>
@@ -196,7 +193,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                                 min={0}
                                 max={1}
                                 step={0.05}
-                                value={state().isMuted ? 0 : state().volume}
+                                value={state.isMuted ? 0 : state.volume}
                                 onChange={(value) => props.video.setVolume(value)}
                                 class="video-volume-slider"
                                 tabIndex={-1}
@@ -215,7 +212,7 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                         <Select
                             class="video-speed-select"
                             options={SPEED_OPTIONS}
-                            value={String(state().playbackRate)}
+                            value={String(state.playbackRate)}
                             onChange={(e) => props.video.setPlaybackRate(parseFloat(e.currentTarget.value))}
                             aria-label={t('mlearn.Video.Controls.PlaybackSpeed')}
                         />
@@ -248,8 +245,8 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                         <Show when={!isTethered || document.pictureInPictureEnabled}>
                             <IconBtn
                                 variant="ghost"
-                                active={state().isPiP}
-                                class={state().isPiP ? '' : 'inactive'}
+                                active={state.isPiP}
+                                class={state.isPiP ? '' : 'inactive'}
                                 onClick={() => props.video.togglePiP()}
                                 aria-label={t('mlearn.Global.Aria.PictureInPicture')}
                             >
@@ -261,9 +258,9 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                         <IconBtn
                             variant="ghost"
                             onClick={() => props.video.toggleFullscreen()}
-                            aria-label={state().isFullscreen ? t('mlearn.Global.Aria.ExitFullscreen') : t('mlearn.Global.Aria.Fullscreen')}
+                            aria-label={state.isFullscreen ? t('mlearn.Global.Aria.ExitFullscreen') : t('mlearn.Global.Aria.Fullscreen')}
                         >
-                            <FullscreenIcon isFullscreen={state().isFullscreen} />
+                            <FullscreenIcon isFullscreen={state.isFullscreen} />
                         </IconBtn>
                     </div>
                 </div>

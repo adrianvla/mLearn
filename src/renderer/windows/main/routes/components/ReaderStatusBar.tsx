@@ -4,8 +4,8 @@
  */
 
 import { Component, Accessor, createMemo, Show } from 'solid-js';
-import { useSettings, useLocalization, useLanguage } from '../../../../context';
-import { StatusBar, formatKeybindDisplay, RangeInput } from '../../../../components/common';
+import { useSettings, useLocalization, useLanguage, useLowPowerGate } from '../../../../context';
+import { StatusBar, formatKeybindDisplay, RangeInput, BatteryLowIcon } from '../../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../../shared/constants';
 import type { OcrProcessingTimes } from '../../../../components/reader';
 import './ReaderStatusBar.css';
@@ -35,6 +35,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const { currentLangData } = useLanguage();
+  const { isActive: isLowPowerActive } = useLowPowerGate();
 
   /** Get label for hover trigger mode - dynamically includes the configured key for key-hover mode */
   const getHoverTriggerLabel = (mode: WordHoverTriggerMode, key: string): string => {
@@ -207,6 +208,11 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
           {t('mlearn.Reader.StatusBar.MagnifierHint', {key: formatKeybindDisplay(settings.readerMagnifierHotkey ?? 'z', t)})}
         </span>
 
+        <Show when={isLowPowerActive()}>
+          <button type="button" class="statusbar-toggle active" tabIndex={-1} title={t('mlearn.LowPowerGate.StatusBarTooltip')}>
+            <BatteryLowIcon size={14} />
+          </button>
+        </Show>
         <div class="ocr-section">
         <span class={`statusbar-text ${displayStatus() !== t('mlearn.Reader.StatusBar.Ready') ? 'active' : ''}`}>
           {displayStatus()}

@@ -25,6 +25,10 @@ export interface MLearnIPC {
   resolveFlashcardImage: (imageUrl: string) => Promise<string | null>;
   deleteFlashcardImage: (cardId: string) => Promise<void>;
   
+  // Flashcard Videos
+  saveFlashcardVideo: (cardId: string, data: ArrayBuffer) => Promise<string | null>;
+  deleteFlashcardVideo: (cardId: string) => Promise<void>;
+  
   // Flashcard TTS
   getFlashcardTts: (cardId: string, field: string) => Promise<string | null>;
   generateFlashcardTts: (cardId: string, text: string, language: string, field: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => Promise<string | null>;
@@ -147,11 +151,6 @@ export interface MLearnIPC {
    */
   getPathForFile: (file: File) => string;
 
-  // Generic IPC Methods
-  send: (channel: string, data?: unknown) => void;
-  on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
-  removeListener: (channel: string, callback: (...args: unknown[]) => void) => void;
-  
   // Media Stats
   saveMediaStats: (mediaHash: string, stats: MediaStats) => void;
   getMediaStats: (mediaHash: string) => void;

@@ -3,13 +3,22 @@
  * Handles reading files from the filesystem for the renderer process
  */
 
-import { ipcMain, dialog, BrowserWindow } from 'electron';
+import { ipcMain, dialog, BrowserWindow, app } from 'electron';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { IPC_CHANNELS } from '../../shared/constants';
 
 // Image file extensions to read from directories
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.tif']);
+
+function validatePath(inputPath: string): string {
+  const resolved = path.resolve(inputPath);
+  const homeDir = app.getPath('home');
+  if (!resolved.startsWith(homeDir)) {
+    throw new Error('Path outside allowed directory');
+  }
+  return resolved;
+}
 
 /**
  * Setup IPC handlers for file operations
@@ -18,7 +27,8 @@ export function setupFileOperationsIPC(): void {
   // Read all image files from a directory
   ipcMain.handle(IPC_CHANNELS.READ_DIRECTORY_IMAGES, async (_event, directoryPath: string) => {
     try {
-      const entries = await fs.readdir(directoryPath, { withFileTypes: true });
+      const validatedPath = validatePath(directoryPath);
+      const entries = await fs.readdir(validatedPath, { withFileTypes: true });
       
       const imageFiles = entries
         .filter(entry => entry.isFile() && IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
@@ -26,7 +36,7 @@ export function setupFileOperationsIPC(): void {
       
       const files = await Promise.all(
         imageFiles.map(async (entry) => {
-          const filePath = path.join(directoryPath, entry.name);
+          const filePath = path.join(validatedPath, entry.name);
           const data = await fs.readFile(filePath);
           return {
             name: entry.name,
@@ -46,7 +56,8 @@ export function setupFileOperationsIPC(): void {
   // Read a PDF file
   ipcMain.handle(IPC_CHANNELS.READ_PDF_FILE, async (_event, filePath: string) => {
     try {
-      const data = await fs.readFile(filePath);
+      const validatedPath = validatePath(filePath);
+      const data = await fs.readFile(validatedPath);
       return { data: data.buffer };
     } catch (error) {
       console.error('[FileOps] Failed to read PDF file:', error);

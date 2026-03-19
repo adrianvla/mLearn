@@ -13,7 +13,7 @@
  */
 
 import { Component, createSignal, createMemo, For, Show, onMount, onCleanup, batch } from 'solid-js';
-import { useLocalization, useSettings } from '../../context';
+import { useLocalization, useSettings, useLowPowerGate } from '../../context';
 import { useLanguage } from '../../context/LanguageContext';
 import { useFlashcards } from '../../context/FlashcardContext';
 import { getBridge } from '../../../shared/bridges';
@@ -56,6 +56,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   const { settings } = useSettings();
   const { getFrequency, getFreqLevelNames } = useLanguage();
   const flashcardCtx = useFlashcards();
+  const { requestAccess } = useLowPowerGate();
 
   const [searchQuery, setSearchQuery] = createSignal('');
   const [levelFilter, setLevelFilter] = createSignal<number | null>(null);
@@ -345,13 +346,19 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   });
 
   // LLM vocabulary generation
-  const generateVocabulary = () => {
+  const generateVocabulary = async () => {
     const topic = topicInput().trim();
     if (!topic || isGenerating()) return;
 
     if (!settings.llmEnabled || !settings.llmConfigured) {
       setGenerationError(t('mlearn.AITutorSetup.LLMNotConfigured'));
       return;
+    }
+
+    // Low power gate: prompt before local LLM call
+    if (settings.llmProvider !== 'cloud') {
+      const allowed = await requestAccess('llm');
+      if (!allowed) return;
     }
 
     setIsGenerating(true);

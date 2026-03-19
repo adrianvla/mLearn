@@ -4,6 +4,7 @@ Global configuration for the mLearn Python backend.
 Parses CLI arguments, reads settings.json, loads language modules,
 and exposes all global state used by route modules.
 """
+
 import json
 import os
 import sys
@@ -26,6 +27,8 @@ ANKI_FIELD_MEANING = "Meaning"
 OCR_RAM_SAVER = False
 SUPPORTS_VERTICAL_TEXT = False
 
+QUIT_TOKEN = ""
+
 language_module = None
 
 # Lazily populated heavy imports (avoid startup cost)
@@ -41,6 +44,7 @@ def _raise_fd_limit():
     """
     try:
         import resource as _resource
+
         _soft, _hard = _resource.getrlimit(_resource.RLIMIT_NOFILE)
         _desired = min(_hard, 65536) if _hard > 0 else 65536
         if _soft < _desired:
@@ -55,16 +59,21 @@ def _raise_fd_limit():
 def _configure_utf8_streams():
     """Ensure printing non-ASCII (e.g. Japanese) won't crash on Windows consoles."""
     try:
-        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         try:
             import io
+
             sys.stdout = io.TextIOWrapper(
-                sys.stdout.buffer, encoding='utf-8', errors='replace'  # type: ignore[attr-defined]
+                sys.stdout.buffer,
+                encoding="utf-8",
+                errors="replace",  # type: ignore[attr-defined]
             )
             sys.stderr = io.TextIOWrapper(
-                sys.stderr.buffer, encoding='utf-8', errors='replace'  # type: ignore[attr-defined]
+                sys.stderr.buffer,
+                encoding="utf-8",
+                errors="replace",  # type: ignore[attr-defined]
             )
         except Exception:
             pass
@@ -104,17 +113,13 @@ def init():
         settings_path = os.path.join(USER_DATA_PATH, "settings.json")
         if os.path.exists(settings_path):
             try:
-                with open(settings_path, 'r', encoding='utf-8') as f:
+                with open(settings_path, "r", encoding="utf-8") as f:
                     settings = json.load(f)
                     ANKI_FIELD_EXPRESSION = settings.get(
                         "anki_field_expression", "Expression"
                     )
-                    ANKI_FIELD_READING = settings.get(
-                        "anki_field_reading", "Reading"
-                    )
-                    ANKI_FIELD_MEANING = settings.get(
-                        "anki_field_meaning", "Meaning"
-                    )
+                    ANKI_FIELD_READING = settings.get("anki_field_reading", "Reading")
+                    ANKI_FIELD_MEANING = settings.get("anki_field_meaning", "Meaning")
                     OCR_RAM_SAVER = settings.get("ocrRamSaver", False)
                     print(
                         f"Loaded Anki field mappings: Expression="
@@ -136,7 +141,7 @@ def init():
     _lang_json_path = os.path.join(LANGUAGE_DIR_PATH, f"{LANGUAGE}.json")
     if os.path.isfile(_lang_json_path):
         try:
-            with open(_lang_json_path, 'r', encoding='utf-8') as _lf:
+            with open(_lang_json_path, "r", encoding="utf-8") as _lf:
                 _lang_cfg = json.load(_lf)
                 SUPPORTS_VERTICAL_TEXT = bool(
                     _lang_cfg.get("supportsVerticalText", False)

@@ -72,13 +72,26 @@ function getFlashcardTtsMeta(cardId: string, field: 'word' | 'example'): { provi
   }
 }
 
+/** Minimum valid audio file size in bytes (a valid header is at least ~44 bytes for WAV) */
+const MIN_AUDIO_SIZE = 100;
+
 /**
  * Check if a TTS audio file exists and return its file URL.
+ * Files below MIN_AUDIO_SIZE are considered corrupt and removed.
  */
 function getFlashcardTts(cardId: string, field: 'word' | 'example'): string | null {
   const filePath = audioPath(cardId, field);
   if (fs.existsSync(filePath)) {
-    return toAudioUrl(filePath);
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.size >= MIN_AUDIO_SIZE) {
+        return toAudioUrl(filePath);
+      }
+      // Corrupt / truncated file — remove it so repair can regenerate
+      fs.unlinkSync(filePath);
+    } catch {
+      // stat/unlink failed — treat as missing
+    }
   }
   return null;
 }
@@ -88,6 +101,9 @@ function getFlashcardTts(cardId: string, field: 'word' | 'example'): string | nu
  * The `provider` field is forwarded so the backend routes to the correct engine.
  */
 async function generateViaLocal(text: string, language: string, outputPath: string, provider: string, voiceSamplePath?: string): Promise<boolean> {
+  const label = `[FlashcardTTS] local (${provider})`;
+  const textSnippet = text.length > 40 ? text.slice(0, 40) + '…' : text;
+
   return new Promise((resolve) => {
     const url = new URL(API_ENDPOINTS.voiceTts);
     const payload: Record<string, unknown> = { text, language, format: 'ogg', provider };
@@ -104,12 +120,21 @@ async function generateViaLocal(text: string, language: string, outputPath: stri
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(body),
         },
-        timeout: 30000,
+        timeout: 60000,
       },
       (res) => {
         if (res.statusCode !== 200) {
-          res.resume();
-          resolve(false);
+          const errorChunks: Buffer[] = [];
+          res.on('data', (chunk) => errorChunks.push(chunk));
+          res.on('end', () => {
+            const errorBody = Buffer.concat(errorChunks).toString().slice(0, 500);
+            console.error(`${label} HTTP ${res.statusCode} for "${textSnippet}": ${errorBody}`);
+            resolve(false);
+          });
+          res.on('error', () => {
+            console.error(`${label} HTTP ${res.statusCode} for "${textSnippet}" (error reading body)`);
+            resolve(false);
+          });
           return;
         }
 
@@ -122,15 +147,23 @@ async function generateViaLocal(text: string, language: string, outputPath: stri
             fs.writeFileSync(outputPath, data);
             resolve(true);
           } else {
+            console.error(`${label} empty response body for "${textSnippet}"`);
             resolve(false);
           }
         });
-        res.on('error', () => resolve(false));
+        res.on('error', (err) => {
+          console.error(`${label} response stream error for "${textSnippet}":`, err.message);
+          resolve(false);
+        });
       },
     );
 
-    req.on('error', () => resolve(false));
+    req.on('error', (err) => {
+      console.error(`${label} request error for "${textSnippet}":`, err.message);
+      resolve(false);
+    });
     req.on('timeout', () => {
+      console.error(`${label} request timed out for "${textSnippet}"`);
       req.destroy();
       resolve(false);
     });
@@ -237,8 +270,15 @@ async function generateViaCloud(text: string, language: string, outputPath: stri
   }
 }
 
+/** Maximum generation attempts per card field */
+const MAX_TTS_ATTEMPTS = 3;
+
+/** Delay between retries in ms (doubles each attempt) */
+const TTS_RETRY_BASE_DELAY = 1000;
+
 /**
  * Generate TTS for a single card field.
+ * Retries up to MAX_TTS_ATTEMPTS times with exponential backoff on failure.
  */
 async function generateFlashcardTts(
   cardId: string,
@@ -253,7 +293,6 @@ async function generateFlashcardTts(
   if (!text || text === '-') return null;
 
   const output = audioPath(cardId, field);
-  let success = false;
 
   // Resolve voice sample path if provided
   let voiceSamplePath: string | undefined;
@@ -263,16 +302,28 @@ async function generateFlashcardTts(
     if (sample) voiceSamplePath = getVoiceSamplePath(sample);
   }
 
-  if (provider === 'cloud' && cloudAuthToken) {
-    success = await generateViaCloud(text, language, output, cloudAuthToken, cloudApiUrl);
-  } else {
-    success = await generateViaLocal(text, language, output, provider, voiceSamplePath);
+  for (let attempt = 1; attempt <= MAX_TTS_ATTEMPTS; attempt++) {
+    let success = false;
+
+    if (provider === 'cloud' && cloudAuthToken) {
+      success = await generateViaCloud(text, language, output, cloudAuthToken, cloudApiUrl);
+    } else {
+      success = await generateViaLocal(text, language, output, provider, voiceSamplePath);
+    }
+
+    if (success) {
+      writeMetadata(cardId, field, provider, language);
+      return toAudioUrl(output);
+    }
+
+    if (attempt < MAX_TTS_ATTEMPTS) {
+      const delay = TTS_RETRY_BASE_DELAY * Math.pow(2, attempt - 1);
+      console.error(`[FlashcardTTS] attempt ${attempt}/${MAX_TTS_ATTEMPTS} failed for "${cardId}-${field}", retrying in ${delay}ms`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
   }
 
-  if (success) {
-    writeMetadata(cardId, field, provider, language);
-    return toAudioUrl(output);
-  }
+  console.error(`[FlashcardTTS] all ${MAX_TTS_ATTEMPTS} attempts failed for "${cardId}-${field}"`);
   return null;
 }
 

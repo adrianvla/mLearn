@@ -153,9 +153,19 @@ const FlashcardCreationChoiceModalInner: Component<FlashcardCreationChoiceModalP
           </Show>
         </div>
 
-        <Show when={content().imageUrl}>
-          <div class="flashcard-choice__image">
-            <img src={content().imageUrl} alt="" />
+        <Show when={content().videoUrl} fallback={
+          <Show when={content().imageUrl}>
+            <div class="flashcard-choice__media">
+              <img src={content().imageUrl!} alt="" />
+            </div>
+          </Show>
+        }>
+          <div class="flashcard-choice__media">
+            <video
+              src={content().videoUrl!}
+              controls
+              preload="metadata"
+            />
           </div>
         </Show>
 

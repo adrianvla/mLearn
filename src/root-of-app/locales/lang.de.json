@@ -561,6 +561,7 @@
         "TtsAllDone": "Alle Lernkarten haben bereits TTS-Audio",
         "TtsButton": "TTS generieren",
         "TtsDone": "TTS für {count} Einträge generiert",
+        "TtsDoneWithErrors": "TTS für {count} Einträge generiert, {failed} fehlgeschlagen",
         "TtsProgress": "TTS wird generiert…",
         "TtsTooltip": "TTS-Audio für alle Lernkarten-Wörter und Beispiele generieren"
       },
@@ -768,6 +769,15 @@
         "ShortYear": "{value}J"
       },
       "TryAgain": "Erneut versuchen"
+    },
+    "LowPowerGate": {
+      "Allow": "Erlauben",
+      "AllowSession": "Für Sitzung erlauben",
+      "Deny": "Ablehnen",
+      "DenySession": "Für Sitzung ablehnen",
+      "Message": "Ein Vorgang möchte ein lokales neuronales Netz ({{backendType}}) verwenden. Im Energiesparmodus erlauben?",
+      "StatusBarTooltip": "Energiesparmodus aktiv",
+      "Title": "Lokale Verarbeitung"
     },
     "Home": {
       "Cards": {
@@ -1146,7 +1156,7 @@
         "ThemePreview": "Theme-Vorschau",
         "VideoPlayerBehaviour": "Videoplayer-Verhalten",
         "WordStatus": "Wortstatus",
-        "LiveTranslator": "Live-Wort\u00fcbersetzer"
+        "LiveTranslator": "Live-Wortübersetzer"
       },
       "Keybind": {
         "PressKey": "Taste drücken...",
@@ -1193,6 +1203,10 @@
         "HoverKnownGetFromDictionary": {
           "Description": "Wörterbuchdaten auch für bekannte Wörter abrufen",
           "Label": "Bekannte Wörter nachschlagen"
+        },
+        "LowBatteryMode": {
+          "Description": "Vor dem Ausführen lokaler neuronaler Netze (LLM, TTS, OCR) nachfragen",
+          "Label": "Energiesparmodus"
         }
       },
       "Reader": {
@@ -1508,18 +1522,18 @@
         "Description": "Konfiguriere Videoplayer und Untertitel-Verhalten",
         "LiveTranslator": {
           "Show": {
-            "Label": "Live-\u00dcbersetzer anzeigen",
-            "Description": "Das Live-Wort\u00fcbersetzungspanel neben dem Video anzeigen"
+            "Label": "Live-Übersetzer anzeigen",
+            "Description": "Das Live-Wortübersetzungspanel neben dem Video anzeigen"
           },
           "IncludeKnown": {
-            "Label": "Bekannte W\u00f6rter einschlie\u00dfen",
-            "Description": "Auch bereits bekannte W\u00f6rter zum Live-\u00dcbersetzer hinzuf\u00fcgen"
+            "Label": "Bekannte Wörter einschließen",
+            "Description": "Auch bereits bekannte Wörter zum Live-Übersetzer hinzufügen"
           }
         },
         "KnownWords": {
           "BlurKnown": {
-            "Label": "Bekannte W\u00f6rter verwischen",
-            "Description": "Einen Unsch\u00e4rfeeffekt auf bekannte W\u00f6rter in Untertiteln anwenden"
+            "Label": "Bekannte Wörter verwischen",
+            "Description": "Einen Unschärfeeffekt auf bekannte Wörter in Untertiteln anwenden"
           }
         },
         "Playback": {
@@ -1528,15 +1542,15 @@
             "Description": "Wie das Video im Playerbereich skaliert wird",
             "Contain": "Einpassen",
             "Cover": "Abdecken",
-            "Fill": "F\u00fcllen"
+            "Fill": "Füllen"
           },
           "ShowSubtitles": {
             "Label": "Untertitel anzeigen",
             "Description": "Untertitel im Videoplayer ein-/ausblenden"
           },
           "ShowTranslation": {
-            "Label": "\u00dcbersetzung anzeigen",
-            "Description": "\u00dcbersetzungszeile unter den Untertiteln anzeigen"
+            "Label": "Übersetzung anzeigen",
+            "Description": "Übersetzungszeile unter den Untertiteln anzeigen"
           },
           "SubtitlePosition": {
             "Label": "Untertitel-Position",
@@ -1553,7 +1567,20 @@
           },
           "RemoveSpeakerNames": {
             "Label": "Sprechernamen entfernen",
-            "Description": "Sprechernamen-Pr\u00e4fixe aus Untertiteln entfernen"
+            "Description": "Sprechernamen-Präfixe aus Untertiteln entfernen"
+          }
+        },
+        "FlashcardMedia": {
+          "Title": "Karteikarten-Medien",
+          "MediaType": {
+            "Label": "Medientyp",
+            "Description": "Screenshot oder Videoclip des Untertitelsegments an neue Karteikarten anhängen",
+            "Image": "Bild",
+            "Video": "Video"
+          },
+          "VideoMargin": {
+            "Label": "Videoclip-Rand",
+            "Description": "Zusätzliche Zeit vor und nach dem Untertitel, die im Videoclip enthalten sein soll"
           }
         }
       },
@@ -1689,6 +1716,7 @@
           "SubtitleOrder": "Untertitelreihenfolge"
         }
       },
+      "VideoClipFailed": "Videoclip fehlgeschlagen, Screenshot wird verwendet",
       "WatchTogether": "Gemeinsam ansehen"
     },
     "WordDbEditor": {
@@ -1779,12 +1807,12 @@
     },
     "Sidebar": {
       "AddAll": "Alle hinzufügen",
-      "AddingAll": "Wird hinzugefügt...",
-      "DictionaryOnly": "Nur Wörterbuch",
+      "AddingAll": "Wird hinzugefügt…",
+      "DictionaryOnly": "Nur im Wörterbuch",
       "Ignore": "Ignorieren",
       "SortBy": {
         "Level": "Stufe",
-        "Word": "Alphabetisch"
+        "Word": "Wort"
       },
       "UnknownWords": "Unbekannte Wörter",
       "WordCount": "{count} Wörter"

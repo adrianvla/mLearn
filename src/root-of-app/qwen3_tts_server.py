@@ -17,6 +17,7 @@ Endpoints:
     GET  /voice/tts/status - Check model status
     GET  /health           - Health check
 """
+
 import argparse
 import io
 import json
@@ -32,11 +33,15 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 log = logging.getLogger("qwen3-tts-server")
 
 app = FastAPI(title="Qwen3-TTS Remote Server")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+)
 
 # ---------------------------------------------------------------------------
 # Global state
@@ -52,6 +57,7 @@ def _install_sox_shim():
     """Install pure-numpy shim for the ``sox`` module (avoids SoX CLI dep)."""
     import sys
     import types
+
     if "sox" in sys.modules:
         return
     import numpy as np
@@ -100,6 +106,18 @@ def load_model():
         _loading = False
 
 
+def _validate_voice_sample_path(path_str: Optional[str]) -> Optional[str]:
+    """Reject paths containing traversal sequences; return resolved path or None."""
+    if not path_str:
+        return None
+    resolved = os.path.realpath(path_str)
+    if ".." in path_str.split(os.sep):
+        raise HTTPException(status_code=400, detail="Invalid voice sample path")
+    if not os.path.exists(resolved):
+        return None
+    return resolved
+
+
 def _get_voice_prompt(sample_path: str) -> object:
     """Get or create a cached voice clone prompt from an audio file."""
     mtime = os.path.getmtime(sample_path)
@@ -109,10 +127,10 @@ def _get_voice_prompt(sample_path: str) -> object:
         return _voice_prompt_cache[cache_key]
 
     # Look for transcript sidecar file
-    txt_path = re.sub(r'\.[^.]+$', '.txt', sample_path)
+    txt_path = re.sub(r"\.[^.]+$", ".txt", sample_path)
     transcript = None
     if os.path.exists(txt_path):
-        transcript = open(txt_path, 'r', encoding='utf-8').read().strip()
+        transcript = open(txt_path, "r", encoding="utf-8").read().strip()
 
     if transcript:
         prompt = _model.create_voice_clone_prompt(
@@ -132,6 +150,7 @@ def _get_voice_prompt(sample_path: str) -> object:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
 
 class TTSRequest(BaseModel):
     text: str
@@ -158,17 +177,20 @@ async def tts_status():
 
 
 def _split_into_sentences(text: str) -> list[str]:
-    sentences = re.split(r'(?<=[.!?。！？])\s*', text)
+    sentences = re.split(r"(?<=[.!?。！？])\s*", text)
     return [s.strip() for s in sentences if s.strip()]
 
 
 # Language code mapping (ISO 639-1 → Qwen3-TTS full names)
 LANG_MAP = {
-    "ja": "japanese", "jp": "japanese",
+    "ja": "japanese",
+    "jp": "japanese",
     "de": "german",
     "en": "english",
-    "zh": "chinese", "cn": "chinese",
-    "ko": "korean", "kr": "korean",
+    "zh": "chinese",
+    "cn": "chinese",
+    "ko": "korean",
+    "kr": "korean",
     "fr": "french",
     "ru": "russian",
     "pt": "portuguese",
@@ -190,9 +212,10 @@ async def tts_generate(req: TTSRequest):
 
     # Prepare voice clone prompt if sample provided
     voice_prompt = None
-    if req.voiceSamplePath and os.path.exists(req.voiceSamplePath):
+    safe_voice_path = _validate_voice_sample_path(req.voiceSamplePath)
+    if safe_voice_path:
         try:
-            voice_prompt = _get_voice_prompt(req.voiceSamplePath)
+            voice_prompt = _get_voice_prompt(safe_voice_path)
         except Exception as e:
             log.warning(f"Failed to create voice clone prompt: {e}")
 
@@ -232,12 +255,14 @@ async def tts_generate(req: TTSRequest):
             wav = torch.tensor(wav).unsqueeze(0)
 
         num_samples = wav.shape[-1]
-        sentence_boundaries.append({
-            "index": i,
-            "text": sentence,
-            "sampleOffset": sample_offset,
-            "sampleCount": num_samples,
-        })
+        sentence_boundaries.append(
+            {
+                "index": i,
+                "text": sentence,
+                "sampleOffset": sample_offset,
+                "sampleCount": num_samples,
+            }
+        )
         sample_offset += num_samples
         all_wavs.append(wav)
 
@@ -250,6 +275,7 @@ async def tts_generate(req: TTSRequest):
     buf.seek(0)
 
     from starlette.responses import Response
+
     return Response(
         content=buf.read(),
         media_type="audio/wav",
@@ -268,11 +294,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Qwen3-TTS remote server")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address")
     parser.add_argument("--port", type=int, default=7760, help="Port")
-    parser.add_argument("--no-preload", action="store_true", help="Don't load model at startup")
+    parser.add_argument(
+        "--no-preload", action="store_true", help="Don't load model at startup"
+    )
     args = parser.parse_args()
 
     if not args.no_preload:
         load_model()
 
     import uvicorn
+
     uvicorn.run(app, host=args.host, port=args.port)

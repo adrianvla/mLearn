@@ -20,7 +20,8 @@ import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
 import { streamChat } from '../services/llmProvider';
-import { stripFurigana, getLanguageDisplayName } from '../../shared/utils/textUtils';
+import { useLowPowerGate } from './LowPowerGateContext';
+import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
 
 // Current store version
 const CURRENT_VERSION = 5;
@@ -220,6 +221,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
   const { getCanonicalForm } = useLanguage();
+  const { requestAccess } = useLowPowerGate();
   const newDayHour = () => settings.newDayHour ?? 4;
 
   const [store, setStore] = createStore<FlashcardStore>(getDefaultStore());
@@ -679,6 +681,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
         example: content.example,
         exampleMeaning: content.exampleMeaning,
         imageUrl: content.imageUrl,
+        videoUrl: content.videoUrl,
+        skipExampleTts: content.skipExampleTts,
         audioUrl: content.audioUrl,
         context: content.context,
         source: content.source,
@@ -795,6 +799,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const hasExample = card.content.example && card.content.example !== '-' && card.content.example.replace(/<[^>]*>/g, '').trim().length > 0;
     const needsTranslation = hasExample && !card.content.exampleMeaning && settings.llmEnabled;
     const needsTts = settings.flashcardAutoGenerateAudio && isElectron() && settings.flashcardTtsProvider !== 'kokoro';
+    const skipExampleTts = card.content.skipExampleTts;
 
     if (!needsTranslation && !needsTts) return;
 
@@ -804,7 +809,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (needsTranslation) tasks.push({ key: 'translation', label: t('mlearn.Flashcards.PostCreate.Translation'), status: 'pending' });
     if (needsTts) {
       tasks.push({ key: 'wordTts', label: t('mlearn.Flashcards.PostCreate.WordTts'), status: 'pending' });
-      if (hasExample) {
+      if (hasExample && !skipExampleTts) {
         tasks.push({ key: 'exampleTts', label: t('mlearn.Flashcards.PostCreate.ExampleTts'), status: 'pending' });
       }
     }
@@ -841,7 +846,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       // Word TTS
       updatePostCreateTask(wordLabel, 'wordTts', 'running');
       try {
-        const cleanWord = stripFurigana(card.content.front);
+        const cleanWord = stripHtmlForTts(card.content.front);
         if (cleanWord && cleanWord !== '-') {
           const result = await bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
           if (result) {
@@ -858,10 +863,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }
 
       // Example TTS
-      if (hasExample) {
+      if (hasExample && !skipExampleTts) {
         updatePostCreateTask(wordLabel, 'exampleTts', 'running');
         try {
-          const cleanExample = stripFurigana(card.content.example!);
+          const cleanExample = stripHtmlForTts(card.content.example!);
           if (cleanExample && cleanExample !== '-') {
             const result = await bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
             if (result) {
@@ -940,6 +945,13 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     // Remove from queue
     setQueue(SRS.removeFromQueue(queue(), id));
+
+    // Clean up associated video file
+    if (card.content.videoUrl) {
+      getBridge().flashcards.deleteFlashcardVideo(id).catch((err: unknown) =>
+        console.warn('Failed to delete flashcard video:', err)
+      );
+    }
 
     saveFlashcards();
     return true;
@@ -1362,8 +1374,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Passive Word Knowledge
   // ========================
 
-  // Debounce map for hover tracking (word -> timeout)
   const hoverTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  onCleanup(() => {
+    hoverTimers.forEach(timer => clearTimeout(timer));
+    hoverTimers.clear();
+  });
 
   // Track that a word was seen (displayed on screen)
   const trackWordSeen = (word: string, reading?: string, easeBump = 0.01) => {
@@ -1716,7 +1731,13 @@ export const FlashcardProvider: ParentComponent = (props) => {
    * Generate an example sentence for a word using the LLM.
    * Returns { sentence, meaning }. The meaning is translated to the user's app language.
    */
-  const generateExampleSentenceWithLLM = (word: string, definition: string, language: string): Promise<{ sentence: string; meaning: string }> => {
+  const generateExampleSentenceWithLLM = async (word: string, definition: string, language: string): Promise<{ sentence: string; meaning: string }> => {
+    // Low power gate: prompt before local LLM call
+    if (settings.llmProvider !== 'cloud') {
+      const allowed = await requestAccess('llm');
+      if (!allowed) return { sentence: '', meaning: '' };
+    }
+
     return new Promise((resolve, reject) => {
       const targetLang = getLanguageDisplayName(settings.uiLanguage || 'en');
       const prompt = `Generate a simple, natural example sentence using the word "${word}" (meaning: ${definition}) in ${language}. Then provide a ${targetLang} translation of the sentence. Format your response exactly as:
@@ -1763,12 +1784,18 @@ Translation: [${targetLang} translation]`;
   /**
    * Translate an example sentence to the user's app language using the LLM.
    */
-  const translateExampleSentence = (sentence: string, sourceLanguage: string): Promise<string> => {
+  const translateExampleSentence = async (sentence: string, sourceLanguage: string): Promise<string> => {
     // Strip HTML tags for translation
     const plainText = sentence.replace(/<[^>]*>/g, '').trim();
-    if (!plainText || plainText === '-') return Promise.resolve('');
+    if (!plainText || plainText === '-') return '';
 
     const targetLang = getLanguageDisplayName(settings.uiLanguage || 'en');
+
+    // Low power gate: prompt before local LLM call
+    if (settings.llmProvider !== 'cloud') {
+      const allowed = await requestAccess('llm');
+      if (!allowed) return '';
+    }
 
     return new Promise((resolve, reject) => {
       const prompt = `Translate the following ${sourceLanguage} sentence to ${targetLang}. Respond with ONLY the translation, nothing else.\n\n${plainText}`;
@@ -1867,7 +1894,7 @@ Translation: [${targetLang} translation]`;
       ipcCleanups.push(bridge.flashcards.onFlashcards(handleFlashcardsLoaded));
 
       // Migration listener
-      ipcCleanups.push(bridge.generic.on('flashcard-migration-complete', handleMigrationComplete));
+      ipcCleanups.push(bridge.migration.onFlashcardMigrationComplete((info) => handleMigrationComplete(info)));
 
       // New day event from main process
       ipcCleanups.push(bridge.flashcards.onNewDayFlashcards(handleNewDay));

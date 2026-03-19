@@ -51,6 +51,8 @@ export interface FlashcardBridge {
   saveFlashcardImage: (cardId: string, dataUrl: string) => Promise<string | null>;
   resolveFlashcardImage: (imageUrl: string) => Promise<string | null>;
   deleteFlashcardImage: (cardId: string) => Promise<void>;
+  saveFlashcardVideo: (cardId: string, data: ArrayBuffer) => Promise<string | null>;
+  deleteFlashcardVideo: (cardId: string) => Promise<void>;
   getFlashcardTts: (cardId: string, field: 'word' | 'example') => Promise<string | null>;
   generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => Promise<string | null>;
   batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string) => Promise<Record<string, string>>;
@@ -230,9 +232,6 @@ export interface MigrationBridge {
 }
 
 export interface GenericIPCBridge {
-  send: (channel: string, data?: unknown) => void;
-  on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
-  removeListener: (channel: string, callback: (...args: unknown[]) => void) => void;
   sendLS: (data: Record<string, unknown>) => void;
   fetchUrl: (url: string) => Promise<{ content: string; error?: string }>;
 }

@@ -3,8 +3,9 @@ NLP routes — tokenization and translation.
 
 Delegates to the dynamically loaded language module from config.
 """
+
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 
 import config
@@ -14,7 +15,7 @@ router = APIRouter()
 
 
 class TokenizeRequest(BaseModel):
-    text: str
+    text: str = Field(..., max_length=50000)
 
 
 class TokenizeResponse(BaseModel):
@@ -22,7 +23,7 @@ class TokenizeResponse(BaseModel):
 
 
 class TranslationRequest(BaseModel):
-    word: str
+    word: str = Field(..., max_length=1000)
 
 
 class TranslationResponse(BaseModel):
@@ -31,12 +32,12 @@ class TranslationResponse(BaseModel):
 
 @router.post("/tokenize", response_model=TokenizeResponse)
 def tokenize(req: TokenizeRequest):
-    _log("requested tokenization: ", req.text)
+    _log("requested tokenization: ", req.text[:100])
     tokens = config.language_module.LANGUAGE_TOKENIZE(req.text)
     return {"tokens": tokens}
 
 
 @router.post("/translate", response_model=TranslationResponse)
 def get_translation(req: TranslationRequest):
-    _log("requested translation: ", req.word)
+    _log("requested translation: ", req.word[:100])
     return config.language_module.LANGUAGE_TRANSLATE(req.word)

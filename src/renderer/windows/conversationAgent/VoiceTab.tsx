@@ -5,7 +5,7 @@
  */
 
 import { Component, Show, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
-import { useSettings, useLocalization } from '../../context';
+import { useSettings, useLocalization, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import {
   Btn,
@@ -88,6 +88,7 @@ export interface VoiceTabProps {
 export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
+  const { requestAccess } = useLowPowerGate();
 
   // State
   const [isCallActive, setIsCallActive] = createSignal(false);
@@ -309,7 +310,16 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       // Generate TTS for the final assistant response with optional voice cloning
       const sampleId = selectedSampleId() || undefined;
       const provider = settings.ttsProvider || 'kokoro';
-      getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider);
+      if (provider !== 'cloud') {
+        (async () => {
+          const allowed = await requestAccess('tts');
+          if (allowed) {
+            getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider);
+          }
+        })();
+      } else {
+        getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider);
+      }
     }
   });
 

@@ -1,0 +1,21 @@
+/**
+ * Low Power Gate Modal Styles
+ */
+
+.low-power-gate-message {
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.low-power-gate-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.low-power-gate-actions-row {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}

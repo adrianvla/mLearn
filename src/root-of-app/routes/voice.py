@@ -8,6 +8,7 @@ Provides:
   GET  /voice/tts/status    — TTS model status
   WS   /voice/stream        — real-time VAD + STT WebSocket
 """
+
 import asyncio
 import gc
 import importlib
@@ -51,7 +52,7 @@ _voice_tts_progress = 0.0
 _qwen3_model_loading = False  # True while model download/load is in progress
 
 # TTS provider config — reloaded from settings.json per-request
-_tts_provider: str = "kokoro"   # 'kokoro' | 'qwen3' | 'cloud'
+_tts_provider: str = "kokoro"  # 'kokoro' | 'qwen3' | 'cloud'
 
 # Kokoro language code mapping (mLearn lang → Kokoro lang_code)
 _KOKORO_LANG_MAP = {
@@ -89,7 +90,7 @@ def _reload_tts_settings():
     if not os.path.exists(settings_path):
         return
     try:
-        with open(settings_path, 'r', encoding='utf-8') as f:
+        with open(settings_path, "r", encoding="utf-8") as f:
             settings = json.load(f)
             _tts_provider = settings.get("ttsProvider", "kokoro")
     except Exception:
@@ -100,7 +101,21 @@ def _reload_tts_settings():
 _reload_tts_settings()
 
 
+def _validate_voice_sample_path(path_str: str | None) -> str | None:
+    """Validate voiceSamplePath is within USER_DATA_PATH."""
+    if not path_str:
+        return None
+    resolved = os.path.realpath(path_str)
+    allowed_base = os.path.realpath(config.USER_DATA_PATH)
+    if not resolved.startswith(allowed_base + os.sep) and resolved != allowed_base:
+        raise HTTPException(status_code=400, detail="Invalid voice sample path")
+    if not os.path.exists(resolved):
+        return None
+    return resolved
+
+
 # ── Idle management ──
+
 
 def _voice_touch():
     global _voice_last_used, _voice_idle_timer
@@ -154,9 +169,9 @@ def _voice_unload():
         torch = config.torch
         if torch is not None:
             try:
-                if hasattr(torch, 'cuda') and torch.cuda.is_available():
+                if hasattr(torch, "cuda") and torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                if hasattr(torch, 'mps') and hasattr(torch.mps, 'empty_cache'):
+                if hasattr(torch, "mps") and hasattr(torch.mps, "empty_cache"):
                     torch.mps.empty_cache()
             except Exception:
                 pass
@@ -164,6 +179,7 @@ def _voice_unload():
 
 
 # ── Device helpers ──
+
 
 def _get_stt_device():
     """CUDA or CPU only (faster-whisper / CTranslate2 has no MPS support)."""
@@ -187,6 +203,7 @@ def _get_tts_device():
 
 # ── Model loading ──
 
+
 def _ensure_vad_loaded():
     global _voice_vad_model
     if _voice_vad_model is not None:
@@ -199,12 +216,12 @@ def _ensure_vad_loaded():
             torch = config.torch
             _torch = importlib.import_module("torch") if torch is None else torch
             model, utils = _torch.hub.load(
-                repo_or_dir='snakers4/silero-vad',
-                model='silero_vad',
+                repo_or_dir="snakers4/silero-vad",
+                model="silero_vad",
                 force_reload=False,
                 onnx=False,
             )
-            _voice_vad_model = {'model': model, 'utils': utils}
+            _voice_vad_model = {"model": model, "utils": utils}
             _log("Silero VAD loaded")
             _voice_touch()
             return _voice_vad_model
@@ -223,10 +240,13 @@ def _ensure_stt_loaded():
         try:
             _log("Loading faster-whisper STT model (small)...")
             from faster_whisper import WhisperModel
+
             device = _get_stt_device()
             compute_type = "float16" if device == "cuda" else "int8"
             _voice_stt_model = WhisperModel(
-                "small", device=device, compute_type=compute_type,
+                "small",
+                device=device,
+                compute_type=compute_type,
             )
             _log(f"faster-whisper loaded on {device}")
             _voice_touch()
@@ -247,9 +267,11 @@ def _ensure_tts_loaded():
         try:
             _log("Loading Kokoro-82M TTS pipeline...")
             from kokoro import KPipeline
+
             lang_code = _KOKORO_LANG_MAP.get(config.LANGUAGE, "a")
             _voice_tts_pipeline = KPipeline(
-                lang_code=lang_code, repo_id="hexgrad/Kokoro-82M",
+                lang_code=lang_code,
+                repo_id="hexgrad/Kokoro-82M",
             )
             _log(f"Kokoro TTS pipeline loaded (lang={lang_code})")
             _voice_touch()
@@ -261,11 +283,13 @@ def _ensure_tts_loaded():
 
 def _split_into_sentences(text: str) -> list:
     import re as _re
-    sentences = _re.split(r'(?<=[.!?。！？])\s*', text)
+
+    sentences = _re.split(r"(?<=[.!?。！？])\s*", text)
     return [s.strip() for s in sentences if s.strip()]
 
 
 # ── Pydantic models ──
+
 
 class TTSRequest(BaseModel):
     text: str
@@ -277,12 +301,14 @@ class TTSRequest(BaseModel):
 
 # ── STT / TTS status endpoints ──
 
+
 @router.get("/voice/stt/status")
 async def voice_stt_status():
     downloaded = False
     loaded = _voice_stt_model is not None
     try:
         from faster_whisper import WhisperModel  # noqa: F401
+
         downloaded = True
     except ImportError:
         pass
@@ -315,6 +341,7 @@ async def voice_tts_status():
         try:
             _install_sox_shim()
             from qwen_tts import Qwen3TTSModel  # noqa: F401
+
             package_installed = True
         except ImportError:
             pass
@@ -330,6 +357,7 @@ async def voice_tts_status():
     # Kokoro
     try:
         from kokoro import KPipeline  # noqa: F401
+
         package_installed = True
     except ImportError:
         pass
@@ -343,6 +371,7 @@ async def voice_tts_status():
 
 
 # ── Download trigger ──
+
 
 @router.post("/voice/models/download")
 async def voice_download_models():
@@ -384,6 +413,7 @@ async def voice_download_models():
 
 # ── Main TTS endpoint ──
 
+
 @router.post("/voice/tts")
 async def voice_tts_generate(req: TTSRequest):
     """Generate TTS audio. Returns binary WAV with sentence boundary metadata."""
@@ -407,58 +437,68 @@ async def voice_tts_generate(req: TTSRequest):
 
 async def _generate_tts_kokoro(req: TTSRequest):
     """Generate TTS audio using the local Kokoro pipeline."""
-    pipeline = _ensure_tts_loaded()
-    _voice_touch()
 
-    sentences = _split_into_sentences(req.text)
-    if not sentences:
-        sentences = [req.text]
+    def _run_sync():
+        pipeline = _ensure_tts_loaded()
+        _voice_touch()
 
-    lang_code = _KOKORO_LANG_MAP.get(req.language, "a")
-    voice = _KOKORO_VOICE_MAP.get(lang_code, "af_heart")
+        sentences = _split_into_sentences(req.text)
+        if not sentences:
+            sentences = [req.text]
 
-    # Recreate pipeline if language changed
-    if pipeline.lang_code != lang_code:
-        from kokoro import KPipeline
-        pipeline = KPipeline(
-            lang_code=lang_code, repo_id="hexgrad/Kokoro-82M"
-        )
+        lang_code = _KOKORO_LANG_MAP.get(req.language, "a")
+        voice = _KOKORO_VOICE_MAP.get(lang_code, "af_heart")
 
-    all_audio = []
-    sentence_boundaries = []
-    sample_offset = 0
-    sr = 24000
+        # Recreate pipeline if language changed
+        active_pipeline = pipeline
+        if active_pipeline.lang_code != lang_code:
+            from kokoro import KPipeline
 
-    for i, sentence in enumerate(sentences):
-        chunks = []
-        for _gs, _ps, audio in pipeline(
-            sentence, voice=voice, speed=req.speed
-        ):
-            chunks.append(audio)
+            active_pipeline = KPipeline(
+                lang_code=lang_code, repo_id="hexgrad/Kokoro-82M"
+            )
 
-        if chunks:
-            sentence_audio = np.concatenate(chunks)
-            num_samples = len(sentence_audio)
-            sentence_boundaries.append({
-                "index": i,
-                "text": sentence,
-                "sampleOffset": sample_offset,
-                "sampleCount": num_samples,
-            })
-            sample_offset += num_samples
-            all_audio.append(sentence_audio)
+        all_audio = []
+        sentence_boundaries = []
+        sample_offset = 0
+        sr = 24000
 
-    if not all_audio:
-        raise HTTPException(status_code=500, detail="No audio generated")
+        for i, sentence in enumerate(sentences):
+            chunks = []
+            for _gs, _ps, audio in active_pipeline(
+                sentence, voice=voice, speed=req.speed
+            ):
+                chunks.append(audio)
 
-    combined = np.concatenate(all_audio)
-    import soundfile as sf
-    buf = io.BytesIO()
-    sf.write(buf, combined, sr, format="WAV", subtype="PCM_16")
-    buf.seek(0)
+            if chunks:
+                sentence_audio = np.concatenate(chunks)
+                num_samples = len(sentence_audio)
+                sentence_boundaries.append(
+                    {
+                        "index": i,
+                        "text": sentence,
+                        "sampleOffset": sample_offset,
+                        "sampleCount": num_samples,
+                    }
+                )
+                sample_offset += num_samples
+                all_audio.append(sentence_audio)
+
+        if not all_audio:
+            raise HTTPException(status_code=500, detail="No audio generated")
+
+        combined = np.concatenate(all_audio)
+        import soundfile as sf
+
+        buf = io.BytesIO()
+        sf.write(buf, combined, sr, format="WAV", subtype="PCM_16")
+        buf.seek(0)
+        return buf.read(), sentence_boundaries, sr
+
+    content, sentence_boundaries, sr = await asyncio.to_thread(_run_sync)
 
     return Response(
-        content=buf.read(),
+        content=content,
         media_type="audio/wav",
         headers={
             "X-Sentence-Boundaries": json.dumps(sentence_boundaries),
@@ -477,9 +517,16 @@ _QWEN3_TTS_MODEL_ID = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
 
 # Qwen3-TTS supported languages (full names required by the model)
 _QWEN3_LANG_MAP = {
-    "zh": "chinese", "en": "english", "ja": "japanese", "ko": "korean",
-    "de": "german", "fr": "french", "ru": "russian", "pt": "portuguese",
-    "es": "spanish", "it": "italian",
+    "zh": "chinese",
+    "en": "english",
+    "ja": "japanese",
+    "ko": "korean",
+    "de": "german",
+    "fr": "french",
+    "ru": "russian",
+    "pt": "portuguese",
+    "es": "spanish",
+    "it": "italian",
 }
 
 
@@ -548,12 +595,15 @@ def _ensure_qwen3_tts_loaded():
             try:
                 from huggingface_hub import model_info
                 from huggingface_hub.constants import HF_HUB_CACHE
+
                 info = model_info(_QWEN3_TTS_MODEL_ID)
-                total_bytes = sum(
-                    s.size for s in (info.siblings or []) if s.size
-                )
+                total_bytes = sum(s.size for s in (info.siblings or []) if s.size)
                 import pathlib
-                repo_dir = pathlib.Path(HF_HUB_CACHE) / f"models--{_QWEN3_TTS_MODEL_ID.replace('/', '--')}"
+
+                repo_dir = (
+                    pathlib.Path(HF_HUB_CACHE)
+                    / f"models--{_QWEN3_TTS_MODEL_ID.replace('/', '--')}"
+                )
                 cache_blobs_dir = repo_dir / "blobs"
             except Exception:
                 pass
@@ -577,7 +627,9 @@ def _ensure_qwen3_tts_loaded():
                                 last_pct = pct_10
                                 mb_done = cur / (1024 * 1024)
                                 mb_total = total_bytes / (1024 * 1024)
-                                _log(f"Qwen3-TTS download: {mb_done:.0f}/{mb_total:.0f} MB ({pct:.0%})")
+                                _log(
+                                    f"Qwen3-TTS download: {mb_done:.0f}/{mb_total:.0f} MB ({pct:.0%})"
+                                )
                         except Exception:
                             pass
                     stop_monitor.wait(2)
@@ -585,10 +637,7 @@ def _ensure_qwen3_tts_loaded():
             monitor_thread = threading.Thread(target=_monitor, daemon=True)
 
             if total_bytes > 0 and cache_blobs_dir:
-                _log(
-                    f"Downloading Qwen3-TTS model "
-                    f"({total_bytes / (1024**3):.1f} GB)…"
-                )
+                _log(f"Downloading Qwen3-TTS model ({total_bytes / (1024**3):.1f} GB)…")
                 monitor_thread.start()
             else:
                 _log("Loading Qwen3-TTS model…")
@@ -596,7 +645,13 @@ def _ensure_qwen3_tts_loaded():
             import torch
             from qwen_tts import Qwen3TTSModel
 
-            device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+            device = (
+                "cuda"
+                if torch.cuda.is_available()
+                else "mps"
+                if torch.backends.mps.is_available()
+                else "cpu"
+            )
             _log(f"Loading Qwen3-TTS on device: {device}")
 
             # Qwen3TTSModel is a wrapper (not nn.Module), so .to() is not
@@ -649,7 +704,7 @@ def _get_qwen3_voice_prompt(model, voice_sample_path: str | None):
         return _qwen3_voice_prompt_cache[cache_key]
 
     try:
-        _log(f"Creating Qwen3 voice clone prompt from {voice_sample_path}")
+        _log(f"Creating Qwen3 voice clone prompt from {str(voice_sample_path)[:100]}")
 
         # Load reference audio transcript from sidecar .txt file
         # Electron saves the sidecar by replacing the audio extension with .txt
@@ -658,9 +713,9 @@ def _get_qwen3_voice_prompt(model, voice_sample_path: str | None):
         ref_text = None
         if os.path.exists(transcript_path):
             try:
-                with open(transcript_path, 'r', encoding='utf-8') as f:
+                with open(transcript_path, "r", encoding="utf-8") as f:
                     ref_text = f.read().strip()
-                _log(f"Using transcript from {transcript_path}")
+                _log(f"Using transcript from {str(transcript_path)[:100]}")
             except Exception:
                 pass
 
@@ -698,7 +753,8 @@ async def _generate_tts_qwen3(req: TTSRequest):
         lang = _QWEN3_LANG_MAP.get(req.language, "english")
 
         # Get voice clone prompt if a sample is provided
-        voice_prompt = _get_qwen3_voice_prompt(model, req.voiceSamplePath)
+        safe_voice_path = _validate_voice_sample_path(req.voiceSamplePath)
+        voice_prompt = _get_qwen3_voice_prompt(model, safe_voice_path)
 
         all_audio = []
         sentence_boundaries = []
@@ -725,31 +781,41 @@ async def _generate_tts_qwen3(req: TTSRequest):
                         # generate_voice_clone may return (audio, sr) tuple
                         if isinstance(audio, (tuple, list)):
                             audio = audio[0]
-                        if hasattr(audio, 'numpy'):
+                        if hasattr(audio, "numpy"):
                             audio = audio.numpy()
                         audio_np = np.asarray(audio, dtype=np.float32).flatten()
 
                         # Apply speed adjustment if not 1.0
                         if req.speed != 1.0 and req.speed > 0:
                             import librosa
+
                             audio_np = librosa.effects.time_stretch(
                                 audio_np, rate=req.speed
                             )
 
                         num_samples = len(audio_np)
-                        sentence_boundaries.append({
-                            "index": i,
-                            "text": sentence,
-                            "sampleOffset": sample_offset,
-                            "sampleCount": num_samples,
-                        })
+                        sentence_boundaries.append(
+                            {
+                                "index": i,
+                                "text": sentence,
+                                "sampleOffset": sample_offset,
+                                "sampleCount": num_samples,
+                            }
+                        )
                         sample_offset += num_samples
                         all_audio.append(audio_np)
                     break  # Success or None result, stop retrying
                 except Exception as e:
-                    is_retryable = "probability tensor" in str(e) or "inf" in str(e) or "nan" in str(e)
+                    is_retryable = (
+                        "probability tensor" in str(e)
+                        or "inf" in str(e)
+                        or "nan" in str(e)
+                    )
                     if is_retryable and attempt < max_retries - 1:
-                        _log(f"Qwen3-TTS retryable error on sentence {i} (attempt {attempt + 1}/{max_retries}):", e)
+                        _log(
+                            f"Qwen3-TTS retryable error on sentence {i} (attempt {attempt + 1}/{max_retries}):",
+                            e,
+                        )
                         continue
                     _log(f"Qwen3-TTS error on sentence {i}:", e)
                     break
@@ -759,6 +825,7 @@ async def _generate_tts_qwen3(req: TTSRequest):
 
         combined = np.concatenate(all_audio)
         import soundfile as sf
+
         buf = io.BytesIO()
         sf.write(buf, combined, sr, format="WAV", subtype="PCM_16")
         buf.seek(0)
@@ -778,6 +845,7 @@ async def _generate_tts_qwen3(req: TTSRequest):
 
 # ── Voice sample transcription ──
 
+
 class TranscribeRequest(BaseModel):
     voiceSamplePath: str
 
@@ -785,17 +853,19 @@ class TranscribeRequest(BaseModel):
 @router.post("/voice/transcribe")
 async def voice_transcribe(req: TranscribeRequest):
     """Transcribe an audio file using STT. Used to generate transcripts for voice samples."""
-    audio_path = req.voiceSamplePath
-    if not audio_path or not os.path.exists(audio_path):
+    audio_path = _validate_voice_sample_path(req.voiceSamplePath)
+    if not audio_path:
         raise HTTPException(status_code=400, detail="Audio file not found")
 
     stt_model = _ensure_stt_loaded()
     _voice_touch()
     try:
-        segments, info = stt_model.transcribe(
-            audio_path,
-            beam_size=5,
-            vad_filter=True,
+        segments, info = await asyncio.to_thread(
+            lambda: stt_model.transcribe(
+                audio_path,
+                beam_size=5,
+                vad_filter=True,
+            )
         )
         text = " ".join(seg.text for seg in segments).strip()
         return {"text": text, "language": info.language}
@@ -805,6 +875,7 @@ async def voice_transcribe(req: TranscribeRequest):
 
 
 # ── WebSocket streaming ──
+
 
 @router.websocket("/voice/stream")
 async def voice_stream_ws(websocket: WebSocket):
@@ -817,6 +888,12 @@ async def voice_stream_ws(websocket: WebSocket):
       { "type": "error", "message": "..." }
       { "type": "ready" }
     """
+    token = websocket.query_params.get("token")
+    quit_token = getattr(config, "QUIT_TOKEN", None)
+    if quit_token and token != quit_token:
+        await websocket.close(code=4003, reason="Unauthorized")
+        return
+
     await websocket.accept()
 
     language = websocket.query_params.get("language", config.LANGUAGE or "en")
@@ -832,14 +909,12 @@ async def voice_stream_ws(websocket: WebSocket):
         if _tts_provider == "kokoro":
             futures.append(loop.run_in_executor(None, _ensure_tts_loaded))
         elif _tts_provider == "qwen3":
-            futures.append(
-                loop.run_in_executor(None, _ensure_qwen3_tts_loaded)
-            )
+            futures.append(loop.run_in_executor(None, _ensure_qwen3_tts_loaded))
 
         results = await asyncio.gather(*futures)
         vad_data = results[0]
         stt_model = results[1]
-        vad_model = vad_data['model']
+        vad_model = vad_data["model"]
 
         await websocket.send_json({"type": "ready"})
 
@@ -886,36 +961,34 @@ async def voice_stream_ws(websocket: WebSocket):
                 speech_np = np.frombuffer(buffer_bytes, dtype=np.float32)
                 audio_duration = len(speech_np) / SAMPLE_RATE
                 _voice_touch()
-                segments, info = stt_model.transcribe(
-                    speech_np,
-                    language=language,
-                    beam_size=5,
-                    vad_filter=False,
-                    condition_on_previous_text=False,
-                    no_speech_threshold=0.6,
-                    log_prob_threshold=-1.0,
+                segments, info = await asyncio.to_thread(
+                    lambda: stt_model.transcribe(
+                        speech_np,
+                        language=language,
+                        beam_size=5,
+                        vad_filter=False,
+                        condition_on_previous_text=False,
+                        no_speech_threshold=0.6,
+                        log_prob_threshold=-1.0,
+                    )
                 )
                 final_text = " ".join(seg.text for seg in segments).strip()
-                if final_text and not _is_hallucination(
-                    final_text, audio_duration
-                ):
-                    await websocket.send_json({
-                        "type": "stt",
-                        "text": final_text,
-                        "isFinal": True,
-                        "isPartial": False,
-                    })
+                if final_text and not _is_hallucination(final_text, audio_duration):
+                    await websocket.send_json(
+                        {
+                            "type": "stt",
+                            "text": final_text,
+                            "isFinal": True,
+                            "isPartial": False,
+                        }
+                    )
             except Exception as e:
                 _log("Final STT error:", e)
-                await websocket.send_json(
-                    {"type": "error", "message": str(e)}
-                )
+                await websocket.send_json({"type": "error", "message": str(e)})
 
         while True:
             try:
-                raw_data = await asyncio.wait_for(
-                    websocket.receive(), timeout=30.0
-                )
+                raw_data = await asyncio.wait_for(websocket.receive(), timeout=30.0)
             except asyncio.TimeoutError:
                 try:
                     await websocket.send_json({"type": "ping"})
@@ -942,9 +1015,7 @@ async def voice_stream_ws(websocket: WebSocket):
                         continue
 
                     if cmd_type == "silence_threshold":
-                        new_threshold = float(
-                            cmd.get("value", silence_threshold)
-                        )
+                        new_threshold = float(cmd.get("value", silence_threshold))
                         silence_threshold = max(0.3, min(10.0, new_threshold))
                         continue
 
@@ -970,10 +1041,7 @@ async def voice_stream_ws(websocket: WebSocket):
 
                 samples = np.frombuffer(chunk_data, dtype=np.float32)
                 torch = config.torch
-                _torch = (
-                    importlib.import_module("torch")
-                    if torch is None else torch
-                )
+                _torch = importlib.import_module("torch") if torch is None else torch
                 tensor = _torch.from_numpy(samples.copy())
 
                 speech_prob = vad_model(tensor, SAMPLE_RATE).item()
@@ -1000,20 +1068,24 @@ async def voice_stream_ws(websocket: WebSocket):
                         continue
 
                     now = time.monotonic()
-                    if (now - last_partial_time > PARTIAL_INTERVAL
-                            and len(speech_buffer) > SAMPLE_RATE * bytes_per_sample):
+                    if (
+                        now - last_partial_time > PARTIAL_INTERVAL
+                        and len(speech_buffer) > SAMPLE_RATE * bytes_per_sample
+                    ):
                         last_partial_time = now
                         try:
                             speech_np = np.frombuffer(
                                 bytes(speech_buffer), dtype=np.float32
                             )
-                            segments, _ = stt_model.transcribe(
-                                speech_np,
-                                language=language,
-                                beam_size=1,
-                                vad_filter=False,
-                                condition_on_previous_text=False,
-                                no_speech_threshold=0.6,
+                            segments, _ = await asyncio.to_thread(
+                                lambda: stt_model.transcribe(
+                                    speech_np,
+                                    language=language,
+                                    beam_size=1,
+                                    vad_filter=False,
+                                    condition_on_previous_text=False,
+                                    no_speech_threshold=0.6,
+                                )
                             )
                             partial_text = " ".join(
                                 seg.text for seg in segments
@@ -1021,12 +1093,14 @@ async def voice_stream_ws(websocket: WebSocket):
                             if partial_text and not _is_hallucination(
                                 partial_text, len(speech_np) / SAMPLE_RATE
                             ):
-                                await websocket.send_json({
-                                    "type": "stt",
-                                    "text": partial_text,
-                                    "isFinal": False,
-                                    "isPartial": True,
-                                })
+                                await websocket.send_json(
+                                    {
+                                        "type": "stt",
+                                        "text": partial_text,
+                                        "isFinal": False,
+                                        "isPartial": True,
+                                    }
+                                )
                         except Exception as e:
                             _log("Partial STT error:", e)
                 else:
@@ -1034,8 +1108,7 @@ async def voice_stream_ws(websocket: WebSocket):
                         speech_buffer.extend(chunk_data)
                         if silence_start is None:
                             silence_start = time.monotonic()
-                        elif (time.monotonic() - silence_start
-                              > silence_threshold):
+                        elif time.monotonic() - silence_start > silence_threshold:
                             is_speaking = False
                             silence_start = None
                             await websocket.send_json(

@@ -11,18 +11,21 @@ import { Settings, DEFAULT_SETTINGS, LanguageDataMap } from '../../shared/types'
 import { getUserDataPath, getAppPath, getResourcePath } from '../utils/platform';
 import { setUILanguage } from './localization';
 
-// Settings file path
 function getSettingsPath(): string {
   return path.join(getUserDataPath(), 'settings.json');
 }
 
-// Load settings from disk
 export function loadSettings(): Settings {
   try {
     const settingsPath = getSettingsPath();
     if (fs.existsSync(settingsPath)) {
       const data = fs.readFileSync(settingsPath, 'utf-8');
-      const loaded = JSON.parse(data) as Partial<Settings>;
+      const parsed: unknown = JSON.parse(data);
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        console.warn('[settings] Loaded data is not a plain object — using defaults');
+        return { ...DEFAULT_SETTINGS };
+      }
+      const loaded = parsed as Partial<Settings>;
       const migrated: Partial<Settings> = { ...loaded };
       if (!migrated.cloudAuthAccessToken && migrated.cloudAuthToken) {
         migrated.cloudAuthAccessToken = migrated.cloudAuthToken;
@@ -30,12 +33,10 @@ export function loadSettings(): Settings {
       if (migrated.cloudAuthAccessToken && !migrated.cloudAuthStatus) {
         migrated.cloudAuthStatus = 'signed-in';
       }
-      // Migrate single backendUrl → split cloudLoginUrl/cloudApiUrl for cloud override
       if (migrated.overrideCloudEndpointUrl && migrated.backendUrl && !migrated.cloudApiUrl) {
         migrated.cloudApiUrl = migrated.backendUrl;
         migrated.cloudLoginUrl = migrated.backendUrl;
       }
-      // Merge with defaults to ensure all keys exist
       return { ...DEFAULT_SETTINGS, ...migrated };
     }
   } catch (error) {
@@ -44,21 +45,23 @@ export function loadSettings(): Settings {
   return { ...DEFAULT_SETTINGS };
 }
 
-// Save settings to disk
-export function saveSettings(settings: Settings): void {
+export async function saveSettings(settings: Settings): Promise<void> {
   try {
     const settingsPath = getSettingsPath();
+    const tmpPath = `${settingsPath}.tmp`;
     const dir = path.dirname(settingsPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    try {
+      await fs.promises.access(dir);
+    } catch {
+      await fs.promises.mkdir(dir, { recursive: true });
     }
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+    await fs.promises.writeFile(tmpPath, JSON.stringify(settings, null, 2));
+    await fs.promises.rename(tmpPath, settingsPath);
   } catch (error) {
     console.error('Failed to save settings:', error);
   }
 }
 
-// Load language data from bundled files
 export function loadLangData(): LanguageDataMap {
   const langData: LanguageDataMap = {};
   const appPath = getAppPath();
@@ -72,7 +75,6 @@ export function loadLangData(): LanguageDataMap {
   const languagesDir = candidateDirs.find((dir) => fs.existsSync(dir));
 
   try {
-    // Check if languages directory exists
     if (!languagesDir) {
       console.warn('Languages directory not found:', candidateDirs.join(', '));
       return getDefaultLangData();
@@ -96,7 +98,6 @@ export function loadLangData(): LanguageDataMap {
     console.error('Failed to load language data:', error);
   }
 
-  // Return default if nothing loaded
   if (Object.keys(langData).length === 0) {
     return getDefaultLangData();
   }
@@ -104,7 +105,6 @@ export function loadLangData(): LanguageDataMap {
   return langData;
 }
 
-// Default language data for Japanese
 function getDefaultLangData(): LanguageDataMap {
   return {
     ja: {
@@ -162,19 +162,17 @@ function getDefaultLangData(): LanguageDataMap {
   };
 }
 
-// Setup IPC handlers for settings
 export function setupSettingsIPC(): void {
   ipcMain.on(IPC_CHANNELS.GET_SETTINGS, (event) => {
     const settings = loadSettings();
     event.reply(IPC_CHANNELS.SETTINGS, settings);
   });
 
-  ipcMain.on(IPC_CHANNELS.SAVE_SETTINGS, (event, settings: Settings) => {
+  ipcMain.on(IPC_CHANNELS.SAVE_SETTINGS, async (event, settings: Settings) => {
     const prevSettings = loadSettings();
-    saveSettings(settings);
+    await saveSettings(settings);
     event.reply(IPC_CHANNELS.SETTINGS_SAVED);
 
-    // If uiLanguage changed, update localization for all windows
     if (settings.uiLanguage && settings.uiLanguage !== prevSettings.uiLanguage) {
       setUILanguage(settings.uiLanguage);
     }

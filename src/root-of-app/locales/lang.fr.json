@@ -561,6 +561,7 @@
         "TtsAllDone": "Toutes les cartes ont déjà un audio TTS",
         "TtsButton": "Générer TTS",
         "TtsDone": "TTS généré pour {count} éléments",
+        "TtsDoneWithErrors": "TTS généré pour {count} éléments, {failed} échoué(s)",
         "TtsProgress": "Génération TTS en cours…",
         "TtsTooltip": "Générer l'audio TTS pour tous les mots et exemples des cartes"
       },
@@ -768,6 +769,15 @@
         "ShortYear": "{value}a"
       },
       "TryAgain": "Réessayer"
+    },
+    "LowPowerGate": {
+      "Allow": "Autoriser",
+      "AllowSession": "Autoriser pour la session",
+      "Deny": "Refuser",
+      "DenySession": "Refuser pour la session",
+      "Message": "Une opération souhaite utiliser un réseau neuronal local ({{backendType}}). Autoriser en mode économie d'énergie ?",
+      "StatusBarTooltip": "Mode économie d'énergie actif",
+      "Title": "Traitement local requis"
     },
     "Home": {
       "Cards": {
@@ -1144,7 +1154,7 @@
         "SubtitleAppearance": "Apparence des sous-titres",
         "SubtitleTiming": "Timing des sous-titres",
         "ThemePreview": "Aperçu du thème",
-        "VideoPlayerBehaviour": "Comportement du lecteur vid\u00e9o",
+        "VideoPlayerBehaviour": "Comportement du lecteur vidéo",
         "WordStatus": "Statut des mots",
         "LiveTranslator": "Traducteur de mots en direct"
       },
@@ -1193,6 +1203,10 @@
         "HoverKnownGetFromDictionary": {
           "Description": "Récupérer les données du dictionnaire même pour les mots connus",
           "Label": "Chercher les mots connus"
+        },
+        "LowBatteryMode": {
+          "Description": "Demander confirmation avant d'exécuter les réseaux neuronaux locaux (LLM, TTS, OCR)",
+          "Label": "Mode économie d'énergie"
         }
       },
       "Reader": {
@@ -1504,16 +1518,16 @@
         }
       },
       "VideoPlayer": {
-        "Title": "Lecteur vid\u00e9o",
-        "Description": "Configurer le lecteur vid\u00e9o et le comportement des sous-titres",
+        "Title": "Lecteur vidéo",
+        "Description": "Configurer le lecteur vidéo et le comportement des sous-titres",
         "LiveTranslator": {
           "Show": {
             "Label": "Afficher le traducteur en direct",
-            "Description": "Afficher le panneau de traduction en direct \u00e0 c\u00f4t\u00e9 de la vid\u00e9o"
+            "Description": "Afficher le panneau de traduction en direct à côté de la vidéo"
           },
           "IncludeKnown": {
             "Label": "Inclure les mots connus",
-            "Description": "Ajouter \u00e9galement les mots connus au traducteur en direct"
+            "Description": "Ajouter également les mots connus au traducteur en direct"
           }
         },
         "KnownWords": {
@@ -1524,8 +1538,8 @@
         },
         "Playback": {
           "VideoFit": {
-            "Label": "Ajustement vid\u00e9o",
-            "Description": "Comment la vid\u00e9o est mise \u00e0 l'\u00e9chelle dans la zone du lecteur",
+            "Label": "Ajustement vidéo",
+            "Description": "Comment la vidéo est mise à l'échelle dans la zone du lecteur",
             "Contain": "Contenir",
             "Cover": "Couvrir",
             "Fill": "Remplir"
@@ -1540,7 +1554,7 @@
           },
           "SubtitlePosition": {
             "Label": "Position des sous-titres",
-            "Description": "Position des sous-titres \u00e0 l'\u00e9cran",
+            "Description": "Position des sous-titres à l'écran",
             "Top": "Haut",
             "Bottom": "Bas"
           }
@@ -1548,12 +1562,25 @@
         "SubtitleProcessing": {
           "Title": "Traitement des sous-titres",
           "RemoveParentheses": {
-            "Label": "Supprimer le contenu entre parenth\u00e8ses",
-            "Description": "Retirer le texte entre parenth\u00e8ses des sous-titres"
+            "Label": "Supprimer le contenu entre parenthèses",
+            "Description": "Retirer le texte entre parenthèses des sous-titres"
           },
           "RemoveSpeakerNames": {
             "Label": "Supprimer les noms des locuteurs",
-            "Description": "Retirer les pr\u00e9fixes de noms de locuteurs des sous-titres"
+            "Description": "Retirer les préfixes de noms de locuteurs des sous-titres"
+          }
+        },
+        "FlashcardMedia": {
+          "Title": "Médias des cartes",
+          "MediaType": {
+            "Label": "Type de média",
+            "Description": "Joindre une capture d'écran ou un clip vidéo du segment de sous-titre aux nouvelles cartes",
+            "Image": "Image",
+            "Video": "Vidéo"
+          },
+          "VideoMargin": {
+            "Label": "Marge du clip vidéo",
+            "Description": "Temps supplémentaire avant et après le sous-titre à inclure dans le clip vidéo"
           }
         }
       },
@@ -1562,15 +1589,15 @@
       },
       "Tabs": {
         "AI": "IA",
-        "About": "\u00c0 propos",
+        "About": "À propos",
         "Appearance": "Apparence",
         "Behaviour": "Comportement",
         "Connection": "Connexion",
-        "General": "G\u00e9n\u00e9ral",
+        "General": "Général",
         "Reader": "Lecteur",
         "SRS": "SRS",
         "Statistics": "Statistiques",
-        "VideoPlayer": "Lecteur vid\u00e9o"
+        "VideoPlayer": "Lecteur vidéo"
       }
     },
     "Statistics": {
@@ -1689,6 +1716,7 @@
           "SubtitleOrder": "Ordre des sous-titres"
         }
       },
+      "VideoClipFailed": "Le clip vidéo a échoué, utilisation de la capture d'écran",
       "WatchTogether": "Regarder ensemble"
     },
     "WordDbEditor": {
@@ -1779,12 +1807,12 @@
     },
     "Sidebar": {
       "AddAll": "Tout ajouter",
-      "AddingAll": "Ajout en cours...",
+      "AddingAll": "Ajout en cours…",
       "DictionaryOnly": "Dictionnaire uniquement",
       "Ignore": "Ignorer",
       "SortBy": {
         "Level": "Niveau",
-        "Word": "Alphabétique"
+        "Word": "Mot"
       },
       "UnknownWords": "Mots inconnus",
       "WordCount": "{count} mots"

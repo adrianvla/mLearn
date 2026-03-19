@@ -19,10 +19,12 @@ Endpoints:
     GET  /voice/tts/status - Check model status
     GET  /health           - Health check
 """
+
 import argparse
 import io
 import json
 import logging
+import os
 import time
 import importlib.util
 
@@ -33,11 +35,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 log = logging.getLogger("moss-tts-server")
 
 app = FastAPI(title="MOSS-TTS Remote Server")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+)
 
 # ---------------------------------------------------------------------------
 # Global state
@@ -51,7 +57,11 @@ CODEC_SAMPLE_RATE = 24000
 
 
 def _resolve_attn_implementation(device: str, dtype: torch.dtype) -> str:
-    if device == "cuda" and importlib.util.find_spec("flash_attn") is not None and dtype in {torch.float16, torch.bfloat16}:
+    if (
+        device == "cuda"
+        and importlib.util.find_spec("flash_attn") is not None
+        and dtype in {torch.float16, torch.bfloat16}
+    ):
         major, _ = torch.cuda.get_device_capability()
         if major >= 8:
             return "flash_attention_2"
@@ -76,7 +86,9 @@ def load_model():
         dtype = torch.bfloat16 if device == "cuda" else torch.float32
         attn = _resolve_attn_implementation(device, dtype)
 
-        log.info(f"Loading MOSS-TTS-Realtime on {device} (dtype={dtype}, attn={attn})...")
+        log.info(
+            f"Loading MOSS-TTS-Realtime on {device} (dtype={dtype}, attn={attn})..."
+        )
 
         _model = MossTTSRealtime.from_pretrained(
             "OpenMOSS-Team/MOSS-TTS-Realtime",
@@ -86,13 +98,18 @@ def load_model():
 
         _tokenizer = AutoTokenizer.from_pretrained("OpenMOSS-Team/MOSS-TTS-Realtime")
 
-        _codec = AutoModel.from_pretrained(
-            "OpenMOSS-Team/MOSS-Audio-Tokenizer",
-            trust_remote_code=True,
-        ).eval().to(device)
+        _codec = (
+            AutoModel.from_pretrained(
+                "OpenMOSS-Team/MOSS-Audio-Tokenizer",
+                trust_remote_code=True,
+            )
+            .eval()
+            .to(device)
+        )
 
         _inferencer = MossTTSRealtimeInference(
-            _model, _tokenizer,
+            _model,
+            _tokenizer,
             max_length=5000,
             codec=_codec,
             codec_sample_rate=CODEC_SAMPLE_RATE,
@@ -110,6 +127,19 @@ def load_model():
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+def _validate_voice_sample_path(path_str: Optional[str]) -> Optional[str]:
+    """Reject paths containing traversal sequences; return resolved path or None."""
+    if not path_str:
+        return None
+    resolved = os.path.realpath(path_str)
+    if ".." in path_str.split(os.sep):
+        raise HTTPException(status_code=400, detail="Invalid voice sample path")
+    if not os.path.exists(resolved):
+        return None
+    return resolved
+
 
 class TTSRequest(BaseModel):
     text: str
@@ -137,7 +167,8 @@ async def tts_status():
 
 def _split_into_sentences(text: str) -> list:
     import re
-    sentences = re.split(r'(?<=[.!?。！？])\s*', text)
+
+    sentences = re.split(r"(?<=[.!?。！？])\s*", text)
     return [s.strip() for s in sentences if s.strip()]
 
 
@@ -157,7 +188,7 @@ async def tts_generate(req: TTSRequest):
     sample_offset = 0
 
     for i, sentence in enumerate(sentences):
-        ref_path = req.voiceSamplePath if req.voiceSamplePath else ""
+        ref_path = _validate_voice_sample_path(req.voiceSamplePath) or ""
 
         result = _inferencer.generate(
             text=[sentence],
@@ -179,12 +210,14 @@ async def tts_generate(req: TTSRequest):
                 wav = wav.unsqueeze(0)
 
             num_samples = wav.shape[-1]
-            sentence_boundaries.append({
-                "index": i,
-                "text": sentence,
-                "sampleOffset": sample_offset,
-                "sampleCount": num_samples,
-            })
+            sentence_boundaries.append(
+                {
+                    "index": i,
+                    "text": sentence,
+                    "sampleOffset": sample_offset,
+                    "sampleCount": num_samples,
+                }
+            )
             sample_offset += num_samples
             all_wavs.append(wav)
 
@@ -197,6 +230,7 @@ async def tts_generate(req: TTSRequest):
     buf.seek(0)
 
     from starlette.responses import Response
+
     return Response(
         content=buf.read(),
         media_type="audio/wav",
@@ -215,11 +249,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MOSS-TTS-Realtime remote server")
     parser.add_argument("--host", default="0.0.0.0", help="Bind address")
     parser.add_argument("--port", type=int, default=7760, help="Port")
-    parser.add_argument("--no-preload", action="store_true", help="Don't load model at startup")
+    parser.add_argument(
+        "--no-preload", action="store_true", help="Don't load model at startup"
+    )
     args = parser.parse_args()
 
     if not args.no_preload:
         load_model()
 
     import uvicorn
+
     uvicorn.run(app, host=args.host, port=args.port)

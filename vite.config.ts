@@ -52,6 +52,10 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       strictPort: true,
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
     },
     // Define global for browser compatibility (needed for simple-peer)
     define: {
@@ -62,6 +66,7 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: {
       // Include simple-peer and its dependencies for proper bundling
       include: ['simple-peer', 'buffer', 'process'],
+      exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', '@ffmpeg/core'],
       esbuildOptions: {
         // Node.js global to browser globalThis
         define: {

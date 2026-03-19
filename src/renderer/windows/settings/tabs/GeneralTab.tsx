@@ -2,13 +2,12 @@
  * General Settings Tab
  */
 
-import { Component, createSignal, Show } from 'solid-js';
+import { Component, createSignal } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon } from '../../../components/common';
 import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/types';
 import { type AppTheme } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
-import { isDesktop } from '../../../../shared/platform';
 import '../SettingsForm.css';
 
 export const GeneralTab: Component = () => {
@@ -209,6 +208,16 @@ export const GeneralTab: Component = () => {
             disabled={import.meta.env.DEV}
           />
         </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Performance.LowBatteryMode.Label')}
+          description={t('mlearn.Settings.Performance.LowBatteryMode.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.lowBatteryMode}
+            onChange={(checked) => updateSettings({ lowBatteryMode: checked })}
+          />
+        </SettingRow>
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.Settings')}>
@@ -242,8 +251,7 @@ export const GeneralTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <Show when={isDesktop()}>
-        <SettingGroup title={t('mlearn.Settings.Groups.Data')}>
+      <SettingGroup title={t('mlearn.Settings.Groups.Data')}>
           <SettingRow
             label={t('mlearn.Settings.Data.ExportAllData.Label')}
             description={t('mlearn.Settings.Data.ExportAllData.Description')}
@@ -264,7 +272,6 @@ export const GeneralTab: Component = () => {
             {dataImportError() && <span class="setting-error">{dataImportError()}</span>}
           </SettingRow>
         </SettingGroup>
-      </Show>
     </TabContent>
   );
 };

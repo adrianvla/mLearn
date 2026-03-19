@@ -110,7 +110,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
 
   // Update subtitles on time change
   createEffect(() => {
-    const time = video.state().currentTime;
+    const time = video.state.currentTime;
     subtitles.updateTime(time);
     props.onTimeUpdate?.(time);
   });
@@ -145,6 +145,9 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
             tokens={subtitles.tokens()}
             isLoading={subtitles.isTokenizing()}
             originalText={subtitles.currentSubtitle()?.text}
+            subtitleStart={subtitles.currentSubtitle()?.start}
+            subtitleEnd={subtitles.currentSubtitle()?.end}
+            videoSrc={props.src}
         />
 
         {/* Live word translator (inside player for fullscreen support) */}

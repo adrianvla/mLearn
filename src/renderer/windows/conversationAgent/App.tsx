@@ -4,7 +4,7 @@
  */
 
 import { Component, Show, Index, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
-import { WindowWrapper, useSettings, useLanguage, useLocalization } from '../../context';
+import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
@@ -39,6 +39,7 @@ import {
   formatKeybindDisplay, Tag,
   ChatIcon,
   TrashIcon,
+  BatteryLowIcon,
 } from '../../components/common';
 import type { TabItem, SelectOption } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
@@ -144,6 +145,7 @@ export const ConversationContent: Component = () => {
   const { currentLangData, isTranslatable, getLanguageFeatures, getFrequency, getFreqLevelNames, getLevelName } = useLanguage();
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
+  const { isActive: isLowPowerActive, requestAccess: requestLlmAccess } = useLowPowerGate();
 
   const [activeTab, setActiveTab] = createSignal<string>('chat');
   const [mediaContext, setMediaContext] = createSignal<ConversationAgentContext | null>(null);
@@ -927,9 +929,15 @@ export const ConversationContent: Component = () => {
     agent.continueWithContext(context, buildStreamCallbacks());
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = inputText().trim();
     if (!text || isStreaming()) return;
+
+    // Low power gate: prompt before local LLM call
+    if (settings.llmProvider !== 'cloud') {
+      const allowed = await requestLlmAccess('llm');
+      if (!allowed) return;
+    }
 
     setInputText('');
     if (textareaRef) {
@@ -1344,6 +1352,11 @@ export const ConversationContent: Component = () => {
           </div>
           {/* Status bar with hover trigger selector, knowledge toggle, and level adaptation */}
           <StatusBar>
+            <Show when={isLowPowerActive()}>
+              <button type="button" class="statusbar-toggle active" tabIndex={-1} title={t('mlearn.LowPowerGate.StatusBarTooltip')}>
+                <BatteryLowIcon size={14} />
+              </button>
+            </Show>
             <div class="hover-trigger-section">
               <label class="hover-trigger-label">{t('mlearn.ConversationAgent.ShowTooltipOn')}</label>
               <Select

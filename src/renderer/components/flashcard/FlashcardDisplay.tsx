@@ -17,6 +17,7 @@ import { useSettings, useLanguage, useLocalization } from '../../context';
 import { FlashcardPitchAccent } from './FlashcardPitchAccent';
 import type { TtsMetadata } from '../../hooks/useFlashcardTts';
 import { RefreshIcon } from '../common';
+import { isElectron } from '../../../shared/platform';
 import './FlashcardDisplay.css';
 
 export interface FlashcardDisplayProps {
@@ -48,10 +49,20 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const isFlipped = createMemo(() => props.showAnswer ?? false);
 
   // Image URL: flashcard-image:// protocol is handled natively by Electron,
-  // base64 data URLs work directly, skip empty/placeholder values
+  // base64 data URLs work directly, skip empty/placeholder values.
+  // flashcard-image:// and flashcard-video:// URLs are not resolvable on
+  // non-Electron platforms, so filter them out to avoid broken images.
   const displayImageUrl = createMemo(() => {
     const url = content().imageUrl;
     if (!url || url === '-' || url === '') return null;
+    if (!isElectron() && url.startsWith('flashcard-image://')) return null;
+    return url;
+  });
+
+  const displayVideoUrl = createMemo(() => {
+    const url = content().videoUrl;
+    if (!url || url === '') return null;
+    if (!isElectron() && url.startsWith('flashcard-video://')) return null;
     return url;
   });
 
@@ -162,7 +173,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           <Show when={content().example && content().example !== '-'}>
             <div class="flashcard-example-row">
               <div class="flashcard-example" innerHTML={content().example} />
-              <Show when={props.onPlayTts}>
+              <Show when={props.onPlayTts && !content().skipExampleTts}>
                 <IconBtn
                   icon="volume"
                   size="sm"
@@ -177,12 +188,24 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             </div>
           </Show>
 
-          <Show when={displayImageUrl()}>
+          <Show when={displayVideoUrl()} fallback={
+            <Show when={displayImageUrl()}>
+              <div class="flashcard-screenshot-container flashcard-screenshot-front">
+                <img
+                  src={displayImageUrl()!}
+                  alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
+                  class="flashcard-screenshot"
+                />
+              </div>
+            </Show>
+          }>
             <div class="flashcard-screenshot-container flashcard-screenshot-front">
-              <img
-                src={displayImageUrl()!}
-                alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
+              <video
+                src={displayVideoUrl()!}
                 class="flashcard-screenshot"
+                controls
+                preload="metadata"
+                onClick={(e: MouseEvent) => e.stopPropagation()}
               />
             </div>
           </Show>
@@ -230,7 +253,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             <div class="flashcard-example-group">
               <div class="flashcard-example-row">
                 <div class="flashcard-example" innerHTML={content().example} />
-                <Show when={props.onPlayTts}>
+                <Show when={props.onPlayTts && !content().skipExampleTts}>
                   <IconBtn
                     icon="volume"
                     size="sm"
@@ -264,12 +287,24 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             <div class="flashcard-example-meaning">{content().exampleMeaning}</div>
           </Show>
 
-          <Show when={displayImageUrl()}>
+          <Show when={displayVideoUrl()} fallback={
+            <Show when={displayImageUrl()}>
+              <div class="flashcard-screenshot-container">
+                <img
+                  src={displayImageUrl()!}
+                  alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
+                  class="flashcard-screenshot"
+                />
+              </div>
+            </Show>
+          }>
             <div class="flashcard-screenshot-container">
-              <img
-                src={displayImageUrl()!}
-                alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
+              <video
+                src={displayVideoUrl()!}
                 class="flashcard-screenshot"
+                controls
+                preload="metadata"
+                onClick={(e: MouseEvent) => e.stopPropagation()}
               />
             </div>
           </Show>

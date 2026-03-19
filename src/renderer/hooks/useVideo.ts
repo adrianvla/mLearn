@@ -4,6 +4,7 @@
  */
 
 import { createSignal, createMemo, onCleanup } from 'solid-js';
+import { createStore } from 'solid-js/store';
 
 export interface VideoState {
   currentTime: number;
@@ -20,7 +21,7 @@ export interface VideoState {
 export function useVideo() {
   let videoRef: HTMLVideoElement | null = null;
 
-  const [state, setState] = createSignal<VideoState>({
+  const [state, setState] = createStore<VideoState>({
     currentTime: 0,
     duration: 0,
     isPlaying: false,
@@ -73,53 +74,46 @@ export function useVideo() {
     videoRef = null;
   };
 
-  // Event handlers
   const handleTimeUpdate = () => {
     if (!videoRef) return;
-    setState(s => ({ ...s, currentTime: videoRef!.currentTime }));
+    setState('currentTime', videoRef!.currentTime);
   };
 
   const handleDurationChange = () => {
     if (!videoRef) return;
-    setState(s => ({ ...s, duration: videoRef!.duration }));
+    setState('duration', videoRef!.duration);
   };
 
   const handlePlay = () => {
-    setState(s => ({ ...s, isPlaying: true }));
+    setState('isPlaying', true);
   };
 
   const handlePause = () => {
-    setState(s => ({ ...s, isPlaying: false }));
+    setState('isPlaying', false);
   };
 
   const handleVolumeChange = () => {
     if (!videoRef) return;
-    setState(s => ({
-      ...s,
-      volume: videoRef!.volume,
-      isMuted: videoRef!.muted,
-    }));
+    setState('volume', videoRef!.volume);
+    setState('isMuted', videoRef!.muted);
   };
 
   const handleLoaded = () => {
     if (!videoRef) return;
-    setState(s => ({
-      ...s,
-      isLoaded: true,
-      duration: videoRef!.duration,
-    }));
+    setState('isLoaded', true);
+    setState('duration', videoRef!.duration);
   };
 
   const handlePiPEnter = () => {
-    setState(s => ({ ...s, isPiP: true }));
+    setState('isPiP', true);
   };
 
   const handlePiPLeave = () => {
-    setState(s => ({ ...s, isPiP: false }));
+    setState('isPiP', false);
   };
 
   const handleFullscreenChange = () => {
-    setState(s => ({ ...s, isFullscreen: !!document.fullscreenElement }));
+    setState('isFullscreen', !!document.fullscreenElement);
   };
 
   // Control methods
@@ -138,7 +132,7 @@ export function useVideo() {
   };
 
   const togglePlay = async () => {
-    if (state().isPlaying) {
+    if (state.isPlaying) {
       pause();
     } else {
       await play();
@@ -147,12 +141,12 @@ export function useVideo() {
 
   const seek = (time: number) => {
     if (!videoRef) return;
-    videoRef.currentTime = Math.max(0, Math.min(time, state().duration));
+    videoRef.currentTime = Math.max(0, Math.min(time, state.duration));
   };
 
   const seekRelative = (delta: number) => {
     if (!videoRef) return;
-    seek(state().currentTime + delta);
+    seek(state.currentTime + delta);
   };
 
   const setVolume = (volume: number) => {
@@ -168,7 +162,7 @@ export function useVideo() {
   const setPlaybackRate = (rate: number) => {
     if (!videoRef) return;
     videoRef.playbackRate = rate;
-    setState(s => ({ ...s, playbackRate: rate }));
+    setState('playbackRate', rate);
   };
 
   const togglePiP = async () => {
@@ -199,12 +193,7 @@ export function useVideo() {
 
   const loadVideo = (src: string) => {
     setVideoSrc(src);
-    setState(s => ({
-      ...s,
-      isLoaded: false,
-      currentTime: 0,
-      duration: 0,
-    }));
+    setState({ isLoaded: false, currentTime: 0, duration: 0 });
 
     if (videoRef) {
       videoRef.src = src;
@@ -234,10 +223,10 @@ export function useVideo() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
-  const formattedCurrentTime = createMemo(() => formatTime(state().currentTime));
-  const formattedDuration = createMemo(() => formatTime(state().duration));
+  const formattedCurrentTime = createMemo(() => formatTime(state.currentTime));
+  const formattedDuration = createMemo(() => formatTime(state.duration));
   const progress = createMemo(() => {
-    const { currentTime, duration } = state();
+    const { currentTime, duration } = state;
     if (duration === 0) return 0;
     return (currentTime / duration) * 100;
   });
@@ -308,11 +297,11 @@ export function useVideoKeyboard(video: ReturnType<typeof useVideo>) {
         break;
       case 'ArrowUp':
         e.preventDefault();
-        video.setVolume(video.state().volume + 0.1);
+        video.setVolume(video.state.volume + 0.1);
         break;
       case 'ArrowDown':
         e.preventDefault();
-        video.setVolume(video.state().volume - 0.1);
+        video.setVolume(video.state.volume - 0.1);
         break;
       case 'KeyM':
         video.toggleMute();
@@ -328,12 +317,12 @@ export function useVideoKeyboard(video: ReturnType<typeof useVideo>) {
         break;
       case 'Comma':
         if (e.shiftKey) {
-          video.setPlaybackRate(Math.max(0.25, video.state().playbackRate - 0.25));
+          video.setPlaybackRate(Math.max(0.25, video.state.playbackRate - 0.25));
         }
         break;
       case 'Period':
         if (e.shiftKey) {
-          video.setPlaybackRate(Math.min(2, video.state().playbackRate + 0.25));
+          video.setPlaybackRate(Math.min(2, video.state.playbackRate + 0.25));
         }
         break;
     }

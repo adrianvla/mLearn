@@ -9,7 +9,6 @@
 import { Component, createSignal, For, onCleanup, createEffect, Show } from 'solid-js';
 import { useSettings } from '../../context';
 import { PanelHeader } from '../common';
-import { IPC_CHANNELS } from '../../../shared/constants';
 import { getBridge } from '../../../shared/bridges';
 import './LiveWordTranslator.css';
 
@@ -109,7 +108,7 @@ export const LiveWordTranslator: Component = () => {
       resetHideTimeout();
     };
 
-    const cleanup = getBridge().generic.on(IPC_CHANNELS.SHOW_ASIDE, handleShowAside);
+    const cleanup = getBridge().window.onOpenAside(handleShowAside);
 
     onCleanup(() => {
       cleanup();

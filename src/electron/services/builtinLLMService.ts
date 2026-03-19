@@ -46,7 +46,10 @@ function isModelDownloaded(modelFile?: string): boolean {
 async function importLlamaCpp(): Promise<typeof import('node-llama-cpp')> {
   if (!llamaCppModule) {
     // node-llama-cpp is ESM, use dynamic import
-    llamaCppModule = await (Function('return import("node-llama-cpp")')() as Promise<typeof import('node-llama-cpp')>);
+    // CJS→ESM interop: `await import()` is transpiled to require() by TypeScript's
+    // commonjs module setting, which breaks ESM-only packages. `new Function()` avoids
+    // the transpilation so the native dynamic import is preserved at runtime.
+    llamaCppModule = await (new Function('return import("node-llama-cpp")')() as Promise<typeof import('node-llama-cpp')>);
   }
   return llamaCppModule;
 }

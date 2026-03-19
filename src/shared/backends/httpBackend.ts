@@ -49,6 +49,7 @@ export class HttpBackend implements BackendAdapter {
       method: 'POST',
       headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!res.ok) throw new Error(`Tokenization failed: ${res.status}`);
@@ -61,6 +62,7 @@ export class HttpBackend implements BackendAdapter {
       method: 'POST',
       headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ word }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!res.ok) throw new Error(`Translation request failed: ${res.status}`);
@@ -83,6 +85,7 @@ export class HttpBackend implements BackendAdapter {
       method: 'POST',
       headers: this.headers(),
       body: form,
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!res.ok) {
@@ -98,6 +101,7 @@ export class HttpBackend implements BackendAdapter {
       method: 'POST',
       headers: this.headers({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(params),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!res.ok) throw new Error(`getCard failed: ${res.status}`);
@@ -108,6 +112,7 @@ export class HttpBackend implements BackendAdapter {
     const res = await fetch(this.buildUrl('/ankiWords'), {
       method: 'GET',
       headers: this.headers(),
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return [];
     const data = await res.json();

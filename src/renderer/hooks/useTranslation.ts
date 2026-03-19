@@ -7,9 +7,21 @@ import { createSignal, createResource } from 'solid-js';
 import type { TranslationResponse, TranslationEntry, DictionaryEntry } from '../../shared/types';
 import { getBackend } from '../../shared/backends';
 import { getBridge } from '../../shared/bridges';
+import {
+  getCachedTranslationDB,
+  setCachedTranslationDB,
+  setCachedTranslationBatchDB,
+  getCachedDictionaryDB,
+  setCachedDictionaryDB,
+  getCachedTokensDB,
+  setCachedTokensDB,
+} from '../services/offlineCache';
 
-// Translation cache - globally accessible for all components
 const translationCache = new Map<string, TranslationResponse>();
+
+const [cacheVersion, setCacheVersion] = createSignal(0);
+
+export { cacheVersion };
 
 // Tokenization cache (promise de-dup + LRU)
 const tokenCache = new Map<string, { tokens: any[]; ts: number }>();
@@ -77,13 +89,23 @@ export async function fetchTranslation(word: string): Promise<TranslationRespons
     return overrides[word];
   }
 
-  // Check cache
+  // Check in-memory cache
   if (translationCache.has(word)) {
     return translationCache.get(word)!;
   }
 
+  // Check IndexedDB persistent cache
+  const dbCached = await getCachedTranslationDB(word);
+  if (dbCached) {
+    translationCache.set(word, dbCached);
+    setCacheVersion(v => v + 1);
+    return dbCached;
+  }
+
   const data = await getBackend().translate(word);
   translationCache.set(word, data);
+  setCacheVersion(v => v + 1);
+  setCachedTranslationDB(word, data);
   return data;
 }
 
@@ -153,6 +175,7 @@ export async function warmTranslationCache(
 ): Promise<void> {
   const backend = getBackend();
   const unique = [...new Set(words)];
+  const batchEntries: Array<{ word: string; data: TranslationResponse }> = [];
   const promises = unique
     .filter((w) => w && w.trim())
     .filter((w) => !translationCache.has(w))
@@ -160,12 +183,17 @@ export async function warmTranslationCache(
       backend.translate(word)
         .then((data) => {
           translationCache.set(word, data);
+          setCacheVersion(v => v + 1);
+          batchEntries.push({ word, data });
         })
         .catch(() => {
           // Ignore errors during cache warming
         })
     );
   await Promise.all(promises);
+  if (batchEntries.length > 0) {
+    setCachedTranslationBatchDB(batchEntries);
+  }
 }
 
 export function useTokenizer() {
@@ -176,12 +204,20 @@ export function useTokenizer() {
     if (tokenInFlight.has(key)) return tokenInFlight.get(key)!;
 
     const p = (async () => {
+      // Check IndexedDB before hitting backend
+      const dbCached = await getCachedTokensDB(key);
+      if (dbCached) {
+        tokenCache.set(key, { tokens: dbCached, ts: Date.now() });
+        return dbCached;
+      }
+
       const tokens = await getBackend().tokenize(key);
       tokenCache.set(key, { tokens, ts: Date.now() });
       if (tokenCache.size > TOKEN_CACHE_MAX) {
         const firstKey = tokenCache.keys().next().value as string | undefined;
         if (firstKey) tokenCache.delete(firstKey);
       }
+      setCachedTokensDB(key, tokens);
       return tokens;
     })();
 
@@ -201,8 +237,16 @@ export function useTokenizer() {
 export function useDictionary() {
   const lookup = async (word: string, reading?: string): Promise<DictionaryEntry[]> => {
     try {
-      const cacheKey = `${word}::${reading || ''}`;
+      const readingKey = reading || '';
+      const cacheKey = `${word}::${readingKey}`;
       if (dictionaryCache.has(cacheKey)) return dictionaryCache.get(cacheKey)!;
+
+      // Check IndexedDB persistent cache
+      const dbCached = await getCachedDictionaryDB(word, readingKey);
+      if (dbCached) {
+        dictionaryCache.set(cacheKey, dbCached);
+        return dbCached;
+      }
 
       const data = await getBackend().translate(word);
       // Transform backend response to DictionaryEntry array
@@ -227,9 +271,11 @@ export function useDictionary() {
         }
         
         dictionaryCache.set(cacheKey, entries);
+        setCachedDictionaryDB(word, readingKey, entries);
         return entries;
       }
       dictionaryCache.set(cacheKey, []);
+      setCachedDictionaryDB(word, readingKey, []);
       return [];
     } catch (e) {
       console.error('Dictionary lookup error:', e);
