@@ -24,7 +24,11 @@
     "cap:ios": "npx cap open ios",
     "cap:android": "npx cap open android",
     "ios": "npm run build:mobile && npx cap sync && npx cap open ios",
-    "android": "npm run build:mobile && npx cap sync && npx cap open android"
+    "android": "npm run build:mobile && npx cap sync && npx cap open android",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "language-learning",
@@ -48,9 +52,12 @@
     "cross-env": "^7.0.3",
     "electron": "^33.4.0",
     "electron-builder": "^25.1.8",
+    "happy-dom": "^20.8.4",
+    "msw": "^2.12.13",
     "typescript": "^5.7.3",
     "vite": "^6.0.7",
     "vite-plugin-solid": "^2.11.0",
+    "vitest": "^4.1.0",
     "wait-on": "^8.0.2"
   },
   "dependencies": {
