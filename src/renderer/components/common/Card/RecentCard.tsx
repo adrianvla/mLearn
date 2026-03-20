@@ -13,6 +13,7 @@ export interface RecentItem {
   type: 'video' | 'book';
   name: string;
   path: string;
+  subtitlePath?: string;
   thumbnail?: string;
   progress: number;
   lastWatched: number;

@@ -74,6 +74,7 @@ const localizationBridge: LocalizationBridge = {
 const fileBridge: FileBridge = {
   readDirectoryImages: (dir) => getIPC().readDirectoryImages(dir),
   readPdfFile: (path) => getIPC().readPdfFile(path),
+  readMediaFile: (path) => getIPC().readMediaFile(path),
   selectVideoFile: () => getIPC().selectVideoFile(),
   selectSubtitleFile: () => getIPC().selectSubtitleFile(),
   selectBookFolder: () => getIPC().selectBookFolder(),

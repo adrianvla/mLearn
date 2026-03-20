@@ -10,6 +10,7 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { isDesktop } from '../../shared/platform';
+import { getBridge } from '../../shared/bridges';
 
 // Vite resolves these to hashed asset URLs at build time, and serves them
 // directly in dev mode. This ensures the WASM binary is always available
@@ -23,6 +24,8 @@ let loadPromise: Promise<void> | null = null;
 /** Maximum source file sizes (bytes) before we skip video clipping */
 const MAX_FILE_SIZE_DESKTOP = 1.5 * 1024 * 1024 * 1024; // 1.5 GB
 const MAX_FILE_SIZE_MOBILE = 512 * 1024 * 1024; // 512 MB
+
+const LOCAL_MEDIA_SCHEME = 'local-media://';
 
 /**
  * Load ffmpeg-core files as blob URLs so they work under any CSP and protocol.
@@ -56,6 +59,25 @@ async function getFFmpeg(): Promise<FFmpeg> {
   return ffmpegInstance!;
 }
 
+async function fetchVideoData(videoUrl: string): Promise<Uint8Array | null> {
+  console.log('[VideoClip] fetchVideoData: url=', videoUrl);
+  if (videoUrl.startsWith(LOCAL_MEDIA_SCHEME)) {
+    let filePath = videoUrl.slice(LOCAL_MEDIA_SCHEME.length);
+    console.log('[VideoClip] fetchVideoData: detected local-media scheme, raw path=', filePath);
+    if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
+      filePath = filePath.slice(1);
+      console.log('[VideoClip] fetchVideoData: Windows path corrected to=', filePath);
+    }
+    console.log('[VideoClip] fetchVideoData: calling readMediaFile with path=', filePath);
+    const buffer = await getBridge().files.readMediaFile(filePath);
+    console.log('[VideoClip] fetchVideoData: readMediaFile result=', buffer == null ? 'null' : `ArrayBuffer(${buffer.byteLength})`);
+    if (!buffer) return null;
+    return new Uint8Array(buffer);
+  }
+  console.log('[VideoClip] fetchVideoData: using fetchFile for non-local-media URL');
+  return fetchFile(videoUrl);
+}
+
 /**
  * Clip a segment from a video file.
  *
@@ -72,11 +94,14 @@ export async function clipVideo(
   const start = Math.max(0, startSeconds);
   const end = Math.max(start + 0.1, endSeconds);
 
-  try {
-    // Fetch source video data
-    const sourceData = await fetchFile(videoUrl);
+  console.log('[VideoClip] clipVideo: url=', videoUrl, 'start=', start, 'end=', end);
 
-    // File size guard
+  try {
+    console.log('[VideoClip] clipVideo: fetching video data...');
+    const sourceData = await fetchVideoData(videoUrl);
+    console.log('[VideoClip] clipVideo: sourceData=', sourceData == null ? 'null' : `Uint8Array(${sourceData.byteLength})`);
+    if (!sourceData) return null;
+
     const maxSize = isDesktop() ? MAX_FILE_SIZE_DESKTOP : MAX_FILE_SIZE_MOBILE;
     if (sourceData.byteLength > maxSize) {
       console.warn(
@@ -86,20 +111,22 @@ export async function clipVideo(
       return null;
     }
 
+    console.log('[VideoClip] clipVideo: loading ffmpeg...');
     const ffmpeg = await getFFmpeg();
+    console.log('[VideoClip] clipVideo: ffmpeg loaded, loaded=', ffmpeg.loaded);
 
-    // Determine input extension from URL
     const urlPath = videoUrl.split('?')[0];
     const ext = urlPath.match(/\.(\w{2,5})$/)?.[1] || 'mp4';
     const inputName = `input.${ext}`;
     const outputName = 'output.mp4';
 
+    console.log('[VideoClip] clipVideo: writing input file:', inputName);
     await ffmpeg.writeFile(inputName, sourceData);
 
-    // Try stream copy first (fast, no re-encoding)
     const startStr = start.toFixed(3);
     const endStr = end.toFixed(3);
 
+    console.log('[VideoClip] clipVideo: running stream copy from', startStr, 'to', endStr);
     let exitCode = await ffmpeg.exec([
       '-ss', startStr,
       '-to', endStr,
@@ -108,13 +135,13 @@ export async function clipVideo(
       '-avoid_negative_ts', 'make_zero',
       outputName,
     ]);
+    console.log('[VideoClip] clipVideo: stream copy exit code=', exitCode);
 
-    // If stream copy fails, fall back to re-encoding
     if (exitCode !== 0) {
       console.warn('Stream copy failed, falling back to re-encoding');
-      // Clean up failed output
       try { await ffmpeg.deleteFile(outputName); } catch { /* ignore */ }
 
+      console.log('[VideoClip] clipVideo: running re-encode...');
       exitCode = await ffmpeg.exec([
         '-ss', startStr,
         '-to', endStr,
@@ -124,6 +151,7 @@ export async function clipVideo(
         '-avoid_negative_ts', 'make_zero',
         outputName,
       ]);
+      console.log('[VideoClip] clipVideo: re-encode exit code=', exitCode);
     }
 
     if (exitCode !== 0) {
@@ -132,15 +160,17 @@ export async function clipVideo(
       return null;
     }
 
+    console.log('[VideoClip] clipVideo: reading output file...');
     const result = await ffmpeg.readFile(outputName);
+    console.log('[VideoClip] clipVideo: result type=', typeof result, result instanceof Uint8Array ? `Uint8Array(${result.byteLength})` : String(result).slice(0, 80));
     await cleanup(ffmpeg, inputName, outputName);
 
     if (typeof result === 'string') {
-      // readFile returned a string instead of Uint8Array — shouldn't happen for binary
       console.error('ffmpeg.readFile returned string instead of Uint8Array');
       return null;
     }
 
+    console.log('[VideoClip] clipVideo: SUCCESS, returning clip of', result.byteLength, 'bytes');
     return result;
   } catch (err) {
     console.error('Video clipping failed:', err);

@@ -19,7 +19,7 @@ import { GroupedTaskProgressContent, type TaskState, type TaskStatus, type TaskG
 import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
-import { streamChat } from '../services/llmProvider';
+import { streamChat, checkAvailability } from '../services/llmProvider';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
 
@@ -1732,6 +1732,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
    * Returns { sentence, meaning }. The meaning is translated to the user's app language.
    */
   const generateExampleSentenceWithLLM = async (word: string, definition: string, language: string): Promise<{ sentence: string; meaning: string }> => {
+    const availability = await checkAvailability(settings);
+    if (!availability.available) {
+      showToast({ message: t('mlearn.Flashcards.Repair.LLMUnavailable'), variant: 'error', duration: 6000 });
+      return { sentence: '', meaning: '' };
+    }
+
     // Low power gate: prompt before local LLM call
     if (settings.llmProvider !== 'cloud') {
       const allowed = await requestAccess('llm');

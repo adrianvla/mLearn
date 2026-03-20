@@ -7,6 +7,7 @@
 
 import { Component, Show, createSignal, createMemo } from 'solid-js';
 import { Modal, Btn, Select, VoiceSamplePicker, ToggleSwitch, TaskProgressContent, type TaskState, type TaskStatus } from '../common';
+import { ConfirmDialog } from '../common/Modal/ConfirmDialog';
 import { useSettings, useLocalization, useLanguage, useFlashcards, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { getBackend } from '../../../shared/backends';
@@ -47,6 +48,28 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   // Reading sub-toggles
   const [useReadingForWord, setUseReadingForWord] = createSignal(true);
   const [useReadingForExample, setUseReadingForExample] = createSignal(true);
+
+  const [confirmOpen, setConfirmOpen] = createSignal(false);
+  let confirmResolve: ((result: boolean) => void) | null = null;
+
+  const askContinueAfterLLMFailure = (): Promise<boolean> => {
+    setConfirmOpen(true);
+    return new Promise((resolve) => {
+      confirmResolve = resolve;
+    });
+  };
+
+  const handleConfirmContinue = () => {
+    setConfirmOpen(false);
+    confirmResolve?.(true);
+    confirmResolve = null;
+  };
+
+  const handleConfirmCancel = () => {
+    setConfirmOpen(false);
+    confirmResolve?.(false);
+    confirmResolve = null;
+  };
 
   const showReadingToggles = createMemo(() => {
     const features = getLanguageFeatures();
@@ -127,9 +150,9 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
 
     let hadError = false;
     let latestExampleText = props.exampleText;
+    let examplePhraseFailed = false;
+    const skippedTasks = new Set<string>();
 
-    // Run tasks sequentially (some depend on prior results)
-    // 1. Example phrase (generates new example, needed before example TTS/translation)
     if (taskList.some(t => t.key === 'examplePhrase')) {
       updateTask('examplePhrase', 'running');
       try {
@@ -157,14 +180,39 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         } else {
           updateTask('examplePhrase', 'error');
           hadError = true;
+          examplePhraseFailed = true;
         }
       } catch {
         updateTask('examplePhrase', 'error');
         hadError = true;
+        examplePhraseFailed = true;
+      }
+
+      const hasExampleDependentTasks =
+        taskList.some(t => t.key === 'exampleTts') ||
+        taskList.some(t => t.key === 'translation');
+
+      if (examplePhraseFailed && hasExampleDependentTasks) {
+        const shouldContinue = await askContinueAfterLLMFailure();
+        if (!shouldContinue) {
+          taskList
+            .filter(t => t.key === 'exampleTts' || t.key === 'translation')
+            .forEach(t => {
+              updateTask(t.key, 'error');
+              skippedTasks.add(t.key);
+            });
+          hadError = true;
+
+          if (!taskList.some(t => t.key === 'wordTts')) {
+            removeToast(toastId);
+            showToast({ message: t('mlearn.CardEditor.Regenerate.SomeFailed'), variant: 'warning' });
+            props.onGenerated?.();
+            return;
+          }
+        }
       }
     }
 
-    // 2. Word TTS
     if (taskList.some(t => t.key === 'wordTts')) {
       updateTask('wordTts', 'running');
       try {
@@ -199,8 +247,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
       }
     }
 
-    // 3. Example TTS
-    if (taskList.some(t => t.key === 'exampleTts')) {
+    if (taskList.some(t => t.key === 'exampleTts') && !skippedTasks.has('exampleTts')) {
       updateTask('exampleTts', 'running');
       try {
         const exText = latestExampleText || props.exampleText || '';
@@ -236,8 +283,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
       }
     }
 
-    // 4. Translation
-    if (taskList.some(t => t.key === 'translation')) {
+    if (taskList.some(t => t.key === 'translation') && !skippedTasks.has('translation')) {
       updateTask('translation', 'running');
       try {
         const exText = latestExampleText || props.exampleText || '';
@@ -276,6 +322,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   };
 
   return (
+    <>
     <Modal
       isOpen={props.isOpen}
       onClose={props.onClose}
@@ -381,5 +428,16 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         </Show>
       </div>
     </Modal>
+    <ConfirmDialog
+      isOpen={confirmOpen()}
+      onClose={handleConfirmCancel}
+      onConfirm={handleConfirmContinue}
+      title={t('mlearn.CardEditor.Regenerate.LLMFailedTitle')}
+      message={t('mlearn.CardEditor.Regenerate.LLMFailedContinue')}
+      variant="warning"
+      confirmText={t('mlearn.CardEditor.Regenerate.LLMFailedYes')}
+      cancelText={t('mlearn.CardEditor.Regenerate.LLMFailedNo')}
+    />
+    </>
   );
 };

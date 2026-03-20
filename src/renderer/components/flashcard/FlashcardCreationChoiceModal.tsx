@@ -153,6 +153,17 @@ const FlashcardCreationChoiceModalInner: Component<FlashcardCreationChoiceModalP
           </Show>
         </div>
 
+        <Show when={!useAnkiTarget()}>
+          <div class="flashcard-choice__dont-show-row">
+            <ToggleSwitch
+                checked={dontShowAgain()}
+                onChange={setDontShowAgain}
+            />
+            <span class="flashcard-choice__dont-show-label">
+              {t('mlearn.FlashcardChoice.DontShowAgain')}
+            </span>
+          </div>
+        </Show>
         <Show when={content().videoUrl} fallback={
           <Show when={content().imageUrl}>
             <div class="flashcard-choice__media">
@@ -169,17 +180,6 @@ const FlashcardCreationChoiceModalInner: Component<FlashcardCreationChoiceModalP
           </div>
         </Show>
 
-        <Show when={!useAnkiTarget()}>
-          <div class="flashcard-choice__dont-show-row">
-            <ToggleSwitch
-              checked={dontShowAgain()}
-              onChange={setDontShowAgain}
-            />
-            <span class="flashcard-choice__dont-show-label">
-              {t('mlearn.FlashcardChoice.DontShowAgain')}
-            </span>
-          </div>
-        </Show>
       </div>
     </Modal>
   );

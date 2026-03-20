@@ -113,12 +113,13 @@
 
 .flashcard-choice__media {
   text-align: center;
+  display:flex;
+  justify-content: center;
 }
 
 .flashcard-choice__media img,
 .flashcard-choice__media video {
   max-width: 100%;
-  max-height: 200px;
   border-radius: var(--radius-sm);
   object-fit: contain;
 }

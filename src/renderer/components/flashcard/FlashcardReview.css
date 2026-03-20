@@ -166,19 +166,6 @@
 /* Show answer button */
 .flashcard-show-answer-btn {
   width: 100%;
-  padding: 1rem 2rem;
-  background: var(--bg);
-  border: 2px solid var(--color-primary);
-  border-radius: var(--radius-md);
-  color: var(--color-primary);
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.1s ease;
-}
-
-.flashcard-show-answer-btn:hover {
-  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 /* Rating buttons container */
@@ -197,39 +184,15 @@
   gap: 0.25rem;
   padding: 0.75rem 1.25rem;
   min-width: 70px;
-  background: var(--bg);
-  border: 2px solid var(--btn-color);
-  border-radius: var(--radius-md);
-  color: var(--btn-color);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  --btn-color: var(--color-primary);
-  backdrop-filter:var(--backdrop-filter);
+  backdrop-filter: var(--backdrop-filter);
 }
 
 .flashcard-rating-btn:hover {
-  background: color-mix(in srgb, var(--btn-color) 15%, transparent);
   transform: translateY(-2px);
 }
 
 .flashcard-rating-btn:active {
   transform: translateY(0);
-}
-
-.flashcard-rating-btn--again {
-  --btn-color: var(--color-danger);
-}
-
-.flashcard-rating-btn--hard {
-  --btn-color: var(--color-warning);
-}
-
-.flashcard-rating-btn--good {
-  --btn-color: var(--color-success);
-}
-
-.flashcard-rating-btn--easy {
-  --btn-color: var(--color-primary);
 }
 
 .flashcard-rating-label {

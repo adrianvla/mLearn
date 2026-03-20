@@ -15,7 +15,7 @@ import { SubtitleSync } from '../../../components/subtitle';
 import { WORD_STATUS } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
-import { captureVideoThumbnail, saveToRecentItems, updateRecentItemThumbnail, updateRecentItemProgress } from '../../../services/thumbnailService';
+import { captureVideoThumbnail, saveToRecentItems, updateRecentItemSubtitlePath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
@@ -27,6 +27,11 @@ import './video.css';
 
 /** Convert a filesystem path to a local-media:// URL that the renderer can load */
 const toLocalMediaUrl = (filePath: string): string => `local-media://${filePath}`;
+
+const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
+const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
+
+const getMediaNameFromPath = (filePath: string): string => filePath.split('/').pop() || filePath.split('\\').pop() || 'Video';
 
 export const VideoRoute: Component = () => {
   const navigate = useNavigate();
@@ -48,8 +53,8 @@ export const VideoRoute: Component = () => {
   const [isDragging, setIsDragging] = createSignal(false);
   const [currentVideoTime, setCurrentVideoTime] = createSignal(0);
   const [currentVideoName, setCurrentVideoName] = createSignal('');
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_currentVideoPath, setCurrentVideoPath] = createSignal<string>('');
+  const [currentVideoPath, setCurrentVideoPath] = createSignal('');
+  const [currentSubtitlePath, setCurrentSubtitlePath] = createSignal('');
   const [showWordSidebar, setShowWordSidebar] = createSignal(false);
 
   // Accumulated unknown words from subtitles
@@ -63,6 +68,36 @@ export const VideoRoute: Component = () => {
 
   // Media stats for this video session
   const mediaStats = useMediaStats({ mediaType: 'video', language: settings.language });
+
+  const loadVideo = (path: string, name: string) => {
+    setVideoSrc(toLocalMediaUrl(path));
+    setCurrentVideoPath(path);
+    setSubtitleContent('');
+    setCurrentSubtitlePath('');
+    setShowDropZone(false);
+    setCurrentVideoName(name);
+  };
+
+  const saveVideoToRecentItems = async (path: string, name: string) => {
+    await saveToRecentItems({
+      type: 'video',
+      name,
+      path,
+      subtitlePath: currentSubtitlePath() || undefined,
+      progress: 0,
+    });
+  };
+
+  const persistCurrentSubtitlePath = async (subtitlePath: string) => {
+    const videoName = currentVideoName();
+    const videoPath = currentVideoPath();
+    if (!subtitlePath || !videoName || !videoPath) {
+      return;
+    }
+
+    await updateRecentItemSubtitlePathByPath(videoPath, subtitlePath);
+    await updateRecentItemSubtitlePath(videoName, subtitlePath);
+  };
 
   // Activate media stats when a video name is available
   createEffect(() => {
@@ -151,24 +186,31 @@ export const VideoRoute: Component = () => {
       });
 
       // If video mode, clip and save the video segment
+      console.log('[VideoRoute] addVideoWordFlashcard: flashcardMediaType=', settings.flashcardMediaType, 'videoSrc=', videoSrc(), 'subtitleStart=', entry.subtitleStart, 'subtitleEnd=', entry.subtitleEnd);
       if (settings.flashcardMediaType === 'video' && videoSrc() && entry.subtitleStart != null && entry.subtitleEnd != null) {
         const { clipVideo } = await import('../../../services/videoClipService');
         const margin = (settings.flashcardVideoMargin ?? 300) / 1000;
         const start = Math.max(0, entry.subtitleStart - margin);
         const end = entry.subtitleEnd + margin;
+        console.log('[VideoRoute] addVideoWordFlashcard: calling clipVideo, start=', start, 'end=', end);
         const videoData = await clipVideo(videoSrc(), start, end);
+        console.log('[VideoRoute] addVideoWordFlashcard: clipVideo result=', videoData == null ? 'null' : `Uint8Array(${videoData.byteLength})`);
         if (videoData) {
           const { toUniqueIdentifier } = await import('../../../services/statsService');
           const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
           const videoUrl = await getBridge().flashcards.saveFlashcardVideo(cardId, videoData.buffer as ArrayBuffer);
+          console.log('[VideoRoute] addVideoWordFlashcard: saveFlashcardVideo result=', videoUrl);
           if (videoUrl) {
             content.videoUrl = videoUrl;
+            console.log('[VideoRoute] addVideoWordFlashcard: content.videoUrl set to', videoUrl);
           } else {
             showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
           }
         } else {
           showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
         }
+      } else {
+        console.log('[VideoRoute] addVideoWordFlashcard: skipping video clip — condition not met');
       }
 
       await flashcardCtx.addFlashcard(content, ease);
@@ -200,20 +242,33 @@ export const VideoRoute: Component = () => {
   const ipcCleanups: Array<() => void> = [];
 
   onMount(() => {
-    // Check if we have a video to open from session storage
-    const pendingVideo = sessionStorage.getItem('mlearn_open_video');
-    if (pendingVideo) {
-      sessionStorage.removeItem('mlearn_open_video');
-      // Only load if we have an actual path
-      if (pendingVideo.trim()) {
-        setVideoSrc(toLocalMediaUrl(pendingVideo));
-        setCurrentVideoPath(pendingVideo);
-        setShowDropZone(false);
-        // Extract video name from path
-        const videoName = pendingVideo.split('/').pop() || pendingVideo.split('\\').pop() || 'Video';
-        setCurrentVideoName(videoName);
+    const loadPendingVideo = async () => {
+      const pendingVideo = sessionStorage.getItem(OPEN_VIDEO_SESSION_KEY);
+      const pendingSubtitle = sessionStorage.getItem(OPEN_VIDEO_SUBTITLE_SESSION_KEY);
+
+      sessionStorage.removeItem(OPEN_VIDEO_SESSION_KEY);
+      sessionStorage.removeItem(OPEN_VIDEO_SUBTITLE_SESSION_KEY);
+
+      if (!pendingVideo?.trim()) {
+        return;
       }
-    }
+
+      loadVideo(pendingVideo, getMediaNameFromPath(pendingVideo));
+
+      if (!isElectron || !pendingSubtitle?.trim()) {
+        return;
+      }
+
+      try {
+        const content = await readFile(pendingSubtitle);
+        setSubtitleContent(content);
+        setCurrentSubtitlePath(pendingSubtitle);
+      } catch (error) {
+        console.error('Failed to auto-load subtitles for saved video:', error);
+      }
+    };
+
+    void loadPendingVideo();
 
     // Setup IPC listeners
     const bridge = getBridge();
@@ -342,9 +397,13 @@ export const VideoRoute: Component = () => {
   const captureThumbnailIfReady = () => {
     const videoEl = document.querySelector('video');
     const name = currentVideoName();
+    const path = currentVideoPath();
     if (videoEl && name && videoEl.readyState >= 2) {
       const thumbnail = captureVideoThumbnail(videoEl);
       if (thumbnail) {
+        if (path) {
+          void updateRecentItemThumbnailByPath(path, thumbnail);
+        }
         void updateRecentItemThumbnail(name, thumbnail);
       }
     }
@@ -353,8 +412,12 @@ export const VideoRoute: Component = () => {
   const updateVideoProgress = () => {
     const videoEl = document.querySelector('video');
     const name = currentVideoName();
+    const path = currentVideoPath();
     if (videoEl && name && videoEl.duration && isFinite(videoEl.duration)) {
       const progress = videoEl.currentTime / videoEl.duration;
+      if (path) {
+        void updateRecentItemProgressByPath(path, progress);
+      }
       void updateRecentItemProgress(name, progress);
     }
   };
@@ -386,6 +449,8 @@ export const VideoRoute: Component = () => {
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer?.files || []);
+    let droppedVideo: { path: string; name: string } | null = null;
+    let droppedSubtitlePath = '';
     
     for (const file of files) {
       const ext = file.name.split('.').pop()?.toLowerCase();
@@ -393,25 +458,39 @@ export const VideoRoute: Component = () => {
       if (['mp4', 'webm', 'mkv', 'avi', 'mov'].includes(ext || '')) {
         const filePath = getBridge().files.getPathForFile(file)
           || (file as File & { path?: string }).path || '';
-        const url = filePath ? toLocalMediaUrl(filePath) : URL.createObjectURL(file);
-        setVideoSrc(url);
-        setCurrentVideoPath(filePath);
-        setShowDropZone(false);
-        setCurrentVideoName(file.name);
+        if (filePath) {
+          loadVideo(filePath, file.name);
+        } else {
+          setVideoSrc(URL.createObjectURL(file));
+          setCurrentVideoPath('');
+          setSubtitleContent('');
+          setCurrentSubtitlePath('');
+          setShowDropZone(false);
+          setCurrentVideoName(file.name);
+        }
+        droppedVideo = filePath ? { path: filePath, name: file.name } : null;
         // Only save to recent items if we have a valid path (can be reopened)
         if (filePath) {
-          await saveToRecentItems({
-            type: 'video',
-            name: file.name,
-            path: filePath,
-            progress: 0,
-          });
+          await saveVideoToRecentItems(filePath, file.name);
         }
       }
       
       if (['srt', 'vtt', 'ass', 'ssa'].includes(ext || '')) {
         const content = await file.text();
         setSubtitleContent(content);
+        const filePath = getBridge().files.getPathForFile(file)
+          || (file as File & { path?: string }).path || '';
+        setCurrentSubtitlePath(filePath);
+        droppedSubtitlePath = filePath;
+      }
+    }
+
+    if (droppedSubtitlePath) {
+      if (droppedVideo) {
+        await updateRecentItemSubtitlePathByPath(droppedVideo.path, droppedSubtitlePath);
+        await updateRecentItemSubtitlePath(droppedVideo.name, droppedSubtitlePath);
+      } else {
+        await persistCurrentSubtitlePath(droppedSubtitlePath);
       }
     }
   };
@@ -430,27 +509,25 @@ export const VideoRoute: Component = () => {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'video/*';
-      input.onchange = async () => {
-        const file = input.files?.[0];
-        if (file) {
-          const filePath = getBridge().files.getPathForFile(file)
-            || (file as File & { path?: string }).path || '';
-          const url = filePath ? toLocalMediaUrl(filePath) : URL.createObjectURL(file);
-          setVideoSrc(url);
-          setCurrentVideoPath(filePath);
-          setShowDropZone(false);
-          setCurrentVideoName(file.name);
-          // Only save to recent items if we have a valid path (can be reopened)
-          if (filePath) {
-            await saveToRecentItems({
-              type: 'video',
-              name: file.name,
-              path: filePath,
-              progress: 0,
-            });
+        input.onchange = async () => {
+          const file = input.files?.[0];
+          if (file) {
+            const filePath = getBridge().files.getPathForFile(file)
+              || (file as File & { path?: string }).path || '';
+            if (filePath) {
+              loadVideo(filePath, file.name);
+            } else {
+              setVideoSrc(URL.createObjectURL(file));
+              setCurrentVideoPath('');
+              setShowDropZone(false);
+              setCurrentVideoName(file.name);
+            }
+            // Only save to recent items if we have a valid path (can be reopened)
+            if (filePath) {
+              await saveVideoToRecentItems(filePath, file.name);
+            }
           }
-        }
-      };
+        };
       input.click();
       return;
     }
@@ -462,17 +539,9 @@ export const VideoRoute: Component = () => {
     });
 
     if (path) {
-      const videoName = path.split('/').pop() || path.split('\\').pop() || 'Video';
-      setVideoSrc(toLocalMediaUrl(path));
-      setCurrentVideoPath(path);
-      setShowDropZone(false);
-      setCurrentVideoName(videoName);
-      await saveToRecentItems({
-        type: 'video',
-        name: videoName,
-        path: path,
-        progress: 0,
-      });
+      const videoName = getMediaNameFromPath(path);
+      loadVideo(path, videoName);
+      await saveVideoToRecentItems(path, videoName);
     }
   };
 
@@ -486,6 +555,7 @@ export const VideoRoute: Component = () => {
         if (file) {
           const content = await file.text();
           setSubtitleContent(content);
+          setCurrentSubtitlePath('');
         }
       };
       input.click();
@@ -501,6 +571,8 @@ export const VideoRoute: Component = () => {
     if (path) {
       const content = await readFile(path);
       setSubtitleContent(content);
+      setCurrentSubtitlePath(path);
+      await persistCurrentSubtitlePath(path);
     }
   };
 
