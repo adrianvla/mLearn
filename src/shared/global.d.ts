@@ -138,6 +138,7 @@ export interface MLearnIPC {
   selectSubtitleFile: () => Promise<string | null>;
   selectBookFolder: () => Promise<string | null>;
   selectPdfFile: () => Promise<string | null>;
+  readMediaFile: (filePath: string) => Promise<ArrayBuffer | null>;
   /**
    * Convert a local file path to a local-media:// URL for secure media playback.
    * Use this for video/audio files to bypass Electron's file:// restrictions.

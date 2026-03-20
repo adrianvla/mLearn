@@ -106,6 +106,7 @@
 .btn-default.btn-primary {
   background: rgba(74, 144, 217, 0.3);
   border-color: rgba(74, 144, 217, 0.4);
+  color: var(--color-primary);
 }
 
 .btn-default.btn-primary:hover:not(:disabled) {
@@ -119,7 +120,7 @@
 
 .btn-default.btn-danger {
   background: rgba(231, 76, 60, 0.25);
-  color:var(--color-danger);
+  color: var(--color-danger);
   border-color: rgba(231, 76, 60, 0.4);
 }
 
@@ -131,10 +132,22 @@
 .btn-default.btn-success {
   background: rgba(46, 204, 113, 0.3);
   border-color: rgba(46, 204, 113, 0.4);
+  color: var(--color-success);
 }
 
 .btn-default.btn-success:hover:not(:disabled) {
   background: rgba(46, 204, 113, 0.4);
+}
+
+.btn-default.btn-warning {
+  background: rgba(241, 196, 15, 0.25);
+  border-color: rgba(241, 196, 15, 0.4);
+  color: var(--color-warning);
+}
+
+.btn-default.btn-warning:hover:not(:disabled) {
+  background: rgba(241, 196, 15, 0.4);
+  border-color: rgba(241, 196, 15, 0.5);
 }
 
 .btn-default.btn-ghost {
@@ -215,6 +228,11 @@
   background-color: var(--pill-level-6-bg);
 }
 
+.btn-pill.btn-warning {
+  color: var(--color-warning);
+  background-color: rgba(241, 196, 15, 0.15);
+}
+
 .btn-pill.btn-gray {
   color: var(--pill-level-7-text);
   background-color: var(--pill-level-7-bg);
@@ -288,6 +306,17 @@
 
 .btn-icon.btn-success:hover:not(:disabled) {
   background: rgba(46, 204, 113, 0.4);
+}
+
+.btn-icon.btn-warning {
+  background: rgba(241, 196, 15, 0.25);
+  border-color: rgba(241, 196, 15, 0.4);
+  color: var(--color-warning);
+}
+
+.btn-icon.btn-warning:hover:not(:disabled) {
+  background: rgba(241, 196, 15, 0.4);
+  border-color: rgba(241, 196, 15, 0.5);
 }
 
 

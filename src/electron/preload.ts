@@ -218,6 +218,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.SELECT_BOOK_FOLDER),
   selectPdfFile: (): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.SELECT_PDF_FILE),
+  readMediaFile: (filePath: string): Promise<ArrayBuffer | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.READ_MEDIA_FILE, filePath),
     
   /**
    * Get filesystem path for a File object.

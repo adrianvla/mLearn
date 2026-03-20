@@ -17,6 +17,9 @@ import { isMobile } from '../../../../shared/platform';
 import './welcome.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
 
+const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
+const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
+
 export const WelcomeRoute: Component = () => {
   const navigate = useNavigate();
   const { settings } = useSettings();
@@ -102,9 +105,16 @@ export const WelcomeRoute: Component = () => {
     
     if (item.type === 'video') {
       // Store the path and navigate
-      sessionStorage.setItem('mlearn_open_video', item.path);
+      sessionStorage.setItem(OPEN_VIDEO_SESSION_KEY, item.path);
+      if (item.subtitlePath?.trim()) {
+        sessionStorage.setItem(OPEN_VIDEO_SUBTITLE_SESSION_KEY, item.subtitlePath);
+      } else {
+        sessionStorage.removeItem(OPEN_VIDEO_SUBTITLE_SESSION_KEY);
+      }
       navigate('/video');
     } else {
+      sessionStorage.removeItem(OPEN_VIDEO_SESSION_KEY);
+      sessionStorage.removeItem(OPEN_VIDEO_SUBTITLE_SESSION_KEY);
       sessionStorage.setItem('mlearn_open_book', item.path);
       navigate('/reader');
     }

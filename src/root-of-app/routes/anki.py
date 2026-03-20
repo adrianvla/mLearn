@@ -55,9 +55,12 @@ def get_all_cards_CACHE() -> bool:
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             all_cards = data["all_cards"]
-            cards_per_id = data["cards_per_id"]
-            words_ids = data["words_ids"]
-            who_contain = data["who_contain"]
+            # JSON serialises integer dict-keys as strings; convert back to int
+            # so that lookup by cardId (always an int) works correctly.
+            raw_cpi = data.get("cards_per_id", {})
+            cards_per_id = {int(k): v for k, v in raw_cpi.items()}
+            words_ids = data.get("words_ids", {})
+            who_contain = data.get("who_contain", {})
         return True
     except Exception as e:
         print(f"Failed to load cache: {e}")
@@ -267,7 +270,10 @@ def get_card(req: GetCardRequest):
 
     result = []
     for match in matched:
-        current_card = cards_per_id[match[1]]
+        card_id = match[1]
+        current_card = cards_per_id.get(card_id) or cards_per_id.get(str(card_id))
+        if current_card is None:
+            continue
         result.append(current_card)
 
     if len(result) == 0:

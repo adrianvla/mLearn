@@ -248,6 +248,8 @@ export const IPC_CHANNELS = {
   FLASHCARD_VIDEO_SAVE: 'flashcard-video-save',
   FLASHCARD_VIDEO_DELETE: 'flashcard-video-delete',
 
+  READ_MEDIA_FILE: 'read-media-file',
+
   // Flashcard TTS audio files
   FLASHCARD_TTS_GET: 'flashcard-tts-get',
   FLASHCARD_TTS_GENERATE: 'flashcard-tts-generate',

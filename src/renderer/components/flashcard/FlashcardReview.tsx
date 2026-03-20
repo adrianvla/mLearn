@@ -14,6 +14,7 @@ import { getBackend } from '../../../shared/backends';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { showToast } from '../common/Feedback/Toast';
 import type { Flashcard } from '../../../shared/types';
+import type { ButtonVariant } from '../common/Button/Button';
 import type { Rating } from '../../services/srsAlgorithm';
 import * as SRS from '../../services/srsAlgorithm';
 import './FlashcardReview.css';
@@ -320,28 +321,28 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       {
         quality: 'again' as Rating,
         label: t('mlearn.Flashcards.Review.Again'),
-        className: 'flashcard-rating-btn--again',
+        variant: 'danger' as ButtonVariant,
         time: dueDateToString(dates.again),
         key: '1'
       },
       {
         quality: 'hard' as Rating,
         label: t('mlearn.Flashcards.Review.Hard'),
-        className: 'flashcard-rating-btn--hard',
+        variant: 'warning' as ButtonVariant,
         time: dueDateToString(dates.hard),
         key: '2'
       },
       {
         quality: 'good' as Rating,
         label: t('mlearn.Flashcards.Review.Ok'),
-        className: 'flashcard-rating-btn--good',
+        variant: 'success' as ButtonVariant,
         time: dueDateToString(dates.good),
         key: '3'
       },
       {
         quality: 'easy' as Rating,
         label: t('mlearn.Flashcards.Review.Easy'),
-        className: 'flashcard-rating-btn--easy',
+        variant: 'primary' as ButtonVariant,
         time: dueDateToString(dates.easy),
         key: '4'
       },
@@ -540,7 +541,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 {(btn) => (
                     <Button
                         buttonType="default"
-                        class={`flashcard-rating-btn ${btn.className}`}
+                        variant={btn.variant}
+                        class="flashcard-rating-btn"
                         onClick={() => handleRating(btn.quality)}
                         title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: btn.key })}
                     >

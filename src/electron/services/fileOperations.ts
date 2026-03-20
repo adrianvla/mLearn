@@ -116,4 +116,15 @@ export function setupFileOperationsIPC(): void {
     } as Electron.OpenDialogOptions);
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
+
+  ipcMain.handle(IPC_CHANNELS.READ_MEDIA_FILE, async (_event, filePath: string) => {
+    try {
+      const resolved = path.resolve(filePath);
+      if (!path.isAbsolute(resolved)) return null;
+      const data = await fs.readFile(resolved);
+      return data.buffer;
+    } catch {
+      return null;
+    }
+  });
 }

@@ -34,6 +34,7 @@ import { getBackend } from '../../../shared/backends';
 import { isElectron } from '../../../shared/platform';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
+import { checkAvailability } from '../../services/llmProvider';
 import type { Flashcard, FlashcardContent, TTSProvider } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import './FlashcardsLayout.css';
@@ -47,6 +48,12 @@ interface TtsRepairJob {
   cardFront: string;
   text: string;
   field: 'word' | 'example';
+}
+
+interface LlmRepairJob {
+  cardId: string;
+  cardFront: string;
+  exampleText: string;
 }
 
 /** Format milliseconds into a human-readable ETA string (e.g. "2m 30s") */
@@ -70,6 +77,7 @@ export const FlashcardsContent: Component = () => {
     updateFlashcardContent,
     intervalToString,
     generateExampleSentenceWithLLM,
+    translateExampleSentence,
     isLoading,
   } = useFlashcards();
   const { t } = useLocalization();
@@ -110,6 +118,7 @@ export const FlashcardsContent: Component = () => {
 
   // TTS repair state
   const [repairJobs, setRepairJobs] = createSignal<TtsRepairJob[]>([]);
+  const [llmRepairJobs, setLlmRepairJobs] = createSignal<LlmRepairJob[]>([]);
   const [showRepairModal, setShowRepairModal] = createSignal(false);
   const [, setRepairRunning] = createSignal(false);
 
@@ -125,14 +134,15 @@ export const FlashcardsContent: Component = () => {
       const cards = getAllCards();
       if (cards.length === 0) return;
 
-      const jobs: TtsRepairJob[] = [];
+      const ttsJobs: TtsRepairJob[] = [];
+      const llmJobs: LlmRepairJob[] = [];
       for (const card of cards) {
         const front = card.content.front;
         const cleanFront = front ? stripHtmlForTts(front) : '';
         if (cleanFront && cleanFront !== '-') {
           const existing = await bridge.flashcards.getFlashcardTts(card.id, 'word');
           if (!existing) {
-            jobs.push({ cardId: card.id, cardFront: front, text: cleanFront, field: 'word' });
+            ttsJobs.push({ cardId: card.id, cardFront: front, text: cleanFront, field: 'word' });
           }
         }
         const example = card.content.example;
@@ -140,12 +150,16 @@ export const FlashcardsContent: Component = () => {
         if (cleanExample && cleanExample !== '-') {
           const existing = await bridge.flashcards.getFlashcardTts(card.id, 'example');
           if (!existing) {
-            jobs.push({ cardId: card.id, cardFront: front, text: cleanExample, field: 'example' });
+            ttsJobs.push({ cardId: card.id, cardFront: front, text: cleanExample, field: 'example' });
+          }
+          if (!card.content.exampleMeaning || card.content.exampleMeaning.trim() === '') {
+            llmJobs.push({ cardId: card.id, cardFront: front, exampleText: cleanExample });
           }
         }
       }
-      if (jobs.length > 0) {
-        setRepairJobs(jobs);
+      if (ttsJobs.length > 0 || llmJobs.length > 0) {
+        setRepairJobs(ttsJobs);
+        setLlmRepairJobs(llmJobs);
         setShowRepairModal(true);
       }
     })();
@@ -154,89 +168,132 @@ export const FlashcardsContent: Component = () => {
   // Handle TTS repair with retry logic for transient failures
   const MAX_REPAIR_RETRIES = 3;
 
-  const handleRepairTts = async () => {
-    const jobs = repairJobs();
-    if (jobs.length === 0) return;
+  const handleRepair = async () => {
+    const ttsJobs = repairJobs();
+    const llmJobs = llmRepairJobs();
+    if (ttsJobs.length === 0 && llmJobs.length === 0) return;
     setShowRepairModal(false);
     setRepairRunning(true);
 
-    const bridge = getBridge();
-    const provider = settings.flashcardTtsProvider;
-    const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
     const language = settings.language;
-    const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
-    const cloudApiUrl = settings.cloudApiUrl || undefined;
-    const total = jobs.length;
-    let succeeded = 0;
 
-    const toastId = showToast({
-      variant: 'info',
-      title: t('mlearn.Flashcards.Repair.ToastTitle'),
-      content: (
-        <ProgressBar value={0} size="md" variant="primary" showPercent percentPosition="below" />
-      ),
-      duration: 0,
-    });
+    if (llmJobs.length > 0) {
+      const availability = await checkAvailability(settings);
+      if (!availability.available) {
+        showToast({ message: t('mlearn.Flashcards.Repair.LLMUnavailable'), variant: 'error', duration: 6000 });
+      } else {
+        const llmToastId = showToast({
+          variant: 'info',
+          title: t('mlearn.Flashcards.Repair.LLMToastTitle'),
+          content: (
+            <ProgressBar value={0} size="md" variant="primary" showPercent percentPosition="below" />
+          ),
+          duration: 0,
+        });
 
-    if (provider !== 'cloud') {
-      const allowed = await requestAccess('tts');
-      if (!allowed) {
-        setRepairRunning(false);
-        removeToast(toastId);
-        return;
+        let llmSucceeded = 0;
+        let llmFailed = 0;
+        for (let i = 0; i < llmJobs.length; i++) {
+          const job = llmJobs[i];
+          try {
+            const translation = await translateExampleSentence(job.exampleText, language);
+            if (translation) {
+              updateFlashcardContent(job.cardId, { exampleMeaning: translation });
+              llmSucceeded++;
+            } else {
+              llmFailed++;
+            }
+          } catch {
+            llmFailed++;
+          }
+          updateToast(llmToastId, {
+            content: (
+              <ProgressBar value={Math.round(((i + 1) / llmJobs.length) * 100)} size="sm" variant="primary" showPercent percentPosition="below" />
+            ),
+          });
+        }
+
+        removeToast(llmToastId);
+        if (llmFailed > 0) {
+          showToast({ variant: 'warning', title: t('mlearn.Flashcards.Repair.LLMDoneWithErrors', { count: llmSucceeded, failed: llmFailed }), duration: 5000 });
+        } else if (llmSucceeded > 0) {
+          showToast({ variant: 'success', title: t('mlearn.Flashcards.Repair.LLMDone', { count: llmSucceeded }), duration: 4000 });
+        }
       }
     }
 
-    let pending = [...jobs];
-    let processed = 0;
+    if (ttsJobs.length > 0) {
+      const bridge = getBridge();
+      const provider = settings.flashcardTtsProvider;
+      const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
+      const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
+      const cloudApiUrl = settings.cloudApiUrl || undefined;
+      const total = ttsJobs.length;
+      let succeeded = 0;
 
-    for (let attempt = 0; attempt < MAX_REPAIR_RETRIES && pending.length > 0; attempt++) {
-      const failedThisRound: TtsRepairJob[] = [];
+      const toastId = showToast({
+        variant: 'info',
+        title: t('mlearn.Flashcards.Repair.ToastTitle'),
+        content: (
+          <ProgressBar value={0} size="md" variant="primary" showPercent percentPosition="below" />
+        ),
+        duration: 0,
+      });
 
-      for (const job of pending) {
-        try {
-          const result = await bridge.flashcards.generateFlashcardTts(
-            job.cardId, job.text, language, job.field, provider,
-            voiceSampleId, cloudAuthToken, cloudApiUrl
-          );
-          if (result) {
-            succeeded++;
-          } else {
+      if (provider !== 'cloud') {
+        const allowed = await requestAccess('tts');
+        if (!allowed) {
+          setRepairRunning(false);
+          removeToast(toastId);
+          return;
+        }
+      }
+
+      let pending = [...ttsJobs];
+      let processed = 0;
+
+      for (let attempt = 0; attempt < MAX_REPAIR_RETRIES && pending.length > 0; attempt++) {
+        const failedThisRound: TtsRepairJob[] = [];
+
+        for (const job of pending) {
+          try {
+            const result = await bridge.flashcards.generateFlashcardTts(
+              job.cardId, job.text, language, job.field, provider,
+              voiceSampleId, cloudAuthToken, cloudApiUrl
+            );
+            if (result) {
+              succeeded++;
+            } else {
+              failedThisRound.push(job);
+            }
+          } catch {
             failedThisRound.push(job);
           }
-        } catch {
-          failedThisRound.push(job);
+          processed++;
+          const pct = Math.min(100, Math.round((processed / total) * 100));
+          updateToast(toastId, {
+            content: (
+              <ProgressBar value={pct} size="sm" variant="primary" showPercent percentPosition="below" />
+            ),
+          });
         }
-        processed++;
-        const pct = Math.min(100, Math.round((processed / total) * 100));
-        updateToast(toastId, {
-          content: (
-            <ProgressBar value={pct} size="sm" variant="primary" showPercent percentPosition="below" />
-          ),
-        });
+
+        pending = failedThisRound;
       }
 
-      pending = failedThisRound;
+      removeToast(toastId);
+
+      const failed = pending.length;
+      if (failed > 0) {
+        showToast({ variant: 'warning', title: t('mlearn.Flashcards.Repair.DoneWithErrors', { total, failed }), duration: 5000 });
+      } else {
+        showToast({ variant: 'success', title: t('mlearn.Flashcards.Repair.Done', { count: succeeded }), duration: 4000 });
+      }
     }
 
-    removeToast(toastId);
     setRepairRunning(false);
     setRepairJobs([]);
-
-    const failed = pending.length;
-    if (failed > 0) {
-      showToast({
-        variant: 'warning',
-        title: t('mlearn.Flashcards.Repair.DoneWithErrors', { total, failed }),
-        duration: 5000,
-      });
-    } else {
-      showToast({
-        variant: 'success',
-        title: t('mlearn.Flashcards.Repair.Done', { count: succeeded }),
-        duration: 4000,
-      });
-    }
+    setLlmRepairJobs([]);
   };
 
   const handleBrowseTts = (cardId: string, text: string) => {
@@ -434,9 +491,14 @@ export const FlashcardsContent: Component = () => {
     }
   };
 
-  /** Bulk generate LLM examples for all flashcards without examples, then tokenize */
   const handleBulkExamples = async () => {
     if (bulkProgress()) return;
+
+    const availability = await checkAvailability(settings);
+    if (!availability.available) {
+      showToast({ message: t('mlearn.Flashcards.Bulk.ExamplesLLMUnavailable'), variant: 'error', duration: 6000 });
+      return;
+    }
 
     const cards = flashcards();
     const language = settings.language;
@@ -444,7 +506,6 @@ export const FlashcardsContent: Component = () => {
 
     const replaceAll = bulkMode() === 'replaceAll';
 
-    // Find cards that need examples
     const needExamples = replaceAll
       ? cards.filter(card => card.content.front && card.content.front !== '-')
       : cards.filter(card =>
@@ -466,11 +527,11 @@ export const FlashcardsContent: Component = () => {
     });
 
     let generated = 0;
+    let failed = 0;
     for (const card of needExamples) {
       try {
         const result = await generateExampleSentenceWithLLM(card.content.front, card.content.back, language);
         if (result.sentence) {
-          // Tokenize the sentence for colored HTML
           let exampleHtml = result.sentence;
           try {
             const tokens = await backend.tokenize(result.sentence, language);
@@ -484,16 +545,23 @@ export const FlashcardsContent: Component = () => {
             example: exampleHtml,
             exampleMeaning: result.meaning || undefined,
           });
+          generated++;
+        } else {
+          failed++;
         }
       } catch (e) {
         console.warn(`Failed to generate example for "${card.content.front}":`, e);
+        failed++;
       }
-      generated++;
-      setBulkProgress({ current: generated, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress'), startTime });
+      setBulkProgress({ current: generated + failed, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress'), startTime });
     }
 
     setBulkProgress(null);
-    showToast({ message: t('mlearn.Flashcards.Bulk.ExamplesDone', { count: generated }), variant: 'success' });
+    if (failed > 0) {
+      showToast({ message: t('mlearn.Flashcards.Bulk.ExamplesDoneWithErrors', { count: generated, failed }), variant: 'warning' });
+    } else {
+      showToast({ message: t('mlearn.Flashcards.Bulk.ExamplesDone', { count: generated }), variant: 'success' });
+    }
   };
 
   // Get state badge variant
@@ -934,7 +1002,7 @@ export const FlashcardsContent: Component = () => {
         onClose={() => setShowSyncModal(false)}
       />
 
-      {/* TTS Repair Modal */}
+      {/* Repair Modal */}
       <Modal
         isOpen={showRepairModal()}
         onClose={() => setShowRepairModal(false)}
@@ -943,11 +1011,17 @@ export const FlashcardsContent: Component = () => {
         footer={
           <>
             <Btn onClick={() => setShowRepairModal(false)}>{t('mlearn.Global.Close')}</Btn>
-            <Btn variant="primary" onClick={handleRepairTts}>{t('mlearn.Flashcards.Repair.RepairButton')}</Btn>
+            <Btn variant="primary" onClick={handleRepair}>{t('mlearn.Flashcards.Repair.RepairButton')}</Btn>
           </>
         }
       >
-        <p>{t('mlearn.Flashcards.Repair.Description', { count: repairJobs().length })}</p>
+        <p>
+          {llmRepairJobs().length > 0 && repairJobs().length > 0
+            ? t('mlearn.Flashcards.Repair.DescriptionWithLLM', { llmCount: llmRepairJobs().length, ttsCount: repairJobs().length })
+            : llmRepairJobs().length > 0
+              ? t('mlearn.Flashcards.Repair.DescriptionLLMOnly', { count: llmRepairJobs().length })
+              : t('mlearn.Flashcards.Repair.Description', { count: repairJobs().length })}
+        </p>
       </Modal>
     </div>
   );

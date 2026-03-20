@@ -22,6 +22,7 @@ export type ButtonVariant =
   | 'secondary' 
   | 'danger' 
   | 'success'
+  | 'warning'
   | 'ghost'
   | 'red' 
   | 'orange' 
@@ -49,6 +50,7 @@ const VARIANT_COLORS: Record<ButtonVariant, string> = {
   secondary: 'var(--text-secondary)',
   danger: 'var(--color-error)',
   success: 'var(--color-success)',
+  warning: 'var(--color-warning)',
   ghost: 'var(--text-primary)',
   red: 'var(--pill-level-1-text)',
   orange: 'var(--pill-level-4-text)',

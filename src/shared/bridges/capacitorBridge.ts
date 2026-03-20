@@ -702,8 +702,11 @@ const fileBridge: FileBridge = {
   },
 
   async readPdfFile(_filePath: string) {
-    // Stub — PDF reading on mobile would need a separate plugin
     return { data: new ArrayBuffer(0) };
+  },
+
+  async readMediaFile(_filePath: string) {
+    return null;
   },
 
   async selectVideoFile() {

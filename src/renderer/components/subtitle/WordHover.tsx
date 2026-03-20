@@ -389,22 +389,29 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         });
 
         // If video mode, clip and save the video segment
+        console.log('[WordHover] handleAddFlashcard: isVideoMode=', isVideoMode, 'videoSrc=', props.videoSrc, 'subtitleStart=', props.subtitleStart, 'subtitleEnd=', props.subtitleEnd);
         if (isVideoMode && props.videoSrc && props.subtitleStart != null && props.subtitleEnd != null) {
           const margin = (settings.flashcardVideoMargin ?? 300) / 1000;
           const start = Math.max(0, props.subtitleStart - margin);
           const end = props.subtitleEnd + margin;
+          console.log('[WordHover] handleAddFlashcard: calling clipVideo, start=', start, 'end=', end);
           const videoData = await clipVideo(props.videoSrc, start, end);
+          console.log('[WordHover] handleAddFlashcard: clipVideo result=', videoData == null ? 'null' : `Uint8Array(${videoData.byteLength})`);
           if (videoData) {
             const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
             const videoUrl = await getBridge().flashcards.saveFlashcardVideo(cardId, videoData.buffer as ArrayBuffer);
+            console.log('[WordHover] handleAddFlashcard: saveFlashcardVideo result=', videoUrl);
             if (videoUrl) {
               content.videoUrl = videoUrl;
+              console.log('[WordHover] handleAddFlashcard: content.videoUrl set to', videoUrl);
             } else {
               showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
             }
           } else {
             showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
           }
+        } else {
+          console.log('[WordHover] handleAddFlashcard: skipping video clip — condition not met');
         }
 
         await addFlashcard(content, ease);

@@ -73,6 +73,7 @@ export interface LocalizationBridge {
 export interface FileBridge {
   readDirectoryImages: (directoryPath: string) => Promise<{ files: Array<{ name: string; path: string; data: ArrayBuffer }> }>;
   readPdfFile: (filePath: string) => Promise<{ data: ArrayBuffer }>;
+  readMediaFile: (filePath: string) => Promise<ArrayBuffer | null>;
   selectVideoFile: () => Promise<string | null>;
   selectSubtitleFile: () => Promise<string | null>;
   selectBookFolder: () => Promise<string | null>;
