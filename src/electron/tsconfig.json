@@ -27,6 +27,8 @@
     "node_modules",
     "../shared/bridges",
     "../shared/backends",
-    "../shared/platform.ts"
+    "../shared/platform.ts",
+    "./**/*.test.ts",
+    "../shared/**/*.test.ts"
   ]
 }
