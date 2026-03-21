@@ -20,6 +20,7 @@
 /* Show header on parent hover */
 .aside:hover .panel-header,
 .sync-subs:hover .panel-header,
+.subtitle-sync:hover .panel-header,
 .live-word-translator:hover .panel-header {
   border-right: 1px solid #000;
   opacity: 1;

@@ -157,10 +157,16 @@
   width: 100%;
   max-width: 600px;
   position: sticky;
-  bottom: 0;
+  bottom: var(--spacing-4);
   padding: var(--spacing-4) 0;
   z-index: var(--z-foreground);
   margin-top: auto;
+}
+.flashcard-buttons-container:not(:has(.flashcard-show-answer-btn)) {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  backdrop-filter: var(--backdrop-filter);
 }
 
 /* Show answer button */
@@ -184,7 +190,7 @@
   gap: 0.25rem;
   padding: 0.75rem 1.25rem;
   min-width: 70px;
-  backdrop-filter: var(--backdrop-filter);
+  box-shadow: var(--shadow-special);
 }
 
 .flashcard-rating-btn:hover {

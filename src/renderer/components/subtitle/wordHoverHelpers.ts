@@ -313,7 +313,6 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
     example: exampleHtml,
     exampleMeaning: '',
     imageUrl: screenshot,
-    skipExampleTts: params.flashcardMediaType === 'video' ? true : undefined,
     word,
     pronunciation: reading || word,
     translation: translationArr,

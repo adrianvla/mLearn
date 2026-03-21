@@ -10,7 +10,7 @@
  * - Content is fully reactive via memos (no innerHTML refs that go stale).
  */
 
-import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on } from 'solid-js';
+import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on, onCleanup } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
 import { Panel, PillLabel, IconBtn } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
@@ -120,6 +120,49 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
 
   const useAnimation = () => settings.flashcardFlipAnimation && shouldAnimate();
 
+  // Video autoplay refs
+  let frontVideoRef: HTMLVideoElement | undefined;
+  let backVideoRef: HTMLVideoElement | undefined;
+
+  const pauseVideo = (el: HTMLVideoElement | undefined) => {
+    if (!el) return;
+    el.pause();
+    el.currentTime = 0;
+  };
+
+  const playVideo = (el: HTMLVideoElement | undefined) => {
+    if (!el) return;
+    el.currentTime = 0;
+    el.play().catch(() => { /* autoplay blocked */ });
+  };
+
+  // Reset videos when a new card appears
+  createEffect(on(
+    () => props.flashcard.id,
+    () => {
+      pauseVideo(frontVideoRef);
+      pauseVideo(backVideoRef);
+    },
+  ));
+
+  // Autoplay back video when the answer is revealed; pause when flipped back
+  createEffect(on(
+    () => isFlipped(),
+    (flipped) => {
+      if (!displayVideoUrl()) return;
+      if (flipped) {
+        playVideo(backVideoRef);
+      } else {
+        pauseVideo(backVideoRef);
+      }
+    },
+  ));
+
+  onCleanup(() => {
+    pauseVideo(frontVideoRef);
+    pauseVideo(backVideoRef);
+  });
+
   return (
     <div
       class="flashcard-container"
@@ -201,10 +244,11 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           }>
             <div class="flashcard-screenshot-container flashcard-screenshot-front">
               <video
+                ref={frontVideoRef}
                 src={displayVideoUrl()!}
                 class="flashcard-screenshot"
                 controls
-                preload="metadata"
+                preload="auto"
                 onClick={(e: MouseEvent) => e.stopPropagation()}
               />
             </div>
@@ -300,10 +344,11 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           }>
             <div class="flashcard-screenshot-container">
               <video
+                ref={backVideoRef}
                 src={displayVideoUrl()!}
                 class="flashcard-screenshot"
                 controls
-                preload="metadata"
+                preload="auto"
                 onClick={(e: MouseEvent) => e.stopPropagation()}
               />
             </div>

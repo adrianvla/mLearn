@@ -166,7 +166,7 @@ type FlashcardCtx = {
   suspendCard: (id: string) => void;
   unsuspendCard: (id: string) => void;
   buryCard: (id: string) => void;
-  answerCard: (rating: Rating) => void;
+  answerCard: (rating: Rating, cardId?: string) => void;
   getCurrentCard: () => Flashcard | null;
   getAllCards: () => Flashcard[];
   getCardById: (id: string) => Flashcard | null;
@@ -616,6 +616,43 @@ describe('FlashcardProvider', () => {
     const stats = ctx.store.dailyStats[today];
     expect(stats).toBeDefined();
     expect(stats.newCardsStudied).toBe(1);
+    dispose();
+  });
+
+  it('answerCard with explicit cardId answers the specified card, not whatever getNextCard() returns', async () => {
+    // Regression: without cardId, answerCard calls getCurrentCard() fresh which uses Math.random()
+    // and may return a different card than the one displayed, leaving the displayed card in the queue.
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hashNew = await SRS.hashWord('新しい');
+    const hashReview = await SRS.hashWord('復習');
+    const lkNew = `ja:${hashNew}`;
+    const lkReview = `ja:${hashReview}`;
+    const newCard = makeCard({ id: 'card-new', state: 'new', content: { type: 'word', front: '新しい', back: 'new' } });
+    const reviewCard = makeCard({
+      id: 'card-review',
+      state: 'review',
+      interval: 86400000,
+      dueDate: Date.now() - 1000,
+      reviews: 5,
+      content: { type: 'word', front: '復習', back: 'review' },
+    });
+    flashcardsCb(makeEmptyStore({
+      flashcards: { 'card-new': newCard, 'card-review': reviewCard },
+      wordToCardMap: { [lkNew]: ['card-new'], [lkReview]: ['card-review'] },
+    }));
+    ctx.refreshQueue();
+
+    // Force Math.random to always pick review cards so getNextCard() without cardId would answer reviewCard
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    // But we explicitly pass newCard.id — so newCard should be answered
+    ctx.answerCard('good', 'card-new');
+    vi.restoreAllMocks();
+
+    const answeredNew = ctx.store.flashcards['card-new'];
+    const untouchedReview = ctx.store.flashcards['card-review'];
+    expect(answeredNew.state).not.toBe('new');
+    expect(untouchedReview.state).toBe('review');
     dispose();
   });
 

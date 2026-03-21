@@ -22,6 +22,7 @@
   transition: all 0.2s ease;
   user-select: none;
   position: relative;
+  box-shadow:var(--shadow-special);
 }
 
 .btn:disabled,
@@ -153,6 +154,7 @@
 .btn-default.btn-ghost {
   background: transparent;
   border-color: transparent;
+  box-shadow:none;
 }
 
 .btn-default.btn-ghost:hover:not(:disabled) {

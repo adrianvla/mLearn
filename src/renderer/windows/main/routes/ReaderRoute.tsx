@@ -1202,14 +1202,14 @@ export const ReaderRoute: Component = () => {
     });
   });
 
-  // Save current page as thumbnail when leaving the reader
+  // Save current page progress and first-page thumbnail when leaving the reader
   onCleanup(() => {
     const title = bookTitle();
     const currentPages = pages();
     const page = currentPage();
     const path = currentBookPath();
-    if (title && currentPages.length > 0 && currentPages[page]?.blob) {
-      captureBlobThumbnail(currentPages[page].blob!).then((thumbnail) => {
+    if (title && currentPages.length > 0 && currentPages[0]?.blob) {
+      captureBlobThumbnail(currentPages[0].blob!).then((thumbnail) => {
         if (thumbnail) {
           void saveToRecentItems({ type: 'book', name: title, path, progress: page }, thumbnail);
         }
@@ -1402,12 +1402,8 @@ export const ReaderRoute: Component = () => {
     const bookId = currentBookId();
     persistPageIndex(bookId, newPage, total);
 
-    // Update recent items with current page thumbnail (every 10 pages or on last page)
-    // Use the tracked book path to preserve the filesystem path for re-opening
-    const currentPages = pages();
-    const shouldUpdateThumbnail = newPage % 10 === 0 || newPage === total - 1;
-    const coverBlob = shouldUpdateThumbnail ? currentPages[newPage]?.blob : undefined;
-    saveToRecent(bookTitle(), 'book', newPage, currentBookPath(), coverBlob);
+    // Update recent items with current progress but keep the first-page thumbnail
+    saveToRecent(bookTitle(), 'book', newPage, currentBookPath());
   };
 
   const prevPage = () => {

@@ -403,6 +403,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
             console.log('[WordHover] handleAddFlashcard: saveFlashcardVideo result=', videoUrl);
             if (videoUrl) {
               content.videoUrl = videoUrl;
+              content.skipExampleTts = true;
               console.log('[WordHover] handleAddFlashcard: content.videoUrl set to', videoUrl);
             } else {
               showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });

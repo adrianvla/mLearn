@@ -17,6 +17,70 @@ export interface SubtitleSyncProps {
   subtitles?: Array<{ start: number; end: number; text: string }>;
 }
 
+type SubEntry = { start: number; end: number; text: string };
+
+/**
+ * Finds the subtitle the user is inside, or the last subtitle that ended
+ * before the adjusted time (handles gaps between subtitles).
+ */
+export function findCurrentOrPreviousSub(
+  subs: SubEntry[] | undefined,
+  adjustedTime: number,
+): SubEntry | null {
+  if (!subs || subs.length === 0) return null;
+
+  let lastBefore: SubEntry | null = null;
+
+  for (let i = 0; i < subs.length; i++) {
+    if (adjustedTime >= subs[i].start && adjustedTime <= subs[i].end) {
+      return subs[i];
+    }
+    if (subs[i].end <= adjustedTime) {
+      lastBefore = subs[i];
+    }
+  }
+
+  return lastBefore;
+}
+
+/**
+ * Finds the subtitle strictly before the current adjusted position.
+ * If inside a subtitle, returns the one before it (not the current one).
+ * If in a gap, returns the last subtitle that ended before this time.
+ */
+export function findPreviousSubForSync(
+  subs: SubEntry[] | undefined,
+  adjustedTime: number,
+): SubEntry | null {
+  if (!subs || subs.length === 0) return null;
+
+  let previousSub: SubEntry | null = null;
+
+  for (let i = 0; i < subs.length; i++) {
+    if (adjustedTime >= subs[i].start && adjustedTime <= subs[i].end) {
+      break;
+    }
+    if (subs[i].start > adjustedTime) break;
+    previousSub = subs[i];
+  }
+
+  return previousSub;
+}
+
+export function findNextSub(
+  subs: SubEntry[] | undefined,
+  adjustedTime: number,
+): SubEntry | null {
+  if (!subs || subs.length === 0) return null;
+
+  for (let i = 0; i < subs.length; i++) {
+    if (subs[i].start > adjustedTime) {
+      return subs[i];
+    }
+  }
+  return null;
+}
+
 export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
   const { settings, updateSetting } = useSettings();
   const { t } = useLocalization();
@@ -40,49 +104,21 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
     props.onClose?.();
   };
 
-  // Find the current subtitle based on adjusted time
-  const findCurrentSub = (adjustedTime: number) => {
-    const subs = props.subtitles;
-    if (!subs || subs.length === 0) return null;
-
-    for (let i = 0; i < subs.length; i++) {
-      if (adjustedTime >= subs[i].start && adjustedTime <= subs[i].end) {
-        return subs[i];
-      }
-    }
-    return null;
-  };
-
-  // Find the next subtitle after current time
-  const findNextSub = (adjustedTime: number) => {
-    const subs = props.subtitles;
-    if (!subs || subs.length === 0) return null;
-
-    for (let i = 0; i < subs.length; i++) {
-      if (subs[i].start > adjustedTime) {
-        return subs[i];
-      }
-    }
-    return null;
-  };
-
-  // Backward sync - align current subtitle start with video time
   const handleBackward = () => {
     const videoTime = props.currentVideoTime?.() ?? 0;
     const adjustedTime = videoTime + settings.subsOffsetTime;
-    const currentSub = findCurrentSub(adjustedTime);
+    const sub = findPreviousSubForSync(props.subtitles, adjustedTime);
 
-    if (currentSub) {
-      const newOffset = currentSub.start - videoTime;
+    if (sub) {
+      const newOffset = sub.start - videoTime;
       updateSetting('subsOffsetTime', isNaN(newOffset) ? 0 : newOffset);
     }
   };
 
-  // Forward sync - align next subtitle start with video time
   const handleForward = () => {
     const videoTime = props.currentVideoTime?.() ?? 0;
     const adjustedTime = videoTime + settings.subsOffsetTime;
-    const nextSub = findNextSub(adjustedTime);
+    const nextSub = findNextSub(props.subtitles, adjustedTime);
 
     if (nextSub) {
       const newOffset = nextSub.start - videoTime;

@@ -125,6 +125,7 @@ export interface RecentItem {
   subtitlePath?: string;
   thumbnail?: string;
   progress: number;
+  playbackTime?: number;
   lastWatched: number;
 }
 
@@ -276,5 +277,33 @@ export async function updateRecentItemSubtitlePathByPath(path: string, subtitleP
     }
   } catch (e) {
     console.error('Failed to update recent item subtitle path by path:', e);
+  }
+}
+
+export async function updateRecentItemPlaybackTime(name: string, playbackTime: number): Promise<void> {
+  try {
+    const items = await getRecentItems();
+    const index = items.findIndex((item) => item.name === name);
+    if (index !== -1) {
+      items[index].playbackTime = playbackTime;
+      items[index].lastWatched = Date.now();
+      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
+    }
+  } catch (e) {
+    console.error('Failed to update recent item playback time:', e);
+  }
+}
+
+export async function updateRecentItemPlaybackTimeByPath(path: string, playbackTime: number): Promise<void> {
+  try {
+    const items = await getRecentItems();
+    const index = items.findIndex((item) => item.path === path);
+    if (index !== -1) {
+      items[index].playbackTime = playbackTime;
+      items[index].lastWatched = Date.now();
+      await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
+    }
+  } catch (e) {
+    console.error('Failed to update recent item playback time by path:', e);
   }
 }
