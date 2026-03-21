@@ -222,12 +222,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   ));
 
   // Auto-TTS: play example when answer is revealed (waits for word TTS to finish)
+  // Skip example TTS for cards with video — the video provides the audio
   createEffect(on(
     () => showAnswer(),
     (isShown) => {
       if (!isShown || !settings.flashcardAutoTts) return;
       const card = currentCard();
       if (!card?.content.example || card.content.example === '-') return;
+      if (card.content.videoUrl || card.content.skipExampleTts) return;
       // Play example immediately — playTts stops any previous audio first
       playTts(card.id, card.content.example!, settings.language, 'example');
     }
@@ -240,7 +242,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     stopTts();
     batch(() => {
       setShowAnswer(false);
-      answerCard(quality);
+      answerCard(quality, card.id);
       setCardsAnswered(prev => prev + 1);
     });
   };

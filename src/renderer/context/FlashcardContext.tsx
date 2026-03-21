@@ -135,7 +135,7 @@ interface FlashcardContextValue {
   buryCard: (id: string) => void;
 
   // Review operations
-  answerCard: (rating: SRS.Rating) => void;
+  answerCard: (rating: SRS.Rating, cardId?: string) => void;
   getCurrentCard: () => Flashcard | null;
   getPreviewDueDates: () => Record<SRS.Rating, number> | null;
 
@@ -1020,8 +1020,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   // Answer current card
-  const answerCard = (rating: SRS.Rating) => {
-    const card = getCurrentCard();
+  // cardId should always be passed from the UI to avoid a second getNextCard() call
+  // (which uses Math.random() and may return a different card than the one displayed).
+  const answerCard = (rating: SRS.Rating, cardId?: string) => {
+    const card = cardId ? (store.flashcards[cardId] ?? null) : getCurrentCard();
     if (!card) return;
 
     // Lightweight undo: snapshot only the affected card and meta (avoids expensive full store clone)

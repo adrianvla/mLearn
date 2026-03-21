@@ -5,7 +5,8 @@
 
 import { Component, Show, createSignal, createEffect, onMount, onCleanup, createMemo } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { useIPC, useSubtitles, useWatchTogether, useMediaStats } from '../../../hooks';
+import { useSubtitles, useWatchTogether, useMediaStats } from '../../../hooks';
+import { isElectron as isElectronPlatform } from '../../../../shared/platform';
 import { useLocalization, useSettings, useLanguage, useFlashcards } from '../../../context';
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
@@ -15,7 +16,7 @@ import { SubtitleSync } from '../../../components/subtitle';
 import { WORD_STATUS } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
-import { captureVideoThumbnail, saveToRecentItems, updateRecentItemSubtitlePath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
+import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
@@ -35,7 +36,6 @@ const getMediaNameFromPath = (filePath: string): string => filePath.split('/').p
 
 export const VideoRoute: Component = () => {
   const navigate = useNavigate();
-  const { isElectron, selectFile, readFile } = useIPC();
   const { t } = useLocalization();
   const { settings } = useSettings();
   const langCtx = useLanguage();
@@ -202,6 +202,7 @@ export const VideoRoute: Component = () => {
           console.log('[VideoRoute] addVideoWordFlashcard: saveFlashcardVideo result=', videoUrl);
           if (videoUrl) {
             content.videoUrl = videoUrl;
+            content.skipExampleTts = true;
             console.log('[VideoRoute] addVideoWordFlashcard: content.videoUrl set to', videoUrl);
           } else {
             showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
@@ -255,14 +256,17 @@ export const VideoRoute: Component = () => {
 
       loadVideo(pendingVideo, getMediaNameFromPath(pendingVideo));
 
-      if (!isElectron || !pendingSubtitle?.trim()) {
+      if (!pendingSubtitle?.trim()) {
         return;
       }
 
       try {
-        const content = await readFile(pendingSubtitle);
-        setSubtitleContent(content);
-        setCurrentSubtitlePath(pendingSubtitle);
+        const buffer = await getBridge().files.readMediaFile(pendingSubtitle);
+        if (buffer) {
+          const content = new TextDecoder().decode(buffer);
+          setSubtitleContent(content);
+          setCurrentSubtitlePath(pendingSubtitle);
+        }
       } catch (error) {
         console.error('Failed to auto-load subtitles for saved video:', error);
       }
@@ -310,6 +314,8 @@ export const VideoRoute: Component = () => {
         if (!watchTogether.isSuppressed) {
           watchTogether.sendPause(video.currentTime);
         }
+        savePlaybackTime();
+        captureThumbnailIfReady();
       };
       const onSeeked = () => {
         if (!watchTogether.isSuppressed) {
@@ -344,18 +350,47 @@ export const VideoRoute: Component = () => {
       }
     };
 
+    // Seek to the saved playback position when the video metadata is available
+    const attachVideoResumption = () => {
+      const video = document.querySelector('video');
+      if (!video) return;
+
+      const restorePlayback = async () => {
+        const path = currentVideoPath();
+        if (!path) return;
+        const items = await getRecentItems();
+        const saved = items.find(i => i.path === path);
+        if (saved?.playbackTime && saved.playbackTime > 5 && isFinite(saved.playbackTime)) {
+          video.currentTime = saved.playbackTime;
+        }
+      };
+
+      if (video.readyState >= 1) {
+        void restorePlayback();
+      } else {
+        const onLoadedMetadata = () => {
+          void restorePlayback();
+          video.removeEventListener('loadedmetadata', onLoadedMetadata);
+        };
+        video.addEventListener('loadedmetadata', onLoadedMetadata);
+        ipcCleanups.push(() => video.removeEventListener('loadedmetadata', onLoadedMetadata));
+      }
+    };
+
     // The video element may appear later (ShowDropZone toggle), so use a
     // MutationObserver to detect when it's added.
     const observer = new MutationObserver(() => {
       if (document.querySelector('video')) {
         attachWatchTogetherListeners();
         attachInitialThumbnailCapture();
+        attachVideoResumption();
         observer.disconnect();
       }
     });
     if (document.querySelector('video')) {
       attachWatchTogetherListeners();
       attachInitialThumbnailCapture();
+      attachVideoResumption();
     } else {
       observer.observe(document.body, { childList: true, subtree: true });
       ipcCleanups.push(() => observer.disconnect());
@@ -374,6 +409,7 @@ export const VideoRoute: Component = () => {
     // Capture final thumbnail and save final progress on cleanup
     captureThumbnailIfReady();
     updateVideoProgress();
+    savePlaybackTime();
   });
 
   // Broadcast subtitle HTML to tethered clients whenever the current
@@ -394,11 +430,13 @@ export const VideoRoute: Component = () => {
     );
   });
   
+  const THUMBNAIL_MIN_TIME = 10; // seconds: skip black frames near video start
+
   const captureThumbnailIfReady = () => {
     const videoEl = document.querySelector('video');
     const name = currentVideoName();
     const path = currentVideoPath();
-    if (videoEl && name && videoEl.readyState >= 2) {
+    if (videoEl && name && videoEl.readyState >= 2 && videoEl.currentTime >= THUMBNAIL_MIN_TIME) {
       const thumbnail = captureVideoThumbnail(videoEl);
       if (thumbnail) {
         if (path) {
@@ -419,6 +457,18 @@ export const VideoRoute: Component = () => {
         void updateRecentItemProgressByPath(path, progress);
       }
       void updateRecentItemProgress(name, progress);
+    }
+  };
+
+  const savePlaybackTime = () => {
+    const videoEl = document.querySelector('video');
+    const name = currentVideoName();
+    const path = currentVideoPath();
+    if (videoEl && name && isFinite(videoEl.currentTime) && videoEl.currentTime > 5) {
+      if (path) {
+        void updateRecentItemPlaybackTimeByPath(path, videoEl.currentTime);
+      }
+      void updateRecentItemPlaybackTime(name, videoEl.currentTime);
     }
   };
 
@@ -505,48 +555,43 @@ export const VideoRoute: Component = () => {
   };
 
   const handleSelectVideo = async () => {
-    if (!isElectron) {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'video/*';
-        input.onchange = async () => {
-          const file = input.files?.[0];
-          if (file) {
-            const filePath = getBridge().files.getPathForFile(file)
-              || (file as File & { path?: string }).path || '';
-            if (filePath) {
-              loadVideo(filePath, file.name);
-            } else {
-              setVideoSrc(URL.createObjectURL(file));
-              setCurrentVideoPath('');
-              setShowDropZone(false);
-              setCurrentVideoName(file.name);
-            }
-            // Only save to recent items if we have a valid path (can be reopened)
-            if (filePath) {
-              await saveVideoToRecentItems(filePath, file.name);
-            }
-          }
-        };
-      input.click();
-      return;
-    }
+    const bridge = getBridge();
+    const path = await bridge.files.selectVideoFile();
 
-    const path = await selectFile({
-      filters: [
-        { name: 'Video Files', extensions: ['mp4', 'webm', 'mkv', 'avi', 'mov'] },
-      ],
-    });
+    if (!path) return;
 
-    if (path) {
+    // On Electron, selectVideoFile returns a filesystem path
+    // On Capacitor, it returns a blob URL
+    if (isElectronPlatform()) {
       const videoName = getMediaNameFromPath(path);
       loadVideo(path, videoName);
       await saveVideoToRecentItems(path, videoName);
+    } else {
+      // Blob URL — can play but can't reopen later
+      const videoName = getMediaNameFromPath(path);
+      setVideoSrc(path);
+      setCurrentVideoPath('');
+      setShowDropZone(false);
+      setCurrentVideoName(videoName);
     }
   };
 
   const handleSelectSubtitle = async () => {
-    if (!isElectron) {
+    const bridge = getBridge();
+
+    if (isElectronPlatform()) {
+      const path = await bridge.files.selectSubtitleFile();
+      if (!path) return;
+
+      const buffer = await bridge.files.readMediaFile(path);
+      if (!buffer) return;
+
+      const content = new TextDecoder().decode(buffer);
+      setSubtitleContent(content);
+      setCurrentSubtitlePath(path);
+      await persistCurrentSubtitlePath(path);
+    } else {
+      // On non-Electron, selectSubtitleFile returns a blob URL — read as text
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = '.srt,.vtt,.ass,.ssa';
@@ -559,20 +604,6 @@ export const VideoRoute: Component = () => {
         }
       };
       input.click();
-      return;
-    }
-
-    const path = await selectFile({
-      filters: [
-        { name: 'Subtitle Files', extensions: ['srt', 'vtt', 'ass', 'ssa'] },
-      ],
-    });
-
-    if (path) {
-      const content = await readFile(path);
-      setSubtitleContent(content);
-      setCurrentSubtitlePath(path);
-      await persistCurrentSubtitlePath(path);
     }
   };
 

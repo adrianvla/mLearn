@@ -52,7 +52,8 @@
 .subtitle_word .frequency {
   position: absolute;
   bottom: -10px;
-  left: 0;
+  left: 50%;
+  transform: translateX(-50%);
   right: 0;
   font-size: 0.8em;
   padding: 5px;
