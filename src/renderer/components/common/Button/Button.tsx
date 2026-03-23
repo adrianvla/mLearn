@@ -37,8 +37,8 @@ export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 // Map of icon names available in the Icon component
 const ICON_NAMES = [
   'anki', 'book', 'bot', 'cards', 'check', 'chevron', 'cog', 'cross', 'cross2',
-  'document', 'fast-forward', 'palette', 'pause', 'pin', 'pip', 'play',
-  'sidebar', 'star', 'stars', 'stats', 'subtitles', 'volume'
+  'document', 'fast-forward', 'link', 'mlearn-logo', 'palette', 'pause', 'pin', 'pip', 'play',
+  'sidebar', 'star', 'stars', 'stats', 'subtitles', 'target', 'volume'
 ] as const;
 
 type IconName = typeof ICON_NAMES[number];

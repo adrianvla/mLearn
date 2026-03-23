@@ -296,6 +296,18 @@ export type SubtitleTheme = typeof SUBTITLE_THEMES[number];
 export const APP_THEMES = ['light', 'dark', 'glass-light', 'glass-dark', 'light-high-contrast', 'dark-high-contrast', 'darker'] as const;
 export type AppTheme = typeof APP_THEMES[number];
 
+export const SRS_EASE = {
+  MIN: 1.3,
+  DEFAULT_LEARNING: 1.55,
+  DEFAULT_KNOWN: 1.8,
+} as const;
+
+export const ANKI_EASE = {
+  MIN: 1300,
+  DEFAULT_LEARNING: 1550,
+  DEFAULT_KNOWN: 1800,
+} as const;
+
 // Word status (for SRS)
 export const WORD_STATUS = {
   UNKNOWN: 0,
@@ -303,6 +315,14 @@ export const WORD_STATUS = {
   KNOWN: 2,
 } as const;
 export type WordStatus = typeof WORD_STATUS[keyof typeof WORD_STATUS];
+
+// Knowledge sources for word status resolution
+export const KNOWLEDGE_SOURCES = ['srs', 'anki', 'manual'] as const;
+export type KnowledgeSource = typeof KNOWLEDGE_SOURCES[number];
+
+// Knowledge resolution modes
+export const KNOWLEDGE_RESOLUTION_MODES = ['order', 'highest', 'lowest'] as const;
+export type KnowledgeResolutionMode = typeof KNOWLEDGE_RESOLUTION_MODES[number];
 
 // Word hover trigger modes for Reader
 export const WORD_HOVER_TRIGGER_MODES = ['hover', 'long-hover', 'key-hover'] as const;

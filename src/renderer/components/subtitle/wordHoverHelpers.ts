@@ -1,5 +1,6 @@
 import type { Flashcard, FlashcardContent, DictionaryEntry, PitchData, Token, TranslationEntry } from '../../../shared/types';
-import { WORD_STATUS } from '../../../shared/constants';
+import { WORD_STATUS, SRS_EASE, ANKI_EASE } from '../../../shared/constants';
+import type { KnowledgeSource, KnowledgeResolutionMode } from '../../../shared/constants';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 
@@ -26,6 +27,14 @@ export interface BuildWordHoverFlashcardContentParams {
   tokenize: (text: string) => Promise<Token[]>;
   /** When 'video', the caller will clip a video segment and attach it post-build */
   flashcardMediaType?: 'image' | 'video';
+  /** Anki ease factor for Learning status (integer, e.g. 1550) */
+  ankiLearningEase?: number;
+  /** Anki ease factor for Known status (integer, e.g. 1800) */
+  ankiKnownEase?: number;
+  /** Built-in SRS ease for Learning status (float, e.g. 1.55) */
+  srsLearningEase?: number;
+  /** Built-in SRS ease for Known status (float, e.g. 1.8) */
+  srsKnownEase?: number;
 }
 
 export function numericToWordStatus(num: number): WordStatus {
@@ -50,38 +59,124 @@ export function wordStatusToNumeric(status: WordStatus): number {
   }
 }
 
-export type StatusSource = 'nothing' | 'manual' | 'anki' | 'flashcards';
-
-export function getEffectiveWordStatus(card: Flashcard | null, manualStatus: WordStatus): WordStatus {
-  if (card) {
-    if (card.state === 'new' || card.state === 'learning' || card.state === 'relearning') {
-      return 'learning';
-    }
-    if (card.state === 'review') {
-      return 'known';
-    }
-  }
-  return manualStatus;
+export interface WordKnowledgeResult {
+  /** The resolved effective word status */
+  status: WordStatus;
+  /** Sources that determined the winning status */
+  activeSources: KnowledgeSource[];
+  /** All sources that have data for this word */
+  dataSources: KnowledgeSource[];
 }
 
-/**
- * Determine which source is driving the effective word status.
- * Priority: Flashcards > Anki > Manual > Nothing
- */
-export function getStatusSource(
+const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
+
+const DEFAULT_SOURCE_ORDER: readonly KnowledgeSource[] = ['srs', 'anki', 'manual'];
+
+function getStatusFromSource(
+  source: KnowledgeSource,
   card: Flashcard | null,
   manualStatus: WordStatus,
   isInAnki: boolean,
-): StatusSource {
-  if (card) return 'flashcards';
-  if (isInAnki) return 'anki';
-  if (manualStatus !== 'unknown') return 'manual';
-  return 'nothing';
+): WordStatus | null {
+  switch (source) {
+    case 'srs':
+      if (!card) return null;
+      if (card.state === 'new' || card.state === 'learning' || card.state === 'relearning') return 'learning';
+      if (card.state === 'review') return 'known';
+      return null;
+    case 'anki':
+      return isInAnki ? 'learning' : null;
+    case 'manual':
+      return manualStatus !== 'unknown' ? manualStatus : null;
+  }
 }
 
-export function getEaseFromWordStatus(status: WordStatus): number {
-  const statusNum = wordStatusToNumeric(status);
-  return Math.max((statusNum - 1) * 0.25, 0) + 1.3;
+/**
+ * Resolve a word's knowledge status from multiple sources using the configured strategy.
+ * This is the single system-wide function for determining word knowledge.
+ */
+export function resolveWordKnowledge(
+  card: Flashcard | null,
+  manualStatus: WordStatus,
+  isInAnki: boolean,
+  sourceOrder: readonly KnowledgeSource[] = DEFAULT_SOURCE_ORDER,
+  resolutionMode: KnowledgeResolutionMode = 'highest',
+): WordKnowledgeResult {
+  const available: { source: KnowledgeSource; status: WordStatus }[] = [];
+
+  for (const src of sourceOrder) {
+    const status = getStatusFromSource(src, card, manualStatus, isInAnki);
+    if (status !== null) {
+      available.push({ source: src, status });
+    }
+  }
+
+  const dataSources = available.map(a => a.source);
+
+  if (available.length === 0) {
+    return { status: manualStatus, activeSources: [], dataSources: [] };
+  }
+
+  switch (resolutionMode) {
+    case 'order': {
+      return { status: available[0].status, activeSources: [available[0].source], dataSources };
+    }
+    case 'highest': {
+      const maxRank = Math.max(...available.map(a => STATUS_RANK[a.status]));
+      const winners = available.filter(a => STATUS_RANK[a.status] === maxRank);
+      return { status: winners[0].status, activeSources: winners.map(w => w.source), dataSources };
+    }
+    case 'lowest': {
+      const minRank = Math.min(...available.map(a => STATUS_RANK[a.status]));
+      const losers = available.filter(a => STATUS_RANK[a.status] === minRank);
+      return { status: losers[0].status, activeSources: losers.map(w => w.source), dataSources };
+    }
+  }
+}
+
+/**
+ * Simple wrapper for callers that only need the effective status.
+ * Delegates to resolveWordKnowledge.
+ */
+export function getEffectiveWordStatus(
+  card: Flashcard | null,
+  manualStatus: WordStatus,
+  isInAnki: boolean = false,
+  sourceOrder: readonly KnowledgeSource[] = DEFAULT_SOURCE_ORDER,
+  resolutionMode: KnowledgeResolutionMode = 'highest',
+): WordStatus {
+  return resolveWordKnowledge(card, manualStatus, isInAnki, sourceOrder, resolutionMode).status;
+}
+
+export function getEaseFromWordStatus(
+  status: WordStatus,
+  srsLearningEase?: number,
+  srsKnownEase?: number,
+): number {
+  switch (status) {
+    case 'learning':
+      return srsLearningEase ?? SRS_EASE.DEFAULT_LEARNING;
+    case 'known':
+      return srsKnownEase ?? SRS_EASE.DEFAULT_KNOWN;
+    default:
+      return SRS_EASE.MIN;
+  }
+}
+
+/** Convert a WordStatus to the Anki integer ease factor (1000 = 1.0×). */
+export function getAnkiEaseForStatus(
+  status: WordStatus,
+  ankiLearningEase: number,
+  ankiKnownEase: number,
+): number {
+  switch (status) {
+    case 'learning':
+      return ankiLearningEase;
+    case 'known':
+      return ankiKnownEase;
+    default:
+      return ANKI_EASE.MIN;
+  }
 }
 
 export function extractReadingFromEntries(entries: unknown[]): string {
@@ -339,6 +434,6 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
 
   return {
     content,
-    ease: getEaseFromWordStatus(params.manualStatus),
+    ease: getEaseFromWordStatus(params.manualStatus, params.srsLearningEase, params.srsKnownEase),
   };
 }

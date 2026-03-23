@@ -3,6 +3,7 @@ import {Dynamic} from 'solid-js/web';
 
 import Anki from './raw/Anki';
 import Bot from './raw/Bot';
+import MLearnLogo from './raw/MLearnLogo';
 import Cards from './raw/Cards';
 import Check from './raw/Check';
 import Chevron from './raw/Chevron';
@@ -43,6 +44,7 @@ const iconMap = {
     document: Document,
     'fast-forward': FastForward,
     link:LinkIcon,
+    'mlearn-logo': MLearnLogo,
     palette: Palette,
     pause: Pause,
     pin: Pin,

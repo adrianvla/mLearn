@@ -1168,6 +1168,7 @@
         "ThemePreview": "Aperçu du thème",
         "VideoPlayerBehaviour": "Comportement du lecteur vidéo",
         "WordStatus": "Statut des mots",
+        "KnowledgePriority": "Priorité de connaissance",
         "LiveTranslator": "Traducteur de mots en direct"
       },
       "Keybind": {
@@ -1219,6 +1220,27 @@
         "LowBatteryMode": {
           "Description": "Demander confirmation avant d'exécuter les réseaux neuronaux locaux (LLM, TTS, OCR)",
           "Label": "Mode économie d'énergie"
+        }
+      },
+      "KnowledgePriority": {
+        "Description": "Configurer comment la connaissance des mots est déterminée à partir de multiples sources",
+        "ResolutionMode": {
+          "Label": "Mode de résolution",
+          "Description": "Comment déterminer le statut d'un mot lorsque plusieurs sources ont des données"
+        },
+        "SourceOrder": {
+          "Label": "Priorité des sources",
+          "Description": "Réorganiser les sources. En mode basé sur l'ordre, la première source avec des données détermine le statut"
+        },
+        "Mode": {
+          "Order": "Basé sur l'ordre",
+          "Highest": "Statut le plus élevé",
+          "Lowest": "Statut le plus bas"
+        },
+        "Source": {
+          "Srs": "SRS intégré",
+          "Anki": "Anki",
+          "Manual": "Manuel"
         }
       },
       "Reader": {
@@ -1382,7 +1404,18 @@
             }
           },
           "Test": "Tester",
-          "Title": "Intégration Anki"
+          "Title": "Intégration Anki",
+          "EaseMapping": {
+            "Title": "Mappage d'aisance",
+            "LearningEase": {
+              "Label": "Aisance Apprentissage",
+              "Description": "Facteur d'aisance Anki attribué quand un mot est marqué En apprentissage (entier, 1000–3000)"
+            },
+            "KnownEase": {
+              "Label": "Aisance Connu",
+              "Description": "Facteur d'aisance Anki attribué quand un mot est marqué Connu (entier, 1000–3000)"
+            }
+          }
         },
         "BuiltInFlashcards": {
           "AutomaticCreation": {
@@ -1424,6 +1457,16 @@
           "PreparedExamLevel": {
             "Description": "Niveau cible pour les cartes auto-créées",
             "Label": "Niveau d'examen cible"
+          },
+          "EaseMapping": {
+            "LearningEase": {
+              "Label": "Ease d'apprentissage",
+              "Description": "Facteur d'ease initial assigné aux mots marqués En apprentissage (ex. 1,55)"
+            },
+            "KnownEase": {
+              "Label": "Ease connu",
+              "Description": "Facteur d'ease initial assigné aux mots marqués Connu (ex. 1,8)"
+            }
           },
           "Title": "Cartes intégrées"
         },
@@ -1813,17 +1856,26 @@
         "Unknown": "Inconnu"
       },
       "StatusSource": {
-        "Nothing": "Source : Aucune",
-        "Manual": "Source : Manuelle",
-        "Anki": "Source : Anki",
-        "Flashcards": "Source : Flashcards"
+        "Prefix": "Source : ",
+        "None": "Aucune"
       },
       "StatusSourceWarning": {
         "Confirm": "Modifier quand même",
         "DontRemind": "Ne plus me rappeler",
         "Message": "Le statut de ce mot est déterminé par la source de connaissance la plus élevée. Le modifier manuellement peut n'avoir aucun effet si Anki ou les Flashcards suivent déjà ce mot à un niveau supérieur.",
         "Title": "Remplacement du statut"
-      }
+      },
+      "AnkiModifyWarning": {
+        "Title": "Modifier les cartes Anki",
+        "Message": "Cela modifiera l'aisance et la position de vos cartes Anki pour ce mot. Les nouvelles cartes seront déplacées en tête de la file de révision.",
+        "Confirm": "Continuer",
+        "BuiltInOnly": "Modifier le statut uniquement",
+        "DontRemind": "Ne plus me rappeler"
+      },
+      "AnkiEase": "Aisance Anki : {ease}",
+      "AnkiUpdateSuccess": "{count} carte(s) Anki mise(s) à jour",
+      "AnkiUpdateRepositioned": "{count} carte(s) mise(s) à jour, {repositioned} nouvelle(s) carte(s) repositionnée(s)",
+      "AnkiUpdateFailed": "Échec de la mise à jour des cartes Anki"
     },
     "ConnectionStatus": {
       "Connected": "Connecté",
@@ -1841,6 +1893,12 @@
     "Sidebar": {
       "AddAll": "Tout ajouter",
       "AddingAll": "Ajout en cours…",
+      "AnkiAddAllWarning": {
+        "Title": "Modifier les cartes Anki",
+        "Message": "Cela repositionnera les cartes Anki pour les mots connus en tête de la file de révision et mettra à jour leur aisance. Pour les mots absents d'Anki, il vous sera demandé où les sauvegarder.",
+        "Confirm": "Continuer",
+        "DontRemind": "Ne plus me rappeler"
+      },
       "DictionaryOnly": "Dictionnaire uniquement",
       "Ignore": "Ignorer",
       "SortBy": {

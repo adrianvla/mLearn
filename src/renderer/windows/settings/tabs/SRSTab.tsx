@@ -457,6 +457,46 @@ export const SRSTab: Component = () => {
               onChange={(checked) => updateSettings({ flashcards_add_picture: checked })}
             />
           </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.LearningEase.Label')}
+            description={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.LearningEase.Description')}
+          >
+            <Input
+              type="number"
+              class="setting-input"
+              value={settings.ankiLearningEase}
+              min={1000}
+              max={3000}
+              step={10}
+              onInput={(e) => {
+                const val = parseInt(e.currentTarget.value, 10);
+                if (!isNaN(val) && val >= 1000 && val <= 3000) {
+                  updateSettings({ ankiLearningEase: val });
+                }
+              }}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.KnownEase.Label')}
+            description={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.KnownEase.Description')}
+          >
+            <Input
+              type="number"
+              class="setting-input"
+              value={settings.ankiKnownEase}
+              min={1000}
+              max={3000}
+              step={10}
+              onInput={(e) => {
+                const val = parseInt(e.currentTarget.value, 10);
+                if (!isNaN(val) && val >= 1000 && val <= 3000) {
+                  updateSettings({ ankiKnownEase: val });
+                }
+              }}
+            />
+          </SettingRow>
         </Show>
       </SettingGroup>
 
@@ -556,6 +596,46 @@ export const SRSTab: Component = () => {
           <ToggleSwitch
             checked={settings.flashcardFlipAnimation}
             onChange={(checked) => updateSettings({ flashcardFlipAnimation: checked })}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.LearningEase.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.LearningEase.Description')}
+        >
+          <Input
+            type="number"
+            class="setting-input"
+            value={settings.srsLearningEase}
+            min={1.0}
+            max={5.0}
+            step={0.05}
+            onInput={(e) => {
+              const val = parseFloat(e.currentTarget.value);
+              if (!isNaN(val) && val >= 1.0 && val <= 5.0) {
+                updateSettings({ srsLearningEase: val });
+              }
+            }}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.KnownEase.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.KnownEase.Description')}
+        >
+          <Input
+            type="number"
+            class="setting-input"
+            value={settings.srsKnownEase}
+            min={1.0}
+            max={5.0}
+            step={0.05}
+            onInput={(e) => {
+              const val = parseFloat(e.currentTarget.value);
+              if (!isNaN(val) && val >= 1.0 && val <= 5.0) {
+                updateSettings({ srsKnownEase: val });
+              }
+            }}
           />
         </SettingRow>
 

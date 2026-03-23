@@ -1,0 +1,15 @@
+import { Component } from 'solid-js';
+
+interface MLearnLogoProps {
+  color: string;
+  class: string;
+}
+
+const MLearnLogo: Component<MLearnLogoProps> = (props) => (
+  <svg width="24" height="24" viewBox="735 788 385 222" fill="none" class={props.class} xmlns="http://www.w3.org/2000/svg">
+    <path fill={props.color} d="M748,1002L741,875L754,842L775,842L776,864L782,864C782,864 788.186,841.476 817,841C849.567,840.462 856,866 856,866L862.474,866C862.474,866 869.279,842.064 903,842C936.721,841.936 944,867 944,867L953,905L950,1005L927,1005L922,965L923,902C923,902 916.654,890.612 898,891C866.346,891.658 862.474,912 862.474,912L861,1004L838,1004L837,911C837,911 828.858,889.095 802,890C785.132,890.569 779,899 779,899L780,963L770,1002L748,1002Z"/>
+    <path fill={props.color} d="M992,1005L981,964L989,793L1014,793L1028,820L1020,948L1092,949L1114,989L1113,1007L992,1005Z"/>
+  </svg>
+);
+
+export default MLearnLogo;

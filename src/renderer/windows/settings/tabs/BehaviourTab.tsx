@@ -2,15 +2,47 @@
  * Behaviour Settings Tab
  */
 
-import { Component, Show } from 'solid-js';
+import { Component, Show, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, RangeInput, TargetIcon } from '../../../components/common';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, RangeInput, TargetIcon, Select, SortableList } from '../../../components/common';
+import type { SortableListItem } from '../../../components/common';
+import type { KnowledgeSource, KnowledgeResolutionMode } from '../../../../shared/constants';
 import '../SettingsForm.css';
 
 export const BehaviourTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const { getLanguageFeatures } = useLanguage();
+
+  const sourceLabel = (src: KnowledgeSource) =>
+    t(`mlearn.Settings.KnowledgePriority.Source.${src[0].toUpperCase() + src.slice(1)}`);
+
+  const resolutionModeOptions = createMemo(() => [
+    { value: 'order', label: t('mlearn.Settings.KnowledgePriority.Mode.Order') },
+    { value: 'highest', label: t('mlearn.Settings.KnowledgePriority.Mode.Highest') },
+    { value: 'lowest', label: t('mlearn.Settings.KnowledgePriority.Mode.Lowest') },
+  ]);
+
+  const visibleSourceItems = createMemo<SortableListItem[]>(() => {
+    const order = settings.knowledgeSourceOrder;
+    return order
+      .filter((src: KnowledgeSource) => src !== 'anki' || settings.use_anki)
+      .map((src: KnowledgeSource) => ({ id: src, label: sourceLabel(src) }));
+  });
+
+  const handleSourceOrderChange = (newIds: string[]) => {
+    // Preserve hidden sources (e.g. Anki when disabled) at their relative position
+    const hidden = settings.knowledgeSourceOrder.filter(
+      (src: KnowledgeSource) => !newIds.includes(src)
+    );
+    const merged: KnowledgeSource[] = [...newIds as KnowledgeSource[]];
+    for (const h of hidden) {
+      const oldIdx = settings.knowledgeSourceOrder.indexOf(h);
+      const insertAt = Math.min(oldIdx, merged.length);
+      merged.splice(insertAt, 0, h);
+    }
+    updateSettings({ knowledgeSourceOrder: merged });
+  };
 
   return (
     <TabContent
@@ -70,6 +102,29 @@ export const BehaviourTab: Component = () => {
           <ToggleSwitch
             checked={settings.do_colour_codes}
             onChange={(checked) => updateSettings({ do_colour_codes: checked })}
+          />
+        </SettingRow>
+      </SettingGroup>
+
+      <SettingGroup title={t('mlearn.Settings.Groups.KnowledgePriority')}>
+        <SettingRow
+          label={t('mlearn.Settings.KnowledgePriority.ResolutionMode.Label')}
+          description={t('mlearn.Settings.KnowledgePriority.ResolutionMode.Description')}
+        >
+          <Select
+            value={settings.knowledgeResolutionMode}
+            options={resolutionModeOptions()}
+            onChange={(e) => updateSettings({ knowledgeResolutionMode: e.currentTarget.value as KnowledgeResolutionMode })}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.KnowledgePriority.SourceOrder.Label')}
+          description={t('mlearn.Settings.KnowledgePriority.SourceOrder.Description')}
+        >
+          <SortableList
+            items={visibleSourceItems()}
+            onChange={handleSourceOrderChange}
           />
         </SettingRow>
       </SettingGroup>

@@ -107,6 +107,9 @@ export {
 // Select Components
 export { Select, type SelectProps, type SelectOption } from './Select';
 
+// SortableList Components
+export { SortableList, type SortableListProps, type SortableListItem } from './SortableList';
+
 // Label Components
 export { 
   Label,

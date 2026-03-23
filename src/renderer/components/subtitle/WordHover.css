@@ -10,7 +10,7 @@
 /* Main container - CSS-driven width based on content, capped at 400px */
 .word-hover-container {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-modal-backdrop);
   pointer-events: none;
   /* CSS handles width: fit-content flows up from .subtitle_hover */
   transition: opacity var(--transition-normal);
@@ -30,7 +30,7 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   text-align: left;
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-normal);
-  z-index: var(--z-tooltip);
+  z-index: var(--z-sticky );
   box-shadow: var(--shadow-lg);
   opacity: 0;
   pointer-events: none;
@@ -328,6 +328,12 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   cursor: pointer;
+}
+
+.anki-duplicate-warning__toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .anki-duplicate-warning__actions {

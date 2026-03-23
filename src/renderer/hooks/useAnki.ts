@@ -273,6 +273,89 @@ export function useAnki() {
     return ankiWords().has(word);
   };
 
+  /** Find card IDs matching a query */
+  const findCards = async (query: string): Promise<number[]> => {
+    try {
+      return await ankiRequest<number[]>(getProxyUrl(), 'findCards', { query });
+    } catch {
+      return [];
+    }
+  };
+
+  /** Get detailed info for cards by their IDs */
+  const getCardsInfo = async (cardIds: number[]): Promise<AnkiCardInfo[]> => {
+    if (cardIds.length === 0) return [];
+    try {
+      return await ankiRequest<AnkiCardInfo[]>(getProxyUrl(), 'cardsInfo', { cards: cardIds });
+    } catch (e) {
+      console.error('Failed to get cards info:', e);
+      return [];
+    }
+  };
+
+  /** Set ease factors for multiple cards (Anki integer scale, e.g. 2500 = 2.5×) */
+  const setEaseFactors = async (cardIds: number[], easeFactors: number[]): Promise<boolean[]> => {
+    try {
+      return await ankiRequest<boolean[]>(getProxyUrl(), 'setEaseFactors', {
+        cards: cardIds,
+        easeFactors,
+      });
+    } catch (e) {
+      console.error('Failed to set ease factors:', e);
+      return cardIds.map(() => false);
+    }
+  };
+
+  /** Set due date for cards. days = "0" makes them due today. */
+  const setDueDate = async (cardIds: number[], days: string): Promise<boolean> => {
+    try {
+      await ankiRequest(getProxyUrl(), 'setDueDate', { cards: cardIds, days });
+      return true;
+    } catch (e) {
+      console.error('Failed to set due date:', e);
+      return false;
+    }
+  };
+
+  /**
+   * Find all Anki cards for a given word in the configured deck.
+   * Returns card IDs for all card types (e.g. Reading + Listening).
+   */
+  const findCardsForWord = async (word: string): Promise<number[]> => {
+    const deck = settings.flashcard_deck || settings.ankiDeckName || 'mLearn';
+    const fieldExpression = settings.anki_field_expression || 'Expression';
+    return findCards(`deck:"${deck}" "${fieldExpression}:${word}"`);
+  };
+
+  /**
+   * Update Anki cards for a word: set ease and reposition new cards to front.
+   * Handles multiple card types (Reading, Listening, etc.) for the same word.
+   */
+  const updateWordCards = async (word: string, ankiEase: number): Promise<{ updated: number; repositioned: number }> => {
+    const cardIds = await findCardsForWord(word);
+    if (cardIds.length === 0) return { updated: 0, repositioned: 0 };
+
+    const cardsInfo = await getCardsInfo(cardIds);
+    if (cardsInfo.length === 0) return { updated: 0, repositioned: 0 };
+
+    // Set ease for all cards
+    const easeFactors = cardIds.map(() => ankiEase);
+    await setEaseFactors(cardIds, easeFactors);
+
+    // For new/unseen cards (type=0, queue=0), make them due today
+    const newCardIds = cardsInfo
+      .filter(c => c.type === 0 || c.queue === 0)
+      .map(c => c.cardId);
+
+    let repositioned = 0;
+    if (newCardIds.length > 0) {
+      const success = await setDueDate(newCardIds, '0');
+      if (success) repositioned = newCardIds.length;
+    }
+
+    return { updated: cardIds.length, repositioned };
+  };
+
   return {
     isConnected,
     decks,
@@ -293,6 +376,12 @@ export function useAnki() {
     openDeck,
     fetchAnkiWords,
     isWordInAnki,
+    findCards,
+    getCardsInfo,
+    setEaseFactors,
+    setDueDate,
+    findCardsForWord,
+    updateWordCards,
   };
 }
 
@@ -300,5 +389,21 @@ export interface AnkiNoteInfo {
   noteId: number;
   modelName: string;
   tags: string[];
+  fields: Record<string, { value: string; order: number }>;
+}
+
+export interface AnkiCardInfo {
+  cardId: number;
+  /** 0 = new, 1 = learning, 2 = review, 3 = relearning */
+  type: number;
+  /** 0 = new, 1 = learning, 2 = review, 3 = day-learn, -1 = suspended, -2 = buried, -3 = buried (sched) */
+  queue: number;
+  /** For new cards: position in new queue. For review: days since epoch. */
+  due: number;
+  /** Ease factor (integer, e.g. 2500 = 2.5×) */
+  factor: number;
+  /** Inter-review interval in days */
+  interval: number;
+  note: number;
   fields: Record<string, { value: string; order: number }>;
 }

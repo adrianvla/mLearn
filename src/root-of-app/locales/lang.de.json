@@ -1168,6 +1168,7 @@
         "ThemePreview": "Theme-Vorschau",
         "VideoPlayerBehaviour": "Videoplayer-Verhalten",
         "WordStatus": "Wortstatus",
+        "KnowledgePriority": "Wissenspriorität",
         "LiveTranslator": "Live-Wortübersetzer"
       },
       "Keybind": {
@@ -1219,6 +1220,27 @@
         "LowBatteryMode": {
           "Description": "Vor dem Ausführen lokaler neuronaler Netze (LLM, TTS, OCR) nachfragen",
           "Label": "Energiesparmodus"
+        }
+      },
+      "KnowledgePriority": {
+        "Description": "Konfigurieren Sie, wie Wortwissen aus mehreren Quellen ermittelt wird",
+        "ResolutionMode": {
+          "Label": "Auflösungsmodus",
+          "Description": "Wie der Wortstatus bestimmt wird, wenn mehrere Quellen Daten haben"
+        },
+        "SourceOrder": {
+          "Label": "Quellenpriorität",
+          "Description": "Quellen neu anordnen. Im reihenfolgenbasierten Modus bestimmt die erste Quelle mit Daten den Wortstatus"
+        },
+        "Mode": {
+          "Order": "Reihenfolgenbasiert",
+          "Highest": "Höchster Status",
+          "Lowest": "Niedrigster Status"
+        },
+        "Source": {
+          "Srs": "Integriertes SRS",
+          "Anki": "Anki",
+          "Manual": "Manuell"
         }
       },
       "Reader": {
@@ -1382,7 +1404,18 @@
             }
           },
           "Test": "Testen",
-          "Title": "Anki-Integration"
+          "Title": "Anki-Integration",
+          "EaseMapping": {
+            "Title": "Ease-Zuordnung",
+            "LearningEase": {
+              "Label": "Ease für Lernen",
+              "Description": "Anki-Ease-Faktor für Wörter mit dem Status Lernen (Ganzzahl, 1000–3000)"
+            },
+            "KnownEase": {
+              "Label": "Ease für Bekannt",
+              "Description": "Anki-Ease-Faktor für Wörter mit dem Status Bekannt (Ganzzahl, 1000–3000)"
+            }
+          }
         },
         "BuiltInFlashcards": {
           "AutomaticCreation": {
@@ -1424,6 +1457,16 @@
           "PreparedExamLevel": {
             "Description": "Zielstufe für automatisch erstellte Karten",
             "Label": "Ziel-Prüfungsstufe"
+          },
+          "EaseMapping": {
+            "LearningEase": {
+              "Label": "Lern-Ease",
+              "Description": "Initiale Ease-Stufe für als Lernend markierte Wörter (z.B. 1,55)"
+            },
+            "KnownEase": {
+              "Label": "Bekannt-Ease",
+              "Description": "Initiale Ease-Stufe für als Bekannt markierte Wörter (z.B. 1,8)"
+            }
           },
           "Title": "Integrierte Lernkarten"
         },
@@ -1813,17 +1856,26 @@
         "Unknown": "Unbekannt"
       },
       "StatusSource": {
-        "Nothing": "Quelle: Keine",
-        "Manual": "Quelle: Manuell",
-        "Anki": "Quelle: Anki",
-        "Flashcards": "Quelle: Lernkarten"
+        "Prefix": "Quelle: ",
+        "None": "Keine"
       },
       "StatusSourceWarning": {
         "Confirm": "Trotzdem ändern",
         "DontRemind": "Nicht mehr erinnern",
         "Message": "Der Status dieses Wortes wird durch die höchste Wissensquelle bestimmt. Eine manuelle Änderung hat möglicherweise keine Auswirkung, wenn Anki oder Lernkarten dieses Wort bereits auf einem höheren Niveau verfolgen.",
         "Title": "Status-Überschreibung"
-      }
+      },
+      "AnkiModifyWarning": {
+        "Title": "Anki-Karten ändern",
+        "Message": "Dies ändert den Ease-Faktor und die Position Ihrer Anki-Karten für dieses Wort. Neue Karten werden an den Anfang der Warteschlange verschoben.",
+        "Confirm": "Fortfahren",
+        "BuiltInOnly": "Nur Status ändern",
+        "DontRemind": "Nicht mehr erinnern"
+      },
+      "AnkiEase": "Anki-Ease: {ease}",
+      "AnkiUpdateSuccess": "{count} Anki-Karte(n) aktualisiert",
+      "AnkiUpdateRepositioned": "{count} Karte(n) aktualisiert, {repositioned} neue Karte(n) umpositioniert",
+      "AnkiUpdateFailed": "Anki-Karten konnten nicht aktualisiert werden"
     },
     "ConnectionStatus": {
       "Connected": "Verbunden",
@@ -1841,6 +1893,12 @@
     "Sidebar": {
       "AddAll": "Alle hinzufügen",
       "AddingAll": "Wird hinzugefügt…",
+      "AnkiAddAllWarning": {
+        "Title": "Anki-Karten ändern",
+        "Message": "Dies positioniert Anki-Karten für bekannte Wörter an den Anfang der Warteschlange und aktualisiert deren Ease. Für Wörter, die nicht in Anki sind, werden Sie gefragt, wo sie gespeichert werden sollen.",
+        "Confirm": "Fortfahren",
+        "DontRemind": "Nicht mehr erinnern"
+      },
       "DictionaryOnly": "Nur im Wörterbuch",
       "Ignore": "Ignorieren",
       "SortBy": {

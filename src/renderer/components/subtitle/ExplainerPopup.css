@@ -34,10 +34,10 @@
 /* Error state */
 .explainer-popup__error {
   padding: var(--spacing-4);
-  background: var(--color-error-bg, rgba(239, 68, 68, 0.1));
-  border: 1px solid var(--color-error, #ef4444);
+  background: var(--bg-danger);
+  border: 1px solid var(--color-error);
   border-radius: var(--radius-md);
-  color: var(--color-error, #ef4444);
+  color: var(--color-error);
 }
 
 .explainer-popup__error p {
@@ -92,7 +92,7 @@
 }
 
 .explainer-popup__status--loading {
-  color: var(--color-primary);
+  color: var(--text-tertiary);
 }
 
 /* Scrollbar styling */
@@ -105,10 +105,10 @@
 }
 
 .explainer-popup__body::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.2));
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 .explainer-popup__body::-webkit-scrollbar-thumb:hover {
-  background: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.3));
+  background: var(--scrollbar-thumb-hover);
 }

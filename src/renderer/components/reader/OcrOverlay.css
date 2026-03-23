@@ -41,7 +41,7 @@
   width: 100%;
   height: 100%;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
   font-size: 12px;
@@ -50,6 +50,8 @@
   box-sizing: border-box;
   user-select: none;
   position: relative;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 /* Vertical text - no wrap, proper reading order */

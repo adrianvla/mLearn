@@ -34,7 +34,6 @@
   color: var(--text-primary);
   word-break: break-word;
   overflow: hidden;
-  max-height: 80px;
 }
 
 .anki-hover-preview__value img {

@@ -3,6 +3,7 @@ import {
   computeBoxMetrics,
   filterNarrowBoxes,
   buildOcrContextMap,
+  processOcrBoxes,
   getBoundingRect,
 } from '@renderer/utils/ocrUtils';
 import type { BoxMetrics } from '@renderer/utils/ocrUtils';
@@ -252,7 +253,7 @@ describe('filterNarrowBoxes', () => {
 
   it('handles non-array input gracefully', () => {
     const result = filterNarrowBoxes(null as unknown as OcrBox[]);
-    expect(result).toBeNull();
+    expect(result).toEqual([]);
   });
 
   it('calls debugOutput with zone data when provided', () => {
@@ -390,5 +391,66 @@ describe('buildOcrContextMap', () => {
   it('returns a Map instance', () => {
     const map = buildOcrContextMap([makeBox(0, 0, 50, 20, 'x')]);
     expect(map).toBeInstanceOf(Map);
+  });
+
+  it('uses custom zoneDeltaThreshold to group boxes that default threshold separates', () => {
+    // Two boxes separated by 40px gap (> default 15px, but < custom 50px)
+    const boxes = [
+      makeBox(0, 0, 60, 25, 'Part1', false),
+      makeBox(100, 0, 60, 25, 'Part2', false),
+    ];
+    // Default threshold (15px) — 40px gap puts them in separate zones
+    const mapDefault = buildOcrContextMap(boxes);
+    expect(mapDefault.get(0)).not.toBe(mapDefault.get(1));
+
+    // Custom threshold (50px) — groups them together
+    const mapCustom = buildOcrContextMap(boxes, { zoneDeltaThreshold: 50 });
+    expect(mapCustom.get(0)).toBe(mapCustom.get(1));
+    expect(mapCustom.get(0)).toContain('Part1');
+    expect(mapCustom.get(0)).toContain('Part2');
+  });
+});
+
+// ============================================================================
+// processOcrBoxes (single-pass)
+// ============================================================================
+
+describe('processOcrBoxes', () => {
+  it('returns both filtered boxes and context map in a single pass', () => {
+    // Vertical zone: two main kanji boxes + one narrow furigana
+    const main1 = makeBox(40, 0, 30, 80, '漢', true);
+    const main2 = makeBox(40, 90, 30, 80, '字', true);
+    const furigana = makeBox(75, 5, 10, 70, 'かん', true);
+
+    const boxes = [main1, main2, furigana];
+    const { filtered, contextMap } = processOcrBoxes(boxes, {
+      ratio: 1.5,
+      zoneDeltaThreshold: 60,
+    });
+    // Furigana box should be filtered out
+    expect(filtered.length).toBe(2);
+    expect(filtered.map(b => b.text)).toEqual(['漢', '字']);
+    // Context map keyed by original index — both surviving boxes share a phrase
+    expect(contextMap.get(0)).toBeDefined();
+    expect(contextMap.get(1)).toBeDefined();
+    expect(contextMap.get(0)).toBe(contextMap.get(1));
+    expect(contextMap.get(0)).toContain('漢');
+    expect(contextMap.get(0)).toContain('字');
+    // Filtered-out furigana box should NOT be in context map
+    expect(contextMap.has(2)).toBe(false);
+  });
+
+  it('returns context map matching buildOcrContextMap for trivial input', () => {
+    const boxes = [makeBox(0, 0, 50, 20, 'OnlyBox', false)];
+    const { filtered, contextMap } = processOcrBoxes(boxes);
+    const legacyMap = buildOcrContextMap(boxes);
+    expect(filtered).toEqual(boxes);
+    expect(contextMap.get(0)).toBe(legacyMap.get(0));
+  });
+
+  it('returns empty results for empty input', () => {
+    const { filtered, contextMap } = processOcrBoxes([]);
+    expect(filtered).toEqual([]);
+    expect(contextMap.size).toBe(0);
   });
 });
