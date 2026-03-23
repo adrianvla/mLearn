@@ -7,7 +7,7 @@ import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup
 import type { Token } from '../../../shared/types';
 import { useTokenizer, warmTranslationCache } from '../../hooks';
 import { useLanguage, useSettings } from '../../context';
-import { buildOcrContextMap, filterNarrowBoxes, type FilterDebugZone } from '../../utils/ocrUtils';
+import { processOcrBoxes, type FilterDebugZone } from '../../utils/ocrUtils';
 import { OcrWord } from './OcrWord';
 import { FuriganaHider } from './FuriganaHider';
 import './OcrOverlay.css';
@@ -126,7 +126,6 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const { isTranslatable, getLanguageFeatures } = useLanguage();
   const { settings } = useSettings();
   const [tokenMap, setTokenMap] = createSignal<Map<number, Token[]>>(new Map());
-  const [contextMap, setContextMap] = createSignal<Map<number, string>>(new Map());
   const [observedWidth, setObservedWidth] = createSignal(0);
   const [observedHeight, setObservedHeight] = createSignal(0);
   const [imageOffsetLeft, setImageOffsetLeft] = createSignal(0);
@@ -193,32 +192,49 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     return sentWidth > 0 ? displayedWidth / sentWidth : 1;
   });
 
-  // Filter boxes to remove furigana - this is the main list to render
-  // Add __originalIdx to track indices for context map lookup
-  const filteredBoxes = createMemo(() => {
+  // Single-pass zone processing: filter furigana + build context phrases together
+  const processedZones = createMemo(() => {
     const result = props.result;
-    if (!result || !Array.isArray(result.boxes)) return [];
-    
-    // Add original index tracking before filtering
+    if (!result || !Array.isArray(result.boxes) || result.boxes.length === 0) {
+      return { filtered: [] as OcrBox[], contextMapByOriginal: new Map<number, string>() };
+    }
+
     const boxesWithIdx: OcrBox[] = result.boxes.map((box, idx) => ({
       ...box,
       __originalIdx: idx,
     }));
-    
-    // Skip furigana filtering when detection is disabled
-    if (!(settings.ocrFuriganaDetection ?? true)) {
-      return boxesWithIdx;
-    }
-    
-    // Filter out narrow furigana boxes
-    const filtered = filterNarrowBoxes(boxesWithIdx, {
+
+    const { filtered, contextMap: ctxMap } = processOcrBoxes(boxesWithIdx, {
       ratio: settings.ocrFuriganaWidthRatio,
       neighborWindowMultiplier: settings.ocrFuriganaNeighborWindowMultiplier,
       zoneDeltaThreshold: props.zoneDeltaThreshold,
       debugOutput: props.debugOcr ? setDebugZones : undefined,
     });
-    
-    return filtered;
+
+    // When furigana detection is disabled, return all boxes unfiltered
+    if (!(settings.ocrFuriganaDetection ?? true)) {
+      return { filtered: boxesWithIdx, contextMapByOriginal: ctxMap };
+    }
+
+    return { filtered, contextMapByOriginal: ctxMap };
+  });
+
+  // The filteredBoxes list drives rendering
+  const filteredBoxes = createMemo(() => processedZones().filtered);
+
+  // Remap context from original indices to filtered-array indices for consumers
+  const contextMap = createMemo(() => {
+    const { contextMapByOriginal } = processedZones();
+    const boxes = filteredBoxes();
+    const mapped = new Map<number, string>();
+    for (let i = 0; i < boxes.length; i++) {
+      const origIdx = boxes[i].__originalIdx;
+      if (origIdx != null) {
+        const ctx = contextMapByOriginal.get(origIdx);
+        if (ctx) mapped.set(i, ctx);
+      }
+    }
+    return mapped;
   });
   
   // Compute the furigana boxes (boxes that were filtered out)
@@ -232,20 +248,6 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     
     // Return boxes that were filtered out (furigana)
     return result.boxes.filter((_, idx) => !filteredIdxSet.has(idx));
-  });
-
-  // Build context map from filtered boxes
-  createEffect(() => {
-    const boxes = filteredBoxes();
-    if (!boxes || boxes.length === 0) {
-      setContextMap(new Map());
-      return;
-    }
-    
-    // Build context map for neighboring text boxes
-    // The map is indexed by position in filteredBoxes array
-    const ctx = buildOcrContextMap(boxes);
-    setContextMap(ctx);
   });
 
   const handleBoxClick = (box: OcrBox, event: MouseEvent) => {
@@ -508,8 +510,6 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                       'writing-mode': useVerticalLayout() ? 'vertical-rl' : 'horizontal-tb',
                       'text-orientation': useVerticalLayout() ? 'mixed' : 'initial',
                       'font-size': `${fontSize()}px`,
-                      // Prevent text wrapping for vertical text
-                      'white-space': useVerticalLayout() ? 'nowrap' : 'normal',
                     }}
                   >
                     <Show when={tokens().length > 0} fallback={box.text}>

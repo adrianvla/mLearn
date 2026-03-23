@@ -11,3 +11,4 @@ export { FlashcardPitchAccent, type FlashcardPitchAccentProps } from './Flashcar
 export { FlashcardStats, type FlashcardStatsProps } from './FlashcardStats';
 export { TtsGenerateModal, type TtsGenerateModalProps } from './TtsGenerateModal';
 export { FlashcardCreationChoiceModal } from './FlashcardCreationChoiceModal';
+export { AnkiModifyWarningModal, type AnkiModifyWarningModalProps } from './AnkiModifyWarningModal';

@@ -2,8 +2,8 @@
  * Shared TypeScript types between main and renderer processes
  */
 
-import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from './constants';
-import type { SubtitleTheme, WordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme } from './constants';
+import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES } from './constants';
+import type { SubtitleTheme, WordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode } from './constants';
 
 // Re-export WindowType
 export type WindowType = ConstWindowType;
@@ -76,6 +76,20 @@ export interface Settings {
   skipAnkiDuplicateWarning: boolean;
   /** Skip the warning modal when changing status of a word tracked by Anki or Flashcards */
   skipStatusSourceWarning: boolean;
+  /** Skip the warning modal when modifying Anki card ease/position */
+  skipAnkiModifyWarning: boolean;
+  /** Anki ease factor (integer, 1000 = 1.0×) assigned when a word is marked Learning */
+  ankiLearningEase: number;
+  /** Anki ease factor (integer, 1000 = 1.0×) assigned when a word is marked Known */
+  ankiKnownEase: number;
+  /** Built-in SRS initial ease (float) assigned when a word is marked Learning */
+  srsLearningEase: number;
+  /** Built-in SRS initial ease (float) assigned when a word is marked Known */
+  srsKnownEase: number;
+  /** Order of knowledge sources for word status resolution */
+  knowledgeSourceOrder: KnowledgeSource[];
+  /** How to resolve word status from multiple knowledge sources */
+  knowledgeResolutionMode: KnowledgeResolutionMode;
   anki_field_expression: string;
   anki_field_reading: string;
   anki_field_meaning: string;
@@ -297,6 +311,13 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardSkipAnkiChoice: false,
   skipAnkiDuplicateWarning: false,
   skipStatusSourceWarning: false,
+  skipAnkiModifyWarning: false,
+  ankiLearningEase: ANKI_EASE.DEFAULT_LEARNING,
+  ankiKnownEase: ANKI_EASE.DEFAULT_KNOWN,
+  srsLearningEase: SRS_EASE.DEFAULT_LEARNING,
+  srsKnownEase: SRS_EASE.DEFAULT_KNOWN,
+  knowledgeSourceOrder: [...KNOWLEDGE_SOURCES],
+  knowledgeResolutionMode: 'highest' as KnowledgeResolutionMode,
   furigana: true,
   enable_flashcard_creation: true,
   automaticFlashcardCreation: false,

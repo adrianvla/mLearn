@@ -5,6 +5,7 @@ import { normalizeReading } from '../../../shared/utils/textUtils';
 import { WindowWrapper, useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { setWordStatus, toUniqueIdentifier, wordsLearnedInApp } from '../../services/statsService';
+import { isWordInAnkiCache } from '../../services/ankiWordsCache';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { useTokenizer } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, PitchAccentOverlay, Spinner, ClockIcon } from '../../components/common';
@@ -128,7 +129,11 @@ const WordDefinitionContent: Component = () => {
 
   const currentEase = createMemo(() => currentFlashcard()?.ease);
 
-  const effectiveStatus = createMemo(() => getEffectiveWordStatus(currentFlashcard(), currentStatus()));
+  const effectiveStatus = createMemo(() => getEffectiveWordStatus(
+    currentFlashcard(), currentStatus(),
+    settings.use_anki && isWordInAnkiCache(word()),
+    settings.knowledgeSourceOrder, settings.knowledgeResolutionMode
+  ));
 
   const statusVariant = createMemo(() => {
     const s = effectiveStatus();
@@ -198,6 +203,8 @@ const WordDefinitionContent: Component = () => {
         manualStatus: currentStatus(),
         colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
         tokenize,
+        srsLearningEase: settings.srsLearningEase,
+        srsKnownEase: settings.srsKnownEase,
       });
       await addFlashcard(content, ease);
     } catch (err) {

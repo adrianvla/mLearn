@@ -1168,6 +1168,7 @@
         "ThemePreview": "テーマプレビュー",
         "VideoPlayerBehaviour": "動画プレーヤーの動作",
         "WordStatus": "単語の状態",
+        "KnowledgePriority": "知識の優先度",
         "LiveTranslator": "ライブ単語翻訳"
       },
       "Keybind": {
@@ -1219,6 +1220,27 @@
         "LowBatteryMode": {
           "Description": "ローカルニューラルネットワーク（LLM、TTS、OCR）の実行前に確認する",
           "Label": "省電力モード"
+        }
+      },
+      "KnowledgePriority": {
+        "Description": "複数のソースからの単語知識の決定方法を設定",
+        "ResolutionMode": {
+          "Label": "解決モード",
+          "Description": "複数のソースにデータがある場合の単語ステータスの決定方法"
+        },
+        "SourceOrder": {
+          "Label": "ソースの優先度",
+          "Description": "ソースを並べ替えます。順序ベースモードでは、最初にデータのあるソースが単語ステータスを決定します"
+        },
+        "Mode": {
+          "Order": "順序ベース",
+          "Highest": "最高ステータス",
+          "Lowest": "最低ステータス"
+        },
+        "Source": {
+          "Srs": "内蔵SRS",
+          "Anki": "Anki",
+          "Manual": "手動"
         }
       },
       "Reader": {
@@ -1382,7 +1404,18 @@
             }
           },
           "Test": "テスト",
-          "Title": "Anki連携"
+          "Title": "Anki連携",
+          "EaseMapping": {
+            "Title": "Easeマッピング",
+            "LearningEase": {
+              "Label": "学習中のEase",
+              "Description": "学習中とマークされた単語に割り当てるAnkiのEase係数（整数、1000〔3000）"
+            },
+            "KnownEase": {
+              "Label": "既知のEase",
+              "Description": "既知とマークされた単語に割り当てるAnkiのEase係数（整数、1000〔3000）"
+            }
+          }
         },
         "BuiltInFlashcards": {
           "AutomaticCreation": {
@@ -1424,6 +1457,16 @@
           "PreparedExamLevel": {
             "Description": "自動作成カードの目標レベル",
             "Label": "目標試験レベル"
+          },
+          "EaseMapping": {
+            "LearningEase": {
+              "Label": "学習中イーズ",
+              "Description": "学習中としてマークされた単語に割り当てられる初期イーズ値（例：1.55）"
+            },
+            "KnownEase": {
+              "Label": "既知イーズ",
+              "Description": "既知としてマークされた単語に割り当てられる初期イーズ値（例：1.8）"
+            }
           },
           "Title": "内蔵フラッシュカード"
         },
@@ -1813,17 +1856,26 @@
         "Unknown": "未知"
       },
       "StatusSource": {
-        "Nothing": "ソース: なし",
-        "Manual": "ソース: 手動",
-        "Anki": "ソース: Anki",
-        "Flashcards": "ソース: フラッシュカード"
+        "Prefix": "ソース: ",
+        "None": "なし"
       },
       "StatusSourceWarning": {
         "Confirm": "変更する",
         "DontRemind": "今後表示しない",
         "Message": "この単語のステータスは最も高い知識ソースによって決定されます。Ankiやフラッシュカードがすでにより高いレベルで追跡している場合、手動での変更は効果がない場合があります。",
         "Title": "ステータスの上書き"
-      }
+      },
+      "AnkiModifyWarning": {
+        "Title": "Ankiカードの変更",
+        "Message": "この単語のAnkiカードのEaseと位置を変更します。新しいカードはレビューキューの先頭に移動されます。",
+        "Confirm": "続行",
+        "BuiltInOnly": "ステータスのみ変更",
+        "DontRemind": "今後表示しない"
+      },
+      "AnkiEase": "Anki Ease: {ease}",
+      "AnkiUpdateSuccess": "{count}枚のAnkiカードを更新しました",
+      "AnkiUpdateRepositioned": "{count}枚のカードを更新、{repositioned}枚の新しいカードを再配置しました",
+      "AnkiUpdateFailed": "Ankiカードの更新に失敗しました"
     },
     "ConnectionStatus": {
       "Connected": "接続済み",
@@ -1841,6 +1893,12 @@
     "Sidebar": {
       "AddAll": "すべて追加",
       "AddingAll": "追加中…",
+      "AnkiAddAllWarning": {
+        "Title": "Ankiカードの変更",
+        "Message": "既知の単語のAnkiカードをレビューキューの先頭に再配置し、Easeを更新します。Ankiにない単語については、保存先を選択できます。",
+        "Confirm": "続行",
+        "DontRemind": "今後表示しない"
+      },
       "DictionaryOnly": "辞書のみ",
       "Ignore": "無視",
       "SortBy": {

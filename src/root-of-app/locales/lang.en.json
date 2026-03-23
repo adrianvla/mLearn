@@ -1168,7 +1168,8 @@
         "SubtitleTiming": "Subtitle Timing",
         "ThemePreview": "Theme Preview",
         "VideoPlayerBehaviour": "Video Player Behaviour",
-        "WordStatus": "Word Status"
+        "WordStatus": "Word Status",
+        "KnowledgePriority": "Knowledge Priority"
       },
       "Keybind": {
         "PressKey": "Press a key...",
@@ -1219,6 +1220,27 @@
         "LowBatteryMode": {
           "Description": "Prompt before running local neural networks (LLM, TTS, OCR) to conserve resources",
           "Label": "Low Battery Mode"
+        }
+      },
+      "KnowledgePriority": {
+        "Description": "Configure how word knowledge is determined from multiple sources",
+        "ResolutionMode": {
+          "Label": "Resolution Mode",
+          "Description": "How to determine word status when multiple sources have data"
+        },
+        "SourceOrder": {
+          "Label": "Source Priority",
+          "Description": "Reorder the sources. In order-based mode, the first source with data determines the word status"
+        },
+        "Mode": {
+          "Order": "Order-based",
+          "Highest": "Highest status",
+          "Lowest": "Lowest status"
+        },
+        "Source": {
+          "Srs": "Built-In SRS",
+          "Anki": "Anki",
+          "Manual": "Manual"
         }
       },
       "Reader": {
@@ -1382,7 +1404,18 @@
             }
           },
           "Test": "Test",
-          "Title": "Anki Integration"
+          "Title": "Anki Integration",
+          "EaseMapping": {
+            "Title": "Ease Mapping",
+            "LearningEase": {
+              "Label": "Learning Ease",
+              "Description": "Anki ease factor assigned when a word is marked as Learning (integer, 1000\u20133000)"
+            },
+            "KnownEase": {
+              "Label": "Known Ease",
+              "Description": "Anki ease factor assigned when a word is marked as Known (integer, 1000\u20133000)"
+            }
+          }
         },
         "BuiltInFlashcards": {
           "AutomaticCreation": {
@@ -1424,6 +1457,16 @@
           "PreparedExamLevel": {
             "Description": "Target proficiency level for auto-created cards",
             "Label": "Target Exam Level"
+          },
+          "EaseMapping": {
+            "LearningEase": {
+              "Label": "Learning Ease",
+              "Description": "Initial ease factor assigned when a word is marked as Learning (e.g. 1.55)"
+            },
+            "KnownEase": {
+              "Label": "Known Ease",
+              "Description": "Initial ease factor assigned when a word is marked as Known (e.g. 1.8)"
+            }
           },
           "Title": "Built-in Flashcards"
         },
@@ -1814,17 +1857,26 @@
         "Unknown": "Unknown"
       },
       "StatusSource": {
-        "Nothing": "Source: None",
-        "Manual": "Source: Manual",
-        "Anki": "Source: Anki",
-        "Flashcards": "Source: Flashcards"
+        "Prefix": "Source: ",
+        "None": "None"
       },
       "StatusSourceWarning": {
         "Confirm": "Change anyway",
         "DontRemind": "Don't remind me again",
         "Message": "This word's status is determined by its highest knowledge source. Manually changing it may have no effect if Anki or Flashcards already track this word at a higher level.",
         "Title": "Status Override"
-      }
+      },
+      "AnkiModifyWarning": {
+        "Title": "Modify Anki Cards",
+        "Message": "This will modify the ease and position of your Anki cards for this word. New cards will be moved to the front of your review queue.",
+        "Confirm": "Continue",
+        "BuiltInOnly": "Change status only",
+        "DontRemind": "Don't remind me again"
+      },
+      "AnkiEase": "Anki Ease: {ease}",
+      "AnkiUpdateSuccess": "Updated {count} Anki card(s)",
+      "AnkiUpdateRepositioned": "Updated {count} card(s), repositioned {repositioned} new card(s)",
+      "AnkiUpdateFailed": "Failed to update Anki cards"
     },
     "ConnectionStatus": {
       "Connected": "Connected",
@@ -1842,6 +1894,12 @@
     "Sidebar": {
       "AddAll": "Add All",
       "AddingAll": "Adding…",
+      "AnkiAddAllWarning": {
+        "Title": "Modify Anki Cards",
+        "Message": "This will reposition Anki cards for known words to the front of the review queue and update their ease. For words not in Anki, you will be asked where to save them.",
+        "Confirm": "Continue",
+        "DontRemind": "Don't remind me again"
+      },
       "DictionaryOnly": "Dictionary only",
       "Ignore": "Ignore",
       "SortBy": {

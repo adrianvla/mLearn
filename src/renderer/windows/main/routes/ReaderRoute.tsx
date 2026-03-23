@@ -25,8 +25,12 @@ import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumb
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { wordsLearnedInApp } from '../../../services/statsService';
-import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus, getAnkiEaseForStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
+import { isWordInAnkiCache } from '../../../services/ankiWordsCache';
+import { useAnki } from '../../../hooks/useAnki';
+import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
+import { showToast } from '../../../components/common/Feedback/Toast';
 import './reader.css';
 
 interface PageImage {
@@ -109,6 +113,7 @@ export const ReaderRoute: Component = () => {
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
   const langCtx = useLanguage();
+  const anki = useAnki();
   const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm } = langCtx;
   const { translateWord } = useTranslation({ immediate: true });
   const { tokenize } = useTokenizer();
@@ -223,6 +228,10 @@ export const ReaderRoute: Component = () => {
   const [ocrPageWords, setOcrPageWords] = createStore<Record<string, ReaderPageWordSource[]>>({});
   const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
   const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
+
+  // Anki Add All warning state
+  const [showAnkiAddAllWarning, setShowAnkiAddAllWarning] = createSignal(false);
+  const [pendingAddAllEntries, setPendingAddAllEntries] = createSignal<ReaderUnknownWordEntry[]>([]);
 
   // Helper function to get file path using Electron's webUtils API (Electron 32+)
   // Falls back to legacy File.path property for older Electron versions
@@ -416,7 +425,11 @@ export const ReaderRoute: Component = () => {
         }
 
         const manualStatus = numericToWordStatus(manualStatuses[entry.word] ?? WORD_STATUS.UNKNOWN);
-        const effectiveStatus = getEffectiveWordStatus(flashcardCtx.getCardByWordSync(entry.word), manualStatus);
+        const effectiveStatus = getEffectiveWordStatus(
+          flashcardCtx.getCardByWordSync(entry.word), manualStatus,
+          settings.use_anki && isWordInAnkiCache(entry.word),
+          settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
+        );
         if (effectiveStatus === 'known') {
           continue;
         }
@@ -458,6 +471,8 @@ export const ReaderRoute: Component = () => {
         colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
         ocrCropPadding: settings.ocr_crop_padding,
         tokenize,
+        srsLearningEase: settings.srsLearningEase,
+        srsKnownEase: settings.srsKnownEase,
       });
       await flashcardCtx.addFlashcard(content, ease);
     } finally {
@@ -481,17 +496,47 @@ export const ReaderRoute: Component = () => {
       return;
     }
 
+    if (settings.use_anki && !settings.skipAnkiModifyWarning) {
+      setPendingAddAllEntries(entries);
+      setShowAnkiAddAllWarning(true);
+      return;
+    }
+    await processAddAll(entries);
+  };
+
+  const processAddAll = async (entries: ReaderUnknownWordEntry[]) => {
     setIsAddingAllSidebarWords(true);
     try {
       for (const entry of entries) {
         if (flashcardCtx.hasWordSync(entry.word) || flashcardCtx.isWordIgnoredSync(entry.word)) {
           continue;
         }
-        await addReaderWordFlashcard(entry);
+        if (settings.use_anki && isWordInAnkiCache(entry.word)) {
+          const status = numericToWordStatus(wordsLearnedInApp()[entry.word] ?? WORD_STATUS.LEARNING);
+          const ankiEase = getAnkiEaseForStatus(status, settings.ankiLearningEase, settings.ankiKnownEase);
+          try {
+            await anki.updateWordCards(entry.word, ankiEase);
+          } catch (err) {
+            console.error(`Failed to update Anki cards for "${entry.word}":`, err);
+            showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
+          }
+        } else {
+          await addReaderWordFlashcard(entry);
+        }
       }
     } finally {
       setIsAddingAllSidebarWords(false);
     }
+  };
+
+  const confirmAnkiAddAll = (dontRemind: boolean) => {
+    if (dontRemind) {
+      updateSettings({ skipAnkiModifyWarning: true });
+    }
+    const entries = pendingAddAllEntries();
+    setShowAnkiAddAllWarning(false);
+    setPendingAddAllEntries([]);
+    void processAddAll(entries);
   };
 
   const handleIgnoreSidebarWord = async (entry: ReaderUnknownWordEntry) => {
@@ -1880,6 +1925,16 @@ export const ReaderRoute: Component = () => {
         <MagnifyingGlass
             imageElements={Object.values(imageRefs())}
             active={magnifierActive()}
+        />
+
+        {/* Anki Add All warning modal */}
+        <AnkiModifyWarningModal
+          isOpen={showAnkiAddAllWarning()}
+          title={t('mlearn.Sidebar.AnkiAddAllWarning.Title')}
+          message={t('mlearn.Sidebar.AnkiAddAllWarning.Message')}
+          confirmText={t('mlearn.Sidebar.AnkiAddAllWarning.Confirm')}
+          onConfirm={confirmAnkiAddAll}
+          onCancel={() => { setShowAnkiAddAllWarning(false); setPendingAddAllEntries([]); }}
         />
       </div>
   );

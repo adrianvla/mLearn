@@ -10,7 +10,7 @@ import {
   extractPitchAccentFromTranslationData,
   extractReadingFromEntries,
   getEffectiveWordStatus,
-  getStatusSource,
+  resolveWordKnowledge,
   numericToWordStatus,
   wordStatusToNumeric,
   type WordStatus,
@@ -78,7 +78,12 @@ const UnknownWordRow: Component<{
 
   const currentFlashcard = createMemo(() => getCardByWordSync(props.entry.word));
   const manualStatus = createMemo(() => numericToWordStatus(wordsLearnedInApp()[props.entry.word] ?? WORD_STATUS.UNKNOWN));
-  const effectiveStatus = createMemo(() => getEffectiveWordStatus(currentFlashcard(), manualStatus()));
+  const effectiveStatus = createMemo(() =>
+    getEffectiveWordStatus(
+      currentFlashcard(), manualStatus(), isWordInAnkiCache(props.entry.word),
+      settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
+    )
+  );
   const isTracked = createMemo(() => props.isAdding || hasWordSync(props.entry.word));
   const currentEase = createMemo(() => currentFlashcard()?.ease);
 
@@ -133,8 +138,15 @@ const UnknownWordRow: Component<{
   });
 
   const statusSourceLabel = createMemo(() => {
-    const src = getStatusSource(currentFlashcard(), manualStatus(), isWordInAnkiCache(props.entry.word));
-    return t(`mlearn.WordHover.StatusSource.${src[0].toUpperCase() + src.slice(1)}`);
+    const result = resolveWordKnowledge(
+      currentFlashcard(), manualStatus(), isWordInAnkiCache(props.entry.word),
+      settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
+    );
+    const prefix = t('mlearn.WordHover.StatusSource.Prefix');
+    if (result.activeSources.length === 0) return prefix + t('mlearn.WordHover.StatusSource.None');
+    return prefix + result.activeSources
+      .map(s => t(`mlearn.Settings.KnowledgePriority.Source.${s[0].toUpperCase() + s.slice(1)}`))
+      .join(' + ');
   });
 
   const posLabel = createMemo(() => props.entry.token.partOfSpeech || props.entry.token.type || '');

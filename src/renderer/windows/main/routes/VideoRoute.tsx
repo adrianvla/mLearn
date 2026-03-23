@@ -11,6 +11,7 @@ import { useLocalization, useSettings, useLanguage, useFlashcards } from '../../
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
 import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
+import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { SubtitleSync } from '../../../components/subtitle';
 import { WORD_STATUS } from '../../../../shared/constants';
@@ -19,8 +20,10 @@ import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
-import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus, getAnkiEaseForStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { wordsLearnedInApp } from '../../../services/statsService';
+import { isWordInAnkiCache } from '../../../services/ankiWordsCache';
+import { useAnki } from '../../../hooks/useAnki';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hooks/useTranslation';
 import type { ConversationAgentContext } from '../../../../shared/types';
@@ -37,10 +40,11 @@ const getMediaNameFromPath = (filePath: string): string => filePath.split('/').p
 export const VideoRoute: Component = () => {
   const navigate = useNavigate();
   const { t } = useLocalization();
-  const { settings } = useSettings();
+  const { settings, updateSetting } = useSettings();
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
   const subtitles = useSubtitles();
+  const anki = useAnki();
 
   const watchTogether = useWatchTogether({
     getVideo: () => document.querySelector('video'),
@@ -62,6 +66,10 @@ export const VideoRoute: Component = () => {
   const seenWords = new Set<string>();
   const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
   const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
+
+  // Anki Add All warning state
+  const [showAnkiAddAllWarning, setShowAnkiAddAllWarning] = createSignal(false);
+  const [pendingAddAllEntries, setPendingAddAllEntries] = createSignal<VideoWordEntry[]>([]);
 
   const { tokenize } = useTokenizer();
   const { translateWord } = useTranslation({ immediate: true });
@@ -123,7 +131,11 @@ export const VideoRoute: Component = () => {
       if (flashcardCtx.isWordIgnoredSync(word)) continue;
 
       const manualStatus = numericToWordStatus(wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN);
-      const effectiveStatus = getEffectiveWordStatus(flashcardCtx.getCardByWordSync(word), manualStatus);
+      const effectiveStatus = getEffectiveWordStatus(
+        flashcardCtx.getCardByWordSync(word), manualStatus,
+        settings.use_anki && isWordInAnkiCache(word),
+        settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
+      );
       if (effectiveStatus === 'known') continue;
 
       seenWords.add(word);
@@ -150,7 +162,11 @@ export const VideoRoute: Component = () => {
     return accumulatedWords().filter(entry => {
       if (flashcardCtx.isWordIgnoredSync(entry.word)) return false;
       const manualStatus = numericToWordStatus(manualStatuses[entry.word] ?? WORD_STATUS.UNKNOWN);
-      const effectiveStatus = getEffectiveWordStatus(flashcardCtx.getCardByWordSync(entry.word), manualStatus);
+      const effectiveStatus = getEffectiveWordStatus(
+        flashcardCtx.getCardByWordSync(entry.word), manualStatus,
+        settings.use_anki && isWordInAnkiCache(entry.word),
+        settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
+      );
       return effectiveStatus !== 'known';
     });
   });
@@ -183,6 +199,8 @@ export const VideoRoute: Component = () => {
         colourCodes,
         tokenize,
         flashcardMediaType: settings.flashcardMediaType === 'video' ? 'video' : 'image',
+        srsLearningEase: settings.srsLearningEase,
+        srsKnownEase: settings.srsKnownEase,
       });
 
       // If video mode, clip and save the video segment
@@ -227,11 +245,44 @@ export const VideoRoute: Component = () => {
   };
 
   const addAllVideoWords = async (entries: VideoWordEntry[]) => {
-    setIsAddingAllSidebarWords(true);
-    for (const entry of entries) {
-      await addVideoWordFlashcard(entry);
+    if (settings.use_anki && !settings.skipAnkiModifyWarning) {
+      setPendingAddAllEntries(entries);
+      setShowAnkiAddAllWarning(true);
+      return;
     }
-    setIsAddingAllSidebarWords(false);
+    await processAddAll(entries);
+  };
+
+  const processAddAll = async (entries: VideoWordEntry[]) => {
+    setIsAddingAllSidebarWords(true);
+    try {
+      for (const entry of entries) {
+        if (settings.use_anki && isWordInAnkiCache(entry.word)) {
+          const status = numericToWordStatus(wordsLearnedInApp()[entry.word] ?? WORD_STATUS.LEARNING);
+          const ankiEase = getAnkiEaseForStatus(status, settings.ankiLearningEase, settings.ankiKnownEase);
+          try {
+            await anki.updateWordCards(entry.word, ankiEase);
+          } catch (err) {
+            console.error(`Failed to update Anki cards for "${entry.word}":`, err);
+            showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
+          }
+        } else {
+          await addVideoWordFlashcard(entry);
+        }
+      }
+    } finally {
+      setIsAddingAllSidebarWords(false);
+    }
+  };
+
+  const confirmAnkiAddAll = (dontRemind: boolean) => {
+    if (dontRemind) {
+      updateSetting('skipAnkiModifyWarning', true);
+    }
+    const entries = pendingAddAllEntries();
+    setShowAnkiAddAllWarning(false);
+    setPendingAddAllEntries([]);
+    void processAddAll(entries);
   };
 
   const ignoreVideoWord = async (entry: VideoWordEntry) => {
@@ -747,6 +798,16 @@ export const VideoRoute: Component = () => {
           onClose={() => setShowWordSidebar(false)}
         />
       </Show>
+
+      {/* Anki Add All warning modal */}
+      <AnkiModifyWarningModal
+        isOpen={showAnkiAddAllWarning()}
+        title={t('mlearn.Sidebar.AnkiAddAllWarning.Title')}
+        message={t('mlearn.Sidebar.AnkiAddAllWarning.Message')}
+        confirmText={t('mlearn.Sidebar.AnkiAddAllWarning.Confirm')}
+        onConfirm={confirmAnkiAddAll}
+        onCancel={() => { setShowAnkiAddAllWarning(false); setPendingAddAllEntries([]); }}
+      />
     </div>
   );
 };

@@ -220,27 +220,41 @@ export interface FilterDebugZone {
   }>;
 }
 
+/** Result of the single-pass zone processing: filtered boxes + context map */
+export interface ProcessedOcrZones {
+  /** Boxes with furigana removed */
+  filtered: OcrBox[];
+  /** Map from filtered-array index → context phrase for the zone */
+  contextMap: Map<number, string>;
+}
+
 /**
- * Filter out narrow boxes that are likely furigana annotations within each text zone.
+ * Single-pass zone processing: clusters boxes into zones, filters furigana,
+ * determines reading order, and builds context phrases — all in one traversal.
  *
  * **Algorithm** (zone-local statistical approach):
  *  1. Cluster boxes into spatially connected zones (speech bubbles / text blocks).
  *  2. Determine zone-level orientation via majority vote / bounding-box shape.
- *     This avoids misclassifying small square furigana chars as horizontal.
- *  3. Compute the dominant **cross-axis dimension** using area-weighted
- *     histogram mode (width for vertical zones, height for horizontal).
- *  4. Boxes with a cross dimension below `dominant / ratio` are furigana candidates.
- *  5. A candidate is confirmed only if it has a larger neighbor within a proximity
- *     window (prevents false positives from isolated small text).
- *
- * This approach is **language-agnostic** — it relies on zone-local size
- * distribution rather than script-specific checks (e.g. `containsKanji`).
+ *  3. Filter furigana: compute dominant cross-axis dimension, remove narrow
+ *     candidates that have a larger neighbor (proximity + overlap check).
+ *  4. Build context phrase per zone from remaining (non-furigana) boxes
+ *     sorted in reading order.
  */
-export function filterNarrowBoxes(
+function processOcrZones(
   boxes: OcrBox[],
-  options: FilterNarrowBoxesOptions = {}
-): OcrBox[] {
-  if (!Array.isArray(boxes) || boxes.length < 2) return boxes;
+  options: FilterNarrowBoxesOptions = {},
+): { filtered: OcrBox[]; contextMap: Map<number, string>; indicesToRemove: Set<number> } {
+  const contextMap = new Map<number, string>();
+
+  if (!Array.isArray(boxes) || boxes.length === 0) {
+    return { filtered: boxes ?? [], contextMap, indicesToRemove: new Set() };
+  }
+  if (boxes.length < 2) {
+    // Single box — no furigana to filter; build trivial context
+    const text = typeof boxes[0]?.text === 'string' ? boxes[0].text.trim() : '';
+    if (text) contextMap.set(0, text.length > 500 ? text.slice(0, 500) : text);
+    return { filtered: boxes, contextMap, indicesToRemove: new Set() };
+  }
 
   const clampPositive = (val: number | undefined, fallback: number): number => {
     const n = val ?? fallback;
@@ -258,6 +272,7 @@ export function filterNarrowBoxes(
   const indicesToRemove = new Set<number>();
   const debugZones: FilterDebugZone[] = [];
 
+  // Per-zone: filter furigana, then build context phrase from survivors
   for (let zi = 0; zi < zones.length; zi++) {
     const zoneIndices = zones[zi];
     if (zoneIndices.length < 2) {
@@ -271,6 +286,11 @@ export function filterNarrowBoxes(
             : { minX: 0, minY: 0, maxX: 0, maxY: 0 },
           orientationStats: [],
         });
+      }
+      // Single-box zone: no furigana to filter, context = its own text
+      if (zoneIndices.length === 1) {
+        const text = metrics[zoneIndices[0]].text.trim();
+        if (text) contextMap.set(zoneIndices[0], text.length > 500 ? text.slice(0, 500) : text);
       }
       continue;
     }
@@ -289,25 +309,14 @@ export function filterNarrowBoxes(
     const zoneBounds = { minX: zMinX, minY: zMinY, maxX: zMaxX, maxY: zMaxY };
     const orientationStats: FilterDebugZone['orientationStats'] = [];
 
-    // Determine zone-level orientation rather than relying on per-box orientation.
-    // Small furigana characters can have near-square bounding boxes that the
-    // per-box heuristic misclassifies; using zone orientation keeps them in the
-    // same comparison pool as their parent text.
     const orientation = determineZoneOrientation(zoneIndices, metrics, boxes);
 
     // Cross-axis dimension: the dimension furigana is narrow in
-    // Vertical zone → furigana has narrow width
-    // Horizontal zone → furigana has narrow height
     const crossDims = zoneMetrics.map(m =>
       orientation === 'vertical' ? m.width : m.height
     );
 
-    // Compute the dominant cross-axis dimension using area-weighted
-    // histogram mode (Bjerregaard et al., "Detection of Furigana Text
-    // in Images", 2022).  A sliding bin finds the cross-axis range where
-    // the most total box area is concentrated.  This is robust against
-    // wrapped / multi-line text boxes whose inflated cross-axis dimension
-    // would otherwise skew a simple median upward.
+    // Area-weighted histogram mode for dominant cross-axis dimension
     const minDim = Math.min(...crossDims);
     const maxDim = Math.max(...crossDims);
     let dominantCross: number;
@@ -351,7 +360,6 @@ export function filterNarrowBoxes(
       const crossDim = orientation === 'vertical' ? curr.width : curr.height;
       if (crossDim >= furiganaThreshold) continue;
 
-      // Candidate is narrow relative to zone peers — verify with neighbor check
       const windowSize = crossDim * windowMultiplier;
       let hasLargerNeighbor = false;
 
@@ -361,7 +369,6 @@ export function filterNarrowBoxes(
         const otherCross = orientation === 'vertical' ? other.width : other.height;
         if (otherCross <= crossDim * 1.2) continue;
 
-        // Furigana runs alongside its parent text: require main-axis overlap
         const mainOverlap = orientation === 'vertical'
           ? overlapAmount(curr.minY, curr.maxY, other.minY, other.maxY)
           : overlapAmount(curr.minX, curr.maxX, other.minX, other.maxX);
@@ -399,14 +406,80 @@ export function filterNarrowBoxes(
         orientationStats,
       });
     }
+
+    // --- Build context phrase from non-furigana boxes in this zone ---
+    const survivors = zoneIndices.filter(idx => !indicesToRemove.has(idx));
+    if (survivors.length === 0) continue;
+
+    const sorted = survivors.slice().sort((aIdx, bIdx) => {
+      const a = metrics[aIdx];
+      const b = metrics[bIdx];
+
+      if (orientation === 'vertical') {
+        const deltaX = Math.abs(a.centerX - b.centerX);
+        const widthRef = Math.min(a.width, b.width);
+        if (deltaX < widthRef * 0.3) return a.minY - b.minY;
+        return b.centerX - a.centerX;
+      }
+
+      const deltaY = Math.abs(a.centerY - b.centerY);
+      const heightRef = Math.min(a.height, b.height);
+      if (deltaY < heightRef * 0.3) return a.centerX - b.centerX;
+      return a.centerY - b.centerY;
+    });
+
+    const pieces: string[] = [];
+    for (const idx of sorted) {
+      const raw = metrics[idx].text;
+      if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (trimmed) pieces.push(trimmed);
+      }
+    }
+
+    let context = pieces.join(orientation === 'vertical' ? '' : ' ');
+    if (!context && sorted.length > 0) {
+      const fallback = metrics[sorted[0]].text;
+      context = typeof fallback === 'string' ? fallback : '';
+    }
+    const trimmed = typeof context === 'string' ? context.trim() : '';
+    const limited = trimmed.length > 500 ? trimmed.slice(0, 500) : trimmed;
+
+    // Assign context to all surviving (non-furigana) boxes in the zone
+    for (const idx of survivors) {
+      contextMap.set(idx, limited);
+    }
   }
 
   if (options.debugOutput) {
     options.debugOutput(debugZones);
   }
 
-  if (indicesToRemove.size === 0) return boxes;
-  return boxes.filter((_, idx) => !indicesToRemove.has(idx));
+  const filtered = indicesToRemove.size === 0 ? boxes : boxes.filter((_, idx) => !indicesToRemove.has(idx));
+  return { filtered, contextMap, indicesToRemove };
+}
+
+/**
+ * Filter out narrow boxes that are likely furigana annotations within each text zone.
+ * Returns the filtered array only. Use `processOcrBoxes` if you also need context phrases.
+ */
+export function filterNarrowBoxes(
+  boxes: OcrBox[],
+  options: FilterNarrowBoxesOptions = {}
+): OcrBox[] {
+  return processOcrZones(boxes, options).filtered;
+}
+
+/**
+ * Single-pass: filter furigana and build context phrases for every zone.
+ * The returned contextMap is keyed by the box's index in the **original** array.
+ */
+export function processOcrBoxes(
+  boxes: OcrBox[],
+  options: FilterNarrowBoxesOptions = {},
+): ProcessedOcrZones {
+  const { filtered, contextMap } = processOcrZones(boxes, options);
+  return { filtered, contextMap };
 }
 
 // ============================================================================
@@ -462,94 +535,20 @@ function determineZoneOrientation(
 }
 
 // ============================================================================
-// Build OCR Context Map
+// Build OCR Context Map (backward-compatible wrapper)
 // ============================================================================
 
 /**
- * Build a context map that associates each OCR box with its neighboring text
- * This is used to provide context phrases for LLM explanations and flashcard examples
- * 
- * Uses the same zone detection algorithm as furigana filtering to ensure consistent
- * grouping of boxes into speech bubbles / text blocks.
- * 
- * @param boxes Array of OCR boxes
- * @returns Map from box index to context phrase string
+ * Build a context map that associates each OCR box with its neighboring text.
+ * This is a convenience wrapper around `processOcrBoxes` for callers that
+ * only need the context map without furigana filtering.
  */
 export function buildOcrContextMap(
   boxes: OcrBox[],
+  options?: { zoneDeltaThreshold?: number },
 ): Map<number, string> {
-  const contextMap = new Map<number, string>();
-  
-  try {
-    if (!Array.isArray(boxes) || boxes.length === 0) return contextMap;
-    
-    const infos = boxes.map((box, idx) => computeBoxMetrics(box, idx));
-    
-    // Use the shared zone clustering algorithm
-    const zones = clusterBoxesIntoZones(infos);
-    
-    for (const cluster of zones) {
-      if (cluster.length === 0) continue;
-      
-      const orient = determineZoneOrientation(cluster, infos, boxes);
-      
-      // Sort cluster by reading order
-      const sorted = cluster.slice().sort((aIdx, bIdx) => {
-        const a = infos[aIdx];
-        const b = infos[bIdx];
-        
-        if (orient === 'vertical') {
-          // Vertical Japanese: right-to-left columns, top-to-bottom within columns
-          const deltaX = Math.abs(a.centerX - b.centerX);
-          const widthRef = Math.min(a.width, b.width);
-          if (deltaX < widthRef * 0.3) {
-            return a.minY - b.minY;
-          }
-          return b.centerX - a.centerX;
-        }
-        
-        // Horizontal: top-to-bottom rows, left-to-right within rows
-        const deltaY = Math.abs(a.centerY - b.centerY);
-        const heightRef = Math.min(a.height, b.height);
-        if (deltaY < heightRef * 0.3) {
-          return a.centerX - b.centerX;
-        }
-        return a.centerY - b.centerY;
-      });
-      
-      // Build context phrase from sorted boxes
-      const pieces: string[] = [];
-      for (const idx of sorted) {
-        const raw = infos[idx].text;
-        if (typeof raw === 'string') {
-          const trimmed = raw.trim();
-          if (trimmed) pieces.push(trimmed);
-        }
-      }
-      
-      // Join with appropriate separator based on orientation
-      let context = pieces.join(orient === 'vertical' ? '' : ' ');
-      
-      // Fallback to first box text if join failed
-      if (!context) {
-        const fallback = infos[sorted[0]].text;
-        context = typeof fallback === 'string' ? fallback : '';
-      }
-      
-      // Limit context length
-      const trimmed = typeof context === 'string' ? context.trim() : '';
-      const limited = trimmed.length > 500 ? trimmed.slice(0, 500) : trimmed;
-      
-      // Assign context to all boxes in cluster
-      for (const idx of cluster) {
-        contextMap.set(idx, limited);
-      }
-    }
-  } catch (_e) {
-    // Best effort grouping - return whatever we have
-  }
-  
-  return contextMap;
+  if (!Array.isArray(boxes) || boxes.length === 0) return new Map();
+  return processOcrZones(boxes, { zoneDeltaThreshold: options?.zoneDeltaThreshold }).contextMap;
 }
 
 // ============================================================================
