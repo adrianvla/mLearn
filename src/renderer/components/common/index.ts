@@ -235,6 +235,19 @@ export {
   type StatsGridProps,
 } from './Misc';
 
+// AnkiHoverPreview Components
+export {
+  AnkiHoverPreview,
+  type AnkiHoverPreviewProps,
+  type AnkiCardFields,
+} from './AnkiHoverPreview';
+
+// Tooltip
+export {
+  Tooltip,
+  type TooltipProps,
+} from './Tooltip';
+
 // Icons (re-exported from Misc)
 export {
   CloseIcon,

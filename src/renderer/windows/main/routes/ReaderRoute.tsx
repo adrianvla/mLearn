@@ -193,7 +193,7 @@ export const ReaderRoute: Component = () => {
   const [paddleOcrScale, setPaddleOcrScale] = createSignal(80);
 
   // Dev-mode live-tuneable OCR zone clustering parameters
-  const [zoneDeltaThreshold, setZoneDeltaThreshold] = createSignal(50);
+  const [zoneDeltaThreshold, setZoneDeltaThreshold] = createSignal(15);
 
   // OCR generation counter — incremented when turbo mode changes to invalidate stale results
   const [ocrGeneration, setOcrGeneration] = createSignal(0);

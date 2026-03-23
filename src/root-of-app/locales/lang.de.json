@@ -1789,19 +1789,40 @@
       "Title": "Wortdatenbank"
     },
     "WordHover": {
+      "AddToAnki": "Zu Anki hinzufügen",
+      "AddToBuiltInSrs": "Klicken, um zum eingebauten SRS hinzuzufügen",
       "Alerts": {
         "ExplainRequiresLlm": "Die Erklärungsfunktion erfordert ein lokales KI-Sprachmodell. Aktivieren Sie LLM in den Einstellungen und starten Sie die App neu."
+      },
+      "AnkiDuplicateWarning": {
+        "Confirm": "Trotzdem hinzufügen",
+        "DontRemind": "Nicht mehr erinnern",
+        "Message": "Dieses Wort existiert bereits in Anki. Das Hinzufügen zum eingebauten SRS erstellt eine doppelte Lernkarte.",
+        "Title": "Doppelte Lernkarte"
       },
       "Errors": {
         "FailedToAddFlashcard": "Lernkarte konnte nicht hinzugefügt werden: {error}"
       },
       "Explain": "Erklären",
+      "InAnki": "In Anki",
       "Loading": "Laden...",
       "NoTranslation": "Keine Übersetzung gefunden",
       "Status": {
         "Known": "Bekannt",
         "Learning": "Lernend",
         "Unknown": "Unbekannt"
+      },
+      "StatusSource": {
+        "Nothing": "Quelle: Keine",
+        "Manual": "Quelle: Manuell",
+        "Anki": "Quelle: Anki",
+        "Flashcards": "Quelle: Lernkarten"
+      },
+      "StatusSourceWarning": {
+        "Confirm": "Trotzdem ändern",
+        "DontRemind": "Nicht mehr erinnern",
+        "Message": "Der Status dieses Wortes wird durch die höchste Wissensquelle bestimmt. Eine manuelle Änderung hat möglicherweise keine Auswirkung, wenn Anki oder Lernkarten dieses Wort bereits auf einem höheren Niveau verfolgen.",
+        "Title": "Status-Überschreibung"
       }
     },
     "ConnectionStatus": {

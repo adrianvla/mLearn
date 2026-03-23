@@ -1789,19 +1789,40 @@
       "Title": "単語データベース"
     },
     "WordHover": {
+      "AddToAnki": "Ankiに追加",
+      "AddToBuiltInSrs": "クリックして内蔵SRSに追加",
       "Alerts": {
         "ExplainRequiresLlm": "解説機能にはローカルAI言語モデルが必要です。設定でLLMを有効にしてアプリを再起動してください。"
+      },
+      "AnkiDuplicateWarning": {
+        "Confirm": "追加する",
+        "DontRemind": "今後表示しない",
+        "Message": "この単語はすでにAnkiに存在します。内蔵SRSに追加すると重複カードが作成されます。",
+        "Title": "重複カード"
       },
       "Errors": {
         "FailedToAddFlashcard": "フラッシュカードの追加に失敗しました: {error}"
       },
       "Explain": "解説",
+      "InAnki": "Anki内",
       "Loading": "読み込み中...",
       "NoTranslation": "翻訳が見つかりません",
       "Status": {
         "Known": "既知",
         "Learning": "学習中",
         "Unknown": "未知"
+      },
+      "StatusSource": {
+        "Nothing": "ソース: なし",
+        "Manual": "ソース: 手動",
+        "Anki": "ソース: Anki",
+        "Flashcards": "ソース: フラッシュカード"
+      },
+      "StatusSourceWarning": {
+        "Confirm": "変更する",
+        "DontRemind": "今後表示しない",
+        "Message": "この単語のステータスは最も高い知識ソースによって決定されます。Ankiやフラッシュカードがすでにより高いレベルで追跡している場合、手動での変更は効果がない場合があります。",
+        "Title": "ステータスの上書き"
       }
     },
     "ConnectionStatus": {

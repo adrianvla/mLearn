@@ -72,6 +72,10 @@ export interface Settings {
   use_anki: boolean;
   /** Skip the SRS/Anki choice modal and always save to SRS */
   flashcardSkipAnkiChoice: boolean;
+  /** Skip the duplicate warning when adding a word that already exists in Anki */
+  skipAnkiDuplicateWarning: boolean;
+  /** Skip the warning modal when changing status of a word tracked by Anki or Flashcards */
+  skipStatusSourceWarning: boolean;
   anki_field_expression: string;
   anki_field_reading: string;
   anki_field_meaning: string;
@@ -291,6 +295,8 @@ export const DEFAULT_SETTINGS: Settings = {
   language: 'ja',
   use_anki: false,
   flashcardSkipAnkiChoice: false,
+  skipAnkiDuplicateWarning: false,
+  skipStatusSourceWarning: false,
   furigana: true,
   enable_flashcard_creation: true,
   automaticFlashcardCreation: false,

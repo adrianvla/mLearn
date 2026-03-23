@@ -1,0 +1,32 @@
+.tooltip-trigger {
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltip-content {
+  position: absolute;
+  left: 0;
+  z-index: 100;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.tooltip-content--top {
+  bottom: 100%;
+  margin-bottom: 4px;
+}
+
+.tooltip-content--bottom {
+  top: 100%;
+  margin-top: 4px;
+}
+
+.tooltip-text {
+  padding: 4px 8px;
+  background: var(--bg-nt-secondary); /*transparency workaround*/
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}

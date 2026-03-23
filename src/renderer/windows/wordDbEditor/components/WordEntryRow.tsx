@@ -5,7 +5,8 @@
  */
 
 import { Component, Show, For, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Btn, PillLabel, StatusLabel, numericToStatus, statusToNumeric, getNextStatus, PitchAccentOverlay } from '../../../components/common';
+import { Btn, PillLabel, StatusLabel, numericToStatus, statusToNumeric, getNextStatus, PitchAccentOverlay, AnkiHoverPreview, Tooltip } from '../../../components/common';
+import type { AnkiCardFields } from '../../../components/common';
 import { useLocalization } from '../../../context';
 import { getCachedTranslation, getCachedReading, fetchTranslation } from '../../../hooks/useTranslation';
 import type { TranslationResponse, TranslationEntry } from '../../../../shared/types';
@@ -187,34 +188,26 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   });
 
   // Anki hover preview state
-  const [ankiHoverOpen, setAnkiHoverOpen] = createSignal(false);
-  const [ankiHoverCard, setAnkiHoverCard] = createSignal<Record<string, { value: string; order: number }> | null>(null);
+  const [ankiHoverCard, setAnkiHoverCard] = createSignal<AnkiCardFields | null>(null);
   const [ankiHoverLoading, setAnkiHoverLoading] = createSignal(false);
-  let ankiHoverRef: HTMLSpanElement | undefined;
   let ankiHoverFetched = false;
 
-  const handleAnkiHoverEnter = async () => {
+  const fetchAnkiCard = async () => {
     if (props.entry.tracker !== 'anki') return;
-    setAnkiHoverOpen(true);
     if (ankiHoverFetched) return;
     ankiHoverFetched = true;
     setAnkiHoverLoading(true);
     try {
       const { getBackend } = await import('../../../../shared/backends');
-      const result = await getBackend().getCard({ word: props.entry.word }) as { cards: any[]; error: boolean };
-      if (!result.error && result.cards.length > 0) {
-        const card = result.cards[0];
-        setAnkiHoverCard(card.fields || null);
+      const result = await getBackend().getCard({ word: props.entry.word }) as { cards: { fields: AnkiCardFields }[]; error: boolean; poor: boolean };
+      if (!result.error && !result.poor && result.cards.length > 0) {
+        setAnkiHoverCard(result.cards[0].fields || null);
       }
     } catch {
       // ignore
     } finally {
       setAnkiHoverLoading(false);
     }
-  };
-
-  const handleAnkiHoverLeave = () => {
-    setAnkiHoverOpen(false);
   };
 
   // Lazily fetch translation when the row becomes visible.
@@ -319,48 +312,23 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         <Show when={props.entry.level < 0}>-</Show>
       </div>
       <div class="col tracker">
-        <span
-          class={`tracker-label ${props.entry.tracker === 'anki' ? 'tracker-label--anki' : ''}`}
-          ref={ankiHoverRef}
-          onMouseEnter={handleAnkiHoverEnter}
-          onMouseLeave={handleAnkiHoverLeave}
-        >
-          {trackerLabel()}
-          <Show when={ankiHoverOpen() && props.entry.tracker === 'anki'}>
-            <div class="anki-hover-preview">
-              <Show when={ankiHoverLoading()}>
-                <span class="anki-hover-preview__loading">{t('mlearn.Global.Loading')}</span>
-              </Show>
-              <Show when={!ankiHoverLoading() && ankiHoverCard()}>
-                {(fields) => (
-                  <div class="anki-hover-preview__fields">
-                    <Show when={fields().Expression}>
-                      <div class="anki-hover-preview__field">
-                        <span class="anki-hover-preview__label">Expression</span>
-                        <span class="anki-hover-preview__value" innerHTML={fields().Expression.value} />
-                      </div>
-                    </Show>
-                    <Show when={fields().Reading}>
-                      <div class="anki-hover-preview__field">
-                        <span class="anki-hover-preview__label">Reading</span>
-                        <span class="anki-hover-preview__value" innerHTML={fields().Reading.value} />
-                      </div>
-                    </Show>
-                    <Show when={fields().Meaning}>
-                      <div class="anki-hover-preview__field">
-                        <span class="anki-hover-preview__label">Meaning</span>
-                        <span class="anki-hover-preview__value" innerHTML={fields().Meaning.value} />
-                      </div>
-                    </Show>
-                  </div>
-                )}
-              </Show>
-              <Show when={!ankiHoverLoading() && !ankiHoverCard()}>
-                <span class="anki-hover-preview__loading">{t('mlearn.WordDbEditor.Anki.NoCardFound')}</span>
-              </Show>
-            </div>
-          </Show>
-        </span>
+        <Show when={props.entry.tracker === 'anki'} fallback={
+          <span class="tracker-label">{trackerLabel()}</span>
+        }>
+          <Tooltip
+            content={
+              <AnkiHoverPreview
+                loading={ankiHoverLoading()}
+                fields={ankiHoverCard()}
+              />
+            }
+            position="bottom"
+            onShow={fetchAnkiCard}
+            class="tracker-label tracker-label--anki"
+          >
+            {trackerLabel()}
+          </Tooltip>
+        </Show>
         <Show when={props.entry.tracker === 'flashcards'}>
           <Show when={props.onEditFlashcard}>
             <Btn
