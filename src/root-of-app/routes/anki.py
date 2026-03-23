@@ -245,47 +245,78 @@ def get_card(req: GetCardRequest):
         return getCardCache[req.word]
 
     word = req.word
-    matched = []
-    max_score = 0
-    for character in word:
-        if character in who_contain:
-            cards = who_contain[character]
-            for card in cards:
-                score = 0
-                for c in word:
-                    if c in card[0]:
-                        score += 0.5
-                if word in card[0]:
-                    score = len(word)
-                for c in card[0]:
-                    if c not in word:
-                        score -= 1
-                if score > max_score:
-                    max_score = score
-                matched.append((score, card[1]))
 
-    matched = list(set(matched))
-    matched.sort(reverse=True)
-    matched = matched[:5]
+    # 1. Exact match via words_ids index (fastest path)
+    if word in words_ids:
+        card_id = words_ids[word]
+        card = cards_per_id.get(card_id) or cards_per_id.get(str(card_id))
+        if card:
+            resp = {"cards": [card], "error": False, "poor": False}
+            getCardCache[req.word] = resp
+            return resp
+
+    # 2. Score candidate cards that share at least one character
+    seen: set = set()
+    scored: list = []
+
+    for character in word:
+        if character not in who_contain:
+            continue
+        for card_expr, card_id in who_contain[character]:
+            if card_id in seen:
+                continue
+            seen.add(card_id)
+
+            if word == card_expr:
+                score = len(word) * 3.0
+            elif word in card_expr:
+                # Search word is a substring of the card expression
+                score = len(word) * 2.0 - (len(card_expr) - len(word)) * 0.5
+            elif card_expr in word:
+                # Card expression is a substring of the search word
+                score = len(card_expr) * 1.5 - (len(word) - len(card_expr)) * 0.5
+            else:
+                # Character-level overlap — require high Jaccard similarity
+                word_chars = set(word)
+                card_chars = set(card_expr)
+                common = len(word_chars & card_chars)
+                union = len(word_chars | card_chars)
+                jaccard = common / union if union > 0 else 0
+
+                if jaccard < 0.6:
+                    continue
+
+                score = common - (union - common) * 1.0
+
+            if score > 0:
+                scored.append((score, card_id))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    # Minimum viable score threshold
+    min_score = len(word) * 0.8
+    filtered = [(s, cid) for s, cid in scored if s >= min_score]
+    top = filtered[:5]
+
+    max_score = top[0][0] if top else 0
 
     result = []
-    for match in matched:
-        card_id = match[1]
+    for _, card_id in top:
         current_card = cards_per_id.get(card_id) or cards_per_id.get(str(card_id))
-        if current_card is None:
-            continue
-        result.append(current_card)
+        if current_card:
+            result.append(current_card)
 
-    if len(result) == 0:
-        getCardCache[req.word] = {"cards": ["No cards found"], "error": True}
-        return {"cards": ["No cards found"], "error": True}
+    if not result:
+        resp = {"cards": ["No cards found"], "error": True, "poor": False}
+        getCardCache[req.word] = resp
+        return resp
 
     getCardCache[req.word] = {
         "cards": result,
         "error": False,
-        "poor": max_score < len(req.word),
+        "poor": max_score < len(req.word) * 2,
     }
-    return {"cards": result, "error": False, "poor": max_score < len(req.word)}
+    return {"cards": result, "error": False, "poor": max_score < len(req.word) * 2}
 
 
 @router.post("/control")

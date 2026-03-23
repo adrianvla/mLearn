@@ -50,6 +50,8 @@ export function wordStatusToNumeric(status: WordStatus): number {
   }
 }
 
+export type StatusSource = 'nothing' | 'manual' | 'anki' | 'flashcards';
+
 export function getEffectiveWordStatus(card: Flashcard | null, manualStatus: WordStatus): WordStatus {
   if (card) {
     if (card.state === 'new' || card.state === 'learning' || card.state === 'relearning') {
@@ -60,6 +62,21 @@ export function getEffectiveWordStatus(card: Flashcard | null, manualStatus: Wor
     }
   }
   return manualStatus;
+}
+
+/**
+ * Determine which source is driving the effective word status.
+ * Priority: Flashcards > Anki > Manual > Nothing
+ */
+export function getStatusSource(
+  card: Flashcard | null,
+  manualStatus: WordStatus,
+  isInAnki: boolean,
+): StatusSource {
+  if (card) return 'flashcards';
+  if (isInAnki) return 'anki';
+  if (manualStatus !== 'unknown') return 'manual';
+  return 'nothing';
 }
 
 export function getEaseFromWordStatus(status: WordStatus): number {

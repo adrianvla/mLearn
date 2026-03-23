@@ -308,64 +308,30 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   animation: shimmer 1.5s ease-in-out infinite;
 }
 
-/* Ease pill wrapper for Anki hover preview */
-.ease-pill-wrapper {
-  position: relative;
-  display: inline-flex;
-}
-
-.ease-pill-wrapper .anki-hover-preview {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  z-index: 100;
-  min-width: 220px;
-  max-width: 340px;
-  padding: 8px 10px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  white-space: normal;
-  margin-bottom: 4px;
-  backdrop-filter: var(--backdrop-filter);
-  pointer-events: auto;
-}
-
-.ease-pill-wrapper .anki-hover-preview__fields {
+/* Anki duplicate warning modal */
+.anki-duplicate-warning {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 12px;
 }
 
-.ease-pill-wrapper .anki-hover-preview__field {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-  font-size: var(--font-size-sm);
-}
-
-.ease-pill-wrapper .anki-hover-preview__label {
-  color: var(--text-tertiary);
-  font-weight: 500;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.ease-pill-wrapper .anki-hover-preview__value {
+.anki-duplicate-warning__message {
   color: var(--text-primary);
-  word-break: break-word;
-  overflow: hidden;
-  max-height: 80px;
-}
-
-.ease-pill-wrapper .anki-hover-preview__value img {
-  max-width: 100%;
-  height: auto;
-}
-
-.ease-pill-wrapper .anki-hover-preview__loading {
-  color: var(--text-tertiary);
   font-size: var(--font-size-sm);
-  font-style: italic;
+  margin: 0;
+}
+
+.anki-duplicate-warning__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.anki-duplicate-warning__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }

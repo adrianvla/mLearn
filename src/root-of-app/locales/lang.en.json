@@ -1790,19 +1790,40 @@
       "Title": "Word Database"
     },
     "WordHover": {
+      "AddToAnki": "Add to Anki",
+      "AddToBuiltInSrs": "Click to add to built-in SRS",
       "Alerts": {
         "ExplainRequiresLlm": "The explain feature requires the local AI language model. Please enable LLM in settings and restart the app."
+      },
+      "AnkiDuplicateWarning": {
+        "Confirm": "Add anyway",
+        "DontRemind": "Don't remind me again",
+        "Message": "This word already exists in Anki. Adding it to the built-in SRS will create a duplicate flashcard.",
+        "Title": "Duplicate Flashcard"
       },
       "Errors": {
         "FailedToAddFlashcard": "Failed to add flashcard: {error}"
       },
       "Explain": "Explain",
+      "InAnki": "In Anki",
       "Loading": "Loading...",
       "NoTranslation": "No translation found",
       "Status": {
         "Known": "Known",
         "Learning": "Learning",
         "Unknown": "Unknown"
+      },
+      "StatusSource": {
+        "Nothing": "Source: None",
+        "Manual": "Source: Manual",
+        "Anki": "Source: Anki",
+        "Flashcards": "Source: Flashcards"
+      },
+      "StatusSourceWarning": {
+        "Confirm": "Change anyway",
+        "DontRemind": "Don't remind me again",
+        "Message": "This word's status is determined by its highest knowledge source. Manually changing it may have no effect if Anki or Flashcards already track this word at a higher level.",
+        "Title": "Status Override"
       }
     },
     "ConnectionStatus": {

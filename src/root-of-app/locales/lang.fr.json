@@ -1789,19 +1789,40 @@
       "Title": "Base de mots"
     },
     "WordHover": {
+      "AddToAnki": "Ajouter à Anki",
+      "AddToBuiltInSrs": "Cliquer pour ajouter au SRS intégré",
       "Alerts": {
         "ExplainRequiresLlm": "La fonction d'explication nécessite un modèle IA local. Activez le LLM dans les paramètres et redémarrez l'application."
+      },
+      "AnkiDuplicateWarning": {
+        "Confirm": "Ajouter quand même",
+        "DontRemind": "Ne plus me rappeler",
+        "Message": "Ce mot existe déjà dans Anki. L'ajouter au SRS intégré créera une carte en double.",
+        "Title": "Carte en double"
       },
       "Errors": {
         "FailedToAddFlashcard": "Échec de l'ajout de la carte : {error}"
       },
       "Explain": "Expliquer",
+      "InAnki": "Dans Anki",
       "Loading": "Chargement...",
       "NoTranslation": "Aucune traduction trouvée",
       "Status": {
         "Known": "Connu",
         "Learning": "En apprentissage",
         "Unknown": "Inconnu"
+      },
+      "StatusSource": {
+        "Nothing": "Source : Aucune",
+        "Manual": "Source : Manuelle",
+        "Anki": "Source : Anki",
+        "Flashcards": "Source : Flashcards"
+      },
+      "StatusSourceWarning": {
+        "Confirm": "Modifier quand même",
+        "DontRemind": "Ne plus me rappeler",
+        "Message": "Le statut de ce mot est déterminé par la source de connaissance la plus élevée. Le modifier manuellement peut n'avoir aucun effet si Anki ou les Flashcards suivent déjà ce mot à un niveau supérieur.",
+        "Title": "Remplacement du statut"
       }
     },
     "ConnectionStatus": {

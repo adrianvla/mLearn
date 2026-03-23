@@ -11,17 +11,21 @@ import { normalizeReading } from '../../../shared/utils/textUtils';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { setWordStatus, toUniqueIdentifier, wordsLearnedInApp } from '../../services/statsService';
 import { getCachedExplanation } from '../../services/llmProvider';
+import { fetchAnkiWordsCache, isWordInAnkiCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, PitchAccentOverlay, ClockIcon } from '../common';
+import { PillBtn, PillLabel, PitchAccentOverlay, ClockIcon, AnkiHoverPreview, Modal, Btn, Tooltip } from '../common';
+import type { AnkiCardFields } from '../common';
 import { openWordLookup } from '../../services/wordLookupService';
 import {
   buildWordHoverFlashcardContent,
   extractPitchAccentFromTranslationData,
   extractReadingFromEntries,
   getEffectiveWordStatus,
+  getStatusSource,
   numericToWordStatus,
   wordStatusToNumeric,
   type WordStatus,
+  type StatusSource,
 } from './wordHoverHelpers';
 import { clipVideo } from '../../services/videoClipService';
 import { getBridge } from '../../../shared/bridges';
@@ -34,6 +38,7 @@ export type { WordStatus } from './wordHoverHelpers';
 const ICON_CROSS2 = 'cross2';
 const ICON_CHECK = 'check';
 const ICON_BOT = 'bot';
+const ICON_ANKI = 'anki';
 
 // UI element dimensions for boundary calculations (actual CSS values from reader components)
 const UI_NAVBAR_HEIGHT = 48;  // .reader-nav height: 48px
@@ -78,7 +83,7 @@ export interface WordHoverProps {
 }
 
 export const WordHover: Component<WordHoverProps> = (props) => {
-  const { settings } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const { addFlashcard, hasWordSync, getCardByWordSync, trackWordStatusChange } = useFlashcards();
   const { getFrequency, getLevelName, getLanguageFeatures, currentLangData } = useLanguage();
   const { tokenize } = useTokenizer();
@@ -314,10 +319,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   });
 
 
-  const handleStatusChange = async (e: MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
+  const applyStatusChange = () => {
     const statusOrder: WordStatus[] = ['unknown', 'learning', 'known'];
     const currentIdx = statusOrder.indexOf(currentStatus());
     const nextIdx = (currentIdx + 1) % statusOrder.length;
@@ -333,6 +335,18 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     }
     
     props.onStatusChange?.(newStatus);
+  };
+
+  const handleStatusChange = async (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const src = statusSource();
+    if ((src === 'flashcards' || src === 'anki') && !settings.skipStatusSourceWarning) {
+      setShowStatusSourceWarning(true);
+      return;
+    }
+    applyStatusChange();
   };
 
   // Check if we're in OCR mode - prefer prop, fallback to DOM detection
@@ -435,10 +449,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     if (props.onAddToSRS) {
       props.onAddToSRS();
     } else {
-      // Await the async function and catch any errors
-      handleAddFlashcard(undefined, e).catch((err) => {
-        console.error('handleAddFlashcard failed:', err);
-      });
+      handleAddWithAnkiCheck(undefined, e);
     }
   };
 
@@ -566,15 +577,41 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const isTracked = createMemo(() => isInSRS() || props.isInSRS === true);
 
   // Anki hover preview state
-  const [ankiHoverOpen, setAnkiHoverOpen] = createSignal(false);
-  const [ankiHoverCard, setAnkiHoverCard] = createSignal<Record<string, { value: string; order: number }> | null>(null);
+  const [ankiHoverCard, setAnkiHoverCard] = createSignal<AnkiCardFields | null>(null);
   const [ankiHoverLoading, setAnkiHoverLoading] = createSignal(false);
+  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched());
+  const [showDuplicateWarning, setShowDuplicateWarning] = createSignal(false);
   let ankiHoverFetched = false;
   let previousAnkiWord = '';
 
-  const handleAnkiPillEnter = async () => {
-    if (!settings.use_anki) return;
-    setAnkiHoverOpen(true);
+  // Fetch Anki words cache once when use_anki is enabled
+  createEffect(() => {
+    if (settings.use_anki && !isAnkiCacheFetched()) {
+      fetchAnkiWordsCache().then(() => setAnkiCacheReady(true));
+    }
+  });
+
+  // Check if word is in Anki (synchronous, from cache)
+  const wordInAnki = createMemo(() => {
+    if (!settings.use_anki) return false;
+    // Access ankiCacheReady to re-evaluate once cache is loaded
+    void ankiCacheReady();
+    return isWordInAnkiCache(actualWord());
+  });
+
+  // Source of the current word status (flashcards, anki, manual, nothing)
+  const statusSource = createMemo<StatusSource>(() =>
+    getStatusSource(currentFlashcard(), currentStatus(), wordInAnki())
+  );
+
+  const statusSourceLabel = createMemo(() => {
+    const src = statusSource();
+    return t(`mlearn.WordHover.StatusSource.${src[0].toUpperCase() + src.slice(1)}`);
+  });
+
+  const [showStatusSourceWarning, setShowStatusSourceWarning] = createSignal(false);
+
+  const fetchAnkiCardForHover = async () => {
     const word = actualWord();
     if (ankiHoverFetched && previousAnkiWord === word) return;
     ankiHoverFetched = true;
@@ -582,8 +619,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     setAnkiHoverLoading(true);
     try {
       const { getBackend } = await import('../../../shared/backends');
-      const result = await getBackend().getCard({ word }) as { cards: { fields: Record<string, { value: string; order: number }> }[]; error: boolean };
-      if (!result.error && result.cards.length > 0) {
+      const result = await getBackend().getCard({ word }) as { cards: { fields: AnkiCardFields }[]; error: boolean; poor: boolean };
+      if (!result.error && !result.poor && result.cards.length > 0) {
         setAnkiHoverCard(result.cards[0].fields || null);
       } else {
         setAnkiHoverCard(null);
@@ -595,9 +632,44 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     }
   };
 
-  const handleAnkiPillLeave = () => {
-    setAnkiHoverOpen(false);
+  const handleAnkiTooltipShow = () => {
+    if (!settings.use_anki) return;
+    fetchAnkiCardForHover();
   };
+
+  // Handle adding flashcard when word is already in Anki (duplicate check)
+  const handleAddWithAnkiCheck = (entry?: DictionaryEntry, e?: MouseEvent) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    if (wordInAnki() && !isTracked() && !settings.skipAnkiDuplicateWarning) {
+      setShowDuplicateWarning(true);
+      return;
+    }
+    handleAddFlashcard(entry, e).catch(console.error);
+  };
+
+  const confirmDuplicateAdd = (dontRemind: boolean) => {
+    setShowDuplicateWarning(false);
+    if (dontRemind) {
+      updateSettings({ skipAnkiDuplicateWarning: true });
+    }
+    handleAddFlashcard().catch(console.error);
+  };
+
+  const confirmStatusSourceChange = (dontRemind: boolean) => {
+    setShowStatusSourceWarning(false);
+    if (dontRemind) {
+      updateSettings({ skipStatusSourceWarning: true });
+    }
+    applyStatusChange();
+  };
+
+  // Anki hover preview footer for "add to built-in SRS" hint
+  const ankiFooterHint = createMemo(() => {
+    if (wordInAnki() && !isTracked()) {
+      return <div class="anki-hover-preview__footer">{t('mlearn.WordHover.AddToBuiltInSrs')}</div>;
+    }
+    return undefined;
+  });
 
   const EasePill = () => {
     const ease = currentEase() ?? props.ease;
@@ -606,64 +678,62 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         return (
           <PillBtn
             variant="green"
-            icon={ICON_CHECK}
+            icon={wordInAnki() ? ICON_ANKI : ICON_CHECK}
             label={t('mlearn.Flashcards.Card.Tracked')}
+            style={{ height: "100%"}}
           />
         );
       }
       return (
         <PillBtn
           variant="green"
-          icon={ICON_CHECK}
+          icon={wordInAnki() ? ICON_ANKI : ICON_CHECK}
           label={`${t('mlearn.Flashcards.Card.Ease')} ${Math.round(ease * 100) / 100}`}
+          style={{ height: "100%"}}
         />
       );
     };
 
     return (
-      <span
-        class="ease-pill-wrapper"
-        onMouseEnter={handleAnkiPillEnter}
-        onMouseLeave={handleAnkiPillLeave}
-      >
-        {pillContent()}
-        <Show when={ankiHoverOpen() && settings.use_anki}>
-          <div class="anki-hover-preview">
-            <Show when={ankiHoverLoading()}>
-              <span class="anki-hover-preview__loading">{t('mlearn.Global.Loading')}</span>
-            </Show>
-            <Show when={!ankiHoverLoading() && ankiHoverCard()}>
-              {(fields) => (
-                <div class="anki-hover-preview__fields">
-                  <Show when={fields().Expression}>
-                    <div class="anki-hover-preview__field">
-                      <span class="anki-hover-preview__label">Expression</span>
-                      <span class="anki-hover-preview__value" innerHTML={fields().Expression.value} />
-                    </div>
-                  </Show>
-                  <Show when={fields().Reading}>
-                    <div class="anki-hover-preview__field">
-                      <span class="anki-hover-preview__label">Reading</span>
-                      <span class="anki-hover-preview__value" innerHTML={fields().Reading.value} />
-                    </div>
-                  </Show>
-                  <Show when={fields().Meaning}>
-                    <div class="anki-hover-preview__field">
-                      <span class="anki-hover-preview__label">Meaning</span>
-                      <span class="anki-hover-preview__value" innerHTML={fields().Meaning.value} />
-                    </div>
-                  </Show>
-                </div>
-              )}
-            </Show>
-            <Show when={!ankiHoverLoading() && !ankiHoverCard()}>
-              <span class="anki-hover-preview__loading">{t('mlearn.WordDbEditor.Anki.NoCardFound')}</span>
-            </Show>
-          </div>
-        </Show>
-      </span>
+      <Show when={settings.use_anki} fallback={pillContent()}>
+        <Tooltip
+          content={
+            <AnkiHoverPreview
+              loading={ankiHoverLoading()}
+              fields={ankiHoverCard()}
+              footer={ankiFooterHint()}
+            />
+          }
+          onShow={handleAnkiTooltipShow}
+        >
+          {pillContent()}
+        </Tooltip>
+      </Show>
     );
   };
+
+  // Anki-only pill: shown when word is in Anki but NOT in built-in SRS
+  const AnkiOnlyPill = () => (
+    <Tooltip
+      content={
+        <AnkiHoverPreview
+          loading={ankiHoverLoading()}
+          fields={ankiHoverCard()}
+          footer={<div class="anki-hover-preview__footer">{t('mlearn.WordHover.AddToBuiltInSrs')}</div>}
+        />
+      }
+      onShow={handleAnkiTooltipShow}
+    >
+      <span onClick={(e: MouseEvent) => handleAddWithAnkiCheck(undefined, e)}>
+        <PillBtn
+          variant="blue"
+          icon={ICON_ANKI}
+          label={t('mlearn.WordHover.InAnki')}
+          style={{ height: "100%"}}
+        />
+      </span>
+    </Tooltip>
+  );
 
   // LLM Explain pill using PillBtn component
   // Shows indicator if we have a cached explanation
@@ -776,22 +846,30 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               </Show>
               <POSPill />
               {/* Status pill - directly reactive using memos */}
-              <PillBtn
-                variant={statusVariant()}
-                icon={statusIcon()}
-                label={statusLabel()}
-                onClick={handleStatusChange}
-              />
+              <Tooltip
+                content={<span class="tooltip-text">{statusSourceLabel()}</span>}
+              >
+                <PillBtn
+                  variant={statusVariant()}
+                  icon={statusIcon()}
+                  label={statusLabel()}
+                  onClick={handleStatusChange}
+                />
+              </Tooltip>
               {/* Flashcard pill - uses Show for proper Solid.js reactivity */}
               <Show when={isTracked()} fallback={
                 <Show when={isAddingFlashcard()} fallback={
-                  <PillBtn
-                    variant="blue"
-                    icon={ICON_CROSS2}
-                    iconRotation={45}
-                    label={t('mlearn.Global.Flashcard')}
-                    onClick={handleAddToSRS}
-                  />
+                  <Show when={wordInAnki() && !isTracked()} fallback={
+                    <PillBtn
+                      variant="blue"
+                      icon={settings.use_anki && !settings.enable_flashcard_creation ? ICON_ANKI : ICON_CROSS2}
+                      iconRotation={settings.use_anki && !settings.enable_flashcard_creation ? undefined : 45}
+                      label={settings.use_anki && !settings.enable_flashcard_creation ? t('mlearn.WordHover.AddToAnki') : t('mlearn.Global.Flashcard')}
+                      onClick={handleAddToSRS}
+                    />
+                  }>
+                    <AnkiOnlyPill />
+                  </Show>
                 }>
                   <PillBtn
                     variant="yellow"
@@ -808,6 +886,100 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           </div>
         </div>
       </div>
+      {/* Anki duplicate warning modal */}
+      <Show when={showDuplicateWarning()}>
+        <AnkiDuplicateWarningModal
+          onConfirm={confirmDuplicateAdd}
+          onCancel={() => setShowDuplicateWarning(false)}
+        />
+      </Show>
+      {/* Status source warning modal */}
+      <Show when={showStatusSourceWarning()}>
+        <StatusSourceWarningModal
+          source={statusSource()}
+          onConfirm={confirmStatusSourceChange}
+          onCancel={() => setShowStatusSourceWarning(false)}
+        />
+      </Show>
     </div>
+  );
+};
+
+// Local component: Anki duplicate warning modal
+const AnkiDuplicateWarningModal: Component<{
+  onConfirm: (dontRemind: boolean) => void;
+  onCancel: () => void;
+}> = (props) => {
+  const { t } = useLocalization();
+  const [dontRemind, setDontRemind] = createSignal(false);
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={props.onCancel}
+      title={t('mlearn.WordHover.AnkiDuplicateWarning.Title')}
+    >
+      <div class="anki-duplicate-warning">
+        <p class="anki-duplicate-warning__message">
+          {t('mlearn.WordHover.AnkiDuplicateWarning.Message')}
+        </p>
+        <label class="anki-duplicate-warning__checkbox">
+          <input
+            type="checkbox"
+            checked={dontRemind()}
+            onChange={(e) => setDontRemind(e.currentTarget.checked)}
+          />
+          {t('mlearn.WordHover.AnkiDuplicateWarning.DontRemind')}
+        </label>
+        <div class="anki-duplicate-warning__actions">
+          <Btn variant="secondary" onClick={props.onCancel}>
+            {t('mlearn.Global.Cancel')}
+          </Btn>
+          <Btn variant="primary" onClick={() => props.onConfirm(dontRemind())}>
+            {t('mlearn.WordHover.AnkiDuplicateWarning.Confirm')}
+          </Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+// Local component: Status source warning modal
+const StatusSourceWarningModal: Component<{
+  source: StatusSource;
+  onConfirm: (dontRemind: boolean) => void;
+  onCancel: () => void;
+}> = (props) => {
+  const { t } = useLocalization();
+  const [dontRemind, setDontRemind] = createSignal(false);
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={props.onCancel}
+      title={t('mlearn.WordHover.StatusSourceWarning.Title')}
+    >
+      <div class="anki-duplicate-warning">
+        <p class="anki-duplicate-warning__message">
+          {t('mlearn.WordHover.StatusSourceWarning.Message')}
+        </p>
+        <label class="anki-duplicate-warning__checkbox">
+          <input
+            type="checkbox"
+            checked={dontRemind()}
+            onChange={(e) => setDontRemind(e.currentTarget.checked)}
+          />
+          {t('mlearn.WordHover.StatusSourceWarning.DontRemind')}
+        </label>
+        <div class="anki-duplicate-warning__actions">
+          <Btn variant="secondary" onClick={props.onCancel}>
+            {t('mlearn.Global.Cancel')}
+          </Btn>
+          <Btn variant="primary" onClick={() => props.onConfirm(dontRemind())}>
+            {t('mlearn.WordHover.StatusSourceWarning.Confirm')}
+          </Btn>
+        </div>
+      </div>
+    </Modal>
   );
 };

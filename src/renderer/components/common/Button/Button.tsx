@@ -36,7 +36,7 @@ export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
 // Map of icon names available in the Icon component
 const ICON_NAMES = [
-  'book', 'bot', 'cards', 'check', 'chevron', 'cog', 'cross', 'cross2',
+  'anki', 'book', 'bot', 'cards', 'check', 'chevron', 'cog', 'cross', 'cross2',
   'document', 'fast-forward', 'palette', 'pause', 'pin', 'pip', 'play',
   'sidebar', 'star', 'stars', 'stats', 'subtitles', 'volume'
 ] as const;

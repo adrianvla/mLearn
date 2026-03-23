@@ -1,6 +1,7 @@
 import {Component, createMemo, Show} from 'solid-js';
 import {Dynamic} from 'solid-js/web';
 
+import Anki from './raw/Anki';
 import Bot from './raw/Bot';
 import Cards from './raw/Cards';
 import Check from './raw/Check';
@@ -30,6 +31,7 @@ interface IconProps {
 }
 
 const iconMap = {
+    anki: Anki,
     book: BookIcon,
     bot: Bot,
     cards: Cards,

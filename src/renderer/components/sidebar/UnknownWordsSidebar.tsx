@@ -2,7 +2,7 @@ import { Component, For, Show, Accessor, createEffect, createMemo, createSignal,
 import { createStore } from 'solid-js/store';
 import { WORD_STATUS } from '../../../shared/constants';
 import type { Token, TranslationEntry, TranslationResponse } from '../../../shared/types';
-import { Btn, ClockIcon, CollapsibleStickyHeader, PillBtn, PillLabel, PitchAccentOverlay, Select, ToggleSwitch } from '../common';
+import { Btn, ClockIcon, CollapsibleStickyHeader, PillBtn, PillLabel, PitchAccentOverlay, Select, ToggleSwitch, Tooltip } from '../common';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { getCachedTranslation, useTranslation } from '../../hooks/useTranslation';
 import { setWordStatus, wordsLearnedInApp } from '../../services/statsService';
@@ -10,10 +10,12 @@ import {
   extractPitchAccentFromTranslationData,
   extractReadingFromEntries,
   getEffectiveWordStatus,
+  getStatusSource,
   numericToWordStatus,
   wordStatusToNumeric,
   type WordStatus,
 } from '../subtitle/wordHoverHelpers';
+import { isWordInAnkiCache } from '../../services/ankiWordsCache';
 import { normalizeReading, containsKanji, isAllKana } from '../../../shared/utils/textUtils';
 import './UnknownWordsSidebar.css';
 
@@ -130,6 +132,11 @@ const UnknownWordRow: Component<{
         : t('mlearn.WordHover.Status.Known');
   });
 
+  const statusSourceLabel = createMemo(() => {
+    const src = getStatusSource(currentFlashcard(), manualStatus(), isWordInAnkiCache(props.entry.word));
+    return t(`mlearn.WordHover.StatusSource.${src[0].toUpperCase() + src.slice(1)}`);
+  });
+
   const posLabel = createMemo(() => props.entry.token.partOfSpeech || props.entry.token.type || '');
 
   const shortMeaning = createMemo(() => {
@@ -206,12 +213,14 @@ const UnknownWordRow: Component<{
         <Show when={settings.show_pos && posLabel()}>
           <PillLabel>{posLabel()}</PillLabel>
         </Show>
-        <PillBtn
-          variant={statusVariant()}
-          icon={statusIcon()}
-          label={statusLabel()}
-          onClick={cycleStatus}
-        />
+        <Tooltip content={<span class="tooltip-text">{statusSourceLabel()}</span>}>
+          <PillBtn
+            variant={statusVariant()}
+            icon={statusIcon()}
+            label={statusLabel()}
+            onClick={cycleStatus}
+          />
+        </Tooltip>
         <PillBtn
           variant="gray"
           label={t('mlearn.Sidebar.Ignore')}
