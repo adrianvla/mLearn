@@ -3,7 +3,7 @@
  * Configure AI provider (built-in vs Ollama), model download, and connection settings.
  */
 
-import { Component, Show, createSignal, createEffect, onCleanup } from 'solid-js';
+import { Component, Show, For, createSignal, createEffect, onCleanup } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
 import {
   SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, ToggleSwitch,
@@ -12,7 +12,8 @@ import {
 import { getBridge } from '../../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../../shared/backends';
-import type { LLMProvider, LLMModelStatus, OCRProvider } from '../../../../shared/types';
+import { BUILTIN_MODELS, autoselectBuiltinModel, getModelUrl } from '../../../../shared/builtinModels';
+import type { LLMProvider, LLMModelStatus, OCRProvider, SystemMemoryInfo } from '../../../../shared/types';
 import '../SettingsForm.css';
 import './AITab.css';
 
@@ -41,6 +42,15 @@ export const AITab: Component = () => {
   const [testingCloudLLM, setTestingCloudLLM] = createSignal(false);
   const [cloudLLMStatus, setCloudLLMStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
 
+  // Autoselect state
+  const [autoselectMsg, setAutoselectMsg] = createSignal<string | null>(null);
+  const [autoselecting, setAutoselecting] = createSignal(false);
+
+  // Downloaded models manager
+  const [downloadedModels, setDownloadedModels] = createSignal<Array<{ modelFile: string; sizeBytes: number }>>([]);
+  const [deletingModel, setDeletingModel] = createSignal<string | null>(null);
+  const [deleteConfirmMsg, setDeleteConfirmMsg] = createSignal<string | null>(null);
+
   // Check model status on mount
   createEffect(() => {
     checkModelStatus();
@@ -51,7 +61,7 @@ export const AITab: Component = () => {
     void handleFetchOllamaModels();
   });
 
-  // Listen for download progress and model status updates
+  // Listen for download progress updates only
   createEffect(() => {
     const bridge = getBridge();
 
@@ -59,22 +69,108 @@ export const AITab: Component = () => {
       setModelStatus(status);
     });
 
+    onCleanup(() => {
+      cleanupProgress();
+    });
+  });
+
+  // First-launch autoselect
+  createEffect(() => {
+    if (settings.llmProvider === 'builtin' && !settings.builtinModelAutoselected) {
+      void runAutoselect();
+    }
+  });
+
+  // Re-check model status whenever the selected model changes
+  createEffect(() => {
+    const modelFile = settings.builtinModel;
+    if (settings.llmProvider === 'builtin' && modelFile) {
+      void checkModelStatus(modelFile);
+    }
+  });
+
+  // Fetch downloaded models list when on builtin provider
+  createEffect(() => {
+    if (settings.llmProvider === 'builtin') {
+      void fetchDownloadedModels();
+    }
+  });
+
+  // Refresh downloaded models list after a download completes
+  createEffect(() => {
+    const bridge = getBridge();
+
     const cleanupStatus = bridge.llm.onLLMModelStatus((status: LLMModelStatus) => {
       setModelStatus(status);
+      if (status.downloaded) {
+        void fetchDownloadedModels();
+      }
     });
 
     onCleanup(() => {
-      cleanupProgress();
       cleanupStatus();
     });
   });
 
-  async function checkModelStatus() {
+  async function checkModelStatus(modelFile?: string) {
     try {
-      const status = await getBridge().llm.llmCheckModel();
+      const status = await getBridge().llm.llmCheckModel(modelFile ?? settings.builtinModel);
       setModelStatus(status);
     } catch {
       // Ignore — status will remain default
+    }
+  }
+
+  async function runAutoselect() {
+    const bridge = getBridge();
+    if (!bridge.llm.llmGetSystemMemory) return;
+    setAutoselecting(true);
+    setAutoselectMsg(null);
+    try {
+      const memInfo: SystemMemoryInfo = await bridge.llm.llmGetSystemMemory();
+      const selected = autoselectBuiltinModel(memInfo);
+      const memGb = memInfo.hasDiscreteGpu
+        ? Math.round(memInfo.dedicatedVramBytes / 1024 ** 3)
+        : Math.round(memInfo.totalRamBytes / 1024 ** 3);
+      const memLabel = memInfo.hasDiscreteGpu ? 'VRAM' : 'unified memory';
+      updateSettings({ builtinModel: selected.modelFile, builtinModelAutoselected: true });
+      setAutoselectMsg(`Detected ${memGb} GB ${memLabel} — selected ${selected.displayName}`);
+      setTimeout(() => setAutoselectMsg(null), 5000);
+      await checkModelStatus(selected.modelFile);
+    } catch {
+      setAutoselectMsg(null);
+    } finally {
+      setAutoselecting(false);
+    }
+  }
+
+  async function fetchDownloadedModels() {
+    const bridge = getBridge();
+    if (!bridge.llm.llmListDownloadedModels) return;
+    try {
+      const list = await bridge.llm.llmListDownloadedModels();
+      setDownloadedModels(list);
+    } catch {
+      setDownloadedModels([]);
+    }
+  }
+
+  async function handleDeleteModel(modelFile: string) {
+    const bridge = getBridge();
+    if (!bridge.llm.llmDeleteModel) return;
+    setDeletingModel(modelFile);
+    try {
+      await bridge.llm.llmDeleteModel(modelFile);
+      const model = BUILTIN_MODELS.find((m) => m.modelFile === modelFile);
+      if (model) {
+        setDeleteConfirmMsg(`Deleted ${model.displayName}`);
+        setTimeout(() => setDeleteConfirmMsg(null), 3000);
+      }
+      await fetchDownloadedModels();
+    } catch {
+      // silently ignore
+    } finally {
+      setDeletingModel(null);
     }
   }
 
@@ -83,9 +179,11 @@ export const AITab: Component = () => {
   }
 
   async function handleDownloadModel() {
+    const model = BUILTIN_MODELS.find((m) => m.modelFile === settings.builtinModel)
+      ?? BUILTIN_MODELS[BUILTIN_MODELS.length - 1];
     setModelStatus((prev) => ({ ...prev, downloading: true, progress: 0, error: undefined }));
     try {
-      await getBridge().llm.llmDownloadModel();
+      getBridge().llm.llmDownloadModel(getModelUrl(model), model.modelFile);
     } catch (e) {
       setModelStatus((prev) => ({ ...prev, downloading: false, error: String(e) }));
     }
@@ -183,13 +281,48 @@ export const AITab: Component = () => {
       {/* Built-in Model Section */}
       <Show when={settings.llmProvider === 'builtin'}>
         <SettingGroup title={t('mlearn.AI.Settings.BuiltinModel.Title')}>
+          {/* Model chooser */}
           <SettingRow
             label={t('mlearn.AI.Settings.BuiltinModel.ModelName')}
-            description={t('mlearn.AI.Settings.BuiltinModel.DiskSpace', { size: '~5.7 GB' })}
+            description=""
           >
-            <span class="setting-value">{settings.builtinModel || 'Qwen3.5-9B-Q4_K_M.gguf'}</span>
+            <div class="ai-model-chooser-row">
+              <Select
+                class="setting-select"
+                value={settings.builtinModel}
+                onChange={(e) => {
+                  const modelFile = e.currentTarget.value;
+                  updateSettings({ builtinModel: modelFile, builtinModelAutoselected: true });
+                  getBridge().llm.llmUnloadModel();
+                  void checkModelStatus(modelFile);
+                }}
+                options={BUILTIN_MODELS.map((m) => ({ value: m.modelFile, label: m.displayName }))}
+              />
+              <Show when={getBridge().llm.llmGetSystemMemory}>
+                <Btn
+                  size="sm"
+                  onClick={() => void runAutoselect()}
+                  disabled={autoselecting()}
+                  loading={autoselecting()}
+                >
+                  Autoselect
+                </Btn>
+              </Show>
+            </div>
+            <Show when={settings.builtinModel}>
+              {(() => {
+                const model = BUILTIN_MODELS.find((m) => m.modelFile === settings.builtinModel);
+                return model ? (
+                  <HintText>~{model.fileSizeGb} GB download · Requires ~{model.requiredMemoryGb} GB RAM</HintText>
+                ) : null;
+              })()}
+            </Show>
+            <Show when={autoselectMsg()}>
+              <HintText>{autoselectMsg()}</HintText>
+            </Show>
           </SettingRow>
 
+          {/* Model download status */}
           <SettingRow
             label={t('mlearn.AI.Settings.BuiltinModel.Status')}
             description=""
@@ -228,6 +361,40 @@ export const AITab: Component = () => {
               </Show>
             </div>
           </SettingRow>
+        </SettingGroup>
+
+        {/* Downloaded models manager */}
+        <SettingGroup title="Downloaded Models">
+          <Show
+            when={downloadedModels().length > 0}
+            fallback={<HintText>No models downloaded.</HintText>}
+          >
+            <For each={downloadedModels()}>
+              {(item) => {
+                const modelConfig = BUILTIN_MODELS.find((m) => m.modelFile === item.modelFile);
+                if (!modelConfig) return null;
+                return (
+                  <SettingRow
+                    label={modelConfig.displayName}
+                    description={formatBytes(item.sizeBytes)}
+                  >
+                    <Btn
+                      size="sm"
+                      variant="danger"
+                      onClick={() => void handleDeleteModel(item.modelFile)}
+                      disabled={deletingModel() === item.modelFile}
+                      loading={deletingModel() === item.modelFile}
+                    >
+                      Delete
+                    </Btn>
+                  </SettingRow>
+                );
+              }}
+            </For>
+            <Show when={deleteConfirmMsg()}>
+              <HintText>{deleteConfirmMsg()}</HintText>
+            </Show>
+          </Show>
         </SettingGroup>
       </Show>
 
