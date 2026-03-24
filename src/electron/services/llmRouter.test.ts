@@ -108,7 +108,7 @@ describe('LLM_STREAM routing to builtin', () => {
     const messages = [{ role: 'user', content: 'hello' }];
     const listeners = mockIpcListeners.get('llm-stream') || [];
     await listeners[0](event, messages, []);
-    expect(mockBuiltinStreamChat).toHaveBeenCalledWith(sender, messages, []);
+    expect(mockBuiltinStreamChat).toHaveBeenCalledWith(sender, messages, [], undefined);
   });
 
   it('routes to builtinStreamChat when provider is undefined (default)', async () => {
@@ -117,7 +117,7 @@ describe('LLM_STREAM routing to builtin', () => {
     const event = createMockEvent(sender);
     const listeners = mockIpcListeners.get('llm-stream') || [];
     await listeners[0](event, [], undefined);
-    expect(mockBuiltinStreamChat).toHaveBeenCalledWith(sender, [], []);
+    expect(mockBuiltinStreamChat).toHaveBeenCalledWith(sender, [], [], undefined);
   });
 
   it('sends error chunk when builtinStreamChat throws', async () => {
