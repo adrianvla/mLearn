@@ -3,7 +3,7 @@
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, PipProgress } from './types';
+import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo } from './types';
 
 export interface MLearnIPC {
   // Settings
@@ -178,6 +178,9 @@ export interface MLearnIPC {
   onLLMDownloadProgress: (callback: (status: LLMModelStatus) => void) => () => void;
   onLLMModelStatus: (callback: (status: LLMModelStatus) => void) => () => void;
   llmUnloadModel: () => void;
+  llmGetSystemMemory?: () => Promise<SystemMemoryInfo>;
+  llmListDownloadedModels?: () => Promise<Array<{ modelFile: string; sizeBytes: number }>>;
+  llmDeleteModel?: (modelFile: string) => Promise<void>;
 
   // Speech
   sttStart: (language: string) => void;

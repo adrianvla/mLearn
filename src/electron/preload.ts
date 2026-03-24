@@ -5,7 +5,7 @@
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo } from '../shared/types';
 
 /**
  * Type-safe IPC API exposed to renderer
@@ -277,6 +277,12 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.LLM_MODEL_STATUS, (_event, status) => callback(status)),
   llmUnloadModel: () =>
     ipcRenderer.send(IPC_CHANNELS.LLM_UNLOAD_MODEL),
+  llmGetSystemMemory: (): Promise<SystemMemoryInfo> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_GET_SYSTEM_MEMORY),
+  llmListDownloadedModels: (): Promise<Array<{ modelFile: string; sizeBytes: number }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_LIST_DOWNLOADED_MODELS),
+  llmDeleteModel: (modelFile: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.LLM_DELETE_MODEL, modelFile),
 
   // ========== Speech ==========
   sttStart: (language: string) => ipcRenderer.send(IPC_CHANNELS.STT_START, language),
