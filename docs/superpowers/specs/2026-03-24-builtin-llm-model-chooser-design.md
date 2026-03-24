@@ -154,17 +154,18 @@ Replace with imports from `builtinModels.ts`. Existing `getModelPath(modelFile?)
 
 ### Bridge layer (`src/shared/bridges/types.ts`)
 
-`LLMBridge` gains:
+`LLMBridge` gains three **optional** methods (desktop-only):
 
 ```typescript
-llmGetSystemMemory: () => Promise<SystemMemoryInfo>;
-llmListDownloadedModels: () => Promise<Array<{ modelFile: string; sizeBytes: number }>>;
-llmDeleteModel: (modelFile: string) => Promise<void>;
+llmGetSystemMemory?: () => Promise<SystemMemoryInfo>;
+llmListDownloadedModels?: () => Promise<Array<{ modelFile: string; sizeBytes: number }>>;
+llmDeleteModel?: (modelFile: string) => Promise<void>;
 ```
 
-`electronBridge.ts` delegates each to `getIPC().*`.
+Typed as optional (`?:`) so `capacitorBridge.ts` simply omits them without a type error.  
+`electronBridge.ts` implements all three, delegating to `getIPC().*`.  
+Call sites guard before calling:
 
-`capacitorBridge.ts` — these methods are **not implemented** (desktop-only). Call sites guard with a null-check before calling:
 ```typescript
 if (getBridge().llm.llmGetSystemMemory) { ... }
 ```
@@ -184,6 +185,10 @@ Control:     <Select> populated from BUILTIN_MODELS
              Value:        modelFile
 Bound to:    settings.builtinModel
 On change:   updateSettings({ builtinModel, builtinModelAutoselected: true })
+             // Setting builtinModelAutoselected: true here is intentional —
+             // a manual selection is an explicit user choice and should prevent
+             // autoselect from overriding it if the user later switches providers
+             // and switches back to Built-in.
              + llmUnloadModel() if a model is currently loaded
              + re-fetch model status for new selection
 
@@ -236,7 +241,7 @@ If no models downloaded:
 
 For each downloaded model:
   Row:
-    Left:  "{displayName}"   "{actualSizeOnDisk}"
+    Left:  "{displayName}"   "{actualSizeOnDisk formatted via formatBytes()}"
     Right: <Btn size="sm" variant="danger"> Delete </Btn>
 
 On delete:
