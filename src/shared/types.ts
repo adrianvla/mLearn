@@ -247,6 +247,8 @@ export interface Settings {
   ollamaModel: string;
   /** Built-in model identifier (GGUF filename) */
   builtinModel: string;
+  /** Whether the built-in model has been autoselected (prevents re-running autoselect) */
+  builtinModelAutoselected?: boolean;
 
   // Speech settings
   /** Enable speech I/O features */
@@ -396,6 +398,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ollamaUrl: 'http://localhost:11434',
   ollamaModel: '',
   builtinModel: 'Qwen3.5-9B-Q4_K_M.gguf',
+  builtinModelAutoselected: false,
   speechEnabled: false,
   autoSpeak: false,
   sttLanguage: '',
@@ -958,6 +961,29 @@ export interface LLMResponse {
 
 /** LLM backend provider */
 export type LLMProvider = 'builtin' | 'ollama' | 'cloud';
+
+/** Configuration for a built-in GGUF model */
+export interface BuiltinModelConfig {
+  /** Unique identifier e.g. 'qwen3.5-4b' */
+  id: string;
+  /** Display name e.g. 'Qwen 3.5 4B' */
+  displayName: string;
+  /** GGUF filename e.g. 'Qwen3.5-4B-Q4_K_M.gguf' */
+  modelFile: string;
+  /** HuggingFace repo path e.g. 'unsloth/Qwen3.5-4B-GGUF' */
+  modelRepo: string;
+  /** Runtime memory requirement in GB */
+  requiredMemoryGb: number;
+  /** Approximate download size in GB */
+  fileSizeGb: number;
+}
+
+/** System memory info returned by the main process for autoselect */
+export interface SystemMemoryInfo {
+  hasDiscreteGpu: boolean;
+  dedicatedVramBytes: number;
+  totalRamBytes: number;
+}
 
 /** OCR backend provider */
 export type OCRProvider = 'local' | 'cloud';
