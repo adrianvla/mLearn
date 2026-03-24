@@ -197,6 +197,9 @@ export const IPC_CHANNELS = {
   LLM_DOWNLOAD_PROGRESS: 'llm-download-progress',
   LLM_MODEL_STATUS: 'llm-model-status',
   LLM_UNLOAD_MODEL: 'llm-unload-model',
+  LLM_GET_SYSTEM_MEMORY: 'llm-get-system-memory',
+  LLM_LIST_DOWNLOADED_MODELS: 'llm-list-downloaded-models',
+  LLM_DELETE_MODEL: 'llm-delete-model',
 
   // Speech
   STT_START: 'stt-start',
