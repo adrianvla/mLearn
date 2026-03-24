@@ -1,0 +1,343 @@
+/**
+ * WordHover Component Styles
+ * Uses CSS variables from index.css for consistent theming
+ */
+
+/* Import shared pill and pitch accent styling */
+@import url('../common/Label/Label.css');
+@import url('../common/Text/PitchAccent.css');
+
+/* Main container - CSS-driven width based on content, capped at 400px */
+.word-hover-container {
+  position: fixed;
+  z-index: var(--z-modal-backdrop);
+  pointer-events: none;
+  /* CSS handles width: fit-content flows up from .subtitle_hover */
+  transition: opacity var(--transition-normal);
+}
+/* autohide when there's a magnifying-glass */
+body:has(.magnifying-glass.visible) .word-hover-container{
+  opacity:0;
+}
+
+/* Hover popup - width driven by footer pills + padding + border */
+.subtitle_hover {
+  position: relative;
+  background: var(--bg);
+  backdrop-filter: var(--backdrop-filter-nodim);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  text-align: left;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-normal);
+  z-index: var(--z-sticky );
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-normal);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family-sans);
+  max-height: 350px;
+  overflow: hidden;
+  box-sizing: border-box;
+  text-shadow: none !important;
+  -webkit-text-stroke: unset !important;
+  /* Width = pills width + footer padding (20px) + border (2px) via fit-content */
+  width: fit-content;
+  min-width: 280px;
+}
+
+
+.subtitle_hover:not(.show-hover) {
+  display: flex;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.subtitle_hover.show-hover {
+  opacity: 1;
+  display: flex;
+  pointer-events: auto;
+}
+
+/* Scrollbar styling */
+.subtitle_hover::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.subtitle_hover::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: auto;
+}
+
+.subtitle_hover:hover::-webkit-scrollbar {
+  opacity: 1;
+}
+
+.subtitle_hover::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+  background-color: var(--scrollbar-thumb);
+}
+
+
+/* Relative wrapper - flex column to stack content and footer */
+.subtitle_hover_relative {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0; /* Allow shrinking for scroll */
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Content area - scrollable, takes remaining space above footer */
+.subtitle_hover_content {
+  padding: 20px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0; /* Allow shrinking for scroll */
+  max-width:600px;
+}
+.subtitle_hover_content a{
+  color: var(--text-primary);
+}
+
+/* Footer - NOT absolute, so pills width + padding (20px) drives parent's fit-content width */
+.subtitle_hover .footer {
+  width:100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px; /* 10px left + 10px right = 20px total */
+  box-sizing: border-box;
+  background: var(--accent-bg);
+  backdrop-filter: var(--backdrop-filter-nodim);
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0; /* Don't shrink footer */
+  /* width determined by pills (fit-content flows up) */
+}
+
+
+/* Pills container in hover - no wrap, drives parent's fit-content width */
+.subtitle_hover .pills {
+  display: flex;
+  gap: 8px; /* Matching old project gap for pill spacing */
+  flex-wrap: nowrap;
+  width: fit-content; /* Pills determine their natural width */
+  align-items: stretch; /* Make all pills same height */
+  overflow: visible;
+  justify-content: flex-start;
+}
+
+/* Pill sizing inside hover - matches old project styling */
+/* Both label-pill and btn-pill should have identical sizing */
+.subtitle_hover .pills .label-pill,
+.subtitle_hover .pills .btn-pill {
+  font-size: 0.8em; /* Match old project */
+  padding: 5px 10px; /* Match old project: padding: 5px; padding-inline: 10px */
+  border-radius: 10px; /* Match old project */
+  white-space: nowrap; /* Prevent wrapping inside pills */
+  flex-shrink: 0;
+  /* Ensure consistent height calculation */
+  height: auto;
+  min-height: unset;
+  box-sizing: border-box;
+  /* Fix blur issues */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: subpixel-antialiased;
+}
+
+/* Icon styling inside pills - matches old project */
+/* GPU acceleration and anti-blur fixes */
+.subtitle_hover .label-icon,
+.subtitle_hover .btn-icon {
+  width: max-content;
+  height: max-content;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: none !important;
+  /* Prevent blur from parent transforms/filters */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: subpixel-antialiased;
+  border:none;
+}
+
+.subtitle_hover .label-icon img,
+.subtitle_hover .btn-icon img,
+.subtitle_hover .label-icon svg,
+.subtitle_hover .btn-icon svg,
+.subtitle_hover .label-svg-icon,
+.subtitle_hover .btn-svg-icon {
+  width: 20px; /* Match old project icon size */
+  height: 20px;
+  background: none !important; /* Remove any background from icons */
+  /* Crisp rendering for icons */
+  image-rendering: -webkit-optimize-contrast;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  /* Prevent blur */
+  transform: translateZ(0);
+}
+
+/* Pitch accent pill - uses PillLabel component now */
+.subtitle_hover .pitch-accent-pill {
+  flex-shrink: 0;
+  position: relative;
+}
+.subtitle_hover .pitch-accent-pill .pitch-accent-word {
+  font-weight: var(--font-weight-bold);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-bottom: 2px;
+}
+
+.subtitle_hover .pitch-accent-pill .mLearn-pitch-accent {
+  --pitch-accent-height: 2px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* Reading and translation order */
+.hover_translation {
+  order: 1;
+}
+
+.hover_reading {
+  order: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.hover_loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  color: var(--text-secondary);
+}
+
+/* Horizontal rule */
+.subtitle_hover hr {
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 10px 0;
+}
+
+
+/* Create flashcard button (legacy position) */
+.create_flashcard {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 1em;
+  padding: 5px;
+  border-bottom-left-radius: 5px;
+  background-color: var(--color-success);
+  border: 0;
+  z-index: -1;
+}
+
+/* Known status modifier */
+.subtitle_hover.known {
+  border-color: var(--color-success);
+}
+
+/* LLM Explanation section - absolute positioned overlay */
+.subtitle_hover_alt_c {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px);
+  padding: 20px 20px 65px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  max-height: 350px;
+  font-size: 0.9em;
+  line-height: 1.5;
+  z-index: 2;
+}
+
+
+.subtitle_hover_alt_c p {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+/* Skeleton loading animation */
+.skeleton-c {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.skeleton-c > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+}
+
+.skeleton {
+  display: inline-block;
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Anki duplicate warning modal */
+.anki-duplicate-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.anki-duplicate-warning__message {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.anki-duplicate-warning__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.anki-duplicate-warning__toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.anki-duplicate-warning__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

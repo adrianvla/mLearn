@@ -1,0 +1,293 @@
+/**
+ * Mobile Settings View Styles
+ * Stack navigator: category list in normal flow, overlay slides from right.
+ * Overlay has its own scroll-driven large title + compact sticky bar.
+ */
+
+.mobile-settings {
+  width: 100%;
+  user-select: none;
+}
+
+/* ── Category list (in MobileLayout's scroll flow) ── */
+
+.mobile-settings-categories {
+  padding: var(--spacing-2) var(--spacing-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+}
+
+/* Grouped section */
+.mobile-settings-group {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+}
+
+/* Category item inside a group */
+.mobile-settings-category {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  width: 100%;
+  padding: var(--spacing-3) var(--spacing-3);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background var(--transition-fast);
+}
+
+.mobile-settings-category:last-child {
+  border-bottom: none;
+}
+
+.mobile-settings-category:active {
+  background: var(--bg-intense);
+}
+
+/* Colorful icon backgrounds */
+.mobile-settings-category-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.mobile-settings-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Icon colors per category */
+.mobile-settings-category[data-cat="general"] .mobile-settings-category-icon { background: var(--color-primary); }
+.mobile-settings-category[data-cat="behaviour"] .mobile-settings-category-icon { background: var(--color-warning); }
+.mobile-settings-category[data-cat="customization"] .mobile-settings-category-icon { background: var(--color-purple); }
+.mobile-settings-category[data-cat="srs"] .mobile-settings-category-icon { background: var(--color-error); }
+.mobile-settings-category[data-cat="reader"] .mobile-settings-category-icon { background: var(--color-teal); }
+.mobile-settings-category[data-cat="stats"] .mobile-settings-category-icon { background: var(--color-indigo); }
+.mobile-settings-category[data-cat="ai"] .mobile-settings-category-icon { background: var(--color-pink); }
+.mobile-settings-category[data-cat="connection"] .mobile-settings-category-icon { background: var(--color-success); }
+.mobile-settings-category[data-cat="about"] .mobile-settings-category-icon { background: var(--color-info); }
+
+.mobile-settings-category-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mobile-settings-category-label {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.mobile-settings-category-chevron {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+/* ── Stack overlay — slides in from right ── */
+
+.mobile-settings-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 250; /* above sticky bars (200), below BottomTabBar (300) */
+  pointer-events: none;
+}
+
+/* Back dimming layer behind overlay */
+.mobile-settings-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transition: opacity 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.mobile-settings-overlay.open .mobile-settings-backdrop {
+  opacity: 1;
+}
+
+/* The sliding panel */
+.mobile-settings-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-opaque);
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+.mobile-settings-overlay.open .mobile-settings-panel {
+  transform: translateX(0);
+}
+
+/* ── Compact sticky bar inside overlay ── */
+
+.mobile-settings-sticky {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(44px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) var(--spacing-3) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  -webkit-backdrop-filter: var(--backdrop-filter);
+  backdrop-filter: var(--backdrop-filter);
+  border-bottom: 1px solid var(--border-color);
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.mobile-settings-sticky.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-settings-sticky-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mobile-settings-sticky-back {
+  position: absolute;
+  left: var(--spacing-2);
+  bottom: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  color: var(--accent-primary);
+  cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-settings-sticky-back svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.mobile-settings-sticky-back-label {
+  font-size: 17px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/* ── Overlay scrollable area ── */
+
+.mobile-settings-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Spacer at bottom so content scrolls above BottomTabBar */
+.mobile-settings-scroll::after {
+  content: '';
+  display: block;
+  height: calc(var(--mobile-tabbar-height, 56px) + env(safe-area-inset-bottom) + var(--spacing-3));
+  flex-shrink: 0;
+}
+
+/* ── Large title area inside overlay (fades on scroll) ── */
+
+.mobile-settings-title-area {
+  padding: var(--spacing-2) var(--spacing-4) var(--spacing-1);
+  opacity: calc(1 - var(--title-progress, 0));
+}
+
+.mobile-settings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  padding: 0;
+  margin-bottom: var(--spacing-1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-settings-back svg {
+  width: 20px;
+  height: 20px;
+}
+
+.mobile-settings-title {
+  font-size: 34px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.15;
+}
+
+/* ── Content body ── */
+
+.mobile-settings-content-body {
+  flex: 1;
+}
+
+/* Override tab content padding for mobile */
+.mobile-settings-content-body .tab-content {
+  padding: var(--spacing-3);
+  overflow-y: visible;
+}
+
+/* Prevent nested scroll contexts — the overlay scrolls */
+.mobile-settings-content-body .settings-content,
+.mobile-settings-content-body .settings-tab-container {
+  overflow: visible;
+  height: auto;
+}
+
+/* Override setting rows for mobile: stack label above control */
+.mobile-settings-content-body .setting-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+.mobile-settings-content-body .setting-row-control {
+  width: 100%;
+}
+
+/* Stats grid goes single column on mobile */
+.mobile-settings-content-body .stats-grid {
+  grid-template-columns: 1fr;
+}

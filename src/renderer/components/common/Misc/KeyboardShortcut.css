@@ -1,0 +1,65 @@
+/**
+ * Keyboard Shortcut Component Styles
+ */
+
+.keyboard-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.keyboard-shortcut:last-child {
+  border-bottom: none;
+}
+
+.shortcut-description {
+  font-size: 0.85rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.7));
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-primary, white);
+  text-transform: capitalize;
+}
+
+.shortcut-separator {
+  font-size: 0.7rem;
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.4));
+}
+
+/* Shortcuts List */
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.shortcuts-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary, white);
+  margin: 0 0 0.5rem;
+}
+
+.shortcuts-items {
+  display: flex;
+  flex-direction: column;
+}

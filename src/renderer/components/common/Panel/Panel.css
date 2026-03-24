@@ -1,0 +1,45 @@
+.panel {
+  background: var(--panel-bg);
+  backdrop-filter: var(--backdrop-filter);
+}
+
+.panel-elevated {
+  background: var(--bg-intense);
+  box-shadow: var(--shadow-lg);
+}
+
+.panel-outlined {
+  background: transparent;
+  border: 1px solid var(--panel-border);
+  box-shadow: none;
+}
+
+.panel-solid {
+  background: var(--bg-nt-primary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.rounded-none {
+  border-radius: 0;
+}
+
+.rounded-sm {
+  border-radius: var(--radius-sm);
+}
+
+.rounded-md {
+  border-radius: var(--radius-md);
+}
+
+.rounded-lg {
+  border-radius: var(--radius-lg);
+}
+
+.rounded-xl {
+  border-radius: var(--radius-xl);
+}
+
+.rounded-full {
+  border-radius: var(--radius-full);
+}

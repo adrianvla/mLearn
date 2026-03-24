@@ -1,0 +1,258 @@
+/* Conversation Agent Window Styles */
+
+.conversation-agent {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* On mobile, fill mobile content area */
+.mobile-layout .conversation-agent {
+  height: 100%;
+}
+
+
+
+/* Header */
+.ca-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--spacing-1);
+  border-bottom: 1px solid var(--border-color);
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+  gap: var(--spacing-2);
+}
+
+.ca-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+}
+
+.ca-header-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  margin-left:var(--navbar-margin-left);
+}
+
+.ca-connection-info {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.ca-provider-label {
+  -webkit-app-region: no-drag;
+  color:var(--text-secondary);
+}
+
+/* Tabs integrated into header */
+.ca-header-tabs {
+  -webkit-app-region: no-drag;
+}
+
+.ca-header-tabs .tab-list {
+  border-bottom: none;
+}
+
+.ca-header-actions {
+  display: flex;
+  gap: var(--spacing-2);
+  -webkit-app-region: no-drag;
+  flex-shrink: 0;
+}
+
+/* Force tab-panels to flex-fill the remaining space under the header */
+.conversation-agent > .tab-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Chat panel — fills remaining space below tabs, contains its own scroll */
+.ca-chat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  height: 100%;
+}
+
+/* Voice panel — needs relative positioning to scope the aftermath overlay */
+.ca-voice-panel {
+  position: relative;
+}
+
+/* Stats/context panel */
+.ca-stats-panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Messages area — scrollable */
+.ca-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-4) var(--spacing-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  scroll-behavior: smooth;
+  min-height: 0;
+}
+
+.ca-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ca-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ca-messages::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+/* Empty state positioning inside messages */
+.ca-empty {
+  flex: 1;
+  display: flex;
+}
+
+/* ============ Input area — fixed at bottom ============ */
+
+.ca-input-area {
+  padding: var(--spacing-3) var(--spacing-5);
+  border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+/* Input row */
+.ca-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+}
+
+.ca-input-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast);
+}
+.ca-input-wrapper button{
+  margin-right:2px;
+}
+.ca-input-wrapper button{
+  border: 1px solid transparent;
+  background: transparent;
+}
+.ca-input-wrapper button:hover{
+  background:var(--bg);
+}
+
+.ca-input-wrapper:focus-within {
+  border-color: var(--border-color-intense);
+}
+
+/* Textarea container — remove Textarea component's wrapper gap/sizing */
+.ca-input-wrapper > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Override inline min-height from Textarea component */
+textarea.ca-chat-textarea,
+.ca-chat-textarea.glass-input {
+  max-height: 120px !important;
+  min-height: unset !important;
+  height: auto;
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  border: none !important;
+  background: transparent !important;
+}
+
+/* Send/stop button positioned inside the input wrapper */
+.ca-input-wrapper .icon-btn {
+  flex-shrink: 0;
+  margin: var(--spacing-1);
+}
+
+/* ============ Speech button ============ */
+
+.ca-mic-btn.recording {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 30%, transparent); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+
+/* ============ TTS speaking indicator ============ */
+
+.ca-tts-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-primary);
+  padding: 4px 0;
+}
+
+.ca-tts-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.ca-tts-bar {
+  width: 3px;
+  background: var(--color-primary);
+  border-radius: 1px;
+  animation: ttsBar 0.6s ease-in-out infinite;
+}
+
+.ca-tts-bar:nth-child(1) { height: 40%; animation-delay: 0s; }
+.ca-tts-bar:nth-child(2) { height: 70%; animation-delay: 0.1s; }
+.ca-tts-bar:nth-child(3) { height: 50%; animation-delay: 0.2s; }
+.ca-tts-bar:nth-child(4) { height: 80%; animation-delay: 0.3s; }
+
+@keyframes ttsBar {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.4); }
+}
+
+/* ============ Agents panel ============ */
+.ca-agents-panel {
+  overflow-y: auto;
+  height: 100%;
+}
+
+/* AI disclaimer — faint centered text above status bar */
+.ca-disclaimer {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  padding: var(--spacing-1) var(--spacing-2);
+  user-select: none;
+  flex-shrink: 0;
+}
+

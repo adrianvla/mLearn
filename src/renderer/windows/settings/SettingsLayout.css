@@ -1,0 +1,67 @@
+/**
+ * Settings Window Layout Styles
+ * Window shell, drag region, tab container, content area, scrollbar
+ */
+
+.settings-window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background: var(--bg);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* TabContainer overrides for settings sidebar */
+.settings-tab-container.tab-container.vertical {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-tab-container.tab-container.vertical > .tab-list {
+  min-width: 180px;
+  max-width: 200px;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+  gap: var(--spacing-1);
+  padding-top:30px;
+  app-region:drag;
+}
+.settings-tab-container.tab-container.vertical > .tab-list > button{
+    app-region: no-drag;
+}
+
+.settings-tab-container .settings-tab-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* Content */
+.settings-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+/* Scrollbar */
+.settings-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-content::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.settings-content::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}

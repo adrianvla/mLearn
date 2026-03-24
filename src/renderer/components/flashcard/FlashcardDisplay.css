@@ -1,0 +1,327 @@
+/**
+ * FlashcardDisplay Component Styles
+ * Single flashcard with optional 3D flip animation.
+ *
+ * Layout strategy:
+ * - Both faces are in normal document flow (no position:absolute).
+ * - The hidden face collapses via visibility:hidden + height:0 + overflow:hidden.
+ * - This ensures the container sizes to the VISIBLE face, so buttons below always move.
+ * - When the flip animation is active, perspective + rotateY is used with
+ *   position:absolute on faces for the duration of the animation.
+ */
+
+/* Import pitch accent styles */
+@import url('../common/Text/PitchAccent.css');
+@import url('../common/Label/Label.css');
+
+/* Container — perspective lives here so the card wrapper rotates inside it */
+.flashcard-container {
+  cursor: pointer;
+  user-select: none;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  perspective: 1000px;
+}
+
+/* Card wrapper */
+.flashcard-card {
+  position: relative;
+  width: 100%;
+}
+
+/* Face base styles */
+.flashcard-face {
+  width: 100%;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  border: 1px solid var(--border-color);
+}
+
+/* Hidden face collapses out of flow so it doesn't affect height */
+.flashcard-face--hidden {
+  visibility: hidden;
+  height: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+}
+
+/* Front face */
+.flashcard-front {
+  position: relative;
+}
+
+/* Back face */
+.flashcard-back {
+  position: relative;
+}
+
+/* ============================
+   3D Flip Animation
+   ============================ */
+
+/* The card wrapper itself rotates as a single unit in 3D space.
+   This prevents seeing through translucent panels during the flip. */
+.flashcard-card--animated {
+  transform-style: preserve-3d;
+  transition: transform 0.5s ease;
+}
+
+/* Both faces hide their backface so only the facing side is visible */
+.flashcard-card--animated .flashcard-face {
+  backface-visibility: hidden;
+}
+
+/* Back face is stacked on front and permanently rotated 180° */
+.flashcard-card--animated .flashcard-back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  transform: rotateY(180deg);
+}
+
+/* When flipped, rotate the entire card wrapper 180° */
+.flashcard-card--animated.flipped {
+  transform: rotateY(180deg);
+}
+
+/* ============================
+   Card Enter Animation
+   ============================ */
+
+@keyframes flashcard-enter {
+  from {
+    opacity: 0.5;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.flashcard-card--entering {
+  animation: flashcard-enter 0.15s ease-out;
+}
+
+/* During enter animation, prevent any lingering 3D transform artifacts */
+.flashcard-card--entering .flashcard-face {
+  backface-visibility: hidden;
+}
+
+/* Level pill - positioned in upper left corner */
+.flashcard-level-pill {
+  position: absolute !important;
+  top: var(--spacing-2);
+  left: var(--spacing-2);
+  font-size: var(--font-size-xs);
+  z-index: var(--z-foreground);
+}
+
+/* Word display */
+.flashcard-word, .flashcard-word-header {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-2);
+  color: var(--text-primary);
+}
+
+/* Word row - word + TTS button inline */
+.flashcard-word-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+}
+
+/* Example row - example + TTS button inline */
+.flashcard-example-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+}
+
+/* TTS play button */
+.flashcard-tts-btn {
+  flex-shrink: 0;
+  color:var(--text-secondary);
+  transition: color var(--transition-fast);
+}
+
+.flashcard-tts-btn:hover {
+  color:var(--text-secondary);
+}
+
+.flashcard-tts-btn--active {
+  color: var(--text-primary) !important;
+}
+
+/* Pronunciation */
+.flashcard-pronunciation {
+  font-size: var(--font-size-xl);
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+/* Example group - wraps example row + meaning, shows regenerate on hover */
+.flashcard-example-group {
+  position: relative;
+}
+
+/* Example sentence */
+.flashcard-example {
+  font-size: var(--font-size-2xl);
+  text-align: center;
+  line-height: 1.6;
+  color: var(--text-primary);
+  margin-top: 1rem;
+  height: max-content;
+}
+
+/* Regenerate example button - hidden until hover */
+.flashcard-regenerate-btn {
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  color: var(--text-tertiary);
+}
+
+.flashcard-example-group:hover .flashcard-regenerate-btn {
+  opacity: 1;
+}
+
+.flashcard-regenerate-btn:hover {
+  color: var(--text-primary);
+}
+
+@keyframes spinning {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.flashcard-regenerate-btn .spinning {
+  animation: spinning 1s linear infinite;
+}
+
+/* Hint text */
+.flashcard-hint {
+  position: absolute;
+  bottom: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+/* Back side word header */
+.flashcard-word-header {
+  /*margin-bottom: 1rem;*/
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.flashcard-word-title {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.flashcard-word-reading {
+  font-size: 1rem;
+  margin-left: 0.5rem;
+  color: var(--text-secondary);
+}
+
+/* Translation/definition */
+.flashcard-translation {
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+/* Example meaning */
+.flashcard-example-meaning {
+  font-size: var(--font-size-lg);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Screenshot image */
+.flashcard-screenshot-container {
+  margin-top: 1rem;
+  max-width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.flashcard-screenshot-front {
+  margin-top: 0.75rem;
+}
+
+.flashcard-screenshot {
+  max-width: 100%;
+  min-height: 150px;
+  width: auto;
+  height: auto;
+  border-radius: var(--radius-md);
+  object-fit: contain;
+  border:1px solid var(--border-color);
+  box-shadow: var(--shadow-lg-intense);
+}
+.flashcard-example rt{
+  position:relative;
+}
+.flashcard-example .mLearn-pitch-accent{
+  --pitch-accent-height: 1.5px;
+}
+.flashcard-example .frequency{
+  display:none;
+}
+
+/* Highlighted word in example (the word being studied) */
+.flashcard-example .defined {
+  color: var(--flashcard-highlight);
+  font-weight: bold;
+}
+
+body:not(.dark) .flashcard-example .defined {
+  color: var(--flashcard-highlight);
+}
+
+/* Dictionary definition HTML styling */
+.flashcard-translation ul,
+.flashcard-translation ol {
+  text-align: left;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.flashcard-translation li {
+  margin: 0.25rem 0;
+}
+
+/* TTS regeneration row */
+.flashcard-regen-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+/* TTS metadata (dev mode only) */
+.flashcard-tts-meta {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  text-align: center;
+  margin-top: 0.75rem;
+  opacity: 0.6;
+}

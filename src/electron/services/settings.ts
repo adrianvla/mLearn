@@ -1,0 +1,185 @@
+/**
+ * Settings Service
+ * Handles loading, saving, and IPC for application settings
+ */
+
+import fs from 'fs';
+import path from 'path';
+import { ipcMain } from 'electron';
+import { IPC_CHANNELS } from '../../shared/constants';
+import { Settings, DEFAULT_SETTINGS, LanguageDataMap } from '../../shared/types';
+import { getUserDataPath, getAppPath, getResourcePath } from '../utils/platform';
+import { setUILanguage } from './localization';
+
+function getSettingsPath(): string {
+  return path.join(getUserDataPath(), 'settings.json');
+}
+
+export function loadSettings(): Settings {
+  try {
+    const settingsPath = getSettingsPath();
+    if (fs.existsSync(settingsPath)) {
+      const data = fs.readFileSync(settingsPath, 'utf-8');
+      const parsed: unknown = JSON.parse(data);
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        console.warn('[settings] Loaded data is not a plain object — using defaults');
+        return { ...DEFAULT_SETTINGS };
+      }
+      const loaded = parsed as Partial<Settings>;
+      const migrated: Partial<Settings> = { ...loaded };
+      if (!migrated.cloudAuthAccessToken && migrated.cloudAuthToken) {
+        migrated.cloudAuthAccessToken = migrated.cloudAuthToken;
+      }
+      if (migrated.cloudAuthAccessToken && !migrated.cloudAuthStatus) {
+        migrated.cloudAuthStatus = 'signed-in';
+      }
+      if (migrated.overrideCloudEndpointUrl && migrated.backendUrl && !migrated.cloudApiUrl) {
+        migrated.cloudApiUrl = migrated.backendUrl;
+        migrated.cloudLoginUrl = migrated.backendUrl;
+      }
+      return { ...DEFAULT_SETTINGS, ...migrated };
+    }
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+  }
+  return { ...DEFAULT_SETTINGS };
+}
+
+export async function saveSettings(settings: Settings): Promise<void> {
+  try {
+    const settingsPath = getSettingsPath();
+    const tmpPath = `${settingsPath}.tmp`;
+    const dir = path.dirname(settingsPath);
+    try {
+      await fs.promises.access(dir);
+    } catch {
+      await fs.promises.mkdir(dir, { recursive: true });
+    }
+    await fs.promises.writeFile(tmpPath, JSON.stringify(settings, null, 2));
+    await fs.promises.rename(tmpPath, settingsPath);
+  } catch (error) {
+    console.error('Failed to save settings:', error);
+  }
+}
+
+export function loadLangData(): LanguageDataMap {
+  const langData: LanguageDataMap = {};
+  const appPath = getAppPath();
+  const resourcePath = getResourcePath();
+  const candidateDirs = [
+    path.join(appPath, 'languages'),
+    path.join(resourcePath, 'languages'),
+    path.join(appPath, 'root-of-app', 'languages'),
+    path.join(resourcePath, 'root-of-app', 'languages'),
+  ];
+  const languagesDir = candidateDirs.find((dir) => fs.existsSync(dir));
+
+  try {
+    if (!languagesDir) {
+      console.warn('Languages directory not found:', candidateDirs.join(', '));
+      return getDefaultLangData();
+    }
+
+    const files = fs.readdirSync(languagesDir);
+    
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        const langCode = path.basename(file, '.json');
+        const filePath = path.join(languagesDir, file);
+        try {
+          const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          langData[langCode] = data;
+        } catch (e) {
+          console.error(`Failed to load language file ${file}:`, e);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load language data:', error);
+  }
+
+  if (Object.keys(langData).length === 0) {
+    return getDefaultLangData();
+  }
+
+  return langData;
+}
+
+function getDefaultLangData(): LanguageDataMap {
+  return {
+    ja: {
+      name: 'Japanese',
+      name_translated: '日本語',
+      translatable: ['名詞', '動詞', '形状詞', '副詞', '副詞節', '形容詞'],
+      colour_codes: {
+        '名詞': '#ebccfd',
+        '動詞': '#d6cefd',
+        '助詞': '#f5d7b8',
+        '助動詞': '#ffefd1',
+        '形状詞': '#def6ff',
+        '副詞': '#b8cdf5',
+        '接尾辞': '#aac8c4',
+        '感動詞': '#eacbcb',
+        '代名詞': '#f1ccfd',
+        '補助記号': '#8fc99d',
+        '連体詞': '#def6ff',
+        '形容詞': '#def6ff',
+        '形容動詞': '#def6ff',
+        '記号': '#8fc99d',
+      },
+      fixed_settings: {},
+      freq_level_names: {
+        '5': 'N5',
+        '4': 'N4',
+        '3': 'N3',
+        '2': 'N2',
+        '1': 'N1',
+      },
+    },
+    de: {
+      name: 'German',
+      name_translated: 'Deutsch',
+      translatable: ['NOUN', 'VERB', 'ADJ', 'ADV'],
+      colour_codes: {
+        'NOUN': '#ebccfd',
+        'PROPN': '#ebccfd',
+        'PRON': '#fdccd3',
+        'VERB': '#ffefd1',
+        'SCONJ': '#f5d7b8',
+        'PART': '#f5d7b8',
+        'DET': '#cef5b8',
+        'ADP': '#b8f5de',
+        'AUX': '#ffefd1',
+        'ADJ': '#def6ff',
+        'ADV': '#b8cdf5',
+        'PUNCT': '#8fc99d',
+      },
+      fixed_settings: {
+        furigana: false,
+        showPitchAccent: false,
+      },
+    },
+  };
+}
+
+export function setupSettingsIPC(): void {
+  ipcMain.on(IPC_CHANNELS.GET_SETTINGS, (event) => {
+    const settings = loadSettings();
+    event.reply(IPC_CHANNELS.SETTINGS, settings);
+  });
+
+  ipcMain.on(IPC_CHANNELS.SAVE_SETTINGS, async (event, settings: Settings) => {
+    const prevSettings = loadSettings();
+    await saveSettings(settings);
+    event.reply(IPC_CHANNELS.SETTINGS_SAVED);
+
+    if (settings.uiLanguage && settings.uiLanguage !== prevSettings.uiLanguage) {
+      setUILanguage(settings.uiLanguage);
+    }
+  });
+
+  ipcMain.on(IPC_CHANNELS.GET_LANG_DATA, (event) => {
+    const langData = loadLangData();
+    event.reply(IPC_CHANNELS.LANG_DATA, langData);
+  });
+}

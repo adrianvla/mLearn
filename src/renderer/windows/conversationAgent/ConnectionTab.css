@@ -1,0 +1,41 @@
+/* ============ Connection Tab ============ */
+
+.ca-connection-tab {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.ca-conn-actions {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.ca-conn-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+}
+
+.ca-conn-models-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.ca-conn-models-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ca-conn-model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+}

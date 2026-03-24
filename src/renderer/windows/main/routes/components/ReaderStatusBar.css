@@ -1,0 +1,62 @@
+/**
+ * Reader Status Bar Component Styles
+ * Reader-specific overrides for the unified StatusBar component
+ */
+
+.reader-status {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+.reader-status .ocr-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-shrink: 0;
+}
+
+.reader-status .ocr-progress-container {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.reader-status .ocr-progress {
+  width: 100px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.reader-status .ocr-progress-text {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  min-width: 35px;
+}
+
+.reader-status .ocr-timing {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+.reader-status .paddle-downscale-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  white-space: nowrap;
+}
+
+.reader-status .paddle-downscale-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.reader-status .paddle-downscale-slider {
+  width: 80px;
+}

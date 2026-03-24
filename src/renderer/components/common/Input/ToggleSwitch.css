@@ -1,0 +1,88 @@
+/**
+ * Toggle Switch Styles
+ * Uses CSS variables from index.css for consistent theming
+ */
+
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  gap: 10px;
+  box-sizing: border-box;
+  width:max-content;
+  height:max-content;
+
+  --toggle-bg: var(--bg);
+  --toggle-bg-checked: var(--color-success);
+  --toggle-bg-hover: var(--bg-intense);
+  --toggle-bg-checked-hover: var(--color-success-lighter);
+}
+
+.toggle-switch.disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.toggle-slider {
+  position: relative;
+  width: 50px;
+  height: var(--size-sm);
+  background-color: var(--toggle-bg);
+  border-radius: var(--radius-md);
+  transition: background-color 0.3s ease;
+  flex-shrink: 0;
+  border:1px solid var(--border-color);
+}
+
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  width: calc(var(--size-sm) / 1.5);
+  height: calc(var(--size-sm) / 1.5);
+  left: 3px;
+  bottom: 50%;
+  transform: translateY(50%);
+  background-color: var(--bg-intense);
+  border-radius: var(--radius-sm);
+  border:1px solid var(--border-color-intense);
+  transition: transform 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Checked state */
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--toggle-bg-checked);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(25px) translateY(50%);
+}
+
+/* Focus state */
+.toggle-switch input:focus + .toggle-slider {
+  box-shadow: 0 0 0 2px rgba(46, 204, 113, 0.3);
+}
+
+/* Hover state */
+.toggle-switch:not(.disabled):hover .toggle-slider {
+  background-color: var(--toggle-bg-hover);
+}
+
+.toggle-switch:not(.disabled) input:checked:hover + .toggle-slider {
+  background-color: var(--toggle-bg-checked-hover);
+}
+
+/* Label styling */
+.toggle-label {
+  font-size: 0.9em;
+  color: inherit;
+}

@@ -1,0 +1,35 @@
+/**
+ * Search Bar Styles
+ * Search bar for the Word Database Editor
+ */
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+  app-region: drag;
+}
+.search-bar input, .search-bar select, .search-bar button{
+  app-region: no-drag;
+}
+.search-input {
+  flex: 1;
+  min-width: 200px;
+  margin-left: 60px;
+}
+
+.level-select {
+  min-width: 150px;
+}
+
+.mode-select {
+  min-width: 180px;
+}
+
+.load-progress {
+  width: 150px;
+}

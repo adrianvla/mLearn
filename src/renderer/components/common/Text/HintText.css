@@ -1,0 +1,48 @@
+/**
+ * Hint Text Component Styles
+ */
+
+.hint-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  line-height: 1.4;
+}
+
+/* Sizes */
+.hint-text--sm {
+  font-size: 0.75rem;
+}
+
+.hint-text--md {
+  font-size: 0.85rem;
+}
+
+/* Variants */
+.hint-text--default {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+}
+
+.hint-text--warning {
+  color: var(--color-warning, #f59e0b);
+}
+
+.hint-text--info {
+  color: var(--color-info, #3b82f6);
+}
+
+.hint-text--success {
+  color: var(--color-success, #22c55e);
+}
+
+.hint-text--error {
+  color: var(--color-error, #ef4444);
+}
+
+.hint-icon {
+  font-size: 0.9em;
+}
+
+.hint-text a {
+  color: var(--text-primary);
+}

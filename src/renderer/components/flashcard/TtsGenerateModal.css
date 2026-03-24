@@ -1,0 +1,44 @@
+/**
+ * TTS Generate Modal Styles
+ */
+
+.tts-generate-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tts-generate-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.tts-generate-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.tts-generate-warning {
+  font-size: var(--font-size-sm);
+  color: var(--color-warning);
+  margin: 0;
+}
+
+.tts-generate-separator {
+  border-top: 1px solid var(--border-primary);
+  margin: 0.25rem 0;
+}
+
+.tts-generate-task {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.tts-generate-sub-option {
+  padding-left: 1.5rem;
+}
+
+/* Task progress toast content now uses shared TaskProgress component styles */

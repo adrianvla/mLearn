@@ -1,0 +1,26 @@
+/* AnkiModifyWarningModal */
+
+.anki-modify-warning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.anki-modify-warning__message {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.anki-modify-warning__toggle-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.anki-modify-warning__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+}

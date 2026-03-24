@@ -1,0 +1,73 @@
+/**
+ * DropZone Component Styles
+ */
+
+.drop-zone {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: all var(--transition-slow);
+  background: var(--bg);
+}
+
+.drop-zone.dragging {
+  background: var(--bg-intense);
+  border-color: var(--color-primary, #3b82f6);
+}
+
+.drop-zone.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+/* When used as a full-page drop zone */
+.drop-zone.full-page {
+  position: fixed;
+  inset: 0;
+}
+
+/* When used as an inline drop zone with border */
+.drop-zone.bordered {
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-2xl);
+  padding: 2rem;
+}
+
+.drop-zone.bordered.dragging {
+  border-style: solid;
+}
+
+/* Drop zone with centered content */
+.drop-zone.centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+/* Drop zone icon */
+.drop-zone-icon {
+  font-size: 3rem;
+  color: var(--text-secondary);
+}
+
+.drop-zone.dragging .drop-zone-icon {
+  color: var(--color-primary);
+}
+
+/* Drop zone text */
+.drop-zone-text {
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.drop-zone.dragging .drop-zone-text {
+  color: var(--color-primary);
+}
+
+/* Drop zone hint */
+.drop-zone-hint {
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+}

@@ -1,0 +1,301 @@
+/* ============ Chat Bubble ============ */
+
+.chat-bubble {
+  max-width: 85%;
+  width: fit-content;
+  animation: bubbleIn 0.2s ease-out both;
+}
+
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-bubble.user {
+  align-self: flex-end;
+}
+
+.chat-bubble.assistant {
+  align-self: flex-start;
+}
+
+.chat-bubble.assistant.has-avatar {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: var(--spacing-2);
+}
+
+.chat-bubble-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.chat-bubble-inner {
+  min-width: 0;
+}
+
+.chat-bubble.system {
+  align-self: center;
+  max-width: 90%;
+}
+
+.chat-bubble-content {
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  word-break: break-word;
+}
+
+.chat-bubble.user .chat-bubble-content {
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+.chat-bubble.assistant .chat-bubble-content {
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.chat-bubble.system .chat-bubble-content {
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+  padding: var(--spacing-2) var(--spacing-3);
+}
+
+/* ============ Tokenized text in bubbles ============ */
+
+.chat-token {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border-radius: 2px;
+  padding: 0 1px;
+  color: var(--pos-punctuation);
+}
+
+.chat-token:hover {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+.chat-token.unknown {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--color-warning);
+}
+
+/* ============ Blinking cursor (waiting for first token) ============ */
+
+.chat-bubble-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--color-accent);
+  vertical-align: text-bottom;
+  animation: cursorBlink 0.8s step-end infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ============ Inline Correction (user bubble) ============ */
+
+.chat-correction-group {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: baseline;
+}
+
+.chat-correction-original {
+  text-decoration: underline;
+  text-decoration-style: solid;
+  text-decoration-color: var(--color-danger);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+}
+
+.chat-correction-replacement {
+  color: var(--color-danger);
+  font-size: 0.85em;
+  line-height: 1.2;
+}
+
+/* ============ Checker Correction (unnatural = yellow, alternatives) ============ */
+
+.chat-correction-group.unnatural .chat-correction-original {
+  text-decoration-color: var(--color-warning);
+}
+
+.chat-correction-group.unnatural .chat-correction-replacement {
+  color: var(--color-warning);
+}
+
+.chat-correction-alternatives {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.85em;
+  line-height: 1.2;
+}
+
+.chat-correction-alternative {
+  color: var(--color-warning);
+  opacity: 0.75;
+}
+
+/* ============ Chat timestamp & actions ============ */
+
+.chat-bubble-footer {
+  font-size: var(--font-size-xxs);
+  color: var(--text-tertiary);
+  margin-top: var(--spacing-1);
+  padding: 0 var(--spacing-1);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  cursor: default;
+}
+
+.chat-bubble.user .chat-bubble-footer {
+  justify-content: flex-end;
+}
+
+.chat-bubble-debug-stats {
+  font-size: var(--font-size-xxs);
+  color: var(--text-tertiary);
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+  animation: bubbleIn var(--transition-fast) ease-out both;
+}
+
+.chat-bubble-regenerate {
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.chat-bubble:hover .chat-bubble-regenerate {
+  opacity: 1;
+}
+
+/* ============ Tool call processing spinner ============ */
+
+.chat-bubble-tool-spinner {
+  display: flex;
+  align-items: center;
+  padding-top: var(--spacing-1);
+}
+
+/* ============ Interrupted indicator ============ */
+
+.chat-bubble-interrupted {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-style: italic;
+  margin-left: var(--spacing-2);
+}
+
+/* ============ Widget container ============ */
+
+.chat-widget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* ============ Quiz widget ============ */
+
+.quiz-widget {
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-3);
+  border-radius: var(--radius-md);
+}
+
+.quiz-question {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--spacing-2);
+}
+
+.quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.quiz-options .quiz-option {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.quiz-result {
+  margin-top: var(--spacing-2);
+  font-size: var(--font-size-xs);
+}
+
+.quiz-result-correct {
+  color: var(--color-success);
+}
+
+.quiz-result-incorrect {
+  color: var(--color-danger);
+}
+
+.quiz-fill-in-form {
+  margin-top: var(--spacing-2);
+}
+
+.quiz-fill-in-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+}
+
+.quiz-fill-in-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.quiz-fill-in-input {
+  min-width: 5ch;
+  max-width: 18ch;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  padding: 0;
+  outline: none;
+  text-align: center;
+}
+
+.quiz-fill-in-input:focus {
+  border-bottom-color: var(--color-accent);
+}
+
+.quiz-fill-in-input:disabled {
+  color: var(--text-secondary);
+}

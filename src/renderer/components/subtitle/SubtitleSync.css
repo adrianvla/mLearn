@@ -1,0 +1,85 @@
+.subtitle-sync {
+  position: fixed;
+  top: 38px;
+  right: 10px;
+  font-size: 1.5em;
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  height: 50px;
+  width: max-content;
+  background: var(--panel-bg);
+  backdrop-filter: var(--backdrop-filter);
+  z-index: var(--z-sticky);
+  transition: top var(--transition-normal), opacity var(--transition-normal);
+  border-radius: var(--radius-lg);
+}
+
+body.hide-cursor .subtitle-sync {
+  top: 10px;
+}
+
+.subtitle-sync-controls {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  padding: 10px;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.subtitle-sync-btn.btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border-radius: var(--radius-lg);
+  padding: 5px;
+  width: auto;
+  height: auto;
+  min-height: unset;
+  user-select: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.subtitle-sync-btn.btn-icon:hover {
+  background: var(--bg-intense);
+}
+
+.subtitle-sync-btn.btn-icon .btn-icon-wrapper svg,
+.subtitle-sync-btn.btn-icon svg {
+  width: 30px;
+  height: 30px;
+  opacity: 0.6;
+}
+
+.subtitle-sync-btn.backward {
+  transform: rotate(180deg);
+}
+
+.subtitle-sync-input {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  padding: 5px;
+  border-radius: var(--radius-sm);
+  width: 100%;
+  max-width: 100px;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-2xl);
+  height: max-content;
+  text-align: center;
+}
+
+.subtitle-sync-input:focus {
+  outline: none;
+}
+
+.subtitle-sync .panel-header .btn img {
+  filter: invert(1);
+  opacity: 0.7;
+}

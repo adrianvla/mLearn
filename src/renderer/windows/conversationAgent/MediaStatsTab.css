@@ -1,0 +1,198 @@
+/* ============ Stats Tab ============ */
+
+.ca-stats-tab {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-4);
+}
+
+.ca-stats-media-picker {
+  margin-bottom: var(--spacing-3);
+}
+
+.ca-stats-media-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-3);
+}
+
+.ca-stats-media-name {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ca-stats-level-badge {
+  flex-shrink: 0;
+}
+
+.ca-stats-content {
+  min-height: 0;
+}
+
+.ca-stats-section-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: var(--spacing-4) 0 var(--spacing-2);
+}
+
+.ca-stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ca-stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-2) var(--spacing-2);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.ca-stats-row:hover {
+  background: var(--bg);
+}
+
+.ca-stats-word {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.ca-stats-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.ca-stats-ease {
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============ Level Bars ============ */
+
+.ca-level-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.ca-level-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.ca-level-name {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  min-width: 70px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ca-level-bar-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ca-level-bar-track {
+  height: 8px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.ca-level-bar-track.occurrence {
+  height: 5px;
+}
+
+.ca-level-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-sm);
+  transition: width var(--transition-slow);
+}
+
+.ca-level-bar-fill.unique {
+  background: var(--accent);
+}
+
+.ca-level-bar-fill.occurrence {
+  background: var(--color-warning);
+  opacity: 0.7;
+}
+
+.ca-level-percent {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  min-width: 60px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ca-level-percent-occ {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.ca-level-legend {
+  display: flex;
+  gap: var(--spacing-4);
+  margin-top: var(--spacing-2);
+  justify-content: center;
+}
+
+.ca-level-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+.ca-level-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.ca-level-dot.unique {
+  background: var(--accent);
+}
+
+.ca-level-dot.occurrence {
+  background: var(--color-warning);
+}
+
+/* ============ Failed Words Visual Treatment ============ */
+
+.ca-stats-row.failed-word {
+  opacity: 0.85;
+}
+
+.ca-stats-row.failed-word .ca-stats-word {
+  color: var(--color-warning);
+}
+
+.ca-stats-row.failed-word.severe {
+  opacity: 0.7;
+}
+
+.ca-stats-row.failed-word.severe .ca-stats-word {
+  color: var(--color-danger);
+}

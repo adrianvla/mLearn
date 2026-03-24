@@ -1,0 +1,131 @@
+/* Shared global styles (non-theme-variable rules). */
+
+/* ========== Shared Animations ========== */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========== Reset & Base Styles ========== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  background-color: var(--bg-opaque);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button {
+  color: inherit;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+pre,
+code,
+.selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+/* ========== Scrollbar Styles ========== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-secondary);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-primary);
+}
+
+/* ========== Selection ========== */
+::selection {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+/* ========== Focus Styles ========== */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ========== Image Reset ========== */
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* ========== Hide Cursor Class ========== */
+body.hide-cursor {
+  cursor: none;
+}
+
+/* ========== Utility Classes ========== */
+.disabled,
+[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}

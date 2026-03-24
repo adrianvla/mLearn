@@ -1,0 +1,25 @@
+/**
+ * ModalFooter Component Styles
+ * Structural layout only - button styling is handled by Button component
+ */
+
+.modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  /*padding: 16px 20px;*/
+  /*border-top: 1px solid var(--border-color);*/
+  gap: 12px;
+}
+
+.modal-footer-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.modal-footer-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}

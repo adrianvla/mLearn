@@ -1,0 +1,52 @@
+/**
+ * Panel Header Component Styles
+ * Matches the legacy .aside .header and .sync-subs .header pattern
+ */
+
+.panel-header {
+  display: flex;
+  justify-content: end;
+  align-items: center;
+  flex-direction: column;
+  width: 0;
+  gap: 10px;
+  padding: 0;
+  border-right: 1px solid transparent;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 0.2s, border 0.2s, width 0.2s, padding 0.2s;
+}
+
+/* Show header on parent hover */
+.aside:hover .panel-header,
+.sync-subs:hover .panel-header,
+.subtitle-sync:hover .panel-header,
+.live-word-translator:hover .panel-header {
+  border-right: 1px solid #000;
+  opacity: 1;
+  width: 50px;
+  padding: 5px;
+}
+
+.panel-header .btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 10px;
+  transition: background 0.1s;
+  cursor: pointer;
+}
+
+.panel-header .btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.panel-header .btn img {
+  width: 20px;
+  height: 20px;
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+}

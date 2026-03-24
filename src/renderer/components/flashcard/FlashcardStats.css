@@ -1,0 +1,282 @@
+/**
+ * FlashcardStats Styles
+ * Advanced statistics dashboard with responsive chart layout
+ */
+
+.flashcard-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Hero stat cards row */
+.flashcard-stats-hero {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+/* Key metrics row */
+.flashcard-stats-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+
+.flashcard-stats-metric-card {
+  text-align: center;
+}
+
+.stats-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0;
+}
+
+.stats-metric-value {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.stats-metric-retention {
+  color: var(--color-success);
+}
+
+.stats-metric-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.stats-metric-sublabel {
+  font-size: var(--font-size-xxs);
+  color: var(--text-tertiary);
+}
+
+/* Charts row */
+.flashcard-stats-charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.flashcard-stats-chart-card {
+  min-height: 0;
+}
+
+/* Chart container */
+.stats-chart-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  min-height: 160px;
+}
+
+.stats-chart-container--bar {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Canvas sizing */
+.stats-pie-canvas {
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+}
+
+.stats-bar-canvas {
+  width: 100%;
+  height: 120px;
+}
+
+/* Legend */
+.stats-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.stats-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--font-size-sm);
+}
+
+.stats-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.stats-legend-label {
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stats-legend-value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  min-width: 24px;
+  text-align: right;
+}
+
+.stats-legend-pct {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Activity summary row */
+.stats-activity-summary {
+  display: flex;
+  justify-content: space-around;
+  gap: 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.stats-activity-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.stats-activity-value {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+}
+
+.stats-activity-label {
+  font-size: var(--font-size-xxs);
+  color: var(--text-tertiary);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Maturity bar */
+.flashcard-stats-maturity {
+  max-width: 100%;
+}
+
+.stats-maturity-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.stats-maturity-canvas {
+  width: 100%;
+  height: 16px;
+}
+
+.stats-maturity-labels {
+  display: flex;
+  justify-content: space-between;
+}
+
+.stats-maturity-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.stats-maturity-count {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+/* Today's progress & Limits */
+.flashcard-stats-today,
+.flashcard-stats-limits {
+  width: 100%;
+}
+
+.flashcard-stats-limit-input {
+  width: 80px;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  text-align: right;
+}
+
+.flashcard-stats-limit-input:focus {
+  outline: none;
+  border-color: var(--border-color-intense);
+}
+
+.flashcard-stats-limit-hint {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  margin: 0.5rem 0 0;
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .flashcard-stats {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .flashcard-stats-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .flashcard-stats-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .flashcard-stats-charts-row {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-chart-container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .stats-legend {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+  }
+
+  .stats-activity-summary {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .flashcard-stats-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stats-metric-value {
+    font-size: var(--font-size-xl);
+  }
+}

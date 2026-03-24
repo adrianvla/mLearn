@@ -1,0 +1,114 @@
+/**
+ * Flashcards Generate Tab Styles
+ * Layout for bulk TTS and example generation actions
+ */
+
+.flashcards-generate {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.flashcards-generate-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.flashcards-generate-description {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.flashcards-generate-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.flashcards-generate-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+}
+
+.flashcards-generate-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-primary);
+}
+
+.flashcards-generate-section-header h3 {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.flashcards-generate-section-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.flashcards-generate-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.flashcards-generate-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+  min-width: 140px;
+}
+
+.flashcards-generate-select {
+  min-width: 180px;
+}
+
+.flashcards-generate-btn {
+  align-self: flex-start;
+  gap: 0.5rem;
+}
+
+.flashcards-generate-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+}
+
+.flashcards-generate-progress-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.flashcards-generate-progress-count {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.flashcards-generate-progress-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.flashcards-generate-progress-eta {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}

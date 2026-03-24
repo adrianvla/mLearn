@@ -1,0 +1,29 @@
+/**
+ * Glass Select Styles
+ * Glassmorphism styled select dropdown
+ */
+
+select {
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  color: var(--text-primary);
+  padding: 0 0.75rem;
+  transition: all var(--transition-fast);
+  height: var(--size-md);
+  min-height: var(--size-md);
+  box-sizing: border-box;
+}
+
+select:hover {
+  background: var(--bg-intense);
+  border-color: var(--border-color-intense);
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--border-color-intense);
+  /*box-shadow: 0 0 0 1px var(--border-color-intense);*/
+}

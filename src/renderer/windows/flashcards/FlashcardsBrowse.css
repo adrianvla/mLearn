@@ -1,0 +1,101 @@
+/**
+ * Flashcards Browse Tab Styles
+ * Grid layout for browsing flashcards with search/sort controls
+ */
+
+.flashcards-browse {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position:relative;
+}
+
+.flashcards-browse-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  position:sticky;
+  top:0;
+  left:0;
+  right:0;
+  padding:var(--spacing-6);
+  z-index:var(--z-sticky);
+  background:var(--bg);
+  backdrop-filter: var(--backdrop-filter);
+  border-bottom:1px solid var(--border-color);
+}
+
+.flashcards-search-input {
+  flex: 1;
+  min-width: 200px;
+  max-width: 400px;
+}
+
+.flashcards-sort-select {
+  min-width: 180px;
+}
+
+.flashcards-count {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.flashcards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  padding: var(--spacing-6);
+}
+
+.flashcards-grid > .panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.flashcards-grid > .panel > div:nth-child(2) {
+  height: 100%;
+  position: relative;
+}
+
+.flashcards-grid .flashcard-translation{
+  margin-bottom:calc(2rem + 2px + var(--spacing-4));
+}
+.flashcard-footer {
+  display: flex;
+  gap: var(--spacing-2);
+  bottom: 1rem;
+  position: absolute;
+  justify-content: space-between;
+  width: calc(100% - 2rem);
+}
+
+.flashcard-state {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+}
+
+.flashcard-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  margin-left: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .flashcards-browse-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .flashcards-search-input {
+    max-width: none;
+  }
+
+  .flashcards-count {
+    text-align: center;
+  }
+}

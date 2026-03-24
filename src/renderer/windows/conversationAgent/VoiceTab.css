@@ -1,0 +1,359 @@
+/* ============================================================================
+   VoiceTab — Voice call UI for the Conversation Agent
+   ============================================================================ */
+
+.voice-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ------ Model download section ------ */
+
+.voice-download-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-8);
+  flex: 1;
+  text-align: center;
+}
+
+.voice-download-hint {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  max-width: 320px;
+  line-height: var(--line-height-relaxed);
+}
+
+/* ------ Call UI ------ */
+
+.voice-call-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.voice-call-ui {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6) var(--spacing-4);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+/* ------ Initializing engines ------ */
+
+.voice-initializing {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+}
+
+.voice-initializing-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* ------ Waveform visualizer ------ */
+
+.voice-visualizer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  height: 48px;
+  min-width: 120px;
+}
+
+.voice-bar {
+  width: 4px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  transition: height 0.08s ease-out;
+  min-height: 4px;
+}
+
+.voice-bar.idle {
+  background: var(--text-tertiary);
+  opacity: 0.4;
+}
+
+/* ------ Status text ------ */
+
+.voice-status-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
+  min-height: 20px;
+}
+
+.voice-status-text.active {
+  color: var(--color-primary);
+}
+
+/* ------ Pipeline stage indicator ------ */
+
+.voice-stage-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.voice-stage-pill {
+  font-size: var(--font-size-xxs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 2px var(--spacing-2);
+  border-radius: var(--radius-full);
+  color: var(--text-tertiary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.voice-stage-pill.active {
+  color: var(--bg);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.voice-stage-arrow {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+/* ------ Controls row ------ */
+
+.voice-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+/* ------ Mode toggle ------ */
+
+.voice-mode-toggle {
+  display: flex;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+}
+
+.voice-mode-toggle .voice-mode-btn {
+  border-radius: 0;
+  border: none;
+}
+
+/* ------ End call button ------ */
+
+.voice-end-btn {
+  border-radius: var(--radius-full);
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.voice-end-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* ------ Push-to-talk button ------ */
+
+.voice-ptt-btn {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+.voice-ptt-btn.active {
+  transform: scale(0.96);
+}
+
+/* ------ Speed control ------ */
+
+.voice-speed-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  padding: 0 var(--spacing-4);
+}
+
+.voice-speed-row label {
+  white-space: nowrap;
+}
+
+.voice-speed-value {
+  min-width: 30px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------ Messages area (shared with chat) ------ */
+
+.voice-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-4) var(--spacing-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  scroll-behavior: smooth;
+  min-height: 0;
+}
+
+.voice-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.voice-messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.voice-messages::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+/* ------ Voice sample selector ------ */
+
+.voice-sample-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  padding: 0 var(--spacing-4);
+}
+
+.voice-sample-row label {
+  white-space: nowrap;
+}
+
+.voice-sample-row.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voice-sample-row.disabled select,
+.voice-sample-row.disabled button {
+  pointer-events: none;
+}
+
+/* ------ Voice Aftermath ------ */
+
+.voice-aftermath {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-6);
+  overflow-y: auto;
+}
+
+.voice-aftermath-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-4);
+}
+
+.voice-aftermath-header .voice-aftermath-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.voice-aftermath-stats {
+  display: flex;
+  gap: var(--spacing-4);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-4);
+  padding-bottom: var(--spacing-3);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.voice-aftermath-empty {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  padding: var(--spacing-6) 0;
+}
+
+.voice-aftermath-mistakes-title {
+  margin: 0 0 var(--spacing-3);
+  font-size: var(--font-size-base);
+}
+
+.voice-aftermath-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.voice-aftermath-item {
+  padding: var(--spacing-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.voice-aftermath-word {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-1);
+}
+
+.voice-aftermath-word-text {
+  font-weight: var(--font-weight-bold);
+}
+
+.voice-aftermath-reading {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.voice-aftermath-type {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  padding: 1px var(--spacing-2);
+  border-radius: var(--radius-sm);
+}
+
+.voice-aftermath-correction {
+  font-size: var(--font-size-sm);
+  color: var(--color-success);
+}
+
+.voice-aftermath-arrow {
+  color: var(--text-tertiary);
+}
+
+.voice-aftermath-context {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-style: italic;
+  margin-top: var(--spacing-1);
+}

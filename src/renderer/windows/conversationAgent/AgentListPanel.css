@@ -1,0 +1,195 @@
+.agent-list-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4);
+  padding-bottom: calc(var(--spacing-16) + var(--spacing-4));
+  overflow-y: auto;
+  height: 100%;
+  position: relative;
+}
+
+.agent-list-header {
+  position: fixed;
+  bottom: var(--spacing-4);
+  right: var(--spacing-4);
+  z-index: var(--z-foreground);
+}
+
+.agent-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+/* Agent card */
+.agent-card {
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.agent-card--active {
+  border-color: var(--border-success);
+  background: var(--bg-success);
+}
+
+.agent-card-main {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+/* Avatar */
+.agent-card-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+
+.agent-card-avatar-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
+.agent-card-avatar-img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+
+
+/* Info */
+.agent-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.agent-card-name {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-card-personality {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
+/* Actions */
+.agent-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+/* Per-agent memories toggle */
+.agent-card-memories-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--spacing-2);
+  margin-top: var(--spacing-2);
+  border-top: 1px solid var(--border-color);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  transition: color var(--transition-fast);
+}
+
+.agent-card-memories-toggle:hover {
+  color: var(--text-primary);
+}
+
+.agent-card-memories-label {
+  font-weight: var(--font-weight-medium);
+}
+
+/* Memories list */
+.agent-card-memories {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding-top: var(--spacing-2);
+}
+
+.agent-card-memory-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+}
+
+.agent-card-memory-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-card-memory-text {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  line-height: var(--line-height-normal);
+}
+
+.agent-card-memory-date {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.agent-card-no-memories {
+  padding-top: var(--spacing-2);
+  margin-top: var(--spacing-2);
+  border-top: 1px solid var(--border-color);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+/* Delete confirmation modal */
+.agent-delete-modal-footer {
+  display: flex;
+  gap: var(--spacing-2);
+  justify-content: flex-end;
+}
+
+.agent-delete-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.agent-delete-modal-message {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.agent-delete-modal-name {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+}
+
+.agent-list-danger-zone {
+  padding: var(--spacing-4) var(--spacing-3);
+  border-top: 1px solid var(--border-color);
+  margin-top: var(--spacing-3);
+}

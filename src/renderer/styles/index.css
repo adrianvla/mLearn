@@ -1,0 +1,243 @@
+/**
+ * Global CSS Variables and Base Styles
+ * Unified theming system for the entire application
+ * 
+ * Light theme is the default (defined in :root below).
+ * Other themes override these base styles.
+ */
+@import "./themes/dark.css";
+@import "./themes/darker.css";
+@import "./themes/glass-light.css";
+@import "./themes/glass-dark.css";
+@import "./themes/light-high-contrast.css";
+@import "./themes/dark-high-contrast.css";
+
+:root {
+  /* ========== Color Palette ========== */
+  /* Primary colors */
+  --color-primary: #4a90d9;
+  --color-primary-hover: #5a9de9;
+  --color-primary-active: #3a80c9;
+
+  /* Semantic colors */
+  --color-success: #58c333;
+  --color-success-lighter: #66e13c;
+  --color-warning: #f1c40f;
+  --color-error: #e74c3c;
+  --color-info: #3498db;
+  --color-purple: #9b59b6;
+  --color-teal: #1abc9c;
+  --color-indigo: #5b6abf;
+  --color-pink: #e84393;
+
+  --bg-opaque: #f5f5f5;
+
+  --bg: rgba(85, 85, 85, 0.1);
+  --bg-intense: rgba(85, 85, 85, 0.15);
+  --bg-nt-primary: rgb(238,238,238); /*non-translucent*/
+  --bg-nt-secondary: rgb(230,230,230); /*non-translucent*/
+  --accent-bg: rgba(255, 255, 255, 0.2);
+  --accent: rgba(255, 255, 255, 0.8);
+  --backdrop-filter: blur(10px) saturate(2) brightness(1.1);
+  --backdrop-filter-nodim: blur(10px) saturate(2) brightness(1.1);
+  --border-color: rgba(85, 85, 85, 0.15);
+  --border-color-intense: rgba(85, 85, 85, 0.25);
+
+  /* ========== Typography ========== */
+  --font-family-sans: 'Helvetica Neue',-apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  --font-family-japanese: 'Noto Sans JP', 'Hiragino Kaku Gothic Pro', 'Yu Gothic', sans-serif;
+  --font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', Consolas, monospace;
+
+  --font-size-xxs: 0.5rem;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 2rem;
+  --font-size-4xl: 2.5rem;
+  --font-size-5xl: 3rem;
+  --font-size-6xl: 4rem;
+
+  --size-sm: 26px;
+  --size-md: 32px;
+  --size-lg: 40px;
+
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* ========== Spacing ========== */
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+
+  /* ========== Border Radius ========== */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* ========== Shadows ========== */
+  --shadow-sm: 0 3px 5px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 10px 50px rgba(0, 0, 0, 0.1);
+  --shadow-lg: rgba(0, 0, 0, 0.2) 0px 18px 50px -10px;
+  --shadow-lg-intense: rgba(0, 0, 0, 0.3) 0px 19px 38px, rgba(0, 0, 0, 0.22) 0px 15px 12px;
+  --shadow-special: rgba(50, 50, 93, 0.25) 0px 50px 100px -20px, rgba(0, 0, 0, 0.3) 0px 30px 60px -30px, rgba(10, 37, 64, 0.35) 0px -2px 6px 0px inset;
+  --shadow-inset: rgba(50, 50, 93, 0.25) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+  --shadow-border:var(--border-color) 0px 0px 0px 1px;
+
+  /* ========== Transitions ========== */
+  --transition-fast: 0.1s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow: 0.3s ease;
+  --transition-slower: 0.5s ease;
+
+  /* ========== Z-Index Scale ========== */
+  --z-0: 0;
+  --z-backdrop: 0;
+  --z-foreground: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-modal-backdrop: 300;
+  --z-modal: 400;
+  --z-popover: 500;
+  --z-tooltip: 600;
+  --z-overlay: 700;
+
+  /* ========== Text Color Aliases ========== */
+  /* Used by components for consistency */
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --text-tertiary: rgba(0, 0, 0, 0.4);
+  
+  /* ========== Additional Color Aliases ========== */
+  --color-danger: var(--color-error);
+  --color-green: var(--color-success);
+  --color-blue: var(--color-primary);
+  --color-orange: var(--color-warning);
+  --color-red: var(--color-error);
+
+  --base-hue: #f00;
+
+  /* ========== Subtitle Specific ========== */
+  --subtitle-font-size: 40px;
+  --subtitle-font-weight: 400;
+  --word-blur-amount: 5px;
+  --pitch-accent-height: 2px;
+
+  /* ========== Part of Speech Colors ========== */
+  --pos-noun: #4a90d9;
+  --pos-verb: #e74c3c;
+  --pos-adjective: #2ecc71;
+  --pos-adverb: #9b59b6;
+  --pos-particle: #95a5a6;
+  --pos-auxiliary: #e67e22;
+  --pos-conjunction: #1abc9c;
+  --pos-interjection: #f1c40f;
+  --pos-prenoun: #3498db;
+  --pos-prefix: #e91e63;
+  --pos-suffix: #00bcd4;
+  --pos-symbol: #607d8b;
+  --pos-punctuation: #8fc99d;
+
+  /* ========== Pill Level Colors (Light/Default) ========== */
+  /* Level 1 - Red */
+  --pill-level-1-text: rgb(255, 60, 89);
+  --pill-level-1-bg: rgb(255, 223, 228);
+  /* Level 2 - Blue */
+  --pill-level-2-text: rgb(60, 145, 255);
+  --pill-level-2-bg: rgb(223, 244, 255);
+  /* Level 3 - Green */
+  --pill-level-3-text: rgb(66, 214, 49);
+  --pill-level-3-bg: rgb(219, 243, 213);
+  /* Level 4 - Orange */
+  --pill-level-4-text: rgb(255, 141, 60);
+  --pill-level-4-bg: rgb(255, 236, 223);
+  /* Level 5 - Purple */
+  --pill-level-5-text: rgb(255, 60, 252);
+  --pill-level-5-bg: rgb(254, 223, 255);
+  /* Level 6 - Yellow */
+  --pill-level-6-text: rgb(120, 99, 27);
+  --pill-level-6-bg: rgb(230, 223, 195);
+  /* Level 7 - Gray */
+  --pill-level-7-text: rgb(124, 124, 124);
+  --pill-level-7-bg: rgb(230, 230, 230);
+  /* Default - Pink/Magenta */
+  --pill-default-text: rgb(255, 60, 170);
+  --pill-default-bg: rgb(255, 223, 239);
+
+  /* ========== Pitch Accent Colors ========== */
+  --pitch-accent-high: #e8687b;
+  --pitch-accent-low: #4e86ca;
+
+  /* ========== Skeleton Loader ========== */
+  --skeleton-base: rgba(112, 112, 112, 0.63);
+  --skeleton-highlight: rgba(160, 160, 160, 0.63);
+
+  /* ========== Scrollbar Colors ========== */
+  --scrollbar-thumb: var(--bg);
+  --scrollbar-thumb-hover: var(--accent-bg);
+
+  /* ========== Flashcard Highlight ========== */
+  --flashcard-highlight: #356ee8;
+
+  /* ========== Additional Theming Variables ========== */
+  /* Panel/surface hover states */
+  --panel-bg: var(--bg);
+  --panel-bg-hover: var(--bg-intense);
+  --panel-border: var(--border-color);
+  --panel-border-hover: var(--border-color-intense);
+  
+  /* Accent primary (alias for consistency) */
+  --accent-primary: var(--color-primary);
+
+  /* Translucent state backgrounds */
+  --bg-success: rgba(88, 195, 51, 0.08);
+  --bg-success-hover: rgba(88, 195, 51, 0.14);
+  --bg-danger: rgba(231, 76, 60, 0.08);
+  --bg-danger-hover: rgba(231, 76, 60, 0.14);
+  --bg-warning: rgba(241, 196, 15, 0.08);
+  --bg-warning-hover: rgba(241, 196, 15, 0.14);
+  --bg-info: rgba(52, 152, 219, 0.08);
+  --bg-info-hover: rgba(52, 152, 219, 0.14);
+  --bg-primary-tint: rgba(74, 144, 217, 0.08);
+  --bg-primary-tint-hover: rgba(74, 144, 217, 0.14);
+  --border-success: rgba(88, 195, 51, 0.35);
+  --border-danger: rgba(231, 76, 60, 0.35);
+  --border-warning: rgba(241, 196, 15, 0.35);
+  --border-info: rgba(52, 152, 219, 0.35);
+
+  /* Background aliases for common patterns */
+  --bg-primary: var(--bg);
+  --bg-secondary: var(--bg-intense);
+  
+  /* Color border hover */
+  --color-border-hover: var(--border-color-intense);
+  
+  /* Overlay backgrounds */
+  /* Should only be used for modals or stuff that floats on top and not for normal UI components*/
+  --overlay-bg: rgba(255,255,255, 0.6);
+  --overlay-bg-soft: rgba(255,255,255, 0.4);
+
+  /*for OSes*/
+  --navbar-margin-left: 70px;
+}
+

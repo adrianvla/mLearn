@@ -1,0 +1,1912 @@
+{
+  "mlearn": {
+    "AI": {
+      "DownloadModel": "モデルをダウンロード",
+      "ModelNotDownloaded": "モデルはまだダウンロードされていません。",
+      "ModelReady": "モデルは準備完了です。",
+      "OllamaInstallGuide": "Ollamaをインストール",
+      "OllamaInstallGuideUrl": "https://ollama.com/download",
+      "OllamaNotReachable": "Ollamaサーバーに接続できません。Ollamaが実行中でURLが正しいか確認してください。",
+      "Settings": {
+        "BuiltinModel": {
+          "DiskSpace": "必要なディスク容量: 約{size}",
+          "ModelName": "モデル",
+          "Redownload": "再ダウンロード",
+          "Status": "状態",
+          "Title": "内蔵モデル"
+        },
+        "CloudConfig": {
+          "ApiUrlHint": "クラウドAPI URLは接続設定で設定されます。",
+          "ConnectionSuccess": "接続成功。",
+          "TestConnection": "接続テスト",
+          "Title": "クラウドLLM設定",
+          "TokenHint": "接続設定からサインインしてクラウドLLMの認証を行います。"
+        },
+        "Description": "単語解説と会話練習のためのAI機能を設定します。",
+        "FlashcardTTS": {
+          "AutoGenerate": {
+            "Description": "新しいフラッシュカードのオーディオファイルを自動的に生成してキャッシュします",
+            "Label": "オーディオ自動生成"
+          },
+          "AutoPlay": {
+            "Description": "復習中にフラッシュカードが表示されたとき、単語の発音を自動的に再生します",
+            "Label": "TTS自動再生"
+          },
+          "Provider": {
+            "Cloud": "Cloud",
+            "Description": "ローカルKokoro TTS、Qwen3-TTS（音声クローン）、またはCloud TTSから選択",
+            "Kokoro": "Kokoro（ローカル）",
+            "Label": "TTSプロバイダー",
+            "Qwen3": "Qwen3-TTS（音声クローン）"
+          },
+          "Title": "フラッシュカードTTS",
+          "VoiceSample": {
+            "DefaultVoice": "デフォルト音声",
+            "DeleteConfirm": "この音声サンプルを削除してもよろしいですか？この操作は取り消せません。",
+            "DeleteSample": "音声サンプルを削除",
+            "Description": "音声クローン用の音声サンプルを選択",
+            "Label": "音声サンプル",
+            "ModelLoading": "TTSモデル読み込み中…",
+            "NoTranscript": "文字起こしがありません",
+            "PlaySample": "サンプルを再生",
+            "TestPlaceholder": "TTSをテストするテキストを入力…",
+            "TestTts": "TTSテスト",
+            "Transcribing": "音声を文字起こし中…",
+            "Transcript": "文字起こし：",
+            "Upload": "音声サンプルをアップロード"
+          }
+        },
+        "OCR": {
+          "Provider": {
+            "Cloud": "クラウド",
+            "Description": "OCRリクエストを処理するバックエンドを選択します。",
+            "Label": "OCRプロバイダー",
+            "Local": "ローカル"
+          },
+          "Title": "OCRバックエンド"
+        },
+        "OllamaConfig": {
+          "ConnectionSuccess": "接続に成功しました。",
+          "InstallHintPrefix": "Ollamaをお持ちでないですか？",
+          "InstallHintSuffix": "で始めましょう。",
+          "LoadingModels": "モデルを読み込み中...",
+          "Model": "モデル",
+          "ModelHint": "Ollamaモデル名を選択または入力してください。",
+          "ServerUrl": "サーバーURL",
+          "ServerUrlHint": "Ollamaサーバーのアドレス。",
+          "TestConnection": "接続テスト",
+          "Title": "Ollama設定"
+        },
+        "Provider": {
+          "Builtin": "内蔵",
+          "Cloud": "クラウド",
+          "Description": "AIモデルの実行方法を選択します。",
+          "Ollama": "Ollama",
+          "Title": "LLMプロバイダー"
+        },
+        "AgentMemory": {
+          "Enable": {
+            "Label": "エージェントの記憶",
+            "Description": "AIチューターが会話を越えてあなたに関する情報を記憶することを許可する"
+          },
+          "Shared": {
+            "Label": "エージェント間で記憶を共有",
+            "Description": "有効にすると、すべてのエージェントがすべての記憶にアクセスできます。無効にすると、各エージェントは自分の記憶のみ参照します。"
+          },
+          "Title": "エージェントの記憶"
+        },
+        "SplitChecker": {
+          "Label": "別の校正エージェント",
+          "Description": "会話エージェントの代わりに、別のLLMパスでミスを検出・修正します。",
+          "Title": "校正エージェント"
+        },
+        "Title": "AI設定"
+      },
+      "SetupRequired": "AI機能にはセットアップが必要です。設定を開いています..."
+    },
+    "AITutorSetup": {
+      "AllLevels": "すべて",
+      "FailedWords": "苦手な単語",
+      "GenerateBtn": "生成",
+      "GenerateError": "語彙の生成に失敗しました。もう一度お試しください。",
+      "GenerateTopicPlaceholder": "トピックを入力して語彙を生成...",
+      "GrammarTab": "文法",
+      "InstructionsLabel": "カスタム指示",
+      "InstructionsPlaceholder": "練習したいシナリオ、ロールプレイ、または特定のトピックを説明してください。例：「レストランでの注文を練習しましょう」や「面接官の役をしてください」。",
+      "InstructionsTab": "指示",
+      "ItemsSelected": "{count}件選択中",
+      "LLMNotConfigured": "AIが設定されていません。先に設定で構成してください。",
+      "MediaTab": "メディア",
+      "NoGrammarSupport": "この言語の文法ポイントはまだ利用できません。",
+      "NoMediaYet": "保存されたメディアがありません。動画を視聴したり本を読んだりして進捗を記録しましょう。",
+      "NoWordsYet": "まだ単語がありません。動画を視聴したり本を読んだりして語彙を増やしましょう。",
+      "PressEnterToAdd": "Enterキーを押してこの単語を追加",
+      "SearchGrammar": "文法ポイントを検索...",
+      "SearchWords": "単語を検索...",
+      "SelectGrammarHint": "練習したい文法ポイントを選択してください。",
+      "SelectMediaHint": "コンテキストを含める保存済みメディアを選択してください。",
+      "SelectWordsHint": "集中したい単語を選択してください。",
+      "StartSession": "セッション開始",
+      "Title": "AIチューター設定",
+      "WordEaseLegend": {
+        "unassessed": "未評価",
+        "hard": "難しい",
+        "struggling": "苦戦中",
+        "reviewing": "復習中",
+        "known": "習得済み"
+      },
+      "WordEaseLegendTitle": "単語の習熟度:",
+      "WordsTab": "単語"
+    },
+    "About": {
+      "Description": "mLearnは没入型学習で言語を学ぶツールです。動画を見たり、漫画を読んだり、インテリジェントな字幕と間隔反復で自然に語彙を学べます。",
+      "KeyboardShortcuts": {
+        "F": "全画面切り替え",
+        "LeftRight": "5秒シーク",
+        "M": "ミュート/ミュート解除",
+        "Numbers": "フラッシュカード評価",
+        "Space": "動画の再生/一時停止",
+        "Title": "キーボードショートカット",
+        "Undo": "フラッシュカード操作を元に戻す",
+        "UpDown": "音量調整"
+      },
+      "Licenses": "ライセンス",
+      "Title": "mLearn",
+      "VersionLabel": "バージョン {version}",
+      "Website": "ウェブサイト"
+    },
+    "CardEditor": {
+      "AudioUnavailable": "音声が利用できません。再生成ボタンを使用して生成してください。",
+      "TtsMissing": "{field}が見つかりません。カードエディターから再生成してください。",
+      "Fields": {
+        "Definitions": "定義（1行に1つ）",
+        "DefinitionsPlaceholder": "1行に1つの定義",
+        "ExampleSentence": "例文（HTML可）",
+        "ExampleTranslation": "例文の翻訳",
+        "PitchAccent": "ピッチアクセント",
+        "PitchAccentPlaceholder": "0（平板）、1、2、3…",
+        "Reading": "読み（ふりがな）",
+        "ReadingPlaceholder": "かな / 読み",
+        "StructuredContent": "構造化コンテンツ（任意のHTML）",
+        "SurfaceNote": "（単語）",
+        "Translation": "翻訳（コンマまたは改行区切り）",
+        "Word": "単語",
+        "WordPlaceholder": "単語を入力..."
+      },
+      "GenerateTtsAction": "生成",
+      "Hint": "翻訳: コンマまたは改行区切り。ピッチアクセントはモーラ下降位置（0=平板）。",
+      "NoCloudAuth": "クラウドに未認証です。設定→サーバーからログインしてください。",
+      "Regenerate": {
+        "AllCompleted": "すべてのタスクが完了しました",
+        "ExamplePhrase": "例文",
+        "ExampleTts": "例文TTS",
+        "LLMFailedContinue": "例文を生成できませんでした。既存の例文でTTSと翻訳を引き続き再生成しますか？",
+        "LLMFailedNo": "スキップ",
+        "LLMFailedTitle": "例文の生成に失敗しました",
+        "LLMFailedYes": "続ける",
+        "SomeFailed": "一部のタスクが失敗しました",
+        "Title": "再生成",
+        "Translation": "翻訳",
+        "UseReadings": "読みを使用",
+        "WordTts": "単語TTS"
+      },
+      "RegenerateExample": "例文を再生成",
+      "Statistics": {
+        "Ease": "容易度:",
+        "Interval": "間隔:",
+        "Lapses": "失敗回数:",
+        "LastReviewed": "最終復習日:",
+        "Reviews": "復習回数:",
+        "State": "状態:",
+        "Title": "統計"
+      }
+    },
+    "CloudReLogin": {
+      "CodeHint": "ログインページのワンタイムコードを入力してください。",
+      "Hint": "サインインをクリックしてブラウザでログインページを開きます。",
+      "SessionExpired": "クラウドセッションの有効期限が切れました。続行するには再度ログインしてください。",
+      "SessionRefreshed": "セッションが更新されました。もう一度お試しください。",
+      "Title": "セッション期限切れ"
+    },
+    "Components": {
+      "LogConsole": {
+        "ClearTooltip": "ログをクリア",
+        "DefaultTitle": "コンソール",
+        "NoLogs": "表示するログがありません"
+      }
+    },
+    "ConfirmDialog": {
+      "Title": "確認"
+    },
+    "Connection": {
+      "AuthStatus": "クラウドアカウント",
+      "BackendMode": "バックエンドモード",
+      "BackendUrl": "バックエンドURL",
+      "CloudApiUrl": "クラウドAPI URL",
+      "CloudLoginUrl": "クラウドログインURL",
+      "CompleteSignIn": "サインインを完了",
+      "Connected": "接続済み",
+      "DefaultCloudEndpoint": "デフォルトログイン: {loginUrl} — デフォルトAPI: {apiUrl}",
+      "DesktopCode": "デスクトップ用ワンタイムコード",
+      "HintLocal": "このマシンのローカルPythonバックエンドを使用します。",
+      "HintTethered": "デスクトップで実行中のPythonバックエンドに接続します。",
+      "Mode": "モード",
+      "ModeLocal": "ローカル",
+      "ModeTethered": "テザリング",
+      "NodeServer": "デスクトップサーバー",
+      "NodeServerUrl": "サーバーURL",
+      "OpenDashboard": "ダッシュボードを開く",
+      "OverrideCloudEndpointUrl": "クラウドURLを上書き",
+      "OverrideCloudEndpointUrlDescription": "デフォルトのサービスURLの代わりにカスタムクラウドURLを使用します。",
+      "SignIn": "サインイン",
+      "SignOut": "サインアウト",
+      "SigningIn": "サインイン中...",
+      "TestConnection": "接続テスト",
+      "Title": "接続",
+      "Unreachable": "到達不能"
+    },
+    "ConversationAgent": {
+      "Agents": {
+        "Create": "エージェントを作成",
+        "Delete": "エージェントを削除",
+        "DeleteAll": "すべてのエージェントを削除",
+        "DeleteAllConfirm": "すべてのエージェント、記憶、会話データが完全に削除されます。確認のため以下の単語を入力してください：",
+        "DeleteAllConfirmPlaceholder": "確認のため入力",
+        "DeleteAllConfirmWord": "削除",
+        "DeleteAllTitle": "すべてのエージェントを削除",
+        "DeleteConfirm": "削除を確認するにはエージェント名を入力してください：",
+        "DeleteConfirmPlaceholder": "エージェント名",
+        "DeleteConfirmTitle": "エージェントを削除",
+        "Edit": "エージェントを編集",
+        "EditTitle": "エージェントを編集",
+        "Empty": "エージェントがまだありません。作成して始めましょう。",
+        "Memories": "記憶",
+        "NoMemories": "まだ記憶が保存されていません。",
+        "Save": "保存",
+        "Title": "エージェント",
+        "Unnamed": "名前なしのエージェント"
+      },
+      "Clear": "会話をクリア",
+      "Connection": {
+        "AvailableModels": "利用可能なモデル",
+        "ConnectionFailed": "接続に失敗しました",
+        "ConnectionSuccess": "正常に接続されました",
+        "FetchModels": "モデルを取得",
+        "Hint": "LLMプロバイダーへの接続を設定します。",
+        "LoadingModels": "モデルを読み込み中...",
+        "Model": "モデル",
+        "ModelHint": "チャット補完に使用するモデル識別子。",
+        "NoModelsFound": "サーバーでモデルが見つかりません",
+        "Save": "保存",
+        "Saved": "保存済み",
+        "ServerUrl": "サーバーURL",
+        "ServerUrlHint": "LLMサーバーのベースURL（例：Ollama、LM Studio、またはOpenAI互換エンドポイント）。",
+        "TestConnection": "接続テスト",
+        "Testing": "テスト中...",
+        "Title": "LLM接続"
+      },
+      "Debug": {
+        "TimeToFirstToken": "TTFT: {value}ms",
+        "TokensPerSecond": "{value} tok/s",
+        "TotalTime": "合計: {value}ms"
+      },
+      "Empty": {
+        "Hint": "AIチューターと対象言語で練習しましょう。間違いを修正し、クイズを出し、学習を支援します。",
+        "StartConversation": "AIに始めてもらう",
+        "Title": "会話を始める"
+      },
+      "ExperimentalBanner": "実験的機能 — AIの回答にはエラーが含まれる場合があります。重要な言語ポイントは確認してください。",
+      "Disclaimer": "AIは間違えることがあります。回答を再確認してください。",
+      "IncludeKnowledge": "知識情報を含める",
+      "InputPlaceholder": "{language}でメッセージ...",
+      "LevelAdapt": {
+        "Label": "レベルに合わせる:",
+        "None": "なし"
+      },
+      "Checker": {
+        "Alternatives": "代替表現"
+      },
+      "Commands": {
+        "NewTopic": "新しいトピック",
+        "NewTopicDesc": "新しい会話トピックに切り替える"
+      },
+      "Tools": {
+        "CorrectMistake": "間違いを訂正",
+        "CreateQuiz": "クイズ作成",
+        "FetchUrl": "URL取得",
+        "GetMediaStats": "メディア統計",
+        "SearchWikipedia": "Wikipedia検索",
+        "SearchFandom": "Fandom検索",
+        "RecallBackstory": "バックストーリーを思い出す"
+      },
+      "Quiz": {
+        "BlankInputAriaLabel": "空欄 {index}",
+        "Correct": "正解！",
+        "IncorrectAnswer": "答えは: {answer}",
+        "TextInputPlaceholder": "答えを入力..."
+      },
+      "Regenerate": "回答を再生成",
+      "SceneContext": "シーンの文脈",
+      "SceneContextPlaceholder": "シーンで何が起こったかを説明します（例：キャラクターの行動、プロットの展開）。任意の言語で入力できます。",
+      "Send": "メッセージを送信",
+      "ShowTooltipOn": "ツールチップ表示方法:",
+      "Speaking": "話し中...",
+      "StartRecording": "録音を開始",
+      "Stats": {
+        "AssessedLevel": "評価レベル",
+        "ByOccurrence": "出現順",
+        "Current": "現在",
+        "Failed": "失敗",
+        "FailedGrammarCount": "失敗した文法",
+        "FailedWords": "失敗した単語",
+        "Grammar": "文法",
+        "GrammarLevels": "文法レベル",
+        "Hovered": "ホバー回数",
+        "Levels": "レベル",
+        "NoFailedGrammar": "失敗した文法ポイントはまだありません。",
+        "NoFailedWords": "失敗した単語はまだありません — 没入を続けましょう！",
+        "NoLevelData": "レベル分布を計算するのに十分なデータがありません。",
+        "NoMedia": "メディア統計はまだ保存されていません",
+        "NoMediaHint": "動画を見たり本を読んだりすると、ここに分析結果が表示されます。",
+        "Overview": "概要",
+        "Seen": "表示回数",
+        "Unique": "ユニーク",
+        "UniqueWords": "ユニーク単語数",
+        "UnknownWords": "未知の単語",
+        "WordLevelDistribution": "単語レベル分布",
+        "WordLevels": "単語レベル"
+      },
+      "StopRecording": "録音を停止",
+      "StopStreaming": "停止",
+      "Tab": {
+        "Agents": "エージェント",
+        "Chat": "チャット",
+        "Context": "コンテキスト",
+        "Stats": "統計",
+        "Voice": "音声"
+      },
+      "Title": "会話AI",
+      "TriggerHover": "ホバー",
+      "TriggerKeyHover": "{key} + ホバー",
+      "TriggerLongHover": "長押しホバー",
+      "Voice": {
+        "Aftermath": {
+          "Duration": "所要時間",
+          "Messages": "メッセージ数",
+          "Mistakes": "指摘されたミス",
+          "NoMistakes": "ミスは指摘されませんでした。お疲れ様でした！",
+          "Title": "セッションサマリー"
+        },
+        "CloudTts": "Cloud",
+        "DefaultVoice": "デフォルトの声",
+        "DownloadFailed": "音声モデルのダウンロードに失敗しました。必要な依存関係がインストールされていない可能性があります。アプリケーションを再インストールするか、ログを確認してください。",
+        "DownloadModels": "音声モデルをダウンロード",
+        "DownloadingModels": "音声モデルをダウンロード中…",
+        "EmptyHint": "音声通話を開始してAIチューターとスピーキングを練習しましょう。",
+        "EndCall": "通話を終了",
+        "HandsFree": "ハンズフリー",
+        "Initializing": "音声エンジンを読み込み中…",
+        "InstallingDependencies": "音声依存関係をインストール中…",
+        "Interrupted": "*ユーザーによる中断*",
+        "Listening": "聞いています…",
+        "LoadingTtsModel": "音声合成モデルを読み込み中…",
+        "LocalTts": "ローカル",
+        "MicPermission": "音声通話にはマイクへのアクセスが必要です。",
+        "ModelsRequired": "この機能には音声モデルが必要です。ダウンロードして開始してください。",
+        "Processing": "処理中…",
+        "PushToTalk": "プッシュトゥトーク",
+        "Qwen3Tts": "Qwen3",
+        "SilenceThreshold": "無音閾値",
+        "Speaking": "話しています…",
+        "Stage": {
+          "LLM": "LLM",
+          "STT": "STT",
+          "TTS": "TTS"
+        },
+        "StartCall": "音声通話を開始",
+        "TtsProvider": "TTSエンジン",
+        "TtsSpeed": "話速",
+        "UploadSample": "音声サンプルをアップロード",
+        "VoiceSample": "音声クローン",
+        "VoiceSampleDisabledLocal": "カスタム音声アップロードはQwen3-TTSまたはCloud TTSでのみ利用可能です"
+      },
+      "Memory": {
+        "ClearAll": "すべての記憶を消去",
+        "ClearAllConfirm": "エージェントのすべての記憶を削除しますか？この操作は取り消せません。",
+        "Delete": "記憶を削除",
+        "Empty": "まだ記憶がありません。会話の中でエージェントが重要な情報を保存します。",
+        "Title": "エージェントの記憶"
+      },
+      "Personality": {
+        "Casual": "カジュアル",
+        "CasualDescription": "リラックスした、フレンドリーな、くだけた言葉遣い",
+        "Label": "性格",
+        "Polite": "丁寧",
+        "PoliteDescription": "フォーマルで構造的、教育的なトーン",
+        "Roleplay": "ロールプレイ",
+        "RoleplayDescription": "名前と説明を持つカスタムキャラクター",
+        "RoleplayFormality": "丁寧さ",
+        "RoleplayLore": "キャラクター説明",
+        "RoleplayLorePlaceholder": "キャラクターの性格、特徴、対話方法を記述してください...",
+        "RoleplayBackstory": "バックストーリー",
+        "RoleplayBackstoryPlaceholder": "メディアから要約されたストーリーの背景...",
+        "RoleplayName": "キャラクター名",
+        "RoleplayNamePlaceholder": "キャラクターの名前を入力...",
+        "RoleplayQuotes": "サンプル台詞",
+        "RoleplayQuotesHint": "キャラクターの声の異なる側面を示す2〜4個の短い台詞。AIはこのスタイルに合わせます。",
+        "RoleplayQuotePlaceholder": "台詞を入力...",
+        "AddQuote": "台詞を追加",
+        "FandomUrl": "Fandom WikiのURL",
+        "FandomUrlHint": "このキャラクターのシリーズのFandom WikiのURL。Fandom検索ツールを有効にします。",
+        "FandomUrlPlaceholder": "例: https://myheroacademia.fandom.com"
+      },
+      "Reset": "エージェントをリセット",
+      "ResetConfirm": "エージェントの名前、性格、すべての記憶が消去されます。セットアップが最初からやり直しになります。続行しますか？",
+      "Setup": {
+        "Cancel": "キャンセル",
+        "NameLabel": "エージェントに名前をつける",
+        "NamePlaceholder": "空欄のままで名前なし",
+        "PersonalityLabel": "性格を選択",
+        "ProfilePhoto": "プロフィール写真",
+        "ProfilePhotoHint": "このエージェントのアバター用の画像をアップロード",
+        "ProfilePhotoRemove": "写真を削除",
+        "Start": "開始",
+        "Title": "AIチューターを設定",
+        "UserNameLabel": "あなたの名前",
+        "UserNamePlaceholder": "エージェントにどう呼んでほしいですか？",
+        "AboutMeLabel": "あなたについて",
+        "AboutMeHint": "会話をパーソナライズできるように、自分のことを教えてください。",
+        "AboutMePlaceholder": "例：大学生です、漫画が好きです、6ヶ月間学んでいます...",
+        "VoiceSample": "デフォルトボイス",
+        "ManualSetup": "手動設定",
+        "ManualSetupHint": "キャラクターの詳細を自分で入力します。"
+      },
+      "QuickStart": {
+        "Button": "Fandomからクイックスタート",
+        "Hint": "Fandom Wikiを検索してロールプレイフィールドを自動入力します。",
+        "Title": "ロールプレイキャラの簡単作成 - {name}",
+        "CharacterNameLabel": "キャラクター名",
+        "CharacterNamePlaceholder": "例: 緑谷出久",
+        "FandomUrlLabel": "Fandom WikiのURL",
+        "FandomUrlHint": "Fandom WikiのベースURLまたはWiki名を入力してください（例: myheroacademia）。",
+        "FandomUrlPlaceholder": "例: myheroacademia または https://myheroacademia.fandom.com",
+        "Next": "次へ",
+        "Back": "戻る",
+        "Search": "検索",
+        "Searching": "Fandom Wikiを検索中...",
+        "NoResults": "結果が見つかりません。別の名前を試すか、WikiのURLを確認してください。",
+        "SelectResult": "複数の結果が見つかりました。正しいものを選択してください：",
+        "MediaTypeLabel": "メディアタイプ",
+        "ProgressPointLabel": "現在の進捗",
+        "ProgressPointHint": "'Chapter 43'、'Episode 30'のような形式を使用するか、全体の場合は'all'と入力してください。",
+        "ProgressPointPlaceholder": "例: Chapter 43, Episode 30, all",
+        "InvalidProgressPoint": "'Chapter 43'、'Episode 30'、数字、または'all'などの認識された形式を使用してください。",
+        "Generate": "ペルソナ生成",
+        "Generating": "キャラクターペルソナを作成中...",
+        "Confirm": "このキャラクターを使用",
+        "ReviewName": "キャラクター",
+        "ReviewLore": "キャラクター説明",
+        "ReviewQuotes": "サンプル台詞",
+        "ReviewContext": "バックストーリー",
+        "ReviewFandom": "Fandom Wiki",
+        "FetchingChapters": "チャプター要約を取得中...",
+        "ExploringWiki": "Wikiからストーリー情報を探索中...",
+        "ExploringWikiDetail": "Wiki探索中: {detail}"
+      }
+    },
+    "ErrorModal": {
+      "AnkiDisablePermanent": "Ankiを恒久的に無効にする",
+      "AnkiDisableSession": "このセッションのみAnkiを無効にする",
+      "Copied": "コピーしました！",
+      "CopyError": "エラーをコピー",
+      "HideDetails": "詳細を非表示",
+      "Messages": {
+        "AnkiConnectionFailed": "Ankiに接続できませんでした。AnkiConnectがインストールされた状態でAnkiが実行中であることを確認するか、Anki連携を無効にしてください。",
+        "AnkiNoValidCards": "Ankiに接続しましたが、有効なカードが見つかりませんでした。設定でデッキとフィールドの構成を確認してください。",
+        "BackendStopped": "バックエンドサーバーが予期せず停止しました。アプリケーションを再起動してください。",
+        "FileNotFound": "必要なファイルが見つかりません。アプリケーションを再インストールしてください。",
+        "PermissionDenied": "権限が拒否されました。システムの権限を確認するか、管理者権限でアプリケーションを実行してください。",
+        "PortInUse": "別のアプリケーションが必要なポートを使用しています。他のmLearnインスタンスを閉じるか、コンピュータを再起動してください。"
+      },
+      "Quit": "終了",
+      "ShowDetails": "詳細を表示",
+      "Title": {
+        "AnkiError": "Anki接続エラー",
+        "Error": "エラー",
+        "Fatal": "重大なエラー",
+        "StartupError": "起動エラー",
+        "Warning": "警告"
+      }
+    },
+    "Explainer": {
+      "Explanation": "解説",
+      "GeneratedBy": "ローカルAIが生成",
+      "Generating": "生成中...",
+      "GrammarPoints": "主な文法ポイント",
+      "Loading": "AI解説を読み込み中...",
+      "ShowParsed": "解析表示",
+      "ShowRaw": "テキスト表示",
+      "Title": "AI解説",
+      "Translation": "翻訳"
+    },
+    "FlashcardChoice": {
+      "AnkiError": "Ankiへのエクスポートに失敗しました",
+      "AnkiSuccess": "フラッシュカードをAnkiにエクスポートしました",
+      "DontShowAgain": "次回から表示しない（常にSRSに保存）",
+      "Example": "例文",
+      "ExportToAnki": "Ankiにエクスポート",
+      "SaveToSRS": "SRSに保存",
+      "Title": "フラッシュカードを保存"
+    },
+    "Flashcards": {
+      "Browse": {
+        "NoWordsFound": "一致するカードが見つかりません。",
+        "SearchPlaceholder": "単語を検索...",
+        "ShowingCount": "{total}件中{count}件を表示",
+        "SortDefault": "デフォルト",
+        "SortDueDateAsc": "期限（早い順）",
+        "SortDueDateDesc": "期限（遅い順）",
+        "SortEaseAsc": "容易度（低→高）",
+        "SortEaseDesc": "容易度（高→低）"
+      },
+      "Bulk": {
+        "EtaRemaining": "残り約{eta}",
+        "ExamplesAllDone": "すべてのフラッシュカードに例文があります",
+        "ExamplesButton": "例文生成",
+        "ExamplesDone": "{count}枚のカードに例文を生成しました",
+        "ExamplesDoneWithErrors": "{count}枚のカードに例文を生成、{failed}件失敗",
+        "ExamplesLLMUnavailable": "LLMバックエンドが起動していません。設定でモデルを有効にしてください。",
+        "ExamplesProgress": "例文を生成中…",
+        "ExamplesTooltip": "例文のないカードにLLMで例文を生成",
+        "GenerateDescription": "フラッシュカードの音声と例文を一括生成します",
+        "ModeChoice": "生成モード",
+        "ModeOlderThan": "指定日より古いものを再生成",
+        "ModeOnlyEmpty": "データのないカードのみ",
+        "ModeReplaceAll": "すべて再生成（既存を置換）",
+        "OlderThanDate": "生成日が以前",
+        "TtsAllDone": "すべてのフラッシュカードにTTS音声があります",
+        "TtsButton": "TTS生成",
+        "TtsDone": "{count}件のTTSを生成しました",
+        "TtsDoneWithErrors": "{count}件のTTSを生成、{failed}件失敗",
+        "TtsProgress": "TTS生成中…",
+        "TtsTooltip": "すべてのフラッシュカードの単語と例文にTTS音声を生成"
+      },
+      "Card": {
+        "Ease": "容易度:",
+        "PlayExample": "例文を再生",
+        "PlayWord": "単語の発音を再生",
+        "RateHint": "1〜4で評価 • クリックで裏に戻す",
+        "RegenerateExample": "AIで例文を再生成",
+        "RevealHint": "クリックまたはスペースキーで答えを表示",
+        "ScreenshotAlt": "スクリーンショット",
+        "Tracked": "追跡中"
+      },
+      "EmptyState": {
+        "NoCardsDescription": "動画視聴やリーダーで単語を学び始めると、ここに表示されます！",
+        "NoCardsDueDescription": "現在復習が必要なカードはありません。お疲れ様でした！",
+        "NoCardsDueTitle": "すべて完了！",
+        "NoCardsTitle": "フラッシュカードはまだありません"
+      },
+      "Leech": {
+        "Message": "「{word}」は{count}回失敗しており、特別な注意が必要かもしれません",
+        "Title": "リーチ検出"
+      },
+      "Modals": {
+        "AddCard": {
+          "MeaningLabel": "意味",
+          "MeaningPlaceholder": "定義...",
+          "ReadingLabel": "読み（任意）",
+          "ReadingPlaceholder": "発音...",
+          "Submit": "カードを追加",
+          "Title": "新しいフラッシュカードを追加",
+          "WordLabel": "単語",
+          "WordPlaceholder": "単語を入力..."
+        },
+        "DeleteCard": {
+          "Confirm": "このフラッシュカードを削除してもよろしいですか？この操作は取り消せません。",
+          "Title": "フラッシュカードを削除"
+        },
+        "EditCard": {
+          "Title": "フラッシュカードを編集"
+        }
+      },
+      "PostCreate": {
+        "AllDone": "すべてのタスクが完了しました",
+        "ExampleTts": "例文の音声",
+        "SomeFailed": "一部のタスクが失敗しました",
+        "ToastTitle": "フラッシュカードコンテンツ生成中",
+        "Translation": "翻訳",
+        "WordTts": "単語の音声",
+        "TtsFailed": "TTS生成に失敗しました"
+      },
+      "Repair": {
+        "Description": "{count}件のフラッシュカード音声ファイルが不足しています。再生成しますか？",
+        "DescriptionWithLLM": "{llmCount}枚のカードに例文翻訳がなく、{ttsCount}件の音声ファイルが不足しています。修復しますか？",
+        "DescriptionLLMOnly": "{count}枚のカードに例文翻訳がありません。今すぐ生成しますか？",
+        "Done": "{count}件のフラッシュカード音声を修復しました",
+        "DoneWithErrors": "{total}件の音声を修復しました（{failed}件失敗）",
+        "LLMToastTitle": "不足している例文翻訳を生成中…",
+        "LLMDone": "{count}枚のカードの翻訳を生成しました",
+        "LLMDoneWithErrors": "{count}枚のカードの翻訳を生成、{failed}件失敗",
+        "LLMUnavailable": "LLMバックエンドが起動していません。設定でモデルを有効にしてください。",
+        "RepairButton": "修復",
+        "Title": "フラッシュカードデータの不足",
+        "ToastTitle": "フラッシュカード音声を修復中…"
+      },
+      "Review": {
+        "Again": "もう一度",
+        "Bury": "埋める",
+        "Complete": "復習完了！",
+        "CompleteDescription": "すべてのカードの復習が完了しました。お疲れ様でした！",
+        "WaitingTitle": "カードを待っています…",
+        "WaitingDescription": "次のカードまで {time}",
+        "Easy": "簡単",
+        "Hard": "難しい",
+        "LearningCard": "学習中カード",
+        "LearningLabel": "学習中:",
+        "New": "新規:",
+        "NewCard": "新規カード",
+        "Ok": "普通",
+        "PressKeyTooltip": "{key}を押す",
+        "RelearningCard": "再学習カード",
+        "Remove": "削除",
+        "Review": "復習:",
+        "ReviewCard": "復習カード",
+        "ReviewMore": "さらに復習",
+        "ShowAnswer": "答えを表示",
+        "Undo": "↩",
+        "UndoTooltip": "元に戻す"
+      },
+      "State": {
+        "Learning": "学習中",
+        "New": "新規",
+        "Relearning": "再学習",
+        "Review": "復習"
+      },
+      "Statistics": {
+        "Advanced": {
+          "AverageEase": "平均容易度",
+          "AvgTimePerDay": "1日あたりの平均時間",
+          "CardMaturity": "カード成熟度",
+          "DailyActivity": "日別アクティビティ",
+          "DaysStudied": "学習日数",
+          "EaseDistribution": "容易度分布",
+          "IntervalDistribution": "間隔分布",
+          "Last30Days": "過去30日間",
+          "Mature": "成熟",
+          "RetentionRate": "定着率",
+          "TotalLapses": "失敗回数",
+          "TotalNewLearned": "新規習得数",
+          "TotalReviews": "復習回数",
+          "Young": "未成熟"
+        },
+        "CardBreakdown": "カード内訳",
+        "DueToday": "本日期限",
+        "Learning": "学習中",
+        "LearningLimits": "1日の制限",
+        "LimitHint": "-1で無制限",
+        "Mature": "成熟",
+        "MaxNewCardsPerDay": "最大新規カード数",
+        "MaxReviewsPerDay": "最大復習数",
+        "New": "新規",
+        "NewCardsStudied": "学習した新規カード",
+        "Review": "復習",
+        "ReviewsCompleted": "完了した復習",
+        "Suspended": "停止中",
+        "TodayProgress": "本日の進捗",
+        "TotalCards": "合計カード"
+      },
+      "Sync": {
+        "Complete": "同期完了！",
+        "ConnectedSyncing": "接続完了！同期中...",
+        "Error": {
+          "CameraAccess": "カメラへのアクセスが拒否されました",
+          "Connection": "接続の開始に失敗しました",
+          "LoadLibraries": "必要なライブラリの読み込みに失敗しました: {error}"
+        },
+        "EstablishingConnection": "接続を確立中...",
+        "GeneratingCode": "接続コードを生成中...",
+        "LoadingLibraries": "ライブラリを読み込み中...",
+        "PointCamera": "カメラをQRコードに向けてください...",
+        "QRHint": "mLearnモバイルアプリでQRコードをスキャンして同期",
+        "ScanInstructions": "mLearnアプリで{numChunks}を入力してから、このQRコードをスキャンしてください",
+        "ScanQRInstead": "QRをスキャン",
+        "ShowQRInstead": "QRを表示",
+        "SyncedSuccessfully": "フラッシュカードの同期が完了しました！",
+        "SyncingFlashcards": "フラッシュカードを同期中...",
+        "Title": "フラッシュカードを同期"
+      },
+      "UI": {
+        "AddCard": "+ カード追加",
+        "Sync": "同期",
+        "Tabs": {
+          "Browse": "閲覧",
+          "Generate": "生成",
+          "Review": "復習",
+          "Statistics": "統計"
+        },
+        "Title": "フラッシュカード"
+      }
+    },
+    "Global": {
+      "Actions": {
+        "SaveChanges": "変更を保存"
+      },
+      "Add": "追加",
+      "AppName": "mLearn",
+      "Aria": {
+        "CloseAlert": "アラートを閉じる",
+        "CloseModal": "モーダルを閉じる",
+        "ExitFullscreen": "全画面表示を終了",
+        "Fullscreen": "全画面表示",
+        "Pause": "一時停止",
+        "PictureInPicture": "ピクチャインピクチャ",
+        "Play": "再生",
+        "ToggleSubtitles": "字幕を切り替え"
+      },
+      "Back": "戻る",
+      "Cancel": "キャンセル",
+      "Close": "閉じる",
+      "ComingSoon": "近日公開",
+      "Continue": "続行",
+      "Delete": "削除",
+      "Edit": "編集",
+      "Export": "エクスポート",
+      "Flashcard": "フラッシュカード",
+      "Import": "インポート",
+      "Loading": "読み込み中...",
+      "Ok": "OK",
+      "Ready": "準備完了",
+      "Remove": "削除",
+      "RequiresRestart": "再起動が必要です",
+      "Reset": "リセット",
+      "Save": "保存",
+      "Search": "検索",
+      "Status": {
+        "Adding": "追加中...",
+        "LoadingLanguageData": "言語データを読み込み中...",
+        "LoadingSettings": "設定を読み込み中...",
+        "StartingBackend": "バックエンドを起動中..."
+      },
+      "Success": "成功",
+      "Time": {
+        "HoursMinutes": "{hours}時間{minutes}分",
+        "LessThanMinute": "< 1分",
+        "MinutesSeconds": "{minutes}分{seconds}秒",
+        "Now": "今",
+        "ShortDay": "{value}日",
+        "ShortHour": "{value}時間",
+        "ShortMinute": "{value}分",
+        "ShortSecond": "{value}秒",
+        "ShortYear": "{value}年"
+      },
+      "TryAgain": "再試行"
+    },
+    "LowPowerGate": {
+      "Allow": "許可",
+      "AllowSession": "セッション中は許可",
+      "Deny": "拒否",
+      "DenySession": "セッション中は拒否",
+      "Message": "操作がローカルニューラルネットワーク（{{backendType}}）を使用しようとしています。省電力モード中に許可しますか？",
+      "StatusBarTooltip": "省電力モード有効",
+      "Title": "ローカル処理リクエスト"
+    },
+    "Home": {
+      "Cards": {
+        "AITutor": {
+          "Description": "AI会話パートナーと練習する",
+          "Title": "AIチューター"
+        },
+        "Flashcards": {
+          "Description": "間隔反復で語彙を復習",
+          "Title": "フラッシュカード"
+        },
+        "Reader": {
+          "Description": "OCRで漫画やその他の文書を読む",
+          "Title": "リーダー"
+        },
+        "Settings": {
+          "Description": "mLearnをカスタマイズする",
+          "Title": "設定"
+        },
+        "Video": {
+          "Description": "インタラクティブな字幕付きの動画を視聴",
+          "Title": "動画"
+        },
+        "Statistics": {
+          "Description": "進捗と学習の旅を追跡",
+          "Title": "統計"
+        },
+        "WordDatabase": {
+          "Description": "追跡中の語彙を閲覧・管理",
+          "Title": "単語データベース"
+        },
+        "CharacterGrid": {
+          "Description": "文字の習得状況を視覚的に確認",
+          "Title": "文字グリッド"
+        }
+      },
+      "Errors": {
+        "UnableToOpen": "ファイルを開けません。ファイルパスが正しく保存されていません。"
+      },
+      "UI": {
+        "ChangeLanguage": "言語を変更",
+        "ContinueLearning": "学習を続ける",
+        "LearningLanguage": "{language}を学習中",
+        "Title": "mLearn",
+        "TitleDescription": "没入型で言語を学ぶ"
+      }
+    },
+    "Installer": {
+      "Alerts": {
+        "NetworkError": "ネットワークエラーが発生しました。接続を確認してもう一度お試しください。"
+      },
+      "Buttons": {
+        "Continue": "続行",
+        "Installing": "インストール中...",
+        "StartInstallation": "インストール開始"
+      },
+      "Components": {
+        "ExplainAi": {
+          "Description": "ローカルLLMニューラルネットワークをインストールします。チェックを外すと約3 GBの依存関係をスキップします。",
+          "Title": "mLearn Explain AIモジュールをインストール"
+        },
+        "Reader": {
+          "Description": "漫画/画像を読むためのOCR機能をインストールします。チェックを外すと約2 GBの依存関係をスキップします。",
+          "Title": "mLearnリーダーモジュールをインストール"
+        },
+        "Voice": {
+          "Description": "音声認識、テキスト読み上げ、音声クローンをインストールします。チェックを外すと約4 GBの依存関係をスキップします。",
+          "Title": "音声・TTSモジュールをインストール"
+        }
+      },
+      "Instructions": {
+        "ChooseComponents": "インストールするコンポーネントを選択して、インストールをクリックしてください。",
+        "ClickToBegin": "インストールをクリックして開始します。",
+        "DownloadNote": "すべてのダウンロードは自動的に処理されます。安定した接続を推奨します。",
+        "ForgetSomething": "インストールし忘れた場合、mLearnを削除してインストーラーを再起動してください。",
+        "LanguageUnlocks": "セットアップ完了後に言語選択が可能になります。"
+      },
+      "Status": {
+        "Complete": "インストール完了！言語を選択してセットアップを完了してください。",
+        "CouldNotStart": "インストールプロセスを開始できませんでした。",
+        "ErrorOccurred": "エラーが発生しました。下のログを確認してください。",
+        "Installing": "インストール中、お待ちください...",
+        "InstallingPackages": "パッケージをインストール中...",
+        "LanguageInstalledRestarting": "言語がインストールされました！再起動中...",
+        "LlmSkip": "ローカルAIモデルの依存関係をスキップします。",
+        "LlmWillInstall": "ローカルAIモデルの依存関係がインストールされます。",
+        "NotStarted": "インストール開始を待機中...",
+        "OcrSkip": "OCRリーダーの依存関係をスキップします。",
+        "OcrWillInstall": "OCRリーダーの依存関係がインストールされます。",
+        "VoiceSkip": "音声・TTSの依存関係をスキップします。",
+        "VoiceWillInstall": "音声・TTSの依存関係がインストールされます。",
+        "AlreadySatisfied": "既にインストール済み",
+        "Collecting": "依存関係を収集中…",
+        "Downloading": "ダウンロード中…"
+      }
+    },
+    "KanjiGrid": {
+      "CharactersByExamLevel": "試験レベル別の文字:",
+      "Description": "色の意味: 学習中（オレンジ→黄色）、既知（緑→薄緑）、未知（グレー）。ホバーで詳細表示。",
+      "EmptyState": {
+        "Description": "動画やテキストで文字に出会うと、ここに表示されます。",
+        "Hint": "コンテンツの視聴や読書を始めると追跡が開始されます！",
+        "Title": "追跡中の文字はまだありません"
+      },
+      "Legend": {
+        "Known": "既知:",
+        "Learning": "学習中:",
+        "Unknown": "未知:"
+      },
+      "LevelFallback": "レベル {level}",
+      "Loading": "文字データを読み込み中...",
+      "Stats": {
+        "Known": "既知:",
+        "Learning": "学習中:",
+        "TotalFound": "合計:",
+        "Unknown": "未知:"
+      },
+      "Title": "文字の習得状況",
+      "Tooltip": {
+        "KnownCount": "既知",
+        "LearningCount": "学習中",
+        "Score": "スコア",
+        "WordsContaining": "{char}を含む単語"
+      }
+    },
+    "Languages": {
+      "de": "ドイツ語",
+      "ja": "日本語"
+    },
+    "LocaleNames": {
+      "de": "Deutsch",
+      "en": "English",
+      "fr": "Français",
+      "ja": "日本語",
+      "ru": "Русский"
+    },
+    "MediaStats": {
+      "AllWordsKnown": "すべての単語は既知です！",
+      "Difficulty": "難易度",
+      "Failed": "{count}回失敗",
+      "GrammarPoints": "文法項目",
+      "Hovered": "{count}回ホバー",
+      "NoGrammarYet": "文法項目はまだ検出されていません。",
+      "NoWordsYet": "まだ単語が見つかっていません。",
+      "NotAssessed": "未評価",
+      "ReviewWithAI": "AIで復習",
+      "Seen": "{count}回表示",
+      "Sessions": "セッション",
+      "Tab": {
+        "Grammar": "文法",
+        "Summary": "概要",
+        "Unknown": "未知",
+        "Words": "単語"
+      },
+      "TimeSpent": "所要時間",
+      "UnknownWords": "未知の単語",
+      "WordsSeen": "見た単語"
+    },
+    "Notifications": {
+      "AnkiCacheLoaded": "Ankiフラッシュカードをキャッシュから読み込みました（Ankiはオフラインのようです）",
+      "MigrationComplete": "データ移行が完了しました",
+      "MigrationFlashcards": "フラッシュカードを v{version} から移行しました。バックアップが作成されました。",
+      "MigrationFlashcardsNoBackup": "フラッシュカードを v{version} から移行しました。",
+      "MigrationWordStatuses": "v1から {count} 件の単語ステータスを移行しました。バックアップが作成されました。"
+    },
+    "PitchAccent": {
+      "Atamadaka": "頭高（あたまだか）",
+      "DropAfterMora": "第{mora}モーラ後に下降",
+      "Heiban": "平板（へいばん）",
+      "Nakadaka": "中高（なかだか）",
+      "Odaka": "尾高（おだか）"
+    },
+    "Reader": {
+      "CopyPhrase": "フレーズをコピー",
+      "HideFurigana": "読みを隠す",
+      "ShowFurigana": "読みを表示",
+      "Sidebar": {
+        "Pages": "ページ",
+        "UnknownWordsEmpty": "現在のページには未習得の単語がありません。",
+        "AddModal": {
+          "Title": "フラッシュカードを追加",
+          "LevelFilter": "レベル閾値以下",
+          "LevelFilterDescription": "選択した閾値以下のレベルの単語を追加",
+          "DictionaryFilter": "辞書で見つかった単語",
+          "DictionaryFilterDescription": "辞書で見つかったすべての単語を追加",
+          "AddAll": "すべて追加（{count}）",
+          "AddSelected": "選択を追加（{count}）",
+          "SelectAll": "すべて選択",
+          "DeselectAll": "すべて解除",
+          "AddChecked": "選択したものを追加 ({count})",
+          "WordListTitle": "追加する単語"
+        },
+        "SortBy": {
+          "Label": "並び替え",
+          "OCROrder": "読み順"
+        }
+      },
+      "Status": {
+        "Caching": "キャッシュ中 {x}/{y}",
+        "CleaningUp": "クリーンアップ中…",
+        "FailedToLoad": "読み込みに失敗",
+        "FailedToLoadPdf": "PDFの読み込みに失敗",
+        "ImportedBook": "インポートされた本",
+        "Loading": "読み込み中...",
+        "LoadingNeuralNetwork": "ニューラルネットワークを読み込み中...",
+        "LoadingPdf": "PDFを読み込み中...",
+        "NoImagesFound": "画像が見つかりません",
+        "PdfDocument": "PDFドキュメント",
+        "Pending": "保留中...",
+        "Processing": "処理中 {x}/{y}",
+        "Queued": "キュー中...",
+        "Ready": "準備完了",
+        "Recognizing": "認識中..."
+      },
+      "StatusBar": {
+        "DebugOverlayOff": "デバッグ: オフ",
+        "DebugOverlayOn": "デバッグ: オン",
+        "DebugOverlayTitle": "OCRテキストとふりがな検出を視覚化するデバッグオーバーレイの切り替え",
+        "FuriganaDetectionOff": "読み検出: オフ",
+        "FuriganaDetectionOn": "読み検出: オン",
+        "MagnifierHint": "{key}を押すと拡大鏡を開きます",
+        "OpenConversationAgent": "AIチューター",
+        "OpenConversationAgentTitle": "AI会話チューターを開く",
+        "PaddleDownscaleLabel": "PaddleOCRスケール: {value}%",
+        "PaddleDownscaleTitle": "PaddleOCR処理前に画像を縮小する（開発用）",
+        "Ready": "準備完了",
+        "ShowTooltipOn": "ツールチップ表示方法:",
+        "TimingDetection": "検出",
+        "TimingPerBox": "平均/ボックス",
+        "TimingRecognition": "認識",
+        "TimingTotal": "合計",
+        "Tokenizing": "トークン化中...",
+        "Translating": "翻訳中...",
+        "TriggerHover": "ホバー",
+        "TriggerKeyHover": "{key} + ホバー",
+        "TriggerLongHover": "長押しホバー",
+        "TriggerTitle": "単語ホバーのトリガー方法",
+        "TurboModeOff": "ターボ: オフ",
+        "TurboModeOn": "ターボ: オン",
+        "ZoneDeltaLabel": "ゾーンデルタ: {value}px",
+        "ZoneDeltaTitle": "ゾーンクラスタリングのボックス端間の最大ピクセル距離"
+      },
+      "Toolbar": {
+        "BackToHome": "ホームに戻る",
+        "DoublePage": "見開き",
+        "FirstPagePairedTooltip": "最初のページはペア",
+        "FirstPageSingleTooltip": "最初のページは単一（表紙）",
+        "FitHeight": "高さに合わせる ↕",
+        "FitWidth": "幅に合わせる ↔",
+        "Home": "← ホーム",
+        "PageLayoutPaired": "1+2|3+4",
+        "PageLayoutSingle": "1|2+3",
+        "SinglePage": "単一ページ",
+        "ToggleUnknownWordsSidebar": "未習得単語サイドバーを切り替え"
+      },
+      "UI": {
+        "Tips": {
+          "NeverLosePlace": {
+            "Description": "ページ位置は自動的に保存されます。",
+            "Title": "しおりは自動"
+          },
+          "ShapeView": {
+            "Description": "サイドバーやキーボードショートカットを使って、見開きと単一ページのレイアウトを切り替えられます。",
+            "Title": "表示を調整"
+          },
+          "SummonOcr": {
+            "Description": "ページが表示されたら、OCRを実行してテキストをインタラクティブに変換できます。",
+            "Title": "OCRを使う"
+          }
+        },
+        "WelcomeSplash": {
+          "DropZone": "ファイルをここにドロップしてインポート",
+          "Footer": "何かをドロップして始めましょう — このウェルカム画面はあなたの物語のために場所を空けます。",
+          "OpenFolder": "画像フォルダを開く",
+          "OpenPdf": "PDFを開く",
+          "Title": "リーダーへようこそ",
+          "TitleDescription": "画像フォルダまたは.pdfファイルをこのウィンドウにドラッグ＆ドロップしてください。"
+        }
+      }
+    },
+    "Settings": {
+      "Appearance": {
+        "Theme": {
+          "Dark": "ダーク",
+          "DarkHighContrast": "ダーク高コントラスト",
+          "Darker": "ダーカー",
+          "Description": "アプリケーションのビジュアルテーマを選択",
+          "GlassDark": "グラスダーク",
+          "GlassLight": "グラスライト",
+          "Label": "テーマ",
+          "Light": "ライト",
+          "LightHighContrast": "ライト高コントラスト"
+        }
+      },
+      "BlurEffect": {
+        "BlurAmount": {
+          "Description": "ぼかし効果の強さ",
+          "Label": "ぼかし量"
+        },
+        "BlurKnownSubtitles": {
+          "Description": "すべての単語が既知の場合に字幕をぼかす",
+          "Label": "既知の字幕をぼかす"
+        },
+        "BlurWords": {
+          "Description": "まだ学習していない単語をぼかす",
+          "Label": "未知の単語をぼかす"
+        }
+      },
+      "CustomColors": {
+        "Description": "テーマに関係なく全体に適用される特定の色を上書きします。空欄にするとテーマの既定色を使用します。",
+        "Reset": "リセット",
+        "ResetAll": "すべての色をリセット"
+      },
+      "Data": {
+        "ExportAllData": {
+          "Description": "すべての学習データ（フラッシュカード、メディア統計、音声、画像）をZIPアーカイブとしてエクスポート",
+          "Label": "すべてのデータをエクスポート"
+        },
+        "ExportSettings": {
+          "Description": "設定をJSONファイルにエクスポート",
+          "Label": "設定をエクスポート"
+        },
+        "ImportAllData": {
+          "Confirm": "現在のすべてのデータ（フラッシュカード、メディア統計、音声、画像）が上書きされます。インポート後にアプリが再起動します。続行しますか？",
+          "Description": "ZIPアーカイブからすべての学習データをインポートします。既存のデータは上書きされます。",
+          "Label": "すべてのデータをインポート",
+          "Success": "データが正常にインポートされました。変更を適用するためにアプリを再起動します。"
+        },
+        "ImportSettings": {
+          "Description": "JSONファイルから設定をインポート",
+          "Label": "設定をインポート"
+        },
+        "ResetSettings": {
+          "Description": "すべての設定をデフォルト値にリセット",
+          "Label": "設定をリセット"
+        }
+      },
+      "DisplayOptions": {
+        "ImmediateFetch": {
+          "Description": "字幕が表示されたらすぐに単語データを取得",
+          "Label": "即時取得"
+        },
+        "OpenAside": {
+          "Description": "字幕が表示されたときに単語の翻訳をサイドパネルに表示",
+          "Label": "ライブ翻訳パネル"
+        },
+        "ShowFurigana": {
+          "Description": "単語の上に読みを表示",
+          "Label": "読みを表示"
+        },
+        "HideReadingForKnownWords": {
+          "Description": "既知の単語の読みを自動的に非表示にする",
+          "Label": "既知語の読みを隠す"
+        },
+        "ShowPitchAccent": {
+          "Description": "単語のピッチアクセント情報を表示",
+          "Label": "ピッチアクセントを表示"
+        },
+        "ShowPos": {
+          "Description": "単語の文法情報を表示",
+          "Label": "品詞を表示"
+        }
+      },
+      "Groups": {
+        "Appearance": "外観",
+        "BlurEffect": "ぼかし効果",
+        "CustomColors": "カスタムカラー上書き",
+        "Data": "データ",
+        "DisplayOptions": "表示オプション",
+        "Language": "言語",
+        "Performance": "パフォーマンス",
+        "PosColors": "品詞カラー",
+        "Settings": "設定",
+        "SubtitleAppearance": "字幕の外観",
+        "SubtitleTiming": "字幕のタイミング",
+        "ThemePreview": "テーマプレビュー",
+        "VideoPlayerBehaviour": "動画プレーヤーの動作",
+        "WordStatus": "単語の状態",
+        "KnowledgePriority": "知識の優先度",
+        "LiveTranslator": "ライブ単語翻訳"
+      },
+      "Keybind": {
+        "PressKey": "キーを押してください...",
+        "Tooltip": "クリックして記録し、キーを押して設定します",
+        "Keys": {
+          "Ctrl": "Ctrl",
+          "Alt": "Alt",
+          "Shift": "Shift",
+          "Meta": "Meta",
+          "Space": "スペース",
+          "Enter": "Enter",
+          "Escape": "Escape",
+          "Backspace": "Backspace",
+          "Delete": "Delete",
+          "Tab": "Tab",
+          "CapsLock": "CapsLock",
+          "ArrowUp": "↑",
+          "ArrowDown": "↓",
+          "ArrowLeft": "←",
+          "ArrowRight": "→",
+          "Home": "Home",
+          "End": "End",
+          "PageUp": "Page Up",
+          "PageDown": "Page Down",
+          "Insert": "Insert"
+        }
+      },
+      "Language": {
+        "AppLanguage": {
+          "Description": "ユーザーインターフェースの言語を選択",
+          "Label": "アプリの言語"
+        },
+        "LearningLanguage": {
+          "Description": "学習する言語を選択",
+          "Label": "学習言語"
+        }
+      },
+      "Performance": {
+        "DevMode": {
+          "AutoEnabled": "開発モードで自動的に有効",
+          "Description": "開発者ツールとデバッグ機能を有効にする",
+          "Label": "開発者モード"
+        },
+        "HoverKnownGetFromDictionary": {
+          "Description": "既知の単語でも辞書データを取得",
+          "Label": "既知の単語を検索"
+        },
+        "LowBatteryMode": {
+          "Description": "ローカルニューラルネットワーク（LLM、TTS、OCR）の実行前に確認する",
+          "Label": "省電力モード"
+        }
+      },
+      "KnowledgePriority": {
+        "Description": "複数のソースからの単語知識の決定方法を設定",
+        "ResolutionMode": {
+          "Label": "解決モード",
+          "Description": "複数のソースにデータがある場合の単語ステータスの決定方法"
+        },
+        "SourceOrder": {
+          "Label": "ソースの優先度",
+          "Description": "ソースを並べ替えます。順序ベースモードでは、最初にデータのあるソースが単語ステータスを決定します"
+        },
+        "Mode": {
+          "Order": "順序ベース",
+          "Highest": "最高ステータス",
+          "Lowest": "最低ステータス"
+        },
+        "Source": {
+          "Srs": "内蔵SRS",
+          "Anki": "Anki",
+          "Manual": "手動"
+        }
+      },
+      "Reader": {
+        "Description": "OCRとリーダーの設定",
+        "Furigana": {
+          "Hide": {
+            "Description": "検出された読み注釈を白いボックスで覆い、ホバーで表示（読みの練習用）",
+            "Label": "読みを隠す"
+          },
+          "Title": "読み"
+        },
+        "LlmIntegration": {
+          "AutoSpeak": {
+            "Description": "AIチューターの応答を自動で音声再生します",
+            "Label": "応答を自動読み上げ"
+          },
+          "Enable": {
+            "Description": "AIを使って単語と文法を解説",
+            "Label": "LLM解説を有効にする"
+          },
+          "PassiveWordTracking": {
+            "Description": "読書中の表示・ホバーをもとに単語の習熟度を自動追跡します",
+            "Label": "受動的な単語トラッキング"
+          },
+          "Speech": {
+            "Description": "AI応答の読み上げと音声入力を有効にします",
+            "Label": "音声（実験的）"
+          },
+          "Title": "LLM連携"
+        },
+        "Magnifier": {
+          "Hotkey": {
+            "Description": "画像を拡大するために押し続けるキー",
+            "Hint": "押し続けて拡大",
+            "Label": "拡大鏡ホットキー"
+          },
+          "Size": {
+            "Description": "拡大鏡レンズのサイズ（ピクセル）",
+            "Label": "レンズサイズ"
+          },
+          "Title": "拡大鏡",
+          "Zoom": {
+            "Description": "拡大鏡の拡大率",
+            "Label": "ズームレベル"
+          }
+        },
+        "OcrSettings": {
+          "CropPadding": {
+            "Description": "フラッシュカード用にテキストをクロップする際の余白ピクセル数",
+            "Label": "OCRクロッピングパディング"
+          },
+          "Enable": {
+            "Description": "画像の光学文字認識を有効にする",
+            "Label": "OCRを有効にする"
+          },
+          "FuriganaDetection": {
+            "Description": "OCR結果から読み注釈を検出してフィルタリングします。無効にすると、検出されたテキストボックスがそのまま表示されます。",
+            "Label": "読み検出"
+          },
+          "RamSaver": {
+            "Description": "ニューラルネットワークの代わりに軽量なOpenCVベースのテキスト検出を使用します。メモリ使用量を約1.5 GB削減しますが、複雑なレイアウトでは精度が低下する可能性があります。認識品質は影響を受けません。",
+            "Label": "RAMセーバー"
+          },
+          "Title": "OCR設定",
+          "TurboMode": {
+            "Description": "高速な検出設定を使用します。オフの場合、高解像度検出を使用し、速度は遅くなりますが、特に縦書きテキストではより正確です。",
+            "Label": "ターボモード"
+          }
+        },
+        "Title": "リーダー",
+        "WordHoverBehavior": {
+          "HoverKey": {
+            "Description": "ホバー時に単語ポップアップを表示するために押すキー",
+            "Label": "ホバーキー"
+          },
+          "Modes": {
+            "Hover": "ホバー（即時）",
+            "KeyHover": "{key} + ホバー",
+            "LongHover": "長押しホバー（500ms遅延）"
+          },
+          "Title": "単語ホバー動作",
+          "TriggerMode": {
+            "Description": "リーダーで単語翻訳ポップアップがトリガーされる方法",
+            "Label": "ホバートリガーモード"
+          }
+        }
+      },
+      "SRS": {
+        "AnkiIntegration": {
+          "AddScreenshots": {
+            "Description": "動画とリーダーのスクリーンショットをカードに含める",
+            "Label": "スクリーンショットを追加"
+          },
+          "ConnectUrl": {
+            "Description": "AnkiConnectサーバーのURL",
+            "Label": "AnkiConnect URL"
+          },
+          "Connected": "接続済み",
+          "ConnectionStatus": {
+            "Description": "AnkiConnect接続のテスト",
+            "Label": "接続状態"
+          },
+          "DeckName": {
+            "Description": "新しいカードのAnkiデッキ",
+            "Label": "デッキ名",
+            "Placeholder": "デッキを選択"
+          },
+          "Enable": {
+            "Description": "AnkiConnectを通じてAnkiからカードデータを取得します。Ankiカードがmlearn内蔵カードより優先されます",
+            "Label": "Ankiを有効にする"
+          },
+          "Failed": "失敗",
+          "FieldMapping": {
+            "Description": "Ankiのノートフィールドをmlearn flashcardフィールドに対応付ける",
+            "Expression": {
+              "Description": "単語や表現を含むフィールド",
+              "Label": "表現フィールド"
+            },
+            "Meaning": {
+              "Description": "定義や意味を含むフィールド",
+              "Label": "意味フィールド"
+            },
+            "None": "(なし)",
+            "Placeholder": "フィールドを選択",
+            "Reading": {
+              "Description": "読みや発音を含むフィールド",
+              "Label": "読みフィールド"
+            }
+          },
+          "ModelName": {
+            "Description": "新しいカードに使用するAnkiノートタイプ",
+            "Label": "ノートタイプ",
+            "Placeholder": "ノートタイプを選択"
+          },
+          "Preview": {
+            "Loading": "プレビューを読み込み中...",
+            "NoCard": "このノートタイプにはカードがありません",
+            "Title": "カードプレビュー"
+          },
+          "Templates": {
+            "Description": "各Ankiフィールドの内容を定義。プレースホルダー: {word}, {reading}, {meaning}, {example}, {exampleMeaning}",
+            "Expression": {
+              "Label": "表現テンプレート"
+            },
+            "Reading": {
+              "Label": "読みテンプレート"
+            },
+            "Meaning": {
+              "Label": "意味テンプレート"
+            },
+            "Preview": {
+              "Label": "テンプレートプレビュー",
+              "Description": "サンプルデータによるフィールドのプレビュー"
+            },
+            "Sample": {
+              "Word": "単語",
+              "Reading": "よみ",
+              "Meaning": "意味",
+              "Example": "例文。",
+              "ExampleMeaning": "例文の翻訳。"
+            }
+          },
+          "Test": "テスト",
+          "Title": "Anki連携",
+          "EaseMapping": {
+            "Title": "Easeマッピング",
+            "LearningEase": {
+              "Label": "学習中のEase",
+              "Description": "学習中とマークされた単語に割り当てるAnkiのEase係数（整数、1000〔3000）"
+            },
+            "KnownEase": {
+              "Label": "既知のEase",
+              "Description": "既知とマークされた単語に割り当てるAnkiのEase係数（整数、1000〔3000）"
+            }
+          }
+        },
+        "BuiltInFlashcards": {
+          "AutomaticCreation": {
+            "Description": "学習中に出会った単語から自動的にフラッシュカードを作成",
+            "Label": "自動カード作成"
+          },
+          "CreateUnseenCards": {
+            "Description": "目標レベルの新しい単語のカードを自動作成",
+            "Label": "未見カードを作成"
+          },
+          "Enable": {
+            "Description": "Ankiの代わりにmLearnの内蔵間隔反復システムを使用",
+            "Label": "mLearn SRSを使用"
+          },
+          "ExamCardProportion": {
+            "Description": "自動作成カードのうち試験レベルの割合（0〜1）",
+            "Label": "試験カードの割合"
+          },
+          "FlipAnimation": {
+            "Description": "フラッシュカードの答えを表示する際に3Dフリップアニメーションを表示",
+            "Label": "カードフリップアニメーション"
+          },
+          "ForceRecreate": {
+            "BackendUnavailable": "バックエンドに接続できません。Pythonサーバーが実行中であることを確認してください。",
+            "Created": "{count}枚の新しいフラッシュカードが作成されました。"
+          },
+          "LLMExamples": {
+            "Description": "自動カード作成時にLLMを使用して例文を生成（バックエンド接続が必要）",
+            "Label": "例文を生成"
+          },
+          "LeechThreshold": {
+            "Description": "カードがリーチとしてフラグ付けされるまでの失敗回数（0 = 無効）",
+            "Label": "リーチ閾値"
+          },
+          "MaxNewCards": {
+            "Description": "自動作成カードの上限",
+            "Label": "1日の最大新規カード数"
+          },
+          "PreparedExamLevel": {
+            "Description": "自動作成カードの目標レベル",
+            "Label": "目標試験レベル"
+          },
+          "EaseMapping": {
+            "LearningEase": {
+              "Label": "学習中イーズ",
+              "Description": "学習中としてマークされた単語に割り当てられる初期イーズ値（例：1.55）"
+            },
+            "KnownEase": {
+              "Label": "既知イーズ",
+              "Description": "既知としてマークされた単語に割り当てられる初期イーズ値（例：1.8）"
+            }
+          },
+          "Title": "内蔵フラッシュカード"
+        },
+        "DataManagement": {
+          "NukeButton": "すべて削除",
+          "NukeFlashcards": {
+            "Description": "すべてのフラッシュカードを完全に削除し、すべてをリセット（取り消し不可！）",
+            "Label": "すべてのフラッシュカードを削除",
+            "ModalWarning": "すべてのフラッシュカード、単語追跡データ、文法知識、日別統計、すべての学習進捗が完全に削除されます。この操作は取り消せず、アプリを新しくインストールしたときのようにフラッシュカードシステムが初期状態に戻ります。",
+            "Success": "すべてのフラッシュカードが削除されました。",
+            "TypePhrase": "この操作を確認するには「{phrase}」と入力してください。"
+          },
+          "ResetButton": "SRSをリセット",
+          "ResetSRS": {
+            "Description": "すべてのフラッシュカードの進捗をクリア（取り消し不可！）",
+            "Label": "SRSデータをリセット",
+            "ModalWarning": "間隔、容易さ係数、復習回数、学習進捗を含むすべてのSRSスケジューリングデータがリセットされます。フラッシュカードの内容は保持されますが、すべてのカードは「新規」状態に戻ります。",
+            "Success": "すべてのSRSデータがリセットされました。",
+            "TypePhrase": "この操作を確認するには「{phrase}」と入力してください。"
+          },
+          "Title": "データ管理"
+        },
+        "Description": "フラッシュカードとAnkiの設定",
+        "LearningLimits": {
+          "MaxNewCardsLearning": {
+            "Description": "1日あたりの最大新規学習カード数（-1 = 無制限）",
+            "Label": "最大新規学習カード数"
+          },
+          "MaxReviews": {
+            "Description": "1日あたりの最大復習カード数（-1 = 無制限）",
+            "Label": "1日の最大復習数"
+          },
+          "NewDayHour": {
+            "Description": "SRSの日がリセットされる時刻（0〜23）。この時刻より前の復習は前日としてカウントされます。デフォルト: 4（午前4:00）",
+            "Label": "新しい日の開始時刻"
+          },
+          "Title": "1日の学習制限",
+          "UnlimitedHint": "-1 = 無制限"
+        },
+        "Title": "間隔反復"
+      },
+      "Subtitle": {
+        "FontSize": {
+          "Description": "字幕テキストのサイズ",
+          "Label": "フォントサイズ"
+        },
+        "FontWeight": {
+          "Description": "字幕テキストの太さ",
+          "Label": "フォントの太さ"
+        },
+        "FontWeights": {
+          "Black": "最太 (900)",
+          "Bold": "太字 (700)",
+          "ExtraBold": "極太 (800)",
+          "ExtraLight": "極軽 (200)",
+          "Light": "軽い (300)",
+          "Medium": "中 (500)",
+          "Normal": "標準 (400)",
+          "SemiBold": "やや太 (600)",
+          "Thin": "極細 (100)"
+        },
+        "Offset": {
+          "Description": "字幕のタイミングオフセット（ms）",
+          "Label": "字幕オフセット"
+        },
+        "Theme": {
+          "Description": "字幕の背景のビジュアルスタイル",
+          "Label": "字幕スタイル"
+        },
+        "Themes": {
+          "Background": "背景",
+          "Marker": "マーカー",
+          "Shadow": "シャドウ"
+        }
+      },
+      "UI": {
+        "Description": "mLearnをカスタマイズ",
+        "ResetConfirm": "すべての設定をデフォルトにリセットしてもよろしいですか？この操作は取り消せません。",
+        "ResetSuccess": "設定をデフォルトにリセットしました",
+        "SaveError": "設定の保存に失敗しました",
+        "Title": "設定"
+      },
+      "WordStatus": {
+        "ColourCodes": {
+          "Description": "品詞に基づいて単語を色分け",
+          "Label": "品詞カラー"
+        },
+        "ColourKnown": {
+          "Description": "学習済みの単語を色で強調表示",
+          "Label": "既知の単語を色付け"
+        },
+        "KnownColour": {
+          "Description": "既知の単語を強調する色",
+          "Label": "既知の単語の色"
+        },
+        "KnownThreshold": {
+          "Description": "単語が既知とみなされる容易度の値",
+          "Label": "既知の閾値"
+        },
+        "PosColors": {
+          "Description": "各品詞タグの色をカスタマイズします。これらの色は字幕、リーダー、会話エージェントで単語を強調するために使用されます。",
+          "Reset": "リセット",
+          "ResetAll": "すべての品詞カラーをリセット"
+        }
+      },
+      "VideoPlayer": {
+        "Title": "動画プレーヤー",
+        "Description": "動画プレーヤーと字幕の動作を設定",
+        "LiveTranslator": {
+          "Show": {
+            "Label": "ライブ翻訳を表示",
+            "Description": "動画の横にライブ単語翻訳パネルを表示する"
+          },
+          "IncludeKnown": {
+            "Label": "既知の単語を含める",
+            "Description": "既に知っている単語もライブ翻訳に追加する"
+          }
+        },
+        "KnownWords": {
+          "BlurKnown": {
+            "Label": "既知の単語をぼかす",
+            "Description": "字幕の既知の単語にぼかし効果を適用する"
+          }
+        },
+        "Playback": {
+          "VideoFit": {
+            "Label": "動画フィット",
+            "Description": "プレーヤー領域内での動画の表示方法",
+            "Contain": "収める",
+            "Cover": "カバー",
+            "Fill": "埋める"
+          },
+          "ShowSubtitles": {
+            "Label": "字幕を表示",
+            "Description": "動画プレーヤーの字幕表示を切り替える"
+          },
+          "ShowTranslation": {
+            "Label": "翻訳を表示",
+            "Description": "字幕の下に翻訳行を表示する"
+          },
+          "SubtitlePosition": {
+            "Label": "字幕の位置",
+            "Description": "画面上の字幕の位置",
+            "Top": "上",
+            "Bottom": "下"
+          }
+        },
+        "SubtitleProcessing": {
+          "Title": "字幕処理",
+          "RemoveParentheses": {
+            "Label": "括弧内のテキストを削除",
+            "Description": "字幕から括弧内のテキストを除去する"
+          },
+          "RemoveSpeakerNames": {
+            "Label": "話者名を削除",
+            "Description": "字幕から話者名の接頭辞を除去する"
+          }
+        },
+        "FlashcardMedia": {
+          "Title": "カードメディア",
+          "MediaType": {
+            "Label": "メディアタイプ",
+            "Description": "新しいカードに字幕セグメントのスクリーンショットまたはビデオクリップを添付する",
+            "Image": "画像",
+            "Video": "動画"
+          },
+          "VideoMargin": {
+            "Label": "ビデオクリップの余白",
+            "Description": "ビデオクリップに含める字幕前後の追加時間"
+          }
+        }
+      },
+      "About": {
+        "Licenses": "ライセンス"
+      },
+      "Tabs": {
+        "AI": "AI",
+        "About": "アプリについて",
+        "Appearance": "外観",
+        "Behaviour": "動作",
+        "Connection": "接続",
+        "General": "一般",
+        "Reader": "リーダー",
+        "SRS": "SRS",
+        "Statistics": "統計",
+        "VideoPlayer": "動画プレーヤー"
+      }
+    },
+    "Statistics": {
+      "Actions": {
+        "EditWordDatabase": "単語データベースを編集",
+        "OpenAiAnalytics": "AIメディア分析",
+        "ViewKanjiGrid": "漢字グリッドを表示"
+      },
+      "CurrentlyLearning": "学習中",
+      "Dashboard": {
+        "AverageEase": "平均容易度",
+        "BestStreak": "最高連続日数",
+        "CardState": {
+          "Learning": "学習中",
+          "New": "新規",
+          "Review": "復習",
+          "Suspended": "停止中"
+        },
+        "CardStates": "カード状態",
+        "CenterLabel": {
+          "Cards": "枚",
+          "Mature": "成熟",
+          "Words": "語"
+        },
+        "CurrentStreak": "現在の連続日数",
+        "DaysStudied": "学習日数",
+        "EaseDistribution": "容易度分布",
+        "Forecast": "14日間の復習予測",
+        "Graduated": "修了",
+        "ImmersionTime": "没入時間",
+        "IntervalDistribution": "間隔分布",
+        "Lapses": "失敗",
+        "Maturity": {
+          "Mature": "成熟 (≥21日)",
+          "Title": "成熟度",
+          "Young": "若い (<21日)"
+        },
+        "NewLearned": "新規学習",
+        "Overdue": "期限超過",
+        "RetentionRate": "記憶率",
+        "ReviewActivity": "復習アクティビティ（過去30日間）",
+        "ReviewHeatmap": "復習ヒートマップ",
+        "ReviewStudyTime": "復習学習時間",
+        "Reviews": "復習",
+        "SrsConfig": "SRS設定",
+        "Srs": {
+          "EasyInterval": "簡単な間隔",
+          "GraduatingInterval": "修了間隔",
+          "LearningSteps": "学習ステップ",
+          "MaxInterval": "最大間隔",
+          "MaxReviewsPerDay": "1日の最大復習数",
+          "NewCardsPerDay": "1日の新規カード数",
+          "NewIntervalMod": "新規間隔修正",
+          "RelearnSteps": "再学習ステップ",
+          "ReviewIntervalMod": "復習間隔修正"
+        },
+        "StudyTime": "学習時間",
+        "TimeRead": "読書時間",
+        "TimeWatched": "視聴時間",
+        "Today": "今日",
+        "TodaysSession": "今日のセッション",
+        "TotalCards": "カード合計",
+        "TotalImmersion": "没入合計",
+        "TotalReviews": "復習合計",
+        "TotalTime": "合計時間",
+        "WordAcquisition": {
+          "AvgEncounters": "平均遭遇回数",
+          "MedianEncounters": "中央値遭遇回数",
+          "Title": "単語習得",
+          "WordsTracked": "追跡中の単語"
+        },
+        "WordKnowledge": "語彙知識"
+      },
+      "Description": "進捗と学習の旅を追跡",
+      "Legend": {
+        "Learned": "習得済み",
+        "Learning": "学習中",
+        "Viewed": "閲覧済み"
+      },
+      "LevelColumn": "レベル",
+      "TimeWatched": "視聴時間",
+      "Title": "学習統計",
+      "WordsByExamLevel": "試験レベル別の単語",
+      "WordsByStatus": "状態別の単語",
+      "WordsLearned": "習得した単語",
+      "WordsTracked": "追跡中の単語"
+    },
+    "SubtitleSync": {
+      "NextTooltip": "次の字幕に同期",
+      "PreviousTooltip": "前の字幕に同期"
+    },
+    "Video": {
+      "Controls": {
+        "Mute": "ミュート",
+        "PlaybackSpeed": "再生速度",
+        "Unmute": "ミュート解除"
+      },
+      "CopySubtitle": "字幕をコピー",
+      "SyncSubtitles": "字幕を同期",
+      "Tooltip": {
+        "GoHome": "ホームに戻る",
+        "OpenConversationAgent": "AI会話チューターを開く"
+      },
+      "UI": {
+        "DropVideoHere": "動画ファイルをここにドロップ",
+        "GoHome": "← ホーム",
+        "OpenConversationAgent": "AIチューター",
+        "OpenSubtitles": "字幕を開く",
+        "OpenVideo": "動画を開く",
+        "OrClickToBrowse": "またはクリックして参照",
+        "ToggleWordSidebar": "単語サイドバーを切り替え"
+      },
+      "Sidebar": {
+        "UnknownWordsEmpty": "未知の単語はまだ見つかっていません。字幕付きで動画を再生してください。",
+        "SortBy": {
+          "SubtitleOrder": "字幕順"
+        }
+      },
+      "VideoClipFailed": "動画クリップの作成に失敗しました。スクリーンショットを使用します",
+      "WatchTogether": "一緒に見る"
+    },
+    "WordDbEditor": {
+      "Actions": {
+        "Unignore": "無視を解除"
+      },
+      "AllLevels": "全レベル",
+      "Anki": {
+        "AlreadyInAnki": "Ankiに登録済み",
+        "EmptyField": "（空）",
+        "ExportFailed": "Ankiへのエクスポートに失敗",
+        "ExportToAnki": "Ankiにエクスポート",
+        "Exported": "Ankiにエクスポートしました",
+        "NoCardFound": "この単語に対応するAnkiカードが見つかりません",
+        "NotConnected": "Ankiが接続されていません",
+        "Preview": "プレビュー",
+        "PreviewTitle": "Ankiプレビュー – {word}"
+      },
+      "BrowseMode": {
+        "AllWords": "すべての単語",
+        "IgnoredWords": "無視した単語"
+      },
+      "Columns": {
+        "Level": "レベル",
+        "Status": "状態",
+        "TrackedBy": "追跡元",
+        "Translation": "翻訳",
+        "Word": "単語"
+      },
+      "EditTranslation": {
+        "PitchError": "ピッチアクセントデータの取得に失敗しました",
+        "RemoveOverride": "上書きを削除",
+        "RevertError": "翻訳上書きの取り消しに失敗しました",
+        "Title": "翻訳を編集 – {word}",
+        "Tooltip": "単語の上書きを編集"
+      },
+      "EmptyIgnoredState": "この言語には無視した単語がありません。",
+      "EmptyState": "単語が見つかりません。「すべて読み込む」をクリックして単語データベースを読み込んでください。",
+      "Fields": {
+        "PartOfSpeech": "品詞",
+        "PosPlaceholder": "n、v、adj など"
+      },
+      "LevelNames": {
+        "Common": "一般",
+        "Unlisted": "未分類"
+      },
+      "Loading": "単語データベースを読み込み中...",
+      "LoadingMore": "さらに読み込み中...",
+      "SearchHintDetailed": "Enterで検索。完全一致が優先されます。先に「すべて読み込む」を押してください。",
+      "SearchPlaceholder": "単語を検索...",
+      "Searching": "検索中...",
+      "Trackers": {
+        "Anki": "Anki",
+        "Flashcards": "フラッシュカード",
+        "Ignored": "無視済み",
+        "Nothing": "未追跡"
+      },
+      "Title": "単語データベース"
+    },
+    "WordHover": {
+      "AddToAnki": "Ankiに追加",
+      "AddToBuiltInSrs": "クリックして内蔵SRSに追加",
+      "Alerts": {
+        "ExplainRequiresLlm": "解説機能にはローカルAI言語モデルが必要です。設定でLLMを有効にしてアプリを再起動してください。"
+      },
+      "AnkiDuplicateWarning": {
+        "Confirm": "追加する",
+        "DontRemind": "今後表示しない",
+        "Message": "この単語はすでにAnkiに存在します。内蔵SRSに追加すると重複カードが作成されます。",
+        "Title": "重複カード"
+      },
+      "Errors": {
+        "FailedToAddFlashcard": "フラッシュカードの追加に失敗しました: {error}"
+      },
+      "Explain": "解説",
+      "InAnki": "Anki内",
+      "Loading": "読み込み中...",
+      "NoTranslation": "翻訳が見つかりません",
+      "Status": {
+        "Known": "既知",
+        "Learning": "学習中",
+        "Unknown": "未知"
+      },
+      "StatusSource": {
+        "Prefix": "ソース: ",
+        "None": "なし"
+      },
+      "StatusSourceWarning": {
+        "Confirm": "変更する",
+        "DontRemind": "今後表示しない",
+        "Message": "この単語のステータスは最も高い知識ソースによって決定されます。Ankiやフラッシュカードがすでにより高いレベルで追跡している場合、手動での変更は効果がない場合があります。",
+        "Title": "ステータスの上書き"
+      },
+      "AnkiModifyWarning": {
+        "Title": "Ankiカードの変更",
+        "Message": "この単語のAnkiカードのEaseと位置を変更します。新しいカードはレビューキューの先頭に移動されます。",
+        "Confirm": "続行",
+        "BuiltInOnly": "ステータスのみ変更",
+        "DontRemind": "今後表示しない"
+      },
+      "AnkiEase": "Anki Ease: {ease}",
+      "AnkiUpdateSuccess": "{count}枚のAnkiカードを更新しました",
+      "AnkiUpdateRepositioned": "{count}枚のカードを更新、{repositioned}枚の新しいカードを再配置しました",
+      "AnkiUpdateFailed": "Ankiカードの更新に失敗しました"
+    },
+    "ConnectionStatus": {
+      "Connected": "接続済み",
+      "Connecting": "接続中…",
+      "Disconnected": "切断済み",
+      "Error": "接続エラー"
+    },
+    "Tabs": {
+      "Flashcards": "フラッシュカード",
+      "Home": "ホーム",
+      "Reader": "リーダー",
+      "Settings": "設定",
+      "Video": "動画"
+    },
+    "Sidebar": {
+      "AddAll": "すべて追加",
+      "AddingAll": "追加中…",
+      "AnkiAddAllWarning": {
+        "Title": "Ankiカードの変更",
+        "Message": "既知の単語のAnkiカードをレビューキューの先頭に再配置し、Easeを更新します。Ankiにない単語については、保存先を選択できます。",
+        "Confirm": "続行",
+        "DontRemind": "今後表示しない"
+      },
+      "DictionaryOnly": "辞書のみ",
+      "Ignore": "無視",
+      "SortBy": {
+        "Level": "レベル",
+        "Word": "単語"
+      },
+      "UnknownWords": "未知の単語",
+      "WordCount": "{count} 語"
+    }
+  }
+}

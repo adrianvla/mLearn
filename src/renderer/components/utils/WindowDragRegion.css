@@ -1,0 +1,24 @@
+.drag-region{
+    position:absolute;
+    top:0;
+    left:0;
+    width:100px;
+    height:28px; /*Hardcoded because adjusted to MacOS' traffic lights width*/
+    -webkit-app-region: drag; /*Electron specific*/
+    background-color: var(--bg);
+    backdrop-filter: var(--backdrop-filter);
+    border-bottom-right-radius: 10px;
+    opacity:1;
+    transition:opacity var(--transition-slow);
+    z-index:var(--z-overlay);
+}
+.hidden {
+    opacity:0;
+    pointer-events:none;
+}
+
+
+body.hide-cursor .drag-region {
+    opacity: 0;
+    pointer-events: none;
+}

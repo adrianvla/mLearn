@@ -1,0 +1,56 @@
+.anki-hover-preview {
+  min-width: 220px;
+  max-width: 340px;
+  padding: 8px 10px;
+  background: var(--bg-nt-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  white-space: normal;
+  backdrop-filter: var(--backdrop-filter);
+}
+
+.anki-hover-preview__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.anki-hover-preview__field {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: var(--font-size-sm);
+}
+
+.anki-hover-preview__label {
+  color: var(--text-tertiary);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.anki-hover-preview__value {
+  color: var(--text-primary);
+  word-break: break-word;
+  overflow: hidden;
+}
+
+.anki-hover-preview__value img {
+  max-width: 100%;
+  height: auto;
+}
+
+.anki-hover-preview__loading {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+}
+
+.anki-hover-preview__footer {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-color);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}

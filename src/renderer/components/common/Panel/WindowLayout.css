@@ -1,0 +1,132 @@
+/**
+ * Window Layout Styles
+ * Shared styles for Electron window layouts
+ */
+
+/* Main layout container */
+.window-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-primary, #1a1a1a);
+  color: var(--text-primary, #fff);
+}
+
+.window-layout.dark {
+  background: var(--bg-primary, #0d0d0d);
+  color: var(--text-primary, #fff);
+}
+
+/* Header area */
+.window-layout__header {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.3));
+  backdrop-filter: blur(10px);
+  -webkit-app-region: drag;
+  z-index: 10;
+}
+
+/* Main content area (sidebar + content) */
+.window-layout__main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Sidebar */
+.window-layout__sidebar {
+  flex-shrink: 0;
+  border-right: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.2));
+  overflow-y: auto;
+}
+
+/* Content area */
+.window-layout__content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+/* Footer area */
+.window-layout__footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.3));
+  backdrop-filter: blur(10px);
+}
+
+/* Window Header Component */
+.window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  gap: 1rem;
+  -webkit-app-region: drag;
+}
+
+.window-header__title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.window-header__icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.window-header__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.window-header__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.window-header__subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+.window-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  -webkit-app-region: no-drag;
+}
+
+/* Scrollbar styling for content areas */
+.window-layout__content::-webkit-scrollbar,
+.window-layout__sidebar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.window-layout__content::-webkit-scrollbar-track,
+.window-layout__sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.window-layout__content::-webkit-scrollbar-thumb,
+.window-layout__sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.window-layout__content::-webkit-scrollbar-thumb:hover,
+.window-layout__sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

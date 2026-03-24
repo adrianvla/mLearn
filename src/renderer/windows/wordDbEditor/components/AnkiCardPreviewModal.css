@@ -1,0 +1,76 @@
+/**
+ * Anki Card Preview Modal Styles
+ */
+
+.anki-card-preview-modal__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.anki-card-preview-modal__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}
+
+.anki-card-preview-modal__model {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+}
+
+.anki-card-preview-modal__tags {
+  display: flex;
+  gap: var(--spacing-1);
+  flex-wrap: wrap;
+}
+
+.anki-card-preview-modal__tag {
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-sm);
+  background: var(--bg-intense);
+  color: var(--text-secondary);
+}
+
+.anki-card-preview-modal__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.anki-card-preview-modal__field {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.anki-card-preview-modal__field-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--bg-intense);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.anki-card-preview-modal__field-value {
+  padding: var(--spacing-3);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Constrain images inside Anki HTML */
+.anki-card-preview-modal__field-value img {
+  max-width: 100%;
+  height: auto;
+}
+
+.anki-card-preview-modal__empty {
+  opacity: 0.4;
+}
