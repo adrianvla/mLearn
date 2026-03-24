@@ -145,6 +145,9 @@ const llmBridge: LLMBridge = {
   onLLMDownloadProgress: (cb) => getIPC().onLLMDownloadProgress(cb),
   onLLMModelStatus: (cb) => getIPC().onLLMModelStatus(cb),
   llmUnloadModel: () => getIPC().llmUnloadModel(),
+  llmGetSystemMemory: () => getIPC().llmGetSystemMemory!(),
+  llmListDownloadedModels: () => getIPC().llmListDownloadedModels!(),
+  llmDeleteModel: (file) => getIPC().llmDeleteModel!(file),
 
   ollamaChat: (msgs, tools) => getIPC().ollamaChat(msgs, tools),
   ollamaChatStream: (msgs, tools) => getIPC().ollamaChatStream(msgs, tools),

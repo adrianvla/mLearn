@@ -28,6 +28,7 @@ import type {
   VoiceSessionError,
   VoiceSample,
   PipProgress,
+  SystemMemoryInfo,
 } from '../types';
 
 // ============================================================================
@@ -145,6 +146,9 @@ export interface LLMBridge {
   onLLMDownloadProgress: (callback: (status: LLMModelStatus) => void) => () => void;
   onLLMModelStatus: (callback: (status: LLMModelStatus) => void) => () => void;
   llmUnloadModel: () => void;
+  llmGetSystemMemory?: () => Promise<SystemMemoryInfo>;
+  llmListDownloadedModels?: () => Promise<Array<{ modelFile: string; sizeBytes: number }>>;
+  llmDeleteModel?: (modelFile: string) => Promise<void>;
 
   // Ollama
   ollamaChat: (messages: unknown[], tools?: unknown[]) => void;
