@@ -1,0 +1,190 @@
+/**
+ * Unified Loader Component Styles
+ * Consolidated styles with restored Glass-morphism from Reader
+ * Note: Base spin/shimmer animations are defined globally in index.css
+ */
+
+/* Ring spin animation (specific to progress ring) */
+@keyframes loader-ring-spin {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(270deg);
+  }
+}
+
+/* ============ Base Loader ============ */
+.loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Restored Glass-morphism for labels */
+.loader-text {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  margin-top: 0.5rem;
+  background: var(--bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  backdrop-filter: var(--backdrop-filter);
+  padding: 4px 12px;
+}
+
+/* ============ Spinner ============ */
+.loader-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.loader-spinner-circle {
+  /* Combined reader-spinner styles */
+  border-style: solid;
+  border-color: var(--border-color);
+  border-top-color: var(--text-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ============ Square Spinner ============ */
+@keyframes loader-square-spin {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -176;
+  }
+}
+
+.loader-spinner-square {
+  display: block;
+}
+
+.loader-spinner-square-track {
+  fill: none;
+  stroke: var(--border-color);
+}
+
+.loader-spinner-square-bar {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-linecap: square;
+  stroke-dasharray: 44 132;
+  stroke-dashoffset: 0;
+  animation: loader-square-spin 1.2s linear infinite;
+}
+
+/* ============ Progress Ring ============ */
+.loader-ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.loader-ring-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Glass Container from .page-loader-spinner-c */
+  background: var(--bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  backdrop-filter: var(--backdrop-filter);
+  padding: 8px;
+}
+
+.loader-ring-wrapper--square {
+  border-radius: var(--radius-lg);
+}
+
+.loader-ring-svg {
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* Fixed indeterminate animation to match old.css */
+.loader-ring-svg.indeterminate {
+  animation: loader-ring-spin 1.2s linear infinite;
+}
+
+.loader-ring-svg.indeterminate .loader-ring-progress {
+  stroke-dasharray: 31.4 94.2; /* 1/4 circumference */
+  stroke-dashoffset: 0;
+  transition: none;
+}
+
+/* Square ring indeterminate: dash travels around the perimeter */
+@keyframes loader-square-ring-dash {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: calc(-1 * var(--square-ring-perimeter));
+  }
+}
+
+.loader-ring-svg--square {
+  /* No rotation for square rings */
+  transform: none;
+}
+
+.loader-ring-svg--square-indeterminate .loader-ring-progress {
+  animation: loader-square-ring-dash 1.2s linear infinite;
+  transition: none;
+}
+
+/* Square ring progress uses square linecap */
+.loader-ring-svg--square .loader-ring-progress {
+  stroke-linecap: square;
+}
+
+.loader-ring-track {
+  fill: none;
+  stroke: var(--border-color);
+}
+
+.loader-ring-progress {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+.loader-ring-percent {
+  position: absolute;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ============ Skeleton (Kept standard) ============ */
+.loader-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+}
+
+.loader-skeleton-line {
+  height: 14px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.05) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* ============ Overlay ============ */
+.loader-overlay.with-blur {
+  backdrop-filter: blur(8px); /* Increased blur to match reader style */
+}

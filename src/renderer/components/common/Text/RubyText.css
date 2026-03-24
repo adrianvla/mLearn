@@ -1,0 +1,46 @@
+/**
+ * RubyText Component Styles
+ * Styles for Japanese text with furigana annotations
+ */
+
+/* Base ruby styling */
+.ruby-text {
+  ruby-align: center;
+  position: relative;
+}
+
+/* Plain text (no ruby) */
+.ruby-text-plain {
+  display: inline-block;
+  position: relative;
+}
+
+/* Furigana (rt) styling */
+.ruby-text rt {
+  font-size: 0.5em;
+  font-weight: var(--font-weight-normal, 400);
+  color: var(--text-secondary, #a0a0a0);
+  letter-spacing: 0.05em;
+  position: relative;
+}
+
+/* For subtitle words, smaller furigana */
+.subtitle_word .ruby-text rt,
+.subtitles .ruby-text rt {
+  font-size: 0.45em;
+}
+
+/* For flashcard display, larger furigana */
+.flashcard .ruby-text rt {
+  font-size: 0.5em;
+}
+
+/* Large display variant */
+.ruby-text.ruby-text-large rt {
+  font-size: 0.6em;
+}
+
+/* Small display variant */
+.ruby-text.ruby-text-small rt {
+  font-size: 0.4em;
+}

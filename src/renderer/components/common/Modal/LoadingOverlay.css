@@ -1,0 +1,58 @@
+/**
+ * LoadingOverlay Styles
+ * Styles for the standardized loading overlay component
+ */
+
+/* ========== Overlay Container ========== */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay-bg);
+  z-index: var(--z-overlay);
+  animation: fadeIn var(--transition-normal);
+  user-select: none;
+  padding: var(--spacing-4);
+}
+
+.loading-overlay--blur {
+  backdrop-filter: var(--backdrop-filter);
+}
+
+/* ========== Panel ========== */
+.loading-overlay-panel {
+  width: min(420px, 90vw);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ========== Content ========== */
+.loading-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--spacing-4);
+}
+
+/* ========== Title ========== */
+.loading-overlay-title {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+/* ========== Message ========== */
+.loading-overlay-message {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  max-width: 300px;
+}
+
+/* ========== Progress Bar ========== */
+.loading-overlay-progress {
+  width: 100%;
+}

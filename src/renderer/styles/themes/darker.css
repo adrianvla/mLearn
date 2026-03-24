@@ -1,0 +1,124 @@
+/**
+ * Darker Theme
+ * Transparent theme that works on any background
+ */
+/* This file contains patches and overrides for the dark theme */
+
+/* === Start WordHover.css === */
+.subtitle_hover.theme-darker,
+body.theme-darker .subtitle_hover {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: var(--text-primary);
+    -webkit-text-stroke: 1px var(--bg);
+}
+body.theme-darker .subtitle_hover .pitch,
+.subtitle_hover.theme-darker .pitch {
+    filter: invert(1);
+}
+
+body.theme-darker .subtitle_hover .footer,
+.subtitle_hover.theme-darker .footer {
+    border-top: 1px solid var(--border-color);
+    background: rgba(0, 0, 0, 0.1);
+}
+
+body.theme-darker .subtitle_hover hr,
+.subtitle_hover.theme-darker hr {
+    border-top-color: var(--border-color);
+}
+
+body.theme-darker .subtitle_hover_alt_c,
+.subtitle_hover.theme-darker .subtitle_hover_alt_c {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* === End WordHover.css === */
+
+
+/* === Start index.css === */
+body.theme-darker {
+    /*--bg-opaque: #0a0a0a;*/
+    --bg-opaque: #000;
+    --bg-nt-primary: rgb(19,19,19);
+    --bg-nt-secondary: rgb(32,32,32);
+    --text-primary: #f0f0f0;
+    --text-secondary: #a0a0a0;
+    --text-tertiary: rgba(255, 255, 255, 0.4);
+
+    --bg: rgba(128, 128, 128, 0.15);
+    --bg-intense: rgba(128, 128, 128, 0.25);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --border-color-intense: rgba(255, 255, 255, 0.15);
+
+
+    --backdrop-filter: blur(20px) saturate(1.8) brightness(0.3);
+    --backdrop-filter-nodim: blur(20px) saturate(1.8);
+
+    /* Dark mode flashcard highlight */
+    --flashcard-highlight: #ff5ec7;
+
+    --panel-bg: rgba(0, 0, 0, 0.3);
+    --panel-bg-hover: rgba(0, 0, 0, 0.4);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --panel-border-hover: var(--border-color-intense);
+    --bg-primary: var(--bg);
+    --bg-secondary: var(--bg-intense);
+    --shadow-border:var(--border-color) 0px 0px 0px 1px;
+
+    --overlay-bg: rgba(0, 0, 0, 0.6);
+    --overlay-bg-soft: rgba(0, 0, 0, 0.4);
+}
+
+/* === End index.css === */
+
+
+/* === PitchAccent.css === */
+body.theme-darker .pitch-accent-container,
+.theme-darker .pitch-accent-container {
+    color: var(--text-primary);
+}
+
+/* When inside subtitle hover */
+.subtitle_hover .mLearn-pitch-accent {
+    --pitch-accent-height: 2px;
+}
+
+.subtitle_hover .pill.pitch-accent-pill .mLearn-pitch-accent {
+    --pitch-accent-height: 2px;
+}
+
+.subtitle_hover .pill.pitch-accent-pill .pitch-accent-word {
+    position: relative;
+}
+
+body.theme-darker .subtitle_hover .mLearn-pitch-accent,
+.subtitle_hover.theme-darker .mLearn-pitch-accent {
+    filter: none;
+    color: var(--text-primary);
+}
+
+/* === End PitchAccent.css === */
+
+/* === Start Pill.css === */
+body.theme-darker .label-pill,
+body.theme-darker .btn-pill,
+body.theme-darker .label-status {
+    filter: invert(1) hue-rotate(180deg) saturate(200%);
+    box-shadow: rgba(50, 50, 93, 0.1) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
+/* Ensure icons inside pills are not double-inverted (applies to both img and SVG) */
+body.theme-darker .label-pill .label-icon img,
+body.theme-darker .btn-pill .btn-icon-wrapper img,
+body.theme-darker .label-pill .label-icon svg,
+body.theme-darker .btn-pill .btn-icon-wrapper svg,
+body.theme-darker .label-pill .label-svg-icon,
+body.theme-darker .btn-pill .btn-svg-icon,
+body.theme-darker .label-status .label-icon img,
+body.theme-darker .label-status .label-icon svg,
+body.theme-darker .label-status .label-svg-icon {
+    filter: invert(1) hue-rotate(180deg); /* counter the parent invert */
+    background: transparent;
+}
+/* === End Pill.css === */

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        style-src 'self' 'unsafe-inline';
+        connect-src *;
+        script-src 'self';
+        img-src 'self' data: blob: flashcard-image:;
+        media-src 'self' blob: * flashcard-audio:;
+        worker-src 'self' blob:;
+    ">
+    <title>Settings - mLearn</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html {
+        background-color: #000000;
+      }
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background-color: #000000;
+        color: #ffffff;
+      }
+      @keyframes square-dash {
+        0% { stroke-dashoffset: 0; }
+        100% { stroke-dashoffset: -176; }
+      }
+      #loading-spinner {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        margin: -20px 0 0 -20px;
+      }
+      #root:not(:empty) + #loading-spinner {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <svg id="loading-spinner" width="40" height="40" viewBox="0 0 48 48">
+      <rect x="2" y="2" width="44" height="44" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="8"/>
+      <rect x="2" y="2" width="44" height="44" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="square" stroke-dasharray="44 132" style="animation: square-dash 1.2s linear infinite;"/>
+    </svg>
+    <script type="module" src="../renderer/windows/settings/index.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,286 @@
+/**
+ * Reader Route Styles
+ * Only styles for the main ReaderRoute component - sub-components have their own CSS files
+ */
+
+.reader-route {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg-opaque);
+  color: var(--text-primary);
+}
+
+/* On mobile, fill the mobile content area */
+.mobile-layout .reader-route {
+  height: 100%;
+}
+
+/* Main Content Area */
+.reader-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: var(--bg-opaque);
+  -webkit-app-region: no-drag;
+  /* Account for fixed nav (48px) and status bar (30px) */
+  height: calc(100vh - 48px - 30px);
+  margin-top: 48px; /* Push below fixed nav */
+  margin-bottom: 30px; /* Push above fixed status bar */
+  box-sizing: border-box;
+}
+
+/* On mobile, no extra margins — MobileLayout handles spacing */
+.mobile-layout .reader-main {
+  flex: 1;
+  height: auto;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: var(--spacing-2);
+  min-height: 0;
+}
+
+.reader-main.fit-height {
+  overflow-y: hidden;
+  overflow-x: auto;
+}
+
+.reader-main.fit-width {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.reader-main.with-sidebar {
+  margin-left: 160px;
+}
+
+.reader-main.with-word-sidebar {
+  margin-right: 320px;
+}
+
+/* Page Container */
+.page-container {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.page-container.single {
+  justify-content: center;
+}
+
+.page-container.double {
+  flex-direction: row-reverse; /* Manga reading order */
+}
+
+/* Individual Page */
+.page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative; /* For OCR overlay positioning */
+}
+
+.page-image {
+  max-width: 100%;
+  max-height: calc(100vh - 48px - 30px - 2rem); /* nav + status + padding */
+  object-fit: contain;
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-sm);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.fit-height .page-image {
+  max-height: calc(100vh - 48px - 30px - 2rem);
+  width: auto;
+}
+
+.fit-width .page-image {
+  width: 100% !important;
+  max-width: none !important;
+  height: auto;
+  max-height: none !important;
+}
+
+/* OCR Loading Overlay */
+.ocr-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay-bg);
+  z-index: 50;
+}
+
+.ocr-loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.ocr-loading-text {
+  margin-top: 16px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.ocr-progress-bar {
+  width: 200px;
+  height: 6px;
+  background: var(--border-color);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.ocr-progress-bar .bar {
+  height: 100%;
+  background: var(--accent-primary);
+  transition: width 0.2s ease;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Page Loader Overlay - shows while OCR is processing */
+.page-loader-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  z-index: 5;
+  pointer-events: none;
+  padding: 1rem;
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+.page-loader-overlay.visible {
+  opacity: 1;
+}
+
+.page-loader-overlay.hidden {
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+}
+
+.page-loader-overlay .loader-ring{
+  gap:0;
+  align-items:end;
+}
+
+/* Mobile adaptations — reader inside MobileLayout */
+
+/* On mobile, reader nav is compact — horizontal row with minimal controls */
+.mobile-layout .reader-nav {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  -webkit-app-region: no-drag;
+  height: auto;
+  flex-wrap: nowrap;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  justify-content: center;
+}
+
+/* Remove desktop window drag margin on mobile */
+.mobile-layout .reader-nav .nav-group {
+  margin-left: 0 !important;
+}
+
+/* Hide sidebar toggle and page-mode controls on mobile — always single + fit-width */
+.mobile-layout .reader-nav .sidebar-btn,
+.mobile-layout .reader-nav .sidebar-btn-right,
+.mobile-layout .reader-nav .book-title-nav,
+.mobile-layout .reader-nav select {
+  display: none;
+}
+
+/* Hide status bar entirely on mobile — it's a desktop concept */
+.mobile-layout .reader-status {
+  display: none;
+}
+
+/* On mobile, sidebar overlays content instead of pushing it */
+.mobile-layout .reader-sidebar {
+  display: none;
+}
+
+.mobile-layout .reader-unknown-words-sidebar {
+  display: none;
+}
+
+.mobile-layout .reader-main.with-sidebar,
+.mobile-layout .reader-main.with-word-sidebar {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Page image fills width on mobile (always fit-width behavior) */
+.mobile-layout .page-image {
+  width: 100% !important;
+  max-width: none !important;
+  height: auto;
+  max-height: none !important;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.mobile-layout .fit-height .page-image {
+  width: 100% !important;
+  max-width: none !important;
+  height: auto;
+  max-height: none !important;
+}
+
+.mobile-layout .fit-width .page-image {
+  width: 100% !important;
+  max-width: none !important;
+  height: auto;
+  max-height: none !important;
+}
+
+/* Force single-page on mobile — double-page is unreadable on small screens */
+.mobile-layout .page-container.double {
+  flex-direction: column;
+}
+
+.mobile-layout .page-container.double .page:nth-child(2) {
+  display: none;
+}
+
+/* Reader welcome card adapts to mobile */
+.mobile-layout .reader-welcome {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+  padding: var(--spacing-4);
+}
+
+/* Hide the drop zone on mobile — no drag and drop */
+.mobile-layout .reader-welcome-dropzone {
+  display: none;
+}
+
+/* Welcome tips grid single-column on mobile */
+.mobile-layout .reader-welcome-grid {
+  grid-template-columns: 1fr;
+}

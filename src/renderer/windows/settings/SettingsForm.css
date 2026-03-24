@@ -1,0 +1,77 @@
+/**
+ * Settings Form Element Styles
+ * Shared input/select/range styling used across multiple settings tabs.
+ * Each tab that uses these classes imports this file.
+ */
+
+/* Select overrides for settings context */
+.setting-select {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  min-width: 140px;
+  height: unset !important;
+}
+
+.setting-select option {
+  background: var(--bg);
+}
+
+/* Number input */
+.setting-input {
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  width: 80px;
+  text-align: right;
+}
+
+.setting-input:focus {
+  outline: none;
+  border-color: var(--border-color-intense);
+}
+
+/* Hint text */
+.setting-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* Color input */
+.color-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setting-color {
+  width: 36px;
+  height: 36px;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.color-value {
+  font-family: monospace;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* Error text */
+.setting-error {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+}
+
+/* Range input */
+.setting-range {
+  width: 120px;
+  accent-color: var(--color-primary);
+}

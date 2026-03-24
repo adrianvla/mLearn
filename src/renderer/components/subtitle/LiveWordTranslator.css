@@ -1,0 +1,137 @@
+/**
+ * Live Word Translator Styles
+ * Aside panel for displaying automatic word translations
+ * Cards persist on screen; only the background/header fade on idle
+ */
+
+/* Main container */
+.live-word-translator {
+  position: absolute;
+  left: 10px;
+  top: 38px;
+  right: 10px;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  min-height: 50px;
+  background: transparent;
+  border-radius: var(--radius-lg);
+  overflow: visible;
+  transition: background var(--transition-normal),
+    top var(--transition-normal);
+}
+
+/* Idle state — only fades background/header, cards remain visible */
+.live-word-translator.idle .panel-header {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Cursor hidden (fullscreen idle) — keep cards, hide chrome */
+body.hide-cursor .live-word-translator {
+  top: 10px;
+}
+
+body.hide-cursor .live-word-translator .panel-header {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Hover state shows glass background */
+.live-word-translator:hover {
+  background: var(--panel-bg);
+  backdrop-filter: var(--backdrop-filter);
+}
+
+/* Close button color */
+.live-word-translator .panel-header .btn img {
+  filter: invert(1);
+  opacity: 0.7;
+}
+
+/* Container for cards — wraps on 2 lines */
+.translator-cards-container {
+  display: flex;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  gap: 10px;
+  flex-direction: column;
+  flex-wrap: wrap;
+  overflow: hidden;
+  padding-right: 10px;
+  align-content: flex-start;
+  max-height:95px;
+}
+
+.translator-cards-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Individual card styling */
+.translator-card {
+  background-color: var(--panel-bg);
+  backdrop-filter: var(--backdrop-filter);
+  padding-inline: 20px;
+  width: 300px;
+  height: 30px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  gap: 10px;
+  overflow: hidden;
+  animation: fadeInCard var(--transition-normal) ease-out;
+  font-weight:var(--font-weight-medium);
+}
+
+/* Text truncation */
+.translator-card * {
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Show full text on hover */
+.translator-card:hover * {
+  overflow: visible;
+}
+
+/* Hide extra children (3rd+) */
+.translator-card *:nth-child(n+3) {
+  display: none;
+}
+
+/* Translation (h1) styling - left side */
+.translator-card-translation {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-normal);
+  max-width: 60%;
+  margin: 0;
+  text-overflow: ellipsis;
+}
+
+/* Reading (p) styling - right side */
+.translator-card-reading {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+}
+
+/* Animation for cards appearing */
+@keyframes fadeInCard {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

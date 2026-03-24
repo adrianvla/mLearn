@@ -1,0 +1,45 @@
+/* ============ Session Context Tab ============ */
+
+.ca-session-context {
+  flex: 1;
+  overflow: hidden;
+  padding: var(--spacing-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  min-height: 0;
+  height: 100%;
+}
+
+.ca-session-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ca-session-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ca-session-pane > * {
+  flex: 1;
+  min-height: 0;
+}
+
+.ca-session-pane--scroll {
+  overflow-y: auto;
+}
+
+/* Instructions panel */
+.ca-session-instructions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) 0;
+}

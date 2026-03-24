@@ -1,0 +1,94 @@
+/**
+ * CheckboxCard Component Styles
+ */
+
+.checkbox-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+  user-select: none;
+  border:1px solid var(--border-color);
+}
+
+.checkbox-card:hover:not(.disabled) {
+  background: var(--panel-bg-hover);
+  border-color: var(--border-color-intense);
+}
+
+.checkbox-card.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkbox-card-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.checkbox-card-check {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  border: 2px solid var(--text-tertiary);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.checkbox-card-check svg {
+  width: 14px;
+  height: 14px;
+  color: white;
+}
+
+.checkbox-card.checked .checkbox-card-check {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.checkbox-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.checkbox-card-title {
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.checkbox-card-description {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.checkbox-card-extra {
+  margin-top: 0.5rem;
+}
+
+/* Variants */
+.checkbox-card--bordered {
+  background: transparent;
+  border: 1px solid var(--border-color);
+}
+
+.checkbox-card--bordered.checked {
+  border-color: var(--color-primary);
+}
+
+.checkbox-card--bordered:hover:not(.disabled) {
+  border-color: var(--text-tertiary);
+}

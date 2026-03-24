@@ -1,0 +1,53 @@
+{
+  "core": [
+    "pip",
+    "uvicorn",
+    "fastapi",
+    "pydantic",
+    "sudachipy",
+    "sudachidict_core",
+    "spacy",
+    "beautifulsoup4",
+    "pillow",
+    "numpy",
+    "python-multipart",
+    "setuptools",
+    "wheel",
+    "websockets"
+  ],
+  "ocr": [
+    "paddlepaddle>=2.5.2",
+    "paddleocr>=2.7.3",
+    "manga-ocr",
+    "onnxruntime",
+    "opencv-python-headless",
+    "rapidocr"
+  ],
+  "llm": [
+    "torch",
+    "transformers",
+    "sentencepiece"
+  ],
+  "voice": [
+    "torch",
+    "torchaudio",
+    "faster_whisper",
+    "kokoro",
+    "misaki[ja]",
+    "soundfile",
+    "unidic",
+    "silero-vad",
+    "pyopenjtalk",
+    "mojimoji"
+  ],
+  "qwen3-tts": [
+    "qwen_tts",
+    "transformers>=4.57.3",
+    "accelerate>=1.12.0",
+    "librosa",
+    "torchaudio",
+    "soundfile",
+    "onnxruntime",
+    "einops"
+  ]
+}

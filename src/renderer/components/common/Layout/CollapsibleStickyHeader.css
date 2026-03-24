@@ -1,0 +1,13 @@
+.collapsible-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  transition: transform var(--transition-slow), opacity var(--transition-slow);
+  will-change: transform, opacity;
+}
+
+.collapsible-sticky-header--collapsed {
+  transform: translateY(calc(-100% - var(--spacing-2)));
+  opacity: 0;
+  pointer-events: none;
+}

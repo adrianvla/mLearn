@@ -1,0 +1,448 @@
+/**
+ * Unified Button Component Styles
+ * Consolidated styles for all button variants
+ * Note: Spin animation is defined globally in index.css
+ */
+
+.btn-spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* ============ Base Button Styles ============ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  user-select: none;
+  position: relative;
+  box-shadow:var(--shadow-special);
+}
+
+.btn:disabled,
+.btn.btn-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn.btn-loading {
+  cursor: wait;
+}
+
+/* ============ Icon Styling ============ */
+.btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  height: max-content;
+}
+
+.btn-icon img {
+  width: 1em;
+  height: 1em;
+}
+
+.btn-icon{
+  padding: var(--spacing-1) !important;
+}
+.btn-icon > span{
+  display:flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
+/* ============ Size Variants ============ */
+/* Note: Pill buttons don't use size-based min-height - their height is content-driven */
+.btn-xs:not(.btn-pill) {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  /*min-height: 1.5rem;*/
+}
+
+.btn-sm:not(.btn-pill) {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  /*min-height: 2rem;*/
+}
+
+.btn-md:not(.btn-pill) {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  /*min-height: 2.5rem;*/
+}
+
+.btn-lg:not(.btn-pill) {
+  padding: 0.75rem 1.5rem;
+  font-size: 1.125rem;
+  /*min-height: 3rem;*/
+}
+
+/* ============ DEFAULT Button Type ============ */
+.btn-default {
+  background: var(--bg);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+}
+
+.btn-default:hover:not(:disabled) {
+  background: var(--bg-intense);
+  border-color: var(--border-color-intense);
+}
+
+.btn-default:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Default color variants */
+.btn-default.btn-primary {
+  background: rgba(74, 144, 217, 0.3);
+  border-color: rgba(74, 144, 217, 0.4);
+  color: var(--color-primary);
+}
+
+.btn-default.btn-primary:hover:not(:disabled) {
+  background: rgba(74, 144, 217, 0.4);
+}
+
+.btn-default.btn-secondary {
+  background: rgba(128, 128, 128, 0.2);
+  border-color: rgba(128, 128, 128, 0.3);
+}
+
+.btn-default.btn-danger {
+  background: rgba(231, 76, 60, 0.25);
+  color: var(--color-danger);
+  border-color: rgba(231, 76, 60, 0.4);
+}
+
+.btn-default.btn-danger:hover:not(:disabled) {
+  background: rgba(231, 76, 60, 0.4);
+  border-color: rgba(231, 76, 60, 0.5);
+}
+
+.btn-default.btn-success {
+  background: rgba(46, 204, 113, 0.3);
+  border-color: rgba(46, 204, 113, 0.4);
+  color: var(--color-success);
+}
+
+.btn-default.btn-success:hover:not(:disabled) {
+  background: rgba(46, 204, 113, 0.4);
+}
+
+.btn-default.btn-warning {
+  background: rgba(241, 196, 15, 0.25);
+  border-color: rgba(241, 196, 15, 0.4);
+  color: var(--color-warning);
+}
+
+.btn-default.btn-warning:hover:not(:disabled) {
+  background: rgba(241, 196, 15, 0.4);
+  border-color: rgba(241, 196, 15, 0.5);
+}
+
+.btn-default.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow:none;
+}
+
+.btn-default.btn-ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ============ PILL Button Type ============ */
+.btn-pill {
+  font-weight: bold;
+  padding: 5px 10px;
+  border-radius: 10px;
+  /* Default pink/magenta */
+  color: var(--pill-default-text);
+  background-color: var(--pill-default-bg);
+  box-shadow: rgba(50, 50, 93, 0.05) 0px 30px 60px -12px inset,
+    rgba(0, 0, 0, 0.15) 0px 18px 36px -18px inset;
+  /* GPU acceleration to prevent blur */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+.btn-pill{
+  gap:5px;
+}
+
+.btn-pill:hover:not(:disabled) {
+  /* Use opacity instead of filter to prevent icon blur */
+  opacity: 0.85;
+}
+
+.btn-pill:active:not(:disabled) {
+  opacity: 0.7;
+}
+
+.btn-pill .btn-icon img {
+  width: 20px;
+  height: 20px;
+}
+
+/* SVG icons in pill buttons - sized consistently */
+.btn-pill .btn-svg-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Pill color variants */
+.btn-pill.btn-red {
+  color: var(--pill-level-1-text);
+  background-color: var(--pill-level-1-bg);
+}
+
+.btn-pill.btn-blue {
+  color: var(--pill-level-2-text);
+  background-color: var(--pill-level-2-bg);
+}
+
+.btn-pill.btn-green {
+  color: var(--pill-level-3-text);
+  background-color: var(--pill-level-3-bg);
+}
+
+.btn-pill.btn-orange {
+  color: var(--pill-level-4-text);
+  background-color: var(--pill-level-4-bg);
+}
+
+.btn-pill.btn-purple {
+  color: var(--pill-level-5-text);
+  background-color: var(--pill-level-5-bg);
+}
+
+.btn-pill.btn-yellow {
+  color: var(--pill-level-6-text);
+  background-color: var(--pill-level-6-bg);
+}
+
+.btn-pill.btn-warning {
+  color: var(--color-warning);
+  background-color: rgba(241, 196, 15, 0.15);
+}
+
+.btn-pill.btn-gray {
+  color: var(--pill-level-7-text);
+  background-color: var(--pill-level-7-bg);
+}
+
+/* ============ ICON Button Type ============ */
+.btn-icon {
+  padding: 0;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+/* Icon button sizes (square) */
+.btn-icon.btn-xs {
+  width: 1.5rem;
+  height: 1.5rem;
+  min-height: unset;
+}
+
+.btn-icon.btn-sm {
+  width: 2rem;
+  height: 2rem;
+  min-height: unset;
+}
+
+.btn-icon.btn-md {
+  width: 2.5rem;
+  height: 2.5rem;
+  min-height: unset;
+}
+
+.btn-icon.btn-lg {
+  width: 3rem;
+  height: 3rem;
+  min-height: unset;
+}
+
+.btn-icon:hover:not(:disabled) {
+  background: var(--bg-intense);
+}
+
+/* Icon button color variants */
+.btn-icon.btn-primary {
+  background: rgba(74, 144, 217, 0.3);
+  border-color: rgba(74, 144, 217, 0.4);
+  color: var(--color-primary);
+}
+
+.btn-icon.btn-primary:hover:not(:disabled) {
+  background: rgba(74, 144, 217, 0.4);
+}
+
+.btn-icon.btn-danger {
+  background: rgba(231, 76, 60, 0.25);
+  border-color: rgba(231, 76, 60, 0.4);
+  color: var(--color-danger);
+}
+
+.btn-icon.btn-danger:hover:not(:disabled) {
+  background: rgba(231, 76, 60, 0.4);
+  border-color: rgba(231, 76, 60, 0.5);
+}
+
+.btn-icon.btn-success {
+  background: rgba(46, 204, 113, 0.3);
+  border-color: rgba(46, 204, 113, 0.4);
+  color: var(--color-success);
+}
+
+.btn-icon.btn-success:hover:not(:disabled) {
+  background: rgba(46, 204, 113, 0.4);
+}
+
+.btn-icon.btn-warning {
+  background: rgba(241, 196, 15, 0.25);
+  border-color: rgba(241, 196, 15, 0.4);
+  color: var(--color-warning);
+}
+
+.btn-icon.btn-warning:hover:not(:disabled) {
+  background: rgba(241, 196, 15, 0.4);
+  border-color: rgba(241, 196, 15, 0.5);
+}
+
+
+.btn-icon.btn-ghost:hover:not(:disabled),.btn-icon.btn-ghost:hover:not(:disabled) .btn-icon {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+/* SVG icons in icon buttons - inherit color and size properly */
+.btn.btn-icon svg,
+.btn.btn-icon .btn-svg-icon {
+  width: 20px;
+  height: 20px;
+  color: inherit;
+}
+
+.btn-icon.btn-ghost.btn-active {
+  color: var(--text-primary);
+}
+
+/* Inactive state - already uses secondary color, just ensure hover works */
+.btn-icon.btn-ghost.inactive {
+  color: var(--text-secondary);
+}
+
+.btn-icon.btn-ghost.inactive:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+/* ============ NAV Button Type ============ */
+.btn-nav {
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  font-size: var(--font-size-sm);
+  height: var(--size-md);
+  min-height: var(--size-md);
+  box-sizing: border-box;
+}
+
+.btn-nav:hover:not(:disabled) {
+  background: var(--bg-intense);
+  border-color: var(--border-color-intense);
+}
+
+.btn-nav.btn-active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+/* ============ TAB Button Type ============ */
+.btn-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.75rem 1rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.btn-tab:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-tab.btn-active {
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
+}
+
+/* Tab badge */
+.btn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  margin-left: 0.25rem;
+}
+
+.btn-badge-primary {
+  background: rgba(74, 144, 217, 0.2);
+  color: var(--color-primary);
+}
+
+.btn-badge-success {
+  background: rgba(46, 204, 113, 0.2);
+  color: var(--color-success);
+}
+
+.btn-badge-warning {
+  background: rgba(241, 196, 15, 0.2);
+  color: var(--color-warning);
+}
+
+.btn-badge-error {
+  background: rgba(231, 76, 60, 0.2);
+  color: var(--color-error);
+}
+
+
+
+/* Icon button ghost variant - transparent, no border, flexible size */
+.btn-icon.btn-ghost {
+  background: transparent;
+  border: none;
+  width: auto;
+  height: auto;
+  padding: 0.5rem;
+}
+.btn-icon.btn-ghost, .btn-icon.btn-ghost .btn-icon{
+  color: var(--text-secondary);
+  transition: color 0.2s ease;
+}
+.btn-icon.btn-ghost .btn-icon{
+  background: transparent;
+  border: none;
+}

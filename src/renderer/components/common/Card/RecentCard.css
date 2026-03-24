@@ -1,0 +1,68 @@
+/**
+ * RecentCard Component Styles
+ * Card for recently watched/read content
+ */
+
+.recent-card {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  text-align: left;
+  height: 75px;
+}
+
+.recent-card:hover {
+  box-shadow: var(--shadow-md);
+  background: var(--bg-intense);
+  border-color: var(--border-color-intense);
+}
+
+.recent-thumbnail {
+  width: 48px;
+  height: 48px;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.recent-thumbnail .recent-type {
+  font-size: 2rem;
+  opacity: 0.5;
+  transition: none; /* Prevent any transforms on hover */
+}
+
+.recent-thumbnail[style*="background-image"] .recent-type {
+  display:none;
+}
+
+.recent-info {
+  padding: 0.75rem;
+  width:100%;
+}
+
+.recent-info h4 {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  margin: 0 0 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color:var(--text-secondary);
+}
+
+/* Progress bar styling for recent cards */
+.recent-progress {
+  margin-top: auto;
+}

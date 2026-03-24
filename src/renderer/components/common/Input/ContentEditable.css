@@ -1,0 +1,53 @@
+/**
+ * ContentEditable Component Styles
+ */
+
+.content-editable-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.content-editable-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.content-editable {
+  min-height: 60px;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow: auto;
+  max-height: 200px;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.content-editable:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.content-editable:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-secondary);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Light mode */
+:root:not(.dark) .content-editable {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.15);
+  color: var(--text-primary);
+}
+
+:root:not(.dark) .content-editable:focus {
+  background: rgba(0, 0, 0, 0.05);
+}

@@ -1,99 +1,165 @@
 {
   "name": "mlearn",
-  "version": "1.4.0",
-  "description": "A language-learning app that knows which words you know for faster learning by immersion",
-  "main": "main.js",
-  "type": "module",
+  "version": "2.0.0",
+  "description": "Language learning through immersion - SolidJS + TypeScript + Electron",
+  "main": "dist-electron/electron/main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-  "start": "electron .",
-  "dist": "electron-builder -mwl",
-  "dist:mac": "electron-builder --mac",
-  "icons": "node scripts/generate-ico.js",
-  "dist:win": "npm run icons && electron-builder --win",
-  "dist:linux": "electron-builder --linux"
+    "start": "npm run dev",
+    "dev": "concurrently -k \"npm run dev:vite\" \"npm run dev:electron\"",
+    "dev:vite": "vite",
+    "dev:electron": "wait-on tcp:3000 && tsc -p src/electron/tsconfig.json && npm run bundle:preload && cross-env NODE_ENV=development electron .",
+    "build": "tsc -p src/electron/tsconfig.json && npm run bundle:preload && vite build",
+    "bundle:preload": "esbuild dist-electron/electron/preload.js --bundle --platform=node --outfile=dist-electron/electron/preload.js --allow-overwrite --external:electron",
+    "build:web": "vite build --mode web",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit && tsc -p src/electron/tsconfig.json --noEmit",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dev:mobile": "vite build --mode capacitor --watch",
+    "build:mobile": "vite build --mode capacitor",
+    "cap:sync": "npx cap sync",
+    "cap:ios": "npx cap open ios",
+    "cap:android": "npx cap open android",
+    "ios": "npm run build:mobile && npx cap sync && npx cap open ios",
+    "android": "npm run build:mobile && npx cap sync && npx cap open android",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
-    "language-learning"
+    "language-learning",
+    "immersion",
+    "japanese",
+    "chinese",
+    "subtitles",
+    "flashcards",
+    "srs"
   ],
-  "author": {
-    "name": "Adrian Vlasov",
-    "email": "admin@morisinc.net"
-  },
-  "license": "MIT",
+  "author": "",
+  "license": "ISC",
   "devDependencies": {
-  "electron": "^35.7.5",
-  "electron-builder": "^24.13.3"
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/ios": "^8.1.0",
+    "@types/adm-zip": "^0.5.7",
+    "@types/marked": "^5.0.2",
+    "@types/node": "^22.10.7",
+    "@vitest/coverage-v8": "^4.1.0",
+    "@vitest/ui": "^4.1.0",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^33.4.0",
+    "electron-builder": "^25.1.8",
+    "happy-dom": "^20.8.4",
+    "jsdom": "^29.0.1",
+    "msw": "^2.12.13",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^4.1.0",
+    "wait-on": "^8.0.2"
   },
   "dependencies": {
-  "devcert": "^1.2.0",
-  "selfsigned": "^2.4.1",
-    "python-shell": "^5.0.0",
-    "tar": "^7.4.3",
-    "unzipper": "^0.12.3",
-    "update-electron-app": "^3.0.0",
-    "ws": "^8.18.0"
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/clipboard": "^8.0.1",
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/haptics": "^8.0.0",
+    "@capacitor/keyboard": "^8.0.0",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.1",
+    "@ffmpeg/core": "^0.12.9",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "@solidjs/router": "^0.15.4",
+    "@types/qrcode": "^1.5.6",
+    "@types/simple-peer": "^9.11.9",
+    "@types/tar": "^6.1.13",
+    "@types/ws": "^8.18.1",
+    "adm-zip": "^0.5.16",
+    "archiver": "^7.0.1",
+    "jsqr": "^1.4.0",
+    "marked": "^17.0.2",
+    "node-llama-cpp": "^3.15.1",
+    "qrcode": "^1.5.4",
+    "simple-peer": "^9.11.1",
+    "solid-js": "^1.9.4",
+    "tar": "^7.5.2",
+    "ws": "^8.19.0"
   },
   "build": {
     "appId": "net.morisinc.mlearn",
     "productName": "mLearn",
-  "asar": true,
     "files": [
-      "main.js",
-  "modules/**",
-  "pages/**",
-  "!dictionaries/**",
-  "!languages/**",
-      "node_modules/**",
-      "package.json",
-      "package-lock.json",
-      "pip_requirements.json",
-  "!server.py",
-      "version-info.json",
-      "!env/**",
-      "!py/**",
-      "!**/*.map",
-      "!temp/**",
-      "!**/__pycache__/**",
-      "!**/*.pyc"
+      "dist/**/*",
+      "dist-electron/**/*"
     ],
-    "mac": {
-      "target": [
-        { "target": "dmg", "arch": ["universal"] },
-        { "target": "zip", "arch": ["universal"] }
-      ],
-      "artifactName": "${productName}-${version}-${os}.${ext}",
-      "category": "public.app-category.education",
-      "icon": "build/icon.icns"
-    },
-    "win": {
-      "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "zip", "arch": ["x64"] }
-      ],
-      "icon": "build/icon.ico"
-    },
-    "linux": {
-      "target": [
-        { "target": "AppImage", "arch": ["x64"] },
-        { "target": "deb", "arch": ["x64"] }
-      ],
-      "category": "Education",
-      "icon": "build/icons"
+    "directories": {
+      "output": "release"
     },
     "extraResources": [
-      { "from": "languages", "to": "app/languages", "filter": ["**/*"] },
-  { "from": "dictionaries", "to": "app/dictionaries", "filter": ["**/*"] },
-  { "from": "server.py", "to": "app/server.py" }
+      {
+        "from": "resources/",
+        "to": "resources/",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
-    "dmg": {
-      "background": "build/dmg-background.png",
-  "icon": "build/icon.icns",
-  "contents": [
-        { "x": 140, "y": 200 },
-        { "x": 660, "y": 200, "type": "link", "path": "/Applications" }
+    "mac": {
+      "category": "public.app-category.education",
+      "icon": "build/icon.icns",
+      "protocols": [
+        {
+          "name": "mLearn Auth Callback",
+          "schemes": [
+            "mlearn"
+          ]
+        }
+      ],
+      "target": [
+        "dmg",
+        "zip"
       ]
     },
-    "afterPack": "scripts/afterPack.cjs"
+    "win": {
+      "icon": "build/icon.ico",
+      "protocols": [
+        {
+          "name": "mLearn Auth Callback",
+          "schemes": [
+            "mlearn"
+          ]
+        }
+      ],
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "icon": "build/icon.png",
+      "protocols": [
+        {
+          "name": "mLearn Auth Callback",
+          "schemes": [
+            "mlearn"
+          ]
+        }
+      ],
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

@@ -1,0 +1,11 @@
+/**
+ * Subtitle Styles - aggregate import
+ * Individual styles live in their component CSS files.
+ * This file re-exports them for window-level consumers.
+ */
+
+@import url('../components/subtitle/SubtitleContainer.css');
+@import url('../components/subtitle/SubtitleWord.css');
+@import url('../components/common/Text/PitchAccent.css');
+@import url('../components/common/Text/FrequencyStars.css');
+@import url('../components/common/Label/Label.css');

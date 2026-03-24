@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        style-src 'self' 'unsafe-inline';
+        connect-src *;
+        script-src 'self';
+        img-src 'self' data: blob: flashcard-image:;
+        media-src 'self' blob: * flashcard-audio:;
+        worker-src 'self' blob:;
+    ">
+  <title>Connect</title>
+  <style>
+    html {
+      background-color: #000000;
+    }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: rgb(24, 24, 26);
+      color: #ccc;
+      font-family: "Helvetica Neue", sans-serif;
+      flex-direction: column;
+      gap: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+    span {
+      font-size: 20px;
+    }
+    #qrcode {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-sizing: border-box;
+      border: 10px solid #fff;
+      min-width: 220px;
+      min-height: 220px;
+      background: #fff;
+      color: #111;
+      padding: 10px;
+    }
+    button {
+      padding: 10px 16px;
+      border-radius: 10px;
+      background: rgb(27, 33, 44);
+      color: #fff;
+      border: 2px solid rgb(29, 42, 57);
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .progress-c {
+      width: 100%;
+      height: 20px;
+      border-radius: 100px;
+      overflow: hidden;
+      background: rgb(20, 25, 32);
+    }
+    .progress-c .progress-bar {
+      width: 100%;
+      height: 100%;
+      display: flex;
+    }
+    .progress-c .progress-bar > div {
+      height: 100%;
+    }
+    .easy {
+      background: rgb(109, 136, 103);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+  <span id="additional-info">Syncing Window</span>
+  <span id="other-info">Scan the QR code in the mobile app to sync.</span>
+  <div id="qrcode">QR code will appear here</div>
+  <div class="progress-c" style="display:none;">
+    <div class="progress-bar">
+      <div class="easy" id="progress"></div>
+    </div>
+  </div>
+  <button style="display:none;">Continue</button>
+</body>
+</html>

@@ -1,0 +1,114 @@
+/**
+* MagnifyingGlass Component Styles
+*/
+
+.magnifier-active {
+    cursor: none !important;
+}
+
+.magnifier-active * {
+    cursor: none !important;
+}
+
+.magnifying-glass {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1000;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    transform: translate3d(0, 0, 0) scale(0.8); /* Enable GPU acceleration */
+    will-change: left, top, opacity, transform;
+    opacity: 0;
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.magnifying-glass.visible {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+}
+
+.magnifying-glass.hidden {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.8);
+}
+
+.magnifying-glass-canvas {
+    display: block;
+    border-radius: 50%;
+    background: var(--overlay-bg);
+}
+
+.magnifying-glass-border {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--accent-bg);
+    pointer-events: none;
+}
+
+/* Crosshair in the center */
+.magnifying-glass-crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 12px;
+    height: 12px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.magnifying-glass-crosshair::before,
+.magnifying-glass-crosshair::after {
+    content: '';
+    position: absolute;
+    background: var(--accent);
+}
+
+.magnifying-glass-crosshair::before {
+    /* Horizontal line */
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    transform: translateY(-50%);
+}
+
+.magnifying-glass-crosshair::after {
+    /* Vertical line */
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    transform: translateX(-50%);
+}
+
+/* Zoom indicator badge positioning */
+.magnifying-glass-zoom-badge {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 10;
+    /* Override Badge defaults for visibility on magnified image */
+    background: var(--bg) !important;
+    color: var(--text-primary) !important;
+    backdrop-filter: var(--backdrop-filter);
+    border: 1px solid var(--border-color);
+}
+
+/* Optional: subtle gradient overlay for glass effect */
+.magnifying-glass::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: linear-gradient(
+            135deg,
+            var(--accent-bg) 0%,
+            transparent 50%,
+            var(--overlay-bg-soft) 100%
+    );
+    pointer-events: none;
+}

@@ -1,0 +1,104 @@
+/**
+ * Reader Welcome Card Component Styles
+ */
+
+.reader-welcome {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 2rem;
+  user-select: none;
+}
+
+.reader-welcome-card {
+  max-width: 600px;
+  padding: 2rem;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.reader-welcome-card h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.reader-welcome-intro {
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+}
+
+.reader-welcome-dropzone {
+  padding: 2rem;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  margin-bottom: 1.5rem;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.reader-welcome-dropzone.dragging {
+  border-color: var(--border-color-intense);
+  background: var(--bg-intense);
+}
+
+.reader-welcome-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.reader-welcome-tip {
+  padding: 1rem;
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  text-align: left;
+  border: 1px solid var(--border-color);
+}
+
+.reader-welcome-tip h3 {
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.reader-welcome-tip p {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.reader-welcome-footer {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.reader-welcome-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .reader-welcome-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reader-welcome-card {
+    padding: 1.5rem;
+  }
+}
+
+/* Mobile: allow the welcome card to scroll */
+.mobile-layout .reader-welcome {
+  height: auto;
+  min-height: 100%;
+  padding: var(--spacing-4);
+}

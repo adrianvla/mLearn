@@ -1,0 +1,105 @@
+/**
+ * ErrorModal Styles
+ * Error-specific styling applied to the Modal component
+ */
+
+/* ========== Panel Overrides ========== */
+.error-modal-panel {
+  width: min(480px, 90vw);
+}
+.error-modal-panel > div:nth-child(1) {
+  background: var(--color-error-bg, rgba(239, 68, 68, 0.1));
+  overflow: hidden;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+/* ========== Header Icon ========== */
+.error-modal-header-icon {
+  display: flex;
+  align-items: center;
+  gap:var(--spacing-3);
+}
+
+.error-modal-icon {
+  font-size: var(--font-size-3xl);
+  line-height: 1;
+}
+
+/* ========== Severity Variants ========== */
+.error-modal--error .error-modal-icon {
+  color: var(--color-error);
+}
+
+.error-modal--fatal .error-modal-icon {
+  color: var(--color-error);
+}
+
+.error-modal--warning .error-modal-icon {
+  color: var(--color-warning);
+}
+
+/* ========== Content ========== */
+.error-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+:has(> .error-modal-content){
+  padding: var(--spacing-6) !important;
+}
+
+.error-modal-message {
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ========== Details Toggle ========== */
+.error-modal-details-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.error-modal-details-toggle:hover {
+  color: var(--text-primary);
+}
+
+/* ========== Details ========== */
+.error-modal-details {
+  margin: 0;
+  padding: var(--spacing-3);
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow: auto;
+}
+
+/* ========== Actions ========== */
+.error-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  width: 100%;
+}
+
+.error-modal-actions-primary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}

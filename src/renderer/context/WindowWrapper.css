@@ -1,0 +1,31 @@
+/**
+ * Window Loading Overlay Styles
+ * Dark bootstrap overlay shown during initial window load.
+ * Uses hardcoded black/#fff to match the HTML loading screen exactly,
+ * preventing any flash during the handoff.
+ */
+
+@keyframes square-dash {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -176; }
+}
+
+.window-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000000;
+  transition: opacity 0.3s ease;
+}
+
+.window-loading-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.window-loading-spinner-dash {
+  animation: square-dash 1.2s linear infinite;
+}

@@ -1,0 +1,160 @@
+/**
+ * VideoControls Component Styles
+ * Control bar for video player
+ */
+
+/* Controls container */
+.video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  transition: opacity var(--transition-slow);
+  /*
+  The following values are hardcoded for contrast purposes.
+  Those have the same exact values as for the dark theme dark.css, except for the backdrop-filter,
+  which has brightness(0.3) instead of brightness(0.8).
+  */
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: rgba(255, 255, 255, 0.4);
+  --bg: rgba(130, 130, 130, 0.2);
+  --bg-intense: rgba(255, 255, 255, 0.15);
+  --border-color: rgba(255, 255, 255, 0.15);
+  --border-color-intense: rgba(255, 255, 255, 0.25);
+  --backdrop-filter: blur(20px) saturate(2) brightness(0.3);
+}
+.video-controls .panel{
+  background:var(--bg);
+  backdrop-filter:var(--backdrop-filter);
+}
+
+.video-controls.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+
+body.hide-cursor .video-controls {
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+.video-controls.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.video-controls.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/*!* Progress bar *!*/
+/*.video-progress-bar {*/
+/*  height: 8px;*/
+/*  background-color: var(--bg);*/
+/*  cursor: pointer;*/
+/*  position: relative;*/
+/*  transition: height var(--transition-slow);*/
+/*  border-top:1px solid var(--border-color);*/
+/*  border-bottom:1px solid var(--border-color);*/
+/*}*/
+
+/*.video-progress-bar:hover {*/
+/*  height: 15px;*/
+/*}*/
+
+/*.video-progress-bar:active {*/
+/*  height: 20px;*/
+/*}*/
+
+/*.video-progress-fill {*/
+/*  position: absolute;*/
+/*  left: 0;*/
+/*  top: 0;*/
+/*  height: 100%;*/
+/*  background: var(--text-secondary);*/
+/*  border:1px solid var(--border-color);*/
+/*  box-shadow:var(--shadow-special);*/
+/*  transition: all var(--transition-slow);*/
+/*}*/
+/*.video-progress-bar:active .video-progress-fill {*/
+/*  background: var(--text-primary);*/
+/*}*/
+
+
+.video-progress-bar:hover .video-progress-fill,
+.video-progress-fill.dragging {
+  transition: background var(--transition-slow), border-radius var(--transition-slow);
+}
+
+/* Control buttons container */
+.video-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.5rem;
+}
+
+/* Control button groups */
+.video-controls-left,
+.video-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Volume control */
+.video-volume-control {
+  display: flex;
+  align-items: center;
+}
+
+.video-volume-slider {
+  width: 80px;
+  accent-color: var(--color-primary);
+}
+
+/* Time display */
+.video-time-display {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-left: 0.5rem;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* Speed select */
+.video-speed-select {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  font-size:var(--font-size-xs);
+  min-width: 3.5rem;
+}
+
+.video-speed-select:hover {
+  color: var(--text-primary);
+}
+
+.video-speed-select:focus {
+  outline: none;
+}
+
+.video-speed-select option {
+  background: var(--bg-intense);
+  color: var(--text-primary);
+}
+
+/* Inactive control buttons - use secondary text color */
+.video-controls .btn-icon.btn-ghost.inactive {
+  color: var(--text-secondary);
+}
+
+.video-controls .btn-icon.btn-ghost.inactive:hover:not(:disabled) {
+  color: var(--text-primary);
+}

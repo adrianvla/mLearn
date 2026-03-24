@@ -1,0 +1,185 @@
+/**
+ * Explainer Cards Styles
+ * Styles for the LLM explanation cards in WordHover
+ */
+
+/* Container for all explainer cards */
+.explainer-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.explainer-cards__loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 100px;
+}
+
+/* Base card styles */
+.explainer-card {
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
+  border-radius: var(--radius-md, 8px);
+  padding: 12px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+}
+
+.explainer-card__title {
+  margin: 0 0 8px 0;
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--text-primary, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.explainer-card__content {
+  margin: 0;
+  color: var(--text-primary, #fff);
+  line-height: 1.5;
+  font-size: 0.95em;
+}
+
+/* Translation card */
+.explainer-card--translation {
+  background: var(--bg, rgba(59, 130, 246, 0.1));
+  border-color: var(--color-info, rgba(59, 130, 246, 0.3));
+}
+
+.explainer-card--translation .explainer-card__title {
+  color: var(--color-info, #3b82f6);
+}
+
+.explainer-card__phrase {
+  font-size: 1.1em;
+  line-height: 1.6;
+  margin-bottom: 8px;
+  word-break: break-word;
+  border-radius:var(--radius-md);
+  background:var(--bg-secondary);
+  backdrop-filter:var(--backdrop-filter);
+  border:1px solid var(--border-color);
+  padding:4px 8px;
+}
+
+/* Colored subtitle words inside the phrase */
+.explainer-card__phrase .subtitle_word {
+  cursor: default;
+}
+
+.explainer-card__phrase .subtitle_word.defined {
+  background: var(--highlight-bg, rgba(255, 215, 0, 0.2));
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+.explainer-card__translation {
+  margin: 8px 0 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  color: var(--text-primary, #aaa);
+  font-style: italic;
+}
+
+/* Explanation card */
+.explainer-card--explanation {
+  background: var(--bg-tertiary, rgba(168, 85, 247, 0.1));
+  border-color: var(--color-purple, rgba(168, 85, 247, 0.3));
+}
+
+.explainer-card--explanation .explainer-card__title {
+  color: var(--color-purple, #a855f7);
+}
+
+.explainer-highlight {
+  background: var(--highlight-bg, rgba(255, 215, 0, 0.25));
+  color: var(--highlight-text, #ffd700);
+  padding: 0 4px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+/* Grammar card */
+.explainer-card--grammar {
+  background: var(--bg-tertiary, rgba(34, 197, 94, 0.1));
+  border-color: var(--color-success, rgba(34, 197, 94, 0.3));
+}
+
+.explainer-card--grammar .explainer-card__title {
+  color: var(--color-success, #22c55e);
+}
+
+.explainer-card__points {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Individual grammar point */
+.grammar-point {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--bg);
+  border-radius: var(--radius-sm, 4px);
+  border-left: 3px solid var(--color-success, #22c55e);
+  box-shadow: var(--shadow-border);
+}
+
+.grammar-point__term {
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+  font-size: 0.95em;
+}
+
+.grammar-point__term::before {
+  content: '「';
+  color: var(--text-tertiary, #666);
+}
+
+.grammar-point__term::after {
+  content: '」';
+  color: var(--text-tertiary, #666);
+}
+
+.grammar-point__description {
+  color: var(--text-tertiary, #aaa);
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+/* Raw fallback card */
+.explainer-card--raw {
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
+}
+
+/* Loading placeholder for phrase */
+.explainer-phrase-loading {
+  opacity: 0.6;
+}
+
+/* Dark theme adjustments */
+.dark .explainer-card {
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.3));
+}
+
+.dark .explainer-card--translation {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.dark .explainer-card--explanation {
+  background: rgba(168, 85, 247, 0.15);
+}
+
+.dark .explainer-card--grammar {
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.dark .grammar-point {
+  background: rgba(0, 0, 0, 0.3);
+}

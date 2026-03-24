@@ -1,0 +1,72 @@
+/*!***/
+/* * FlashcardPitchAccent Component Styles*/
+/* * Ensures pitch accent overlay never wraps independently.*/
+/* * Uses inline-block + white-space:nowrap to keep text and overlay together.*/
+/* *!*/
+
+/*!* Main container *!*/
+/*.fc-pitch {*/
+/*  display: flex;*/
+/*  justify-content: center;*/
+/*  align-items: center;*/
+/*  white-space: nowrap;*/
+/*}*/
+
+/*!* Kana-only display: pitch overlays the word *!*/
+/*.fc-pitch-kana {*/
+/*  font-size: 2rem;*/
+/*  display: inline-block;*/
+/*  white-space: nowrap;*/
+/*}*/
+
+/*.fc-pitch-kana-inner {*/
+/*  position: relative;*/
+/*  display: inline-block;*/
+/*  padding-bottom: 10px;*/
+/*  white-space: nowrap;*/
+/*}*/
+
+/*.fc-pitch-overlay--kana {*/
+/*  --pitch-accent-height: 5px;*/
+/*  position: absolute;*/
+/*  bottom: 0;*/
+/*  left: 0;*/
+/*  right: 0;*/
+/*  height: 12px;*/
+/*  display: flex;*/
+/*  pointer-events: none;*/
+/*}*/
+
+/*!* Ruby (kanji + furigana) display *!*/
+/*.fc-pitch-ruby {*/
+/*  font-size: 2rem;*/
+/*  display: ruby;*/
+/*  ruby-align: center;*/
+/*  white-space: nowrap;*/
+/*}*/
+
+.fc-pitch-ruby rt {
+  font-size: 0.5em;
+  text-align: center;
+  ruby-align: center;
+  white-space: nowrap;
+  font-weight: var(--font-weight-normal);
+}
+
+/*.fc-pitch-rt {*/
+/*  position: relative;*/
+/*  display: inline-block;*/
+/*  padding-bottom: 6px;*/
+/*  white-space: nowrap;*/
+/*}*/
+
+/*.fc-pitch-overlay--rt {*/
+/*  --pitch-accent-height: 2px;*/
+/*  position: absolute;*/
+/*  bottom: 0;*/
+/*  left: 0;*/
+/*  right: 0;*/
+/*  height: 8px;*/
+/*  display: flex;*/
+/*  pointer-events: none;*/
+/*}*/

@@ -1,0 +1,131 @@
+/**
+ * Toast Component Styles
+ */
+
+/* Toast Container - fixed position at top right */
+.toast-container {
+  position: fixed;
+  top: var(--spacing-2);
+  right: var(--spacing-2);
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+/* Individual toast */
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  background: var(--bg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--toast-accent);
+  backdrop-filter: var(--backdrop-filter);
+  max-width: 360px;
+  min-width: 280px;
+  opacity: 0;
+  transform: translateX(100%);
+  transition: all var(--transition-slow);
+  pointer-events: auto;
+}
+
+.toast--visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.toast--exiting {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+/* Variant colors */
+.toast--success {
+  --toast-accent: var(--color-success);
+}
+
+.toast--success .toast__icon {
+  color: var(--color-success);
+}
+
+.toast--warning {
+  --toast-accent: var(--color-warning);
+}
+
+.toast--warning .toast__icon {
+  color: var(--color-warning);
+}
+
+.toast--info {
+  --toast-accent: var(--color-info);
+}
+
+.toast--info .toast__icon {
+  color: var(--color-info);
+}
+
+.toast--error {
+  --toast-accent: var(--color-error);
+}
+
+.toast--error .toast__icon {
+  color: var(--color-error);
+}
+
+/* Toast icon */
+.toast__icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.toast__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Toast content */
+.toast__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast__title {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.toast__message {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+  word-wrap: break-word;
+}
+
+/* Close button */
+.toast__close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: var(--spacing-1);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: color var(--transition-normal);
+  border-radius: var(--radius-sm);
+}
+
+.toast__close:hover {
+  color: var(--text-primary);
+  background: var(--bg-intense);
+}
+
+.toast__close svg {
+  width: 16px;
+  height: 16px;
+}

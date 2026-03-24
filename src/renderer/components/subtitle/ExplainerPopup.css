@@ -1,0 +1,114 @@
+/**
+ * ExplainerPopup Styles
+ * Styles for the draggable LLM explanation popup
+ */
+
+/* Content area */
+.explainer-popup__content {
+  padding: 0 !important;
+}
+
+.explainer-popup__body {
+  padding: var(--spacing-3);
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Loading state */
+.explainer-popup__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-3);
+  height: 100%;
+  min-height: 150px;
+  color: var(--text-secondary);
+}
+
+.explainer-popup__loading p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+/* Error state */
+.explainer-popup__error {
+  padding: var(--spacing-4);
+  background: var(--bg-danger);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+}
+
+.explainer-popup__error p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+/* Raw mode display */
+.explainer-popup__raw {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+}
+
+.explainer-popup__raw p {
+  margin: 0;
+}
+
+/* Streaming cursor */
+.explainer-popup__cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--text-primary);
+  margin-left: 2px;
+  animation: blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Footer */
+.explainer-popup__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.explainer-popup__status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.explainer-popup__status--loading {
+  color: var(--text-tertiary);
+}
+
+/* Scrollbar styling */
+.explainer-popup__body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.explainer-popup__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.explainer-popup__body::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+
+.explainer-popup__body::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}

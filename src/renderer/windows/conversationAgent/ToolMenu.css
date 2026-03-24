@@ -1,0 +1,52 @@
+.tool-menu {
+  position: relative;
+}
+
+.tool-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  padding: 2px var(--spacing-2);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tool-menu-trigger:hover {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.tool-menu-trigger svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tool-menu-dropdown {
+  position: absolute;
+  bottom: calc(100% + var(--spacing-2));
+  right: 0;
+  min-width: 220px;
+  background: var(--bg-nt-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+  padding: var(--spacing-1) 0;
+}
+
+.tool-menu-item {
+  padding: var(--spacing-1) var(--spacing-3);
+}
+
+.tool-menu-item .toggle-switch {
+  width: 100%;
+}
+
+.tool-menu-item .toggle-label {
+  font-size: var(--font-size-xs);
+}
