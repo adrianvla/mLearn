@@ -51,7 +51,7 @@ export function setupLLMRouterIPC(): void {
       } else if (provider === 'ollama') {
         ollamaStreamChatUnified(event.sender, messages, tools || []);
       } else {
-        await builtinStreamChat(event.sender, messages, tools || []);
+        await builtinStreamChat(event.sender, messages, tools || [], settings.builtinModel || undefined);
       }
     } catch (err) {
       console.error('[LLMRouter] Stream error:', (err as Error).message);

@@ -6,14 +6,12 @@
 import { ipcMain, app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { downloadFileWithProgress } from '../utils/downloadManager';
+import { BUILTIN_MODELS, getModelUrl } from '../../shared/builtinModels';
 import type { LLMStreamChunk, LLMModelStatus, LLMChatMessage, LLMToolDefinition, LLMToolCall } from '../../shared/types';
 
-// Default model configuration
-const DEFAULT_MODEL_REPO = 'unsloth/Qwen3.5-9B-GGUF';
-const DEFAULT_MODEL_FILE = 'Qwen3.5-9B-Q4_K_M.gguf';
-const DEFAULT_MODEL_URL = `https://huggingface.co/${DEFAULT_MODEL_REPO}/resolve/main/${DEFAULT_MODEL_FILE}`;
 const MODEL_DIR_NAME = 'models';
 const IDLE_UNLOAD_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -36,7 +34,8 @@ function getModelsDir(): string {
 }
 
 function getModelPath(modelFile?: string): string {
-  return path.join(getModelsDir(), modelFile || DEFAULT_MODEL_FILE);
+  const file = modelFile ?? BUILTIN_MODELS[BUILTIN_MODELS.length - 1].modelFile;
+  return path.join(getModelsDir(), file);
 }
 
 function isModelDownloaded(modelFile?: string): boolean {
@@ -307,16 +306,19 @@ export function setupBuiltinLLMIPC(): void {
 
   // Download model
   ipcMain.on(IPC_CHANNELS.LLM_DOWNLOAD_MODEL, async (event, modelUrl?: string, modelFile?: string) => {
+    const fallbackModel = BUILTIN_MODELS[BUILTIN_MODELS.length - 1];
+    const resolvedModelFile = modelFile ?? fallbackModel.modelFile;
+    const resolvedModelUrl = modelUrl ?? getModelUrl(fallbackModel);
     try {
       await downloadModel(
-        modelUrl || DEFAULT_MODEL_URL,
-        modelFile || DEFAULT_MODEL_FILE,
+        resolvedModelUrl,
+        resolvedModelFile,
         event.sender
       );
-      event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, getModelStatus(modelFile));
+      event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, getModelStatus(resolvedModelFile));
     } catch (err) {
       const status: LLMModelStatus = {
-        ...getModelStatus(modelFile),
+        ...getModelStatus(resolvedModelFile),
         error: (err as Error).message,
       };
       event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, status);
@@ -326,6 +328,43 @@ export function setupBuiltinLLMIPC(): void {
   // Unload model
   ipcMain.on(IPC_CHANNELS.LLM_UNLOAD_MODEL, () => {
     unloadModel();
+  });
+
+  // Get system memory info for autoselect
+  ipcMain.handle(IPC_CHANNELS.LLM_GET_SYSTEM_MEMORY, async () => {
+    const gpuInfo = await app.getGPUInfo('basic') as { gpuDevice?: Array<{ dedicatedVideoMemory?: number }> } | null;
+    const dedicatedVram = gpuInfo?.gpuDevice?.[0]?.dedicatedVideoMemory ?? 0;
+    return {
+      hasDiscreteGpu: dedicatedVram > 0,
+      dedicatedVramBytes: dedicatedVram,
+      totalRamBytes: os.totalmem(),
+    };
+  });
+
+  // List downloaded models with file sizes
+  ipcMain.handle(IPC_CHANNELS.LLM_LIST_DOWNLOADED_MODELS, () => {
+    return BUILTIN_MODELS
+      .filter((m) => isModelDownloaded(m.modelFile))
+      .map((m) => {
+        const filePath = getModelPath(m.modelFile);
+        const stat = fs.statSync(filePath);
+        return { modelFile: m.modelFile, sizeBytes: stat.size };
+      });
+  });
+
+  // Delete a model file (whitelist-validated)
+  ipcMain.handle(IPC_CHANNELS.LLM_DELETE_MODEL, (_event, modelFile: string) => {
+    const isWhitelisted = BUILTIN_MODELS.some((m) => m.modelFile === modelFile);
+    if (!isWhitelisted) {
+      throw new Error(`Model file not in registry: ${modelFile}`);
+    }
+    const filePath = getModelPath(modelFile);
+    if (loadedModel !== null && fs.existsSync(filePath)) {
+      unloadModel();
+    }
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
   });
 }
 
