@@ -129,7 +129,8 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     let msg: WatchTogetherMessage;
     try {
       msg = JSON.parse(raw);
-    } catch {
+    } catch (e) {
+      console.error(e);
       return;
     }
 

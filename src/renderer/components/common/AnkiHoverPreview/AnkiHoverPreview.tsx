@@ -12,6 +12,8 @@ export interface AnkiCardFields {
 export interface AnkiHoverPreviewProps {
   loading: boolean;
   fields: AnkiCardFields | null;
+  /** Anki ease factor as an integer (e.g. 2500 = 250%). 0 means unset (new card). */
+  ease?: number | null;
   footer?: JSX.Element;
 }
 
@@ -42,6 +44,12 @@ export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
               <div class="anki-hover-preview__field">
                 <span class="anki-hover-preview__label">Meaning</span>
                 <span class="anki-hover-preview__value" innerHTML={fields().Meaning!.value} />
+              </div>
+            </Show>
+            <Show when={props.ease != null && props.ease > 0}>
+              <div class="anki-hover-preview__field anki-hover-preview__field--meta">
+                <span class="anki-hover-preview__label">{t('mlearn.Flashcards.Card.Ease')}</span>
+                <span class="anki-hover-preview__value">{props.ease}</span>
               </div>
             </Show>
           </div>

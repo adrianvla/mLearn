@@ -59,7 +59,8 @@ export function listMediaStats(): MediaStats[] {
       try {
         const data = fs.readFileSync(path.join(dir, file), 'utf-8');
         results.push(JSON.parse(data) as MediaStats);
-      } catch {
+      } catch (e) {
+        console.error(e);
         // Skip corrupt files
       }
     }

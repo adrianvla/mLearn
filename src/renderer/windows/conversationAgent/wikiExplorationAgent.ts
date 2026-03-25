@@ -204,7 +204,8 @@ function parseToolCallsFromContent(content: string): LLMToolCall[] {
         name: match[1],
         arguments: args,
       });
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Skip malformed JSON
     }
   }
@@ -357,6 +358,7 @@ You MUST call submit_result when done, even if you found nothing (submit empty s
             content: result,
           });
         } catch (err) {
+          console.error(err);
           messages.push({
             role: 'tool',
             toolName: tc.name,

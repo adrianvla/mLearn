@@ -1184,7 +1184,9 @@
         "VideoPlayerBehaviour": "Comportement du lecteur vidéo",
         "WordStatus": "Statut des mots",
         "KnowledgePriority": "Priorité de connaissance",
-        "LiveTranslator": "Traducteur de mots en direct"
+        "LiveTranslator": "Traducteur de mots en direct",
+        "Behaviour": "Comportement",
+        "WordKnowledge": "Connaissance des mots"
       },
       "Keybind": {
         "PressKey": "Appuyez sur une touche...",
@@ -1423,11 +1425,11 @@
           "EaseMapping": {
             "Title": "Mappage d'aisance",
             "LearningEase": {
-              "Label": "Aisance Apprentissage",
+              "Label": "Anki : Aisance d'apprentissage",
               "Description": "Facteur d'aisance Anki attribué quand un mot est marqué En apprentissage (entier, 1000–3000)"
             },
             "KnownEase": {
-              "Label": "Aisance Connu",
+              "Label": "Anki : Aisance connu",
               "Description": "Facteur d'aisance Anki attribué quand un mot est marqué Connu (entier, 1000–3000)"
             }
           }
@@ -1475,12 +1477,12 @@
           },
           "EaseMapping": {
             "LearningEase": {
-              "Label": "Ease d'apprentissage",
-              "Description": "Facteur d'ease initial assigné aux mots marqués En apprentissage (ex. 1,55)"
+              "Label": "SRS intégré : Aisance d'apprentissage",
+              "Description": "Facteur d'aisance initial quand un mot est marqué En apprentissage (ex. 1,55)"
             },
             "KnownEase": {
-              "Label": "Ease connu",
-              "Description": "Facteur d'ease initial assigné aux mots marqués Connu (ex. 1,8)"
+              "Label": "SRS intégré : Aisance connu",
+              "Description": "Facteur d'aisance initial quand un mot est marqué Connu (ex. 1,8)"
             }
           },
           "Title": "Cartes intégrées"
@@ -1578,13 +1580,25 @@
           "Label": "Couleur des mots connus"
         },
         "KnownThreshold": {
-          "Description": "Valeur de facilité à partir de laquelle un mot est considéré comme connu",
-          "Label": "Seuil de connaissance"
+          "Description": "Aisance au-dessus de laquelle un mot est considéré connu (0–5000 = échelle 0,0–5,0)",
+          "Label": "SRS intégré : Seuil connu"
         },
         "PosColors": {
           "Description": "Personnalisez les couleurs pour chaque partie du discours. Ces couleurs sont utilisées pour mettre en surbrillance les mots dans les sous-titres, le lecteur et l'agent conversationnel.",
           "Reset": "Réinitialiser",
           "ResetAll": "Réinitialiser toutes les couleurs"
+        },
+        "AnkiLearningThreshold": {
+          "Label": "Anki : Seuil d'apprentissage",
+          "Description": "Facteur de carte Anki au-dessus duquel un mot est considéré en apprentissage"
+        },
+        "SrsLearningThreshold": {
+          "Label": "SRS intégré : Seuil d'apprentissage",
+          "Description": "Aisance au-dessus de laquelle un mot est considéré en apprentissage (0–5000 = échelle 0,0–5,0)"
+        },
+        "AnkiKnownThreshold": {
+          "Label": "Anki : Seuil connu",
+          "Description": "Facteur de carte Anki au-dessus duquel un mot est considéré connu"
         }
       },
       "VideoPlayer": {

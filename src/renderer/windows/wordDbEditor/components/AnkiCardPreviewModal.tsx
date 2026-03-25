@@ -41,6 +41,7 @@ export const AnkiCardPreviewModal: Component<AnkiCardPreviewModalProps> = (props
         setError(t('mlearn.WordDbEditor.Anki.NoCardFound'));
       }
     } catch (e) {
+      console.error(e);
       setError(String(e));
     } finally {
       setLoading(false);

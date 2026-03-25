@@ -124,6 +124,7 @@ export async function pdfToImages(
   try {
     pdf.cleanup();
   } catch (e) {
+    console.error(e);
     // Ignore cleanup errors
   }
   

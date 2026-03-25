@@ -155,7 +155,8 @@ export function isWordInLanguageScript(word: string, language: string): boolean 
       try {
         const locale = new Intl.Locale(language).maximize();
         expectedScript = (locale.script || '').toLowerCase();
-      } catch {
+      } catch (e) {
+        console.error(e);
         // Unknown locale — accept any word that has letters
       }
 

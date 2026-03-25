@@ -290,7 +290,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             const colourCodes = settings.colour_codes || {};
             exampleHtml = tokensToColoredHtml(tokens, colourCodes, card.content.front);
           }
-        } catch {
+        } catch (e) {
+          console.error(e);
           // Use plain text if tokenization fails
         }
         updateFlashcardContent(cardId, {

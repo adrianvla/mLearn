@@ -169,7 +169,8 @@ export class CloudLLMAdapter {
                 callbacks.onDone();
                 return;
               }
-            } catch {
+            } catch (e) {
+              console.error(e);
               // Skip malformed JSON
             }
           }
@@ -180,6 +181,7 @@ export class CloudLLMAdapter {
       callbacks.onChunk({ done: true });
       callbacks.onDone();
     } catch (err) {
+      console.error(err);
       if ((err as Error).name === 'AbortError') {
         callbacks.onChunk({ done: true });
         callbacks.onDone();
@@ -213,7 +215,8 @@ export class CloudLLMAdapter {
       });
       clearTimeout(timeoutId);
       return res.ok;
-    } catch {
+    } catch (e) {
+      console.error(e);
       return false;
     }
   }
@@ -292,7 +295,8 @@ interface CloudStreamEvent {
 function safeParseJSON(s: string): Record<string, unknown> {
   try {
     return JSON.parse(s);
-  } catch {
+  } catch (e) {
+    console.error(e);
     return {};
   }
 }

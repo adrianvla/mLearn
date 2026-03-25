@@ -63,7 +63,8 @@ export function loadSamplesManifest(): VoiceSample[] {
   if (!fs.existsSync(manifestPath)) return [];
   try {
     return JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-  } catch {
+  } catch (e) {
+    console.error(e);
     return [];
   }
 }
@@ -86,7 +87,10 @@ function fetchJson(url: string): Promise<Record<string, unknown>> {
       let data = '';
       res.on('data', (chunk: string) => { data += chunk; });
       res.on('end', () => {
-        try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+        try { resolve(JSON.parse(data)); } catch (e) {
+          console.error(e);
+          reject(e);
+        }
       });
     }).on('error', reject);
   });
@@ -141,7 +145,8 @@ function loadVoicePackages(): string[] {
     const data = fs.readFileSync(configPath, 'utf-8');
     const config: PipRequirementsConfig = JSON.parse(data);
     return config.voice ?? [];
-  } catch {
+  } catch (e) {
+    console.error(e);
     // Fallback: try resource path (development mode)
     const resPath = getResourcePath();
     const fallbackPath = path.join(resPath, 'pip_requirements.json');
@@ -162,7 +167,8 @@ function loadQwen3Packages(): string[] {
     const data = fs.readFileSync(configPath, 'utf-8');
     const config = JSON.parse(data) as Record<string, string[]>;
     return config['qwen3-tts'] ?? [];
-  } catch {
+  } catch (e) {
+    console.error(e);
     const resPath = getResourcePath();
     const fallbackPath = path.join(resPath, 'pip_requirements.json');
     try {
@@ -308,6 +314,7 @@ async function checkModelStatus(_language: string): Promise<VoiceModelStatus> {
     status.progress =
       (((sttRes.progress as number) ?? 0) + ((ttsRes.progress as number) ?? 0)) / 2;
   } catch (err) {
+    console.error(err);
     status.error = err instanceof Error ? err.message : String(err);
   }
 
@@ -405,7 +412,9 @@ function stopSession(): void {
   activeSession = false;
   activeSender = null;
   if (activeWs) {
-    try { activeWs.close(); } catch { /* ignore */ }
+    try { activeWs.close(); } catch (e) {
+      console.error(e);
+    }
     activeWs = null;
   }
 }
@@ -497,7 +506,10 @@ async function generateCloudTTS(
                 return;
               }
               resolve({ streamUrl: url });
-            } catch (e) { reject(e); }
+            } catch (e) {
+              console.error(e);
+              reject(e);
+            }
           });
           res.on('error', reject);
         },
@@ -621,7 +633,8 @@ async function generateTTS(
   try {
     const ttsStatus = await fetchJson(API_ENDPOINTS.voiceTtsStatus);
     modelLoading = !(ttsStatus.loaded as boolean);
-  } catch {
+  } catch (e) {
+    console.error(e);
     // If status check fails, proceed without the flag
   }
 
@@ -643,7 +656,9 @@ async function generateTTS(
           modelLoading: !(s.loaded as boolean),
           downloadProgress: s.progress as number ?? 0,
         });
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.error(e);
+      }
     }, 2000);
   }
 
@@ -683,7 +698,9 @@ async function generateTTS(
     }> = [];
 
     if (boundariesHeader) {
-      try { boundaries = JSON.parse(boundariesHeader as string); } catch { /* ignore */ }
+      try { boundaries = JSON.parse(boundariesHeader as string); } catch (e) {
+        console.error(e);
+      }
     }
 
     // Extract WAV PCM data (skip 44-byte WAV header)

@@ -96,7 +96,6 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     anki_field_meaning: 'Meaning',
     anki_model_name: 'Basic',
     ankiDeckName: 'mLearn',
-    ankiModelName: 'Basic',
     ankiTemplateExpression: '',
     ankiTemplateReading: '',
     ankiTemplateMeaning: '',

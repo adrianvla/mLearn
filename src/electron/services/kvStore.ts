@@ -32,7 +32,8 @@ async function loadStore(): Promise<Record<string, string>> {
     const storePath = getStorePath();
     try {
       await fs.promises.access(storePath);
-    } catch {
+    } catch (e) {
+      console.error(e);
       store = {};
       return store;
     }
@@ -59,7 +60,8 @@ async function persistStore(): Promise<void> {
     const dir = path.dirname(storePath);
     try {
       await fs.promises.access(dir);
-    } catch {
+    } catch (e) {
+      console.error(e);
       await fs.promises.mkdir(dir, { recursive: true });
     }
     await fs.promises.writeFile(tmpPath, JSON.stringify(store, null, 2));

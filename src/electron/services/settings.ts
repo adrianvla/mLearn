@@ -52,7 +52,8 @@ export async function saveSettings(settings: Settings): Promise<void> {
     const dir = path.dirname(settingsPath);
     try {
       await fs.promises.access(dir);
-    } catch {
+    } catch (e) {
+      console.error(e);
       await fs.promises.mkdir(dir, { recursive: true });
     }
     await fs.promises.writeFile(tmpPath, JSON.stringify(settings, null, 2));

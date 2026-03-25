@@ -54,3 +54,11 @@
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
 }
+
+.anki-hover-preview__field--meta {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-color);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}

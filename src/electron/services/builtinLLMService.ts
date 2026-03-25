@@ -96,6 +96,7 @@ async function downloadModel(
     downloadProgress = 1;
     sender.send(IPC_CHANNELS.LLM_DOWNLOAD_PROGRESS, getModelStatus(modelFile));
   } catch (err) {
+    console.error(err);
     isDownloading = false;
     throw err;
   }
@@ -278,6 +279,7 @@ async function streamChat(
     };
     sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, doneChunk);
   } catch (err) {
+    console.error(err);
     if ((err as Error).name === 'AbortError' || currentAbortController?.signal.aborted) {
       const abortChunk: LLMStreamChunk = { done: true, content: '' };
       sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, abortChunk);
@@ -317,6 +319,7 @@ export function setupBuiltinLLMIPC(): void {
       );
       event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, getModelStatus(resolvedModelFile));
     } catch (err) {
+      console.error(err);
       const status: LLMModelStatus = {
         ...getModelStatus(resolvedModelFile),
         error: (err as Error).message,

@@ -140,7 +140,8 @@ export async function validateCloudAccessToken(settings: Settings): Promise<bool
     });
     clearTimeout(timeoutId);
     return response.ok;
-  } catch {
+  } catch (e) {
+    console.error(e);
     return false;
   }
 }
@@ -175,7 +176,8 @@ export async function validateAndRefreshCloudSession(settings: Settings): Promis
       refreshToken: refreshed.refreshToken,
       expiresAt: refreshed.expiresAt,
     };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { status: 'expired' };
   }
 }

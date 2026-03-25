@@ -139,7 +139,9 @@ export async function clipVideo(
 
     if (exitCode !== 0) {
       console.warn('Stream copy failed, falling back to re-encoding');
-      try { await ffmpeg.deleteFile(outputName); } catch { /* ignore */ }
+      try { await ffmpeg.deleteFile(outputName); } catch (e) {
+        console.error(e);
+      }
 
       console.log('[VideoClip] clipVideo: running re-encode...');
       exitCode = await ffmpeg.exec([
@@ -180,6 +182,8 @@ export async function clipVideo(
 
 async function cleanup(ffmpeg: FFmpeg, ...files: string[]): Promise<void> {
   for (const file of files) {
-    try { await ffmpeg.deleteFile(file); } catch { /* ignore */ }
+    try { await ffmpeg.deleteFile(file); } catch (e) {
+      console.error(e);
+    }
   }
 }

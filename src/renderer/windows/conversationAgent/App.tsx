@@ -435,7 +435,8 @@ export const ConversationContent: Component = () => {
           const status = await getBridge().llm.llmCheckModel();
           setIsConnected(status?.downloaded ?? false);
         }
-      } catch {
+      } catch (e) {
+        console.error(e);
         setIsConnected(false);
       } finally {
         setIsCheckingConnection(false);
@@ -628,7 +629,8 @@ export const ConversationContent: Component = () => {
         if (result) {
           setTranslationData({ data: result.data as (TranslationEntry | PitchData | null | undefined)[] });
         }
-      } catch {
+      } catch (e) {
+        console.error(e);
         // Ignore translation errors
       }
     }
@@ -638,7 +640,8 @@ export const ConversationContent: Component = () => {
       const entries = await lookup(lookupWord, token.reading);
       if (requestId !== hoverRequestId) return;
       setDictionaryEntries(entries);
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Ignore dictionary errors
     }
     if (requestId === hoverRequestId) {

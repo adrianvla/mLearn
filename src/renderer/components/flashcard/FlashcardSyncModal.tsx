@@ -292,6 +292,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         setStatusText(t('mlearn.Flashcards.Sync.EstablishingConnection'));
       }
     } catch (e) {
+      console.error(e);
       // Ignore invalid QR codes
     }
   };

@@ -22,7 +22,8 @@ export async function fetchAnkiWordsCache(): Promise<Set<string>> {
       const words = await getBackend().getAnkiWords();
       ankiWordsSet = new Set(words);
       fetched = true;
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Silently fail — ankiWordsSet stays empty
     }
     fetchPromise = null;

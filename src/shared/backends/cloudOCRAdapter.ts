@@ -167,7 +167,8 @@ export class CloudOCRAdapter {
       });
       clearTimeout(timeoutId);
       return res.ok;
-    } catch {
+    } catch (e) {
+      console.error(e);
       return false;
     }
   }

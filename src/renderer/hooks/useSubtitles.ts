@@ -289,7 +289,19 @@ export function useSubtitles() {
     };
 
     try {
-      const { text: cleanedText, readingOverrides } = parseSubtitle(sub.text, settings.language);
+      let rawText = sub.text;
+
+      // Remove speaker name prefixes (e.g. "Speaker:" or "JOHN:")
+      if (settings.removeSpeakerNames) {
+        rawText = rawText.replace(/^[A-Za-z\u00C0-\u024F\s]+:\s*/gm, '');
+      }
+
+      // Remove all parenthesized content (must happen before parseSubtitle which handles furigana parens)
+      if (settings.removeParentheses) {
+        rawText = rawText.replace(/\([^)]*\)/g, '').replace(/（[^）]*）/g, '').trim();
+      }
+
+      const { text: cleanedText, readingOverrides } = parseSubtitle(rawText, settings.language);
       
       const newTokens = await tokenize(cleanedText);
       if (Array.isArray(newTokens) && newTokens.length > 0) {

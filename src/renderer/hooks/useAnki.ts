@@ -68,7 +68,8 @@ export function useAnki() {
       await ankiRequest(getProxyUrl(), 'version');
       setIsConnected(true);
       return true;
-    } catch {
+    } catch (e) {
+      console.error(e);
       setIsConnected(false);
       return false;
     }
@@ -146,7 +147,8 @@ export function useAnki() {
     // Ensure the deck exists before adding
     try {
       await ankiRequest(getProxyUrl(), 'createDeck', { deck: deckName });
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Ignore - deck may already exist
     }
 
@@ -201,7 +203,8 @@ export function useAnki() {
       return await ankiRequest<number[]>(getProxyUrl(), 'findNotes', {
         query: `deck:"${deck}" "${fieldExpression}:${word}"`,
       });
-    } catch {
+    } catch (e) {
+      console.error(e);
       return [];
     }
   };
@@ -277,7 +280,8 @@ export function useAnki() {
   const findCards = async (query: string): Promise<number[]> => {
     try {
       return await ankiRequest<number[]>(getProxyUrl(), 'findCards', { query });
-    } catch {
+    } catch (e) {
+      console.error(e);
       return [];
     }
   };

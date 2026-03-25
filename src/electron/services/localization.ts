@@ -99,7 +99,8 @@ export function initializeLocalization(): void {
     if (settings.uiLanguage) {
       savedLang = settings.uiLanguage;
     }
-  } catch {
+  } catch (e) {
+    console.error(e);
     // Settings not available yet, use English
   }
   currentLocale = savedLang;

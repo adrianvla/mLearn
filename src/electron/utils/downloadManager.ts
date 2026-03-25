@@ -94,7 +94,9 @@ export function downloadFileWithProgress(
         });
 
         fileStream.on('error', (err) => {
-          try { fs.unlinkSync(tempPath); } catch { /* ignore */ }
+          try { fs.unlinkSync(tempPath); } catch (e) {
+            console.error(e);
+          }
           reject(err);
         });
       });

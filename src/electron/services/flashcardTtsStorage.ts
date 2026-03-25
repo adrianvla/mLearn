@@ -56,7 +56,8 @@ function writeMetadata(cardId: string, field: 'word' | 'example', provider: stri
   };
   try {
     fs.writeFileSync(metaPath(cardId, field), JSON.stringify(meta));
-  } catch {
+  } catch (e) {
+    console.error(e);
     // Non-critical — silently ignore
   }
 }
@@ -67,7 +68,8 @@ function getFlashcardTtsMeta(cardId: string, field: 'word' | 'example'): { provi
   if (!fs.existsSync(mp)) return null;
   try {
     return JSON.parse(fs.readFileSync(mp, 'utf8'));
-  } catch {
+  } catch (e) {
+    console.error(e);
     return null;
   }
 }
@@ -89,7 +91,8 @@ function getFlashcardTts(cardId: string, field: 'word' | 'example'): string | nu
       }
       // Corrupt / truncated file — remove it so repair can regenerate
       fs.unlinkSync(filePath);
-    } catch {
+    } catch (e) {
+      console.error(e);
       // stat/unlink failed — treat as missing
     }
   }
@@ -217,6 +220,7 @@ async function generateViaCloud(text: string, language: string, outputPath: stri
               }
               resolve({ streamUrl });
             } catch (e) {
+              console.error(e);
               reject(e);
             }
           });

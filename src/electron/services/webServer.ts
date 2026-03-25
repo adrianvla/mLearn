@@ -185,7 +185,8 @@ function getHostAndPort(urlString: string): [string | null, string | null] {
   try {
     const parsed = new URL(urlString);
     return [parsed.hostname, parsed.port || (parsed.protocol === 'https:' ? '443' : '80')];
-  } catch {
+  } catch (e) {
+    console.error(e);
     return [null, null];
   }
 }
@@ -553,7 +554,8 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
         if (content && typeof content === 'string') {
           content = JSON.parse(content);
         }
-      } catch {
+      } catch (e) {
+        console.error(e);
         // Content might not be JSON
       }
       
@@ -580,6 +582,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           }
           sendJsonResponse(res, { status: 'ok' });
         } catch (e) {
+          console.error(e);
           sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
         }
       });
@@ -606,7 +609,8 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           sendJsonResponse(res, { status: 'ok' });
           return;
         }
-      } catch {
+      } catch (e) {
+        console.error(e);
         // Invalid payload
       }
     }
@@ -628,7 +632,8 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
         // Also forward to the desktop renderer so it can react
         getMainWindow()?.webContents.send(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, encoded);
         sendJsonResponse(res, { status: 'ok' });
-      } catch {
+      } catch (e) {
+        console.error(e);
         sendJsonResponse(res, { status: 'error', error: 'Invalid message format' }, 400);
       }
     } else {
@@ -649,7 +654,8 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     let parsedUrl: URL;
     try {
       parsedUrl = new URL(targetUrl);
-    } catch {
+    } catch (e) {
+      console.error(e);
       res.writeHead(400, corsHeaders);
       res.end('Invalid URL');
       return;
@@ -715,7 +721,8 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           const incoming = JSON.parse(body);
           await saveSettings(incoming);
           sendJsonResponse(res, { status: 'ok' });
-        } catch {
+        } catch (e) {
+          console.error(e);
           sendJsonResponse(res, { error: 'Invalid JSON' }, 400);
         }
       });
@@ -738,7 +745,8 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           const incoming = JSON.parse(body);
           await saveFlashcards(incoming);
           sendJsonResponse(res, { status: 'ok' });
-        } catch {
+        } catch (e) {
+          console.error(e);
           sendJsonResponse(res, { error: 'Invalid JSON' }, 400);
         }
       });

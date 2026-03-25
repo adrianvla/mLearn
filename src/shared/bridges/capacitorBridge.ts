@@ -91,6 +91,7 @@ async function storageGet(key: string): Promise<string | null> {
       return result.value;
     }
   } catch (e) {
+    console.error(e);
     console.log('[CapacitorBridge] Preferences.get failed, falling back to localStorage:', e);
   }
   return localStorage.getItem(key);
@@ -105,6 +106,7 @@ async function storageSet(key: string, value: string): Promise<void> {
       await mod.Preferences.set({ key, value });
     }
   } catch (e) {
+    console.error(e);
     console.log('[CapacitorBridge] Preferences.set failed, data saved to localStorage only:', e);
   }
 }
@@ -138,7 +140,8 @@ function convertToWebViewUrl(fileUri: string): string {
     if (cap?.convertFileSrc) {
       return cap.convertFileSrc(fileUri);
     }
-  } catch {
+  } catch (e) {
+    console.error(e);
     // Fall through
   }
   return fileUri;
@@ -173,7 +176,8 @@ async function ensureDir(dirPath: string): Promise<void> {
       directory: mod.Directory.Data,
       recursive: true,
     });
-  } catch {
+  } catch (e) {
+    console.error(e);
     // Directory may already exist — ignore
   }
 }
@@ -249,7 +253,8 @@ async function deleteImageFile(cardId: string): Promise<void> {
         path: `${FLASHCARD_IMAGES_DIR}/${cardId}.${ext}`,
         directory: mod.Directory.Data,
       });
-    } catch {
+    } catch (e) {
+      console.error(e);
       // File may not exist with this extension — ignore
     }
   }
@@ -267,7 +272,8 @@ async function deleteVideoFile(cardId: string): Promise<void> {
       path: `${FLASHCARD_VIDEOS_DIR}/${cardId}.mp4`,
       directory: mod.Directory.Data,
     });
-  } catch {
+  } catch (e) {
+    console.error(e);
     // File may not exist — ignore
   }
 }
@@ -406,7 +412,9 @@ async function loadShardedFlashcards(): Promise<FlashcardStore> {
         const mod = await getPreferencesModule();
         if (mod) await mod.Preferences.remove({ key: FLASHCARD_LEGACY_KEY });
         localStorage.removeItem(FLASHCARD_LEGACY_KEY);
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.error(e);
+      }
       return legacy;
     }
     return { flashcards: {}, wordCandidates: {} } as FlashcardStore;
@@ -593,7 +601,8 @@ const localizationBridge: LocalizationBridge = {
       try {
         const mod = await import(`../../root-of-app/locales/lang.${lang}.json`);
         emitter.emit('localization', { locale: lang, strings: mod.default || mod });
-      } catch {
+      } catch (e) {
+        console.error(e);
         emitter.emit('localization', { locale: 'en', strings: {} });
       }
     };
@@ -632,7 +641,8 @@ const localizationBridge: LocalizationBridge = {
         const lang = settings.language || DEFAULT_SETTINGS.language;
         const mod = await import(`../../root-of-app/languages/${lang}.json`);
         emitter.emit('lang-data', mod.default || mod);
-      } catch {
+      } catch (e) {
+        console.error(e);
         emitter.emit('lang-data', {} as LanguageData);
       }
     };
@@ -696,7 +706,8 @@ const fileBridge: FileBridge = {
         })
       );
       return { files };
-    } catch {
+    } catch (e) {
+      console.error(e);
       return { files: [] };
     }
   },
@@ -1045,7 +1056,9 @@ const llmBridge: LLMBridge = {
               try {
                 const chunk = JSON.parse(line.slice(6));
                 emitter.emit('llm-stream-chunk', chunk);
-              } catch { /* skip malformed */ }
+              } catch (e) {
+                console.error(e);
+              }
             }
           }
         }
@@ -1122,7 +1135,9 @@ const llmBridge: LLMBridge = {
                   prompt_eval_duration: data.prompt_eval_duration,
                   total_duration: data.total_duration,
                 });
-              } catch { /* skip */ }
+              } catch (e) {
+                console.error(e);
+              }
             }
           }
         }
@@ -1148,7 +1163,8 @@ const llmBridge: LLMBridge = {
       const res = await fetch(`${settings.ollamaUrl || 'http://localhost:11434'}/api/tags`);
       const data = await res.json();
       return data.models || [];
-    } catch {
+    } catch (e) {
+      console.error(e);
       return [];
     }
   },
@@ -1158,7 +1174,8 @@ const llmBridge: LLMBridge = {
       const settings = JSON.parse(localStorage.getItem('settings') || '{}');
       const res = await fetch(`${settings.ollamaUrl || 'http://localhost:11434'}/api/tags`);
       return res.ok;
-    } catch {
+    } catch (e) {
+      console.error(e);
       return false;
     }
   },
@@ -1197,7 +1214,9 @@ const speechBridge: SpeechBridge = {
 
       recognition.start();
       (window as unknown as Record<string, unknown>).__mlearnSpeechRecognition = recognition;
-    } catch { /* Speech not supported */ }
+    } catch (e) {
+      console.error(e);
+    }
   },
 
   sttStop() {
@@ -1380,6 +1399,7 @@ const genericBridge: GenericIPCBridge = {
       const content = await res.text();
       return { content };
     } catch (err) {
+      console.error(err);
       return { content: '', error: String(err) };
     }
   },
@@ -1421,6 +1441,7 @@ const dataBridge: DataBridge = {
 
       return { success: true };
     } catch (e) {
+      console.error(e);
       return { success: false, error: String(e) };
     }
   },
@@ -1460,6 +1481,7 @@ const dataBridge: DataBridge = {
 
           resolve({ success: true });
         } catch (e) {
+          console.error(e);
           resolve({ success: false, error: String(e) });
         }
       };
@@ -1481,7 +1503,9 @@ const kvStoreBridge: KVStoreBridge = {
     try {
       const mod = await getPreferencesModule();
       if (mod) await mod.Preferences.remove({ key });
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.error(e);
+    }
   },
   kvGetAll: async () => {
     const result: Record<string, string> = {};

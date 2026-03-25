@@ -91,7 +91,8 @@ export function setupLocalMediaProtocol(): void {
     let stat: fs.Stats;
     try {
       stat = await fs.promises.stat(resolvedPath);
-    } catch {
+    } catch (e) {
+      console.error(e);
       return new Response('File not found', { status: 404 });
     }
 

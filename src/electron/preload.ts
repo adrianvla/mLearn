@@ -229,7 +229,8 @@ const mLearnIPC = {
   getPathForFile: (file: File): string => {
     try {
       return webUtils.getPathForFile(file);
-    } catch {
+    } catch (e) {
+      console.error(e);
       return '';
     }
   },

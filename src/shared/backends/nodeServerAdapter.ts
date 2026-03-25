@@ -100,7 +100,8 @@ export class HttpNodeServerAdapter implements NodeServerAdapter {
       });
       clearTimeout(timeoutId);
       return res.ok;
-    } catch {
+    } catch (e) {
+      console.error(e);
       return false;
     }
   }

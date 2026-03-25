@@ -59,6 +59,7 @@ export const ConnectionTab: Component = () => {
       setBackendStatus(ok ? 'success' : 'error');
       if (!ok) setBackendError(t('mlearn.Connection.Unreachable') || 'Unreachable');
     } catch (e) {
+      console.error(e);
       setBackendStatus('error');
       setBackendError(String(e));
     } finally {
@@ -76,6 +77,7 @@ export const ConnectionTab: Component = () => {
       setNodeStatus(ok ? 'success' : 'error');
       if (!ok) setNodeError(t('mlearn.Connection.Unreachable') || 'Unreachable');
     } catch (e) {
+      console.error(e);
       setNodeStatus('error');
       setNodeError(String(e));
     } finally {
@@ -92,6 +94,7 @@ export const ConnectionTab: Component = () => {
       setPendingVerifier(login.codeVerifier);
       await getBridge().window.openExternalUrl(login.loginUrl);
     } catch (e) {
+      console.error(e);
       setBackendStatus('error');
       setBackendError(String(e));
       setCloudLoginPending(false);
@@ -133,6 +136,7 @@ export const ConnectionTab: Component = () => {
       setManualDesktopCode('');
       setCloudLoginPending(false);
     } catch (e) {
+      console.error(e);
       setBackendStatus('error');
       setBackendError(String(e));
     }
@@ -159,6 +163,7 @@ export const ConnectionTab: Component = () => {
       setBackendStatus('success');
       setBackendError('');
     } catch (e) {
+      console.error(e);
       setBackendStatus('error');
       setBackendError(String(e));
     } finally {

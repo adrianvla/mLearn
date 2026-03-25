@@ -109,6 +109,7 @@ export const LocalizationProvider: ParentComponent = (props) => {
     try {
       broadcastChannel?.postMessage({ type: 'language-change', locale: langCode });
     } catch (e) {
+      console.error(e);
       // Ignore broadcast errors
     }
   };
@@ -130,6 +131,7 @@ export const LocalizationProvider: ParentComponent = (props) => {
       broadcastChannel = new BroadcastChannel(LOCALIZATION_CHANNEL);
       broadcastChannel.onmessage = handleBroadcast;
     } catch (e) {
+      console.error(e);
       // BroadcastChannel not available
     }
 

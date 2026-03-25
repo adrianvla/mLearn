@@ -123,7 +123,8 @@ async function createMigrationWindow(): Promise<BrowserWindow> {
                 if (value) {
                   try {
                     data[key] = JSON.parse(value);
-                  } catch {
+                  } catch (e) {
+                    console.error(e);
                     data[key] = value;
                   }
                 }
@@ -166,7 +167,8 @@ async function extractLocalStorage(window: BrowserWindow): Promise<Record<string
               if (value) {
                 try {
                   data[key] = JSON.parse(value);
-                } catch {
+                } catch (e) {
+                  console.error(e);
                   data[key] = value;
                 }
               }

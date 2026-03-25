@@ -39,6 +39,7 @@ export const CloudReLoginModal: Component<CloudReLoginModalProps> = (props) => {
       setPendingVerifier(login.codeVerifier);
       await getBridge().window.openExternalUrl(login.loginUrl);
     } catch (e) {
+      console.error(e);
       setError(String(e));
       setLoginPending(false);
     }
@@ -66,6 +67,7 @@ export const CloudReLoginModal: Component<CloudReLoginModalProps> = (props) => {
       props.onReLoginSuccess?.();
       props.onClose();
     } catch (e) {
+      console.error(e);
       setError(String(e));
     } finally {
       setExchanging(false);

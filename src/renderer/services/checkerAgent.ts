@@ -273,7 +273,8 @@ function parseToolCallsFromContent(content: string): ToolCall[] {
         name: 'suggest_corrections',
         arguments: args,
       });
-    } catch {
+    } catch (e) {
+      console.error(e);
       // JSON parse failed
     }
   }
@@ -289,7 +290,8 @@ function parseToolCallsFromContent(content: string): ToolCall[] {
           name: 'suggest_corrections',
           arguments: args,
         });
-      } catch {
+      } catch (e) {
+        console.error(e);
         // JSON parse failed
       }
     }

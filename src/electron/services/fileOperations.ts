@@ -123,7 +123,8 @@ export function setupFileOperationsIPC(): void {
       if (!path.isAbsolute(resolved)) return null;
       const data = await fs.readFile(resolved);
       return data.buffer;
-    } catch {
+    } catch (e) {
+      console.error(e);
       return null;
     }
   });

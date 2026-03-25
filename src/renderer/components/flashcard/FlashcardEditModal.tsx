@@ -81,7 +81,8 @@ function parseFieldValue(key: string, raw: string): unknown {
       (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
     try {
       return JSON.parse(trimmed);
-    } catch {
+    } catch (e) {
+      console.error(e);
       return trimmed;
     }
   }

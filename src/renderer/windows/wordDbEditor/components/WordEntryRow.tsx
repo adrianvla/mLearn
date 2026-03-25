@@ -45,7 +45,9 @@ async function processQueue(): Promise<void> {
       batch.map(async ({ word, resolve }) => {
         try {
           await fetchTranslation(word);
-        } catch { /* ignore */ }
+        } catch (e) {
+          console.error(e);
+        }
         resolve();
       })
     );
@@ -190,6 +192,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   // Anki hover preview state
   const [ankiHoverCard, setAnkiHoverCard] = createSignal<AnkiCardFields | null>(null);
   const [ankiHoverLoading, setAnkiHoverLoading] = createSignal(false);
+  const [ankiCardFactor, setAnkiCardFactor] = createSignal<number | null>(null);
   let ankiHoverFetched = false;
 
   const fetchAnkiCard = async () => {
@@ -199,11 +202,15 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     setAnkiHoverLoading(true);
     try {
       const { getBackend } = await import('../../../../shared/backends');
-      const result = await getBackend().getCard({ word: props.entry.word }) as { cards: { fields: AnkiCardFields }[]; error: boolean; poor: boolean };
+      const result = await getBackend().getCard({ word: props.entry.word }) as { cards: { fields: AnkiCardFields; factor?: number }[]; error: boolean; poor: boolean };
       if (!result.error && !result.poor && result.cards.length > 0) {
         setAnkiHoverCard(result.cards[0].fields || null);
+        if (result.cards[0].factor != null) {
+          setAnkiCardFactor(result.cards[0].factor);
+        }
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       // ignore
     } finally {
       setAnkiHoverLoading(false);
@@ -320,6 +327,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
               <AnkiHoverPreview
                 loading={ankiHoverLoading()}
                 fields={ankiHoverCard()}
+                ease={ankiCardFactor()}
               />
             }
             position="bottom"
