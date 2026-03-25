@@ -1,0 +1,238 @@
+/**
+ * Flashcard Edit Modal Styles
+ * Styles for the shared flashcard edit modal with editor & advanced tabs
+ */
+
+.flashcard-edit-modal-tabs {
+  margin-bottom: 1rem;
+}
+
+/* Advanced Editor */
+.flashcard-advanced-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 600px;
+}
+
+.flashcard-advanced-hint {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  opacity: 0.65;
+}
+
+.flashcard-advanced-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.flashcard-advanced-section-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Field rows */
+.flashcard-advanced-field {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.flashcard-advanced-field-key {
+  flex: 0 0 140px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: 0.5rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flashcard-advanced-field-value {
+  flex: 1;
+  min-width: 0;
+}
+
+.flashcard-advanced-field-value textarea {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  line-height: 1.4;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.flashcard-advanced-field-value textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.flashcard-advanced-field-actions {
+  flex-shrink: 0;
+  padding-top: 0.35rem;
+}
+
+/* Extra fields (custom key-value) */
+.flashcard-advanced-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.flashcard-advanced-extra-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.flashcard-advanced-extra-key {
+  flex: 0 0 140px;
+}
+
+.flashcard-advanced-extra-key input {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  box-sizing: border-box;
+}
+
+.flashcard-advanced-extra-key input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.flashcard-advanced-extra-value {
+  flex: 1;
+  min-width: 0;
+}
+
+.flashcard-advanced-extra-value textarea {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  line-height: 1.4;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.flashcard-advanced-extra-value textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.flashcard-advanced-add-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.flashcard-advanced-add-key {
+  flex: 0 0 140px;
+}
+
+.flashcard-advanced-add-key input {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  box-sizing: border-box;
+}
+
+.flashcard-advanced-add-key input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.flashcard-advanced-add-value {
+  flex: 1;
+  min-width: 0;
+}
+
+.flashcard-advanced-add-value input {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  box-sizing: border-box;
+}
+
+.flashcard-advanced-add-value input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+/* Footer */
+.flashcard-advanced-footer {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Metadata fields (read-only style) */
+.flashcard-advanced-field--readonly textarea {
+  opacity: 0.7;
+  background: var(--bg);
+}
+
+@media (max-width: 500px) {
+  .flashcard-advanced-field {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .flashcard-advanced-field-key {
+    flex: none;
+    padding: 0;
+  }
+
+  .flashcard-advanced-extra-row {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .flashcard-advanced-extra-key {
+    flex: none;
+  }
+
+  .flashcard-advanced-add-row {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .flashcard-advanced-add-key {
+    flex: none;
+  }
+}

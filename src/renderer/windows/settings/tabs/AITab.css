@@ -38,7 +38,7 @@
 }
 
 .ai-status-ok {
-  color: var(--green);
+  color: var(--color-success);
   font-size: 13px;
 }
 
@@ -48,7 +48,7 @@
 }
 
 .ai-status-error {
-  color: var(--red);
+  color: var(--color-error);
   font-size: 13px;
 }
 
@@ -56,6 +56,19 @@
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.ai-model-chooser-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  min-width: 0;
+  width: 100%;
+}
+
+.ai-model-chooser-row .setting-select {
+  flex: 1;
+  min-width: 0;
 }
 
 

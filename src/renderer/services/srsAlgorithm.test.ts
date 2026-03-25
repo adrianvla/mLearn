@@ -1021,14 +1021,23 @@ describe('getDueCards', () => {
         expect(result[0].id).toBe('a');
     });
 
-    it('excludes learning cards not yet due', () => {
+    it('excludes learning cards not yet due (beyond SRS day)', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        const now = Date.now();
         const cards = {
-            a: createTestCard({ id: 'a', state: 'learning', dueDate: now + 10 * MINUTE }),
+            a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-16T10:00:00').getTime() }),
         };
         expect(getDueCards(cards, 4)).toHaveLength(0);
+    });
+
+    it('includes learning cards due within end of SRS day', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00')); // endOfDay = June 16 4 AM
+        const cards = {
+            a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-15T23:00:00').getTime() }),
+        };
+        const result = getDueCards(cards, 4);
+        expect(result).toHaveLength(1);
     });
 
     it('includes review cards due within end of SRS day', () => {
@@ -1124,14 +1133,22 @@ describe('getLearningCards', () => {
         expect(result).toHaveLength(1);
     });
 
-    it('excludes learning cards not yet due', () => {
+    it('excludes learning cards not yet due (beyond SRS day)', () => {
         vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const cards = {
-            a: createTestCard({ id: 'a', state: 'learning', dueDate: now + MINUTE }),
+            a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-16T10:00:00').getTime() }),
         };
-        expect(getLearningCards(cards)).toHaveLength(0);
+        expect(getLearningCards(cards, 4)).toHaveLength(0);
+    });
+
+    it('includes learning cards due within same SRS day', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const cards = {
+            a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-15T12:00:00').getTime() }),
+        };
+        expect(getLearningCards(cards, 4)).toHaveLength(1);
     });
 
     it('excludes relearning cards (they are not "learning")', () => {
@@ -1339,9 +1356,25 @@ describe('getNextCard', () => {
         expect(getNextCard(queue, cards)?.id).toBe('relearn');
     });
 
-    it('skips relearning cards not yet due', () => {
+    it('skips relearning cards beyond SRS day', () => {
         vi.useFakeTimers();
-        vi.setSystemTime(1000000);
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const now = Date.now();
+        const cards = {
+            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now - 100 }),
+            relearn: createTestCard({ id: 'relearn', state: 'relearning', dueDate: new Date('2025-06-17T10:00:00').getTime() }),
+        };
+        const queue: ReviewQueue = {
+            ...createEmptyQueue(),
+            learningQueue: ['learn'],
+            relearnQueue: ['relearn'],
+        };
+        expect(getNextCard(queue, cards)?.id).toBe('learn');
+    });
+
+    it('shows relearning cards due within same SRS day even if future', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const now = Date.now();
         const cards = {
             learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now - 100 }),
@@ -1352,7 +1385,8 @@ describe('getNextCard', () => {
             learningQueue: ['learn'],
             relearnQueue: ['relearn'],
         };
-        expect(getNextCard(queue, cards)?.id).toBe('learn');
+        // Relearning is still within SRS day, so it takes priority
+        expect(getNextCard(queue, cards)?.id).toBe('relearn');
     });
 
     it('prefers learning over review when Math.random forces new card skip', () => {
@@ -1574,32 +1608,40 @@ describe('getNextPendingLearningDueDate', () => {
         expect(getNextPendingLearningDueDate(queue, cards)).toBeNull();
     });
 
-    it('returns earliest future due date from learningQueue', () => {
+    it('returns earliest due date beyond SRS day from learningQueue', () => {
         vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00')); // endOfDay = June 16 4 AM
         const queue: ReviewQueue = { ...createEmptyQueue(), learningQueue: ['a', 'b'] };
         const cards = {
-            a: createTestCard({ id: 'a', state: 'learning', dueDate: now + 10 * MINUTE }),
-            b: createTestCard({ id: 'b', state: 'learning', dueDate: now + 5 * MINUTE }),
+            a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-16T12:00:00').getTime() }),
+            b: createTestCard({ id: 'b', state: 'learning', dueDate: new Date('2025-06-16T06:00:00').getTime() }),
         };
-        expect(getNextPendingLearningDueDate(queue, cards)).toBe(now + 5 * MINUTE);
+        expect(getNextPendingLearningDueDate(queue, cards)).toBe(new Date('2025-06-16T06:00:00').getTime());
+    });
+
+    it('returns null when all learning cards are within SRS day', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00')); // endOfDay = June 16 4 AM
+        const queue: ReviewQueue = { ...createEmptyQueue(), learningQueue: ['a'] };
+        const cards = {
+            a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-15T23:00:00').getTime() }),
+        };
+        expect(getNextPendingLearningDueDate(queue, cards)).toBeNull();
     });
 
     it('considers relearnQueue too', () => {
         vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00')); // endOfDay = June 16 4 AM
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
             learningQueue: ['a'],
             relearnQueue: ['b'],
         };
         const cards = {
-            a: createTestCard({ id: 'a', state: 'learning', dueDate: now + 10 * MINUTE }),
-            b: createTestCard({ id: 'b', state: 'relearning', dueDate: now + 3 * MINUTE }),
+            a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-16T10:00:00').getTime() }),
+            b: createTestCard({ id: 'b', state: 'relearning', dueDate: new Date('2025-06-16T06:00:00').getTime() }),
         };
-        expect(getNextPendingLearningDueDate(queue, cards)).toBe(now + 3 * MINUTE);
+        expect(getNextPendingLearningDueDate(queue, cards)).toBe(new Date('2025-06-16T06:00:00').getTime());
     });
 
     it('ignores suspended cards', () => {
@@ -1653,20 +1695,22 @@ describe('getQueueCounts', () => {
         expect(result.new).toBe(2);
     });
 
-    it('counts only due learning/relearn cards', () => {
+    it('counts learning cards due within SRS day', () => {
         vi.useFakeTimers();
-        vi.setSystemTime(1000000);
+        vi.setSystemTime(new Date('2025-06-15T10:00:00')); // endOfDay = June 16 4 AM
         const now = Date.now();
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
-            learningQueue: ['due', 'future'],
+            learningQueue: ['due', 'future', 'beyond'],
         };
         const cards = {
             due: createTestCard({ id: 'due', state: 'learning', dueDate: now - 500 }),
             future: createTestCard({ id: 'future', state: 'learning', dueDate: now + MINUTE }),
+            beyond: createTestCard({ id: 'beyond', state: 'learning', dueDate: new Date('2025-06-16T10:00:00').getTime() }),
         };
         const result = getQueueCounts(queue, cards);
-        expect(result.learning).toBe(1);
+        // 'due' and 'future' are within SRS day; 'beyond' is not
+        expect(result.learning).toBe(2);
     });
 
     it('counts relearn cards in learning count', () => {

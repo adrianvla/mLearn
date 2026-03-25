@@ -248,11 +248,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const ipcCleanups: Array<() => void> = [];
 
   // Queue counts memo
-  const queueCounts = createMemo(() => SRS.getQueueCounts(queue(), store.flashcards));
+  const queueCounts = createMemo(() => SRS.getQueueCounts(queue(), store.flashcards, newDayHour()));
 
   // Get current card
   const getCurrentCard = (): Flashcard | null => {
-    return SRS.getNextCard(queue(), store.flashcards);
+    return SRS.getNextCard(queue(), store.flashcards, newDayHour());
   };
 
   // Preview due dates for rating buttons

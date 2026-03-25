@@ -317,7 +317,8 @@
         "GetMediaStats": "Stats des médias",
         "SearchWikipedia": "Chercher sur Wikipédia",
         "SearchFandom": "Chercher sur Fandom",
-        "RecallBackstory": "Rappeler l'histoire"
+        "RecallBackstory": "Rappeler l'histoire",
+        "SaveMemory": "Sauvegarder un souvenir"
       },
       "Quiz": {
         "BlankInputAriaLabel": "Blanc {index}",
@@ -607,7 +608,21 @@
           "Title": "Supprimer la carte mémoire"
         },
         "EditCard": {
-          "Title": "Modifier la carte mémoire"
+          "Title": "Modifier la carte mémoire",
+          "TabEditor": "Éditeur",
+          "TabAdvanced": "Avancé",
+          "AdvancedHint": "Modifier les données brutes de la carte. Les modifications sont appliquées lors de la sauvegarde.",
+          "FieldKey": "Champ",
+          "FieldValue": "Valeur",
+          "AddField": "Ajouter un champ",
+          "RemoveField": "Supprimer",
+          "NewFieldKey": "Nom du champ",
+          "NewFieldValue": "Valeur",
+          "EmptyObject": "Objet vide",
+          "InvalidValue": "Valeur invalide",
+          "ContentSection": "Contenu",
+          "MetadataSection": "Métadonnées",
+          "EditButton": "Modifier la carte"
         }
       },
       "PostCreate": {

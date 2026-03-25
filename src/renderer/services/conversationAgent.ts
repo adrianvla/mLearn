@@ -90,6 +90,55 @@ export interface AgentInstance {
 }
 
 // ============================================================================
+// Tool Prompt Guidelines
+// Each entry maps a tool name to a function returning its guideline lines.
+// langName is provided for guidelines that reference the target language.
+// ============================================================================
+
+const TOOL_PROMPT_GUIDELINES: Record<string, (langName: string) => string[]> = {
+  correct_mistake: (langName) => [
+    `- Use "correct_mistake" when you notice grammar, vocabulary, or spelling errors in the learner's messages. Attach it to your response subtly.\n  - If the learner makes multiple mistakes, use a single "correct_mistake" call with all corrections in the "corrections" array.\n  - If the learner explicitly asks you to call a tool or to mark/correct a specific span, you MUST call the appropriate tool even for meta/tool-testing requests and even when the text is not in ${langName}.\n  - IMPORTANT: The error_span must be copied EXACTLY from the learner's message. Do not translate or alter it.\n  - When the same word or phrase appears multiple times in the learner's message, provide context_before and/or context_after to identify which occurrence to correct.\n  - Only correct actual mistakes in the target language; do not "correct" text that is already correct or translate it.\n  - Be LENIENT with casual, colloquial, or informal speech. Casual register is valid and should NOT be corrected. Only correct things that are actually wrong — not things that are simply informal. If a native speaker would say it the same way in casual conversation, it is NOT a mistake.`,
+    `- "correct_mistake" must ALWAYS be called at the very end of your response.`,
+    `- "correct_mistake" must ALWAYS be called if the user makes a mistake.`,
+  ],
+  create_quiz: (_langName) => [
+    `- Use "create_quiz" when a good teaching moment arises. Vary between MCQ, text-input, and fill-in types. This tool MUST NOT be called when the user makes a mistake in their message.`,
+    `- When making multiple quizzes in one turn, call "create_quiz" multiple times in the exact order they should appear.`,
+    `- If you want to create a quiz, do NOT write in plain text the quiz, but USE the tool "create_quiz" accordingly.`,
+  ],
+  fetch_url: (_langName) => [
+    `- Use "fetch_url" to look up grammar explanations or vocabulary from language learning resources if the learner asks about a specific topic. The fetched content will be returned as machine-readable text.`,
+  ],
+  search_wikipedia: (_langName) => [
+    `- Use "search_wikipedia" to search for general knowledge, cultural references, or background information that comes up in conversation.`,
+  ],
+  search_fandom: (_langName) => [
+    `- Use "search_fandom" to search the configured Fandom wiki for media-specific characters, lore, episodes, or plot details. Only works if the learner has set a Fandom wiki URL.`,
+  ],
+  recall_backstory: (_langName) => [
+    `- Use "recall_backstory" when you need to remember specific details about your past, relationships, or backstory events. Do not invent backstory details — always use this tool if unsure.`,
+  ],
+  get_media_stats: (_langName) => [
+    `- Use "get_media_stats" to retrieve the learner's analytics for their current media to personalize your teaching.`,
+  ],
+  save_memory: (_langName) => [
+    `- Use "save_memory" when the learner shares personal facts. This helps you personalize future conversations.`,
+  ],
+};
+
+/** Ordered list of tool names for prompt guideline insertion. */
+const TOOL_GUIDELINE_ORDER = [
+  'correct_mistake',
+  'create_quiz',
+  'fetch_url',
+  'search_wikipedia',
+  'search_fandom',
+  'recall_backstory',
+  'get_media_stats',
+  'save_memory',
+] as const;
+
+// ============================================================================
 // System Prompt Builder
 // ============================================================================
 
@@ -107,6 +156,8 @@ function buildSystemPrompt(
   inlineBackstory?: boolean,
   disabledTools?: Set<string>,
 ): string {
+  const isToolDisabled = (name: string) => disabledTools?.has(name) ?? false;
+
   // Build personality section
   let personalitySection: string;
   if (agentConfig?.personality === 'polite') {
@@ -126,7 +177,9 @@ function buildSystemPrompt(
     const backstoryInstruction = agentConfig.roleplayContext
       ? (inlineBackstory
         ? `\n\n## Your Backstory\n${agentConfig.roleplayContext}`
-        : `\n- You have a detailed backstory available. If you ever need to recall specific events, relationships, or details from your past, call the "recall_backstory" tool. Do NOT guess or make up backstory details — always use the tool if you are unsure.`)
+        : (isToolDisabled('recall_backstory')
+          ? ''
+          : `\n- You have a detailed backstory available. If you ever need to recall specific events, relationships, or details from your past, call the "recall_backstory" tool. Do NOT guess or make up backstory details — always use the tool if you are unsure.`))
       : '';
     personalitySection = `## Personality & Character
 You are roleplaying as "${agentConfig.roleplayName}".
@@ -156,8 +209,7 @@ ${formalityNote}
     identitySection += `\nAbout the learner: ${agentConfig.aboutMe}`;
   }
 
-  const isToolDisabled = (name: string) => disabledTools?.has(name) ?? false;
-  const correctMistakeDisabled = splitChecker || isToolDisabled('correct_mistake');
+  const correctMistakeDisabled = isToolDisabled('correct_mistake');
 
   let prompt = agentConfig?.personality === 'roleplay' ? `` : `You are a language tutor for ${langName}.Your primary role is to have natural conversations in ${langName} with the learner.`;
 
@@ -175,27 +227,22 @@ ${identitySection}
 - Do not quiz the reader on character readings if ${langName} has any. 
 
 ${personalitySection}
+`;
 
-## Tool Usage Guidelines${correctMistakeDisabled ? '' : `
-- Use "correct_mistake" when you notice grammar, vocabulary, or spelling errors in the learner's messages. Attach it to your response subtly.
-  - If the learner makes multiple mistakes, use a single "correct_mistake" call with all corrections in the "corrections" array.
-  - If the learner explicitly asks you to call a tool or to mark/correct a specific span, you MUST call the appropriate tool even for meta/tool-testing requests and even when the text is not in ${langName}.
-  - IMPORTANT: The error_span must be copied EXACTLY from the learner's message. Do not translate or alter it.
-  - When the same word or phrase appears multiple times in the learner's message, provide context_before and/or context_after to identify which occurrence to correct.
-  - Only correct actual mistakes in the target language; do not "correct" text that is already correct or translate it.
-  - Be LENIENT with casual, colloquial, or informal speech. Casual register is valid and should NOT be corrected. Only correct things that are actually wrong — not things that are simply informal. If a native speaker would say it the same way in casual conversation, it is NOT a mistake.`}${isToolDisabled('create_quiz') ? '' : `
-- Use "create_quiz" when a good teaching moment arises. Vary between MCQ, text-input, and fill-in types. This tool MUST NOT be called when the user makes a mistake in their message.
-- When making multiple quizzes in one turn, call "create_quiz" multiple times in the exact order they should appear.`}${correctMistakeDisabled ? '' : `
-- "correct_mistake" must ALWAYS be called at the very end of your response.
-- "correct_mistake" must ALWAYS be called if the user makes a mistake.`}${isToolDisabled('create_quiz') ? '' : `
-- If you want to create a quiz, do NOT write in plain text the quiz, but USE the tool "create_quiz" accordingly.`}${isToolDisabled('fetch_url') ? '' : `
-- Use "fetch_url" to look up grammar explanations or vocabulary from language learning resources if the learner asks about a specific topic. The fetched content will be returned as machine-readable text.`}${isToolDisabled('search_wikipedia') ? '' : `
-- Use "search_wikipedia" to search for general knowledge, cultural references, or background information that comes up in conversation.`}${isToolDisabled('search_fandom') ? '' : `
-- Use "search_fandom" to search the configured Fandom wiki for media-specific characters, lore, episodes, or plot details. Only works if the learner has set a Fandom wiki URL.`}${isToolDisabled('recall_backstory') ? '' : `
-- Use "recall_backstory" when you need to remember specific details about your past, relationships, or backstory events. Do not invent backstory details — always use this tool if unsure.`}${isToolDisabled('get_media_stats') ? '' : `
-- Use "get_media_stats" to retrieve the learner's analytics for their current media to personalize your teaching.`}${splitChecker ? `
-- Do NOT correct the learner's mistakes. A separate system handles corrections. Focus on natural conversation, quizzes, and teaching.` : ''}
-- Do NOT overuse tools — the conversation should feel natural, not like a test.`;
+  // Build tool usage guidelines — loop over ordered tool names, skip disabled tools
+  const toolGuidelines: string[] = [];
+  for (const toolName of TOOL_GUIDELINE_ORDER) {
+    if (isToolDisabled(toolName)) continue;
+    toolGuidelines.push(...TOOL_PROMPT_GUIDELINES[toolName](langName));
+  }
+  if (splitChecker) {
+    toolGuidelines.push(`- Do NOT correct the learner's mistakes. A separate system handles corrections. Focus on natural conversation, quizzes, and teaching.`);
+  }
+
+  if (toolGuidelines.length > 0) {
+    toolGuidelines.push(`- Do NOT overuse tools — the conversation should feel natural, not like a test.`);
+    prompt += `\n## Tool Usage Guidelines\n${toolGuidelines.join('\n')}`;
+  }
 
   if (mediaCtx) {
     prompt += `\n\n## Current Media Context
@@ -299,7 +346,7 @@ ${memoryLines}`;
   }
 
   // Memory tool instruction
-  if (memories !== undefined) {
+  if (memories !== undefined && !isToolDisabled('save_memory')) {
     prompt += `\n\n## Memory
 You have a "save_memory" tool. When the learner shares personal facts (name, occupation, study goals, preferred topics, life experiences, hobbies, skill level, learning difficulties), save them using save_memory. This helps you personalize conversations across sessions. Save one clear fact per call. Do not save conversation-level details like "we talked about X".`;
   }
@@ -1280,18 +1327,21 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const baseTools = isVoice ? VOICE_AGENT_TOOLS : AGENT_TOOLS;
     const hasFandomUrl = !!agentCfg?.roleplayFandomUrl;
     const splitChecker = settingsObj.agentSplitChecker && !isVoice;
-    const disabledTools = deps.getDisabledTools?.() ?? new Set<string>();
-    let tools = baseTools;
-    if (!memoryEnabled) tools = tools.filter((t) => t.name !== 'save_memory');
-    if (!hasFandomUrl) tools = tools.filter((t) => t.name !== 'search_fandom');
+    const userDisabledTools = deps.getDisabledTools?.() ?? new Set<string>();
+
+    // Compute the effective disabled set: user-toggled + auto-filtered tools
+    const effectiveDisabled = new Set(userDisabledTools);
+    if (!memoryEnabled) effectiveDisabled.add('save_memory');
+    if (!hasFandomUrl) effectiveDisabled.add('search_fandom');
     const isRoleplay = agentCfg?.personality === 'roleplay' && !!agentCfg.roleplayContext;
-    if (!isRoleplay) tools = tools.filter((t) => t.name !== 'recall_backstory');
-    if (splitChecker) tools = tools.filter((t) => t.name !== 'correct_mistake');
-    // Apply user-disabled tools
-    if (disabledTools.size > 0) tools = tools.filter((t) => !disabledTools.has(t.name));
+    if (!isRoleplay) effectiveDisabled.add('recall_backstory');
+    if (splitChecker) effectiveDisabled.add('correct_mistake');
+
+    // Filter tool definitions using the effective disabled set
+    const tools = baseTools.filter((t) => !effectiveDisabled.has(t.name));
 
     // If recall_backstory is disabled but the agent has a backstory, inline it in the prompt
-    const inlineBackstory = isRoleplay && disabledTools.has('recall_backstory');
+    const inlineBackstory = isRoleplay && effectiveDisabled.has('recall_backstory');
 
     const targetLevel = deps.getTargetLevel?.() ?? null;
     const targetLevelName = targetLevel !== null ? (deps.getLevelName?.(targetLevel) ?? undefined) : undefined;
@@ -1302,7 +1352,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       role: 'system',
       content: isVoice
         ? buildVoiceSystemPrompt(langName, mediaCtx)
-        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, includeKnowledge, splitChecker, inlineBackstory, disabledTools),
+        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, includeKnowledge, splitChecker, inlineBackstory, effectiveDisabled),
     };
 
     const messages: LLMChatMessage[] = [

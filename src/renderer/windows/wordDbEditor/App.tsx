@@ -14,14 +14,14 @@ import {
 import { WORD_STATUS } from '../../../shared/constants';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
-import { Modal, ModalLoadingOverlay, Spinner } from '../../components/common';
-import { FlashcardEditor } from '../../components/flashcard';
+import { ModalLoadingOverlay, Spinner } from '../../components/common';
+import { FlashcardEditModal } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
 import './WordDbEditorLayout.css';
 
 export const WordDbEditorContent: Component = () => {
   const { wordFrequency, getFreqLevelNames } = useLanguage();
-  const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage } = useFlashcards();
+  const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage } = useFlashcards();
   const { t } = useLocalization();
   const { settings } = useSettings();
   const anki = useAnki();
@@ -392,10 +392,14 @@ export const WordDbEditorContent: Component = () => {
     setEditFlashcardOpen(true);
   };
 
-  const handleEditFlashcardSave = (content: FlashcardContent) => {
+  const handleEditFlashcardSave = (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>) => {
     const card = editingFlashcard();
     if (!card) return;
-    updateFlashcardContent(card.id, content);
+    if (metadataUpdates && Object.keys(metadataUpdates).length > 0) {
+      updateFlashcard(card.id, { content: { ...card.content, ...content }, ...metadataUpdates });
+    } else {
+      updateFlashcardContent(card.id, content);
+    }
     setEditFlashcardOpen(false);
     setEditingFlashcard(null);
   };
@@ -558,21 +562,12 @@ export const WordDbEditorContent: Component = () => {
           </Show>
 
           {/* Edit Flashcard Modal */}
-          <Modal
+          <FlashcardEditModal
             isOpen={editFlashcardOpen()}
+            flashcard={editingFlashcard()}
             onClose={handleEditFlashcardCancel}
-            title={`${t('mlearn.Flashcards.Modals.EditCard.Title')} – ${editingFlashcard()?.content.front || ''}`}
-            size="lg"
-          >
-            <Show when={editingFlashcard()}>
-              <FlashcardEditor
-                flashcard={editingFlashcard()!}
-                onSave={handleEditFlashcardSave}
-                onCancel={handleEditFlashcardCancel}
-                showStats={true}
-              />
-            </Show>
-          </Modal>
+            onSave={handleEditFlashcardSave}
+          />
         </Show>
       </div>
   );
