@@ -29,7 +29,8 @@ export function useCapacitorKeyboard() {
         showListener.remove();
         hideListener.remove();
       });
-    } catch {
+    } catch (e) {
+      console.error(e);
       // @capacitor/keyboard not available (e.g., in browser dev mode)
     }
   });

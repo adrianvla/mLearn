@@ -214,6 +214,7 @@ export const MagnifyingGlass: Component<MagnifyingGlassProps> = (props) => {
                 size
             );
         } catch (e) {
+          console.error(e);
             // Handle potential cross-origin or security errors
             ctx.fillStyle = 'rgba(50, 50, 50, 0.8)';
             ctx.fillRect(0, 0, size, size);

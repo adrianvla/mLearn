@@ -3,8 +3,8 @@
  */
 
 import { Component, Show, createMemo } from 'solid-js';
-import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, RangeInput, TargetIcon, Select, SortableList } from '../../../components/common';
+import { useSettings, useLocalization } from '../../../context';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, SortableList, Input } from '../../../components/common';
 import type { SortableListItem } from '../../../components/common';
 import type { KnowledgeSource, KnowledgeResolutionMode } from '../../../../shared/constants';
 import '../SettingsForm.css';
@@ -12,7 +12,6 @@ import '../SettingsForm.css';
 export const BehaviourTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
-  const { getLanguageFeatures } = useLanguage();
 
   const sourceLabel = (src: KnowledgeSource) =>
     t(`mlearn.Settings.KnowledgePriority.Source.${src[0].toUpperCase() + src.slice(1)}`);
@@ -47,28 +46,169 @@ export const BehaviourTab: Component = () => {
   return (
     <TabContent
       header={{
-        title: t('mlearn.Settings.Groups.WordStatus'),
+        title: t('mlearn.Settings.Groups.Behaviour'),
         description: t('mlearn.Settings.UI.Description'),
         icon: <TargetIcon size={20} />,
       }}
       padding="lg"
     >
 
-      <SettingGroup title={t('mlearn.Settings.Groups.WordStatus')}>
+      <SettingGroup title={t('mlearn.Settings.Groups.WordKnowledge')}>
+        {/* Built-in SRS thresholds + ease (always visible) */}
+        <SettingRow
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.LearningEase.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.LearningEase.Description')}
+        >
+          <Input
+            type="number"
+            value={settings.srsLearningEase}
+            min={1.0}
+            max={5.0}
+            step={0.05}
+            onInput={(e) => {
+              const val = parseFloat(e.currentTarget.value);
+              if (!isNaN(val) && val >= 1.0 && val <= 5.0) {
+                updateSettings({ srsLearningEase: val });
+              }
+            }}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.WordStatus.SrsLearningThreshold.Label')}
+          description={t('mlearn.Settings.WordStatus.SrsLearningThreshold.Description')}
+        >
+          <Input
+            type="number"
+            value={settings.srsLearningThreshold}
+            min={0}
+            max={5000}
+            step={100}
+            onInput={(e) => {
+              const val = parseInt(e.currentTarget.value, 10);
+              if (!isNaN(val) && val >= 0 && val <= 5000) {
+                updateSettings({ srsLearningThreshold: val });
+              }
+            }}
+          />
+        </SettingRow>
+
         <SettingRow
           label={t('mlearn.Settings.WordStatus.KnownThreshold.Label')}
           description={t('mlearn.Settings.WordStatus.KnownThreshold.Description')}
         >
-          <input
+          <Input
             type="number"
-            class="setting-input"
             value={settings.known_ease_threshold}
-            min={1000}
+            min={0}
             max={5000}
             step={100}
-            onChange={(e) => updateSettings({ known_ease_threshold: parseInt(e.currentTarget.value) })}
+            onInput={(e) => {
+              const val = parseInt(e.currentTarget.value, 10);
+              if (!isNaN(val) && val >= 0 && val <= 5000) {
+                updateSettings({ known_ease_threshold: val });
+              }
+            }}
           />
         </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.KnownEase.Label')}
+          description={t('mlearn.Settings.SRS.BuiltInFlashcards.EaseMapping.KnownEase.Description')}
+        >
+          <Input
+            type="number"
+            value={settings.srsKnownEase}
+            min={1.0}
+            max={5.0}
+            step={0.05}
+            onInput={(e) => {
+              const val = parseFloat(e.currentTarget.value);
+              if (!isNaN(val) && val >= 1.0 && val <= 5.0) {
+                updateSettings({ srsKnownEase: val });
+              }
+            }}
+          />
+        </SettingRow>
+
+        {/* Anki thresholds + ease (only when Anki is enabled) */}
+        <Show when={settings.use_anki}>
+          <SettingRow
+            label={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.LearningEase.Label')}
+            description={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.LearningEase.Description')}
+          >
+            <Input
+              type="number"
+              value={settings.ankiLearningEase}
+              min={1000}
+              max={3000}
+              step={10}
+              onInput={(e) => {
+                const val = parseInt(e.currentTarget.value, 10);
+                if (!isNaN(val) && val >= 1000 && val <= 3000) {
+                  updateSettings({ ankiLearningEase: val });
+                }
+              }}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.WordStatus.AnkiLearningThreshold.Label')}
+            description={t('mlearn.Settings.WordStatus.AnkiLearningThreshold.Description')}
+          >
+            <Input
+              type="number"
+              value={settings.ankiLearningThreshold}
+              min={1000}
+              max={3000}
+              step={10}
+              onInput={(e) => {
+                const val = parseInt(e.currentTarget.value, 10);
+                if (!isNaN(val) && val >= 1000 && val <= 3000) {
+                  updateSettings({ ankiLearningThreshold: val });
+                }
+              }}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.WordStatus.AnkiKnownThreshold.Label')}
+            description={t('mlearn.Settings.WordStatus.AnkiKnownThreshold.Description')}
+          >
+            <Input
+              type="number"
+              value={settings.ankiKnownThreshold}
+              min={1000}
+              max={3000}
+              step={10}
+              onInput={(e) => {
+                const val = parseInt(e.currentTarget.value, 10);
+                if (!isNaN(val) && val >= 1000 && val <= 3000) {
+                  updateSettings({ ankiKnownThreshold: val });
+                }
+              }}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.KnownEase.Label')}
+            description={t('mlearn.Settings.SRS.AnkiIntegration.EaseMapping.KnownEase.Description')}
+          >
+            <Input
+              type="number"
+              value={settings.ankiKnownEase}
+              min={1000}
+              max={3000}
+              step={10}
+              onInput={(e) => {
+                const val = parseInt(e.currentTarget.value, 10);
+                if (!isNaN(val) && val >= 1000 && val <= 3000) {
+                  updateSettings({ ankiKnownEase: val });
+                }
+              }}
+            />
+          </SettingRow>
+        </Show>
 
         <SettingRow
           label={t('mlearn.Settings.WordStatus.ColourKnown.Label')}
@@ -129,85 +269,7 @@ export const BehaviourTab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup title={t('mlearn.Settings.Groups.BlurEffect')}>
-        <SettingRow
-          label={t('mlearn.Settings.BlurEffect.BlurWords.Label')}
-          description={t('mlearn.Settings.BlurEffect.BlurWords.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.blur_words}
-            onChange={(checked) => updateSettings({ blur_words: checked })}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label={t('mlearn.Settings.BlurEffect.BlurKnownSubtitles.Label')}
-          description={t('mlearn.Settings.BlurEffect.BlurKnownSubtitles.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.blur_known_subtitles}
-            onChange={(checked) => updateSettings({ blur_known_subtitles: checked })}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label={t('mlearn.Settings.BlurEffect.BlurAmount.Label')}
-          description={t('mlearn.Settings.BlurEffect.BlurAmount.Description')}
-        >
-          <RangeInput
-            min={1}
-            max={20}
-            value={settings.blur_amount}
-            onChange={(value) => updateSettings({ blur_amount: value })}
-            class="setting-range"
-          />
-          <span style={{ "margin-left": "8px" }}>{settings.blur_amount}px</span>
-        </SettingRow>
-      </SettingGroup>
-
       <SettingGroup title={t('mlearn.Settings.Groups.DisplayOptions')}>
-        <SettingRow
-          label={t('mlearn.Settings.DisplayOptions.ShowFurigana.Label')}
-          description={t('mlearn.Settings.DisplayOptions.ShowFurigana.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.furigana}
-            onChange={(checked) => updateSettings({ furigana: checked })}
-          />
-        </SettingRow>
-
-        <Show when={getLanguageFeatures().supportsReadings && settings.furigana}>
-          <SettingRow
-            label={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Label')}
-            description={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Description')}
-          >
-            <ToggleSwitch
-              checked={settings.hideReadingForKnownWords ?? false}
-              onChange={(checked) => updateSettings({ hideReadingForKnownWords: checked })}
-            />
-          </SettingRow>
-        </Show>
-
-        <SettingRow
-          label={t('mlearn.Settings.DisplayOptions.ShowPitchAccent.Label')}
-          description={t('mlearn.Settings.DisplayOptions.ShowPitchAccent.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.showPitchAccent}
-            onChange={(checked) => updateSettings({ showPitchAccent: checked })}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label={t('mlearn.Settings.DisplayOptions.ShowPos.Label')}
-          description={t('mlearn.Settings.DisplayOptions.ShowPos.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.show_pos}
-            onChange={(checked) => updateSettings({ show_pos: checked })}
-          />
-        </SettingRow>
-
         <SettingRow
           label={t('mlearn.Settings.DisplayOptions.OpenAside.Label')}
           description={t('mlearn.Settings.DisplayOptions.OpenAside.Description')}
@@ -215,28 +277,6 @@ export const BehaviourTab: Component = () => {
           <ToggleSwitch
             checked={settings.openAside}
             onChange={(checked) => updateSettings({ openAside: checked })}
-          />
-        </SettingRow>
-      </SettingGroup>
-
-      <SettingGroup title={t('mlearn.Settings.Groups.Performance')}>
-        <SettingRow
-          label={t('mlearn.Settings.DisplayOptions.ImmediateFetch.Label')}
-          description={t('mlearn.Settings.DisplayOptions.ImmediateFetch.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.immediateFetch}
-            onChange={(checked) => updateSettings({ immediateFetch: checked })}
-          />
-        </SettingRow>
-
-        <SettingRow
-          label={t('mlearn.Settings.Performance.HoverKnownGetFromDictionary.Label')}
-          description={t('mlearn.Settings.Performance.HoverKnownGetFromDictionary.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.hover_known_get_from_dictionary}
-            onChange={(checked) => updateSettings({ hover_known_get_from_dictionary: checked })}
           />
         </SettingRow>
       </SettingGroup>

@@ -23,7 +23,8 @@ export const LicensesRoute: Component = () => {
           setHtml(match[1]);
         }
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       setHtml(`<p>${t('mlearn.Settings.About.LicensesLoadError')}</p>`);
     }
   });

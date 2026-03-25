@@ -42,7 +42,14 @@ export const CUSTOMIZABLE_CSS_VARS = [
 
 export interface Settings {
   // Knowledge thresholds
-  known_ease_threshold: number;
+  /** Built-in SRS ease above which a word is considered learning (integer, 0–5000 = 0.0–5.0 scale) */
+  srsLearningThreshold: number;
+  /** Built-in SRS ease above which a word is considered known (integer, 0–5000 = 0.0–5.0 scale) */
+  known_ease_threshold: number; //this setting is named in this way because of backwards compatibility, it was always named that way from day 1
+  /** Anki card factor above which a word is considered learning (integer, Anki scale) */
+  ankiLearningThreshold: number;
+  /** Anki card factor above which a word is considered known (integer, Anki scale) */
+  ankiKnownThreshold: number;
 
   // Display settings
   blur_words: boolean;
@@ -96,7 +103,6 @@ export interface Settings {
   anki_model_name: string;
   ankiConnectUrl: string;
   ankiDeckName?: string;
-  ankiModelName?: string; // Alias for anki_model_name
   ankiTemplateExpression: string;
   ankiTemplateReading: string;
   ankiTemplateMeaning: string;
@@ -296,7 +302,10 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  known_ease_threshold: 2000,
+  srsLearningThreshold: Math.round(SRS_EASE.DEFAULT_LEARNING * 1000),
+  known_ease_threshold: Math.round(SRS_EASE.DEFAULT_KNOWN * 1000),
+  ankiLearningThreshold: ANKI_EASE.DEFAULT_LEARNING,
+  ankiKnownThreshold: ANKI_EASE.DEFAULT_KNOWN,
   blur_words: false,
   blur_known_subtitles: false,
   blur_amount: 5,
@@ -307,6 +316,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'light',
   customColors: {},  // Empty = no custom color overrides
   hover_known_get_from_dictionary: false,
+  showDictionary: true,
   show_pos: true,
   language: 'ja',
   use_anki: false,

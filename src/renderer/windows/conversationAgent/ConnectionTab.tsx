@@ -42,7 +42,8 @@ export const ConnectionTab: Component = () => {
       const connected = await getBridge().llm.ollamaCheck();
       setTestStatus(connected ? 'success' : 'failed');
       setTimeout(() => setTestStatus('idle'), 3000);
-    } catch {
+    } catch (e) {
+      console.error(e);
       setTestStatus('failed');
       setTimeout(() => setTestStatus('idle'), 3000);
     }
@@ -54,7 +55,8 @@ export const ConnectionTab: Component = () => {
       updateSetting('ollamaUrl', serverUrl());
       const models = (await getBridge().llm.ollamaListModels()) as OllamaModel[] | undefined;
       setAvailableModels(models || []);
-    } catch {
+    } catch (e) {
+      console.error(e);
       setAvailableModels([]);
     }
     setLoadingModels(false);

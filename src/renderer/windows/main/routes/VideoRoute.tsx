@@ -182,7 +182,9 @@ export const VideoRoute: Component = () => {
       const cached = getCachedTranslation(word);
       let translationData = cached;
       if (!translationData) {
-        try { translationData = await translateWord(word); } catch { /* ignore */ }
+        try { translationData = await translateWord(word); } catch (e) {
+          console.error(e);
+        }
       }
       const freq = langCtx.getFrequency(word);
       const manualStatus = numericToWordStatus(wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN);

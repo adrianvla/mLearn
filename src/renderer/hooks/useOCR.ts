@@ -80,7 +80,8 @@ async function transcodeBlobToPng(
         );
       });
     }
-  } catch {
+  } catch (e) {
+    console.error(e);
     /* fallthrough to data URL path */
   }
 
@@ -150,7 +151,8 @@ async function prepareBlobForOCR(blob: Blob, turbo = true): Promise<PreparedImag
       w = img.naturalWidth || img.width;
       h = img.naturalHeight || img.height;
     }
-  } catch {
+  } catch (e) {
+    console.error(e);
     /* ignore; we will attempt direct transcode at native size */
   }
 
@@ -279,7 +281,8 @@ async function inputToBlobForOCR(
 
     try {
       ctx.drawImage(input, 0, 0, newW, newH);
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Cross-origin taint - try fetching the src directly
       const res = await fetch(input.src, { mode: 'cors' });
       const blob = await res.blob();
@@ -435,6 +438,7 @@ export function useOCR() {
       setLastResult(result);
       return result;
     } catch (e) {
+      console.error(e);
       const message = e instanceof Error ? e.message : 'OCR failed';
       setError(message);
       return null;
@@ -501,6 +505,7 @@ export function useOCR() {
       const base64 = await win.mlearn.captureScreen();
       return recognizeBase64(base64);
     } catch (e) {
+      console.error(e);
       const message = e instanceof Error ? e.message : 'Screen capture failed';
       setError(message);
       return null;

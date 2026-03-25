@@ -170,7 +170,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     try {
       const samples = await getBridge().voice.voiceSampleList();
       if (samples) setVoiceSamples(samples);
-    } catch {
+    } catch (e) {
+      console.error(e);
       // ignore
     }
   };
@@ -531,7 +532,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   const stopTTSPlayback = () => {
     if (ttsSource) {
-      try { ttsSource.stop(); } catch { /* not started */ }
+      try { ttsSource.stop(); } catch (e) {
+        console.error(e);
+      }
       ttsSource = null;
     }
     ttsPlaying = false;

@@ -85,7 +85,8 @@ function jsonRequest(
       res.on('end', () => {
         try {
           resolve(JSON.parse(data));
-        } catch {
+        } catch (e) {
+          console.error(e);
           resolve(data);
         }
       });
@@ -176,7 +177,8 @@ function streamChat(
           if (!sender.isDestroyed()) {
             sender.send(IPC_CHANNELS.OLLAMA_CHAT_STREAM, chunk);
           }
-        } catch {
+        } catch (e) {
+          console.error(e);
           // Skip malformed lines
         }
       }
@@ -195,7 +197,8 @@ function streamChat(
               tool_calls: parsed.message?.tool_calls,
             });
           }
-        } catch {
+        } catch (e) {
+          console.error(e);
           if (!doneSent && !sender.isDestroyed()) {
             sender.send(IPC_CHANNELS.OLLAMA_CHAT_STREAM, { done: true });
           }
@@ -300,7 +303,8 @@ async function checkConnection(): Promise<boolean> {
   try {
     await jsonRequest(`${baseUrl}/api/tags`, 'GET', undefined, 5_000);
     return true;
-  } catch {
+  } catch (e) {
+    console.error(e);
     return false;
   }
 }
@@ -341,7 +345,9 @@ function pullModel(sender: Electron.WebContents, modelName: string): void {
           if (!sender.isDestroyed()) {
             sender.send(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, parsed);
           }
-        } catch { /* skip */ }
+        } catch (e) {
+          console.error(e);
+        }
       }
     });
 
@@ -352,7 +358,9 @@ function pullModel(sender: Electron.WebContents, modelName: string): void {
           if (!sender.isDestroyed()) {
             sender.send(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, parsed);
           }
-        } catch { /* skip */ }
+        } catch (e) {
+          console.error(e);
+        }
       }
       if (!sender.isDestroyed()) {
         sender.send(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, { status: 'success' });
@@ -513,7 +521,9 @@ function streamChatUnified(
           if (!sender.isDestroyed()) {
             sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
           }
-        } catch { /* skip */ }
+        } catch (e) {
+          console.error(e);
+        }
       }
     });
 
@@ -554,7 +564,8 @@ function streamChatUnified(
           if (!sender.isDestroyed()) {
             sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
           }
-        } catch {
+        } catch (e) {
+          console.error(e);
           if (!doneSent && !sender.isDestroyed()) {
             sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, { done: true } as LLMStreamChunk);
           }
@@ -603,6 +614,7 @@ export function setupOllamaIPC(): void {
       const result = await chatCompletion(messages, tools);
       event.reply(IPC_CHANNELS.OLLAMA_CHAT, result);
     } catch (err) {
+      console.error(err);
       event.reply(IPC_CHANNELS.OLLAMA_CHAT, {
         content: `[Error: ${(err as Error).message}]`,
       });
@@ -624,7 +636,8 @@ export function setupOllamaIPC(): void {
     try {
       const models = await listModels();
       return models.map(m => m.name);
-    } catch {
+    } catch (e) {
+      console.error(e);
       return [];
     }
   });
@@ -640,6 +653,7 @@ export function setupOllamaIPC(): void {
       const content = await fetchUrlRaw(url, 15_000);
       return { content };
     } catch (err) {
+      console.error(err);
       return { content: '', error: (err as Error).message };
     }
   });

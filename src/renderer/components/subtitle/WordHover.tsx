@@ -677,7 +677,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       } else {
         setAnkiHoverCard(null);
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       setAnkiHoverCard(null);
     } finally {
       setAnkiHoverLoading(false);

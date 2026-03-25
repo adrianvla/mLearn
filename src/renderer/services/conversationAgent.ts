@@ -816,6 +816,7 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
         // Truncate to avoid overwhelming the context
         return content.length > 3000 ? content.slice(0, 3000) + '\n\n[Content truncated]' : content;
       } catch (err) {
+        console.error(err);
         return `Error fetching URL: ${(err as Error).message}`;
       }
     }
@@ -883,6 +884,7 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
         }
         return lines.join('\n');
       } catch (err) {
+        console.error(err);
         return `Error searching Wikipedia: ${(err as Error).message}`;
       }
     }
@@ -913,6 +915,7 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
         }
         return lines.join('\n');
       } catch (err) {
+        console.error(err);
         return `Error searching Fandom: ${(err as Error).message}`;
       }
     }
@@ -944,7 +947,8 @@ async function tokenizeText(text: string, langCode: string): Promise<Token[]> {
   try {
     const tokens = await getBackend().tokenize(text, langCode);
     return tokens;
-  } catch {
+  } catch (e) {
+    console.error(e);
     return [];
   } finally {
     clearTimeout(timeoutId);
@@ -1006,7 +1010,8 @@ function parseToolCallsFromContent(content: string): { cleanedContent: string; t
         arguments: args,
       });
       cleanedContent = cleanedContent.replace(fullMatch, '');
-    } catch {
+    } catch (e) {
+      console.error(e);
       // If JSON parsing fails, leave the text in place
     }
   }
@@ -1173,7 +1178,8 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
           } else {
             break; // No change — stop iterating
           }
-        } catch {
+        } catch (e) {
+          console.error(e);
           break; // Reformulation failed — use what we have
         }
       }

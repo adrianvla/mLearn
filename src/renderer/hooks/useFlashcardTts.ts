@@ -129,7 +129,8 @@ export function useFlashcardTts() {
             // Append cache-buster to avoid stale audio after regeneration
             await playUrl(existingUrl + '?t=' + Date.now(), myGenId);
             return;
-          } catch {
+          } catch (e) {
+            console.error(e);
             if (myGenId !== generationId) return;
           }
         }
@@ -149,7 +150,8 @@ export function useFlashcardTts() {
       if (myGenId === generationId) {
         bridge.speech.ttsSpeak(cleanText, language);
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Ensure state is always reset on any error to prevent stuck buttons
       if (myGenId === generationId) {
         setState({ isPlaying: false, isGenerating: false, playingField: null });

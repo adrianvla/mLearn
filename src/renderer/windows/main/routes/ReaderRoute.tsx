@@ -1553,6 +1553,7 @@ export const ReaderRoute: Component = () => {
         if (requestId !== ocrHoverRequestId) return;
         setOcrTranslationData(translation);
       } catch (_e) {
+        console.error(_e);
         /* ignore */
       }
     }
@@ -1563,6 +1564,7 @@ export const ReaderRoute: Component = () => {
         if (requestId !== ocrHoverRequestId) return;
         setOcrDictionaryEntries(entries);
       } catch (_e) {
+        console.error(_e);
         if (requestId !== ocrHoverRequestId) return;
         setOcrDictionaryEntries([]);
       }

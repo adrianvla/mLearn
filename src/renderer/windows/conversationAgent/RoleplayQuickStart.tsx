@@ -167,7 +167,8 @@ function parseStreamingJSON(raw: string): ParsedLLMFields {
       if (Array.isArray(parsed.quotes)) result.quotes = parsed.quotes;
       if (parsed.context) result.context = parsed.context;
       return result;
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Incomplete JSON — fall through to incremental parsing
     }
   }
@@ -269,7 +270,8 @@ async function fetchChapterSummaries(
           summaries.push({ num: chapterLink.num, title: page.title, summary });
         }
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Continue with remaining batches
     }
   }
@@ -383,6 +385,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
         setStep('fandom-url');
       }
     } catch (err) {
+      console.error(err);
       setError((err as Error).message);
       setStep('fandom-url');
     }
@@ -478,7 +481,8 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
               break;
             }
           }
-        } catch {
+        } catch (e) {
+          console.error(e);
           // Not critical — continue without story context
         }
       }
@@ -498,7 +502,8 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
             if (secText) {
               fetchedStoryContext += `\n\n=== ${sec.line} ===\n${secText}`;
             }
-          } catch {
+          } catch (e) {
+            console.error(e);
             // Skip this section
           }
         }
@@ -517,7 +522,8 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
           if (arcNames.length > 0) {
             fetchedStoryContext = `Story structure from "${foundStoryPage}":\n${arcNames.map((n) => `- ${n}`).join('\n')}`;
           }
-        } catch {
+        } catch (e) {
+          console.error(e);
           // Not critical
         }
       }
@@ -550,6 +556,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
 
       setStep('media-type');
     } catch (err) {
+      console.error(err);
       setError((err as Error).message);
       setStep('fandom-url');
     }
@@ -582,7 +589,8 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
           progressPoint().trim(),
           (msg) => setLlmProgress(msg),
         );
-      } catch {
+      } catch (e) {
+        console.error(e);
         // Continue without chapter summaries
       }
     }
@@ -606,7 +614,8 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
         if (exploration.storyPageTitle && !storyPage) {
           setStoryPageTitle(exploration.storyPageTitle);
         }
-      } catch {
+      } catch (e) {
+        console.error(e);
         // Continue without explored context
       }
     }
@@ -696,7 +705,8 @@ Generate the JSON object now.`,
                 quotes: Array.isArray(parsed.quotes) ? parsed.quotes.slice(0, 4) : ext.quotes,
                 context: parsed.context || '',
               });
-            } catch {
+            } catch (e) {
+              console.error(e);
               // Use the raw extracted data as fallback
               resolve({ lore: ext.lore.slice(0, 500), quotes: ext.quotes, context: '' });
             }
@@ -717,7 +727,8 @@ Generate the JSON object now.`,
         storyContext: result.context,
       });
       setStep('review');
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Fallback to raw extracted data
       setStep('review');
     }

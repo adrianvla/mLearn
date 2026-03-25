@@ -140,7 +140,8 @@ export function useIPC() {
       try {
         const response = await fetch('/api/status');
         return response.ok;
-      } catch {
+      } catch (e) {
+        console.error(e);
         return false;
       }
     }
@@ -291,7 +292,8 @@ export function useBackendStatus() {
     try {
       const status = await getBackendStatus();
       setIsConnected(status);
-    } catch {
+    } catch (e) {
+      console.error(e);
       setIsConnected(false);
     } finally {
       setIsChecking(false);

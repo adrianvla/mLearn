@@ -53,7 +53,8 @@ function parseAuthDeepLink(rawUrl: string): AuthDeepLinkPayload | null {
       state: parsed.searchParams.get('state'),
       error: parsed.searchParams.get('error'),
     };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return null;
   }
 }
@@ -69,7 +70,8 @@ function parseLookupDeepLink(rawUrl: string): string | null {
     }
     const word = parsed.searchParams.get('word');
     return word && word.trim() ? word.trim() : null;
-  } catch {
+  } catch (e) {
+    console.error(e);
     return null;
   }
 }
@@ -166,7 +168,9 @@ async function raiseFileDescriptorLimits(): Promise<void> {
   } else if (process.platform === 'linux') {
     try {
       await execAsync('sysctl -w fs.file-max=524288', { timeout: 2000 });
-    } catch { /* best-effort, needs root */ }
+    } catch (e) {
+      console.error(e);
+    }
   }
 }
 

@@ -33,7 +33,8 @@ export function parseMarkdownToHtml(content: string): string {
       return markedInstance.parse(trimmed) as string;
     }
     return markedInstance.parseInline(trimmed) as string;
-  } catch {
+  } catch (e) {
+    console.error(e);
     return content;
   }
 }
@@ -149,7 +150,8 @@ export const MarkdownRenderer: Component<MarkdownRendererProps> = (props) => {
     let ast: MarkedToken[];
     try {
       ast = markedInstance.lexer(props.content);
-    } catch {
+    } catch (e) {
+      console.error(e);
       return null;
     }
     return renderMarkedTokens(ast, consumer, props);

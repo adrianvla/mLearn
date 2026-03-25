@@ -241,7 +241,8 @@ function screenshotVideo(): string {
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/jpeg', 0.5);
-  } catch {
+  } catch (e) {
+    console.error(e);
     return '';
   }
 }
@@ -264,7 +265,8 @@ function extractExampleHtml(wordUuid: string | undefined, fallbackText: string):
     }
 
     return clone.innerHTML || fallbackText || '-';
-  } catch {
+  } catch (e) {
+    console.error(e);
     return fallbackText || '-';
   }
 }
@@ -362,7 +364,8 @@ function captureOcrScreenshot(anchorRect: DOMRect | undefined, ocrImageElement: 
 
     ctx.drawImage(pageImg, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/jpeg', 0.5);
-  } catch {
+  } catch (e) {
+    console.error(e);
     return '';
   }
 }
@@ -404,7 +407,8 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
       try {
         const tokens = await params.tokenize(contextPhrase);
         exampleHtml = tokensToColoredHtml(tokens, params.colourCodes, word);
-      } catch {
+      } catch (e) {
+        console.error(e);
         exampleHtml = contextPhrase;
       }
     } else {

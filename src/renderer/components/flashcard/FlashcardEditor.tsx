@@ -146,7 +146,8 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
           if (tokens.length > 0) {
             exampleHtml = tokensToColoredHtml(tokens, settings.colour_codes || {}, front());
           }
-        } catch {
+        } catch (e) {
+          console.error(e);
           // Use plain text if tokenization fails
         }
         setExample(exampleHtml);

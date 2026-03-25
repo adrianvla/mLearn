@@ -204,7 +204,8 @@ export const FlashcardsContent: Component = () => {
             } else {
               llmFailed++;
             }
-          } catch {
+          } catch (e) {
+            console.error(e);
             llmFailed++;
           }
           updateToast(llmToastId, {
@@ -267,7 +268,8 @@ export const FlashcardsContent: Component = () => {
             } else {
               failedThisRound.push(job);
             }
-          } catch {
+          } catch (e) {
+            console.error(e);
             failedThisRound.push(job);
           }
           processed++;
@@ -543,7 +545,8 @@ export const FlashcardsContent: Component = () => {
             if (tokens.length > 0) {
               exampleHtml = tokensToColoredHtml(tokens, colourCodes, card.content.front);
             }
-          } catch {
+          } catch (e) {
+            console.error(e);
             // Use plain text if tokenization fails
           }
           updateFlashcardContent(card.id, {

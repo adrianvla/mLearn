@@ -49,7 +49,8 @@ export function useCursorVisibility(options: CursorVisibilityOptions = {}) {
       if (win.mlearn?.changeTrafficLights) {
         win.mlearn.changeTrafficLights(true);
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Ignore if not available
     }
 
@@ -67,7 +68,8 @@ export function useCursorVisibility(options: CursorVisibilityOptions = {}) {
         if (win.mlearn?.changeTrafficLights) {
           win.mlearn.changeTrafficLights(false);
         }
-      } catch {
+      } catch (e) {
+        console.error(e);
         // Ignore if not available
       }
     }, hideDelay);

@@ -21,3 +21,4 @@ website
 website/node_modules
 website/worker/node_modules
 website/frontend/node_modules
+/docs/

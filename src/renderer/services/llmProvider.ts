@@ -276,7 +276,8 @@ export async function checkAvailability(settings: Settings): Promise<{ available
         return { available: false, reason: 'ollama_unreachable' };
       }
       return { available: true };
-    } catch {
+    } catch (e) {
+      console.error(e);
       return { available: false, reason: 'ollama_unreachable' };
     }
   }
@@ -288,7 +289,8 @@ export async function checkAvailability(settings: Settings): Promise<{ available
       return { available: false, reason: 'model_not_downloaded' };
     }
     return { available: true };
-  } catch {
+  } catch (e) {
+    console.error(e);
     return { available: false, reason: 'model_check_failed' };
   }
 }

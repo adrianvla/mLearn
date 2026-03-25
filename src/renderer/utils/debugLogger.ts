@@ -177,7 +177,8 @@ function formatArgs(args: unknown[]): string {
     if (a instanceof Error) return `${a.name}: ${a.message}\n${a.stack || ''}`;
     try {
       return JSON.stringify(a, null, 2);
-    } catch {
+    } catch (e) {
+      console.error(e);
       return String(a);
     }
   }).join(' ');

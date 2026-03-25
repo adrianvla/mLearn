@@ -179,12 +179,16 @@ function handleInstallerFailure(message: string, options?: { detail?: string; em
         message,
         detail: options.detail || null,
       });
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   try {
     getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 // Load pip requirements config
@@ -428,13 +432,17 @@ function pythonFound(): void {
               getMainWindow()?.webContents.send(IPC_CHANNELS.OCR_STATUS_UPDATE, message);
             }
             getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, message);
-          } catch (e) { /* ignore */ }
+          } catch (e) {
+            console.error(e);
+          }
           continue;
         }
       }
       try {
         getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, line);
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        console.error(e);
+      }
     }
   };
 
@@ -442,7 +450,9 @@ function pythonFound(): void {
     console.error('Python stderr:', data.toString());
     try {
       getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, 'stderr: ' + data.toString('utf8'));
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleClose = (code: number | null): void => {
@@ -538,7 +548,9 @@ export async function findPython(): Promise<boolean> {
   sendStatusUpdate('Select the components you want and click Install to continue.');
   try {
     getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    console.error(e);
+  }
 
   return false;
 }
@@ -562,7 +574,9 @@ export function startPythonInstall(options: InstallOptions): void {
 
   try {
     getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALL_STARTED, options);
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    console.error(e);
+  }
 
   sendStatusUpdate('Downloading Python...');
 
@@ -702,11 +716,15 @@ export function terminatePythonBackend(): void {
   // Force kill after timeout
   setTimeout(() => {
     if (pythonChildProcess && !pythonChildProcess.killed) {
-      try { pythonChildProcess.kill('SIGTERM'); } catch (e) { /* ignore */ }
+      try { pythonChildProcess.kill('SIGTERM'); } catch (e) {
+        console.error(e);
+      }
     }
     setTimeout(() => {
       if (pythonChildProcess && !pythonChildProcess.killed) {
-        try { pythonChildProcess.kill('SIGKILL'); } catch (e) { /* ignore */ }
+        try { pythonChildProcess.kill('SIGKILL'); } catch (e) {
+          console.error(e);
+        }
       }
     }, 400);
   }, 400);

@@ -106,6 +106,7 @@ export class CloudTTSAdapter {
 
       callbacks.onDone();
     } catch (err) {
+      console.error(err);
       if ((err as Error).name === 'AbortError') {
         callbacks.onDone();
         return;
@@ -154,7 +155,8 @@ export class CloudTTSAdapter {
       });
       clearTimeout(timeoutId);
       return res.ok;
-    } catch {
+    } catch (e) {
+      console.error(e);
       return false;
     }
   }

@@ -69,7 +69,8 @@ async function readOverrides(): Promise<Record<string, TranslationResponse>> {
   try {
     const raw = await getBridge().kvStore.kvGet(OVERRIDE_KEY);
     overridesCache = raw ? JSON.parse(raw) : {};
-  } catch {
+  } catch (e) {
+    console.error(e);
     overridesCache = {};
   }
   return overridesCache!;
@@ -225,6 +226,7 @@ export function useTokenizer() {
     try {
       return await p;
     } catch (e) {
+      console.error(e);
       return [{ actual_word: key, word: key, type: '名詞' }];
     } finally {
       tokenInFlight.delete(key);

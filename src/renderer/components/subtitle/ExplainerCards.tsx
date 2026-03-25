@@ -90,7 +90,8 @@ const ColoredPhrase: Component<{ phrase: string; targetWord?: string }> = (props
         if (tokens && tokens.length > 0) {
           return tokensToColoredHtml(tokens, colors, target);
         }
-      } catch {
+      } catch (e) {
+        console.error(e);
         // Fallback to plain text
       }
       return phrase;

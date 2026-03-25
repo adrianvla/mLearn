@@ -20,7 +20,8 @@ export async function loadAgents(): Promise<AgentConfig[]> {
   try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
-  } catch {
+  } catch (e) {
+    console.error(e);
     return [];
   }
 }
@@ -107,11 +108,15 @@ export async function migrateIfNeeded(): Promise<void> {
               const tagged = oldMems.map((m: AgentMemoryEntry) => ({ ...m, agentId: id }));
               await saveAllMemories(tagged);
             }
-          } catch { /* ignore */ }
+          } catch (e) {
+            console.error(e);
+          }
         }
       }
     }
-  } catch { /* ignore */ }
+  } catch (e) {
+    console.error(e);
+  }
 
   // Clean up old keys
   await getBridge().kvStore.kvRemove('agent-config');
@@ -128,7 +133,8 @@ export async function loadAllMemories(): Promise<AgentMemoryEntry[]> {
   try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
-  } catch {
+  } catch (e) {
+    console.error(e);
     return [];
   }
 }

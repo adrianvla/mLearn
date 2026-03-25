@@ -11,7 +11,7 @@ import { ConfirmDialog } from '../common/Modal/ConfirmDialog';
 import { useSettings, useLocalization, useLanguage, useFlashcards, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { getBackend } from '../../../shared/backends';
-import { stripHtmlForTts, applyRubyReadings, getLanguageDisplayName } from '../../../shared/utils/textUtils';
+import { stripHtmlForTts, getLanguageDisplayName } from '../../../shared/utils/textUtils';
 import { showToast, updateToast, removeToast } from '../common/Feedback/Toast';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import type { TTSProvider } from '../../../shared/types';
@@ -92,21 +92,21 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
   ];
 
   const buildReadingText = async (text: string): Promise<string> => {
-    // Apply ruby readings first (replaces base text with rt readings)
-    const withReadings = applyRubyReadings(text);
-    if (!withReadings) return stripHtmlForTts(text);
-    try {
-      const backend = getBackend({
-        mode: settings.backendMode,
-        url: settings.backendUrl,
-        authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
-      });
-      const tokens = await backend.tokenize(withReadings, settings.language);
-      if (tokens.length > 0) {
-        return tokens.map(tok => tok.reading || tok.word).join('');
-      }
-    } catch { /* fall through to original */ }
-    return withReadings;
+    // Strip all HTML and furigana to get raw text with kanji
+    const plainText = stripHtmlForTts(text);
+    if (!plainText) return '';
+
+    // Re-tokenize plain text so we can extract readings for each token
+    const backend = getBackend({
+      mode: settings.backendMode,
+      url: settings.backendUrl,
+      authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
+    });
+    const tokens = await backend.tokenize(plainText, settings.language);
+    if (tokens.length > 0) {
+      return tokens.map(tok => tok.reading || tok.word).join('');
+    }
+    return plainText;
   };
 
   const handleGenerate = async () => {
@@ -169,7 +169,9 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
             if (tokens.length > 0) {
               exampleHtml = tokensToColoredHtml(tokens, settings.colour_codes || {}, props.wordText);
             }
-          } catch { /* use plain text */ }
+          } catch (e) {
+            console.error(e);
+          }
           updateFlashcardContent(props.cardId, {
             example: exampleHtml,
             exampleMeaning: result.meaning || undefined,
@@ -182,7 +184,8 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
           hadError = true;
           examplePhraseFailed = true;
         }
-      } catch {
+      } catch (e) {
+        console.error(e);
         updateTask('examplePhrase', 'error');
         hadError = true;
         examplePhraseFailed = true;
@@ -241,7 +244,8 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         } else {
           updateTask('wordTts', 'done');
         }
-      } catch {
+      } catch (e) {
+        console.error(e);
         updateTask('wordTts', 'error');
         hadError = true;
       }
@@ -277,7 +281,8 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         } else {
           updateTask('exampleTts', 'done');
         }
-      } catch {
+      } catch (e) {
+        console.error(e);
         updateTask('exampleTts', 'error');
         hadError = true;
       }
@@ -296,7 +301,8 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
           }
         }
         updateTask('translation', 'done');
-      } catch {
+      } catch (e) {
+        console.error(e);
         updateTask('translation', 'error');
         hadError = true;
       }

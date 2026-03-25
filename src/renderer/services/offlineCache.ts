@@ -68,7 +68,8 @@ async function idbGet<T>(storeName: string, key: string): Promise<T | null> {
       };
       req.onerror = () => reject(req.error);
     });
-  } catch {
+  } catch (e) {
+    console.error(e);
     return null;
   }
 }
@@ -83,7 +84,8 @@ async function idbPut<T>(storeName: string, key: string, value: T): Promise<void
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-  } catch {
+  } catch (e) {
+    console.error(e);
     // Silently fail — cache is best-effort
   }
 }
@@ -102,7 +104,8 @@ async function idbPutBatch<T>(storeName: string, entries: Array<{ key: string; v
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-  } catch {
+  } catch (e) {
+    console.error(e);
     // Silently fail
   }
 }
@@ -117,7 +120,8 @@ async function idbCount(storeName: string): Promise<number> {
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
-  } catch {
+  } catch (e) {
+    console.error(e);
     return 0;
   }
 }
@@ -153,7 +157,8 @@ async function idbPrune(storeName: string, maxEntries: number): Promise<void> {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-  } catch {
+  } catch (e) {
+    console.error(e);
     // Pruning failure is non-critical
   }
 }
@@ -168,7 +173,8 @@ async function idbClear(storeName: string): Promise<void> {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-  } catch {
+  } catch (e) {
+    console.error(e);
     // Silently fail
   }
 }

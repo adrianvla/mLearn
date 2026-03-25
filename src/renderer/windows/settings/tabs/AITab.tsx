@@ -116,7 +116,8 @@ export const AITab: Component = () => {
     try {
       const status = await getBridge().llm.llmCheckModel(modelFile ?? settings.builtinModel);
       setModelStatus(status);
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Ignore — status will remain default
     }
   }
@@ -137,7 +138,8 @@ export const AITab: Component = () => {
       setAutoselectMsg(`Detected ${memGb} GB ${memLabel} — selected ${selected.displayName}`);
       setTimeout(() => setAutoselectMsg(null), 5000);
       await checkModelStatus(selected.modelFile);
-    } catch {
+    } catch (e) {
+      console.error(e);
       setAutoselectMsg(null);
     } finally {
       setAutoselecting(false);
@@ -150,7 +152,8 @@ export const AITab: Component = () => {
     try {
       const list = await bridge.llm.llmListDownloadedModels();
       setDownloadedModels(list);
-    } catch {
+    } catch (e) {
+      console.error(e);
       setDownloadedModels([]);
     }
   }
@@ -167,7 +170,8 @@ export const AITab: Component = () => {
         setTimeout(() => setDeleteConfirmMsg(null), 3000);
       }
       await fetchDownloadedModels();
-    } catch {
+    } catch (e) {
+      console.error(e);
       // silently ignore
     } finally {
       setDeletingModel(null);
@@ -185,6 +189,7 @@ export const AITab: Component = () => {
     try {
       getBridge().llm.llmDownloadModel(getModelUrl(model), model.modelFile);
     } catch (e) {
+      console.error(e);
       setModelStatus((prev) => ({ ...prev, downloading: false, error: String(e) }));
     }
   }
@@ -200,7 +205,8 @@ export const AITab: Component = () => {
         setOllamaTestSuccess(true);
         setTimeout(() => setOllamaTestSuccess(false), 3000);
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       setOllamaConnected(false);
     } finally {
       setOllamaTesting(false);
@@ -217,7 +223,8 @@ export const AITab: Component = () => {
       if (modelList.length > 0 && !modelList.includes(settings.ollamaModel)) {
         updateSettings({ ollamaModel: modelList[0] });
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       setOllamaModels([]);
     } finally {
       setLoadingModels(false);
@@ -235,7 +242,8 @@ export const AITab: Component = () => {
       );
       const ok = await adapter.checkAvailability();
       setCloudLLMStatus(ok ? 'success' : 'error');
-    } catch {
+    } catch (e) {
+      console.error(e);
       setCloudLLMStatus('error');
     } finally {
       setTestingCloudLLM(false);

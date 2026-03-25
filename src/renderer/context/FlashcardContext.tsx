@@ -184,6 +184,8 @@ interface FlashcardContextValue {
   getWordKnowledge: (wordHash: string) => PassiveWordKnowledge | undefined;
   isWordKnown: (wordHash: string) => boolean;
   isWordKnownByText: (word: string) => boolean;
+  isWordLearning: (wordHash: string) => boolean;
+  isWordLearningByText: (word: string) => boolean;
   trackWordStatusChange: (word: string) => void;
 
   // Grammar knowledge tracking
@@ -1482,12 +1484,21 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return store.wordKnowledge[langKey(settings.language, wordHash)];
   };
 
-  // Check if word is known (ease >= threshold)
+  // Check if word is known by built-in SRS passive ease (ease >= known threshold)
   const isWordKnown = (wordHash: string): boolean => {
     const lk = wordHash.includes(':') ? wordHash : langKey(settings.language, wordHash);
     const k = store.wordKnowledge[lk];
     if (!k) return false;
-    return k.ease >= (settings.known_ease_threshold / 1000); // Normalize from 0-5000 to 0-5 scale
+    return k.ease >= (settings.known_ease_threshold / 1000);
+  };
+
+  // Check if word is in the learning range by built-in SRS passive ease
+  const isWordLearning = (wordHash: string): boolean => {
+    const lk = wordHash.includes(':') ? wordHash : langKey(settings.language, wordHash);
+    const k = store.wordKnowledge[lk];
+    if (!k) return false;
+    const ease = k.ease;
+    return ease >= (settings.srsLearningThreshold / 1000) && ease < (settings.known_ease_threshold / 1000);
   };
 
   // Convenience: check if word is known by raw word text (sync hash)
@@ -1499,6 +1510,18 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (canonical !== word) {
       const cHash = SRS.hashWordSync(canonical);
       return isWordKnown(langKey(settings.language, cHash));
+    }
+    return false;
+  };
+
+  // Convenience: check if word is learning by raw word text (sync hash)
+  const isWordLearningByText = (word: string): boolean => {
+    const wordHash = SRS.hashWordSync(word);
+    if (isWordLearning(langKey(settings.language, wordHash))) return true;
+    const canonical = getCanonicalForm(word);
+    if (canonical !== word) {
+      const cHash = SRS.hashWordSync(canonical);
+      return isWordLearning(langKey(settings.language, cHash));
     }
     return false;
   };
@@ -1621,7 +1644,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     let backendAvailable = false;
     try {
       backendAvailable = await backend.ping();
-    } catch {
+    } catch (e) {
+      console.error(e);
       backendAvailable = false;
     }
 
@@ -2056,6 +2080,8 @@ Translation: [${targetLang} translation]`;
     getWordKnowledge,
     isWordKnown,
     isWordKnownByText,
+    isWordLearning,
+    isWordLearningByText,
     trackWordStatusChange,
     trackGrammarEncountered,
     trackGrammarFailed,

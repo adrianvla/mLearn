@@ -507,7 +507,8 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
     const filePath = getFlashcardsPath();
     try {
       await fs.promises.access(filePath);
-    } catch {
+    } catch (e) {
+      console.error(e);
       return { ...DEFAULT_FLASHCARD_STORE };
     }
     const data = await fs.promises.readFile(filePath, 'utf-8');
@@ -541,7 +542,8 @@ export async function saveFlashcards(store: FlashcardStore): Promise<void> {
       const dir = path.dirname(filePath);
       try {
         await fs.promises.access(dir);
-      } catch {
+      } catch (e) {
+        console.error(e);
         await fs.promises.mkdir(dir, { recursive: true });
       }
       await fs.promises.writeFile(tmpPath, JSON.stringify(store, null, 2));

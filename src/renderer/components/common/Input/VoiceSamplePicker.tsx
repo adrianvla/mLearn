@@ -63,7 +63,8 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
       if (samples) {
         setVoiceSamples(samples);
       }
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Voice samples not available (e.g., mobile)
     }
 
@@ -142,13 +143,15 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
             setLastTranscript(result.text);
             const updated = await getBridge().voice.voiceSampleList();
             if (updated) setVoiceSamples(updated);
-          } catch {
+          } catch (e) {
+            console.error(e);
             // Transcription failed — not critical
           } finally {
             setTranscribing(false);
           }
         }
-      } catch {
+      } catch (e) {
+        console.error(e);
         // Upload failed
       }
     };
@@ -214,7 +217,8 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
       };
 
       await audio.play();
-    } catch {
+    } catch (e) {
+      console.error(e);
       setPlayingSample(false);
     }
   }
@@ -250,7 +254,9 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
 
   function stopTtsPlayback() {
     if (ttsSource) {
-      try { ttsSource.stop(); } catch { /* already stopped */ }
+      try { ttsSource.stop(); } catch (e) {
+        console.error(e);
+      }
       ttsSource.disconnect();
       ttsSource = null;
     }

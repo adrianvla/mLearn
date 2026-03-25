@@ -325,6 +325,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
           const reading = first?.reading ?? token.reading ?? '';
           if (translationText) translator.addCard(displayWord, reading, translationText);
         } catch (_e) {
+          console.error(_e);
           /* ignore translation failures for live list */
         }
       })();

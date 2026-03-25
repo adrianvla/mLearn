@@ -158,6 +158,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
       
       props.onClose();
     } catch (e) {
+      console.error(e);
       setError(String(e));
     }
   };
@@ -171,6 +172,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
         applyTranslationData(translation.data);
       }
     } catch (e) {
+      console.error(e);
       setError(t('mlearn.WordDbEditor.EditTranslation.RevertError') + ': ' + String(e));
     } finally {
       setIsLoading(false);

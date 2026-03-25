@@ -68,7 +68,8 @@ async function pullSettings(): Promise<void> {
     if (merged) {
       callbacks.onSettingsReceived(merged);
     }
-  } catch {
+  } catch (e) {
+    console.error(e);
     // Will be handled by overall sync error
   }
 }
@@ -112,7 +113,8 @@ async function pullFlashcards(): Promise<void> {
     if (merged) {
       callbacks.onFlashcardsReceived(merged);
     }
-  } catch {
+  } catch (e) {
+    console.error(e);
     // Will be handled by overall sync error
   }
 }
@@ -225,7 +227,8 @@ async function syncAll(): Promise<void> {
     }
 
     setStatus('synced');
-  } catch {
+  } catch (e) {
+    console.error(e);
     setStatus('error');
   }
 }
