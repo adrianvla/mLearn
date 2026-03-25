@@ -317,7 +317,8 @@
         "GetMediaStats": "メディア統計",
         "SearchWikipedia": "Wikipedia検索",
         "SearchFandom": "Fandom検索",
-        "RecallBackstory": "バックストーリーを思い出す"
+        "RecallBackstory": "バックストーリーを思い出す",
+        "SaveMemory": "記憶を保存"
       },
       "Quiz": {
         "BlankInputAriaLabel": "空欄 {index}",
@@ -607,7 +608,21 @@
           "Title": "フラッシュカードを削除"
         },
         "EditCard": {
-          "Title": "フラッシュカードを編集"
+          "Title": "フラッシュカードを編集",
+          "TabEditor": "エディター",
+          "TabAdvanced": "詳細",
+          "AdvancedHint": "フラッシュカードの生データを編集します。保存時に変更が適用されます。",
+          "FieldKey": "フィールド",
+          "FieldValue": "値",
+          "AddField": "フィールドを追加",
+          "RemoveField": "削除",
+          "NewFieldKey": "フィールド名",
+          "NewFieldValue": "値",
+          "EmptyObject": "空のオブジェクト",
+          "InvalidValue": "無効な値",
+          "ContentSection": "コンテンツ",
+          "MetadataSection": "メタデータ",
+          "EditButton": "カードを編集"
         }
       },
       "PostCreate": {

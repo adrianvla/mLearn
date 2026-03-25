@@ -317,7 +317,8 @@
         "GetMediaStats": "Статистика медиа",
         "SearchWikipedia": "Поиск в Википедии",
         "SearchFandom": "Поиск в Fandom",
-        "RecallBackstory": "Вспомнить предысторию"
+        "RecallBackstory": "Вспомнить предысторию",
+        "SaveMemory": "Сохранить воспоминание"
       },
       "Quiz": {
         "BlankInputAriaLabel": "Пропуск {index}",
@@ -607,7 +608,21 @@
           "Title": "Удалить карточку"
         },
         "EditCard": {
-          "Title": "Редактировать карточку"
+          "Title": "Редактировать карточку",
+          "TabEditor": "Редактор",
+          "TabAdvanced": "Расширенное",
+          "AdvancedHint": "Редактирование необработанных данных карточки. Изменения применяются при сохранении.",
+          "FieldKey": "Поле",
+          "FieldValue": "Значение",
+          "AddField": "Добавить поле",
+          "RemoveField": "Удалить",
+          "NewFieldKey": "Имя поля",
+          "NewFieldValue": "Значение",
+          "EmptyObject": "Пустой объект",
+          "InvalidValue": "Некорректное значение",
+          "ContentSection": "Содержимое",
+          "MetadataSection": "Метаданные",
+          "EditButton": "Редактировать карточку"
         }
       },
       "PostCreate": {

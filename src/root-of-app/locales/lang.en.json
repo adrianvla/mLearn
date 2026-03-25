@@ -317,7 +317,8 @@
         "GetMediaStats": "Media stats",
         "SearchWikipedia": "Search Wikipedia",
         "SearchFandom": "Search Fandom",
-        "RecallBackstory": "Recall backstory"
+        "RecallBackstory": "Recall backstory",
+        "SaveMemory": "Save memory"
       },
       "Quiz": {
         "BlankInputAriaLabel": "Blank {index}",
@@ -607,7 +608,21 @@
           "Title": "Delete Flashcard"
         },
         "EditCard": {
-          "Title": "Edit Flashcard"
+          "Title": "Edit Flashcard",
+          "TabEditor": "Editor",
+          "TabAdvanced": "Advanced",
+          "AdvancedHint": "Edit raw flashcard data. Changes are applied when you save.",
+          "FieldKey": "Field",
+          "FieldValue": "Value",
+          "AddField": "Add Field",
+          "RemoveField": "Remove",
+          "NewFieldKey": "Field name",
+          "NewFieldValue": "Value",
+          "EmptyObject": "Empty object",
+          "InvalidValue": "Invalid value",
+          "ContentSection": "Content",
+          "MetadataSection": "Metadata",
+          "EditButton": "Edit Card"
         }
       },
       "PostCreate": {

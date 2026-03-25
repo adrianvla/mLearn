@@ -7,7 +7,7 @@
 import { Component, Show, For, createSignal, createMemo, createEffect, on, onCleanup } from 'solid-js';
 import { WindowWrapper, useLocalization, useSettings, useLowPowerGate } from '../../context';
 import { useFlashcards } from '../../context';
-import { FlashcardReview, FlashcardEditor, FlashcardSyncModal, FlashcardStats, FlashcardPitchAccent } from '../../components/flashcard';
+import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardPitchAccent } from '../../components/flashcard';
 import {
   Card,
   Modal,
@@ -75,6 +75,7 @@ export const FlashcardsContent: Component = () => {
     removeFlashcard,
     addFlashcard,
     updateFlashcardContent,
+    updateFlashcard,
     intervalToString,
     generateExampleSentenceWithLLM,
     translateExampleSentence,
@@ -388,11 +389,15 @@ export const FlashcardsContent: Component = () => {
     setShowEditModal(true);
   };
 
-  const handleEditCardSave = (content: FlashcardContent) => {
+  const handleEditCardSave = (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>) => {
     const card = editingCard();
     if (!card) return;
 
-    updateFlashcardContent(card.id, content);
+    if (metadataUpdates && Object.keys(metadataUpdates).length > 0) {
+      updateFlashcard(card.id, { content: { ...card.content, ...content }, ...metadataUpdates });
+    } else {
+      updateFlashcardContent(card.id, content);
+    }
 
     setShowEditModal(false);
     setEditingCard(null);
@@ -979,22 +984,13 @@ export const FlashcardsContent: Component = () => {
         </div>
       </Modal>
 
-      {/* Edit card modal - uses full FlashcardEditor */}
-      <Modal
+      {/* Edit card modal - uses shared FlashcardEditModal */}
+      <FlashcardEditModal
         isOpen={showEditModal()}
+        flashcard={editingCard()}
         onClose={handleEditCardCancel}
-        title={`${t('mlearn.Flashcards.Modals.EditCard.Title')} – ${editingCard()?.content.front || ''}`}
-        size="lg"
-      >
-        <Show when={editingCard()}>
-          <FlashcardEditor
-            flashcard={editingCard()!}
-            onSave={handleEditCardSave}
-            onCancel={handleEditCardCancel}
-            showStats={true}
-          />
-        </Show>
-      </Modal>
+        onSave={handleEditCardSave}
+      />
 
       {/* Sync Modal */}
       <FlashcardSyncModal

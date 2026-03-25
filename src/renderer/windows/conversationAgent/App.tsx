@@ -557,6 +557,7 @@ export const ConversationContent: Component = () => {
       { id: 'fetch_url', label: t('mlearn.ConversationAgent.Tools.FetchUrl') },
       { id: 'get_media_stats', label: t('mlearn.ConversationAgent.Tools.GetMediaStats') },
       { id: 'search_wikipedia', label: t('mlearn.ConversationAgent.Tools.SearchWikipedia') },
+      { id: 'save_memory', label: t('mlearn.ConversationAgent.Tools.SaveMemory') },
     ];
     const agentCfg = activeAgent();
     if (agentCfg?.roleplayFandomUrl) {

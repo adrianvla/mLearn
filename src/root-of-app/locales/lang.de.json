@@ -317,7 +317,8 @@
         "GetMediaStats": "Medienstatistiken",
         "SearchWikipedia": "Wikipedia durchsuchen",
         "SearchFandom": "Fandom durchsuchen",
-        "RecallBackstory": "Hintergrundgeschichte abrufen"
+        "RecallBackstory": "Hintergrundgeschichte abrufen",
+        "SaveMemory": "Erinnerung speichern"
       },
       "Quiz": {
         "BlankInputAriaLabel": "Lücke {index}",
@@ -607,7 +608,21 @@
           "Title": "Lernkarte löschen"
         },
         "EditCard": {
-          "Title": "Lernkarte bearbeiten"
+          "Title": "Lernkarte bearbeiten",
+          "TabEditor": "Editor",
+          "TabAdvanced": "Erweitert",
+          "AdvancedHint": "Rohdaten der Lernkarte bearbeiten. Änderungen werden beim Speichern übernommen.",
+          "FieldKey": "Feld",
+          "FieldValue": "Wert",
+          "AddField": "Feld hinzufügen",
+          "RemoveField": "Entfernen",
+          "NewFieldKey": "Feldname",
+          "NewFieldValue": "Wert",
+          "EmptyObject": "Leeres Objekt",
+          "InvalidValue": "Ungültiger Wert",
+          "ContentSection": "Inhalt",
+          "MetadataSection": "Metadaten",
+          "EditButton": "Karte bearbeiten"
         }
       },
       "PostCreate": {

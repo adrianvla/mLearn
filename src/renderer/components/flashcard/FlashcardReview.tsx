@@ -6,14 +6,15 @@
 import { Component, JSX, Show, For, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
 import { useFlashcards, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
+import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
-import { Button, Badge, Panel, ProgressBar, MicrophoneIcon } from '../common';
+import { Button, Badge, Panel, ProgressBar, MicrophoneIcon, EditIcon } from '../common';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
 import { getBackend } from '../../../shared/backends';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { showToast } from '../common/Feedback/Toast';
-import type { Flashcard } from '../../../shared/types';
+import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import type { ButtonVariant } from '../common/Button/Button';
 import type { Rating } from '../../services/srsAlgorithm';
 import * as SRS from '../../services/srsAlgorithm';
@@ -43,6 +44,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     intervalToString,
     generateExampleSentenceWithLLM,
     updateFlashcardContent,
+    updateFlashcard,
   } = useFlashcards();
 
   const [showAnswer, setShowAnswer] = createSignal(false);
@@ -52,6 +54,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [initialTotal, setInitialTotal] = createSignal(0);
   const [cardsAnswered, setCardsAnswered] = createSignal(0);
   const [showTtsModal, setShowTtsModal] = createSignal(false);
+  const [showEditModal, setShowEditModal] = createSignal(false);
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
 
   // TTS integration
@@ -170,7 +173,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const total = counts().total;
     if (!card && total === 0) {
       // No immediately-due cards. Check if there are pending learning cards.
-      const nextDue = SRS.getNextPendingLearningDueDate(queue(), store.flashcards);
+      const nextDue = SRS.getNextPendingLearningDueDate(queue(), store.flashcards, settings.newDayHour ?? 4);
       if (nextDue !== null) {
         // There are learning cards that are not yet due -- show waiting state
         setIsComplete(false);
@@ -303,6 +306,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }
   };
 
+  const handleEditCardSave = (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>) => {
+    const card = currentCard();
+    if (!card) return;
+    if (metadataUpdates && Object.keys(metadataUpdates).length > 0) {
+      updateFlashcard(card.id, { content: { ...card.content, ...content }, ...metadataUpdates });
+    } else {
+      updateFlashcardContent(card.id, content);
+    }
+    setShowEditModal(false);
+  };
+
   const handleStartOver = () => {
     refreshQueue();
     setShowAnswer(false);
@@ -412,7 +426,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 <Button
                     buttonType="default"
                     variant="ghost"
-                    size="sm"
+                    size="xs"
                     class="flashcard-action-btn flashcard-action-btn--bury"
                     onClick={handleBury}
                     title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'b' })}
@@ -422,7 +436,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 <Button
                     buttonType="default"
                     variant="danger"
-                    size="sm"
+                    size="xs"
                     class="flashcard-action-btn flashcard-action-btn--remove"
                     onClick={handleRemove}
                     title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'x' })}
@@ -433,15 +447,28 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             </Show>
             <Show when={canUndo()}
             >
-              <Button buttonType="default" variant="ghost" size="sm" onClick={() => { undoLastAction(); setCardsAnswered(prev => Math.max(0, prev - 1)); }} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
+              <Button buttonType="default" variant="ghost" size="xs" onClick={() => { undoLastAction(); setCardsAnswered(prev => Math.max(0, prev - 1)); }} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
                 {t('mlearn.Flashcards.Review.Undo')}
+              </Button>
+            </Show>
+            <Show when={!isComplete() && currentCard()}>
+              <Button
+                buttonType="default"
+                variant="ghost"
+                size="xs"
+                class="flashcard-action-btn"
+                onClick={() => setShowEditModal(true)}
+                title={t('mlearn.Flashcards.Modals.EditCard.EditButton')}
+                icon={<EditIcon size={14} />}
+              >
+                {/*<span class="flashcard-action-label">{t('mlearn.Flashcards.Modals.EditCard.EditButton')}</span>*/}
               </Button>
             </Show>
             <Show when={isElectron() && !isComplete() && currentCard()}>
               <Button
                 buttonType="default"
                 variant="ghost"
-                size="sm"
+                size="xs"
                 class="flashcard-action-btn"
                 onClick={() => setShowTtsModal(true)}
                 title={t('mlearn.CardEditor.Regenerate.Title')}
@@ -569,6 +596,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             cardBack={currentCard()!.content.back}
           />
         </Show>
+
+        {/* Edit Card Modal */}
+        <FlashcardEditModal
+          isOpen={showEditModal()}
+          flashcard={currentCard()}
+          onClose={() => setShowEditModal(false)}
+          onSave={handleEditCardSave}
+        />
       </div>
   );
 };
