@@ -66,6 +66,12 @@
   gap: var(--spacing-2);
 }
 
+/* Ensure header buttons match badge height */
+.flashcard-header-actions .btn {
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
+}
+
 /* Undo button */
 .flashcard-undo-btn {
   padding: 0.5rem 1rem;

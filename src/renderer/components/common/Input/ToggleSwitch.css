@@ -58,6 +58,28 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+/* Thumb icon overlay — positioned on top of the ::before pseudo-element */
+.toggle-thumb-icon {
+  position: absolute;
+  left: 3px;
+  bottom: 50%;
+  transform: translateY(50%);
+  width: calc(var(--size-sm) / 1.5);
+  height: calc(var(--size-sm) / 1.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: transform 0.3s ease;
+  z-index: 1;
+  color: var(--text-tertiary);
+}
+
+.toggle-switch input:checked + .toggle-slider .toggle-thumb-icon {
+  transform: translateX(25px) translateY(50%);
+  color: var(--text-primary);
+}
+
 /* Checked state */
 .toggle-switch input:checked + .toggle-slider {
   background-color: var(--toggle-bg-checked);

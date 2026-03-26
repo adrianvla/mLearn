@@ -1,0 +1,45 @@
+/**
+ * HoverReveal Component Styles
+ * Icon that reveals a text label on hover with a slide-out animation.
+ */
+
+.hover-reveal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  color: var(--text-tertiary);
+  cursor: default;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  transition: background-color var(--transition-fast);
+}
+
+.hover-reveal:hover {
+  background-color: var(--bg);
+}
+
+.hover-reveal-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hover-reveal-label {
+  max-width: 0;
+  opacity: 0;
+  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-tertiary);
+  transition: max-width 0.25s ease, opacity 0.2s ease, margin-left 0.25s ease;
+  overflow: hidden;
+  margin-left: 0;
+}
+
+.hover-reveal:hover .hover-reveal-label {
+  max-width: 120px;
+  opacity: 1;
+  margin-left: var(--spacing-1);
+}

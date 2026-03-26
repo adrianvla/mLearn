@@ -9,6 +9,7 @@ import { Panel } from '../Panel';
 import { IconBtn } from '../Button';
 import { CloseIcon } from '../Misc/Icons';
 import { useLocalization } from '../../../context';
+import { isElectron } from '../../../../shared/platform';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -39,7 +40,7 @@ export const Modal: Component<ModalProps> = (props) => {
       showCloseButton: true,
       fullHeight: false,
       noBottomPadding: false,
-      headerDraggable: false,
+      headerDraggable: isElectron(),
     },
     props
   );

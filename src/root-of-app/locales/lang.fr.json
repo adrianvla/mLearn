@@ -580,7 +580,8 @@
         "RegenerateExample": "Régénérer l'exemple avec l'IA",
         "RevealHint": "Cliquez ou appuyez sur Espace pour révéler la réponse",
         "ScreenshotAlt": "Capture d'écran",
-        "Tracked": "Suivie"
+        "Tracked": "Suivie",
+        "AnkiDuplicate": "Doublon"
       },
       "EmptyState": {
         "NoCardsDescription": "Commencez à apprendre des mots en regardant des vidéos ou en lisant, et ils apparaîtront ici !",
@@ -670,7 +671,9 @@
         "ReviewMore": "Réviser encore",
         "ShowAnswer": "Afficher la réponse",
         "Undo": "↩",
-        "UndoTooltip": "Annuler"
+        "UndoTooltip": "Annuler",
+        "StealthMode": "Mode furtif",
+        "MuteAudio": "Couper le son"
       },
       "State": {
         "Learning": "En apprentissage",

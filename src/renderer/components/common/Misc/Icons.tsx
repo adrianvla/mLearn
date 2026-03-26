@@ -318,6 +318,52 @@ export const ScissorsIcon = createIcon([
   'M8.12 8.12L12 12',
 ]);
 
+/** Volume off/mute icon */
+export const VolumeOffIcon = createIcon([
+  'M11 5L6 9H2v6h4l5 4V5z',
+  'M23 9l-6 6',
+  'M17 9l6 6',
+]);
+
+/** Stealth/incognito icon — anonymous user with hat and glasses */
+export const StealthIcon: Component<IconProps> = (props) => {
+  const [local, svgProps] = splitProps(props, ['size', 'color']);
+  return (
+    <svg
+      width={local.size ?? 20}
+      height={local.size ?? 20}
+      viewBox="0 0 24 24"
+      fill={local.color ?? 'currentColor'}
+      stroke="none"
+      {...svgProps}
+    >
+      <path d="M21 18h-1.028a.742.742 0 0 0-.493-.537 9.878 9.878 0 0 0-5.957 0 .742.742 0 0 0-.493.537h-2.057a.742.742 0 0 0-.493-.537 9.878 9.878 0 0 0-5.957 0 .74.74 0 0 0-.493.537H3a1 1 0 1 0 0 2h1v.201c0 1.233.91 2.272 2.164 2.473l1.833.292a2.621 2.621 0 0 0 2.126-.591A2.472 2.472 0 0 0 11 20.494V20h2v.494c0 .72.319 1.405.877 1.881a2.623 2.623 0 0 0 2.126.591l1.833-.292c1.254-.2 2.164-1.24 2.164-2.473V20h1a1 1 0 1 0 0-2zM17 7.367V5.935c0-.953-.48-1.824-1.285-2.332a2.728 2.728 0 0 0-2.655-.152l-.31.089c0-.849-.69-1.54-1.538-1.54H9.75A2.755 2.755 0 0 0 7 4.755v2.612C2.872 8 0 9.386 0 11c0 2.209 5.373 4 12 4s12-1.791 12-4c0-1.614-2.872-3-7-3.633z" />
+    </svg>
+  );
+};
+
+/** Anki logo icon */
+export const AnkiIcon: Component<IconProps> = (props) => {
+  const [local, svgProps] = splitProps(props, ['size', 'color']);
+  return (
+    <svg
+      width={local.size ?? 20}
+      height={local.size ?? 20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={local.color ?? 'currentColor'}
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      {...svgProps}
+    >
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M12 4v16" />
+      <path d="M7 9l5 3-5 3" />
+    </svg>
+  );
+};
+
 export default {
   CloseIcon,
   CrossIcon,
@@ -366,4 +412,7 @@ export default {
   SortDescIcon,
   MicrophoneIcon,
   ScissorsIcon,
+  VolumeOffIcon,
+  StealthIcon,
+  AnkiIcon,
 };

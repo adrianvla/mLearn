@@ -126,6 +126,14 @@
   z-index: var(--z-foreground);
 }
 
+/* Anki duplicate indicator - positioned in upper right corner */
+.flashcard-anki-duplicate {
+  position: absolute;
+  top: var(--spacing-2);
+  right: var(--spacing-2);
+  z-index: var(--z-foreground);
+}
+
 /* Word display */
 .flashcard-word, .flashcard-word-header {
   font-size: var(--font-size-4xl);

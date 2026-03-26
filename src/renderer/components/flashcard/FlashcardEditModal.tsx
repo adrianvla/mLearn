@@ -10,7 +10,7 @@
 
 import { Component, createSignal, createMemo, Show, For, batch } from 'solid-js';
 import type { Flashcard, FlashcardContent, FlashcardState } from '../../../shared/types';
-import { Modal, TabContainer, TabPanel, Btn } from '../common';
+import { Modal, TabContainer, TabPanel, Btn, ToggleSwitch } from '../common';
 import { FlashcardEditor } from './FlashcardEditor';
 import { useLocalization } from '../../context';
 import type { TabItem } from '../common/Tabs/TabContainer';
@@ -41,17 +41,24 @@ const METADATA_FIELDS: (keyof Flashcard)[] = [
 const READONLY_FIELDS = new Set<string>(['id', 'createdAt']);
 
 type TabId = 'editor' | 'advanced';
+type DraftValue = string | boolean;
+const CONTENT_BOOLEAN_FIELDS = new Set<keyof FlashcardContent>(['skipExampleTts']);
+const METADATA_BOOLEAN_FIELDS = new Set<keyof Flashcard>(['suspended', 'buried']);
+const CLEARABLE_METADATA_FIELDS = new Set<keyof Flashcard>(['tags', 'language', 'suspended', 'buried']);
 
-/** Serialize a value to a displayable string for the textarea */
-function valueToString(val: unknown): string {
+/** Serialize a value to a displayable draft value for the advanced editor */
+function valueToDraftValue(val: unknown): DraftValue {
   if (val === undefined || val === null) return '';
+  if (typeof val === 'boolean') return val;
   if (typeof val === 'string') return val;
-  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (typeof val === 'number') return String(val);
   return JSON.stringify(val, null, 2);
 }
 
 /** Parse a string back into a typed value for the given field */
-function parseFieldValue(key: string, raw: string): unknown {
+function parseFieldValue(key: string, raw: DraftValue): unknown {
+  if (typeof raw === 'boolean') return raw;
+
   const trimmed = raw.trim();
   if (trimmed === '') return undefined;
 
@@ -90,14 +97,18 @@ function parseFieldValue(key: string, raw: string): unknown {
   return trimmed;
 }
 
+function getDraftString(value: DraftValue | undefined): string {
+  return typeof value === 'string' ? value : '';
+}
+
 export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) => {
   const { t } = useLocalization();
   const [activeTab, setActiveTab] = createSignal<TabId>('editor');
 
   // ---- Advanced editor local state ----
   // We clone values on open so edits are non-destructive until save
-  const [contentDraft, setContentDraft] = createSignal<Record<string, string>>({});
-  const [metaDraft, setMetaDraft] = createSignal<Record<string, string>>({});
+  const [contentDraft, setContentDraft] = createSignal<Record<string, DraftValue>>({});
+  const [metaDraft, setMetaDraft] = createSignal<Record<string, DraftValue>>({});
   // Extra fields from content.extra
   const [extraDraft, setExtraDraft] = createSignal<Array<{ key: string; value: string }>>([]);
   // New field being added
@@ -109,23 +120,23 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
     const card = props.flashcard;
     if (!card) return;
 
-    const cd: Record<string, string> = {};
+    const cd: Record<string, DraftValue> = {};
     for (const key of CONTENT_FIELDS) {
       const val = card.content[key];
-      cd[key] = valueToString(val);
+      cd[key] = valueToDraftValue(val);
     }
     setContentDraft(cd);
 
-    const md: Record<string, string> = {};
+    const md: Record<string, DraftValue> = {};
     for (const key of METADATA_FIELDS) {
-      md[key] = valueToString(card[key]);
+      md[key] = valueToDraftValue(card[key]);
     }
     setMetaDraft(md);
 
     const extra = card.content.extra;
     if (extra && typeof extra === 'object') {
       setExtraDraft(
-        Object.entries(extra).map(([k, v]) => ({ key: k, value: valueToString(v) })),
+        Object.entries(extra).map(([k, v]) => ({ key: k, value: String(valueToDraftValue(v)) })),
       );
     } else {
       setExtraDraft([]);
@@ -161,11 +172,11 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
   });
 
   // ---- Content field handlers ----
-  const setContentField = (key: string, value: string) => {
+  const setContentField = (key: string, value: DraftValue) => {
     setContentDraft(prev => ({ ...prev, [key]: value }));
   };
 
-  const setMetaField = (key: string, value: string) => {
+  const setMetaField = (key: string, value: DraftValue) => {
     setMetaDraft(prev => ({ ...prev, [key]: value }));
   };
 
@@ -200,7 +211,17 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
     const content: Record<string, unknown> = {};
     const cd = contentDraft();
     for (const key of CONTENT_FIELDS) {
-      const parsed = parseFieldValue(key, cd[key] ?? '');
+      const rawValue = cd[key] ?? '';
+      if (typeof rawValue === 'string' && rawValue.trim() === '') {
+        if (key === 'front' || key === 'back') {
+          content[key] = '';
+        } else if (key !== 'type') {
+          content[key] = undefined;
+        }
+        continue;
+      }
+
+      const parsed = parseFieldValue(key, rawValue);
       if (parsed !== undefined) {
         content[key] = parsed;
       }
@@ -222,7 +243,15 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
     const md = metaDraft();
     for (const key of METADATA_FIELDS) {
       if (READONLY_FIELDS.has(key)) continue;
-      const parsed = parseFieldValue(key, md[key] ?? '');
+      const rawValue = md[key] ?? '';
+      if (typeof rawValue === 'string' && rawValue.trim() === '') {
+        if (CLEARABLE_METADATA_FIELDS.has(key)) {
+          (metaUpdates as Record<string, unknown>)[key] = undefined;
+        }
+        continue;
+      }
+
+      const parsed = parseFieldValue(key, rawValue);
       if (parsed !== undefined) {
         (metaUpdates as Record<string, unknown>)[key] = parsed;
       }
@@ -230,7 +259,6 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
 
     // Ensure required content fields
     if (!content.type) content.type = 'word';
-    if (!content.front) content.front = card.content.front;
 
     props.onSave(content as unknown as FlashcardContent, metaUpdates);
   };
@@ -288,11 +316,22 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
                   <div class="flashcard-advanced-field">
                     <span class="flashcard-advanced-field-key" title={key}>{key}</span>
                     <div class="flashcard-advanced-field-value">
-                      <textarea
-                        rows={contentDraft()[key]?.includes('\n') ? 3 : 1}
-                        value={contentDraft()[key] ?? ''}
-                        onInput={(e) => setContentField(key, e.currentTarget.value)}
-                      />
+                      <Show
+                        when={CONTENT_BOOLEAN_FIELDS.has(key)}
+                        fallback={
+                          <textarea
+                            rows={getDraftString(contentDraft()[key]).includes('\n') ? 3 : 1}
+                            value={getDraftString(contentDraft()[key])}
+                            onInput={(e) => setContentField(key, e.currentTarget.value)}
+                          />
+                        }
+                      >
+                        <ToggleSwitch
+                          checked={contentDraft()[key] === true}
+                          onChange={(checked) => setContentField(key, checked)}
+                          title={key}
+                        />
+                      </Show>
                     </div>
                   </div>
                 )}
@@ -382,12 +421,24 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
                     >
                       <span class="flashcard-advanced-field-key" title={key}>{key}</span>
                       <div class="flashcard-advanced-field-value">
-                        <textarea
-                          rows={1}
-                          value={metaDraft()[key] ?? ''}
-                          onInput={(e) => setMetaField(key, e.currentTarget.value)}
-                          readOnly={isReadonly}
-                        />
+                        <Show
+                          when={METADATA_BOOLEAN_FIELDS.has(key)}
+                          fallback={
+                            <textarea
+                              rows={1}
+                              value={getDraftString(metaDraft()[key])}
+                              onInput={(e) => setMetaField(key, e.currentTarget.value)}
+                              readOnly={isReadonly}
+                            />
+                          }
+                        >
+                          <ToggleSwitch
+                            checked={metaDraft()[key] === true}
+                            onChange={(checked) => setMetaField(key, checked)}
+                            disabled={isReadonly}
+                            title={key}
+                          />
+                        </Show>
                       </div>
                     </div>
                   );

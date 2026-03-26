@@ -580,7 +580,8 @@
         "RegenerateExample": "Beispiel mit KI neu generieren",
         "RevealHint": "Klicken oder Leertaste drücken, um die Antwort zu zeigen",
         "ScreenshotAlt": "Screenshot",
-        "Tracked": "Verfolgt"
+        "Tracked": "Verfolgt",
+        "AnkiDuplicate": "Duplikat"
       },
       "EmptyState": {
         "NoCardsDescription": "Beginnen Sie beim Videoschauen oder Lesen Wörter zu lernen, und sie erscheinen hier!",
@@ -670,7 +671,9 @@
         "ReviewMore": "Weitere wiederholen",
         "ShowAnswer": "Antwort zeigen",
         "Undo": "↩",
-        "UndoTooltip": "Rückgängig"
+        "UndoTooltip": "Rückgängig",
+        "StealthMode": "Tarnmodus",
+        "MuteAudio": "Audio stummschalten"
       },
       "State": {
         "Learning": "Lernen",

@@ -580,7 +580,8 @@
         "RegenerateExample": "AIで例文を再生成",
         "RevealHint": "クリックまたはスペースキーで答えを表示",
         "ScreenshotAlt": "スクリーンショット",
-        "Tracked": "追跡中"
+        "Tracked": "追跡中",
+        "AnkiDuplicate": "重複"
       },
       "EmptyState": {
         "NoCardsDescription": "動画視聴やリーダーで単語を学び始めると、ここに表示されます！",
@@ -670,7 +671,9 @@
         "ReviewMore": "さらに復習",
         "ShowAnswer": "答えを表示",
         "Undo": "↩",
-        "UndoTooltip": "元に戻す"
+        "UndoTooltip": "元に戻す",
+        "StealthMode": "ステルスモード",
+        "MuteAudio": "音声ミュート"
       },
       "State": {
         "Learning": "学習中",

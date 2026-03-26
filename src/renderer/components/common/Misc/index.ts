@@ -51,8 +51,12 @@ export {
   SortDescIcon,
   MicrophoneIcon,
   ScissorsIcon,
+  VolumeOffIcon,
+  StealthIcon,
+  AnkiIcon,
   type IconProps,
 } from './Icons';
+export { HoverReveal, type HoverRevealProps } from './HoverReveal';
 export { LegendItem, type LegendItemProps } from './LegendItem';
 export { 
   KeyboardShortcut, 
@@ -70,3 +74,4 @@ import './KeyboardShortcut.css';
 import './SortableColumnHeader.css';
 import './ModalFooter.css';
 import './StatsGrid.css';
+import './HoverReveal.css';

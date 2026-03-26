@@ -12,12 +12,13 @@
 
 import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on, onCleanup } from 'solid-js';
 import type { Flashcard } from '../../../shared/types';
-import { Panel, PillLabel, IconBtn } from '../common';
+import { Panel, PillLabel, IconBtn, HoverReveal, AnkiIcon } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { FlashcardPitchAccent } from './FlashcardPitchAccent';
 import type { TtsMetadata } from '../../hooks/useFlashcardTts';
 import { RefreshIcon } from '../common';
 import { isElectron } from '../../../shared/platform';
+import { isWordInAnkiCache } from '../../services/ankiWordsCache';
 import './FlashcardDisplay.css';
 
 export interface FlashcardDisplayProps {
@@ -65,6 +66,15 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     if (!isElectron() && url.startsWith('flashcard-video://')) return null;
     return url;
   });
+
+  // Check if this card's word exists in Anki (for duplicate indicator)
+  const isAnkiDuplicate = createMemo(() => {
+    if (!settings.use_anki) return false;
+    return isWordInAnkiCache(content().front);
+  });
+
+  // Whether media (image/video) should be hidden in stealth mode
+  const hideMedia = createMemo(() => settings.flashcardStealthMode);
 
   const handleTtsClick = (field: 'word' | 'example', text: string, e: MouseEvent) => {
     e.stopPropagation();
@@ -193,6 +203,14 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             )}
           </Show>
 
+          <Show when={isAnkiDuplicate()}>
+            <HoverReveal
+              icon={<AnkiIcon size={14} />}
+              label={t('mlearn.Flashcards.Card.AnkiDuplicate')}
+              class="flashcard-anki-duplicate"
+            />
+          </Show>
+
           <div class="flashcard-word-row">
             <div class="flashcard-word">{displayWord()}</div>
             <Show when={props.onPlayTts}>
@@ -231,27 +249,29 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             </div>
           </Show>
 
-          <Show when={displayVideoUrl()} fallback={
-            <Show when={displayImageUrl()}>
+          <Show when={!hideMedia()}>
+            <Show when={displayVideoUrl()} fallback={
+              <Show when={displayImageUrl()}>
+                <div class="flashcard-screenshot-container flashcard-screenshot-front">
+                  <img
+                    src={displayImageUrl()!}
+                    alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
+                    class="flashcard-screenshot"
+                  />
+                </div>
+              </Show>
+            }>
               <div class="flashcard-screenshot-container flashcard-screenshot-front">
-                <img
-                  src={displayImageUrl()!}
-                  alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
+                <video
+                  ref={frontVideoRef}
+                  src={displayVideoUrl()!}
                   class="flashcard-screenshot"
+                  controls
+                  preload="auto"
+                  onClick={(e: MouseEvent) => e.stopPropagation()}
                 />
               </div>
             </Show>
-          }>
-            <div class="flashcard-screenshot-container flashcard-screenshot-front">
-              <video
-                ref={frontVideoRef}
-                src={displayVideoUrl()!}
-                class="flashcard-screenshot"
-                controls
-                preload="auto"
-                onClick={(e: MouseEvent) => e.stopPropagation()}
-              />
-            </div>
           </Show>
 
 
@@ -273,6 +293,14 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
                 {info().name}
               </PillLabel>
             )}
+          </Show>
+
+          <Show when={isAnkiDuplicate()}>
+            <HoverReveal
+              icon={<AnkiIcon size={14} />}
+              label={t('mlearn.Flashcards.Card.AnkiDuplicate')}
+              class="flashcard-anki-duplicate"
+            />
           </Show>
 
           <div class="flashcard-word-header">
@@ -331,27 +359,29 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
             <div class="flashcard-example-meaning">{content().exampleMeaning}</div>
           </Show>
 
-          <Show when={displayVideoUrl()} fallback={
-            <Show when={displayImageUrl()}>
+          <Show when={!hideMedia()}>
+            <Show when={displayVideoUrl()} fallback={
+              <Show when={displayImageUrl()}>
+                <div class="flashcard-screenshot-container">
+                  <img
+                    src={displayImageUrl()!}
+                    alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
+                    class="flashcard-screenshot"
+                  />
+                </div>
+              </Show>
+            }>
               <div class="flashcard-screenshot-container">
-                <img
-                  src={displayImageUrl()!}
-                  alt={t('mlearn.Flashcards.Card.ScreenshotAlt')}
+                <video
+                  ref={backVideoRef}
+                  src={displayVideoUrl()!}
                   class="flashcard-screenshot"
+                  controls
+                  preload="auto"
+                  onClick={(e: MouseEvent) => e.stopPropagation()}
                 />
               </div>
             </Show>
-          }>
-            <div class="flashcard-screenshot-container">
-              <video
-                ref={backVideoRef}
-                src={displayVideoUrl()!}
-                class="flashcard-screenshot"
-                controls
-                preload="auto"
-                onClick={(e: MouseEvent) => e.stopPropagation()}
-              />
-            </div>
           </Show>
 
           <Show when={settings.devMode && props.ttsMetadata}>
