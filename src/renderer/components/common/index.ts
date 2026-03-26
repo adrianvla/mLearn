@@ -251,6 +251,12 @@ export {
   type TooltipProps,
 } from './Tooltip';
 
+// HoverReveal
+export {
+  HoverReveal,
+  type HoverRevealProps,
+} from './Misc';
+
 // Icons (re-exported from Misc)
 export {
   CloseIcon,
@@ -300,5 +306,8 @@ export {
   SortDescIcon,
   MicrophoneIcon,
   ScissorsIcon,
+  VolumeOffIcon,
+  StealthIcon,
+  AnkiIcon,
   type IconProps,
 } from './Misc';

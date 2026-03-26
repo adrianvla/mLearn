@@ -1,6 +1,6 @@
 /**
  * Tests for FlashcardEditModal utility functions:
- * - valueToString: serializes flashcard field values for the advanced editor
+ * - valueToDraftValue: serializes flashcard field values for the advanced editor
  * - parseFieldValue: parses user-edited strings back into typed values
  */
 
@@ -9,14 +9,19 @@ import { describe, it, expect } from 'vitest';
 // Re-implement the pure functions from FlashcardEditModal for testing
 // (they are module-private, so we replicate the logic here)
 
-function valueToString(val: unknown): string {
+type DraftValue = string | boolean;
+
+function valueToDraftValue(val: unknown): DraftValue {
   if (val === undefined || val === null) return '';
+  if (typeof val === 'boolean') return val;
   if (typeof val === 'string') return val;
-  if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+  if (typeof val === 'number') return String(val);
   return JSON.stringify(val, null, 2);
 }
 
-function parseFieldValue(key: string, raw: string): unknown {
+function parseFieldValue(key: string, raw: DraftValue): unknown {
+  if (typeof raw === 'boolean') return raw;
+
   const trimmed = raw.trim();
   if (trimmed === '') return undefined;
 
@@ -48,38 +53,38 @@ function parseFieldValue(key: string, raw: string): unknown {
   return trimmed;
 }
 
-describe('valueToString', () => {
+describe('valueToDraftValue', () => {
   it('returns empty string for undefined', () => {
-    expect(valueToString(undefined)).toBe('');
+    expect(valueToDraftValue(undefined)).toBe('');
   });
 
   it('returns empty string for null', () => {
-    expect(valueToString(null)).toBe('');
+    expect(valueToDraftValue(null)).toBe('');
   });
 
   it('returns the string as-is', () => {
-    expect(valueToString('hello world')).toBe('hello world');
+    expect(valueToDraftValue('hello world')).toBe('hello world');
   });
 
   it('converts numbers to string', () => {
-    expect(valueToString(42)).toBe('42');
-    expect(valueToString(2.5)).toBe('2.5');
-    expect(valueToString(0)).toBe('0');
+    expect(valueToDraftValue(42)).toBe('42');
+    expect(valueToDraftValue(2.5)).toBe('2.5');
+    expect(valueToDraftValue(0)).toBe('0');
   });
 
-  it('converts booleans to string', () => {
-    expect(valueToString(true)).toBe('true');
-    expect(valueToString(false)).toBe('false');
+  it('preserves booleans for toggle-backed fields', () => {
+    expect(valueToDraftValue(true)).toBe(true);
+    expect(valueToDraftValue(false)).toBe(false);
   });
 
   it('serializes objects as JSON', () => {
     const obj = { foo: 'bar' };
-    expect(valueToString(obj)).toBe(JSON.stringify(obj, null, 2));
+    expect(valueToDraftValue(obj)).toBe(JSON.stringify(obj, null, 2));
   });
 
   it('serializes arrays as JSON', () => {
     const arr = ['a', 'b'];
-    expect(valueToString(arr)).toBe(JSON.stringify(arr, null, 2));
+    expect(valueToDraftValue(arr)).toBe(JSON.stringify(arr, null, 2));
   });
 });
 
@@ -95,6 +100,11 @@ describe('parseFieldValue', () => {
 
   it('parses "false" as boolean false', () => {
     expect(parseFieldValue('skipExampleTts', 'false')).toBe(false);
+  });
+
+  it('returns boolean draft values unchanged', () => {
+    expect(parseFieldValue('skipExampleTts', true)).toBe(true);
+    expect(parseFieldValue('buried', false)).toBe(false);
   });
 
   it('parses numeric fields as numbers', () => {

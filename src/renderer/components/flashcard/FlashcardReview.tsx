@@ -8,7 +8,7 @@ import { useFlashcards, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
-import { Button, Badge, Panel, ProgressBar, MicrophoneIcon, EditIcon } from '../common';
+import { Button, Badge, Panel, ProgressBar, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon } from '../common';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
 import { getBackend } from '../../../shared/backends';
@@ -55,10 +55,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [cardsAnswered, setCardsAnswered] = createSignal(0);
   const [showTtsModal, setShowTtsModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
+  const [editingCard, setEditingCard] = createSignal<Flashcard | null>(null);
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
 
   // TTS integration
-  const { settings } = useSettings();
+  const { settings, updateSetting } = useSettings();
   const { playTts, isGenerating: ttsGenerating, stop: stopTts, metadata: ttsMetadata, playingField: ttsPlayingField } = useFlashcardTts();
 
   const handlePlayTts = (cardId: string, text: string, field: 'word' | 'example') => {
@@ -217,7 +218,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   createEffect(on(
     () => currentCard()?.id,
     (cardId) => {
-      if (!cardId || !settings.flashcardAutoTts) return;
+      if (!cardId || !settings.flashcardAutoTts || settings.flashcardMuteAudio) return;
       const card = currentCard();
       if (!card) return;
       playTts(card.id, card.content.front, settings.language, 'word');
@@ -229,7 +230,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   createEffect(on(
     () => showAnswer(),
     (isShown) => {
-      if (!isShown || !settings.flashcardAutoTts) return;
+      if (!isShown || !settings.flashcardAutoTts || settings.flashcardMuteAudio) return;
       const card = currentCard();
       if (!card?.content.example || card.content.example === '-') return;
       if (card.content.videoUrl || card.content.skipExampleTts) return;
@@ -308,7 +309,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   const handleEditCardSave = (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>) => {
-    const card = currentCard();
+    const card = editingCard();
     if (!card) return;
     if (metadataUpdates && Object.keys(metadataUpdates).length > 0) {
       updateFlashcard(card.id, { content: { ...card.content, ...content }, ...metadataUpdates });
@@ -316,6 +317,22 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       updateFlashcardContent(card.id, content);
     }
     setShowEditModal(false);
+    setEditingCard(null);
+  };
+
+  const handleEditCardClose = () => {
+    setShowEditModal(false);
+    setEditingCard(null);
+  };
+
+  const handleOpenEditModal = () => {
+    const card = currentCard();
+    if (!card) return;
+
+    batch(() => {
+      setEditingCard(card);
+      setShowEditModal(true);
+    });
   };
 
   const handleStartOver = () => {
@@ -421,6 +438,18 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           </div>
 
           <div class="flashcard-header-actions">
+            <ToggleSwitch
+              checked={settings.flashcardStealthMode}
+              onChange={(checked) => updateSetting('flashcardStealthMode', checked)}
+              title={t('mlearn.Flashcards.Review.StealthMode')}
+              thumbIcon={<StealthIcon size={12} />}
+            />
+            <ToggleSwitch
+              checked={settings.flashcardMuteAudio}
+              onChange={(checked) => updateSetting('flashcardMuteAudio', checked)}
+              title={t('mlearn.Flashcards.Review.MuteAudio')}
+              thumbIcon={<VolumeOffIcon size={12} />}
+            />
             {/* Bury/Remove in header to prevent misclicks */}
             <Show when={!isComplete() && currentCard()}>
               <div class="flashcard-action-buttons">
@@ -458,7 +487,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 variant="ghost"
                 size="xs"
                 class="flashcard-action-btn"
-                onClick={() => setShowEditModal(true)}
+                onClick={handleOpenEditModal}
                 title={t('mlearn.Flashcards.Modals.EditCard.EditButton')}
                 icon={<EditIcon size={14} />}
               >
@@ -601,8 +630,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         {/* Edit Card Modal */}
         <FlashcardEditModal
           isOpen={showEditModal()}
-          flashcard={currentCard()}
-          onClose={() => setShowEditModal(false)}
+          flashcard={editingCard()}
+          onClose={handleEditCardClose}
           onSave={handleEditCardSave}
         />
       </div>

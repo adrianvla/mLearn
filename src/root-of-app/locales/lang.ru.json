@@ -580,7 +580,8 @@
         "RegenerateExample": "Сгенерировать пример с помощью ИИ",
         "RevealHint": "Нажмите или пробел, чтобы показать ответ",
         "ScreenshotAlt": "Скриншот",
-        "Tracked": "Отслеживается"
+        "Tracked": "Отслеживается",
+        "AnkiDuplicate": "Дубликат"
       },
       "EmptyState": {
         "NoCardsDescription": "Начните учить слова при просмотре видео или чтении, и они появятся здесь!",
@@ -670,7 +671,9 @@
         "ReviewMore": "Повторить ещё",
         "ShowAnswer": "Показать ответ",
         "Undo": "↩",
-        "UndoTooltip": "Отменить"
+        "UndoTooltip": "Отменить",
+        "StealthMode": "Скрытый режим",
+        "MuteAudio": "Без звука"
       },
       "State": {
         "Learning": "Изучение",

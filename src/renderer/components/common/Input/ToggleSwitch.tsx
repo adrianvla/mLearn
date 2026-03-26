@@ -3,7 +3,7 @@
  * Reusable toggle/checkbox switch for settings
  */
 
-import { Component, JSX } from 'solid-js';
+import { Component, JSX, Show } from 'solid-js';
 import './ToggleSwitch.css';
 
 export interface ToggleSwitchProps {
@@ -19,6 +19,10 @@ export interface ToggleSwitchProps {
   class?: string;
   /** ID for the input element */
   id?: string;
+  /** Optional icon element rendered on the toggle thumb */
+  thumbIcon?: JSX.Element;
+  /** Tooltip title */
+  title?: string;
 }
 
 export const ToggleSwitch: Component<ToggleSwitchProps> = (props) => {
@@ -27,7 +31,7 @@ export const ToggleSwitch: Component<ToggleSwitchProps> = (props) => {
   };
 
   return (
-    <label class={`toggle-switch ${props.disabled ? 'disabled' : ''} ${props.class || ''}`}>
+    <label class={`toggle-switch ${props.disabled ? 'disabled' : ''} ${props.class || ''}`} title={props.title}>
       <input
         type="checkbox"
         id={props.id}
@@ -35,7 +39,11 @@ export const ToggleSwitch: Component<ToggleSwitchProps> = (props) => {
         onChange={handleChange}
         disabled={props.disabled}
       />
-      <span class="toggle-slider" />
+      <span class="toggle-slider">
+        <Show when={props.thumbIcon}>
+          <span class="toggle-thumb-icon">{props.thumbIcon}</span>
+        </Show>
+      </span>
       {props.label && <span class="toggle-label">{props.label}</span>}
     </label>
   );

@@ -580,7 +580,8 @@
         "RegenerateExample": "Regenerate example with AI",
         "RevealHint": "Click or press Space to reveal answer",
         "ScreenshotAlt": "Screenshot",
-        "Tracked": "Tracked"
+        "Tracked": "Tracked",
+        "AnkiDuplicate": "Duplicate"
       },
       "EmptyState": {
         "NoCardsDescription": "Start learning words while watching videos or reading, and they'll appear here for review!",
@@ -670,7 +671,9 @@
         "ReviewMore": "Review More",
         "ShowAnswer": "Show Answer",
         "Undo": "↩",
-        "UndoTooltip": "Undo"
+        "UndoTooltip": "Undo",
+        "StealthMode": "Stealth Mode",
+        "MuteAudio": "Mute Audio"
       },
       "State": {
         "Learning": "Learning",

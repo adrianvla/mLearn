@@ -59,6 +59,10 @@
   min-width: 0;
 }
 
+.flashcard-advanced-field-value .toggle-switch {
+  min-height: 2rem;
+}
+
 .flashcard-advanced-field-value textarea {
   width: 100%;
   min-height: 2rem;

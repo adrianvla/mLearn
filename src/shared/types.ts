@@ -288,6 +288,10 @@ export interface Settings {
   flashcardAutoGenerateAudio: boolean;
   /** Voice sample ID for flashcard TTS voice cloning (Qwen3/Remote) */
   flashcardVoiceSampleId: string;
+  /** Stealth mode: hide media (image/video) on flashcards during review */
+  flashcardStealthMode: boolean;
+  /** Mute audio: prevent autoplay of TTS audio during flashcard review */
+  flashcardMuteAudio: boolean;
 
   // Conversation agent settings
   /** Whether the agent memory feature is enabled */
@@ -422,6 +426,8 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardTtsProvider: 'kokoro',
   flashcardAutoGenerateAudio: false,
   flashcardVoiceSampleId: '',
+  flashcardStealthMode: false,
+  flashcardMuteAudio: false,
   agentMemoryEnabled: true,
   agentMemoryShared: true,
   agentSplitChecker: true,
