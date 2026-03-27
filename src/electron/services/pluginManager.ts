@@ -144,11 +144,12 @@ function validateStringField(
   return value;
 }
 
-function normalizePluginId(id: string, pluginDir: string): string {
+export function normalizePluginId(id: string, pluginDir: string): string {
   const normalizedId = id.trim();
   const normalizedUppercaseId = normalizedId.toUpperCase();
   const hasWindowsInvalidFilenameCharacter = /[<>:"/\\|?*]/.test(normalizedId);
-  const isReservedWindowsDeviceName = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/.test(normalizedUppercaseId);
+  const reservedDeviceNameBase = normalizedUppercaseId.split('.')[0];
+  const isReservedWindowsDeviceName = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/.test(reservedDeviceNameBase);
 
   if (
     normalizedId.length === 0
