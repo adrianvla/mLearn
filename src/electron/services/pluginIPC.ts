@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { BrowserWindow, ipcMain } from 'electron';
-import { IPC_CHANNELS, WINDOW_TYPES } from '../../shared/constants';
+import { WINDOW_TYPES } from '../../shared/constants';
 import { PLUGIN_IPC_CHANNELS } from '../../shared/plugins/constants';
 import type {
   PluginInstallResult,
@@ -18,7 +18,6 @@ import {
   grantPermissions,
   listPlugins,
 } from './pluginManager';
-import { createChildWindow } from './windowManager';
 
 type InstallerModule = {
   installPluginFromPath?: (sourcePath: string) => Promise<PluginInstallResult>;
@@ -49,8 +48,27 @@ function broadcastPluginState(plugin: PluginState | null): PluginState | null {
   return plugin;
 }
 
-function getPluginKVPath(pluginId: string): string {
-  return path.join(getPluginsDir(), pluginId, '.kv.json');
+function isPathWithinDirectory(directoryPath: string, candidatePath: string): boolean {
+  const resolvedDirectoryPath = path.resolve(directoryPath);
+  const resolvedCandidatePath = path.resolve(candidatePath);
+
+  return resolvedCandidatePath === resolvedDirectoryPath || resolvedCandidatePath.startsWith(`${resolvedDirectoryPath}${path.sep}`);
+}
+
+function getSafePluginKVPath(pluginId: string): string | null {
+  const pluginsDir = getPluginsDir();
+  const pluginBaseDir = path.resolve(pluginsDir, pluginId);
+  if (!isPathWithinDirectory(pluginsDir, pluginBaseDir)) {
+    return null;
+  }
+
+  const resolvedKVPath = path.resolve(pluginBaseDir, '.kv.json');
+
+  if (!isPathWithinDirectory(pluginBaseDir, resolvedKVPath)) {
+    return null;
+  }
+
+  return resolvedKVPath;
 }
 
 function canUsePluginPermission(pluginId: string, permission: PluginManifest['permissions'][number]): boolean {
@@ -63,7 +81,10 @@ function canUsePluginPermission(pluginId: string, permission: PluginManifest['pe
 }
 
 function loadPluginKV(pluginId: string): Record<string, string> {
-  const kvPath = getPluginKVPath(pluginId);
+  const kvPath = getSafePluginKVPath(pluginId);
+  if (!kvPath) {
+    return {};
+  }
 
   try {
     if (!fs.existsSync(kvPath)) {
@@ -84,7 +105,11 @@ function loadPluginKV(pluginId: string): Record<string, string> {
 }
 
 function savePluginKV(pluginId: string, store: Record<string, string>): void {
-  const kvPath = getPluginKVPath(pluginId);
+  const kvPath = getSafePluginKVPath(pluginId);
+  if (!kvPath) {
+    return;
+  }
+
   fs.mkdirSync(path.dirname(kvPath), { recursive: true });
   fs.writeFileSync(kvPath, JSON.stringify(store, null, 2), 'utf-8');
 }
@@ -101,13 +126,6 @@ async function fallbackInstallResult(): Promise<PluginInstallResult> {
   const result = { success: false, error: 'Plugin installer not implemented yet' };
   broadcast(PLUGIN_IPC_CHANNELS.PLUGIN_INSTALL_RESULT, result);
   return result;
-}
-
-function getPluginWindowContext(payload: PluginWindowPayload): Record<string, unknown> {
-  return {
-    pluginId: payload.pluginId,
-    context: payload.context ?? null,
-  };
 }
 
 export function setupPluginIPC(): void {
@@ -169,12 +187,20 @@ export function setupPluginIPC(): void {
       return { value: null };
     }
 
+    if (!getSafePluginKVPath(pluginId)) {
+      return { value: null };
+    }
+
     const store = loadPluginKV(pluginId);
     return { value: store[key] ?? null };
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_KV_SET, async (_event, pluginId: string, key: string, value: string): Promise<void> => {
     if (!canUsePluginPermission(pluginId, 'kv-store')) {
+      return;
+    }
+
+    if (!getSafePluginKVPath(pluginId)) {
       return;
     }
 
@@ -185,6 +211,10 @@ export function setupPluginIPC(): void {
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_KV_REMOVE, async (_event, pluginId: string, key: string): Promise<void> => {
     if (!canUsePluginPermission(pluginId, 'kv-store')) {
+      return;
+    }
+
+    if (!getSafePluginKVPath(pluginId)) {
       return;
     }
 
@@ -203,18 +233,9 @@ export function setupPluginIPC(): void {
       return false;
     }
 
-    const window = createChildWindow(WINDOW_TYPES.PLUGIN_HOST, {
-      width: 1000,
-      height: 700,
-    });
-    const context = getPluginWindowContext(payload);
-    if (window.webContents.isLoading()) {
-      window.webContents.once('did-finish-load', () => {
-        window.webContents.send(IPC_CHANNELS.WINDOW_CONTEXT, context);
-      });
-    } else {
-      window.webContents.send(IPC_CHANNELS.WINDOW_CONTEXT, context);
-    }
-    return true;
+    void payload;
+    void WINDOW_TYPES.PLUGIN_HOST;
+    // Deferred to Task 7: plugin-host.html does not exist yet, so opening a window here would create a runtime-broken path.
+    return false;
   });
 }
