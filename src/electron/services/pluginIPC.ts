@@ -17,13 +17,9 @@ import {
   getPluginsDir,
   grantPermissions,
   listPlugins,
+  removePluginFromRegistry,
 } from './pluginManager';
-
-type InstallerModule = {
-  installPluginFromPath?: (sourcePath: string) => Promise<PluginInstallResult>;
-  selectAndInstallPlugin?: () => Promise<PluginInstallResult>;
-  uninstallPlugin?: (pluginId: string) => Promise<boolean>;
-};
+import { installPlugin, selectAndInstallPlugin, uninstallPlugin } from './pluginInstaller';
 
 function broadcast(channel: string, payload: PluginState[] | PluginState | PluginInstallResult): void {
   const windows = BrowserWindow.getAllWindows();
@@ -114,20 +110,6 @@ function savePluginKV(pluginId: string, store: Record<string, string>): void {
   fs.writeFileSync(kvPath, JSON.stringify(store, null, 2), 'utf-8');
 }
 
-function requireInstaller(): InstallerModule | null {
-  try {
-    return require('./pluginInstaller') as InstallerModule;
-  } catch {
-    return null;
-  }
-}
-
-async function fallbackInstallResult(): Promise<PluginInstallResult> {
-  const result = { success: false, error: 'Plugin installer not implemented yet' };
-  broadcast(PLUGIN_IPC_CHANNELS.PLUGIN_INSTALL_RESULT, result);
-  return result;
-}
-
 export function setupPluginIPC(): void {
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_GET_LIST, async (): Promise<PluginState[]> => {
     return broadcastPluginList();
@@ -146,40 +128,30 @@ export function setupPluginIPC(): void {
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_INSTALL_FROM_PATH, async (_event, sourcePath: string): Promise<PluginInstallResult> => {
-    const installer = requireInstaller();
-    if (!installer?.installPluginFromPath) {
-      return fallbackInstallResult();
-    }
-
-    const result = await installer.installPluginFromPath(sourcePath);
+    const result = await installPlugin(sourcePath);
     broadcast(PLUGIN_IPC_CHANNELS.PLUGIN_INSTALL_RESULT, result);
     broadcastPluginList();
     return result;
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_SELECT_AND_INSTALL, async (): Promise<PluginInstallResult> => {
-    const installer = requireInstaller();
-    if (!installer?.selectAndInstallPlugin) {
-      return fallbackInstallResult();
-    }
-
-    const result = await installer.selectAndInstallPlugin();
+    const result = await selectAndInstallPlugin();
     broadcast(PLUGIN_IPC_CHANNELS.PLUGIN_INSTALL_RESULT, result);
     broadcastPluginList();
     return result;
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_UNINSTALL, async (_event, pluginId: string): Promise<boolean> => {
-    const installer = requireInstaller();
-    if (!installer?.uninstallPlugin) {
+    const removedFromDisk = await uninstallPlugin(pluginId);
+    if (!removedFromDisk) {
       return false;
     }
 
-    const result = await installer.uninstallPlugin(pluginId);
-    if (result) {
+    const removedFromRegistry = removePluginFromRegistry(pluginId);
+    if (removedFromRegistry) {
       broadcastPluginList();
     }
-    return result;
+    return removedFromRegistry;
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_KV_GET, async (_event, pluginId: string, key: string): Promise<PluginKVGetResult> => {
