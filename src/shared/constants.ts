@@ -2,6 +2,8 @@
  * Shared constants between main and renderer processes
  */
 
+import { PLUGIN_IPC_CHANNELS } from './plugins/constants';
+
 // Server ports
 export const PYTHON_BACKEND_PORT = 7752;
 export const PROXY_SERVER_PORT = 7753;
@@ -271,20 +273,7 @@ export const IPC_CHANNELS = {
   KV_SET_BATCH: 'kv-set-batch',
 
   // Plugins
-  PLUGIN_LIST: 'plugin:list',
-  PLUGIN_STATUS_UPDATE: 'plugin:status-update',
-  PLUGIN_INSTALL_RESULT: 'plugin:install-result',
-  PLUGIN_GET_LIST: 'plugin:get-list',
-  PLUGIN_ENABLE: 'plugin:enable',
-  PLUGIN_DISABLE: 'plugin:disable',
-  PLUGIN_UNINSTALL: 'plugin:uninstall',
-  PLUGIN_INSTALL_FROM_PATH: 'plugin:install-from-path',
-  PLUGIN_SELECT_AND_INSTALL: 'plugin:select-and-install',
-  PLUGIN_GRANT_PERMISSIONS: 'plugin:grant-permissions',
-  PLUGIN_KV_GET: 'plugin:kv-get',
-  PLUGIN_KV_SET: 'plugin:kv-set',
-  PLUGIN_KV_REMOVE: 'plugin:kv-remove',
-  PLUGIN_OPEN_WINDOW: 'plugin:open-window',
+  ...PLUGIN_IPC_CHANNELS,
 } as const;
 
 // Window types
