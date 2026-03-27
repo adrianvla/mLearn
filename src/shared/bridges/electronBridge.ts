@@ -11,6 +11,7 @@ import type {
   PlatformBridge,
   SettingsBridge,
   FlashcardBridge,
+  PluginBridge,
   LocalizationBridge,
   FileBridge,
   WindowBridge,
@@ -58,6 +59,23 @@ const flashcardBridge: FlashcardBridge = {
   generateFlashcardTts: (cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl) => getIPC().generateFlashcardTts(cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl),
   batchGenerateFlashcardTts: (items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl) => getIPC().batchGenerateFlashcardTts(items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl),
   getFlashcardTtsMeta: (cardId, field) => getIPC().getFlashcardTtsMeta(cardId, field),
+};
+
+const pluginBridge: PluginBridge = {
+  pluginGetList: () => getIPC().pluginGetList(),
+  pluginEnable: (pluginId) => getIPC().pluginEnable(pluginId),
+  pluginDisable: (pluginId) => getIPC().pluginDisable(pluginId),
+  pluginGrantPermissions: (pluginId) => getIPC().pluginGrantPermissions(pluginId),
+  pluginInstallFromPath: (sourcePath) => getIPC().pluginInstallFromPath(sourcePath),
+  pluginSelectAndInstall: () => getIPC().pluginSelectAndInstall(),
+  pluginUninstall: (pluginId) => getIPC().pluginUninstall(pluginId),
+  pluginKVGet: (pluginId, key) => getIPC().pluginKVGet(pluginId, key),
+  pluginKVSet: (pluginId, key, value) => getIPC().pluginKVSet(pluginId, key, value),
+  pluginKVRemove: (pluginId, key) => getIPC().pluginKVRemove(pluginId, key),
+  pluginOpenWindow: (payload) => getIPC().pluginOpenWindow(payload),
+  onPluginList: (cb) => getIPC().onPluginList(cb),
+  onPluginStatusUpdate: (cb) => getIPC().onPluginStatusUpdate(cb),
+  onPluginInstallResult: (cb) => getIPC().onPluginInstallResult(cb),
 };
 
 const localizationBridge: LocalizationBridge = {
@@ -256,6 +274,7 @@ export function createElectronBridge(): PlatformBridge {
   return {
     settings: settingsBridge,
     flashcards: flashcardBridge,
+    plugins: pluginBridge,
     localization: localizationBridge,
     files: fileBridge,
     window: windowBridge,

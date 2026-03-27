@@ -6,6 +6,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo } from '../shared/types';
+import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 
 /**
  * Type-safe IPC API exposed to renderer
@@ -61,6 +62,36 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_IMAGE_RESOLVE, imageUrl),
   deleteFlashcardImage: (cardId: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_IMAGE_DELETE, cardId),
+
+  // ========== Plugins ==========
+  pluginGetList: (): Promise<PluginState[]> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_GET_LIST),
+  pluginEnable: (pluginId: string): Promise<PluginState | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_ENABLE, pluginId),
+  pluginDisable: (pluginId: string): Promise<PluginState | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_DISABLE, pluginId),
+  pluginGrantPermissions: (pluginId: string): Promise<PluginState | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_GRANT_PERMISSIONS, pluginId),
+  pluginInstallFromPath: (sourcePath: string): Promise<PluginInstallResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_INSTALL_FROM_PATH, sourcePath),
+  pluginSelectAndInstall: (): Promise<PluginInstallResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_SELECT_AND_INSTALL),
+  pluginUninstall: (pluginId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_UNINSTALL, pluginId),
+  pluginKVGet: (pluginId: string, key: string): Promise<PluginKVGetResult> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_KV_GET, pluginId, key),
+  pluginKVSet: (pluginId: string, key: string, value: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_KV_SET, pluginId, key, value),
+  pluginKVRemove: (pluginId: string, key: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_KV_REMOVE, pluginId, key),
+  pluginOpenWindow: (payload: PluginWindowPayload): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_OPEN_WINDOW, payload),
+  onPluginList: (callback: (plugins: PluginState[]) => void) =>
+    ipcOn(IPC_CHANNELS.PLUGIN_LIST, (_event, plugins) => callback(plugins)),
+  onPluginStatusUpdate: (callback: (plugin: PluginState) => void) =>
+    ipcOn(IPC_CHANNELS.PLUGIN_STATUS_UPDATE, (_event, plugin) => callback(plugin)),
+  onPluginInstallResult: (callback: (result: PluginInstallResult) => void) =>
+    ipcOn(IPC_CHANNELS.PLUGIN_INSTALL_RESULT, (_event, result) => callback(result)),
 
   // ========== Flashcard Videos ==========
   saveFlashcardVideo: (cardId: string, data: ArrayBuffer): Promise<string | null> =>
