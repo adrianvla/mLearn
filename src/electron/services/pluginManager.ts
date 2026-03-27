@@ -17,7 +17,7 @@ const VALID_PERMISSIONS: PluginPermission[] = ['kv-store', 'open-window', 'http'
 
 export interface PersistedPluginState {
   disabled: string[];
-  permissionsGranted: string[];
+  permissionsGranted: Record<string, string>;
 }
 
 export interface PluginEntry {
@@ -57,10 +57,31 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string');
 }
 
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return isPlainObject(value) && Object.values(value).every((item) => typeof item === 'string');
+}
+
+function getPermissionReceipt(permissions: PluginPermission[]): string {
+  return JSON.stringify([...permissions].sort());
+}
+
+function hasMatchingPermissionGrant(
+  state: PersistedPluginState,
+  manifest: Pick<PluginManifest, 'id' | 'permissions'>,
+): boolean {
+  return state.permissionsGranted[manifest.id] === getPermissionReceipt(manifest.permissions);
+}
+
 function normalizePersistedState(state: PersistedPluginState): PersistedPluginState {
+  const permissionsGranted = Object.fromEntries(
+    Object.entries(state.permissionsGranted)
+      .filter((entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string')
+      .sort(([leftId], [rightId]) => leftId.localeCompare(rightId)),
+  );
+
   return {
     disabled: [...new Set(state.disabled)],
-    permissionsGranted: [...new Set(state.permissionsGranted)],
+    permissionsGranted,
   };
 }
 
@@ -69,23 +90,23 @@ export function loadPersistedState(): PersistedPluginState {
 
   try {
     if (!fs.existsSync(statePath)) {
-      return { disabled: [], permissionsGranted: [] };
+      return { disabled: [], permissionsGranted: {} };
     }
 
     const raw = fs.readFileSync(statePath, 'utf-8');
     const parsed: unknown = JSON.parse(raw);
 
     if (!isPlainObject(parsed)) {
-      return { disabled: [], permissionsGranted: [] };
+      return { disabled: [], permissionsGranted: {} };
     }
 
     return normalizePersistedState({
       disabled: isStringArray(parsed.disabled) ? parsed.disabled : [],
-      permissionsGranted: isStringArray(parsed.permissionsGranted) ? parsed.permissionsGranted : [],
+      permissionsGranted: isStringRecord(parsed.permissionsGranted) ? parsed.permissionsGranted : {},
     });
   } catch (error) {
     console.error('[plugins] Failed to load persisted plugin state:', error);
-    return { disabled: [], permissionsGranted: [] };
+    return { disabled: [], permissionsGranted: {} };
   }
 }
 
@@ -250,7 +271,6 @@ export function discoverPlugins(): void {
   const pluginsDir = getPluginsDir();
   const persistedState = loadPersistedState();
   const disabledPlugins = new Set(persistedState.disabled);
-  const permissionsGranted = new Set(persistedState.permissionsGranted);
 
   registry.clear();
   fs.mkdirSync(pluginsDir, { recursive: true });
@@ -290,7 +310,7 @@ export function discoverPlugins(): void {
           permissions: [...manifest.permissions],
           status: disabledPlugins.has(manifest.id) ? 'disabled' : 'pending',
           pluginPath: pluginDir,
-          permissionsGranted: permissionsGranted.has(manifest.id),
+          permissionsGranted: hasMatchingPermissionGrant(persistedState, manifest),
         },
       };
 
@@ -372,12 +392,14 @@ export function grantPermissions(id: string): PluginState | null {
   }
 
   const persistedState = loadPersistedState();
-  const permissionsGranted = new Set(persistedState.permissionsGranted);
-  permissionsGranted.add(id);
+  const permissionsGranted = {
+    ...persistedState.permissionsGranted,
+    [id]: getPermissionReceipt(entry.manifest.permissions),
+  };
 
   savePersistedState({
     disabled: persistedState.disabled,
-    permissionsGranted: [...permissionsGranted],
+    permissionsGranted,
   });
 
   entry.state.permissionsGranted = true;
@@ -392,9 +414,12 @@ export function removePluginFromRegistry(id: string): boolean {
   }
 
   const persistedState = loadPersistedState();
+  const permissionsGranted = { ...persistedState.permissionsGranted };
+  delete permissionsGranted[id];
+
   savePersistedState({
     disabled: persistedState.disabled.filter((pluginId) => pluginId !== id),
-    permissionsGranted: persistedState.permissionsGranted.filter((pluginId) => pluginId !== id),
+    permissionsGranted,
   });
 
   return true;
@@ -416,7 +441,7 @@ export function registerInstalledPlugin(manifest: PluginManifest, pluginPath: st
       permissions: [...validatedManifest.permissions],
       status: persistedState.disabled.includes(validatedManifest.id) ? 'disabled' : 'pending',
       pluginPath,
-      permissionsGranted: persistedState.permissionsGranted.includes(validatedManifest.id),
+      permissionsGranted: hasMatchingPermissionGrant(persistedState, validatedManifest),
     },
   };
 
