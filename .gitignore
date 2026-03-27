@@ -12,6 +12,7 @@ src/root-of-app/dictionaries
 .agents
 .vscode
 .venv
+.worktrees/
 __pycache__
 scripts/scrapeGrammar.js
 package-lock.json
