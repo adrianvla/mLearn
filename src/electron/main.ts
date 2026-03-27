@@ -27,6 +27,7 @@ import { setupVoiceIPC } from './services/voiceService';
 import { setupDataExportImportIPC } from './services/dataExportImport';
 import { setupKVStoreIPC } from './services/kvStore';
 import { initPluginManager } from './services/pluginManager';
+import { setupPluginIPC } from './services/pluginIPC';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 
@@ -227,8 +228,8 @@ function setupAllIPC(): void {
   setupVoiceIPC();
   setupDataExportImportIPC();
   setupKVStoreIPC();
+  setupPluginIPC();
   setupKillHandlers();
-  // setupPluginIPC() will be added in Task 4.
 }
 
 // Create windows and start services
