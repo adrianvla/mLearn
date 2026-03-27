@@ -144,6 +144,23 @@ function validateStringField(
   return value;
 }
 
+function normalizePluginId(id: string, pluginDir: string): string {
+  const normalizedId = id.trim();
+
+  if (
+    normalizedId.length === 0
+    || normalizedId === '.'
+    || normalizedId === '..'
+    || normalizedId.includes('/')
+    || normalizedId.includes('\\')
+    || path.normalize(normalizedId) !== normalizedId
+  ) {
+    throw new Error(`Invalid 'id' value '${id}' in ${pluginDir}`);
+  }
+
+  return normalizedId;
+}
+
 function validateEnumArray<T extends string>(
   value: unknown,
   key: string,
@@ -167,7 +184,7 @@ export function validateManifest(raw: unknown, pluginDir: string): PluginManifes
     throw new Error(`Expected manifest object in ${pluginDir}`);
   }
 
-  const id = validateStringField(raw, 'id', pluginDir, true)!;
+  const id = normalizePluginId(validateStringField(raw, 'id', pluginDir, true)!, pluginDir);
   const name = validateStringField(raw, 'name', pluginDir, true)!;
   const version = validateStringField(raw, 'version', pluginDir, true)!;
   const apiVersion = validateStringField(raw, 'apiVersion', pluginDir, true)!;
