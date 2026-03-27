@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from typing import List
 
 import config
+import plugin_registry
 from logging_utils import _log
 
 router = APIRouter()
@@ -33,11 +34,17 @@ class TranslationResponse(BaseModel):
 @router.post("/tokenize", response_model=TokenizeResponse)
 def tokenize(req: TokenizeRequest):
     _log("requested tokenization: ", req.text[:100])
-    tokens = config.language_module.LANGUAGE_TOKENIZE(req.text)
+    mod = plugin_registry.get_active()
+    if mod is None:
+        return {"tokens": []}
+    tokens = mod.LANGUAGE_TOKENIZE(req.text)
     return {"tokens": tokens}
 
 
 @router.post("/translate", response_model=TranslationResponse)
 def get_translation(req: TranslationRequest):
     _log("requested translation: ", req.word[:100])
-    return config.language_module.LANGUAGE_TRANSLATE(req.word)
+    mod = plugin_registry.get_active()
+    if mod is None:
+        return {"data": []}
+    return mod.LANGUAGE_TRANSLATE(req.word)
