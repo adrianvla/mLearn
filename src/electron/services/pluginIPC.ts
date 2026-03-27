@@ -17,6 +17,7 @@ import {
   getPluginsDir,
   grantPermissions,
   listPlugins,
+  normalizePluginId,
   removePluginFromRegistry,
 } from './pluginManager';
 import { installPlugin, selectAndInstallPlugin, uninstallPlugin } from './pluginInstaller';
@@ -142,7 +143,13 @@ export function setupPluginIPC(): void {
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_UNINSTALL, async (_event, pluginId: string): Promise<boolean> => {
-    const normalizedPluginId = pluginId.trim();
+    let normalizedPluginId: string;
+    try {
+      normalizedPluginId = normalizePluginId(pluginId, getPluginsDir());
+    } catch {
+      return false;
+    }
+
     const removedFromDisk = await uninstallPlugin(normalizedPluginId);
     if (!removedFromDisk) {
       return false;
