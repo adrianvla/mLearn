@@ -155,6 +155,7 @@ export function normalizePluginId(id: string, pluginDir: string): string {
     normalizedId.length === 0
     || normalizedId === '.'
     || normalizedId === '..'
+    || normalizedId.endsWith('.')
     || normalizedId.includes('/')
     || normalizedId.includes('\\')
     || path.normalize(normalizedId) !== normalizedId
