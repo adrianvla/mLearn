@@ -142,12 +142,13 @@ export function setupPluginIPC(): void {
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_UNINSTALL, async (_event, pluginId: string): Promise<boolean> => {
-    const removedFromDisk = await uninstallPlugin(pluginId);
+    const normalizedPluginId = pluginId.trim();
+    const removedFromDisk = await uninstallPlugin(normalizedPluginId);
     if (!removedFromDisk) {
       return false;
     }
 
-    const removedFromRegistry = removePluginFromRegistry(pluginId);
+    const removedFromRegistry = removePluginFromRegistry(normalizedPluginId);
     if (removedFromRegistry) {
       broadcastPluginList();
     }
