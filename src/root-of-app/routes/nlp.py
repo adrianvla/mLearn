@@ -1,14 +1,13 @@
 """
 NLP routes — tokenization and translation.
 
-Delegates to the dynamically loaded language module from config.
+Delegates to the active language module from plugin_registry.
 """
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from typing import List
 
-import config
 import plugin_registry
 from logging_utils import _log
 
