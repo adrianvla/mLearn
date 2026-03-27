@@ -269,6 +269,22 @@ export const IPC_CHANNELS = {
   KV_REMOVE: 'kv-remove',
   KV_GET_ALL: 'kv-get-all',
   KV_SET_BATCH: 'kv-set-batch',
+
+  // Plugins
+  PLUGIN_LIST: 'plugin:list',
+  PLUGIN_STATUS_UPDATE: 'plugin:status-update',
+  PLUGIN_INSTALL_RESULT: 'plugin:install-result',
+  PLUGIN_GET_LIST: 'plugin:get-list',
+  PLUGIN_ENABLE: 'plugin:enable',
+  PLUGIN_DISABLE: 'plugin:disable',
+  PLUGIN_UNINSTALL: 'plugin:uninstall',
+  PLUGIN_INSTALL_FROM_PATH: 'plugin:install-from-path',
+  PLUGIN_SELECT_AND_INSTALL: 'plugin:select-and-install',
+  PLUGIN_GRANT_PERMISSIONS: 'plugin:grant-permissions',
+  PLUGIN_KV_GET: 'plugin:kv-get',
+  PLUGIN_KV_SET: 'plugin:kv-set',
+  PLUGIN_KV_REMOVE: 'plugin:kv-remove',
+  PLUGIN_OPEN_WINDOW: 'plugin:open-window',
 } as const;
 
 // Window types
@@ -287,6 +303,7 @@ export const WINDOW_TYPES = {
   CONVERSATION_AGENT: 'conversation-agent',
   STATISTICS: 'statistics',
   WORD_DEFINITION: 'word-definition',
+  PLUGIN_HOST: 'plugin-host',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];
