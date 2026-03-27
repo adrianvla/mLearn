@@ -235,6 +235,8 @@ export function isSafePath(base: string, target: string): boolean {
 export function activatePlugin(entry: PluginEntry): void {
   const mainRelativePath = entry.manifest.main ?? DEFAULT_PLUGIN_MAIN;
   const mainPath = path.resolve(entry.pluginPath, mainRelativePath);
+  const resolvedPluginPath = path.resolve(entry.pluginPath);
+  const pluginCacheRoot = fs.existsSync(resolvedPluginPath) ? fs.realpathSync(resolvedPluginPath) : resolvedPluginPath;
 
   entry.state.errorMessage = undefined;
 
@@ -251,7 +253,13 @@ export function activatePlugin(entry: PluginEntry): void {
       return;
     }
 
-    delete require.cache[require.resolve(mainPath)];
+    for (const cachedModulePath of Object.keys(require.cache)) {
+      const resolvedCachedModulePath = fs.existsSync(cachedModulePath) ? fs.realpathSync(cachedModulePath) : path.resolve(cachedModulePath);
+      if (isSafePath(pluginCacheRoot, resolvedCachedModulePath)) {
+        delete require.cache[cachedModulePath];
+      }
+    }
+
     const loadedModule = require(mainPath) as Record<string, unknown>;
     entry.moduleExports = loadedModule;
 
