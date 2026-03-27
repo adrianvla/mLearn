@@ -29,6 +29,18 @@ export interface PluginEntry {
 
 const registry = new Map<string, PluginEntry>();
 
+function shouldActivatePlugin(entry: PluginEntry): boolean {
+  return entry.state.status === 'pending' && entry.state.permissionsGranted;
+}
+
+function activateIfPermitted(entry: PluginEntry): void {
+  if (!shouldActivatePlugin(entry)) {
+    return;
+  }
+
+  activatePlugin(entry);
+}
+
 export function getPluginsDir(): string {
   return path.join(getUserDataPath(), 'plugins');
 }
@@ -283,10 +295,6 @@ export function discoverPlugins(): void {
       };
 
       registry.set(manifest.id, entry);
-
-      if (entry.state.status !== 'disabled') {
-        activatePlugin(entry);
-      }
     } catch (error) {
       console.error(`[plugins] Failed to discover plugin at ${pluginDir}:`, error);
     }
@@ -319,6 +327,12 @@ function clonePluginState(state: PluginState): PluginState {
 
 export function initPluginManager(): void {
   discoverPlugins();
+
+  const entries = [...registry.values()].sort((a, b) => a.state.id.localeCompare(b.state.id));
+  for (const entry of entries) {
+    activateIfPermitted(entry);
+  }
+
   console.log(`[plugins] Plugin manager initialized with ${registry.size} plugin(s)`);
 }
 
@@ -334,7 +348,7 @@ export function enablePlugin(id: string): PluginState | null {
 
   saveDisabledState(id, false);
   entry.state.status = 'pending';
-  activatePlugin(entry);
+  activateIfPermitted(entry);
   return clonePluginState(entry.state);
 }
 
@@ -367,6 +381,7 @@ export function grantPermissions(id: string): PluginState | null {
   });
 
   entry.state.permissionsGranted = true;
+  activateIfPermitted(entry);
   return clonePluginState(entry.state);
 }
 
@@ -407,9 +422,7 @@ export function registerInstalledPlugin(manifest: PluginManifest, pluginPath: st
 
   registry.set(validatedManifest.id, entry);
 
-  if (entry.state.status !== 'disabled') {
-    activatePlugin(entry);
-  }
+  activateIfPermitted(entry);
 
   return clonePluginState(entry.state);
 }
