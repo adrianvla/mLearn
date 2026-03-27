@@ -51,19 +51,34 @@ function normalizeZipEntryName(entryName: string): string {
   return entryName.replace(/\\/g, '/');
 }
 
+function isZipMetadataEntry(entryName: string): boolean {
+  return entryName === '__MACOSX' || entryName === '.DS_Store';
+}
+
 function resolveExtractedPluginDir(extractedDir: string): string {
   const manifestPath = path.join(extractedDir, MANIFEST_FILE_NAME);
   if (fs.existsSync(manifestPath)) {
     return extractedDir;
   }
 
-  const children = fs.readdirSync(extractedDir, { withFileTypes: true }).filter((entry) => entry.isDirectory());
-  if (children.length !== 1) {
+  const children = fs
+    .readdirSync(extractedDir, { withFileTypes: true })
+    .filter((entry) => !isZipMetadataEntry(entry.name));
+
+  const pluginRootCandidates = children.filter((entry) => {
+    if (!entry.isDirectory()) {
+      return false;
+    }
+
+    const nestedDir = path.join(extractedDir, entry.name);
+    return fs.existsSync(path.join(nestedDir, MANIFEST_FILE_NAME));
+  });
+
+  if (pluginRootCandidates.length !== 1) {
     return extractedDir;
   }
 
-  const nestedDir = path.join(extractedDir, children[0].name);
-  return fs.existsSync(path.join(nestedDir, MANIFEST_FILE_NAME)) ? nestedDir : extractedDir;
+  return path.join(extractedDir, pluginRootCandidates[0].name);
 }
 
 function assertPluginIdAvailable(pluginId: string, pluginDir: string): void {
