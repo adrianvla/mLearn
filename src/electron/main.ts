@@ -26,6 +26,7 @@ import { setupSpeechIPC } from './services/speechService';
 import { setupVoiceIPC } from './services/voiceService';
 import { setupDataExportImportIPC } from './services/dataExportImport';
 import { setupKVStoreIPC } from './services/kvStore';
+import { initPluginManager } from './services/pluginManager';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 
@@ -227,6 +228,7 @@ function setupAllIPC(): void {
   setupDataExportImportIPC();
   setupKVStoreIPC();
   setupKillHandlers();
+  // setupPluginIPC() will be added in Task 4.
 }
 
 // Create windows and start services
@@ -253,6 +255,7 @@ async function initialize(): Promise<void> {
   await raiseFileDescriptorLimits();
 
   setupAllIPC();
+  initPluginManager();
 
   // Set up custom protocols for serving local files to renderer
   setupLocalMediaProtocol();
