@@ -241,10 +241,36 @@ export async function installPluginFromPath(sourcePath: string): Promise<PluginI
 
 export async function selectAndInstallPlugin(): Promise<PluginInstallResult> {
   const focusedWindow = BrowserWindow.getFocusedWindow();
-  const dialogOptions: OpenDialogOptions = {
-    properties: ['openFile', 'openDirectory'],
-    filters: [{ name: 'Plugins', extensions: ['zip'] }],
-  };
+  const selection = focusedWindow
+    ? await dialog.showMessageBox(focusedWindow, {
+      type: 'question',
+      title: 'Install Plugin',
+      message: 'Choose a plugin source',
+      buttons: ['Cancel', 'Folder', 'ZIP File'],
+      defaultId: 2,
+      cancelId: 0,
+    })
+    : await dialog.showMessageBox({
+      type: 'question',
+      title: 'Install Plugin',
+      message: 'Choose a plugin source',
+      buttons: ['Cancel', 'Folder', 'ZIP File'],
+      defaultId: 2,
+      cancelId: 0,
+    });
+
+  if (selection.response === 0) {
+    return { success: false, error: 'Plugin selection cancelled' };
+  }
+
+  const dialogOptions: OpenDialogOptions = selection.response === 1
+    ? {
+      properties: ['openDirectory'],
+    }
+    : {
+      properties: ['openFile'],
+      filters: [{ name: 'Plugin ZIP Files', extensions: ['zip'] }],
+    };
 
   const result = focusedWindow
     ? await dialog.showOpenDialog(focusedWindow, dialogOptions)

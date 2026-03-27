@@ -251,6 +251,7 @@ export function activatePlugin(entry: PluginEntry): void {
       return;
     }
 
+    delete require.cache[require.resolve(mainPath)];
     const loadedModule = require(mainPath) as Record<string, unknown>;
     entry.moduleExports = loadedModule;
 
