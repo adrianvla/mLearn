@@ -300,7 +300,23 @@ export async function selectAndInstallPlugin(): Promise<PluginInstallResult> {
 
 export async function uninstallPlugin(pluginId: string): Promise<boolean> {
   const pluginsDir = ensurePluginsDir();
-  const pluginDir = safeResolve(pluginsDir, pluginId);
+  const normalizedPluginId = pluginId.trim();
+  if (normalizedPluginId.length === 0 || normalizedPluginId === '.' || normalizedPluginId === '..') {
+    return false;
+  }
+
+  let pluginDir: string;
+  try {
+    pluginDir = safeResolve(pluginsDir, normalizedPluginId);
+  } catch {
+    return false;
+  }
+
+  const resolvedPluginsDir = path.resolve(pluginsDir);
+  const resolvedPluginDir = path.resolve(pluginDir);
+  if (resolvedPluginDir === resolvedPluginsDir || !resolvedPluginDir.startsWith(`${resolvedPluginsDir}${path.sep}`)) {
+    return false;
+  }
 
   if (!fs.existsSync(pluginDir)) {
     return false;
