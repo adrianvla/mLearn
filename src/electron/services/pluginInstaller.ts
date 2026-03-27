@@ -6,7 +6,7 @@ import type { OpenDialogOptions } from 'electron';
 import { PLUGIN_API_VERSION } from '../../shared/plugins/constants';
 import type { PluginInstallResult, PluginManifest } from '../../shared/plugins/types';
 import { getUserDataPath } from '../utils/platform';
-import { getPluginManifest, registerInstalledPlugin, validateManifest } from './pluginManager';
+import { getPluginManifest, normalizePluginId, registerInstalledPlugin, validateManifest } from './pluginManager';
 
 const MANIFEST_FILE_NAME = 'plugin.json';
 const ZIP_EXTENSION = '.zip';
@@ -300,15 +300,11 @@ export async function selectAndInstallPlugin(): Promise<PluginInstallResult> {
 
 export async function uninstallPlugin(pluginId: string): Promise<boolean> {
   const pluginsDir = ensurePluginsDir();
-  const normalizedPluginId = pluginId.trim();
-  if (
-    normalizedPluginId.length === 0
-    || normalizedPluginId === '.'
-    || normalizedPluginId === '..'
-    || normalizedPluginId.includes('/')
-    || normalizedPluginId.includes('\\')
-    || path.normalize(normalizedPluginId) !== normalizedPluginId
-  ) {
+
+  let normalizedPluginId: string;
+  try {
+    normalizedPluginId = normalizePluginId(pluginId, pluginsDir);
+  } catch {
     return false;
   }
 
