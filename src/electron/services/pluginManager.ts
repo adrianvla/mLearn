@@ -146,6 +146,9 @@ function validateStringField(
 
 function normalizePluginId(id: string, pluginDir: string): string {
   const normalizedId = id.trim();
+  const normalizedUppercaseId = normalizedId.toUpperCase();
+  const hasWindowsInvalidFilenameCharacter = /[<>:"/\\|?*]/.test(normalizedId);
+  const isReservedWindowsDeviceName = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/.test(normalizedUppercaseId);
 
   if (
     normalizedId.length === 0
@@ -154,6 +157,8 @@ function normalizePluginId(id: string, pluginDir: string): string {
     || normalizedId.includes('/')
     || normalizedId.includes('\\')
     || path.normalize(normalizedId) !== normalizedId
+    || hasWindowsInvalidFilenameCharacter
+    || isReservedWindowsDeviceName
   ) {
     throw new Error(`Invalid 'id' value '${id}' in ${pluginDir}`);
   }
