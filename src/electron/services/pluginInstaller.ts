@@ -301,7 +301,14 @@ export async function selectAndInstallPlugin(): Promise<PluginInstallResult> {
 export async function uninstallPlugin(pluginId: string): Promise<boolean> {
   const pluginsDir = ensurePluginsDir();
   const normalizedPluginId = pluginId.trim();
-  if (normalizedPluginId.length === 0 || normalizedPluginId === '.' || normalizedPluginId === '..') {
+  if (
+    normalizedPluginId.length === 0
+    || normalizedPluginId === '.'
+    || normalizedPluginId === '..'
+    || normalizedPluginId.includes('/')
+    || normalizedPluginId.includes('\\')
+    || path.normalize(normalizedPluginId) !== normalizedPluginId
+  ) {
     return false;
   }
 
