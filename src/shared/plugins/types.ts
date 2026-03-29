@@ -24,6 +24,7 @@ export interface PluginUIContributionSchema {
 export interface PluginUIContributionComponent {
   type: 'component';
   componentPath: string;
+  componentUrl?: string;
 }
 
 export type PluginUIContribution =
@@ -64,6 +65,7 @@ export interface PluginState {
   errorMessage?: string;
   pluginPath: string;
   permissionsGranted: boolean;
+  ui?: PluginUIContribution;
 }
 
 export interface PluginInstallResult {
@@ -79,4 +81,11 @@ export interface PluginKVGetResult {
 export interface PluginWindowPayload {
   pluginId: string;
   context?: Record<string, unknown>;
+}
+
+export interface PluginHostContext {
+  pluginId: string;
+  pluginName: string;
+  ui: PluginUIContribution;
+  initialContext?: Record<string, unknown>;
 }

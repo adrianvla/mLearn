@@ -181,6 +181,29 @@ export function createChildWindow(
   return window;
 }
 
+export function openManagedChildWindow(
+  type: WindowType,
+  options: Partial<Electron.BrowserWindowConstructorOptions> = {},
+  context?: Record<string, unknown>,
+): BrowserWindow {
+  if (context) {
+    // v1 limitation: windowContextStore is keyed only by windowType, so only one
+    // plugin-host context can exist at a time.
+    windowContextStore.set(type, context);
+  }
+
+  const existingWindow = childWindows.get(type);
+  if (existingWindow && !existingWindow.isDestroyed()) {
+    if (context) {
+      existingWindow.webContents.send(IPC_CHANNELS.WINDOW_CONTEXT, context);
+    }
+    existingWindow.focus();
+    return existingWindow;
+  }
+
+  return createChildWindow(type, options);
+}
+
 // PiP Mode handlers
 function makeMainWindowPIP(width: number, height: number): void {
   if (!mainWindow) return;
@@ -565,17 +588,7 @@ export function setupWindowIPC(): void {
 
   // Open child window from renderer
   ipcMain.on(IPC_CHANNELS.OPEN_WINDOW, (_event, payload: OpenWindowPayload) => {
-    if (payload.context) {
-      windowContextStore.set(payload.type, payload.context);
-    }
-    const existing = childWindows.get(payload.type);
-    if (existing && !existing.isDestroyed()) {
-      // Re-send context to existing window so it can update
-      if (payload.context) {
-        existing.webContents.send(IPC_CHANNELS.WINDOW_CONTEXT, payload.context);
-      }
-    }
-    createChildWindow(payload.type, payload.options);
+    openManagedChildWindow(payload.type, payload.options, payload.context);
   });
 
   // Child window requests its context

@@ -45,6 +45,24 @@ function capacitorHtmlPlugin(): Plugin {
 
 export default defineConfig(({ mode }) => {
   const isCapacitor = mode === 'capacitor';
+  const input: Record<string, string> = isCapacitor
+    ? {
+        mobile: resolve(__dirname, 'src/html/mobile.html'),
+      }
+    : {
+        main: resolve(__dirname, 'src/html/main.html'),
+        welcome: resolve(__dirname, 'src/html/welcome.html'),
+        flashcards: resolve(__dirname, 'src/html/flashcards.html'),
+        settings: resolve(__dirname, 'src/html/settings.html'),
+        statistics: resolve(__dirname, 'src/html/statistics.html'),
+        'word-db-editor': resolve(__dirname, 'src/html/word-db-editor.html'),
+        'kanji-grid': resolve(__dirname, 'src/html/kanji-grid.html'),
+        licenses: resolve(__dirname, 'src/html/licenses.html'),
+        'connect-qr': resolve(__dirname, 'src/html/connect-qr.html'),
+        'conversation-agent': resolve(__dirname, 'src/html/conversation-agent.html'),
+        'word-definition': resolve(__dirname, 'src/html/word-definition.html'),
+        'plugin-host': resolve(__dirname, 'src/html/plugin-host.html'),
+      };
 
   return {
     plugins: [solidPlugin(), ...(isCapacitor ? [capacitorHtmlPlugin()] : [])],
@@ -79,21 +97,7 @@ export default defineConfig(({ mode }) => {
       outDir: isCapacitor ? 'dist-mobile' : 'dist',
       emptyOutDir: true,
       rollupOptions: {
-        input: isCapacitor
-          ? { mobile: resolve(__dirname, 'src/html/mobile.html') }
-          : {
-              main: resolve(__dirname, 'src/html/main.html'),
-              welcome: resolve(__dirname, 'src/html/welcome.html'),
-              flashcards: resolve(__dirname, 'src/html/flashcards.html'),
-              settings: resolve(__dirname, 'src/html/settings.html'),
-              statistics: resolve(__dirname, 'src/html/statistics.html'),
-              'word-db-editor': resolve(__dirname, 'src/html/word-db-editor.html'),
-              'kanji-grid': resolve(__dirname, 'src/html/kanji-grid.html'),
-              licenses: resolve(__dirname, 'src/html/licenses.html'),
-              'connect-qr': resolve(__dirname, 'src/html/connect-qr.html'),
-              'conversation-agent': resolve(__dirname, 'src/html/conversation-agent.html'),
-              'word-definition': resolve(__dirname, 'src/html/word-definition.html'),
-            },
+        input,
         external: isCapacitor ? ['electron'] : [],
       },
     },
