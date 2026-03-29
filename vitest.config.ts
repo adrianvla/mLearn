@@ -52,6 +52,7 @@ export default defineConfig({
           environment: 'happy-dom',
           include: [
             'src/renderer/**/*.test.ts',
+            'src/renderer/**/*.test.tsx',
             'src/shared/bridges/**/*.test.ts',
             'src/shared/backends/**/*.test.ts',
             'src/shared/platform.test.ts',

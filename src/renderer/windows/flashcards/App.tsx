@@ -4,7 +4,7 @@
  * Modernized UI with sidebar navigation
  */
 
-import { Component, Show, For, createSignal, createMemo, createEffect, on, onCleanup } from 'solid-js';
+import { Component, Show, For, createSignal, createMemo, createEffect, on, onCleanup, type Accessor } from 'solid-js';
 import { WindowWrapper, useLocalization, useSettings, useLowPowerGate } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardPitchAccent } from '../../components/flashcard';
@@ -35,13 +35,48 @@ import { isElectron } from '../../../shared/platform';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { checkAvailability } from '../../services/llmProvider';
+import type { AppActivity } from '../../../shared/plugins/appActivity';
 import type { Flashcard, FlashcardContent, TTSProvider } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
+import { publishSourceActivityUpdate, type SourceActivityUpdatePayload } from '../main/routes/readerActivityPublisher';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
 
 type TabId = 'review' | 'browse' | 'generate' | 'stats';
+export const FLASHCARDS_ACTIVITY_SOURCE_ID = 'flashcards-window';
+
+export function getFlashcardsAppActivity(activeTab: TabId): AppActivity {
+  return activeTab === 'review' ? { kind: 'flashcards' } : { kind: 'idle' };
+}
+
+export function createFlashcardsAppActivityPublisher(input: {
+  activeTab: Accessor<TabId>;
+  isFocused: Accessor<boolean>;
+  publishSourceUpdate?: (payload: SourceActivityUpdatePayload) => void;
+}): void {
+  const publishSourceUpdate = input.publishSourceUpdate ?? publishSourceActivityUpdate;
+  const idleActivity: AppActivity = { kind: 'idle' };
+
+  createEffect(() => {
+    const isFocused = input.isFocused();
+    const activity = isFocused ? getFlashcardsAppActivity(input.activeTab()) : idleActivity;
+
+    publishSourceUpdate({
+      sourceId: FLASHCARDS_ACTIVITY_SOURCE_ID,
+      isFocused,
+      activity,
+    });
+  });
+
+  onCleanup(() => {
+    publishSourceUpdate({
+      sourceId: FLASHCARDS_ACTIVITY_SOURCE_ID,
+      isFocused: false,
+      activity: idleActivity,
+    });
+  });
+}
 
 interface TtsRepairJob {
   cardId: string;
@@ -86,6 +121,7 @@ export const FlashcardsContent: Component = () => {
   const { requestAccess } = useLowPowerGate();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
+  const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
   const [showAddModal, setShowAddModal] = createSignal(false);
@@ -122,6 +158,29 @@ export const FlashcardsContent: Component = () => {
   const [llmRepairJobs, setLlmRepairJobs] = createSignal<LlmRepairJob[]>([]);
   const [showRepairModal, setShowRepairModal] = createSignal(false);
   const [, setRepairRunning] = createSignal(false);
+
+  createEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const syncWindowFocus = () => {
+      setIsWindowFocused(document.hasFocus());
+    };
+
+    window.addEventListener('focus', syncWindowFocus);
+    window.addEventListener('blur', syncWindowFocus);
+    document.addEventListener('visibilitychange', syncWindowFocus);
+
+    onCleanup(() => {
+      window.removeEventListener('focus', syncWindowFocus);
+      window.removeEventListener('blur', syncWindowFocus);
+      document.removeEventListener('visibilitychange', syncWindowFocus);
+    });
+  });
+
+  createFlashcardsAppActivityPublisher({
+    activeTab,
+    isFocused: isWindowFocused,
+  });
 
   // Scan for broken TTS after flashcards finish loading
   let ttsRepairScanned = false;
