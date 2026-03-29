@@ -239,6 +239,7 @@ export function createDiscordActivityRuntime({
   return {
     async activate(): Promise<void> {
       runtimeToken += 1;
+      const activationToken = runtimeToken;
       const previousSession = activeSession;
       activeSession = undefined;
       previousSession?.unsubscribeFromAppActivity?.();
@@ -262,8 +263,13 @@ export function createDiscordActivityRuntime({
         await nextClient.login({
           clientId: DISCORD_ACTIVITY_CLIENT_ID,
         });
+        if (activationToken !== runtimeToken) {
+          await cleanupRpcClient(nextClient);
+          return;
+        }
+
         const session: RuntimeSession = {
-          token: runtimeToken,
+          token: activationToken,
           client: nextClient,
           showTimestamp: config.showTimestamp,
         };
@@ -287,7 +293,7 @@ export function createDiscordActivityRuntime({
         const failedSession = activeSession?.client === nextClient
           ? activeSession
           : {
-              token: runtimeToken,
+              token: activationToken,
               client: nextClient,
               showTimestamp: config.showTimestamp,
             };

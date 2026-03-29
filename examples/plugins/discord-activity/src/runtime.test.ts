@@ -330,6 +330,44 @@ describe('discord activity runtime', () => {
     });
   });
 
+  it('does not install a slow older activation after a later deactivate', async () => {
+    const storage = createStorage({
+      'discord-activity:enabled': 'true',
+      'discord-activity:showTimestamp': 'true',
+    });
+    const slowLogin = createDeferred<void>();
+    const firstClient = createRpcClient();
+    firstClient.login.mockImplementationOnce(() => slowLogin.promise);
+    const createRpcClientForActivation = vi
+      .fn<() => MockRpcClient>()
+      .mockReturnValueOnce(firstClient);
+    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const runtime = createDiscordActivityRuntime({
+      storage,
+      appActivity,
+      createRpcClient: createRpcClientForActivation,
+      now: () => new Date('2026-03-29T12:00:00.000Z'),
+    });
+
+    const firstActivate = runtime.activate();
+    await flushMicrotasks();
+
+    await runtime.deactivate();
+
+    slowLogin.resolve();
+    await firstActivate;
+
+    expect(firstClient.setActivity).not.toHaveBeenCalled();
+    expect(firstClient.clearActivity).toHaveBeenCalledTimes(1);
+    expect(firstClient.disconnect).toHaveBeenCalledTimes(1);
+
+    const status = await readPersistedStatus(storage);
+    expect(status).toEqual({
+      connected: false,
+      lastError: '',
+    });
+  });
+
   it('omits timestamps when showTimestamp is disabled', async () => {
     const storage = createStorage({
       'discord-activity:enabled': 'true',
