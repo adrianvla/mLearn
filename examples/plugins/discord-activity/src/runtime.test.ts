@@ -368,6 +368,41 @@ describe('discord activity runtime', () => {
     });
   });
 
+  it('does not persist connected status when a slow snapshot resumes after deactivate', async () => {
+    const storage = createStorage({
+      'discord-activity:enabled': 'true',
+      'discord-activity:showTimestamp': 'true',
+    });
+    const snapshotStarted = createDeferred<void>();
+    const slowSnapshot = createDeferred<AppActivity>();
+    const rpcClient = createRpcClient();
+    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    appActivity.getAppActivity.mockImplementationOnce(() => {
+      snapshotStarted.resolve();
+      return slowSnapshot.promise;
+    });
+    const runtime = createDiscordActivityRuntime({
+      storage,
+      appActivity,
+      createRpcClient: () => rpcClient,
+      now: () => new Date('2026-03-29T12:00:00.000Z'),
+    });
+
+    const activatePromise = runtime.activate();
+    await snapshotStarted.promise;
+
+    await runtime.deactivate();
+
+    slowSnapshot.resolve({ kind: 'idle' });
+    await activatePromise;
+
+    const status = await readPersistedStatus(storage);
+    expect(status).toEqual({
+      connected: false,
+      lastError: '',
+    });
+  });
+
   it('omits timestamps when showTimestamp is disabled', async () => {
     const storage = createStorage({
       'discord-activity:enabled': 'true',
