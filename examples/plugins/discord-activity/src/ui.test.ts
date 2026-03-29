@@ -28,16 +28,12 @@ describe('discord activity ui', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders saved config values and disconnected runtime status', async () => {
+  it('shows automatic live activity descriptions instead of manual details and state fields', async () => {
     const host = createHost({
       kvGet: vi.fn(async (key: string) => {
         switch (key) {
           case 'discord-activity:enabled':
             return 'true';
-          case 'discord-activity:details':
-            return 'Reviewing flashcards';
-          case 'discord-activity:state':
-            return 'Japanese immersion';
           case 'discord-activity:showTimestamp':
             return 'true';
           case 'discord-activity:runtime-status':
@@ -53,11 +49,38 @@ describe('discord activity ui', () => {
 
     await flush();
 
-    expect((document.querySelector('input[name="details"]') as HTMLInputElement | null)?.value).toBe('Reviewing flashcards');
-    expect((document.querySelector('input[name="state"]') as HTMLInputElement | null)?.value).toBe('Japanese immersion');
+    expect((document.querySelector('input[name="enabled"]') as HTMLInputElement | null)?.checked).toBe(true);
     expect((document.querySelector('input[name="showTimestamp"]') as HTMLInputElement | null)?.checked).toBe(true);
+    expect(document.body.textContent).toContain('automatic live activity');
+    expect(document.body.textContent).toContain('Using mLearn');
+    expect(document.body.textContent).toContain('Reading on mLearn');
+    expect(document.body.textContent).toContain('Watching on mLearn');
+    expect(document.body.textContent).toContain('Reviewing Flashcards');
+    expect(document.querySelector('input[name="details"]')).toBeNull();
+    expect(document.querySelector('input[name="state"]')).toBeNull();
     expect(document.body.textContent).toContain('Disconnected');
     expect(document.body.textContent).toContain('Discord is not running');
+  });
+
+  it('shows the last runtime error clearly', async () => {
+    const host = createHost({
+      kvGet: vi.fn(async (key: string) => {
+        switch (key) {
+          case 'discord-activity:runtime-status':
+            return JSON.stringify({ connected: false, lastError: 'Invalid Client ID' });
+          default:
+            return null;
+        }
+      }),
+    });
+
+    const panel = DiscordActivityPanel({ context: {}, host });
+    document.body.append(panel);
+
+    await flush();
+
+    expect(document.body.textContent).toContain('Runtime status: Disconnected');
+    expect(document.body.textContent).toContain('Invalid Client ID');
   });
 
   it('writes updated config and closes the window when saving', async () => {
@@ -67,10 +90,6 @@ describe('discord activity ui', () => {
         switch (key) {
           case 'discord-activity:enabled':
             return 'false';
-          case 'discord-activity:details':
-            return 'Old details';
-          case 'discord-activity:state':
-            return 'Old state';
           case 'discord-activity:showTimestamp':
             return 'false';
           case 'discord-activity:runtime-status':
@@ -93,17 +112,11 @@ describe('discord activity ui', () => {
     await flush();
 
     const enabled = document.querySelector('input[name="enabled"]') as HTMLInputElement;
-    const details = document.querySelector('input[name="details"]') as HTMLInputElement;
-    const state = document.querySelector('input[name="state"]') as HTMLInputElement;
     const showTimestamp = document.querySelector('input[name="showTimestamp"]') as HTMLInputElement;
     const saveButton = document.querySelector('button[type="submit"]') as HTMLButtonElement;
 
     enabled.checked = true;
     enabled.dispatchEvent(new Event('change', { bubbles: true }));
-    details.value = 'New details';
-    details.dispatchEvent(new Event('input', { bubbles: true }));
-    state.value = 'New state';
-    state.dispatchEvent(new Event('input', { bubbles: true }));
     showTimestamp.checked = true;
     showTimestamp.dispatchEvent(new Event('change', { bubbles: true }));
 
@@ -112,9 +125,8 @@ describe('discord activity ui', () => {
     await flush();
 
     expect(host.kvSet).toHaveBeenCalledWith('discord-activity:enabled', 'true');
-    expect(host.kvSet).toHaveBeenCalledWith('discord-activity:details', 'New details');
-    expect(host.kvSet).toHaveBeenCalledWith('discord-activity:state', 'New state');
     expect(host.kvSet).toHaveBeenCalledWith('discord-activity:showTimestamp', 'true');
+    expect(host.kvSet).toHaveBeenCalledTimes(2);
     expect(document.body.textContent).toContain('Saved. Disable and re-enable the plugin to apply Discord changes.');
     expect(callOrder.at(-1)).toBe('closeWindow');
   });

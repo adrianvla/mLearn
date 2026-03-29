@@ -44,13 +44,11 @@ export default function DiscordActivityPanel(props: PluginComponentProps): HTMLE
   const root = document.createElement('section');
   const heading = document.createElement('h2');
   const intro = document.createElement('p');
+  const activityDescription = document.createElement('p');
+  const activityList = document.createElement('ul');
   const form = document.createElement('form');
   const enabledLabel = document.createElement('label');
   const enabledInput = document.createElement('input');
-  const detailsLabel = document.createElement('label');
-  const detailsInput = document.createElement('input');
-  const stateLabel = document.createElement('label');
-  const stateInput = document.createElement('input');
   const showTimestampLabel = document.createElement('label');
   const showTimestampInput = document.createElement('input');
   const status = document.createElement('p');
@@ -66,22 +64,19 @@ export default function DiscordActivityPanel(props: PluginComponentProps): HTMLE
   form.style.gap = '12px';
 
   heading.textContent = 'Discord Rich Presence';
-  intro.textContent = 'Update the example Discord activity config saved in plugin KV storage.';
+  intro.textContent = 'Control the automatic live activity shown by the example Discord plugin.';
+  activityDescription.textContent = 'The plugin publishes automatic live activity based on what you are doing in mLearn:';
+  activityList.innerHTML = [
+    '<li>Idle: Using mLearn / Idling</li>',
+    '<li>Reader: Reading on mLearn / Reading page x/y of {work name}</li>',
+    '<li>Video: Watching on mLearn / {current time}/{duration} - {work name}</li>',
+    '<li>Flashcards: Using mLearn / Reviewing Flashcards</li>',
+  ].join('');
 
   enabledLabel.textContent = 'Enable Discord activity';
   enabledInput.type = 'checkbox';
   enabledInput.name = 'enabled';
   enabledLabel.append(document.createTextNode(' '), enabledInput);
-
-  detailsLabel.textContent = 'Details';
-  detailsInput.type = 'text';
-  detailsInput.name = 'details';
-  detailsLabel.append(document.createElement('br'), detailsInput);
-
-  stateLabel.textContent = 'State';
-  stateInput.type = 'text';
-  stateInput.name = 'state';
-  stateLabel.append(document.createElement('br'), stateInput);
 
   showTimestampLabel.textContent = 'Show timestamp';
   showTimestampInput.type = 'checkbox';
@@ -106,15 +101,13 @@ export default function DiscordActivityPanel(props: PluginComponentProps): HTMLE
     ]);
 
     enabledInput.checked = config.enabled;
-    detailsInput.value = config.details;
-    stateInput.value = config.state;
     showTimestampInput.checked = config.showTimestamp;
 
     const currentStatus = readRuntimeStatus(runtimeStatusValue);
     runtimeStatus.textContent = currentStatus.connected
       ? 'Runtime status: Connected'
       : 'Runtime status: Disconnected';
-    errorStatus.textContent = currentStatus.lastError;
+    errorStatus.textContent = currentStatus.lastError ? `Last error: ${currentStatus.lastError}` : '';
     status.textContent = 'Ready to save Discord activity settings.';
   })();
 
@@ -123,8 +116,6 @@ export default function DiscordActivityPanel(props: PluginComponentProps): HTMLE
 
     void (async () => {
       await props.host.kvSet('discord-activity:enabled', String(enabledInput.checked));
-      await props.host.kvSet('discord-activity:details', detailsInput.value.trim());
-      await props.host.kvSet('discord-activity:state', stateInput.value.trim());
       await props.host.kvSet('discord-activity:showTimestamp', String(showTimestampInput.checked));
 
       status.textContent = SAVE_MESSAGE;
@@ -132,7 +123,7 @@ export default function DiscordActivityPanel(props: PluginComponentProps): HTMLE
     })();
   });
 
-  form.append(enabledLabel, detailsLabel, stateLabel, showTimestampLabel, saveButton);
-  root.append(heading, intro, form, runtimeStatus, errorStatus, status);
+  form.append(enabledLabel, showTimestampLabel, saveButton);
+  root.append(heading, intro, activityDescription, activityList, form, runtimeStatus, errorStatus, status);
   return root;
 }
