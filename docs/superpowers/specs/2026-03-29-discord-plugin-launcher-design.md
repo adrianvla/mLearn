@@ -68,10 +68,16 @@ It should allow the user to:
 - enable or disable Rich Presence,
 - set the visible activity text or template,
 - optionally toggle a timestamp if the implementation supports it cleanly,
-- save changes and immediately apply them,
+- save changes,
 - see clear error or disconnected states.
 
 If Discord is not running or the connection cannot be established, the window must explain that state instead of silently doing nothing.
+
+V1 apply model:
+
+- saving always persists config immediately,
+- applying that config to the live Discord runtime may require disabling and re-enabling the plugin,
+- the UI must communicate that behavior clearly.
 
 ## Architecture
 
@@ -142,7 +148,7 @@ The main plugin entry should:
 - expose a small internal command surface through plugin KV plus host-window reload semantics rather than inventing a new plugin runtime API,
 - clear presence and disconnect when the plugin is disabled through the existing disable path.
 
-Because the current plugin system has no explicit unload lifecycle, this design requires a small targeted extension of the existing disable behavior for this use case: disabling a plugin must invoke plugin cleanup if the loaded module exports a `deactivate()` function. This is intentionally limited to a simple optional lifecycle hook and is not a larger plugin architecture redesign.
+Because the current plugin system has no explicit unload lifecycle, this design deliberately introduces one minimal architecture extension: if a loaded plugin module exports `deactivate()`, the existing disable path should call it before marking the plugin disabled. This is a narrow lifecycle addition required for long-lived integrations like Discord RPC. It is intentionally limited to disable-time cleanup and does not expand into a broader plugin runtime redesign.
 
 ### UI responsibilities
 
@@ -152,7 +158,7 @@ The plugin host UI should:
 - show connection status fetched from plugin-managed state,
 - let the user update the configured presence fields,
 - persist configuration through plugin KV,
-- trigger runtime refresh through the existing plugin-host interaction model described below.
+- explain the v1 refresh/apply behavior after saving.
 
 ### UI-to-runtime contract
 
@@ -163,13 +169,13 @@ V1 contract:
 - the plugin UI reads and writes persisted config through plugin KV,
 - the main runtime reads the same KV-backed config on activation,
 - when the user saves from the plugin window, the UI writes updated config into plugin KV and then calls `closeWindow()`,
-- the user-facing apply model is therefore: save config -> close window -> disable/enable plugin if needed to force a reconnect or refresh.
+- the user-facing apply model is therefore: save config -> close window -> disable/enable plugin to force reconnect and refresh.
 
-To make that workable without inventing background cross-runtime messaging, the plugin window must clearly explain whether a reconnect is required after saving.
+To make that workable without inventing background cross-runtime messaging, the plugin window must clearly explain that re-enable is the v1 apply step after saving.
 
 Recommended v1 refinement:
 
-- on save, the UI writes config and displays `Saved. Re-open or re-enable the plugin if Discord does not refresh immediately.`
+- on save, the UI writes config and displays `Saved. Disable and re-enable the plugin to apply Discord changes.`
 
 This avoids adding a new runtime messaging channel in the same change while still producing a real working plugin.
 
