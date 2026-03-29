@@ -10,7 +10,22 @@ import {
 
 type MockStorage = ReturnType<typeof createStorage>;
 type MockRpcClient = ReturnType<typeof createRpcClient>;
-type MockAppActivityBridge = ReturnType<typeof createAppActivityBridge>;
+
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+
+  return { promise, resolve, reject };
+}
+
+async function flushMicrotasks() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
 
 function createStorage(initial: Record<string, string | null> = {}) {
   const values = new Map<string, string>();
@@ -234,6 +249,85 @@ describe('discord activity runtime', () => {
     expect(getActivityPayload(rpcClient, 0)?.timestamps?.start).toBe(
       getActivityPayload(rpcClient, 1)?.timestamps?.start,
     );
+  });
+
+  it('publishes the latest activity when an update arrives during activate', async () => {
+    const storage = createStorage({
+      'discord-activity:enabled': 'true',
+      'discord-activity:showTimestamp': 'true',
+    });
+    const rpcClient = createRpcClient();
+    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const readerActivity: AppActivity = {
+      kind: 'reader',
+      workName: 'Yotsuba',
+      currentPage: 3,
+      totalPages: 20,
+    };
+    appActivity.getAppActivity.mockImplementationOnce(async () => {
+      appActivity.emit(readerActivity);
+      return { kind: 'idle' };
+    });
+    const runtime = createDiscordActivityRuntime({
+      storage,
+      appActivity,
+      createRpcClient: () => rpcClient,
+      now: () => new Date('2026-03-29T12:00:00.000Z'),
+    });
+
+    await runtime.activate();
+
+    expect(rpcClient.setActivity).toHaveBeenCalledTimes(1);
+    expect(getActivityPayload(rpcClient)).toMatchObject({
+      state: 'Reading on mLearn',
+      details: 'Reading page 3/20 of Yotsuba',
+    });
+  });
+
+  it('does not let a stale activity callback tear down a newer RPC client', async () => {
+    const storage = createStorage({
+      'discord-activity:enabled': 'true',
+      'discord-activity:showTimestamp': 'true',
+    });
+    const firstClient = createRpcClient();
+    const secondClient = createRpcClient();
+    const stalePublish = createDeferred<void>();
+    firstClient.setActivity
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(() => stalePublish.promise);
+    const createRpcClientForActivation = vi
+      .fn<() => MockRpcClient>()
+      .mockReturnValueOnce(firstClient)
+      .mockReturnValueOnce(secondClient);
+    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const runtime = createDiscordActivityRuntime({
+      storage,
+      appActivity,
+      createRpcClient: createRpcClientForActivation,
+      now: () => new Date('2026-03-29T12:00:00.000Z'),
+    });
+
+    await runtime.activate();
+    appActivity.emit({
+      kind: 'reader',
+      workName: 'Yotsuba',
+      currentPage: 3,
+      totalPages: 20,
+    });
+
+    await runtime.activate();
+
+    stalePublish.reject(new Error('stale callback failure'));
+    await flushMicrotasks();
+
+    expect(secondClient.clearActivity).not.toHaveBeenCalled();
+    expect(secondClient.disconnect).not.toHaveBeenCalled();
+
+    const status = await readPersistedStatus(storage);
+    expect(status).toEqual({
+      connected: true,
+      lastError: '',
+    });
   });
 
   it('omits timestamps when showTimestamp is disabled', async () => {
