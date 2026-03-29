@@ -10,6 +10,8 @@ const translations: Record<string, string> = {
   'mlearn.Settings.Plugins.Empty.Title': 'No plugins installed',
   'mlearn.Settings.Plugins.Empty.Description': 'Install a plugin package to extend mLearn.',
   'mlearn.Settings.Plugins.Install': 'Install plugin',
+  'mlearn.Settings.Plugins.OpenWindow': 'Open plugin window',
+  'mlearn.Settings.Plugins.OpenWindowError': 'Unable to open plugin window.',
   'mlearn.Settings.Plugins.Enable': 'Enable',
   'mlearn.Settings.Plugins.Disable': 'Disable',
   'mlearn.Settings.Plugins.Uninstall': 'Uninstall',
@@ -32,6 +34,7 @@ const mockPluginGetList = vi.fn<() => Promise<PluginState[]>>();
 const mockPluginEnable = vi.fn<(pluginId: string) => Promise<PluginState | null>>();
 const mockPluginDisable = vi.fn<(pluginId: string) => Promise<PluginState | null>>();
 const mockPluginGrantPermissions = vi.fn<(pluginId: string) => Promise<PluginState | null>>();
+const mockPluginOpenWindow = vi.fn<(payload: { pluginId: string }) => Promise<boolean>>();
 const mockPluginSelectAndInstall = vi.fn<() => Promise<PluginInstallResult>>();
 const mockPluginUninstall = vi.fn<(pluginId: string) => Promise<boolean>>();
 
@@ -42,6 +45,7 @@ vi.mock('../../../../shared/bridges', () => ({
       pluginEnable: mockPluginEnable,
       pluginDisable: mockPluginDisable,
       pluginGrantPermissions: mockPluginGrantPermissions,
+      pluginOpenWindow: mockPluginOpenWindow,
       pluginSelectAndInstall: mockPluginSelectAndInstall,
       pluginUninstall: mockPluginUninstall,
       onPluginList: vi.fn(() => () => undefined),
@@ -77,6 +81,7 @@ describe('PluginsTab', () => {
     mockPluginEnable.mockReset();
     mockPluginDisable.mockReset();
     mockPluginGrantPermissions.mockReset();
+    mockPluginOpenWindow.mockReset();
     mockPluginSelectAndInstall.mockReset();
     mockPluginUninstall.mockReset();
   });
@@ -89,6 +94,26 @@ describe('PluginsTab', () => {
     const { PluginsTab } = await import('./PluginsTab');
     const dispose = render(() => PluginsTab({}), container);
     return { dispose };
+  }
+
+  function createPlugin(overrides: Partial<PluginState> = {}): PluginState {
+    return {
+      id: 'discord-activity',
+      name: 'Discord Activity',
+      version: '1.0.0',
+      description: 'Discord plugin window.',
+      author: 'Plugin Dev',
+      capabilities: ['ui-panel'],
+      permissions: ['open-window'],
+      status: 'active',
+      pluginPath: '/plugins/discord-activity',
+      permissionsGranted: true,
+      ui: {
+        type: 'component',
+        componentPath: 'dist/ui.js',
+      },
+      ...overrides,
+    };
   }
 
   it('shows loading, then empty state, and starts install flow', async () => {
@@ -227,6 +252,138 @@ describe('PluginsTab', () => {
     expect(alert).toBeTruthy();
     expect(alert?.textContent).toContain('Failed to load plugins');
 
+    dispose();
+  });
+
+  it('shows an open plugin window button for active ui-panel plugins with ui contributions', async () => {
+    mockPluginGetList.mockResolvedValue([createPlugin()]);
+
+    const { dispose } = await renderPluginsTab();
+    await flushPromises();
+
+    const pluginCard = container.querySelector('[data-plugin-id="discord-activity"]') as HTMLDivElement;
+    const openWindowButton = Array.from(pluginCard.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Open plugin window'),
+    );
+
+    expect(openWindowButton).toBeTruthy();
+    dispose();
+  });
+
+  it('opens the plugin window for an eligible plugin', async () => {
+    mockPluginGetList.mockResolvedValue([createPlugin()]);
+    mockPluginOpenWindow.mockResolvedValue(true);
+
+    const { dispose } = await renderPluginsTab();
+    await flushPromises();
+
+    const pluginCard = container.querySelector('[data-plugin-id="discord-activity"]') as HTMLDivElement;
+    const openWindowButton = Array.from(pluginCard.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Open plugin window'),
+    );
+
+    expect(openWindowButton).toBeTruthy();
+    openWindowButton!.click();
+    await flushPromises();
+
+    expect(mockPluginOpenWindow).toHaveBeenCalledWith({ pluginId: 'discord-activity' });
+    dispose();
+  });
+
+  it('does not show an open plugin window button for ineligible plugins', async () => {
+    mockPluginGetList.mockResolvedValue([
+      createPlugin({ id: 'disabled.plugin', status: 'disabled' }),
+      createPlugin({ id: 'no-capability.plugin', capabilities: ['integration'] }),
+      createPlugin({ id: 'no-permission.plugin', permissions: [] }),
+      createPlugin({
+        id: 'no-ui.plugin',
+        ui: undefined,
+      }),
+    ]);
+
+    const { dispose } = await renderPluginsTab();
+    await flushPromises();
+
+    for (const pluginId of ['disabled.plugin', 'no-capability.plugin', 'no-permission.plugin', 'no-ui.plugin']) {
+      const pluginCard = container.querySelector(`[data-plugin-id="${pluginId}"]`) as HTMLDivElement;
+      const openWindowButton = Array.from(pluginCard.querySelectorAll('button')).find((button) =>
+        button.textContent?.includes('Open plugin window'),
+      );
+
+      expect(openWindowButton).toBeFalsy();
+    }
+
+    dispose();
+  });
+
+  it('announces an inline error when opening a plugin window returns false', async () => {
+    mockPluginGetList.mockResolvedValue([createPlugin()]);
+    mockPluginOpenWindow.mockResolvedValue(false);
+
+    const { dispose } = await renderPluginsTab();
+    await flushPromises();
+
+    const pluginCard = container.querySelector('[data-plugin-id="discord-activity"]') as HTMLDivElement;
+    const openWindowButton = Array.from(pluginCard.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Open plugin window'),
+    );
+
+    openWindowButton!.click();
+    await flushPromises();
+
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert).toBeTruthy();
+    expect(alert?.textContent).toContain('Unable to open plugin window.');
+    dispose();
+  });
+
+  it('announces an inline error when opening a plugin window throws', async () => {
+    mockPluginGetList.mockResolvedValue([createPlugin()]);
+    mockPluginOpenWindow.mockRejectedValue(new Error('Plugin window failed to open'));
+
+    const { dispose } = await renderPluginsTab();
+    await flushPromises();
+
+    const pluginCard = container.querySelector('[data-plugin-id="discord-activity"]') as HTMLDivElement;
+    const openWindowButton = Array.from(pluginCard.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Open plugin window'),
+    );
+
+    openWindowButton!.click();
+    await flushPromises();
+
+    const alert = container.querySelector('[role="alert"]');
+    expect(alert).toBeTruthy();
+    expect(alert?.textContent).toContain('Plugin window failed to open');
+    dispose();
+  });
+
+  it('disables the open plugin window button while the request is in flight', async () => {
+    const pendingOpenWindow = deferred<boolean>();
+    mockPluginGetList.mockResolvedValue([createPlugin()]);
+    mockPluginOpenWindow.mockReturnValue(pendingOpenWindow.promise);
+
+    const { dispose } = await renderPluginsTab();
+    await flushPromises();
+
+    const pluginCard = container.querySelector('[data-plugin-id="discord-activity"]') as HTMLDivElement;
+    const openWindowButton = Array.from(pluginCard.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Open plugin window'),
+    ) as HTMLButtonElement | undefined;
+
+    expect(openWindowButton).toBeTruthy();
+    const resolvedOpenWindowButton = openWindowButton as HTMLButtonElement;
+    expect(resolvedOpenWindowButton.disabled).toBe(false);
+
+    resolvedOpenWindowButton.click();
+    await flushPromises();
+
+    expect(resolvedOpenWindowButton.disabled).toBe(true);
+
+    pendingOpenWindow.resolve(true);
+    await flushPromises();
+
+    expect(resolvedOpenWindowButton.disabled).toBe(false);
     dispose();
   });
 });

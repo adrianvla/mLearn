@@ -1,0 +1,145 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  createDiscordRpcClient,
+  decodeFrame,
+  encodeFrame,
+  getDiscordIpcCandidatePaths,
+  type DiscordRpcFrame,
+} from './discordRpc';
+
+class FakeSocket {
+  public writes: Buffer[] = [];
+
+  private readonly frames: Buffer[];
+
+  constructor(frames: DiscordRpcFrame[]) {
+    this.frames = frames.map((frame) => encodeFrame(frame));
+  }
+
+  async write(buffer: Buffer): Promise<void> {
+    this.writes.push(buffer);
+  }
+
+  async read(): Promise<Buffer> {
+    const nextFrame = this.frames.shift();
+    if (!nextFrame) {
+      throw new Error('No more fake Discord RPC frames');
+    }
+
+    return nextFrame;
+  }
+
+  async close(): Promise<void> {}
+}
+
+describe('discord rpc client', () => {
+  it('sends a Discord handshake and waits for READY during login', async () => {
+    const socket = new FakeSocket([
+      {
+        op: 1,
+        payload: {
+          cmd: 'DISPATCH',
+          evt: 'READY',
+          data: { user: { id: '1' } },
+        },
+      },
+    ]);
+    const client = createDiscordRpcClient({
+      connect: async () => socket,
+      nonce: () => 'nonce-1',
+      pid: 123,
+    });
+
+    await client.login({ clientId: 'client-123' });
+
+    expect(decodeFrame(socket.writes[0])).toEqual({
+      op: 0,
+      payload: {
+        v: 1,
+        client_id: 'client-123',
+      },
+    });
+  });
+
+  it('sends SET_ACTIVITY frames with the current process id', async () => {
+    const socket = new FakeSocket([
+      {
+        op: 1,
+        payload: {
+          cmd: 'DISPATCH',
+          evt: 'READY',
+          data: { user: { id: '1' } },
+        },
+      },
+      {
+        op: 1,
+        payload: {
+          cmd: 'SET_ACTIVITY',
+          data: {},
+          nonce: 'nonce-1',
+        },
+      },
+    ]);
+    const client = createDiscordRpcClient({
+      connect: async () => socket,
+      nonce: () => 'nonce-1',
+      pid: 456,
+    });
+
+    await client.login({ clientId: 'client-123' });
+    await client.setActivity({ details: 'Reviewing flashcards' });
+
+    expect(decodeFrame(socket.writes[1])).toEqual({
+      op: 1,
+      payload: {
+        cmd: 'SET_ACTIVITY',
+        args: {
+          activity: {
+            details: 'Reviewing flashcards',
+          },
+          pid: 456,
+        },
+        nonce: 'nonce-1',
+      },
+    });
+  });
+
+  it('tries later Discord IPC candidates when earlier sockets fail', async () => {
+    const attempts: string[] = [];
+    const socket = new FakeSocket([
+      {
+        op: 1,
+        payload: {
+          cmd: 'DISPATCH',
+          evt: 'READY',
+          data: { user: { id: '1' } },
+        },
+      },
+    ]);
+    const client = createDiscordRpcClient({
+      connect: async (candidatePath) => {
+        attempts.push(candidatePath);
+        if (candidatePath === '/tmp/discord-ipc-0') {
+          throw new Error('ENOENT');
+        }
+
+        return socket;
+      },
+      nonce: () => 'nonce-1',
+      pid: 123,
+      getCandidatePaths: () => ['/tmp/discord-ipc-0', '/tmp/discord-ipc-1'],
+    });
+
+    await client.login({ clientId: 'client-123' });
+
+    expect(attempts).toEqual(['/tmp/discord-ipc-0', '/tmp/discord-ipc-1']);
+  });
+
+  it('uses Windows Discord named pipe paths unchanged', () => {
+    expect(getDiscordIpcCandidatePaths({ platform: 'win32' }).slice(0, 2)).toEqual([
+      '\\\\?\\pipe\\discord-ipc-0',
+      '\\\\?\\pipe\\discord-ipc-1',
+    ]);
+  });
+});

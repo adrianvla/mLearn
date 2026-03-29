@@ -139,7 +139,7 @@ export function readManifestFromDir(pluginDir: string): PluginManifest {
   return manifest;
 }
 
-function finalizeInstall(stagedPluginDir: string, pluginsDir: string): PluginInstallResult {
+async function finalizeInstall(stagedPluginDir: string, pluginsDir: string): Promise<PluginInstallResult> {
   const manifest = readManifestFromDir(stagedPluginDir);
   const finalPluginDir = safeResolve(pluginsDir, manifest.id);
   let renamed = false;
@@ -148,7 +148,7 @@ function finalizeInstall(stagedPluginDir: string, pluginsDir: string): PluginIns
     assertPluginIdAvailable(manifest.id, finalPluginDir);
     fs.renameSync(stagedPluginDir, finalPluginDir);
     renamed = true;
-    registerInstalledPlugin(manifest, finalPluginDir);
+    await registerInstalledPlugin(manifest, finalPluginDir);
     return { success: true, pluginId: manifest.id };
   } catch (error) {
     cleanupDirectory(renamed ? finalPluginDir : stagedPluginDir);
@@ -185,7 +185,7 @@ export async function installFromZip(zipPath: string): Promise<PluginInstallResu
     }
 
     const pluginDir = resolveExtractedPluginDir(stagingDir);
-    const result = finalizeInstall(pluginDir, pluginsDir);
+    const result = await finalizeInstall(pluginDir, pluginsDir);
 
     if (pluginDir !== stagingDir) {
       cleanupDirectory(stagingDir);
@@ -215,7 +215,7 @@ export async function installFromFolder(folderPath: string): Promise<PluginInsta
     const manifest = readManifestFromDir(sourcePath);
     assertPluginIdAvailable(manifest.id, safeResolve(pluginsDir, manifest.id));
     copyDirectoryContents(sourcePath, stagingDir);
-    return finalizeInstall(stagingDir, pluginsDir);
+    return await finalizeInstall(stagingDir, pluginsDir);
   } catch (error) {
     cleanupDirectory(stagingDir);
     return {

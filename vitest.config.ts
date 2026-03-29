@@ -38,6 +38,16 @@ export default defineConfig({
       {
         extends: true,
         test: {
+          name: 'examples',
+          environment: 'node',
+          include: [
+            'examples/plugins/**/*.test.ts',
+          ],
+        },
+      },
+      {
+        extends: true,
+        test: {
           name: 'renderer',
           environment: 'happy-dom',
           include: [

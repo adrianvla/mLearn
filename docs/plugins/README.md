@@ -11,15 +11,18 @@ This directory documents the current public plugin surface for mLearn.
 
 ## Example plugins
 
-- `examples/plugins/discord-activity/` is a source-first example for a component-based plugin. To install it as written, bundle `src/main.ts` into separate runtime targets so the manifest points at a Node-loadable `main` entry such as `dist/main.cjs` and a renderer-loadable UI entry such as `dist/ui.js`.
+- `examples/plugins/discord-activity/` is a packaged, installable example plugin in this repo. Install the folder directly from `examples/plugins/discord-activity/`; the checked-in manifest already points at `dist/main.cjs` and `dist/ui.js`. The maintainable source still starts from `src/main.ts`, but you do not need to bundle `src/main.ts` into separate runtime targets before installing the checked-in example. The example uses `Client ID: 1366046646392395806`.
+- The Discord example is a real Discord Rich Presence integration, not just placeholder host-window scaffolding.
 - `examples/plugins/language-template/` shows the smallest manifest shape for a language plugin backed by a Python module.
 
 ## UI plugins
 
 - Component UIs open in the existing `plugin-host` window.
+- Active plugins with the `ui-panel` capability, a declared `ui` contribution, and the `open-window` permission show an `Open plugin window` action in Settings.
 - The host resolves `ui.componentPath` into a `plugin-ui://<plugin-id>/...` URL and loads that module inside the host window.
 - The host component receives `context` data plus a `host` API with `kvGet`, `kvSet`, `kvRemove`, and `closeWindow`.
 - A plugin can request the host window through the existing `pluginOpenWindow` bridge call with `{ pluginId, context }`.
+- For the Discord example in v1, config changes persist immediately when saved, but Discord Rich Presence updates apply only after you disable and re-enable the plugin.
 
 ## Permissions
 
