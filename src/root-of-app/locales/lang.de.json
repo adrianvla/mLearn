@@ -1247,6 +1247,8 @@
         "Description": "Verwalte installierte Plugins und ihre Berechtigungen.",
         "Loading": "Plugins werden geladen...",
         "Install": "Plugin installieren",
+        "OpenWindow": "Plugin-Fenster öffnen",
+        "OpenWindowError": "Das Plugin-Fenster konnte nicht geöffnet werden.",
         "Enable": "Aktivieren",
         "Disable": "Deaktivieren",
         "Uninstall": "Deinstallieren",

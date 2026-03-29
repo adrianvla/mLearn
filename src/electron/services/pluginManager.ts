@@ -33,12 +33,12 @@ function shouldActivatePlugin(entry: PluginEntry): boolean {
   return entry.state.status === 'pending' && (entry.manifest.permissions.length === 0 || entry.state.permissionsGranted);
 }
 
-function activateIfPermitted(entry: PluginEntry): void {
+async function activateIfPermitted(entry: PluginEntry): Promise<void> {
   if (!shouldActivatePlugin(entry)) {
     return;
   }
 
-  activatePlugin(entry);
+  await activatePlugin(entry);
 }
 
 export function getPluginsDir(): string {
@@ -288,7 +288,7 @@ export function isSafePath(base: string, target: string): boolean {
   return resolvedTarget === resolvedBase || resolvedTarget.startsWith(`${resolvedBase}${path.sep}`);
 }
 
-export function activatePlugin(entry: PluginEntry): void {
+export async function activatePlugin(entry: PluginEntry): Promise<void> {
   const mainRelativePath = entry.manifest.main ?? DEFAULT_PLUGIN_MAIN;
   const mainPath = path.resolve(entry.pluginPath, mainRelativePath);
   const resolvedPluginPath = path.resolve(entry.pluginPath);
@@ -321,7 +321,7 @@ export function activatePlugin(entry: PluginEntry): void {
 
     const activate = loadedModule.activate;
     if (typeof activate === 'function') {
-      activate();
+      await activate();
     }
 
     entry.state.status = 'active';
@@ -376,6 +376,18 @@ export function discoverPlugins(): void {
           status: disabledPlugins.has(manifest.id) ? 'disabled' : 'pending',
           pluginPath: pluginDir,
           permissionsGranted: hasMatchingPermissionGrant(persistedState, manifest),
+          ui: manifest.ui
+            ? manifest.ui.type === 'schema'
+              ? {
+                  type: 'schema',
+                  schema: manifest.ui.schema,
+                  initialData: manifest.ui.initialData,
+                }
+              : {
+                  type: 'component',
+                  componentPath: manifest.ui.componentPath,
+                }
+            : undefined,
         },
       };
 
@@ -423,12 +435,14 @@ function clonePluginState(state: PluginState): PluginState {
   };
 }
 
-export function initPluginManager(): void {
+export async function initPluginManager(): Promise<void> {
   discoverPlugins();
 
   const entries = [...registry.values()].sort((a, b) => a.state.id.localeCompare(b.state.id));
   for (const entry of entries) {
-    activateIfPermitted(entry);
+    if (shouldActivatePlugin(entry)) {
+      await activatePlugin(entry);
+    }
   }
 
   console.log(`[plugins] Plugin manager initialized with ${registry.size} plugin(s)`);
@@ -438,7 +452,7 @@ export function listPlugins(): PluginState[] {
   return [...registry.values()].map((entry) => clonePluginState(entry.state));
 }
 
-export function enablePlugin(id: string): PluginState | null {
+export async function enablePlugin(id: string): Promise<PluginState | null> {
   const entry = registry.get(id);
   if (!entry) {
     return null;
@@ -446,14 +460,25 @@ export function enablePlugin(id: string): PluginState | null {
 
   saveDisabledState(id, false);
   entry.state.status = 'pending';
-  activateIfPermitted(entry);
+  if (shouldActivatePlugin(entry)) {
+    await activatePlugin(entry);
+  }
   return clonePluginState(entry.state);
 }
 
-export function disablePlugin(id: string): PluginState | null {
+export async function disablePlugin(id: string): Promise<PluginState | null> {
   const entry = registry.get(id);
   if (!entry) {
     return null;
+  }
+
+  const deactivate = entry.moduleExports?.deactivate;
+  if (typeof deactivate === 'function') {
+    try {
+      await deactivate();
+    } catch (error) {
+      console.error(`[plugins] Failed to deactivate plugin '${id}':`, error);
+    }
   }
 
   saveDisabledState(id, true);
@@ -463,7 +488,7 @@ export function disablePlugin(id: string): PluginState | null {
   return clonePluginState(entry.state);
 }
 
-export function grantPermissions(id: string): PluginState | null {
+export async function grantPermissions(id: string): Promise<PluginState | null> {
   const entry = registry.get(id);
   if (!entry) {
     return null;
@@ -481,7 +506,9 @@ export function grantPermissions(id: string): PluginState | null {
   });
 
   entry.state.permissionsGranted = true;
-  activateIfPermitted(entry);
+  if (shouldActivatePlugin(entry)) {
+    await activatePlugin(entry);
+  }
   return clonePluginState(entry.state);
 }
 
@@ -503,7 +530,7 @@ export function removePluginFromRegistry(id: string): boolean {
   return true;
 }
 
-export function registerInstalledPlugin(manifest: PluginManifest, pluginPath: string): PluginState {
+export async function registerInstalledPlugin(manifest: PluginManifest, pluginPath: string): Promise<PluginState> {
   const validatedManifest = validateManifest(manifest, pluginPath);
   const persistedState = loadPersistedState();
   const entry: PluginEntry = {
@@ -537,7 +564,7 @@ export function registerInstalledPlugin(manifest: PluginManifest, pluginPath: st
 
   registry.set(validatedManifest.id, entry);
 
-  activateIfPermitted(entry);
+  await activateIfPermitted(entry);
 
   return clonePluginState(entry.state);
 }

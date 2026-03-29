@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { createRequire } from 'module';
 import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -14,8 +15,10 @@ vi.mock('../utils/platform', () => ({
 }));
 
 import { validateManifest } from './pluginManager';
+import { DISCORD_ACTIVITY_CLIENT_ID } from '../../../examples/plugins/discord-activity/src/runtime';
 
 const repoRoot = path.resolve(__dirname, '../../..');
+const requireFromTest = createRequire(import.meta.url);
 
 function readRequiredFile(relativePath: string): string {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf-8');
@@ -25,6 +28,17 @@ describe('plugin examples and public docs', () => {
   it('ships valid example plugin manifests', () => {
     const discordManifest = JSON.parse(readRequiredFile('examples/plugins/discord-activity/plugin.json'));
     const languageManifest = JSON.parse(readRequiredFile('examples/plugins/language-template/plugin.json'));
+
+    expect(fs.existsSync(path.join(repoRoot, 'examples/plugins/discord-activity/dist/main.cjs'))).toBe(true);
+    expect(fs.existsSync(path.join(repoRoot, 'examples/plugins/discord-activity/dist/ui.js'))).toBe(true);
+
+    const discordRuntimeEntry = requireFromTest(path.join(repoRoot, 'examples/plugins/discord-activity/dist/main.cjs')) as {
+      activate?: unknown;
+      deactivate?: unknown;
+    };
+
+    expect(typeof discordRuntimeEntry.activate).toBe('function');
+    expect(typeof discordRuntimeEntry.deactivate).toBe('function');
 
     expect(validateManifest(discordManifest, '/examples/plugins/discord-activity')).toMatchObject({
       id: 'discord-activity',
@@ -37,6 +51,12 @@ describe('plugin examples and public docs', () => {
       },
     });
 
+    expect(discordManifest.main).toBe('dist/main.cjs');
+    expect(discordManifest.ui).toMatchObject({
+      type: 'component',
+      componentPath: 'dist/ui.js',
+    });
+
     expect(validateManifest(languageManifest, '/examples/plugins/language-template')).toMatchObject({
       id: 'language-template',
       capabilities: ['language'],
@@ -45,6 +65,16 @@ describe('plugin examples and public docs', () => {
       pythonModuleDir: 'python',
       pythonModuleName: 'template_lang',
     });
+  });
+
+  it('keeps the checked-in Discord client ID aligned across source, manifest, and docs', () => {
+    const runtimeSource = readRequiredFile('examples/plugins/discord-activity/src/runtime.ts');
+    const pluginManifest = readRequiredFile('examples/plugins/discord-activity/plugin.json');
+    const readme = readRequiredFile('docs/plugins/README.md');
+
+    expect(runtimeSource).toContain(`DISCORD_ACTIVITY_CLIENT_ID = '${DISCORD_ACTIVITY_CLIENT_ID}'`);
+    expect(pluginManifest).toContain(`Client ID: ${DISCORD_ACTIVITY_CLIENT_ID}`);
+    expect(readme).toContain(`Client ID: ${DISCORD_ACTIVITY_CLIENT_ID}`);
   });
 
   it('documents the current plugin trust and host conventions', () => {
@@ -71,5 +101,18 @@ describe('plugin examples and public docs', () => {
     expect(manifestDoc).toContain('browser `import()`');
     expect(manifestDoc).toContain('single precompiled module entry');
     expect(manifestDoc).toContain('relative chunk or asset resolution may need extra care');
+  });
+
+  it('documents the launcher and Discord example runtime behavior', () => {
+    const readme = readRequiredFile('docs/plugins/README.md');
+
+    expect(readme).toContain('Active plugins with the `ui-panel` capability');
+    expect(readme).toContain('show an `Open plugin window` action in Settings');
+    expect(readme).toContain('`open-window` permission');
+    expect(readme).toContain('examples/plugins/discord-activity/');
+    expect(readme).toContain('installable example plugin');
+    expect(readme).toContain('disable and re-enable the plugin');
+    expect(readme).toContain('real Discord Rich Presence integration');
+    expect(readme).toContain('not just placeholder host-window scaffolding');
   });
 });

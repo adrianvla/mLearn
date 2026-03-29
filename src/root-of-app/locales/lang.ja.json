@@ -1247,6 +1247,8 @@
         "Description": "インストール済みプラグインとその権限を管理します。",
         "Loading": "プラグインを読み込み中...",
         "Install": "プラグインをインストール",
+        "OpenWindow": "プラグインウィンドウを開く",
+        "OpenWindowError": "プラグインウィンドウを開けませんでした。",
         "Enable": "有効化",
         "Disable": "無効化",
         "Uninstall": "アンインストール",

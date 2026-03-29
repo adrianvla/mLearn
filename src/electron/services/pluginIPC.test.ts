@@ -5,9 +5,12 @@ import type { PluginManifest, PluginState } from '../../shared/plugins/types';
 
 const ipcHandleHandlers = new Map<string, (...args: unknown[]) => unknown>();
 
+const mockDisablePlugin = vi.fn();
 const mockListPlugins = vi.fn<() => PluginState[]>();
 const mockGetPluginManifest = vi.fn<(pluginId: string) => PluginManifest | null>();
 const mockOpenManagedChildWindow = vi.fn();
+const mockRemovePluginFromRegistry = vi.fn();
+const mockUninstallPlugin = vi.fn();
 
 vi.mock('electron', () => ({
   BrowserWindow: {
@@ -21,20 +24,20 @@ vi.mock('electron', () => ({
 }));
 
 vi.mock('./pluginManager', () => ({
-  disablePlugin: vi.fn(),
+  disablePlugin: mockDisablePlugin,
   enablePlugin: vi.fn(),
   getPluginManifest: mockGetPluginManifest,
   getPluginsDir: vi.fn(() => '/plugins'),
   grantPermissions: vi.fn(),
   listPlugins: mockListPlugins,
   normalizePluginId: vi.fn((pluginId: string) => pluginId),
-  removePluginFromRegistry: vi.fn(),
+  removePluginFromRegistry: mockRemovePluginFromRegistry,
 }));
 
 vi.mock('./pluginInstaller', () => ({
   installPlugin: vi.fn(),
   selectAndInstallPlugin: vi.fn(),
-  uninstallPlugin: vi.fn(),
+  uninstallPlugin: mockUninstallPlugin,
 }));
 
 vi.mock('./windowManager', () => ({
@@ -49,6 +52,14 @@ function getPluginOpenWindowHandler() {
   return handler;
 }
 
+function getPluginUninstallHandler() {
+  const handler = ipcHandleHandlers.get(PLUGIN_IPC_CHANNELS.PLUGIN_UNINSTALL);
+  if (!handler) {
+    throw new Error('PLUGIN_UNINSTALL handler was not registered');
+  }
+  return handler;
+}
+
 describe('pluginIPC pluginOpenWindow', () => {
   beforeEach(async () => {
     vi.resetModules();
@@ -56,6 +67,9 @@ describe('pluginIPC pluginOpenWindow', () => {
     mockListPlugins.mockReset();
     mockGetPluginManifest.mockReset();
     mockOpenManagedChildWindow.mockReset();
+    mockDisablePlugin.mockReset();
+    mockRemovePluginFromRegistry.mockReset();
+    mockUninstallPlugin.mockReset();
 
     const pluginState: PluginState = {
       id: 'demo.plugin',
@@ -69,6 +83,9 @@ describe('pluginIPC pluginOpenWindow', () => {
     };
 
     mockListPlugins.mockReturnValue([pluginState]);
+    mockDisablePlugin.mockResolvedValue({ ...pluginState, status: 'disabled' });
+    mockUninstallPlugin.mockResolvedValue(true);
+    mockRemovePluginFromRegistry.mockReturnValue(true);
 
     const { setupPluginIPC } = await import('./pluginIPC');
     setupPluginIPC();
@@ -219,5 +236,15 @@ describe('pluginIPC pluginOpenWindow', () => {
 
     expect(result).toBe(false);
     expect(mockOpenManagedChildWindow).not.toHaveBeenCalled();
+  });
+
+  it('disables active plugins before uninstalling them', async () => {
+    const result = await getPluginUninstallHandler()({}, 'demo.plugin');
+
+    expect(result).toBe(true);
+    expect(mockDisablePlugin).toHaveBeenCalledWith('demo.plugin');
+    expect(mockUninstallPlugin).toHaveBeenCalledWith('demo.plugin');
+    expect(mockRemovePluginFromRegistry).toHaveBeenCalledWith('demo.plugin');
+    expect(mockDisablePlugin.mock.invocationCallOrder[0]).toBeLessThan(mockUninstallPlugin.mock.invocationCallOrder[0]);
   });
 });

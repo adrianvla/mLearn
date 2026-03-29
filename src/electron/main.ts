@@ -258,7 +258,7 @@ async function initialize(): Promise<void> {
   await raiseFileDescriptorLimits();
 
   setupAllIPC();
-  initPluginManager();
+  await initPluginManager();
 
   // Set up custom protocols for serving local files to renderer
   setupLocalMediaProtocol();
@@ -300,7 +300,7 @@ if (!gotSingleInstanceLock) {
     if (process.platform !== 'darwin') {
       handleDeepLinkArgs(process.argv);
     }
-    initialize();
+    void initialize();
 
     app.on('activate', () => {
       // On macOS, recreate window when dock icon is clicked

@@ -102,6 +102,23 @@ export const PluginsTab: Component = () => {
     }
   };
 
+  const handleOpenWindow = async (pluginId: string) => {
+    setBusyPluginId(pluginId);
+    setActionErrorMessage(null);
+
+    try {
+      const opened = await bridge.plugins.pluginOpenWindow({ pluginId });
+      if (!opened) {
+        setActionErrorMessage(t('mlearn.Settings.Plugins.OpenWindowError'));
+      }
+    } catch (error) {
+      console.error(`Failed to open plugin window for ${pluginId}:`, error);
+      setActionErrorMessage(String(error));
+    } finally {
+      setBusyPluginId(null);
+    }
+  };
+
   const handleInstallResult = (result: PluginInstallResult) => {
     if (!result.success && result.error) {
       setActionErrorMessage(result.error);
@@ -180,6 +197,12 @@ export const PluginsTab: Component = () => {
               const isBusy = () => busyPluginId() === plugin().id;
               const needsPermissions = () => plugin().permissions.length > 0 && !plugin().permissionsGranted;
               const canEnable = () => plugin().status !== 'active' && !needsPermissions();
+              const canOpenWindow = () => (
+                plugin().status === 'active'
+                && plugin().capabilities.includes('ui-panel')
+                && plugin().permissions.includes('open-window')
+                && Boolean(plugin().ui)
+              );
 
               return (
                 <section class="plugins-tab__card" data-plugin-id={plugin().id}>
@@ -237,6 +260,16 @@ export const PluginsTab: Component = () => {
                         disabled={isBusy()}
                       >
                         {t('mlearn.Settings.Plugins.Disable')}
+                      </Btn>
+                    </Show>
+
+                    <Show when={canOpenWindow()}>
+                      <Btn
+                        variant="ghost"
+                        onClick={() => handleOpenWindow(plugin().id)}
+                        disabled={isBusy()}
+                      >
+                        {t('mlearn.Settings.Plugins.OpenWindow')}
                       </Btn>
                     </Show>
 

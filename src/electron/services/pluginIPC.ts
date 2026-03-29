@@ -151,15 +151,15 @@ export function setupPluginIPC(): void {
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_ENABLE, async (_event, pluginId: string): Promise<PluginState | null> => {
-    return broadcastPluginState(enablePlugin(pluginId));
+    return broadcastPluginState(await enablePlugin(pluginId));
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_DISABLE, async (_event, pluginId: string): Promise<PluginState | null> => {
-    return broadcastPluginState(disablePlugin(pluginId));
+    return broadcastPluginState(await disablePlugin(pluginId));
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_GRANT_PERMISSIONS, async (_event, pluginId: string): Promise<PluginState | null> => {
-    return broadcastPluginState(grantPermissions(pluginId));
+    return broadcastPluginState(await grantPermissions(pluginId));
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_INSTALL_FROM_PATH, async (_event, sourcePath: string): Promise<PluginInstallResult> => {
@@ -182,6 +182,11 @@ export function setupPluginIPC(): void {
       normalizedPluginId = normalizePluginId(pluginId, getPluginsDir());
     } catch {
       return false;
+    }
+
+    const installedPlugin = listPlugins().find((entry) => entry.id === normalizedPluginId);
+    if (installedPlugin?.status === 'active' || installedPlugin?.status === 'error' || installedPlugin?.status === 'pending') {
+      await disablePlugin(normalizedPluginId);
     }
 
     const removedFromDisk = await uninstallPlugin(normalizedPluginId);

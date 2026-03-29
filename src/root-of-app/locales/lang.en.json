@@ -1247,6 +1247,8 @@
         "Description": "Manage installed plugins and their permissions.",
         "Loading": "Loading plugins...",
         "Install": "Install plugin",
+        "OpenWindow": "Open plugin window",
+        "OpenWindowError": "Unable to open plugin window.",
         "Enable": "Enable",
         "Disable": "Disable",
         "Uninstall": "Uninstall",
