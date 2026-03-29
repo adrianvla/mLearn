@@ -1,3 +1,4 @@
+import { createRoot, createSignal } from 'solid-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WINDOW_TYPES } from '../../shared/constants';
 import { APP_ACTIVITY_IPC_CHANNELS } from '../../shared/appActivityIpc';
@@ -442,6 +443,199 @@ describe('pluginIPC pluginOpenWindow', () => {
         durationSeconds: 300,
       },
     });
+  });
+
+  it('app-internal video publishing emits immediately when the work changes', async () => {
+    const { createVideoAppActivityPublisher } = await import('../../renderer/windows/main/routes/videoActivityPublisher');
+    const updateSource = getAppActivityUpdateSourceHandler();
+
+    let setWorkName!: (value: string) => void;
+    let dispose!: () => void;
+
+    createRoot((rootDispose) => {
+      dispose = rootDispose;
+      const [workName, updateWorkName] = createSignal('Spirited Away');
+      const [currentTimeSeconds] = createSignal(12);
+      const [durationSeconds] = createSignal<number | null>(300);
+      const [isFocused] = createSignal(true);
+      setWorkName = updateWorkName;
+
+      createVideoAppActivityPublisher({
+        workName,
+        currentTimeSeconds,
+        durationSeconds,
+        isFocused,
+        publishSourceUpdate: (payload) => updateSource({}, payload),
+      });
+    });
+
+    await Promise.resolve();
+    mockActivityStore.updateSource.mockClear();
+
+    setWorkName('Princess Mononoke');
+    await Promise.resolve();
+
+    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('video-route', {
+      isFocused: true,
+      activity: {
+        kind: 'video',
+        workName: 'Princess Mononoke',
+        currentTimeSeconds: 12,
+        durationSeconds: 300,
+      },
+    });
+
+    dispose();
+  });
+
+  it('app-internal video publishing emits immediately when duration becomes available', async () => {
+    const { createVideoAppActivityPublisher } = await import('../../renderer/windows/main/routes/videoActivityPublisher');
+    const updateSource = getAppActivityUpdateSourceHandler();
+
+    let setDurationSeconds!: (value: number | null) => void;
+    let dispose!: () => void;
+
+    createRoot((rootDispose) => {
+      dispose = rootDispose;
+      const [workName] = createSignal('Spirited Away');
+      const [currentTimeSeconds] = createSignal(12);
+      const [durationSeconds, updateDurationSeconds] = createSignal<number | null>(null);
+      const [isFocused] = createSignal(true);
+      setDurationSeconds = updateDurationSeconds;
+
+      createVideoAppActivityPublisher({
+        workName,
+        currentTimeSeconds,
+        durationSeconds,
+        isFocused,
+        publishSourceUpdate: (payload) => updateSource({}, payload),
+      });
+    });
+
+    await Promise.resolve();
+    mockActivityStore.updateSource.mockClear();
+
+    setDurationSeconds(300);
+    await Promise.resolve();
+
+    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('video-route', {
+      isFocused: true,
+      activity: {
+        kind: 'video',
+        workName: 'Spirited Away',
+        currentTimeSeconds: 12,
+        durationSeconds: 300,
+      },
+    });
+
+    dispose();
+  });
+
+  it('app-internal video publishing keeps the canonical activity idle when duration is missing', async () => {
+    const { createVideoAppActivityPublisher } = await import('../../renderer/windows/main/routes/videoActivityPublisher');
+    const updateSource = getAppActivityUpdateSourceHandler();
+
+    createRoot((dispose) => {
+      const [workName] = createSignal('Spirited Away');
+      const [currentTimeSeconds] = createSignal(12);
+      const [durationSeconds] = createSignal<number | null>(null);
+      const [isFocused] = createSignal(true);
+
+      createVideoAppActivityPublisher({
+        workName,
+        currentTimeSeconds,
+        durationSeconds,
+        isFocused,
+        publishSourceUpdate: (payload) => updateSource({}, payload),
+      });
+
+      queueMicrotask(dispose);
+    });
+
+    await Promise.resolve();
+
+    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('video-route', {
+      isFocused: true,
+      activity: null,
+    });
+  });
+
+  it('app-internal video publishing emits on 15-second bucket transitions', async () => {
+    const { createVideoAppActivityPublisher } = await import('../../renderer/windows/main/routes/videoActivityPublisher');
+    const updateSource = getAppActivityUpdateSourceHandler();
+
+    let setCurrentTimeSeconds!: (value: number) => void;
+    let dispose!: () => void;
+
+    createRoot((rootDispose) => {
+      dispose = rootDispose;
+      const [workName] = createSignal('Spirited Away');
+      const [currentTimeSeconds, updateCurrentTime] = createSignal(14);
+      const [durationSeconds] = createSignal<number | null>(300);
+      const [isFocused] = createSignal(true);
+      setCurrentTimeSeconds = updateCurrentTime;
+
+      createVideoAppActivityPublisher({
+        workName,
+        currentTimeSeconds,
+        durationSeconds,
+        isFocused,
+        publishSourceUpdate: (payload) => updateSource({}, payload),
+      });
+    });
+
+    await Promise.resolve();
+    mockActivityStore.updateSource.mockClear();
+
+    setCurrentTimeSeconds(15);
+    await Promise.resolve();
+
+    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('video-route', {
+      isFocused: true,
+      activity: {
+        kind: 'video',
+        workName: 'Spirited Away',
+        currentTimeSeconds: 15,
+        durationSeconds: 300,
+      },
+    });
+
+    dispose();
+  });
+
+  it('app-internal video publishing suppresses in-bucket progress changes', async () => {
+    const { createVideoAppActivityPublisher } = await import('../../renderer/windows/main/routes/videoActivityPublisher');
+    const updateSource = getAppActivityUpdateSourceHandler();
+
+    let setCurrentTimeSeconds!: (value: number) => void;
+    let dispose!: () => void;
+
+    createRoot((rootDispose) => {
+      dispose = rootDispose;
+      const [workName] = createSignal('Spirited Away');
+      const [currentTimeSeconds, updateCurrentTime] = createSignal(12);
+      const [durationSeconds] = createSignal<number | null>(300);
+      const [isFocused] = createSignal(true);
+      setCurrentTimeSeconds = updateCurrentTime;
+
+      createVideoAppActivityPublisher({
+        workName,
+        currentTimeSeconds,
+        durationSeconds,
+        isFocused,
+        publishSourceUpdate: (payload) => updateSource({}, payload),
+      });
+    });
+
+    await Promise.resolve();
+    mockActivityStore.updateSource.mockClear();
+
+    setCurrentTimeSeconds(13);
+    await Promise.resolve();
+
+    expect(mockActivityStore.updateSource).not.toHaveBeenCalled();
+
+    dispose();
   });
 
   it('plugin-facing consumers receive idle when canonical activity changes back to idle', async () => {
