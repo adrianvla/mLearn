@@ -109,18 +109,16 @@ The manifest should reference those built files exactly.
 
 ### Build strategy
 
-The design allows either of these, with preference for the first:
+This design requires one concrete packaging path:
 
-1. commit the built example artifacts directly in `examples/plugins/discord-activity/dist/`, or
-2. add a repo-local example build step and document clearly that packaged artifacts must be generated before installation.
-
-Recommended default: commit the built artifacts for this example plugin so that install-from-folder works immediately for people testing the repo.
+- commit the built example artifacts directly in `examples/plugins/discord-activity/dist/`.
 
 Reason:
 
 - the feature goal is a real working example,
 - current installer copies files as-is,
-- users should not have to discover a separate example build pipeline before the plugin works.
+- users should not have to discover a separate example build pipeline before the plugin works,
+- acceptance requires install-from-folder to work immediately.
 
 ## 3. Real Discord Integration
 
@@ -139,12 +137,12 @@ The main plugin entry should:
 
 - initialize plugin runtime state on activation,
 - connect to Discord Rich Presence via a Discord RPC library,
-- load persisted plugin config,
+- load persisted plugin config from plugin KV,
 - apply presence when enabled,
-- expose a small internal API for updating config and connection state,
-- clear presence and disconnect on disable if a disable hook is available, or at minimum on next activation/reconfiguration path where the runtime manages its connection.
+- expose a small internal command surface through plugin KV plus host-window reload semantics rather than inventing a new plugin runtime API,
+- clear presence and disconnect when the plugin is disabled through the existing disable path.
 
-Because the current plugin system has no explicit unload lifecycle, the implementation should be conservative and design around the current enable/disable semantics rather than inventing a new branch-wide lifecycle model in this change.
+Because the current plugin system has no explicit unload lifecycle, this design requires a small targeted extension of the existing disable behavior for this use case: disabling a plugin must invoke plugin cleanup if the loaded module exports a `deactivate()` function. This is intentionally limited to a simple optional lifecycle hook and is not a larger plugin architecture redesign.
 
 ### UI responsibilities
 
@@ -152,31 +150,68 @@ The plugin host UI should:
 
 - display current saved settings,
 - show connection status fetched from plugin-managed state,
-- let the user update the displayed activity text/template,
+- let the user update the configured presence fields,
 - persist configuration through plugin KV,
-- trigger runtime refresh so Discord presence changes without restart when feasible.
+- trigger runtime refresh through the existing plugin-host interaction model described below.
+
+### UI-to-runtime contract
+
+The UI/runtime coordination must be explicit and minimal.
+
+V1 contract:
+
+- the plugin UI reads and writes persisted config through plugin KV,
+- the main runtime reads the same KV-backed config on activation,
+- when the user saves from the plugin window, the UI writes updated config into plugin KV and then calls `closeWindow()`,
+- the user-facing apply model is therefore: save config -> close window -> disable/enable plugin if needed to force a reconnect or refresh.
+
+To make that workable without inventing background cross-runtime messaging, the plugin window must clearly explain whether a reconnect is required after saving.
+
+Recommended v1 refinement:
+
+- on save, the UI writes config and displays `Saved. Re-open or re-enable the plugin if Discord does not refresh immediately.`
+
+This avoids adding a new runtime messaging channel in the same change while still producing a real working plugin.
 
 ### Data model
 
-Persist plugin settings in plugin KV under a stable key namespace, for example:
+Persist plugin settings in plugin KV under a stable key namespace.
+
+V1 chooses explicit Discord Rich Presence fields, not a free-form template language.
+
+Required config fields:
 
 - `discord-activity:enabled`
 - `discord-activity:details`
 - `discord-activity:state`
 - `discord-activity:showTimestamp`
 
-If a separate runtime status blob is needed, keep it distinct from user config.
+Optional runtime status blob:
+
+- `discord-activity:runtime-status`
+
+`runtime-status` may contain a small JSON object such as `{ connected, lastError }` for UI display. It must be treated as derived runtime state, not user-editable config.
 
 ### RPC behavior
 
 V1 behavior should be intentionally simple:
 
 - one configurable presence record,
-- user-editable text fields,
+- user-editable `details` and `state` fields,
 - optional timestamp,
 - explicit enabled/disabled state.
 
 Do not attempt to infer every possible mLearn activity. If later work wants dynamic route-aware presence, that should be a separate spec.
+
+### Discord application identity
+
+The bundled plugin must use one concrete Discord application/client ID that ships in the repo for local testing and example use.
+
+V1 decision:
+
+- the plugin manifest/docs/source should carry a single checked-in example Discord application/client ID used by this bundled plugin.
+
+If that ID later needs to become user-configurable or secret-managed, that should be separate work. For this spec, a checked-in example app identity is required so the plugin is actually runnable.
 
 ## Error Handling
 
@@ -194,6 +229,16 @@ If Discord RPC cannot connect:
 - log a plugin-scoped message,
 - store enough status for the UI to present `Disconnected` / `Failed to connect`,
 - keep the plugin usable so the user can adjust settings and retry.
+
+### Disable semantics
+
+Disabling the Discord plugin must:
+
+- clear the active Rich Presence,
+- disconnect the RPC client,
+- leave persisted user config intact.
+
+Re-enabling the plugin must reconnect using the saved config.
 
 ### Missing build artifacts
 
@@ -287,6 +332,20 @@ Cons:
 - not automatically synced to every exact mLearn state.
 
 This is acceptable for the first working Discord plugin.
+
+### Chosen tradeoff: KV-based v1 coordination instead of live plugin messaging
+
+Pros:
+
+- fits the current plugin architecture,
+- avoids inventing a new renderer-to-plugin-runtime event channel,
+- keeps implementation surface small.
+
+Cons:
+
+- immediate live refresh may require re-enable/reopen behavior depending on the final runtime wiring.
+
+This is acceptable for v1 as long as the UI states the refresh behavior clearly.
 
 ## Acceptance Criteria
 
