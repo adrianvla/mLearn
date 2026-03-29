@@ -1242,6 +1242,28 @@
           "Label": "Low Battery Mode"
         }
       },
+      "Plugins": {
+        "Title": "Plugins",
+        "Description": "Manage installed plugins and their permissions.",
+        "Loading": "Loading plugins...",
+        "Install": "Install plugin",
+        "Enable": "Enable",
+        "Disable": "Disable",
+        "Uninstall": "Uninstall",
+        "GrantPermissions": "Grant permissions",
+        "Capabilities": "Capabilities",
+        "Permissions": "Permissions",
+        "Empty": {
+          "Title": "No plugins installed",
+          "Description": "Install a plugin package to extend mLearn."
+        },
+        "Status": {
+          "active": "Active",
+          "disabled": "Disabled",
+          "pending": "Pending",
+          "error": "Error"
+        }
+      },
       "KnowledgePriority": {
         "Description": "Configure how word knowledge is determined from multiple sources",
         "ResolutionMode": {
@@ -1682,6 +1704,7 @@
         "Behaviour": "Behaviour",
         "Connection": "Connection",
         "General": "General",
+        "Plugins": "Plugins",
         "Reader": "Reader",
         "SRS": "SRS",
         "Statistics": "Statistics",

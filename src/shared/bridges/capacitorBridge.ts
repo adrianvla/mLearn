@@ -10,6 +10,7 @@ import type {
   PlatformBridge,
   SettingsBridge,
   FlashcardBridge,
+  PluginBridge,
   LocalizationBridge,
   FileBridge,
   WindowBridge,
@@ -586,6 +587,45 @@ const flashcardBridge: FlashcardBridge = {
   async getFlashcardTtsMeta() {
     return null;
   },
+};
+
+const pluginBridge: PluginBridge = {
+  async pluginGetList() {
+    return [];
+  },
+  async pluginEnable() {
+    return null;
+  },
+  async pluginDisable() {
+    return null;
+  },
+  async pluginGrantPermissions() {
+    return null;
+  },
+  async pluginInstallFromPath() {
+    return { success: false, error: 'Plugins are not supported on mobile' };
+  },
+  async pluginSelectAndInstall() {
+    return { success: false, error: 'Plugins are not supported on mobile' };
+  },
+  async pluginUninstall() {
+    return false;
+  },
+  async pluginKVGet() {
+    return { value: null };
+  },
+  async pluginKVSet() {
+    return undefined;
+  },
+  async pluginKVRemove() {
+    return undefined;
+  },
+  async pluginOpenWindow() {
+    return false;
+  },
+  onPluginList: noopCleanup,
+  onPluginStatusUpdate: noopCleanup,
+  onPluginInstallResult: noopCleanup,
 };
 
 // ============================================================================
@@ -1530,6 +1570,7 @@ export function createCapacitorBridge(): PlatformBridge {
   return {
     settings: settingsBridge,
     flashcards: flashcardBridge,
+    plugins: pluginBridge,
     localization: localizationBridge,
     files: fileBridge,
     window: windowBridge,

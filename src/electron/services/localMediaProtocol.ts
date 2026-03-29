@@ -11,8 +11,10 @@
 import { protocol, app } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { getPluginsDir } from './pluginManager';
 
 const SCHEME = 'local-media';
+const PLUGIN_UI_SCHEME = 'plugin-ui';
 
 /** Simple MIME lookup for common media types */
 const MIME_TYPES: Record<string, string> = {
@@ -35,6 +37,8 @@ const MIME_TYPES: Record<string, string> = {
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
 };
 
 function getMimeType(filePath: string): string {
@@ -55,6 +59,21 @@ export function registerLocalMediaScheme(): void {
         secure: true,
         supportFetchAPI: true,
         stream: true,
+        bypassCSP: false,
+      },
+    },
+  ]);
+}
+
+export function registerPluginUiScheme(): void {
+  protocol.registerSchemesAsPrivileged([
+    {
+      scheme: PLUGIN_UI_SCHEME,
+      privileges: {
+        standard: false,
+        secure: true,
+        supportFetchAPI: true,
+        stream: false,
         bypassCSP: false,
       },
     },
@@ -151,6 +170,41 @@ export function setupLocalMediaProtocol(): void {
         'Accept-Ranges': 'bytes',
       },
     });
+  });
+}
+
+export function setupPluginUiProtocol(): void {
+  protocol.handle(PLUGIN_UI_SCHEME, async (request) => {
+    const requestPath = decodeURIComponent(request.url.slice(`${PLUGIN_UI_SCHEME}://`.length));
+    const requestSegments = requestPath.split('/').filter((segment) => segment.length > 0);
+
+    if (requestSegments.length < 2 || requestSegments.includes('..')) {
+      return new Response('Access denied', { status: 403 });
+    }
+
+    const [encodedPluginId, ...relativePathSegments] = requestSegments;
+    const pluginId = decodeURIComponent(encodedPluginId);
+
+    const pluginsDir = path.resolve(getPluginsDir());
+    const scopedPluginDir = path.resolve(pluginsDir, pluginId);
+    const resolvedPath = path.resolve(scopedPluginDir, ...relativePathSegments);
+    const isAllowed = resolvedPath.startsWith(`${scopedPluginDir}${path.sep}`);
+    if (!isAllowed) {
+      return new Response('Access denied', { status: 403 });
+    }
+
+    try {
+      const content = await fs.promises.readFile(resolvedPath);
+      return new Response(content, {
+        status: 200,
+        headers: {
+          'Content-Type': getMimeType(resolvedPath),
+          'Content-Length': String(content.byteLength),
+        },
+      });
+    } catch {
+      return new Response('File not found', { status: 404 });
+    }
   });
 }
 

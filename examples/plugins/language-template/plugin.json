@@ -1,0 +1,13 @@
+{
+  "id": "language-template",
+  "name": "Language Template",
+  "version": "0.1.0",
+  "apiVersion": "1.0.0",
+  "description": "Minimal example of a language plugin manifest that points at a Python language module.",
+  "author": "mLearn",
+  "capabilities": ["language"],
+  "permissions": [],
+  "languageId": "python-template",
+  "pythonModuleDir": "python",
+  "pythonModuleName": "template_lang"
+}

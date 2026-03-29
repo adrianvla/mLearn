@@ -1,0 +1,114 @@
+.plugins-tab {
+  gap: 1rem;
+}
+
+.plugins-tab__toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.plugins-tab__loading,
+.plugins-tab__error {
+  color: var(--text-secondary);
+}
+
+.plugins-tab__error {
+  padding: 0.75rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--color-error) 35%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  color: var(--color-error);
+}
+
+.plugins-tab__grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.plugins-tab__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+.plugins-tab__card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.plugins-tab__card-title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.plugins-tab__card-subtitle,
+.plugins-tab__description,
+.plugins-tab__meta p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.plugins-tab__status {
+  flex-shrink: 0;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+}
+
+.plugins-tab__status--active {
+  color: var(--color-success);
+}
+
+.plugins-tab__status--disabled,
+.plugins-tab__status--pending {
+  color: var(--text-secondary);
+}
+
+.plugins-tab__status--error {
+  color: var(--color-error);
+}
+
+.plugins-tab__meta {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.plugins-tab__meta-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.plugins-tab__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (max-width: 720px) {
+  .plugins-tab__toolbar {
+    justify-content: stretch;
+  }
+
+  .plugins-tab__toolbar .btn {
+    width: 100%;
+  }
+
+  .plugins-tab__card-header {
+    flex-direction: column;
+  }
+}

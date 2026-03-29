@@ -4,6 +4,7 @@
  */
 
 import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo } from './types';
+import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from './plugins/types';
 
 export interface MLearnIPC {
   // Settings
@@ -24,6 +25,22 @@ export interface MLearnIPC {
   saveFlashcardImage: (cardId: string, dataUrl: string) => Promise<string>;
   resolveFlashcardImage: (imageUrl: string) => Promise<string | null>;
   deleteFlashcardImage: (cardId: string) => Promise<void>;
+
+  // Plugins
+  pluginGetList: () => Promise<PluginState[]>;
+  pluginEnable: (pluginId: string) => Promise<PluginState | null>;
+  pluginDisable: (pluginId: string) => Promise<PluginState | null>;
+  pluginGrantPermissions: (pluginId: string) => Promise<PluginState | null>;
+  pluginInstallFromPath: (sourcePath: string) => Promise<PluginInstallResult>;
+  pluginSelectAndInstall: () => Promise<PluginInstallResult>;
+  pluginUninstall: (pluginId: string) => Promise<boolean>;
+  pluginKVGet: (pluginId: string, key: string) => Promise<PluginKVGetResult>;
+  pluginKVSet: (pluginId: string, key: string, value: string) => Promise<void>;
+  pluginKVRemove: (pluginId: string, key: string) => Promise<void>;
+  pluginOpenWindow: (payload: PluginWindowPayload) => Promise<boolean>;
+  onPluginList: (callback: (plugins: PluginState[]) => void) => () => void;
+  onPluginStatusUpdate: (callback: (plugin: PluginState) => void) => () => void;
+  onPluginInstallResult: (callback: (result: PluginInstallResult) => void) => () => void;
   
   // Flashcard Videos
   saveFlashcardVideo: (cardId: string, data: ArrayBuffer) => Promise<string | null>;

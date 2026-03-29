@@ -17,7 +17,7 @@ import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
 import { setupFileOperationsIPC } from './services/fileOperations';
 import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageMigration';
-import { registerLocalMediaScheme, setupLocalMediaProtocol } from './services/localMediaProtocol';
+import { registerLocalMediaScheme, registerPluginUiScheme, setupLocalMediaProtocol, setupPluginUiProtocol } from './services/localMediaProtocol';
 import { setupMediaStatsIPC } from './services/mediaStatsStorage';
 import { setupOllamaIPC } from './services/ollamaService';
 import { setupBuiltinLLMIPC } from './services/builtinLLMService';
@@ -26,6 +26,8 @@ import { setupSpeechIPC } from './services/speechService';
 import { setupVoiceIPC } from './services/voiceService';
 import { setupDataExportImportIPC } from './services/dataExportImport';
 import { setupKVStoreIPC } from './services/kvStore';
+import { initPluginManager } from './services/pluginManager';
+import { setupPluginIPC } from './services/pluginIPC';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 
@@ -176,6 +178,7 @@ async function raiseFileDescriptorLimits(): Promise<void> {
 
 // Register custom protocol schemes before app is ready
 registerLocalMediaScheme();
+registerPluginUiScheme();
 registerFlashcardImageScheme();
 registerFlashcardAudioScheme();
 registerFlashcardVideoScheme();
@@ -215,6 +218,7 @@ function setupAllIPC(): void {
   setupFlashcardTtsIPC();
   setupFlashcardVideoIPC();
   setupWindowIPC();
+  setupPluginUiProtocol();
   setupPythonBackendIPC();
   setupFileOperationsIPC();
   setupMigrationIPC();
@@ -226,6 +230,7 @@ function setupAllIPC(): void {
   setupVoiceIPC();
   setupDataExportImportIPC();
   setupKVStoreIPC();
+  setupPluginIPC();
   setupKillHandlers();
 }
 
@@ -253,6 +258,7 @@ async function initialize(): Promise<void> {
   await raiseFileDescriptorLimits();
 
   setupAllIPC();
+  initPluginManager();
 
   // Set up custom protocols for serving local files to renderer
   setupLocalMediaProtocol();
