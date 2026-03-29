@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WINDOW_TYPES } from '../../shared/constants';
+import { APP_ACTIVITY_IPC_CHANNELS } from '../../shared/appActivityIpc';
 import { PLUGIN_IPC_CHANNELS } from '../../shared/plugins/constants';
+import type { AppActivity } from '../../shared/plugins/appActivity';
 import type { PluginManifest, PluginState } from '../../shared/plugins/types';
 
 const ipcHandleHandlers = new Map<string, (...args: unknown[]) => unknown>();
+const ipcOnHandlers = new Map<string, (...args: unknown[]) => unknown>();
 
 const mockDisablePlugin = vi.fn();
 const mockListPlugins = vi.fn<() => PluginState[]>();
@@ -20,7 +23,20 @@ vi.mock('electron', () => ({
     handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
       ipcHandleHandlers.set(channel, handler);
     }),
+    on: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
+      ipcOnHandlers.set(channel, handler);
+    }),
   },
+}));
+
+const mockActivityStore = {
+  getCurrentActivity: vi.fn<() => AppActivity>(),
+  subscribe: vi.fn<(listener: (activity: AppActivity) => void) => () => void>(),
+  updateSource: vi.fn<(sourceId: string, next: { isFocused: boolean; activity: AppActivity | null }) => void>(),
+};
+
+vi.mock('./pluginAppActivity', () => ({
+  createPluginAppActivityStore: vi.fn(() => mockActivityStore),
 }));
 
 vi.mock('./pluginManager', () => ({
@@ -60,16 +76,38 @@ function getPluginUninstallHandler() {
   return handler;
 }
 
+function getAppActivityHandler() {
+  const handler = ipcHandleHandlers.get(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_GET);
+  if (!handler) {
+    throw new Error('PLUGIN_APP_ACTIVITY_GET handler was not registered');
+  }
+  return handler;
+}
+
+function getAppActivityUpdateSourceHandler() {
+  const handler = ipcOnHandlers.get(APP_ACTIVITY_IPC_CHANNELS.SOURCE_UPDATE);
+  if (!handler) {
+    throw new Error('SOURCE_UPDATE handler was not registered');
+  }
+  return handler;
+}
+
 describe('pluginIPC pluginOpenWindow', () => {
   beforeEach(async () => {
     vi.resetModules();
     ipcHandleHandlers.clear();
+    ipcOnHandlers.clear();
     mockListPlugins.mockReset();
     mockGetPluginManifest.mockReset();
     mockOpenManagedChildWindow.mockReset();
     mockDisablePlugin.mockReset();
     mockRemovePluginFromRegistry.mockReset();
     mockUninstallPlugin.mockReset();
+    mockActivityStore.getCurrentActivity.mockReset();
+    mockActivityStore.subscribe.mockReset();
+    mockActivityStore.updateSource.mockReset();
+    mockActivityStore.getCurrentActivity.mockReturnValue({ kind: 'idle' });
+    mockActivityStore.subscribe.mockReturnValue(() => {});
 
     const pluginState: PluginState = {
       id: 'demo.plugin',
@@ -246,5 +284,191 @@ describe('pluginIPC pluginOpenWindow', () => {
     expect(mockUninstallPlugin).toHaveBeenCalledWith('demo.plugin');
     expect(mockRemovePluginFromRegistry).toHaveBeenCalledWith('demo.plugin');
     expect(mockDisablePlugin.mock.invocationCallOrder[0]).toBeLessThan(mockUninstallPlugin.mock.invocationCallOrder[0]);
+  });
+
+  it('app activity get returns current generic activity', async () => {
+    const activity = {
+      kind: 'reader',
+      workName: 'Genki',
+      currentPage: 10,
+      totalPages: 100,
+    } satisfies AppActivity;
+    mockActivityStore.getCurrentActivity.mockReturnValue(activity);
+
+    const result = await getAppActivityHandler()({});
+
+    expect(result).toEqual(activity);
+    expect(mockActivityStore.getCurrentActivity).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the internal source update channel out of plugin-facing constants', () => {
+    expect(Object.values(PLUGIN_IPC_CHANNELS)).not.toContain(APP_ACTIVITY_IPC_CHANNELS.SOURCE_UPDATE);
+  });
+
+  it('app activity changed is broadcast to plugin consumers', async () => {
+    const send = vi.fn();
+    const activity = {
+      kind: 'video',
+      workName: 'Anime',
+      currentTimeSeconds: 90,
+      durationSeconds: 120,
+    } satisfies AppActivity;
+    const subscribeCalls: Array<(activity: AppActivity) => void> = [];
+
+    mockActivityStore.subscribe.mockImplementation((listener) => {
+      subscribeCalls.push(listener);
+      return () => {};
+    });
+
+    const { BrowserWindow } = await import('electron');
+    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([
+      { isDestroyed: () => false, webContents: { send } },
+    ] as never[]);
+
+    const { setupPluginIPC } = await import('./pluginIPC');
+    setupPluginIPC();
+
+    expect(subscribeCalls).toHaveLength(1);
+
+    subscribeCalls[0](activity);
+
+    expect(send).toHaveBeenCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_CHANGED, activity);
+  });
+
+  it('app-internal source update path updates the canonical store', async () => {
+    const activity = {
+      kind: 'flashcards',
+    } satisfies AppActivity;
+
+    getAppActivityUpdateSourceHandler()({}, {
+      sourceId: 'reader-window',
+      isFocused: true,
+      activity,
+    });
+
+    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('reader-window', {
+      isFocused: true,
+      activity,
+    });
+  });
+
+  it('app-internal reader source lifecycle updates the canonical store', async () => {
+    const updateSource = getAppActivityUpdateSourceHandler();
+
+    updateSource({}, {
+      sourceId: 'reader-route',
+      isFocused: true,
+      activity: {
+        kind: 'reader',
+        workName: 'Yotsuba',
+        currentPage: 3,
+        totalPages: 20,
+      } satisfies AppActivity,
+    });
+
+    updateSource({}, {
+      sourceId: 'reader-route',
+      isFocused: true,
+      activity: null,
+    });
+
+    updateSource({}, {
+      sourceId: 'reader-route',
+      isFocused: true,
+      activity: {
+        kind: 'reader',
+        workName: 'Yotsuba',
+        currentPage: 4,
+        totalPages: 20,
+      } satisfies AppActivity,
+    });
+
+    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(2, 'reader-route', {
+      isFocused: true,
+      activity: null,
+    });
+    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(3, 'reader-route', {
+      isFocused: true,
+      activity: {
+        kind: 'reader',
+        workName: 'Yotsuba',
+        currentPage: 4,
+        totalPages: 20,
+      },
+    });
+  });
+
+  it('app-internal video source lifecycle updates the canonical store', async () => {
+    const updateSource = getAppActivityUpdateSourceHandler();
+
+    updateSource({}, {
+      sourceId: 'video-route',
+      isFocused: true,
+      activity: {
+        kind: 'video',
+        workName: 'Spirited Away',
+        currentTimeSeconds: 15,
+        durationSeconds: 300,
+      } satisfies AppActivity,
+    });
+
+    updateSource({}, {
+      sourceId: 'video-route',
+      isFocused: true,
+      activity: null,
+    });
+
+    updateSource({}, {
+      sourceId: 'video-route',
+      isFocused: true,
+      activity: {
+        kind: 'video',
+        workName: 'Spirited Away',
+        currentTimeSeconds: 30,
+        durationSeconds: 300,
+      } satisfies AppActivity,
+    });
+
+    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(2, 'video-route', {
+      isFocused: true,
+      activity: null,
+    });
+    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(3, 'video-route', {
+      isFocused: true,
+      activity: {
+        kind: 'video',
+        workName: 'Spirited Away',
+        currentTimeSeconds: 30,
+        durationSeconds: 300,
+      },
+    });
+  });
+
+  it('plugin-facing consumers receive idle when canonical activity changes back to idle', async () => {
+    const subscribeCalls: Array<(activity: AppActivity) => void> = [];
+
+    mockActivityStore.subscribe.mockImplementation((listener) => {
+      subscribeCalls.push(listener);
+      return () => {};
+    });
+
+    const send = vi.fn();
+    const { BrowserWindow } = await import('electron');
+    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([
+      { isDestroyed: () => false, webContents: { send } },
+    ] as never[]);
+
+    const { setupPluginIPC } = await import('./pluginIPC');
+    setupPluginIPC();
+
+    subscribeCalls[0]({
+      kind: 'reader',
+      workName: 'Yotsuba',
+      currentPage: 3,
+      totalPages: 20,
+    });
+    subscribeCalls[0]({ kind: 'idle' });
+
+    expect(send).toHaveBeenLastCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_CHANGED, { kind: 'idle' });
   });
 });
