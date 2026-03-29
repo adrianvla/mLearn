@@ -43,6 +43,15 @@ type RuntimeDependencies = {
   now?: () => Date;
 };
 
+type RuntimeSession = {
+  token: number;
+  client: RpcClient;
+  showTimestamp: boolean;
+  unsubscribeFromAppActivity?: () => void;
+  activitySessionKey?: string;
+  activitySessionStart?: number;
+};
+
 const RUNTIME_STATUS_KEY = 'discord-activity:runtime-status';
 
 function getErrorMessage(error: unknown): string {
@@ -174,46 +183,53 @@ export function createDiscordActivityRuntime({
   createRpcClient,
   now = () => new Date(),
 }: RuntimeDependencies) {
-  let rpcClient: RpcClient | undefined;
-  let unsubscribeFromAppActivity: (() => void) | undefined;
-  let activitySessionKey: string | undefined;
-  let activitySessionStart: number | undefined;
+  let activeSession: RuntimeSession | undefined;
+  let runtimeToken = 0;
 
-  function getTimestamps(activity: AppActivity, showTimestamp: boolean): { start: number } | undefined {
-    if (!showTimestamp) {
+  function getTimestamps(session: RuntimeSession, activity: AppActivity): { start: number } | undefined {
+    if (!session.showTimestamp) {
       return undefined;
     }
 
     const nextSessionKey = getActivitySessionKey(activity);
-    if (activitySessionKey !== nextSessionKey || activitySessionStart === undefined) {
-      activitySessionKey = nextSessionKey;
-      activitySessionStart = now().getTime();
+    if (session.activitySessionKey !== nextSessionKey || session.activitySessionStart === undefined) {
+      session.activitySessionKey = nextSessionKey;
+      session.activitySessionStart = now().getTime();
     }
 
     return {
-      start: activitySessionStart,
+      start: session.activitySessionStart,
     };
   }
 
-  async function publishActivity(activity: AppActivity, showTimestamp: boolean): Promise<void> {
-    if (!rpcClient) {
+  async function publishActivity(session: RuntimeSession, activity: AppActivity): Promise<void> {
+    if (activeSession !== session) {
       return;
     }
 
     const presence = mapAppActivityToDiscordPresence(activity);
-    const timestamps = getTimestamps(activity, showTimestamp);
+    const timestamps = getTimestamps(session, activity);
 
-    await rpcClient.setActivity({
+    await session.client.setActivity({
       ...presence,
       ...(timestamps ? { timestamps } : {}),
     });
   }
 
-  async function handleRuntimeError(storage: Storage, error: unknown, client?: RpcClient): Promise<void> {
-    await cleanupRpcClient(client);
-    if (rpcClient === client) {
-      rpcClient = undefined;
+  async function handleRuntimeError(session: RuntimeSession, error: unknown): Promise<void> {
+    const isCurrentSession = activeSession === session;
+    if (isCurrentSession) {
+      session.unsubscribeFromAppActivity?.();
+      session.unsubscribeFromAppActivity = undefined;
+      activeSession = undefined;
     }
+
+    await cleanupRpcClient(session.client);
+
+    if (session.token !== runtimeToken) {
+      return;
+    }
+
     await persistRuntimeStatus(storage, {
       connected: false,
       lastError: getErrorMessage(error),
@@ -222,12 +238,14 @@ export function createDiscordActivityRuntime({
 
   return {
     async activate(): Promise<void> {
-      unsubscribeFromAppActivity?.();
-      unsubscribeFromAppActivity = undefined;
-      await cleanupRpcClient(rpcClient);
-      rpcClient = undefined;
-      activitySessionKey = undefined;
-      activitySessionStart = undefined;
+      runtimeToken += 1;
+      const previousSession = activeSession;
+      activeSession = undefined;
+      previousSession?.unsubscribeFromAppActivity?.();
+      if (previousSession) {
+        previousSession.unsubscribeFromAppActivity = undefined;
+        await cleanupRpcClient(previousSession.client);
+      }
 
       const config = await loadDiscordActivityConfig(storage);
       if (!config.enabled) {
@@ -244,29 +262,47 @@ export function createDiscordActivityRuntime({
         await nextClient.login({
           clientId: DISCORD_ACTIVITY_CLIENT_ID,
         });
-        rpcClient = nextClient;
-        const initialActivity = await appActivity.getAppActivity();
-        await publishActivity(initialActivity, config.showTimestamp);
-        unsubscribeFromAppActivity = appActivity.onAppActivity((activity) => {
-          void publishActivity(activity, config.showTimestamp).catch(async (error) => {
-            await handleRuntimeError(storage, error, rpcClient);
+        const session: RuntimeSession = {
+          token: runtimeToken,
+          client: nextClient,
+          showTimestamp: config.showTimestamp,
+        };
+        activeSession = session;
+        let sawActivityEvent = false;
+        session.unsubscribeFromAppActivity = appActivity.onAppActivity((activity) => {
+          sawActivityEvent = true;
+          void publishActivity(session, activity).catch(async (error) => {
+            await handleRuntimeError(session, error);
           });
         });
+        const initialActivity = await appActivity.getAppActivity();
+        if (!sawActivityEvent) {
+          await publishActivity(session, initialActivity);
+        }
         await persistRuntimeStatus(storage, {
           connected: true,
           lastError: '',
         });
       } catch (error) {
-        await handleRuntimeError(storage, error, nextClient);
+        const failedSession = activeSession?.client === nextClient
+          ? activeSession
+          : {
+              token: runtimeToken,
+              client: nextClient,
+              showTimestamp: config.showTimestamp,
+            };
+        await handleRuntimeError(failedSession, error);
       }
     },
     async deactivate(): Promise<void> {
-      unsubscribeFromAppActivity?.();
-      unsubscribeFromAppActivity = undefined;
-      await cleanupRpcClient(rpcClient);
-      rpcClient = undefined;
-      activitySessionKey = undefined;
-      activitySessionStart = undefined;
+      runtimeToken += 1;
+      const previousSession = activeSession;
+      activeSession = undefined;
+      previousSession?.unsubscribeFromAppActivity?.();
+      if (previousSession) {
+        previousSession.unsubscribeFromAppActivity = undefined;
+        await cleanupRpcClient(previousSession.client);
+      }
 
       await persistRuntimeStatus(storage, {
         connected: false,
