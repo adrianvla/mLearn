@@ -27,6 +27,7 @@ import { useAnki } from '../../../hooks/useAnki';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hooks/useTranslation';
 import type { ConversationAgentContext } from '../../../../shared/types';
+import { createVideoAppActivityPublisher } from './videoActivityPublisher';
 import './video.css';
 
 /** Convert a filesystem path to a local-media:// URL that the renderer can load */
@@ -57,9 +58,11 @@ export const VideoRoute: Component = () => {
   const [isDragging, setIsDragging] = createSignal(false);
   const [currentVideoTime, setCurrentVideoTime] = createSignal(0);
   const [currentVideoName, setCurrentVideoName] = createSignal('');
+  const [currentVideoDuration, setCurrentVideoDuration] = createSignal<number | null>(null);
   const [currentVideoPath, setCurrentVideoPath] = createSignal('');
   const [currentSubtitlePath, setCurrentSubtitlePath] = createSignal('');
   const [showWordSidebar, setShowWordSidebar] = createSignal(false);
+  const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
 
   // Accumulated unknown words from subtitles
   const [accumulatedWords, setAccumulatedWords] = createSignal<VideoWordEntry[]>([]);
@@ -111,6 +114,13 @@ export const VideoRoute: Component = () => {
   createEffect(() => {
     const name = currentVideoName();
     if (name) mediaStats.setMedia(name);
+  });
+
+  createVideoAppActivityPublisher({
+    workName: currentVideoName,
+    currentTimeSeconds: currentVideoTime,
+    durationSeconds: currentVideoDuration,
+    isFocused: isWindowFocused,
   });
 
   // Accumulate unknown words from subtitle tokens as they appear
@@ -296,6 +306,19 @@ export const VideoRoute: Component = () => {
   const ipcCleanups: Array<() => void> = [];
 
   onMount(() => {
+    const syncWindowFocus = () => {
+      setIsWindowFocused(document.hasFocus())
+    }
+
+    window.addEventListener('focus', syncWindowFocus)
+    window.addEventListener('blur', syncWindowFocus)
+    document.addEventListener('visibilitychange', syncWindowFocus)
+    ipcCleanups.push(() => {
+      window.removeEventListener('focus', syncWindowFocus)
+      window.removeEventListener('blur', syncWindowFocus)
+      document.removeEventListener('visibilitychange', syncWindowFocus)
+    })
+
     const loadPendingVideo = async () => {
       const pendingVideo = sessionStorage.getItem(OPEN_VIDEO_SESSION_KEY);
       const pendingSubtitle = sessionStorage.getItem(OPEN_VIDEO_SUBTITLE_SESSION_KEY);
@@ -408,6 +431,14 @@ export const VideoRoute: Component = () => {
       const video = document.querySelector('video');
       if (!video) return;
 
+      const syncVideoDuration = () => {
+        setCurrentVideoDuration(video.duration && isFinite(video.duration) ? video.duration : null)
+      }
+
+      syncVideoDuration()
+      video.addEventListener('durationchange', syncVideoDuration)
+      ipcCleanups.push(() => video.removeEventListener('durationchange', syncVideoDuration))
+
       const restorePlayback = async () => {
         const path = currentVideoPath();
         if (!path) return;
@@ -419,9 +450,11 @@ export const VideoRoute: Component = () => {
       };
 
       if (video.readyState >= 1) {
+        syncVideoDuration()
         void restorePlayback();
       } else {
         const onLoadedMetadata = () => {
+          syncVideoDuration()
           void restorePlayback();
           video.removeEventListener('loadedmetadata', onLoadedMetadata);
         };
@@ -463,6 +496,7 @@ export const VideoRoute: Component = () => {
     captureThumbnailIfReady();
     updateVideoProgress();
     savePlaybackTime();
+    setCurrentVideoDuration(null);
   });
 
   // Broadcast subtitle HTML to tethered clients whenever the current
