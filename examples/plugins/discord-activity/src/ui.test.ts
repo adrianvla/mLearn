@@ -80,7 +80,7 @@ describe('discord activity ui', () => {
     await flush();
 
     expect(document.body.textContent).toContain('Runtime status: Disconnected');
-    expect(document.body.textContent).toContain('Invalid Client ID');
+    expect(document.body.textContent).toContain('Last error: Invalid Client ID');
   });
 
   it('writes updated config and closes the window when saving', async () => {
