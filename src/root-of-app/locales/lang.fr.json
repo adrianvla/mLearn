@@ -1242,6 +1242,28 @@
           "Label": "Mode économie d'énergie"
         }
       },
+      "Plugins": {
+        "Title": "Plugins",
+        "Description": "Gerez les plugins installes et leurs autorisations.",
+        "Loading": "Chargement des plugins...",
+        "Install": "Installer un plugin",
+        "Enable": "Activer",
+        "Disable": "Desactiver",
+        "Uninstall": "Desinstaller",
+        "GrantPermissions": "Accorder les autorisations",
+        "Capabilities": "Fonctionnalites",
+        "Permissions": "Autorisations",
+        "Empty": {
+          "Title": "Aucun plugin installe",
+          "Description": "Installez un paquet de plugin pour etendre mLearn."
+        },
+        "Status": {
+          "active": "Actif",
+          "disabled": "Desactive",
+          "pending": "En attente",
+          "error": "Erreur"
+        }
+      },
       "KnowledgePriority": {
         "Description": "Configurer comment la connaissance des mots est déterminée à partir de multiples sources",
         "ResolutionMode": {
@@ -1681,6 +1703,7 @@
         "Behaviour": "Comportement",
         "Connection": "Connexion",
         "General": "Général",
+        "Plugins": "Plugins",
         "Reader": "Lecteur",
         "SRS": "SRS",
         "Statistics": "Statistiques",

@@ -16,13 +16,14 @@ import {
   ReaderTab,
   AITab,
   ConnectionTab,
+  PluginsTab,
   AboutTab,
   VideoPlayerTab
 } from './tabs';
 import Icon from '../../components/common/Icons/Icon';
 import './SettingsLayout.css';
 
-type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'video-player' | 'ai' | 'connection' | 'about';
+type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'video-player' | 'ai' | 'connection' | 'plugins' | 'about';
 
 interface SettingsTab {
   id: TabId;
@@ -39,6 +40,7 @@ const TABS: SettingsTab[] = [
   { id: 'video-player', labelKey: 'mlearn.Settings.Tabs.VideoPlayer', icon: 'play' },
   { id: 'ai', labelKey: 'mlearn.Settings.Tabs.AI', icon: 'bot' },
   { id: 'connection', labelKey: 'mlearn.Settings.Tabs.Connection', icon: 'link' },
+  { id: 'plugins', labelKey: 'mlearn.Settings.Tabs.Plugins', icon: 'cog' },
   { id: 'about', labelKey: 'mlearn.Settings.Tabs.About', icon: 'star' },
 ];
 
@@ -61,6 +63,7 @@ export const SettingsContent: Component = () => {
     if (normalized.includes('about') || normalized.includes('license')) return 'about';
     if (normalized.includes('ai') || normalized.includes('llm')) return 'ai';
     if (normalized.includes('connect') || normalized.includes('tether') || normalized.includes('cloud') || normalized.includes('backend')) return 'connection';
+    if (normalized.includes('plugin') || normalized.includes('permission')) return 'plugins';
     if (normalized.includes('reader')) return 'reader';
     if (normalized.includes('video') || normalized.includes('player') || normalized.includes('subtitle')) return 'video-player';
     if (normalized.includes('srs') || normalized.includes('flashcard')) return 'srs';
@@ -119,6 +122,9 @@ export const SettingsContent: Component = () => {
           </Show>
           <Show when={activeTab() === 'connection'}>
             <ConnectionTab />
+          </Show>
+          <Show when={activeTab() === 'plugins'}>
+            <PluginsTab />
           </Show>
           <Show when={activeTab() === 'about'}>
             <AboutTab />

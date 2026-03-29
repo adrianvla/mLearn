@@ -1242,6 +1242,28 @@
           "Label": "省電力モード"
         }
       },
+      "Plugins": {
+        "Title": "プラグイン",
+        "Description": "インストール済みプラグインとその権限を管理します。",
+        "Loading": "プラグインを読み込み中...",
+        "Install": "プラグインをインストール",
+        "Enable": "有効化",
+        "Disable": "無効化",
+        "Uninstall": "アンインストール",
+        "GrantPermissions": "権限を付与",
+        "Capabilities": "機能",
+        "Permissions": "権限",
+        "Empty": {
+          "Title": "プラグインはまだインストールされていません",
+          "Description": "mLearn を拡張するにはプラグインパッケージをインストールしてください。"
+        },
+        "Status": {
+          "active": "有効",
+          "disabled": "無効",
+          "pending": "保留中",
+          "error": "エラー"
+        }
+      },
       "KnowledgePriority": {
         "Description": "複数のソースからの単語知識の決定方法を設定",
         "ResolutionMode": {
@@ -1681,6 +1703,7 @@
         "Behaviour": "動作",
         "Connection": "接続",
         "General": "一般",
+        "Plugins": "プラグイン",
         "Reader": "リーダー",
         "SRS": "SRS",
         "Statistics": "統計",

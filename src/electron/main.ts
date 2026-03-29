@@ -17,7 +17,7 @@ import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
 import { setupFileOperationsIPC } from './services/fileOperations';
 import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageMigration';
-import { registerLocalMediaScheme, setupLocalMediaProtocol } from './services/localMediaProtocol';
+import { registerLocalMediaScheme, registerPluginUiScheme, setupLocalMediaProtocol, setupPluginUiProtocol } from './services/localMediaProtocol';
 import { setupMediaStatsIPC } from './services/mediaStatsStorage';
 import { setupOllamaIPC } from './services/ollamaService';
 import { setupBuiltinLLMIPC } from './services/builtinLLMService';
@@ -178,6 +178,7 @@ async function raiseFileDescriptorLimits(): Promise<void> {
 
 // Register custom protocol schemes before app is ready
 registerLocalMediaScheme();
+registerPluginUiScheme();
 registerFlashcardImageScheme();
 registerFlashcardAudioScheme();
 registerFlashcardVideoScheme();
@@ -217,6 +218,7 @@ function setupAllIPC(): void {
   setupFlashcardTtsIPC();
   setupFlashcardVideoIPC();
   setupWindowIPC();
+  setupPluginUiProtocol();
   setupPythonBackendIPC();
   setupFileOperationsIPC();
   setupMigrationIPC();

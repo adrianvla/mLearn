@@ -30,7 +30,7 @@ export interface PluginEntry {
 const registry = new Map<string, PluginEntry>();
 
 function shouldActivatePlugin(entry: PluginEntry): boolean {
-  return entry.state.status === 'pending' && entry.state.permissionsGranted;
+  return entry.state.status === 'pending' && (entry.manifest.permissions.length === 0 || entry.state.permissionsGranted);
 }
 
 function activateIfPermitted(entry: PluginEntry): void {
@@ -186,6 +186,41 @@ function validateEnumArray<T extends string>(
   return [...new Set(value as T[])];
 }
 
+function validateUiContribution(value: unknown, pluginDir: string): PluginManifest['ui'] {
+  if (!isPlainObject(value) || typeof value.type !== 'string') {
+    throw new Error(`Invalid 'ui' contribution in ${pluginDir}`);
+  }
+
+  if (value.type === 'schema') {
+    if (!isPlainObject(value.schema)) {
+      throw new Error(`Invalid 'ui.schema' contribution in ${pluginDir}`);
+    }
+
+    if (value.initialData !== undefined && !isPlainObject(value.initialData)) {
+      throw new Error(`Invalid 'ui.initialData' contribution in ${pluginDir}`);
+    }
+
+    return {
+      type: 'schema',
+      schema: value.schema,
+      initialData: value.initialData as Record<string, unknown> | undefined,
+    };
+  }
+
+  if (value.type === 'component') {
+    if (typeof value.componentPath !== 'string' || value.componentPath.trim().length === 0) {
+      throw new Error(`Invalid 'ui.componentPath' contribution in ${pluginDir}`);
+    }
+
+    return {
+      type: 'component',
+      componentPath: value.componentPath,
+    };
+  }
+
+  throw new Error(`Invalid 'ui.type' contribution in ${pluginDir}`);
+}
+
 export function validateManifest(raw: unknown, pluginDir: string): PluginManifest {
   if (!isPlainObject(raw)) {
     throw new Error(`Expected manifest object in ${pluginDir}`);
@@ -240,10 +275,7 @@ export function validateManifest(raw: unknown, pluginDir: string): PluginManifes
   }
 
   if (raw.ui !== undefined) {
-    if (!isPlainObject(raw.ui) || typeof raw.ui.type !== 'string') {
-      throw new Error(`Invalid 'ui' contribution in ${pluginDir}`);
-    }
-    manifest.ui = raw.ui as unknown as PluginManifest['ui'];
+    manifest.ui = validateUiContribution(raw.ui, pluginDir);
   }
 
   return manifest;
@@ -375,6 +407,19 @@ function clonePluginState(state: PluginState): PluginState {
     ...state,
     capabilities: [...state.capabilities],
     permissions: [...state.permissions],
+    ui: state.ui
+      ? state.ui.type === 'schema'
+        ? {
+            type: 'schema',
+            schema: state.ui.schema,
+            initialData: state.ui.initialData,
+          }
+        : {
+            type: 'component',
+            componentPath: state.ui.componentPath,
+            componentUrl: state.ui.componentUrl,
+          }
+      : undefined,
   };
 }
 
@@ -475,6 +520,18 @@ export function registerInstalledPlugin(manifest: PluginManifest, pluginPath: st
       status: persistedState.disabled.includes(validatedManifest.id) ? 'disabled' : 'pending',
       pluginPath,
       permissionsGranted: hasMatchingPermissionGrant(persistedState, validatedManifest),
+      ui: validatedManifest.ui
+        ? validatedManifest.ui.type === 'schema'
+          ? {
+              type: 'schema',
+              schema: validatedManifest.ui.schema,
+              initialData: validatedManifest.ui.initialData,
+            }
+          : {
+              type: 'component',
+              componentPath: validatedManifest.ui.componentPath,
+            }
+        : undefined,
     },
   };
 

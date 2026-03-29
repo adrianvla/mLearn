@@ -4,6 +4,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { WINDOW_TYPES } from '../../shared/constants';
 import { PLUGIN_IPC_CHANNELS } from '../../shared/plugins/constants';
 import type {
+  PluginHostContext,
   PluginInstallResult,
   PluginKVGetResult,
   PluginManifest,
@@ -21,6 +22,7 @@ import {
   removePluginFromRegistry,
 } from './pluginManager';
 import { installPlugin, selectAndInstallPlugin, uninstallPlugin } from './pluginInstaller';
+import { openManagedChildWindow } from './windowManager';
 
 function broadcast(channel: string, payload: PluginState[] | PluginState | PluginInstallResult): void {
   const windows = BrowserWindow.getAllWindows();
@@ -75,6 +77,38 @@ function canUsePluginPermission(pluginId: string, permission: PluginManifest['pe
   }
 
   return plugin.permissions.includes(permission);
+}
+
+function buildPluginHostContext(
+  payload: PluginWindowPayload,
+  manifest: PluginManifest,
+  pluginPath: string,
+): PluginHostContext | null {
+  if (!manifest.ui) {
+    return null;
+  }
+
+  let ui = manifest.ui;
+  if (ui.type === 'component') {
+    const componentAbsolutePath = path.resolve(pluginPath, ui.componentPath);
+    if (!isPathWithinDirectory(pluginPath, componentAbsolutePath)) {
+      return null;
+    }
+
+    const componentRelativePath = path.relative(pluginPath, componentAbsolutePath).split(path.sep).join('/');
+
+    ui = {
+      ...ui,
+      componentUrl: `plugin-ui://${encodeURIComponent(manifest.id)}/${componentRelativePath}`,
+    };
+  }
+
+  return {
+    pluginId: manifest.id,
+    pluginName: manifest.name,
+    ui,
+    initialContext: payload.context,
+  };
 }
 
 function loadPluginKV(pluginId: string): Record<string, string> {
@@ -213,9 +247,21 @@ export function setupPluginIPC(): void {
       return false;
     }
 
-    void payload;
-    void WINDOW_TYPES.PLUGIN_HOST;
-    // Deferred to Task 7: plugin-host.html does not exist yet, so opening a window here would create a runtime-broken path.
-    return false;
+    const plugin = listPlugins().find((entry) => entry.id === payload.pluginId);
+    if (!plugin) {
+      return false;
+    }
+
+    const hostContext = buildPluginHostContext(payload, manifest, plugin.pluginPath);
+    if (!hostContext) {
+      return false;
+    }
+
+    openManagedChildWindow(
+      WINDOW_TYPES.PLUGIN_HOST,
+      { width: 720, height: 520 },
+      hostContext as unknown as Record<string, unknown>,
+    );
+    return true;
   });
 }
