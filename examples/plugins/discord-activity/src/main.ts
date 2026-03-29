@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 
+import { getBridge } from '../../../../src/shared/bridges';
+
 import { createDiscordRpcClient } from './discordRpc';
 import { createDiscordActivityRuntime } from './runtime';
 
@@ -41,6 +43,10 @@ const runtime = createDiscordActivityRuntime({
       store[key] = value;
       savePluginStore(store);
     },
+  },
+  appActivity: {
+    getAppActivity: () => getBridge().plugins.getAppActivity(),
+    onAppActivity: (callback) => getBridge().plugins.onAppActivity(callback),
   },
   createRpcClient: () => createDiscordRpcClient(),
 });
