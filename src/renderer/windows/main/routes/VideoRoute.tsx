@@ -82,6 +82,8 @@ export const VideoRoute: Component = () => {
 
   const loadVideo = (path: string, name: string) => {
     setVideoSrc(toLocalMediaUrl(path));
+    setCurrentVideoTime(0);
+    setCurrentVideoDuration(null);
     setCurrentVideoPath(path);
     setSubtitleContent('');
     setCurrentSubtitlePath('');
@@ -599,6 +601,8 @@ export const VideoRoute: Component = () => {
           loadVideo(filePath, file.name);
         } else {
           setVideoSrc(URL.createObjectURL(file));
+          setCurrentVideoTime(0);
+          setCurrentVideoDuration(null);
           setCurrentVideoPath('');
           setSubtitleContent('');
           setCurrentSubtitlePath('');
@@ -657,6 +661,8 @@ export const VideoRoute: Component = () => {
       // Blob URL — can play but can't reopen later
       const videoName = getMediaNameFromPath(path);
       setVideoSrc(path);
+      setCurrentVideoTime(0);
+      setCurrentVideoDuration(null);
       setCurrentVideoPath('');
       setShowDropZone(false);
       setCurrentVideoName(videoName);
