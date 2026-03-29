@@ -1,5 +1,3 @@
-// @vitest-environment happy-dom
-
 import { createRoot, createSignal } from 'solid-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WINDOW_TYPES } from '../../shared/constants';
@@ -7,7 +5,7 @@ import { APP_ACTIVITY_IPC_CHANNELS } from '../../shared/appActivityIpc';
 import { PLUGIN_IPC_CHANNELS } from '../../shared/plugins/constants';
 import type { AppActivity } from '../../shared/plugins/appActivity';
 import type { PluginManifest, PluginState } from '../../shared/plugins/types';
-import { createFlashcardsAppActivityPublisher } from '../../renderer/windows/flashcards/App';
+import { createFlashcardsAppActivityPublisher } from '../../renderer/windows/flashcards/flashcardsActivityPublisher';
 
 const ipcHandleHandlers = new Map<string, (...args: unknown[]) => unknown>();
 const ipcOnHandlers = new Map<string, (...args: unknown[]) => unknown>();
@@ -644,31 +642,42 @@ describe('pluginIPC pluginOpenWindow', () => {
   it('app-internal flashcards publishing emits flashcards for focused review mode', async () => {
     const updateSource = getAppActivityUpdateSourceHandler();
 
-    createRoot((dispose) => {
+    let dispose!: () => void;
+
+    createRoot((rootDispose) => {
       const [activeTab] = createSignal<'review' | 'browse' | 'generate' | 'stats'>('review');
       const [isFocused] = createSignal(true);
+      dispose = rootDispose;
 
       createFlashcardsAppActivityPublisher({
         activeTab,
         isFocused,
         publishSourceUpdate: (payload) => updateSource({}, payload),
       });
-
-      queueMicrotask(dispose);
     });
 
     await Promise.resolve();
 
-    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('flashcards-window', {
+    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(1, 'flashcards-window', {
       isFocused: true,
       activity: { kind: 'flashcards' },
+    });
+
+    dispose();
+
+    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(2, 'flashcards-window', {
+      isFocused: false,
+      activity: { kind: 'idle' },
     });
   });
 
   it('app-internal flashcards publishing emits idle for non-review tabs', async () => {
     const updateSource = getAppActivityUpdateSourceHandler();
 
-    createRoot((dispose) => {
+    let dispose!: () => void;
+
+    createRoot((rootDispose) => {
+      dispose = rootDispose;
       const [activeTab] = createSignal<'review' | 'browse' | 'generate' | 'stats'>('browse');
       const [isFocused] = createSignal(true);
 
@@ -677,14 +686,19 @@ describe('pluginIPC pluginOpenWindow', () => {
         isFocused,
         publishSourceUpdate: (payload) => updateSource({}, payload),
       });
-
-      queueMicrotask(dispose);
     });
 
     await Promise.resolve();
 
-    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('flashcards-window', {
+    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(1, 'flashcards-window', {
       isFocused: true,
+      activity: { kind: 'idle' },
+    });
+
+    dispose();
+
+    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(2, 'flashcards-window', {
+      isFocused: false,
       activity: { kind: 'idle' },
     });
   });
@@ -709,17 +723,21 @@ describe('pluginIPC pluginOpenWindow', () => {
     });
 
     await Promise.resolve();
-    mockActivityStore.updateSource.mockClear();
 
     setIsFocused(false);
     await Promise.resolve();
 
-    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('flashcards-window', {
+    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(2, 'flashcards-window', {
       isFocused: false,
       activity: { kind: 'idle' },
     });
 
     dispose();
+
+    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(3, 'flashcards-window', {
+      isFocused: false,
+      activity: { kind: 'idle' },
+    });
   });
 
   it('plugin-facing consumers receive idle when canonical activity changes back to idle', async () => {

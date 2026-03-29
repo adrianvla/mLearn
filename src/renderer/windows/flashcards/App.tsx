@@ -4,7 +4,7 @@
  * Modernized UI with sidebar navigation
  */
 
-import { Component, Show, For, createSignal, createMemo, createEffect, on, onCleanup, type Accessor } from 'solid-js';
+import { Component, Show, For, createSignal, createMemo, createEffect, on, onCleanup } from 'solid-js';
 import { WindowWrapper, useLocalization, useSettings, useLowPowerGate } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardPitchAccent } from '../../components/flashcard';
@@ -35,48 +35,14 @@ import { isElectron } from '../../../shared/platform';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { checkAvailability } from '../../services/llmProvider';
-import type { AppActivity } from '../../../shared/plugins/appActivity';
 import type { Flashcard, FlashcardContent, TTSProvider } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
-import { publishSourceActivityUpdate, type SourceActivityUpdatePayload } from '../main/routes/readerActivityPublisher';
+import { createFlashcardsAppActivityPublisher, type FlashcardsTabId } from './flashcardsActivityPublisher';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
 
-type TabId = 'review' | 'browse' | 'generate' | 'stats';
-export const FLASHCARDS_ACTIVITY_SOURCE_ID = 'flashcards-window';
-
-export function getFlashcardsAppActivity(activeTab: TabId): AppActivity {
-  return activeTab === 'review' ? { kind: 'flashcards' } : { kind: 'idle' };
-}
-
-export function createFlashcardsAppActivityPublisher(input: {
-  activeTab: Accessor<TabId>;
-  isFocused: Accessor<boolean>;
-  publishSourceUpdate?: (payload: SourceActivityUpdatePayload) => void;
-}): void {
-  const publishSourceUpdate = input.publishSourceUpdate ?? publishSourceActivityUpdate;
-  const idleActivity: AppActivity = { kind: 'idle' };
-
-  createEffect(() => {
-    const isFocused = input.isFocused();
-    const activity = isFocused ? getFlashcardsAppActivity(input.activeTab()) : idleActivity;
-
-    publishSourceUpdate({
-      sourceId: FLASHCARDS_ACTIVITY_SOURCE_ID,
-      isFocused,
-      activity,
-    });
-  });
-
-  onCleanup(() => {
-    publishSourceUpdate({
-      sourceId: FLASHCARDS_ACTIVITY_SOURCE_ID,
-      isFocused: false,
-      activity: idleActivity,
-    });
-  });
-}
+type TabId = FlashcardsTabId;
 
 interface TtsRepairJob {
   cardId: string;
