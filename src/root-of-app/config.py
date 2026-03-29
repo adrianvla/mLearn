@@ -11,6 +11,8 @@ import sys
 import importlib
 import platform
 
+import plugin_registry
+
 # ── Defaults (overridden by CLI args) ──
 LANGUAGE = ""
 FETCH_ANKI = True
@@ -28,8 +30,6 @@ OCR_RAM_SAVER = False
 SUPPORTS_VERTICAL_TEXT = False
 
 QUIT_TOKEN = ""
-
-language_module = None
 
 # Lazily populated heavy imports (avoid startup cost)
 torch = None  # type: ignore
@@ -88,7 +88,6 @@ def init():
     global RESPATH, USER_DATA_PATH, LANGUAGE_DIR_PATH
     global ANKI_FIELD_EXPRESSION, ANKI_FIELD_READING, ANKI_FIELD_MEANING
     global OCR_RAM_SAVER, SUPPORTS_VERTICAL_TEXT
-    global language_module
 
     _raise_fd_limit()
     _configure_utf8_streams()
@@ -151,11 +150,13 @@ def init():
     print("Supports vertical text:", SUPPORTS_VERTICAL_TEXT)
     print("Language dir path: ", LANGUAGE_DIR_PATH)
 
-    # Load language module
+    # Load and register built-in language module
     sys.path.append(LANGUAGE_DIR_PATH)
-    language_module = importlib.import_module(LANGUAGE)
-    language_module.LOAD_MODULE(RESPATH)
-    print(language_module)
+    _lang_mod = importlib.import_module(LANGUAGE)
+    _lang_mod.LOAD_MODULE(RESPATH)
+    plugin_registry.register_language(LANGUAGE, _lang_mod)
+    plugin_registry.set_active(LANGUAGE)
+    print(f"[config] Registered built-in language: {LANGUAGE}")
 
 
 def get_runtime_info() -> dict:

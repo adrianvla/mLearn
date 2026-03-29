@@ -2,6 +2,8 @@
  * Shared constants between main and renderer processes
  */
 
+import { PLUGIN_IPC_CHANNELS } from './plugins/constants';
+
 // Server ports
 export const PYTHON_BACKEND_PORT = 7752;
 export const PROXY_SERVER_PORT = 7753;
@@ -269,6 +271,9 @@ export const IPC_CHANNELS = {
   KV_REMOVE: 'kv-remove',
   KV_GET_ALL: 'kv-get-all',
   KV_SET_BATCH: 'kv-set-batch',
+
+  // Plugins
+  ...PLUGIN_IPC_CHANNELS,
 } as const;
 
 // Window types
@@ -287,6 +292,7 @@ export const WINDOW_TYPES = {
   CONVERSATION_AGENT: 'conversation-agent',
   STATISTICS: 'statistics',
   WORD_DEFINITION: 'word-definition',
+  PLUGIN_HOST: 'plugin-host',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];

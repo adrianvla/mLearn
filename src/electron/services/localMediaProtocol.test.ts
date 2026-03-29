@@ -285,4 +285,91 @@ describe('localMediaProtocol', () => {
       expect(url).toBe(`local-media://${filePath}`);
     });
   });
+
+  describe('pluginUiProtocol', () => {
+    it('registers plugin-ui as a privileged scheme with CSP enforcement intact', async () => {
+      const { protocol } = await import('electron');
+      const { registerPluginUiScheme } = await import('./localMediaProtocol');
+
+      registerPluginUiScheme();
+
+      expect(protocol.registerSchemesAsPrivileged).toHaveBeenCalledWith([
+        expect.objectContaining({
+          scheme: 'plugin-ui',
+          privileges: expect.objectContaining({
+            secure: true,
+            supportFetchAPI: true,
+            bypassCSP: false,
+          }),
+        }),
+      ]);
+    });
+
+    it('serves javascript modules from the plugins directory', async () => {
+      const { setupPluginUiProtocol } = await import('./localMediaProtocol');
+      setupPluginUiProtocol();
+
+      const handler = mockProtocolHandlers.get('plugin-ui');
+      expect(handler).toBeDefined();
+
+      const pluginsDir = path.join(tempDir.tmpDir, 'plugins', 'demo.plugin', 'dist');
+      fs.mkdirSync(pluginsDir, { recursive: true });
+      const modulePath = path.join(pluginsDir, 'window.js');
+      fs.writeFileSync(modulePath, 'export default function Demo() { return "ok"; }');
+
+      const response = await handler!(new Request('plugin-ui://demo.plugin/dist/window.js'));
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Content-Type')).toBe('text/javascript');
+      expect(await response.text()).toContain('export default function Demo');
+    });
+
+    it('resolves encoded plugin ids to the matching plugin directory', async () => {
+      const { setupPluginUiProtocol } = await import('./localMediaProtocol');
+      setupPluginUiProtocol();
+
+      const handler = mockProtocolHandlers.get('plugin-ui');
+      expect(handler).toBeDefined();
+
+      const pluginsDir = path.join(tempDir.tmpDir, 'plugins', 'demo#plugin', 'dist');
+      fs.mkdirSync(pluginsDir, { recursive: true });
+      const modulePath = path.join(pluginsDir, 'window.js');
+      fs.writeFileSync(modulePath, 'export default function EncodedDemo() { return "ok"; }');
+
+      const response = await handler!(new Request('plugin-ui://demo%23plugin/dist/window.js'));
+
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('EncodedDemo');
+    });
+
+    it('rejects plugin-ui paths outside the plugins directory', async () => {
+      const { setupPluginUiProtocol } = await import('./localMediaProtocol');
+      setupPluginUiProtocol();
+
+      const handler = mockProtocolHandlers.get('plugin-ui');
+      expect(handler).toBeDefined();
+
+      const response = await handler!(new Request('plugin-ui://../../outside.js'));
+      expect(response.status).toBe(403);
+    });
+
+    it('does not expose another plugin bundle through a different plugin id scope', async () => {
+      const { setupPluginUiProtocol } = await import('./localMediaProtocol');
+      setupPluginUiProtocol();
+
+      const handler = mockProtocolHandlers.get('plugin-ui');
+      expect(handler).toBeDefined();
+
+      const pluginOneDir = path.join(tempDir.tmpDir, 'plugins', 'demo.plugin', 'dist');
+      const pluginTwoDir = path.join(tempDir.tmpDir, 'plugins', 'other.plugin', 'dist');
+      fs.mkdirSync(pluginOneDir, { recursive: true });
+      fs.mkdirSync(pluginTwoDir, { recursive: true });
+      const foreignModulePath = path.join(pluginTwoDir, 'window.js');
+      fs.writeFileSync(foreignModulePath, 'export default 1;');
+
+      const response = await handler!(new Request('plugin-ui://demo.plugin/dist/window.js'));
+
+      expect(response.status).toBe(404);
+    });
+  });
 });
