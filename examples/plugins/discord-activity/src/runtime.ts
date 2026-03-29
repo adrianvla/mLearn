@@ -282,6 +282,13 @@ export function createDiscordActivityRuntime({
           });
         });
         const initialActivity = await appActivity.getAppActivity();
+        if (activationToken !== runtimeToken || activeSession !== session) {
+          session.unsubscribeFromAppActivity?.();
+          session.unsubscribeFromAppActivity = undefined;
+          await cleanupRpcClient(nextClient);
+          return;
+        }
+
         if (!sawActivityEvent) {
           await publishActivity(session, initialActivity);
         }
