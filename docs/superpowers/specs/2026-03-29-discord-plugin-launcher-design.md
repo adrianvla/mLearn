@@ -66,7 +66,7 @@ It should allow the user to:
 
 - see whether Discord RPC is connected,
 - enable or disable Rich Presence,
-- set the visible activity text or template,
+- set the visible Discord `details` and `state` fields,
 - optionally toggle a timestamp if the implementation supports it cleanly,
 - save changes,
 - see clear error or disconnected states.
@@ -349,9 +349,9 @@ Pros:
 
 Cons:
 
-- immediate live refresh may require re-enable/reopen behavior depending on the final runtime wiring.
+- applying saved config requires an explicit disable/re-enable step.
 
-This is acceptable for v1 as long as the UI states the refresh behavior clearly.
+This is acceptable for v1 as long as the UI states the apply behavior clearly.
 
 ## Acceptance Criteria
 
