@@ -4,8 +4,8 @@
  */
 
 import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo } from './types';
-import type { AppActivity } from './plugins/appActivity';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from './plugins/types';
+import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 
 export interface MLearnIPC {
   // Settings
@@ -28,8 +28,11 @@ export interface MLearnIPC {
   deleteFlashcardImage: (cardId: string) => Promise<void>;
 
   // Plugins
-  getAppActivity: () => Promise<AppActivity>;
-  onAppActivity: (callback: (activity: AppActivity) => void) => () => void;
+  getPluginValue: (channel: string) => Promise<PluginBusEnvelope>;
+  setPluginValue: (channel: string, value: PluginBusJSONValue) => Promise<void>;
+  emitPluginEvent: (channel: string, payload: PluginBusJSONValue) => Promise<void>;
+  onPluginValue: (channel: string, callback: (nextValue: PluginBusEnvelope, previousValue: PluginBusEnvelope) => void) => () => void;
+  onPluginEvent: (channel: string, callback: (payload: PluginBusJSONValue) => void) => () => void;
   pluginGetList: () => Promise<PluginState[]>;
   pluginEnable: (pluginId: string) => Promise<PluginState | null>;
   pluginDisable: (pluginId: string) => Promise<PluginState | null>;
@@ -258,7 +261,7 @@ export interface MLearnIPC {
 }
 
 export interface MLearnInternal {
-  publishSourceActivityUpdate: (payload: { sourceId: string; isFocused: boolean; activity: AppActivity | null }) => void;
+  setScopedPluginValue: (payload: { sourceId: string; isFocused: boolean; channel: string; value: PluginBusJSONValue }) => void;
 }
 
 interface ImportMetaEnv {

@@ -7,7 +7,6 @@
  */
 
 import type { MLearnIPC } from '../global.d';
-import type { AppActivity } from '../plugins/appActivity';
 import type {
   PlatformBridge,
   SettingsBridge,
@@ -63,8 +62,11 @@ const flashcardBridge: FlashcardBridge = {
 };
 
 const pluginBridge: PluginBridge = {
-  getAppActivity: (): Promise<AppActivity> => getIPC().getAppActivity(),
-  onAppActivity: (cb) => getIPC().onAppActivity(cb),
+  getPluginValue: (channel) => getIPC().getPluginValue(channel),
+  setPluginValue: (channel, value) => getIPC().setPluginValue(channel, value),
+  emitPluginEvent: (channel, payload) => getIPC().emitPluginEvent(channel, payload),
+  onPluginValue: (channel, cb) => getIPC().onPluginValue(channel, cb),
+  onPluginEvent: (channel, cb) => getIPC().onPluginEvent(channel, cb),
   pluginGetList: () => getIPC().pluginGetList(),
   pluginEnable: (pluginId) => getIPC().pluginEnable(pluginId),
   pluginDisable: (pluginId) => getIPC().pluginDisable(pluginId),

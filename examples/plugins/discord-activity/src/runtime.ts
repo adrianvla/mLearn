@@ -1,4 +1,5 @@
 import type { AppActivity } from '../../../../src/shared/plugins/appActivity';
+import type { PluginBusEnvelope } from '../../../../src/shared/pluginBus';
 
 export const DISCORD_ACTIVITY_CLIENT_ID = '1487871166633869342';
 
@@ -70,9 +71,9 @@ export type DiscordActivityRuntimeStatus = {
   lastError: string;
 };
 
-export type AppActivityBridge = {
-  getAppActivity: () => Promise<AppActivity>;
-  onAppActivity: (callback: (activity: AppActivity) => void) => () => void;
+export type PluginBridge = {
+  getPluginValue: (channel: string) => Promise<PluginBusEnvelope>;
+  onPluginValue: (channel: string, callback: (nextValue: PluginBusEnvelope, previousValue: PluginBusEnvelope) => void) => () => void;
 };
 
 type Storage = {
@@ -91,7 +92,7 @@ type CreateRpcClient = () => RpcClient;
 
 type RuntimeDependencies = {
   storage: Storage;
-  appActivity: AppActivityBridge;
+  pluginBridge: PluginBridge;
   createRpcClient: CreateRpcClient;
   now?: () => Date;
 };
@@ -100,7 +101,7 @@ type RuntimeSession = {
   token: number;
   client: RpcClient;
   showTimestamp: boolean;
-  unsubscribeFromAppActivity?: () => void;
+  unsubscribeFromPluginValue?: () => void;
   activitySessionKey?: string;
   activitySessionStart?: number;
 };
@@ -148,6 +149,36 @@ function formatDuration(totalSeconds: number | null): string {
     .padStart(2, '0');
 
   return `${minutes}:${seconds}`;
+}
+
+function isAppActivity(value: PluginBusEnvelope['value']): value is AppActivity {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || !('kind' in value)) {
+    return false;
+  }
+
+  switch (value.kind) {
+    case 'idle':
+    case 'flashcards':
+      return true;
+    case 'reader':
+      return typeof value.workName === 'string'
+        && typeof value.currentPage === 'number'
+        && typeof value.totalPages === 'number';
+    case 'video':
+      return typeof value.workName === 'string'
+        && typeof value.currentTimeSeconds === 'number'
+        && (typeof value.durationSeconds === 'number' || value.durationSeconds === null);
+    default:
+      return false;
+  }
+}
+
+function getActivityFromEnvelope(envelope: PluginBusEnvelope): AppActivity {
+  if (!envelope.hasValue || !isAppActivity(envelope.value)) {
+    return { kind: 'idle' };
+  }
+
+  return envelope.value;
 }
 
 function getActivitySessionKey(activity: AppActivity): string {
@@ -219,7 +250,7 @@ export async function loadDiscordActivityConfig(storage: Storage): Promise<Disco
 
 export function createDiscordActivityRuntime({
   storage,
-  appActivity,
+  pluginBridge,
   createRpcClient,
   now = () => new Date(),
 }: RuntimeDependencies) {
@@ -259,8 +290,8 @@ export function createDiscordActivityRuntime({
   async function handleRuntimeError(session: RuntimeSession, error: unknown): Promise<void> {
     const isCurrentSession = activeSession === session;
     if (isCurrentSession) {
-      session.unsubscribeFromAppActivity?.();
-      session.unsubscribeFromAppActivity = undefined;
+      session.unsubscribeFromPluginValue?.();
+      session.unsubscribeFromPluginValue = undefined;
       activeSession = undefined;
     }
 
@@ -282,9 +313,9 @@ export function createDiscordActivityRuntime({
       const activationToken = runtimeToken;
       const previousSession = activeSession;
       activeSession = undefined;
-      previousSession?.unsubscribeFromAppActivity?.();
+      previousSession?.unsubscribeFromPluginValue?.();
       if (previousSession) {
-        previousSession.unsubscribeFromAppActivity = undefined;
+        previousSession.unsubscribeFromPluginValue = undefined;
         await cleanupRpcClient(previousSession.client);
       }
 
@@ -315,16 +346,16 @@ export function createDiscordActivityRuntime({
         };
         activeSession = session;
         let sawActivityEvent = false;
-        session.unsubscribeFromAppActivity = appActivity.onAppActivity((activity) => {
+        session.unsubscribeFromPluginValue = pluginBridge.onPluginValue('app.user.activity', (nextValue) => {
           sawActivityEvent = true;
-          void publishActivity(session, activity).catch(async (error) => {
+          void publishActivity(session, getActivityFromEnvelope(nextValue)).catch(async (error) => {
             await handleRuntimeError(session, error);
           });
         });
-        const initialActivity = await appActivity.getAppActivity();
+        const initialActivity = getActivityFromEnvelope(await pluginBridge.getPluginValue('app.user.activity'));
         if (activationToken !== runtimeToken || activeSession !== session) {
-          session.unsubscribeFromAppActivity?.();
-          session.unsubscribeFromAppActivity = undefined;
+          session.unsubscribeFromPluginValue?.();
+          session.unsubscribeFromPluginValue = undefined;
           await cleanupRpcClient(nextClient);
           return;
         }
@@ -351,9 +382,9 @@ export function createDiscordActivityRuntime({
       runtimeToken += 1;
       const previousSession = activeSession;
       activeSession = undefined;
-      previousSession?.unsubscribeFromAppActivity?.();
+      previousSession?.unsubscribeFromPluginValue?.();
       if (previousSession) {
-        previousSession.unsubscribeFromAppActivity = undefined;
+        previousSession.unsubscribeFromPluginValue = undefined;
         await cleanupRpcClient(previousSession.client);
       }
 

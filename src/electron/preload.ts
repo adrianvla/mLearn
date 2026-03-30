@@ -4,9 +4,8 @@
  */
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
-import { APP_ACTIVITY_IPC_CHANNELS } from '../shared/appActivityIpc';
 import { IPC_CHANNELS } from '../shared/constants';
-import type { AppActivity } from '../shared/plugins/appActivity';
+import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
 import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 
@@ -66,10 +65,24 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_IMAGE_DELETE, cardId),
 
   // ========== Plugins ==========
-  getAppActivity: (): Promise<AppActivity> =>
-    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_APP_ACTIVITY_GET),
-  onAppActivity: (callback: (activity: AppActivity) => void) =>
-    ipcOn(IPC_CHANNELS.PLUGIN_APP_ACTIVITY_CHANGED, (_event, activity) => callback(activity)),
+  getPluginValue: (channel: string): Promise<PluginBusEnvelope> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_BUS_GET_VALUE, channel),
+  setPluginValue: (channel: string, value: PluginBusJSONValue): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_BUS_SET_VALUE, channel, value),
+  emitPluginEvent: (channel: string, payload: PluginBusJSONValue): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_BUS_EMIT_EVENT, channel, payload),
+  onPluginValue: (callbackChannel: string, callback: (nextValue: PluginBusEnvelope, previousValue: PluginBusEnvelope) => void) =>
+    ipcOn(IPC_CHANNELS.PLUGIN_BUS_VALUE_CHANGED, (_event, payload: { channel: string; nextValue: PluginBusEnvelope; previousValue: PluginBusEnvelope }) => {
+      if (payload.channel === callbackChannel) {
+        callback(payload.nextValue, payload.previousValue);
+      }
+    }),
+  onPluginEvent: (callbackChannel: string, callback: (payload: PluginBusJSONValue) => void) =>
+    ipcOn(IPC_CHANNELS.PLUGIN_BUS_EVENT_EMITTED, (_event, payload: { channel: string; payload: PluginBusJSONValue }) => {
+      if (payload.channel === callbackChannel) {
+        callback(payload.payload);
+      }
+    }),
   pluginGetList: (): Promise<PluginState[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_GET_LIST),
   pluginEnable: (pluginId: string): Promise<PluginState | null> =>
@@ -404,14 +417,43 @@ const mLearnIPC = {
 };
 
 const mLearnInternal = {
-  publishSourceActivityUpdate: (payload: { sourceId: string; isFocused: boolean; activity: AppActivity | null }) =>
-    ipcRenderer.send(APP_ACTIVITY_IPC_CHANNELS.SOURCE_UPDATE, payload),
+  setScopedPluginValue: (payload: { sourceId: string; isFocused: boolean; channel: string; value: PluginBusJSONValue }) =>
+    ipcRenderer.send(IPC_CHANNELS.PLUGIN_BUS_SET_SCOPED_VALUE, payload),
+};
+
+function isPluginHostRenderer(): boolean {
+  const globalLocation = (globalThis as typeof globalThis & {
+    location?: { pathname?: string }
+  }).location
+
+  return globalLocation?.pathname?.includes('plugin-host.html') ?? false
+}
+
+const exposedIPC = {
+  ...mLearnIPC,
+  onPluginValue: (callbackChannel: string, callback: (nextValue: PluginBusEnvelope, previousValue: PluginBusEnvelope) => void) => {
+    const initialPreviousValue: PluginBusEnvelope = { hasValue: false, value: null };
+
+    const cleanup = ipcOn(IPC_CHANNELS.PLUGIN_BUS_VALUE_CHANGED, (_event, payload: { channel: string; nextValue: PluginBusEnvelope; previousValue: PluginBusEnvelope }) => {
+      if (payload.channel === callbackChannel) {
+        callback(payload.nextValue, payload.previousValue);
+      }
+    });
+
+    const currentValue = ipcRenderer.sendSync(IPC_CHANNELS.PLUGIN_BUS_GET_VALUE_SYNC, callbackChannel) as PluginBusEnvelope
+    callback(currentValue, initialPreviousValue)
+
+    return cleanup;
+  },
 };
 
 // Expose API to renderer
-contextBridge.exposeInMainWorld('mLearnIPC', mLearnIPC);
-contextBridge.exposeInMainWorld('mLearnInternal', mLearnInternal);
+contextBridge.exposeInMainWorld('mLearnIPC', exposedIPC);
+
+if (!isPluginHostRenderer()) {
+  contextBridge.exposeInMainWorld('mLearnInternal', mLearnInternal);
+}
 
 // Export type for use in renderer
-export type MLearnIPC = typeof mLearnIPC;
+export type MLearnIPC = typeof exposedIPC;
 export type MLearnInternal = typeof mLearnInternal;

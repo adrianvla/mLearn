@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AppActivity } from '../../../../src/shared/plugins/appActivity';
+import type { PluginBusEnvelope } from '../../../../src/shared/pluginBus';
 
 import {
   createDiscordActivityRuntime,
@@ -54,23 +55,34 @@ function createRpcClient() {
   };
 }
 
-function createAppActivityBridge(initialActivity: AppActivity = { kind: 'idle' }) {
-  let appActivity = initialActivity;
-  let onActivity: ((activity: AppActivity) => void) | undefined;
+function createPluginBridge(initialActivity?: AppActivity) {
+  let envelope: PluginBusEnvelope = initialActivity === undefined
+    ? { hasValue: false, value: null }
+    : { hasValue: true, value: initialActivity };
+  let onValue:
+    | ((nextValue: PluginBusEnvelope, previousValue: PluginBusEnvelope) => void)
+    | undefined;
 
   return {
-    getAppActivity: vi.fn(async () => appActivity),
-    onAppActivity: vi.fn((callback: (activity: AppActivity) => void) => {
-      onActivity = callback;
+    getPluginValue: vi.fn(async (channel: string) => {
+      expect(channel).toBe('app.user.activity');
+      return envelope;
+    }),
+    onPluginValue: vi.fn((channel: string, callback: (nextValue: PluginBusEnvelope, previousValue: PluginBusEnvelope) => void) => {
+      expect(channel).toBe('app.user.activity');
+      onValue = callback;
       return () => {
-        if (onActivity === callback) {
-          onActivity = undefined;
+        if (onValue === callback) {
+          onValue = undefined;
         }
       };
     }),
-    emit(activity: AppActivity) {
-      appActivity = activity;
-      onActivity?.(activity);
+    emit(activity: AppActivity | undefined) {
+      const previousEnvelope = envelope;
+      envelope = activity === undefined
+        ? { hasValue: false, value: null }
+        : { hasValue: true, value: activity };
+      onValue?.(envelope, previousEnvelope);
     },
   };
 }
@@ -116,10 +128,10 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'true',
     });
     const rpcClient = createRpcClient();
-    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });
@@ -144,7 +156,7 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'true',
     });
     const rpcClient = createRpcClient();
-    const appActivity = createAppActivityBridge({
+    const pluginBridge = createPluginBridge({
       kind: 'reader',
       workName: 'Yotsuba',
       currentPage: 3,
@@ -152,7 +164,7 @@ describe('discord activity runtime', () => {
     });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });
@@ -171,10 +183,10 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'true',
     });
     const rpcClient = createRpcClient();
-    const appActivity = createAppActivityBridge({ kind: 'flashcards' });
+    const pluginBridge = createPluginBridge({ kind: 'flashcards' });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });
@@ -193,7 +205,7 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'true',
     });
     const rpcClient = createRpcClient();
-    const appActivity = createAppActivityBridge({
+    const pluginBridge = createPluginBridge({
       kind: 'video',
       workName: 'Spirited Away',
       currentTimeSeconds: 15,
@@ -201,7 +213,7 @@ describe('discord activity runtime', () => {
     });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });
@@ -220,7 +232,7 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'true',
     });
     const rpcClient = createRpcClient();
-    const appActivity = createAppActivityBridge({
+    const pluginBridge = createPluginBridge({
       kind: 'video',
       workName: 'Spirited Away',
       currentTimeSeconds: 15,
@@ -232,13 +244,13 @@ describe('discord activity runtime', () => {
       .mockReturnValueOnce(new Date('2026-03-29T12:00:30.000Z'));
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now,
     });
 
     await runtime.activate();
-    appActivity.emit({
+    pluginBridge.emit({
       kind: 'video',
       workName: 'Spirited Away',
       currentTimeSeconds: 30,
@@ -256,20 +268,20 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'true',
     });
     const rpcClient = createRpcClient();
-    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
     const readerActivity: AppActivity = {
       kind: 'reader',
       workName: 'Yotsuba',
       currentPage: 3,
       totalPages: 20,
     };
-    appActivity.getAppActivity.mockImplementationOnce(async () => {
-      appActivity.emit(readerActivity);
-      return { kind: 'idle' };
+    pluginBridge.getPluginValue.mockImplementationOnce(async () => {
+      pluginBridge.emit(readerActivity);
+      return { hasValue: false, value: null };
     });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });
@@ -298,16 +310,16 @@ describe('discord activity runtime', () => {
       .fn<() => MockRpcClient>()
       .mockReturnValueOnce(firstClient)
       .mockReturnValueOnce(secondClient);
-    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: createRpcClientForActivation,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });
 
     await runtime.activate();
-    appActivity.emit({
+    pluginBridge.emit({
       kind: 'reader',
       workName: 'Yotsuba',
       currentPage: 3,
@@ -340,10 +352,10 @@ describe('discord activity runtime', () => {
     const createRpcClientForActivation = vi
       .fn<() => MockRpcClient>()
       .mockReturnValueOnce(firstClient);
-    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: createRpcClientForActivation,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });
@@ -373,16 +385,16 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'true',
     });
     const snapshotStarted = createDeferred<void>();
-    const slowSnapshot = createDeferred<AppActivity>();
+    const slowSnapshot = createDeferred<PluginBusEnvelope>();
     const rpcClient = createRpcClient();
-    const appActivity = createAppActivityBridge({ kind: 'idle' });
-    appActivity.getAppActivity.mockImplementationOnce(() => {
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
+    pluginBridge.getPluginValue.mockImplementationOnce(() => {
       snapshotStarted.resolve();
       return slowSnapshot.promise;
     });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });
@@ -392,7 +404,7 @@ describe('discord activity runtime', () => {
 
     await runtime.deactivate();
 
-    slowSnapshot.resolve({ kind: 'idle' });
+    slowSnapshot.resolve({ hasValue: true, value: { kind: 'idle' } });
     await activatePromise;
 
     const status = await readPersistedStatus(storage);
@@ -408,10 +420,10 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'false',
     });
     const rpcClient = createRpcClient();
-    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });
@@ -427,20 +439,20 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'true',
     });
     const rpcClient = createRpcClient();
-    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
     const now = vi
       .fn<() => Date>()
       .mockReturnValueOnce(new Date('2026-03-29T12:00:00.000Z'))
       .mockReturnValueOnce(new Date('2026-03-29T12:01:00.000Z'));
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now,
     });
 
     await runtime.activate();
-    appActivity.emit({
+    pluginBridge.emit({
       kind: 'reader',
       workName: 'Yotsuba',
       currentPage: 3,
@@ -458,7 +470,7 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'true',
     });
     const rpcClient = createRpcClient();
-    const appActivity = createAppActivityBridge({
+    const pluginBridge = createPluginBridge({
       kind: 'reader',
       workName: 'Yotsuba',
       currentPage: 3,
@@ -470,13 +482,13 @@ describe('discord activity runtime', () => {
       .mockReturnValueOnce(new Date('2026-03-29T12:01:00.000Z'));
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now,
     });
 
     await runtime.activate();
-    appActivity.emit({
+    pluginBridge.emit({
       kind: 'reader',
       workName: 'Sora no Otoshimono',
       currentPage: 3,
@@ -494,10 +506,10 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'true',
     });
     const createRpcClient = vi.fn<() => MockRpcClient>(() => createRpcClient());
-    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });
@@ -513,10 +525,10 @@ describe('discord activity runtime', () => {
       'discord-activity:showTimestamp': 'true',
     });
     const rpcClient = createRpcClient();
-    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });
@@ -535,10 +547,10 @@ describe('discord activity runtime', () => {
     });
     const rpcClient = createRpcClient();
     rpcClient.login.mockRejectedValueOnce(new Error('Discord is not running'));
-    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
     });
 
@@ -558,10 +570,10 @@ describe('discord activity runtime', () => {
     });
     const rpcClient = createRpcClient();
     rpcClient.setActivity.mockRejectedValueOnce(new Error('Failed to publish presence'));
-    const appActivity = createAppActivityBridge({ kind: 'idle' });
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
     const runtime = createDiscordActivityRuntime({
       storage,
-      appActivity,
+      pluginBridge,
       createRpcClient: () => rpcClient,
       now: () => new Date('2026-03-29T12:00:00.000Z'),
     });

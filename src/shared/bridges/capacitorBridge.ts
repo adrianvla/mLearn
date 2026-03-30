@@ -29,8 +29,9 @@ import type {
   KVStoreBridge,
 } from './types';
 import type {
-  AppActivity,
-} from '../plugins/appActivity';
+  PluginBusEnvelope,
+  PluginBusJSONValue,
+} from '../pluginBus';
 import type {
   Settings,
   FlashcardStore,
@@ -593,10 +594,17 @@ const flashcardBridge: FlashcardBridge = {
 };
 
 const pluginBridge: PluginBridge = {
-  async getAppActivity(): Promise<AppActivity> {
-    return { kind: 'idle' };
+  async getPluginValue(): Promise<PluginBusEnvelope> {
+    return { hasValue: false, value: null };
   },
-  onAppActivity: noopCleanup,
+  async setPluginValue(_channel: string, _value: PluginBusJSONValue) {
+    return undefined;
+  },
+  async emitPluginEvent(_channel: string, _payload: PluginBusJSONValue) {
+    return undefined;
+  },
+  onPluginValue: noopCleanup,
+  onPluginEvent: noopCleanup,
   async pluginGetList() {
     return [];
   },

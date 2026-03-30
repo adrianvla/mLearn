@@ -9,20 +9,17 @@ function readRequiredFile(relativePath: string): string {
 }
 
 describe('generic app activity naming', () => {
-  it('keeps app-side activity implementation free of Discord-specific naming', () => {
+  it('keeps generic plugin bus files free of Discord-specific naming', () => {
     const appSideFiles = [
       'src/shared/plugins/appActivity.ts',
-      'src/shared/appActivityIpc.ts',
-      'src/electron/services/pluginAppActivity.ts',
+      'src/shared/pluginBus.ts',
+      'src/electron/services/pluginBus.ts',
       'src/electron/services/pluginIPC.ts',
       'src/electron/preload.ts',
       'src/shared/bridges/types.ts',
       'src/shared/bridges/electronBridge.ts',
       'src/shared/bridges/capacitorBridge.ts',
       'src/shared/global.d.ts',
-      'src/renderer/windows/main/routes/readerActivityPublisher.ts',
-      'src/renderer/windows/main/routes/videoActivityPublisher.ts',
-      'src/renderer/windows/flashcards/flashcardsActivityPublisher.ts',
     ];
 
     for (const relativePath of appSideFiles) {

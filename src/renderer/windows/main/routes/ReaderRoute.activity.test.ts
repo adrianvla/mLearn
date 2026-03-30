@@ -1,10 +1,10 @@
 import { createRoot, createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 
-describe('createReaderAppActivityPublisher', () => {
+describe('syncReaderPluginActivity', () => {
   it('publishes a reader snapshot for a focused qualified source', async () => {
-    const { createReaderAppActivityPublisher } = await import('./readerActivityPublisher')
-    const publishSourceUpdate = vi.fn()
+    const { syncReaderPluginActivity } = await import('./readerPluginActivity')
+    const publishScopedValue = vi.fn()
 
     createRoot((dispose) => {
       const [bookTitle] = createSignal('Yotsuba')
@@ -12,12 +12,12 @@ describe('createReaderAppActivityPublisher', () => {
       const [pages] = createSignal(new Array(20).fill({}))
       const [isFocused] = createSignal(true)
 
-      createReaderAppActivityPublisher({
+      syncReaderPluginActivity({
         bookTitle,
         currentPage,
         pages,
         isFocused,
-        publishSourceUpdate,
+        publishScopedValue,
       })
 
       queueMicrotask(dispose)
@@ -25,10 +25,10 @@ describe('createReaderAppActivityPublisher', () => {
 
     await Promise.resolve()
 
-    expect(publishSourceUpdate).toHaveBeenCalledWith({
+    expect(publishScopedValue).toHaveBeenCalledWith({
       sourceId: 'reader-route',
       isFocused: true,
-      activity: {
+      value: {
         kind: 'reader',
         workName: 'Yotsuba',
         currentPage: 3,
@@ -37,9 +37,9 @@ describe('createReaderAppActivityPublisher', () => {
     })
   })
 
-  it('publishes idle when the reader source loses qualification', async () => {
-    const { createReaderAppActivityPublisher } = await import('./readerActivityPublisher')
-    const publishSourceUpdate = vi.fn()
+  it('publishes null when the reader source loses qualification', async () => {
+    const { syncReaderPluginActivity } = await import('./readerPluginActivity')
+    const publishScopedValue = vi.fn()
 
     let setBookTitle!: (value: string) => void
     let dispose!: () => void
@@ -52,33 +52,33 @@ describe('createReaderAppActivityPublisher', () => {
       const [isFocused] = createSignal(true)
       setBookTitle = updateBookTitle
 
-      createReaderAppActivityPublisher({
+      syncReaderPluginActivity({
         bookTitle,
         currentPage,
         pages,
         isFocused,
-        publishSourceUpdate,
+        publishScopedValue,
       })
     })
 
     await Promise.resolve()
-    publishSourceUpdate.mockClear()
+    publishScopedValue.mockClear()
 
     setBookTitle('')
     await Promise.resolve()
 
-    expect(publishSourceUpdate).toHaveBeenCalledWith({
+    expect(publishScopedValue).toHaveBeenCalledWith({
       sourceId: 'reader-route',
       isFocused: true,
-      activity: null,
+      value: null,
     })
 
     dispose()
   })
 
   it('publishes a new snapshot immediately when page progress changes', async () => {
-    const { createReaderAppActivityPublisher } = await import('./readerActivityPublisher')
-    const publishSourceUpdate = vi.fn()
+    const { syncReaderPluginActivity } = await import('./readerPluginActivity')
+    const publishScopedValue = vi.fn()
 
     let setCurrentPage!: (value: number) => void
     let dispose!: () => void
@@ -91,25 +91,25 @@ describe('createReaderAppActivityPublisher', () => {
       const [isFocused] = createSignal(true)
       setCurrentPage = updateCurrentPage
 
-      createReaderAppActivityPublisher({
+      syncReaderPluginActivity({
         bookTitle,
         currentPage,
         pages,
         isFocused,
-        publishSourceUpdate,
+        publishScopedValue,
       })
     })
 
     await Promise.resolve()
-    publishSourceUpdate.mockClear()
+    publishScopedValue.mockClear()
 
     setCurrentPage(3)
     await Promise.resolve()
 
-    expect(publishSourceUpdate).toHaveBeenCalledWith({
+    expect(publishScopedValue).toHaveBeenCalledWith({
       sourceId: 'reader-route',
       isFocused: true,
-      activity: {
+      value: {
         kind: 'reader',
         workName: 'Yotsuba',
         currentPage: 4,
@@ -120,9 +120,9 @@ describe('createReaderAppActivityPublisher', () => {
     dispose()
   })
 
-  it('publishes idle when focus changes from true to false', async () => {
-    const { createReaderAppActivityPublisher } = await import('./readerActivityPublisher')
-    const publishSourceUpdate = vi.fn()
+  it('publishes null when focus changes from true to false', async () => {
+    const { syncReaderPluginActivity } = await import('./readerPluginActivity')
+    const publishScopedValue = vi.fn()
 
     let setIsFocused!: (value: boolean) => void
     let dispose!: () => void
@@ -135,25 +135,25 @@ describe('createReaderAppActivityPublisher', () => {
       const [isFocused, updateIsFocused] = createSignal(true)
       setIsFocused = updateIsFocused
 
-      createReaderAppActivityPublisher({
+      syncReaderPluginActivity({
         bookTitle,
         currentPage,
         pages,
         isFocused,
-        publishSourceUpdate,
+        publishScopedValue,
       })
     })
 
     await Promise.resolve()
-    publishSourceUpdate.mockClear()
+    publishScopedValue.mockClear()
 
     setIsFocused(false)
     await Promise.resolve()
 
-    expect(publishSourceUpdate).toHaveBeenCalledWith({
+    expect(publishScopedValue).toHaveBeenCalledWith({
       sourceId: 'reader-route',
       isFocused: false,
-      activity: null,
+      value: null,
     })
 
     dispose()

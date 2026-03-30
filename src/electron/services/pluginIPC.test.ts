@@ -1,11 +1,11 @@
 import { createRoot, createSignal } from 'solid-js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PluginBusEnvelope } from '../../shared/pluginBus';
 import { WINDOW_TYPES } from '../../shared/constants';
-import { APP_ACTIVITY_IPC_CHANNELS } from '../../shared/appActivityIpc';
 import { PLUGIN_IPC_CHANNELS } from '../../shared/plugins/constants';
 import type { AppActivity } from '../../shared/plugins/appActivity';
 import type { PluginManifest, PluginState } from '../../shared/plugins/types';
-import { createFlashcardsAppActivityPublisher } from '../../renderer/windows/flashcards/flashcardsActivityPublisher';
+import { syncFlashcardsPluginActivity } from '../../renderer/windows/flashcards/pluginActivity';
 
 const ipcHandleHandlers = new Map<string, (...args: unknown[]) => unknown>();
 const ipcOnHandlers = new Map<string, (...args: unknown[]) => unknown>();
@@ -31,15 +31,24 @@ vi.mock('electron', () => ({
   },
 }));
 
-const mockActivityStore = {
-  getCurrentActivity: vi.fn<() => AppActivity>(),
-  subscribe: vi.fn<(listener: (activity: AppActivity) => void) => () => void>(),
-  updateSource: vi.fn<(sourceId: string, next: { isFocused: boolean; activity: AppActivity | null; updatedAt?: number }) => void>(),
+const mockBusStore = {
+  emitPluginEvent: vi.fn(),
+  getPluginValue: vi.fn(),
+  onPluginEvent: vi.fn(),
+  onPluginValue: vi.fn(),
+  removeAppSource: vi.fn(),
+  setAppScopedValue: vi.fn(),
+  setAppSourceFocused: vi.fn(),
+  setPluginValue: vi.fn(),
 };
 
-vi.mock('./pluginAppActivity', () => ({
-  createPluginAppActivityStore: vi.fn(() => mockActivityStore),
-}));
+vi.mock('./pluginBus', async () => {
+  const actual = await vi.importActual<typeof import('./pluginBus')>('./pluginBus');
+  return {
+    ...actual,
+    createPluginBusStore: vi.fn(() => mockBusStore),
+  };
+});
 
 vi.mock('./pluginManager', () => ({
   disablePlugin: mockDisablePlugin,
@@ -78,18 +87,34 @@ function getPluginUninstallHandler() {
   return handler;
 }
 
-function getAppActivityHandler() {
-  const handler = ipcHandleHandlers.get(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_GET);
+function getPluginValueHandler() {
+  const handler = ipcHandleHandlers.get(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_GET_VALUE);
   if (!handler) {
-    throw new Error('PLUGIN_APP_ACTIVITY_GET handler was not registered');
+    throw new Error('PLUGIN_BUS_GET_VALUE handler was not registered');
   }
   return handler;
 }
 
-function getAppActivityUpdateSourceHandler() {
-  const handler = ipcOnHandlers.get(APP_ACTIVITY_IPC_CHANNELS.SOURCE_UPDATE);
+function getSetPluginValueHandler() {
+  const handler = ipcHandleHandlers.get(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_SET_VALUE);
   if (!handler) {
-    throw new Error('SOURCE_UPDATE handler was not registered');
+    throw new Error('PLUGIN_BUS_SET_VALUE handler was not registered');
+  }
+  return handler;
+}
+
+function getEmitPluginEventHandler() {
+  const handler = ipcHandleHandlers.get(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_EMIT_EVENT);
+  if (!handler) {
+    throw new Error('PLUGIN_BUS_EMIT_EVENT handler was not registered');
+  }
+  return handler;
+}
+
+function getSetScopedPluginValueHandler() {
+  const handler = ipcOnHandlers.get(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_SET_SCOPED_VALUE);
+  if (!handler) {
+    throw new Error('PLUGIN_BUS_SET_SCOPED_VALUE handler was not registered');
   }
   return handler;
 }
@@ -105,11 +130,17 @@ describe('pluginIPC pluginOpenWindow', () => {
     mockDisablePlugin.mockReset();
     mockRemovePluginFromRegistry.mockReset();
     mockUninstallPlugin.mockReset();
-    mockActivityStore.getCurrentActivity.mockReset();
-    mockActivityStore.subscribe.mockReset();
-    mockActivityStore.updateSource.mockReset();
-    mockActivityStore.getCurrentActivity.mockReturnValue({ kind: 'idle' });
-    mockActivityStore.subscribe.mockReturnValue(() => {});
+    mockBusStore.emitPluginEvent.mockReset();
+    mockBusStore.getPluginValue.mockReset();
+    mockBusStore.onPluginEvent.mockReset();
+    mockBusStore.onPluginValue.mockReset();
+    mockBusStore.removeAppSource.mockReset();
+    mockBusStore.setAppScopedValue.mockReset();
+    mockBusStore.setAppSourceFocused.mockReset();
+    mockBusStore.setPluginValue.mockReset();
+    mockBusStore.getPluginValue.mockReturnValue({ hasValue: false, value: null });
+    mockBusStore.onPluginValue.mockReturnValue(() => {});
+    mockBusStore.onPluginEvent.mockReturnValue(() => {});
 
     const pluginState: PluginState = {
       id: 'demo.plugin',
@@ -288,36 +319,44 @@ describe('pluginIPC pluginOpenWindow', () => {
     expect(mockDisablePlugin.mock.invocationCallOrder[0]).toBeLessThan(mockUninstallPlugin.mock.invocationCallOrder[0]);
   });
 
-  it('app activity get returns current generic activity', async () => {
-    const activity = {
+  it('getPluginValue returns the current bus value envelope', async () => {
+    const envelope = {
+      hasValue: true,
+      value: {
       kind: 'reader',
       workName: 'Genki',
       currentPage: 10,
       totalPages: 100,
-    } satisfies AppActivity;
-    mockActivityStore.getCurrentActivity.mockReturnValue(activity);
+      } satisfies AppActivity,
+    } satisfies PluginBusEnvelope<AppActivity>;
+    mockBusStore.getPluginValue.mockReturnValue(envelope);
 
-    const result = await getAppActivityHandler()({});
+    const result = await getPluginValueHandler()({}, 'app.user.activity');
 
-    expect(result).toEqual(activity);
-    expect(mockActivityStore.getCurrentActivity).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(envelope);
+    expect(mockBusStore.getPluginValue).toHaveBeenCalledWith('app.user.activity');
   });
 
-  it('keeps the internal source update channel out of plugin-facing constants', () => {
-    expect(Object.values(PLUGIN_IPC_CHANNELS)).not.toContain(APP_ACTIVITY_IPC_CHANNELS.SOURCE_UPDATE);
+  it('exposes generic bus IPC channels instead of the old app activity channels', () => {
+    expect(PLUGIN_IPC_CHANNELS).toMatchObject({
+      PLUGIN_BUS_GET_VALUE: expect.any(String),
+      PLUGIN_BUS_SET_VALUE: expect.any(String),
+      PLUGIN_BUS_EMIT_EVENT: expect.any(String),
+      PLUGIN_BUS_VALUE_CHANGED: expect.any(String),
+      PLUGIN_BUS_EVENT_EMITTED: expect.any(String),
+      PLUGIN_BUS_SET_SCOPED_VALUE: expect.any(String),
+    });
+    expect(PLUGIN_IPC_CHANNELS).not.toHaveProperty('PLUGIN_APP_ACTIVITY_GET');
+    expect(PLUGIN_IPC_CHANNELS).not.toHaveProperty('PLUGIN_APP_ACTIVITY_CHANGED');
   });
 
-  it('app activity changed is broadcast to plugin consumers', async () => {
+  it('plugin value changes are broadcast to plugin consumers', async () => {
     const send = vi.fn();
-    const activity = {
-      kind: 'video',
-      workName: 'Anime',
-      currentTimeSeconds: 90,
-      durationSeconds: 120,
-    } satisfies AppActivity;
-    const subscribeCalls: Array<(activity: AppActivity) => void> = [];
+    const nextEnvelope = { hasValue: true, value: 'dark' } satisfies PluginBusEnvelope<string>;
+    const previousEnvelope = { hasValue: false, value: null } satisfies PluginBusEnvelope<string>;
+    const subscribeCalls: Array<(next: PluginBusEnvelope, previous: PluginBusEnvelope) => void> = [];
 
-    mockActivityStore.subscribe.mockImplementation((listener) => {
+    mockBusStore.onPluginValue.mockImplementation((_channel, listener) => {
       subscribeCalls.push(listener);
       return () => {};
     });
@@ -332,53 +371,107 @@ describe('pluginIPC pluginOpenWindow', () => {
 
     expect(subscribeCalls).toHaveLength(1);
 
-    subscribeCalls[0](activity);
+    subscribeCalls[0](nextEnvelope, previousEnvelope);
 
-    expect(send).toHaveBeenCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_CHANGED, activity);
+    expect(send).toHaveBeenCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_VALUE_CHANGED, {
+      channel: 'app.user.activity',
+      nextValue: nextEnvelope,
+      previousValue: previousEnvelope,
+    });
   });
 
-  it('app-internal source update path updates the canonical store', async () => {
+  it('non-app bus writes are broadcast immediately to plugin consumers', async () => {
+    const send = vi.fn();
+    const { BrowserWindow } = await import('electron');
+    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([
+      { isDestroyed: () => false, webContents: { send } },
+    ] as never[]);
+
+    mockBusStore.getPluginValue
+      .mockReturnValueOnce({ hasValue: false, value: null })
+      .mockReturnValueOnce({ hasValue: true, value: 'dark' });
+
+    await getSetPluginValueHandler()({ sender: { id: 1, getURL: () => 'http://localhost:3000/src/html/plugin-host.html' } }, 'shared.theme', 'dark');
+
+    expect(send).toHaveBeenCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_VALUE_CHANGED, {
+      channel: 'shared.theme',
+      nextValue: { hasValue: true, value: 'dark' },
+      previousValue: { hasValue: false, value: null },
+    });
+  });
+
+  it('does not broadcast non-app value writes when the envelope is unchanged', async () => {
+    const send = vi.fn();
+    const { BrowserWindow } = await import('electron');
+    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([
+      { isDestroyed: () => false, webContents: { send } },
+    ] as never[]);
+
+    mockBusStore.getPluginValue
+      .mockReturnValueOnce({ hasValue: true, value: 'dark' })
+      .mockReturnValueOnce({ hasValue: true, value: 'dark' });
+
+    await getSetPluginValueHandler()({ sender: { id: 1, getURL: () => 'http://localhost:3000/src/html/plugin-host.html' } }, 'shared.theme', 'dark');
+
+    expect(send).not.toHaveBeenCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_VALUE_CHANGED, expect.anything());
+  });
+
+  it('setPluginValue forwards plugin-facing writes through the bus store', async () => {
+    await getSetPluginValueHandler()({ sender: { id: 1, getURL: () => 'http://localhost:3000/src/html/plugin-host.html' } }, 'shared.theme', 'dark');
+
+    expect(mockBusStore.setPluginValue).toHaveBeenCalledWith({ scope: 'plugin', pluginId: 'host' }, 'shared.theme', 'dark');
+  });
+
+  it('emitPluginEvent forwards plugin-facing events through the bus store', async () => {
+    await getEmitPluginEventHandler()({ sender: { id: 1, getURL: () => 'http://localhost:3000/src/html/plugin-host.html' } }, 'shared.command', { type: 'refresh' });
+
+    expect(mockBusStore.emitPluginEvent).toHaveBeenCalledWith({ scope: 'plugin', pluginId: 'host' }, 'shared.command', { type: 'refresh' });
+  });
+
+  it('app-internal scoped value updates the canonical bus store', async () => {
     const activity = {
       kind: 'flashcards',
     } satisfies AppActivity;
 
-    getAppActivityUpdateSourceHandler()({}, {
+    getSetScopedPluginValueHandler()({}, {
       sourceId: 'reader-window',
       isFocused: true,
-      activity,
+      channel: 'app.user.activity',
+      value: activity,
     });
 
-    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('reader-window', {
-      isFocused: true,
-      activity,
-    });
+    expect(mockBusStore.setAppSourceFocused).toHaveBeenCalledWith('reader-window', true);
+    expect(mockBusStore.setAppScopedValue).toHaveBeenCalledWith('app.user.activity', 'reader-window', activity);
   });
 
-  it('ignores source updates from plugin host windows', async () => {
+  it('ignores scoped value updates from plugin host windows', async () => {
     const activity = {
       kind: 'flashcards',
     } satisfies AppActivity;
 
-    getAppActivityUpdateSourceHandler()({
+    getSetScopedPluginValueHandler()({
       sender: {
         getURL: () => 'http://localhost:3000/src/html/plugin-host.html',
       },
     }, {
       sourceId: 'plugin-host-window',
       isFocused: true,
-      activity,
+      channel: 'app.user.activity',
+      value: activity,
     });
 
-    expect(mockActivityStore.updateSource).not.toHaveBeenCalled();
+    expect(mockBusStore.setAppSourceFocused).not.toHaveBeenCalled();
+    expect(mockBusStore.setAppScopedValue).not.toHaveBeenCalled();
   });
 
   it('app-internal reader source lifecycle updates the canonical store', async () => {
-    const updateSource = getAppActivityUpdateSourceHandler();
+    const updateSource = getSetScopedPluginValueHandler();
 
     updateSource({}, {
       sourceId: 'reader-route',
       isFocused: true,
-      activity: {
+      channel: 'app.user.activity',
+      value: {
         kind: 'reader',
         workName: 'Yotsuba',
         currentPage: 3,
@@ -389,13 +482,15 @@ describe('pluginIPC pluginOpenWindow', () => {
     updateSource({}, {
       sourceId: 'reader-route',
       isFocused: true,
-      activity: null,
+      channel: 'app.user.activity',
+      value: null,
     });
 
     updateSource({}, {
       sourceId: 'reader-route',
       isFocused: true,
-      activity: {
+      channel: 'app.user.activity',
+      value: {
         kind: 'reader',
         workName: 'Yotsuba',
         currentPage: 4,
@@ -403,28 +498,24 @@ describe('pluginIPC pluginOpenWindow', () => {
       } satisfies AppActivity,
     });
 
-    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(2, 'reader-route', {
-      isFocused: true,
-      activity: null,
-    });
-    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(3, 'reader-route', {
-      isFocused: true,
-      activity: {
-        kind: 'reader',
-        workName: 'Yotsuba',
-        currentPage: 4,
-        totalPages: 20,
-      },
+    expect(mockBusStore.setAppSourceFocused).toHaveBeenNthCalledWith(2, 'reader-route', true);
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(2, 'app.user.activity', 'reader-route', null);
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(3, 'app.user.activity', 'reader-route', {
+      kind: 'reader',
+      workName: 'Yotsuba',
+      currentPage: 4,
+      totalPages: 20,
     });
   });
 
   it('app-internal video source lifecycle updates the canonical store', async () => {
-    const updateSource = getAppActivityUpdateSourceHandler();
+    const updateSource = getSetScopedPluginValueHandler();
 
     updateSource({}, {
       sourceId: 'video-route',
       isFocused: true,
-      activity: {
+      channel: 'app.user.activity',
+      value: {
         kind: 'video',
         workName: 'Spirited Away',
         currentTimeSeconds: 15,
@@ -435,13 +526,15 @@ describe('pluginIPC pluginOpenWindow', () => {
     updateSource({}, {
       sourceId: 'video-route',
       isFocused: true,
-      activity: null,
+      channel: 'app.user.activity',
+      value: null,
     });
 
     updateSource({}, {
       sourceId: 'video-route',
       isFocused: true,
-      activity: {
+      channel: 'app.user.activity',
+      value: {
         kind: 'video',
         workName: 'Spirited Away',
         currentTimeSeconds: 30,
@@ -449,24 +542,18 @@ describe('pluginIPC pluginOpenWindow', () => {
       } satisfies AppActivity,
     });
 
-    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(2, 'video-route', {
-      isFocused: true,
-      activity: null,
-    });
-    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(3, 'video-route', {
-      isFocused: true,
-      activity: {
-        kind: 'video',
-        workName: 'Spirited Away',
-        currentTimeSeconds: 30,
-        durationSeconds: 300,
-      },
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(2, 'app.user.activity', 'video-route', null);
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(3, 'app.user.activity', 'video-route', {
+      kind: 'video',
+      workName: 'Spirited Away',
+      currentTimeSeconds: 30,
+      durationSeconds: 300,
     });
   });
 
   it('app-internal video publishing emits immediately when the work changes', async () => {
-    const { createVideoAppActivityPublisher } = await import('../../renderer/windows/main/routes/videoActivityPublisher');
-    const updateSource = getAppActivityUpdateSourceHandler();
+    const { syncVideoPluginActivity } = await import('../../renderer/windows/main/routes/videoPluginActivity');
+    const updateSource = getSetScopedPluginValueHandler();
 
     let setWorkName!: (value: string) => void;
     let dispose!: () => void;
@@ -479,37 +566,39 @@ describe('pluginIPC pluginOpenWindow', () => {
       const [isFocused] = createSignal(true);
       setWorkName = updateWorkName;
 
-      createVideoAppActivityPublisher({
+      syncVideoPluginActivity({
         workName,
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishSourceUpdate: (payload) => updateSource({}, payload),
+        publishScopedValue: (payload) => updateSource({}, {
+          sourceId: payload.sourceId,
+          isFocused: payload.isFocused,
+          channel: 'app.user.activity',
+          value: payload.value,
+        }),
       });
     });
 
     await Promise.resolve();
-    mockActivityStore.updateSource.mockClear();
+    mockBusStore.setAppScopedValue.mockClear();
 
     setWorkName('Princess Mononoke');
     await Promise.resolve();
 
-    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('video-route', {
-      isFocused: true,
-      activity: {
-        kind: 'video',
-        workName: 'Princess Mononoke',
-        currentTimeSeconds: 12,
-        durationSeconds: 300,
-      },
+    expect(mockBusStore.setAppScopedValue).toHaveBeenCalledWith('app.user.activity', 'video-route', {
+      kind: 'video',
+      workName: 'Princess Mononoke',
+      currentTimeSeconds: 12,
+      durationSeconds: 300,
     });
 
     dispose();
   });
 
   it('app-internal video publishing emits immediately when duration becomes available', async () => {
-    const { createVideoAppActivityPublisher } = await import('../../renderer/windows/main/routes/videoActivityPublisher');
-    const updateSource = getAppActivityUpdateSourceHandler();
+    const { syncVideoPluginActivity } = await import('../../renderer/windows/main/routes/videoPluginActivity');
+    const updateSource = getSetScopedPluginValueHandler();
 
     let setDurationSeconds!: (value: number | null) => void;
     let dispose!: () => void;
@@ -522,37 +611,39 @@ describe('pluginIPC pluginOpenWindow', () => {
       const [isFocused] = createSignal(true);
       setDurationSeconds = updateDurationSeconds;
 
-      createVideoAppActivityPublisher({
+      syncVideoPluginActivity({
         workName,
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishSourceUpdate: (payload) => updateSource({}, payload),
+        publishScopedValue: (payload) => updateSource({}, {
+          sourceId: payload.sourceId,
+          isFocused: payload.isFocused,
+          channel: 'app.user.activity',
+          value: payload.value,
+        }),
       });
     });
 
     await Promise.resolve();
-    mockActivityStore.updateSource.mockClear();
+    mockBusStore.setAppScopedValue.mockClear();
 
     setDurationSeconds(300);
     await Promise.resolve();
 
-    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('video-route', {
-      isFocused: true,
-      activity: {
-        kind: 'video',
-        workName: 'Spirited Away',
-        currentTimeSeconds: 12,
-        durationSeconds: 300,
-      },
+    expect(mockBusStore.setAppScopedValue).toHaveBeenCalledWith('app.user.activity', 'video-route', {
+      kind: 'video',
+      workName: 'Spirited Away',
+      currentTimeSeconds: 12,
+      durationSeconds: 300,
     });
 
     dispose();
   });
 
   it('app-internal video publishing keeps the canonical activity idle when duration is missing', async () => {
-    const { createVideoAppActivityPublisher } = await import('../../renderer/windows/main/routes/videoActivityPublisher');
-    const updateSource = getAppActivityUpdateSourceHandler();
+    const { syncVideoPluginActivity } = await import('../../renderer/windows/main/routes/videoPluginActivity');
+    const updateSource = getSetScopedPluginValueHandler();
 
     createRoot((dispose) => {
       const [workName] = createSignal('Spirited Away');
@@ -560,12 +651,17 @@ describe('pluginIPC pluginOpenWindow', () => {
       const [durationSeconds] = createSignal<number | null>(null);
       const [isFocused] = createSignal(true);
 
-      createVideoAppActivityPublisher({
+      syncVideoPluginActivity({
         workName,
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishSourceUpdate: (payload) => updateSource({}, payload),
+        publishScopedValue: (payload) => updateSource({}, {
+          sourceId: payload.sourceId,
+          isFocused: payload.isFocused,
+          channel: 'app.user.activity',
+          value: payload.value,
+        }),
       });
 
       queueMicrotask(dispose);
@@ -573,15 +669,12 @@ describe('pluginIPC pluginOpenWindow', () => {
 
     await Promise.resolve();
 
-    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('video-route', {
-      isFocused: true,
-      activity: null,
-    });
+    expect(mockBusStore.setAppScopedValue).toHaveBeenCalledWith('app.user.activity', 'video-route', null);
   });
 
   it('app-internal video publishing emits on 15-second bucket transitions', async () => {
-    const { createVideoAppActivityPublisher } = await import('../../renderer/windows/main/routes/videoActivityPublisher');
-    const updateSource = getAppActivityUpdateSourceHandler();
+    const { syncVideoPluginActivity } = await import('../../renderer/windows/main/routes/videoPluginActivity');
+    const updateSource = getSetScopedPluginValueHandler();
 
     let setCurrentTimeSeconds!: (value: number) => void;
     let dispose!: () => void;
@@ -594,37 +687,39 @@ describe('pluginIPC pluginOpenWindow', () => {
       const [isFocused] = createSignal(true);
       setCurrentTimeSeconds = updateCurrentTime;
 
-      createVideoAppActivityPublisher({
+      syncVideoPluginActivity({
         workName,
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishSourceUpdate: (payload) => updateSource({}, payload),
+        publishScopedValue: (payload) => updateSource({}, {
+          sourceId: payload.sourceId,
+          isFocused: payload.isFocused,
+          channel: 'app.user.activity',
+          value: payload.value,
+        }),
       });
     });
 
     await Promise.resolve();
-    mockActivityStore.updateSource.mockClear();
+    mockBusStore.setAppScopedValue.mockClear();
 
     setCurrentTimeSeconds(15);
     await Promise.resolve();
 
-    expect(mockActivityStore.updateSource).toHaveBeenCalledWith('video-route', {
-      isFocused: true,
-      activity: {
-        kind: 'video',
-        workName: 'Spirited Away',
-        currentTimeSeconds: 15,
-        durationSeconds: 300,
-      },
+    expect(mockBusStore.setAppScopedValue).toHaveBeenCalledWith('app.user.activity', 'video-route', {
+      kind: 'video',
+      workName: 'Spirited Away',
+      currentTimeSeconds: 15,
+      durationSeconds: 300,
     });
 
     dispose();
   });
 
   it('app-internal video publishing suppresses in-bucket progress changes', async () => {
-    const { createVideoAppActivityPublisher } = await import('../../renderer/windows/main/routes/videoActivityPublisher');
-    const updateSource = getAppActivityUpdateSourceHandler();
+    const { syncVideoPluginActivity } = await import('../../renderer/windows/main/routes/videoPluginActivity');
+    const updateSource = getSetScopedPluginValueHandler();
 
     let setCurrentTimeSeconds!: (value: number) => void;
     let dispose!: () => void;
@@ -637,28 +732,33 @@ describe('pluginIPC pluginOpenWindow', () => {
       const [isFocused] = createSignal(true);
       setCurrentTimeSeconds = updateCurrentTime;
 
-      createVideoAppActivityPublisher({
+      syncVideoPluginActivity({
         workName,
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishSourceUpdate: (payload) => updateSource({}, payload),
+        publishScopedValue: (payload) => updateSource({}, {
+          sourceId: payload.sourceId,
+          isFocused: payload.isFocused,
+          channel: 'app.user.activity',
+          value: payload.value,
+        }),
       });
     });
 
     await Promise.resolve();
-    mockActivityStore.updateSource.mockClear();
+    mockBusStore.setAppScopedValue.mockClear();
 
     setCurrentTimeSeconds(13);
     await Promise.resolve();
 
-    expect(mockActivityStore.updateSource).not.toHaveBeenCalled();
+    expect(mockBusStore.setAppScopedValue).not.toHaveBeenCalled();
 
     dispose();
   });
 
   it('app-internal flashcards publishing emits flashcards for focused review mode', async () => {
-    const updateSource = getAppActivityUpdateSourceHandler();
+    const updateSource = getSetScopedPluginValueHandler();
 
     let dispose!: () => void;
 
@@ -667,30 +767,30 @@ describe('pluginIPC pluginOpenWindow', () => {
       const [isFocused] = createSignal(true);
       dispose = rootDispose;
 
-      createFlashcardsAppActivityPublisher({
+      syncFlashcardsPluginActivity({
         activeTab,
         isFocused,
-        publishSourceUpdate: (payload) => updateSource({}, payload),
+        publishScopedValue: (payload) => updateSource({}, {
+          sourceId: payload.sourceId,
+          isFocused: payload.isFocused,
+          channel: 'app.user.activity',
+          value: payload.value,
+        }),
       });
     });
 
     await Promise.resolve();
 
-    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(1, 'flashcards-window', {
-      isFocused: true,
-      activity: { kind: 'flashcards' },
-    });
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(1, 'app.user.activity', 'flashcards-window', { kind: 'flashcards' });
 
     dispose();
 
-    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(2, 'flashcards-window', {
-      isFocused: false,
-      activity: { kind: 'idle' },
-    });
+    expect(mockBusStore.setAppSourceFocused).toHaveBeenNthCalledWith(2, 'flashcards-window', false);
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(2, 'app.user.activity', 'flashcards-window', { kind: 'idle' });
   });
 
   it('app-internal flashcards publishing emits idle for non-review tabs', async () => {
-    const updateSource = getAppActivityUpdateSourceHandler();
+    const updateSource = getSetScopedPluginValueHandler();
 
     let dispose!: () => void;
 
@@ -699,30 +799,30 @@ describe('pluginIPC pluginOpenWindow', () => {
       const [activeTab] = createSignal<'review' | 'browse' | 'generate' | 'stats'>('browse');
       const [isFocused] = createSignal(true);
 
-      createFlashcardsAppActivityPublisher({
+      syncFlashcardsPluginActivity({
         activeTab,
         isFocused,
-        publishSourceUpdate: (payload) => updateSource({}, payload),
+        publishScopedValue: (payload) => updateSource({}, {
+          sourceId: payload.sourceId,
+          isFocused: payload.isFocused,
+          channel: 'app.user.activity',
+          value: payload.value,
+        }),
       });
     });
 
     await Promise.resolve();
 
-    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(1, 'flashcards-window', {
-      isFocused: true,
-      activity: { kind: 'idle' },
-    });
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(1, 'app.user.activity', 'flashcards-window', { kind: 'idle' });
 
     dispose();
 
-    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(2, 'flashcards-window', {
-      isFocused: false,
-      activity: { kind: 'idle' },
-    });
+    expect(mockBusStore.setAppSourceFocused).toHaveBeenNthCalledWith(2, 'flashcards-window', false);
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(2, 'app.user.activity', 'flashcards-window', { kind: 'idle' });
   });
 
   it('app-internal flashcards publishing emits idle on focus loss', async () => {
-    const updateSource = getAppActivityUpdateSourceHandler();
+    const updateSource = getSetScopedPluginValueHandler();
 
     let setIsFocused!: (value: boolean) => void;
     let dispose!: () => void;
@@ -733,10 +833,15 @@ describe('pluginIPC pluginOpenWindow', () => {
       const [isFocused, updateIsFocused] = createSignal(true);
       setIsFocused = updateIsFocused;
 
-      createFlashcardsAppActivityPublisher({
+      syncFlashcardsPluginActivity({
         activeTab,
         isFocused,
-        publishSourceUpdate: (payload) => updateSource({}, payload),
+        publishScopedValue: (payload) => updateSource({}, {
+          sourceId: payload.sourceId,
+          isFocused: payload.isFocused,
+          channel: 'app.user.activity',
+          value: payload.value,
+        }),
       });
     });
 
@@ -745,23 +850,19 @@ describe('pluginIPC pluginOpenWindow', () => {
     setIsFocused(false);
     await Promise.resolve();
 
-    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(2, 'flashcards-window', {
-      isFocused: false,
-      activity: { kind: 'idle' },
-    });
+    expect(mockBusStore.setAppSourceFocused).toHaveBeenNthCalledWith(2, 'flashcards-window', false);
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(2, 'app.user.activity', 'flashcards-window', { kind: 'idle' });
 
     dispose();
 
-    expect(mockActivityStore.updateSource).toHaveBeenNthCalledWith(3, 'flashcards-window', {
-      isFocused: false,
-      activity: { kind: 'idle' },
-    });
+    expect(mockBusStore.setAppSourceFocused).toHaveBeenNthCalledWith(3, 'flashcards-window', false);
+    expect(mockBusStore.setAppScopedValue).toHaveBeenNthCalledWith(3, 'app.user.activity', 'flashcards-window', { kind: 'idle' });
   });
 
-  it('plugin-facing consumers receive idle when canonical activity changes back to idle', async () => {
-    const subscribeCalls: Array<(activity: AppActivity) => void> = [];
+  it('plugin-facing consumers receive idle when the app activity bus value becomes idle', async () => {
+    const subscribeCalls: Array<(next: PluginBusEnvelope, previous: PluginBusEnvelope) => void> = [];
 
-    mockActivityStore.subscribe.mockImplementation((listener) => {
+    mockBusStore.onPluginValue.mockImplementation((_channel, listener) => {
       subscribeCalls.push(listener);
       return () => {};
     });
@@ -775,14 +876,43 @@ describe('pluginIPC pluginOpenWindow', () => {
     const { setupPluginIPC } = await import('./pluginIPC');
     setupPluginIPC();
 
-    subscribeCalls[0]({
-      kind: 'reader',
-      workName: 'Yotsuba',
-      currentPage: 3,
-      totalPages: 20,
-    });
-    subscribeCalls[0]({ kind: 'idle' });
+    subscribeCalls[0](
+      {
+        hasValue: true,
+        value: {
+          kind: 'reader',
+          workName: 'Yotsuba',
+          currentPage: 3,
+          totalPages: 20,
+        },
+      },
+      { hasValue: false, value: null },
+    );
+    subscribeCalls[0](
+      { hasValue: true, value: { kind: 'idle' } },
+      {
+        hasValue: true,
+        value: {
+          kind: 'reader',
+          workName: 'Yotsuba',
+          currentPage: 3,
+          totalPages: 20,
+        },
+      },
+    );
 
-    expect(send).toHaveBeenLastCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_CHANGED, { kind: 'idle' });
+    expect(send).toHaveBeenLastCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_VALUE_CHANGED, {
+      channel: 'app.user.activity',
+      nextValue: { hasValue: true, value: { kind: 'idle' } },
+      previousValue: {
+        hasValue: true,
+        value: {
+          kind: 'reader',
+          workName: 'Yotsuba',
+          currentPage: 3,
+          totalPages: 20,
+        },
+      },
+    });
   });
 });

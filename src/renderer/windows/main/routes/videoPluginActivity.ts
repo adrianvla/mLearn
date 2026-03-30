@@ -6,21 +6,18 @@ import {
   shouldEmitVideoProgressUpdate,
   type AppActivity,
 } from '../../../../shared/plugins/appActivity'
-import {
-  publishSourceActivityUpdate,
-  type SourceActivityUpdatePayload,
-} from './readerActivityPublisher'
+import { publishScopedActivityValue, type ScopedActivityPayload } from './readerPluginActivity'
 
 export const VIDEO_ACTIVITY_SOURCE_ID = 'video-route'
 
-export function createVideoAppActivityPublisher(input: {
+export function syncVideoPluginActivity(input: {
   workName: Accessor<string>
   currentTimeSeconds: Accessor<number>
   durationSeconds: Accessor<number | null>
   isFocused: Accessor<boolean>
-  publishSourceUpdate?: (payload: SourceActivityUpdatePayload) => void
+  publishScopedValue?: (payload: ScopedActivityPayload) => void
 }): void {
-  const publishSourceUpdate = input.publishSourceUpdate ?? publishSourceActivityUpdate
+  const publishScopedValue = input.publishScopedValue ?? publishScopedActivityValue
   let previousActivity: AppActivity | null = null
   let previousIsFocused: boolean | null = null
 
@@ -30,44 +27,44 @@ export function createVideoAppActivityPublisher(input: {
     const currentTimeSeconds = input.currentTimeSeconds()
     const durationSeconds = input.durationSeconds()
 
-    let activity = isFocused
+    let value = isFocused
       ? normalizeVideoAppActivity(workName, currentTimeSeconds, durationSeconds)
       : null
 
     if (
-      activity
-      && activity.kind === 'video'
+      value
+      && value.kind === 'video'
       && previousActivity?.kind === 'video'
-      && previousActivity.workName === activity.workName
-      && previousActivity.durationSeconds === activity.durationSeconds
-      && !shouldEmitVideoProgressUpdate(previousActivity.currentTimeSeconds, activity.currentTimeSeconds)
+      && previousActivity.workName === value.workName
+      && previousActivity.durationSeconds === value.durationSeconds
+      && !shouldEmitVideoProgressUpdate(previousActivity.currentTimeSeconds, value.currentTimeSeconds)
     ) {
-      activity = previousActivity
+      value = previousActivity
     }
 
     const isSameActivity = previousActivity === null
-      ? activity === null
-      : activity !== null && isSameAppActivity(previousActivity, activity)
+      ? value === null
+      : value !== null && isSameAppActivity(previousActivity, value)
 
     if (previousIsFocused === isFocused && isSameActivity) {
       return
     }
 
-    previousActivity = activity
+    previousActivity = value
     previousIsFocused = isFocused
 
-    publishSourceUpdate({
+    publishScopedValue({
       sourceId: VIDEO_ACTIVITY_SOURCE_ID,
       isFocused,
-      activity,
+      value,
     })
   })
 
   onCleanup(() => {
-    publishSourceUpdate({
+    publishScopedValue({
       sourceId: VIDEO_ACTIVITY_SOURCE_ID,
       isFocused: false,
-      activity: null,
+      value: null,
     })
   })
 }

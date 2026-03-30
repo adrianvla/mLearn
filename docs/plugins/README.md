@@ -13,8 +13,20 @@ This directory documents the current public plugin surface for mLearn.
 
 - `examples/plugins/discord-activity/` is a packaged, installable example plugin in this repo. Install the folder directly from `examples/plugins/discord-activity/`; the checked-in manifest already points at `dist/main.cjs` and `dist/ui.js`. The maintainable source still starts from `src/main.ts`, but you do not need to bundle `src/main.ts` into separate runtime targets before installing the checked-in example. The example uses `Client ID: 1487871166633869342`.
 - The Discord example is a real Discord Rich Presence integration, not just placeholder host-window scaffolding.
-- Generic activity hooks exposed to plugins are documented in `docs/plugins/activity.md`.
+- The Discord example consumes the generic plugin bus channel `app.user.activity` through `getPluginValue('app.user.activity')` and `onPluginValue('app.user.activity', ...)`.
 - `examples/plugins/language-template/` shows the smallest manifest shape for a language plugin backed by a Python module.
+
+## Plugin bus
+
+- Plugins read and write through one generic plugin bus.
+- value channels store JSON snapshots by string key, for example `app.user.activity` or `shared.watch-party.state`.
+- event channels deliver fire-and-forget JSON payloads by string key.
+- `getPluginValue(channel)` returns an envelope so missing values stay distinct from explicit `null`.
+- `onPluginValue(channel, listener)` subscribes to value changes and invokes the listener immediately with the current value.
+- Value listeners only fire when the next value is structurally different, so repeating the same JSON snapshot does not notify again.
+- `emitPluginEvent(channel, payload)` and `onPluginEvent(channel, listener)` are for event channels that should fire every time.
+- Channel ownership is prefix-based: the app publishes `app.*`, plugins publish `plugin.<pluginId>.*`, and shared plugin-to-plugin coordination can use `shared.*`.
+- Plugin authors should treat `app.user.activity` as one ordinary app-owned channel, not as a privileged built-in API.
 
 ## UI plugins
 
