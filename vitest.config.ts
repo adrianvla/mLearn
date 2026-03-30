@@ -21,6 +21,7 @@ export default defineConfig({
     clearMocks: true,
     restoreMocks: true,
     pool: 'forks',
+    maxWorkers: 4,
     setupFiles: ['./test/setup.ts'],
     projects: [
       {
@@ -28,11 +29,12 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: [
-            'src/electron/**/*.test.ts',
-            'src/shared/utils/**/*.test.ts',
-            'test/**/*.test.ts',
-          ],
+           include: [
+             'src/electron/**/*.test.ts',
+             'src/shared/plugins/**/*.test.ts',
+             'src/shared/utils/**/*.test.ts',
+             'test/**/*.test.ts',
+           ],
         },
       },
       {

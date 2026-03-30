@@ -3,7 +3,7 @@
   "name": "Discord Activity",
   "version": "0.1.0",
   "apiVersion": "1.0.0",
-  "description": "Installable Discord Rich Presence example with a plugin-host settings panel. Client ID: 1366046646392395806",
+  "description": "Installable Discord Rich Presence example with a plugin-host settings panel. Client ID: 1487871166633869342",
   "author": "mLearn",
   "main": "dist/main.cjs",
   "capabilities": ["integration", "ui-panel"],

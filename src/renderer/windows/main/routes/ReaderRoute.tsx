@@ -31,6 +31,7 @@ import { isWordInAnkiCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { showToast } from '../../../components/common/Feedback/Toast';
+import { createReaderAppActivityPublisher } from './readerActivityPublisher';
 import './reader.css';
 
 interface PageImage {
@@ -125,6 +126,7 @@ export const ReaderRoute: Component = () => {
 
   const [pages, setPages] = createSignal<PageImage[]>([]);
   const [currentPage, setCurrentPage] = createSignal(0);
+  const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [currentBookId, setCurrentBookId] = createSignal<string | null>(null);
   // Track the filesystem path of the current book (PDF file or directory)
   // Used for persisting to recent items so users can click to re-open
@@ -188,6 +190,13 @@ export const ReaderRoute: Component = () => {
   createEffect(() => {
     const title = bookTitle();
     if (title) mediaStats.setMedia(title);
+  });
+
+  createReaderAppActivityPublisher({
+    bookTitle,
+    currentPage,
+    pages,
+    isFocused: isWindowFocused,
   });
 
   // OCR debug overlay (dev mode only)
@@ -1074,6 +1083,19 @@ export const ReaderRoute: Component = () => {
 
   // Check for pending book on mount
   onMount(() => {
+    const syncWindowFocus = () => {
+      setIsWindowFocused(document.hasFocus())
+    }
+
+    window.addEventListener('focus', syncWindowFocus)
+    window.addEventListener('blur', syncWindowFocus)
+    document.addEventListener('visibilitychange', syncWindowFocus)
+    onCleanup(() => {
+      window.removeEventListener('focus', syncWindowFocus)
+      window.removeEventListener('blur', syncWindowFocus)
+      document.removeEventListener('visibilitychange', syncWindowFocus)
+    })
+
     const pendingBook = sessionStorage.getItem('mlearn_open_book');
     if (pendingBook) {
       sessionStorage.removeItem('mlearn_open_book');

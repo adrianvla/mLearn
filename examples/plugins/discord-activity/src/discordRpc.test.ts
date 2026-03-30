@@ -136,6 +136,61 @@ describe('discord rpc client', () => {
     expect(attempts).toEqual(['/tmp/discord-ipc-0', '/tmp/discord-ipc-1']);
   });
 
+  it('preserves Discord handshake error messages from RPC error payloads', async () => {
+    const socket = new FakeSocket([
+      {
+        op: 1,
+        payload: {
+          cmd: 'DISPATCH',
+          evt: 'ERROR',
+          data: {
+            message: 'Invalid Client ID',
+          },
+        },
+      },
+    ]);
+    const client = createDiscordRpcClient({
+      connect: async () => socket,
+      nonce: () => 'nonce-1',
+      pid: 123,
+    });
+
+    await expect(client.login({ clientId: 'bad-client-id' })).rejects.toThrow('Invalid Client ID');
+  });
+
+  it('preserves Discord activity command error messages from RPC error payloads', async () => {
+    const socket = new FakeSocket([
+      {
+        op: 1,
+        payload: {
+          cmd: 'DISPATCH',
+          evt: 'READY',
+          data: { user: { id: '1' } },
+        },
+      },
+      {
+        op: 1,
+        payload: {
+          cmd: 'SET_ACTIVITY',
+          evt: 'ERROR',
+          data: {
+            message: 'Bad activity payload',
+          },
+          nonce: 'nonce-1',
+        },
+      },
+    ]);
+    const client = createDiscordRpcClient({
+      connect: async () => socket,
+      nonce: () => 'nonce-1',
+      pid: 123,
+    });
+
+    await client.login({ clientId: 'client-123' });
+
+    await expect(client.setActivity({ details: 'Reviewing flashcards' })).rejects.toThrow('Bad activity payload');
+  });
+
   it('uses Windows Discord named pipe paths unchanged', () => {
     expect(getDiscordIpcCandidatePaths({ platform: 'win32' }).slice(0, 2)).toEqual([
       '\\\\?\\pipe\\discord-ipc-0',

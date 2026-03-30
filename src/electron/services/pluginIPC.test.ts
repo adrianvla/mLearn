@@ -34,7 +34,7 @@ vi.mock('electron', () => ({
 const mockActivityStore = {
   getCurrentActivity: vi.fn<() => AppActivity>(),
   subscribe: vi.fn<(listener: (activity: AppActivity) => void) => () => void>(),
-  updateSource: vi.fn<(sourceId: string, next: { isFocused: boolean; activity: AppActivity | null }) => void>(),
+  updateSource: vi.fn<(sourceId: string, next: { isFocused: boolean; activity: AppActivity | null; updatedAt?: number }) => void>(),
 };
 
 vi.mock('./pluginAppActivity', () => ({
@@ -352,6 +352,24 @@ describe('pluginIPC pluginOpenWindow', () => {
       isFocused: true,
       activity,
     });
+  });
+
+  it('ignores source updates from plugin host windows', async () => {
+    const activity = {
+      kind: 'flashcards',
+    } satisfies AppActivity;
+
+    getAppActivityUpdateSourceHandler()({
+      sender: {
+        getURL: () => 'http://localhost:3000/src/html/plugin-host.html',
+      },
+    }, {
+      sourceId: 'plugin-host-window',
+      isFocused: true,
+      activity,
+    });
+
+    expect(mockActivityStore.updateSource).not.toHaveBeenCalled();
   });
 
   it('app-internal reader source lifecycle updates the canonical store', async () => {

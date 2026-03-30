@@ -4,6 +4,7 @@
  */
 
 import type { Settings, FlashcardStore, LanguageData, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo } from './types';
+import type { AppActivity } from './plugins/appActivity';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from './plugins/types';
 
 export interface MLearnIPC {
@@ -27,6 +28,8 @@ export interface MLearnIPC {
   deleteFlashcardImage: (cardId: string) => Promise<void>;
 
   // Plugins
+  getAppActivity: () => Promise<AppActivity>;
+  onAppActivity: (callback: (activity: AppActivity) => void) => () => void;
   pluginGetList: () => Promise<PluginState[]>;
   pluginEnable: (pluginId: string) => Promise<PluginState | null>;
   pluginDisable: (pluginId: string) => Promise<PluginState | null>;
@@ -254,6 +257,10 @@ export interface MLearnIPC {
   onWindowContext: (callback: (context: Record<string, unknown> | null) => void) => (() => void) | undefined;
 }
 
+export interface MLearnInternal {
+  publishSourceActivityUpdate: (payload: { sourceId: string; isFocused: boolean; activity: AppActivity | null }) => void;
+}
+
 interface ImportMetaEnv {
   readonly DEV: boolean;
   readonly PROD: boolean;
@@ -263,6 +270,7 @@ interface ImportMetaEnv {
 declare global {
   interface Window {
     mLearnIPC?: MLearnIPC;
+    mLearnInternal?: MLearnInternal;
   }
   interface ImportMeta {
     readonly env: ImportMetaEnv;

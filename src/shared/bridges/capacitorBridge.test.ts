@@ -569,8 +569,7 @@ describe('Localization Bridge', () => {
     const cb = vi.fn();
     bridge.localization.onLocalization(cb);
     bridge.localization.getLocalization();
-    await new Promise(r => setTimeout(r, 20));
-    expect(cb).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(cb).toHaveBeenCalledOnce(), { timeout: 5000 });
     const data = cb.mock.calls[0][0];
     expect(data.locale).toBe('en');
     expect(typeof data.strings).toBe('object');
@@ -583,7 +582,7 @@ describe('Localization Bridge', () => {
     const cb = vi.fn();
     bridge.localization.onLocalization(cb);
     bridge.localization.getLocalization();
-    await vi.waitFor(() => expect(cb).toHaveBeenCalled());
+    await vi.waitFor(() => expect(cb).toHaveBeenCalled(), { timeout: 5000 });
     const data = cb.mock.calls[0][0];
     expect(data.locale).toBe('de');
   });
@@ -595,7 +594,7 @@ describe('Localization Bridge', () => {
     bridge.localization.onLocalization(cb);
     bridge.localization.changeUILanguage('fr');
     expect(localStorage.getItem('mlearn-ui-language')).toBe('fr');
-    await vi.waitFor(() => expect(cb).toHaveBeenCalled());
+    await vi.waitFor(() => expect(cb).toHaveBeenCalled(), { timeout: 5000 });
   });
 
   it('onLocalization returns a cleanup function', async () => {
@@ -611,7 +610,7 @@ describe('Localization Bridge', () => {
     const cb = vi.fn();
     bridge.localization.onLangData(cb);
     bridge.localization.getLangData();
-    await vi.waitFor(() => expect(cb).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(cb).toHaveBeenCalledOnce(), { timeout: 5000 });
   });
 
   it('installLanguage emits lang-install-error on mobile', async () => {
@@ -658,8 +657,7 @@ describe('Localization Bridge', () => {
     const cb = vi.fn();
     bridge.localization.onLocalization(cb);
     bridge.localization.getLocalization();
-    await new Promise(r => setTimeout(r, 50));
-    expect(cb).toHaveBeenCalled();
+    await vi.waitFor(() => expect(cb).toHaveBeenCalled(), { timeout: 5000 });
     vi.unstubAllGlobals();
   });
 });

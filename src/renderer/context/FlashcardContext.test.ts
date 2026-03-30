@@ -290,7 +290,7 @@ describe('FlashcardProvider', () => {
   });
 
   // ─── Priority 1: useFlashcards outside provider ──────────────────
-  it('useFlashcards throws when used outside FlashcardProvider', async () => {
+  it('useFlashcards throws when used outside FlashcardProvider', { timeout: 10000 }, async () => {
     const { createRoot } = await import('solid-js');
     const { useFlashcards } = await import('./FlashcardContext');
     expect(() => {

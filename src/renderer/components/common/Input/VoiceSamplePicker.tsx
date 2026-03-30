@@ -14,7 +14,7 @@ import { Btn } from '../Button/Button';
 import { IconBtn } from '../Button/Button';
 import { ProgressBar } from '../Feedback/ProgressBar';
 import { ConfirmDialog } from '../Modal/ConfirmDialog';
-import { PlayIcon, PauseIcon, TrashIcon } from '../../common';
+import { PlayIcon, PauseIcon, TrashIcon } from '../Misc';
 import type { VoiceSample, VoiceTtsAudio } from '../../../../shared/types';
 import './VoiceSamplePicker.css';
 

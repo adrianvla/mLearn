@@ -37,6 +37,7 @@ const mockPluginGrantPermissions = vi.fn<(pluginId: string) => Promise<PluginSta
 const mockPluginOpenWindow = vi.fn<(payload: { pluginId: string }) => Promise<boolean>>();
 const mockPluginSelectAndInstall = vi.fn<() => Promise<PluginInstallResult>>();
 const mockPluginUninstall = vi.fn<(pluginId: string) => Promise<boolean>>();
+const mockStatsServiceModuleLoaded = vi.fn();
 
 vi.mock('../../../../shared/bridges', () => ({
   getBridge: () => ({
@@ -54,6 +55,13 @@ vi.mock('../../../../shared/bridges', () => ({
     },
   }),
 }));
+
+vi.mock('../../../services/statsService', () => {
+  mockStatsServiceModuleLoaded();
+  return {
+    changeKnownStatus: vi.fn(),
+  };
+});
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -84,6 +92,7 @@ describe('PluginsTab', () => {
     mockPluginOpenWindow.mockReset();
     mockPluginSelectAndInstall.mockReset();
     mockPluginUninstall.mockReset();
+    mockStatsServiceModuleLoaded.mockClear();
   });
 
   afterEach(() => {
@@ -126,9 +135,9 @@ describe('PluginsTab', () => {
     expect(container.textContent).toContain('Loading plugins...');
 
     pendingPlugins.resolve([]);
-    await flushPromises();
-
-    expect(container.textContent).toContain('No plugins installed');
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('No plugins installed');
+    }, { timeout: 5000 });
 
     const installButton = Array.from(container.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('Install plugin'),
@@ -136,9 +145,19 @@ describe('PluginsTab', () => {
 
     expect(installButton).toBeTruthy();
     installButton!.click();
+    await vi.waitFor(() => {
+      expect(mockPluginSelectAndInstall).toHaveBeenCalledOnce();
+    }, { timeout: 5000 });
+    dispose();
+  }, 10000);
+
+  it('does not load stats service while rendering the plugins tab', async () => {
+    mockPluginGetList.mockResolvedValue([]);
+
+    const { dispose } = await renderPluginsTab();
     await flushPromises();
 
-    expect(mockPluginSelectAndInstall).toHaveBeenCalledOnce();
+    expect(mockStatsServiceModuleLoaded).not.toHaveBeenCalled();
     dispose();
   });
 

@@ -31,6 +31,9 @@ import type {
   SystemMemoryInfo,
 } from '../types';
 import type {
+  AppActivity,
+} from '../plugins/appActivity';
+import type {
   PluginInstallResult,
   PluginKVGetResult,
   PluginState,
@@ -67,6 +70,8 @@ export interface FlashcardBridge {
 }
 
 export interface PluginBridge {
+  getAppActivity: () => Promise<AppActivity>;
+  onAppActivity: (callback: (activity: AppActivity) => void) => () => void;
   pluginGetList: () => Promise<PluginState[]>;
   pluginEnable: (pluginId: string) => Promise<PluginState | null>;
   pluginDisable: (pluginId: string) => Promise<PluginState | null>;

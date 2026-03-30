@@ -1,14 +1,67 @@
 import type { AppActivity } from '../../../../src/shared/plugins/appActivity';
 
-export const DISCORD_ACTIVITY_CLIENT_ID = '1366046646392395806';
+export const DISCORD_ACTIVITY_CLIENT_ID = '1487871166633869342';
 
-const DEFAULT_DETAILS = 'Studying with mLearn';
-const DEFAULT_STATE = 'In a focused session';
+export type DiscordActivityStatusDescription = {
+  label: string;
+  state: string;
+  details: string;
+};
+
+const DISCORD_ACTIVITY_METADATA = {
+  idle: {
+    label: 'Idle',
+    state: 'Using mLearn',
+    exampleDetails: 'Idling',
+    getDetails: () => 'Idling',
+  },
+  reader: {
+    label: 'Reader',
+    state: 'Reading on mLearn',
+    exampleDetails: 'Reading page x/y of {work name}',
+    getDetails: (activity: Extract<AppActivity, { kind: 'reader' }>) =>
+      `Reading page ${activity.currentPage}/${activity.totalPages} of ${activity.workName}`,
+  },
+  video: {
+    label: 'Video',
+    state: 'Watching on mLearn',
+    exampleDetails: '{current time}/{duration} - {work name}',
+    getDetails: (activity: Extract<AppActivity, { kind: 'video' }>) =>
+      `${formatDuration(activity.currentTimeSeconds)}/${formatDuration(activity.durationSeconds)} - ${activity.workName}`,
+  },
+  flashcards: {
+    label: 'Flashcards',
+    state: 'Using mLearn',
+    exampleDetails: 'Reviewing Flashcards',
+    getDetails: () => 'Reviewing Flashcards',
+  },
+} as const;
+
+export const DISCORD_ACTIVITY_STATUS_DESCRIPTIONS: DiscordActivityStatusDescription[] = [
+  {
+    label: DISCORD_ACTIVITY_METADATA.idle.label,
+    state: DISCORD_ACTIVITY_METADATA.idle.state,
+    details: DISCORD_ACTIVITY_METADATA.idle.exampleDetails,
+  },
+  {
+    label: DISCORD_ACTIVITY_METADATA.reader.label,
+    state: DISCORD_ACTIVITY_METADATA.reader.state,
+    details: DISCORD_ACTIVITY_METADATA.reader.exampleDetails,
+  },
+  {
+    label: DISCORD_ACTIVITY_METADATA.video.label,
+    state: DISCORD_ACTIVITY_METADATA.video.state,
+    details: DISCORD_ACTIVITY_METADATA.video.exampleDetails,
+  },
+  {
+    label: DISCORD_ACTIVITY_METADATA.flashcards.label,
+    state: DISCORD_ACTIVITY_METADATA.flashcards.state,
+    details: DISCORD_ACTIVITY_METADATA.flashcards.exampleDetails,
+  },
+];
 
 export type DiscordActivityConfig = {
   enabled: boolean;
-  details: string;
-  state: string;
   showTimestamp: boolean;
 };
 
@@ -115,23 +168,23 @@ function mapAppActivityToDiscordPresence(activity: AppActivity): {
   switch (activity.kind) {
     case 'idle':
       return {
-        state: 'Using mLearn',
-        details: 'Idling',
+        state: DISCORD_ACTIVITY_METADATA.idle.state,
+        details: DISCORD_ACTIVITY_METADATA.idle.getDetails(),
       };
     case 'reader':
       return {
-        state: 'Reading on mLearn',
-        details: `Reading page ${activity.currentPage}/${activity.totalPages} of ${activity.workName}`,
+        state: DISCORD_ACTIVITY_METADATA.reader.state,
+        details: DISCORD_ACTIVITY_METADATA.reader.getDetails(activity),
       };
     case 'flashcards':
       return {
-        state: 'Using mLearn',
-        details: 'Reviewing Flashcards',
+        state: DISCORD_ACTIVITY_METADATA.flashcards.state,
+        details: DISCORD_ACTIVITY_METADATA.flashcards.getDetails(),
       };
     case 'video':
       return {
-        state: 'Watching on mLearn',
-        details: `${formatDuration(activity.currentTimeSeconds)}/${formatDuration(activity.durationSeconds)} - ${activity.workName}`,
+        state: DISCORD_ACTIVITY_METADATA.video.state,
+        details: DISCORD_ACTIVITY_METADATA.video.getDetails(activity),
       };
   }
 }
@@ -152,27 +205,14 @@ function normalizeBoolean(value: string | null, fallback: boolean): boolean {
   return fallback;
 }
 
-function normalizeString(value: string | null, fallback: string): string {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-
-  const trimmedValue = value.trim();
-  return trimmedValue.length > 0 ? trimmedValue : fallback;
-}
-
 export async function loadDiscordActivityConfig(storage: Storage): Promise<DiscordActivityConfig> {
-  const [enabledRaw, detailsRaw, stateRaw, showTimestampRaw] = await Promise.all([
+  const [enabledRaw, showTimestampRaw] = await Promise.all([
     storage.get('discord-activity:enabled'),
-    storage.get('discord-activity:details'),
-    storage.get('discord-activity:state'),
     storage.get('discord-activity:showTimestamp'),
   ]);
 
   return {
     enabled: normalizeBoolean(enabledRaw, true),
-    details: normalizeString(detailsRaw, DEFAULT_DETAILS),
-    state: normalizeString(stateRaw, DEFAULT_STATE),
     showTimestamp: normalizeBoolean(showTimestampRaw, true),
   };
 }
