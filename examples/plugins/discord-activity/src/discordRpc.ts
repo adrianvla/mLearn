@@ -31,6 +31,11 @@ const OPCODE_HANDSHAKE = 0;
 const OPCODE_FRAME = 1;
 const OPCODE_CLOSE = 2;
 
+function isMissingDiscordSocketError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  return /ENOENT/i.test(message) && /discord-ipc-\d+/i.test(message);
+}
+
 export function encodeFrame(frame: DiscordRpcFrame): Buffer {
   const payload = Buffer.from(JSON.stringify(frame.payload), 'utf8');
   const header = Buffer.alloc(8);
@@ -264,6 +269,10 @@ export function createDiscordRpcClient({
       }
 
       if (!socket) {
+        if (isMissingDiscordSocketError(lastError)) {
+          throw new Error('Discord is not running');
+        }
+
         throw new Error(lastError instanceof Error ? lastError.message : 'Discord IPC socket not found');
       }
 

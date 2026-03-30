@@ -590,6 +590,92 @@ describe('discord activity runtime', () => {
     expect(status.lastError).toContain('Failed to publish presence');
   });
 
+  it('queues only the latest pending activity while a publish is in flight', async () => {
+    const storage = createStorage({
+      'discord-activity:enabled': 'true',
+      'discord-activity:showTimestamp': 'true',
+    });
+    const inFlightPublish = createDeferred<void>();
+    const rpcClient = createRpcClient();
+    rpcClient.setActivity
+      .mockImplementationOnce(async () => undefined)
+      .mockImplementationOnce(async () => inFlightPublish.promise)
+      .mockImplementationOnce(async () => undefined);
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
+    const runtime = createDiscordActivityRuntime({
+      storage,
+      pluginBridge,
+      createRpcClient: () => rpcClient,
+      now: () => new Date('2026-03-29T12:00:00.000Z'),
+    });
+
+    await runtime.activate();
+
+    pluginBridge.emit({
+      kind: 'flashcards',
+    });
+    await flushMicrotasks();
+
+    expect(rpcClient.setActivity).toHaveBeenCalledTimes(2);
+
+    pluginBridge.emit({
+      kind: 'reader',
+      workName: 'Yotsuba',
+      currentPage: 3,
+      totalPages: 20,
+    });
+    await flushMicrotasks();
+
+    expect(rpcClient.setActivity).toHaveBeenCalledTimes(2);
+
+    inFlightPublish.resolve();
+    await flushMicrotasks();
+
+    expect(rpcClient.setActivity).toHaveBeenCalledTimes(3);
+    expect(getActivityPayload(rpcClient, 2)).toMatchObject({
+      details: 'Reading page 3/20 of Yotsuba',
+    });
+
+    expect(getActivityPayload(rpcClient, 0)).toMatchObject({
+      details: 'Idling',
+    });
+    expect(getActivityPayload(rpcClient, 1)).toMatchObject({
+      details: 'Reviewing Flashcards',
+    });
+
+    const status = await readPersistedStatus(storage);
+    expect(status).toMatchObject({
+      connected: true,
+      lastError: '',
+    });
+  });
+
+  it('logs runtime failures with the plugin name prefix', async () => {
+    const storage = createStorage({
+      'discord-activity:enabled': 'true',
+      'discord-activity:showTimestamp': 'true',
+    });
+    const rpcClient = createRpcClient();
+    rpcClient.setActivity.mockRejectedValueOnce(new Error('Failed to publish presence'));
+    const pluginBridge = createPluginBridge({ kind: 'idle' });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const runtime = createDiscordActivityRuntime({
+      storage,
+      pluginBridge,
+      createRpcClient: () => rpcClient,
+      now: () => new Date('2026-03-29T12:00:00.000Z'),
+    });
+
+    await runtime.activate();
+
+    expect(consoleError).toHaveBeenCalledWith(
+      '[Plugin] [Discord Activity]',
+      'Failed to publish presence',
+    );
+
+    consoleError.mockRestore();
+  });
+
   it('exports one checked-in Discord client ID constant', () => {
     expect(DISCORD_ACTIVITY_CLIENT_ID).toMatch(/^\d{10,}$/);
   });

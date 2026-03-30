@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-
-import { getBridge } from '../../../../src/shared/bridges';
+import type { PluginBusEnvelope } from '../../../../src/shared/pluginBus';
 
 import { createDiscordRpcClient } from './discordRpc';
 import { createDiscordActivityRuntime } from './runtime';
@@ -35,6 +34,23 @@ function savePluginStore(store: Record<string, string>): void {
   fs.writeFileSync(kvPath, JSON.stringify(store, null, 2), 'utf-8');
 }
 
+type MainProcessPluginBus = {
+  getPluginValue: (channel: string) => Promise<PluginBusEnvelope>;
+  onPluginValue: (channel: string, callback: (nextValue: PluginBusEnvelope, previousValue: PluginBusEnvelope) => void) => () => void;
+};
+
+function getPluginBus(): MainProcessPluginBus {
+  const pluginBus = (globalThis as typeof globalThis & {
+    __mlearnPluginBus?: MainProcessPluginBus;
+  }).__mlearnPluginBus;
+
+  if (!pluginBus) {
+    throw new Error('Main-process plugin bus is not available');
+  }
+
+  return pluginBus;
+}
+
 const runtime = createDiscordActivityRuntime({
   storage: {
     get: async (key: string) => loadPluginStore()[key] ?? null,
@@ -45,8 +61,8 @@ const runtime = createDiscordActivityRuntime({
     },
   },
   pluginBridge: {
-    getPluginValue: (channel) => getBridge().plugins.getPluginValue(channel),
-    onPluginValue: (channel, callback) => getBridge().plugins.onPluginValue(channel, callback),
+    getPluginValue: (channel) => getPluginBus().getPluginValue(channel),
+    onPluginValue: (channel, callback) => getPluginBus().onPluginValue(channel, callback),
   },
   createRpcClient: () => createDiscordRpcClient(),
 });
