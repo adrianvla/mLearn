@@ -136,6 +136,17 @@ describe('discord rpc client', () => {
     expect(attempts).toEqual(['/tmp/discord-ipc-0', '/tmp/discord-ipc-1']);
   });
 
+  it('reports a friendly error when Discord IPC sockets are unavailable', async () => {
+    const client = createDiscordRpcClient({
+      connect: async (candidatePath) => {
+        throw new Error(`connect ENOENT ${candidatePath}`);
+      },
+      getCandidatePaths: () => ['/tmp/discord-ipc-8', '/tmp/discord-ipc-9'],
+    });
+
+    await expect(client.login({ clientId: 'client-123' })).rejects.toThrow('Discord is not running');
+  });
+
   it('preserves Discord handshake error messages from RPC error payloads', async () => {
     const socket = new FakeSocket([
       {

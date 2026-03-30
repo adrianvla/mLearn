@@ -29,6 +29,15 @@ import { openManagedChildWindow } from './windowManager';
 const pluginBusStore = createPluginBusStore();
 const pluginHostPublishers = new Map<number, PluginBusPublisher>();
 
+type GlobalPluginBus = {
+  getPluginValue: (channel: string) => Promise<PluginBusEnvelope>
+  onPluginValue: (channel: string, callback: (nextValue: PluginBusEnvelope, previousValue: PluginBusEnvelope) => void) => () => void
+}
+
+function getPluginGlobalScope(): typeof globalThis & { __mlearnPluginBus?: GlobalPluginBus } {
+  return globalThis as typeof globalThis & { __mlearnPluginBus?: GlobalPluginBus }
+}
+
 function broadcast(channel: string, payload: unknown): void {
   const windows = BrowserWindow.getAllWindows();
   for (const window of windows) {
@@ -206,6 +215,11 @@ function savePluginKV(pluginId: string, store: Record<string, string>): void {
 }
 
 export function setupPluginIPC(): void {
+  getPluginGlobalScope().__mlearnPluginBus = {
+    getPluginValue: async (channel: string) => pluginBusStore.getPluginValue(channel),
+    onPluginValue: (channel: string, callback: (nextValue: PluginBusEnvelope, previousValue: PluginBusEnvelope) => void) => pluginBusStore.onPluginValue(channel, callback),
+  }
+
   pluginBusStore.onPluginValue('app.user.activity', (nextValue, previousValue) => {
     broadcastPluginValueChange('app.user.activity', nextValue, previousValue);
   });

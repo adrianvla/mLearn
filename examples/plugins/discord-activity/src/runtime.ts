@@ -2,6 +2,7 @@ import type { AppActivity } from '../../../../src/shared/plugins/appActivity';
 import type { PluginBusEnvelope } from '../../../../src/shared/pluginBus';
 
 export const DISCORD_ACTIVITY_CLIENT_ID = '1487871166633869342';
+const PLUGIN_LOG_PREFIX = '[Plugin] [Discord Activity]';
 
 export type DiscordActivityStatusDescription = {
   label: string;
@@ -104,6 +105,8 @@ type RuntimeSession = {
   unsubscribeFromPluginValue?: () => void;
   activitySessionKey?: string;
   activitySessionStart?: number;
+  isPublishingActivity?: boolean;
+  pendingActivity?: AppActivity;
 };
 
 const RUNTIME_STATUS_KEY = 'discord-activity:runtime-status';
@@ -278,16 +281,37 @@ export function createDiscordActivityRuntime({
       return;
     }
 
-    const presence = mapAppActivityToDiscordPresence(activity);
-    const timestamps = getTimestamps(session, activity);
+    if (session.isPublishingActivity) {
+      session.pendingActivity = activity;
+      return;
+    }
 
-    await session.client.setActivity({
-      ...presence,
-      ...(timestamps ? { timestamps } : {}),
-    });
+    session.isPublishingActivity = true;
+
+    try {
+      let nextActivity: AppActivity | undefined = activity;
+
+      while (nextActivity && activeSession === session) {
+        session.pendingActivity = undefined;
+
+        const presence = mapAppActivityToDiscordPresence(nextActivity);
+        const timestamps = getTimestamps(session, nextActivity);
+
+        await session.client.setActivity({
+          ...presence,
+          ...(timestamps ? { timestamps } : {}),
+        });
+
+        nextActivity = session.pendingActivity;
+      }
+    } finally {
+      session.isPublishingActivity = false;
+    }
   }
 
   async function handleRuntimeError(session: RuntimeSession, error: unknown): Promise<void> {
+    const errorMessage = getErrorMessage(error);
+
     const isCurrentSession = activeSession === session;
     if (isCurrentSession) {
       session.unsubscribeFromPluginValue?.();
@@ -301,9 +325,11 @@ export function createDiscordActivityRuntime({
       return;
     }
 
+    console.error(PLUGIN_LOG_PREFIX, errorMessage);
+
     await persistRuntimeStatus(storage, {
       connected: false,
-      lastError: getErrorMessage(error),
+      lastError: errorMessage,
     });
   }
 
