@@ -216,7 +216,7 @@ export const PluginsTab: Component = () => {
                         <Show when={plugin().author}> - {plugin().author}</Show>
                       </p>
                     </div>
-                    <span class={`plugins-tab__status plugins-tab__status--${plugin().status}`}>
+                    <span class={`plugins-tab__status plugins-tab__status--${plugin().status}`}> {/*TODO: This status must be a badge component. If you see this, also make the badge components have a faint background tint using the already defined CSS variables.*/}
                       {t(`mlearn.Settings.Plugins.Status.${plugin().status}`)}
                     </span>
                   </div>
@@ -267,7 +267,7 @@ export const PluginsTab: Component = () => {
 
                     <Show when={canOpenWindow()}>
                       <Btn
-                        variant="ghost"
+                        variant="primary"
                         onClick={() => handleOpenWindow(plugin().id)}
                         disabled={isBusy()}
                       >
