@@ -226,7 +226,10 @@ async function readExpectedFrame(socket: RpcSocket, expectedOp: number): Promise
     }
 
     if (frame.op === OPCODE_CLOSE) {
-      throw new Error('Discord RPC closed the IPC connection');
+      const message = typeof frame.payload.message === 'string' && frame.payload.message.trim().length > 0
+        ? frame.payload.message
+        : 'Discord RPC closed the IPC connection';
+      throw new Error(message);
     }
   }
 }

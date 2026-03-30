@@ -191,6 +191,25 @@ describe('discord rpc client', () => {
     await expect(client.setActivity({ details: 'Reviewing flashcards' })).rejects.toThrow('Bad activity payload');
   });
 
+  it('preserves Discord close-frame payload messages', async () => {
+    const socket = new FakeSocket([
+      {
+        op: 2,
+        payload: {
+          code: 4000,
+          message: 'Invalid Client ID',
+        },
+      },
+    ]);
+    const client = createDiscordRpcClient({
+      connect: async () => socket,
+      nonce: () => 'nonce-1',
+      pid: 123,
+    });
+
+    await expect(client.login({ clientId: 'bad-client-id' })).rejects.toThrow('Invalid Client ID');
+  });
+
   it('uses Windows Discord named pipe paths unchanged', () => {
     expect(getDiscordIpcCandidatePaths({ platform: 'win32' }).slice(0, 2)).toEqual([
       '\\\\?\\pipe\\discord-ipc-0',
