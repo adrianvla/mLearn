@@ -116,4 +116,22 @@ describe('plugin examples and public docs', () => {
     expect(readme).toContain('real Discord Rich Presence integration');
     expect(readme).toContain('not just placeholder host-window scaffolding');
   });
+
+  it('documents the generic plugin bus instead of the removed activity-specific API', () => {
+    const readme = readRequiredFile('docs/plugins/README.md');
+
+    expect(readme).toContain('generic plugin bus');
+    expect(readme).toContain('value channels');
+    expect(readme).toContain('event channels');
+    expect(readme).toContain('app.user.activity');
+    expect(readme).toContain('getPluginValue');
+    expect(readme).toContain('onPluginValue');
+    expect(readme).toContain('shared.');
+    expect(readme).toContain('immediately');
+    expect(readme).toContain('structural');
+
+    expect(readme).not.toContain('getAppActivity');
+    expect(readme).not.toContain('onAppActivity');
+    expect(readme).not.toContain('docs/plugins/activity.md');
+  });
 });

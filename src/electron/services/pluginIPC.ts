@@ -1,10 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { BrowserWindow, ipcMain } from 'electron';
-import { APP_ACTIVITY_IPC_CHANNELS } from '../../shared/appActivityIpc';
 import { WINDOW_TYPES } from '../../shared/constants';
 import { PLUGIN_IPC_CHANNELS } from '../../shared/plugins/constants';
-import type { AppActivity } from '../../shared/plugins/appActivity';
+import type { PluginBusEnvelope, PluginBusJSONValue, PluginBusPublisher } from '../../shared/pluginBus';
 import type {
   PluginHostContext,
   PluginInstallResult,
@@ -23,13 +22,14 @@ import {
   normalizePluginId,
   removePluginFromRegistry,
 } from './pluginManager';
-import { createPluginAppActivityStore } from './pluginAppActivity';
+import { createPluginBusStore } from './pluginBus';
 import { installPlugin, selectAndInstallPlugin, uninstallPlugin } from './pluginInstaller';
 import { openManagedChildWindow } from './windowManager';
 
-const pluginAppActivityStore = createPluginAppActivityStore();
+const pluginBusStore = createPluginBusStore();
+const pluginHostPublishers = new Map<number, PluginBusPublisher>();
 
-function broadcast(channel: string, payload: PluginState[] | PluginState | PluginInstallResult | AppActivity): void {
+function broadcast(channel: string, payload: unknown): void {
   const windows = BrowserWindow.getAllWindows();
   for (const window of windows) {
     if (!window.isDestroyed()) {
@@ -52,8 +52,47 @@ function broadcastPluginState(plugin: PluginState | null): PluginState | null {
   return plugin;
 }
 
-function broadcastAppActivity(activity: AppActivity): void {
-  broadcast(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_CHANGED, activity);
+function broadcastPluginValueChange(channel: string, nextValue: PluginBusEnvelope, previousValue: PluginBusEnvelope): void {
+  broadcast(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_VALUE_CHANGED, {
+    channel,
+    nextValue,
+    previousValue,
+  });
+}
+
+function normalizePluginBusValue(value: PluginBusJSONValue): PluginBusJSONValue {
+  if (value === null || typeof value !== 'object') {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizePluginBusValue(entry))
+  }
+
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, normalizePluginBusValue(value[key])]),
+  )
+}
+
+function arePluginBusEnvelopesEqual(left: PluginBusEnvelope, right: PluginBusEnvelope): boolean {
+  if (left.hasValue !== right.hasValue) {
+    return false
+  }
+
+  if (!left.hasValue || !right.hasValue) {
+    return true
+  }
+
+  return JSON.stringify(normalizePluginBusValue(left.value)) === JSON.stringify(normalizePluginBusValue(right.value))
+}
+
+function broadcastPluginEvent(channel: string, payload: PluginBusJSONValue): void {
+  broadcast(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_EVENT_EMITTED, {
+    channel,
+    payload,
+  });
 }
 
 function isPluginHostSender(sender: Electron.WebContents | undefined): boolean {
@@ -62,6 +101,10 @@ function isPluginHostSender(sender: Electron.WebContents | undefined): boolean {
   }
 
   return sender.getURL().includes('/plugin-host.html')
+}
+
+function getPluginPublisher(sender: Electron.WebContents): PluginBusPublisher {
+  return pluginHostPublishers.get(sender.id) ?? { scope: 'plugin', pluginId: 'host' };
 }
 
 function isPathWithinDirectory(directoryPath: string, candidatePath: string): boolean {
@@ -163,39 +206,56 @@ function savePluginKV(pluginId: string, store: Record<string, string>): void {
 }
 
 export function setupPluginIPC(): void {
-  pluginAppActivityStore.subscribe((activity) => {
-    broadcastAppActivity(activity);
+  pluginBusStore.onPluginValue('app.user.activity', (nextValue, previousValue) => {
+    broadcastPluginValueChange('app.user.activity', nextValue, previousValue);
   });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_GET_LIST, async (): Promise<PluginState[]> => {
     return broadcastPluginList();
   });
 
-  ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_GET, async (): Promise<AppActivity> => {
-    return pluginAppActivityStore.getCurrentActivity();
+  ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_GET_VALUE, async (_event, channel: string): Promise<PluginBusEnvelope> => {
+    return pluginBusStore.getPluginValue(channel);
   });
 
-  ipcMain.on(
-    APP_ACTIVITY_IPC_CHANNELS.SOURCE_UPDATE,
-    (
-      event,
-      payload: {
-        sourceId: string;
-        isFocused: boolean;
-        activity: AppActivity | null;
-        updatedAt?: number;
-      },
-    ): void => {
-      if (isPluginHostSender(event.sender)) {
-        return
-      }
+  ipcMain.on(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_GET_VALUE_SYNC, (event, channel: string): void => {
+    event.returnValue = pluginBusStore.getPluginValue(channel)
+  });
 
-      const next = payload.updatedAt === undefined
-        ? { isFocused: payload.isFocused, activity: payload.activity }
-        : { isFocused: payload.isFocused, activity: payload.activity, updatedAt: payload.updatedAt };
-      pluginAppActivityStore.updateSource(payload.sourceId, next);
-    },
-  );
+  ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_SET_VALUE, async (event, channel: string, value: PluginBusJSONValue): Promise<void> => {
+    const previousValue = pluginBusStore.getPluginValue(channel);
+    pluginBusStore.setPluginValue(getPluginPublisher(event.sender), channel, value);
+    const nextValue = pluginBusStore.getPluginValue(channel);
+
+    if (channel !== 'app.user.activity' && !arePluginBusEnvelopesEqual(previousValue, nextValue)) {
+      broadcastPluginValueChange(channel, nextValue, previousValue);
+    }
+  });
+
+  ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_EMIT_EVENT, async (event, channel: string, payload: PluginBusJSONValue): Promise<void> => {
+    pluginBusStore.emitPluginEvent(getPluginPublisher(event.sender), channel, payload);
+    broadcastPluginEvent(channel, payload);
+  });
+
+  ipcMain.on(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_SET_SCOPED_VALUE, (event, payload: {
+    sourceId: string;
+    isFocused: boolean;
+    channel: string;
+    value: PluginBusJSONValue;
+  }): void => {
+    if (isPluginHostSender(event.sender)) {
+      return
+    }
+
+    const previousValue = pluginBusStore.getPluginValue(payload.channel);
+    pluginBusStore.setAppSourceFocused(payload.sourceId, payload.isFocused);
+    pluginBusStore.setAppScopedValue(payload.channel, payload.sourceId, payload.value);
+    const nextValue = pluginBusStore.getPluginValue(payload.channel);
+
+    if (payload.channel !== 'app.user.activity' && !arePluginBusEnvelopesEqual(previousValue, nextValue)) {
+      broadcastPluginValueChange(payload.channel, nextValue, previousValue);
+    }
+  });
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_ENABLE, async (_event, pluginId: string): Promise<PluginState | null> => {
     return broadcastPluginState(await enablePlugin(pluginId));
@@ -309,11 +369,14 @@ export function setupPluginIPC(): void {
       return false;
     }
 
-    openManagedChildWindow(
+    const hostWindow = openManagedChildWindow(
       WINDOW_TYPES.PLUGIN_HOST,
       { width: 720, height: 520 },
       hostContext as unknown as Record<string, unknown>,
     );
+    if (hostWindow?.webContents?.id !== undefined) {
+      pluginHostPublishers.set(hostWindow.webContents.id, { scope: 'plugin', pluginId: payload.pluginId });
+    }
     return true;
   });
 }

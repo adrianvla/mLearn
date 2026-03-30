@@ -44,9 +44,9 @@ const runtime = createDiscordActivityRuntime({
       savePluginStore(store);
     },
   },
-  appActivity: {
-    getAppActivity: () => getBridge().plugins.getAppActivity(),
-    onAppActivity: (callback) => getBridge().plugins.onAppActivity(callback),
+  pluginBridge: {
+    getPluginValue: (channel) => getBridge().plugins.getPluginValue(channel),
+    onPluginValue: (channel, callback) => getBridge().plugins.onPluginValue(channel, callback),
   },
   createRpcClient: () => createDiscordRpcClient(),
 });

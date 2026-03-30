@@ -4,28 +4,33 @@ import { normalizeReaderAppActivity, type AppActivity } from '../../../../shared
 
 export const READER_ACTIVITY_SOURCE_ID = 'reader-route'
 
-export type SourceActivityUpdatePayload = {
+export type ScopedActivityPayload = {
   sourceId: string
   isFocused: boolean
-  activity: AppActivity | null
+  value: AppActivity | null
 }
 
-export function publishSourceActivityUpdate(payload: SourceActivityUpdatePayload): void {
-  window.mLearnInternal?.publishSourceActivityUpdate(payload)
+export function publishScopedActivityValue(payload: ScopedActivityPayload): void {
+  window.mLearnInternal?.setScopedPluginValue({
+    sourceId: payload.sourceId,
+    isFocused: payload.isFocused,
+    channel: 'app.user.activity',
+    value: payload.value,
+  })
 }
 
-export function createReaderAppActivityPublisher(input: {
+export function syncReaderPluginActivity(input: {
   bookTitle: Accessor<string>
   currentPage: Accessor<number>
   pages: Accessor<ArrayLike<unknown>>
   isFocused: Accessor<boolean>
-  publishSourceUpdate?: (payload: SourceActivityUpdatePayload) => void
+  publishScopedValue?: (payload: ScopedActivityPayload) => void
 }): void {
-  const publishSourceUpdate = input.publishSourceUpdate ?? publishSourceActivityUpdate
+  const publishScopedValue = input.publishScopedValue ?? publishScopedActivityValue
 
   createEffect(() => {
     const isFocused = input.isFocused()
-    const activity = isFocused
+    const value = isFocused
       ? normalizeReaderAppActivity(
         input.bookTitle(),
         input.currentPage(),
@@ -33,18 +38,18 @@ export function createReaderAppActivityPublisher(input: {
       )
       : null
 
-    publishSourceUpdate({
+    publishScopedValue({
       sourceId: READER_ACTIVITY_SOURCE_ID,
       isFocused,
-      activity,
+      value,
     })
   })
 
   onCleanup(() => {
-    publishSourceUpdate({
+    publishScopedValue({
       sourceId: READER_ACTIVITY_SOURCE_ID,
       isFocused: false,
-      activity: null,
+      value: null,
     })
   })
 }

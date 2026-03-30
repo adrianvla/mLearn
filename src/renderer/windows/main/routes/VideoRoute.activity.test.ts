@@ -1,12 +1,10 @@
 import { createRoot, createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createPluginAppActivityStore } from '../../../../electron/services/pluginAppActivity'
-
-describe('createVideoAppActivityPublisher', () => {
+describe('syncVideoPluginActivity', () => {
   it('publishes a new snapshot immediately when the work changes', async () => {
-    const { createVideoAppActivityPublisher } = await import('./videoActivityPublisher')
-    const publishSourceUpdate = vi.fn()
+    const { syncVideoPluginActivity } = await import('./videoPluginActivity')
+    const publishScopedValue = vi.fn()
 
     let setWorkName!: (value: string) => void
     let dispose!: () => void
@@ -19,25 +17,25 @@ describe('createVideoAppActivityPublisher', () => {
       const [isFocused] = createSignal(true)
       setWorkName = updateWorkName
 
-      createVideoAppActivityPublisher({
+      syncVideoPluginActivity({
         workName,
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishSourceUpdate,
+        publishScopedValue,
       })
     })
 
     await Promise.resolve()
-    publishSourceUpdate.mockClear()
+    publishScopedValue.mockClear()
 
     setWorkName('Princess Mononoke')
     await Promise.resolve()
 
-    expect(publishSourceUpdate).toHaveBeenCalledWith({
+    expect(publishScopedValue).toHaveBeenCalledWith({
       sourceId: 'video-route',
       isFocused: true,
-      activity: {
+      value: {
         kind: 'video',
         workName: 'Princess Mononoke',
         currentTimeSeconds: 12,
@@ -49,8 +47,8 @@ describe('createVideoAppActivityPublisher', () => {
   })
 
   it('publishes a video activity as soon as duration becomes available', async () => {
-    const { createVideoAppActivityPublisher } = await import('./videoActivityPublisher')
-    const publishSourceUpdate = vi.fn()
+    const { syncVideoPluginActivity } = await import('./videoPluginActivity')
+    const publishScopedValue = vi.fn()
 
     let setDurationSeconds!: (value: number | null) => void
     let dispose!: () => void
@@ -63,25 +61,25 @@ describe('createVideoAppActivityPublisher', () => {
       const [isFocused] = createSignal(true)
       setDurationSeconds = updateDurationSeconds
 
-      createVideoAppActivityPublisher({
+      syncVideoPluginActivity({
         workName,
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishSourceUpdate,
+        publishScopedValue,
       })
     })
 
     await Promise.resolve()
-    publishSourceUpdate.mockClear()
+    publishScopedValue.mockClear()
 
     setDurationSeconds(300)
     await Promise.resolve()
 
-    expect(publishSourceUpdate).toHaveBeenCalledWith({
+    expect(publishScopedValue).toHaveBeenCalledWith({
       sourceId: 'video-route',
       isFocused: true,
-      activity: {
+      value: {
         kind: 'video',
         workName: 'Spirited Away',
         currentTimeSeconds: 12,
@@ -92,9 +90,9 @@ describe('createVideoAppActivityPublisher', () => {
     dispose()
   })
 
-  it('keeps the canonical activity at idle until duration is known', async () => {
-    const { createVideoAppActivityPublisher } = await import('./videoActivityPublisher')
-    const store = createPluginAppActivityStore()
+  it('publishes null when duration is missing', async () => {
+    const { syncVideoPluginActivity } = await import('./videoPluginActivity')
+    const publishScopedValue = vi.fn()
 
     createRoot((dispose) => {
       const [workName] = createSignal('Spirited Away')
@@ -102,14 +100,12 @@ describe('createVideoAppActivityPublisher', () => {
       const [durationSeconds] = createSignal<number | null>(null)
       const [isFocused] = createSignal(true)
 
-      createVideoAppActivityPublisher({
+      syncVideoPluginActivity({
         workName,
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishSourceUpdate: ({ sourceId, isFocused, activity }) => {
-          store.updateSource(sourceId, { isFocused, activity })
-        },
+        publishScopedValue,
       })
 
       queueMicrotask(dispose)
@@ -117,12 +113,16 @@ describe('createVideoAppActivityPublisher', () => {
 
     await Promise.resolve()
 
-    expect(store.getCurrentActivity()).toEqual({ kind: 'idle' })
+    expect(publishScopedValue).toHaveBeenCalledWith({
+      sourceId: 'video-route',
+      isFocused: true,
+      value: null,
+    })
   })
 
-  it('publishes when playback enters a new 15-second bucket', async () => {
-    const { createVideoAppActivityPublisher } = await import('./videoActivityPublisher')
-    const publishSourceUpdate = vi.fn()
+  it('publishes on 15-second bucket transitions', async () => {
+    const { syncVideoPluginActivity } = await import('./videoPluginActivity')
+    const publishScopedValue = vi.fn()
 
     let setCurrentTimeSeconds!: (value: number) => void
     let dispose!: () => void
@@ -135,25 +135,25 @@ describe('createVideoAppActivityPublisher', () => {
       const [isFocused] = createSignal(true)
       setCurrentTimeSeconds = updateCurrentTimeSeconds
 
-      createVideoAppActivityPublisher({
+      syncVideoPluginActivity({
         workName,
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishSourceUpdate,
+        publishScopedValue,
       })
     })
 
     await Promise.resolve()
-    publishSourceUpdate.mockClear()
+    publishScopedValue.mockClear()
 
     setCurrentTimeSeconds(15)
     await Promise.resolve()
 
-    expect(publishSourceUpdate).toHaveBeenCalledWith({
+    expect(publishScopedValue).toHaveBeenCalledWith({
       sourceId: 'video-route',
       isFocused: true,
-      activity: {
+      value: {
         kind: 'video',
         workName: 'Spirited Away',
         currentTimeSeconds: 15,
@@ -165,8 +165,8 @@ describe('createVideoAppActivityPublisher', () => {
   })
 
   it('does not publish when playback stays in the same 15-second bucket', async () => {
-    const { createVideoAppActivityPublisher } = await import('./videoActivityPublisher')
-    const publishSourceUpdate = vi.fn()
+    const { syncVideoPluginActivity } = await import('./videoPluginActivity')
+    const publishScopedValue = vi.fn()
 
     let setCurrentTimeSeconds!: (value: number) => void
     let dispose!: () => void
@@ -179,22 +179,22 @@ describe('createVideoAppActivityPublisher', () => {
       const [isFocused] = createSignal(true)
       setCurrentTimeSeconds = updateCurrentTimeSeconds
 
-      createVideoAppActivityPublisher({
+      syncVideoPluginActivity({
         workName,
         currentTimeSeconds,
         durationSeconds,
         isFocused,
-        publishSourceUpdate,
+        publishScopedValue,
       })
     })
 
     await Promise.resolve()
-    publishSourceUpdate.mockClear()
+    publishScopedValue.mockClear()
 
     setCurrentTimeSeconds(13)
     await Promise.resolve()
 
-    expect(publishSourceUpdate).not.toHaveBeenCalled()
+    expect(publishScopedValue).not.toHaveBeenCalled()
 
     dispose()
   })

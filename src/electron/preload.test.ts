@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { APP_ACTIVITY_IPC_CHANNELS } from '../shared/appActivityIpc'
 import { PLUGIN_IPC_CHANNELS } from '../shared/plugins/constants'
 
 const sendMock = vi.fn()
+const sendSyncMock = vi.fn()
 const invokeMock = vi.fn()
 const onMock = vi.fn()
 const removeListenerMock = vi.fn()
@@ -16,6 +16,7 @@ vi.mock('electron', () => ({
   },
   ipcRenderer: {
     send: sendMock,
+    sendSync: sendSyncMock,
     invoke: invokeMock,
     on: onMock,
     removeListener: removeListenerMock,
@@ -25,10 +26,11 @@ vi.mock('electron', () => ({
   },
 }))
 
-describe('preload app activity source update hook', () => {
+describe('preload plugin bus bridge', () => {
   beforeEach(() => {
     vi.resetModules()
     sendMock.mockReset()
+    sendSyncMock.mockReset()
     invokeMock.mockReset()
     onMock.mockReset()
     removeListenerMock.mockReset()
@@ -36,27 +38,27 @@ describe('preload app activity source update hook', () => {
     getPathForFileMock.mockReset()
   })
 
-  it('exposes an app-internal source update sender on a separate internal surface', async () => {
+  it('exposes app-internal scoped publishing on a separate internal surface', async () => {
     await import('./preload')
 
-    const exposedApi = exposeInMainWorldMock.mock.calls[0]?.[1] as {
-      getAppActivity?: () => Promise<unknown>
-      onAppActivity?: (callback: (activity: unknown) => void) => unknown
-    }
     expect(exposeInMainWorldMock).toHaveBeenNthCalledWith(2, 'mLearnInternal', expect.any(Object))
 
     const exposedInternalApi = exposeInMainWorldMock.mock.calls[1]?.[1] as {
-      publishSourceActivityUpdate?: (payload: {
+      setScopedPluginValue?: (payload: {
         sourceId: string
         isFocused: boolean
-        activity: { kind: 'reader'; workName: string; currentPage: number; totalPages: number } | null
+        channel: string
+        value: { kind: 'reader'; workName: string; currentPage: number; totalPages: number } | null
       }) => void
     }
 
-    exposedInternalApi.publishSourceActivityUpdate?.({
+    expect(exposedInternalApi).not.toHaveProperty('publishSourceActivityUpdate')
+
+    exposedInternalApi.setScopedPluginValue?.({
       sourceId: 'reader-route',
       isFocused: true,
-      activity: {
+      channel: 'app.user.activity',
+      value: {
         kind: 'reader',
         workName: 'Yotsuba',
         currentPage: 3,
@@ -64,10 +66,11 @@ describe('preload app activity source update hook', () => {
       },
     })
 
-    expect(sendMock).toHaveBeenCalledWith(APP_ACTIVITY_IPC_CHANNELS.SOURCE_UPDATE, {
+    expect(sendMock).toHaveBeenCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_SET_SCOPED_VALUE, {
       sourceId: 'reader-route',
       isFocused: true,
-      activity: {
+      channel: 'app.user.activity',
+      value: {
         kind: 'reader',
         workName: 'Yotsuba',
         currentPage: 3,
@@ -76,36 +79,95 @@ describe('preload app activity source update hook', () => {
     })
   })
 
-  it('exposes getAppActivity on window.mLearnIPC', async () => {
+  it('exposes getPluginValue on window.mLearnIPC', async () => {
     await import('./preload')
 
     const exposedApi = exposeInMainWorldMock.mock.calls[0]?.[1] as {
-      getAppActivity?: () => Promise<unknown>
+      getPluginValue?: (channel: string) => Promise<unknown>
     }
 
-    exposedApi.getAppActivity?.()
+    exposedApi.getPluginValue?.('shared.theme')
 
-    expect(invokeMock).toHaveBeenCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_GET)
+    expect(invokeMock).toHaveBeenCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_GET_VALUE, 'shared.theme')
   })
 
-  it('exposes onAppActivity on window.mLearnIPC', async () => {
+  it('exposes setPluginValue and emitPluginEvent on window.mLearnIPC', async () => {
     await import('./preload')
 
     const exposedApi = exposeInMainWorldMock.mock.calls[0]?.[1] as {
-      onAppActivity?: (callback: (activity: unknown) => void) => unknown
+      setPluginValue?: (channel: string, value: unknown) => Promise<unknown>
+      emitPluginEvent?: (channel: string, payload: unknown) => Promise<unknown>
+    }
+
+    exposedApi.setPluginValue?.('shared.theme', 'dark')
+    exposedApi.emitPluginEvent?.('shared.command', { type: 'refresh' })
+
+    expect(invokeMock).toHaveBeenNthCalledWith(1, PLUGIN_IPC_CHANNELS.PLUGIN_BUS_SET_VALUE, 'shared.theme', 'dark')
+    expect(invokeMock).toHaveBeenNthCalledWith(2, PLUGIN_IPC_CHANNELS.PLUGIN_BUS_EMIT_EVENT, 'shared.command', { type: 'refresh' })
+  })
+
+  it('exposes onPluginValue and onPluginEvent on window.mLearnIPC', async () => {
+    sendSyncMock.mockReturnValue({ hasValue: false, value: null })
+    await import('./preload')
+
+    const exposedApi = exposeInMainWorldMock.mock.calls[0]?.[1] as {
+      onPluginValue?: (channel: string, callback: (next: unknown, previous: unknown) => void) => unknown
+      onPluginEvent?: (channel: string, callback: (payload: unknown) => void) => unknown
+    }
+    const onValue = vi.fn()
+    const onEvent = vi.fn()
+
+    exposedApi.onPluginValue?.('shared.theme', onValue)
+    exposedApi.onPluginEvent?.('shared.command', onEvent)
+
+    expect(onMock).toHaveBeenNthCalledWith(1, PLUGIN_IPC_CHANNELS.PLUGIN_BUS_VALUE_CHANGED, expect.any(Function))
+    expect(onMock).toHaveBeenNthCalledWith(2, PLUGIN_IPC_CHANNELS.PLUGIN_BUS_EVENT_EMITTED, expect.any(Function))
+  })
+
+  it('invokes onPluginValue immediately with the current envelope', async () => {
+    sendSyncMock.mockReturnValue({ hasValue: true, value: 'dark' })
+    await import('./preload')
+
+    const exposedApi = exposeInMainWorldMock.mock.calls[0]?.[1] as {
+      onPluginValue?: (channel: string, callback: (next: unknown, previous: unknown) => void) => unknown
     }
     const callback = vi.fn()
 
-    exposedApi.onAppActivity?.(callback)
+    exposedApi.onPluginValue?.('shared.theme', callback)
 
-    expect(onMock).toHaveBeenCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_CHANGED, expect.any(Function))
+    expect(sendSyncMock).toHaveBeenCalledWith(PLUGIN_IPC_CHANNELS.PLUGIN_BUS_GET_VALUE_SYNC, 'shared.theme')
+    expect(callback).toHaveBeenCalledWith(
+      { hasValue: true, value: 'dark' },
+      { hasValue: false, value: null },
+    )
   })
 
-  it('keeps the internal source update sender off window.mLearnIPC', async () => {
+  it('removes getAppActivity and onAppActivity from window.mLearnIPC', async () => {
     await import('./preload')
 
     const exposedApi = exposeInMainWorldMock.mock.calls[0]?.[1] as Record<string, unknown>
 
-    expect(exposedApi).not.toHaveProperty('publishSourceActivityUpdate')
+    expect(exposedApi).not.toHaveProperty('getAppActivity')
+    expect(exposedApi).not.toHaveProperty('onAppActivity')
+  })
+
+  it('keeps the internal scoped publishing helper off window.mLearnIPC', async () => {
+    await import('./preload')
+
+    const exposedApi = exposeInMainWorldMock.mock.calls[0]?.[1] as Record<string, unknown>
+
+    expect(exposedApi).not.toHaveProperty('setScopedPluginValue')
+  })
+
+  it('does not expose mLearnInternal for plugin-host windows', async () => {
+    Object.defineProperty(globalThis, 'location', {
+      configurable: true,
+      value: { pathname: '/src/html/plugin-host.html' },
+    })
+
+    await import('./preload')
+
+    expect(exposeInMainWorldMock).toHaveBeenCalledTimes(1)
+    expect(exposeInMainWorldMock).toHaveBeenCalledWith('mLearnIPC', expect.any(Object))
   })
 })

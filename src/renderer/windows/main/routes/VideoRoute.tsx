@@ -27,7 +27,7 @@ import { useAnki } from '../../../hooks/useAnki';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hooks/useTranslation';
 import type { ConversationAgentContext } from '../../../../shared/types';
-import { createVideoAppActivityPublisher } from './videoActivityPublisher';
+import { syncVideoPluginActivity } from './videoPluginActivity';
 import './video.css';
 
 /** Convert a filesystem path to a local-media:// URL that the renderer can load */
@@ -118,7 +118,7 @@ export const VideoRoute: Component = () => {
     if (name) mediaStats.setMedia(name);
   });
 
-  createVideoAppActivityPublisher({
+  syncVideoPluginActivity({
     workName: currentVideoName,
     currentTimeSeconds: currentVideoTime,
     durationSeconds: currentVideoDuration,

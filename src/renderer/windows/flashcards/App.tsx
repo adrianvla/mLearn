@@ -37,7 +37,7 @@ import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { checkAvailability } from '../../services/llmProvider';
 import type { Flashcard, FlashcardContent, TTSProvider } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
-import { createFlashcardsAppActivityPublisher, type FlashcardsTabId } from './flashcardsActivityPublisher';
+import { syncFlashcardsPluginActivity, type FlashcardsTabId } from './pluginActivity';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
@@ -143,7 +143,7 @@ export const FlashcardsContent: Component = () => {
     });
   });
 
-  createFlashcardsAppActivityPublisher({
+  syncFlashcardsPluginActivity({
     activeTab,
     isFocused: isWindowFocused,
   });

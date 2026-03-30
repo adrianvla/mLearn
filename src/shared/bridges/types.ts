@@ -31,8 +31,9 @@ import type {
   SystemMemoryInfo,
 } from '../types';
 import type {
-  AppActivity,
-} from '../plugins/appActivity';
+  PluginBusEnvelope,
+  PluginBusJSONValue,
+} from '../pluginBus';
 import type {
   PluginInstallResult,
   PluginKVGetResult,
@@ -70,8 +71,11 @@ export interface FlashcardBridge {
 }
 
 export interface PluginBridge {
-  getAppActivity: () => Promise<AppActivity>;
-  onAppActivity: (callback: (activity: AppActivity) => void) => () => void;
+  getPluginValue: (channel: string) => Promise<PluginBusEnvelope>;
+  setPluginValue: (channel: string, value: PluginBusJSONValue) => Promise<void>;
+  emitPluginEvent: (channel: string, payload: PluginBusJSONValue) => Promise<void>;
+  onPluginValue: (channel: string, callback: (nextValue: PluginBusEnvelope, previousValue: PluginBusEnvelope) => void) => () => void;
+  onPluginEvent: (channel: string, callback: (payload: PluginBusJSONValue) => void) => () => void;
   pluginGetList: () => Promise<PluginState[]>;
   pluginEnable: (pluginId: string) => Promise<PluginState | null>;
   pluginDisable: (pluginId: string) => Promise<PluginState | null>;

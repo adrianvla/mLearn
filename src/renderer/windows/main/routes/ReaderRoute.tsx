@@ -31,7 +31,7 @@ import { isWordInAnkiCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { showToast } from '../../../components/common/Feedback/Toast';
-import { createReaderAppActivityPublisher } from './readerActivityPublisher';
+import { syncReaderPluginActivity } from './readerPluginActivity';
 import './reader.css';
 
 interface PageImage {
@@ -192,7 +192,7 @@ export const ReaderRoute: Component = () => {
     if (title) mediaStats.setMedia(title);
   });
 
-  createReaderAppActivityPublisher({
+  syncReaderPluginActivity({
     bookTitle,
     currentPage,
     pages,

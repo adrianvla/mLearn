@@ -1,15 +1,15 @@
 import { createRoot, createSignal } from 'solid-js';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createFlashcardsAppActivityPublisher, getFlashcardsAppActivity } from './flashcardsActivityPublisher';
+import { getFlashcardsPluginActivityValue, syncFlashcardsPluginActivity } from './pluginActivity';
 
-describe('getFlashcardsAppActivity', () => {
+describe('getFlashcardsPluginActivityValue', () => {
   it('returns flashcards activity for review mode', () => {
-    expect(getFlashcardsAppActivity('review')).toEqual({ kind: 'flashcards' });
+    expect(getFlashcardsPluginActivityValue('review')).toEqual({ kind: 'flashcards' });
   });
 
   it('returns idle for non-review tabs', () => {
-    expect(getFlashcardsAppActivity('browse')).toEqual({ kind: 'idle' });
+    expect(getFlashcardsPluginActivityValue('browse')).toEqual({ kind: 'idle' });
   });
 
   it('publishes an unfocused idle update when focus changes from true to false', async () => {
@@ -24,10 +24,10 @@ describe('getFlashcardsAppActivity', () => {
       const [isFocused, updateIsFocused] = createSignal(true);
       setIsFocused = updateIsFocused;
 
-      createFlashcardsAppActivityPublisher({
+      syncFlashcardsPluginActivity({
         activeTab,
         isFocused,
-        publishSourceUpdate,
+        publishScopedValue: publishSourceUpdate,
       });
     });
 
@@ -39,7 +39,7 @@ describe('getFlashcardsAppActivity', () => {
     expect(publishSourceUpdate).toHaveBeenNthCalledWith(2, {
       sourceId: 'flashcards-window',
       isFocused: false,
-      activity: { kind: 'idle' },
+      value: { kind: 'idle' },
     });
 
     dispose();
@@ -55,10 +55,10 @@ describe('getFlashcardsAppActivity', () => {
       const [activeTab] = createSignal<'review' | 'browse' | 'generate' | 'stats'>('review');
       const [isFocused] = createSignal(true);
 
-      createFlashcardsAppActivityPublisher({
+      syncFlashcardsPluginActivity({
         activeTab,
         isFocused,
-        publishSourceUpdate,
+        publishScopedValue: publishSourceUpdate,
       });
     });
 
@@ -69,7 +69,7 @@ describe('getFlashcardsAppActivity', () => {
     expect(publishSourceUpdate).toHaveBeenNthCalledWith(2, {
       sourceId: 'flashcards-window',
       isFocused: false,
-      activity: { kind: 'idle' },
+      value: { kind: 'idle' },
     });
   });
 });
