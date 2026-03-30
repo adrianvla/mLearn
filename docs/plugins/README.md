@@ -11,8 +11,9 @@ This directory documents the current public plugin surface for mLearn.
 
 ## Example plugins
 
-- `examples/plugins/discord-activity/` is a packaged, installable example plugin in this repo. Install the folder directly from `examples/plugins/discord-activity/`; the checked-in manifest already points at `dist/main.cjs` and `dist/ui.js`. The maintainable source still starts from `src/main.ts`, but you do not need to bundle `src/main.ts` into separate runtime targets before installing the checked-in example. The example uses `Client ID: 1366046646392395806`.
+- `examples/plugins/discord-activity/` is a packaged, installable example plugin in this repo. Install the folder directly from `examples/plugins/discord-activity/`; the checked-in manifest already points at `dist/main.cjs` and `dist/ui.js`. The maintainable source still starts from `src/main.ts`, but you do not need to bundle `src/main.ts` into separate runtime targets before installing the checked-in example. The example uses `Client ID: 1487871166633869342`.
 - The Discord example is a real Discord Rich Presence integration, not just placeholder host-window scaffolding.
+- Generic activity hooks exposed to plugins are documented in `docs/plugins/activity.md`.
 - `examples/plugins/language-template/` shows the smallest manifest shape for a language plugin backed by a Python module.
 
 ## UI plugins

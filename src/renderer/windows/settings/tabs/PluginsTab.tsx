@@ -1,5 +1,7 @@
 import { Component, For, Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
-import { Btn, EmptyState, TabContent } from '../../../components/common';
+import { Btn } from '../../../components/common/Button';
+import { EmptyState } from '../../../components/common/Feedback';
+import { TabContent } from '../../../components/common/Tabs';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { useLocalization } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';

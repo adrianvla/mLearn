@@ -29,6 +29,9 @@ import type {
   KVStoreBridge,
 } from './types';
 import type {
+  AppActivity,
+} from '../plugins/appActivity';
+import type {
   Settings,
   FlashcardStore,
   LanguageData,
@@ -590,6 +593,10 @@ const flashcardBridge: FlashcardBridge = {
 };
 
 const pluginBridge: PluginBridge = {
+  async getAppActivity(): Promise<AppActivity> {
+    return { kind: 'idle' };
+  },
+  onAppActivity: noopCleanup,
   async pluginGetList() {
     return [];
   },

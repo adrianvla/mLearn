@@ -4,7 +4,9 @@
  */
 
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
+import { APP_ACTIVITY_IPC_CHANNELS } from '../shared/appActivityIpc';
 import { IPC_CHANNELS } from '../shared/constants';
+import type { AppActivity } from '../shared/plugins/appActivity';
 import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 
@@ -64,6 +66,10 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_IMAGE_DELETE, cardId),
 
   // ========== Plugins ==========
+  getAppActivity: (): Promise<AppActivity> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_APP_ACTIVITY_GET),
+  onAppActivity: (callback: (activity: AppActivity) => void) =>
+    ipcOn(IPC_CHANNELS.PLUGIN_APP_ACTIVITY_CHANGED, (_event, activity) => callback(activity)),
   pluginGetList: (): Promise<PluginState[]> =>
     ipcRenderer.invoke(IPC_CHANNELS.PLUGIN_GET_LIST),
   pluginEnable: (pluginId: string): Promise<PluginState | null> =>
@@ -397,8 +403,15 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.KV_SET_BATCH, entries),
 };
 
+const mLearnInternal = {
+  publishSourceActivityUpdate: (payload: { sourceId: string; isFocused: boolean; activity: AppActivity | null }) =>
+    ipcRenderer.send(APP_ACTIVITY_IPC_CHANNELS.SOURCE_UPDATE, payload),
+};
+
 // Expose API to renderer
 contextBridge.exposeInMainWorld('mLearnIPC', mLearnIPC);
+contextBridge.exposeInMainWorld('mLearnInternal', mLearnInternal);
 
 // Export type for use in renderer
 export type MLearnIPC = typeof mLearnIPC;
+export type MLearnInternal = typeof mLearnInternal;

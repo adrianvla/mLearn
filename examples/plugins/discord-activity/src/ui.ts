@@ -1,4 +1,8 @@
-import { loadDiscordActivityConfig } from './runtime';
+import {
+  DISCORD_ACTIVITY_STATUS_DESCRIPTIONS,
+  loadDiscordActivityConfig,
+  type DiscordActivityStatusDescription,
+} from './runtime';
 
 type HostApi = {
   kvGet: (key: string) => Promise<string | null>;
@@ -17,6 +21,27 @@ type RuntimeStatus = {
 };
 
 const SAVE_MESSAGE = 'Saved. Disable and re-enable the plugin to apply Discord changes.';
+
+const LOAD_ERROR_PREFIX = 'Failed to load Discord activity settings:';
+const SAVE_ERROR_PREFIX = 'Failed to save Discord activity settings:';
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  if (typeof error === 'string' && error.trim().length > 0) {
+    return error;
+  }
+
+  return 'Unknown error';
+}
+
+function createActivityDescriptionItem(description: DiscordActivityStatusDescription): HTMLLIElement {
+  const item = document.createElement('li');
+  item.textContent = `${description.label}: ${description.state} / ${description.details}`;
+  return item;
+}
 
 function readRuntimeStatus(value: string | null): RuntimeStatus {
   if (!value) {
@@ -66,12 +91,9 @@ export default function DiscordActivityPanel(props: PluginComponentProps): HTMLE
   heading.textContent = 'Discord Rich Presence';
   intro.textContent = 'Control the automatic live activity shown by the example Discord plugin.';
   activityDescription.textContent = 'The plugin publishes automatic live activity based on what you are doing in mLearn:';
-  activityList.innerHTML = [
-    '<li>Idle: Using mLearn / Idling</li>',
-    '<li>Reader: Reading on mLearn / Reading page x/y of {work name}</li>',
-    '<li>Video: Watching on mLearn / {current time}/{duration} - {work name}</li>',
-    '<li>Flashcards: Using mLearn / Reviewing Flashcards</li>',
-  ].join('');
+  for (const description of DISCORD_ACTIVITY_STATUS_DESCRIPTIONS) {
+    activityList.append(createActivityDescriptionItem(description));
+  }
 
   enabledLabel.textContent = 'Enable Discord activity';
   enabledInput.type = 'checkbox';
@@ -85,41 +107,62 @@ export default function DiscordActivityPanel(props: PluginComponentProps): HTMLE
 
   saveButton.type = 'submit';
   saveButton.textContent = 'Save';
+  enabledInput.disabled = true;
+  showTimestampInput.disabled = true;
+  saveButton.disabled = true;
 
   status.textContent = 'Loading Discord activity settings...';
   runtimeStatus.textContent = 'Runtime status: Disconnected';
 
   void (async () => {
-    const [config, runtimeStatusValue] = await Promise.all([
-      loadDiscordActivityConfig({
-        get: (key: string) => props.host.kvGet(key),
-        set: async () => {
-          throw new Error('Config loading does not write to storage');
-        },
-      }),
-      props.host.kvGet('discord-activity:runtime-status'),
-    ]);
+    try {
+      const [config, runtimeStatusValue] = await Promise.all([
+        loadDiscordActivityConfig({
+          get: (key: string) => props.host.kvGet(key),
+          set: async () => {
+            throw new Error('Config loading does not write to storage');
+          },
+        }),
+        props.host.kvGet('discord-activity:runtime-status'),
+      ]);
 
-    enabledInput.checked = config.enabled;
-    showTimestampInput.checked = config.showTimestamp;
+      enabledInput.checked = config.enabled;
+      showTimestampInput.checked = config.showTimestamp;
 
-    const currentStatus = readRuntimeStatus(runtimeStatusValue);
-    runtimeStatus.textContent = currentStatus.connected
-      ? 'Runtime status: Connected'
-      : 'Runtime status: Disconnected';
-    errorStatus.textContent = currentStatus.lastError ? `Last error: ${currentStatus.lastError}` : '';
-    status.textContent = 'Ready to save Discord activity settings.';
+      const currentStatus = readRuntimeStatus(runtimeStatusValue);
+      runtimeStatus.textContent = currentStatus.connected
+        ? 'Runtime status: Connected'
+        : 'Runtime status: Disconnected';
+      errorStatus.textContent = currentStatus.lastError ? `Last error: ${currentStatus.lastError}` : '';
+      enabledInput.disabled = false;
+      showTimestampInput.disabled = false;
+      saveButton.disabled = false;
+      status.textContent = 'Ready to save Discord activity settings.';
+    } catch (error) {
+      enabledInput.disabled = true;
+      showTimestampInput.disabled = true;
+      saveButton.disabled = true;
+      status.textContent = `${LOAD_ERROR_PREFIX} ${getErrorMessage(error)}`;
+    }
   })();
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
 
-    void (async () => {
-      await props.host.kvSet('discord-activity:enabled', String(enabledInput.checked));
-      await props.host.kvSet('discord-activity:showTimestamp', String(showTimestampInput.checked));
+    if (saveButton.disabled) {
+      return;
+    }
 
-      status.textContent = SAVE_MESSAGE;
-      props.host.closeWindow();
+    void (async () => {
+      try {
+        await props.host.kvSet('discord-activity:enabled', String(enabledInput.checked));
+        await props.host.kvSet('discord-activity:showTimestamp', String(showTimestampInput.checked));
+
+        status.textContent = SAVE_MESSAGE;
+        props.host.closeWindow();
+      } catch (error) {
+        status.textContent = `${SAVE_ERROR_PREFIX} ${getErrorMessage(error)}`;
+      }
     })();
   });
 

@@ -1,8 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import { BrowserWindow, ipcMain } from 'electron';
+import { APP_ACTIVITY_IPC_CHANNELS } from '../../shared/appActivityIpc';
 import { WINDOW_TYPES } from '../../shared/constants';
 import { PLUGIN_IPC_CHANNELS } from '../../shared/plugins/constants';
+import type { AppActivity } from '../../shared/plugins/appActivity';
 import type {
   PluginHostContext,
   PluginInstallResult,
@@ -21,10 +23,13 @@ import {
   normalizePluginId,
   removePluginFromRegistry,
 } from './pluginManager';
+import { createPluginAppActivityStore } from './pluginAppActivity';
 import { installPlugin, selectAndInstallPlugin, uninstallPlugin } from './pluginInstaller';
 import { openManagedChildWindow } from './windowManager';
 
-function broadcast(channel: string, payload: PluginState[] | PluginState | PluginInstallResult): void {
+const pluginAppActivityStore = createPluginAppActivityStore();
+
+function broadcast(channel: string, payload: PluginState[] | PluginState | PluginInstallResult | AppActivity): void {
   const windows = BrowserWindow.getAllWindows();
   for (const window of windows) {
     if (!window.isDestroyed()) {
@@ -45,6 +50,18 @@ function broadcastPluginState(plugin: PluginState | null): PluginState | null {
     broadcastPluginList();
   }
   return plugin;
+}
+
+function broadcastAppActivity(activity: AppActivity): void {
+  broadcast(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_CHANGED, activity);
+}
+
+function isPluginHostSender(sender: Electron.WebContents | undefined): boolean {
+  if (!sender || typeof sender.getURL !== 'function') {
+    return false
+  }
+
+  return sender.getURL().includes('/plugin-host.html')
 }
 
 function isPathWithinDirectory(directoryPath: string, candidatePath: string): boolean {
@@ -146,9 +163,39 @@ function savePluginKV(pluginId: string, store: Record<string, string>): void {
 }
 
 export function setupPluginIPC(): void {
+  pluginAppActivityStore.subscribe((activity) => {
+    broadcastAppActivity(activity);
+  });
+
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_GET_LIST, async (): Promise<PluginState[]> => {
     return broadcastPluginList();
   });
+
+  ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_APP_ACTIVITY_GET, async (): Promise<AppActivity> => {
+    return pluginAppActivityStore.getCurrentActivity();
+  });
+
+  ipcMain.on(
+    APP_ACTIVITY_IPC_CHANNELS.SOURCE_UPDATE,
+    (
+      event,
+      payload: {
+        sourceId: string;
+        isFocused: boolean;
+        activity: AppActivity | null;
+        updatedAt?: number;
+      },
+    ): void => {
+      if (isPluginHostSender(event.sender)) {
+        return
+      }
+
+      const next = payload.updatedAt === undefined
+        ? { isFocused: payload.isFocused, activity: payload.activity }
+        : { isFocused: payload.isFocused, activity: payload.activity, updatedAt: payload.updatedAt };
+      pluginAppActivityStore.updateSource(payload.sourceId, next);
+    },
+  );
 
   ipcMain.handle(PLUGIN_IPC_CHANNELS.PLUGIN_ENABLE, async (_event, pluginId: string): Promise<PluginState | null> => {
     return broadcastPluginState(await enablePlugin(pluginId));

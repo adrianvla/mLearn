@@ -75,6 +75,7 @@ describe('plugin examples and public docs', () => {
     expect(runtimeSource).toContain(`DISCORD_ACTIVITY_CLIENT_ID = '${DISCORD_ACTIVITY_CLIENT_ID}'`);
     expect(pluginManifest).toContain(`Client ID: ${DISCORD_ACTIVITY_CLIENT_ID}`);
     expect(readme).toContain(`Client ID: ${DISCORD_ACTIVITY_CLIENT_ID}`);
+    expect(DISCORD_ACTIVITY_CLIENT_ID).toBe('1487871166633869342');
   });
 
   it('documents the current plugin trust and host conventions', () => {

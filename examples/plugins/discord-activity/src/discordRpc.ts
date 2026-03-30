@@ -198,10 +198,30 @@ async function connectNetSocket(candidatePath: string): Promise<RpcSocket> {
   });
 }
 
+function getDiscordRpcErrorMessage(payload: Record<string, unknown>): string | null {
+  if (typeof payload.message === 'string' && payload.message.trim().length > 0) {
+    return payload.message;
+  }
+
+  const data = payload.data;
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const message = (data as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim().length > 0) {
+      return message;
+    }
+  }
+
+  return null;
+}
+
 async function readExpectedFrame(socket: RpcSocket, expectedOp: number): Promise<Record<string, unknown>> {
   while (true) {
     const frame = decodeFrame(await socket.read());
     if (frame.op === expectedOp) {
+      if (frame.payload.evt === 'ERROR') {
+        throw new Error(getDiscordRpcErrorMessage(frame.payload) ?? 'Discord RPC returned an error');
+      }
+
       return frame.payload;
     }
 

@@ -29,6 +29,7 @@ function createMockIPC() {
     installLanguage: vi.fn(),
     onLanguageInstalled: vi.fn(),
     onLanguageInstallError: vi.fn(),
+    publishAppActivitySourceUpdate: vi.fn(),
     readDirectoryImages: vi.fn(),
     readPdfFile: vi.fn(),
     readMediaFile: vi.fn(),

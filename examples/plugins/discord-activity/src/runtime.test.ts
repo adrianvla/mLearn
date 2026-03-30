@@ -96,8 +96,6 @@ describe('discord activity runtime', () => {
   it('loads and normalizes persisted config', async () => {
     const storage = createStorage({
       'discord-activity:enabled': 'false',
-      'discord-activity:details': '  Reviewing flashcards  ',
-      'discord-activity:state': '   ',
       'discord-activity:showTimestamp': 'not-a-boolean',
     });
 
@@ -105,10 +103,11 @@ describe('discord activity runtime', () => {
 
     expect(config).toEqual({
       enabled: false,
-      details: 'Reviewing flashcards',
-      state: 'In a focused session',
       showTimestamp: true,
     });
+    expect(storage.get).toHaveBeenCalledTimes(2);
+    expect(storage.get).toHaveBeenCalledWith('discord-activity:enabled');
+    expect(storage.get).toHaveBeenCalledWith('discord-activity:showTimestamp');
   });
 
   it('maps idle to Using mLearn / Idling', async () => {
