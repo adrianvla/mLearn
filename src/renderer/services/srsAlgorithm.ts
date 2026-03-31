@@ -654,13 +654,14 @@ export function buildReviewQueue(
 
 /**
  * Get the next card to review from the queue
- * Priority: relearning > learning > new (interleaved) > review
+ * Priority: relearning (due now) > learning > new (interleaved) > review > relearning (queued today)
  *
  * Each queue section verifies the card's state matches expectations to prevent
  * stale queue entries from causing duplicate card appearances.
- * Learning cards remain available for the current SRS day, while relearning
- * cards respect their exact due time so review lapses do not reappear
- * immediately.
+ * Learning cards remain available for the current SRS day. Relearning cards
+ * prefer their exact due time, but fall back to appearing once all other
+ * queued cards have been exhausted — this ensures the session never stalls
+ * waiting for a relearning delay when there are cards left to review today.
  */
 export function getNextCard(
     queue: ReviewQueue,
@@ -669,7 +670,7 @@ export function getNextCard(
 ): Flashcard | null {
     const now = Date.now();
 
-    // Check relearning cards first (most urgent)
+    // Check relearning cards first (most urgent — only if actually due)
     for (const id of queue.relearnQueue) {
         const card = cards[id];
         if (card && isQueuedRelearningCard(card, newDayHour) && isRelearningCardDueNow(card, now)) {
@@ -723,7 +724,19 @@ export function getNextCard(
         }
     }
 
-    return null;
+    // Fallback: show the soonest relearning card queued for today even if its
+    // exact due time has not arrived yet. This prevents the session from
+    // stalling on a "waiting" screen when all other cards have been answered.
+    let soonestRelearn: Flashcard | null = null;
+    for (const id of queue.relearnQueue) {
+        const card = cards[id];
+        if (card && isQueuedRelearningCard(card, newDayHour)) {
+            if (!soonestRelearn || card.dueDate < soonestRelearn.dueDate) {
+                soonestRelearn = card;
+            }
+        }
+    }
+    return soonestRelearn;
 }
 
 /**
@@ -764,33 +777,29 @@ export function addToQueue(queue: ReviewQueue, card: Flashcard): ReviewQueue {
 
 /**
  * Get the earliest due date among learning/relearning cards in the queue that
- * are not yet available in the current session. Relearning cards respect exact
- * due time, while learning cards remain available for the whole SRS day.
+ * are not yet due. Since relearning cards are now surfaced as a fallback in
+ * getNextCard (queued-for-today), this is only relevant for edge cases where
+ * the caller needs the exact next due timestamp (e.g. for display purposes).
  */
 export function getNextPendingLearningDueDate(
     queue: ReviewQueue,
     cards: Record<string, Flashcard>,
-    newDayHour: number = 4
+    _newDayHour: number = 4
 ): number | null {
-    const now = Date.now();
-    let earliest: number | null = null;
-
-    for (const id of [...queue.learningQueue, ...queue.relearnQueue]) {
-        const card = cards[id];
-        if (!card || card.suspended || card.buried) continue;
-        if (card.state === 'relearning' && isQueuedRelearningCard(card, newDayHour) && card.dueDate > now) {
-            if (earliest === null || card.dueDate < earliest) {
-                earliest = card.dueDate;
-            }
-        }
-    }
-    return earliest;
+    // Relearning cards are now always surfaced by getNextCard as a fallback,
+    // so there is no pending learning due date to wait for.
+    // Keep the signature for API compatibility.
+    void _newDayHour;
+    void queue;
+    void cards;
+    return null;
 }
 
 /**
  * Get queue counts for display.
- * Learning cards use end-of-SRS-day cutoff, while relearning cards count only
- * once their exact due time is reached.
+ * Learning and relearning cards both use end-of-SRS-day cutoff so that
+ * pending relearning cards are visible in the count and the session does
+ * not appear complete while cards remain queued for today.
  */
 export function getQueueCounts(queue: ReviewQueue, cards: Record<string, Flashcard>, newDayHour: number = 4): {
     new: number;
@@ -798,7 +807,6 @@ export function getQueueCounts(queue: ReviewQueue, cards: Record<string, Flashca
     review: number;
     total: number;
 } {
-    const now = Date.now();
     const dayEnd = getEndOfSRSDay(newDayHour);
 
     const learning = [...queue.learningQueue, ...queue.relearnQueue]
@@ -809,7 +817,7 @@ export function getQueueCounts(queue: ReviewQueue, cards: Record<string, Flashca
             }
 
             if (card.state === 'relearning') {
-                return isQueuedRelearningCard(card, newDayHour) && isRelearningCardDueNow(card, now);
+                return isQueuedRelearningCard(card, newDayHour);
             }
 
             return card.state === 'learning' && card.dueDate <= dayEnd;

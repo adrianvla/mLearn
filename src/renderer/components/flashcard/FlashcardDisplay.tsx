@@ -18,7 +18,7 @@ import { FlashcardPitchAccent } from './FlashcardPitchAccent';
 import type { TtsMetadata } from '../../hooks/useFlashcardTts';
 import { RefreshIcon } from '../common';
 import { isElectron } from '../../../shared/platform';
-import { isWordInAnkiCache } from '../../services/ankiWordsCache';
+import { isWordInAnkiCache, fetchAnkiWordsCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import './FlashcardDisplay.css';
 
 export interface FlashcardDisplayProps {
@@ -67,9 +67,17 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     return url;
   });
 
+  // Ensure the Anki words cache is populated so the duplicate indicator works
+  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched());
+  if (settings.use_anki && !isAnkiCacheFetched()) {
+    fetchAnkiWordsCache().then(() => setAnkiCacheReady(true));
+  }
+
   // Check if this card's word exists in Anki (for duplicate indicator)
   const isAnkiDuplicate = createMemo(() => {
     if (!settings.use_anki) return false;
+    // Access ankiCacheReady to re-evaluate when cache finishes loading
+    ankiCacheReady();
     return isWordInAnkiCache(content().front);
   });
 

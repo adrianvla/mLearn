@@ -57,29 +57,6 @@
   color: var(--text-secondary);
 }
 
-.plugins-tab__status {
-  flex-shrink: 0;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-}
-
-.plugins-tab__status--active {
-  color: var(--color-success);
-}
-
-.plugins-tab__status--disabled,
-.plugins-tab__status--pending {
-  color: var(--text-secondary);
-}
-
-.plugins-tab__status--error {
-  color: var(--color-error);
-}
-
 .plugins-tab__meta {
   display: grid;
   gap: 0.75rem;
