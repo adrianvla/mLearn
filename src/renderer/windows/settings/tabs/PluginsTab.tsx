@@ -1,12 +1,21 @@
 import { Component, For, Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import { Btn } from '../../../components/common/Button';
+import { Badge } from '../../../components/common/Label/Label';
 import { EmptyState } from '../../../components/common/Feedback';
 import { TabContent } from '../../../components/common/Tabs';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { useLocalization } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
-import type { PluginInstallResult, PluginState } from '../../../../shared/plugins/types';
+import type { PluginInstallResult, PluginState, PluginStatus } from '../../../../shared/plugins/types';
+import type { LabelVariant } from '../../../components/common/Label/Label';
 import './PluginsTab.css';
+
+const PLUGIN_STATUS_VARIANT: Record<PluginStatus, LabelVariant> = {
+  active: 'success',
+  disabled: 'gray',
+  pending: 'warning',
+  error: 'error',
+};
 
 function sortPlugins(plugins: PluginState[]): PluginState[] {
   return [...plugins].sort((left, right) => left.name.localeCompare(right.name));
@@ -216,9 +225,9 @@ export const PluginsTab: Component = () => {
                         <Show when={plugin().author}> - {plugin().author}</Show>
                       </p>
                     </div>
-                    <span class={`plugins-tab__status plugins-tab__status--${plugin().status}`}> {/*TODO: This status must be a badge component. If you see this, also make the badge components have a faint background tint using the already defined CSS variables.*/}
+                    <Badge variant={PLUGIN_STATUS_VARIANT[plugin().status]} size="sm">
                       {t(`mlearn.Settings.Plugins.Status.${plugin().status}`)}
-                    </span>
+                    </Badge>
                   </div>
 
                   <Show when={plugin().description}>
@@ -257,7 +266,7 @@ export const PluginsTab: Component = () => {
 
                     <Show when={plugin().status === 'active'}>
                       <Btn
-                        variant="ghost"
+                        variant="default"
                         onClick={() => handlePluginAction(plugin().id, () => bridge.plugins.pluginDisable(plugin().id))}
                         disabled={isBusy()}
                       >
