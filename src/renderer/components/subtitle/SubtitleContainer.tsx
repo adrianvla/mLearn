@@ -16,6 +16,9 @@ import './SubtitleContainer.css';
 export interface SubtitleContainerProps {
   tokens: Token[];
   originalText?: string;
+  remoteHtml?: string | null;
+  remoteSize?: number | null;
+  remoteWeight?: number | null;
   translation?: string;
   isLoading?: boolean;
   onWordClick?: (token: Token) => void;
@@ -200,6 +203,12 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     ...props.style,
   }));
 
+  const remoteSubtitleStyle = createMemo((): JSX.CSSProperties => ({
+    ...subtitleStyle(),
+    'font-size': `${props.remoteSize ?? settings.subtitle_font_size}px`,
+    'font-weight': `${props.remoteWeight ?? settings.subtitle_font_weight}`,
+  }));
+
   // Get subtitle theme class
   const getSubtitleThemeClass = () => {
     const theme = settings.subtitleTheme || 'shadow';
@@ -369,6 +378,10 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
           {/* Fallback text when tokens are unavailable */}
           <Show when={!props.isLoading && props.tokens.length === 0 && props.originalText}>
             <div style={subtitleStyle()}>{props.originalText}</div>
+          </Show>
+
+          <Show when={!props.isLoading && props.tokens.length === 0 && !props.originalText && props.remoteHtml}>
+            <div style={remoteSubtitleStyle()} innerHTML={props.remoteHtml || ''} />
           </Show>
 
           {/* Translation */}

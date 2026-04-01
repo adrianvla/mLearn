@@ -8,6 +8,8 @@ import { useNavigate } from '@solidjs/router';
 import { useSubtitles, useWatchTogether, useMediaStats } from '../../../hooks';
 import { isElectron as isElectronPlatform } from '../../../../shared/platform';
 import { useLocalization, useSettings, useLanguage, useFlashcards } from '../../../context';
+import { CloudReLoginModal } from '../../../components/cloud';
+import { WatchTogetherCodeModal, WatchTogetherModeModal } from '../../../components/watchTogether';
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
 import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
@@ -25,6 +27,12 @@ import { wordsLearnedInApp } from '../../../services/statsService';
 import { isWordInAnkiCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { showToast } from '../../../components/common/Feedback/Toast';
+import { validateAndRefreshCloudSession } from '../../../services/cloudAuthService';
+import {
+  createWatchTogetherRoom,
+  joinWatchTogetherRoom,
+  isShareableWatchTogetherUrl,
+} from '../../../services/watchTogetherRoomService';
 import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hooks/useTranslation';
 import type { ConversationAgentContext } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
@@ -41,7 +49,7 @@ const getMediaNameFromPath = (filePath: string): string => filePath.split('/').p
 export const VideoRoute: Component = () => {
   const navigate = useNavigate();
   const { t } = useLocalization();
-  const { settings, updateSetting } = useSettings();
+  const { settings, updateSetting, updateSettings } = useSettings();
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
   const subtitles = useSubtitles();
@@ -50,6 +58,7 @@ export const VideoRoute: Component = () => {
   const watchTogether = useWatchTogether({
     getVideo: () => document.querySelector('video'),
     getVideoSrc: () => videoSrc(),
+    getVideoTitle: () => currentVideoName(),
   });
 
   const [videoSrc, setVideoSrc] = createSignal<string>('');
@@ -63,6 +72,11 @@ export const VideoRoute: Component = () => {
   const [currentSubtitlePath, setCurrentSubtitlePath] = createSignal('');
   const [showWordSidebar, setShowWordSidebar] = createSignal(false);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
+  const [showWatchTogetherModeModal, setShowWatchTogetherModeModal] = createSignal(false);
+  const [showWatchTogetherCodeModal, setShowWatchTogetherCodeModal] = createSignal(false);
+  const [showWatchTogetherSignInModal, setShowWatchTogetherSignInModal] = createSignal(false);
+  const [watchTogetherBusy, setWatchTogetherBusy] = createSignal(false);
+  const [watchTogetherError, setWatchTogetherError] = createSignal('');
 
   // Accumulated unknown words from subtitles
   const [accumulatedWords, setAccumulatedWords] = createSignal<VideoWordEntry[]>([]);
@@ -79,6 +93,172 @@ export const VideoRoute: Component = () => {
 
   // Media stats for this video session
   const mediaStats = useMediaStats({ mediaType: 'video', language: settings.language });
+
+  const getCurrentVideoElement = (): HTMLVideoElement | null => document.querySelector('video');
+
+  const loadSharedVideo = (url: string, name: string) => {
+    setVideoSrc(url);
+    setCurrentVideoTime(0);
+    setCurrentVideoDuration(null);
+    setCurrentVideoPath('');
+    setSubtitleContent('');
+    setCurrentSubtitlePath('');
+    setShowDropZone(false);
+    setCurrentVideoName(name || getMediaNameFromPath(url));
+  };
+
+  const getWatchTogetherSubtitleHtml = (): string | null => {
+    const subtitleContainer = document.querySelector('.subtitles');
+    if (!subtitleContainer) return null;
+    const html = subtitleContainer.innerHTML.trim();
+    return html.length > 0 ? html : null;
+  };
+
+  const buildWatchTogetherPayload = () => {
+    const mediaUrl = videoSrc();
+    if (!isShareableWatchTogetherUrl(mediaUrl)) {
+      return null;
+    }
+
+    const video = getCurrentVideoElement();
+    return {
+      mediaUrl,
+      mediaTitle: currentVideoName(),
+      currentTime: video?.currentTime ?? currentVideoTime(),
+      paused: video?.paused ?? true,
+      playbackRate: video?.playbackRate ?? 1,
+      subtitlesHtml: getWatchTogetherSubtitleHtml(),
+      subtitleSize: settings.subtitle_font_size ?? 32,
+      subtitleWeight: settings.subtitle_font_weight ?? 700,
+    };
+  };
+
+  const resetCloudAuthSession = () => {
+    updateSettings({
+      cloudAuthAccessToken: '',
+      cloudAuthToken: '',
+      cloudAuthRefreshToken: '',
+      cloudAuthUserId: '',
+      cloudAuthUserEmail: '',
+      cloudAuthExpiresAt: 0,
+      cloudAuthStatus: 'signed-out',
+    });
+  };
+
+  const ensureCloudAccessToken = async (): Promise<string | null> => {
+    const currentAccessToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
+    if (settings.cloudAuthStatus !== 'signed-in' || !currentAccessToken) {
+      setShowWatchTogetherSignInModal(true);
+      return null;
+    }
+
+    const validation = await validateAndRefreshCloudSession(settings);
+    if (validation.status === 'valid') {
+      return currentAccessToken;
+    }
+
+    if (validation.status === 'refreshed' && validation.accessToken && validation.refreshToken) {
+      updateSettings({
+        cloudAuthAccessToken: validation.accessToken,
+        cloudAuthRefreshToken: validation.refreshToken,
+        ...(validation.expiresAt ? { cloudAuthExpiresAt: validation.expiresAt } : {}),
+      });
+      return validation.accessToken;
+    }
+
+    resetCloudAuthSession();
+    setShowWatchTogetherSignInModal(true);
+    return null;
+  };
+
+  const openWatchTogetherCodeModal = () => {
+    setWatchTogetherError('');
+    setShowWatchTogetherCodeModal(true);
+  };
+
+  const handleWatchTogetherCommand = () => {
+    setWatchTogetherError('');
+    if (watchTogether.isActive()) {
+      watchTogether.deactivate();
+      setShowWatchTogetherModeModal(false);
+      setShowWatchTogetherCodeModal(false);
+      return;
+    }
+
+    setShowWatchTogetherModeModal(true);
+  };
+
+  const handleChooseLocalWatchTogether = () => {
+    setShowWatchTogetherModeModal(false);
+    setWatchTogetherError('');
+    watchTogether.activate();
+  };
+
+  const handleChooseCodeWatchTogether = () => {
+    setShowWatchTogetherModeModal(false);
+    openWatchTogetherCodeModal();
+  };
+
+  const handleCreateWatchTogetherRoom = async () => {
+    setWatchTogetherError('');
+    const payload = buildWatchTogetherPayload();
+    if (!payload) {
+      setWatchTogetherError(t('mlearn.WatchTogether.Code.UnshareableVideo'));
+      return;
+    }
+
+    const accessToken = await ensureCloudAccessToken();
+    if (!accessToken) return;
+
+    setWatchTogetherBusy(true);
+    try {
+      const session = await createWatchTogetherRoom(settings, accessToken, payload);
+      watchTogether.activateRoom(session, accessToken);
+      setShowWatchTogetherCodeModal(true);
+    } catch (error) {
+      console.error(error);
+      setWatchTogetherError((error as Error).message || String(error));
+    } finally {
+      setWatchTogetherBusy(false);
+    }
+  };
+
+  const handleJoinWatchTogetherRoom = async (roomCode: string) => {
+    setWatchTogetherError('');
+    const accessToken = await ensureCloudAccessToken();
+    if (!accessToken) return;
+
+    setWatchTogetherBusy(true);
+    try {
+      const session = await joinWatchTogetherRoom(settings, accessToken, roomCode);
+      watchTogether.activateRoom(session, accessToken);
+      loadSharedVideo(session.room.mediaUrl, session.room.mediaTitle);
+      setShowWatchTogetherCodeModal(true);
+    } catch (error) {
+      console.error(error);
+      setWatchTogetherError((error as Error).message || String(error));
+    } finally {
+      setWatchTogetherBusy(false);
+    }
+  };
+
+  const handleCopyWatchTogetherRoomCode = () => {
+    const roomCode = watchTogether.roomSession()?.room.roomCode;
+    if (!roomCode) return;
+
+    getBridge().files.writeToClipboard(roomCode);
+    showToast({
+      message: t('mlearn.WatchTogether.Code.Copied'),
+      variant: 'success',
+    });
+  };
+
+  const handleDisconnectWatchTogether = () => {
+    watchTogether.deactivate();
+    setShowWatchTogetherCodeModal(false);
+    setShowWatchTogetherModeModal(false);
+    setWatchTogetherError('');
+  };
 
   const loadVideo = (path: string, name: string) => {
     setVideoSrc(toLocalMediaUrl(path));
@@ -116,6 +296,95 @@ export const VideoRoute: Component = () => {
   createEffect(() => {
     const name = currentVideoName();
     if (name) mediaStats.setMedia(name);
+  });
+
+  createEffect(() => {
+    const mode = watchTogether.mode();
+    const activeVideoSrc = videoSrc();
+
+    if (mode !== 'room-owner' || !activeVideoSrc) {
+      return;
+    }
+
+    if (!isShareableWatchTogetherUrl(activeVideoSrc)) {
+      setWatchTogetherError(t('mlearn.WatchTogether.Code.UnshareableVideo'));
+      handleDisconnectWatchTogether();
+      return;
+    }
+
+    watchTogether.sendSync(getCurrentVideoElement()?.currentTime ?? 0);
+  });
+
+  let lastAppliedRoomStateKey = '';
+
+  createEffect(() => {
+    const mode = watchTogether.mode();
+    const roomState = watchTogether.roomState();
+    const activeVideoSrc = videoSrc();
+
+    if (mode !== 'room-viewer' || !roomState) {
+      lastAppliedRoomStateKey = '';
+      return;
+    }
+
+    const roomStateKey = `${roomState.roomId}:${roomState.stateVersion}:${roomState.status}:${activeVideoSrc}`;
+    if (roomStateKey === lastAppliedRoomStateKey) {
+      return;
+    }
+    lastAppliedRoomStateKey = roomStateKey;
+
+    if (roomState.status === 'closed') {
+      showToast({
+        message: t('mlearn.WatchTogether.Code.RoomClosed'),
+        variant: 'info',
+      });
+      handleDisconnectWatchTogether();
+      return;
+    }
+
+    if (activeVideoSrc !== roomState.mediaUrl) {
+      loadSharedVideo(roomState.mediaUrl, roomState.mediaTitle);
+    }
+
+    const applyRoomState = async () => {
+      const video = getCurrentVideoElement();
+      if (!video) return;
+
+      await watchTogether.runSuppressed(async () => {
+        if (Math.abs(video.currentTime - roomState.currentTime) > 0.75) {
+          video.currentTime = roomState.currentTime;
+        }
+
+        if (Math.abs(video.playbackRate - roomState.playbackRate) > 0.01) {
+          video.playbackRate = roomState.playbackRate;
+        }
+
+        if (roomState.paused) {
+          video.pause();
+          return;
+        }
+
+        try {
+          await video.play();
+        } catch (error) {
+          console.error('[VideoRoute] Failed to play remote watch-together video', error);
+        }
+      });
+    };
+
+    const video = getCurrentVideoElement();
+    if (!video) {
+      return;
+    }
+
+    if (video.readyState >= 1) {
+      void applyRoomState();
+      return;
+    }
+
+    video.addEventListener('loadedmetadata', () => {
+      void applyRoomState();
+    }, { once: true });
   });
 
   syncVideoPluginActivity({
@@ -504,11 +773,11 @@ export const VideoRoute: Component = () => {
   // Broadcast subtitle HTML to tethered clients whenever the current
   // subtitle changes and watch-together is active.
   createEffect(() => {
-    if (!watchTogether.isActive()) return;
+    if (!watchTogether.canControl()) return;
     const sub = subtitles.currentSubtitle();
     if (!sub) return;
     // Grab the rendered subtitle container from the DOM.
-    const el = document.querySelector('.subtitle-container');
+    const el = document.querySelector('.subtitles');
     if (!el) return;
     const html = el.innerHTML;
     if (!html) return;
@@ -578,7 +847,7 @@ export const VideoRoute: Component = () => {
         break;
       }
       case 'watch-together':
-        watchTogether.toggle();
+        handleWatchTogetherCommand();
         break;
     }
   };
@@ -787,6 +1056,16 @@ export const VideoRoute: Component = () => {
         {t('mlearn.Video.UI.OpenConversationAgent')}
       </NavBtn>
 
+      <Show when={watchTogether.isRoomMode()}>
+        <NavBtn
+          class="watch-together-room-button"
+          onClick={openWatchTogetherCodeModal}
+          title={t('mlearn.WatchTogether.Code.OpenRoomPanel')}
+        >
+          {t('mlearn.WatchTogether.Code.OpenRoomPanel')}
+        </NavBtn>
+      </Show>
+
       <Show
         when={!showDropZone()}
         fallback={
@@ -807,6 +1086,9 @@ export const VideoRoute: Component = () => {
                 <Btn onClick={handleSelectSubtitle}>
                   {t('mlearn.Video.UI.OpenSubtitles')}
                 </Btn>
+                <Btn onClick={openWatchTogetherCodeModal}>
+                  {t('mlearn.Video.UI.JoinWatchTogether')}
+                </Btn>
               </div>
             </Panel>
           </div>
@@ -815,6 +1097,9 @@ export const VideoRoute: Component = () => {
         <VideoPlayer
           src={videoSrc()}
           subtitleContent={subtitleContent()}
+          remoteSubtitleHtml={watchTogether.remoteSubtitle()?.html || null}
+          remoteSubtitleSize={watchTogether.remoteSubtitle()?.size ?? null}
+          remoteSubtitleWeight={watchTogether.remoteSubtitle()?.weight ?? null}
           subtitles={subtitles}
           ctxMenuOptions={{ isWatchTogether: watchTogether.isActive() }}
           onTimeUpdate={(time) => setCurrentVideoTime(time)}
@@ -849,6 +1134,38 @@ export const VideoRoute: Component = () => {
         confirmText={t('mlearn.Sidebar.AnkiAddAllWarning.Confirm')}
         onConfirm={confirmAnkiAddAll}
         onCancel={() => { setShowAnkiAddAllWarning(false); setPendingAddAllEntries([]); }}
+      />
+
+      <WatchTogetherModeModal
+        isOpen={showWatchTogetherModeModal()}
+        onClose={() => setShowWatchTogetherModeModal(false)}
+        onChooseLocal={handleChooseLocalWatchTogether}
+        onChooseCode={handleChooseCodeWatchTogether}
+      />
+
+      <WatchTogetherCodeModal
+        isOpen={showWatchTogetherCodeModal()}
+        onClose={() => setShowWatchTogetherCodeModal(false)}
+        isSignedIn={settings.cloudAuthStatus === 'signed-in'}
+        canHost={Boolean(buildWatchTogetherPayload())}
+        currentSession={watchTogether.roomSession()}
+        isBusy={watchTogetherBusy()}
+        error={watchTogetherError()}
+        onCreateRoom={handleCreateWatchTogetherRoom}
+        onJoinRoom={handleJoinWatchTogetherRoom}
+        onCopyRoomCode={handleCopyWatchTogetherRoomCode}
+        onDisconnect={handleDisconnectWatchTogether}
+        onOpenSignIn={() => setShowWatchTogetherSignInModal(true)}
+      />
+
+      <CloudReLoginModal
+        isOpen={showWatchTogetherSignInModal()}
+        onClose={() => setShowWatchTogetherSignInModal(false)}
+        onReLoginSuccess={() => setShowWatchTogetherSignInModal(false)}
+        title={t('mlearn.WatchTogether.Code.SignInModalTitle')}
+        warningMessage={t('mlearn.WatchTogether.Code.SignInRequiredMessage')}
+        hint={t('mlearn.WatchTogether.Code.SignInHint')}
+        codeHint={t('mlearn.WatchTogether.Code.SignInCodeHint')}
       />
     </div>
   );

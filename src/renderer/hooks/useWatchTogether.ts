@@ -10,8 +10,16 @@
  * Mirrors the feature set of the tethered core.js client.
  */
 
-import { createSignal, onCleanup } from 'solid-js';
+import { createMemo, createSignal, onCleanup } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
+import {
+  closeWatchTogetherRoom,
+  subscribeToWatchTogetherRoom,
+  updateWatchTogetherRoomState,
+  type WatchTogetherRoomSession,
+  type WatchTogetherRoomState,
+  type WatchTogetherRoomUpdatePayload,
+} from '../services/watchTogetherRoomService';
 
 export interface WatchTogetherMessage {
   action: string;
@@ -23,16 +31,32 @@ export interface WatchTogetherMessage {
   weight?: number;
 }
 
+export interface RemoteSubtitleState {
+  html: string;
+  size: number;
+  weight: number;
+}
+
+export type WatchTogetherMode = 'inactive' | 'local' | 'room-owner' | 'room-viewer';
+
 interface UseWatchTogetherOptions {
   /** Returns the HTMLVideoElement to control, or null when not available. */
   getVideo: () => HTMLVideoElement | null;
   /** Returns the current video source URL (for request-response). */
   getVideoSrc: () => string;
+  /** Returns the current media title for cloud room sync. */
+  getVideoTitle?: () => string;
 }
 
 export function useWatchTogether(options: UseWatchTogetherOptions) {
-  const [isActive, setIsActive] = createSignal(false);
+  const [mode, setMode] = createSignal<WatchTogetherMode>('inactive');
+  const [roomSession, setRoomSession] = createSignal<WatchTogetherRoomSession | null>(null);
+  const [roomState, setRoomState] = createSignal<WatchTogetherRoomState | null>(null);
+  const [remoteSubtitle, setRemoteSubtitle] = createSignal<RemoteSubtitleState | null>(null);
   const cleanups: Array<() => void> = [];
+  const isActive = createMemo(() => mode() !== 'inactive');
+  const canControl = createMemo(() => mode() === 'local' || mode() === 'room-owner');
+  const isRoomMode = createMemo(() => mode() === 'room-owner' || mode() === 'room-viewer');
 
   // ---------------------------------------------------------------------------
   // IPC listeners — registered once and cleaned up on unmount
@@ -43,7 +67,9 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   // When the main process confirms watch-together is available, activate.
   cleanups.push(
     bridge.watchTogether.onWatchTogetherLaunch(() => {
-      setIsActive(true);
+      if (mode() === 'inactive') {
+        setMode('local');
+      }
     }),
   );
 
@@ -57,23 +83,91 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   );
 
   onCleanup(() => {
+    const session = roomSession();
+    const accessToken = roomAccessToken;
+    const shouldCloseRoom = mode() === 'room-owner' && session && accessToken;
+
+    cleanupRoomConnection();
+
     for (const cleanup of cleanups) cleanup();
     cleanups.length = 0;
+
+    if (shouldCloseRoom) {
+      void closeWatchTogetherRoom(session, accessToken).catch((error) => {
+        console.error('[WatchTogether] Failed to close room during cleanup', error);
+      });
+    }
   });
 
   // ---------------------------------------------------------------------------
   // Activate / deactivate
   // ---------------------------------------------------------------------------
 
-  /** Call once to tell the main process we want watch-together mode. */
+  let roomAccessToken = '';
+  let roomCleanup: (() => void) | null = null;
+  let latestSubtitleState: RemoteSubtitleState | null = null;
+
+  function extractRemoteSubtitle(nextRoomState: WatchTogetherRoomState): RemoteSubtitleState | null {
+    if (!nextRoomState.subtitlesHtml) {
+      return null;
+    }
+
+    return {
+      html: nextRoomState.subtitlesHtml,
+      size: nextRoomState.subtitleSize ?? 32,
+      weight: nextRoomState.subtitleWeight ?? 700,
+    };
+  }
+
+  function applyRoomState(nextRoomState: WatchTogetherRoomState): void {
+    setRoomState(nextRoomState);
+    setRemoteSubtitle(extractRemoteSubtitle(nextRoomState));
+    setRoomSession((current) => current ? { ...current, room: nextRoomState } : current);
+  }
+
+  function cleanupRoomConnection(): void {
+    roomCleanup?.();
+    roomCleanup = null;
+    roomAccessToken = '';
+    latestSubtitleState = null;
+    setRoomSession(null);
+    setRoomState(null);
+    setRemoteSubtitle(null);
+  }
+
+  /** Call once to tell the main process we want local websocket watch-together mode. */
   function activate(): void {
+    cleanupRoomConnection();
     bridge.watchTogether.isWatchingTogether();
-    setIsActive(true);
+    setMode('local');
+  }
+
+  function activateRoom(session: WatchTogetherRoomSession, accessToken: string): void {
+    cleanupRoomConnection();
+    roomAccessToken = accessToken;
+    setRoomSession(session);
+    applyRoomState(session.room);
+    setMode(session.canControl ? 'room-owner' : 'room-viewer');
+
+    roomCleanup = subscribeToWatchTogetherRoom(session, accessToken, (nextRoomState) => {
+      applyRoomState(nextRoomState);
+    });
   }
 
   /** Deactivate watch-together — stop broadcasting. */
   function deactivate(): void {
-    setIsActive(false);
+    const activeMode = mode();
+    const session = roomSession();
+    const accessToken = roomAccessToken;
+
+    setMode('inactive');
+    cleanupRoomConnection();
+
+    if (activeMode === 'room-owner' && session && accessToken) {
+      void closeWatchTogetherRoom(session, accessToken).catch((error) => {
+        console.error('[WatchTogether] Failed to close room', error);
+      });
+    }
   }
 
   /** Toggle watch-together on/off. */
@@ -82,28 +176,94 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     else activate();
   }
 
+  async function runSuppressed(task: () => void | Promise<void>): Promise<void> {
+    suppressEvents = true;
+    try {
+      await task();
+    } finally {
+      suppressEvents = false;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Outgoing — broadcast local video events to all connected clients
   // ---------------------------------------------------------------------------
 
   function send(msg: WatchTogetherMessage): void {
-    if (!isActive()) return;
+    if (mode() !== 'local') return;
     bridge.watchTogether.watchTogetherSend(JSON.stringify(msg));
+  }
+
+  function buildRoomUpdatePayload(overrides: Partial<WatchTogetherRoomUpdatePayload>): WatchTogetherRoomUpdatePayload | null {
+    const currentRoomState = roomState();
+    const video = options.getVideo();
+    const mediaUrl = overrides.mediaUrl ?? options.getVideoSrc();
+
+    if (!mediaUrl) {
+      return null;
+    }
+
+    const fallbackTitle = options.getVideoTitle?.() || currentRoomState?.mediaTitle || '';
+
+    return {
+      mediaUrl,
+      mediaTitle: overrides.mediaTitle ?? fallbackTitle,
+      currentTime: overrides.currentTime ?? video?.currentTime ?? currentRoomState?.currentTime ?? 0,
+      paused: overrides.paused ?? video?.paused ?? currentRoomState?.paused ?? true,
+      playbackRate: overrides.playbackRate ?? video?.playbackRate ?? currentRoomState?.playbackRate ?? 1,
+      subtitlesHtml: overrides.subtitlesHtml ?? latestSubtitleState?.html ?? currentRoomState?.subtitlesHtml ?? null,
+      subtitleSize: overrides.subtitleSize ?? latestSubtitleState?.size ?? currentRoomState?.subtitleSize ?? null,
+      subtitleWeight: overrides.subtitleWeight ?? latestSubtitleState?.weight ?? currentRoomState?.subtitleWeight ?? null,
+    };
+  }
+
+  function syncRoomState(overrides: Partial<WatchTogetherRoomUpdatePayload>): void {
+    if (mode() !== 'room-owner') return;
+
+    const session = roomSession();
+    if (!session || !roomAccessToken) return;
+
+    const payload = buildRoomUpdatePayload(overrides);
+    if (!payload) return;
+
+    void updateWatchTogetherRoomState(session, roomAccessToken, payload)
+      .then((nextSession) => {
+        setRoomSession(nextSession);
+        applyRoomState(nextSession.room);
+      })
+      .catch((error) => {
+        console.error('[WatchTogether] Failed to update room state', error);
+      });
   }
 
   /** Call when the local video starts playing. */
   function sendPlay(time: number): void {
-    send({ action: 'play', time });
+    if (mode() === 'local') {
+      send({ action: 'play', time });
+      return;
+    }
+
+    syncRoomState({ currentTime: time, paused: false });
   }
 
   /** Call when the local video is paused. */
   function sendPause(time: number): void {
-    send({ action: 'pause', time });
+    if (mode() === 'local') {
+      send({ action: 'pause', time });
+      return;
+    }
+
+    syncRoomState({ currentTime: time, paused: true });
   }
 
   /** Call when the user seeks. */
   function sendSync(time: number): void {
-    send({ action: 'sync', time });
+    if (mode() === 'local') {
+      send({ action: 'sync', time });
+      return;
+    }
+
+    syncRoomState({ currentTime: time });
   }
 
   /**
@@ -111,7 +271,13 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
    * own subtitles can display the desktop's rendered text.
    */
   function sendSubtitles(html: string, size: number, weight: number): void {
-    send({ action: 'subtitles', subtitle: html, size, weight });
+    if (mode() === 'local') {
+      send({ action: 'subtitles', subtitle: html, size, weight });
+      return;
+    }
+
+    latestSubtitleState = { html, size, weight };
+    syncRoomState({ subtitlesHtml: html, subtitleSize: size, subtitleWeight: weight });
   }
 
   // ---------------------------------------------------------------------------
@@ -134,10 +300,15 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       return;
     }
 
-    // When not active only respond to new-client sync requests so that
+    // Only local websocket mode responds to tethered browser sync requests.
+    // When fully inactive, still respond to new-client sync requests so that
     // tethered browsers can still get the desktop's state on connect.
-    if (!isActive()) {
+    if (mode() !== 'local') {
       if (!msg.action) {
+        if (mode() !== 'inactive') {
+          return;
+        }
+
         // Empty `{}` from a newly connected client — send current state.
         const video = options.getVideo();
         if (video) {
@@ -210,10 +381,23 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   }
 
   return {
+    mode,
     /** Whether watch-together mode is currently active. */
     isActive,
+    /** Whether the current mode is a cloud room mode. */
+    isRoomMode,
+    /** Whether the current user can control the shared playback state. */
+    canControl,
+    /** Current cloud room session metadata, if any. */
+    roomSession,
+    /** Latest room state received or sent through the cloud room mode. */
+    roomState,
+    /** Latest remote subtitle HTML mirrored from the room host. */
+    remoteSubtitle,
     /** Activate watch-together mode (notifies main process). */
     activate,
+    /** Activate Supabase-backed room-code mode. */
+    activateRoom,
     /** Deactivate watch-together mode. */
     deactivate,
     /** Toggle watch-together on/off. */
@@ -226,6 +410,8 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     sendSync,
     /** Broadcast current subtitle HTML to tethered clients. */
     sendSubtitles,
+    /** Run video mutations without rebroadcasting them back out. */
+    runSuppressed,
     /** True while applying a remote command — suppress re-broadcast. */
     get isSuppressed() { return suppressEvents; },
   };
