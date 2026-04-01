@@ -19,6 +19,10 @@ export interface CloudReLoginModalProps {
   onClose: () => void;
   /** Called after re-login succeeds so the caller can retry the failed operation */
   onReLoginSuccess?: () => void;
+  title?: string;
+  warningMessage?: string;
+  hint?: string;
+  codeHint?: string;
 }
 
 export const CloudReLoginModal: Component<CloudReLoginModalProps> = (props) => {
@@ -109,22 +113,22 @@ export const CloudReLoginModal: Component<CloudReLoginModalProps> = (props) => {
     <Modal
       isOpen={props.isOpen}
       onClose={handleClose}
-      title={t('mlearn.CloudReLogin.Title')}
+      title={props.title || t('mlearn.CloudReLogin.Title')}
       size="sm"
       footer={footer}
     >
       <div class="cloud-relogin-content">
         <div class="cloud-relogin-warning">
           <WarningIcon size={20} />
-          <span>{t('mlearn.CloudReLogin.SessionExpired')}</span>
+          <span>{props.warningMessage || t('mlearn.CloudReLogin.SessionExpired')}</span>
         </div>
 
         <Show when={!loginPending()}>
-          <HintText>{t('mlearn.CloudReLogin.Hint')}</HintText>
+          <HintText>{props.hint || t('mlearn.CloudReLogin.Hint')}</HintText>
         </Show>
 
         <Show when={loginPending()}>
-          <HintText>{t('mlearn.CloudReLogin.CodeHint')}</HintText>
+          <HintText>{props.codeHint || t('mlearn.CloudReLogin.CodeHint')}</HintText>
           <Input
             value={manualCode()}
             onInput={(e) => setManualCode(e.currentTarget.value)}

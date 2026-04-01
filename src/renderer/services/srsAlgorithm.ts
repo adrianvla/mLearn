@@ -9,7 +9,7 @@
  * - relearning: Failed review, back to learning phase
  */
 
-import type { Flashcard, FlashcardMeta, ReviewQueue } from '../../shared/types';
+import {DEFAULT_SETTINGS, Flashcard, FlashcardMeta, ReviewQueue} from '../../shared/types';
 
 // Time constants
 const MINUTE = 60 * 1000;
@@ -615,7 +615,7 @@ export function buildReviewQueue(
     reviewsToday?: number,
     newDayHour?: number
 ): ReviewQueue {
-    const hour = newDayHour ?? 4;
+    const hour = newDayHour ?? DEFAULT_SETTINGS.newDayHour;
 
     // Get all card lists
     const allNewCards = getNewCards(cards);
