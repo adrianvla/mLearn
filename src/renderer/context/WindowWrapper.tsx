@@ -14,6 +14,7 @@ import { LocalizationProvider, useLocalization } from './LocalizationContext';
 import { ResponsiveProvider } from './ResponsiveContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
+import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
 import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
 import { setMigrationListenerReady } from './migrationSignals';
 import { LowPowerGateProvider } from './LowPowerGateContext';
@@ -150,6 +151,17 @@ const ServerStatusObserver: Component = () => {
   return null;
 };
 
+const GlobalCloudReLoginModal: Component = () => {
+  const { isCloudReLoginModalOpen, closeCloudReLoginModal } = useSettings();
+
+  return (
+    <CloudReLoginModal
+      isOpen={isCloudReLoginModalOpen()}
+      onClose={closeCloudReLoginModal}
+    />
+  );
+};
+
 
 /**
  * WindowWrapper wraps all window entry points with necessary providers
@@ -176,6 +188,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean }> = (pro
                   </Show>
                   {props.children}
                   <FlashcardCreationChoiceModal />
+                  <GlobalCloudReLoginModal />
                 </FlashcardProvider>
                 <ToastContainer />
               </MigrationHandler>

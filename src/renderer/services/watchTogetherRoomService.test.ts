@@ -4,6 +4,7 @@ import {
   createWatchTogetherRoom,
   isShareableWatchTogetherUrl,
   joinWatchTogetherRoom,
+  leaveWatchTogetherRoom,
   subscribeToWatchTogetherRoom,
   type WatchTogetherRoomSession,
   type WatchTogetherRoomState,
@@ -153,6 +154,33 @@ describe('watchTogetherRoomService', () => {
 
     const [, init] = mockFetch.mock.calls[0];
     expect(init?.body).toBe(JSON.stringify({ roomCode: 'ABC123' }));
+  });
+
+  it('leaveWatchTogetherRoom posts to the viewer leave action when available', async () => {
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await leaveWatchTogetherRoom({
+      role: 'viewer',
+      canControl: false,
+      room: createSessionResponse().data.room,
+      socket: createSessionResponse().data.socket,
+      actions: {
+        refresh: createSessionResponse().actions.refresh,
+        connect_socket: createSessionResponse().actions.connect_socket,
+        leave_room: {
+          method: 'POST',
+          url: 'https://cloud.example.com/api/watch-together/rooms/room-1/leave',
+        },
+      },
+    }, 'token-viewer');
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://cloud.example.com/api/watch-together/rooms/room-1/leave',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.any(Headers),
+      }),
+    );
   });
 
   it('subscribeToWatchTogetherRoom connects through the worker websocket endpoint and forwards room-state messages', () => {

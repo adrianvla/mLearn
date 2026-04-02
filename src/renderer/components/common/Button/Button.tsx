@@ -10,6 +10,7 @@
 
 import { Component, JSX, splitProps, mergeProps, Show } from 'solid-js';
 import Icon from '../Icons/Icon';
+import { Spinner } from '../Loader';
 import './Button.css';
 
 // ============ Types ============
@@ -91,39 +92,6 @@ export interface ButtonProps extends JSX.ButtonHTMLAttributes<HTMLButtonElement>
   /** Children content */
   children?: JSX.Element;
 }
-
-// ============ Spinner Component ============
-
-const LoadingSpinner: Component<{ size?: string }> = (props) => (
-  <svg
-    class="btn-spinner"
-    width={props.size || '1em'}
-    height={props.size || '1em'}
-    viewBox="0 0 24 24"
-    fill="none"
-  >
-    <circle
-      cx="12"
-      cy="12"
-      r="10"
-      stroke="currentColor"
-      stroke-width="3"
-      stroke-linecap="round"
-      stroke-dasharray="31.4 31.4"
-      style={{ opacity: 0.3 }}
-    />
-    <circle
-      cx="12"
-      cy="12"
-      r="10"
-      stroke="currentColor"
-      stroke-width="3"
-      stroke-linecap="round"
-      stroke-dasharray="31.4 31.4"
-      transform="rotate(-90 12 12)"
-    />
-  </svg>
-);
 
 // ============ Icon Helper ============
 
@@ -265,6 +233,20 @@ export const Button: Component<ButtonProps> = (props) => {
     }
   };
 
+  const loadingSpinnerSize = () => {
+    switch (local.size) {
+      case 'xs':
+        return 12;
+      case 'sm':
+        return 14;
+      case 'lg':
+        return 18;
+      case 'md':
+      default:
+        return 16;
+    }
+  };
+
   return (
     <button
       class={buttonClass()}
@@ -274,7 +256,7 @@ export const Button: Component<ButtonProps> = (props) => {
     >
       {/* Loading spinner */}
       <Show when={local.loading}>
-        <LoadingSpinner />
+        <Spinner size={loadingSpinnerSize()} class="btn-loading-spinner" />
       </Show>
 
       {/* Left icon */}

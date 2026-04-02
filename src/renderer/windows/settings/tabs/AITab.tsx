@@ -6,7 +6,7 @@
 import { Component, Show, For, createSignal, createEffect, onCleanup } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
 import {
-  SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, ToggleSwitch,
+  SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, ToggleSwitch, ConnectionStatus,
   BotIcon
 } from '../../../components/common';
 import { getBridge } from '../../../../shared/bridges';
@@ -34,7 +34,6 @@ export const AITab: Component = () => {
   // Ollama state
   const [ollamaConnected, setOllamaConnected] = createSignal<boolean | null>(null);
   const [ollamaTesting, setOllamaTesting] = createSignal(false);
-  const [ollamaTestSuccess, setOllamaTestSuccess] = createSignal(false);
   const [ollamaModels, setOllamaModels] = createSignal<string[]>([]);
   const [loadingModels, setLoadingModels] = createSignal(false);
 
@@ -51,6 +50,15 @@ export const AITab: Component = () => {
   const [deletingModel, setDeletingModel] = createSignal<string | null>(null);
   const [deleteConfirmMsg, setDeleteConfirmMsg] = createSignal<string | null>(null);
 
+  const clearBuiltinStatusMessages = () => {
+    setAutoselectMsg(null);
+    setDeleteConfirmMsg(null);
+  };
+
+  const resetOllamaConnectionState = () => {
+    setOllamaConnected(null);
+  };
+
   // Check model status on mount
   createEffect(() => {
     checkModelStatus();
@@ -59,6 +67,22 @@ export const AITab: Component = () => {
   createEffect(() => {
     if (settings.llmProvider !== 'ollama') return;
     void handleFetchOllamaModels();
+  });
+
+  createEffect(() => {
+    const provider = settings.llmProvider;
+
+    if (provider !== 'builtin') {
+      clearBuiltinStatusMessages();
+    }
+
+    if (provider !== 'ollama') {
+      resetOllamaConnectionState();
+    }
+
+    if (provider !== 'cloud') {
+      setCloudLLMStatus('idle');
+    }
   });
 
   // Listen for download progress updates only
@@ -126,7 +150,7 @@ export const AITab: Component = () => {
     const bridge = getBridge();
     if (!bridge.llm.llmGetSystemMemory) return;
     setAutoselecting(true);
-    setAutoselectMsg(null);
+    clearBuiltinStatusMessages();
     try {
       const memInfo: SystemMemoryInfo = await bridge.llm.llmGetSystemMemory();
       const selected = autoselectBuiltinModel(memInfo);
@@ -136,7 +160,6 @@ export const AITab: Component = () => {
       const memLabel = memInfo.hasDiscreteGpu ? 'VRAM' : 'unified memory';
       updateSettings({ builtinModel: selected.modelFile, builtinModelAutoselected: true });
       setAutoselectMsg(`Detected ${memGb} GB ${memLabel} — selected ${selected.displayName}`);
-      setTimeout(() => setAutoselectMsg(null), 5000);
       await checkModelStatus(selected.modelFile);
     } catch (e) {
       console.error(e);
@@ -162,12 +185,12 @@ export const AITab: Component = () => {
     const bridge = getBridge();
     if (!bridge.llm.llmDeleteModel) return;
     setDeletingModel(modelFile);
+    setDeleteConfirmMsg(null);
     try {
       await bridge.llm.llmDeleteModel(modelFile);
       const model = BUILTIN_MODELS.find((m) => m.modelFile === modelFile);
       if (model) {
         setDeleteConfirmMsg(`Deleted ${model.displayName}`);
-        setTimeout(() => setDeleteConfirmMsg(null), 3000);
       }
       await fetchDownloadedModels();
     } catch (e) {
@@ -196,15 +219,10 @@ export const AITab: Component = () => {
 
   async function handleTestOllama() {
     setOllamaTesting(true);
-    setOllamaConnected(null);
-    setOllamaTestSuccess(false);
+    resetOllamaConnectionState();
     try {
       const ok = await getBridge().llm.ollamaCheck();
       setOllamaConnected(ok);
-      if (ok) {
-        setOllamaTestSuccess(true);
-        setTimeout(() => setOllamaTestSuccess(false), 3000);
-      }
     } catch (e) {
       console.error(e);
       setOllamaConnected(false);
@@ -300,6 +318,7 @@ export const AITab: Component = () => {
                 value={settings.builtinModel}
                 onChange={(e) => {
                   const modelFile = e.currentTarget.value;
+                  clearBuiltinStatusMessages();
                   updateSettings({ builtinModel: modelFile, builtinModelAutoselected: true });
                   getBridge().llm.llmUnloadModel();
                   void checkModelStatus(modelFile);
@@ -415,7 +434,10 @@ export const AITab: Component = () => {
           >
             <Input
               value={settings.ollamaUrl}
-              onInput={(e) => updateSettings({ ollamaUrl: e.currentTarget.value })}
+              onInput={(e) => {
+                resetOllamaConnectionState();
+                updateSettings({ ollamaUrl: e.currentTarget.value });
+              }}
               placeholder="http://localhost:11434"
               size="md"
             />
@@ -431,7 +453,10 @@ export const AITab: Component = () => {
                 fallback={
                   <Input
                     value={settings.ollamaModel}
-                    onInput={(e) => updateSettings({ ollamaModel: e.currentTarget.value })}
+                    onInput={(e) => {
+                      resetOllamaConnectionState();
+                      updateSettings({ ollamaModel: e.currentTarget.value });
+                    }}
                     placeholder="qwen3:8b"
                     size="md"
                   />
@@ -441,6 +466,7 @@ export const AITab: Component = () => {
                   class="setting-select"
                   value={settings.ollamaModel}
                   onChange={(e) => {
+                    resetOllamaConnectionState();
                     updateSettings({ ollamaModel: e.currentTarget.value });
                   }}
                   options={ollamaModels().map((model) => ({ value: model, label: model }))}
@@ -458,13 +484,13 @@ export const AITab: Component = () => {
           >
             <Btn
               size="sm"
-              variant={ollamaTestSuccess() ? 'success' : ollamaConnected() === false ? 'danger' : 'default'}
+              variant={ollamaConnected() === true ? 'success' : ollamaConnected() === false ? 'danger' : 'default'}
               onClick={handleTestOllama}
               disabled={ollamaTesting()}
               loading={ollamaTesting()}
-              icon={ollamaTestSuccess() ? 'check' : undefined}
+              icon={ollamaConnected() === true ? 'check' : undefined}
             >
-              {ollamaTestSuccess()
+              {ollamaConnected() === true
                 ? t('mlearn.AI.Settings.OllamaConfig.ConnectionSuccess')
                 : ollamaConnected() === false
                   ? t('mlearn.Connection.Unreachable')
@@ -495,11 +521,14 @@ export const AITab: Component = () => {
             label={t('mlearn.Connection.AuthStatus') || 'Cloud Account'}
             description={t('mlearn.AI.Settings.CloudConfig.TokenHint')}
           >
-            <span class="setting-value">
-              {settings.cloudAuthStatus === 'signed-in'
-                ? (settings.cloudAuthUserEmail || (t('mlearn.Connection.Connected') || 'Connected'))
-                : (t('mlearn.Connection.SignIn') || 'Sign in from Connection settings')}
-            </span>
+            <Show
+              when={settings.cloudAuthStatus === 'signed-in'}
+              fallback={<ConnectionStatus status="disconnected" size="sm" />}
+            >
+              <span class="setting-value">
+                {settings.cloudAuthUserEmail || (t('mlearn.Connection.Connected') || 'Connected')}
+              </span>
+            </Show>
           </SettingRow>
 
           <SettingRow
