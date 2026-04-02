@@ -5,7 +5,8 @@
  */
 
 import { Component, Show, createSignal } from 'solid-js';
-import { useSettings, useLocalization } from '../../context';
+import { useSettings } from '../../context/SettingsContext';
+import { useLocalization } from '../../context/LocalizationContext';
 import { getBridge } from '../../../shared/bridges';
 import { Modal, Btn, Input, HintText, WarningIcon } from '../common';
 import {

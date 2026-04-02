@@ -14,6 +14,7 @@ import { createMemo, createSignal, onCleanup } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
 import {
   closeWatchTogetherRoom,
+  leaveWatchTogetherRoom,
   subscribeToWatchTogetherRoom,
   updateWatchTogetherRoomState,
   type WatchTogetherRoomSession,
@@ -85,18 +86,14 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   onCleanup(() => {
     const session = roomSession();
     const accessToken = roomAccessToken;
-    const shouldCloseRoom = mode() === 'room-owner' && session && accessToken;
+    const activeMode = mode();
 
     cleanupRoomConnection();
 
     for (const cleanup of cleanups) cleanup();
     cleanups.length = 0;
 
-    if (shouldCloseRoom) {
-      void closeWatchTogetherRoom(session, accessToken).catch((error) => {
-        console.error('[WatchTogether] Failed to close room during cleanup', error);
-      });
-    }
+    releaseRoomSession(activeMode, session, accessToken, 'during cleanup');
   });
 
   // ---------------------------------------------------------------------------
@@ -135,6 +132,30 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     setRemoteSubtitle(null);
   }
 
+  function releaseRoomSession(
+    activeMode: WatchTogetherMode,
+    session: WatchTogetherRoomSession | null,
+    accessToken: string,
+    context: string,
+  ): void {
+    if (!session || !accessToken) {
+      return;
+    }
+
+    if (activeMode === 'room-owner') {
+      void closeWatchTogetherRoom(session, accessToken).catch((error) => {
+        console.error(`[WatchTogether] Failed to close room ${context}`, error);
+      });
+      return;
+    }
+
+    if (activeMode === 'room-viewer') {
+      void leaveWatchTogetherRoom(session, accessToken).catch((error) => {
+        console.error(`[WatchTogether] Failed to leave room ${context}`, error);
+      });
+    }
+  }
+
   /** Call once to tell the main process we want local websocket watch-together mode. */
   function activate(): void {
     cleanupRoomConnection();
@@ -143,7 +164,12 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   }
 
   function activateRoom(session: WatchTogetherRoomSession, accessToken: string): void {
+    const previousMode = mode();
+    const previousSession = roomSession();
+    const previousAccessToken = roomAccessToken;
+
     cleanupRoomConnection();
+    releaseRoomSession(previousMode, previousSession, previousAccessToken, 'while switching rooms');
     roomAccessToken = accessToken;
     setRoomSession(session);
     applyRoomState(session.room);
@@ -162,12 +188,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
 
     setMode('inactive');
     cleanupRoomConnection();
-
-    if (activeMode === 'room-owner' && session && accessToken) {
-      void closeWatchTogetherRoom(session, accessToken).catch((error) => {
-        console.error('[WatchTogether] Failed to close room', error);
-      });
-    }
+    releaseRoomSession(activeMode, session, accessToken, 'during manual disconnect');
   }
 
   /** Toggle watch-together on/off. */

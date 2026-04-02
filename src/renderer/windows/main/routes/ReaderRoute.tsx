@@ -32,6 +32,7 @@ import { useAnki } from '../../../hooks/useAnki';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { syncReaderPluginActivity } from './readerPluginActivity';
+import { getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
 import './reader.css';
 
 interface PageImage {
@@ -43,7 +44,7 @@ interface PageImage {
 }
 
 type FitMode = 'fit-height' | 'fit-width';
-type PageMode = 'double' | 'single';
+type PageMode = ReaderPageMode;
 
 interface ReaderPageWordSource {
   key: string;
@@ -342,24 +343,19 @@ export const ReaderRoute: Component = () => {
     return { files: entryFiles.flat(), droppedFolderName, droppedFolderPath, rawFilePaths };
   };
 
-  const visiblePages = () => {
-    const p = pages();
-    const curr = currentPage();
+  const visiblePageIndices = createMemo(() => getVisiblePageIndices(
+    pages().length,
+    currentPage(),
+    pageMode(),
+    firstPageSingle(),
+  ));
 
-    if (pageMode() === 'single') {
-      return p[curr] ? [p[curr]] : [];
-    } else {
-      // Double page mode
-      // If firstPageSingle is true and we're on page 0, show only page 0
-      if (firstPageSingle() && curr === 0) {
-        return p[0] ? [p[0]] : [];
-      }
-      const result: PageImage[] = [];
-      if (p[curr]) result.push(p[curr]);
-      if (p[curr + 1]) result.push(p[curr + 1]);
-      return result;
-    }
-  };
+  const visiblePages = createMemo(() => {
+    const allPages = pages();
+    return visiblePageIndices()
+      .map((pageIndex) => allPages[pageIndex])
+      .filter((page): page is PageImage => page !== undefined);
+  });
 
   createEffect(on(currentBookId, () => {
     setOcrPageWords(reconcile({}));
@@ -559,9 +555,7 @@ export const ReaderRoute: Component = () => {
     const base = currentPage();
     const isDouble = pageMode() === 'double';
 
-    // Determine visible pages
-    const visibleIndices: number[] = [base];
-    if (isDouble) visibleIndices.push(base + 1);
+    const visibleIndices = visiblePageIndices();
 
     // Determine caching pages (next 2)
     const nextStart = base + (isDouble ? 2 : 1);
@@ -778,12 +772,11 @@ export const ReaderRoute: Component = () => {
     const currentTask = processingTask();
     const queue = ocrQueue();
     const visible = visiblePages();
-    const currPageIdx = currentPage();
+    const visibleIndices = visiblePageIndices();
     const isDouble = pageMode() === 'double';
 
-    // Visible page index range
-    const visibleStart = currPageIdx;
-    const visibleEnd = isDouble ? currPageIdx + 1 : currPageIdx;
+    const visibleStart = visibleIndices[0] ?? currentPage();
+    const visibleEnd = visibleIndices[visibleIndices.length - 1] ?? currentPage();
 
     // Maximum visible pages based on layout mode - this is the Y in "X/Y"
     const maxVisibleCount = isDouble ? 2 : 1;
@@ -1710,8 +1703,7 @@ export const ReaderRoute: Component = () => {
         <Show when={showSidebar()}>
           <ReaderSidebar
               pages={pages}
-              currentPage={currentPage}
-              pageMode={pageMode}
+              activePageIndices={visiblePageIndices}
               hasOcrForPage={hasOcrForPage}
               onGoToPage={goToPage}
           />
@@ -1756,10 +1748,9 @@ export const ReaderRoute: Component = () => {
                   // Uses latched status from signal to prevent text changes during fade-out
                   const getStatusText = () => {
                     const waiting = isWaitingForOcr();
-                    const currPageIdx = currentPage();
-                    const isDouble = pageMode() === 'double';
-                    const visibleStart = currPageIdx;
-                    const visibleEnd = isDouble ? currPageIdx + 1 : currPageIdx;
+                    const visibleIndices = visiblePageIndices();
+                    const visibleStart = visibleIndices[0] ?? currentPage();
+                    const visibleEnd = visibleIndices[visibleIndices.length - 1] ?? currentPage();
 
                     // Compute a fresh status if possible; otherwise use latched status
                     let computed: string | null = null;

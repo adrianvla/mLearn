@@ -40,22 +40,15 @@ vi.mock('../services/cloudAuthService', () => ({
   validateAndRefreshCloudSession: (...args: unknown[]) => mockValidateAndRefreshCloudSession(...args),
 }));
 
-const mockShowToast = vi.fn();
-vi.mock('../components/common/Feedback/Toast', () => ({
-  showToast: (...args: unknown[]) => mockShowToast(...args),
-}));
-
-const mockT = vi.fn((key: string) => key);
-vi.mock('./LocalizationContext', () => ({
-  useLocalization: () => ({ t: mockT }),
-}));
-
 type SettingsCtx = {
   settings: Settings;
   updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   updateSettings: (partial: Partial<Settings>) => void;
   saveSettings: () => void;
   isLoading: () => boolean;
+  isCloudReLoginModalOpen: () => boolean;
+  openCloudReLoginModal: () => void;
+  closeCloudReLoginModal: () => void;
 };
 
 async function mountProvider() {
@@ -104,8 +97,19 @@ describe('SettingsProvider', () => {
   it('initial state: isLoading=true, settings match DEFAULT_SETTINGS', async () => {
     const { ctx, dispose } = await mountProvider();
     expect(ctx.isLoading()).toBe(true);
+    expect(ctx.isCloudReLoginModalOpen()).toBe(false);
     expect(ctx.settings.theme).toBe(DEFAULT_SETTINGS.theme);
     expect(ctx.settings.language).toBe(DEFAULT_SETTINGS.language);
+    dispose();
+  });
+
+  it('cloud re-login modal helpers toggle modal visibility', async () => {
+    const { ctx, dispose } = await mountProvider();
+    expect(ctx.isCloudReLoginModalOpen()).toBe(false);
+    ctx.openCloudReLoginModal();
+    expect(ctx.isCloudReLoginModalOpen()).toBe(true);
+    ctx.closeCloudReLoginModal();
+    expect(ctx.isCloudReLoginModalOpen()).toBe(false);
     dispose();
   });
 
@@ -221,17 +225,19 @@ describe('SettingsProvider', () => {
     dispose();
   });
 
-  it('cloud session validation: expired clears auth fields', async () => {
+  it('cloud session validation: expired clears auth fields and opens re-login modal for cloud features', async () => {
     mockValidateAndRefreshCloudSession.mockResolvedValue({ status: 'expired' });
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings({
       cloudAuthStatus: 'signed-in',
       cloudAuthAccessToken: 'some-token',
+      llmProvider: 'cloud',
     }));
     await vi.waitFor(() => {
       expect(ctx.settings.cloudAuthStatus).toBe('signed-out');
     });
     expect(ctx.settings.cloudAuthAccessToken).toBe('');
+    expect(ctx.isCloudReLoginModalOpen()).toBe(true);
     dispose();
   });
 

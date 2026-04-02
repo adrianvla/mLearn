@@ -44,6 +44,7 @@ export interface WatchTogetherRoomSession {
     connect_socket: WatchTogetherAction;
     update_state?: WatchTogetherAction;
     close_room?: WatchTogetherAction;
+    leave_room?: WatchTogetherAction;
   };
 }
 
@@ -70,6 +71,7 @@ interface WatchTogetherRoomResponse {
     connect_socket: WatchTogetherAction;
     update_state?: WatchTogetherAction;
     close_room?: WatchTogetherAction;
+    leave_room?: WatchTogetherAction;
   };
 }
 
@@ -224,6 +226,23 @@ export async function closeWatchTogetherRoom(
   );
 
   return toSession(response);
+}
+
+export async function leaveWatchTogetherRoom(
+  session: WatchTogetherRoomSession,
+  accessToken: string,
+): Promise<void> {
+  if (!session.actions.leave_room) {
+    return;
+  }
+
+  await fetchWatchTogether<Record<string, never>>(
+    session.actions.leave_room.url,
+    accessToken,
+    {
+      method: session.actions.leave_room.method,
+    },
+  );
 }
 
 export function subscribeToWatchTogetherRoom(

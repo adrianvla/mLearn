@@ -10,7 +10,6 @@ import { getBridge } from '../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../shared/backends';
 import { validateAndRefreshCloudSession } from '../../services/cloudAuthService';
-import { CloudReLoginModal } from '../../components/cloud';
 import {
   loadAgents,
   addAgent,
@@ -61,6 +60,7 @@ import type { StreamCallbacks } from '../../services/conversationAgent';
 import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import { isLatinOnly } from '../../../shared/utils/textUtils';
+import { getConversationErrorMessage, isCloudSessionError } from './errorUtils';
 import './ConversationAgent.css';
 
 /**
@@ -141,7 +141,7 @@ const MicIcon: Component = () => (
 );
 
 export const ConversationContent: Component = () => {
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, openCloudReLoginModal } = useSettings();
   const { currentLangData, isTranslatable, getLanguageFeatures, getFrequency, getFreqLevelNames, getLevelName } = useLanguage();
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
@@ -180,9 +180,6 @@ export const ConversationContent: Component = () => {
 
   // Level adaptation state
   const [targetLevel, setTargetLevel] = createSignal<number | null>(null);
-
-  // Cloud re-login modal state
-  const [showReLoginModal, setShowReLoginModal] = createSignal(false);
 
   // Agent setup & memory state
   const [agents, setAgents] = createSignal<AgentConfig[]>([]);
@@ -413,6 +410,9 @@ export const ConversationContent: Component = () => {
     void settings.ollamaUrl;
     void settings.ollamaModel;
     void settings.llmConfigured;
+    void settings.cloudAuthAccessToken;
+    void settings.cloudAuthToken;
+    void settings.cloudAuthStatus;
     void settings.cloudApiUrl;
     void settings.overrideCloudEndpointUrl;
 
@@ -786,10 +786,24 @@ export const ConversationContent: Component = () => {
         setIsStreaming(false);
         setIsWaiting(false);
 
+        const errorMessage = getConversationErrorMessage(error);
+        const updateLastMessage = (content: string) => {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            if (lastIdx < 0) {
+              return updated;
+            }
+            updated[lastIdx] = {
+              ...updated[lastIdx],
+              content,
+            };
+            return updated;
+          });
+        };
+
         // Detect cloud 401 errors — attempt token refresh, then show re-login modal
-        const is401 = settings.llmProvider === 'cloud' && (
-          error.includes('401') || error.toLowerCase().includes('invalid session')
-        );
+        const is401 = settings.llmProvider === 'cloud' && isCloudSessionError(error);
 
         if (is401) {
           validateAndRefreshCloudSession(settings).then((result) => {
@@ -800,15 +814,7 @@ export const ConversationContent: Component = () => {
                 cloudAuthRefreshToken: result.refreshToken,
                 ...(result.expiresAt ? { cloudAuthExpiresAt: result.expiresAt } : {}),
               });
-              setMessages((prev) => {
-                const updated = [...prev];
-                const lastIdx = updated.length - 1;
-                updated[lastIdx] = {
-                  ...updated[lastIdx],
-                  content: t('mlearn.CloudReLogin.SessionRefreshed'),
-                };
-                return updated;
-              });
+              updateLastMessage(t('mlearn.CloudReLogin.SessionRefreshed'));
             } else {
               // Session fully expired — show re-login modal
               updateSettings({
@@ -819,40 +825,16 @@ export const ConversationContent: Component = () => {
                 cloudAuthExpiresAt: 0,
                 cloudAuthStatus: 'signed-out',
               });
-              setShowReLoginModal(true);
-              setMessages((prev) => {
-                const updated = [...prev];
-                const lastIdx = updated.length - 1;
-                updated[lastIdx] = {
-                  ...updated[lastIdx],
-                  content: t('mlearn.CloudReLogin.SessionExpired'),
-                };
-                return updated;
-              });
+              openCloudReLoginModal();
+              updateLastMessage(t('mlearn.CloudReLogin.SessionExpired'));
             }
           }).catch(() => {
-            setMessages((prev) => {
-              const updated = [...prev];
-              const lastIdx = updated.length - 1;
-              updated[lastIdx] = {
-                ...updated[lastIdx],
-                content: `Error: ${error}`,
-              };
-              return updated;
-            });
+            updateLastMessage(`Error: ${errorMessage}`);
           });
           return;
         }
 
-        setMessages((prev) => {
-          const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          updated[lastIdx] = {
-            ...updated[lastIdx],
-            content: `Error: ${error}`,
-          };
-          return updated;
-        });
+        updateLastMessage(`Error: ${errorMessage}`);
       },
     };
   };
@@ -1489,15 +1471,6 @@ export const ConversationContent: Component = () => {
           onTutorConfigChange={setTutorConfig}
         />
       </TabPanel>
-
-      {/* Cloud re-login modal */}
-      <CloudReLoginModal
-        isOpen={showReLoginModal()}
-        onClose={() => setShowReLoginModal(false)}
-        onReLoginSuccess={() => {
-          setIsConnected(true);
-        }}
-      />
 
       {/* Agent setup modal */}
       <AgentSetupModal

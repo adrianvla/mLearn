@@ -11,6 +11,8 @@ import { Settings, DEFAULT_SETTINGS, LanguageDataMap } from '../../shared/types'
 import { getUserDataPath, getAppPath, getResourcePath } from '../utils/platform';
 import { setUILanguage } from './localization';
 
+let settingsSaveQueue: Promise<void> = Promise.resolve();
+
 function getSettingsPath(): string {
   return path.join(getUserDataPath(), 'settings.json');
 }
@@ -46,18 +48,24 @@ export function loadSettings(): Settings {
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
-  try {
-    const settingsPath = getSettingsPath();
-    const tmpPath = `${settingsPath}.tmp`;
-    const dir = path.dirname(settingsPath);
-    try {
-      await fs.promises.access(dir);
-    } catch (e) {
-      console.error(e);
+  const settingsPath = getSettingsPath();
+  const serializedSettings = JSON.stringify(settings, null, 2);
+
+  const queuedSave = settingsSaveQueue
+    .catch(() => undefined)
+    .then(async () => {
+      const tmpPath = `${settingsPath}.tmp`;
+      const dir = path.dirname(settingsPath);
+
       await fs.promises.mkdir(dir, { recursive: true });
-    }
-    await fs.promises.writeFile(tmpPath, JSON.stringify(settings, null, 2));
-    await fs.promises.rename(tmpPath, settingsPath);
+      await fs.promises.writeFile(tmpPath, serializedSettings, 'utf-8');
+      await fs.promises.rename(tmpPath, settingsPath);
+    });
+
+  settingsSaveQueue = queuedSave;
+
+  try {
+    await queuedSave;
   } catch (error) {
     console.error('Failed to save settings:', error);
   }
