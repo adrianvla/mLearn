@@ -22,9 +22,9 @@ import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
-import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus, getAnkiEaseForStatus } from '../../../components/subtitle/wordHoverHelpers';
-import { wordsLearnedInApp } from '../../../services/statsService';
-import { isWordInAnkiCache } from '../../../services/ankiWordsCache';
+import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus, getAnkiEaseForStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { getWordStatus } from '../../../services/statsService';
+import { findWordInAnkiCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { validateAndRefreshCloudSession } from '../../../services/cloudAuthService';
@@ -36,6 +36,7 @@ import {
 import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hooks/useTranslation';
 import type { ConversationAgentContext } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
+import { getWordFormCandidates } from '../../../utils/wordForms';
 import './video.css';
 
 /** Convert a filesystem path to a local-media:// URL that the renderer can load */
@@ -54,6 +55,15 @@ export const VideoRoute: Component = () => {
   const flashcardCtx = useFlashcards();
   const subtitles = useSubtitles();
   const anki = useAnki();
+  const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm);
+  const getManualWordStatus = (word: string): WordStatus => {
+    const forms = getWordForms(word);
+    return numericToWordStatus(getWordStatus(forms[0] ?? word, forms.slice(1)));
+  };
+  const getTrackedAnkiWord = (word: string): string | null => {
+    if (!settings.use_anki) return null;
+    return findWordInAnkiCache(getWordForms(word));
+  };
 
   const watchTogether = useWatchTogether({
     getVideo: () => document.querySelector('video'),
@@ -411,10 +421,11 @@ export const VideoRoute: Component = () => {
       if (seenWords.has(word)) continue;
       if (flashcardCtx.isWordIgnoredSync(word)) continue;
 
-      const manualStatus = numericToWordStatus(wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN);
+      const manualStatus = getManualWordStatus(word);
+      const trackedAnkiWord = getTrackedAnkiWord(word);
       const effectiveStatus = getEffectiveWordStatus(
         flashcardCtx.getCardByWordSync(word), manualStatus,
-        settings.use_anki && isWordInAnkiCache(word),
+        !!trackedAnkiWord,
         settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
       );
       if (effectiveStatus === 'known') continue;
@@ -438,14 +449,13 @@ export const VideoRoute: Component = () => {
 
   // Visible unknown words: filter out words that became known/ignored since accumulation
   const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
-    const manualStatuses = wordsLearnedInApp();
-
     return accumulatedWords().filter(entry => {
       if (flashcardCtx.isWordIgnoredSync(entry.word)) return false;
-      const manualStatus = numericToWordStatus(manualStatuses[entry.word] ?? WORD_STATUS.UNKNOWN);
+      const manualStatus = getManualWordStatus(entry.word);
+      const trackedAnkiWord = getTrackedAnkiWord(entry.word);
       const effectiveStatus = getEffectiveWordStatus(
         flashcardCtx.getCardByWordSync(entry.word), manualStatus,
-        settings.use_anki && isWordInAnkiCache(entry.word),
+        !!trackedAnkiWord,
         settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
       );
       return effectiveStatus !== 'known';
@@ -468,7 +478,7 @@ export const VideoRoute: Component = () => {
         }
       }
       const freq = langCtx.getFrequency(word);
-      const manualStatus = numericToWordStatus(wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN);
+      const manualStatus = getManualWordStatus(word);
       const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
 
       const { content, ease } = await buildWordHoverFlashcardContent({
@@ -540,11 +550,14 @@ export const VideoRoute: Component = () => {
     setIsAddingAllSidebarWords(true);
     try {
       for (const entry of entries) {
-        if (settings.use_anki && isWordInAnkiCache(entry.word)) {
-          const status = numericToWordStatus(wordsLearnedInApp()[entry.word] ?? WORD_STATUS.LEARNING);
+        const trackedAnkiWord = getTrackedAnkiWord(entry.word);
+        if (trackedAnkiWord) {
+          const forms = getWordForms(entry.word);
+          const storedStatus = getWordStatus(forms[0] ?? entry.word, forms.slice(1));
+          const status = numericToWordStatus(storedStatus === WORD_STATUS.UNKNOWN ? WORD_STATUS.LEARNING : storedStatus);
           const ankiEase = getAnkiEaseForStatus(status, settings.ankiLearningEase, settings.ankiKnownEase);
           try {
-            await anki.updateWordCards(entry.word, ankiEase);
+            await anki.updateWordCards(trackedAnkiWord, ankiEase);
           } catch (err) {
             console.error(`Failed to update Anki cards for "${entry.word}":`, err);
             showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });

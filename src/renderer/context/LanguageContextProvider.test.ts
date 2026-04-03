@@ -255,6 +255,17 @@ describe('LanguageContext - provider behavior', () => {
     dispose();
   });
 
+  it('getCanonicalForm resolves pure-kana words to their canonical form', async () => {
+    const data = makeJaLangData();
+    data.ja.freq.push(['仲間', 'なかま', 1]);
+
+    const { ctx, dispose } = await mountProvider();
+    langDataCb(data);
+
+    expect(ctx.getCanonicalForm('なかま')).toBe('仲間');
+    dispose();
+  });
+
   it('getFrequency returns correct level for word within first boundary', async () => {
     const { ctx, dispose } = await mountProvider();
     langDataCb(makeJaLangData());

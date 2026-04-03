@@ -521,10 +521,15 @@
     },
     "Explainer": {
       "Explanation": "Объяснение",
-      "GeneratedBy": "Сгенерировано локальным AI",
+      "GeneratedBy": "Сгенерировано с помощью {provider}",
       "Generating": "Генерация...",
       "GrammarPoints": "Основные грамматические моменты",
       "Loading": "Загрузка AI-объяснения...",
+      "Provider": {
+        "Builtin": "локального AI",
+        "Cloud": "облачного AI",
+        "Ollama": "Ollama"
+      },
       "ShowParsed": "Разобранный вид",
       "ShowRaw": "Текстовый вид",
       "Title": "AI-объяснение",

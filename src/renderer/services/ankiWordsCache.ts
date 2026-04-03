@@ -38,6 +38,17 @@ export function isWordInAnkiCache(word: string): boolean {
   return ankiWordsSet.has(word);
 }
 
+/** Return the first candidate word that exists in the Anki cache */
+export function findWordInAnkiCache(words: readonly string[]): string | null {
+  for (const word of words) {
+    if (word && ankiWordsSet.has(word)) {
+      return word;
+    }
+  }
+
+  return null;
+}
+
 /** Check whether the cache has been populated */
 export function isAnkiCacheFetched(): boolean {
   return fetched;

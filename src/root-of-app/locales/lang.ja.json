@@ -521,10 +521,15 @@
     },
     "Explainer": {
       "Explanation": "解説",
-      "GeneratedBy": "ローカルAIが生成",
+      "GeneratedBy": "生成元: {provider}",
       "Generating": "生成中...",
       "GrammarPoints": "主な文法ポイント",
       "Loading": "AI解説を読み込み中...",
+      "Provider": {
+        "Builtin": "ローカルAI",
+        "Cloud": "クラウドAI",
+        "Ollama": "Ollama"
+      },
       "ShowParsed": "解析表示",
       "ShowRaw": "テキスト表示",
       "Title": "AI解説",

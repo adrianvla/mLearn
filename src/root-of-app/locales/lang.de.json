@@ -521,10 +521,15 @@
     },
     "Explainer": {
       "Explanation": "Erklärung",
-      "GeneratedBy": "Von lokaler KI generiert",
+      "GeneratedBy": "Generiert von {provider}",
       "Generating": "Wird generiert...",
       "GrammarPoints": "Wichtige Grammatikpunkte",
       "Loading": "KI-Erklärung wird geladen...",
+      "Provider": {
+        "Builtin": "lokaler KI",
+        "Cloud": "Cloud-KI",
+        "Ollama": "Ollama"
+      },
       "ShowParsed": "Analysierte Ansicht",
       "ShowRaw": "Textansicht",
       "Title": "KI-Erklärung",

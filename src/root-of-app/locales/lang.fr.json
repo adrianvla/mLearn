@@ -521,10 +521,15 @@
     },
     "Explainer": {
       "Explanation": "Explication",
-      "GeneratedBy": "Généré par l'IA locale",
+      "GeneratedBy": "Généré par {provider}",
       "Generating": "Génération...",
       "GrammarPoints": "Points de grammaire clés",
       "Loading": "Chargement de l'explication IA...",
+      "Provider": {
+        "Builtin": "l'IA locale",
+        "Cloud": "l'IA cloud",
+        "Ollama": "Ollama"
+      },
       "ShowParsed": "Vue analysée",
       "ShowRaw": "Vue texte",
       "Title": "Explication IA",
