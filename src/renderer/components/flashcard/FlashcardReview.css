@@ -46,7 +46,7 @@
   justify-content: space-between;
   align-items: center;
   width: max-content;
-  max-width: 750px;
+  max-width: 800px;
   padding: 0.5rem 1rem;
   background: var(--bg);
   backdrop-filter: var(--backdrop-filter);

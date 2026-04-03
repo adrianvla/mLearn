@@ -18,7 +18,8 @@ import { FlashcardPitchAccent } from './FlashcardPitchAccent';
 import type { TtsMetadata } from '../../hooks/useFlashcardTts';
 import { RefreshIcon } from '../common';
 import { isElectron } from '../../../shared/platform';
-import { isWordInAnkiCache, fetchAnkiWordsCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { findWordInAnkiCache, fetchAnkiWordsCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { getWordFormCandidates } from '../../utils/wordForms';
 import './FlashcardDisplay.css';
 
 export interface FlashcardDisplayProps {
@@ -36,7 +37,7 @@ export interface FlashcardDisplayProps {
 
 export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const { settings } = useSettings();
-  const { getLevelName } = useLanguage();
+  const { getLevelName, getCanonicalForm } = useLanguage();
   const { t } = useLocalization();
 
   // Track whether we should animate the current flip or instant-switch
@@ -78,7 +79,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     if (!settings.use_anki) return false;
     // Access ankiCacheReady to re-evaluate when cache finishes loading
     ankiCacheReady();
-    return isWordInAnkiCache(content().front);
+    return !!findWordInAnkiCache(getWordFormCandidates(content().front, getCanonicalForm));
   });
 
   // Whether media (image/video) should be hidden in stealth mode

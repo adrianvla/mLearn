@@ -1,21 +1,14 @@
 import { Component, For, Show, Accessor, createEffect, createMemo, createSignal, JSX } from 'solid-js';
 import { createStore } from 'solid-js/store';
-import { WORD_STATUS } from '../../../shared/constants';
 import type { Token, TranslationEntry, TranslationResponse } from '../../../shared/types';
-import { Btn, ClockIcon, CollapsibleStickyHeader, PillBtn, PillLabel, PitchAccentOverlay, Select, ToggleSwitch, Tooltip } from '../common';
+import { Btn, ClockIcon, CollapsibleStickyHeader, PillBtn, PillLabel, PitchAccentOverlay, Select, ToggleSwitch } from '../common';
+import { WordStatusPill } from '../common/Smart';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { getCachedTranslation, useTranslation } from '../../hooks/useTranslation';
-import { setWordStatus, wordsLearnedInApp } from '../../services/statsService';
 import {
   extractPitchAccentFromTranslationData,
   extractReadingFromEntries,
-  getEffectiveWordStatus,
-  resolveWordKnowledge,
-  numericToWordStatus,
-  wordStatusToNumeric,
-  type WordStatus,
 } from '../subtitle/wordHoverHelpers';
-import { isWordInAnkiCache } from '../../services/ankiWordsCache';
 import { normalizeReading, containsKanji, isAllKana } from '../../../shared/utils/textUtils';
 import './UnknownWordsSidebar.css';
 
@@ -77,13 +70,6 @@ const UnknownWordRow: Component<{
   const { hasWordSync, getCardByWordSync } = useFlashcards();
 
   const currentFlashcard = createMemo(() => getCardByWordSync(props.entry.word));
-  const manualStatus = createMemo(() => numericToWordStatus(wordsLearnedInApp()[props.entry.word] ?? WORD_STATUS.UNKNOWN));
-  const effectiveStatus = createMemo(() =>
-    getEffectiveWordStatus(
-      currentFlashcard(), manualStatus(), isWordInAnkiCache(props.entry.word),
-      settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
-    )
-  );
   const isTracked = createMemo(() => props.isAdding || hasWordSync(props.entry.word));
   const currentEase = createMemo(() => currentFlashcard()?.ease);
 
@@ -118,37 +104,6 @@ const UnknownWordRow: Component<{
     return null;
   });
 
-  const statusVariant = createMemo(() => {
-    const status = effectiveStatus();
-    return status === 'unknown' ? 'red' : status === 'learning' ? 'orange' : 'green';
-  });
-
-  const statusIcon = createMemo(() => {
-    const status = effectiveStatus();
-    return status === 'unknown' ? ICON_CROSS2 : ICON_CHECK;
-  });
-
-  const statusLabel = createMemo(() => {
-    const status = effectiveStatus();
-    return status === 'unknown'
-      ? t('mlearn.WordHover.Status.Unknown')
-      : status === 'learning'
-        ? t('mlearn.WordHover.Status.Learning')
-        : t('mlearn.WordHover.Status.Known');
-  });
-
-  const statusSourceLabel = createMemo(() => {
-    const result = resolveWordKnowledge(
-      currentFlashcard(), manualStatus(), isWordInAnkiCache(props.entry.word),
-      settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
-    );
-    const prefix = t('mlearn.WordHover.StatusSource.Prefix');
-    if (result.activeSources.length === 0) return prefix + t('mlearn.WordHover.StatusSource.None');
-    return prefix + result.activeSources
-      .map(s => t(`mlearn.Settings.KnowledgePriority.Source.${s[0].toUpperCase() + s.slice(1)}`))
-      .join(' + ');
-  });
-
   const posLabel = createMemo(() => props.entry.token.partOfSpeech || props.entry.token.type || '');
 
   const shortMeaning = createMemo(() => {
@@ -161,13 +116,6 @@ const UnknownWordRow: Component<{
     const clean = first.replace(/<[^>]*>/g, '').trim();
     return clean.length > 40 ? clean.slice(0, 40) + '…' : clean;
   });
-
-  const cycleStatus = () => {
-    const order: WordStatus[] = ['unknown', 'learning', 'known'];
-    const current = manualStatus();
-    const next = order[(order.indexOf(current) + 1) % order.length];
-    setWordStatus(props.entry.word, wordStatusToNumeric(next));
-  };
 
   return (
     <article
@@ -225,14 +173,7 @@ const UnknownWordRow: Component<{
         <Show when={settings.show_pos && posLabel()}>
           <PillLabel>{posLabel()}</PillLabel>
         </Show>
-        <Tooltip content={<span class="tooltip-text">{statusSourceLabel()}</span>}>
-          <PillBtn
-            variant={statusVariant()}
-            icon={statusIcon()}
-            label={statusLabel()}
-            onClick={cycleStatus}
-          />
-        </Tooltip>
+        <WordStatusPill word={props.entry.word} />
         <PillBtn
           variant="gray"
           label={t('mlearn.Sidebar.Ignore')}

@@ -24,15 +24,16 @@ import { isPdfFile, pdfToImages } from '../../../services/pdfService';
 import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumbnailService';
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
-import { wordsLearnedInApp } from '../../../services/statsService';
-import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus, getAnkiEaseForStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { getWordStatus } from '../../../services/statsService';
+import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus, getAnkiEaseForStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
-import { isWordInAnkiCache } from '../../../services/ankiWordsCache';
+import { findWordInAnkiCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { syncReaderPluginActivity } from './readerPluginActivity';
 import { getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
+import { getWordFormCandidates } from '../../../utils/wordForms';
 import './reader.css';
 
 interface PageImage {
@@ -118,6 +119,15 @@ export const ReaderRoute: Component = () => {
   const anki = useAnki();
   const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm } = langCtx;
   const { translateWord } = useTranslation({ immediate: true });
+  const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm);
+  const getManualWordStatus = (word: string): WordStatus => {
+    const forms = getWordForms(word);
+    return numericToWordStatus(getWordStatus(forms[0] ?? word, forms.slice(1)));
+  };
+  const getTrackedAnkiWord = (word: string): string | null => {
+    if (!settings.use_anki) return null;
+    return findWordInAnkiCache(getWordForms(word));
+  };
   const { tokenize } = useTokenizer();
   const { lookup } = useDictionary();
   const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
@@ -415,7 +425,6 @@ export const ReaderRoute: Component = () => {
   };
 
   const visibleUnknownWords = createMemo<ReaderUnknownWordEntry[]>(() => {
-    const manualStatuses = wordsLearnedInApp();
     const deduped = new Map<string, ReaderUnknownWordEntry>();
 
     for (const page of visiblePages()) {
@@ -429,10 +438,11 @@ export const ReaderRoute: Component = () => {
           continue;
         }
 
-        const manualStatus = numericToWordStatus(manualStatuses[entry.word] ?? WORD_STATUS.UNKNOWN);
+        const manualStatus = getManualWordStatus(entry.word);
+        const trackedAnkiWord = getTrackedAnkiWord(entry.word);
         const effectiveStatus = getEffectiveWordStatus(
           flashcardCtx.getCardByWordSync(entry.word), manualStatus,
-          settings.use_anki && isWordInAnkiCache(entry.word),
+          !!trackedAnkiWord,
           settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
         );
         if (effectiveStatus === 'known') {
@@ -461,7 +471,7 @@ export const ReaderRoute: Component = () => {
       const translationData = getCachedTranslation(entry.word) ?? await translateWord(entry.word);
       const image = imageRefs()[entry.pageId] || null;
       const anchorRect = getAnchorRectForWord(entry);
-      const manualStatus = numericToWordStatus(wordsLearnedInApp()[entry.word] ?? WORD_STATUS.UNKNOWN);
+      const manualStatus = getManualWordStatus(entry.word);
       const frequency = langCtx.getFrequency(entry.word);
       const { content, ease } = await buildWordHoverFlashcardContent({
         token: entry.token,
@@ -516,11 +526,14 @@ export const ReaderRoute: Component = () => {
         if (flashcardCtx.hasWordSync(entry.word) || flashcardCtx.isWordIgnoredSync(entry.word)) {
           continue;
         }
-        if (settings.use_anki && isWordInAnkiCache(entry.word)) {
-          const status = numericToWordStatus(wordsLearnedInApp()[entry.word] ?? WORD_STATUS.LEARNING);
+        const trackedAnkiWord = getTrackedAnkiWord(entry.word);
+        if (trackedAnkiWord) {
+          const forms = getWordForms(entry.word);
+          const storedStatus = getWordStatus(forms[0] ?? entry.word, forms.slice(1));
+          const status = numericToWordStatus(storedStatus === WORD_STATUS.UNKNOWN ? WORD_STATUS.LEARNING : storedStatus);
           const ankiEase = getAnkiEaseForStatus(status, settings.ankiLearningEase, settings.ankiKnownEase);
           try {
-            await anki.updateWordCards(entry.word, ankiEase);
+            await anki.updateWordCards(trackedAnkiWord, ankiEase);
           } catch (err) {
             console.error(`Failed to update Anki cards for "${entry.word}":`, err);
             showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
