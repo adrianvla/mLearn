@@ -7,7 +7,7 @@
  */
 
 import type { Token, TranslationResponse } from '../types';
-import type { BackendAdapter, OCRResult } from './types';
+import type { AnkiWordStatusRecord, BackendAdapter, OCRResult } from './types';
 
 export interface HttpBackendOptions {
   /** Bearer token for auth (optional) */
@@ -108,15 +108,28 @@ export class HttpBackend implements BackendAdapter {
     return res.json();
   }
 
-  async getAnkiWords(): Promise<string[]> {
+  private async getAnkiWordsPayload(): Promise<{ words?: string[]; cards?: AnkiWordStatusRecord[] }> {
     const res = await fetch(this.buildUrl('/ankiWords'), {
       method: 'GET',
       headers: this.headers(),
       signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) return [];
-    const data = await res.json();
+
+    if (!res.ok) {
+      return {};
+    }
+
+    return res.json() as Promise<{ words?: string[]; cards?: AnkiWordStatusRecord[] }>;
+  }
+
+  async getAnkiWords(): Promise<string[]> {
+    const data = await this.getAnkiWordsPayload();
     return data.words || [];
+  }
+
+  async getAnkiWordStatuses(): Promise<AnkiWordStatusRecord[]> {
+    const data = await this.getAnkiWordsPayload();
+    return data.cards || [];
   }
 
   async ping(): Promise<boolean> {

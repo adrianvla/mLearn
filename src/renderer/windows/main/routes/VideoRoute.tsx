@@ -22,9 +22,9 @@ import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
-import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus, getAnkiEaseForStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { getWordStatus } from '../../../services/statsService';
-import { findWordInAnkiCache } from '../../../services/ankiWordsCache';
+import { findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { validateAndRefreshCloudSession } from '../../../services/cloudAuthService';
@@ -62,7 +62,15 @@ export const VideoRoute: Component = () => {
   };
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
-    return findWordInAnkiCache(getWordForms(word));
+    return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;
+  };
+  const getAnkiKnowledgeStatus = (word: string): WordStatus | null => {
+    if (!settings.use_anki) return null;
+    return getAnkiWordKnowledgeStatus(
+      findAnkiWordMatchInCache(getWordForms(word))?.cards,
+      settings.ankiLearningThreshold,
+      settings.ankiKnownThreshold,
+    );
   };
 
   const watchTogether = useWatchTogether({
@@ -422,10 +430,9 @@ export const VideoRoute: Component = () => {
       if (flashcardCtx.isWordIgnoredSync(word)) continue;
 
       const manualStatus = getManualWordStatus(word);
-      const trackedAnkiWord = getTrackedAnkiWord(word);
       const effectiveStatus = getEffectiveWordStatus(
         flashcardCtx.getCardByWordSync(word), manualStatus,
-        !!trackedAnkiWord,
+        getAnkiKnowledgeStatus(word),
         settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
       );
       if (effectiveStatus === 'known') continue;
@@ -452,10 +459,9 @@ export const VideoRoute: Component = () => {
     return accumulatedWords().filter(entry => {
       if (flashcardCtx.isWordIgnoredSync(entry.word)) return false;
       const manualStatus = getManualWordStatus(entry.word);
-      const trackedAnkiWord = getTrackedAnkiWord(entry.word);
       const effectiveStatus = getEffectiveWordStatus(
         flashcardCtx.getCardByWordSync(entry.word), manualStatus,
-        !!trackedAnkiWord,
+        getAnkiKnowledgeStatus(entry.word),
         settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
       );
       return effectiveStatus !== 'known';

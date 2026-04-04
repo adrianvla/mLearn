@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Flashcard } from '../../../shared/types';
 import {
+  getAnkiWordKnowledgeStatus,
   resolveWordKnowledge,
   getEffectiveWordStatus,
   numericToWordStatus,
@@ -87,9 +88,9 @@ describe('resolveWordKnowledge', () => {
       expect(result.dataSources).toEqual([]);
     });
 
-    it('anki returns learning when word is in Anki', () => {
-      const result = resolveWordKnowledge(null, 'unknown', true, ['anki'], 'highest');
-      expect(result.status).toBe('learning');
+    it('anki returns unknown when the cached card is new', () => {
+      const result = resolveWordKnowledge(null, 'unknown', 'unknown', ['anki'], 'highest');
+      expect(result.status).toBe('unknown');
       expect(result.dataSources).toEqual(['anki']);
     });
 
@@ -130,7 +131,33 @@ describe('getEffectiveWordStatus', () => {
 
   it('respects Anki and settings params', () => {
     // Anki-only word, order mode with anki first
-    expect(getEffectiveWordStatus(null, 'unknown', true, ['anki', 'srs', 'manual'], 'order')).toBe('learning');
+    expect(getEffectiveWordStatus(null, 'unknown', 'unknown', ['anki', 'srs', 'manual'], 'order')).toBe('unknown');
+  });
+});
+
+describe('getAnkiWordKnowledgeStatus', () => {
+  it('returns null when there are no matching Anki cards', () => {
+    expect(getAnkiWordKnowledgeStatus([], 1550, 1800)).toBeNull();
+    expect(getAnkiWordKnowledgeStatus(null, 1550, 1800)).toBeNull();
+  });
+
+  it('returns unknown for new cards below the learning threshold', () => {
+    expect(getAnkiWordKnowledgeStatus([{ factor: 1300, queue: 0, type: 0 }], 1550, 1800)).toBe('unknown');
+  });
+
+  it('returns learning for learning queue cards', () => {
+    expect(getAnkiWordKnowledgeStatus([{ factor: 1500, queue: 1, type: 1 }], 1550, 1800)).toBe('learning');
+  });
+
+  it('returns known for review cards', () => {
+    expect(getAnkiWordKnowledgeStatus([{ factor: 1700, queue: 2, type: 2 }], 1550, 1800)).toBe('known');
+  });
+
+  it('uses the highest status across multiple Anki cards for the same word', () => {
+    expect(getAnkiWordKnowledgeStatus([
+      { factor: 1300, queue: 0, type: 0 },
+      { factor: 2300, queue: 2, type: 2 },
+    ], 1550, 1800)).toBe('known');
   });
 });
 

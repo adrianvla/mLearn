@@ -25,9 +25,9 @@ import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumb
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { getWordStatus } from '../../../services/statsService';
-import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus, getAnkiEaseForStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
-import { findWordInAnkiCache } from '../../../services/ankiWordsCache';
+import { findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { showToast } from '../../../components/common/Feedback/Toast';
@@ -126,7 +126,15 @@ export const ReaderRoute: Component = () => {
   };
   const getTrackedAnkiWord = (word: string): string | null => {
     if (!settings.use_anki) return null;
-    return findWordInAnkiCache(getWordForms(word));
+    return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;
+  };
+  const getAnkiKnowledgeStatus = (word: string): WordStatus | null => {
+    if (!settings.use_anki) return null;
+    return getAnkiWordKnowledgeStatus(
+      findAnkiWordMatchInCache(getWordForms(word))?.cards,
+      settings.ankiLearningThreshold,
+      settings.ankiKnownThreshold,
+    );
   };
   const { tokenize } = useTokenizer();
   const { lookup } = useDictionary();
@@ -439,10 +447,9 @@ export const ReaderRoute: Component = () => {
         }
 
         const manualStatus = getManualWordStatus(entry.word);
-        const trackedAnkiWord = getTrackedAnkiWord(entry.word);
         const effectiveStatus = getEffectiveWordStatus(
           flashcardCtx.getCardByWordSync(entry.word), manualStatus,
-          !!trackedAnkiWord,
+          getAnkiKnowledgeStatus(entry.word),
           settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
         );
         if (effectiveStatus === 'known') {

@@ -18,6 +18,17 @@ export interface OCRResult {
   };
 }
 
+export interface AnkiWordStatusRecord {
+  word: string;
+  cardId?: number | null;
+  factor?: number | null;
+  due?: number | null;
+  queue?: number | null;
+  type?: number | null;
+  interval?: number | null;
+  mod?: number | null;
+}
+
 export interface BackendAdapter {
   /** Tokenize text into language tokens */
   tokenize(text: string, language?: string): Promise<Token[]>;
@@ -29,6 +40,8 @@ export interface BackendAdapter {
   getCard(params: Record<string, unknown>): Promise<unknown>;
   /** Get the list of all expression values from the Anki cache */
   getAnkiWords(): Promise<string[]>;
+  /** Get cached Anki scheduling metadata keyed by expression value */
+  getAnkiWordStatuses(): Promise<AnkiWordStatusRecord[]>;
   /** Ping the backend to check if it's alive */
   ping(): Promise<boolean>;
   /** Get the base URL of the backend */
