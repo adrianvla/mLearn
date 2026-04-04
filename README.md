@@ -1,6 +1,9 @@
 # mLearn
 This repo contains the source code for the desktop app [mLearn](https://mlearn.morisinc.net).
 
+# Warning ⚠️
+WIP: The app is currently being rewritten in Typescript, which will be v2.0.0. **The current stable version is still v1.4.0**, which is available in the releases tab. To download this one, clone the repository, and run `npm i` and `npm run start`.
+
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/adrianvla/mLearn)
 # Overview
 
