@@ -10,16 +10,17 @@ import { normalizeReading } from '../../../shared/utils/textUtils';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { getWordStatus, toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation } from '../../services/llmProvider';
-import { fetchAnkiWordsCache, findWordInAnkiCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, PitchAccentOverlay, ClockIcon, AnkiHoverPreview, Modal, Btn, Tooltip, ToggleSwitch } from '../common';
 import { EasePill, WordStatusPill } from '../common/Smart';
-import type { AnkiCardFields } from '../common';
+import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../common';
 import { openWordLookup } from '../../services/wordLookupService';
 import {
   buildWordHoverFlashcardContent,
   extractPitchAccentFromTranslationData,
   extractReadingFromEntries,
+  getAnkiWordKnowledgeStatus,
   resolveWordKnowledge,
   numericToWordStatus,
   type WordStatus,
@@ -488,13 +489,27 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const wordInAnki = createMemo(() => {
     if (!settings.use_anki) return false;
     void ankiCacheReady();
-    return !!findWordInAnkiCache(wordForms());
+    return !!findAnkiWordMatchInCache(wordForms());
   });
+
+  const ankiMatch = createMemo(() => {
+    if (!settings.use_anki) return null;
+    void ankiCacheReady();
+    return findAnkiWordMatchInCache(wordForms());
+  });
+
+  const ankiKnowledgeStatus = createMemo(() =>
+    getAnkiWordKnowledgeStatus(
+      ankiMatch()?.cards,
+      settings.ankiLearningThreshold,
+      settings.ankiKnownThreshold,
+    )
+  );
 
   // Resolve word knowledge from all sources using the configured strategy
   const wordKnowledge = createMemo<WordKnowledgeResult>(() =>
     resolveWordKnowledge(
-      currentFlashcard(), manualStatus(), wordInAnki(),
+      currentFlashcard(), manualStatus(), ankiKnowledgeStatus(),
       settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
     )
   );
@@ -533,6 +548,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   // Anki hover preview state (signals only — cache effect and wordInAnki are declared above)
   const [ankiHoverCard, setAnkiHoverCard] = createSignal<AnkiCardFields | null>(null);
+  const [ankiHoverCardInfo, setAnkiHoverCardInfo] = createSignal<AnkiCardSchedulingInfo | null>(null);
   const [ankiHoverLoading, setAnkiHoverLoading] = createSignal(false);
   const [showDuplicateWarning, setShowDuplicateWarning] = createSignal(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = createSignal(false);
@@ -552,22 +568,45 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   });
 
   const fetchAnkiCardForHover = async () => {
-    const word = findWordInAnkiCache(wordForms()) ?? actualWord();
+    const word = ankiMatch()?.word ?? actualWord();
     if (ankiHoverFetched && previousAnkiWord === word) return;
     ankiHoverFetched = true;
     previousAnkiWord = word;
     setAnkiHoverLoading(true);
     try {
       const { getBackend } = await import('../../../shared/backends');
-      const result = await getBackend().getCard({ word }) as { cards: { fields: AnkiCardFields }[]; error: boolean; poor: boolean };
+      const result = await getBackend().getCard({ word }) as {
+        cards: Array<{
+          fields: AnkiCardFields;
+          factor?: number;
+          due?: number;
+          queue?: number;
+          type?: number;
+          interval?: number;
+          mod?: number;
+        }>;
+        error: boolean;
+        poor: boolean;
+      };
       if (!result.error && !result.poor && result.cards.length > 0) {
-        setAnkiHoverCard(result.cards[0].fields || null);
+        const card = result.cards[0];
+        setAnkiHoverCard(card.fields || null);
+        setAnkiHoverCardInfo({
+          ease: card.factor ?? null,
+          due: card.due ?? null,
+          queue: card.queue ?? null,
+          type: card.type ?? null,
+          interval: card.interval ?? null,
+          mod: card.mod ?? null,
+        });
       } else {
         setAnkiHoverCard(null);
+        setAnkiHoverCardInfo(null);
       }
     } catch (e) {
       console.error(e);
       setAnkiHoverCard(null);
+      setAnkiHoverCardInfo(null);
     } finally {
       setAnkiHoverLoading(false);
     }
@@ -603,6 +642,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         <AnkiHoverPreview
           loading={ankiHoverLoading()}
           fields={ankiHoverCard()}
+          cardInfo={ankiHoverCardInfo()}
           footer={<div class="anki-hover-preview__footer">{t('mlearn.WordHover.AddToBuiltInSrs')}</div>}
         />
       }
@@ -763,6 +803,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                   effectiveStatus={effectiveStatus()}
                   ankiHoverLoading={ankiHoverLoading()}
                   ankiHoverCard={ankiHoverCard()}
+                  ankiHoverCardInfo={ankiHoverCardInfo()}
                   onTooltipShow={handleAnkiTooltipShow}
                 />
               </Show>

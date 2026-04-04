@@ -1,6 +1,6 @@
 import { Component, createMemo, Show } from 'solid-js';
 import { useLocalization, useSettings } from '../../../context';
-import type { AnkiCardFields } from '../AnkiHoverPreview';
+import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../AnkiHoverPreview';
 import { AnkiHoverPreview } from '../AnkiHoverPreview';
 import { PillBtn } from '../Button';
 import { Tooltip } from '../Tooltip';
@@ -17,6 +17,7 @@ export interface EasePillProps {
   effectiveStatus: WordStatus;
   ankiHoverLoading: boolean;
   ankiHoverCard: AnkiCardFields | null;
+  ankiHoverCardInfo: AnkiCardSchedulingInfo | null;
   onTooltipShow?: () => void;
 }
 
@@ -64,6 +65,7 @@ export const EasePill: Component<EasePillProps> = (props) => {
           <AnkiHoverPreview
             loading={props.ankiHoverLoading}
             fields={props.ankiHoverCard}
+            cardInfo={props.ankiHoverCardInfo}
             footer={<div class="anki-hover-preview__footer">{tooltipContent()}</div>}
           />
         }

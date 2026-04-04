@@ -578,6 +578,7 @@
         "TtsTooltip": "Generate TTS audio for all flashcard words and examples"
       },
       "Card": {
+        "Due": "Due:",
         "Ease": "Ease:",
         "PlayExample": "Play example sentence",
         "PlayWord": "Play word pronunciation",
@@ -586,7 +587,8 @@
         "RevealHint": "Click or press Space to reveal answer",
         "ScreenshotAlt": "Screenshot",
         "Tracked": "Tracked",
-        "AnkiDuplicate": "Duplicate"
+        "AnkiDuplicate": "Duplicate",
+        "Unseen": "Unseen"
       },
       "EmptyState": {
         "NoCardsDescription": "Start learning words while watching videos or reading, and they'll appear here for review!",

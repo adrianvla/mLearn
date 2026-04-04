@@ -90,6 +90,7 @@
             "Description": "Permettre au tuteur IA de se souvenir de faits vous concernant entre les conversations"
           },
           "Shared": {
+            "Due": "Échéance :",
             "Label": "Partager les souvenirs entre les agents",
             "Description": "Si activé, tous les agents peuvent accéder à tous les souvenirs. Si désactivé, chaque agent ne voit que les siens."
           },
@@ -98,7 +99,8 @@
         "SplitChecker": {
           "Label": "Agent correcteur séparé",
           "Description": "Utiliser un passage LLM séparé pour détecter et corriger les erreurs au lieu de l'agent de conversation.",
-          "Title": "Agent correcteur"
+            "AnkiDuplicate": "Doublon",
+            "Unseen": "Jamais vu"
         },
         "Title": "Paramètres IA"
       },

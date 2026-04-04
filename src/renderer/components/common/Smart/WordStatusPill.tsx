@@ -1,11 +1,12 @@
 import { Component, createEffect, createMemo, createSignal } from 'solid-js';
 import { useLanguage, useFlashcards, useLocalization, useSettings } from '../../../context';
 import { getWordStatus, setWordStatus } from '../../../services/statsService';
-import { findWordInAnkiCache } from '../../../services/ankiWordsCache';
+import { findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import {
   getAnkiEaseForStatus,
+  getAnkiWordKnowledgeStatus,
   resolveWordKnowledge,
   numericToWordStatus,
   wordStatusToNumeric,
@@ -51,12 +52,20 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const manualStatus = createMemo(() =>
     numericToWordStatus(getWordStatus(primaryWord(), aliasWords()))
   );
-  const matchedAnkiWord = createMemo(() =>
-    settings.use_anki ? findWordInAnkiCache(wordForms()) : null
+  const matchedAnki = createMemo(() =>
+    settings.use_anki ? findAnkiWordMatchInCache(wordForms()) : null
+  );
+  const matchedAnkiWord = createMemo(() => matchedAnki()?.word ?? null);
+  const ankiKnowledgeStatus = createMemo(() =>
+    getAnkiWordKnowledgeStatus(
+      matchedAnki()?.cards,
+      settings.ankiLearningThreshold,
+      settings.ankiKnownThreshold,
+    )
   );
   const wordKnowledge = createMemo(() =>
     resolveWordKnowledge(
-      currentFlashcard(), manualStatus(), !!matchedAnkiWord(),
+      currentFlashcard(), manualStatus(), ankiKnowledgeStatus(),
       settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
     )
   );

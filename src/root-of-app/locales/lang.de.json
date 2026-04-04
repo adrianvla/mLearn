@@ -90,6 +90,7 @@
             "Description": "Dem KI-Tutor erlauben, Fakten über dich über Gespräche hinweg zu merken"
           },
           "Shared": {
+            "Due": "Fällig:",
             "Label": "Erinnerungen zwischen Agenten teilen",
             "Description": "Wenn aktiviert, können alle Agenten auf alle Erinnerungen zugreifen. Wenn deaktiviert, sieht jeder Agent nur seine eigenen."
           },
@@ -98,7 +99,8 @@
         "SplitChecker": {
           "Label": "Separater Korrektur-Agent",
           "Description": "Einen separaten LLM-Durchgang verwenden, um Fehler zu erkennen und zu korrigieren, statt den Gesprächsagenten.",
-          "Title": "Korrektur-Agent"
+            "AnkiDuplicate": "Duplikat",
+            "Unseen": "Ungelesen"
         },
         "Title": "KI-Einstellungen"
       },
