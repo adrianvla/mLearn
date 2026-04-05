@@ -45,9 +45,8 @@ export function useCursorVisibility(options: CursorVisibilityOptions = {}) {
 
     // Notify main process to show traffic lights
     try {
-      const win = window as any;
-      if (win.mlearn?.changeTrafficLights) {
-        win.mlearn.changeTrafficLights(true);
+      if (window.mlearn?.changeTrafficLights) {
+        window.mlearn.changeTrafficLights(true);
       }
     } catch (e) {
       console.error(e);
@@ -64,9 +63,8 @@ export function useCursorVisibility(options: CursorVisibilityOptions = {}) {
 
       // Notify main process to hide traffic lights
       try {
-        const win = window as any;
-        if (win.mlearn?.changeTrafficLights) {
-          win.mlearn.changeTrafficLights(false);
+        if (window.mlearn?.changeTrafficLights) {
+          window.mlearn.changeTrafficLights(false);
         }
       } catch (e) {
         console.error(e);

@@ -11,7 +11,7 @@
  */
 
 import { Component, createSignal, For, Show, onMount, createMemo, createEffect } from 'solid-js';
-import { WindowWrapper, useSettings, useLanguage, useLocalization } from '../../context';
+import { WindowWrapper, useLanguage, useLocalization } from '../../context';
 import {
   getWordsLearnedInApp,
 } from '../../services/statsService';
@@ -74,7 +74,6 @@ function mixHex(c1: string, c2: string, t: number): string {
 }
 
 export const KanjiGridContent: Component = () => {
-  const { settings } = useSettings();
   const { wordFrequency, getFreqLevelNames, getFrequency, currentLangData } = useLanguage();
   const { t } = useLocalization();
   
@@ -267,8 +266,7 @@ export const KanjiGridContent: Component = () => {
       const t = maxLearn > 0.5 ? (item.score - 0.5) / (maxLearn - 0.5) : 0;
       return mixHex('#E65100', '#FFEB3B', t);
     }
-    const isDark = settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker';
-    return isDark ? '#616161' : '#9E9E9E';
+    return 'var(--kanji-grid-unknown-bg)';
   };
 
   // Check if kanji should be dimmed (not in hovered level)
@@ -308,11 +306,8 @@ export const KanjiGridContent: Component = () => {
             <For each={kanjiData()}>
               {(item) => (
                 <div
-                  class={`kg-cell ${isKanjiDimmed(item) ? 'dimmed' : ''}`}
-                  style={{
-                    background: getColorForKanji(item),
-                    color: item.category !== 'unknown' ? '#111' : ((settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker') ? '#ddd' : '#222'),
-                  }}
+                  class={`kg-cell ${isKanjiDimmed(item) ? 'dimmed' : ''} ${item.category !== 'unknown' ? 'kg-cell-colored' : 'kg-cell-unknown'}`}
+                  style={{ background: getColorForKanji(item) }}
                   onMouseEnter={() => setHoveredKanji(item)}
                   onMouseLeave={() => setHoveredKanji(null)}
                 >
@@ -346,9 +341,9 @@ export const KanjiGridContent: Component = () => {
 
           {/* Stats */}
           <div class="kg-stats">
-            <div>· {t('mlearn.KanjiGrid.Stats.Known')} <b>{stats().known}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().known / stats().total * 1000) / 10 : 0}%)</span></div>
-            <div>· {t('mlearn.KanjiGrid.Stats.Learning')} <b>{stats().learning}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().learning / stats().total * 1000) / 10 : 0}%)</span></div>
-            <div>· {t('mlearn.KanjiGrid.Stats.Unknown')} <b>{stats().unknown}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().unknown / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· {t('mlearn.KanjiGrid.Stats.Known')} <b>{stats().known}</b> <span class="kg-stats-pct">({stats().total ? Math.round(stats().known / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· {t('mlearn.KanjiGrid.Stats.Learning')} <b>{stats().learning}</b> <span class="kg-stats-pct">({stats().total ? Math.round(stats().learning / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· {t('mlearn.KanjiGrid.Stats.Unknown')} <b>{stats().unknown}</b> <span class="kg-stats-pct">({stats().total ? Math.round(stats().unknown / stats().total * 1000) / 10 : 0}%)</span></div>
             <div>· {t('mlearn.KanjiGrid.Stats.TotalFound')} <b>{stats().total}</b></div>
           </div>
 

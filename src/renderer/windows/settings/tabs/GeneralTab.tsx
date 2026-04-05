@@ -10,6 +10,14 @@ import { type AppTheme } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import '../SettingsForm.css';
 
+function assignImportedSetting<K extends keyof Settings>(
+  target: Partial<Settings>,
+  key: K,
+  value: Settings[K],
+): void {
+  target[key] = value;
+}
+
 export const GeneralTab: Component = () => {
   const { settings, updateSettings, saveSettings } = useSettings();
   const { t } = useLocalization();
@@ -63,8 +71,9 @@ export const GeneralTab: Component = () => {
         const filteredSettings: Partial<Settings> = {};
         
         for (const key of validKeys) {
-          if (key in imported) {
-            (filteredSettings as any)[key] = imported[key];
+          const importedValue = imported[key];
+          if (importedValue !== undefined) {
+            assignImportedSetting(filteredSettings, key, importedValue as Settings[typeof key]);
           }
         }
         

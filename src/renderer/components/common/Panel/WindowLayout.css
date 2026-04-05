@@ -10,20 +10,20 @@
   height: 100vh;
   width: 100%;
   overflow: hidden;
-  background: var(--bg-primary, #1a1a1a);
-  color: var(--text-primary, #fff);
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .window-layout.dark {
-  background: var(--bg-primary, #0d0d0d);
-  color: var(--text-primary, #fff);
+  background: var(--bg-nt-primary);
+  color: var(--text-primary);
 }
 
 /* Header area */
 .window-layout__header {
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-  background: var(--bg-secondary, rgba(0, 0, 0, 0.3));
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
   backdrop-filter: blur(10px);
   -webkit-app-region: drag;
   z-index: 10;
@@ -40,8 +40,8 @@
 /* Sidebar */
 .window-layout__sidebar {
   flex-shrink: 0;
-  border-right: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-  background: var(--bg-secondary, rgba(0, 0, 0, 0.2));
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-secondary);
   overflow-y: auto;
 }
 
@@ -56,8 +56,8 @@
 /* Footer area */
 .window-layout__footer {
   flex-shrink: 0;
-  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
-  background: var(--bg-secondary, rgba(0, 0, 0, 0.3));
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
   backdrop-filter: blur(10px);
 }
 
@@ -92,13 +92,13 @@
   margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--text-primary, #fff);
+  color: var(--text-primary);
 }
 
 .window-header__subtitle {
   margin: 0;
   font-size: 0.875rem;
-  color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+  color: var(--text-secondary);
 }
 
 .window-header__actions {

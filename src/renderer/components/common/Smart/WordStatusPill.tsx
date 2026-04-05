@@ -10,6 +10,7 @@ import {
   resolveWordKnowledge,
   numericToWordStatus,
   wordStatusToNumeric,
+  WORD_STATUS_VALUES,
   type WordStatus,
 } from '../../subtitle/wordHoverHelpers';
 import { PillBtn } from '../Button';
@@ -22,9 +23,8 @@ const ICON_CROSS2 = 'cross2';
 const ICON_CHECK = 'check';
 
 const getNextStatus = (status: WordStatus): WordStatus => {
-  const order: WordStatus[] = ['unknown', 'learning', 'known'];
-  const index = order.indexOf(status);
-  return order[(index + 1) % order.length];
+  const index = WORD_STATUS_VALUES.indexOf(status);
+  return WORD_STATUS_VALUES[(index + 1) % WORD_STATUS_VALUES.length];
 };
 
 export interface WordStatusPillProps {

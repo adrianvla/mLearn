@@ -3,7 +3,7 @@
  */
 
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES } from './constants';
-import type { SubtitleTheme, WordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode } from './constants';
+import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode } from './constants';
 
 // Re-export WindowType
 export type WindowType = ConstWindowType;
@@ -784,7 +784,7 @@ export interface Subtitle {
 
 /** @deprecated Use PassiveWordKnowledge for unified system */
 export interface WordKnowledge {
-  status: WordStatus;
+  status: NumericWordStatus;
   ease: number;
   lastSeen?: string;
   appearances: number;

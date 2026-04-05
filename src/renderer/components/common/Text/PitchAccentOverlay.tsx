@@ -15,6 +15,7 @@ import { Component, JSX, Show, createMemo, createSignal, createEffect, children 
 import { useSettings, useLanguage } from '../../../context';
 import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
 import { getCachedTranslation } from '../../../hooks/useTranslation';
+import { extractPitchPosition, extractReadingValue } from '../../../utils/translationCacheParsers';
 import { PillLabel } from '../Label';
 import './PitchAccent.css';
 
@@ -50,49 +51,13 @@ function extractPitchFromCache(word: string): number | null {
   const cached = getCachedTranslation(word);
   if (!cached?.data) return null;
 
-  const pitchEntry = cached.data[2];
-  if (!pitchEntry) return null;
-
-  // Handle array format: ["word", "type", { pitches: [...] }]
-  if (Array.isArray(pitchEntry) && (pitchEntry as any)[2]?.pitches?.[0]?.position !== undefined) {
-    return (pitchEntry as any)[2].pitches[0].position;
-  }
-  // Handle object format: { pitches: [...] }
-  if ((pitchEntry as any)?.pitches?.[0]?.position !== undefined) {
-    return (pitchEntry as any).pitches[0].position;
-  }
-  // Handle nested format - recursively search for pitches
-  if (typeof pitchEntry === 'object') {
-    const findPitch = (obj: any): number | null => {
-      if (!obj || typeof obj !== 'object') return null;
-      if (obj.pitches?.[0]?.position !== undefined) return obj.pitches[0].position;
-      for (const val of Object.values(obj)) {
-        if (val && typeof val === 'object') {
-          const found = findPitch(val);
-          if (found !== null) return found;
-        }
-      }
-      return null;
-    };
-    return findPitch(pitchEntry);
-  }
-
-  return null;
+  return extractPitchPosition(cached.data[2]);
 }
 
 /** Extract reading from translation cache data */
 function extractReadingFromCache(word: string): string | null {
   const cached = getCachedTranslation(word);
-  if (!cached?.data) return null;
-  const data = cached.data;
-  if (Array.isArray(data)) {
-    for (const entry of data) {
-      if (entry && typeof entry === 'object' && 'reading' in entry && typeof (entry as any).reading === 'string') {
-        return (entry as any).reading;
-      }
-    }
-  }
-  return null;
+  return extractReadingValue(cached?.data);
 }
 
 /**

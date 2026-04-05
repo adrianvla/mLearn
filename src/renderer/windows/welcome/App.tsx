@@ -18,23 +18,29 @@ interface LanguageOption {
   code: string;
   name: string;
   nativeName: string;
-  flag: string;
   available: boolean;
 }
 
 const LANGUAGES: LanguageOption[] = [
-  { code: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵', available: true },
-  { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳', available: true },
-  { code: 'ko', name: 'Korean', nativeName: '한국어', flag: '🇰🇷', available: true },
-  { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪', available: true },
-  { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷', available: false },
-  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸', available: false },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語', available: true },
+  { code: 'zh', name: 'Chinese', nativeName: '中文', available: true },
+  { code: 'ko', name: 'Korean', nativeName: '한국어', available: true },
+  { code: 'de', name: 'German', nativeName: 'Deutsch', available: true },
+  { code: 'fr', name: 'French', nativeName: 'Français', available: false },
+  { code: 'es', name: 'Spanish', nativeName: 'Español', available: false },
 ];
 
 const WELCOME_TEXTS = ['Welcome!', 'ようこそ！', 'Wilkommen!', 'Bienvenue!', '欢迎！', 'Добро пожаловать!'];
 
+function resolveInitialLanguageCode(preferredLanguage?: string): string {
+  const availableLanguages = LANGUAGES.filter((language) => language.available);
+  const preferredMatch = availableLanguages.find((language) => language.code === preferredLanguage);
+
+  return preferredMatch?.code ?? availableLanguages[0]?.code ?? LANGUAGES[0]?.code ?? '';
+}
+
 const WelcomeContent: Component = () => {
-  const { updateSettings } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
 
   const [installationStarted, setInstallationStarted] = createSignal(false);
@@ -48,7 +54,7 @@ const WelcomeContent: Component = () => {
   const [includeOCR, setIncludeOCR] = createSignal(true);
   const [includeVoice, setIncludeVoice] = createSignal(true);
 
-  const [selectedLanguage, setSelectedLanguage] = createSignal<string>('ja');
+  const [selectedLanguage, setSelectedLanguage] = createSignal<string>(resolveInitialLanguageCode(settings.language));
 
   const [welcomeTextIndex, setWelcomeTextIndex] = createSignal(0);
   const [welcomeFading, setWelcomeFading] = createSignal(false);
@@ -219,6 +225,7 @@ const WelcomeContent: Component = () => {
     }));
 
     ipcCleanups.push(bridge.settings.onSettings((settings: Settings) => {
+      setSelectedLanguage(resolveInitialLanguageCode(settings.language));
       if (settings.llmEnabled !== undefined) {
         setIncludeLLM(settings.llmEnabled !== false);
       }
@@ -320,7 +327,7 @@ const WelcomeContent: Component = () => {
                   selected={selectedLanguage() === lang.code}
                   disabled={!lang.available}
                   onClick={() => setSelectedLanguage(lang.code)}
-                  icon={lang.flag}
+                  icon={<span class="welcome-window__language-code">{lang.code.toUpperCase()}</span>}
                   title={lang.name}
                   subtitle={lang.available ? lang.nativeName : t('mlearn.Global.ComingSoon')}
                 />

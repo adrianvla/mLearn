@@ -89,6 +89,14 @@
   opacity: 0.15;
 }
 
+.kg-cell-colored {
+  color: var(--kanji-grid-cell-text-colored);
+}
+
+.kg-cell-unknown {
+  color: var(--kanji-grid-cell-text-unknown);
+}
+
 .kanji-char {
   user-select: none;
 }
@@ -138,6 +146,10 @@
 
 .kg-stats b {
   color: var(--color-primary);
+}
+
+.kg-stats-pct {
+  color: var(--text-secondary);
 }
 
 /* Levels */
@@ -198,17 +210,17 @@
 
 .word-pill.known {
   background: var(--color-success);
-  color: white;
+  color: var(--kanji-grid-word-pill-text);
 }
 
 .word-pill.learning {
   background: var(--color-warning);
-  color: white;
+  color: var(--kanji-grid-word-pill-text);
 }
 
 .word-pill.unknown {
   background: var(--pos-particle);
-  color: white;
+  color: var(--kanji-grid-word-pill-text);
 }
 
 /* Loading */

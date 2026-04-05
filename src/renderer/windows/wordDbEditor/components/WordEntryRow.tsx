@@ -9,6 +9,7 @@ import { Btn, PillLabel, StatusLabel, numericToStatus, statusToNumeric, getNextS
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
 import { useLocalization } from '../../../context';
 import { getCachedTranslation, getCachedReading, fetchTranslation } from '../../../hooks/useTranslation';
+import { extractPitchPosition } from '../../../utils/translationCacheParsers';
 import type { TranslationResponse, TranslationEntry } from '../../../../shared/types';
 import { containsKanji, isAllKana } from '../../../../shared/utils/textUtils';
 import './WordEntryRow.css';
@@ -71,29 +72,8 @@ function extractTranslation(resp: TranslationResponse): string {
 function extractPitchFromCache(word: string): number | null {
   const cached = getCachedTranslation(word);
   if (!cached?.data) return null;
-  const pitchEntry = cached.data[2];
-  if (!pitchEntry) return null;
-  if (Array.isArray(pitchEntry) && (pitchEntry as any)[2]?.pitches?.[0]?.position !== undefined) {
-    return (pitchEntry as any)[2].pitches[0].position;
-  }
-  if ((pitchEntry as any)?.pitches?.[0]?.position !== undefined) {
-    return (pitchEntry as any).pitches[0].position;
-  }
-  if (typeof pitchEntry === 'object') {
-    const findPitch = (obj: any): number | null => {
-      if (!obj || typeof obj !== 'object') return null;
-      if (obj.pitches?.[0]?.position !== undefined) return obj.pitches[0].position;
-      for (const val of Object.values(obj)) {
-        if (val && typeof val === 'object') {
-          const found = findPitch(val);
-          if (found !== null) return found;
-        }
-      }
-      return null;
-    };
-    return findPitch(pitchEntry);
-  }
-  return null;
+
+  return extractPitchPosition(cached.data[2]);
 }
 
 export interface WordEntry {

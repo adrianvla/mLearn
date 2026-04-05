@@ -23,23 +23,23 @@
 
 /* Variants */
 .hint-text--default {
-  color: var(--text-secondary, rgba(255, 255, 255, 0.5));
+  color: var(--text-secondary);
 }
 
 .hint-text--warning {
-  color: var(--color-warning, #f59e0b);
+  color: var(--color-warning);
 }
 
 .hint-text--info {
-  color: var(--color-info, #3b82f6);
+  color: var(--color-info);
 }
 
 .hint-text--success {
-  color: var(--color-success, #22c55e);
+  color: var(--color-success);
 }
 
 .hint-text--error {
-  color: var(--color-error, #ef4444);
+  color: var(--color-error);
 }
 
 .hint-icon {

@@ -14,8 +14,8 @@
 .ocr-box {
   position: absolute;
   border: none;
-  background: #fff;
-  color: #000000;
+  background: var(--ocr-overlay-box-bg);
+  color: var(--ocr-overlay-box-text);
   border-radius: 0;
   cursor: pointer;
   pointer-events: auto;

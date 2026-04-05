@@ -59,7 +59,7 @@
 
 .media-stats-tab.active {
   color: var(--text-primary);
-  border-bottom-color: var(--color-accent);
+  border-bottom-color: var(--color-primary);
 }
 
 .media-stats-tab:hover {
@@ -68,7 +68,7 @@
 
 .media-stats-badge {
   background: var(--color-danger);
-  color: #fff;
+  color: var(--text-on-strong);
   font-size: var(--font-size-xs);
   padding: 1px 6px;
   border-radius: var(--radius-full);

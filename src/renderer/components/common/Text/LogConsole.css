@@ -6,11 +6,11 @@
 .log-console {
   display: flex;
   flex-direction: column;
-  background: #1a1a1a;
-  border: 1px solid #333;
-  border-radius: var(--radius-md, 8px);
+  background: var(--log-console-bg);
+  border: 1px solid var(--log-console-border);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-family: var(--font-family-mono);
 }
 
 /* Header */
@@ -19,14 +19,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 0.75rem;
-  background: #252525;
-  border-bottom: 1px solid #333;
+  background: var(--log-console-header-bg);
+  border-bottom: 1px solid var(--log-console-border);
 }
 
 .log-console__title {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #888;
+  color: var(--log-console-title);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0;
@@ -40,7 +40,7 @@
 .log-console__action-btn {
   background: transparent;
   border: none;
-  color: #666;
+  color: var(--log-console-action);
   cursor: pointer;
   padding: 0.25rem;
   border-radius: 4px;
@@ -51,8 +51,8 @@
 }
 
 .log-console__action-btn:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--log-console-action-hover);
+  background: var(--log-console-action-hover-bg);
 }
 
 /* Content */
@@ -73,7 +73,7 @@
   padding: 0.25rem 0;
   font-size: 0.75rem;
   line-height: 1.5;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid var(--log-console-entry-border);
 }
 
 .log-console__entry:last-child {
@@ -83,37 +83,37 @@
 /* Timestamp */
 .log-console__timestamp {
   flex-shrink: 0;
-  color: #555;
+  color: var(--log-console-timestamp);
   font-size: 0.6875rem;
 }
 
 /* Message */
 .log-console__message {
   flex: 1;
-  color: #ccc;
+  color: var(--log-console-message);
   word-break: break-word;
   white-space: pre-wrap;
 }
 
 /* Log level variants */
 .log-console__entry--info .log-console__message {
-  color: #6cb6ff;
+  color: var(--log-console-info);
 }
 
 .log-console__entry--success .log-console__message {
-  color: #7ee787;
+  color: var(--log-console-success);
 }
 
 .log-console__entry--warning .log-console__message {
-  color: #d29922;
+  color: var(--log-console-warning);
 }
 
 .log-console__entry--error .log-console__message {
-  color: #f85149;
+  color: var(--log-console-error);
 }
 
 .log-console__entry--debug .log-console__message {
-  color: #8b949e;
+  color: var(--log-console-debug);
 }
 
 /* Level indicator */
@@ -127,28 +127,28 @@
 }
 
 .log-console__entry--info .log-console__level {
-  background: rgba(108, 182, 255, 0.2);
-  color: #6cb6ff;
+  background: var(--log-console-info-bg);
+  color: var(--log-console-info);
 }
 
 .log-console__entry--success .log-console__level {
-  background: rgba(126, 231, 135, 0.2);
-  color: #7ee787;
+  background: var(--log-console-success-bg);
+  color: var(--log-console-success);
 }
 
 .log-console__entry--warning .log-console__level {
-  background: rgba(210, 153, 34, 0.2);
-  color: #d29922;
+  background: var(--log-console-warning-bg);
+  color: var(--log-console-warning);
 }
 
 .log-console__entry--error .log-console__level {
-  background: rgba(248, 81, 73, 0.2);
-  color: #f85149;
+  background: var(--log-console-error-bg);
+  color: var(--log-console-error);
 }
 
 .log-console__entry--debug .log-console__level {
-  background: rgba(139, 148, 158, 0.2);
-  color: #8b949e;
+  background: var(--log-console-debug-bg);
+  color: var(--log-console-debug);
 }
 
 /* Empty state */
@@ -158,7 +158,7 @@
   justify-content: center;
   height: 100%;
   min-height: 80px;
-  color: #555;
+  color: var(--log-console-empty);
   font-size: 0.75rem;
 }
 
@@ -172,12 +172,12 @@
 }
 
 .log-console__content::-webkit-scrollbar-thumb {
-  background: #444;
+  background: var(--log-console-scrollbar);
   border-radius: 3px;
 }
 
 .log-console__content::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: var(--log-console-scrollbar-hover);
 }
 
 /* Size variants */
@@ -197,8 +197,8 @@
   bottom: 0.5rem;
   right: 0.5rem;
   font-size: 0.625rem;
-  color: #555;
-  background: #252525;
+  color: var(--log-console-empty);
+  background: var(--log-console-header-bg);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   pointer-events: none;
