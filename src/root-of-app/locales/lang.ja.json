@@ -769,11 +769,13 @@
         "Play": "再生",
         "ToggleSubtitles": "字幕を切り替え"
       },
+      "Accept": "承諾",
       "Back": "戻る",
       "Cancel": "キャンセル",
       "Close": "閉じる",
       "ComingSoon": "近日公開",
       "Continue": "続行",
+      "Decline": "辞退",
       "Delete": "削除",
       "Edit": "編集",
       "Export": "エクスポート",
@@ -805,7 +807,8 @@
         "ShortSecond": "{value}秒",
         "ShortYear": "{value}年"
       },
-      "TryAgain": "再試行"
+      "TryAgain": "再試行",
+      "Yes": "はい"
     },
     "LowPowerGate": {
       "Allow": "許可",
@@ -1837,6 +1840,71 @@
       },
       "VideoClipFailed": "動画クリップの作成に失敗しました。スクリーンショットを使用します",
       "WatchTogether": "一緒に見る"
+    },
+    "WatchTogether": {
+      "Mode": {
+        "Title": "一緒に視聴",
+        "Subtitle": "接続方法を選択してください",
+        "Local": {
+          "Title": "ローカルネットワーク",
+          "Description": "同じネットワーク上のテザリングブラウザと再生を共有します。",
+          "Action": "ローカルで開始"
+        },
+        "Code": {
+          "Title": "ルームコード",
+          "Description": "共有可能なコードでルームを作成または参加します。サインインが必要です。",
+          "Action": "ルームコードを使用"
+        }
+      },
+      "Code": {
+        "Title": "一緒に視聴ルーム",
+        "Subtitle": "視聴セッションをホストまたは参加",
+        "TabAriaLabel": "ホストまたは参加",
+        "HostTab": "ホスト",
+        "JoinTab": "参加",
+        "HostTitle": "ルームをホスト",
+        "HostDescription": "新しいルームを作成し、コードを他の人と共有します。",
+        "HostDisabled": "先に共有可能な動画を読み込んでください",
+        "CreateAction": "ルームを作成",
+        "JoinTitle": "ルームに参加",
+        "JoinDescription": "ホストから共有されたルームコードを入力してください。",
+        "RoomCodePlaceholder": "ルームコードを入力",
+        "JoinAction": "参加",
+        "ActiveOwnerTitle": "ルームをホスト中",
+        "ActiveOwnerDescription": "下のルームコードを他の人に共有して、参加してもらいましょう。",
+        "ActiveViewerTitle": "ルームに参加中",
+        "ActiveViewerDescription": "ホストと同期中です。",
+        "RoomCodeLabel": "ルームコード",
+        "CopyCodeAction": "コードをコピー",
+        "DisconnectAction": "切断",
+        "UnshareableVideo": "この動画ソースはリモートで共有できません。",
+        "Copied": "ルームコードをクリップボードにコピーしました",
+        "RoomClosed": "ホストがルームを閉じました。",
+        "OpenRoomPanel": "ルーム",
+        "SignInRequiredTitle": "サインインが必要",
+        "SignInRequiredMessage": "ルームコードを使用するには、mLearn Cloudアカウントでサインインしてください。",
+        "SignInModalTitle": "一緒に視聴のサインイン",
+        "SignInHint": "mLearn Cloudの認証情報を入力してください",
+        "SignInCodeHint": "デバイスコードを受け取った場合は、以下に入力してください"
+      },
+      "Media": {
+        "DistributeTitle": "メディアを配信",
+        "DistributeSubtitle": "WebRTCを使用して接続中のピアにメディアファイルを送信",
+        "DistributeAction": "配信",
+        "SelectFile": "配信するメディアファイルを選択",
+        "FileName": "ファイル名",
+        "FileSize": "ファイルサイズ",
+        "ConnectedPeers": "接続中のピア",
+        "SubtitlesIncluded": "字幕を含む",
+        "StartDistribution": "配信を開始",
+        "Sending": "ピアにメディアを送信中...",
+        "DistributionComplete": "配信完了。すべてのピアがメディアを受信しました。",
+        "ReceiveTitle": "メディアの受信",
+        "ReceivePrompt": "ピアがメディアファイルを送信しようとしています。受信しますか？",
+        "Receiving": "メディアを受信中...",
+        "ReceiveComplete": "メディアを正常に受信しました。",
+        "LoadMedia": "メディアを読み込む"
+      }
     },
     "WordDbEditor": {
       "Actions": {

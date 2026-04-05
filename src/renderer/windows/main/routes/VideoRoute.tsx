@@ -9,7 +9,8 @@ import { useSubtitles, useWatchTogether, useMediaStats } from '../../../hooks';
 import { isElectron as isElectronPlatform } from '../../../../shared/platform';
 import { useLocalization, useSettings, useLanguage, useFlashcards } from '../../../context';
 import { CloudReLoginModal } from '../../../components/cloud';
-import { WatchTogetherCodeModal, WatchTogetherModeModal } from '../../../components/watchTogether';
+import { WatchTogetherCodeModal, WatchTogetherModeModal, MediaDistributionModal, MediaReceiveModal } from '../../../components/watchTogether';
+import type { MediaTransferMetadata } from '../../../services/mediaDistributionService';
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
 import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
@@ -95,6 +96,8 @@ export const VideoRoute: Component = () => {
   const [showWatchTogetherSignInModal, setShowWatchTogetherSignInModal] = createSignal(false);
   const [watchTogetherBusy, setWatchTogetherBusy] = createSignal(false);
   const [watchTogetherError, setWatchTogetherError] = createSignal('');
+  const [showMediaDistributionModal, setShowMediaDistributionModal] = createSignal(false);
+  const [showMediaReceiveModal, setShowMediaReceiveModal] = createSignal(false);
 
   // Accumulated unknown words from subtitles
   const [accumulatedWords, setAccumulatedWords] = createSignal<VideoWordEntry[]>([]);
@@ -231,7 +234,7 @@ export const VideoRoute: Component = () => {
     setWatchTogetherBusy(true);
     try {
       const session = await createWatchTogetherRoom(settings, accessToken, payload);
-      watchTogether.activateRoom(session, accessToken);
+      watchTogether.activateRoomWithUserId(session, accessToken, settings.cloudAuthUserId);
       setShowWatchTogetherCodeModal(true);
     } catch (error) {
       console.error(error);
@@ -249,7 +252,7 @@ export const VideoRoute: Component = () => {
     setWatchTogetherBusy(true);
     try {
       const session = await joinWatchTogetherRoom(settings, accessToken, roomCode);
-      watchTogether.activateRoom(session, accessToken);
+      watchTogether.activateRoomWithUserId(session, accessToken, settings.cloudAuthUserId);
       loadSharedVideo(session.room.mediaUrl, session.room.mediaTitle);
       setShowWatchTogetherCodeModal(true);
     } catch (error) {
@@ -333,77 +336,56 @@ export const VideoRoute: Component = () => {
     watchTogether.sendSync(getCurrentVideoElement()?.currentTime ?? 0);
   });
 
-  let lastAppliedRoomStateKey = '';
-
+  // Show the media receive modal when a pending offer arrives
   createEffect(() => {
-    const mode = watchTogether.mode();
-    const roomState = watchTogether.roomState();
-    const activeVideoSrc = videoSrc();
-
-    if (mode !== 'room-viewer' || !roomState) {
-      lastAppliedRoomStateKey = '';
-      return;
+    const offer = watchTogether.pendingMediaOffer();
+    if (offer) {
+      setShowMediaReceiveModal(true);
     }
-
-    const roomStateKey = `${roomState.roomId}:${roomState.stateVersion}:${roomState.status}:${activeVideoSrc}`;
-    if (roomStateKey === lastAppliedRoomStateKey) {
-      return;
-    }
-    lastAppliedRoomStateKey = roomStateKey;
-
-    if (roomState.status === 'closed') {
-      showToast({
-        message: t('mlearn.WatchTogether.Code.RoomClosed'),
-        variant: 'info',
-      });
-      handleDisconnectWatchTogether();
-      return;
-    }
-
-    if (activeVideoSrc !== roomState.mediaUrl) {
-      loadSharedVideo(roomState.mediaUrl, roomState.mediaTitle);
-    }
-
-    const applyRoomState = async () => {
-      const video = getCurrentVideoElement();
-      if (!video) return;
-
-      await watchTogether.runSuppressed(async () => {
-        if (Math.abs(video.currentTime - roomState.currentTime) > 0.75) {
-          video.currentTime = roomState.currentTime;
-        }
-
-        if (Math.abs(video.playbackRate - roomState.playbackRate) > 0.01) {
-          video.playbackRate = roomState.playbackRate;
-        }
-
-        if (roomState.paused) {
-          video.pause();
-          return;
-        }
-
-        try {
-          await video.play();
-        } catch (error) {
-          console.error('[VideoRoute] Failed to play remote watch-together video', error);
-        }
-      });
-    };
-
-    const video = getCurrentVideoElement();
-    if (!video) {
-      return;
-    }
-
-    if (video.readyState >= 1) {
-      void applyRoomState();
-      return;
-    }
-
-    video.addEventListener('loadedmetadata', () => {
-      void applyRoomState();
-    }, { once: true });
   });
+
+  // When the owner sends a sync-state with a new mediaUrl, load the video (viewer mode)
+  createEffect(() => {
+    const received = watchTogether.receivedMediaUrl();
+    if (!received) return;
+    loadSharedVideo(received.url, received.title);
+    watchTogether.clearReceivedMediaUrl();
+  });
+
+  // When the room is closed by the host, notify the viewer
+  createEffect(() => {
+    if (!watchTogether.roomClosedByHost()) return;
+    showToast({
+      message: t('mlearn.WatchTogether.Code.RoomClosed'),
+      variant: 'warning',
+    });
+    setShowWatchTogetherCodeModal(false);
+    setShowWatchTogetherModeModal(false);
+    watchTogether.clearRoomClosedByHost();
+  });
+
+  // When a media file is received via WebRTC, allow loading it
+  const handleLoadReceivedMedia = (file: Blob, meta: MediaTransferMetadata) => {
+    const objectUrl = URL.createObjectURL(file);
+    setVideoSrc(objectUrl);
+    setCurrentVideoTime(0);
+    setCurrentVideoDuration(null);
+    setCurrentVideoPath('');
+    setShowDropZone(false);
+    setCurrentVideoName(meta.fileName);
+
+    if (meta.subtitleContent) {
+      setSubtitleContent(meta.subtitleContent);
+      setCurrentSubtitlePath('');
+    }
+
+    watchTogether.clearMediaReceiveResult();
+    setShowMediaReceiveModal(false);
+  };
+
+  const handleStartMediaDistribution = (file: Blob, fileName: string, subtitleContent: string | null) => {
+    watchTogether.startMediaDistribution(file, fileName, subtitleContent);
+  };
 
   syncVideoPluginActivity({
     workName: currentVideoName,
@@ -1083,6 +1065,15 @@ export const VideoRoute: Component = () => {
         >
           {t('mlearn.WatchTogether.Code.OpenRoomPanel')}
         </NavBtn>
+        <Show when={watchTogether.canControl()}>
+          <NavBtn
+            class="watch-together-distribute-button"
+            onClick={() => setShowMediaDistributionModal(true)}
+            title={t('mlearn.WatchTogether.Media.DistributeTitle')}
+          >
+            {t('mlearn.WatchTogether.Media.DistributeAction')}
+          </NavBtn>
+        </Show>
       </Show>
 
       <Show
@@ -1185,6 +1176,32 @@ export const VideoRoute: Component = () => {
         warningMessage={t('mlearn.WatchTogether.Code.SignInRequiredMessage')}
         hint={t('mlearn.WatchTogether.Code.SignInHint')}
         codeHint={t('mlearn.WatchTogether.Code.SignInCodeHint')}
+      />
+
+      <MediaDistributionModal
+        isOpen={showMediaDistributionModal()}
+        onClose={() => setShowMediaDistributionModal(false)}
+        connectedPeerCount={watchTogether.connectedPeerCount()}
+        isSending={watchTogether.isSendingMedia()}
+        sendProgress={watchTogether.mediaSendProgress()}
+        sendComplete={watchTogether.mediaSendComplete()}
+        onStartDistribution={handleStartMediaDistribution}
+        onCancel={() => { watchTogether.cancelMediaDistribution(); setShowMediaDistributionModal(false); }}
+        videoSrc={videoSrc()}
+        subtitleContent={subtitleContent() || null}
+      />
+
+      <MediaReceiveModal
+        isOpen={showMediaReceiveModal()}
+        onClose={() => setShowMediaReceiveModal(false)}
+        offerMeta={watchTogether.pendingMediaOffer()?.meta ?? null}
+        isReceiving={watchTogether.isReceivingMedia()}
+        receiveProgress={watchTogether.mediaReceiveProgress()}
+        receiveResult={watchTogether.mediaReceiveResult()}
+        onAccept={() => watchTogether.acceptMediaOffer()}
+        onReject={() => { watchTogether.rejectMediaOffer(); setShowMediaReceiveModal(false); }}
+        onLoadReceived={handleLoadReceivedMedia}
+        onDismiss={() => { watchTogether.clearMediaReceiveResult(); setShowMediaReceiveModal(false); }}
       />
     </div>
   );

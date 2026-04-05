@@ -769,11 +769,13 @@
         "Play": "Wiedergabe",
         "ToggleSubtitles": "Untertitel ein/aus"
       },
+      "Accept": "Annehmen",
       "Back": "Zurück",
       "Cancel": "Abbrechen",
       "Close": "Schließen",
       "ComingSoon": "Demnächst verfügbar",
       "Continue": "Weiter",
+      "Decline": "Ablehnen",
       "Delete": "Löschen",
       "Edit": "Bearbeiten",
       "Export": "Exportieren",
@@ -805,7 +807,8 @@
         "ShortSecond": "{value}s",
         "ShortYear": "{value}J"
       },
-      "TryAgain": "Erneut versuchen"
+      "TryAgain": "Erneut versuchen",
+      "Yes": "Ja"
     },
     "LowPowerGate": {
       "Allow": "Erlauben",
@@ -1837,6 +1840,71 @@
       },
       "VideoClipFailed": "Videoclip fehlgeschlagen, Screenshot wird verwendet",
       "WatchTogether": "Gemeinsam ansehen"
+    },
+    "WatchTogether": {
+      "Mode": {
+        "Title": "Gemeinsam ansehen",
+        "Subtitle": "Wähle, wie du dich verbinden möchtest",
+        "Local": {
+          "Title": "Lokales Netzwerk",
+          "Description": "Wiedergabe mit angebundenen Browsern im selben Netzwerk teilen.",
+          "Action": "Lokal starten"
+        },
+        "Code": {
+          "Title": "Raumcode",
+          "Description": "Erstelle oder tritt einem Raum mit einem teilbaren Code bei. Anmeldung erforderlich.",
+          "Action": "Raumcode verwenden"
+        }
+      },
+      "Code": {
+        "Title": "Gemeinsam-ansehen-Raum",
+        "Subtitle": "Einen Gemeinsam-ansehen-Raum hosten oder beitreten",
+        "TabAriaLabel": "Hosten oder beitreten",
+        "HostTab": "Hosten",
+        "JoinTab": "Beitreten",
+        "HostTitle": "Raum erstellen",
+        "HostDescription": "Erstelle einen neuen Raum und teile den Code mit anderen.",
+        "HostDisabled": "Lade zuerst ein teilbares Video",
+        "CreateAction": "Raum erstellen",
+        "JoinTitle": "Raum beitreten",
+        "JoinDescription": "Gib den vom Host geteilten Raumcode ein.",
+        "RoomCodePlaceholder": "Raumcode eingeben",
+        "JoinAction": "Beitreten",
+        "ActiveOwnerTitle": "Raum wird gehostet",
+        "ActiveOwnerDescription": "Teile den untenstehenden Raumcode mit anderen, damit sie beitreten können.",
+        "ActiveViewerTitle": "Raum beigetreten",
+        "ActiveViewerDescription": "Du bist mit dem Raum-Host synchronisiert.",
+        "RoomCodeLabel": "Raumcode",
+        "CopyCodeAction": "Code kopieren",
+        "DisconnectAction": "Trennen",
+        "UnshareableVideo": "Diese Videoquelle kann nicht remote geteilt werden.",
+        "Copied": "Raumcode in die Zwischenablage kopiert",
+        "RoomClosed": "Der Raum wurde vom Host geschlossen.",
+        "OpenRoomPanel": "Raum",
+        "SignInRequiredTitle": "Anmeldung erforderlich",
+        "SignInRequiredMessage": "Melde dich mit deinem mLearn-Cloud-Konto an, um Raumcodes zu verwenden.",
+        "SignInModalTitle": "Anmelden für Gemeinsam ansehen",
+        "SignInHint": "Gib deine mLearn-Cloud-Anmeldedaten ein",
+        "SignInCodeHint": "Falls du einen Gerätecode erhalten hast, gib ihn unten ein"
+      },
+      "Media": {
+        "DistributeTitle": "Medien verteilen",
+        "DistributeSubtitle": "Mediendatei über WebRTC an verbundene Peers senden",
+        "DistributeAction": "Verteilen",
+        "SelectFile": "Mediendatei zum Verteilen auswählen",
+        "FileName": "Dateiname",
+        "FileSize": "Dateigröße",
+        "ConnectedPeers": "Verbundene Peers",
+        "SubtitlesIncluded": "Untertitel enthalten",
+        "StartDistribution": "Verteilung starten",
+        "Sending": "Medien werden an Peers gesendet...",
+        "DistributionComplete": "Verteilung abgeschlossen. Alle Peers haben die Medien erhalten.",
+        "ReceiveTitle": "Eingehende Medien",
+        "ReceivePrompt": "Ein Peer möchte dir eine Mediendatei senden. Möchtest du sie empfangen?",
+        "Receiving": "Medien werden empfangen...",
+        "ReceiveComplete": "Medien erfolgreich empfangen.",
+        "LoadMedia": "Medien laden"
+      }
     },
     "WordDbEditor": {
       "Actions": {

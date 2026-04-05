@@ -769,11 +769,13 @@
         "Play": "Lecture",
         "ToggleSubtitles": "Activer/désactiver les sous-titres"
       },
+      "Accept": "Accepter",
       "Back": "Retour",
       "Cancel": "Annuler",
       "Close": "Fermer",
       "ComingSoon": "Bientôt disponible",
       "Continue": "Continuer",
+      "Decline": "Refuser",
       "Delete": "Supprimer",
       "Edit": "Modifier",
       "Export": "Exporter",
@@ -805,7 +807,8 @@
         "ShortSecond": "{value}s",
         "ShortYear": "{value}a"
       },
-      "TryAgain": "Réessayer"
+      "TryAgain": "Réessayer",
+      "Yes": "Oui"
     },
     "LowPowerGate": {
       "Allow": "Autoriser",
@@ -1837,6 +1840,71 @@
       },
       "VideoClipFailed": "Le clip vidéo a échoué, utilisation de la capture d'écran",
       "WatchTogether": "Regarder ensemble"
+    },
+    "WatchTogether": {
+      "Mode": {
+        "Title": "Regarder ensemble",
+        "Subtitle": "Choisissez comment vous connecter",
+        "Local": {
+          "Title": "Réseau local",
+          "Description": "Partagez la lecture avec des navigateurs connectés sur le même réseau.",
+          "Action": "Démarrer en local"
+        },
+        "Code": {
+          "Title": "Code de salle",
+          "Description": "Créez ou rejoignez une salle avec un code partageable. Connexion requise.",
+          "Action": "Utiliser un code"
+        }
+      },
+      "Code": {
+        "Title": "Salle de visionnage",
+        "Subtitle": "Hébergez ou rejoignez une session de visionnage partagé",
+        "TabAriaLabel": "Héberger ou rejoindre",
+        "HostTab": "Héberger",
+        "JoinTab": "Rejoindre",
+        "HostTitle": "Héberger une salle",
+        "HostDescription": "Créez une nouvelle salle et partagez le code avec d'autres.",
+        "HostDisabled": "Chargez d'abord une vidéo partageable",
+        "CreateAction": "Créer une salle",
+        "JoinTitle": "Rejoindre une salle",
+        "JoinDescription": "Entrez le code de salle partagé par l'hôte.",
+        "RoomCodePlaceholder": "Entrez le code de salle",
+        "JoinAction": "Rejoindre",
+        "ActiveOwnerTitle": "Hébergement de la salle",
+        "ActiveOwnerDescription": "Partagez le code ci-dessous pour permettre à d'autres de rejoindre.",
+        "ActiveViewerTitle": "Salle rejointe",
+        "ActiveViewerDescription": "Vous êtes synchronisé avec l'hôte.",
+        "RoomCodeLabel": "Code de salle",
+        "CopyCodeAction": "Copier le code",
+        "DisconnectAction": "Se déconnecter",
+        "UnshareableVideo": "Cette source vidéo ne peut pas être partagée à distance.",
+        "Copied": "Code de salle copié dans le presse-papiers",
+        "RoomClosed": "La salle a été fermée par l'hôte.",
+        "OpenRoomPanel": "Salle",
+        "SignInRequiredTitle": "Connexion requise",
+        "SignInRequiredMessage": "Connectez-vous avec votre compte mLearn Cloud pour utiliser les codes de salle.",
+        "SignInModalTitle": "Connexion pour Regarder ensemble",
+        "SignInHint": "Entrez vos identifiants mLearn Cloud",
+        "SignInCodeHint": "Si vous avez reçu un code d'appareil, entrez-le ci-dessous"
+      },
+      "Media": {
+        "DistributeTitle": "Distribuer le média",
+        "DistributeSubtitle": "Envoyer le fichier média aux pairs connectés via WebRTC",
+        "DistributeAction": "Distribuer",
+        "SelectFile": "Sélectionner un fichier média à distribuer",
+        "FileName": "Nom du fichier",
+        "FileSize": "Taille du fichier",
+        "ConnectedPeers": "Pairs connectés",
+        "SubtitlesIncluded": "Sous-titres inclus",
+        "StartDistribution": "Démarrer la distribution",
+        "Sending": "Envoi du média aux pairs...",
+        "DistributionComplete": "Distribution terminée. Tous les pairs ont reçu le média.",
+        "ReceiveTitle": "Média entrant",
+        "ReceivePrompt": "Un pair souhaite vous envoyer un fichier média. Voulez-vous le recevoir ?",
+        "Receiving": "Réception du média...",
+        "ReceiveComplete": "Média reçu avec succès.",
+        "LoadMedia": "Charger le média"
+      }
     },
     "WordDbEditor": {
       "Actions": {
