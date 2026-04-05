@@ -769,11 +769,13 @@
         "Play": "Воспроизвести",
         "ToggleSubtitles": "Переключить субтитры"
       },
+      "Accept": "Принять",
       "Back": "Назад",
       "Cancel": "Отмена",
       "Close": "Закрыть",
       "ComingSoon": "Скоро",
       "Continue": "Продолжить",
+      "Decline": "Отклонить",
       "Delete": "Удалить",
       "Edit": "Редактировать",
       "Export": "Экспорт",
@@ -805,7 +807,8 @@
         "ShortSecond": "{value}с",
         "ShortYear": "{value}г"
       },
-      "TryAgain": "Попробовать снова"
+      "TryAgain": "Попробовать снова",
+      "Yes": "Да"
     },
     "LowPowerGate": {
       "Allow": "Разрешить",
@@ -1837,6 +1840,71 @@
       },
       "VideoClipFailed": "Не удалось создать видеоклип, используется скриншот",
       "WatchTogether": "Смотреть вместе"
+    },
+    "WatchTogether": {
+      "Mode": {
+        "Title": "Смотреть вместе",
+        "Subtitle": "Выберите способ подключения",
+        "Local": {
+          "Title": "Локальная сеть",
+          "Description": "Общий просмотр с привязанными браузерами в одной сети.",
+          "Action": "Запустить локально"
+        },
+        "Code": {
+          "Title": "Код комнаты",
+          "Description": "Создайте или присоединитесь к комнате по общему коду. Требуется вход.",
+          "Action": "Использовать код"
+        }
+      },
+      "Code": {
+        "Title": "Комната совместного просмотра",
+        "Subtitle": "Создайте или присоединитесь к сеансу совместного просмотра",
+        "TabAriaLabel": "Создать или присоединиться",
+        "HostTab": "Создать",
+        "JoinTab": "Присоединиться",
+        "HostTitle": "Создать комнату",
+        "HostDescription": "Создайте новую комнату и поделитесь кодом с другими.",
+        "HostDisabled": "Сначала загрузите видео с возможностью общего доступа",
+        "CreateAction": "Создать комнату",
+        "JoinTitle": "Присоединиться к комнате",
+        "JoinDescription": "Введите код комнаты, полученный от хоста.",
+        "RoomCodePlaceholder": "Введите код комнаты",
+        "JoinAction": "Присоединиться",
+        "ActiveOwnerTitle": "Комната создана",
+        "ActiveOwnerDescription": "Поделитесь кодом комнаты ниже, чтобы другие могли присоединиться.",
+        "ActiveViewerTitle": "Вы в комнате",
+        "ActiveViewerDescription": "Вы синхронизированы с хостом.",
+        "RoomCodeLabel": "Код комнаты",
+        "CopyCodeAction": "Копировать код",
+        "DisconnectAction": "Отключиться",
+        "UnshareableVideo": "Этот источник видео нельзя передать удалённо.",
+        "Copied": "Код комнаты скопирован в буфер обмена",
+        "RoomClosed": "Хост закрыл комнату.",
+        "OpenRoomPanel": "Комната",
+        "SignInRequiredTitle": "Требуется вход",
+        "SignInRequiredMessage": "Войдите в аккаунт mLearn Cloud, чтобы использовать коды комнат.",
+        "SignInModalTitle": "Вход для совместного просмотра",
+        "SignInHint": "Введите данные учётной записи mLearn Cloud",
+        "SignInCodeHint": "Если вы получили код устройства, введите его ниже"
+      },
+      "Media": {
+        "DistributeTitle": "Раздать медиа",
+        "DistributeSubtitle": "Отправить медиафайл подключённым участникам через WebRTC",
+        "DistributeAction": "Раздать",
+        "SelectFile": "Выберите медиафайл для раздачи",
+        "FileName": "Имя файла",
+        "FileSize": "Размер файла",
+        "ConnectedPeers": "Подключённые участники",
+        "SubtitlesIncluded": "Субтитры включены",
+        "StartDistribution": "Начать раздачу",
+        "Sending": "Отправка медиа участникам...",
+        "DistributionComplete": "Раздача завершена. Все участники получили медиа.",
+        "ReceiveTitle": "Входящее медиа",
+        "ReceivePrompt": "Участник хочет отправить вам медиафайл. Хотите его получить?",
+        "Receiving": "Получение медиа...",
+        "ReceiveComplete": "Медиа успешно получено.",
+        "LoadMedia": "Загрузить медиа"
+      }
     },
     "WordDbEditor": {
       "Actions": {

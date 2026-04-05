@@ -770,10 +770,12 @@
         "ToggleSubtitles": "Toggle subtitles"
       },
       "Back": "Back",
+      "Accept": "Accept",
       "Cancel": "Cancel",
       "Close": "Close",
       "ComingSoon": "Coming soon",
       "Continue": "Continue",
+      "Decline": "Decline",
       "Delete": "Delete",
       "Edit": "Edit",
       "Export": "Export",
@@ -805,7 +807,8 @@
         "ShortSecond": "{value}s",
         "ShortYear": "{value}y"
       },
-      "TryAgain": "Try Again"
+      "TryAgain": "Try Again",
+      "Yes": "Yes"
     },
     "LowPowerGate": {
       "Allow": "Allow",
@@ -1838,6 +1841,71 @@
       },
       "VideoClipFailed": "Video clip failed, using screenshot instead",
       "WatchTogether": "Watch together"
+    },
+    "WatchTogether": {
+      "Mode": {
+        "Title": "Watch Together",
+        "Subtitle": "Choose how you want to connect",
+        "Local": {
+          "Title": "Local Network",
+          "Description": "Share playback with tethered browsers on the same network.",
+          "Action": "Start Local"
+        },
+        "Code": {
+          "Title": "Room Code",
+          "Description": "Create or join a room using a shareable code. Requires sign-in.",
+          "Action": "Use Room Code"
+        }
+      },
+      "Code": {
+        "Title": "Watch Together Room",
+        "Subtitle": "Host or join a watch-together session",
+        "TabAriaLabel": "Host or join",
+        "HostTab": "Host",
+        "JoinTab": "Join",
+        "HostTitle": "Host a Room",
+        "HostDescription": "Create a new room and share the code with others.",
+        "HostDisabled": "Load a shareable video first",
+        "CreateAction": "Create Room",
+        "JoinTitle": "Join a Room",
+        "JoinDescription": "Enter the room code shared by the host.",
+        "RoomCodePlaceholder": "Enter room code",
+        "JoinAction": "Join",
+        "ActiveOwnerTitle": "Hosting Room",
+        "ActiveOwnerDescription": "Share the room code below with others to let them join.",
+        "ActiveViewerTitle": "Joined Room",
+        "ActiveViewerDescription": "You are synced with the room host.",
+        "RoomCodeLabel": "Room Code",
+        "CopyCodeAction": "Copy Code",
+        "DisconnectAction": "Disconnect",
+        "UnshareableVideo": "This video source cannot be shared remotely.",
+        "Copied": "Room code copied to clipboard",
+        "RoomClosed": "The room has been closed by the host.",
+        "OpenRoomPanel": "Room",
+        "SignInRequiredTitle": "Sign In Required",
+        "SignInRequiredMessage": "Sign in with your mLearn Cloud account to use room codes.",
+        "SignInModalTitle": "Sign In for Watch Together",
+        "SignInHint": "Enter your mLearn Cloud credentials",
+        "SignInCodeHint": "If you received a device code, enter it below"
+      },
+      "Media": {
+        "DistributeTitle": "Distribute Media",
+        "DistributeSubtitle": "Send the media file to connected peers via WebRTC",
+        "DistributeAction": "Distribute",
+        "SelectFile": "Select a media file to distribute",
+        "FileName": "File name",
+        "FileSize": "File size",
+        "ConnectedPeers": "Connected peers",
+        "SubtitlesIncluded": "Subtitles included",
+        "StartDistribution": "Start Distribution",
+        "Sending": "Sending media to peers...",
+        "DistributionComplete": "Distribution complete. All peers have received the media.",
+        "ReceiveTitle": "Incoming Media",
+        "ReceivePrompt": "A peer wants to send you a media file. Do you want to receive it?",
+        "Receiving": "Receiving media...",
+        "ReceiveComplete": "Media received successfully.",
+        "LoadMedia": "Load Media"
+      }
     },
     "WordDbEditor": {
       "Actions": {

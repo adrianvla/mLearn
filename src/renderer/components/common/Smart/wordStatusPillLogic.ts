@@ -37,5 +37,5 @@ export function buildWordStatusSourceLabel(options: WordStatusSourceLabelOptions
     return baseLabel;
   }
 
-  return `${baseLabel} (${options.canonicalWord})`;
+  return `${baseLabel} (→ ${options.canonicalWord})`;
 }
