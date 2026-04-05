@@ -34,6 +34,12 @@ import { showToast } from '../../../components/common/Feedback/Toast';
 import { syncReaderPluginActivity } from './readerPluginActivity';
 import { getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
 import { getWordFormCandidates } from '../../../utils/wordForms';
+import {
+  getWebkitEntry,
+  isWebkitDirectoryEntry,
+  isWebkitFileEntry,
+  type WebkitFileSystemAnyEntry,
+} from '../../../utils/webkitFileSystem';
 import './reader.css';
 
 interface PageImage {
@@ -301,7 +307,7 @@ export const ReaderRoute: Component = () => {
       }
     }
 
-    const hasEntries = items.some((item) => typeof (item as any).webkitGetAsEntry === 'function');
+    const hasEntries = items.some((item) => getWebkitEntry(item) !== null);
     if (!hasEntries) {
       // No webkit entries - just regular files dropped
       // Extract folder path from first file's parent directory
@@ -314,14 +320,14 @@ export const ReaderRoute: Component = () => {
     let droppedFolderName: string | null = null;
     let droppedFolderPath: string | null = null;
 
-    const readEntry = async (entry: any, isTopLevel: boolean = false): Promise<File[]> => {
+    const readEntry = async (entry: WebkitFileSystemAnyEntry | null, isTopLevel: boolean = false): Promise<File[]> => {
       if (!entry) return [];
-      if (entry.isFile) {
+      if (isWebkitFileEntry(entry)) {
         return new Promise((resolve) => {
           entry.file((file: File) => resolve([file]));
         });
       }
-      if (entry.isDirectory) {
+      if (isWebkitDirectoryEntry(entry)) {
         // Capture the folder name and path from the top-level directory entry
         if (isTopLevel && !droppedFolderName) {
           droppedFolderName = entry.name;
@@ -330,11 +336,11 @@ export const ReaderRoute: Component = () => {
           droppedFolderPath = rawFilePath;
         }
         const reader = entry.createReader();
-        const entries: any[] = [];
+        const entries: WebkitFileSystemAnyEntry[] = [];
         const readAll = (): Promise<void> => new Promise((resolve) => {
-          reader.readEntries((batch: any[]) => {
+          reader.readEntries((batch) => {
             if (batch.length === 0) return resolve();
-            entries.push(...batch);
+            entries.push(...batch.filter((child): child is WebkitFileSystemAnyEntry => child !== null));
             resolve(readAll());
           });
         });
@@ -347,8 +353,8 @@ export const ReaderRoute: Component = () => {
 
     const entryFiles = await Promise.all(
         items
-            .map((item) => (item as any).webkitGetAsEntry?.())
-            .filter(Boolean)
+        .map((item) => getWebkitEntry(item))
+        .filter((entry): entry is WebkitFileSystemAnyEntry => entry !== null)
             .map((entry) => readEntry(entry, true))
     );
 

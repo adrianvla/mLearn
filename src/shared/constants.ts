@@ -317,13 +317,17 @@ export const ANKI_EASE = {
   DEFAULT_KNOWN: 1800,
 } as const;
 
-// Word status (for SRS)
+// Canonical word status type (string-based, used across the app)
+export const WORD_STATUS_VALUES = ['unknown', 'learning', 'known'] as const;
+export type WordStatus = typeof WORD_STATUS_VALUES[number];
+
+// Numeric word status constants (internal storage format for stats service)
 export const WORD_STATUS = {
   UNKNOWN: 0,
   LEARNING: 1,
   KNOWN: 2,
 } as const;
-export type WordStatus = typeof WORD_STATUS[keyof typeof WORD_STATUS];
+export type NumericWordStatus = typeof WORD_STATUS[keyof typeof WORD_STATUS];
 
 // Knowledge sources for word status resolution
 export const KNOWLEDGE_SOURCES = ['srs', 'anki', 'manual'] as const;

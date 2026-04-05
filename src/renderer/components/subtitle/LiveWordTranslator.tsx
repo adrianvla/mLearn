@@ -118,7 +118,7 @@ export const LiveWordTranslator: Component = () => {
   // Expose addCard globally for subtitle components to use
   createEffect(() => {
     if (typeof window !== 'undefined') {
-      (window as any).mLearnLiveTranslator = {
+      window.mLearnLiveTranslator = {
         addCard,
         removeCard,
         show: () => {

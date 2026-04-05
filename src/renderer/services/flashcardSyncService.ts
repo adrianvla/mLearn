@@ -313,7 +313,7 @@ export async function sendChunkedWithBackpressure(
   payload: string,
 ): Promise<void> {
   const chunks = splitTextIntoChunks(payload, CHUNK_SIZE);
-  const channel: RTCDataChannel | undefined = (peer as any)._channel;
+  const channel = peer._channel;
 
   for (let i = 0; i < chunks.length; i++) {
     if (channel && channel.bufferedAmount > MAX_BUFFERED_AMOUNT) {

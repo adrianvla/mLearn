@@ -7,7 +7,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry } from '../../shared/types';
+import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type WordCandidate } from '../../shared/types';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady } from './migrationSignals';
 import { useSettings } from './SettingsContext';
@@ -25,6 +25,10 @@ import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/text
 
 // Current store version
 const CURRENT_VERSION = 5;
+
+type StoredFlashcardStore = Partial<FlashcardStore> & {
+  wordToCardMap?: Record<string, string | string[]>;
+};
 
 /** Build a language-prefixed composite key for per-language maps */
 function langKey(language: string, hash: string): string {
@@ -331,7 +335,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   // Ensure store has all required fields and handle migrations
-  function ensureStoreFields(partial: any): FlashcardStore {
+  function ensureStoreFields(partial: StoredFlashcardStore): FlashcardStore {
     const hour = newDayHour();
     const today = SRS.getTodayDateString(hour);
     const meta = { ...SRS.getDefaultMeta(hour), ...partial.meta };
@@ -462,10 +466,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }
 
       // Re-key wordCandidates
-      const newWordCandidates: Record<string, any> = {};
-      for (const [hash, entry] of Object.entries(partial.wordCandidates || {})) {
+      const newWordCandidates: Record<string, WordCandidate> = {};
+      for (const [hash, entry] of Object.entries<WordCandidate>(partial.wordCandidates || {})) {
         if (!hash.includes(':')) {
-          newWordCandidates[langKey(lang, hash)] = { ...(entry as any), language: lang };
+          newWordCandidates[langKey(lang, hash)] = { ...entry, language: lang };
         } else {
           newWordCandidates[hash] = entry;
         }

@@ -4,7 +4,7 @@
  */
 
 import { createSignal, createResource } from 'solid-js';
-import type { TranslationResponse, TranslationEntry, DictionaryEntry } from '../../shared/types';
+import type { TranslationResponse, TranslationEntry, DictionaryEntry, Token } from '../../shared/types';
 import { getBackend } from '../../shared/backends';
 import { getBridge } from '../../shared/bridges';
 import {
@@ -24,8 +24,8 @@ const [cacheVersion, setCacheVersion] = createSignal(0);
 export { cacheVersion };
 
 // Tokenization cache (promise de-dup + LRU)
-const tokenCache = new Map<string, { tokens: any[]; ts: number }>();
-const tokenInFlight = new Map<string, Promise<any[]>>();
+const tokenCache = new Map<string, { tokens: Token[]; ts: number }>();
+const tokenInFlight = new Map<string, Promise<Token[]>>();
 const TOKEN_CACHE_MAX = 1000;
 
 // Dictionary cache

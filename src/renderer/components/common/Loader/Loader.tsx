@@ -14,6 +14,10 @@ import './Loader.css';
 
 export type LoaderType = 'spinner' | 'skeleton' | 'ring' | 'overlay';
 
+type LoaderCssProperties = JSX.CSSProperties & {
+  '--square-ring-perimeter'?: string;
+};
+
 export interface LoaderProps {
   /** Type of loader to display */
   type?: LoaderType;
@@ -194,12 +198,17 @@ const SquareRing: Component<{
     const p = perimeter();
     return `${p / 4} ${(p * 3) / 4}`;
   });
+  const squareRingStyle = createMemo<LoaderCssProperties | undefined>(() => (
+    props.indeterminate
+      ? { '--square-ring-perimeter': String(perimeter()) }
+      : undefined
+  ));
 
   return (
     <svg
       class={`loader-ring-svg loader-ring-svg--square ${props.indeterminate ? 'loader-ring-svg--square-indeterminate' : ''}`}
       viewBox={`0 0 ${props.size} ${props.size}`}
-      style={props.indeterminate ? { '--square-ring-perimeter': String(perimeter()) } as any : undefined}
+      style={squareRingStyle()}
     >
       <rect
         class="loader-ring-track"

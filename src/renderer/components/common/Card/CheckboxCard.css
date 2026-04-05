@@ -47,7 +47,7 @@
 .checkbox-card-check svg {
   width: 14px;
   height: 14px;
-  color: white;
+  color: var(--checkbox-card-check-icon);
 }
 
 .checkbox-card.checked .checkbox-card-check {

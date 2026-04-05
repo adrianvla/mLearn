@@ -645,8 +645,8 @@ export const VideoRoute: Component = () => {
 
     // Show aside (Live Word Translator)
     ipcCleanups.push(bridge.window.onOpenAside(() => {
-      if ((window as any).mLearnLiveTranslator) {
-        (window as any).mLearnLiveTranslator.show();
+      if (window.mLearnLiveTranslator) {
+        window.mLearnLiveTranslator.show();
       }
     }));
 
@@ -853,8 +853,8 @@ export const VideoRoute: Component = () => {
     switch (command) {
       case 'sync-subs':
         // Show the subtitle sync panel
-        if ((window as any).mLearnSubtitleSync) {
-          (window as any).mLearnSubtitleSync.show();
+        if (window.mLearnSubtitleSync) {
+          window.mLearnSubtitleSync.show();
         }
         break;
       case 'copy-sub': {

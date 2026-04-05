@@ -1,11 +1,12 @@
 import type { Flashcard, FlashcardContent, DictionaryEntry, PitchData, Token, TranslationEntry } from '../../../shared/types';
 import { WORD_STATUS, SRS_EASE, ANKI_EASE } from '../../../shared/constants';
-import type { KnowledgeSource, KnowledgeResolutionMode } from '../../../shared/constants';
+import type { KnowledgeSource, KnowledgeResolutionMode, WordStatus } from '../../../shared/constants';
 import type { AnkiWordStatusRecord } from '../../../shared/backends/types';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 
-export type WordStatus = 'unknown' | 'learning' | 'known';
+export type { WordStatus } from '../../../shared/constants';
+export { WORD_STATUS_VALUES } from '../../../shared/constants';
 
 export interface WordHoverTranslationData {
   data?: (TranslationEntry | PitchData | null | undefined)[];
@@ -72,14 +73,6 @@ export interface WordKnowledgeResult {
 const STATUS_RANK: Record<WordStatus, number> = { unknown: 0, learning: 1, known: 2 };
 
 const DEFAULT_SOURCE_ORDER: readonly KnowledgeSource[] = ['srs', 'anki', 'manual'];
-
-function normalizeAnkiKnowledgeStatus(ankiStatus: WordStatus | boolean | null | undefined): WordStatus | null {
-  if (typeof ankiStatus === 'boolean') {
-    return ankiStatus ? 'learning' : null;
-  }
-
-  return ankiStatus ?? null;
-}
 
 function getAnkiQueueTypeStatus(card: Pick<AnkiWordStatusRecord, 'queue' | 'type'>): WordStatus | null {
   if (card.queue === 2 || card.type === 2) {
@@ -171,15 +164,14 @@ function getStatusFromSource(
 export function resolveWordKnowledge(
   card: Flashcard | null,
   manualStatus: WordStatus,
-  ankiStatus: WordStatus | boolean | null,
+  ankiStatus: WordStatus | null,
   sourceOrder: readonly KnowledgeSource[] = DEFAULT_SOURCE_ORDER,
   resolutionMode: KnowledgeResolutionMode = 'highest',
 ): WordKnowledgeResult {
-  const normalizedAnkiStatus = normalizeAnkiKnowledgeStatus(ankiStatus);
   const available: { source: KnowledgeSource; status: WordStatus }[] = [];
 
   for (const src of sourceOrder) {
-    const status = getStatusFromSource(src, card, manualStatus, normalizedAnkiStatus);
+    const status = getStatusFromSource(src, card, manualStatus, ankiStatus);
     if (status !== null) {
       available.push({ source: src, status });
     }
@@ -215,7 +207,7 @@ export function resolveWordKnowledge(
 export function getEffectiveWordStatus(
   card: Flashcard | null,
   manualStatus: WordStatus,
-  ankiStatus: WordStatus | boolean | null = false,
+  ankiStatus: WordStatus | null = null,
   sourceOrder: readonly KnowledgeSource[] = DEFAULT_SOURCE_ORDER,
   resolutionMode: KnowledgeResolutionMode = 'highest',
 ): WordStatus {

@@ -4,6 +4,13 @@
  */
 
 import { Component, JSX, createSignal, Show } from 'solid-js';
+import {
+  getWebkitEntry,
+  isWebkitDirectoryEntry,
+  isWebkitFileEntry,
+  type FileWithOptionalPath,
+  type WebkitFileSystemAnyEntry,
+} from '../../../utils/webkitFileSystem';
 import './DropZone.css';
 
 export interface DropZoneProps {
@@ -40,8 +47,7 @@ async function getDroppedFiles(
   // Check if any item is a directory (needs special handling)
   const items = Array.from(dataTransfer.items || []);
   const hasDirectory = items.some((item) => {
-    const entry = (item as any).webkitGetAsEntry?.();
-    return entry?.isDirectory;
+    return isWebkitDirectoryEntry(getWebkitEntry(item));
   });
 
   // If no directories and we have files with paths, use them directly
@@ -52,40 +58,40 @@ async function getDroppedFiles(
 
   // For directories, we need to use webkitGetAsEntry to read contents
   // but this loses the path property
-  const hasEntries = items.some((item) => typeof (item as any).webkitGetAsEntry === 'function');
+  const hasEntries = items.some((item) => getWebkitEntry(item) !== null);
 
   if (!hasEntries) {
     return directFiles;
   }
 
-  const readEntry = async (entry: any, basePath: string = ''): Promise<File[]> => {
+  const readEntry = async (entry: WebkitFileSystemAnyEntry | null, basePath: string = ''): Promise<File[]> => {
     if (!entry) return [];
 
-    if (entry.isFile) {
+    if (isWebkitFileEntry(entry)) {
       return new Promise((resolve) => {
         entry.file((file: File) => {
           // Try to reconstruct the path for files read from entries
           // The fullPath property gives us the relative path from the dropped folder
           if (entry.fullPath && basePath) {
             // Create a new File with the path property for Electron compatibility
-            const fileWithPath = file as File & { path?: string };
+            const fileWithPath = file as FileWithOptionalPath;
             // Note: We can't actually set file.path as it's read-only
             // But we can use the fullPath from the entry
-            (fileWithPath as any)._entryPath = basePath + entry.fullPath;
+            fileWithPath._entryPath = basePath + entry.fullPath;
           }
           resolve([file]);
         });
       });
     }
 
-    if (entry.isDirectory && acceptDirectory) {
+    if (isWebkitDirectoryEntry(entry) && acceptDirectory) {
       const reader = entry.createReader();
-      const entries: any[] = [];
+      const entries: WebkitFileSystemAnyEntry[] = [];
 
       const readAll = (): Promise<void> => new Promise((resolve) => {
-        reader.readEntries((batch: any[]) => {
+        reader.readEntries((batch) => {
           if (batch.length === 0) return resolve();
-          entries.push(...batch);
+          entries.push(...batch.filter((child): child is WebkitFileSystemAnyEntry => child !== null));
           resolve(readAll());
         });
       });
@@ -101,7 +107,7 @@ async function getDroppedFiles(
   // Build a map of original file paths from directFiles (if available)
   const pathMap = new Map<string, string>();
   for (const file of directFiles) {
-    const filePath = (file as File & { path?: string }).path;
+    const filePath = (file as FileWithOptionalPath).path;
     if (filePath) {
       pathMap.set(file.name, filePath);
     }
@@ -109,8 +115,8 @@ async function getDroppedFiles(
 
   const entryFiles = await Promise.all(
     items
-      .map((item) => (item as any).webkitGetAsEntry?.())
-      .filter(Boolean)
+      .map((item) => getWebkitEntry(item))
+      .filter((entry): entry is WebkitFileSystemAnyEntry => entry !== null)
       .map((entry) => {
         // Try to get the base path from the original file
         const basePath = pathMap.get(entry.name)?.replace(/[/\\][^/\\]*$/, '') || '';

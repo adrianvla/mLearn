@@ -20,7 +20,7 @@ describe('resolveWordKnowledge', () => {
   describe('order mode', () => {
     it('picks first source with data', () => {
       const result = resolveWordKnowledge(
-        makeCard('review'), 'learning', true,
+        makeCard('review'), 'learning', 'learning',
         ['anki', 'srs', 'manual'], 'order',
       );
       expect(result.status).toBe('learning'); // anki → learning
@@ -30,10 +30,10 @@ describe('resolveWordKnowledge', () => {
 
     it('skips sources without data', () => {
       const result = resolveWordKnowledge(
-        null, 'known', false,
+        null, 'known', null,
         ['srs', 'anki', 'manual'], 'order',
       );
-      // srs: no card → null, anki: false → null, manual: known → 'known'
+      // srs: no card → null, anki: null → null, manual: known → 'known'
       expect(result.status).toBe('known');
       expect(result.activeSources).toEqual(['manual']);
     });
@@ -42,7 +42,7 @@ describe('resolveWordKnowledge', () => {
   describe('highest mode', () => {
     it('picks highest status across all sources', () => {
       const result = resolveWordKnowledge(
-        makeCard('review'), 'learning', true,
+        makeCard('review'), 'learning', 'learning',
         ['srs', 'anki', 'manual'], 'highest',
       );
       // srs=known(2), anki=learning(1), manual=learning(1) → known wins
@@ -52,7 +52,7 @@ describe('resolveWordKnowledge', () => {
 
     it('returns multiple active sources when tied', () => {
       const result = resolveWordKnowledge(
-        makeCard('new'), 'learning', true,
+        makeCard('new'), 'learning', 'learning',
         ['srs', 'anki', 'manual'], 'highest',
       );
       // srs=learning(1), anki=learning(1), manual=learning(1) → all tied
@@ -64,7 +64,7 @@ describe('resolveWordKnowledge', () => {
   describe('lowest mode', () => {
     it('picks lowest status across all sources', () => {
       const result = resolveWordKnowledge(
-        makeCard('review'), 'learning', true,
+        makeCard('review'), 'learning', 'learning',
         ['srs', 'anki', 'manual'], 'lowest',
       );
       // srs=known(2), anki=learning(1), manual=learning(1) → learning wins
@@ -75,7 +75,7 @@ describe('resolveWordKnowledge', () => {
 
   describe('no data', () => {
     it('falls back to manualStatus when no source has data', () => {
-      const result = resolveWordKnowledge(null, 'unknown', false, ['srs', 'anki', 'manual'], 'highest');
+      const result = resolveWordKnowledge(null, 'unknown', null, ['srs', 'anki', 'manual'], 'highest');
       expect(result.status).toBe('unknown');
       expect(result.activeSources).toEqual([]);
       expect(result.dataSources).toEqual([]);
@@ -84,7 +84,7 @@ describe('resolveWordKnowledge', () => {
 
   describe('source data detection', () => {
     it('srs returns null when no card', () => {
-      const result = resolveWordKnowledge(null, 'unknown', false, ['srs'], 'highest');
+      const result = resolveWordKnowledge(null, 'unknown', null, ['srs'], 'highest');
       expect(result.dataSources).toEqual([]);
     });
 
@@ -95,12 +95,12 @@ describe('resolveWordKnowledge', () => {
     });
 
     it('manual returns null when status is unknown', () => {
-      const result = resolveWordKnowledge(null, 'unknown', false, ['manual'], 'highest');
+      const result = resolveWordKnowledge(null, 'unknown', null, ['manual'], 'highest');
       expect(result.dataSources).toEqual([]);
     });
 
     it('manual returns status when not unknown', () => {
-      const result = resolveWordKnowledge(null, 'known', false, ['manual'], 'highest');
+      const result = resolveWordKnowledge(null, 'known', null, ['manual'], 'highest');
       expect(result.status).toBe('known');
       expect(result.dataSources).toEqual(['manual']);
     });

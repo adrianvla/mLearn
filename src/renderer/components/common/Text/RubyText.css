@@ -18,8 +18,8 @@
 /* Furigana (rt) styling */
 .ruby-text rt {
   font-size: 0.5em;
-  font-weight: var(--font-weight-normal, 400);
-  color: var(--text-secondary, #a0a0a0);
+  font-weight: var(--font-weight-normal);
+  color: var(--text-secondary);
   letter-spacing: 0.05em;
   position: relative;
 }

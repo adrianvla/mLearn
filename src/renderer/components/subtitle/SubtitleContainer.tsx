@@ -140,7 +140,8 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     // Live word translator
     {
       const translation = translationData();
-      if (settings.showLiveTranslator !== false && typeof window !== 'undefined' && (window as any).mLearnLiveTranslator && translation) {
+      const translator = typeof window !== 'undefined' ? window.mLearnLiveTranslator : undefined;
+      if (settings.showLiveTranslator !== false && translator && translation) {
         const first = translation?.data?.[0] as { definitions?: string | string[]; reading?: string } | undefined;
         let translationText = '';
         if (first?.definitions) {
@@ -152,7 +153,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
         }
         const reading = first?.reading ?? token.reading ?? '';
         if (translationText) {
-          (window as any).mLearnLiveTranslator.addCard(displayWord, reading, translationText);
+          translator.addCard(displayWord, reading, translationText);
         }
       }
     }
@@ -297,7 +298,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     const tokens = props.tokens || [];
     if (!tokens.length) return;
     if (typeof window === 'undefined') return;
-    const translator = (window as any).mLearnLiveTranslator;
+    const translator = window.mLearnLiveTranslator;
     if (!translator || typeof translator.addCard !== 'function') return;
 
     for (const token of tokens) {

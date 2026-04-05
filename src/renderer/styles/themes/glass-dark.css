@@ -35,6 +35,7 @@ body.theme-glass-dark {
   --bg-opaque: #000;
   --bg-nt-primary: rgb(26,26,26);
   --bg-nt-secondary: rgb(38,38,38);
+  --kanji-grid-unknown-bg: #616161;
   --text-primary: #f0f0f0;
   --text-secondary: #a0a0a0;
   --text-tertiary: rgba(255, 255, 255, 0.4);
