@@ -3,7 +3,7 @@
  */
 
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES } from './constants';
-import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode } from './constants';
+import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode, PassiveHoverFailAction } from './constants';
 
 // Re-export WindowType
 export type WindowType = ConstWindowType;
@@ -245,6 +245,10 @@ export interface Settings {
   passiveHoverDelayMs: number;
   /** Number of counted hovers required before a word is marked as failed */
   passiveHoverFailCount: number;
+  /** Action to take when a counted hover leaves a word in the failed state */
+  passiveHoverFailAction: PassiveHoverFailAction;
+  /** Ease amount to subtract when the failed-word action is set to decrease ease */
+  passiveHoverEaseDecrease: number;
 
   // LLM provider settings
   /** LLM provider: built-in local model or Ollama */
@@ -408,8 +412,10 @@ export const DEFAULT_SETTINGS: Settings = {
   ankiTemplateReading: '{reading}',
   ankiTemplateMeaning: '{meaning}',
   passiveEaseEnabled: true,
-  passiveHoverDelayMs: 150,
+  passiveHoverDelayMs: 300,
   passiveHoverFailCount: 1,
+  passiveHoverFailAction: 'decrease-ease',
+  passiveHoverEaseDecrease: 0.05,
   llmConfigured: false,
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',

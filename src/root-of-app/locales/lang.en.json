@@ -1317,6 +1317,18 @@
           },
           "PassiveWordTracking": {
             "Description": "Automatically track word familiarity from reading and hovering. A hover counts after {delay} ms. After {count} counted hovers, the word is marked as failed and shows up in struggled-word lists and AI tutor review.",
+            "Action": {
+              "Description": "What to do on each counted hover once the word is in the failed state",
+              "Label": "Failed Word Action",
+              "Options": {
+                "DecreaseEase": "Decrease Ease",
+                "None": "Do Nothing"
+              }
+            },
+            "EaseDecrease": {
+              "Description": "How much ease to subtract when the failed-word action is set to decrease ease",
+              "Label": "Ease Decrease Amount"
+            },
             "FailCount": {
               "Description": "How many counted hovers it takes before a word is marked as failed for this media",
               "Label": "Hovers to Mark Failed"

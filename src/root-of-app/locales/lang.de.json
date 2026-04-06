@@ -1317,6 +1317,18 @@
           },
           "PassiveWordTracking": {
             "Description": "Wortvertrautheit beim Lesen und Hovern automatisch verfolgen. Ein Hover zählt nach {delay} ms. Nach {count} gezählten Hovern wird das Wort als fehlgeschlagen markiert und erscheint in Listen mit schwierigen Wörtern sowie in der KI-Tutor-Wiederholung.",
+            "Action": {
+              "Description": "Was bei jedem gezählten Hover passieren soll, sobald das Wort im fehlgeschlagenen Zustand ist",
+              "Label": "Aktion für fehlgeschlagene Wörter",
+              "Options": {
+                "DecreaseEase": "Ease verringern",
+                "None": "Nichts tun"
+              }
+            },
+            "EaseDecrease": {
+              "Description": "Wie viel Ease abgezogen werden soll, wenn die Aktion für fehlgeschlagene Wörter auf Ease verringern steht",
+              "Label": "Verringerung der Ease"
+            },
             "FailCount": {
               "Description": "Wie viele gezählte Hover nötig sind, bis ein Wort in diesem Medium als fehlgeschlagen markiert wird",
               "Label": "Hover bis zur Fehlmarkierung"

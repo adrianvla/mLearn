@@ -6,7 +6,8 @@ import { Component, Show, createMemo } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, TargetIcon, Select, SortableList, Input } from '../../../components/common';
 import type { SortableListItem } from '../../../components/common';
-import type { KnowledgeSource, KnowledgeResolutionMode } from '../../../../shared/constants';
+import { PASSIVE_HOVER_FAIL_ACTIONS, type KnowledgeSource, type KnowledgeResolutionMode } from '../../../../shared/constants';
+import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, getPassiveHoverFailAction, getPassiveHoverFailCount } from '@shared/utils/passiveWordTracking';
 import '../SettingsForm.css';
 
 export const BehaviourTab: Component = () => {
@@ -21,6 +22,15 @@ export const BehaviourTab: Component = () => {
     { value: 'highest', label: t('mlearn.Settings.KnowledgePriority.Mode.Highest') },
     { value: 'lowest', label: t('mlearn.Settings.KnowledgePriority.Mode.Lowest') },
   ]);
+
+  const passiveHoverDelayMs = () => getPassiveHoverDelayMs(settings);
+  const passiveHoverFailCount = () => getPassiveHoverFailCount(settings);
+  const passiveHoverFailAction = () => getPassiveHoverFailAction(settings);
+  const passiveHoverEaseDecrease = () => getPassiveHoverEaseDecrease(settings);
+  const passiveHoverActionOptions = createMemo(() => PASSIVE_HOVER_FAIL_ACTIONS.map((action) => ({
+    value: action,
+    label: t(`mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Action.Options.${action === 'decrease-ease' ? 'DecreaseEase' : 'None'}`),
+  })));
 
   const visibleSourceItems = createMemo<SortableListItem[]>(() => {
     const order = settings.knowledgeSourceOrder;
@@ -244,6 +254,88 @@ export const BehaviourTab: Component = () => {
             onChange={(checked) => updateSettings({ do_colour_codes: checked })}
           />
         </SettingRow>
+
+        <SettingRow
+          label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Label')}
+          description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Description', {
+            delay: passiveHoverDelayMs(),
+            count: passiveHoverFailCount(),
+          })}
+        >
+          <ToggleSwitch
+            checked={settings.passiveEaseEnabled}
+            onChange={(checked) => updateSettings({ passiveEaseEnabled: checked })}
+          />
+        </SettingRow>
+
+        <Show when={settings.passiveEaseEnabled}>
+          <SettingRow
+            label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.HoverDelay.Label')}
+            description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.HoverDelay.Description')}
+          >
+            <Input
+              type="number"
+              value={passiveHoverDelayMs()}
+              min={0}
+              step={50}
+              onInput={(e) => {
+                const value = Number.parseInt(e.currentTarget.value, 10);
+                if (!Number.isNaN(value)) {
+                  updateSettings({ passiveHoverDelayMs: Math.max(0, value) });
+                }
+              }}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.FailCount.Label')}
+            description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.FailCount.Description')}
+          >
+            <Input
+              type="number"
+              value={passiveHoverFailCount()}
+              min={1}
+              step={1}
+              onInput={(e) => {
+                const value = Number.parseInt(e.currentTarget.value, 10);
+                if (!Number.isNaN(value)) {
+                  updateSettings({ passiveHoverFailCount: Math.max(1, value) });
+                }
+              }}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Action.Label')}
+            description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Action.Description')}
+          >
+            <Select
+              value={passiveHoverFailAction()}
+              options={passiveHoverActionOptions()}
+              onChange={(e) => updateSettings({ passiveHoverFailAction: e.currentTarget.value as typeof PASSIVE_HOVER_FAIL_ACTIONS[number] })}
+            />
+          </SettingRow>
+
+          <Show when={passiveHoverFailAction() === 'decrease-ease'}>
+            <SettingRow
+              label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.EaseDecrease.Label')}
+              description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.EaseDecrease.Description')}
+            >
+              <Input
+                type="number"
+                value={passiveHoverEaseDecrease()}
+                min={0}
+                step={0.01}
+                onInput={(e) => {
+                  const value = Number.parseFloat(e.currentTarget.value);
+                  if (!Number.isNaN(value)) {
+                    updateSettings({ passiveHoverEaseDecrease: Math.max(0, value) });
+                  }
+                }}
+              />
+            </SettingRow>
+          </Show>
+        </Show>
       </SettingGroup>
 
       <SettingGroup title={t('mlearn.Settings.Groups.KnowledgePriority')}>

@@ -1317,6 +1317,18 @@
           },
           "PassiveWordTracking": {
             "Description": "読書中の表示・ホバーをもとに単語の習熟度を自動追跡します。ホバーは {delay} ms 続くと1回として数えられ、{count} 回分たまるとそのメディアで失敗した単語として扱われ、苦手単語一覧やAIチューター復習に表示されます。",
+            "Action": {
+              "Description": "単語が失敗状態に入ったあと、カウント対象ホバーごとに何を行うかを設定します",
+              "Label": "失敗時の動作",
+              "Options": {
+                "DecreaseEase": "Easeを下げる",
+                "None": "何もしない"
+              }
+            },
+            "EaseDecrease": {
+              "Description": "失敗時の動作がEaseを下げるのときに、どれだけEaseを減らすかを指定します",
+              "Label": "Easeの減少量"
+            },
             "FailCount": {
               "Description": "そのメディアで単語を失敗扱いにするまでに必要な、カウント対象ホバーの回数",
               "Label": "失敗扱いまでのホバー回数"
