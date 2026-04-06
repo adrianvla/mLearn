@@ -1317,6 +1317,18 @@
           },
           "PassiveWordTracking": {
             "Description": "Suivre automatiquement la familiarité des mots via la lecture et le survol. Un survol compte après {delay} ms. Après {count} survols comptabilisés, le mot est marqué comme en échec et apparaît dans les listes de mots difficiles ainsi que dans la révision avec le tuteur IA.",
+            "Action": {
+              "Description": "Action à effectuer à chaque survol comptabilisé une fois que le mot est dans l'état en échec",
+              "Label": "Action sur mot en échec",
+              "Options": {
+                "DecreaseEase": "Réduire l'ease",
+                "None": "Ne rien faire"
+              }
+            },
+            "EaseDecrease": {
+              "Description": "Quantité d'ease à retirer lorsque l'action sur mot en échec est définie sur réduire l'ease",
+              "Label": "Réduction de l'ease"
+            },
             "FailCount": {
               "Description": "Nombre de survols comptabilisés nécessaires avant qu'un mot soit marqué comme en échec pour ce média",
               "Label": "Survols avant l'échec"

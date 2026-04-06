@@ -2,7 +2,7 @@
  * General Settings Tab
  */
 
-import { Component, createSignal } from 'solid-js';
+import { Component, createMemo, createSignal } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon } from '../../../components/common';
 import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/types';
@@ -27,6 +27,15 @@ export const GeneralTab: Component = () => {
   const [dataImportError, setDataImportError] = createSignal<string | null>(null);
   const [dataExporting, setDataExporting] = createSignal(false);
   const [dataImporting, setDataImporting] = createSignal(false);
+  const themeOptions = createMemo(() => [
+    { value: 'light', label: t('mlearn.Settings.Appearance.Theme.Light') },
+    { value: 'dark', label: t('mlearn.Settings.Appearance.Theme.Dark') },
+    { value: 'darker', label: t('mlearn.Settings.Appearance.Theme.Darker') },
+    { value: 'light-high-contrast', label: t('mlearn.Settings.Appearance.Theme.LightHighContrast') },
+    { value: 'dark-high-contrast', label: t('mlearn.Settings.Appearance.Theme.DarkHighContrast') },
+    { value: 'glass-light', label: t('mlearn.Settings.Appearance.Theme.GlassLight') },
+    { value: 'glass-dark', label: t('mlearn.Settings.Appearance.Theme.GlassDark') },
+  ]);
 
   const handleExportSettings = async () => {
     setExportError(null);
@@ -192,16 +201,9 @@ export const GeneralTab: Component = () => {
           <Select
             class="setting-select"
             value={settings.theme}
+            options={themeOptions()}
             onChange={(e) => updateSettings({ theme: e.currentTarget.value as AppTheme })}
-          >
-            <option value="light">{t('mlearn.Settings.Appearance.Theme.Light')}</option>
-            <option value="dark">{t('mlearn.Settings.Appearance.Theme.Dark')}</option>
-            <option value="darker">{t('mlearn.Settings.Appearance.Theme.Darker')}</option>
-            <option value="light-high-contrast">{t('mlearn.Settings.Appearance.Theme.LightHighContrast')}</option>
-            <option value="dark-high-contrast">{t('mlearn.Settings.Appearance.Theme.DarkHighContrast')}</option>
-            <option value="glass-light">{t('mlearn.Settings.Appearance.Theme.GlassLight')}</option>
-            <option value="glass-dark">{t('mlearn.Settings.Appearance.Theme.GlassDark')}</option>
-          </Select>
+          />
         </SettingRow>
 
         <SettingRow

@@ -19,7 +19,7 @@ import { GroupedTaskProgressContent, type TaskState, type TaskStatus, type TaskG
 import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
-import { getPassiveHoverDelayMs, hasReachedPassiveHoverFailCount } from '../../shared/utils/passiveWordTracking';
+import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
 import { streamChat, checkAvailability } from '../services/llmProvider';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
@@ -1462,8 +1462,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
         k.timesHovered = hoveredCount;
         k.lastSeen = now;
         isFailed = hasReachedPassiveHoverFailCount(hoveredCount, settings);
-        if (isFailed) {
-          k.ease = Math.max(0, k.ease - 0.05);
+        if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings)) {
+          k.ease = Math.max(SRS.MIN_EASE, k.ease - getPassiveHoverEaseDecrease(settings));
         }
         nextEase = k.ease;
         nextTimesHovered = hoveredCount;

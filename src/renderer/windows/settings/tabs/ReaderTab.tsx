@@ -6,15 +6,12 @@ import { Component, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon, Select, formatKeybindDisplay } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
-import { getPassiveHoverDelayMs, getPassiveHoverFailCount } from '@shared/utils/passiveWordTracking';
 import '../SettingsForm.css';
 
 export const ReaderTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const { currentLangData } = useLanguage();
-  const passiveHoverDelayMs = () => getPassiveHoverDelayMs(settings);
-  const passiveHoverFailCount = () => getPassiveHoverFailCount(settings);
 
   return (
     <TabContent
@@ -220,59 +217,6 @@ export const ReaderTab: Component = () => {
             onChange={(checked) => updateSettings({ llmEnabled: checked })}
           />
         </SettingRow>
-
-        <SettingRow
-          label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Label')}
-          description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Description', {
-            delay: passiveHoverDelayMs(),
-            count: passiveHoverFailCount(),
-          })}
-        >
-          <ToggleSwitch
-            checked={settings.passiveEaseEnabled}
-            onChange={(checked) => updateSettings({ passiveEaseEnabled: checked })}
-          />
-        </SettingRow>
-
-        <Show when={settings.passiveEaseEnabled}>
-          <SettingRow
-            label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.HoverDelay.Label')}
-            description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.HoverDelay.Description')}
-          >
-            <input
-              type="number"
-              class="setting-input"
-              value={passiveHoverDelayMs()}
-              min={0}
-              step={50}
-              onChange={(e) => {
-                const value = Number.parseInt(e.currentTarget.value, 10);
-                if (!Number.isNaN(value)) {
-                  updateSettings({ passiveHoverDelayMs: Math.max(0, value) });
-                }
-              }}
-            />
-          </SettingRow>
-
-          <SettingRow
-            label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.FailCount.Label')}
-            description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.FailCount.Description')}
-          >
-            <input
-              type="number"
-              class="setting-input"
-              value={passiveHoverFailCount()}
-              min={1}
-              step={1}
-              onChange={(e) => {
-                const value = Number.parseInt(e.currentTarget.value, 10);
-                if (!Number.isNaN(value)) {
-                  updateSettings({ passiveHoverFailCount: Math.max(1, value) });
-                }
-              }}
-            />
-          </SettingRow>
-        </Show>
 
         <SettingRow
           label={t('mlearn.Settings.Reader.LlmIntegration.Speech.Label')}

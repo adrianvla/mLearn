@@ -17,7 +17,7 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 // SRS constants
-const MIN_EASE = 1.3;
+export const MIN_EASE = 1.3;
 const EASE_BONUS = 1.3; // Bonus for Easy button
 
 // Rating values
