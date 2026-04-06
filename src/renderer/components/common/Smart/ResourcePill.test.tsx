@@ -2,7 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { JSX } from 'solid-js';
+import { createSignal, type JSX } from 'solid-js';
+import type { ResourcePillProps } from './ResourcePill';
 
 const settingsState = {
   use_anki: true,
@@ -111,6 +112,42 @@ describe('ResourcePill', () => {
     ), container);
 
     expect(container.textContent).toContain('Adding...');
+
+    dispose();
+  });
+
+  it('updates its rendered state when the hovered word changes without remounting', async () => {
+    const { ResourcePill } = await import('./ResourcePill');
+
+    const onAdd = vi.fn();
+    const [pillProps, setPillProps] = createSignal<ResourcePillProps>({
+      word: 'apple',
+      isTracked: true,
+      isAdding: false,
+      isInAnki: true,
+      ankiWord: 'apple',
+      ease: 1.85,
+      effectiveStatus: 'learning',
+      onAdd,
+    });
+
+    const dispose = render(() => <ResourcePill {...pillProps()} />, container);
+
+    expect(container.querySelector('.mock-ease-pill')?.textContent).toBe('ease:1.85:anki:learning');
+
+    setPillProps({
+      word: 'banana',
+      isTracked: false,
+      isAdding: false,
+      isInAnki: false,
+      ankiWord: undefined,
+      ease: undefined,
+      effectiveStatus: 'unknown',
+      onAdd,
+    });
+
+    expect(container.querySelector('.mock-ease-pill')).toBeNull();
+    expect(container.textContent).toContain('Flashcard');
 
     dispose();
   });
