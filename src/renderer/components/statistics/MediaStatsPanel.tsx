@@ -5,7 +5,8 @@
 
 import { Component, Show, For, createSignal, createMemo } from 'solid-js';
 import type { MediaStats } from '../../../shared/types';
-import { useLocalization } from '../../context';
+import { useLocalization, useSettings } from '../../context';
+import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { Btn, IconBtn, CloseIcon } from '../common';
 import { formatDurationHM } from '../../utils/timeFormatting';
 import './MediaStats.css';
@@ -22,6 +23,7 @@ interface MediaStatsPanelProps {
 
 export const MediaStatsPanel: Component<MediaStatsPanelProps> = (props) => {
   const { t } = useLocalization();
+  const { settings } = useSettings();
   const [activeTab, setActiveTab] = createSignal<StatsTab>('summary');
 
   const wordEntries = createMemo(() => {
@@ -35,7 +37,7 @@ export const MediaStatsPanel: Component<MediaStatsPanelProps> = (props) => {
   });
 
   const unknownWords = createMemo(() => {
-    return wordEntries().filter(w => w.ease < 2.5);
+    return wordEntries().filter(word => isWordMarkedFailed(word, settings));
   });
 
   const sessionsCount = createMemo(() => props.stats.sessions?.length || 0);

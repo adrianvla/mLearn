@@ -1316,7 +1316,15 @@
             "Label": "Activer les explications LLM"
           },
           "PassiveWordTracking": {
-            "Description": "Suivre automatiquement la familiarité des mots via la lecture et le survol",
+            "Description": "Suivre automatiquement la familiarité des mots via la lecture et le survol. Un survol compte après {delay} ms. Après {count} survols comptabilisés, le mot est marqué comme en échec et apparaît dans les listes de mots difficiles ainsi que dans la révision avec le tuteur IA.",
+            "FailCount": {
+              "Description": "Nombre de survols comptabilisés nécessaires avant qu'un mot soit marqué comme en échec pour ce média",
+              "Label": "Survols avant l'échec"
+            },
+            "HoverDelay": {
+              "Description": "Durée pendant laquelle un survol doit rester actif pour compter comme une tentative vers l'échec",
+              "Label": "Délai du survol comptabilisé"
+            },
             "Label": "Suivi passif des mots"
           },
           "Speech": {

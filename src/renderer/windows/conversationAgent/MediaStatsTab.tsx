@@ -9,6 +9,7 @@ import { Component, Show, For, createSignal, createMemo, onMount, onCleanup } fr
 import type { ConversationAgentContext, MediaStats, LevelPercentageEntry } from '../../../shared/types';
 import { useLocalization, useLanguage, useFlashcards, useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
+import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import {
   TabContainer,
   TabPanel,
@@ -137,7 +138,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
       }
     }
 
-    const failedWords = Array.from(mediaWords.values()).filter((w) => w.ease < 2.5);
+    const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));
     const failedGrammar = Object.values(stats.grammarEncountered).filter((g) => g.timesFailed > 0);
 
     return {

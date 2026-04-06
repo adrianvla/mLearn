@@ -4,7 +4,7 @@
  * Shows words from wordKnowledge in a color-coded grid (like KanjiGrid), sorted by ease.
  *
  * Word ordering:
- *  1. Failed words from media (ease < 2.5, excluding pure numbers)
+ *  1. Failed words from media (based on counted hover failures, excluding pure numbers)
  *  2. Tracked words the user has interacted with, sorted by ease ascending
  *
  * Extras:

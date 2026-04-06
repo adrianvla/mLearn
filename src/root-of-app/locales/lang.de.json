@@ -1316,7 +1316,15 @@
             "Label": "LLM-Erklärungen aktivieren"
           },
           "PassiveWordTracking": {
-            "Description": "Wortvertrautheit beim Lesen und Hovern automatisch verfolgen",
+            "Description": "Wortvertrautheit beim Lesen und Hovern automatisch verfolgen. Ein Hover zählt nach {delay} ms. Nach {count} gezählten Hovern wird das Wort als fehlgeschlagen markiert und erscheint in Listen mit schwierigen Wörtern sowie in der KI-Tutor-Wiederholung.",
+            "FailCount": {
+              "Description": "Wie viele gezählte Hover nötig sind, bis ein Wort in diesem Medium als fehlgeschlagen markiert wird",
+              "Label": "Hover bis zur Fehlmarkierung"
+            },
+            "HoverDelay": {
+              "Description": "Wie lange ein Hover dauern muss, bevor er als ein Fehlversuch für ein Wort zählt",
+              "Label": "Verzögerung für gezählten Hover"
+            },
             "Label": "Passives Wort-Tracking"
           },
           "Speech": {

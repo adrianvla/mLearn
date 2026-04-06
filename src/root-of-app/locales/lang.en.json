@@ -1316,7 +1316,15 @@
             "Label": "Enable LLM Explanations"
           },
           "PassiveWordTracking": {
-            "Description": "Automatically track word familiarity from reading and hovering",
+            "Description": "Automatically track word familiarity from reading and hovering. A hover counts after {delay} ms. After {count} counted hovers, the word is marked as failed and shows up in struggled-word lists and AI tutor review.",
+            "FailCount": {
+              "Description": "How many counted hovers it takes before a word is marked as failed for this media",
+              "Label": "Hovers to Mark Failed"
+            },
+            "HoverDelay": {
+              "Description": "How long a hover must last before it counts as one failed-word attempt",
+              "Label": "Counted Hover Delay"
+            },
             "Label": "Passive Word Tracking"
           },
           "Speech": {
