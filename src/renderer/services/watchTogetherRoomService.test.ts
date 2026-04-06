@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Settings } from '../../shared/types';
 import {
   createWatchTogetherRoom,
+  isRemoteWatchTogetherUrl,
   isShareableWatchTogetherUrl,
   joinWatchTogetherRoom,
   leaveWatchTogetherRoom,
@@ -60,14 +61,9 @@ function createSessionResponse(roomOverrides: Partial<WatchTogetherRoomState> = 
         roomId: 'room-1',
         roomCode: 'ABC123',
         ownerUserId: 'user-1',
-        mediaUrl: 'https://media.example.com/lesson.mp4',
-        mediaTitle: 'Lesson',
         currentTime: 12,
         paused: false,
         playbackRate: 1,
-        subtitlesHtml: '<span>Hello</span>',
-        subtitleSize: 32,
-        subtitleWeight: 700,
         stateVersion: 1,
         status: 'active' as const,
         lastUsedAt: '2026-04-01T12:00:00.000Z',
@@ -121,14 +117,9 @@ describe('watchTogetherRoomService', () => {
     }));
 
     const session = await createWatchTogetherRoom({} as Settings, 'token-123', {
-      mediaUrl: 'https://media.example.com/lesson.mp4',
-      mediaTitle: 'Lesson',
       currentTime: 12,
       paused: false,
       playbackRate: 1,
-      subtitlesHtml: null,
-      subtitleSize: null,
-      subtitleWeight: null,
     });
 
     expect(session.socket.url).toBe('wss://cloud.example.com/api/watch-together/rooms/room-1/socket');
@@ -142,6 +133,11 @@ describe('watchTogetherRoomService', () => {
 
     const [, init] = mockFetch.mock.calls[0];
     expect((init?.headers as Headers).get('Authorization')).toBe('Bearer token-123');
+    expect(init?.body).toBe(JSON.stringify({
+      currentTime: 12,
+      paused: false,
+      playbackRate: 1,
+    }));
   });
 
   it('joinWatchTogetherRoom normalizes the room code before sending it to the worker', async () => {
@@ -212,10 +208,19 @@ describe('watchTogetherRoomService', () => {
     expect(socket.close).toHaveBeenCalled();
   });
 
-  it('only treats http and https URLs as shareable room sources', () => {
+  it('allows local and transient room sources when hosting a watch-together room', () => {
     expect(isShareableWatchTogetherUrl('https://media.example.com/lesson.mp4')).toBe(true);
     expect(isShareableWatchTogetherUrl('http://media.example.com/lesson.mp4')).toBe(true);
-    expect(isShareableWatchTogetherUrl('local-media://Users/adrian/movie.mp4')).toBe(false);
+    expect(isShareableWatchTogetherUrl('blob:https://app.example.com/abc-123')).toBe(true);
+    expect(isShareableWatchTogetherUrl('local-media:///Users/adrian/movie.mp4')).toBe(true);
     expect(isShareableWatchTogetherUrl('')).toBe(false);
+  });
+
+  it('only auto-loads remotely playable room sources', () => {
+    expect(isRemoteWatchTogetherUrl('https://media.example.com/lesson.mp4')).toBe(true);
+    expect(isRemoteWatchTogetherUrl('http://media.example.com/lesson.mp4')).toBe(true);
+    expect(isRemoteWatchTogetherUrl('blob:https://app.example.com/abc-123')).toBe(false);
+    expect(isRemoteWatchTogetherUrl('local-media:///Users/adrian/movie.mp4')).toBe(false);
+    expect(isRemoteWatchTogetherUrl('')).toBe(false);
   });
 });

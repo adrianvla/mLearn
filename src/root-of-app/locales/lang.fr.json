@@ -1864,7 +1864,7 @@
         "JoinTab": "Rejoindre",
         "HostTitle": "Héberger une salle",
         "HostDescription": "Créez une nouvelle salle et partagez le code avec d'autres.",
-        "HostDisabled": "Chargez d'abord une vidéo partageable",
+        "HostDisabled": "Chargez d'abord une vidéo",
         "CreateAction": "Créer une salle",
         "JoinTitle": "Rejoindre une salle",
         "JoinDescription": "Entrez le code de salle partagé par l'hôte.",

@@ -1864,7 +1864,7 @@
         "JoinTab": "参加",
         "HostTitle": "ルームをホスト",
         "HostDescription": "新しいルームを作成し、コードを他の人と共有します。",
-        "HostDisabled": "先に共有可能な動画を読み込んでください",
+        "HostDisabled": "先に動画を読み込んでください",
         "CreateAction": "ルームを作成",
         "JoinTitle": "ルームに参加",
         "JoinDescription": "ホストから共有されたルームコードを入力してください。",

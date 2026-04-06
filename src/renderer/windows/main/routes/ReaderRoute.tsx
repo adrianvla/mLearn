@@ -473,6 +473,18 @@ export const ReaderRoute: Component = () => {
     return Array.from(deduped.values());
   });
 
+  const failedSidebarWordSet = createMemo<Set<string>>(() => {
+    const failedWords = new Set<string>();
+
+    for (const entry of Object.values(mediaStats.stats().wordsEncountered)) {
+      if (entry.ease < 2.5 || entry.timesHovered > 0) {
+        failedWords.add(entry.word);
+      }
+    }
+
+    return failedWords;
+  });
+
   const addReaderWordFlashcard = async (entry: ReaderPageWordSource) => {
     setAddingSidebarWords((prev) => {
       const next = new Set(prev);
@@ -1874,6 +1886,7 @@ export const ReaderRoute: Component = () => {
               words={visibleUnknownWords}
               addingWordKeys={addingSidebarWords}
               isAddingAll={isAddingAllSidebarWords}
+              failedWordSet={failedSidebarWordSet}
               onAddWord={handleAddSidebarWord}
               onAddAll={handleAddAllSidebarWords}
               onIgnoreWord={handleIgnoreSidebarWord}

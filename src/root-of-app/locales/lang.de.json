@@ -1864,7 +1864,7 @@
         "JoinTab": "Beitreten",
         "HostTitle": "Raum erstellen",
         "HostDescription": "Erstelle einen neuen Raum und teile den Code mit anderen.",
-        "HostDisabled": "Lade zuerst ein teilbares Video",
+        "HostDisabled": "Lade zuerst ein Video",
         "CreateAction": "Raum erstellen",
         "JoinTitle": "Raum beitreten",
         "JoinDescription": "Gib den vom Host geteilten Raumcode ein.",

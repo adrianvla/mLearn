@@ -18,14 +18,9 @@ export interface WatchTogetherRoomState {
   roomId: string;
   roomCode: string;
   ownerUserId: string;
-  mediaUrl: string;
-  mediaTitle: string;
   currentTime: number;
   paused: boolean;
   playbackRate: number;
-  subtitlesHtml: string | null;
-  subtitleSize: number | null;
-  subtitleWeight: number | null;
   stateVersion: number;
   status: 'active' | 'closed';
   lastUsedAt: string;
@@ -48,15 +43,10 @@ export interface WatchTogetherRoomSession {
   };
 }
 
-export interface WatchTogetherRoomUpdatePayload {
-  mediaUrl: string;
-  mediaTitle: string;
+export interface WatchTogetherRoomPlaybackPayload {
   currentTime: number;
   paused: boolean;
   playbackRate: number;
-  subtitlesHtml: string | null;
-  subtitleSize: number | null;
-  subtitleWeight: number | null;
 }
 
 interface WatchTogetherRoomResponse {
@@ -118,25 +108,36 @@ function toSession(response: WatchTogetherRoomResponse): WatchTogetherRoomSessio
   };
 }
 
-export function normalizeWatchTogetherRoomCode(roomCode: string): string {
-  return roomCode.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-}
+const ROOM_HOSTABLE_PROTOCOLS = new Set(['http:', 'https:', 'blob:', 'local-media:']);
+const REMOTE_PLAYABLE_PROTOCOLS = new Set(['http:', 'https:']);
 
-export function isShareableWatchTogetherUrl(url: string): boolean {
+function matchesAllowedWatchTogetherProtocols(url: string, protocols: ReadonlySet<string>): boolean {
   if (!url) return false;
 
   try {
     const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    return protocols.has(parsed.protocol);
   } catch {
     return false;
   }
 }
 
+export function normalizeWatchTogetherRoomCode(roomCode: string): string {
+  return roomCode.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+}
+
+export function isShareableWatchTogetherUrl(url: string): boolean {
+  return matchesAllowedWatchTogetherProtocols(url, ROOM_HOSTABLE_PROTOCOLS);
+}
+
+export function isRemoteWatchTogetherUrl(url: string): boolean {
+  return matchesAllowedWatchTogetherProtocols(url, REMOTE_PLAYABLE_PROTOCOLS);
+}
+
 export async function createWatchTogetherRoom(
   settings: Settings,
   accessToken: string,
-  payload: WatchTogetherRoomUpdatePayload,
+  payload: WatchTogetherRoomPlaybackPayload,
 ): Promise<WatchTogetherRoomSession> {
   const response = await fetchWatchTogether<WatchTogetherRoomResponse>(
     `${resolveWatchTogetherApiUrl(settings)}/api/watch-together/rooms`,
@@ -188,7 +189,7 @@ export async function refreshWatchTogetherRoom(
 export async function updateWatchTogetherRoomState(
   session: WatchTogetherRoomSession,
   accessToken: string,
-  payload: WatchTogetherRoomUpdatePayload,
+  payload: WatchTogetherRoomPlaybackPayload,
 ): Promise<WatchTogetherRoomSession> {
   if (!session.actions.update_state) {
     throw new Error('This watch-together session cannot update room state');

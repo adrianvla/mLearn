@@ -1,19 +1,22 @@
 import { Component, For, Show, Accessor, createEffect, createMemo, createSignal, JSX } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import type { Token, TranslationEntry, TranslationResponse } from '../../../shared/types';
-import { Btn, ClockIcon, CollapsibleStickyHeader, PillBtn, PillLabel, PitchAccentOverlay, Select, ToggleSwitch } from '../common';
-import { WordStatusPill } from '../common/Smart';
+import { Btn, CollapsibleStickyHeader, PillBtn, PillLabel, PitchAccentOverlay, Select } from '../common';
+import { ResourcePill, WordStatusPill } from '../common/Smart';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { getCachedTranslation, useTranslation } from '../../hooks/useTranslation';
 import {
   extractPitchAccentFromTranslationData,
   extractReadingFromEntries,
+  getAnkiWordKnowledgeStatus,
+  numericToWordStatus,
+  resolveWordKnowledge,
 } from '../subtitle/wordHoverHelpers';
+import { getWordStatus } from '../../services/statsService';
+import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { getWordFormCandidates } from '../../utils/wordForms';
 import { normalizeReading, containsKanji, isAllKana } from '../../../shared/utils/textUtils';
 import './UnknownWordsSidebar.css';
-
-const ICON_CROSS2 = 'cross2';
-const ICON_CHECK = 'check';
 
 export function hasDictionaryEntry(translation: TranslationResponse | null | undefined): boolean {
   if (!translation?.data) return false;
@@ -42,6 +45,8 @@ export interface UnknownWordsSidebarProps {
   words: Accessor<SidebarWordEntry[]>;
   addingWordKeys: Accessor<Set<string>>;
   isAddingAll: Accessor<boolean>;
+  failedWordSet?: Accessor<ReadonlySet<string>>;
+  failedEmptyMessage?: string;
   onAddWord: (entry: SidebarWordEntry) => void | Promise<void>;
   onIgnoreWord: (entry: SidebarWordEntry) => void | Promise<void>;
   onWordHover?: (entry: SidebarWordEntry) => void;
@@ -54,9 +59,12 @@ export interface UnknownWordsSidebarProps {
   footer?: JSX.Element;
 }
 
+type SidebarCategory = 'all' | 'dictionary' | 'failed';
+
 const UnknownWordRow: Component<{
   entry: SidebarWordEntry;
   translation: TranslationResponse | null | undefined;
+  ankiCacheReady: Accessor<boolean>;
   isAdding: boolean;
   isIgnored: boolean;
   onAddWord: (entry: SidebarWordEntry) => void | Promise<void>;
@@ -66,12 +74,42 @@ const UnknownWordRow: Component<{
 }> = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
-  const { getFrequency, getLevelName, getLanguageFeatures } = useLanguage();
-  const { hasWordSync, getCardByWordSync } = useFlashcards();
+  const { getFrequency, getLevelName, getLanguageFeatures, getCanonicalForm } = useLanguage();
+  const { getCardByWordSync } = useFlashcards();
 
   const currentFlashcard = createMemo(() => getCardByWordSync(props.entry.word));
-  const isTracked = createMemo(() => props.isAdding || hasWordSync(props.entry.word));
+  const isTracked = createMemo(() => props.isAdding || currentFlashcard() !== null);
   const currentEase = createMemo(() => currentFlashcard()?.ease);
+  const wordForms = createMemo(() => getWordFormCandidates(props.entry.word, getCanonicalForm));
+  const primaryWord = createMemo(() => wordForms()[0] ?? props.entry.word);
+  const aliasWords = createMemo(() => wordForms().slice(1));
+  const manualStatus = createMemo(() =>
+    numericToWordStatus(getWordStatus(primaryWord(), aliasWords()))
+  );
+
+  const ankiMatch = createMemo(() => {
+    if (!settings.use_anki) return null;
+    void props.ankiCacheReady();
+    return findAnkiWordMatchInCache(wordForms());
+  });
+
+  const isInAnki = createMemo(() => !!ankiMatch());
+  const ankiKnowledgeStatus = createMemo(() =>
+    getAnkiWordKnowledgeStatus(
+      ankiMatch()?.cards,
+      settings.ankiLearningThreshold,
+      settings.ankiKnownThreshold,
+    )
+  );
+  const effectiveStatus = createMemo(() =>
+    resolveWordKnowledge(
+      currentFlashcard(),
+      manualStatus(),
+      ankiKnowledgeStatus(),
+      settings.knowledgeSourceOrder,
+      settings.knowledgeResolutionMode,
+    ).status
+  );
 
   const pitchData = createMemo(() => {
     const features = getLanguageFeatures();
@@ -180,40 +218,16 @@ const UnknownWordRow: Component<{
           onClick={() => props.onIgnoreWord(props.entry)}
           disabled={props.isIgnored}
         />
-        <Show
-          when={isTracked()}
-          fallback={
-            <PillBtn
-              variant="blue"
-              icon={ICON_CROSS2}
-              iconRotation={45}
-              label={t('mlearn.Global.Flashcard')}
-              onClick={() => props.onAddWord(props.entry)}
-              disabled={props.isAdding}
-            />
-          }
-        >
-          <Show
-            when={props.isAdding}
-            fallback={
-              <PillBtn
-                variant="green"
-                icon={ICON_CHECK}
-                label={currentEase() !== undefined
-                  ? `${t('mlearn.Flashcards.Card.Ease')} ${Math.round((currentEase()!) * 100) / 100}`
-                  : t('mlearn.Flashcards.Card.Tracked')
-                }
-              />
-            }
-          >
-            <PillBtn
-              variant="yellow"
-              icon={<ClockIcon size={14} />}
-              label={t('mlearn.Global.Status.Adding')}
-              disabled={true}
-            />
-          </Show>
-        </Show>
+        <ResourcePill
+          word={props.entry.word}
+          isTracked={isTracked()}
+          isAdding={props.isAdding}
+          isInAnki={isInAnki()}
+          ankiWord={ankiMatch()?.word ?? primaryWord()}
+          ease={currentEase()}
+          effectiveStatus={effectiveStatus()}
+          onAdd={() => props.onAddWord(props.entry)}
+        />
       </div>
     </article>
   );
@@ -221,13 +235,37 @@ const UnknownWordRow: Component<{
 
 export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) => {
   const { t } = useLocalization();
+  const { settings } = useSettings();
   const { hasWordSync, isWordIgnoredSync } = useFlashcards();
   const { getFrequency } = useLanguage();
   const { translateWord } = useTranslation({ immediate: true });
   const [translations, setTranslations] = createStore<Record<string, TranslationResponse | null | undefined>>({});
   const requestedWords = new Set<string>();
   const [sortKey, setSortKey] = createSignal(props.defaultSort);
-  const [dictionaryOnly, setDictionaryOnly] = createSignal(true);
+  const [category, setCategory] = createSignal<SidebarCategory>('all');
+  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched());
+
+  createEffect(() => {
+    if (!settings.use_anki) {
+      setAnkiCacheReady(false);
+      return;
+    }
+
+    if (isAnkiCacheFetched()) {
+      setAnkiCacheReady(true);
+      return;
+    }
+
+    void fetchAnkiWordsCache().then(() => {
+      setAnkiCacheReady(true);
+    });
+  });
+
+  createEffect(() => {
+    if (!props.failedWordSet && category() === 'failed') {
+      setCategory('all');
+    }
+  });
 
   createEffect(() => {
     for (const entry of props.words()) {
@@ -258,8 +296,49 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
     addableEntries().filter((entry) => hasDictionaryEntry(translations[entry.word]))
   );
 
+  const failedCategoryWords = createMemo(() => {
+    const failedWords = props.failedWordSet?.();
+    if (!failedWords) {
+      return [] as SidebarWordEntry[];
+    }
+
+    return props.words().filter((entry) => failedWords.has(entry.word));
+  });
+
+  const filteredWords = createMemo(() => {
+    if (category() === 'dictionary') {
+      return dictionaryFoundWords();
+    }
+
+    if (category() === 'failed') {
+      return failedCategoryWords();
+    }
+
+    return props.words();
+  });
+
+  const visibleAddableEntries = createMemo(() => {
+    if (category() === 'dictionary') {
+      return dictionaryFoundAddable();
+    }
+
+    if (category() === 'failed') {
+      const failedWords = props.failedWordSet?.();
+      if (!failedWords) {
+        return [] as SidebarWordEntry[];
+      }
+      return addableEntries().filter((entry) => failedWords.has(entry.word));
+    }
+
+    return addableEntries();
+  });
+
+  const visibleDictionaryFoundAddable = createMemo(() =>
+    visibleAddableEntries().filter((entry) => hasDictionaryEntry(translations[entry.word]))
+  );
+
   const sortedBase = createMemo(() => {
-    const base = dictionaryOnly() ? dictionaryFoundWords() : props.words();
+    const base = filteredWords();
     const key = sortKey();
     if (key === props.defaultSort) return base;
     const sorted = [...base];
@@ -276,6 +355,11 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   });
 
   const visibleWords = createMemo(() => sortedBase());
+  const emptyStateMessage = createMemo(() =>
+    category() === 'failed'
+      ? props.failedEmptyMessage ?? props.emptyMessage
+      : props.emptyMessage
+  );
 
   let sidebarRef: HTMLElement | undefined;
 
@@ -300,25 +384,45 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
               options={props.sortOptions()}
             />
           </div>
-          <div class="unknown-words-sidebar-actions">
-            <ToggleSwitch
-              checked={dictionaryOnly()}
-              onChange={setDictionaryOnly}
-              label={t('mlearn.Sidebar.DictionaryOnly')}
+          <div class="unknown-words-sidebar-categories">
+            <PillBtn
+              size="sm"
+              variant={category() === 'all' ? 'blue' : 'gray'}
+              label={t('mlearn.AITutorSetup.AllLevels')}
+              onClick={() => setCategory('all')}
+              aria-pressed={category() === 'all'}
             />
+            <PillBtn
+              size="sm"
+              variant={category() === 'dictionary' ? 'blue' : 'gray'}
+              label={t('mlearn.Sidebar.DictionaryOnly')}
+              onClick={() => setCategory('dictionary')}
+              aria-pressed={category() === 'dictionary'}
+            />
+            <Show when={props.failedWordSet}>
+              <PillBtn
+                size="sm"
+                variant={category() === 'failed' ? 'blue' : 'gray'}
+                label={t('mlearn.ConversationAgent.Stats.FailedWords')}
+                onClick={() => setCategory('failed')}
+                aria-pressed={category() === 'failed'}
+              />
+            </Show>
+          </div>
+          <div class="unknown-words-sidebar-actions">
             <Btn
               size="sm"
               variant="primary"
               label={props.isAddingAll() ? t('mlearn.Sidebar.AddingAll') : t('mlearn.Sidebar.AddAll')}
-              onClick={() => props.onAddAllClick(addableEntries(), dictionaryFoundAddable())}
-              disabled={props.isAddingAll() || addableEntries().length === 0}
+              onClick={() => props.onAddAllClick(visibleAddableEntries(), visibleDictionaryFoundAddable())}
+              disabled={props.isAddingAll() || visibleAddableEntries().length === 0}
             />
           </div>
         </div>
       </CollapsibleStickyHeader>
       <Show
-        when={props.words().length > 0}
-        fallback={<div class="unknown-words-empty">{props.emptyMessage}</div>}
+        when={visibleWords().length > 0}
+        fallback={<div class="unknown-words-empty">{emptyStateMessage()}</div>}
       >
         <div class="unknown-words-list">
           <For each={visibleWords()}>
@@ -326,6 +430,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
               <UnknownWordRow
                 entry={entry}
                 translation={translations[entry.word]}
+                ankiCacheReady={ankiCacheReady}
                 isAdding={props.addingWordKeys().has(entry.key)}
                 isIgnored={isWordIgnoredSync(entry.word)}
                 onAddWord={props.onAddWord}
