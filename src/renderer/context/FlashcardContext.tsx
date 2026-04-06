@@ -19,6 +19,7 @@ import { GroupedTaskProgressContent, type TaskState, type TaskStatus, type TaskG
 import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
+import { getPassiveHoverDelayMs, hasReachedPassiveHoverFailCount } from '../../shared/utils/passiveWordTracking';
 import { streamChat, checkAvailability } from '../services/llmProvider';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
@@ -1426,6 +1427,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Track that a word was hovered (user doesn't know it)
   // Debounce: call this on hover start, cancel on hover end
   const trackWordHovered = (word: string, reading?: string) => {
+    if (!settings.passiveEaseEnabled) return;
     const canonical = getCanonicalForm(word);
     const wordHash = SRS.hashWordSync(canonical);
     const lang = settings.language;
@@ -1439,6 +1441,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const timer = setTimeout(() => {
       hoverTimers.delete(lk);
       const now = Date.now();
+      let nextEase = 2.5;
+      let nextTimesHovered = 0;
+      let isFailed = false;
 
       setStore(produce((s) => {
         if (!s.wordKnowledge[lk]) {
@@ -1453,17 +1458,23 @@ export const FlashcardProvider: ParentComponent = (props) => {
           };
         }
         const k = s.wordKnowledge[lk];
-        k.timesHovered++;
+        const hoveredCount = k.timesHovered + 1;
+        k.timesHovered = hoveredCount;
         k.lastSeen = now;
-        // Decrease ease (signals unknown)
-        k.ease = Math.max(0, k.ease - 0.05);
+        isFailed = hasReachedPassiveHoverFailCount(hoveredCount, settings);
+        if (isFailed) {
+          k.ease = Math.max(0, k.ease - 0.05);
+        }
+        nextEase = k.ease;
+        nextTimesHovered = hoveredCount;
       }));
       saveFlashcards();
 
       // Notify media stats listeners so per-media tracking stays in sync
-      const newEase = store.wordKnowledge[lk]?.ease ?? 2.5;
-      window.dispatchEvent(new CustomEvent('mlearn:word-hovered', { detail: { word, ease: newEase } }));
-    }, settings.passiveHoverDelayMs ?? 150);
+      window.dispatchEvent(new CustomEvent('mlearn:word-hovered', {
+        detail: { word, ease: nextEase, timesHovered: nextTimesHovered, isFailed },
+      }));
+    }, getPassiveHoverDelayMs(settings));
 
     hoverTimers.set(lk, timer);
   };

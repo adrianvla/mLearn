@@ -34,6 +34,7 @@ import { showToast } from '../../../components/common/Feedback/Toast';
 import { syncReaderPluginActivity } from './readerPluginActivity';
 import { getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
 import { getWordFormCandidates } from '../../../utils/wordForms';
+import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import {
   getWebkitEntry,
   isWebkitDirectoryEntry,
@@ -477,7 +478,7 @@ export const ReaderRoute: Component = () => {
     const failedWords = new Set<string>();
 
     for (const entry of Object.values(mediaStats.stats().wordsEncountered)) {
-      if (entry.ease < 2.5 || entry.timesHovered > 0) {
+      if (isWordMarkedFailed(entry, settings)) {
         failedWords.add(entry.word);
       }
     }
@@ -1658,7 +1659,7 @@ export const ReaderRoute: Component = () => {
       }
     }
 
-    const failedWords = Array.from(mediaWords.values()).filter((w) => w.ease < 2.5 || w.timesHovered > 0);
+    const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));
     const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
 
     const context: ConversationAgentContext = {

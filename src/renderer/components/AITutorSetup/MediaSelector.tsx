@@ -7,6 +7,7 @@
 import { Component, createSignal, createMemo, For, Show, onMount, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
+import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { CheckboxCard, EmptyState, HintText, VideoIcon, BookIcon } from '../common';
 import type { MediaStats, MediaStatsWordEntry, MediaStatsGrammarEntry, TutorMediaSelection } from '../../../shared/types';
 import './MediaSelector.css';
@@ -16,8 +17,7 @@ interface MediaSelectorProps {
   onSelectionChange: (selected: TutorMediaSelection[]) => void;
 }
 
-/** Threshold below which a word is considered "failed" / struggled */
-const FAILED_EASE_THRESHOLD = 2.5;
+const FAILED_GRAMMAR_EASE_THRESHOLD = 2.5;
 
 export const MediaSelector: Component<MediaSelectorProps> = (props) => {
   const { t } = useLocalization();
@@ -46,14 +46,14 @@ export const MediaSelector: Component<MediaSelectorProps> = (props) => {
   // Get failed words for a given media
   const getFailedWords = (media: MediaStats): MediaStatsWordEntry[] => {
     return Object.values(media.wordsEncountered)
-      .filter(w => w.ease < FAILED_EASE_THRESHOLD)
+      .filter(word => isWordMarkedFailed(word, settings))
       .sort((a, b) => a.ease - b.ease);
   };
 
   // Get failed grammar for a given media
   const getFailedGrammar = (media: MediaStats): MediaStatsGrammarEntry[] => {
     return Object.values(media.grammarEncountered)
-      .filter(g => g.ease < FAILED_EASE_THRESHOLD)
+      .filter(g => g.ease < FAILED_GRAMMAR_EASE_THRESHOLD)
       .sort((a, b) => a.ease - b.ease);
   };
 

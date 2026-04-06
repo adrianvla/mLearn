@@ -241,8 +241,10 @@ export interface Settings {
   // Passive word knowledge
   /** Enable passive ease adjustments from seeing/hovering words */
   passiveEaseEnabled: boolean;
-  /** Delay in ms before a hover counts as a failed word event (default 1000) */
+  /** Delay in ms before a hover counts as one failed-word attempt */
   passiveHoverDelayMs: number;
+  /** Number of counted hovers required before a word is marked as failed */
+  passiveHoverFailCount: number;
 
   // LLM provider settings
   /** LLM provider: built-in local model or Ollama */
@@ -407,6 +409,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ankiTemplateMeaning: '{meaning}',
   passiveEaseEnabled: true,
   passiveHoverDelayMs: 150,
+  passiveHoverFailCount: 1,
   llmConfigured: false,
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',
@@ -798,7 +801,7 @@ export interface PassiveWordKnowledge {
   lastSeen: number;
   /** Total times word was displayed on screen */
   timesSeen: number;
-  /** Times user hovered for 1s+ (signals unknown) */
+  /** Times a hover lasted long enough to count toward failed-word tracking */
   timesHovered: number;
   /** The word text */
   word: string;
@@ -1108,6 +1111,7 @@ export interface MediaStatsWordEntry {
   word: string;
   ease: number;
   timesSeen: number;
+  /** Times a hover lasted long enough to count toward failed-word tracking */
   timesHovered: number;
 }
 
