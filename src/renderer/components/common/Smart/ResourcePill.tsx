@@ -1,4 +1,4 @@
-import { Component, createEffect, createSignal } from 'solid-js';
+import { Component, Match, Switch, createEffect, createMemo, createSignal } from 'solid-js';
 import { useLocalization, useSettings } from '../../../context';
 import type { WordStatus } from '../../subtitle/wordHoverHelpers';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../AnkiHoverPreview';
@@ -104,62 +104,59 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
     void fetchAnkiCardForHover();
   };
 
-  if (props.isAdding) {
-    return (
-      <PillBtn
-        variant="yellow"
-        icon={<ClockIcon size={14} />}
-        label={t('mlearn.Global.Status.Adding')}
-        disabled={true}
-      />
-    );
-  }
-
-  if (props.isTracked) {
-    return (
-      <EasePill
-        ease={props.ease}
-        isInAnki={props.isInAnki}
-        effectiveStatus={props.effectiveStatus}
-        ankiHoverLoading={ankiHoverLoading()}
-        ankiHoverCard={ankiHoverCard()}
-        ankiHoverCardInfo={ankiHoverCardInfo()}
-        onTooltipShow={handleTooltipShow}
-      />
-    );
-  }
-
-  if (props.isInAnki) {
-    return (
-      <Tooltip
-        content={
-          <AnkiHoverPreview
-            loading={ankiHoverLoading()}
-            fields={ankiHoverCard()}
-            cardInfo={ankiHoverCardInfo()}
-            footer={<div class="anki-hover-preview__footer">{t('mlearn.WordHover.AddToBuiltInSrs')}</div>}
-          />
-        }
-        onShow={handleTooltipShow}
-      >
-        <span onClick={(event: MouseEvent) => props.onAdd(event)}>
-          <PillBtn
-            variant="blue"
-            icon={ICON_ANKI}
-            label={t('mlearn.WordHover.InAnki')}
-          />
-        </span>
-      </Tooltip>
-    );
-  }
+  const addActionUsesAnki = createMemo(() => settings.use_anki && !settings.enable_flashcard_creation);
 
   return (
-    <PillBtn
-      variant="blue"
-      icon={settings.use_anki && !settings.enable_flashcard_creation ? ICON_ANKI : ICON_CROSS2}
-      iconRotation={settings.use_anki && !settings.enable_flashcard_creation ? undefined : 45}
-      label={settings.use_anki && !settings.enable_flashcard_creation ? t('mlearn.WordHover.AddToAnki') : t('mlearn.Global.Flashcard')}
-      onClick={props.onAdd}
-    />
+    <Switch>
+      <Match when={props.isAdding}>
+        <PillBtn
+          variant="yellow"
+          icon={<ClockIcon size={14} />}
+          label={t('mlearn.Global.Status.Adding')}
+          disabled={true}
+        />
+      </Match>
+      <Match when={props.isTracked}>
+        <EasePill
+          ease={props.ease}
+          isInAnki={props.isInAnki}
+          effectiveStatus={props.effectiveStatus}
+          ankiHoverLoading={ankiHoverLoading()}
+          ankiHoverCard={ankiHoverCard()}
+          ankiHoverCardInfo={ankiHoverCardInfo()}
+          onTooltipShow={handleTooltipShow}
+        />
+      </Match>
+      <Match when={props.isInAnki}>
+        <Tooltip
+          content={
+            <AnkiHoverPreview
+              loading={ankiHoverLoading()}
+              fields={ankiHoverCard()}
+              cardInfo={ankiHoverCardInfo()}
+              footer={<div class="anki-hover-preview__footer">{t('mlearn.WordHover.AddToBuiltInSrs')}</div>}
+            />
+          }
+          onShow={handleTooltipShow}
+        >
+          <span onClick={(event: MouseEvent) => props.onAdd(event)}>
+            <PillBtn
+              variant="blue"
+              icon={ICON_ANKI}
+              label={t('mlearn.WordHover.InAnki')}
+            />
+          </span>
+        </Tooltip>
+      </Match>
+      <Match when={true}>
+        <PillBtn
+          variant="blue"
+          icon={addActionUsesAnki() ? ICON_ANKI : ICON_CROSS2}
+          iconRotation={addActionUsesAnki() ? undefined : 45}
+          label={addActionUsesAnki() ? t('mlearn.WordHover.AddToAnki') : t('mlearn.Global.Flashcard')}
+          onClick={props.onAdd}
+        />
+      </Match>
+    </Switch>
   );
 };
