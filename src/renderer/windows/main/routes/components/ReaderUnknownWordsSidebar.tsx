@@ -15,6 +15,7 @@ interface ReaderUnknownWordsSidebarProps {
   words: () => ReaderUnknownWordEntry[];
   addingWordKeys: () => Set<string>;
   isAddingAll: () => boolean;
+  failedWordSet: () => ReadonlySet<string>;
   onAddWord: (entry: ReaderUnknownWordEntry) => void | Promise<void>;
   onAddAll: (entries: ReaderUnknownWordEntry[]) => void | Promise<void>;
   onIgnoreWord: (entry: ReaderUnknownWordEntry) => void | Promise<void>;
@@ -40,6 +41,8 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
         words={props.words}
         addingWordKeys={props.addingWordKeys}
         isAddingAll={props.isAddingAll}
+        failedWordSet={props.failedWordSet}
+        failedEmptyMessage={t('mlearn.ConversationAgent.Stats.NoFailedWords')}
         onAddWord={(entry) => props.onAddWord(entry as ReaderUnknownWordEntry)}
         onIgnoreWord={(entry) => props.onIgnoreWord(entry as ReaderUnknownWordEntry)}
         onWordHover={props.onWordHover ? (entry) => props.onWordHover!(entry as ReaderUnknownWordEntry) : undefined}

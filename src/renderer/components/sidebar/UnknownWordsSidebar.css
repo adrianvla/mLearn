@@ -47,9 +47,16 @@
 .unknown-words-sidebar-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--spacing-2);
   flex-shrink: 0;
+  width: 100%;
+}
+
+.unknown-words-sidebar-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
   width: 100%;
 }
 

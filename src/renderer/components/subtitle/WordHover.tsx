@@ -12,9 +12,8 @@ import { getWordStatus, toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation } from '../../services/llmProvider';
 import { fetchAnkiWordsCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
 import { useTokenizer } from '../../hooks/useTranslation';
-import { PillBtn, PillLabel, PitchAccentOverlay, ClockIcon, AnkiHoverPreview, Modal, Btn, Tooltip, ToggleSwitch } from '../common';
-import { EasePill, WordStatusPill } from '../common/Smart';
-import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../common';
+import { PillBtn, PillLabel, PitchAccentOverlay, Modal, Btn, ToggleSwitch } from '../common';
+import { ResourcePill, WordStatusPill } from '../common/Smart';
 import { openWordLookup } from '../../services/wordLookupService';
 import {
   buildWordHoverFlashcardContent,
@@ -35,9 +34,7 @@ import './WordHover.css';
 export type { WordStatus } from './wordHoverHelpers';
 
 // Icon names for the Icon component - enables proper SVG coloring
-const ICON_CROSS2 = 'cross2';
 const ICON_BOT = 'bot';
-const ICON_ANKI = 'anki';
 
 // UI element dimensions for boundary calculations (actual CSS values from reader components)
 const UI_NAVBAR_HEIGHT = 48;  // .reader-nav height: 48px
@@ -392,9 +389,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     }
   };
 
-  const handleAddToSRS = (e: MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleAddToSRS = (e?: MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
     
     if (props.onAddToSRS) {
       props.onAddToSRS();
@@ -546,14 +543,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   // Flashcard pill - computed values for reactivity
   const isTracked = createMemo(() => isInSRS() || props.isInSRS === true);
 
-  // Anki hover preview state (signals only — cache effect and wordInAnki are declared above)
-  const [ankiHoverCard, setAnkiHoverCard] = createSignal<AnkiCardFields | null>(null);
-  const [ankiHoverCardInfo, setAnkiHoverCardInfo] = createSignal<AnkiCardSchedulingInfo | null>(null);
-  const [ankiHoverLoading, setAnkiHoverLoading] = createSignal(false);
   const [showDuplicateWarning, setShowDuplicateWarning] = createSignal(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = createSignal(false);
-  let ankiHoverFetched = false;
-  let previousAnkiWord = '';
 
   // Track whether any internal modal is open (prevents hide during modal interaction)
   const isInternalModalOpen = createMemo(() =>
@@ -566,56 +557,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       props.onMouseEnter?.();
     }
   });
-
-  const fetchAnkiCardForHover = async () => {
-    const word = ankiMatch()?.word ?? actualWord();
-    if (ankiHoverFetched && previousAnkiWord === word) return;
-    ankiHoverFetched = true;
-    previousAnkiWord = word;
-    setAnkiHoverLoading(true);
-    try {
-      const { getBackend } = await import('../../../shared/backends');
-      const result = await getBackend().getCard({ word }) as {
-        cards: Array<{
-          fields: AnkiCardFields;
-          factor?: number;
-          due?: number;
-          queue?: number;
-          type?: number;
-          interval?: number;
-          mod?: number;
-        }>;
-        error: boolean;
-        poor: boolean;
-      };
-      if (!result.error && !result.poor && result.cards.length > 0) {
-        const card = result.cards[0];
-        setAnkiHoverCard(card.fields || null);
-        setAnkiHoverCardInfo({
-          ease: card.factor ?? null,
-          due: card.due ?? null,
-          queue: card.queue ?? null,
-          type: card.type ?? null,
-          interval: card.interval ?? null,
-          mod: card.mod ?? null,
-        });
-      } else {
-        setAnkiHoverCard(null);
-        setAnkiHoverCardInfo(null);
-      }
-    } catch (e) {
-      console.error(e);
-      setAnkiHoverCard(null);
-      setAnkiHoverCardInfo(null);
-    } finally {
-      setAnkiHoverLoading(false);
-    }
-  };
-
-  const handleAnkiTooltipShow = () => {
-    if (!settings.use_anki) return;
-    fetchAnkiCardForHover();
-  };
 
   // Handle adding flashcard when word is already in Anki (duplicate check)
   const handleAddWithAnkiCheck = (entry?: DictionaryEntry, e?: MouseEvent) => {
@@ -634,30 +575,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     }
     handleAddFlashcard().catch(console.error);
   };
-
-  // Anki-only pill: shown when word is in Anki but NOT in built-in SRS
-  const AnkiOnlyPill = () => (
-    <Tooltip
-      content={
-        <AnkiHoverPreview
-          loading={ankiHoverLoading()}
-          fields={ankiHoverCard()}
-          cardInfo={ankiHoverCardInfo()}
-          footer={<div class="anki-hover-preview__footer">{t('mlearn.WordHover.AddToBuiltInSrs')}</div>}
-        />
-      }
-      onShow={handleAnkiTooltipShow}
-    >
-      <span onClick={(e: MouseEvent) => handleAddWithAnkiCheck(undefined, e)}>
-        <PillBtn
-          variant="blue"
-          icon={ICON_ANKI}
-          label={t('mlearn.WordHover.InAnki')}
-          style={{ height: "100%"}}
-        />
-      </span>
-    </Tooltip>
-  );
 
   // LLM Explain pill using PillBtn component
   // Shows indicator if we have a cached explanation
@@ -774,39 +691,16 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 onStatusChange={props.onStatusChange}
                 onModalOpenChange={setIsStatusModalOpen}
               />
-              {/* Flashcard pill - uses Show for proper Solid.js reactivity */}
-              <Show when={isTracked()} fallback={
-                <Show when={isAddingFlashcard()} fallback={
-                  <Show when={wordInAnki() && !isTracked()} fallback={
-                    <PillBtn
-                      variant="blue"
-                      icon={settings.use_anki && !settings.enable_flashcard_creation ? ICON_ANKI : ICON_CROSS2}
-                      iconRotation={settings.use_anki && !settings.enable_flashcard_creation ? undefined : 45}
-                      label={settings.use_anki && !settings.enable_flashcard_creation ? t('mlearn.WordHover.AddToAnki') : t('mlearn.Global.Flashcard')}
-                      onClick={handleAddToSRS}
-                    />
-                  }>
-                    <AnkiOnlyPill />
-                  </Show>
-                }>
-                  <PillBtn
-                    variant="yellow"
-                    icon={<ClockIcon size={14} />}
-                    label={t('mlearn.Global.Status.Adding')}
-                    disabled={true}
-                  />
-                </Show>
-              }>
-                <EasePill
-                  ease={currentEase() ?? props.ease}
-                  isInAnki={wordInAnki()}
-                  effectiveStatus={effectiveStatus()}
-                  ankiHoverLoading={ankiHoverLoading()}
-                  ankiHoverCard={ankiHoverCard()}
-                  ankiHoverCardInfo={ankiHoverCardInfo()}
-                  onTooltipShow={handleAnkiTooltipShow}
-                />
-              </Show>
+              <ResourcePill
+                word={actualWord()}
+                isTracked={isTracked()}
+                isAdding={isAddingFlashcard()}
+                isInAnki={wordInAnki()}
+                ankiWord={ankiMatch()?.word ?? actualWord()}
+                ease={currentEase() ?? props.ease}
+                effectiveStatus={effectiveStatus()}
+                onAdd={handleAddToSRS}
+              />
               <LLMPill />
             </div>
           </div>

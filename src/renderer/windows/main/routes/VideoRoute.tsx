@@ -20,7 +20,7 @@ import { SubtitleSync } from '../../../components/subtitle';
 import { WORD_STATUS } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
-import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
+import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
@@ -31,12 +31,14 @@ import { showToast } from '../../../components/common/Feedback/Toast';
 import { validateAndRefreshCloudSession } from '../../../services/cloudAuthService';
 import {
   createWatchTogetherRoom,
+  isRemoteWatchTogetherUrl,
   joinWatchTogetherRoom,
   isShareableWatchTogetherUrl,
 } from '../../../services/watchTogetherRoomService';
 import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hooks/useTranslation';
 import type { ConversationAgentContext } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
+import { collectDroppedMediaFiles } from './videoDropUtils';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import './video.css';
 
@@ -88,7 +90,7 @@ export const VideoRoute: Component = () => {
   const [currentVideoName, setCurrentVideoName] = createSignal('');
   const [currentVideoDuration, setCurrentVideoDuration] = createSignal<number | null>(null);
   const [currentVideoPath, setCurrentVideoPath] = createSignal('');
-  const [currentSubtitlePath, setCurrentSubtitlePath] = createSignal('');
+  const [, setCurrentSubtitlePath] = createSignal('');
   const [showWordSidebar, setShowWordSidebar] = createSignal(false);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [showWatchTogetherModeModal, setShowWatchTogetherModeModal] = createSignal(false);
@@ -128,13 +130,6 @@ export const VideoRoute: Component = () => {
     setCurrentVideoName(name || getMediaNameFromPath(url));
   };
 
-  const getWatchTogetherSubtitleHtml = (): string | null => {
-    const subtitleContainer = document.querySelector('.subtitles');
-    if (!subtitleContainer) return null;
-    const html = subtitleContainer.innerHTML.trim();
-    return html.length > 0 ? html : null;
-  };
-
   const buildWatchTogetherPayload = () => {
     const mediaUrl = videoSrc();
     if (!isShareableWatchTogetherUrl(mediaUrl)) {
@@ -143,14 +138,9 @@ export const VideoRoute: Component = () => {
 
     const video = getCurrentVideoElement();
     return {
-      mediaUrl,
-      mediaTitle: currentVideoName(),
       currentTime: video?.currentTime ?? currentVideoTime(),
       paused: video?.paused ?? true,
       playbackRate: video?.playbackRate ?? 1,
-      subtitlesHtml: getWatchTogetherSubtitleHtml(),
-      subtitleSize: settings.subtitle_font_size ?? 32,
-      subtitleWeight: settings.subtitle_font_weight ?? 700,
     };
   };
 
@@ -253,7 +243,6 @@ export const VideoRoute: Component = () => {
     try {
       const session = await joinWatchTogetherRoom(settings, accessToken, roomCode);
       watchTogether.activateRoomWithUserId(session, accessToken, settings.cloudAuthUserId);
-      loadSharedVideo(session.room.mediaUrl, session.room.mediaTitle);
       setShowWatchTogetherCodeModal(true);
     } catch (error) {
       console.error(error);
@@ -292,25 +281,23 @@ export const VideoRoute: Component = () => {
     setCurrentVideoName(name);
   };
 
-  const saveVideoToRecentItems = async (path: string, name: string) => {
+  const saveVideoToRecentItems = async (path: string, name: string, subtitlePath?: string) => {
     await saveToRecentItems({
       type: 'video',
       name,
       path,
-      subtitlePath: currentSubtitlePath() || undefined,
+      subtitlePath: subtitlePath || undefined,
       progress: 0,
     });
   };
 
   const persistCurrentSubtitlePath = async (subtitlePath: string) => {
-    const videoName = currentVideoName();
     const videoPath = currentVideoPath();
-    if (!subtitlePath || !videoName || !videoPath) {
+    if (!subtitlePath || !videoPath) {
       return;
     }
 
     await updateRecentItemSubtitlePathByPath(videoPath, subtitlePath);
-    await updateRecentItemSubtitlePath(videoName, subtitlePath);
   };
 
   // Activate media stats when a video name is available
@@ -328,7 +315,7 @@ export const VideoRoute: Component = () => {
     }
 
     if (!isShareableWatchTogetherUrl(activeVideoSrc)) {
-      setWatchTogetherError(t('mlearn.WatchTogether.Code.UnshareableVideo'));
+      setWatchTogetherError(t('mlearn.WatchTogether.Code.HostDisabled'));
       handleDisconnectWatchTogether();
       return;
     }
@@ -348,6 +335,12 @@ export const VideoRoute: Component = () => {
   createEffect(() => {
     const received = watchTogether.receivedMediaUrl();
     if (!received) return;
+
+    if (!isRemoteWatchTogetherUrl(received.url)) {
+      watchTogether.clearReceivedMediaUrl();
+      return;
+    }
+
     loadSharedVideo(received.url, received.title);
     watchTogether.clearReceivedMediaUrl();
   });
@@ -448,6 +441,18 @@ export const VideoRoute: Component = () => {
       );
       return effectiveStatus !== 'known';
     });
+  });
+
+  const failedSidebarWordSet = createMemo<Set<string>>(() => {
+    const failedWords = new Set<string>();
+
+    for (const entry of Object.values(mediaStats.stats().wordsEncountered)) {
+      if (entry.ease < 2.5 || entry.timesHovered > 0) {
+        failedWords.add(entry.word);
+      }
+    }
+
+    return failedWords;
   });
 
   const addVideoWordFlashcard = async (entry: VideoWordEntry) => {
@@ -858,50 +863,38 @@ export const VideoRoute: Component = () => {
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer?.files || []);
-    let droppedVideo: { path: string; name: string } | null = null;
-    let droppedSubtitlePath = '';
-    
-    for (const file of files) {
-      const ext = file.name.split('.').pop()?.toLowerCase();
-      
-      if (['mp4', 'webm', 'mkv', 'avi', 'mov'].includes(ext || '')) {
-        const filePath = getBridge().files.getPathForFile(file)
-          || (file as File & { path?: string }).path || '';
-        if (filePath) {
-          loadVideo(filePath, file.name);
-        } else {
-          setVideoSrc(URL.createObjectURL(file));
-          setCurrentVideoTime(0);
-          setCurrentVideoDuration(null);
-          setCurrentVideoPath('');
-          setSubtitleContent('');
-          setCurrentSubtitlePath('');
-          setShowDropZone(false);
-          setCurrentVideoName(file.name);
-        }
-        droppedVideo = filePath ? { path: filePath, name: file.name } : null;
-        // Only save to recent items if we have a valid path (can be reopened)
-        if (filePath) {
-          await saveVideoToRecentItems(filePath, file.name);
-        }
-      }
-      
-      if (['srt', 'vtt', 'ass', 'ssa'].includes(ext || '')) {
-        const content = await file.text();
-        setSubtitleContent(content);
-        const filePath = getBridge().files.getPathForFile(file)
-          || (file as File & { path?: string }).path || '';
-        setCurrentSubtitlePath(filePath);
-        droppedSubtitlePath = filePath;
+    const droppedMedia = await collectDroppedMediaFiles(files, (file) =>
+      getBridge().files.getPathForFile(file)
+        || (file as File & { path?: string }).path
+        || '',
+    );
+
+    if (droppedMedia.video) {
+      if (droppedMedia.video.filePath) {
+        loadVideo(droppedMedia.video.filePath, droppedMedia.video.fileName);
+        await saveVideoToRecentItems(
+          droppedMedia.video.filePath,
+          droppedMedia.video.fileName,
+          droppedMedia.subtitle?.filePath,
+        );
+      } else {
+        setVideoSrc(URL.createObjectURL(droppedMedia.video.file));
+        setCurrentVideoTime(0);
+        setCurrentVideoDuration(null);
+        setCurrentVideoPath('');
+        setSubtitleContent('');
+        setCurrentSubtitlePath('');
+        setShowDropZone(false);
+        setCurrentVideoName(droppedMedia.video.fileName);
       }
     }
 
-    if (droppedSubtitlePath) {
-      if (droppedVideo) {
-        await updateRecentItemSubtitlePathByPath(droppedVideo.path, droppedSubtitlePath);
-        await updateRecentItemSubtitlePath(droppedVideo.name, droppedSubtitlePath);
-      } else {
-        await persistCurrentSubtitlePath(droppedSubtitlePath);
+    if (droppedMedia.subtitle) {
+      setSubtitleContent(droppedMedia.subtitle.content);
+      setCurrentSubtitlePath(droppedMedia.subtitle.filePath);
+
+      if (!droppedMedia.video && droppedMedia.subtitle.filePath) {
+        await persistCurrentSubtitlePath(droppedMedia.subtitle.filePath);
       }
     }
   };
@@ -1097,7 +1090,7 @@ export const VideoRoute: Component = () => {
                   {t('mlearn.Video.UI.OpenSubtitles')}
                 </Btn>
                 <Btn onClick={openWatchTogetherCodeModal}>
-                  {t('mlearn.Video.UI.JoinWatchTogether')}
+                  {t('mlearn.Video.WatchTogether')}
                 </Btn>
               </div>
             </Panel>
@@ -1129,6 +1122,7 @@ export const VideoRoute: Component = () => {
           words={visibleUnknownWords}
           addingWordKeys={() => addingSidebarWords()}
           isAddingAll={() => isAddingAllSidebarWords()}
+          failedWordSet={failedSidebarWordSet}
           onAddWord={addVideoWordFlashcard}
           onAddAll={addAllVideoWords}
           onIgnoreWord={ignoreVideoWord}

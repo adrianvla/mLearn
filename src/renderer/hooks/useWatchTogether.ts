@@ -14,6 +14,7 @@ import { getBridge } from '../../shared/bridges';
 import {
   closeWatchTogetherRoom,
   leaveWatchTogetherRoom,
+  updateWatchTogetherRoomState,
   type WatchTogetherRoomSession,
   type WatchTogetherRoomState,
 } from '../services/watchTogetherRoomService';
@@ -134,9 +135,6 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     // Sync messages — only applied when in viewer mode
     if (mode() !== 'room-viewer') return;
 
-    const video = options.getVideo();
-    if (!video) return;
-
     switch (message.type) {
       case 'sync-state': {
         // Notify UI of new media URL so it can load the video
@@ -146,6 +144,22 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
             setReceivedMediaUrl({ url: message.mediaUrl, title: message.mediaTitle });
           }
         }
+
+        if (message.subtitlesHtml) {
+          setRemoteSubtitle({
+            html: message.subtitlesHtml,
+            size: message.subtitleSize ?? 32,
+            weight: message.subtitleWeight ?? 700,
+          });
+        } else {
+          setRemoteSubtitle(null);
+        }
+
+        const video = options.getVideo();
+        if (!video) {
+          return;
+        }
+
         suppressEvents = true;
         if (Math.abs(video.currentTime - message.currentTime) > 0.75) {
           video.currentTime = message.currentTime;
@@ -159,36 +173,36 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         } else {
           video.play().finally(() => { suppressEvents = false; });
         }
-        if (message.subtitlesHtml) {
-          setRemoteSubtitle({
-            html: message.subtitlesHtml,
-            size: message.subtitleSize ?? 32,
-            weight: message.subtitleWeight ?? 700,
-          });
-        } else {
-          setRemoteSubtitle(null);
-        }
         break;
       }
 
-      case 'sync-play':
+      case 'sync-play': {
+        const video = options.getVideo();
+        if (!video) return;
         suppressEvents = true;
         if (message.time !== undefined) video.currentTime = message.time;
         video.play().finally(() => { suppressEvents = false; });
         break;
+      }
 
-      case 'sync-pause':
+      case 'sync-pause': {
+        const video = options.getVideo();
+        if (!video) return;
         suppressEvents = true;
         if (message.time !== undefined) video.currentTime = message.time;
         video.pause();
         suppressEvents = false;
         break;
+      }
 
-      case 'sync-seek':
+      case 'sync-seek': {
+        const video = options.getVideo();
+        if (!video) return;
         suppressEvents = true;
         if (message.time !== undefined) video.currentTime = message.time;
         suppressEvents = false;
         break;
+      }
 
       case 'sync-subtitles':
         setRemoteSubtitle({ html: message.html, size: message.size, weight: message.weight });
@@ -281,19 +295,40 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   // Room state helpers (kept for room metadata, not for real-time sync)
   // ---------------------------------------------------------------------------
 
-  function extractRemoteSubtitle(nextRoomState: WatchTogetherRoomState): RemoteSubtitleState | null {
-    if (!nextRoomState.subtitlesHtml) return null;
-    return {
-      html: nextRoomState.subtitlesHtml,
-      size: nextRoomState.subtitleSize ?? 32,
-      weight: nextRoomState.subtitleWeight ?? 700,
-    };
+  function applyRoomState(nextRoomState: WatchTogetherRoomState): void {
+    const currentRoomState = roomState();
+    if (
+      currentRoomState
+      && currentRoomState.roomId === nextRoomState.roomId
+      && currentRoomState.stateVersion > nextRoomState.stateVersion
+    ) {
+      return;
+    }
+
+    setRoomState(nextRoomState);
+    setRoomSession((current) => current ? { ...current, room: nextRoomState } : current);
   }
 
-  function applyRoomState(nextRoomState: WatchTogetherRoomState): void {
-    setRoomState(nextRoomState);
-    setRemoteSubtitle(extractRemoteSubtitle(nextRoomState));
-    setRoomSession((current) => current ? { ...current, room: nextRoomState } : current);
+  async function persistRoomPlaybackState(currentTime: number, paused: boolean, playbackRate: number): Promise<void> {
+    if (mode() !== 'room-owner') {
+      return;
+    }
+
+    const session = roomSession();
+    if (!session?.actions.update_state || !roomAccessToken) {
+      return;
+    }
+
+    try {
+      const updatedSession = await updateWatchTogetherRoomState(session, roomAccessToken, {
+        currentTime,
+        paused,
+        playbackRate,
+      });
+      applyRoomState(updatedSession.room);
+    } catch (error) {
+      console.error('[WatchTogether] Failed to persist room playback state', error);
+    }
   }
 
   function cleanupRoomConnection(): void {
@@ -408,6 +443,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     }
     if (mode() === 'room-owner' && peerServiceRef) {
       peerServiceRef.sendToAll({ type: 'sync-play', time });
+      void persistRoomPlaybackState(time, false, options.getVideo()?.playbackRate ?? roomState()?.playbackRate ?? 1);
     }
   }
 
@@ -418,6 +454,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     }
     if (mode() === 'room-owner' && peerServiceRef) {
       peerServiceRef.sendToAll({ type: 'sync-pause', time });
+      void persistRoomPlaybackState(time, true, options.getVideo()?.playbackRate ?? roomState()?.playbackRate ?? 1);
     }
   }
 
@@ -428,6 +465,11 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     }
     if (mode() === 'room-owner' && peerServiceRef) {
       peerServiceRef.sendToAll({ type: 'sync-seek', time });
+      void persistRoomPlaybackState(
+        time,
+        options.getVideo()?.paused ?? roomState()?.paused ?? true,
+        options.getVideo()?.playbackRate ?? roomState()?.playbackRate ?? 1,
+      );
     }
   }
 

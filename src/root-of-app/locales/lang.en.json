@@ -1865,7 +1865,7 @@
         "JoinTab": "Join",
         "HostTitle": "Host a Room",
         "HostDescription": "Create a new room and share the code with others.",
-        "HostDisabled": "Load a shareable video first",
+        "HostDisabled": "Load a video first",
         "CreateAction": "Create Room",
         "JoinTitle": "Join a Room",
         "JoinDescription": "Enter the room code shared by the host.",
