@@ -38,7 +38,7 @@ describe('buildWordStatusSourceLabel', () => {
       sourceLabels: ['Flashcards'],
       displayedWord: 'なかま',
       canonicalWord: '仲間',
-    })).toBe('Source: Flashcards (仲間)');
+    })).toBe('Source: Flashcards (→ 仲間)');
   });
 
   it('does not append the canonical word when the displayed word already matches it', () => {

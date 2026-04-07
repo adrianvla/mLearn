@@ -174,7 +174,7 @@ interface FlashcardContextValue {
 
   // Undo support
   pushUndoState: (options?: { type?: string; restore?: () => void | Promise<void> }) => void;
-  undoLastAction: () => void;
+  undoLastAction: () => string | null;
   canUndo: () => boolean;
 
   // Word tracking
@@ -613,7 +613,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Undo last action
   const undoLastAction = () => {
     const stack = undoStack();
-    if (stack.length === 0) return;
+    if (stack.length === 0) return null;
 
     const entry = stack[stack.length - 1];
     setUndoStack((prev) => prev.slice(0, -1));
@@ -631,6 +631,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     refreshQueue();
     saveFlashcards();
+
+    return entry.type;
   };
 
   const canUndo = () => undoStack().length > 0;

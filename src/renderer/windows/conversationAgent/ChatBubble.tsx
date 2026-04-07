@@ -591,6 +591,9 @@ const ChatToken: Component<ChatTokenProps> = (props) => {
     const keybind = settings.readerWordHoverKey ?? props.triggerKey;
     if (matchesKeybind(e, keybind)) {
       setIsKeyHeld(false);
+      if (isMouseOver()) {
+        props.onTokenLeave?.();
+      }
     }
   };
 
@@ -631,7 +634,6 @@ const ChatToken: Component<ChatTokenProps> = (props) => {
       style={getTokenColor() ? { color: getTokenColor() } : undefined}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      title={isTokenTranslatable() ? (props.token.actual_word || props.token.word) : undefined}
     >
       {props.token.word}
     </span>
