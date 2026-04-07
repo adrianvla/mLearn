@@ -7,7 +7,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   cursor: default;
   overflow: hidden;
   border-radius: var(--radius-sm);
@@ -32,8 +32,8 @@
   white-space: nowrap;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
-  color: var(--text-tertiary);
-  transition: max-width 0.25s ease, opacity 0.2s ease, margin-left 0.25s ease;
+  color: var(--text-secondary);
+  transition: max-width var(--transition-normal), opacity var(--transition-normal), margin-left var(--transition-normal);
   overflow: hidden;
   margin-left: 0;
 }

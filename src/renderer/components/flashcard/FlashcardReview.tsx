@@ -18,6 +18,7 @@ import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import type { ButtonVariant } from '../common/Button/Button';
 import type { Rating } from '../../services/srsAlgorithm';
 import * as SRS from '../../services/srsAlgorithm';
+import { getSessionProgress } from './flashcardReviewSession';
 import './FlashcardReview.css';
 
 export interface FlashcardReviewProps {
@@ -51,7 +52,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [isComplete, setIsComplete] = createSignal(false);
   const [isWaiting, setIsWaiting] = createSignal(false);
   const [waitingTimeStr, setWaitingTimeStr] = createSignal('');
-  const [initialTotal, setInitialTotal] = createSignal(0);
   const [cardsAnswered, setCardsAnswered] = createSignal(0);
   const [showTtsModal, setShowTtsModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
@@ -75,16 +75,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // Counts
   const counts = createMemo(() => queueCounts());
 
+  const sessionTotal = createMemo(() => cardsAnswered() + counts().total);
+
   // Calculate session progress percentage
   const sessionProgress = createMemo(() => {
-    const total = initialTotal();
-    if (total === 0) return 100;
-    return Math.round((cardsAnswered() / total) * 100);
-  });
-
-  // Initialize session total on mount
-  onMount(() => {
-    setInitialTotal(counts().total);
+    return getSessionProgress(cardsAnswered(), counts().total);
   });
 
   // Keyboard shortcuts
@@ -102,9 +97,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (canUndo()) {
-          undoLastAction();
-          setCardsAnswered(prev => Math.max(0, prev - 1));
-          setShowAnswer(false);
+          handleUndo();
         }
         return;
       }
@@ -172,46 +165,42 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   createEffect(() => {
     const card = currentCard();
     const total = counts().total;
-    if (!card && total === 0) {
-      // No immediately-due cards. Check if there are pending learning cards.
-      const nextDue = SRS.getNextPendingLearningDueDate(queue(), store.flashcards, settings.newDayHour ?? 4);
-      if (nextDue !== null) {
-        // There are learning cards that are not yet due -- show waiting state
-        setIsComplete(false);
-        setIsWaiting(true);
-        
-        const updateWaitingStr = () => {
-          const remaining = nextDue - Date.now();
-          if (remaining <= 0) {
-            setWaitingTimeStr('');
-          } else {
-            setWaitingTimeStr(intervalToString(remaining));
-          }
-        };
-        updateWaitingStr();
-        
-        clearWaitingTimers();
-        // Countdown display update
-        waitingCountdownTimer = setInterval(updateWaitingStr, 1000);
-        // Auto-refresh when the card becomes due
-        const delay = Math.max(0, nextDue - Date.now()) + 500;
-        waitingTimer = setTimeout(() => {
-          clearWaitingTimers();
-          refreshQueue();
-          setIsWaiting(false);
-        }, delay);
-      } else {
-        // Truly complete - no learning cards pending
-        clearWaitingTimers();
-        setIsWaiting(false);
-        setIsComplete(true);
-        props.onComplete?.();
-      }
-    } else {
-      clearWaitingTimers();
-      setIsWaiting(false);
+    const nextDue = SRS.getNextPendingLearningDueDate(queue(), store.flashcards, settings.newDayHour ?? 4);
+
+    if (!card && nextDue !== null) {
       setIsComplete(false);
+      setIsWaiting(true);
+
+      const updateWaitingStr = () => {
+        const remaining = nextDue - Date.now();
+        if (remaining <= 0) {
+          setWaitingTimeStr('');
+        } else {
+          setWaitingTimeStr(intervalToString(remaining));
+        }
+      };
+      updateWaitingStr();
+
+      clearWaitingTimers();
+      waitingCountdownTimer = setInterval(updateWaitingStr, 1000);
+      waitingTimer = setTimeout(() => {
+        clearWaitingTimers();
+        refreshQueue();
+        setIsWaiting(false);
+      }, Math.max(0, nextDue - Date.now()));
+      return;
     }
+
+    clearWaitingTimers();
+    setIsWaiting(false);
+
+    if (!card && total === 0) {
+      setIsComplete(true);
+      props.onComplete?.();
+      return;
+    }
+
+    setIsComplete(false);
   });
 
   // Auto-TTS: play word when a new card appears
@@ -249,6 +238,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       answerCard(quality, card.id);
       setCardsAnswered(prev => prev + 1);
     });
+  };
+
+  const handleUndo = () => {
+    const actionType = undoLastAction();
+    if (actionType === 'answer') {
+      setCardsAnswered(prev => Math.max(0, prev - 1));
+    }
+    setShowAnswer(false);
   };
 
   const handleBury = () => {
@@ -336,14 +333,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   const handleStartOver = () => {
+    clearWaitingTimers();
     refreshQueue();
     setShowAnswer(false);
     setIsComplete(false);
-    // Reset progress tracking for new session
+    setIsWaiting(false);
     setCardsAnswered(0);
-    setTimeout(() => {
-      setInitialTotal(counts().total);
-    }, 0);
   };
 
   // Rating buttons config with time estimates
@@ -408,7 +403,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   return (
       <div class="flashcard-review-container" style={props.style}>
         {/* Session progress bar */}
-        <Show when={initialTotal() > 0}>
+        <Show when={sessionTotal() > 0}>
           <div class="flashcard-session-progress">
             <ProgressBar
               value={sessionProgress()}
@@ -477,7 +472,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             </Show>
             <Show when={canUndo()}
             >
-              <Button buttonType="default" variant="ghost" size="xs" onClick={() => { undoLastAction(); setCardsAnswered(prev => Math.max(0, prev - 1)); }} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
+              <Button buttonType="default" variant="ghost" size="xs" onClick={handleUndo} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
                 {t('mlearn.Flashcards.Review.Undo')}
               </Button>
             </Show>

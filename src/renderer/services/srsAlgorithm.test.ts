@@ -1139,16 +1139,16 @@ describe('getLearningCards', () => {
         const cards = {
             a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-16T10:00:00').getTime() }),
         };
-        expect(getLearningCards(cards, 4)).toHaveLength(0);
+        expect(getLearningCards(cards)).toHaveLength(0);
     });
 
-    it('includes learning cards due within same SRS day', () => {
+    it('does not return learning cards before their exact due time even within the same SRS day', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const cards = {
             a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-15T12:00:00').getTime() }),
         };
-        expect(getLearningCards(cards, 4)).toHaveLength(1);
+        expect(getLearningCards(cards)).toHaveLength(0);
     });
 
     it('excludes relearning cards (they are not "learning")', () => {
@@ -1280,6 +1280,23 @@ describe('buildReviewQueue', () => {
         expect(queue.relearnQueue).toEqual(['relearn1']);
     });
 
+    it('keeps learning cards due later today in the queue for waiting state', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const now = Date.now();
+        const cards = {
+            learn1: createTestCard({
+                id: 'learn1',
+                state: 'learning',
+                learningStep: 0,
+                dueDate: now + 10 * MINUTE,
+            }),
+        };
+
+        const queue = buildReviewQueue(cards, 20, 0);
+        expect(queue.learningQueue).toEqual(['learn1']);
+    });
+
     it('limits new cards by maxNewCards - newCardsToday', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
@@ -1405,20 +1422,38 @@ describe('getNextCard', () => {
         expect(getNextCard(queue, cards)?.id).toBe('learn');
     });
 
-    it('returns future-due relearning card as fallback when it is the only queued card', () => {
+    it('does not show learning cards before their exact due time', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const now = Date.now();
         const cards = {
+            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now + 10 * MINUTE }),
+            rev: createTestCard({ id: 'rev', state: 'review', dueDate: now - 100 }),
+        };
+        const queue: ReviewQueue = {
+            ...createEmptyQueue(),
+            learningQueue: ['learn'],
+            reviewQueue: ['rev'],
+        };
+
+        expect(getNextCard(queue, cards)?.id).toBe('rev');
+    });
+
+    it('returns null when only future-due learning or relearning cards remain', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const now = Date.now();
+        const cards = {
+            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now + 5 * MINUTE }),
             relearn: createTestCard({ id: 'relearn', state: 'relearning', dueDate: now + 10 * MINUTE }),
         };
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
+            learningQueue: ['learn'],
             relearnQueue: ['relearn'],
         };
 
-        // Card is queued for today so it surfaces as a fallback
-        expect(getNextCard(queue, cards)?.id).toBe('relearn');
+        expect(getNextCard(queue, cards)).toBeNull();
     });
 
     it('prefers learning over review when Math.random forces new card skip', () => {
@@ -1516,7 +1551,7 @@ describe('getNextCard', () => {
         expect(getNextCard(queue, cards)).toBeNull();
     });
 
-    it('falls back to soonest relearning card when other queues are empty', () => {
+    it('returns null when only relearning cards are queued but none are due yet', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const now = Date.now();
@@ -1528,8 +1563,7 @@ describe('getNextCard', () => {
             ...createEmptyQueue(),
             relearnQueue: ['r1', 'r2'],
         };
-        // Returns the soonest relearning card
-        expect(getNextCard(queue, cards)?.id).toBe('r2');
+        expect(getNextCard(queue, cards)).toBeNull();
     });
 
     it('prefers other card types over not-yet-due relearning cards', () => {
@@ -1672,20 +1706,37 @@ describe('getNextPendingLearningDueDate', () => {
         vi.useRealTimers();
     });
 
-    it('always returns null (relearning cards are now surfaced as fallback by getNextCard)', () => {
+    it('returns the earliest queued learning or relearning card that is not yet due', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        expect(getNextPendingLearningDueDate(createEmptyQueue(), {})).toBeNull();
-
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
-            relearnQueue: ['a', 'b'],
+            learningQueue: ['learn-late'],
+            relearnQueue: ['relearn-soon', 'relearn-due-now'],
         };
         const cards = {
-            a: createTestCard({ id: 'a', state: 'relearning', dueDate: new Date('2025-06-15T10:10:00').getTime() }),
-            b: createTestCard({ id: 'b', state: 'relearning', dueDate: new Date('2025-06-15T10:05:00').getTime() }),
+            'learn-late': createTestCard({ id: 'learn-late', state: 'learning', dueDate: new Date('2025-06-15T10:10:00').getTime() }),
+            'relearn-soon': createTestCard({ id: 'relearn-soon', state: 'relearning', dueDate: new Date('2025-06-15T10:05:00').getTime() }),
+            'relearn-due-now': createTestCard({ id: 'relearn-due-now', state: 'relearning', dueDate: new Date('2025-06-15T09:59:00').getTime() }),
         };
-        expect(getNextPendingLearningDueDate(queue, cards)).toBeNull();
+
+        expect(getNextPendingLearningDueDate(queue, cards)).toBe(new Date('2025-06-15T10:05:00').getTime());
+    });
+
+    it('ignores queued learning and relearning cards beyond the current SRS day', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const queue: ReviewQueue = {
+            ...createEmptyQueue(),
+            learningQueue: ['learn-next-day'],
+            relearnQueue: ['relearn-next-day'],
+        };
+        const cards = {
+            'learn-next-day': createTestCard({ id: 'learn-next-day', state: 'learning', dueDate: new Date('2025-06-16T10:00:00').getTime() }),
+            'relearn-next-day': createTestCard({ id: 'relearn-next-day', state: 'relearning', dueDate: new Date('2025-06-16T10:05:00').getTime() }),
+        };
+
+        expect(getNextPendingLearningDueDate(queue, cards, 4)).toBeNull();
     });
 });
 
@@ -1704,6 +1755,22 @@ describe('getQueueCounts', () => {
         const queue: ReviewQueue = { ...createEmptyQueue(), relearnQueue: ['a'] };
         const cards = {
             a: createTestCard({ id: 'a', state: 'relearning', dueDate: new Date('2025-06-15T10:05:00').getTime() }),
+        };
+
+        expect(getQueueCounts(queue, cards)).toEqual({
+            new: 0,
+            learning: 1,
+            review: 0,
+            total: 1,
+        });
+    });
+
+    it('counts learning cards queued for today even before their due time', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const queue: ReviewQueue = { ...createEmptyQueue(), learningQueue: ['a'] };
+        const cards = {
+            a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-15T10:05:00').getTime() }),
         };
 
         expect(getQueueCounts(queue, cards)).toEqual({

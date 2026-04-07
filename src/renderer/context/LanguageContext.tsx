@@ -195,8 +195,9 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     return null;
   };
 
-  // Resolve a pure-kana word to its canonical (kanji) form using freq data.
-  // Words that already contain kanji or have no known canonical form are returned as-is.
+  // Resolve a pure-hiragana word to its canonical (kanji) form using freq data.
+  // Katakana spellings stay as-is because they often represent distinct usage
+  // and should not inherit the canonical kanji source automatically.
   const getCanonicalForm = (word: string): string => {
     if (!word) return word;
     // Already contains kanji — no normalization needed
@@ -205,8 +206,11 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     if (wordFrequency[word]) return word;
     // Not pure kana (e.g. Latin text) — skip
     if (!isAllKana(word)) return word;
-    // Look up canonical form via reading
+    // Do not resolve katakana spellings to a kanji headword.
     const hiragana = katakanaToHiragana(word);
+    if (hiragana !== word) return word;
+
+    // Look up canonical form via reading
     const canonical = readingToCanonical[hiragana];
     return canonical || word;
   };
