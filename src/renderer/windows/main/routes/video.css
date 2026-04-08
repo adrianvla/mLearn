@@ -39,6 +39,17 @@
   backdrop-filter: var(--backdrop-filter);
 }
 
+.watch-together-room-button {
+  position: absolute;
+  top: 0.5rem;
+  left: calc(100px + 14rem);
+  z-index: 100;
+  background: var(--bg);
+  color: var(--text-secondary);
+  transition: all var(--transition-slow);
+  backdrop-filter: var(--backdrop-filter);
+}
+
 body.hide-cursor .back-button {
   opacity: 0;
   pointer-events: none;
@@ -49,11 +60,20 @@ body.hide-cursor .conversation-agent-button {
   pointer-events: none;
 }
 
+body.hide-cursor .watch-together-room-button {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .back-button:hover {
   color:var(--text-primary);
 }
 
 .conversation-agent-button:hover {
+  color: var(--text-primary);
+}
+
+.watch-together-room-button:hover {
   color: var(--text-primary);
 }
 
@@ -98,4 +118,5 @@ body.hide-cursor .conversation-agent-button {
   display: flex;
   gap: 1rem;
   justify-content: center;
+  flex-wrap: wrap;
 }

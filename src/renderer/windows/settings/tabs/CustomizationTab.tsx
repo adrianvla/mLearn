@@ -6,6 +6,7 @@ import { Component, For, Show, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, TabContent, Select, Btn } from '../../../components/common';
 import Icon from '../../../components/common/Icons/Icon';
+import type { SubtitleTheme } from '@shared/constants';
 import '../SettingsForm.css';
 import './CustomizationTab.css';
 import { CUSTOMIZABLE_CSS_VARS, CustomColorOverrides } from '@shared/types';
@@ -105,7 +106,7 @@ export const CustomizationTab: Component = () => {
           <Select
             class="setting-select"
             value={settings.subtitleTheme}
-            onChange={(e) => updateSettings({ subtitleTheme: e.currentTarget.value as any })}
+            onChange={(e) => updateSettings({ subtitleTheme: e.currentTarget.value as SubtitleTheme })}
           >
             <option value="shadow">{t('mlearn.Settings.Subtitle.Themes.Shadow')}</option>
             <option value="background">{t('mlearn.Settings.Subtitle.Themes.Background')}</option>

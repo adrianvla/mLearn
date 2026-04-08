@@ -13,6 +13,7 @@ interface VideoUnknownWordsSidebarProps {
   words: () => VideoWordEntry[];
   addingWordKeys: () => Set<string>;
   isAddingAll: () => boolean;
+  failedWordSet: () => ReadonlySet<string>;
   onAddWord: (entry: VideoWordEntry) => void | Promise<void>;
   onAddAll: (entries: VideoWordEntry[]) => void | Promise<void>;
   onIgnoreWord: (entry: VideoWordEntry) => void | Promise<void>;
@@ -33,6 +34,8 @@ export const VideoUnknownWordsSidebar: Component<VideoUnknownWordsSidebarProps> 
       words={props.words}
       addingWordKeys={props.addingWordKeys}
       isAddingAll={props.isAddingAll}
+      failedWordSet={props.failedWordSet}
+      failedEmptyMessage={t('mlearn.ConversationAgent.Stats.NoFailedWords')}
       onAddWord={(entry) => props.onAddWord(entry as VideoWordEntry)}
       onIgnoreWord={(entry) => props.onIgnoreWord(entry as VideoWordEntry)}
       sortOptions={sortOptions}

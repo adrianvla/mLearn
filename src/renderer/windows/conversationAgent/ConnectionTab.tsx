@@ -27,13 +27,17 @@ export const ConnectionTab: Component = () => {
   const [testStatus, setTestStatus] = createSignal<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [availableModels, setAvailableModels] = createSignal<OllamaModel[]>([]);
   const [loadingModels, setLoadingModels] = createSignal(false);
-  const [saved, setSaved] = createSignal(false);
+  const [saveStatus, setSaveStatus] = createSignal<'idle' | 'saved'>('idle');
 
-  // Sync local state when settings change externally
   onMount(() => {
     setServerUrl(settings.ollamaUrl || 'http://localhost:11434');
     setModel(settings.ollamaModel || 'llama3.2');
   });
+
+  const resetFormStatus = () => {
+    setTestStatus('idle');
+    setSaveStatus('idle');
+  };
 
   const handleTestConnection = async () => {
     setTestStatus('testing');
@@ -41,11 +45,9 @@ export const ConnectionTab: Component = () => {
       updateSetting('ollamaUrl', serverUrl());
       const connected = await getBridge().llm.ollamaCheck();
       setTestStatus(connected ? 'success' : 'failed');
-      setTimeout(() => setTestStatus('idle'), 3000);
     } catch (e) {
       console.error(e);
       setTestStatus('failed');
-      setTimeout(() => setTestStatus('idle'), 3000);
     }
   };
 
@@ -65,13 +67,13 @@ export const ConnectionTab: Component = () => {
   const handleSave = () => {
     updateSetting('ollamaUrl', serverUrl());
     updateSetting('ollamaModel', model());
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSaveStatus('saved');
   };
 
   const handleModelSelect = (e: Event) => {
     const value = (e.target as HTMLSelectElement).value;
     if (value) {
+      resetFormStatus();
       setModel(value);
       updateSetting('ollamaModel', value);
     }
@@ -85,18 +87,25 @@ export const ConnectionTab: Component = () => {
 
   const testBtnLabel = () => {
     switch (testStatus()) {
-      case 'testing': return t('mlearn.ConversationAgent.Connection.Testing');
-      case 'success': return t('mlearn.ConversationAgent.Connection.ConnectionSuccess');
-      case 'failed': return t('mlearn.ConversationAgent.Connection.ConnectionFailed');
-      default: return t('mlearn.ConversationAgent.Connection.TestConnection');
+      case 'testing':
+        return t('mlearn.ConversationAgent.Connection.Testing');
+      case 'success':
+        return t('mlearn.ConversationAgent.Connection.ConnectionSuccess');
+      case 'failed':
+        return t('mlearn.ConversationAgent.Connection.ConnectionFailed');
+      default:
+        return t('mlearn.ConversationAgent.Connection.TestConnection');
     }
   };
 
   const testBtnVariant = (): 'default' | 'success' | 'danger' => {
     switch (testStatus()) {
-      case 'success': return 'success';
-      case 'failed': return 'danger';
-      default: return 'default';
+      case 'success':
+        return 'success';
+      case 'failed':
+        return 'danger';
+      default:
+        return 'default';
     }
   };
 
@@ -107,33 +116,36 @@ export const ConnectionTab: Component = () => {
         description={t('mlearn.ConversationAgent.Connection.Hint')}
       />
 
-      {/* Server URL */}
       <FormField
         label={t('mlearn.ConversationAgent.Connection.ServerUrl')}
         hint={t('mlearn.ConversationAgent.Connection.ServerUrlHint')}
       >
         <Input
           value={serverUrl()}
-          onInput={(e) => setServerUrl(e.currentTarget.value)}
+          onInput={(e) => {
+            resetFormStatus();
+            setServerUrl(e.currentTarget.value);
+          }}
           placeholder="http://localhost:11434"
           fullWidth
         />
       </FormField>
 
-      {/* Model - text input for manual entry */}
       <FormField
         label={t('mlearn.ConversationAgent.Connection.Model')}
         hint={t('mlearn.ConversationAgent.Connection.ModelHint')}
       >
         <Input
           value={model()}
-          onInput={(e) => setModel(e.currentTarget.value)}
+          onInput={(e) => {
+            resetFormStatus();
+            setModel(e.currentTarget.value);
+          }}
           placeholder="llama3.2"
           fullWidth
         />
       </FormField>
 
-      {/* Actions row */}
       <div class="ca-conn-actions">
         <Btn
           variant={testBtnVariant()}
@@ -145,17 +157,15 @@ export const ConnectionTab: Component = () => {
         </Btn>
 
         <Btn
-          variant={saved() ? 'success' : 'primary'}
+          variant={saveStatus() === 'saved' ? 'success' : 'primary'}
           onClick={handleSave}
         >
-          {saved()
+          {saveStatus() === 'saved'
             ? t('mlearn.ConversationAgent.Connection.Saved')
-            : t('mlearn.ConversationAgent.Connection.Save')
-          }
+            : t('mlearn.ConversationAgent.Connection.Save')}
         </Btn>
       </div>
 
-      {/* Available Models - Select dropdown */}
       <div class="ca-conn-models-section">
         <div class="ca-conn-models-header">
           <span class="ca-conn-label">
@@ -170,8 +180,7 @@ export const ConnectionTab: Component = () => {
           >
             {loadingModels()
               ? t('mlearn.ConversationAgent.Connection.LoadingModels')
-              : t('mlearn.ConversationAgent.Connection.FetchModels')
-            }
+              : t('mlearn.ConversationAgent.Connection.FetchModels')}
           </Btn>
         </div>
 

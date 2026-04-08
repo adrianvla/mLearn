@@ -162,13 +162,23 @@ export function getWordsLearnedFormatted(): {
 
 /**
  * Set a word's learning status
- * Now stores by actual word (like old app) for consistency
+ * Stores under the preferred word form and can remove legacy aliases.
  */
-export function setWordStatus(word: string, status: number): void {
-  setWordsLearnedInApp((prev) => ({
-    ...prev,
-    [word]: status,
-  }));
+export function setWordStatus(word: string, status: number, aliases: readonly string[] = []): void {
+  setWordsLearnedInApp((prev) => {
+    const next = {
+      ...prev,
+      [word]: status,
+    };
+
+    for (const alias of aliases) {
+      if (alias && alias !== word && Object.prototype.hasOwnProperty.call(next, alias)) {
+        delete next[alias];
+      }
+    }
+
+    return next;
+  });
   // Auto-save after status change (like old app's changeKnownStatus)
   saveWordsToStorage();
   console.log(`Set and saved known status for word: ${word} to ${status}`);
@@ -177,16 +187,28 @@ export function setWordStatus(word: string, status: number): void {
 /**
  * Change known status by word (legacy compatible)
  */
-export function changeKnownStatus(word: string, status: number): void {
-  setWordStatus(word, status);
+export function changeKnownStatus(word: string, status: number, aliases: readonly string[] = []): void {
+  setWordStatus(word, status, aliases);
 }
 
 /**
  * Get a word's learning status
- * Now checks by actual word (like old app)
+ * Checks the preferred word form first, then any aliases.
  */
-export function getWordStatus(word: string): number {
-  return wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN;
+export function getWordStatus(word: string, aliases: readonly string[] = []): number {
+  const trackedWords = wordsLearnedInApp();
+
+  if (Object.prototype.hasOwnProperty.call(trackedWords, word)) {
+    return trackedWords[word] ?? WORD_STATUS.UNKNOWN;
+  }
+
+  for (const alias of aliases) {
+    if (alias && Object.prototype.hasOwnProperty.call(trackedWords, alias)) {
+      return trackedWords[alias] ?? WORD_STATUS.UNKNOWN;
+    }
+  }
+
+  return WORD_STATUS.UNKNOWN;
 }
 
 /**

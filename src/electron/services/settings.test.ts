@@ -59,6 +59,16 @@ function makeEvent(): MockIpcEvent {
   return { reply: vi.fn() };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('loadSettings', () => {
   it('returns DEFAULT_SETTINGS when settings file does not exist', () => {
     const settings = mod.loadSettings();
@@ -173,6 +183,49 @@ describe('saveSettings', () => {
     const loaded = mod.loadSettings();
     expect(loaded.language).toBe('fr');
     expect(loaded.blur_words).toBe(true);
+  });
+
+  it('serializes concurrent saves so the last snapshot wins', async () => {
+    const originalWriteFile = fs.promises.writeFile.bind(fs.promises);
+    const firstWriteStarted = deferred<void>();
+    const releaseFirstWrite = deferred<void>();
+    let writeCallCount = 0;
+
+    const writeFileSpy = vi.spyOn(fs.promises, 'writeFile').mockImplementation(async (
+      file,
+      data,
+      options,
+    ) => {
+      writeCallCount += 1;
+      if (writeCallCount === 1) {
+        firstWriteStarted.resolve();
+        await releaseFirstWrite.promise;
+      }
+
+      return originalWriteFile(file, data, options);
+    });
+
+    try {
+      const firstSettings = { ...mod.loadSettings(), language: 'de' };
+      const secondSettings = { ...mod.loadSettings(), language: 'fr' };
+
+      const firstSave = mod.saveSettings(firstSettings);
+      await firstWriteStarted.promise;
+
+      const secondSave = mod.saveSettings(secondSettings);
+      await Promise.resolve();
+
+      expect(writeFileSpy).toHaveBeenCalledTimes(1);
+
+      releaseFirstWrite.resolve();
+      await Promise.all([firstSave, secondSave]);
+
+      const saved = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'settings.json'), 'utf-8'));
+      expect(saved.language).toBe('fr');
+      expect(fs.existsSync(path.join(tempDir.tmpDir, 'settings.json.tmp'))).toBe(false);
+    } finally {
+      writeFileSpy.mockRestore();
+    }
   });
 });
 

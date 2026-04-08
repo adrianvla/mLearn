@@ -22,7 +22,7 @@
 .sync-subs:hover .panel-header,
 .subtitle-sync:hover .panel-header,
 .live-word-translator:hover .panel-header {
-  border-right: 1px solid #000;
+  border-right: 1px solid var(--panel-header-divider);
   opacity: 1;
   width: 50px;
   padding: 5px;
@@ -40,7 +40,7 @@
 }
 
 .panel-header .btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--panel-header-hover-bg);
 }
 
 .panel-header .btn img {

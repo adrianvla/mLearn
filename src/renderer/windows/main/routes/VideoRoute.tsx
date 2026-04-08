@@ -8,6 +8,9 @@ import { useNavigate } from '@solidjs/router';
 import { useSubtitles, useWatchTogether, useMediaStats } from '../../../hooks';
 import { isElectron as isElectronPlatform } from '../../../../shared/platform';
 import { useLocalization, useSettings, useLanguage, useFlashcards } from '../../../context';
+import { CloudReLoginModal } from '../../../components/cloud';
+import { WatchTogetherCodeModal, WatchTogetherModeModal, MediaDistributionModal, MediaReceiveModal } from '../../../components/watchTogether';
+import type { MediaTransferMetadata } from '../../../services/mediaDistributionService';
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
 import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
@@ -17,17 +20,27 @@ import { SubtitleSync } from '../../../components/subtitle';
 import { WORD_STATUS } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
-import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
+import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
-import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus, getAnkiEaseForStatus } from '../../../components/subtitle/wordHoverHelpers';
-import { wordsLearnedInApp } from '../../../services/statsService';
-import { isWordInAnkiCache } from '../../../services/ankiWordsCache';
+import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { getWordStatus } from '../../../services/statsService';
+import { findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { showToast } from '../../../components/common/Feedback/Toast';
+import { validateAndRefreshCloudSession } from '../../../services/cloudAuthService';
+import {
+  createWatchTogetherRoom,
+  isRemoteWatchTogetherUrl,
+  joinWatchTogetherRoom,
+  isShareableWatchTogetherUrl,
+} from '../../../services/watchTogetherRoomService';
 import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hooks/useTranslation';
 import type { ConversationAgentContext } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
+import { collectDroppedMediaFiles } from './videoDropUtils';
+import { getWordFormCandidates } from '../../../utils/wordForms';
+import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import './video.css';
 
 /** Convert a filesystem path to a local-media:// URL that the renderer can load */
@@ -41,15 +54,33 @@ const getMediaNameFromPath = (filePath: string): string => filePath.split('/').p
 export const VideoRoute: Component = () => {
   const navigate = useNavigate();
   const { t } = useLocalization();
-  const { settings, updateSetting } = useSettings();
+  const { settings, updateSetting, updateSettings } = useSettings();
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
   const subtitles = useSubtitles();
   const anki = useAnki();
+  const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm);
+  const getManualWordStatus = (word: string): WordStatus => {
+    const forms = getWordForms(word);
+    return numericToWordStatus(getWordStatus(forms[0] ?? word, forms.slice(1)));
+  };
+  const getTrackedAnkiWord = (word: string): string | null => {
+    if (!settings.use_anki) return null;
+    return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;
+  };
+  const getAnkiKnowledgeStatus = (word: string): WordStatus | null => {
+    if (!settings.use_anki) return null;
+    return getAnkiWordKnowledgeStatus(
+      findAnkiWordMatchInCache(getWordForms(word))?.cards,
+      settings.ankiLearningThreshold,
+      settings.ankiKnownThreshold,
+    );
+  };
 
   const watchTogether = useWatchTogether({
     getVideo: () => document.querySelector('video'),
     getVideoSrc: () => videoSrc(),
+    getVideoTitle: () => currentVideoName(),
   });
 
   const [videoSrc, setVideoSrc] = createSignal<string>('');
@@ -60,9 +91,16 @@ export const VideoRoute: Component = () => {
   const [currentVideoName, setCurrentVideoName] = createSignal('');
   const [currentVideoDuration, setCurrentVideoDuration] = createSignal<number | null>(null);
   const [currentVideoPath, setCurrentVideoPath] = createSignal('');
-  const [currentSubtitlePath, setCurrentSubtitlePath] = createSignal('');
+  const [, setCurrentSubtitlePath] = createSignal('');
   const [showWordSidebar, setShowWordSidebar] = createSignal(false);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
+  const [showWatchTogetherModeModal, setShowWatchTogetherModeModal] = createSignal(false);
+  const [showWatchTogetherCodeModal, setShowWatchTogetherCodeModal] = createSignal(false);
+  const [showWatchTogetherSignInModal, setShowWatchTogetherSignInModal] = createSignal(false);
+  const [watchTogetherBusy, setWatchTogetherBusy] = createSignal(false);
+  const [watchTogetherError, setWatchTogetherError] = createSignal('');
+  const [showMediaDistributionModal, setShowMediaDistributionModal] = createSignal(false);
+  const [showMediaReceiveModal, setShowMediaReceiveModal] = createSignal(false);
 
   // Accumulated unknown words from subtitles
   const [accumulatedWords, setAccumulatedWords] = createSignal<VideoWordEntry[]>([]);
@@ -80,6 +118,159 @@ export const VideoRoute: Component = () => {
   // Media stats for this video session
   const mediaStats = useMediaStats({ mediaType: 'video', language: settings.language });
 
+  const getCurrentVideoElement = (): HTMLVideoElement | null => document.querySelector('video');
+
+  const loadSharedVideo = (url: string, name: string) => {
+    setVideoSrc(url);
+    setCurrentVideoTime(0);
+    setCurrentVideoDuration(null);
+    setCurrentVideoPath('');
+    setSubtitleContent('');
+    setCurrentSubtitlePath('');
+    setShowDropZone(false);
+    setCurrentVideoName(name || getMediaNameFromPath(url));
+  };
+
+  const buildWatchTogetherPayload = () => {
+    const mediaUrl = videoSrc();
+    if (!isShareableWatchTogetherUrl(mediaUrl)) {
+      return null;
+    }
+
+    const video = getCurrentVideoElement();
+    return {
+      currentTime: video?.currentTime ?? currentVideoTime(),
+      paused: video?.paused ?? true,
+      playbackRate: video?.playbackRate ?? 1,
+    };
+  };
+
+  const resetCloudAuthSession = () => {
+    updateSettings({
+      cloudAuthAccessToken: '',
+      cloudAuthToken: '',
+      cloudAuthRefreshToken: '',
+      cloudAuthUserId: '',
+      cloudAuthUserEmail: '',
+      cloudAuthExpiresAt: 0,
+      cloudAuthStatus: 'signed-out',
+    });
+  };
+
+  const ensureCloudAccessToken = async (): Promise<string | null> => {
+    const currentAccessToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
+    if (settings.cloudAuthStatus !== 'signed-in' || !currentAccessToken) {
+      setShowWatchTogetherSignInModal(true);
+      return null;
+    }
+
+    const validation = await validateAndRefreshCloudSession(settings);
+    if (validation.status === 'valid') {
+      return currentAccessToken;
+    }
+
+    if (validation.status === 'refreshed' && validation.accessToken && validation.refreshToken) {
+      updateSettings({
+        cloudAuthAccessToken: validation.accessToken,
+        cloudAuthRefreshToken: validation.refreshToken,
+        ...(validation.expiresAt ? { cloudAuthExpiresAt: validation.expiresAt } : {}),
+      });
+      return validation.accessToken;
+    }
+
+    resetCloudAuthSession();
+    setShowWatchTogetherSignInModal(true);
+    return null;
+  };
+
+  const openWatchTogetherCodeModal = () => {
+    setWatchTogetherError('');
+    setShowWatchTogetherCodeModal(true);
+  };
+
+  const handleWatchTogetherCommand = () => {
+    setWatchTogetherError('');
+    if (watchTogether.isActive()) {
+      watchTogether.deactivate();
+      setShowWatchTogetherModeModal(false);
+      setShowWatchTogetherCodeModal(false);
+      return;
+    }
+
+    setShowWatchTogetherModeModal(true);
+  };
+
+  const handleChooseLocalWatchTogether = () => {
+    setShowWatchTogetherModeModal(false);
+    setWatchTogetherError('');
+    watchTogether.activate();
+  };
+
+  const handleChooseCodeWatchTogether = () => {
+    setShowWatchTogetherModeModal(false);
+    openWatchTogetherCodeModal();
+  };
+
+  const handleCreateWatchTogetherRoom = async () => {
+    setWatchTogetherError('');
+    const payload = buildWatchTogetherPayload();
+    if (!payload) {
+      setWatchTogetherError(t('mlearn.WatchTogether.Code.UnshareableVideo'));
+      return;
+    }
+
+    const accessToken = await ensureCloudAccessToken();
+    if (!accessToken) return;
+
+    setWatchTogetherBusy(true);
+    try {
+      const session = await createWatchTogetherRoom(settings, accessToken, payload);
+      watchTogether.activateRoomWithUserId(session, accessToken, settings.cloudAuthUserId);
+      setShowWatchTogetherCodeModal(true);
+    } catch (error) {
+      console.error(error);
+      setWatchTogetherError((error as Error).message || String(error));
+    } finally {
+      setWatchTogetherBusy(false);
+    }
+  };
+
+  const handleJoinWatchTogetherRoom = async (roomCode: string) => {
+    setWatchTogetherError('');
+    const accessToken = await ensureCloudAccessToken();
+    if (!accessToken) return;
+
+    setWatchTogetherBusy(true);
+    try {
+      const session = await joinWatchTogetherRoom(settings, accessToken, roomCode);
+      watchTogether.activateRoomWithUserId(session, accessToken, settings.cloudAuthUserId);
+      setShowWatchTogetherCodeModal(true);
+    } catch (error) {
+      console.error(error);
+      setWatchTogetherError((error as Error).message || String(error));
+    } finally {
+      setWatchTogetherBusy(false);
+    }
+  };
+
+  const handleCopyWatchTogetherRoomCode = () => {
+    const roomCode = watchTogether.roomSession()?.room.roomCode;
+    if (!roomCode) return;
+
+    getBridge().files.writeToClipboard(roomCode);
+    showToast({
+      message: t('mlearn.WatchTogether.Code.Copied'),
+      variant: 'success',
+    });
+  };
+
+  const handleDisconnectWatchTogether = () => {
+    watchTogether.deactivate();
+    setShowWatchTogetherCodeModal(false);
+    setShowWatchTogetherModeModal(false);
+    setWatchTogetherError('');
+  };
+
   const loadVideo = (path: string, name: string) => {
     setVideoSrc(toLocalMediaUrl(path));
     setCurrentVideoTime(0);
@@ -91,25 +282,23 @@ export const VideoRoute: Component = () => {
     setCurrentVideoName(name);
   };
 
-  const saveVideoToRecentItems = async (path: string, name: string) => {
+  const saveVideoToRecentItems = async (path: string, name: string, subtitlePath?: string) => {
     await saveToRecentItems({
       type: 'video',
       name,
       path,
-      subtitlePath: currentSubtitlePath() || undefined,
+      subtitlePath: subtitlePath || undefined,
       progress: 0,
     });
   };
 
   const persistCurrentSubtitlePath = async (subtitlePath: string) => {
-    const videoName = currentVideoName();
     const videoPath = currentVideoPath();
-    if (!subtitlePath || !videoName || !videoPath) {
+    if (!subtitlePath || !videoPath) {
       return;
     }
 
     await updateRecentItemSubtitlePathByPath(videoPath, subtitlePath);
-    await updateRecentItemSubtitlePath(videoName, subtitlePath);
   };
 
   // Activate media stats when a video name is available
@@ -117,6 +306,80 @@ export const VideoRoute: Component = () => {
     const name = currentVideoName();
     if (name) mediaStats.setMedia(name);
   });
+
+  createEffect(() => {
+    const mode = watchTogether.mode();
+    const activeVideoSrc = videoSrc();
+
+    if (mode !== 'room-owner' || !activeVideoSrc) {
+      return;
+    }
+
+    if (!isShareableWatchTogetherUrl(activeVideoSrc)) {
+      setWatchTogetherError(t('mlearn.WatchTogether.Code.HostDisabled'));
+      handleDisconnectWatchTogether();
+      return;
+    }
+
+    watchTogether.sendSync(getCurrentVideoElement()?.currentTime ?? 0);
+  });
+
+  // Show the media receive modal when a pending offer arrives
+  createEffect(() => {
+    const offer = watchTogether.pendingMediaOffer();
+    if (offer) {
+      setShowMediaReceiveModal(true);
+    }
+  });
+
+  // When the owner sends a sync-state with a new mediaUrl, load the video (viewer mode)
+  createEffect(() => {
+    const received = watchTogether.receivedMediaUrl();
+    if (!received) return;
+
+    if (!isRemoteWatchTogetherUrl(received.url)) {
+      watchTogether.clearReceivedMediaUrl();
+      return;
+    }
+
+    loadSharedVideo(received.url, received.title);
+    watchTogether.clearReceivedMediaUrl();
+  });
+
+  // When the room is closed by the host, notify the viewer
+  createEffect(() => {
+    if (!watchTogether.roomClosedByHost()) return;
+    showToast({
+      message: t('mlearn.WatchTogether.Code.RoomClosed'),
+      variant: 'warning',
+    });
+    setShowWatchTogetherCodeModal(false);
+    setShowWatchTogetherModeModal(false);
+    watchTogether.clearRoomClosedByHost();
+  });
+
+  // When a media file is received via WebRTC, allow loading it
+  const handleLoadReceivedMedia = (file: Blob, meta: MediaTransferMetadata) => {
+    const objectUrl = URL.createObjectURL(file);
+    setVideoSrc(objectUrl);
+    setCurrentVideoTime(0);
+    setCurrentVideoDuration(null);
+    setCurrentVideoPath('');
+    setShowDropZone(false);
+    setCurrentVideoName(meta.fileName);
+
+    if (meta.subtitleContent) {
+      setSubtitleContent(meta.subtitleContent);
+      setCurrentSubtitlePath('');
+    }
+
+    watchTogether.clearMediaReceiveResult();
+    setShowMediaReceiveModal(false);
+  };
+
+  const handleStartMediaDistribution = (file: Blob, fileName: string, subtitleContent: string | null) => {
+    watchTogether.startMediaDistribution(file, fileName, subtitleContent);
+  };
 
   syncVideoPluginActivity({
     workName: currentVideoName,
@@ -142,10 +405,10 @@ export const VideoRoute: Component = () => {
       if (seenWords.has(word)) continue;
       if (flashcardCtx.isWordIgnoredSync(word)) continue;
 
-      const manualStatus = numericToWordStatus(wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN);
+      const manualStatus = getManualWordStatus(word);
       const effectiveStatus = getEffectiveWordStatus(
         flashcardCtx.getCardByWordSync(word), manualStatus,
-        settings.use_anki && isWordInAnkiCache(word),
+        getAnkiKnowledgeStatus(word),
         settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
       );
       if (effectiveStatus === 'known') continue;
@@ -169,18 +432,28 @@ export const VideoRoute: Component = () => {
 
   // Visible unknown words: filter out words that became known/ignored since accumulation
   const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
-    const manualStatuses = wordsLearnedInApp();
-
     return accumulatedWords().filter(entry => {
       if (flashcardCtx.isWordIgnoredSync(entry.word)) return false;
-      const manualStatus = numericToWordStatus(manualStatuses[entry.word] ?? WORD_STATUS.UNKNOWN);
+      const manualStatus = getManualWordStatus(entry.word);
       const effectiveStatus = getEffectiveWordStatus(
         flashcardCtx.getCardByWordSync(entry.word), manualStatus,
-        settings.use_anki && isWordInAnkiCache(entry.word),
+        getAnkiKnowledgeStatus(entry.word),
         settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
       );
       return effectiveStatus !== 'known';
     });
+  });
+
+  const failedSidebarWordSet = createMemo<Set<string>>(() => {
+    const failedWords = new Set<string>();
+
+    for (const entry of Object.values(mediaStats.stats().wordsEncountered)) {
+      if (isWordMarkedFailed(entry, settings)) {
+        failedWords.add(entry.word);
+      }
+    }
+
+    return failedWords;
   });
 
   const addVideoWordFlashcard = async (entry: VideoWordEntry) => {
@@ -199,7 +472,7 @@ export const VideoRoute: Component = () => {
         }
       }
       const freq = langCtx.getFrequency(word);
-      const manualStatus = numericToWordStatus(wordsLearnedInApp()[word] ?? WORD_STATUS.UNKNOWN);
+      const manualStatus = getManualWordStatus(word);
       const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
 
       const { content, ease } = await buildWordHoverFlashcardContent({
@@ -271,11 +544,14 @@ export const VideoRoute: Component = () => {
     setIsAddingAllSidebarWords(true);
     try {
       for (const entry of entries) {
-        if (settings.use_anki && isWordInAnkiCache(entry.word)) {
-          const status = numericToWordStatus(wordsLearnedInApp()[entry.word] ?? WORD_STATUS.LEARNING);
+        const trackedAnkiWord = getTrackedAnkiWord(entry.word);
+        if (trackedAnkiWord) {
+          const forms = getWordForms(entry.word);
+          const storedStatus = getWordStatus(forms[0] ?? entry.word, forms.slice(1));
+          const status = numericToWordStatus(storedStatus === WORD_STATUS.UNKNOWN ? WORD_STATUS.LEARNING : storedStatus);
           const ankiEase = getAnkiEaseForStatus(status, settings.ankiLearningEase, settings.ankiKnownEase);
           try {
-            await anki.updateWordCards(entry.word, ankiEase);
+            await anki.updateWordCards(trackedAnkiWord, ankiEase);
           } catch (err) {
             console.error(`Failed to update Anki cards for "${entry.word}":`, err);
             showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
@@ -357,8 +633,8 @@ export const VideoRoute: Component = () => {
 
     // Show aside (Live Word Translator)
     ipcCleanups.push(bridge.window.onOpenAside(() => {
-      if ((window as any).mLearnLiveTranslator) {
-        (window as any).mLearnLiveTranslator.show();
+      if (window.mLearnLiveTranslator) {
+        window.mLearnLiveTranslator.show();
       }
     }));
 
@@ -504,11 +780,11 @@ export const VideoRoute: Component = () => {
   // Broadcast subtitle HTML to tethered clients whenever the current
   // subtitle changes and watch-together is active.
   createEffect(() => {
-    if (!watchTogether.isActive()) return;
+    if (!watchTogether.canControl()) return;
     const sub = subtitles.currentSubtitle();
     if (!sub) return;
     // Grab the rendered subtitle container from the DOM.
-    const el = document.querySelector('.subtitle-container');
+    const el = document.querySelector('.subtitles');
     if (!el) return;
     const html = el.innerHTML;
     if (!html) return;
@@ -565,8 +841,8 @@ export const VideoRoute: Component = () => {
     switch (command) {
       case 'sync-subs':
         // Show the subtitle sync panel
-        if ((window as any).mLearnSubtitleSync) {
-          (window as any).mLearnSubtitleSync.show();
+        if (window.mLearnSubtitleSync) {
+          window.mLearnSubtitleSync.show();
         }
         break;
       case 'copy-sub': {
@@ -578,7 +854,7 @@ export const VideoRoute: Component = () => {
         break;
       }
       case 'watch-together':
-        watchTogether.toggle();
+        handleWatchTogetherCommand();
         break;
     }
   };
@@ -588,50 +864,38 @@ export const VideoRoute: Component = () => {
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer?.files || []);
-    let droppedVideo: { path: string; name: string } | null = null;
-    let droppedSubtitlePath = '';
-    
-    for (const file of files) {
-      const ext = file.name.split('.').pop()?.toLowerCase();
-      
-      if (['mp4', 'webm', 'mkv', 'avi', 'mov'].includes(ext || '')) {
-        const filePath = getBridge().files.getPathForFile(file)
-          || (file as File & { path?: string }).path || '';
-        if (filePath) {
-          loadVideo(filePath, file.name);
-        } else {
-          setVideoSrc(URL.createObjectURL(file));
-          setCurrentVideoTime(0);
-          setCurrentVideoDuration(null);
-          setCurrentVideoPath('');
-          setSubtitleContent('');
-          setCurrentSubtitlePath('');
-          setShowDropZone(false);
-          setCurrentVideoName(file.name);
-        }
-        droppedVideo = filePath ? { path: filePath, name: file.name } : null;
-        // Only save to recent items if we have a valid path (can be reopened)
-        if (filePath) {
-          await saveVideoToRecentItems(filePath, file.name);
-        }
-      }
-      
-      if (['srt', 'vtt', 'ass', 'ssa'].includes(ext || '')) {
-        const content = await file.text();
-        setSubtitleContent(content);
-        const filePath = getBridge().files.getPathForFile(file)
-          || (file as File & { path?: string }).path || '';
-        setCurrentSubtitlePath(filePath);
-        droppedSubtitlePath = filePath;
+    const droppedMedia = await collectDroppedMediaFiles(files, (file) =>
+      getBridge().files.getPathForFile(file)
+        || (file as File & { path?: string }).path
+        || '',
+    );
+
+    if (droppedMedia.video) {
+      if (droppedMedia.video.filePath) {
+        loadVideo(droppedMedia.video.filePath, droppedMedia.video.fileName);
+        await saveVideoToRecentItems(
+          droppedMedia.video.filePath,
+          droppedMedia.video.fileName,
+          droppedMedia.subtitle?.filePath,
+        );
+      } else {
+        setVideoSrc(URL.createObjectURL(droppedMedia.video.file));
+        setCurrentVideoTime(0);
+        setCurrentVideoDuration(null);
+        setCurrentVideoPath('');
+        setSubtitleContent('');
+        setCurrentSubtitlePath('');
+        setShowDropZone(false);
+        setCurrentVideoName(droppedMedia.video.fileName);
       }
     }
 
-    if (droppedSubtitlePath) {
-      if (droppedVideo) {
-        await updateRecentItemSubtitlePathByPath(droppedVideo.path, droppedSubtitlePath);
-        await updateRecentItemSubtitlePath(droppedVideo.name, droppedSubtitlePath);
-      } else {
-        await persistCurrentSubtitlePath(droppedSubtitlePath);
+    if (droppedMedia.subtitle) {
+      setSubtitleContent(droppedMedia.subtitle.content);
+      setCurrentSubtitlePath(droppedMedia.subtitle.filePath);
+
+      if (!droppedMedia.video && droppedMedia.subtitle.filePath) {
+        await persistCurrentSubtitlePath(droppedMedia.subtitle.filePath);
       }
     }
   };
@@ -738,7 +1002,7 @@ export const VideoRoute: Component = () => {
       }
     }
 
-    const failedWords = Array.from(mediaWords.values()).filter((w) => w.ease < 2.5 || w.timesHovered > 0);
+    const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));
     const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
 
     const context: ConversationAgentContext = {
@@ -787,6 +1051,25 @@ export const VideoRoute: Component = () => {
         {t('mlearn.Video.UI.OpenConversationAgent')}
       </NavBtn>
 
+      <Show when={watchTogether.isRoomMode()}>
+        <NavBtn
+          class="watch-together-room-button"
+          onClick={openWatchTogetherCodeModal}
+          title={t('mlearn.WatchTogether.Code.OpenRoomPanel')}
+        >
+          {t('mlearn.WatchTogether.Code.OpenRoomPanel')}
+        </NavBtn>
+        <Show when={watchTogether.canControl()}>
+          <NavBtn
+            class="watch-together-distribute-button"
+            onClick={() => setShowMediaDistributionModal(true)}
+            title={t('mlearn.WatchTogether.Media.DistributeTitle')}
+          >
+            {t('mlearn.WatchTogether.Media.DistributeAction')}
+          </NavBtn>
+        </Show>
+      </Show>
+
       <Show
         when={!showDropZone()}
         fallback={
@@ -807,6 +1090,9 @@ export const VideoRoute: Component = () => {
                 <Btn onClick={handleSelectSubtitle}>
                   {t('mlearn.Video.UI.OpenSubtitles')}
                 </Btn>
+                <Btn onClick={openWatchTogetherCodeModal}>
+                  {t('mlearn.Video.WatchTogether')}
+                </Btn>
               </div>
             </Panel>
           </div>
@@ -815,6 +1101,9 @@ export const VideoRoute: Component = () => {
         <VideoPlayer
           src={videoSrc()}
           subtitleContent={subtitleContent()}
+          remoteSubtitleHtml={watchTogether.remoteSubtitle()?.html || null}
+          remoteSubtitleSize={watchTogether.remoteSubtitle()?.size ?? null}
+          remoteSubtitleWeight={watchTogether.remoteSubtitle()?.weight ?? null}
           subtitles={subtitles}
           ctxMenuOptions={{ isWatchTogether: watchTogether.isActive() }}
           onTimeUpdate={(time) => setCurrentVideoTime(time)}
@@ -834,6 +1123,7 @@ export const VideoRoute: Component = () => {
           words={visibleUnknownWords}
           addingWordKeys={() => addingSidebarWords()}
           isAddingAll={() => isAddingAllSidebarWords()}
+          failedWordSet={failedSidebarWordSet}
           onAddWord={addVideoWordFlashcard}
           onAddAll={addAllVideoWords}
           onIgnoreWord={ignoreVideoWord}
@@ -849,6 +1139,64 @@ export const VideoRoute: Component = () => {
         confirmText={t('mlearn.Sidebar.AnkiAddAllWarning.Confirm')}
         onConfirm={confirmAnkiAddAll}
         onCancel={() => { setShowAnkiAddAllWarning(false); setPendingAddAllEntries([]); }}
+      />
+
+      <WatchTogetherModeModal
+        isOpen={showWatchTogetherModeModal()}
+        onClose={() => setShowWatchTogetherModeModal(false)}
+        onChooseLocal={handleChooseLocalWatchTogether}
+        onChooseCode={handleChooseCodeWatchTogether}
+      />
+
+      <WatchTogetherCodeModal
+        isOpen={showWatchTogetherCodeModal()}
+        onClose={() => setShowWatchTogetherCodeModal(false)}
+        isSignedIn={settings.cloudAuthStatus === 'signed-in'}
+        canHost={Boolean(buildWatchTogetherPayload())}
+        currentSession={watchTogether.roomSession()}
+        isBusy={watchTogetherBusy()}
+        error={watchTogetherError()}
+        onCreateRoom={handleCreateWatchTogetherRoom}
+        onJoinRoom={handleJoinWatchTogetherRoom}
+        onCopyRoomCode={handleCopyWatchTogetherRoomCode}
+        onDisconnect={handleDisconnectWatchTogether}
+        onOpenSignIn={() => setShowWatchTogetherSignInModal(true)}
+      />
+
+      <CloudReLoginModal
+        isOpen={showWatchTogetherSignInModal()}
+        onClose={() => setShowWatchTogetherSignInModal(false)}
+        onReLoginSuccess={() => setShowWatchTogetherSignInModal(false)}
+        title={t('mlearn.WatchTogether.Code.SignInModalTitle')}
+        warningMessage={t('mlearn.WatchTogether.Code.SignInRequiredMessage')}
+        hint={t('mlearn.WatchTogether.Code.SignInHint')}
+        codeHint={t('mlearn.WatchTogether.Code.SignInCodeHint')}
+      />
+
+      <MediaDistributionModal
+        isOpen={showMediaDistributionModal()}
+        onClose={() => setShowMediaDistributionModal(false)}
+        connectedPeerCount={watchTogether.connectedPeerCount()}
+        isSending={watchTogether.isSendingMedia()}
+        sendProgress={watchTogether.mediaSendProgress()}
+        sendComplete={watchTogether.mediaSendComplete()}
+        onStartDistribution={handleStartMediaDistribution}
+        onCancel={() => { watchTogether.cancelMediaDistribution(); setShowMediaDistributionModal(false); }}
+        videoSrc={videoSrc()}
+        subtitleContent={subtitleContent() || null}
+      />
+
+      <MediaReceiveModal
+        isOpen={showMediaReceiveModal()}
+        onClose={() => setShowMediaReceiveModal(false)}
+        offerMeta={watchTogether.pendingMediaOffer()?.meta ?? null}
+        isReceiving={watchTogether.isReceivingMedia()}
+        receiveProgress={watchTogether.mediaReceiveProgress()}
+        receiveResult={watchTogether.mediaReceiveResult()}
+        onAccept={() => watchTogether.acceptMediaOffer()}
+        onReject={() => { watchTogether.rejectMediaOffer(); setShowMediaReceiveModal(false); }}
+        onLoadReceived={handleLoadReceivedMedia}
+        onDismiss={() => { watchTogether.clearMediaReceiveResult(); setShowMediaReceiveModal(false); }}
       />
     </div>
   );

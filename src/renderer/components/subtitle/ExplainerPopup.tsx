@@ -13,6 +13,7 @@ import { getLanguageDisplayName } from '../../../shared/utils/textUtils';
 import { streamExplanation, getCachedExplanation, checkAvailability, requiresSetup } from '../../services/llmProvider';
 import type { ParsedExplainer, ExplainerSection, GrammarPoint } from './ExplainerCards';
 import { ExplainerCards } from './ExplainerCards';
+import { buildExplainerGeneratedByLabel } from './explainerProviderLabel';
 import { Spinner } from '../common';
 import './ExplainerPopup.css';
 
@@ -90,6 +91,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   });
 
   const hasContent = createMemo(() => toolCalls().length > 0 || rawText().length > 0);
+  const generatedByLabel = createMemo(() => buildExplainerGeneratedByLabel(settings.llmProvider, t));
 
   // Start streaming when popup opens with a new word
   createEffect(() => {
@@ -236,7 +238,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
           <Show when={isComplete() && !error()}>
             <span class="explainer-popup__status">
               <BotIcon size={14} />
-              <span>{t('mlearn.Explainer.GeneratedBy')}</span>
+              <span>{generatedByLabel()}</span>
             </span>
           </Show>
           <Show when={isLoading()}>

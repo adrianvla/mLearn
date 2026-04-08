@@ -151,7 +151,7 @@ export const SubtitleSync: Component<SubtitleSyncProps> = (props) => {
 
   // Expose show method globally for IPC command
   if (typeof window !== 'undefined') {
-    (window as any).mLearnSubtitleSync = { show, hide, isVisible };
+    window.mLearnSubtitleSync = { show, hide, isVisible };
   }
 
   return (

@@ -80,6 +80,22 @@
   margin-bottom: var(--spacing-6);
 }
 
+.welcome-window__language-code {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.5rem;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--welcome-language-code-border);
+  border-radius: var(--radius-md);
+  background: var(--welcome-language-code-bg);
+  color: var(--welcome-language-code-text);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+}
+
 /* Action button area */
 .welcome-window__action {
   width: 100%;

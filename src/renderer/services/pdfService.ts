@@ -7,6 +7,44 @@
 // Import pdf.js library - this creates window.pdfjsLib
 import './pdf.mjs';
 
+interface PdfJsViewport {
+  width: number;
+  height: number;
+}
+
+interface PdfJsPage {
+  getViewport: (options: { scale: number }) => PdfJsViewport;
+  render: (options: { canvasContext: CanvasRenderingContext2D; viewport: PdfJsViewport }) => { promise: Promise<void> };
+}
+
+interface PdfJsDocument {
+  numPages: number;
+  getPage: (pageNumber: number) => Promise<PdfJsPage>;
+  cleanup: () => void;
+}
+
+interface PdfJsLoadingTask {
+  promise: Promise<PdfJsDocument>;
+}
+
+interface PdfJsLib {
+  GlobalWorkerOptions: {
+    workerSrc: string;
+  };
+  getDocument: (options: {
+    data: ArrayBuffer;
+    useWorkerFetch: boolean;
+    isEvalSupported: boolean;
+    disableAutoFetch: boolean;
+  }) => PdfJsLoadingTask;
+}
+
+declare global {
+  interface Window {
+    pdfjsLib?: PdfJsLib;
+  }
+}
+
 export interface PageImage {
   name: string;
   url: string;
@@ -21,10 +59,10 @@ let pdfJsConfigured = false;
 /**
  * Get the pdf.js library instance and configure it
  */
-async function getPdfJs(): Promise<any> {
+async function getPdfJs(): Promise<PdfJsLib> {
   // pdf.js attaches to window.pdfjsLib
-  if (typeof window !== 'undefined' && (window as any).pdfjsLib) {
-    const pdfjsLib = (window as any).pdfjsLib;
+  if (typeof window !== 'undefined' && window.pdfjsLib) {
+    const pdfjsLib = window.pdfjsLib;
     
     // Configure worker only once
     // In Electron we can disable the worker since we're not in a web context

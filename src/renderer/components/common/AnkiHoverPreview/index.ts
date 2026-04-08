@@ -1,1 +1,1 @@
-export { AnkiHoverPreview, type AnkiHoverPreviewProps, type AnkiCardFields } from './AnkiHoverPreview';
+export { AnkiHoverPreview, type AnkiHoverPreviewProps, type AnkiCardFields, type AnkiCardSchedulingInfo } from './AnkiHoverPreview';

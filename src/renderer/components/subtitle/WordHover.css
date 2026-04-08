@@ -149,7 +149,7 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   flex-shrink: 0;
   /* Ensure consistent height calculation */
   height: auto;
-  min-height: unset;
+  min-height: 100%;
   box-sizing: border-box;
   /* Fix blur issues */
   transform: translateZ(0);

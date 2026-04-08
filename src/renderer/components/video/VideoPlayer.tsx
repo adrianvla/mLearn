@@ -20,6 +20,12 @@ export interface VideoPlayerProps {
   src?: string;
   /** Subtitle file content (SRT/VTT/ASS) */
   subtitleContent?: string;
+  /** Mirrored subtitle HTML from a remote watch-together room host */
+  remoteSubtitleHtml?: string | null;
+  /** Mirrored subtitle font size from a remote watch-together room host */
+  remoteSubtitleSize?: number | null;
+  /** Mirrored subtitle font weight from a remote watch-together room host */
+  remoteSubtitleWeight?: number | null;
   /** External subtitles hook instance (shared with route for word tracking) */
   subtitles: ReturnType<typeof useSubtitles>;
   /** Autoplay video on load */
@@ -145,6 +151,9 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
             tokens={subtitles.tokens()}
             isLoading={subtitles.isTokenizing()}
             originalText={subtitles.currentSubtitle()?.text}
+          remoteHtml={props.remoteSubtitleHtml}
+          remoteSize={props.remoteSubtitleSize}
+          remoteWeight={props.remoteSubtitleWeight}
             subtitleStart={subtitles.currentSubtitle()?.start}
             subtitleEnd={subtitles.currentSubtitle()?.end}
             videoSrc={props.src}

@@ -3,7 +3,7 @@
  * Page thumbnails sidebar
  */
 
-import {Component, For, Accessor, Show, createEffect, createSignal, onCleanup} from 'solid-js';
+import { Component, For, Accessor, Show, createEffect, createSignal, onCleanup, createMemo } from 'solid-js';
 import { Tag, Indicator, Spinner } from '../../../../components/common';
 import { useLocalization } from '../../../../context';
 import './ReaderSidebar.css';
@@ -18,12 +18,9 @@ interface PageImage {
   index: number;
 }
 
-type PageMode = 'single' | 'double';
-
 interface ReaderSidebarProps {
   pages: Accessor<PageImage[]>;
-  currentPage: Accessor<number>;
-  pageMode: Accessor<PageMode>;
+  activePageIndices: Accessor<number[]>;
   hasOcrForPage: (pageId: string) => boolean;
   onGoToPage: (index: number) => void;
 }
@@ -33,6 +30,7 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
   const thumbRefs = new Map<number, HTMLDivElement>();
   const thumbUrlCache = new Map<string, string>();
   const [loadedPages, setLoadedPages] = createSignal<Set<number>>(new Set());
+  const activePageIndexSet = createMemo(() => new Set(props.activePageIndices()));
   let sidebarRef: HTMLElement | undefined;
 
   // Reset loaded state when pages change (new book loaded)
@@ -94,68 +92,52 @@ export const ReaderSidebar: Component<ReaderSidebarProps> = (props) => {
     full.src = src;
   };
 
-  // Determine which pages are currently active based on page mode
   const isPageActive = (pageIndex: number): boolean => {
-    const current = props.currentPage();
-    const mode = props.pageMode();
-
-    if (mode === 'single') {
-      return pageIndex === current;
-    } else {
-      // Double page mode: current page and next page are both active
-      return pageIndex === current || pageIndex === current + 1;
-    }
+    return activePageIndexSet().has(pageIndex);
   };
 
-  // Helper to scroll to current page thumbnail(s)
-  const scrollToCurrentPage = (pageIndex: number, mode: PageMode, smooth: boolean = true) => {
-    const firstThumb = thumbRefs.get(pageIndex);
+  const scrollToActivePages = (smooth: boolean = true) => {
+    const activePageIndices = props.activePageIndices();
+    const [firstActivePageIndex, secondActivePageIndex] = activePageIndices;
+    const firstThumb = firstActivePageIndex === undefined ? undefined : thumbRefs.get(firstActivePageIndex);
+
     if (!firstThumb || !sidebarRef) return;
 
     const behavior = smooth ? 'smooth' : 'instant';
 
-    if (mode === 'single') {
-      // Single page: just center the current page
+    if (secondActivePageIndex === undefined) {
       firstThumb.scrollIntoView({ behavior, block: 'center' });
-    } else {
-      // Double page: scroll to center between current and next page
-      const secondThumb = thumbRefs.get(pageIndex + 1);
-      if (secondThumb) {
-        // Calculate midpoint between both thumbnails and scroll to it
-        const firstRect = firstThumb.getBoundingClientRect();
-        const secondRect = secondThumb.getBoundingClientRect();
-        const containerRect = sidebarRef.getBoundingClientRect();
-        const midpoint = (firstRect.top + secondRect.bottom) / 2 - containerRect.top + sidebarRef.scrollTop;
-        const targetScroll = midpoint - sidebarRef.clientHeight / 2;
-        sidebarRef.scrollTo({ top: targetScroll, behavior });
-      } else {
-        // No second page (last page in odd-total book), just center first
-        firstThumb.scrollIntoView({ behavior, block: 'center' });
-      }
+      return;
     }
+
+    const secondThumb = thumbRefs.get(secondActivePageIndex);
+    if (secondThumb) {
+      const firstRect = firstThumb.getBoundingClientRect();
+      const secondRect = secondThumb.getBoundingClientRect();
+      const containerRect = sidebarRef.getBoundingClientRect();
+      const midpoint = (firstRect.top + secondRect.bottom) / 2 - containerRect.top + sidebarRef.scrollTop;
+      const targetScroll = midpoint - sidebarRef.clientHeight / 2;
+      sidebarRef.scrollTo({ top: targetScroll, behavior });
+      return;
+    }
+
+    firstThumb.scrollIntoView({ behavior, block: 'center' });
   };
 
-  // Scroll to center between active page thumbnails when page changes or pages load
-  // Track pages() to re-run when new book is loaded and refs are populated
   createEffect(() => {
-    const pageIndex = props.currentPage();
-    const mode = props.pageMode();
     const allPages = props.pages();
+    const activePageIndices = props.activePageIndices();
 
-    // If no pages yet, nothing to scroll to
-    if (allPages.length === 0) return;
+    if (allPages.length === 0 || activePageIndices.length === 0) return;
 
-    // Wait for refs to be populated after render
-    // Use requestAnimationFrame to ensure DOM is updated
     requestAnimationFrame(() => {
-      // Check if the ref exists now (it should after <For> renders)
-      if (thumbRefs.has(pageIndex)) {
-        scrollToCurrentPage(pageIndex, mode, true);
+      const firstActivePageIndex = activePageIndices[0];
+
+      if (firstActivePageIndex !== undefined && thumbRefs.has(firstActivePageIndex)) {
+        scrollToActivePages(true);
       } else {
-        // If ref still doesn't exist, retry once more after a frame
-        // This handles edge cases where DOM update is slightly delayed
         requestAnimationFrame(() => {
-          scrollToCurrentPage(pageIndex, mode, true);
+          scrollToActivePages(true);
         });
       }
     });

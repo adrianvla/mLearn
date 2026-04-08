@@ -142,16 +142,31 @@ export const formatKeybindDisplay = (value: string, t: (key: string) => string):
 export const matchesKeybind = (e: KeyboardEvent, keybind: string): boolean => {
   const { modifiers, key } = parseKeybind(keybind);
 
-  // Check modifier state matches exactly
-  const needsCtrl = modifiers.includes('ctrl');
-  const needsAlt = modifiers.includes('alt');
-  const needsShift = modifiers.includes('shift');
-  const needsMeta = modifiers.includes('meta');
+  const modifierKeyMap: Record<string, string> = {
+    'control': 'ctrl',
+    'alt': 'alt',
+    'shift': 'shift',
+    'meta': 'meta',
+  };
+  const pressedModifier = modifierKeyMap[e.key.toLowerCase()];
+  const activeModifiers = new Set<string>();
 
-  if (e.ctrlKey !== needsCtrl) return false;
-  if (e.altKey !== needsAlt) return false;
-  if (e.shiftKey !== needsShift) return false;
-  if (e.metaKey !== needsMeta) return false;
+  if (e.ctrlKey) activeModifiers.add('ctrl');
+  if (e.altKey) activeModifiers.add('alt');
+  if (e.shiftKey) activeModifiers.add('shift');
+  if (e.metaKey) activeModifiers.add('meta');
+
+  // Keyup events for modifier-only bindings report the released modifier via
+  // e.key while its boolean flag is already false, so fold the key back in.
+  if (pressedModifier) {
+    activeModifiers.add(pressedModifier);
+  }
+
+  // Check modifier state matches exactly
+  if (activeModifiers.size !== modifiers.length) return false;
+  for (const modifier of modifiers) {
+    if (!activeModifiers.has(modifier)) return false;
+  }
 
   // If there's a non-modifier key, match it
   if (key) {
@@ -159,15 +174,7 @@ export const matchesKeybind = (e: KeyboardEvent, keybind: string): boolean => {
   }
 
   // Modifier-only keybind: the pressed key itself must be one of the required modifiers
-  const pressedKeyLower = e.key.toLowerCase();
-  const modifierKeyMap: Record<string, string> = {
-    'control': 'ctrl',
-    'alt': 'alt',
-    'shift': 'shift',
-    'meta': 'meta',
-  };
-  const pressedMod = modifierKeyMap[pressedKeyLower];
-  return !!pressedMod && modifiers.includes(pressedMod);
+  return !!pressedModifier && modifiers.includes(pressedModifier);
 };
 
 export const KeybindInput: Component<KeybindInputProps> = (props) => {

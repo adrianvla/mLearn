@@ -31,7 +31,7 @@
   top: 0;
   left: 50%;
   transform: translate(-50%, -50%);
-  filter: drop-shadow(0px 0px 10px #ff0000) drop-shadow(1px 1px 0px #100);
+  filter: drop-shadow(0px 0px 10px var(--frequency-star-glow)) drop-shadow(1px 1px 0px var(--frequency-star-shadow));
   z-index: -1;
 }
 

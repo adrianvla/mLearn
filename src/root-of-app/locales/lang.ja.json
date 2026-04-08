@@ -90,6 +90,7 @@
             "Description": "AIチューターが会話を越えてあなたに関する情報を記憶することを許可する"
           },
           "Shared": {
+            "Due": "期限:",
             "Label": "エージェント間で記憶を共有",
             "Description": "有効にすると、すべてのエージェントがすべての記憶にアクセスできます。無効にすると、各エージェントは自分の記憶のみ参照します。"
           },
@@ -98,7 +99,8 @@
         "SplitChecker": {
           "Label": "別の校正エージェント",
           "Description": "会話エージェントの代わりに、別のLLMパスでミスを検出・修正します。",
-          "Title": "校正エージェント"
+            "AnkiDuplicate": "重複",
+            "Unseen": "未学習"
         },
         "Title": "AI設定"
       },
@@ -521,10 +523,15 @@
     },
     "Explainer": {
       "Explanation": "解説",
-      "GeneratedBy": "ローカルAIが生成",
+      "GeneratedBy": "生成元: {provider}",
       "Generating": "生成中...",
       "GrammarPoints": "主な文法ポイント",
       "Loading": "AI解説を読み込み中...",
+      "Provider": {
+        "Builtin": "ローカルAI",
+        "Cloud": "クラウドAI",
+        "Ollama": "Ollama"
+      },
       "ShowParsed": "解析表示",
       "ShowRaw": "テキスト表示",
       "Title": "AI解説",
@@ -762,11 +769,13 @@
         "Play": "再生",
         "ToggleSubtitles": "字幕を切り替え"
       },
+      "Accept": "承諾",
       "Back": "戻る",
       "Cancel": "キャンセル",
       "Close": "閉じる",
       "ComingSoon": "近日公開",
       "Continue": "続行",
+      "Decline": "辞退",
       "Delete": "削除",
       "Edit": "編集",
       "Export": "エクスポート",
@@ -798,7 +807,8 @@
         "ShortSecond": "{value}秒",
         "ShortYear": "{value}年"
       },
-      "TryAgain": "再試行"
+      "TryAgain": "再試行",
+      "Yes": "はい"
     },
     "LowPowerGate": {
       "Allow": "許可",
@@ -906,6 +916,10 @@
     },
     "KanjiGrid": {
       "CharactersByExamLevel": "試験レベル別の文字:",
+      "Disclaimer": {
+        "Description": "ここで表示しているJLPT漢字は、各JLPTレベルに属する単語から漢字を抽出して推定したものです。つまり厳密な漢字一覧ではなく、レベルによっては単語に含まれていても、その漢字自体の習得が必須ではない場合があります。",
+        "Title": "JLPT漢字は推定表示です"
+      },
       "Description": "色の意味: 学習中（オレンジ→黄色）、既知（緑→薄緑）、未知（グレー）。ホバーで詳細表示。",
       "EmptyState": {
         "Description": "動画やテキストで文字に出会うと、ここに表示されます。",
@@ -1306,7 +1320,27 @@
             "Label": "LLM解説を有効にする"
           },
           "PassiveWordTracking": {
-            "Description": "読書中の表示・ホバーをもとに単語の習熟度を自動追跡します",
+            "Description": "読書中の表示・ホバーをもとに単語の習熟度を自動追跡します。ホバーは {delay} ms 続くと1回として数えられ、{count} 回分たまるとそのメディアで失敗した単語として扱われ、苦手単語一覧やAIチューター復習に表示されます。",
+            "Action": {
+              "Description": "単語が失敗状態に入ったあと、カウント対象ホバーごとに何を行うかを設定します",
+              "Label": "失敗時の動作",
+              "Options": {
+                "DecreaseEase": "Easeを下げる",
+                "None": "何もしない"
+              }
+            },
+            "EaseDecrease": {
+              "Description": "失敗時の動作がEaseを下げるのときに、どれだけEaseを減らすかを指定します",
+              "Label": "Easeの減少量"
+            },
+            "FailCount": {
+              "Description": "そのメディアで単語を失敗扱いにするまでに必要な、カウント対象ホバーの回数",
+              "Label": "失敗扱いまでのホバー回数"
+            },
+            "HoverDelay": {
+              "Description": "失敗への1回分として数える前に、ホバーを維持する必要がある時間",
+              "Label": "カウント対象ホバーの遅延"
+            },
             "Label": "受動的な単語トラッキング"
           },
           "Speech": {
@@ -1830,6 +1864,71 @@
       },
       "VideoClipFailed": "動画クリップの作成に失敗しました。スクリーンショットを使用します",
       "WatchTogether": "一緒に見る"
+    },
+    "WatchTogether": {
+      "Mode": {
+        "Title": "一緒に視聴",
+        "Subtitle": "接続方法を選択してください",
+        "Local": {
+          "Title": "ローカルネットワーク",
+          "Description": "同じネットワーク上のテザリングブラウザと再生を共有します。",
+          "Action": "ローカルで開始"
+        },
+        "Code": {
+          "Title": "ルームコード",
+          "Description": "共有可能なコードでルームを作成または参加します。サインインが必要です。",
+          "Action": "ルームコードを使用"
+        }
+      },
+      "Code": {
+        "Title": "一緒に視聴ルーム",
+        "Subtitle": "視聴セッションをホストまたは参加",
+        "TabAriaLabel": "ホストまたは参加",
+        "HostTab": "ホスト",
+        "JoinTab": "参加",
+        "HostTitle": "ルームをホスト",
+        "HostDescription": "新しいルームを作成し、コードを他の人と共有します。",
+        "HostDisabled": "先に動画を読み込んでください",
+        "CreateAction": "ルームを作成",
+        "JoinTitle": "ルームに参加",
+        "JoinDescription": "ホストから共有されたルームコードを入力してください。",
+        "RoomCodePlaceholder": "ルームコードを入力",
+        "JoinAction": "参加",
+        "ActiveOwnerTitle": "ルームをホスト中",
+        "ActiveOwnerDescription": "下のルームコードを他の人に共有して、参加してもらいましょう。",
+        "ActiveViewerTitle": "ルームに参加中",
+        "ActiveViewerDescription": "ホストと同期中です。",
+        "RoomCodeLabel": "ルームコード",
+        "CopyCodeAction": "コードをコピー",
+        "DisconnectAction": "切断",
+        "UnshareableVideo": "この動画ソースはリモートで共有できません。",
+        "Copied": "ルームコードをクリップボードにコピーしました",
+        "RoomClosed": "ホストがルームを閉じました。",
+        "OpenRoomPanel": "ルーム",
+        "SignInRequiredTitle": "サインインが必要",
+        "SignInRequiredMessage": "ルームコードを使用するには、mLearn Cloudアカウントでサインインしてください。",
+        "SignInModalTitle": "一緒に視聴のサインイン",
+        "SignInHint": "mLearn Cloudの認証情報を入力してください",
+        "SignInCodeHint": "デバイスコードを受け取った場合は、以下に入力してください"
+      },
+      "Media": {
+        "DistributeTitle": "メディアを配信",
+        "DistributeSubtitle": "WebRTCを使用して接続中のピアにメディアファイルを送信",
+        "DistributeAction": "配信",
+        "SelectFile": "配信するメディアファイルを選択",
+        "FileName": "ファイル名",
+        "FileSize": "ファイルサイズ",
+        "ConnectedPeers": "接続中のピア",
+        "SubtitlesIncluded": "字幕を含む",
+        "StartDistribution": "配信を開始",
+        "Sending": "ピアにメディアを送信中...",
+        "DistributionComplete": "配信完了。すべてのピアがメディアを受信しました。",
+        "ReceiveTitle": "メディアの受信",
+        "ReceivePrompt": "ピアがメディアファイルを送信しようとしています。受信しますか？",
+        "Receiving": "メディアを受信中...",
+        "ReceiveComplete": "メディアを正常に受信しました。",
+        "LoadMedia": "メディアを読み込む"
+      }
     },
     "WordDbEditor": {
       "Actions": {

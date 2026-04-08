@@ -1,5 +1,7 @@
-import { Component, Show, JSX } from 'solid-js';
+import { Component, Show, JSX, createMemo } from 'solid-js';
 import { useLocalization } from '../../../context';
+import { dueDateToString } from '../../../services/srsAlgorithm';
+import { getAnkiDueDisplayValue, shouldShowAnkiEase, type AnkiCardSchedulingInfo } from './ankiHoverPreviewLogic';
 import './AnkiHoverPreview.css';
 
 export interface AnkiCardFields {
@@ -12,13 +14,17 @@ export interface AnkiCardFields {
 export interface AnkiHoverPreviewProps {
   loading: boolean;
   fields: AnkiCardFields | null;
-  /** Anki ease factor as an integer (e.g. 2500 = 250%). 0 means unset (new card). */
-  ease?: number | null;
+  cardInfo?: AnkiCardSchedulingInfo | null;
   footer?: JSX.Element;
 }
 
 export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
   const { t } = useLocalization();
+  const dueValue = createMemo(() => getAnkiDueDisplayValue(
+    props.cardInfo,
+    (timestamp) => dueDateToString(timestamp, t),
+    t('mlearn.Flashcards.Card.Unseen'),
+  ));
 
   return (
     <div class="anki-hover-preview">
@@ -46,10 +52,16 @@ export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
                 <span class="anki-hover-preview__value" innerHTML={fields().Meaning!.value} />
               </div>
             </Show>
-            <Show when={props.ease != null && props.ease > 0}>
+            <Show when={shouldShowAnkiEase(props.cardInfo?.ease)}>
               <div class="anki-hover-preview__field anki-hover-preview__field--meta">
                 <span class="anki-hover-preview__label">{t('mlearn.Flashcards.Card.Ease')}</span>
-                <span class="anki-hover-preview__value">{props.ease}</span>
+                <span class="anki-hover-preview__value">{props.cardInfo!.ease}</span>
+              </div>
+            </Show>
+            <Show when={dueValue()}>
+              <div class="anki-hover-preview__field anki-hover-preview__field--meta">
+                <span class="anki-hover-preview__label">{t('mlearn.Flashcards.Card.Due')}</span>
+                <span class="anki-hover-preview__value">{dueValue()!}</span>
               </div>
             </Show>
           </div>
@@ -64,3 +76,5 @@ export const AnkiHoverPreview: Component<AnkiHoverPreviewProps> = (props) => {
     </div>
   );
 };
+
+export type { AnkiCardSchedulingInfo } from './ankiHoverPreviewLogic';

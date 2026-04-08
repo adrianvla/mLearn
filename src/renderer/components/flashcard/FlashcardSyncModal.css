@@ -31,7 +31,7 @@
 .qr-code {
   width: 320px;
   height: 320px;
-  background: #fff;
+  background: var(--sync-qr-code-bg);
   border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
@@ -64,7 +64,7 @@
   width: 100%;
   max-width: 400px;
   border-radius: var(--radius-lg);
-  background: #000;
+  background: var(--sync-scan-video-bg);
 }
 
 .scan-canvas {
@@ -93,7 +93,7 @@
   width: 64px;
   height: 64px;
   background: var(--color-success);
-  color: white;
+  color: var(--text-on-strong);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -120,7 +120,7 @@
   width: 64px;
   height: 64px;
   background: var(--color-error);
-  color: white;
+  color: var(--text-on-strong);
   border-radius: 50%;
   display: flex;
   align-items: center;

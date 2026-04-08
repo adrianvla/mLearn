@@ -1,17 +1,35 @@
 /**
  * Watch Together Hook
- * Coordinates shared playback between the desktop app (master) and tethered
- * browser clients connected via WebSocket through the web server on port 7753.
  *
- * When active the desktop becomes a "Watch Together Master": play/pause/seek
- * events on the renderer's video element are broadcast to all connected
- * clients, and incoming commands from other masters are applied locally.
- *
- * Mirrors the feature set of the tethered core.js client.
+ * Two modes:
+ * 1. **Local** — Desktop broadcasts to tethered browser clients via WebSocket
+ *    (port 7753) through the Electron web server.
+ * 2. **Room** (owner / viewer) — Peers connect via WebRTC (SimplePeer) with
+ *    signaling relayed through the BFF Worker Durable Object WebSocket.
+ *    Playback sync and media distribution flow over WebRTC data channels.
  */
 
-import { createSignal, onCleanup } from 'solid-js';
+import { createMemo, createSignal, onCleanup } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
+import {
+  closeWatchTogetherRoom,
+  leaveWatchTogetherRoom,
+  updateWatchTogetherRoomState,
+  type WatchTogetherRoomSession,
+  type WatchTogetherRoomState,
+} from '../services/watchTogetherRoomService';
+import {
+  createPeerService,
+  type PeerDataMessage,
+  type PeerServiceInstance,
+  type SignalingSocket,
+} from '../services/watchTogetherPeerService';
+import {
+  createMediaDistribution,
+  type MediaDistributionInstance,
+  type MediaOfferHandle,
+  type MediaTransferMetadata,
+} from '../services/mediaDistributionService';
 
 export interface WatchTogetherMessage {
   action: string;
@@ -23,16 +41,45 @@ export interface WatchTogetherMessage {
   weight?: number;
 }
 
+export interface RemoteSubtitleState {
+  html: string;
+  size: number;
+  weight: number;
+}
+
+export type WatchTogetherMode = 'inactive' | 'local' | 'room-owner' | 'room-viewer';
+
 interface UseWatchTogetherOptions {
   /** Returns the HTMLVideoElement to control, or null when not available. */
   getVideo: () => HTMLVideoElement | null;
   /** Returns the current video source URL (for request-response). */
   getVideoSrc: () => string;
+  /** Returns the current media title for cloud room sync. */
+  getVideoTitle?: () => string;
 }
 
 export function useWatchTogether(options: UseWatchTogetherOptions) {
-  const [isActive, setIsActive] = createSignal(false);
+  const [mode, setMode] = createSignal<WatchTogetherMode>('inactive');
+  const [roomSession, setRoomSession] = createSignal<WatchTogetherRoomSession | null>(null);
+  const [roomState, setRoomState] = createSignal<WatchTogetherRoomState | null>(null);
+  const [remoteSubtitle, setRemoteSubtitle] = createSignal<RemoteSubtitleState | null>(null);
+  const [connectedPeerCount, setConnectedPeerCount] = createSignal(0);
+
+  // Media distribution state exposed to UI
+  const [mediaSendProgress, setMediaSendProgress] = createSignal(0);
+  const [mediaReceiveProgress, setMediaReceiveProgress] = createSignal(0);
+  const [isSendingMedia, setIsSendingMedia] = createSignal(false);
+  const [isReceivingMedia, setIsReceivingMedia] = createSignal(false);
+  const [pendingMediaOffer, setPendingMediaOffer] = createSignal<{ meta: MediaTransferMetadata; handle: MediaOfferHandle } | null>(null);
+  const [mediaSendComplete, setMediaSendComplete] = createSignal(false);
+  const [mediaReceiveResult, setMediaReceiveResult] = createSignal<{ file: Blob; meta: MediaTransferMetadata } | null>(null);
+  const [receivedMediaUrl, setReceivedMediaUrl] = createSignal<{ url: string; title: string } | null>(null);
+  const [roomClosedByHost, setRoomClosedByHost] = createSignal(false);
+
   const cleanups: Array<() => void> = [];
+  const isActive = createMemo(() => mode() !== 'inactive');
+  const canControl = createMemo(() => mode() === 'local' || mode() === 'room-owner');
+  const isRoomMode = createMemo(() => mode() === 'room-owner' || mode() === 'room-viewer');
 
   // ---------------------------------------------------------------------------
   // IPC listeners — registered once and cleaned up on unmount
@@ -40,14 +87,14 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
 
   const bridge = getBridge();
 
-  // When the main process confirms watch-together is available, activate.
   cleanups.push(
     bridge.watchTogether.onWatchTogetherLaunch(() => {
-      setIsActive(true);
+      if (mode() === 'inactive') {
+        setMode('local');
+      }
     }),
   );
 
-  // Incoming messages from tethered clients (forwarded by the web server).
   cleanups.push(
     bridge.watchTogether.onWatchTogetherRequest((raw: unknown) => {
       if (typeof raw === 'string') {
@@ -57,72 +104,436 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   );
 
   onCleanup(() => {
+    const session = roomSession();
+    const accessToken = roomAccessToken;
+    const activeMode = mode();
+
+    cleanupRoomConnection();
+
     for (const cleanup of cleanups) cleanup();
     cleanups.length = 0;
+
+    releaseRoomSession(activeMode, session, accessToken, 'during cleanup');
   });
+
+  // ---------------------------------------------------------------------------
+  // WebRTC peer service + media distribution
+  // ---------------------------------------------------------------------------
+
+  let roomAccessToken = '';
+  let peerServiceRef: PeerServiceInstance | null = null;
+  let mediaDistRef: MediaDistributionInstance | null = null;
+  let latestSubtitleState: RemoteSubtitleState | null = null;
+
+  function handlePeerDataMessage(_fromUserId: string, message: PeerDataMessage): void {
+    // Route media-related messages to the media distribution service
+    if (message.type.startsWith('media-')) {
+      mediaDistRef?.handleDataMessage(_fromUserId, message);
+      return;
+    }
+
+    // Sync messages — only applied when in viewer mode
+    if (mode() !== 'room-viewer') return;
+
+    switch (message.type) {
+      case 'sync-state': {
+        // Notify UI of new media URL so it can load the video
+        if (message.mediaUrl) {
+          const current = receivedMediaUrl();
+          if (!current || current.url !== message.mediaUrl) {
+            setReceivedMediaUrl({ url: message.mediaUrl, title: message.mediaTitle });
+          }
+        }
+
+        if (message.subtitlesHtml) {
+          setRemoteSubtitle({
+            html: message.subtitlesHtml,
+            size: message.subtitleSize ?? 32,
+            weight: message.subtitleWeight ?? 700,
+          });
+        } else {
+          setRemoteSubtitle(null);
+        }
+
+        const video = options.getVideo();
+        if (!video) {
+          return;
+        }
+
+        suppressEvents = true;
+        if (Math.abs(video.currentTime - message.currentTime) > 0.75) {
+          video.currentTime = message.currentTime;
+        }
+        if (Math.abs(video.playbackRate - message.playbackRate) > 0.01) {
+          video.playbackRate = message.playbackRate;
+        }
+        if (message.paused) {
+          video.pause();
+          suppressEvents = false;
+        } else {
+          video.play().finally(() => { suppressEvents = false; });
+        }
+        break;
+      }
+
+      case 'sync-play': {
+        const video = options.getVideo();
+        if (!video) return;
+        suppressEvents = true;
+        if (message.time !== undefined) video.currentTime = message.time;
+        video.play().finally(() => { suppressEvents = false; });
+        break;
+      }
+
+      case 'sync-pause': {
+        const video = options.getVideo();
+        if (!video) return;
+        suppressEvents = true;
+        if (message.time !== undefined) video.currentTime = message.time;
+        video.pause();
+        suppressEvents = false;
+        break;
+      }
+
+      case 'sync-seek': {
+        const video = options.getVideo();
+        if (!video) return;
+        suppressEvents = true;
+        if (message.time !== undefined) video.currentTime = message.time;
+        suppressEvents = false;
+        break;
+      }
+
+      case 'sync-subtitles':
+        setRemoteSubtitle({ html: message.html, size: message.size, weight: message.weight });
+        break;
+    }
+  }
+
+  function setupPeerService(session: WatchTogetherRoomSession, accessToken: string, localUserId: string): void {
+    const signalingConfig: SignalingSocket = {
+      url: session.socket.url,
+      protocol: session.socket.protocol,
+      accessToken,
+    };
+
+    const peerService = createPeerService(signalingConfig, localUserId, {
+      onPeerConnected: () => {
+        setConnectedPeerCount(peerServiceRef?.getConnectedPeerIds().length ?? 0);
+
+        // When a new peer connects and we're the owner, send the current state
+        if (mode() === 'room-owner') {
+          sendFullState();
+        }
+      },
+      onPeerDisconnected: () => {
+        setConnectedPeerCount(peerServiceRef?.getConnectedPeerIds().length ?? 0);
+      },
+      onDataMessage: handlePeerDataMessage,
+      onBinaryChunk: (fromUserId, chunkType, chunkIndex, data) => {
+        mediaDistRef?.handleBinaryChunk(fromUserId, chunkType, chunkIndex, data);
+      },
+      onSignalingError: (error) => {
+        if (error === 'room-closed') {
+          setRoomClosedByHost(true);
+          deactivate();
+          return;
+        }
+        console.error('[WatchTogether] Signaling error:', error);
+      },
+    });
+
+    peerServiceRef = peerService;
+
+    // Set up media distribution
+    mediaDistRef = createMediaDistribution(peerService, {
+      onSendProgress: (progress) => setMediaSendProgress(progress),
+      onSendComplete: () => {
+        setIsSendingMedia(false);
+        setMediaSendComplete(true);
+      },
+      onSendError: (error) => {
+        console.error('[WatchTogether] Media send error:', error);
+        setIsSendingMedia(false);
+      },
+    }, {
+      onOffer: (meta, handle) => {
+        setPendingMediaOffer({ meta, handle });
+      },
+      onReceiveProgress: (progress) => setMediaReceiveProgress(progress),
+      onReceiveComplete: (file, meta) => {
+        setIsReceivingMedia(false);
+        setMediaReceiveResult({ file, meta });
+      },
+      onReceiveError: (error) => {
+        console.error('[WatchTogether] Media receive error:', error);
+        setIsReceivingMedia(false);
+      },
+    });
+  }
+
+  function sendFullState(): void {
+    if (!peerServiceRef || mode() !== 'room-owner') return;
+
+    const video = options.getVideo();
+    const payload: PeerDataMessage = {
+      type: 'sync-state',
+      mediaUrl: options.getVideoSrc(),
+      mediaTitle: options.getVideoTitle?.() || '',
+      currentTime: video?.currentTime ?? 0,
+      paused: video?.paused ?? true,
+      playbackRate: video?.playbackRate ?? 1,
+      subtitlesHtml: latestSubtitleState?.html ?? null,
+      subtitleSize: latestSubtitleState?.size ?? null,
+      subtitleWeight: latestSubtitleState?.weight ?? null,
+    };
+
+    peerServiceRef.sendToAll(payload);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Room state helpers (kept for room metadata, not for real-time sync)
+  // ---------------------------------------------------------------------------
+
+  function applyRoomState(nextRoomState: WatchTogetherRoomState): void {
+    const currentRoomState = roomState();
+    if (
+      currentRoomState
+      && currentRoomState.roomId === nextRoomState.roomId
+      && currentRoomState.stateVersion > nextRoomState.stateVersion
+    ) {
+      return;
+    }
+
+    setRoomState(nextRoomState);
+    setRoomSession((current) => current ? { ...current, room: nextRoomState } : current);
+  }
+
+  async function persistRoomPlaybackState(currentTime: number, paused: boolean, playbackRate: number): Promise<void> {
+    if (mode() !== 'room-owner') {
+      return;
+    }
+
+    const session = roomSession();
+    if (!session?.actions.update_state || !roomAccessToken) {
+      return;
+    }
+
+    try {
+      const updatedSession = await updateWatchTogetherRoomState(session, roomAccessToken, {
+        currentTime,
+        paused,
+        playbackRate,
+      });
+      applyRoomState(updatedSession.room);
+    } catch (error) {
+      console.error('[WatchTogether] Failed to persist room playback state', error);
+    }
+  }
+
+  function cleanupRoomConnection(): void {
+    mediaDistRef?.destroy();
+    mediaDistRef = null;
+    peerServiceRef?.destroy();
+    peerServiceRef = null;
+    roomAccessToken = '';
+    latestSubtitleState = null;
+    setRoomSession(null);
+    setRoomState(null);
+    setRemoteSubtitle(null);
+    setConnectedPeerCount(0);
+    resetMediaState();
+  }
+
+  function resetMediaState(): void {
+    setMediaSendProgress(0);
+    setMediaReceiveProgress(0);
+    setIsSendingMedia(false);
+    setIsReceivingMedia(false);
+    setPendingMediaOffer(null);
+    setMediaSendComplete(false);
+    setMediaReceiveResult(null);
+    setReceivedMediaUrl(null);
+  }
+
+  function releaseRoomSession(
+    activeMode: WatchTogetherMode,
+    session: WatchTogetherRoomSession | null,
+    accessToken: string,
+    context: string,
+  ): void {
+    if (!session || !accessToken) return;
+
+    if (activeMode === 'room-owner') {
+      void closeWatchTogetherRoom(session, accessToken).catch((error) => {
+        console.error(`[WatchTogether] Failed to close room ${context}`, error);
+      });
+      return;
+    }
+
+    if (activeMode === 'room-viewer') {
+      void leaveWatchTogetherRoom(session, accessToken).catch((error) => {
+        console.error(`[WatchTogether] Failed to leave room ${context}`, error);
+      });
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Activate / deactivate
   // ---------------------------------------------------------------------------
 
-  /** Call once to tell the main process we want watch-together mode. */
   function activate(): void {
+    cleanupRoomConnection();
     bridge.watchTogether.isWatchingTogether();
-    setIsActive(true);
+    setMode('local');
   }
 
-  /** Deactivate watch-together — stop broadcasting. */
+  function activateRoomWithUserId(session: WatchTogetherRoomSession, accessToken: string, localUserId: string): void {
+    const previousMode = mode();
+    const previousSession = roomSession();
+    const previousAccessToken = roomAccessToken;
+
+    cleanupRoomConnection();
+    releaseRoomSession(previousMode, previousSession, previousAccessToken, 'while switching rooms');
+    roomAccessToken = accessToken;
+    setRoomSession(session);
+    applyRoomState(session.room);
+    setMode(session.canControl ? 'room-owner' : 'room-viewer');
+
+    setupPeerService(session, accessToken, localUserId);
+  }
+
   function deactivate(): void {
-    setIsActive(false);
+    const activeMode = mode();
+    const session = roomSession();
+    const accessToken = roomAccessToken;
+
+    setMode('inactive');
+    cleanupRoomConnection();
+    releaseRoomSession(activeMode, session, accessToken, 'during manual disconnect');
   }
 
-  /** Toggle watch-together on/off. */
   function toggle(): void {
     if (isActive()) deactivate();
     else activate();
   }
 
+  async function runSuppressed(task: () => void | Promise<void>): Promise<void> {
+    suppressEvents = true;
+    try {
+      await task();
+    } finally {
+      suppressEvents = false;
+    }
+  }
+
   // ---------------------------------------------------------------------------
-  // Outgoing — broadcast local video events to all connected clients
+  // Outgoing — broadcast local video events
   // ---------------------------------------------------------------------------
 
   function send(msg: WatchTogetherMessage): void {
-    if (!isActive()) return;
+    if (mode() !== 'local') return;
     bridge.watchTogether.watchTogetherSend(JSON.stringify(msg));
   }
 
-  /** Call when the local video starts playing. */
   function sendPlay(time: number): void {
-    send({ action: 'play', time });
+    if (mode() === 'local') {
+      send({ action: 'play', time });
+      return;
+    }
+    if (mode() === 'room-owner' && peerServiceRef) {
+      peerServiceRef.sendToAll({ type: 'sync-play', time });
+      void persistRoomPlaybackState(time, false, options.getVideo()?.playbackRate ?? roomState()?.playbackRate ?? 1);
+    }
   }
 
-  /** Call when the local video is paused. */
   function sendPause(time: number): void {
-    send({ action: 'pause', time });
+    if (mode() === 'local') {
+      send({ action: 'pause', time });
+      return;
+    }
+    if (mode() === 'room-owner' && peerServiceRef) {
+      peerServiceRef.sendToAll({ type: 'sync-pause', time });
+      void persistRoomPlaybackState(time, true, options.getVideo()?.playbackRate ?? roomState()?.playbackRate ?? 1);
+    }
   }
 
-  /** Call when the user seeks. */
   function sendSync(time: number): void {
-    send({ action: 'sync', time });
+    if (mode() === 'local') {
+      send({ action: 'sync', time });
+      return;
+    }
+    if (mode() === 'room-owner' && peerServiceRef) {
+      peerServiceRef.sendToAll({ type: 'sync-seek', time });
+      void persistRoomPlaybackState(
+        time,
+        options.getVideo()?.paused ?? roomState()?.paused ?? true,
+        options.getVideo()?.playbackRate ?? roomState()?.playbackRate ?? 1,
+      );
+    }
   }
 
-  /**
-   * Broadcast current subtitle HTML so that tethered clients without their
-   * own subtitles can display the desktop's rendered text.
-   */
   function sendSubtitles(html: string, size: number, weight: number): void {
-    send({ action: 'subtitles', subtitle: html, size, weight });
+    if (mode() === 'local') {
+      send({ action: 'subtitles', subtitle: html, size, weight });
+      return;
+    }
+    latestSubtitleState = { html, size, weight };
+    if (mode() === 'room-owner' && peerServiceRef) {
+      peerServiceRef.sendToAll({ type: 'sync-subtitles', html, size, weight });
+    }
   }
 
   // ---------------------------------------------------------------------------
-  // Incoming — apply remote commands to the local video element
+  // Media distribution
   // ---------------------------------------------------------------------------
 
-  /**
-   * Guard flag: while we are programmatically changing the video (e.g.
-   * setting currentTime, calling play/pause), we suppress the event
-   * listeners on the <video> so they don't re-broadcast back out.
-   */
+  function startMediaDistribution(file: Blob, fileName: string, subtitleContent: string | null): void {
+    if (!mediaDistRef) return;
+    setIsSendingMedia(true);
+    setMediaSendProgress(0);
+    setMediaSendComplete(false);
+    mediaDistRef.startDistribution(file, fileName, subtitleContent);
+  }
+
+  function cancelMediaDistribution(): void {
+    mediaDistRef?.cancelDistribution();
+    setIsSendingMedia(false);
+    setMediaSendProgress(0);
+  }
+
+  function acceptMediaOffer(): void {
+    const offer = pendingMediaOffer();
+    if (!offer) return;
+    offer.handle.accept();
+    setPendingMediaOffer(null);
+    setIsReceivingMedia(true);
+    setMediaReceiveProgress(0);
+  }
+
+  function rejectMediaOffer(): void {
+    const offer = pendingMediaOffer();
+    if (!offer) return;
+    offer.handle.reject();
+    setPendingMediaOffer(null);
+  }
+
+  function clearMediaReceiveResult(): void {
+    setMediaReceiveResult(null);
+  }
+
+  function clearRoomClosedByHost(): void {
+    setRoomClosedByHost(false);
+  }
+
+  function clearReceivedMediaUrl(): void {
+    setReceivedMediaUrl(null);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Incoming — apply remote commands to the local video element (local mode)
+  // ---------------------------------------------------------------------------
+
   let suppressEvents = false;
 
   function handleIncomingMessage(raw: string): void {
@@ -134,14 +545,12 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       return;
     }
 
-    // When not active only respond to new-client sync requests so that
-    // tethered browsers can still get the desktop's state on connect.
-    if (!isActive()) {
+    if (mode() !== 'local') {
       if (!msg.action) {
-        // Empty `{}` from a newly connected client — send current state.
+        if (mode() !== 'inactive') return;
+
         const video = options.getVideo();
         if (video) {
-          // Send directly via IPC even though isActive() is false.
           bridge.watchTogether.watchTogetherSend(JSON.stringify({
             action: 'request-response',
             url: options.getVideoSrc(),
@@ -182,7 +591,6 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         break;
 
       case 'request-response':
-        // Another master sent current state — apply it locally.
         if (video && msg.time !== undefined) {
           suppressEvents = true;
           video.currentTime = msg.time;
@@ -194,8 +602,6 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         }
         break;
 
-      // A new WS client just connected and sent an empty `{}` — respond
-      // with the desktop's current state so the client can sync up.
       default:
         if (video) {
           send({
@@ -210,23 +616,41 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   }
 
   return {
-    /** Whether watch-together mode is currently active. */
+    mode,
     isActive,
-    /** Activate watch-together mode (notifies main process). */
+    isRoomMode,
+    canControl,
+    roomSession,
+    roomState,
+    remoteSubtitle,
+    connectedPeerCount,
     activate,
-    /** Deactivate watch-together mode. */
+    activateRoomWithUserId,
     deactivate,
-    /** Toggle watch-together on/off. */
     toggle,
-    /** Send play event — call from the video 'play' listener. */
     sendPlay,
-    /** Send pause event — call from the video 'pause' listener. */
     sendPause,
-    /** Send sync event — call from the video 'seeked' listener. */
     sendSync,
-    /** Broadcast current subtitle HTML to tethered clients. */
     sendSubtitles,
-    /** True while applying a remote command — suppress re-broadcast. */
+    runSuppressed,
     get isSuppressed() { return suppressEvents; },
+
+    // Media distribution
+    isSendingMedia,
+    isReceivingMedia,
+    mediaSendProgress,
+    mediaReceiveProgress,
+    mediaSendComplete,
+    mediaReceiveResult,
+    pendingMediaOffer,
+    startMediaDistribution,
+    cancelMediaDistribution,
+    acceptMediaOffer,
+    rejectMediaOffer,
+    clearMediaReceiveResult,
+    receivedMediaUrl,
+    roomClosedByHost,
+    clearRoomClosedByHost,
+    clearReceivedMediaUrl,
   };
 }

@@ -317,13 +317,17 @@ export const ANKI_EASE = {
   DEFAULT_KNOWN: 1800,
 } as const;
 
-// Word status (for SRS)
+// Canonical word status type (string-based, used across the app)
+export const WORD_STATUS_VALUES = ['unknown', 'learning', 'known'] as const;
+export type WordStatus = typeof WORD_STATUS_VALUES[number];
+
+// Numeric word status constants (internal storage format for stats service)
 export const WORD_STATUS = {
   UNKNOWN: 0,
   LEARNING: 1,
   KNOWN: 2,
 } as const;
-export type WordStatus = typeof WORD_STATUS[keyof typeof WORD_STATUS];
+export type NumericWordStatus = typeof WORD_STATUS[keyof typeof WORD_STATUS];
 
 // Knowledge sources for word status resolution
 export const KNOWLEDGE_SOURCES = ['srs', 'anki', 'manual'] as const;
@@ -336,6 +340,9 @@ export type KnowledgeResolutionMode = typeof KNOWLEDGE_RESOLUTION_MODES[number];
 // Word hover trigger modes for Reader
 export const WORD_HOVER_TRIGGER_MODES = ['hover', 'long-hover', 'key-hover'] as const;
 export type WordHoverTriggerMode = typeof WORD_HOVER_TRIGGER_MODES[number];
+
+export const PASSIVE_HOVER_FAIL_ACTIONS = ['decrease-ease', 'none'] as const;
+export type PassiveHoverFailAction = typeof PASSIVE_HOVER_FAIL_ACTIONS[number];
 
 // Python download URLs
 // NOTE: Voice TTS uses Kokoro-82M locally (fast, CPU/MPS), Qwen3-TTS (voice cloning), or Cloud TTS.

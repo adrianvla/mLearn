@@ -349,12 +349,25 @@ def quit_endpoint(
 
 @router.get("/ankiWords")
 def anki_words():
-    """Return the set of all expression values loaded in the Anki cache."""
+    """Return cached Anki expression values plus lightweight scheduling metadata."""
     words = set()
+    cards = []
     for card in all_cards:
         val = card.get("fields", {}).get("Expression", {}).get("value", "")
         if val:
             clean = re.sub(r"<[^>]*>", "", val).strip()
             if clean:
                 words.add(clean)
-    return {"words": list(words)}
+                cards.append(
+                    {
+                        "word": clean,
+                        "cardId": card.get("cardId"),
+                        "factor": card.get("factor"),
+                        "due": card.get("due"),
+                        "queue": card.get("queue"),
+                        "type": card.get("type"),
+                        "interval": card.get("interval"),
+                        "mod": card.get("mod"),
+                    }
+                )
+    return {"words": list(words), "cards": cards}

@@ -13,8 +13,6 @@ import { getBridge } from '../../shared/bridges';
 import { getBackend, resetBackend } from '../../shared/backends';
 import { isCapacitor } from '../../shared/platform';
 import { validateAndRefreshCloudSession } from '../services/cloudAuthService';
-import { showToast } from '../components/common/Feedback/Toast';
-import { useLocalization } from './LocalizationContext';
 
 // Context interface
 interface SettingsContextValue {
@@ -23,6 +21,9 @@ interface SettingsContextValue {
   updateSettings: (partial: Partial<Settings>) => void;
   saveSettings: () => void;
   isLoading: () => boolean;
+  isCloudReLoginModalOpen: () => boolean;
+  openCloudReLoginModal: () => void;
+  closeCloudReLoginModal: () => void;
 }
 
 // Create context
@@ -32,9 +33,9 @@ const SettingsContext = createContext<SettingsContextValue>();
 const SETTINGS_CHANNEL = 'mlearn-settings';
 
 export const SettingsProvider: ParentComponent = (props) => {
-  const { t } = useLocalization();
   const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS });
   const [isLoading, setIsLoading] = createSignal(true);
+  const [isCloudReLoginModalOpen, setIsCloudReLoginModalOpen] = createSignal(false);
   // Track whether settings have been loaded from disk at least once
   // This prevents saving default values before real settings are loaded
   const [hasLoaded, setHasLoaded] = createSignal(false);
@@ -42,6 +43,14 @@ export const SettingsProvider: ParentComponent = (props) => {
   let broadcastChannel: BroadcastChannel | null = null;
   const ipcCleanups: Array<() => void> = [];
   let pendingSettingsSnapshot: Settings | null = null;
+
+  const openCloudReLoginModal = () => setIsCloudReLoginModalOpen(true);
+  const closeCloudReLoginModal = () => setIsCloudReLoginModalOpen(false);
+  const syncCloudReLoginModal = (nextSettings: Settings) => {
+    if (nextSettings.cloudAuthStatus === 'signed-in') {
+      closeCloudReLoginModal();
+    }
+  };
 
   const serializeSettings = (value: Settings): Settings => JSON.parse(JSON.stringify(value)) as Settings;
   const resolveBackendUrl = (nextSettings: Settings): string => {
@@ -64,6 +73,7 @@ export const SettingsProvider: ParentComponent = (props) => {
         : loadedSettings;
 
       setSettings(reconcile(mergedSettings));
+      syncCloudReLoginModal(mergedSettings);
       setIsLoading(false);
       setHasLoaded(true);
 
@@ -103,11 +113,7 @@ export const SettingsProvider: ParentComponent = (props) => {
             || mergedSettings.ttsProvider === 'cloud'
             || mergedSettings.flashcardTtsProvider === 'cloud';
           if (usesCloud) {
-            showToast({
-              message: t('mlearn.CloudReLogin.SessionExpired'),
-              variant: 'warning',
-              duration: 8000,
-            });
+            openCloudReLoginModal();
           }
         };
 
@@ -204,6 +210,7 @@ export const SettingsProvider: ParentComponent = (props) => {
     } as Settings;
 
     setSettings(reconcile(nextSettings));
+    syncCloudReLoginModal(nextSettings);
     applySettingsToDOM(nextSettings);
     maybeReconfigureBackend(nextSettings, new Set([key]));
     saveSettings(nextSettings);
@@ -217,6 +224,7 @@ export const SettingsProvider: ParentComponent = (props) => {
     } as Settings;
 
     setSettings(reconcile(nextSettings));
+    syncCloudReLoginModal(nextSettings);
     applySettingsToDOM(nextSettings);
     maybeReconfigureBackend(nextSettings, new Set(Object.keys(partial) as (keyof Settings)[]));
     saveSettings(nextSettings);
@@ -248,6 +256,7 @@ export const SettingsProvider: ParentComponent = (props) => {
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.settings) {
       setSettings(reconcile(event.data.settings));
+      syncCloudReLoginModal(event.data.settings);
       applySettingsToDOM(event.data.settings);
     }
   };
@@ -275,6 +284,9 @@ export const SettingsProvider: ParentComponent = (props) => {
     updateSettings,
     saveSettings,
     isLoading,
+    isCloudReLoginModalOpen,
+    openCloudReLoginModal,
+    closeCloudReLoginModal,
   };
 
   return (

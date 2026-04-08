@@ -104,7 +104,10 @@ const mockSettings: Settings = {
   llmEnabled: false,
   flashcardAutoGenerateAudio: false,
   passiveEaseEnabled: true,
-  passiveHoverDelayMs: 150,
+  passiveHoverDelayMs: 300,
+  passiveHoverFailCount: 1,
+  passiveHoverFailAction: 'decrease-ease',
+  passiveHoverEaseDecrease: 0.05,
   known_ease_threshold: 4000,
 };
 
@@ -1045,6 +1048,153 @@ describe('FlashcardProvider', () => {
 
     mockSettings.passiveEaseEnabled = prevEnabled;
     dispose();
+  });
+
+  it('trackWordHovered waits for passiveHoverDelayMs before counting an attempt', async () => {
+    vi.useFakeTimers();
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const prevDelay = mockSettings.passiveHoverDelayMs;
+    mockSettings.passiveHoverDelayMs = 300;
+
+    ctx.trackWordHovered('遅延');
+
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('遅延');
+    const lk = `ja:${hash}`;
+
+    await vi.advanceTimersByTimeAsync(299);
+    expect(ctx.store.wordKnowledge[lk]).toBeUndefined();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(ctx.store.wordKnowledge[lk]?.timesHovered).toBe(1);
+
+    mockSettings.passiveHoverDelayMs = prevDelay;
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('trackWordHovered counts attempts before lowering ease', async () => {
+    vi.useFakeTimers();
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const prevCount = mockSettings.passiveHoverFailCount;
+    mockSettings.passiveHoverFailCount = 2;
+
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+
+    ctx.trackWordHovered('学校');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+
+    expect(ctx.store.wordKnowledge[lk]?.timesHovered).toBe(1);
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
+
+    ctx.trackWordHovered('学校');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+
+    expect(ctx.store.wordKnowledge[lk]?.timesHovered).toBe(2);
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBeCloseTo(2.45, 2);
+
+    mockSettings.passiveHoverFailCount = prevCount;
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('trackWordHovered respects passiveHoverFailAction="none"', async () => {
+    vi.useFakeTimers();
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const prevAction = mockSettings.passiveHoverFailAction;
+    mockSettings.passiveHoverFailAction = 'none';
+
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('不変');
+    const lk = `ja:${hash}`;
+
+    ctx.trackWordHovered('不変');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+
+    expect(ctx.store.wordKnowledge[lk]?.timesHovered).toBe(1);
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(2.5);
+
+    mockSettings.passiveHoverFailAction = prevAction;
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('trackWordHovered respects passiveHoverEaseDecrease', async () => {
+    vi.useFakeTimers();
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const prevDecrease = mockSettings.passiveHoverEaseDecrease;
+    mockSettings.passiveHoverEaseDecrease = 0.2;
+
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('減少');
+    const lk = `ja:${hash}`;
+
+    ctx.trackWordHovered('減少');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBeCloseTo(2.3, 2);
+
+    mockSettings.passiveHoverEaseDecrease = prevDecrease;
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('trackWordHovered does not decrease ease below the SRS minimum', async () => {
+    vi.useFakeTimers();
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('下限');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: {
+          ease: 1.35,
+          lastSeen: Date.now(),
+          timesSeen: 0,
+          timesHovered: 0,
+          word: '下限',
+          language: 'ja',
+        },
+      },
+    }));
+
+    const prevDecrease = mockSettings.passiveHoverEaseDecrease;
+    mockSettings.passiveHoverEaseDecrease = 0.2;
+
+    ctx.trackWordHovered('下限');
+    await vi.advanceTimersByTimeAsync(mockSettings.passiveHoverDelayMs);
+
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBeCloseTo(SRS.MIN_EASE, 2);
+
+    mockSettings.passiveHoverEaseDecrease = prevDecrease;
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('trackWordHovered does nothing when passiveEaseEnabled is false', async () => {
+    vi.useFakeTimers();
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const prevEnabled = mockSettings.passiveEaseEnabled;
+    mockSettings.passiveEaseEnabled = false;
+
+    ctx.trackWordHovered('無効ホバー');
+    await vi.runAllTimersAsync();
+
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('無効ホバー');
+    const lk = `ja:${hash}`;
+    expect(ctx.store.wordKnowledge[lk]).toBeUndefined();
+
+    mockSettings.passiveEaseEnabled = prevEnabled;
+    dispose();
+    vi.useRealTimers();
   });
 
   // ─── Priority 2: Grammar tracking ─────────────────────────────────
