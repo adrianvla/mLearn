@@ -916,6 +916,10 @@
     },
     "KanjiGrid": {
       "CharactersByExamLevel": "Caractères par niveau d'examen :",
+      "Disclaimer": {
+        "Description": "Les kanji JLPT affichés ici sont déduits à partir des mots associés à chaque niveau JLPT, puis extraits de ces mots. Cette grille reste donc approximative : certains niveaux contiennent des mots dont les kanji eux-mêmes ne sont pas forcément requis.",
+        "Title": "Les kanji JLPT sont estimés"
+      },
       "Description": "Couleurs : en apprentissage (orange→jaune), connu (vert→vert clair), inconnu (gris). Survolez pour les détails.",
       "EmptyState": {
         "Description": "Les caractères rencontrés dans les vidéos ou le texte apparaîtront ici.",
