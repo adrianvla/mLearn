@@ -16,7 +16,7 @@ import {
   getWordsLearnedInApp,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
-import { Spinner, PillLabel, LegendItem, BookIcon } from '../../components/common';
+import { Spinner, PillLabel, LegendItem, BookIcon, AlertBanner } from '../../components/common';
 import './kanjiGrid.css';
 
 interface KanjiData {
@@ -98,6 +98,10 @@ export const KanjiGridContent: Component = () => {
   const sortedLevelKeys = createMemo(() => {
     const keys = Object.keys(levelNames()).map(Number).filter(n => !isNaN(n));
     return keys.sort((a, b) => b - a);
+  });
+
+  const showJlptDisclaimer = createMemo(() => {
+    return Object.values(levelNames()).some(levelName => levelName.toUpperCase().includes('JLPT'));
   });
 
   // Calculate stats
@@ -334,9 +338,9 @@ export const KanjiGridContent: Component = () => {
         <div class="kg-sidebar">
           {/* Legend */}
           <div class="kg-legend">
-            <LegendItem label={t('mlearn.KanjiGrid.Legend.Learning')} color="#E65100" secondaryColor="#FFEB3B" showArrow />
-            <LegendItem label={t('mlearn.KanjiGrid.Legend.Known')} color="#2E7D32" secondaryColor="#81C784" showArrow />
-            <LegendItem label={t('mlearn.KanjiGrid.Legend.Unknown')} color="#616161" />
+            <LegendItem label={t('mlearn.KanjiGrid.Legend.Learning')} color="var(--pos-auxiliary)" secondaryColor="var(--color-warning)" showArrow />
+            <LegendItem label={t('mlearn.KanjiGrid.Legend.Known')} color="var(--color-success)" secondaryColor="var(--color-success-lighter)" showArrow />
+            <LegendItem label={t('mlearn.KanjiGrid.Legend.Unknown')} color="var(--kanji-grid-unknown-bg)" />
           </div>
 
           {/* Stats */}
@@ -351,6 +355,15 @@ export const KanjiGridContent: Component = () => {
           <Show when={sortedLevelKeys().length > 0}>
             <div class="kg-levels">
               <p>{t('mlearn.KanjiGrid.CharactersByExamLevel')}</p>
+              <Show when={showJlptDisclaimer()}>
+                <AlertBanner
+                  variant="info"
+                  size="sm"
+                  class="kg-disclaimer"
+                  title={t('mlearn.KanjiGrid.Disclaimer.Title')}
+                  message={t('mlearn.KanjiGrid.Disclaimer.Description')}
+                />
+              </Show>
               <div class="level-pills">
                 <For each={sortedLevelKeys()}>
                   {(level) => {

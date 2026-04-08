@@ -163,6 +163,11 @@
   margin-bottom: 0.75rem;
 }
 
+.kg-disclaimer {
+  align-items: flex-start;
+  margin: 0 0 0.75rem;
+}
+
 .level-pills {
   display: flex;
   flex-wrap: wrap;

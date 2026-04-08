@@ -916,6 +916,10 @@
     },
     "KanjiGrid": {
       "CharactersByExamLevel": "Zeichen nach Prüfungsstufe:",
+      "Disclaimer": {
+        "Description": "Die hier gezeigten JLPT-Kanji werden aus den Wörtern abgeleitet, die einer JLPT-Stufe zugeordnet sind, und dann aus diesen Wörtern extrahiert. Daher ist das Raster nur näherungsweise: Manche Stufen enthalten Wörter, deren Kanji selbst nicht zwingend verlangt werden.",
+        "Title": "JLPT-Kanji sind nur geschätzt"
+      },
       "Description": "Farben: lernend (orange→gelb), bekannt (grün→hellgrün), unbekannt (grau). Hovern für Details.",
       "EmptyState": {
         "Description": "Zeichen aus Videos oder Texten erscheinen hier.",

@@ -916,6 +916,10 @@
     },
     "KanjiGrid": {
       "CharactersByExamLevel": "Characters by exam level:",
+      "Disclaimer": {
+        "Description": "JLPT kanji here are inferred from the words assigned to each JLPT level, then extracted from those words. That makes this grid approximate: some levels include words whose kanji are not themselves required.",
+        "Title": "JLPT kanji are estimated"
+      },
       "Description": "Colors: learning (orange→yellow), known (green→light-green); unknown (gray). Hover for details.",
       "EmptyState": {
         "Description": "Characters will appear here as you encounter them in videos and texts.",

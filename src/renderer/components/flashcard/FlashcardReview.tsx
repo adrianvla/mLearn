@@ -17,7 +17,6 @@ import { showToast } from '../common/Feedback/Toast';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import type { ButtonVariant } from '../common/Button/Button';
 import type { Rating } from '../../services/srsAlgorithm';
-import * as SRS from '../../services/srsAlgorithm';
 import { getSessionProgress } from './flashcardReviewSession';
 import './FlashcardReview.css';
 
@@ -31,7 +30,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const { t } = useLocalization();
   const {
     store,
-    queue,
     queueCounts,
     getCurrentCard,
     getPreviewDueDates,
@@ -42,7 +40,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     canUndo,
     refreshQueue,
     dueDateToString,
-    intervalToString,
     generateExampleSentenceWithLLM,
     updateFlashcardContent,
     updateFlashcard,
@@ -50,8 +47,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const [showAnswer, setShowAnswer] = createSignal(false);
   const [isComplete, setIsComplete] = createSignal(false);
-  const [isWaiting, setIsWaiting] = createSignal(false);
-  const [waitingTimeStr, setWaitingTimeStr] = createSignal('');
   const [cardsAnswered, setCardsAnswered] = createSignal(0);
   const [showTtsModal, setShowTtsModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
@@ -150,49 +145,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
   });
 
-  // Track timer for waiting-for-cards auto-refresh
-  let waitingTimer: ReturnType<typeof setTimeout> | null = null;
-  let waitingCountdownTimer: ReturnType<typeof setInterval> | null = null;
-  
-  const clearWaitingTimers = () => {
-    if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
-    if (waitingCountdownTimer) { clearInterval(waitingCountdownTimer); waitingCountdownTimer = null; }
-  };
-  
-  onCleanup(clearWaitingTimers);
-
-  // Check if session is complete or waiting for learning cards
+  // Check if session is complete
   createEffect(() => {
     const card = currentCard();
     const total = counts().total;
-    const nextDue = SRS.getNextPendingLearningDueDate(queue(), store.flashcards, settings.newDayHour ?? 4);
-
-    if (!card && nextDue !== null) {
-      setIsComplete(false);
-      setIsWaiting(true);
-
-      const updateWaitingStr = () => {
-        const remaining = nextDue - Date.now();
-        if (remaining <= 0) {
-          setWaitingTimeStr('');
-        } else {
-          setWaitingTimeStr(intervalToString(remaining));
-        }
-      };
-      updateWaitingStr();
-
-      clearWaitingTimers();
-      waitingCountdownTimer = setInterval(updateWaitingStr, 1000);
-      waitingTimer = setTimeout(() => {
-        clearWaitingTimers();
-        refreshQueue();
-        setIsWaiting(false);
-      }, Math.max(0, nextDue - Date.now()));
-      return;
-    }
-
-    clearWaitingTimers();
-    setIsWaiting(false);
 
     if (!card && total === 0) {
       setIsComplete(true);
@@ -333,11 +289,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   const handleStartOver = () => {
-    clearWaitingTimers();
     refreshQueue();
     setShowAnswer(false);
     setIsComplete(false);
-    setIsWaiting(false);
     setCardsAnswered(0);
   };
 
@@ -505,49 +459,34 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           </div>
         </div>
 
-        {/* Card or completion/waiting screen */}
+        {/* Card or completion screen */}
         <Show
-            when={!isComplete() && !isWaiting() && currentCard()}
+            when={!isComplete() && currentCard()}
             fallback={
-              <Show when={isWaiting()} fallback={
-                <Panel
-                    variant="default"
-                    rounded="xl"
-                    class="flashcard-completion"
-                >
-                  <h2 class="flashcard-completion-title">
-                    {t('mlearn.Flashcards.Review.Complete')}
-                  </h2>
-                  <p class="flashcard-completion-text">
-                    {t('mlearn.Flashcards.Review.CompleteDescription')}
-                  </p>
-                  <div class="flashcard-completion-actions">
-                    <Show when={Object.keys(store.flashcards).length > 0}>
-                      <Button buttonType="default" variant="primary" onClick={handleStartOver}>
-                        {t('mlearn.Flashcards.Review.ReviewMore')}
-                      </Button>
-                    </Show>
-                    <Show when={props.onClose}>
-                      <Button buttonType="default" onClick={props.onClose}>
-                        {t('mlearn.Global.Close')}
-                      </Button>
-                    </Show>
-                  </div>
-                </Panel>
-              }>
-                <Panel
-                    variant="default"
-                    rounded="xl"
-                    class="flashcard-completion"
-                >
-                  <h2 class="flashcard-completion-title">
-                    {t('mlearn.Flashcards.Review.WaitingTitle')}
-                  </h2>
-                  <p class="flashcard-completion-text">
-                    {t('mlearn.Flashcards.Review.WaitingDescription', { time: waitingTimeStr() })}
-                  </p>
-                </Panel>
-              </Show>
+              <Panel
+                  variant="default"
+                  rounded="xl"
+                  class="flashcard-completion"
+              >
+                <h2 class="flashcard-completion-title">
+                  {t('mlearn.Flashcards.Review.Complete')}
+                </h2>
+                <p class="flashcard-completion-text">
+                  {t('mlearn.Flashcards.Review.CompleteDescription')}
+                </p>
+                <div class="flashcard-completion-actions">
+                  <Show when={Object.keys(store.flashcards).length > 0}>
+                    <Button buttonType="default" variant="primary" onClick={handleStartOver}>
+                      {t('mlearn.Flashcards.Review.ReviewMore')}
+                    </Button>
+                  </Show>
+                  <Show when={props.onClose}>
+                    <Button buttonType="default" onClick={props.onClose}>
+                      {t('mlearn.Global.Close')}
+                    </Button>
+                  </Show>
+                </div>
+              </Panel>
             }
         >
           {/* Card state indicator */}
