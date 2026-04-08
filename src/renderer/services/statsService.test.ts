@@ -131,6 +131,21 @@ describe('statsService', () => {
       expect(getWordStatus('hello')).toBe(2);
     });
 
+    it('falls back to alias word forms when the preferred form is not stored yet', async () => {
+      const { setWordStatus, getWordStatus } = await import('./statsService');
+      setWordStatus('なかま', 1);
+      expect(getWordStatus('仲間', ['なかま'])).toBe(1);
+    });
+
+    it('removes alias statuses when saving the preferred word form', async () => {
+      const { setWordStatus, getWordStatus, getWordsLearnedInApp } = await import('./statsService');
+      setWordStatus('なかま', 1);
+      setWordStatus('仲間', 2, ['なかま']);
+
+      expect(getWordStatus('仲間', ['なかま'])).toBe(2);
+      expect(getWordsLearnedInApp()).not.toHaveProperty('なかま');
+    });
+
     it('returns UNKNOWN (0) for unseen words', async () => {
       const { getWordStatus } = await import('./statsService');
       expect(getWordStatus('nonexistent_word_xyz')).toBe(0);

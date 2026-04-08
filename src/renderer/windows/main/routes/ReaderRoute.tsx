@@ -24,14 +24,23 @@ import { isPdfFile, pdfToImages } from '../../../services/pdfService';
 import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumbnailService';
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
-import { wordsLearnedInApp } from '../../../services/statsService';
-import { buildWordHoverFlashcardContent, getEffectiveWordStatus, numericToWordStatus, getAnkiEaseForStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { getWordStatus } from '../../../services/statsService';
+import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
-import { isWordInAnkiCache } from '../../../services/ankiWordsCache';
+import { findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { syncReaderPluginActivity } from './readerPluginActivity';
+import { getVisiblePageIndices, type ReaderPageMode } from './readerPageLayout';
+import { getWordFormCandidates } from '../../../utils/wordForms';
+import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
+import {
+  getWebkitEntry,
+  isWebkitDirectoryEntry,
+  isWebkitFileEntry,
+  type WebkitFileSystemAnyEntry,
+} from '../../../utils/webkitFileSystem';
 import './reader.css';
 
 interface PageImage {
@@ -43,7 +52,7 @@ interface PageImage {
 }
 
 type FitMode = 'fit-height' | 'fit-width';
-type PageMode = 'double' | 'single';
+type PageMode = ReaderPageMode;
 
 interface ReaderPageWordSource {
   key: string;
@@ -117,6 +126,23 @@ export const ReaderRoute: Component = () => {
   const anki = useAnki();
   const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm } = langCtx;
   const { translateWord } = useTranslation({ immediate: true });
+  const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm);
+  const getManualWordStatus = (word: string): WordStatus => {
+    const forms = getWordForms(word);
+    return numericToWordStatus(getWordStatus(forms[0] ?? word, forms.slice(1)));
+  };
+  const getTrackedAnkiWord = (word: string): string | null => {
+    if (!settings.use_anki) return null;
+    return findAnkiWordMatchInCache(getWordForms(word))?.word ?? null;
+  };
+  const getAnkiKnowledgeStatus = (word: string): WordStatus | null => {
+    if (!settings.use_anki) return null;
+    return getAnkiWordKnowledgeStatus(
+      findAnkiWordMatchInCache(getWordForms(word))?.cards,
+      settings.ankiLearningThreshold,
+      settings.ankiKnownThreshold,
+    );
+  };
   const { tokenize } = useTokenizer();
   const { lookup } = useDictionary();
   const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
@@ -282,7 +308,7 @@ export const ReaderRoute: Component = () => {
       }
     }
 
-    const hasEntries = items.some((item) => typeof (item as any).webkitGetAsEntry === 'function');
+    const hasEntries = items.some((item) => getWebkitEntry(item) !== null);
     if (!hasEntries) {
       // No webkit entries - just regular files dropped
       // Extract folder path from first file's parent directory
@@ -295,14 +321,14 @@ export const ReaderRoute: Component = () => {
     let droppedFolderName: string | null = null;
     let droppedFolderPath: string | null = null;
 
-    const readEntry = async (entry: any, isTopLevel: boolean = false): Promise<File[]> => {
+    const readEntry = async (entry: WebkitFileSystemAnyEntry | null, isTopLevel: boolean = false): Promise<File[]> => {
       if (!entry) return [];
-      if (entry.isFile) {
+      if (isWebkitFileEntry(entry)) {
         return new Promise((resolve) => {
           entry.file((file: File) => resolve([file]));
         });
       }
-      if (entry.isDirectory) {
+      if (isWebkitDirectoryEntry(entry)) {
         // Capture the folder name and path from the top-level directory entry
         if (isTopLevel && !droppedFolderName) {
           droppedFolderName = entry.name;
@@ -311,11 +337,11 @@ export const ReaderRoute: Component = () => {
           droppedFolderPath = rawFilePath;
         }
         const reader = entry.createReader();
-        const entries: any[] = [];
+        const entries: WebkitFileSystemAnyEntry[] = [];
         const readAll = (): Promise<void> => new Promise((resolve) => {
-          reader.readEntries((batch: any[]) => {
+          reader.readEntries((batch) => {
             if (batch.length === 0) return resolve();
-            entries.push(...batch);
+            entries.push(...batch.filter((child): child is WebkitFileSystemAnyEntry => child !== null));
             resolve(readAll());
           });
         });
@@ -328,8 +354,8 @@ export const ReaderRoute: Component = () => {
 
     const entryFiles = await Promise.all(
         items
-            .map((item) => (item as any).webkitGetAsEntry?.())
-            .filter(Boolean)
+        .map((item) => getWebkitEntry(item))
+        .filter((entry): entry is WebkitFileSystemAnyEntry => entry !== null)
             .map((entry) => readEntry(entry, true))
     );
 
@@ -342,24 +368,19 @@ export const ReaderRoute: Component = () => {
     return { files: entryFiles.flat(), droppedFolderName, droppedFolderPath, rawFilePaths };
   };
 
-  const visiblePages = () => {
-    const p = pages();
-    const curr = currentPage();
+  const visiblePageIndices = createMemo(() => getVisiblePageIndices(
+    pages().length,
+    currentPage(),
+    pageMode(),
+    firstPageSingle(),
+  ));
 
-    if (pageMode() === 'single') {
-      return p[curr] ? [p[curr]] : [];
-    } else {
-      // Double page mode
-      // If firstPageSingle is true and we're on page 0, show only page 0
-      if (firstPageSingle() && curr === 0) {
-        return p[0] ? [p[0]] : [];
-      }
-      const result: PageImage[] = [];
-      if (p[curr]) result.push(p[curr]);
-      if (p[curr + 1]) result.push(p[curr + 1]);
-      return result;
-    }
-  };
+  const visiblePages = createMemo(() => {
+    const allPages = pages();
+    return visiblePageIndices()
+      .map((pageIndex) => allPages[pageIndex])
+      .filter((page): page is PageImage => page !== undefined);
+  });
 
   createEffect(on(currentBookId, () => {
     setOcrPageWords(reconcile({}));
@@ -419,7 +440,6 @@ export const ReaderRoute: Component = () => {
   };
 
   const visibleUnknownWords = createMemo<ReaderUnknownWordEntry[]>(() => {
-    const manualStatuses = wordsLearnedInApp();
     const deduped = new Map<string, ReaderUnknownWordEntry>();
 
     for (const page of visiblePages()) {
@@ -433,10 +453,10 @@ export const ReaderRoute: Component = () => {
           continue;
         }
 
-        const manualStatus = numericToWordStatus(manualStatuses[entry.word] ?? WORD_STATUS.UNKNOWN);
+        const manualStatus = getManualWordStatus(entry.word);
         const effectiveStatus = getEffectiveWordStatus(
           flashcardCtx.getCardByWordSync(entry.word), manualStatus,
-          settings.use_anki && isWordInAnkiCache(entry.word),
+          getAnkiKnowledgeStatus(entry.word),
           settings.knowledgeSourceOrder, settings.knowledgeResolutionMode,
         );
         if (effectiveStatus === 'known') {
@@ -454,6 +474,18 @@ export const ReaderRoute: Component = () => {
     return Array.from(deduped.values());
   });
 
+  const failedSidebarWordSet = createMemo<Set<string>>(() => {
+    const failedWords = new Set<string>();
+
+    for (const entry of Object.values(mediaStats.stats().wordsEncountered)) {
+      if (isWordMarkedFailed(entry, settings)) {
+        failedWords.add(entry.word);
+      }
+    }
+
+    return failedWords;
+  });
+
   const addReaderWordFlashcard = async (entry: ReaderPageWordSource) => {
     setAddingSidebarWords((prev) => {
       const next = new Set(prev);
@@ -465,7 +497,7 @@ export const ReaderRoute: Component = () => {
       const translationData = getCachedTranslation(entry.word) ?? await translateWord(entry.word);
       const image = imageRefs()[entry.pageId] || null;
       const anchorRect = getAnchorRectForWord(entry);
-      const manualStatus = numericToWordStatus(wordsLearnedInApp()[entry.word] ?? WORD_STATUS.UNKNOWN);
+      const manualStatus = getManualWordStatus(entry.word);
       const frequency = langCtx.getFrequency(entry.word);
       const { content, ease } = await buildWordHoverFlashcardContent({
         token: entry.token,
@@ -520,11 +552,14 @@ export const ReaderRoute: Component = () => {
         if (flashcardCtx.hasWordSync(entry.word) || flashcardCtx.isWordIgnoredSync(entry.word)) {
           continue;
         }
-        if (settings.use_anki && isWordInAnkiCache(entry.word)) {
-          const status = numericToWordStatus(wordsLearnedInApp()[entry.word] ?? WORD_STATUS.LEARNING);
+        const trackedAnkiWord = getTrackedAnkiWord(entry.word);
+        if (trackedAnkiWord) {
+          const forms = getWordForms(entry.word);
+          const storedStatus = getWordStatus(forms[0] ?? entry.word, forms.slice(1));
+          const status = numericToWordStatus(storedStatus === WORD_STATUS.UNKNOWN ? WORD_STATUS.LEARNING : storedStatus);
           const ankiEase = getAnkiEaseForStatus(status, settings.ankiLearningEase, settings.ankiKnownEase);
           try {
-            await anki.updateWordCards(entry.word, ankiEase);
+            await anki.updateWordCards(trackedAnkiWord, ankiEase);
           } catch (err) {
             console.error(`Failed to update Anki cards for "${entry.word}":`, err);
             showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
@@ -559,9 +594,7 @@ export const ReaderRoute: Component = () => {
     const base = currentPage();
     const isDouble = pageMode() === 'double';
 
-    // Determine visible pages
-    const visibleIndices: number[] = [base];
-    if (isDouble) visibleIndices.push(base + 1);
+    const visibleIndices = visiblePageIndices();
 
     // Determine caching pages (next 2)
     const nextStart = base + (isDouble ? 2 : 1);
@@ -778,12 +811,11 @@ export const ReaderRoute: Component = () => {
     const currentTask = processingTask();
     const queue = ocrQueue();
     const visible = visiblePages();
-    const currPageIdx = currentPage();
+    const visibleIndices = visiblePageIndices();
     const isDouble = pageMode() === 'double';
 
-    // Visible page index range
-    const visibleStart = currPageIdx;
-    const visibleEnd = isDouble ? currPageIdx + 1 : currPageIdx;
+    const visibleStart = visibleIndices[0] ?? currentPage();
+    const visibleEnd = visibleIndices[visibleIndices.length - 1] ?? currentPage();
 
     // Maximum visible pages based on layout mode - this is the Y in "X/Y"
     const maxVisibleCount = isDouble ? 2 : 1;
@@ -1627,7 +1659,7 @@ export const ReaderRoute: Component = () => {
       }
     }
 
-    const failedWords = Array.from(mediaWords.values()).filter((w) => w.ease < 2.5 || w.timesHovered > 0);
+    const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));
     const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
 
     const context: ConversationAgentContext = {
@@ -1710,8 +1742,7 @@ export const ReaderRoute: Component = () => {
         <Show when={showSidebar()}>
           <ReaderSidebar
               pages={pages}
-              currentPage={currentPage}
-              pageMode={pageMode}
+              activePageIndices={visiblePageIndices}
               hasOcrForPage={hasOcrForPage}
               onGoToPage={goToPage}
           />
@@ -1756,10 +1787,9 @@ export const ReaderRoute: Component = () => {
                   // Uses latched status from signal to prevent text changes during fade-out
                   const getStatusText = () => {
                     const waiting = isWaitingForOcr();
-                    const currPageIdx = currentPage();
-                    const isDouble = pageMode() === 'double';
-                    const visibleStart = currPageIdx;
-                    const visibleEnd = isDouble ? currPageIdx + 1 : currPageIdx;
+                    const visibleIndices = visiblePageIndices();
+                    const visibleStart = visibleIndices[0] ?? currentPage();
+                    const visibleEnd = visibleIndices[visibleIndices.length - 1] ?? currentPage();
 
                     // Compute a fresh status if possible; otherwise use latched status
                     let computed: string | null = null;
@@ -1857,6 +1887,7 @@ export const ReaderRoute: Component = () => {
               words={visibleUnknownWords}
               addingWordKeys={addingSidebarWords}
               isAddingAll={isAddingAllSidebarWords}
+              failedWordSet={failedSidebarWordSet}
               onAddWord={handleAddSidebarWord}
               onAddAll={handleAddAllSidebarWords}
               onIgnoreWord={handleIgnoreSidebarWord}

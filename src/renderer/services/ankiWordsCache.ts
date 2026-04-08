@@ -7,10 +7,17 @@
  */
 
 import { getBackend } from '../../shared/backends';
+import type { AnkiWordStatusRecord } from '../../shared/backends/types';
 
 let ankiWordsSet: Set<string> = new Set();
+let ankiWordCardsMap: Map<string, AnkiWordStatusRecord[]> = new Map();
 let fetched = false;
 let fetchPromise: Promise<Set<string>> | null = null;
+
+export interface AnkiWordCacheMatch {
+  word: string;
+  cards: readonly AnkiWordStatusRecord[];
+}
 
 /** Fetch (or return cached) the set of all words in Anki */
 export async function fetchAnkiWordsCache(): Promise<Set<string>> {
@@ -19,8 +26,27 @@ export async function fetchAnkiWordsCache(): Promise<Set<string>> {
 
   fetchPromise = (async () => {
     try {
-      const words = await getBackend().getAnkiWords();
-      ankiWordsSet = new Set(words);
+      const cards = await getBackend().getAnkiWordStatuses();
+      const nextSet = new Set<string>();
+      const nextMap = new Map<string, AnkiWordStatusRecord[]>();
+
+      for (const card of cards) {
+        const word = typeof card.word === 'string' ? card.word.trim() : '';
+        if (!word) {
+          continue;
+        }
+
+        nextSet.add(word);
+        const existing = nextMap.get(word);
+        if (existing) {
+          existing.push(card);
+        } else {
+          nextMap.set(word, [card]);
+        }
+      }
+
+      ankiWordsSet = nextSet;
+      ankiWordCardsMap = nextMap;
       fetched = true;
     } catch (e) {
       console.error(e);
@@ -38,6 +64,27 @@ export function isWordInAnkiCache(word: string): boolean {
   return ankiWordsSet.has(word);
 }
 
+/** Return the first matched Anki cache entry, preserving candidate priority. */
+export function findAnkiWordMatchInCache(words: readonly string[]): AnkiWordCacheMatch | null {
+  for (const word of words) {
+    if (!word) {
+      continue;
+    }
+
+    const cards = ankiWordCardsMap.get(word);
+    if (cards && cards.length > 0) {
+      return { word, cards };
+    }
+  }
+
+  return null;
+}
+
+/** Return the first candidate word that exists in the Anki cache */
+export function findWordInAnkiCache(words: readonly string[]): string | null {
+  return findAnkiWordMatchInCache(words)?.word ?? null;
+}
+
 /** Check whether the cache has been populated */
 export function isAnkiCacheFetched(): boolean {
   return fetched;
@@ -47,5 +94,7 @@ export function isAnkiCacheFetched(): boolean {
 export async function refreshAnkiWordsCache(): Promise<Set<string>> {
   fetched = false;
   fetchPromise = null;
+  ankiWordsSet = new Set();
+  ankiWordCardsMap = new Map();
   return fetchAnkiWordsCache();
 }

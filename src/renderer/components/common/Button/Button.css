@@ -4,8 +4,20 @@
  * Note: Spin animation is defined globally in index.css
  */
 
-.btn-spinner {
-  animation: spin 1s linear infinite;
+.btn-loading-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-loading-spinner.loader-spinner,
+.btn-loading-spinner .loader-spinner {
+  gap: 0;
+}
+
+.btn-loading-spinner .loader-spinner-circle {
+  border-color: currentColor;
+  border-right-color: transparent;
 }
 
 /* ============ Base Button Styles ============ */

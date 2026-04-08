@@ -62,7 +62,7 @@
   height: 30px;
   border-radius: var(--radius-md);
   flex-shrink: 0;
-  color: #fff;
+  color: var(--mobile-settings-icon-color);
 }
 
 .mobile-settings-icon {
@@ -115,7 +115,7 @@
 .mobile-settings-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--mobile-settings-backdrop);
   opacity: 0;
   transition: opacity 0.35s cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -218,7 +218,7 @@
 .mobile-settings-scroll::after {
   content: '';
   display: block;
-  height: calc(var(--mobile-tabbar-height, 56px) + env(safe-area-inset-bottom) + var(--spacing-3));
+  height: calc(var(--mobile-tabbar-height) + env(safe-area-inset-bottom) + var(--spacing-3));
   flex-shrink: 0;
 }
 
@@ -226,7 +226,7 @@
 
 .mobile-settings-title-area {
   padding: var(--spacing-2) var(--spacing-4) var(--spacing-1);
-  opacity: calc(1 - var(--title-progress, 0));
+  opacity: calc(1 - var(--title-progress));
 }
 
 .mobile-settings-back {

@@ -5,6 +5,7 @@ body.theme-dark-high-contrast {
     --bg-opaque: #000;
     --bg-nt-primary: rgb(26,26,26);
     --bg-nt-secondary: rgb(38,38,38);
+    --kanji-grid-unknown-bg: #616161;
     --text-primary: white;
     --text-secondary: white;
     --text-tertiary: white;

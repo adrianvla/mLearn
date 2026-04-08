@@ -6,9 +6,10 @@
 
 import { Component, Show, For, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
 import { Btn, PillLabel, StatusLabel, numericToStatus, statusToNumeric, getNextStatus, PitchAccentOverlay, AnkiHoverPreview, Tooltip } from '../../../components/common';
-import type { AnkiCardFields } from '../../../components/common';
+import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
 import { useLocalization } from '../../../context';
 import { getCachedTranslation, getCachedReading, fetchTranslation } from '../../../hooks/useTranslation';
+import { extractPitchPosition } from '../../../utils/translationCacheParsers';
 import type { TranslationResponse, TranslationEntry } from '../../../../shared/types';
 import { containsKanji, isAllKana } from '../../../../shared/utils/textUtils';
 import './WordEntryRow.css';
@@ -71,29 +72,8 @@ function extractTranslation(resp: TranslationResponse): string {
 function extractPitchFromCache(word: string): number | null {
   const cached = getCachedTranslation(word);
   if (!cached?.data) return null;
-  const pitchEntry = cached.data[2];
-  if (!pitchEntry) return null;
-  if (Array.isArray(pitchEntry) && (pitchEntry as any)[2]?.pitches?.[0]?.position !== undefined) {
-    return (pitchEntry as any)[2].pitches[0].position;
-  }
-  if ((pitchEntry as any)?.pitches?.[0]?.position !== undefined) {
-    return (pitchEntry as any).pitches[0].position;
-  }
-  if (typeof pitchEntry === 'object') {
-    const findPitch = (obj: any): number | null => {
-      if (!obj || typeof obj !== 'object') return null;
-      if (obj.pitches?.[0]?.position !== undefined) return obj.pitches[0].position;
-      for (const val of Object.values(obj)) {
-        if (val && typeof val === 'object') {
-          const found = findPitch(val);
-          if (found !== null) return found;
-        }
-      }
-      return null;
-    };
-    return findPitch(pitchEntry);
-  }
-  return null;
+
+  return extractPitchPosition(cached.data[2]);
 }
 
 export interface WordEntry {
@@ -192,7 +172,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   // Anki hover preview state
   const [ankiHoverCard, setAnkiHoverCard] = createSignal<AnkiCardFields | null>(null);
   const [ankiHoverLoading, setAnkiHoverLoading] = createSignal(false);
-  const [ankiCardFactor, setAnkiCardFactor] = createSignal<number | null>(null);
+  const [ankiHoverCardInfo, setAnkiHoverCardInfo] = createSignal<AnkiCardSchedulingInfo | null>(null);
   let ankiHoverFetched = false;
 
   const fetchAnkiCard = async () => {
@@ -202,12 +182,30 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     setAnkiHoverLoading(true);
     try {
       const { getBackend } = await import('../../../../shared/backends');
-      const result = await getBackend().getCard({ word: props.entry.word }) as { cards: { fields: AnkiCardFields; factor?: number }[]; error: boolean; poor: boolean };
+      const result = await getBackend().getCard({ word: props.entry.word }) as {
+        cards: Array<{
+          fields: AnkiCardFields;
+          factor?: number;
+          due?: number;
+          queue?: number;
+          type?: number;
+          interval?: number;
+          mod?: number;
+        }>;
+        error: boolean;
+        poor: boolean;
+      };
       if (!result.error && !result.poor && result.cards.length > 0) {
-        setAnkiHoverCard(result.cards[0].fields || null);
-        if (result.cards[0].factor != null) {
-          setAnkiCardFactor(result.cards[0].factor);
-        }
+        const card = result.cards[0];
+        setAnkiHoverCard(card.fields || null);
+        setAnkiHoverCardInfo({
+          ease: card.factor ?? null,
+          due: card.due ?? null,
+          queue: card.queue ?? null,
+          type: card.type ?? null,
+          interval: card.interval ?? null,
+          mod: card.mod ?? null,
+        });
       }
     } catch (e) {
       console.error(e);
@@ -327,7 +325,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
               <AnkiHoverPreview
                 loading={ankiHoverLoading()}
                 fields={ankiHoverCard()}
-                ease={ankiCardFactor()}
+                cardInfo={ankiHoverCardInfo()}
               />
             }
             position="bottom"

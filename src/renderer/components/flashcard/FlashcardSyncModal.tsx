@@ -16,10 +16,30 @@ import {
 } from '../../services/flashcardSyncService';
 import './FlashcardSyncModal.css';
 
-// Import SimplePeer and QRCode dynamically
-let SimplePeer: any = null;
-let QRCodeLib: any = null;
-let jsQR: any = null;
+interface QRCodeRenderer {
+  toCanvas: (
+    canvas: HTMLCanvasElement,
+    text: string,
+    options: {
+      width: number;
+      margin: number;
+      color: {
+        dark: string;
+        light: string;
+      };
+    },
+  ) => Promise<void>;
+}
+
+interface JsQrCode {
+  data: string;
+}
+
+type JsQrScanner = (data: Uint8ClampedArray, width: number, height: number) => JsQrCode | null;
+
+let SimplePeerConstructor: Window['SimplePeer'] | null = null;
+let QRCodeLib: QRCodeRenderer | null = null;
+let jsQR: JsQrScanner | null = null;
 
 export interface FlashcardSyncModalProps {
   isOpen: boolean;
@@ -40,7 +60,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
   const [numberOfChunks, setNumberOfChunks] = createSignal(30);
   const [progress, setProgress] = createSignal(0);
   
-  let peer: any = null;
+  let peer: SimplePeerInstance | null = null;
   let qrCodeEl: HTMLDivElement | undefined;
   let videoEl: HTMLVideoElement | undefined;
   let canvasEl: HTMLCanvasElement | undefined;
@@ -49,6 +69,9 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
   let scanAnimationId: number | null = null;
   
   const chunkCollector = new ChunkCollector();
+
+  const getThemeColor = (variableName: string): string =>
+    getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
 
   // Load libraries when modal opens
   createEffect(async () => {
@@ -60,12 +83,12 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       
       // Load SimplePeer from pre-bundled browser-compatible version
       // The npm version has issues with Vite's externalization of Node.js modules
-      if (!SimplePeer) {
+      if (!SimplePeerConstructor) {
         // Import the browser-bundled version that doesn't depend on Node.js streams/events
         // @ts-ignore - Dynamic import of bundled JS file
         await import('../../services/simplepeer.min.js');
-        SimplePeer = (window as any).SimplePeer;
-        if (!SimplePeer) {
+        SimplePeerConstructor = window.SimplePeer;
+        if (!SimplePeerConstructor) {
           throw new Error('SimplePeer failed to load');
         }
       }
@@ -73,13 +96,13 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       // Load QRCode library
       if (!QRCodeLib) {
         const module = await import('qrcode');
-        QRCodeLib = module.default || module;
+        QRCodeLib = (module.default || module) as QRCodeRenderer;
       }
       
       // Load jsQR for scanning
       if (!jsQR) {
         const module = await import('jsqr');
-        jsQR = module.default || module;
+        jsQR = (module.default || module) as JsQrScanner;
       }
       
       // Start connection
@@ -127,9 +150,13 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       setStatusText(t('mlearn.Flashcards.Sync.GeneratingCode'));
       
       // Create peer as initiator
-      peer = new SimplePeer({ initiator: true, trickle: false });
+      if (!SimplePeerConstructor) {
+        throw new Error('SimplePeer is not available');
+      }
+
+      peer = new SimplePeerConstructor({ initiator: true, trickle: false });
       
-      peer.on('signal', (data: any) => {
+      peer.on('signal', (data: unknown) => {
         const signalStr = JSON.stringify(data);
         console.log('Generated signal data:', signalStr.length, 'bytes');
         
@@ -156,7 +183,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         sendFlashcards();
       });
       
-      peer.on('data', (data: any) => {
+      peer.on('data', (data) => {
         handleIncomingData(data);
       });
       
@@ -189,11 +216,18 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       qrCodeEl.innerHTML = '';
       
       try {
+        if (!QRCodeLib) {
+          return;
+        }
+
         const canvas = document.createElement('canvas');
         await QRCodeLib.toCanvas(canvas, chunkData, {
           width: 300,
           margin: 1,
-          color: { dark: '#000', light: '#fff' },
+          color: {
+            dark: getThemeColor('--sync-qr-code-dark'),
+            light: getThemeColor('--sync-qr-code-bg'),
+          },
         });
         qrCodeEl.appendChild(canvas);
       } catch (e) {
@@ -242,6 +276,9 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
             if (ctx) {
               ctx.drawImage(videoEl, 0, 0);
               const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              if (!jsQR) {
+                return;
+              }
               const code = jsQR(imageData.data, canvas.width, canvas.height);
               
               if (code && code.data) {
@@ -311,9 +348,13 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
 
   const receivedChunkCollector = new ChunkCollector();
 
-  const handleIncomingData = async (rawData: any) => {
+  const handleIncomingData = async (rawData: string | ArrayBuffer | Uint8Array) => {
     try {
-      const str = typeof rawData === 'string' ? rawData : rawData.toString();
+      const str = typeof rawData === 'string'
+        ? rawData
+        : rawData instanceof Uint8Array
+          ? new TextDecoder().decode(rawData)
+          : new TextDecoder().decode(new Uint8Array(rawData));
       const parsed = JSON.parse(str);
       
       if (parsed.type === 'sync-chunk') {

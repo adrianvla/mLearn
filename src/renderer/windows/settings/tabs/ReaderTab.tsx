@@ -219,16 +219,6 @@ export const ReaderTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Label')}
-          description={t('mlearn.Settings.Reader.LlmIntegration.PassiveWordTracking.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.passiveEaseEnabled}
-            onChange={(checked) => updateSettings({ passiveEaseEnabled: checked })}
-          />
-        </SettingRow>
-
-        <SettingRow
           label={t('mlearn.Settings.Reader.LlmIntegration.Speech.Label')}
           description={t('mlearn.Settings.Reader.LlmIntegration.Speech.Description')}
         >

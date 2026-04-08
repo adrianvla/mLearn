@@ -217,7 +217,7 @@ describe('HttpBackend', () => {
     const backend = new HttpBackend('http://127.0.0.1:7752');
 
     it('returns words array from data.words on success', async () => {
-      mockFetch.mockResolvedValueOnce(makeOkResponse({ words: ['apple', 'banana'] }));
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ words: ['apple', 'banana'], cards: [] }));
 
       const result = await backend.getAnkiWords();
 
@@ -232,6 +232,31 @@ describe('HttpBackend', () => {
       mockFetch.mockResolvedValueOnce(makeErrorResponse(503));
 
       const result = await backend.getAnkiWords();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getAnkiWordStatuses', () => {
+    const backend = new HttpBackend('http://127.0.0.1:7752');
+
+    it('returns cached scheduling records from data.cards on success', async () => {
+      const cards = [{ word: 'apple', factor: 2300, queue: 2, type: 2, due: 1325 }];
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ words: ['apple'], cards }));
+
+      const result = await backend.getAnkiWordStatuses();
+
+      expect(result).toEqual(cards);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:7752/ankiWords',
+        expect.objectContaining({ method: 'GET' })
+      );
+    });
+
+    it('returns empty array when response is not ok', async () => {
+      mockFetch.mockResolvedValueOnce(makeErrorResponse(503));
+
+      const result = await backend.getAnkiWordStatuses();
 
       expect(result).toEqual([]);
     });

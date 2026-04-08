@@ -7,7 +7,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry } from '../../shared/types';
+import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type WordCandidate } from '../../shared/types';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady } from './migrationSignals';
 import { useSettings } from './SettingsContext';
@@ -19,12 +19,17 @@ import { GroupedTaskProgressContent, type TaskState, type TaskStatus, type TaskG
 import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
+import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
 import { streamChat, checkAvailability } from '../services/llmProvider';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
 
 // Current store version
 const CURRENT_VERSION = 5;
+
+type StoredFlashcardStore = Partial<FlashcardStore> & {
+  wordToCardMap?: Record<string, string | string[]>;
+};
 
 /** Build a language-prefixed composite key for per-language maps */
 function langKey(language: string, hash: string): string {
@@ -169,7 +174,7 @@ interface FlashcardContextValue {
 
   // Undo support
   pushUndoState: (options?: { type?: string; restore?: () => void | Promise<void> }) => void;
-  undoLastAction: () => void;
+  undoLastAction: () => string | null;
   canUndo: () => boolean;
 
   // Word tracking
@@ -331,7 +336,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   };
 
   // Ensure store has all required fields and handle migrations
-  function ensureStoreFields(partial: any): FlashcardStore {
+  function ensureStoreFields(partial: StoredFlashcardStore): FlashcardStore {
     const hour = newDayHour();
     const today = SRS.getTodayDateString(hour);
     const meta = { ...SRS.getDefaultMeta(hour), ...partial.meta };
@@ -462,10 +467,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }
 
       // Re-key wordCandidates
-      const newWordCandidates: Record<string, any> = {};
-      for (const [hash, entry] of Object.entries(partial.wordCandidates || {})) {
+      const newWordCandidates: Record<string, WordCandidate> = {};
+      for (const [hash, entry] of Object.entries<WordCandidate>(partial.wordCandidates || {})) {
         if (!hash.includes(':')) {
-          newWordCandidates[langKey(lang, hash)] = { ...(entry as any), language: lang };
+          newWordCandidates[langKey(lang, hash)] = { ...entry, language: lang };
         } else {
           newWordCandidates[hash] = entry;
         }
@@ -608,7 +613,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Undo last action
   const undoLastAction = () => {
     const stack = undoStack();
-    if (stack.length === 0) return;
+    if (stack.length === 0) return null;
 
     const entry = stack[stack.length - 1];
     setUndoStack((prev) => prev.slice(0, -1));
@@ -626,6 +631,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     refreshQueue();
     saveFlashcards();
+
+    return entry.type;
   };
 
   const canUndo = () => undoStack().length > 0;
@@ -1422,6 +1429,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Track that a word was hovered (user doesn't know it)
   // Debounce: call this on hover start, cancel on hover end
   const trackWordHovered = (word: string, reading?: string) => {
+    if (!settings.passiveEaseEnabled) return;
     const canonical = getCanonicalForm(word);
     const wordHash = SRS.hashWordSync(canonical);
     const lang = settings.language;
@@ -1435,6 +1443,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const timer = setTimeout(() => {
       hoverTimers.delete(lk);
       const now = Date.now();
+      let nextEase = 2.5;
+      let nextTimesHovered = 0;
+      let isFailed = false;
 
       setStore(produce((s) => {
         if (!s.wordKnowledge[lk]) {
@@ -1449,17 +1460,23 @@ export const FlashcardProvider: ParentComponent = (props) => {
           };
         }
         const k = s.wordKnowledge[lk];
-        k.timesHovered++;
+        const hoveredCount = k.timesHovered + 1;
+        k.timesHovered = hoveredCount;
         k.lastSeen = now;
-        // Decrease ease (signals unknown)
-        k.ease = Math.max(0, k.ease - 0.05);
+        isFailed = hasReachedPassiveHoverFailCount(hoveredCount, settings);
+        if (isFailed && shouldDecreaseEaseOnPassiveFailure(settings)) {
+          k.ease = Math.max(SRS.MIN_EASE, k.ease - getPassiveHoverEaseDecrease(settings));
+        }
+        nextEase = k.ease;
+        nextTimesHovered = hoveredCount;
       }));
       saveFlashcards();
 
       // Notify media stats listeners so per-media tracking stays in sync
-      const newEase = store.wordKnowledge[lk]?.ease ?? 2.5;
-      window.dispatchEvent(new CustomEvent('mlearn:word-hovered', { detail: { word, ease: newEase } }));
-    }, settings.passiveHoverDelayMs ?? 150);
+      window.dispatchEvent(new CustomEvent('mlearn:word-hovered', {
+        detail: { word, ease: nextEase, timesHovered: nextTimesHovered, isFailed },
+      }));
+    }, getPassiveHoverDelayMs(settings));
 
     hoverTimers.set(lk, timer);
   };

@@ -90,6 +90,7 @@
             "Description": "Dem KI-Tutor erlauben, Fakten über dich über Gespräche hinweg zu merken"
           },
           "Shared": {
+            "Due": "Fällig:",
             "Label": "Erinnerungen zwischen Agenten teilen",
             "Description": "Wenn aktiviert, können alle Agenten auf alle Erinnerungen zugreifen. Wenn deaktiviert, sieht jeder Agent nur seine eigenen."
           },
@@ -98,7 +99,8 @@
         "SplitChecker": {
           "Label": "Separater Korrektur-Agent",
           "Description": "Einen separaten LLM-Durchgang verwenden, um Fehler zu erkennen und zu korrigieren, statt den Gesprächsagenten.",
-          "Title": "Korrektur-Agent"
+            "AnkiDuplicate": "Duplikat",
+            "Unseen": "Ungelesen"
         },
         "Title": "KI-Einstellungen"
       },
@@ -521,10 +523,15 @@
     },
     "Explainer": {
       "Explanation": "Erklärung",
-      "GeneratedBy": "Von lokaler KI generiert",
+      "GeneratedBy": "Generiert von {provider}",
       "Generating": "Wird generiert...",
       "GrammarPoints": "Wichtige Grammatikpunkte",
       "Loading": "KI-Erklärung wird geladen...",
+      "Provider": {
+        "Builtin": "lokaler KI",
+        "Cloud": "Cloud-KI",
+        "Ollama": "Ollama"
+      },
       "ShowParsed": "Analysierte Ansicht",
       "ShowRaw": "Textansicht",
       "Title": "KI-Erklärung",
@@ -762,11 +769,13 @@
         "Play": "Wiedergabe",
         "ToggleSubtitles": "Untertitel ein/aus"
       },
+      "Accept": "Annehmen",
       "Back": "Zurück",
       "Cancel": "Abbrechen",
       "Close": "Schließen",
       "ComingSoon": "Demnächst verfügbar",
       "Continue": "Weiter",
+      "Decline": "Ablehnen",
       "Delete": "Löschen",
       "Edit": "Bearbeiten",
       "Export": "Exportieren",
@@ -798,7 +807,8 @@
         "ShortSecond": "{value}s",
         "ShortYear": "{value}J"
       },
-      "TryAgain": "Erneut versuchen"
+      "TryAgain": "Erneut versuchen",
+      "Yes": "Ja"
     },
     "LowPowerGate": {
       "Allow": "Erlauben",
@@ -906,6 +916,10 @@
     },
     "KanjiGrid": {
       "CharactersByExamLevel": "Zeichen nach Prüfungsstufe:",
+      "Disclaimer": {
+        "Description": "Die hier gezeigten JLPT-Kanji werden aus den Wörtern abgeleitet, die einer JLPT-Stufe zugeordnet sind, und dann aus diesen Wörtern extrahiert. Daher ist das Raster nur näherungsweise: Manche Stufen enthalten Wörter, deren Kanji selbst nicht zwingend verlangt werden.",
+        "Title": "JLPT-Kanji sind nur geschätzt"
+      },
       "Description": "Farben: lernend (orange→gelb), bekannt (grün→hellgrün), unbekannt (grau). Hovern für Details.",
       "EmptyState": {
         "Description": "Zeichen aus Videos oder Texten erscheinen hier.",
@@ -1306,7 +1320,27 @@
             "Label": "LLM-Erklärungen aktivieren"
           },
           "PassiveWordTracking": {
-            "Description": "Wortvertrautheit beim Lesen und Hovern automatisch verfolgen",
+            "Description": "Wortvertrautheit beim Lesen und Hovern automatisch verfolgen. Ein Hover zählt nach {delay} ms. Nach {count} gezählten Hovern wird das Wort als fehlgeschlagen markiert und erscheint in Listen mit schwierigen Wörtern sowie in der KI-Tutor-Wiederholung.",
+            "Action": {
+              "Description": "Was bei jedem gezählten Hover passieren soll, sobald das Wort im fehlgeschlagenen Zustand ist",
+              "Label": "Aktion für fehlgeschlagene Wörter",
+              "Options": {
+                "DecreaseEase": "Ease verringern",
+                "None": "Nichts tun"
+              }
+            },
+            "EaseDecrease": {
+              "Description": "Wie viel Ease abgezogen werden soll, wenn die Aktion für fehlgeschlagene Wörter auf Ease verringern steht",
+              "Label": "Verringerung der Ease"
+            },
+            "FailCount": {
+              "Description": "Wie viele gezählte Hover nötig sind, bis ein Wort in diesem Medium als fehlgeschlagen markiert wird",
+              "Label": "Hover bis zur Fehlmarkierung"
+            },
+            "HoverDelay": {
+              "Description": "Wie lange ein Hover dauern muss, bevor er als ein Fehlversuch für ein Wort zählt",
+              "Label": "Verzögerung für gezählten Hover"
+            },
             "Label": "Passives Wort-Tracking"
           },
           "Speech": {
@@ -1830,6 +1864,71 @@
       },
       "VideoClipFailed": "Videoclip fehlgeschlagen, Screenshot wird verwendet",
       "WatchTogether": "Gemeinsam ansehen"
+    },
+    "WatchTogether": {
+      "Mode": {
+        "Title": "Gemeinsam ansehen",
+        "Subtitle": "Wähle, wie du dich verbinden möchtest",
+        "Local": {
+          "Title": "Lokales Netzwerk",
+          "Description": "Wiedergabe mit angebundenen Browsern im selben Netzwerk teilen.",
+          "Action": "Lokal starten"
+        },
+        "Code": {
+          "Title": "Raumcode",
+          "Description": "Erstelle oder tritt einem Raum mit einem teilbaren Code bei. Anmeldung erforderlich.",
+          "Action": "Raumcode verwenden"
+        }
+      },
+      "Code": {
+        "Title": "Gemeinsam-ansehen-Raum",
+        "Subtitle": "Einen Gemeinsam-ansehen-Raum hosten oder beitreten",
+        "TabAriaLabel": "Hosten oder beitreten",
+        "HostTab": "Hosten",
+        "JoinTab": "Beitreten",
+        "HostTitle": "Raum erstellen",
+        "HostDescription": "Erstelle einen neuen Raum und teile den Code mit anderen.",
+        "HostDisabled": "Lade zuerst ein Video",
+        "CreateAction": "Raum erstellen",
+        "JoinTitle": "Raum beitreten",
+        "JoinDescription": "Gib den vom Host geteilten Raumcode ein.",
+        "RoomCodePlaceholder": "Raumcode eingeben",
+        "JoinAction": "Beitreten",
+        "ActiveOwnerTitle": "Raum wird gehostet",
+        "ActiveOwnerDescription": "Teile den untenstehenden Raumcode mit anderen, damit sie beitreten können.",
+        "ActiveViewerTitle": "Raum beigetreten",
+        "ActiveViewerDescription": "Du bist mit dem Raum-Host synchronisiert.",
+        "RoomCodeLabel": "Raumcode",
+        "CopyCodeAction": "Code kopieren",
+        "DisconnectAction": "Trennen",
+        "UnshareableVideo": "Diese Videoquelle kann nicht remote geteilt werden.",
+        "Copied": "Raumcode in die Zwischenablage kopiert",
+        "RoomClosed": "Der Raum wurde vom Host geschlossen.",
+        "OpenRoomPanel": "Raum",
+        "SignInRequiredTitle": "Anmeldung erforderlich",
+        "SignInRequiredMessage": "Melde dich mit deinem mLearn-Cloud-Konto an, um Raumcodes zu verwenden.",
+        "SignInModalTitle": "Anmelden für Gemeinsam ansehen",
+        "SignInHint": "Gib deine mLearn-Cloud-Anmeldedaten ein",
+        "SignInCodeHint": "Falls du einen Gerätecode erhalten hast, gib ihn unten ein"
+      },
+      "Media": {
+        "DistributeTitle": "Medien verteilen",
+        "DistributeSubtitle": "Mediendatei über WebRTC an verbundene Peers senden",
+        "DistributeAction": "Verteilen",
+        "SelectFile": "Mediendatei zum Verteilen auswählen",
+        "FileName": "Dateiname",
+        "FileSize": "Dateigröße",
+        "ConnectedPeers": "Verbundene Peers",
+        "SubtitlesIncluded": "Untertitel enthalten",
+        "StartDistribution": "Verteilung starten",
+        "Sending": "Medien werden an Peers gesendet...",
+        "DistributionComplete": "Verteilung abgeschlossen. Alle Peers haben die Medien erhalten.",
+        "ReceiveTitle": "Eingehende Medien",
+        "ReceivePrompt": "Ein Peer möchte dir eine Mediendatei senden. Möchtest du sie empfangen?",
+        "Receiving": "Medien werden empfangen...",
+        "ReceiveComplete": "Medien erfolgreich empfangen.",
+        "LoadMedia": "Medien laden"
+      }
     },
     "WordDbEditor": {
       "Actions": {

@@ -15,8 +15,9 @@ export interface AnkiModifyWarningModalProps {
   message: string;
   confirmText: string;
   onConfirm: (dontRemind: boolean) => void;
-  onConfirmBuiltInOnly?: () => void;
+  onConfirmBuiltInOnly?: (dontRemind: boolean) => void;
   onCancel: () => void;
+  dontRemindLabel?: string;
 }
 
 export const AnkiModifyWarningModal: Component<AnkiModifyWarningModalProps> = (props) => {
@@ -37,7 +38,7 @@ export const AnkiModifyWarningModal: Component<AnkiModifyWarningModalProps> = (p
           <ToggleSwitch
             checked={dontRemind()}
             onChange={setDontRemind}
-            label={t('mlearn.WordHover.AnkiModifyWarning.DontRemind')}
+            label={props.dontRemindLabel ?? t('mlearn.WordHover.AnkiModifyWarning.DontRemind')}
           />
         </div>
         <div class="anki-modify-warning__actions">
@@ -45,7 +46,7 @@ export const AnkiModifyWarningModal: Component<AnkiModifyWarningModalProps> = (p
             {t('mlearn.Global.Cancel')}
           </Btn>
           <Show when={props.onConfirmBuiltInOnly}>
-            <Btn variant="secondary" onClick={props.onConfirmBuiltInOnly}>
+            <Btn variant="secondary" onClick={() => props.onConfirmBuiltInOnly?.(dontRemind())}>
               {t('mlearn.WordHover.AnkiModifyWarning.BuiltInOnly')}
             </Btn>
           </Show>

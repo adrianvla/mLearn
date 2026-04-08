@@ -1,0 +1,103 @@
+.watch-together-code-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.watch-together-code-tabs {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.watch-together-code-tab {
+  flex: 1;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  padding: var(--spacing-3) var(--spacing-4);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.watch-together-code-tab.active {
+  border-color: var(--accent-primary);
+  background: var(--bg-intense);
+  color: var(--text-primary);
+}
+
+.watch-together-code-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.watch-together-code-panel-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.watch-together-code-panel-copy h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+}
+
+.watch-together-code-panel-copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.watch-together-code-join-panel {
+  gap: var(--spacing-5);
+}
+
+.watch-together-code-join-controls {
+  display: flex;
+  gap: var(--spacing-3);
+}
+
+.watch-together-code-room-code-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  padding: var(--spacing-4);
+}
+
+.watch-together-code-room-code-label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.watch-together-code-room-code-value {
+  color: var(--text-primary);
+  font-size: var(--font-size-2xl);
+  letter-spacing: 0.12em;
+}
+
+.watch-together-code-room-actions {
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: flex-end;
+}
+
+.watch-together-code-error {
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  color: var(--text-primary);
+  padding: var(--spacing-3) var(--spacing-4);
+}
+
+@media (max-width: 640px) {
+  .watch-together-code-join-controls,
+  .watch-together-code-room-actions {
+    flex-direction: column;
+  }
+}

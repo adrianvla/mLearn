@@ -121,13 +121,13 @@
 }
 
 .stat-card-success .stat-card-value {
-  color: var(--color-success, #4ade80);
+  color: var(--color-success);
 }
 
 .stat-card-warning .stat-card-value {
-  color: var(--color-warning, #fbbf24);
+  color: var(--color-warning);
 }
 
 .stat-card-error .stat-card-value {
-  color: var(--color-error, #ef4444);
+  color: var(--color-error);
 }

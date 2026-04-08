@@ -3,7 +3,7 @@
  */
 
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT, ANKI_EASE, SRS_EASE, KNOWLEDGE_SOURCES } from './constants';
-import type { SubtitleTheme, WordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode } from './constants';
+import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, WordHoverTriggerMode, AppTheme, KnowledgeSource, KnowledgeResolutionMode, PassiveHoverFailAction } from './constants';
 
 // Re-export WindowType
 export type WindowType = ConstWindowType;
@@ -241,8 +241,14 @@ export interface Settings {
   // Passive word knowledge
   /** Enable passive ease adjustments from seeing/hovering words */
   passiveEaseEnabled: boolean;
-  /** Delay in ms before a hover counts as a failed word event (default 1000) */
+  /** Delay in ms before a hover counts as one failed-word attempt */
   passiveHoverDelayMs: number;
+  /** Number of counted hovers required before a word is marked as failed */
+  passiveHoverFailCount: number;
+  /** Action to take when a counted hover leaves a word in the failed state */
+  passiveHoverFailAction: PassiveHoverFailAction;
+  /** Ease amount to subtract when the failed-word action is set to decrease ease */
+  passiveHoverEaseDecrease: number;
 
   // LLM provider settings
   /** LLM provider: built-in local model or Ollama */
@@ -406,7 +412,10 @@ export const DEFAULT_SETTINGS: Settings = {
   ankiTemplateReading: '{reading}',
   ankiTemplateMeaning: '{meaning}',
   passiveEaseEnabled: true,
-  passiveHoverDelayMs: 150,
+  passiveHoverDelayMs: 300,
+  passiveHoverFailCount: 1,
+  passiveHoverFailAction: 'decrease-ease',
+  passiveHoverEaseDecrease: 0.05,
   llmConfigured: false,
   llmProvider: 'builtin',
   ollamaUrl: 'http://localhost:11434',
@@ -784,7 +793,7 @@ export interface Subtitle {
 
 /** @deprecated Use PassiveWordKnowledge for unified system */
 export interface WordKnowledge {
-  status: WordStatus;
+  status: NumericWordStatus;
   ease: number;
   lastSeen?: string;
   appearances: number;
@@ -798,7 +807,7 @@ export interface PassiveWordKnowledge {
   lastSeen: number;
   /** Total times word was displayed on screen */
   timesSeen: number;
-  /** Times user hovered for 1s+ (signals unknown) */
+  /** Times a hover lasted long enough to count toward failed-word tracking */
   timesHovered: number;
   /** The word text */
   word: string;
@@ -1108,6 +1117,7 @@ export interface MediaStatsWordEntry {
   word: string;
   ease: number;
   timesSeen: number;
+  /** Times a hover lasted long enough to count toward failed-word tracking */
   timesHovered: number;
 }
 

@@ -5,6 +5,9 @@
 
 export {};
 
+type SimplePeerSignalData = unknown;
+type SimplePeerData = string | ArrayBuffer | Uint8Array;
+
 declare global {
   interface Window {
     SimplePeer: {
@@ -20,15 +23,16 @@ declare global {
   }
 
   interface SimplePeerInstance {
-    signal(data: any): void;
+    signal(data: SimplePeerSignalData): void;
     send(data: string | ArrayBuffer): void;
     destroy(): void;
-    on(event: 'signal', callback: (data: any) => void): void;
+    on(event: 'signal', callback: (data: SimplePeerSignalData) => void): void;
     on(event: 'connect', callback: () => void): void;
-    on(event: 'data', callback: (data: any) => void): void;
+    on(event: 'data', callback: (data: SimplePeerData) => void): void;
     on(event: 'error', callback: (err: Error) => void): void;
     on(event: 'close', callback: () => void): void;
-    on(event: string, callback: (...args: any[]) => void): void;
+    on(event: string, callback: (...args: unknown[]) => void): void;
     connected: boolean;
+    _channel?: RTCDataChannel;
   }
 }

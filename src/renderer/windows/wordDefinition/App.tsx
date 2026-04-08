@@ -1,25 +1,23 @@
 import { Component, Show, For, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import type { TranslationEntry, Token } from '../../../shared/types';
-import { WORD_STATUS, WINDOW_TYPES } from '../../../shared/constants';
+import { WINDOW_TYPES } from '../../../shared/constants';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { WindowWrapper, useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { setWordStatus, toUniqueIdentifier, wordsLearnedInApp } from '../../services/statsService';
-import { isWordInAnkiCache } from '../../services/ankiWordsCache';
+import { getWordStatus, toUniqueIdentifier } from '../../services/statsService';
 import { fetchTranslation } from '../../hooks/useTranslation';
 import { useTokenizer } from '../../hooks/useTranslation';
 import { PillBtn, PillLabel, PitchAccentOverlay, Spinner, ClockIcon } from '../../components/common';
+import { WordStatusPill } from '../../components/common/Smart';
 import {
   buildWordHoverFlashcardContent,
   extractPitchAccentFromTranslationData,
   extractReadingFromEntries,
-  getEffectiveWordStatus,
   numericToWordStatus,
-  wordStatusToNumeric,
-  type WordStatus,
   type WordHoverTranslationData,
 } from '../../components/subtitle/wordHoverHelpers';
 import { openWordLookup } from '../../services/wordLookupService';
+import { getWordFormCandidates } from '../../utils/wordForms';
 import './WordDefinition.css';
 
 const ICON_CROSS2 = 'cross2';
@@ -28,7 +26,7 @@ const ICON_CHECK = 'check';
 const WordDefinitionContent: Component = () => {
   const { settings } = useSettings();
   const { addFlashcard, hasWordSync, getCardByWordSync } = useFlashcards();
-  const { getFrequency, getLanguageFeatures, currentLangData } = useLanguage();
+  const { getFrequency, getLanguageFeatures, currentLangData, getCanonicalForm } = useLanguage();
   const { tokenize } = useTokenizer();
   const { t } = useLocalization();
 
@@ -37,7 +35,6 @@ const WordDefinitionContent: Component = () => {
   const [translationData, setTranslationData] = createSignal<WordHoverTranslationData | undefined>();
   const [pitchAccent, setPitchAccent] = createSignal<{ position: number; reading: string } | null>(null);
   const [isLoading, setIsLoading] = createSignal(false);
-  const [currentStatus, setCurrentStatus] = createSignal<WordStatus>('unknown');
   const [posType, setPosType] = createSignal('');
   const [isAddingFlashcard, setIsAddingFlashcard] = createSignal(false);
   const [wordUuid, setWordUuid] = createSignal('');
@@ -68,11 +65,6 @@ const WordDefinitionContent: Component = () => {
     setTranslationData(undefined);
     setPitchAccent(null);
     setPosType('');
-
-    // Load word status
-    const allStatuses = wordsLearnedInApp();
-    const storedStatus = allStatuses[w] ?? WORD_STATUS.UNKNOWN;
-    setCurrentStatus(numericToWordStatus(storedStatus));
 
     // Generate UUID
     toUniqueIdentifier(w).then((uuid) => setWordUuid(uuid)).catch(() => {});
@@ -129,27 +121,10 @@ const WordDefinitionContent: Component = () => {
 
   const currentEase = createMemo(() => currentFlashcard()?.ease);
 
-  const effectiveStatus = createMemo(() => getEffectiveWordStatus(
-    currentFlashcard(), currentStatus(),
-    settings.use_anki && isWordInAnkiCache(word()),
-    settings.knowledgeSourceOrder, settings.knowledgeResolutionMode
-  ));
-
-  const statusVariant = createMemo(() => {
-    const s = effectiveStatus();
-    return s === 'unknown' ? 'red' : s === 'learning' ? 'orange' : 'green';
-  });
-
-  const statusIcon = createMemo(() => effectiveStatus() === 'unknown' ? ICON_CROSS2 : ICON_CHECK);
-
-  const statusLabel = createMemo(() => {
-    const s = effectiveStatus();
-    return s === 'unknown'
-      ? t('mlearn.WordHover.Status.Unknown')
-      : s === 'learning'
-        ? t('mlearn.WordHover.Status.Learning')
-        : t('mlearn.WordHover.Status.Known');
-  });
+  const wordForms = createMemo(() => getWordFormCandidates(word(), getCanonicalForm));
+  const manualStatus = createMemo(() =>
+    numericToWordStatus(getWordStatus(wordForms()[0] ?? word(), wordForms().slice(1)))
+  );
 
   const levelPillData = createMemo(() => {
     const w = word();
@@ -165,20 +140,6 @@ const WordDefinitionContent: Component = () => {
   });
 
   const isTracked = createMemo(() => isInSRS());
-
-  const handleStatusChange = (e: MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const statusOrder: WordStatus[] = ['unknown', 'learning', 'known'];
-    const currentIdx = statusOrder.indexOf(currentStatus());
-    const nextIdx = (currentIdx + 1) % statusOrder.length;
-    const newStatus = statusOrder[nextIdx];
-    setCurrentStatus(newStatus);
-    const w = word();
-    if (w) {
-      setWordStatus(w, wordStatusToNumeric(newStatus));
-    }
-  };
 
   const handleAddFlashcard = async (e?: MouseEvent) => {
     if (e) {
@@ -200,7 +161,7 @@ const WordDefinitionContent: Component = () => {
         isOcr: false,
         wordUuid: wordUuid(),
         level: freq?.raw_level ?? -1,
-        manualStatus: currentStatus(),
+        manualStatus: manualStatus(),
         colourCodes: settings.colour_codes || currentLangData()?.colour_codes || {},
         tokenize,
         srsLearningEase: settings.srsLearningEase,
@@ -294,12 +255,7 @@ const WordDefinitionContent: Component = () => {
           <Show when={posType() && settings.show_pos}>
             <PillLabel>{posType()}</PillLabel>
           </Show>
-          <PillBtn
-            variant={statusVariant()}
-            icon={statusIcon()}
-            label={statusLabel()}
-            onClick={handleStatusChange}
-          />
+          <WordStatusPill word={word()} />
           <Show when={isTracked()} fallback={
             <Show when={isAddingFlashcard()} fallback={
               <PillBtn

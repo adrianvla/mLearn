@@ -11,12 +11,12 @@
  */
 
 import { Component, createSignal, For, Show, onMount, createMemo, createEffect } from 'solid-js';
-import { WindowWrapper, useSettings, useLanguage, useLocalization } from '../../context';
+import { WindowWrapper, useLanguage, useLocalization } from '../../context';
 import {
   getWordsLearnedInApp,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
-import { Spinner, PillLabel, LegendItem, BookIcon } from '../../components/common';
+import { Spinner, PillLabel, LegendItem, BookIcon, AlertBanner } from '../../components/common';
 import './kanjiGrid.css';
 
 interface KanjiData {
@@ -74,7 +74,6 @@ function mixHex(c1: string, c2: string, t: number): string {
 }
 
 export const KanjiGridContent: Component = () => {
-  const { settings } = useSettings();
   const { wordFrequency, getFreqLevelNames, getFrequency, currentLangData } = useLanguage();
   const { t } = useLocalization();
   
@@ -99,6 +98,10 @@ export const KanjiGridContent: Component = () => {
   const sortedLevelKeys = createMemo(() => {
     const keys = Object.keys(levelNames()).map(Number).filter(n => !isNaN(n));
     return keys.sort((a, b) => b - a);
+  });
+
+  const showJlptDisclaimer = createMemo(() => {
+    return Object.values(levelNames()).some(levelName => levelName.toUpperCase().includes('JLPT'));
   });
 
   // Calculate stats
@@ -267,8 +270,7 @@ export const KanjiGridContent: Component = () => {
       const t = maxLearn > 0.5 ? (item.score - 0.5) / (maxLearn - 0.5) : 0;
       return mixHex('#E65100', '#FFEB3B', t);
     }
-    const isDark = settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker';
-    return isDark ? '#616161' : '#9E9E9E';
+    return 'var(--kanji-grid-unknown-bg)';
   };
 
   // Check if kanji should be dimmed (not in hovered level)
@@ -308,11 +310,8 @@ export const KanjiGridContent: Component = () => {
             <For each={kanjiData()}>
               {(item) => (
                 <div
-                  class={`kg-cell ${isKanjiDimmed(item) ? 'dimmed' : ''}`}
-                  style={{
-                    background: getColorForKanji(item),
-                    color: item.category !== 'unknown' ? '#111' : ((settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker') ? '#ddd' : '#222'),
-                  }}
+                  class={`kg-cell ${isKanjiDimmed(item) ? 'dimmed' : ''} ${item.category !== 'unknown' ? 'kg-cell-colored' : 'kg-cell-unknown'}`}
+                  style={{ background: getColorForKanji(item) }}
                   onMouseEnter={() => setHoveredKanji(item)}
                   onMouseLeave={() => setHoveredKanji(null)}
                 >
@@ -339,16 +338,16 @@ export const KanjiGridContent: Component = () => {
         <div class="kg-sidebar">
           {/* Legend */}
           <div class="kg-legend">
-            <LegendItem label={t('mlearn.KanjiGrid.Legend.Learning')} color="#E65100" secondaryColor="#FFEB3B" showArrow />
-            <LegendItem label={t('mlearn.KanjiGrid.Legend.Known')} color="#2E7D32" secondaryColor="#81C784" showArrow />
-            <LegendItem label={t('mlearn.KanjiGrid.Legend.Unknown')} color="#616161" />
+            <LegendItem label={t('mlearn.KanjiGrid.Legend.Learning')} color="var(--pos-auxiliary)" secondaryColor="var(--color-warning)" showArrow />
+            <LegendItem label={t('mlearn.KanjiGrid.Legend.Known')} color="var(--color-success)" secondaryColor="var(--color-success-lighter)" showArrow />
+            <LegendItem label={t('mlearn.KanjiGrid.Legend.Unknown')} color="var(--kanji-grid-unknown-bg)" />
           </div>
 
           {/* Stats */}
           <div class="kg-stats">
-            <div>· {t('mlearn.KanjiGrid.Stats.Known')} <b>{stats().known}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().known / stats().total * 1000) / 10 : 0}%)</span></div>
-            <div>· {t('mlearn.KanjiGrid.Stats.Learning')} <b>{stats().learning}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().learning / stats().total * 1000) / 10 : 0}%)</span></div>
-            <div>· {t('mlearn.KanjiGrid.Stats.Unknown')} <b>{stats().unknown}</b> <span style={"color:var(--text-secondary)"}>({stats().total ? Math.round(stats().unknown / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· {t('mlearn.KanjiGrid.Stats.Known')} <b>{stats().known}</b> <span class="kg-stats-pct">({stats().total ? Math.round(stats().known / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· {t('mlearn.KanjiGrid.Stats.Learning')} <b>{stats().learning}</b> <span class="kg-stats-pct">({stats().total ? Math.round(stats().learning / stats().total * 1000) / 10 : 0}%)</span></div>
+            <div>· {t('mlearn.KanjiGrid.Stats.Unknown')} <b>{stats().unknown}</b> <span class="kg-stats-pct">({stats().total ? Math.round(stats().unknown / stats().total * 1000) / 10 : 0}%)</span></div>
             <div>· {t('mlearn.KanjiGrid.Stats.TotalFound')} <b>{stats().total}</b></div>
           </div>
 
@@ -356,6 +355,15 @@ export const KanjiGridContent: Component = () => {
           <Show when={sortedLevelKeys().length > 0}>
             <div class="kg-levels">
               <p>{t('mlearn.KanjiGrid.CharactersByExamLevel')}</p>
+              <Show when={showJlptDisclaimer()}>
+                <AlertBanner
+                  variant="info"
+                  size="sm"
+                  class="kg-disclaimer"
+                  title={t('mlearn.KanjiGrid.Disclaimer.Title')}
+                  message={t('mlearn.KanjiGrid.Disclaimer.Description')}
+                />
+              </Show>
               <div class="level-pills">
                 <For each={sortedLevelKeys()}>
                   {(level) => {
