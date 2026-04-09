@@ -17,7 +17,7 @@ import './ConnectionTab.css';
 type BackendMode = 'local' | 'tethered';
 
 export const ConnectionTab: Component = () => {
-  const { settings, updateSetting } = useSettings();
+  const { settings, updateSetting, updateSettings } = useSettings();
   const { t } = useLocalization();
   // Test connection state
   const [testingBackend, setTestingBackend] = createSignal(false);
@@ -102,12 +102,15 @@ export const ConnectionTab: Component = () => {
   }
 
   function handleCloudSignOut() {
-    updateSetting('cloudAuthAccessToken', '');
-    updateSetting('cloudAuthRefreshToken', '');
-    updateSetting('cloudAuthUserId', '');
-    updateSetting('cloudAuthUserEmail', '');
-    updateSetting('cloudAuthExpiresAt', 0);
-    updateSetting('cloudAuthStatus', 'signed-out');
+    updateSettings({
+      cloudAuthAccessToken: '',
+      cloudAuthToken: '',
+      cloudAuthRefreshToken: '',
+      cloudAuthUserId: '',
+      cloudAuthUserEmail: '',
+      cloudAuthExpiresAt: 0,
+      cloudAuthStatus: 'signed-out',
+    });
     setPendingState('');
     setPendingVerifier('');
     setCloudLoginPending(false);
@@ -124,11 +127,15 @@ export const ConnectionTab: Component = () => {
     }
     try {
       const result = await exchangeCloudDesktopCode(settings, code, pendingVerifier());
-      updateSetting('cloudAuthAccessToken', result.accessToken);
-      updateSetting('cloudAuthRefreshToken', result.refreshToken);
-      updateSetting('cloudAuthUserId', result.userId);
-      updateSetting('cloudAuthUserEmail', result.userEmail);
-      updateSetting('cloudAuthStatus', 'signed-in');
+      updateSettings({
+        cloudAuthAccessToken: result.accessToken,
+        cloudAuthToken: '',
+        cloudAuthRefreshToken: result.refreshToken,
+        cloudAuthUserId: result.userId,
+        cloudAuthUserEmail: result.userEmail,
+        cloudAuthExpiresAt: result.expiresAt ?? 0,
+        cloudAuthStatus: 'signed-in',
+      });
       setBackendStatus('success');
       setBackendError('');
       setPendingState('');
@@ -155,11 +162,15 @@ export const ConnectionTab: Component = () => {
     }
     try {
       const result = await exchangeCloudDesktopCode(settings, payload.code, pendingVerifier());
-      updateSetting('cloudAuthAccessToken', result.accessToken);
-      updateSetting('cloudAuthRefreshToken', result.refreshToken);
-      updateSetting('cloudAuthUserId', result.userId);
-      updateSetting('cloudAuthUserEmail', result.userEmail);
-      updateSetting('cloudAuthStatus', 'signed-in');
+      updateSettings({
+        cloudAuthAccessToken: result.accessToken,
+        cloudAuthToken: '',
+        cloudAuthRefreshToken: result.refreshToken,
+        cloudAuthUserId: result.userId,
+        cloudAuthUserEmail: result.userEmail,
+        cloudAuthExpiresAt: result.expiresAt ?? 0,
+        cloudAuthStatus: 'signed-in',
+      });
       setBackendStatus('success');
       setBackendError('');
     } catch (e) {

@@ -12,7 +12,10 @@ export interface CloudExchangeResult {
   refreshToken: string;
   userId: string;
   userEmail: string;
+  expiresAt?: number;
 }
+
+export const CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 /** Auth API calls go to the cloud API URL */
 function getAuthApiUrl(settings: Settings): string {
@@ -22,6 +25,75 @@ function getAuthApiUrl(settings: Settings): string {
 /** Browser-facing pages (login, dashboard) go to the cloud login URL */
 function getLoginSiteUrl(settings: Settings): string {
   return resolveCloudLoginUrl(settings);
+}
+
+export function resolveCloudAccessToken(settings: Settings): string {
+  return (settings.cloudAuthAccessToken || settings.cloudAuthToken || '').trim();
+}
+
+function decodeBase64Url(input: string): string {
+  const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = normalized.length % 4;
+  const padded = padding === 0 ? normalized : normalized + '='.repeat(4 - padding);
+  return atob(padded);
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const [, payload] = token.split('.');
+  if (!payload) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(decodeBase64Url(payload)) as Record<string, unknown>;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+export function getAccessTokenExpiry(accessToken: string): number {
+  const payload = decodeJwtPayload(accessToken);
+  const exp = payload?.exp;
+  return typeof exp === 'number' && Number.isFinite(exp) && exp > 0
+    ? Math.floor(exp)
+    : 0;
+}
+
+export function normalizeCloudAuthExpiresAt(expiresAt?: number, accessToken?: string): number {
+  if (typeof expiresAt === 'number' && Number.isFinite(expiresAt) && expiresAt > 0) {
+    return expiresAt > 1_000_000_000_000
+      ? Math.floor(expiresAt / 1000)
+      : Math.floor(expiresAt);
+  }
+
+  if (accessToken) {
+    return getAccessTokenExpiry(accessToken);
+  }
+
+  return 0;
+}
+
+export function getCloudAuthExpiryMs(settings: Settings): number {
+  const expiresAt = normalizeCloudAuthExpiresAt(settings.cloudAuthExpiresAt, resolveCloudAccessToken(settings));
+  return expiresAt > 0 ? expiresAt * 1000 : 0;
+}
+
+export function isCloudAccessTokenExpiringSoon(
+  settings: Settings,
+  bufferMs: number = CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS,
+): boolean {
+  const accessToken = resolveCloudAccessToken(settings);
+  if (!accessToken) {
+    return true;
+  }
+
+  const expiryMs = getCloudAuthExpiryMs(settings);
+  if (!expiryMs) {
+    return true;
+  }
+
+  return expiryMs <= Date.now() + bufferMs;
 }
 
 function randomUrlSafeString(byteLength: number): string {
@@ -89,6 +161,7 @@ export async function exchangeCloudDesktopCode(
     refreshToken: payload.session.refreshToken,
     userId: payload.user.id,
     userEmail: payload.user.email || '',
+    expiresAt: normalizeCloudAuthExpiresAt(undefined, payload.session.accessToken) || undefined,
   };
 }
 
@@ -128,7 +201,7 @@ export function getCloudDashboardUrl(settings: Settings): string {
  * Returns true if the token is valid (200), false otherwise.
  */
 export async function validateCloudAccessToken(settings: Settings): Promise<boolean> {
-  const accessToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
+  const accessToken = resolveCloudAccessToken(settings);
   if (!accessToken) return false;
 
   try {
@@ -159,9 +232,21 @@ export interface CloudSessionValidation {
  * (meaning the user must re-authenticate).
  */
 export async function validateAndRefreshCloudSession(settings: Settings): Promise<CloudSessionValidation> {
+  if (resolveCloudAccessToken(settings) && !isCloudAccessTokenExpiringSoon(settings, 0)) {
+    return {
+      status: 'valid',
+      expiresAt: normalizeCloudAuthExpiresAt(settings.cloudAuthExpiresAt, resolveCloudAccessToken(settings)) || undefined,
+    };
+  }
+
   // First, check if the current access token works
   const isValid = await validateCloudAccessToken(settings);
-  if (isValid) return { status: 'valid' };
+  if (isValid) {
+    return {
+      status: 'valid',
+      expiresAt: normalizeCloudAuthExpiresAt(settings.cloudAuthExpiresAt, resolveCloudAccessToken(settings)) || undefined,
+    };
+  }
 
   // Access token invalid — try refreshing
   if (!settings.cloudAuthRefreshToken) {

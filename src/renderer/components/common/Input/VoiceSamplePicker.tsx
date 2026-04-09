@@ -8,6 +8,7 @@
 import { Component, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
+import { ensureCloudAccessToken } from '../../../services/cloudSessionManager';
 import { Select } from '../Select/Select';
 import { Input } from './Input';
 import { Btn } from '../Button/Button';
@@ -281,6 +282,21 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
     setTtsGenerating(true);
 
     const voiceSampleId = props.value || undefined;
+    if (props.ttsProvider === 'cloud') {
+      void ensureCloudAccessToken().then((accessToken) => {
+        if (!accessToken) {
+          setTtsGenerating(false);
+          return;
+        }
+
+        getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider);
+      }).catch((error) => {
+        console.error(error);
+        setTtsGenerating(false);
+      });
+      return;
+    }
+
     getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider);
   }
 

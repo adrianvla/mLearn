@@ -64,10 +64,25 @@ let mockSettings: Record<string, unknown> = {
   cloudAuthToken: '',
 };
 
+const mockEnsureCloudAccessToken = vi.fn(async () => {
+  const accessToken = typeof mockSettings.cloudAuthAccessToken === 'string'
+    ? mockSettings.cloudAuthAccessToken
+    : '';
+  const legacyToken = typeof mockSettings.cloudAuthToken === 'string'
+    ? mockSettings.cloudAuthToken
+    : '';
+
+  return accessToken || legacyToken || null;
+});
+
 vi.mock('../context/SettingsContext', () => ({
   useSettings: () => ({
     settings: mockSettings,
   }),
+}));
+
+vi.mock('../services/cloudSessionManager', () => ({
+  ensureCloudAccessToken: (...args: unknown[]) => mockEnsureCloudAccessToken(...args),
 }));
 
 function makePngBlob(size = 100): Blob {
@@ -360,6 +375,7 @@ describe('useOCR', () => {
     mockIsConnected = vi.fn(() => true);
     mockRequestAccess = vi.fn(() => Promise.resolve(true));
     mockCloudRecognize.mockReset();
+    mockEnsureCloudAccessToken.mockClear();
     mockBackend.buildUrl.mockClear();
     mockSettings = {
       ocrProvider: 'local',

@@ -34,6 +34,7 @@ import { getBackend } from '../../../shared/backends';
 import { isElectron } from '../../../shared/platform';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
+import { ensureCloudAccessToken } from '../../services/cloudSessionManager';
 import { checkAvailability } from '../../services/llmProvider';
 import type { Flashcard, FlashcardContent, TTSProvider } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
@@ -253,7 +254,7 @@ export const FlashcardsContent: Component = () => {
       const bridge = getBridge();
       const provider = settings.flashcardTtsProvider;
       const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
-      const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
+      let cloudAuthToken: string | undefined;
       const cloudApiUrl = settings.cloudApiUrl || undefined;
       const total = ttsJobs.length;
       let succeeded = 0;
@@ -267,7 +268,14 @@ export const FlashcardsContent: Component = () => {
         duration: 0,
       });
 
-      if (provider !== 'cloud') {
+      if (provider === 'cloud') {
+        cloudAuthToken = (await ensureCloudAccessToken()) || undefined;
+        if (!cloudAuthToken) {
+          setRepairRunning(false);
+          removeToast(toastId);
+          return;
+        }
+      } else {
         const allowed = await requestAccess('tts');
         if (!allowed) {
           setRepairRunning(false);
@@ -443,7 +451,7 @@ export const FlashcardsContent: Component = () => {
     const cards = flashcards();
     const provider = bulkTtsProvider();
     const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
-    const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
+    let cloudAuthToken: string | undefined;
     const cloudApiUrl = settings.cloudApiUrl || undefined;
     const language = settings.language;
 
@@ -494,7 +502,13 @@ export const FlashcardsContent: Component = () => {
     const startTime = Date.now();
     setBulkProgress({ current: 0, total: items.length, label: t('mlearn.Flashcards.Bulk.TtsProgress'), startTime });
 
-    if (provider !== 'cloud') {
+    if (provider === 'cloud') {
+      cloudAuthToken = (await ensureCloudAccessToken()) || undefined;
+      if (!cloudAuthToken) {
+        setBulkProgress(null);
+        return;
+      }
+    } else {
       const allowed = await requestAccess('tts');
       if (!allowed) {
         setBulkProgress(null);

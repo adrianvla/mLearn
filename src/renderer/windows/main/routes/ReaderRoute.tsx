@@ -1,3 +1,4 @@
+import { ensureCloudAccessToken } from '../../../services/cloudSessionManager';
 /**
  * Reader Route
  * Manga/Image OCR reader integrated into main window via router
@@ -734,7 +735,7 @@ export const ReaderRoute: Component = () => {
       if (settings.ocrProvider === 'cloud') {
         // Cloud OCR via HATEOAS job flow
         const cloudApiUrl = resolveCloudApiUrl(settings);
-        const cloudToken = (settings.cloudAuthAccessToken || settings.cloudAuthToken || '').trim();
+        const cloudToken = await ensureCloudAccessToken();
         if (!cloudToken) throw new Error('Cloud OCR requires authentication');
 
         const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);

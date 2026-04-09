@@ -14,6 +14,7 @@ import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../../shared/backends';
 import { BUILTIN_MODELS, autoselectBuiltinModel, getModelUrl } from '../../../../shared/builtinModels';
 import type { LLMProvider, LLMModelStatus, OCRProvider, SystemMemoryInfo } from '../../../../shared/types';
+import { ensureCloudAccessToken, handleCloudSessionError } from '../../../services/cloudSessionManager';
 import '../SettingsForm.css';
 import './AITab.css';
 
@@ -253,15 +254,22 @@ export const AITab: Component = () => {
     setTestingCloudLLM(true);
     setCloudLLMStatus('idle');
     try {
+      const accessToken = await ensureCloudAccessToken();
+      if (!accessToken) {
+        setCloudLLMStatus('error');
+        return;
+      }
+
       const cloudApiUrl = resolveCloudApiUrl(settings);
       const adapter = new CloudLLMAdapter(
         cloudApiUrl,
-        settings.cloudAuthAccessToken || settings.cloudAuthToken,
+        accessToken,
       );
       const ok = await adapter.checkAvailability();
       setCloudLLMStatus(ok ? 'success' : 'error');
     } catch (e) {
       console.error(e);
+      handleCloudSessionError(e, false);
       setCloudLLMStatus('error');
     } finally {
       setTestingCloudLLM(false);

@@ -104,10 +104,12 @@
     },
     "extraResources": [
       {
-        "from": "resources/",
-        "to": "resources/",
+        "from": "resources/root-of-app/",
+        "to": "root-of-app/",
         "filter": [
-          "**/*"
+          "**/*",
+          "!__pycache__/**",
+          "!**/*.pyc"
         ]
       }
     ],
