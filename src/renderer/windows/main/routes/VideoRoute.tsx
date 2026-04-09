@@ -28,7 +28,7 @@ import { getWordStatus } from '../../../services/statsService';
 import { findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { showToast } from '../../../components/common/Feedback/Toast';
-import { validateAndRefreshCloudSession } from '../../../services/cloudAuthService';
+import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../../services/cloudSessionManager';
 import {
   createWatchTogetherRoom,
   isRemoteWatchTogetherUrl,
@@ -54,7 +54,7 @@ const getMediaNameFromPath = (filePath: string): string => filePath.split('/').p
 export const VideoRoute: Component = () => {
   const navigate = useNavigate();
   const { t } = useLocalization();
-  const { settings, updateSetting, updateSettings } = useSettings();
+  const { settings, updateSetting } = useSettings();
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
   const subtitles = useSubtitles();
@@ -145,42 +145,13 @@ export const VideoRoute: Component = () => {
     };
   };
 
-  const resetCloudAuthSession = () => {
-    updateSettings({
-      cloudAuthAccessToken: '',
-      cloudAuthToken: '',
-      cloudAuthRefreshToken: '',
-      cloudAuthUserId: '',
-      cloudAuthUserEmail: '',
-      cloudAuthExpiresAt: 0,
-      cloudAuthStatus: 'signed-out',
-    });
-  };
-
-  const ensureCloudAccessToken = async (): Promise<string | null> => {
-    const currentAccessToken = settings.cloudAuthAccessToken || settings.cloudAuthToken;
-    if (settings.cloudAuthStatus !== 'signed-in' || !currentAccessToken) {
+  const ensureWatchTogetherCloudAccessToken = async (): Promise<string | null> => {
+    const hadSignedInSession = settings.cloudAuthStatus === 'signed-in';
+    const accessToken = await ensureSharedCloudAccessToken();
+    if (!accessToken && !hadSignedInSession) {
       setShowWatchTogetherSignInModal(true);
-      return null;
     }
-
-    const validation = await validateAndRefreshCloudSession(settings);
-    if (validation.status === 'valid') {
-      return currentAccessToken;
-    }
-
-    if (validation.status === 'refreshed' && validation.accessToken && validation.refreshToken) {
-      updateSettings({
-        cloudAuthAccessToken: validation.accessToken,
-        cloudAuthRefreshToken: validation.refreshToken,
-        ...(validation.expiresAt ? { cloudAuthExpiresAt: validation.expiresAt } : {}),
-      });
-      return validation.accessToken;
-    }
-
-    resetCloudAuthSession();
-    setShowWatchTogetherSignInModal(true);
-    return null;
+    return accessToken;
   };
 
   const openWatchTogetherCodeModal = () => {
@@ -219,7 +190,7 @@ export const VideoRoute: Component = () => {
       return;
     }
 
-    const accessToken = await ensureCloudAccessToken();
+    const accessToken = await ensureWatchTogetherCloudAccessToken();
     if (!accessToken) return;
 
     setWatchTogetherBusy(true);
@@ -237,7 +208,7 @@ export const VideoRoute: Component = () => {
 
   const handleJoinWatchTogetherRoom = async (roomCode: string) => {
     setWatchTogetherError('');
-    const accessToken = await ensureCloudAccessToken();
+    const accessToken = await ensureWatchTogetherCloudAccessToken();
     if (!accessToken) return;
 
     setWatchTogetherBusy(true);

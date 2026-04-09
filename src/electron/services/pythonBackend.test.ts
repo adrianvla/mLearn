@@ -343,6 +343,52 @@ describe('pythonBackend', () => {
       expect(mockEvent.reply).not.toHaveBeenCalledWith('server-load', expect.anything());
     });
 
+    it('IS_LOADED replays buffered cache-loaded startup status once', async () => {
+      const envBin = path.join(tempDir.tmpDir, 'env', 'bin');
+      fs.mkdirSync(envBin, { recursive: true });
+      fs.writeFileSync(path.join(envBin, 'python3'), '');
+
+      Object.defineProperty(process, 'resourcesPath', {
+        value: tempDir.tmpDir,
+        writable: true,
+        configurable: true,
+      });
+
+      let stdoutHandler: ((data: Buffer) => void) | null = null;
+      const mockProcess = {
+        stdout: {
+          on: vi.fn((event: string, handler: (data: Buffer) => void) => {
+            if (event === 'data') {
+              stdoutHandler = handler;
+            }
+          }),
+        },
+        stderr: { on: vi.fn() },
+        on: vi.fn(),
+        kill: vi.fn(),
+        killed: false,
+      };
+      mockSpawn.mockReturnValue(mockProcess);
+
+      vi.resetModules();
+      mod = await import('./pythonBackend');
+
+      await mod.findPython();
+      stdoutHandler?.(Buffer.from('::STATUS::ANKI::123::Loaded from cache\n'));
+
+      mod.setupPythonBackendIPC();
+
+      const firstEvent = { reply: vi.fn(), sender: { send: vi.fn() } };
+      const secondEvent = { reply: vi.fn(), sender: { send: vi.fn() } };
+      const listeners = mockIpcListeners.get('is-loaded') || [];
+
+      listeners[0](firstEvent);
+      listeners[0](secondEvent);
+
+      expect(firstEvent.sender.send).toHaveBeenCalledWith('server-status-update', 'Loaded from cache');
+      expect(secondEvent.sender.send).not.toHaveBeenCalledWith('server-status-update', 'Loaded from cache');
+    });
+
     it('INSTALLER_STATE_REQUEST replies with current installer state', () => {
       mod.setupPythonBackendIPC();
 

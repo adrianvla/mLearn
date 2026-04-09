@@ -60,9 +60,11 @@ export const CloudReLoginModal: Component<CloudReLoginModalProps> = (props) => {
       const result = await exchangeCloudDesktopCode(settings, code, pendingVerifier());
       updateSettings({
         cloudAuthAccessToken: result.accessToken,
+        cloudAuthToken: '',
         cloudAuthRefreshToken: result.refreshToken,
         cloudAuthUserId: result.userId,
         cloudAuthUserEmail: result.userEmail,
+        cloudAuthExpiresAt: result.expiresAt ?? 0,
         cloudAuthStatus: 'signed-in',
       });
       // Reset state

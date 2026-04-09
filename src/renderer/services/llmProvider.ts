@@ -9,6 +9,7 @@ import { getBridge } from '../../shared/bridges';
 import { isMobile } from '../../shared/platform';
 import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../shared/backends';
+import { ensureCloudAccessToken, getCloudSessionSettings, handleCloudSessionError } from './cloudSessionManager';
 
 // ============================================================================
 // Types
@@ -88,9 +89,11 @@ export function streamChat(
   callbacks: LLMStreamCallbacks,
   settings?: Settings,
 ): { abort: () => void } {
+  const activeSettings = settings ?? getCloudSessionSettings() ?? undefined;
+
   // Mobile: stream directly via HTTP (no IPC bridge)
-  if (isMobile() && settings) {
-    return streamChatMobile(messages, tools, callbacks, settings);
+  if (isMobile() && activeSettings) {
+    return streamChatMobile(messages, tools, callbacks, activeSettings);
   }
 
   const bridge = getBridge();
@@ -99,66 +102,96 @@ export function streamChat(
   const collectedToolCalls: LLMToolCall[] = [];
   const startTime = Date.now();
   let firstTokenTime = 0;
+  let cleanup: (() => void) | null = null;
+  let aborted = false;
 
-  // Set up listener for stream chunks
-  const cleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
-    if (chunk.error) {
-      callbacks.onError(chunk.error);
-      cleanupListener();
+  function cleanupListener() {
+    cleanup?.();
+    cleanup = null;
+    if (activeCleanup === cleanupListener) activeCleanup = null;
+  }
+
+  const startStream = () => {
+    if (aborted) {
       return;
     }
 
-    if (chunk.content) {
-      if (!firstTokenTime) firstTokenTime = Date.now();
-      accumulated += chunk.content;
-      callbacks.onChunk(chunk.content, accumulated);
-    }
-
-    if (chunk.toolCalls) {
-      for (const tc of chunk.toolCalls) {
-        collectedToolCalls.push(tc);
-        callbacks.onToolCall(tc);
-      }
-    }
-
-    if (chunk.done) {
-      const totalTime = Date.now() - startTime;
-      const ttft = firstTokenTime ? firstTokenTime - startTime : 0;
-
-      // Calculate tokens/sec from provider stats
-      let tokensPerSecond = 0;
-      if (chunk.evalCount && chunk.evalDuration) {
-        tokensPerSecond = chunk.evalCount / (chunk.evalDuration / 1_000_000_000);
-      } else if (chunk.evalCount && totalTime > 0) {
-        tokensPerSecond = chunk.evalCount / (totalTime / 1000);
+    cleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
+      if (chunk.error) {
+        if (activeSettings?.llmProvider === 'cloud') {
+          handleCloudSessionError(chunk.error);
+        }
+        callbacks.onError(chunk.error);
+        cleanupListener();
+        return;
       }
 
-      const stats: LLMStreamStats = {
-        timeToFirstToken: ttft,
-        totalTime,
-        tokensPerSecond,
-      };
+      if (chunk.content) {
+        if (!firstTokenTime) firstTokenTime = Date.now();
+        accumulated += chunk.content;
+        callbacks.onChunk(chunk.content, accumulated);
+      }
 
-      callbacks.onDone(accumulated, collectedToolCalls, stats);
-      cleanupListener();
+      if (chunk.toolCalls) {
+        for (const tc of chunk.toolCalls) {
+          collectedToolCalls.push(tc);
+          callbacks.onToolCall(tc);
+        }
+      }
+
+      if (chunk.done) {
+        const totalTime = Date.now() - startTime;
+        const ttft = firstTokenTime ? firstTokenTime - startTime : 0;
+
+        let tokensPerSecond = 0;
+        if (chunk.evalCount && chunk.evalDuration) {
+          tokensPerSecond = chunk.evalCount / (chunk.evalDuration / 1_000_000_000);
+        } else if (chunk.evalCount && totalTime > 0) {
+          tokensPerSecond = chunk.evalCount / (totalTime / 1000);
+        }
+
+        const stats: LLMStreamStats = {
+          timeToFirstToken: ttft,
+          totalTime,
+          tokensPerSecond,
+        };
+
+        callbacks.onDone(accumulated, collectedToolCalls, stats);
+        cleanupListener();
+      }
+    });
+
+    activeCleanup = cleanupListener;
+
+    if (activeSettings?.devMode) {
+      console.log('[LLMProvider] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
     }
-  });
+    bridge.llm.llmStream(messages, tools);
+  };
 
-  activeCleanup = cleanup;
+  if (activeSettings?.llmProvider === 'cloud') {
+    void ensureCloudAccessToken().then((accessToken) => {
+      if (!accessToken) {
+        if (!aborted) {
+          callbacks.onError('Cloud session expired. Please sign in again.');
+        }
+        return;
+      }
 
-  function cleanupListener() {
-    if (cleanup) cleanup();
-    if (activeCleanup === cleanup) activeCleanup = null;
+      startStream();
+    }).catch((error) => {
+      console.error(error);
+      if (!aborted) {
+        callbacks.onError((error as Error).message || 'Unable to refresh cloud session');
+      }
+    });
+  } else {
+    startStream();
   }
-
-  // Start the stream
-  if (settings?.devMode) {
-    console.log('[LLMProvider] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
-  }
-  bridge.llm.llmStream(messages, tools);
 
   return {
     abort: () => {
+      aborted = true;
       bridge.llm.llmStreamAbort();
       cleanupListener();
     },
@@ -192,51 +225,69 @@ function streamChatMobile(
   let accumulated = '';
   let firstTokenTime = 0;
   const collectedToolCalls: LLMToolCall[] = [];
+  let aborted = false;
 
   // Determine the cloud URL: tethered via desktop's forwarding endpoint
   let url: string;
-  let token: string;
 
   if (settings.backendMode === 'tethered' && settings.backendUrl) {
     // Tethered: forward through the desktop's web server
     url = settings.backendUrl.replace(/\/+$/, '');
-    token = settings.cloudAuthAccessToken || settings.cloudAuthToken;
   } else {
     callbacks.onError('No LLM endpoint configured for mobile');
     return { abort: () => {} };
   }
 
-  mobileCloudAdapter = new CloudLLMAdapter(url, token);
+  void ensureCloudAccessToken().then((token) => {
+    if (aborted) {
+      return;
+    }
 
-  mobileCloudAdapter.streamChat(messages, tools, {
-    onChunk: (chunk) => {
-      if (chunk.error) {
-        callbacks.onError(chunk.error);
-        return;
-      }
-      if (chunk.content) {
-        if (!firstTokenTime) firstTokenTime = Date.now();
-        accumulated += chunk.content;
-        callbacks.onChunk(chunk.content, accumulated);
-      }
-      if (chunk.toolCalls) {
-        for (const tc of chunk.toolCalls) {
-          collectedToolCalls.push(tc);
-          callbacks.onToolCall(tc);
+    if (!token) {
+      callbacks.onError('Cloud session expired. Please sign in again.');
+      return;
+    }
+
+    mobileCloudAdapter = new CloudLLMAdapter(url, token);
+
+    mobileCloudAdapter.streamChat(messages, tools, {
+      onChunk: (chunk) => {
+        if (chunk.error) {
+          handleCloudSessionError(chunk.error);
+          callbacks.onError(chunk.error);
+          return;
         }
-      }
-    },
-    onDone: () => {
-      const totalTime = Date.now() - startTime;
-      const ttft = firstTokenTime ? firstTokenTime - startTime : 0;
-      const stats: LLMStreamStats = { timeToFirstToken: ttft, totalTime, tokensPerSecond: 0 };
-      callbacks.onDone(accumulated, collectedToolCalls, stats);
-    },
-    onError: callbacks.onError,
+        if (chunk.content) {
+          if (!firstTokenTime) firstTokenTime = Date.now();
+          accumulated += chunk.content;
+          callbacks.onChunk(chunk.content, accumulated);
+        }
+        if (chunk.toolCalls) {
+          for (const tc of chunk.toolCalls) {
+            collectedToolCalls.push(tc);
+            callbacks.onToolCall(tc);
+          }
+        }
+      },
+      onDone: () => {
+        const totalTime = Date.now() - startTime;
+        const ttft = firstTokenTime ? firstTokenTime - startTime : 0;
+        const stats: LLMStreamStats = { timeToFirstToken: ttft, totalTime, tokensPerSecond: 0 };
+        callbacks.onDone(accumulated, collectedToolCalls, stats);
+      },
+      onError: (error) => {
+        handleCloudSessionError(error);
+        callbacks.onError(error);
+      },
+    });
+  }).catch((error) => {
+    console.error(error);
+    callbacks.onError((error as Error).message || 'Unable to refresh cloud session');
   });
 
   return {
     abort: () => {
+      aborted = true;
       mobileCloudAdapter?.abort();
       mobileCloudAdapter = null;
     },
@@ -258,15 +309,26 @@ export async function checkAvailability(settings: Settings): Promise<{ available
   }
 
   if (settings.llmProvider === 'cloud') {
+    const accessToken = await ensureCloudAccessToken();
+    if (!accessToken) {
+      return { available: false, reason: 'cloud_unreachable' };
+    }
+
     const cloudApiUrl = resolveCloudApiUrl(settings);
     const adapter = new CloudLLMAdapter(
       cloudApiUrl,
-      settings.cloudAuthAccessToken || settings.cloudAuthToken,
+      accessToken,
     );
-    const reachable = await adapter.checkAvailability();
-    return reachable
-      ? { available: true }
-      : { available: false, reason: 'cloud_unreachable' };
+    try {
+      const reachable = await adapter.checkAvailability();
+      return reachable
+        ? { available: true }
+        : { available: false, reason: 'cloud_unreachable' };
+    } catch (error) {
+      console.error(error);
+      handleCloudSessionError(error, false);
+      return { available: false, reason: 'cloud_unreachable' };
+    }
   }
 
   if (settings.llmProvider === 'ollama') {

@@ -12,7 +12,11 @@ import { APP_THEMES } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
 import { getBackend, resetBackend } from '../../shared/backends';
 import { isCapacitor } from '../../shared/platform';
-import { validateAndRefreshCloudSession } from '../services/cloudAuthService';
+import {
+  ensureCloudAccessToken,
+  hasSignedInCloudSession,
+  registerCloudSessionController,
+} from '../services/cloudSessionManager';
 
 // Context interface
 interface SettingsContextValue {
@@ -43,6 +47,7 @@ export const SettingsProvider: ParentComponent = (props) => {
   let broadcastChannel: BroadcastChannel | null = null;
   const ipcCleanups: Array<() => void> = [];
   let pendingSettingsSnapshot: Settings | null = null;
+  let unregisterCloudSessionController: (() => void) | null = null;
 
   const openCloudReLoginModal = () => setIsCloudReLoginModalOpen(true);
   const closeCloudReLoginModal = () => setIsCloudReLoginModalOpen(false);
@@ -96,44 +101,8 @@ export const SettingsProvider: ParentComponent = (props) => {
         pendingSettingsSnapshot = null;
       }
 
-      // Validate cloud session in background if user appears signed-in
-      if (mergedSettings.cloudAuthStatus === 'signed-in' && (mergedSettings.cloudAuthAccessToken || mergedSettings.cloudAuthToken)) {
-        const clearExpiredSession = () => {
-          updateSettings({
-            cloudAuthAccessToken: '',
-            cloudAuthToken: '',
-            cloudAuthRefreshToken: '',
-            cloudAuthUserId: '',
-            cloudAuthUserEmail: '',
-            cloudAuthExpiresAt: 0,
-            cloudAuthStatus: 'signed-out',
-          });
-          const usesCloud = mergedSettings.ocrProvider === 'cloud'
-            || mergedSettings.llmProvider === 'cloud'
-            || mergedSettings.ttsProvider === 'cloud'
-            || mergedSettings.flashcardTtsProvider === 'cloud';
-          if (usesCloud) {
-            openCloudReLoginModal();
-          }
-        };
-
-        validateAndRefreshCloudSession(mergedSettings).then((result) => {
-          if (result.status === 'refreshed' && result.accessToken && result.refreshToken) {
-            // Token was refreshed — persist the new tokens
-            updateSettings({
-              cloudAuthAccessToken: result.accessToken,
-              cloudAuthRefreshToken: result.refreshToken,
-              ...(result.expiresAt ? { cloudAuthExpiresAt: result.expiresAt } : {}),
-            });
-          } else if (result.status === 'expired') {
-            clearExpiredSession();
-          }
-        }).catch(() => {
-          // Network error — check expiresAt timestamp to decide locally
-          if (mergedSettings.cloudAuthExpiresAt && mergedSettings.cloudAuthExpiresAt < Date.now()) {
-            clearExpiredSession();
-          }
-        });
+      if (hasSignedInCloudSession(mergedSettings)) {
+        void ensureCloudAccessToken();
       }
     }));
     bridge.settings.getSettings();
@@ -262,6 +231,12 @@ export const SettingsProvider: ParentComponent = (props) => {
   };
 
   onMount(() => {
+    unregisterCloudSessionController = registerCloudSessionController({
+      getSettings: () => serializeSettings(settings as Settings),
+      updateSettings,
+      openCloudReLoginModal,
+    });
+
     // Setup broadcast channel
     if (typeof BroadcastChannel !== 'undefined') {
       broadcastChannel = new BroadcastChannel(SETTINGS_CHANNEL);
@@ -276,6 +251,8 @@ export const SettingsProvider: ParentComponent = (props) => {
     for (const cleanup of ipcCleanups) cleanup();
     ipcCleanups.length = 0;
     broadcastChannel?.close();
+    unregisterCloudSessionController?.();
+    unregisterCloudSessionController = null;
   });
 
   const value: SettingsContextValue = {

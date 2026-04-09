@@ -35,9 +35,19 @@ vi.mock('../../shared/platform', () => ({
   isCapacitor: () => false,
 }));
 
-const mockValidateAndRefreshCloudSession = vi.fn();
+const mockResolveCloudAccessToken = vi.fn((settings: Settings) => (
+  settings.cloudAuthAccessToken || settings.cloudAuthToken || ''
+));
+const mockRefreshCloudSession = vi.fn();
+const mockNormalizeCloudAuthExpiresAt = vi.fn((expiresAt?: number) => expiresAt ?? 0);
+const mockIsCloudAccessTokenExpiringSoon = vi.fn(() => false);
+
 vi.mock('../services/cloudAuthService', () => ({
-  validateAndRefreshCloudSession: (...args: unknown[]) => mockValidateAndRefreshCloudSession(...args),
+  CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS: 60_000,
+  isCloudAccessTokenExpiringSoon: (...args: unknown[]) => mockIsCloudAccessTokenExpiringSoon(...args),
+  normalizeCloudAuthExpiresAt: (...args: unknown[]) => mockNormalizeCloudAuthExpiresAt(...args),
+  refreshCloudSession: (...args: unknown[]) => mockRefreshCloudSession(...args),
+  resolveCloudAccessToken: (...args: unknown[]) => mockResolveCloudAccessToken(...args),
 }));
 
 type SettingsCtx = {
@@ -77,7 +87,16 @@ describe('SettingsProvider', () => {
     vi.resetModules();
     vi.clearAllMocks();
     setupMockImplementations();
-    mockValidateAndRefreshCloudSession.mockResolvedValue({ status: 'valid' });
+    mockResolveCloudAccessToken.mockImplementation((settings: Settings) => (
+      settings.cloudAuthAccessToken || settings.cloudAuthToken || ''
+    ));
+    mockNormalizeCloudAuthExpiresAt.mockImplementation((expiresAt?: number) => expiresAt ?? 0);
+    mockIsCloudAccessTokenExpiringSoon.mockReturnValue(false);
+    mockRefreshCloudSession.mockResolvedValue({
+      accessToken: 'refreshed-access',
+      refreshToken: 'refreshed-refresh',
+      expiresAt: 0,
+    });
   });
 
   it('useSettings throws when used outside SettingsProvider', async () => {
@@ -206,8 +225,8 @@ describe('SettingsProvider', () => {
   });
 
   it('cloud session validation: refreshed tokens are persisted', async () => {
-    mockValidateAndRefreshCloudSession.mockResolvedValue({
-      status: 'refreshed',
+    mockIsCloudAccessTokenExpiringSoon.mockReturnValue(true);
+    mockRefreshCloudSession.mockResolvedValue({
       accessToken: 'new-access',
       refreshToken: 'new-refresh',
       expiresAt: 9999999999999,
@@ -226,11 +245,13 @@ describe('SettingsProvider', () => {
   });
 
   it('cloud session validation: expired clears auth fields and opens re-login modal for cloud features', async () => {
-    mockValidateAndRefreshCloudSession.mockResolvedValue({ status: 'expired' });
+    mockIsCloudAccessTokenExpiringSoon.mockReturnValue(true);
+    mockRefreshCloudSession.mockRejectedValue(new Error('401 invalid session'));
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings({
       cloudAuthStatus: 'signed-in',
       cloudAuthAccessToken: 'some-token',
+      cloudAuthRefreshToken: 'refresh-token',
       llmProvider: 'cloud',
     }));
     await vi.waitFor(() => {

@@ -7,6 +7,7 @@
 import { Component, Show, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
 import { useSettings, useLocalization, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
+import { ensureCloudAccessToken } from '../../services/cloudSessionManager';
 import {
   Btn,
   IconBtn,
@@ -319,7 +320,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
           }
         })();
       } else {
-        getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider);
+        (async () => {
+          const accessToken = await ensureCloudAccessToken();
+          if (accessToken) {
+            getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider);
+          }
+        })();
       }
     }
   });

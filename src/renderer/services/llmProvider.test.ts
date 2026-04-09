@@ -54,6 +54,16 @@ vi.mock('../../shared/backends', () => ({
   resolveCloudApiUrl: vi.fn(() => 'https://api.example.com'),
 }));
 
+const mockEnsureCloudAccessToken = vi.fn(async () => 'mock-cloud-token');
+const mockGetCloudSessionSettings = vi.fn(() => null);
+const mockHandleCloudSessionError = vi.fn(() => false);
+
+vi.mock('./cloudSessionManager', () => ({
+  ensureCloudAccessToken: (...args: unknown[]) => mockEnsureCloudAccessToken(...args),
+  getCloudSessionSettings: () => mockGetCloudSessionSettings(),
+  handleCloudSessionError: (...args: unknown[]) => mockHandleCloudSessionError(...args),
+}));
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -65,6 +75,10 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     llmEnabled: true,
     ...overrides,
   } as Settings;
+}
+
+async function flushPromises(): Promise<void> {
+  await Promise.resolve();
 }
 
 // ============================================================================
@@ -86,6 +100,9 @@ describe('llmProvider', () => {
     mockCloudAdapterAbort.mockClear();
     mockCloudAdapterCheckAvailability.mockClear();
     mockIsMobile.mockReturnValue(false);
+    mockEnsureCloudAccessToken.mockResolvedValue('mock-cloud-token');
+    mockGetCloudSessionSettings.mockReturnValue(null);
+    mockHandleCloudSessionError.mockReturnValue(false);
 
     mockBridge.llm.onLLMStreamChunk.mockImplementation((cb: (chunk: LLMStreamChunk) => void) => {
       streamCallback = cb;
@@ -311,7 +328,7 @@ describe('llmProvider', () => {
     it('uses CloudLLMAdapter for cloud provider', async () => {
       mockCloudAdapterCheckAvailability.mockResolvedValue(true);
       const { checkAvailability } = await import('./llmProvider');
-      const result = await checkAvailability(makeSettings({ llmProvider: 'cloud' }));
+      const result = await checkAvailability(makeSettings({ llmProvider: 'cloud', cloudAuthAccessToken: 'token123' }));
       expect(MockCloudLLMAdapter.lastInstance).not.toBeNull();
       expect(mockCloudAdapterCheckAvailability).toHaveBeenCalledOnce();
       expect(result).toEqual({ available: true });
@@ -320,7 +337,7 @@ describe('llmProvider', () => {
     it('returns cloud_unreachable when CloudLLMAdapter.checkAvailability returns false', async () => {
       mockCloudAdapterCheckAvailability.mockResolvedValue(false);
       const { checkAvailability } = await import('./llmProvider');
-      const result = await checkAvailability(makeSettings({ llmProvider: 'cloud' }));
+      const result = await checkAvailability(makeSettings({ llmProvider: 'cloud', cloudAuthAccessToken: 'token123' }));
       expect(result).toEqual({ available: false, reason: 'cloud_unreachable' });
     });
   });
@@ -420,6 +437,7 @@ describe('llmProvider', () => {
       } as Partial<Settings>);
 
       streamChat([], [], { onChunk: vi.fn(), onDone: vi.fn(), onError: vi.fn(), onToolCall: vi.fn() }, settings);
+      await flushPromises();
 
       expect(MockCloudLLMAdapter.lastInstance).not.toBeNull();
       expect(MockCloudLLMAdapter.lastInstance!.baseUrl).toBe('http://desktop.local:7753');
@@ -459,6 +477,7 @@ describe('llmProvider', () => {
       } as Partial<Settings>);
 
       const handle = streamChat([], [], { onChunk: vi.fn(), onDone: vi.fn(), onError: vi.fn(), onToolCall: vi.fn() }, settings);
+      await flushPromises();
 
       handle.abort();
 
@@ -488,6 +507,7 @@ describe('llmProvider', () => {
       } as Partial<Settings>);
 
       streamChat([], [], { onChunk, onDone, onError: vi.fn(), onToolCall: vi.fn() }, settings);
+      await flushPromises();
 
       adapterOnChunkCb!({ content: 'Hello' });
       adapterOnChunkCb!({ content: ' world' });

@@ -21,6 +21,7 @@ import { getBackend } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
 import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
 import { streamChat, checkAvailability } from '../services/llmProvider';
+import { ensureCloudAccessToken } from '../services/cloudSessionManager';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
 
@@ -849,8 +850,18 @@ export const FlashcardProvider: ParentComponent = (props) => {
       const provider = settings.flashcardTtsProvider;
       const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
       const language = settings.language;
-      const cloudAuthToken = settings.cloudAuthAccessToken || undefined;
+      const cloudAuthToken = provider === 'cloud'
+        ? (await ensureCloudAccessToken()) || undefined
+        : undefined;
       const cloudApiUrl = settings.cloudApiUrl || undefined;
+
+      if (provider === 'cloud' && !cloudAuthToken) {
+        updatePostCreateTask(wordLabel, 'wordTts', 'error');
+        if (hasExample && !skipExampleTts) {
+          updatePostCreateTask(wordLabel, 'exampleTts', 'error');
+        }
+        return;
+      }
 
       // Word TTS
       updatePostCreateTask(wordLabel, 'wordTts', 'running');

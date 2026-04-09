@@ -9,7 +9,7 @@ import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../shared/backends';
-import { validateAndRefreshCloudSession } from '../../services/cloudAuthService';
+import { ensureCloudAccessToken, handleCloudSessionError } from '../../services/cloudSessionManager';
 import {
   loadAgents,
   addAgent,
@@ -141,7 +141,7 @@ const MicIcon: Component = () => (
 );
 
 export const ConversationContent: Component = () => {
-  const { settings, updateSettings, openCloudReLoginModal } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const { currentLangData, isTranslatable, getLanguageFeatures, getFrequency, getFreqLevelNames, getLevelName } = useLanguage();
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
@@ -421,10 +421,16 @@ export const ConversationContent: Component = () => {
     (async () => {
       try {
         if (provider === 'cloud') {
+          const accessToken = await ensureCloudAccessToken({ openModalOnExpiry: false });
+          if (!accessToken) {
+            setIsConnected(false);
+            return;
+          }
+
           const cloudApiUrl = resolveCloudApiUrl(settings);
           const adapter = new CloudLLMAdapter(
             cloudApiUrl,
-            settings.cloudAuthAccessToken || settings.cloudAuthToken,
+            accessToken,
           );
           const reachable = await adapter.checkAvailability();
           setIsConnected(reachable);
@@ -437,6 +443,7 @@ export const ConversationContent: Component = () => {
         }
       } catch (e) {
         console.error(e);
+        handleCloudSessionError(e, false);
         setIsConnected(false);
       } finally {
         setIsCheckingConnection(false);
@@ -806,26 +813,10 @@ export const ConversationContent: Component = () => {
         const is401 = settings.llmProvider === 'cloud' && isCloudSessionError(error);
 
         if (is401) {
-          validateAndRefreshCloudSession(settings).then((result) => {
-            if (result.status === 'refreshed' && result.accessToken && result.refreshToken) {
-              // Token was refreshed — update settings and inform user
-              updateSettings({
-                cloudAuthAccessToken: result.accessToken,
-                cloudAuthRefreshToken: result.refreshToken,
-                ...(result.expiresAt ? { cloudAuthExpiresAt: result.expiresAt } : {}),
-              });
+          ensureCloudAccessToken({ forceRefresh: true }).then((accessToken) => {
+            if (accessToken) {
               updateLastMessage(t('mlearn.CloudReLogin.SessionRefreshed'));
             } else {
-              // Session fully expired — show re-login modal
-              updateSettings({
-                cloudAuthAccessToken: '',
-                cloudAuthRefreshToken: '',
-                cloudAuthUserId: '',
-                cloudAuthUserEmail: '',
-                cloudAuthExpiresAt: 0,
-                cloudAuthStatus: 'signed-out',
-              });
-              openCloudReLoginModal();
               updateLastMessage(t('mlearn.CloudReLogin.SessionExpired'));
             }
           }).catch(() => {

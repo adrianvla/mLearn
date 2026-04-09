@@ -40,6 +40,7 @@ let ankiOverrideDisable = false;
 // after the Python process exits (race condition: fast Anki connection-refused)
 let pendingAnkiError: string | null = null;
 let pendingCriticalError: string | null = null;
+let pendingStartupStatusMessage: string | null = null;
 
 // Paths
 const resPath = getResourcePath();
@@ -80,6 +81,12 @@ const ANSI_REGEX = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-
 
 function stripAnsi(text: string): string {
   return text.replace(ANSI_REGEX, '');
+}
+
+function bufferStartupStatusMessage(message: string): void {
+  if (message.includes('Loaded from cache')) {
+    pendingStartupStatusMessage = message;
+  }
 }
 
 /**
@@ -407,6 +414,7 @@ function pythonFound(): void {
   lastExitWasAnkiError = false;
   pendingAnkiError = null;
   pendingCriticalError = null;
+  pendingStartupStatusMessage = null;
   let ankiErrorReason = '';
 
   const handleSTDOUT = (data: Buffer): void => {
@@ -431,6 +439,7 @@ function pythonFound(): void {
             if (channel.startsWith('OCR')) {
               getMainWindow()?.webContents.send(IPC_CHANNELS.OCR_STATUS_UPDATE, message);
             }
+            bufferStartupStatusMessage(message);
             getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, message);
           } catch (e) {
             console.error(e);
@@ -439,6 +448,7 @@ function pythonFound(): void {
         }
       }
       try {
+        bufferStartupStatusMessage(line);
         getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, line);
       } catch (e) {
         console.error(e);
@@ -767,10 +777,17 @@ export function setupPythonBackendIPC(): void {
   ipcMain.on(IPC_CHANNELS.IS_LOADED, (event) => {
     if (serverLoaded) {
       event.reply(IPC_CHANNELS.SERVER_LOAD, 'Python server running');
-    } else if (pendingAnkiError) {
+    }
+
+    if (pendingStartupStatusMessage) {
+      event.sender.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, pendingStartupStatusMessage);
+      pendingStartupStatusMessage = null;
+    }
+
+    if (!serverLoaded && pendingAnkiError) {
       // Re-send buffered Anki error (renderer may have mounted after the event)
       event.sender.send(IPC_CHANNELS.ANKI_CONNECTION_ERROR, pendingAnkiError);
-    } else if (pendingCriticalError) {
+    } else if (!serverLoaded && pendingCriticalError) {
       // Re-send buffered critical error
       event.sender.send(IPC_CHANNELS.SERVER_CRITICAL_ERROR, pendingCriticalError);
     }
