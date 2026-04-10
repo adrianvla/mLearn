@@ -77,7 +77,7 @@ function createTestMeta(overrides: Partial<FlashcardMeta> = {}): FlashcardMeta {
 }
 
 function createEmptyQueue(): ReviewQueue {
-    return { newQueue: [], learningQueue: [], reviewQueue: [], relearnQueue: [] };
+    return { newQueue: [], scheduledQueue: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -1245,55 +1245,45 @@ describe('buildReviewQueue', () => {
         vi.useRealTimers();
     });
 
-    it('builds queue with new, learning, review, relearn cards', () => {
+    it('builds one scheduled queue for learning, review, and relearn cards', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const now = Date.now();
         const cards = {
             new1: createTestCard({ id: 'new1', state: 'new', dueDate: now }),
             learn1: createTestCard({ id: 'learn1', state: 'learning', dueDate: now - 1000 }),
-            rev1: createTestCard({ id: 'rev1', state: 'review', interval: DAY, dueDate: now - 1000 }),
+            rev1: createTestCard({ id: 'rev1', state: 'review', interval: DAY, dueDate: now - 800 }),
             relearn1: createTestCard({ id: 'relearn1', state: 'relearning', learningStep: 0, dueDate: now - 500 }),
         };
+
         const queue = buildReviewQueue(cards, 20, 0);
-        expect(queue.newQueue).toContain('new1');
-        expect(queue.learningQueue).toContain('learn1');
-        expect(queue.reviewQueue).toContain('rev1');
-        expect(queue.relearnQueue).toContain('relearn1');
+
+        expect(queue.newQueue).toEqual(['new1']);
+        expect(queue.scheduledQueue).toEqual(['learn1', 'rev1', 'relearn1']);
     });
 
-    it('keeps relearning cards due later today in the queue for the current session', () => {
+    it('keeps same-day follow-up cards in the queue but defers them after due-now cards', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const now = Date.now();
         const cards = {
-            relearn1: createTestCard({
-                id: 'relearn1',
+            dueReview: createTestCard({ id: 'dueReview', state: 'review', interval: DAY, dueDate: now - 100 }),
+            laterRelearn: createTestCard({
+                id: 'laterRelearn',
                 state: 'relearning',
                 learningStep: 0,
                 dueDate: now + 10 * MINUTE,
             }),
-        };
-
-        const queue = buildReviewQueue(cards, 20, 0);
-        expect(queue.relearnQueue).toEqual(['relearn1']);
-    });
-
-    it('keeps learning cards due later today in the queue for the current session', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        const now = Date.now();
-        const cards = {
-            learn1: createTestCard({
-                id: 'learn1',
+            laterLearn: createTestCard({
+                id: 'laterLearn',
                 state: 'learning',
                 learningStep: 0,
-                dueDate: now + 10 * MINUTE,
+                dueDate: now + 15 * MINUTE,
             }),
         };
 
         const queue = buildReviewQueue(cards, 20, 0);
-        expect(queue.learningQueue).toEqual(['learn1']);
+        expect(queue.scheduledQueue).toEqual(['dueReview', 'laterRelearn', 'laterLearn']);
     });
 
     it('limits new cards by maxNewCards - newCardsToday', () => {
@@ -1304,7 +1294,7 @@ describe('buildReviewQueue', () => {
         for (let i = 0; i < 10; i++) {
             cards[`new${i}`] = createTestCard({ id: `new${i}`, state: 'new', createdAt: now + i, dueDate: now });
         }
-        // maxNewCards=5, already seen 2 → only 3 remaining
+
         const queue = buildReviewQueue(cards, 5, 2);
         expect(queue.newQueue).toHaveLength(3);
     });
@@ -1317,32 +1307,29 @@ describe('buildReviewQueue', () => {
         for (let i = 0; i < 10; i++) {
             cards[`new${i}`] = createTestCard({ id: `new${i}`, state: 'new', createdAt: now + i, dueDate: now });
         }
+
         const queue = buildReviewQueue(cards, 20, 0, 3);
         expect(queue.newQueue).toHaveLength(3);
     });
 
-    it('does not limit new cards when maxNewCardsPerDayLearning is undefined', () => {
+    it('limits review cards without affecting learning and relearning cards', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const now = Date.now();
-        const cards: Record<string, Flashcard> = {};
-        for (let i = 0; i < 5; i++) {
-            cards[`new${i}`] = createTestCard({ id: `new${i}`, state: 'new', createdAt: now + i, dueDate: now });
-        }
-        const queue = buildReviewQueue(cards, 20, 0, undefined);
-        expect(queue.newQueue).toHaveLength(5);
-    });
+        const cards: Record<string, Flashcard> = {
+            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now - 50 }),
+            relearn: createTestCard({ id: 'relearn', state: 'relearning', dueDate: now - 25 }),
+        };
 
-    it('limits reviews by maxReviewsPerDay', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        const now = Date.now();
-        const cards: Record<string, Flashcard> = {};
-        for (let i = 0; i < 10; i++) {
-            cards[`rev${i}`] = createTestCard({ id: `rev${i}`, state: 'review', interval: DAY, dueDate: now - i * 1000 });
+        for (let i = 0; i < 5; i++) {
+            cards[`rev${i}`] = createTestCard({ id: `rev${i}`, state: 'review', interval: DAY, dueDate: now - (1000 + i) });
         }
-        const queue = buildReviewQueue(cards, 0, 0, undefined, 4, 1);
-        expect(queue.reviewQueue).toHaveLength(3); // max 4 - already done 1 = 3 remaining
+
+        const queue = buildReviewQueue(cards, 0, 0, undefined, 3, 1);
+        expect(queue.scheduledQueue).toHaveLength(4);
+        expect(queue.scheduledQueue).toContain('learn');
+        expect(queue.scheduledQueue).toContain('relearn');
+        expect(queue.scheduledQueue.filter(id => id.startsWith('rev'))).toHaveLength(2);
     });
 
     it('does not limit reviews when maxReviewsPerDay is -1', () => {
@@ -1353,8 +1340,9 @@ describe('buildReviewQueue', () => {
         for (let i = 0; i < 5; i++) {
             cards[`rev${i}`] = createTestCard({ id: `rev${i}`, state: 'review', interval: DAY, dueDate: now - i * 1000 });
         }
+
         const queue = buildReviewQueue(cards, 0, 0, undefined, -1, 0);
-        expect(queue.reviewQueue).toHaveLength(5);
+        expect(queue.scheduledQueue).toHaveLength(5);
     });
 });
 
@@ -1373,228 +1361,168 @@ describe('getNextCard', () => {
         expect(getNextCard(queue, {})).toBeNull();
     });
 
-    it('prefers relearning over learning', () => {
+    it('returns the first due-now scheduled card in queue order', () => {
         vi.useFakeTimers();
         vi.setSystemTime(1000000);
         const now = Date.now();
         const cards = {
-            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now - 100 }),
-            relearn: createTestCard({ id: 'relearn', state: 'relearning', dueDate: now - 100 }),
+            review: createTestCard({ id: 'review', state: 'review', dueDate: now - 100 }),
+            relearn: createTestCard({ id: 'relearn', state: 'relearning', dueDate: now - 200 }),
+            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now - 300 }),
         };
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
-            learningQueue: ['learn'],
-            relearnQueue: ['relearn'],
+            scheduledQueue: ['review', 'relearn', 'learn'],
         };
-        expect(getNextCard(queue, cards)?.id).toBe('relearn');
+
+        expect(getNextCard(queue, cards)?.id).toBe('review');
     });
 
-    it('skips relearning cards beyond SRS day', () => {
+    it('defers later-today relearning cards until due-now workload is finished', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const now = Date.now();
         const cards = {
-            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now - 100 }),
-            relearn: createTestCard({ id: 'relearn', state: 'relearning', dueDate: new Date('2025-06-17T10:00:00').getTime() }),
+            dueReview: createTestCard({ id: 'dueReview', state: 'review', dueDate: now - 100 }),
+            laterRelearn: createTestCard({ id: 'laterRelearn', state: 'relearning', dueDate: now + 10 * MINUTE }),
         };
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
-            learningQueue: ['learn'],
-            relearnQueue: ['relearn'],
+            scheduledQueue: ['laterRelearn', 'dueReview'],
         };
-        expect(getNextCard(queue, cards)?.id).toBe('learn');
+
+        expect(getNextCard(queue, cards)?.id).toBe('dueReview');
     });
 
-    it('surfaces relearning cards queued for later today ahead of learning cards', () => {
+    it('returns new cards before later-today scheduled cards', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const now = Date.now();
-        const cards = {
-            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now - 100 }),
-            relearn: createTestCard({ id: 'relearn', state: 'relearning', dueDate: now + 10 * MINUTE }),
-        };
-        const queue: ReviewQueue = {
-            ...createEmptyQueue(),
-            learningQueue: ['learn'],
-            relearnQueue: ['relearn'],
-        };
-        expect(getNextCard(queue, cards)?.id).toBe('relearn');
-    });
-
-    it('surfaces learning cards queued for later today ahead of review cards', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        const now = Date.now();
-        const cards = {
-            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now + 10 * MINUTE }),
-            rev: createTestCard({ id: 'rev', state: 'review', dueDate: now - 100 }),
-        };
-        const queue: ReviewQueue = {
-            ...createEmptyQueue(),
-            learningQueue: ['learn'],
-            reviewQueue: ['rev'],
-        };
-
-        expect(getNextCard(queue, cards)?.id).toBe('learn');
-    });
-
-    it('keeps the session going when only same-day learning or relearning cards remain', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        const now = Date.now();
-        const cards = {
-            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now + 5 * MINUTE }),
-            relearn: createTestCard({ id: 'relearn', state: 'relearning', dueDate: now + 10 * MINUTE }),
-        };
-        const queue: ReviewQueue = {
-            ...createEmptyQueue(),
-            learningQueue: ['learn'],
-            relearnQueue: ['relearn'],
-        };
-
-        expect(getNextCard(queue, cards)?.id).toBe('relearn');
-    });
-
-    it('prefers learning over review when Math.random forces new card skip', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
-        // Mock Math.random to NOT pick new card (>= 0.1)
-        vi.spyOn(Math, 'random').mockReturnValue(0.5);
-        const cards = {
-            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now - 100 }),
-            rev: createTestCard({ id: 'rev', state: 'review', dueDate: now - 100 }),
-        };
-        const queue: ReviewQueue = {
-            ...createEmptyQueue(),
-            learningQueue: ['learn'],
-            reviewQueue: ['rev'],
-        };
-        expect(getNextCard(queue, cards)?.id).toBe('learn');
-    });
-
-    it('returns review card when only review queue has items', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
-        vi.spyOn(Math, 'random').mockReturnValue(0.5);
-        const cards = {
-            rev: createTestCard({ id: 'rev', state: 'review', dueDate: now - 100 }),
-        };
-        const queue: ReviewQueue = {
-            ...createEmptyQueue(),
-            reviewQueue: ['rev'],
-        };
-        expect(getNextCard(queue, cards)?.id).toBe('rev');
-    });
-
-    it('returns new card when no review cards exist', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
-        vi.spyOn(Math, 'random').mockReturnValue(0.5);
         const cards = {
             newcard: createTestCard({ id: 'newcard', state: 'new', dueDate: now }),
+            laterReview: createTestCard({ id: 'laterReview', state: 'review', interval: DAY, dueDate: now + 10 * MINUTE }),
         };
         const queue: ReviewQueue = {
-            ...createEmptyQueue(),
             newQueue: ['newcard'],
+            scheduledQueue: ['laterReview'],
         };
+
         expect(getNextCard(queue, cards)?.id).toBe('newcard');
     });
 
-    it('returns new card when Math.random < 0.1 (interleaving)', () => {
+    it('returns the first same-day scheduled card when nothing is due now', () => {
         vi.useFakeTimers();
-        vi.setSystemTime(1000000);
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const now = Date.now();
-        vi.spyOn(Math, 'random').mockReturnValue(0.05); // forces new card interleave
         const cards = {
-            newcard: createTestCard({ id: 'newcard', state: 'new', dueDate: now }),
-            rev: createTestCard({ id: 'rev', state: 'review', dueDate: now - 100 }),
+            laterLearn: createTestCard({ id: 'laterLearn', state: 'learning', dueDate: now + 10 * MINUTE }),
+            laterRelearn: createTestCard({ id: 'laterRelearn', state: 'relearning', dueDate: now + 5 * MINUTE }),
         };
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
-            newQueue: ['newcard'],
-            reviewQueue: ['rev'],
+            scheduledQueue: ['laterLearn', 'laterRelearn'],
         };
+
+        expect(getNextCard(queue, cards)?.id).toBe('laterLearn');
+    });
+
+    it('respects scheduled queue order for later-today cards', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const now = Date.now();
+        const cards = {
+            earlierDue: createTestCard({ id: 'earlierDue', state: 'relearning', dueDate: now + 5 * MINUTE }),
+            queuedFirst: createTestCard({ id: 'queuedFirst', state: 'learning', dueDate: now + 15 * MINUTE }),
+        };
+        const queue: ReviewQueue = {
+            ...createEmptyQueue(),
+            scheduledQueue: ['queuedFirst', 'earlierDue'],
+        };
+
+        expect(getNextCard(queue, cards)?.id).toBe('queuedFirst');
+    });
+
+    it('interleaves new cards with due-now review cards when Math.random < 0.1', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(1000000);
+        const now = Date.now();
+        vi.spyOn(Math, 'random').mockReturnValue(0.05);
+        const cards = {
+            newcard: createTestCard({ id: 'newcard', state: 'new', dueDate: now }),
+            review: createTestCard({ id: 'review', state: 'review', dueDate: now - 100 }),
+        };
+        const queue: ReviewQueue = {
+            newQueue: ['newcard'],
+            scheduledQueue: ['review'],
+        };
+
         expect(getNextCard(queue, cards)?.id).toBe('newcard');
     });
 
-    it('skips cards not in expected state (stale queue entries)', () => {
+    it('does not interleave new cards ahead of due-now learning cards', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(1000000);
+        const now = Date.now();
+        vi.spyOn(Math, 'random').mockReturnValue(0.05);
+        const cards = {
+            newcard: createTestCard({ id: 'newcard', state: 'new', dueDate: now }),
+            learning: createTestCard({ id: 'learning', state: 'learning', dueDate: now - 100 }),
+        };
+        const queue: ReviewQueue = {
+            newQueue: ['newcard'],
+            scheduledQueue: ['learning'],
+        };
+
+        expect(getNextCard(queue, cards)?.id).toBe('learning');
+    });
+
+    it('skips stale scheduled entries whose card state no longer matches', () => {
         vi.useFakeTimers();
         vi.setSystemTime(1000000);
         const now = Date.now();
         const cards = {
-            // Card is in relearnQueue but state is 'review' (stale)
-            stale: createTestCard({ id: 'stale', state: 'review', dueDate: now - 100 }),
+            stale: createTestCard({ id: 'stale', state: 'new', dueDate: now - 100 }),
         };
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
-            relearnQueue: ['stale'],
+            scheduledQueue: ['stale'],
         };
+
         expect(getNextCard(queue, cards)).toBeNull();
     });
 
-    it('skips suspended cards in queue', () => {
+    it('skips suspended scheduled cards', () => {
         vi.useFakeTimers();
         vi.setSystemTime(1000000);
         const now = Date.now();
-        vi.spyOn(Math, 'random').mockReturnValue(0.5);
         const cards = {
-            rev: createTestCard({ id: 'rev', state: 'review', dueDate: now - 100, suspended: true }),
+            review: createTestCard({ id: 'review', state: 'review', dueDate: now - 100, suspended: true }),
         };
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
-            reviewQueue: ['rev'],
+            scheduledQueue: ['review'],
         };
+
         expect(getNextCard(queue, cards)).toBeNull();
     });
 
-    it('returns the first queued relearning card when only same-day relearning cards remain', () => {
+    it('skips scheduled cards beyond the SRS day', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const now = Date.now();
         const cards = {
-            r1: createTestCard({ id: 'r1', state: 'relearning', dueDate: now + 10 * MINUTE }),
-            r2: createTestCard({ id: 'r2', state: 'relearning', dueDate: now + 5 * MINUTE }),
+            dueLearn: createTestCard({ id: 'dueLearn', state: 'learning', dueDate: now - 100 }),
+            beyond: createTestCard({ id: 'beyond', state: 'relearning', dueDate: new Date('2025-06-17T10:00:00').getTime() }),
         };
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
-            relearnQueue: ['r1', 'r2'],
+            scheduledQueue: ['beyond', 'dueLearn'],
         };
-        expect(getNextCard(queue, cards)?.id).toBe('r1');
-    });
 
-    it('prefers queued relearning cards over review cards from the same SRS day', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        const now = Date.now();
-        vi.spyOn(Math, 'random').mockReturnValue(0.5);
-        const cards = {
-            rev: createTestCard({ id: 'rev', state: 'review', dueDate: now - 100 }),
-            relearn: createTestCard({ id: 'relearn', state: 'relearning', dueDate: now + 10 * MINUTE }),
-        };
-        const queue: ReviewQueue = {
-            ...createEmptyQueue(),
-            reviewQueue: ['rev'],
-            relearnQueue: ['relearn'],
-        };
-        expect(getNextCard(queue, cards)?.id).toBe('relearn');
-    });
-
-    it('does not fall back to relearning cards beyond SRS day', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        const cards = {
-            relearn: createTestCard({ id: 'relearn', state: 'relearning', dueDate: new Date('2025-06-17T10:00:00').getTime() }),
-        };
-        const queue: ReviewQueue = {
-            ...createEmptyQueue(),
-            relearnQueue: ['relearn'],
-        };
-        expect(getNextCard(queue, cards)).toBeNull();
+        expect(getNextCard(queue, cards)?.id).toBe('dueLearn');
     });
 });
+
 
 // ---------------------------------------------------------------------------
 // removeFromQueue
@@ -1607,42 +1535,27 @@ describe('removeFromQueue', () => {
         expect(result.newQueue).toEqual(['a', 'c']);
     });
 
-    it('removes card from learningQueue', () => {
-        const queue: ReviewQueue = { ...createEmptyQueue(), learningQueue: ['a', 'b'] };
+    it('removes card from scheduledQueue', () => {
+        const queue: ReviewQueue = { ...createEmptyQueue(), scheduledQueue: ['a', 'b'] };
         const result = removeFromQueue(queue, 'a');
-        expect(result.learningQueue).toEqual(['b']);
-    });
-
-    it('removes card from reviewQueue', () => {
-        const queue: ReviewQueue = { ...createEmptyQueue(), reviewQueue: ['x', 'y'] };
-        const result = removeFromQueue(queue, 'y');
-        expect(result.reviewQueue).toEqual(['x']);
-    });
-
-    it('removes card from relearnQueue', () => {
-        const queue: ReviewQueue = { ...createEmptyQueue(), relearnQueue: ['r1'] };
-        const result = removeFromQueue(queue, 'r1');
-        expect(result.relearnQueue).toEqual([]);
+        expect(result.scheduledQueue).toEqual(['b']);
     });
 
     it('does nothing when card not in any queue', () => {
         const queue: ReviewQueue = { ...createEmptyQueue(), newQueue: ['a'] };
         const result = removeFromQueue(queue, 'nonexistent');
         expect(result.newQueue).toEqual(['a']);
+        expect(result.scheduledQueue).toEqual([]);
     });
 
-    it('removes from all queues if present in multiple (deduplication)', () => {
+    it('removes from both queues if present in multiple places', () => {
         const queue: ReviewQueue = {
             newQueue: ['a'],
-            learningQueue: ['a'],
-            reviewQueue: ['a'],
-            relearnQueue: ['a'],
+            scheduledQueue: ['a'],
         };
         const result = removeFromQueue(queue, 'a');
         expect(result.newQueue).toEqual([]);
-        expect(result.learningQueue).toEqual([]);
-        expect(result.reviewQueue).toEqual([]);
-        expect(result.relearnQueue).toEqual([]);
+        expect(result.scheduledQueue).toEqual([]);
     });
 });
 
@@ -1658,33 +1571,47 @@ describe('addToQueue', () => {
         expect(result.newQueue).toContain('test');
     });
 
-    it('adds learning card to learningQueue', () => {
+    it('adds learning card to scheduledQueue', () => {
         const queue = createEmptyQueue();
         const card = createTestCard({ id: 'test', state: 'learning' });
         const result = addToQueue(queue, card);
-        expect(result.learningQueue).toContain('test');
+        expect(result.scheduledQueue).toContain('test');
     });
 
-    it('adds review card to reviewQueue', () => {
+    it('adds review card to scheduledQueue', () => {
         const queue = createEmptyQueue();
         const card = createTestCard({ id: 'test', state: 'review' });
         const result = addToQueue(queue, card);
-        expect(result.reviewQueue).toContain('test');
+        expect(result.scheduledQueue).toContain('test');
     });
 
-    it('adds relearning card to relearnQueue', () => {
+    it('adds relearning card to scheduledQueue', () => {
         const queue = createEmptyQueue();
         const card = createTestCard({ id: 'test', state: 'relearning' });
         const result = addToQueue(queue, card);
-        expect(result.relearnQueue).toContain('test');
+        expect(result.scheduledQueue).toContain('test');
+    });
+
+    it('does not add scheduled cards beyond the current SRS day', () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
+        const queue = createEmptyQueue();
+        const card = createTestCard({
+            id: 'test',
+            state: 'review',
+            dueDate: new Date('2025-06-17T10:00:00').getTime(),
+        });
+
+        const result = addToQueue(queue, card);
+        expect(result.scheduledQueue).toEqual([]);
     });
 
     it('removes card from old queue before adding to new one', () => {
-        const queue: ReviewQueue = { ...createEmptyQueue(), learningQueue: ['test'] };
-        const card = createTestCard({ id: 'test', state: 'review' });
+        const queue: ReviewQueue = { ...createEmptyQueue(), scheduledQueue: ['test'] };
+        const card = createTestCard({ id: 'test', state: 'new' });
         const result = addToQueue(queue, card);
-        expect(result.learningQueue).not.toContain('test');
-        expect(result.reviewQueue).toContain('test');
+        expect(result.scheduledQueue).not.toContain('test');
+        expect(result.newQueue).toContain('test');
     });
 
     it('does not duplicate card in target queue', () => {
@@ -1707,7 +1634,7 @@ describe('getQueueCounts', () => {
     it('counts relearning cards queued for today even before their due time', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        const queue: ReviewQueue = { ...createEmptyQueue(), relearnQueue: ['a'] };
+        const queue: ReviewQueue = { ...createEmptyQueue(), scheduledQueue: ['a'] };
         const cards = {
             a: createTestCard({ id: 'a', state: 'relearning', dueDate: new Date('2025-06-15T10:05:00').getTime() }),
         };
@@ -1723,7 +1650,7 @@ describe('getQueueCounts', () => {
     it('counts learning cards queued for today even before their due time', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2025-06-15T10:00:00'));
-        const queue: ReviewQueue = { ...createEmptyQueue(), learningQueue: ['a'] };
+        const queue: ReviewQueue = { ...createEmptyQueue(), scheduledQueue: ['a'] };
         const cards = {
             a: createTestCard({ id: 'a', state: 'learning', dueDate: new Date('2025-06-15T10:05:00').getTime() }),
         };
@@ -1755,68 +1682,45 @@ describe('getQueueCounts', () => {
         expect(result.new).toBe(2);
     });
 
-    it('counts learning cards due within SRS day', () => {
+    it('counts learning and review cards from the scheduled queue within the SRS day', () => {
         vi.useFakeTimers();
-        vi.setSystemTime(new Date('2025-06-15T10:00:00')); // endOfDay = June 16 4 AM
+        vi.setSystemTime(new Date('2025-06-15T10:00:00'));
         const now = Date.now();
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
-            learningQueue: ['due', 'future', 'beyond'],
+            scheduledQueue: ['learnDue', 'learnFuture', 'reviewDue', 'beyond'],
         };
         const cards = {
-            due: createTestCard({ id: 'due', state: 'learning', dueDate: now - 500 }),
-            future: createTestCard({ id: 'future', state: 'learning', dueDate: now + MINUTE }),
-            beyond: createTestCard({ id: 'beyond', state: 'learning', dueDate: new Date('2025-06-16T10:00:00').getTime() }),
+            learnDue: createTestCard({ id: 'learnDue', state: 'learning', dueDate: now - 500 }),
+            learnFuture: createTestCard({ id: 'learnFuture', state: 'learning', dueDate: now + MINUTE }),
+            reviewDue: createTestCard({ id: 'reviewDue', state: 'review', dueDate: now - 100 }),
+            beyond: createTestCard({ id: 'beyond', state: 'review', dueDate: new Date('2025-06-16T10:00:00').getTime() }),
         };
+
         const result = getQueueCounts(queue, cards);
-        // 'due' and 'future' are within SRS day; 'beyond' is not
         expect(result.learning).toBe(2);
+        expect(result.review).toBe(1);
     });
 
-    it('counts relearn cards in learning count', () => {
+    it('excludes suspended and buried scheduled cards', () => {
         vi.useFakeTimers();
         vi.setSystemTime(1000000);
         const now = Date.now();
         const queue: ReviewQueue = {
             ...createEmptyQueue(),
-            relearnQueue: ['r'],
+            scheduledQueue: ['review', 'learn'],
         };
         const cards = {
-            r: createTestCard({ id: 'r', state: 'relearning', dueDate: now - 100 }),
+            review: createTestCard({ id: 'review', state: 'review', dueDate: now - 100, suspended: true }),
+            learn: createTestCard({ id: 'learn', state: 'learning', dueDate: now - 100, buried: true }),
         };
-        const result = getQueueCounts(queue, cards);
-        expect(result.learning).toBe(1);
-    });
 
-    it('counts all review queue items (regardless of exact due time)', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
-        const queue: ReviewQueue = {
-            ...createEmptyQueue(),
-            reviewQueue: ['r1', 'r2'],
-        };
-        const cards = {
-            r1: createTestCard({ id: 'r1', state: 'review', dueDate: now + HOUR }),
-            r2: createTestCard({ id: 'r2', state: 'review', dueDate: now - 100 }),
-        };
-        const result = getQueueCounts(queue, cards);
-        expect(result.review).toBe(2);
-    });
-
-    it('excludes suspended/buried review cards', () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(1000000);
-        const now = Date.now();
-        const queue: ReviewQueue = {
-            ...createEmptyQueue(),
-            reviewQueue: ['r1'],
-        };
-        const cards = {
-            r1: createTestCard({ id: 'r1', state: 'review', dueDate: now - 100, suspended: true }),
-        };
-        const result = getQueueCounts(queue, cards);
-        expect(result.review).toBe(0);
+        expect(getQueueCounts(queue, cards)).toEqual({
+            new: 0,
+            learning: 0,
+            review: 0,
+            total: 0,
+        });
     });
 
     it('total is sum of new + learning + review', () => {
@@ -1825,9 +1729,7 @@ describe('getQueueCounts', () => {
         const now = Date.now();
         const queue: ReviewQueue = {
             newQueue: ['n'],
-            learningQueue: ['l'],
-            reviewQueue: ['r'],
-            relearnQueue: [],
+            scheduledQueue: ['l', 'r'],
         };
         const cards = {
             n: createTestCard({ id: 'n', state: 'new' }),

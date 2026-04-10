@@ -25,6 +25,7 @@ import type {
 } from '../../shared/types';
 import {
   getAppPath,
+  getBundledDistElectronPath,
   getResourcePath,
   getPipExecutablePath,
   getPythonExecutablePath,
@@ -140,45 +141,50 @@ function postJson(
 
 function loadVoicePackages(): string[] {
   const appPath = getAppPath();
-  const configPath = path.join(appPath, 'pip_requirements.json');
-  try {
-    const data = fs.readFileSync(configPath, 'utf-8');
-    const config: PipRequirementsConfig = JSON.parse(data);
-    return config.voice ?? [];
-  } catch (e) {
-    console.error(e);
-    // Fallback: try resource path (development mode)
-    const resPath = getResourcePath();
-    const fallbackPath = path.join(resPath, 'pip_requirements.json');
+  const resPath = getResourcePath();
+  const candidatePaths = [
+    path.join(appPath, 'pip_requirements.json'),
+    getBundledDistElectronPath('pip_requirements.json'),
+    path.join(resPath, 'root-of-app', 'pip_requirements.json'),
+    path.join(resPath, 'pip_requirements.json'),
+  ];
+
+  for (const candidatePath of candidatePaths) {
     try {
-      const data = fs.readFileSync(fallbackPath, 'utf-8');
+      const data = fs.readFileSync(candidatePath, 'utf-8');
       const config: PipRequirementsConfig = JSON.parse(data);
       return config.voice ?? [];
     } catch {
-      return [];
+      // Try the next packaged/development fallback.
     }
   }
+
+  console.error('Failed to load voice package config from any known path');
+  return [];
 }
 
 function loadQwen3Packages(): string[] {
   const appPath = getAppPath();
-  const configPath = path.join(appPath, 'pip_requirements.json');
-  try {
-    const data = fs.readFileSync(configPath, 'utf-8');
-    const config = JSON.parse(data) as Record<string, string[]>;
-    return config['qwen3-tts'] ?? [];
-  } catch (e) {
-    console.error(e);
-    const resPath = getResourcePath();
-    const fallbackPath = path.join(resPath, 'pip_requirements.json');
+  const resPath = getResourcePath();
+  const candidatePaths = [
+    path.join(appPath, 'pip_requirements.json'),
+    getBundledDistElectronPath('pip_requirements.json'),
+    path.join(resPath, 'root-of-app', 'pip_requirements.json'),
+    path.join(resPath, 'pip_requirements.json'),
+  ];
+
+  for (const candidatePath of candidatePaths) {
     try {
-      const data = fs.readFileSync(fallbackPath, 'utf-8');
+      const data = fs.readFileSync(candidatePath, 'utf-8');
       const config = JSON.parse(data) as Record<string, string[]>;
       return config['qwen3-tts'] ?? [];
     } catch {
-      return [];
+      // Try the next packaged/development fallback.
     }
   }
+
+  console.error('Failed to load Qwen3 package config from any known path');
+  return [];
 }
 
 function installVoicePackages(

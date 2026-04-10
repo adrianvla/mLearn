@@ -571,8 +571,7 @@ export function getNewCards(cards: Record<string, Flashcard>): Flashcard[] {
 }
 
 /**
- * Get learning cards (in learning phase only — relearning cards go to relearnQueue).
- * Only returns cards whose exact step due time has arrived.
+ * Get learning cards whose exact step due time has arrived.
  */
 export function getLearningCards(cards: Record<string, Flashcard>): Flashcard[] {
     const now = Date.now();
@@ -601,9 +600,74 @@ function isQueuedRelearningCard(card: Flashcard, newDayHour: number): boolean {
     return card.state === 'relearning' && !card.suspended && !card.buried && card.dueDate <= getEndOfSRSDay(newDayHour);
 }
 
+function isQueuedReviewCard(card: Flashcard, newDayHour: number): boolean {
+    return card.state === 'review' && !card.suspended && !card.buried && card.dueDate <= getEndOfSRSDay(newDayHour);
+}
+
+function isQueuedScheduledCard(card: Flashcard, newDayHour: number): boolean {
+    return isQueuedLearningCard(card, newDayHour)
+        || isQueuedRelearningCard(card, newDayHour)
+        || isQueuedReviewCard(card, newDayHour);
+}
+
+function compareScheduledCards(a: Flashcard, b: Flashcard, now: number): number {
+    const aDueBucket = a.dueDate <= now ? 0 : 1;
+    const bDueBucket = b.dueDate <= now ? 0 : 1;
+
+    if (aDueBucket !== bDueBucket) {
+        return aDueBucket - bDueBucket;
+    }
+
+    if (a.dueDate !== b.dueDate) {
+        return a.dueDate - b.dueDate;
+    }
+
+    if (a.createdAt !== b.createdAt) {
+        return a.createdAt - b.createdAt;
+    }
+
+    return a.id.localeCompare(b.id);
+}
+
+function getFirstValidNewCard(queue: ReviewQueue, cards: Record<string, Flashcard>): Flashcard | null {
+    for (const id of queue.newQueue) {
+        const card = cards[id];
+        if (card && card.state === 'new' && !card.suspended && !card.buried) {
+            return card;
+        }
+    }
+
+    return null;
+}
+
+function getBestScheduledCard(
+    queue: ReviewQueue,
+    cards: Record<string, Flashcard>,
+    newDayHour: number,
+    dueNowOnly: boolean
+): Flashcard | null {
+    const now = Date.now();
+
+    for (const id of queue.scheduledQueue) {
+        const card = cards[id];
+        if (!card || !isQueuedScheduledCard(card, newDayHour)) {
+            continue;
+        }
+
+        if (dueNowOnly && card.dueDate > now) {
+            continue;
+        }
+
+        return card;
+    }
+
+    return null;
+}
+
 /**
  * Build the review queue for a study session.
- * All card types use end-of-SRS-day cutoff so all cards due today appear in one session.
+ * Same-day scheduled cards share one priority queue so failed cards can be
+ * pushed to the end of the sitting instead of repeating immediately.
  */
 export function buildReviewQueue(
     cards: Record<string, Flashcard>,
@@ -615,6 +679,7 @@ export function buildReviewQueue(
     newDayHour?: number
 ): ReviewQueue {
     const hour = newDayHour ?? DEFAULT_SETTINGS.newDayHour;
+    const now = Date.now();
 
     // Get all card lists
     const allNewCards = getNewCards(cards);
@@ -645,83 +710,46 @@ export function buildReviewQueue(
         reviewCardsToShow = reviewCards.slice(0, remainingReviews);
     }
 
+    const scheduledCards = [...learningCards, ...relearnCards, ...reviewCardsToShow]
+        .sort((a, b) => compareScheduledCards(a, b, now));
+
     return {
         newQueue: newCardsToShow.map(c => c.id),
-        learningQueue: learningCards.map(c => c.id),
-        reviewQueue: reviewCardsToShow.map(c => c.id),
-        relearnQueue: relearnCards.map(c => c.id),
+        scheduledQueue: scheduledCards.map(c => c.id),
     };
 }
 
 /**
  * Get the next card to review from the queue
- * Priority: relearning > learning > new (interleaved) > review
+ * Priority: due-now scheduled cards > new (interleaved with due-now reviews) >
+ * remaining same-day scheduled cards in queue order
  *
  * Each queue section verifies the card's state matches expectations to prevent
  * stale queue entries from causing duplicate card appearances.
- * Learning and relearning cards queued for the current SRS day are surfaced
- * in the same sitting, even if their exact step due time is later today.
+ * Cards scheduled later today stay in the session and are surfaced in queue
+ * order so the whole same-day workload can be finished in one sitting.
  */
 export function getNextCard(
     queue: ReviewQueue,
     cards: Record<string, Flashcard>,
     newDayHour: number = 4
 ): Flashcard | null {
-    // Check relearning cards first (most urgent among queued same-day cards)
-    for (const id of queue.relearnQueue) {
-        const card = cards[id];
-        if (card && isQueuedRelearningCard(card, newDayHour)) {
-            return card;
+    const dueNowScheduledCard = getBestScheduledCard(queue, cards, newDayHour, true);
+    const newCard = getFirstValidNewCard(queue, cards);
+
+    if (dueNowScheduledCard) {
+        if (dueNowScheduledCard.state === 'review' && newCard && Math.random() < 0.1) {
+            return newCard;
         }
+
+        return dueNowScheduledCard;
     }
 
-    // Check learning cards
-    for (const id of queue.learningQueue) {
-        const card = cards[id];
-        if (card && isQueuedLearningCard(card, newDayHour)) {
-            return card;
-        }
+    if (newCard) {
+        return newCard;
     }
 
-    // Interleave new cards with review cards
-    // Show new card if: there are new cards and (no review cards or every 10th card)
-    // Review cards in the queue are already filtered to be due today (end-of-SRS-day cutoff),
-    // so we don't re-check dueDate here.
-    const hasNewCards = queue.newQueue.some(id => {
-        const card = cards[id];
-        return card && card.state === 'new' && !card.suspended && !card.buried;
-    });
-    const hasReviewCards = queue.reviewQueue.some(id => {
-        const card = cards[id];
-        return card && card.state === 'review' && !card.suspended && !card.buried;
-    });
-
-    if (hasNewCards && (!hasReviewCards || Math.random() < 0.1)) {
-        for (const id of queue.newQueue) {
-            const card = cards[id];
-            if (card && card.state === 'new' && !card.suspended && !card.buried) {
-                return card;
-            }
-        }
-    }
-
-    // Check review cards (already filtered to be due today, no dueDate re-check needed)
-    for (const id of queue.reviewQueue) {
-        const card = cards[id];
-        if (card && card.state === 'review' && !card.suspended && !card.buried) {
-            return card;
-        }
-    }
-
-    // Return first valid new card if nothing else
-    for (const id of queue.newQueue) {
-        const card = cards[id];
-        if (card && card.state === 'new' && !card.suspended && !card.buried) {
-            return card;
-        }
-    }
-
-    return null;
+    return getBestScheduledCard(queue, cards, newDayHour, false);
 }
 
 /**
@@ -730,39 +758,35 @@ export function getNextCard(
 export function removeFromQueue(queue: ReviewQueue, cardId: string): ReviewQueue {
     return {
         newQueue: queue.newQueue.filter(id => id !== cardId),
-        learningQueue: queue.learningQueue.filter(id => id !== cardId),
-        reviewQueue: queue.reviewQueue.filter(id => id !== cardId),
-        relearnQueue: queue.relearnQueue.filter(id => id !== cardId),
+        scheduledQueue: queue.scheduledQueue.filter(id => id !== cardId),
     };
 }
 
 /**
- * Add a card to the appropriate queue based on its state
+ * Add a card to the appropriate queue based on its state.
+ * Same-day learning, relearning, and review cards all share the scheduled queue.
  */
-export function addToQueue(queue: ReviewQueue, card: Flashcard): ReviewQueue {
+export function addToQueue(queue: ReviewQueue, card: Flashcard, newDayHour: number = 4): ReviewQueue {
     const id = card.id;
 
     // Remove from all queues first
     const cleanQueue = removeFromQueue(queue, id);
 
     // Add to appropriate queue
-    switch (card.state) {
-        case 'new':
-            return { ...cleanQueue, newQueue: [...cleanQueue.newQueue, id] };
-        case 'learning':
-            return { ...cleanQueue, learningQueue: [...cleanQueue.learningQueue, id] };
-        case 'review':
-            return { ...cleanQueue, reviewQueue: [...cleanQueue.reviewQueue, id] };
-        case 'relearning':
-            return { ...cleanQueue, relearnQueue: [...cleanQueue.relearnQueue, id] };
-        default:
-            return cleanQueue;
+    if (card.state === 'new') {
+        return { ...cleanQueue, newQueue: [...cleanQueue.newQueue, id] };
     }
+
+    if (isQueuedScheduledCard(card, newDayHour)) {
+        return { ...cleanQueue, scheduledQueue: [...cleanQueue.scheduledQueue, id] };
+    }
+
+    return cleanQueue;
 }
 /**
  * Get queue counts for display.
  * Learning and relearning cards both stay counted while they are queued for
- * the current SRS day.
+ * the current SRS day, and review cards share the same scheduled queue.
  */
 export function getQueueCounts(queue: ReviewQueue, cards: Record<string, Flashcard>, newDayHour: number = 4): {
     new: number;
@@ -770,31 +794,22 @@ export function getQueueCounts(queue: ReviewQueue, cards: Record<string, Flashca
     review: number;
     total: number;
 } {
-    const learning = [...queue.learningQueue, ...queue.relearnQueue]
-        .filter(id => {
-            const card = cards[id];
-            if (!card || card.suspended || card.buried) {
-                return false;
-            }
+    let learning = 0;
+    let review = 0;
 
-            if (card.state === 'learning') {
-                return isQueuedLearningCard(card, newDayHour);
-            }
+    for (const id of queue.scheduledQueue) {
+        const card = cards[id];
+        if (!card || !isQueuedScheduledCard(card, newDayHour)) {
+            continue;
+        }
 
-            if (card.state === 'relearning') {
-                return isQueuedRelearningCard(card, newDayHour);
-            }
+        if (card.state === 'review') {
+            review += 1;
+            continue;
+        }
 
-            return false;
-        }).length;
-
-    // Review cards in the queue are already filtered to be due today
-    // (end-of-SRS-day cutoff), so count them all regardless of exact time
-    const review = queue.reviewQueue
-        .filter(id => {
-            const card = cards[id];
-            return card && !card.suspended && !card.buried;
-        }).length;
+        learning += 1;
+    }
 
     return {
         new: queue.newQueue.length,

@@ -9,7 +9,7 @@ import { createContext, useContext, ParentComponent, onMount, onCleanup, createS
 import { createStore, reconcile, produce } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type WordCandidate } from '../../shared/types';
 import * as SRS from '../services/srsAlgorithm';
-import { migrationListenerReady } from './migrationSignals';
+import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
 import { useSettings } from './SettingsContext';
 import { useLocalization } from './LocalizationContext';
 import { useLanguage } from './LanguageContext';
@@ -141,7 +141,7 @@ interface FlashcardContextValue {
   buryCard: (id: string) => void;
 
   // Review operations
-  answerCard: (rating: SRS.Rating, cardId?: string) => void;
+  answerCard: (rating: SRS.Rating, cardId?: string) => boolean;
   getCurrentCard: () => Flashcard | null;
   getPreviewDueDates: () => Record<SRS.Rating, number> | null;
 
@@ -234,7 +234,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   const [store, setStore] = createStore<FlashcardStore>(getDefaultStore());
   const [isLoading, setIsLoading] = createSignal(true);
-  const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], learningQueue: [], reviewQueue: [], relearnQueue: [] });
+  const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: [] });
   const [undoStack, setUndoStack] = createSignal<UndoEntry[]>([]);
   // Used for tracking session start time (could be used for session stats)
   const [, setSessionStartTime] = createSignal<number>(0);
@@ -290,23 +290,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
           detail: info 
         }));
       };
-      
+
       if (migrationListenerReady()) {
         dispatchMigrationEvent();
       } else {
-        const checkReady = setInterval(() => {
-          if (migrationListenerReady()) {
-            clearInterval(checkReady);
-            dispatchMigrationEvent();
-          }
-        }, 200);
-        setTimeout(() => {
-          clearInterval(checkReady);
-          if (!migrationListenerReady()) {
-            console.warn('[FlashcardContext] Migration listener not ready after timeout, dispatching anyway');
-            dispatchMigrationEvent();
-          }
-        }, 2000);
+        queuePendingFlashcardMigration(info);
       }
     }
   };
@@ -594,7 +582,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Nuke all flashcards — factory reset, wipes everything
   const nukeAllFlashcards = () => {
     setStore(reconcile(getDefaultStore()));
-    setQueue({ newQueue: [], learningQueue: [], reviewQueue: [], relearnQueue: [] });
+    setQueue({ newQueue: [], scheduledQueue: [] });
     setUndoStack([]);
     saveFlashcards();
   };
@@ -1042,9 +1030,24 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Answer current card
   // cardId should always be passed from the UI to avoid a second getNextCard() call
   // (which uses Math.random() and may return a different card than the one displayed).
-  const answerCard = (rating: SRS.Rating, cardId?: string) => {
+  const answerCard = (rating: SRS.Rating, cardId?: string): boolean => {
     const card = cardId ? (store.flashcards[cardId] ?? null) : getCurrentCard();
-    if (!card) return;
+    if (!card) return false;
+
+    const wasNew = card.state === 'new';
+    const wasReview = card.state === 'review';
+    const updated = SRS.answerCard(card, rating, store.meta);
+
+    // Update queue - remove from current position, may need to re-add if still learning
+    let newQueue = SRS.removeFromQueue(queue(), card.id);
+
+    // If card is still in learning/relearning, keep it in the queue so the review
+    // session continues with same-day cards instead of dropping them.
+    if (updated.state === 'learning' || updated.state === 'relearning') {
+      newQueue = SRS.addToQueue(newQueue, updated, newDayHour());
+    }
+
+    const remainsQueued = newQueue.newQueue.includes(card.id) || newQueue.scheduledQueue.includes(card.id);
 
     // Lightweight undo: snapshot only the affected card and meta (avoids expensive full store clone)
     const cardSnapshot: Flashcard = { ...card, content: { ...card.content } };
@@ -1056,7 +1059,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     setUndoStack((prev) => {
       const newStack = [...prev, {
-        type: 'answer',
+        type: remainsQueued ? 'answer-requeued' : 'answer',
         restore: () => {
           setStore(produce((s) => {
             s.flashcards[card.id] = cardSnapshot;
@@ -1072,10 +1075,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
       if (newStack.length > MAX_UNDO_STACK_SIZE) newStack.shift();
       return newStack;
     });
-
-    const wasNew = card.state === 'new';
-    const wasReview = card.state === 'review';
-    const updated = SRS.answerCard(card, rating, store.meta);
 
     setStore(produce((s) => {
       s.flashcards[card.id] = updated;
@@ -1118,15 +1117,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }
     }));
 
-    // Update queue - remove from current position, may need to re-add if still learning
-    let newQueue = SRS.removeFromQueue(queue(), card.id);
-
-    // If card is still in learning/relearning, keep it in the queue so the review
-    // session waits for it instead of declaring "all done"
-    if (updated.state === 'learning' || updated.state === 'relearning') {
-      newQueue = SRS.addToQueue(newQueue, updated);
-    }
-
     setQueue(newQueue);
 
     // Leech detection: notify when a card's lapses reach the threshold
@@ -1149,6 +1139,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     })();
     
     saveFlashcards();
+
+    return !remainsQueued;
   };
 
   // Get all cards

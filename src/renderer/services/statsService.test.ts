@@ -11,6 +11,7 @@ vi.mock('../../shared/platform', () => ({
 
 const mockKvGet = vi.fn();
 const mockKvSet = vi.fn();
+const mockKvSetBatch = vi.fn();
 const mockGetMigratedItem = vi.fn();
 
 describe('statsService', () => {
@@ -18,8 +19,11 @@ describe('statsService', () => {
     vi.resetModules();
     mockKvGet.mockReset();
     mockKvSet.mockReset();
+    mockKvSetBatch.mockReset();
     mockGetMigratedItem.mockReset();
     mockKvGet.mockResolvedValue(null);
+    mockKvSet.mockResolvedValue(undefined);
+    mockKvSetBatch.mockResolvedValue(undefined);
     mockGetMigratedItem.mockResolvedValue(null);
 
     const { getBridge } = await import('../../shared/bridges');
@@ -27,6 +31,7 @@ describe('statsService', () => {
       kvStore: {
         kvGet: mockKvGet,
         kvSet: mockKvSet,
+        kvSetBatch: mockKvSetBatch,
       },
       migration: {
         getMigratedItem: mockGetMigratedItem,
@@ -240,6 +245,43 @@ describe('statsService', () => {
       mockGetMigratedItem.mockResolvedValue({ testWord: 2 });
       const { loadWordsFromStorage } = await import('./statsService');
       await loadWordsFromStorage();
+
+      expect(mockGetMigratedItem).toHaveBeenCalledWith('knownAdjustment');
+      expect(mockKvSetBatch).toHaveBeenCalledWith({
+        mlearn_words_learned: JSON.stringify({ testWord: 2 }),
+        mlearn_words_learned_v1_migration_done: '1',
+      });
+    });
+
+    it('does not retry v1 migration after it has already been imported', async () => {
+      const { isElectron } = await import('../../shared/platform');
+      vi.mocked(isElectron).mockReturnValue(true);
+      mockKvGet.mockImplementation(async (key: string) => {
+        if (key === 'mlearn_words_learned') return null;
+        if (key === 'mlearn_words_learned_v1_migration_done') return '1';
+        return null;
+      });
+
+      const { loadWordsFromStorage } = await import('./statsService');
+      await loadWordsFromStorage();
+
+      expect(mockGetMigratedItem).not.toHaveBeenCalled();
+    });
+
+    it('does not surface a migration toast when no word statuses were migrated', async () => {
+      const { isElectron } = await import('../../shared/platform');
+      vi.mocked(isElectron).mockReturnValue(true);
+      mockKvGet.mockResolvedValue(null);
+      mockGetMigratedItem.mockResolvedValue({});
+
+      const { getLocalStorageMigrationInfo, loadWordsFromStorage } = await import('./statsService');
+      await loadWordsFromStorage();
+
+      expect(getLocalStorageMigrationInfo()).toEqual({
+        occurred: false,
+        backupData: null,
+        migratedWordCount: 0,
+      });
     });
   });
 

@@ -13,6 +13,8 @@ import platform
 
 import plugin_registry
 
+ROOT_OF_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # ── Defaults (overridden by CLI args) ──
 LANGUAGE = ""
 FETCH_ANKI = True
@@ -134,7 +136,7 @@ def init():
     print("LLM allowed:", LLM_ALLOWED)
     print("OCR allowed:", OCR_ALLOWED)
 
-    LANGUAGE_DIR_PATH = os.path.join(RESPATH, "languages")
+    LANGUAGE_DIR_PATH = os.path.join(ROOT_OF_APP_DIR, "languages")
 
     # Read language-specific config from the JSON file next to the .py module.
     _lang_json_path = os.path.join(LANGUAGE_DIR_PATH, f"{LANGUAGE}.json")
@@ -151,7 +153,8 @@ def init():
     print("Language dir path: ", LANGUAGE_DIR_PATH)
 
     # Load and register built-in language module
-    sys.path.append(LANGUAGE_DIR_PATH)
+    if LANGUAGE_DIR_PATH not in sys.path:
+        sys.path.append(LANGUAGE_DIR_PATH)
     _lang_mod = importlib.import_module(LANGUAGE)
     _lang_mod.LOAD_MODULE(RESPATH)
     plugin_registry.register_language(LANGUAGE, _lang_mod)

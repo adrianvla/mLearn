@@ -99,6 +99,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
       if (isComplete()) return;
 
+      if (!currentCard()) return;
+
       // Space to show answer, or rate Good if answer is shown
       if (e.key === ' ' || e.key === 'Enter') {
         e.preventDefault();
@@ -191,8 +193,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     stopTts();
     batch(() => {
       setShowAnswer(false);
-      answerCard(quality, card.id);
-      setCardsAnswered(prev => prev + 1);
+      const completed = answerCard(quality, card.id);
+      if (completed) {
+        setCardsAnswered(prev => prev + 1);
+      }
     });
   };
 
