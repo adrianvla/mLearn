@@ -15,6 +15,7 @@ import type { InstallOptions, InstallerState, PipRequirementsConfig, PipProgress
 import { 
   getResourcePath, 
   getAppPath, 
+  getBundledDistElectronPath,
   getUserDataPath,
   getPythonExecutablePath, 
   getPipExecutablePath, 
@@ -47,6 +48,52 @@ const resPath = getResourcePath();
 const downloadPath = path.join(resPath, 'python.tar.gz');
 const extractPath = path.join(resPath, 'py');
 const envPath = path.join(resPath, 'env');
+
+function resolveResourceFilePath(...segments: string[]): string {
+  const appPath = getAppPath();
+  const candidatePaths = [
+    path.join(appPath, ...segments),
+    getBundledDistElectronPath(...segments),
+    path.join(resPath, 'root-of-app', ...segments),
+    path.join(resPath, ...segments),
+  ];
+
+  return candidatePaths[0];
+}
+
+function readResourceFile(...segments: string[]): string {
+  const candidatePaths = [
+    resolveResourceFilePath(...segments),
+    getBundledDistElectronPath(...segments),
+    path.join(resPath, 'root-of-app', ...segments),
+    path.join(resPath, ...segments),
+  ];
+
+  for (const candidatePath of candidatePaths) {
+    try {
+      return fs.readFileSync(candidatePath, 'utf-8');
+    } catch {
+      // Try the next packaged/development fallback.
+    }
+  }
+
+  return fs.readFileSync(candidatePaths[0], 'utf-8');
+}
+
+function resolveExternalResourceFilePath(...segments: string[]): string {
+  const candidatePaths = [
+    path.join(resPath, 'root-of-app', ...segments),
+    path.join(resPath, ...segments),
+  ];
+
+  for (const candidatePath of candidatePaths) {
+    if (fs.existsSync(candidatePath)) {
+      return candidatePath;
+    }
+  }
+
+  return candidatePaths[0];
+}
 
 // Getters
 export function isServerLoaded(): boolean {
@@ -200,11 +247,8 @@ function handleInstallerFailure(message: string, options?: { detail?: string; em
 
 // Load pip requirements config
 function loadPipRequirementsConfig(): PipRequirementsConfig {
-  const appPath = getAppPath();
-  const configPath = path.join(appPath, 'pip_requirements.json');
-  
   try {
-    const data = fs.readFileSync(configPath, 'utf-8');
+    const data = readResourceFile('pip_requirements.json');
     return JSON.parse(data);
   } catch (e) {
     console.error('Failed to load pip requirements config:', e);
@@ -401,7 +445,7 @@ function pythonFound(): void {
 
   const settings = loadSettings();
   const pythonExecutable = getPythonExecutablePath();
-  const serverPath = path.join(resPath, 'server.py');
+  const serverPath = resolveExternalResourceFilePath('server.py');
   const userDataPath = getUserDataPath();
 
   const llmEnabled = settings.llmEnabled !== false;

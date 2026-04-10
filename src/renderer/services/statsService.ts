@@ -24,6 +24,9 @@ interface LocalStorageMigrationInfo {
   migratedWordCount: number;
 }
 
+const WORD_STATUS_STORE_KEY = 'mlearn_words_learned';
+const WORD_STATUS_MIGRATION_MARKER_KEY = 'mlearn_words_learned_v1_migration_done';
+
 let localStorageMigrationInfo: LocalStorageMigrationInfo = {
   occurred: false,
   backupData: null,
@@ -233,11 +236,19 @@ export async function loadWordsFromStorage(): Promise<void> {
   wordStatusesLoaded = true;
   
   try {
+    const bridge = getBridge();
+
     // Check for existing v2 data in KV store
-    const stored = await getBridge().kvStore.kvGet('mlearn_words_learned');
+    const stored = await bridge.kvStore.kvGet(WORD_STATUS_STORE_KEY);
     if (stored) {
       setWordsLearnedInApp(JSON.parse(stored));
       console.log('[statsService] Loaded word statuses from KV store');
+      return;
+    }
+
+    const migrationAlreadyImported = await bridge.kvStore.kvGet(WORD_STATUS_MIGRATION_MARKER_KEY);
+    if (migrationAlreadyImported) {
+      console.log('[statsService] Skipping v1 word status migration because it has already been imported');
       return;
     }
     
@@ -253,21 +264,27 @@ export async function loadWordsFromStorage(): Promise<void> {
 /**
  * Migrate from v1 knownAdjustment data
  */
-function migrateFromV1Data(knownAdjustment: Record<string, number>): void {
+async function migrateFromV1Data(knownAdjustment: Record<string, number>): Promise<void> {
   try {
+    const migratedWordCount = Object.keys(knownAdjustment).length;
     setWordsLearnedInApp(knownAdjustment);
-    
+
     // Save in new format via KV store
-    getBridge().kvStore.kvSet('mlearn_words_learned', JSON.stringify(knownAdjustment));
-    
+    await getBridge().kvStore.kvSetBatch({
+      [WORD_STATUS_STORE_KEY]: JSON.stringify(knownAdjustment),
+      [WORD_STATUS_MIGRATION_MARKER_KEY]: '1',
+    });
+
     // Track migration
-    localStorageMigrationInfo = {
-      occurred: true,
-      backupData: { knownAdjustment },
-      migratedWordCount: Object.keys(knownAdjustment).length,
-    };
-    
-    console.log(`[statsService] Migrated ${Object.keys(knownAdjustment).length} word statuses from v1 to v2`);
+    localStorageMigrationInfo = migratedWordCount > 0
+      ? {
+          occurred: true,
+          backupData: { knownAdjustment },
+          migratedWordCount,
+        }
+      : { occurred: false, backupData: null, migratedWordCount: 0 };
+
+    console.log(`[statsService] Migrated ${migratedWordCount} word statuses from v1 to v2`);
   } catch (e) {
     console.error('[statsService] Failed to migrate v1 knownAdjustment:', e);
   }
@@ -283,7 +300,7 @@ async function loadFromMainProcessMigration(): Promise<void> {
       const knownAdjustment = await getBridge().migration.getMigratedItem('knownAdjustment');
       if (knownAdjustment && typeof knownAdjustment === 'object') {
         console.log('[statsService] Found knownAdjustment in main process migration data');
-        migrateFromV1Data(knownAdjustment as Record<string, number>);
+        await migrateFromV1Data(knownAdjustment as Record<string, number>);
       }
     } catch (e) {
       console.warn('[statsService] Failed to get migrated data from main process:', e);

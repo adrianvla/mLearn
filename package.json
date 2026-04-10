@@ -97,14 +97,19 @@
     "productName": "mLearn",
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "!dist-electron/.DS_Store",
+      "!dist-electron/env{,/**}",
+      "!dist-electron/py{,/**}",
+      "!dist-electron/python.tar.gz",
+      "!dist-electron/python_crash.log"
     ],
     "directories": {
       "output": "release"
     },
     "extraResources": [
       {
-        "from": "resources/root-of-app/",
+        "from": "src/root-of-app/",
         "to": "root-of-app/",
         "filter": [
           "**/*",
@@ -127,6 +132,22 @@
       "target": [
         "dmg",
         "zip"
+      ]
+    },
+    "dmg": {
+      "background": "build/dmg-background.png",
+      "icon": "build/icon.icns",
+      "contents": [
+        {
+          "x": 140,
+          "y": 200
+        },
+        {
+          "x": 660,
+          "y": 200,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     },
     "win": {

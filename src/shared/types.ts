@@ -769,12 +769,8 @@ export interface FlashcardStore {
 export interface ReviewQueue {
   /** New cards available for today */
   newQueue: string[];
-  /** Learning cards (with step timers) */
-  learningQueue: string[];
-  /** Review cards due */
-  reviewQueue: string[];
-  /** Relearning cards */
-  relearnQueue: string[];
+  /** Single scheduled queue for learning, relearning, and review cards due this SRS day */
+  scheduledQueue: string[];
 }
 
 // ============================================================================

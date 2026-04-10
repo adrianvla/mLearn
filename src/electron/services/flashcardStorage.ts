@@ -513,6 +513,7 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
     }
     const data = await fs.promises.readFile(filePath, 'utf-8');
     const parsed: unknown = JSON.parse(data);
+    const parsedJson = JSON.stringify(parsed);
 
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
       console.warn('[flashcardStorage] Loaded JSON is not a plain object — using defaults');
@@ -520,6 +521,11 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
     }
 
     const store = checkFlashcards(parsed);
+    const storeJson = JSON.stringify(store);
+
+    if (storeJson !== parsedJson) {
+      await saveFlashcards(store);
+    }
 
     if (extractBase64Images(store)) {
       await saveFlashcards(store);

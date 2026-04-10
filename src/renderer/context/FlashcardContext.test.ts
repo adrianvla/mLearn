@@ -726,7 +726,7 @@ describe('FlashcardProvider', () => {
     flashcardsCb(makeEmptyStore({ flashcards: { 'q-1': newCard } }));
 
     const q = ctx.queue();
-    expect(q.newQueue.length + q.learningQueue.length + q.reviewQueue.length + q.relearnQueue.length).toBeGreaterThan(0);
+    expect(q.newQueue.length + q.scheduledQueue.length).toBeGreaterThan(0);
     dispose();
   });
 

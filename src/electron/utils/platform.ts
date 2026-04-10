@@ -31,6 +31,14 @@ export function getAppPath(): string {
   return path.join(__dirname, '..', '..');
 }
 
+export function getBundledDistElectronPath(...segments: string[]): string {
+  if (isPackaged) {
+    return path.join(getAppPath(), 'dist-electron', ...segments);
+  }
+
+  return path.join(getResourcePath(), ...segments);
+}
+
 export function getUserDataPath(): string {
   return app.getPath('userData');
 }

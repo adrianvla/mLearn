@@ -43,11 +43,43 @@ export function getCurrentWindow(): BrowserWindow | null {
 }
 
 // Get preload script path
+function resolveExistingPath(candidates: string[]): string {
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return candidates[0];
+}
+
 function getPreloadPath(): string {
   if (isPackaged) {
-    return path.join(__dirname, 'preload.js');
+    const appPath = getAppPath();
+    return resolveExistingPath([
+      path.join(appPath, 'dist-electron', 'electron', 'preload.js'),
+      path.join(__dirname, '..', 'preload.js'),
+      path.join(__dirname, 'preload.js'),
+    ]);
   }
+
   return path.join(__dirname, '..', 'preload.js');
+}
+
+function getWindowHtmlPath(windowName: string): string {
+  const htmlFile = `${windowName}.html`;
+
+  if (isPackaged) {
+    const appPath = getAppPath();
+    return resolveExistingPath([
+      path.join(appPath, 'dist', 'src', 'html', htmlFile),
+      path.join(appPath, 'dist', htmlFile),
+      path.join(__dirname, '..', '..', 'dist', htmlFile),
+      path.join(__dirname, '..', '..', 'dist', 'src', 'html', htmlFile),
+    ]);
+  }
+
+  return path.join(__dirname, '..', '..', '..', 'src', 'html', htmlFile);
 }
 
 function openSettingsWindow(section?: string): BrowserWindow {
@@ -93,7 +125,7 @@ export function createMainWindow(): BrowserWindow {
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000/src/html/main.html');
   } else {
-    mainWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'main.html'));
+    mainWindow.loadFile(getWindowHtmlPath('main'));
   }
 
   mainWindow.on('closed', () => {
@@ -127,7 +159,7 @@ export function createWelcomeWindow(): BrowserWindow {
   if (isDev) {
     welcomeWindow.loadURL('http://localhost:3000/src/html/welcome.html');
   } else {
-    welcomeWindow.loadFile(path.join(__dirname, '..', '..', 'dist', 'welcome.html'));
+    welcomeWindow.loadFile(getWindowHtmlPath('welcome'));
   }
 
   return welcomeWindow;
@@ -171,7 +203,7 @@ export function createChildWindow(
   if (isDev) {
     window.loadURL(`http://localhost:3000/src/html/${type}.html`);
   } else {
-    window.loadFile(path.join(__dirname, '..', '..', 'dist', `${type}.html`));
+    window.loadFile(getWindowHtmlPath(type));
   }
 
   window.on('closed', () => {

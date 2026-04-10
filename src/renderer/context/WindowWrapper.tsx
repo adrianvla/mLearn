@@ -16,9 +16,12 @@ import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
 import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
-import { setMigrationListenerReady } from './migrationSignals';
+import { consumePendingFlashcardMigration, setMigrationListenerReady } from './migrationSignals';
+import { createAnkiCacheToastGate } from './windowWrapperNotifications';
 import { LowPowerGateProvider } from './LowPowerGateContext';
 import { isElectron } from '../../shared/platform';
+
+const ankiCacheToastGate = createAnkiCacheToastGate();
 
 /**
  * MigrationHandler - Handles showing notifications for v1 data migration
@@ -31,6 +34,21 @@ const MigrationHandler: ParentComponent = (props) => {
   const { t } = useLocalization();
 
   onMount(() => {
+    const showFlashcardMigrationToast = (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null } | undefined) => {
+      if (!info?.occurred) {
+        return;
+      }
+
+      showToast({
+        variant: 'success',
+        title: t('mlearn.Notifications.MigrationComplete'),
+        message: info.backupPath
+          ? t('mlearn.Notifications.MigrationFlashcards', { version: info.fromVersion ?? '' })
+          : t('mlearn.Notifications.MigrationFlashcardsNoBackup', { version: info.fromVersion ?? '' }),
+        duration: 10000,
+      });
+    };
+
     // Check if localStorage migration occurred (word statuses already loaded by statsService)
     const lsInfo = getLocalStorageMigrationInfo();
     if (lsInfo.occurred) {
@@ -47,25 +65,18 @@ const MigrationHandler: ParentComponent = (props) => {
     const handleFlashcardMigration = (e: Event) => {
       const info = (e as CustomEvent).detail;
       console.log('[MigrationHandler] Received flashcard migration event:', info);
-      if (info?.occurred) {
-        showToast({
-          variant: 'success',
-          title: t('mlearn.Notifications.MigrationComplete'),
-          message: info.backupPath 
-            ? t('mlearn.Notifications.MigrationFlashcards', { version: info.fromVersion })
-            : t('mlearn.Notifications.MigrationFlashcardsNoBackup', { version: info.fromVersion }),
-          duration: 10000,
-        });
-      }
+      showFlashcardMigrationToast(info);
     };
-    
+
     window.addEventListener('mlearn-flashcard-migration', handleFlashcardMigration);
-    
+
     // Signal that listener is ready
     setMigrationListenerReady(true);
+    showFlashcardMigrationToast(consumePendingFlashcardMigration() ?? undefined);
     console.log('[MigrationHandler] Migration listener registered');
-    
+
     onCleanup(() => {
+      setMigrationListenerReady(false);
       window.removeEventListener('mlearn-flashcard-migration', handleFlashcardMigration);
     });
   });
@@ -131,15 +142,13 @@ const WindowLoadingScreen: Component = () => {
  */
 const ServerStatusObserver: Component = () => {
   const { statusMessage } = useServer();
-  const { t } = useLocalization();
-  let prevMessage = '';
+  const { isLoaded, t } = useLocalization();
 
   createEffect(() => {
     const msg = statusMessage();
-    if (msg === prevMessage) return;
-    prevMessage = msg;
+    const localizationReady = isLoaded();
 
-    if (msg.includes('Loaded from cache')) {
+    if (ankiCacheToastGate.shouldShow(msg, localizationReady)) {
       showToast({
         message: t('mlearn.Notifications.AnkiCacheLoaded'),
         variant: 'info',
