@@ -9,7 +9,7 @@ import { formatClockTime } from '../../utils/timeFormatting';
 import { Btn, Input, Spinner, IconBtn, RefreshIcon, CheckIcon, CrossIcon, ScissorsIcon } from '../../components';
 import { matchesKeybind } from '../../components/common/Input/KeybindInput';
 import { MarkdownRenderer, parseMarkdownToHtml } from './MarkdownRenderer';
-import type { ConversationMessage, Token, QuizWidgetData, MistakeWidgetData, StreamStats } from '../../../shared/types';
+import type { ConversationMessage, Token, QuizWidgetData, MistakeWidgetData, ConversationSafetyFlag, StreamStats } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './ChatBubble.css';
 
@@ -104,6 +104,16 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
     props.message.tokens && props.message.tokens.length > 0;
 
   const messageWidgets = () => props.message.widgets || (props.message.widget ? [props.message.widget] : []);
+
+  const getSafetyNoticeLabel = (safety: ConversationSafetyFlag): string => {
+    if (isAssistant()) {
+      return t('mlearn.ConversationAgent.Safety.AssistantFiltered');
+    }
+
+    return safety.severity === 'urgent'
+      ? t('mlearn.ConversationAgent.Safety.UrgentNotice')
+      : t('mlearn.ConversationAgent.Safety.SensitiveNotice');
+  };
 
   const handleTimeMouseEnter = () => {
     if (!props.message.streamStats) return;
@@ -208,6 +218,17 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
           </span>
         </Show>
       </div>
+
+      <Show when={props.message.safety}>
+        {(safety) => (
+          <div class={`chat-safety-notice ${safety().severity}`}>
+            <span class="chat-safety-title">{getSafetyNoticeLabel(safety())}</span>
+            <Show when={!isAssistant()}>
+              <span class="chat-safety-help">{t('mlearn.ConversationAgent.Safety.GetHelp')}</span>
+            </Show>
+          </div>
+        )}
+      </Show>
 
       <Show when={messageWidgets().length > 0}>
         <div class="chat-widget">

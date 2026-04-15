@@ -241,6 +241,46 @@ describe('llmProvider', () => {
       expect(mockBridge.llm.llmStreamAbort).toHaveBeenCalledOnce();
       expect(mockCleanup).toHaveBeenCalledOnce();
     });
+
+    it('retries a cloud stream once after session recovery when the first failure happens before any content', async () => {
+      const { streamChat } = await import('./llmProvider');
+      const onDone = vi.fn();
+      const onError = vi.fn();
+
+      mockHandleCloudSessionError.mockReturnValue(true);
+      mockEnsureCloudAccessToken
+        .mockResolvedValueOnce('initial-cloud-token')
+        .mockResolvedValueOnce('recovered-cloud-token');
+
+      streamChat(
+        [{ role: 'user', content: 'hello' }],
+        [],
+        { onChunk: vi.fn(), onDone, onError, onToolCall: vi.fn() },
+        makeSettings({ llmProvider: 'cloud' }),
+      );
+
+      await flushPromises();
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(1);
+
+      streamCallback!({ error: '401 invalid session' });
+
+      await flushPromises();
+      await flushPromises();
+
+      expect(mockEnsureCloudAccessToken).toHaveBeenCalledTimes(2);
+      expect(mockBridge.llm.onLLMStreamChunk).toHaveBeenCalledTimes(2);
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2);
+
+      streamCallback!({ content: 'Recovered reply' });
+      streamCallback!({ done: true });
+
+      expect(onDone).toHaveBeenCalledWith(
+        'Recovered reply',
+        [],
+        expect.objectContaining({ totalTime: expect.any(Number) }),
+      );
+      expect(onError).not.toHaveBeenCalled();
+    });
   });
 
   // --------------------------------------------------------------------------

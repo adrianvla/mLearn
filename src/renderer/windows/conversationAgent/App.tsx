@@ -57,10 +57,11 @@ import type { ToolMenuItem } from './ToolMenu';
 import { createConversationAgent } from '../../services/conversationAgent';
 import { createCheckerAgent } from '../../services/checkerAgent';
 import type { StreamCallbacks } from '../../services/conversationAgent';
-import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
+import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, ConversationSafetyFlag, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import { isLatinOnly } from '../../../shared/utils/textUtils';
 import { getConversationErrorMessage, isCloudSessionError } from './errorUtils';
+import { canRegenerateAssistantMessage, getLatestAssistantMessageIndex, isStreamingAssistantBubble, shouldHideAssistantBubble } from './messageState';
 import './ConversationAgent.css';
 
 /**
@@ -153,6 +154,7 @@ export const ConversationContent: Component = () => {
   const [messages, setMessages] = createSignal<ConversationMessage[]>([]);
   const [inputText, setInputText] = createSignal('');
   const [isStreaming, setIsStreaming] = createSignal(false);
+  const [streamingMessageIndex, setStreamingMessageIndex] = createSignal<number | null>(null);
 
   // Command palette state
   const [showCommandPalette, setShowCommandPalette] = createSignal(false);
@@ -272,25 +274,168 @@ export const ConversationContent: Component = () => {
 
   // Checker agent for split-checker mode
   const checkerAgent = createCheckerAgent();
+  let checkerTaskQueue: Promise<void> = Promise.resolve();
+
+  const enqueueCheckerTask = (task: () => Promise<void>) => {
+    checkerTaskQueue = checkerTaskQueue
+      .catch((error) => {
+        console.error(error);
+      })
+      .then(task)
+      .catch((error) => {
+        console.error(error);
+      });
+
+    return checkerTaskQueue;
+  };
+
+  const startAssistantStream = (assistantMessageIndex: number) => {
+    setStreamingMessageIndex(assistantMessageIndex);
+    setIsStreaming(true);
+    setIsWaiting(true);
+    setIsProcessingToolCall(false);
+  };
+
+  const clearAssistantStreamState = () => {
+    setStreamingMessageIndex(null);
+    setIsStreaming(false);
+    setIsWaiting(false);
+    setIsProcessingToolCall(false);
+  };
+
+  const runAssistantSafetyScan = (
+    assistantText: string,
+    assistantMsgIndex: number,
+  ) => {
+    if (!assistantText.trim()) {
+      return;
+    }
+
+    void enqueueCheckerTask(async () => {
+      try {
+        const result = await checkerAgent.checkMessage(assistantText, langName(), undefined, {
+          speakerRole: 'assistant',
+          includeCorrections: false,
+        });
+
+        if (result.safety) {
+          setMessages((prev) => {
+            const updated = [...prev];
+            if (!updated[assistantMsgIndex] || updated[assistantMsgIndex].role !== 'assistant') {
+              return updated;
+            }
+
+            updated[assistantMsgIndex] = {
+              ...updated[assistantMsgIndex],
+              content: t('mlearn.ConversationAgent.Safety.AssistantReplacement'),
+              tokens: undefined,
+              widget: undefined,
+              widgets: undefined,
+              safety: result.safety ?? undefined,
+            };
+            return updated;
+          });
+          return;
+        }
+
+        const currentMessage = messages()[assistantMsgIndex];
+        if (
+          settings.autoSpeak
+          && settings.speechEnabled
+          && currentMessage
+          && currentMessage.role === 'assistant'
+          && currentMessage.content === assistantText
+        ) {
+          getBridge().speech.ttsSpeak(assistantText, settings.language);
+        }
+      } catch (error) {
+        console.error(error);
+        const currentMessage = messages()[assistantMsgIndex];
+        if (
+          settings.autoSpeak
+          && settings.speechEnabled
+          && currentMessage
+          && currentMessage.role === 'assistant'
+          && currentMessage.content === assistantText
+        ) {
+          getBridge().speech.ttsSpeak(assistantText, settings.language);
+        }
+      }
+    });
+  };
+
+  const getUserSafetyResponse = (severity: 'concern' | 'urgent') => (
+    severity === 'urgent'
+      ? t('mlearn.ConversationAgent.Safety.UserUrgentResponse')
+      : t('mlearn.ConversationAgent.Safety.UserConcernResponse')
+  );
+
+  const applyUserSafetyResponse = (
+    userMsgIndex: number,
+    assistantMsgIndex: number,
+    safety: ConversationSafetyFlag,
+  ) => {
+    setMessages((prev) => {
+      const updated = [...prev];
+      if (updated[userMsgIndex]?.role === 'user') {
+        updated[userMsgIndex] = {
+          ...updated[userMsgIndex],
+          safety,
+        };
+      }
+
+      if (updated[assistantMsgIndex]?.role === 'assistant') {
+        updated[assistantMsgIndex] = {
+          ...updated[assistantMsgIndex],
+          content: getUserSafetyResponse(safety.severity),
+          tokens: undefined,
+          widget: undefined,
+          widgets: undefined,
+          streamStats: undefined,
+        };
+      }
+
+      return updated;
+    });
+  };
 
   /**
    * Run the checker agent on user text and apply corrections to the user message.
    * Only called when agentSplitChecker is enabled.
    */
-  const runCheckerOnMessage = (userText: string, userMsgIndex: number) => {
+  const runCheckerOnMessage = (userText: string, userMsgIndex: number, assistantMsgIndex: number) => {
     const customInstructions = tutorConfig()?.customInstructions || undefined;
-    checkerAgent.checkMessage(userText, langName(), customInstructions).then((result) => {
-      if (result.corrections.length === 0) return;
+    void enqueueCheckerTask(async () => {
+      const result = await checkerAgent.checkMessage(userText, langName(), customInstructions, {
+        speakerRole: 'user',
+        includeCorrections: settings.agentSplitChecker,
+      });
+      if (result.corrections.length === 0 && !result.safety) {
+        return;
+      }
+
+      if (result.safety) {
+        applyUserSafetyResponse(userMsgIndex, assistantMsgIndex, result.safety);
+      }
+
       setMessages((prev) => {
         const updated = [...prev];
-        if (!updated[userMsgIndex] || updated[userMsgIndex].role !== 'user') return updated;
+        if (!updated[userMsgIndex] || updated[userMsgIndex].role !== 'user') {
+          return updated;
+        }
+
         let corrections = updated[userMsgIndex].corrections || [];
         for (const incoming of result.corrections) {
           if (!corrections.some((c) => isSameCorrection(c, incoming))) {
             corrections = [...corrections, incoming];
           }
         }
-        updated[userMsgIndex] = { ...updated[userMsgIndex], corrections };
+
+        updated[userMsgIndex] = {
+          ...updated[userMsgIndex],
+          corrections,
+          safety: result.safety ?? updated[userMsgIndex].safety,
+        };
         return updated;
       });
     });
@@ -336,16 +481,15 @@ export const ConversationContent: Component = () => {
 
     // Only run greeting + topic generation for newly created agents
     if (!config.id && isConnected() && messages().length === 0) {
+      const assistantMessageIndex = messages().length;
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', content: '', timestamp: Date.now() },
       ]);
-      setIsStreaming(true);
-      setIsWaiting(true);
-      setIsProcessingToolCall(false);
+      startAssistantStream(assistantMessageIndex);
 
       const greetingContext = `[The learner just opened the chat. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
-      agent.continueWithContext(greetingContext, buildStreamCallbacks());
+      agent.continueWithContext(greetingContext, buildStreamCallbacks(assistantMessageIndex));
     }
   };
 
@@ -359,6 +503,7 @@ export const ConversationContent: Component = () => {
     setAgents([]);
     setAllMemories([]);
     setMessages([]);
+    clearAssistantStreamState();
     agent.clearHistory();
     setActiveAgentId(null);
     setShowSetupModal(true);
@@ -544,16 +689,15 @@ export const ConversationContent: Component = () => {
     if (command.id === 'newtopic') {
       if (isStreaming() || !isConnected()) return;
 
+      const assistantMessageIndex = messages().length;
       setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
-      setIsStreaming(true);
-      setIsWaiting(true);
-      setIsProcessingToolCall(false);
+      startAssistantStream(assistantMessageIndex);
 
       const hasMessages = messages().length > 1;
       const context = hasMessages
         ? `[The learner wants to change the topic. Smoothly transition to a new, interesting, and creative topic. Pick something engaging and different from what was discussed before. Start naturally with a question or interesting statement in ${langName()}. Keep it concise — 1 to 3 sentences.]`
         : `[The learner wants you to pick a topic. Start a natural conversation about something interesting and creative in ${langName()}. Keep it concise — 1 to 3 sentences.]`;
-      agent.continueWithContext(context, buildStreamCallbacks());
+      agent.continueWithContext(context, buildStreamCallbacks(assistantMessageIndex));
     }
   };
 
@@ -664,9 +808,21 @@ export const ConversationContent: Component = () => {
    * Build reusable streaming callbacks for agent responses.
    * Handles chunk accumulation, tool calls, completion, and errors.
    */
-  const buildStreamCallbacks = (): StreamCallbacks => {
+  const buildStreamCallbacks = (targetAssistantIndex?: number): StreamCallbacks => {
     let streamTokenizeId = 0;
     let streamTokenizeTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const resolveTargetAssistantIndex = (items: ConversationMessage[]): number => {
+      if (
+        targetAssistantIndex !== undefined
+        && items[targetAssistantIndex]
+        && items[targetAssistantIndex].role === 'assistant'
+      ) {
+        return targetAssistantIndex;
+      }
+
+      return getLatestAssistantMessageIndex(items);
+    };
 
     return {
       onChunk: (accumulated) => {
@@ -676,9 +832,9 @@ export const ConversationContent: Component = () => {
 
         setMessages((prev) => {
           const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          if (lastIdx < 0) return updated;
-          updated[lastIdx] = { ...updated[lastIdx], content: visibleContent };
+          const assistantIndex = resolveTargetAssistantIndex(updated);
+          if (assistantIndex < 0) return updated;
+          updated[assistantIndex] = { ...updated[assistantIndex], content: visibleContent };
           return updated;
         });
 
@@ -692,9 +848,9 @@ export const ConversationContent: Component = () => {
               if (tokens.length > 0) {
                 setMessages((prev) => {
                   const updated = [...prev];
-                  const lastIdx = updated.length - 1;
-                  if (updated[lastIdx]?.role === 'assistant') {
-                    updated[lastIdx] = { ...updated[lastIdx], tokens };
+                  const assistantIndex = resolveTargetAssistantIndex(updated);
+                  if (assistantIndex >= 0 && updated[assistantIndex]?.role === 'assistant') {
+                    updated[assistantIndex] = { ...updated[assistantIndex], tokens };
                   }
                   return updated;
                 });
@@ -723,10 +879,13 @@ export const ConversationContent: Component = () => {
         }
         setMessages((prev) => {
           const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          const existingWidgets = updated[lastIdx].widgets || (updated[lastIdx].widget ? [updated[lastIdx].widget] : []);
-          updated[lastIdx] = {
-            ...updated[lastIdx],
+          const assistantIndex = resolveTargetAssistantIndex(updated);
+          if (assistantIndex < 0) {
+            return updated;
+          }
+          const existingWidgets = updated[assistantIndex].widgets || (updated[assistantIndex].widget ? [updated[assistantIndex].widget] : []);
+          updated[assistantIndex] = {
+            ...updated[assistantIndex],
             widgets: [...existingWidgets, widget],
             widget,
           };
@@ -736,6 +895,7 @@ export const ConversationContent: Component = () => {
       onDone: (finalContent, tokens, widgets, streamStats) => {
         setIsProcessingToolCall(false);
         const finalWidgets = widgets && widgets.length > 0 ? widgets : undefined;
+        const assistantMessageIndex = resolveTargetAssistantIndex(messages());
 
         if (finalWidgets && finalWidgets.some((widget) => widget.type === 'mistake')) {
           const mistakeWidgets = finalWidgets.filter((widget) => widget.type === 'mistake');
@@ -752,10 +912,10 @@ export const ConversationContent: Component = () => {
                 break;
               }
             }
-            const lastIdx = updated.length - 1;
-            if (lastIdx < 0) return updated;
-            updated[lastIdx] = {
-              ...updated[lastIdx],
+            const targetIndex = resolveTargetAssistantIndex(updated);
+            if (targetIndex < 0) return updated;
+            updated[targetIndex] = {
+              ...updated[targetIndex],
               content: finalContent,
               tokens,
               widgets: finalWidgets,
@@ -767,43 +927,46 @@ export const ConversationContent: Component = () => {
         } else {
           setMessages((prev) => {
             const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            if (lastIdx < 0) return updated;
-            updated[lastIdx] = {
-              ...updated[lastIdx],
+            const targetIndex = resolveTargetAssistantIndex(updated);
+            if (targetIndex < 0) return updated;
+            updated[targetIndex] = {
+              ...updated[targetIndex],
               content: finalContent,
               tokens,
-              widgets: finalWidgets || updated[lastIdx].widgets,
-              widget: finalWidgets ? finalWidgets[finalWidgets.length - 1] : updated[lastIdx].widget,
+              widgets: finalWidgets || updated[targetIndex].widgets,
+              widget: finalWidgets ? finalWidgets[finalWidgets.length - 1] : updated[targetIndex].widget,
               streamStats,
             };
             return updated;
           });
         }
-        setIsStreaming(false);
-        setIsWaiting(false);
+        clearAssistantStreamState();
 
-        if (settings.autoSpeak && settings.speechEnabled && finalContent) {
+        if (assistantMessageIndex >= 0 && settings.agentSplitChecker && finalContent) {
+          runAssistantSafetyScan(finalContent, assistantMessageIndex);
+        } else if (settings.autoSpeak && settings.speechEnabled && finalContent) {
           const langCode = settings.language;
           getBridge().speech.ttsSpeak(finalContent, langCode);
         }
       },
       onError: (error) => {
-        setIsProcessingToolCall(false);
-        setIsStreaming(false);
-        setIsWaiting(false);
+        clearAssistantStreamState();
 
         const errorMessage = getConversationErrorMessage(error);
         const updateLastMessage = (content: string) => {
           setMessages((prev) => {
             const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            if (lastIdx < 0) {
+            const targetIndex = resolveTargetAssistantIndex(updated);
+            if (targetIndex < 0) {
               return updated;
             }
-            updated[lastIdx] = {
-              ...updated[lastIdx],
+            updated[targetIndex] = {
+              ...updated[targetIndex],
               content,
+              tokens: undefined,
+              widgets: undefined,
+              widget: undefined,
+              streamStats: undefined,
             };
             return updated;
           });
@@ -859,51 +1022,43 @@ export const ConversationContent: Component = () => {
     }
 
     // Add placeholder assistant message for streaming
+    const assistantMessageIndex = userMsgIndex + 1;
     setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
-    setIsStreaming(true);
-    setIsWaiting(true);
-    setIsProcessingToolCall(false);
+    startAssistantStream(assistantMessageIndex);
 
-    const baseCallbacks = buildStreamCallbacks();
+    const baseCallbacks = buildStreamCallbacks(assistantMessageIndex);
 
-    // When split checker is enabled, run the checker after agent finishes
-    if (settings.agentSplitChecker) {
-      agent.processMessage(text, messages(), {
-        ...baseCallbacks,
-        onDone: (...args) => {
-          baseCallbacks.onDone(...args);
-          runCheckerOnMessage(text, userMsgIndex);
-        },
-      });
-    } else {
-      agent.processMessage(text, messages(), baseCallbacks);
-    }
+    agent.processMessage(text, messages(), {
+      ...baseCallbacks,
+      onDone: (...args) => {
+        baseCallbacks.onDone(...args);
+        runCheckerOnMessage(text, userMsgIndex, assistantMessageIndex);
+      },
+    });
   };
 
   const handleRequestGreeting = () => {
     if (isStreaming() || messages().length > 0) return;
 
     // Add placeholder assistant message for the greeting
+    const assistantMessageIndex = messages().length;
     setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
-    setIsStreaming(true);
-    setIsWaiting(true);
-    setIsProcessingToolCall(false);
+    startAssistantStream(assistantMessageIndex);
 
     const context = `[Voice call started. The learner is waiting for you to speak. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
-    agent.continueWithContext(context, buildStreamCallbacks());
+    agent.continueWithContext(context, buildStreamCallbacks(assistantMessageIndex));
   };
 
   const handleStartConversation = () => {
     if (isStreaming() || messages().length > 0 || !isConnected()) return;
 
     // Add placeholder assistant message for the AI-initiated conversation
+    const assistantMessageIndex = messages().length;
     setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
-    setIsStreaming(true);
-    setIsWaiting(true);
-    setIsProcessingToolCall(false);
+    startAssistantStream(assistantMessageIndex);
 
     const context = `[The learner opened the chat. Greet them warmly and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
-    agent.continueWithContext(context, buildStreamCallbacks());
+    agent.continueWithContext(context, buildStreamCallbacks(assistantMessageIndex));
   };
 
   const handleSend = async () => {
@@ -926,9 +1081,7 @@ export const ConversationContent: Component = () => {
 
   const handleAbort = () => {
     agent.abortStream();
-    setIsStreaming(false);
-    setIsWaiting(false);
-    setIsProcessingToolCall(false);
+    clearAssistantStreamState();
 
     // If the only message is an empty/partial first assistant greeting with no
     // user messages yet, clear everything so the welcome screen returns.
@@ -944,7 +1097,7 @@ export const ConversationContent: Component = () => {
 
     const msgs = messages();
     const targetMsg = msgs[messageIndex];
-    if (!targetMsg || targetMsg.role !== 'assistant') return;
+    if (!targetMsg || !canRegenerateAssistantMessage(msgs, messageIndex, false)) return;
 
     // Find the user message that preceded this assistant message
     let userMsgIndex = -1;
@@ -955,29 +1108,37 @@ export const ConversationContent: Component = () => {
       }
     }
 
-    // Remove the assistant message to regenerate
+    // Reuse the existing bubble so an error bubble cannot disappear during regeneration.
     setMessages((prev) => {
       const updated = [...prev];
-      updated.splice(messageIndex, 1);
+      if (!updated[messageIndex] || updated[messageIndex].role !== 'assistant') {
+        return updated;
+      }
+      updated[messageIndex] = {
+        ...updated[messageIndex],
+        content: '',
+        tokens: undefined,
+        widget: undefined,
+        widgets: undefined,
+        streamStats: undefined,
+        interrupted: false,
+        safety: undefined,
+        timestamp: Date.now(),
+      };
       return updated;
     });
-
-    // Add placeholder assistant message for streaming
-    setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
-    setIsStreaming(true);
-    setIsWaiting(true);
-    setIsProcessingToolCall(false);
+    startAssistantStream(messageIndex);
 
     if (userMsgIndex === -1) {
       // AI-initiated message with no preceding user message — remove context + assistant from history,
       // then re-request with a fresh context so the LLM produces a different greeting
       agent.popHistory(2);
       const context = `[The learner is waiting. Greet them and start a natural conversation in ${langName()}. Keep it short — 1 to 2 sentences.]`;
-      agent.continueWithContext(context, buildStreamCallbacks());
+      agent.continueWithContext(context, buildStreamCallbacks(messageIndex));
     } else {
       // Remove only the last assistant entry from history, keep the user message and all prior context
       agent.popHistory(1);
-      agent.restartStream(buildStreamCallbacks());
+      agent.restartStream(buildStreamCallbacks(messageIndex));
     }
   };
 
@@ -1070,12 +1231,11 @@ export const ConversationContent: Component = () => {
         ? `[The learner answered the quiz correctly: "${answer}"]`
         : `[The learner answered incorrectly: "${answer}". The correct answer was: "${quizCorrectAnswer}"]`;
 
+      const assistantMessageIndex = messages().length;
       setMessages((prev) => [...prev, { role: 'assistant' as const, content: '', timestamp: Date.now() }]);
-      setIsStreaming(true);
-      setIsWaiting(true);
-      setIsProcessingToolCall(false);
+      startAssistantStream(assistantMessageIndex);
 
-      agent.continueWithContext(context, buildStreamCallbacks());
+      agent.continueWithContext(context, buildStreamCallbacks(assistantMessageIndex));
     }
   };
 
@@ -1092,6 +1252,7 @@ export const ConversationContent: Component = () => {
 
   const handleClear = () => {
     setMessages([]);
+    clearAssistantStreamState();
     agent.clearHistory();
   };
 
@@ -1148,16 +1309,15 @@ export const ConversationContent: Component = () => {
    * Any empty assistant bubble that is not currently streaming is hidden.
    */
   const isEmptyToolOnlyBubble = (index: number): boolean => {
-    const msgs = messages();
-    const msg = msgs[index];
-    if (!msg || msg.role !== 'assistant') return false;
-    if (msg.content.trim()) return false;
+    return shouldHideAssistantBubble(messages(), index, isStreaming(), streamingMessageIndex());
+  };
 
-    // Don't hide if this is the latest message and we're still streaming
-    const isLatest = index === msgs.length - 1;
-    if (isLatest && isStreaming()) return false;
+  const canRegenerateMessageAt = (index: number): boolean => {
+    if (!canRegenerateAssistantMessage(messages(), index, isStreaming())) {
+      return false;
+    }
 
-    return true;
+    return !messages()[index - 1]?.safety;
   };
 
   return (
@@ -1234,15 +1394,15 @@ export const ConversationContent: Component = () => {
                   <Show when={!isEmptyToolOnlyBubble(index)}>
                     <ChatBubble
                       message={msg()}
-                      isStreaming={isStreaming() && index === messages().length - 1 && msg().role === 'assistant'}
-                      isWaiting={isWaiting() && index === messages().length - 1 && msg().role === 'assistant'}
-                      isProcessingToolCall={isProcessingToolCall() && index === messages().length - 1 && msg().role === 'assistant'}
+                      isStreaming={isStreamingAssistantBubble(msg(), index, isStreaming(), streamingMessageIndex())}
+                      isWaiting={isWaiting() && isStreamingAssistantBubble(msg(), index, isStreaming(), streamingMessageIndex())}
+                      isProcessingToolCall={isProcessingToolCall() && isStreamingAssistantBubble(msg(), index, isStreaming(), streamingMessageIndex())}
                       onTokenHover={handleTokenHover}
                       onTokenLeave={handleTokenLeave}
                       triggerMode={currentTriggerMode()}
                       triggerKey={currentKey()}
                       onQuizAnswer={(widgetIndex, answer) => handleQuizAnswer(index, widgetIndex, answer)}
-                      onRegenerate={msg().role === 'assistant' ? () => handleRegenerate(index) : undefined}
+                      onRegenerate={canRegenerateMessageAt(index) ? () => handleRegenerate(index) : undefined}
                       avatarSrc={activeAgent()?.profilePhoto}
                     />
                   </Show>

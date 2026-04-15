@@ -306,6 +306,15 @@
       "Checker": {
         "Alternatives": "Alternatives"
       },
+      "Safety": {
+        "AssistantFiltered": "A potentially unsafe assistant reply was replaced.",
+        "AssistantReplacement": "I need to respond carefully here. If this is about real self-harm risk or immediate danger, contact local emergency services or a crisis line in your area right now. If you want, tell me what is happening and I will keep responding carefully.",
+        "GetHelp": "If this reflects a real risk, contact local emergency services or a crisis line in your area now.",
+        "SensitiveNotice": "Sensitive self-harm-related content detected.",
+        "UrgentNotice": "Possible immediate self-harm risk detected.",
+        "UserConcernResponse": "I need to respond carefully to that. If this reflects a real self-harm risk, contact local emergency services or a crisis line in your area now. If you want, tell me what is happening and I will keep responding carefully.",
+        "UserUrgentResponse": "I am taking this seriously. If this is about immediate danger or self-harm risk, contact local emergency services or a crisis line in your area right now. If you want, tell me whether you are in immediate danger, and I will respond carefully."
+      },
       "Commands": {
         "NewTopic": "New topic",
         "NewTopicDesc": "Switch to a new conversation topic"
