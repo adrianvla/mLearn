@@ -16,6 +16,7 @@ import {
   ensureCloudAccessToken,
   hasSignedInCloudSession,
   registerCloudSessionController,
+  syncCloudSessionState,
 } from '../services/cloudSessionManager';
 
 // Context interface
@@ -51,10 +52,12 @@ export const SettingsProvider: ParentComponent = (props) => {
 
   const openCloudReLoginModal = () => setIsCloudReLoginModalOpen(true);
   const closeCloudReLoginModal = () => setIsCloudReLoginModalOpen(false);
-  const syncCloudReLoginModal = (nextSettings: Settings) => {
+  const syncCloudState = (nextSettings: Settings) => {
     if (nextSettings.cloudAuthStatus === 'signed-in') {
       closeCloudReLoginModal();
     }
+
+    syncCloudSessionState(nextSettings);
   };
 
   const serializeSettings = (value: Settings): Settings => JSON.parse(JSON.stringify(value)) as Settings;
@@ -78,7 +81,7 @@ export const SettingsProvider: ParentComponent = (props) => {
         : loadedSettings;
 
       setSettings(reconcile(mergedSettings));
-      syncCloudReLoginModal(mergedSettings);
+      syncCloudState(mergedSettings);
       setIsLoading(false);
       setHasLoaded(true);
 
@@ -179,7 +182,7 @@ export const SettingsProvider: ParentComponent = (props) => {
     } as Settings;
 
     setSettings(reconcile(nextSettings));
-    syncCloudReLoginModal(nextSettings);
+    syncCloudState(nextSettings);
     applySettingsToDOM(nextSettings);
     maybeReconfigureBackend(nextSettings, new Set([key]));
     saveSettings(nextSettings);
@@ -193,7 +196,7 @@ export const SettingsProvider: ParentComponent = (props) => {
     } as Settings;
 
     setSettings(reconcile(nextSettings));
-    syncCloudReLoginModal(nextSettings);
+    syncCloudState(nextSettings);
     applySettingsToDOM(nextSettings);
     maybeReconfigureBackend(nextSettings, new Set(Object.keys(partial) as (keyof Settings)[]));
     saveSettings(nextSettings);
@@ -225,7 +228,7 @@ export const SettingsProvider: ParentComponent = (props) => {
   const handleBroadcast = (event: MessageEvent) => {
     if (event.data?.type === 'update' && event.data.settings) {
       setSettings(reconcile(event.data.settings));
-      syncCloudReLoginModal(event.data.settings);
+      syncCloudState(event.data.settings);
       applySettingsToDOM(event.data.settings);
     }
   };

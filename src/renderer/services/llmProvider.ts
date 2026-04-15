@@ -104,6 +104,7 @@ export function streamChat(
   let firstTokenTime = 0;
   let cleanup: (() => void) | null = null;
   let aborted = false;
+  let hasRecoveredCloudSession = false;
 
   function cleanupListener() {
     cleanup?.();
@@ -118,10 +119,41 @@ export function streamChat(
 
     cleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
       if (chunk.error) {
-        if (activeSettings?.llmProvider === 'cloud') {
-          handleCloudSessionError(chunk.error);
+        const chunkError = chunk.error;
+        if (
+          activeSettings?.llmProvider === 'cloud'
+          && !hasRecoveredCloudSession
+          && accumulated.length === 0
+          && collectedToolCalls.length === 0
+          && handleCloudSessionError(chunkError)
+        ) {
+          hasRecoveredCloudSession = true;
+          cleanupListener();
+
+          void ensureCloudAccessToken().then((accessToken) => {
+            if (aborted) {
+              return;
+            }
+
+            if (!accessToken) {
+              callbacks.onError(chunkError);
+              return;
+            }
+
+            startStream();
+          }).catch((error) => {
+            console.error(error);
+            if (!aborted) {
+              callbacks.onError((error as Error).message || chunkError);
+            }
+          });
+          return;
         }
-        callbacks.onError(chunk.error);
+
+        if (activeSettings?.llmProvider === 'cloud') {
+          handleCloudSessionError(chunkError);
+        }
+        callbacks.onError(chunkError);
         cleanupListener();
         return;
       }
@@ -226,6 +258,7 @@ function streamChatMobile(
   let firstTokenTime = 0;
   const collectedToolCalls: LLMToolCall[] = [];
   let aborted = false;
+  let hasRecoveredCloudSession = false;
 
   // Determine the cloud URL: tethered via desktop's forwarding endpoint
   let url: string;
@@ -238,23 +271,43 @@ function streamChatMobile(
     return { abort: () => {} };
   }
 
-  void ensureCloudAccessToken().then((token) => {
-    if (aborted) {
-      return;
-    }
-
-    if (!token) {
-      callbacks.onError('Cloud session expired. Please sign in again.');
-      return;
-    }
-
+  const startMobileStream = (token: string) => {
     mobileCloudAdapter = new CloudLLMAdapter(url, token);
 
     mobileCloudAdapter.streamChat(messages, tools, {
       onChunk: (chunk) => {
         if (chunk.error) {
-          handleCloudSessionError(chunk.error);
-          callbacks.onError(chunk.error);
+          const chunkError = chunk.error;
+          if (
+            !hasRecoveredCloudSession
+            && accumulated.length === 0
+            && collectedToolCalls.length === 0
+            && handleCloudSessionError(chunkError)
+          ) {
+            hasRecoveredCloudSession = true;
+
+            void ensureCloudAccessToken().then((recoveredToken) => {
+              if (aborted) {
+                return;
+              }
+
+              if (!recoveredToken) {
+                callbacks.onError(chunkError);
+                return;
+              }
+
+              startMobileStream(recoveredToken);
+            }).catch((error) => {
+              console.error(error);
+              if (!aborted) {
+                callbacks.onError((error as Error).message || chunkError);
+              }
+            });
+            return;
+          }
+
+          handleCloudSessionError(chunkError);
+          callbacks.onError(chunkError);
           return;
         }
         if (chunk.content) {
@@ -280,6 +333,19 @@ function streamChatMobile(
         callbacks.onError(error);
       },
     });
+  };
+
+  void ensureCloudAccessToken().then((token) => {
+    if (aborted) {
+      return;
+    }
+
+    if (!token) {
+      callbacks.onError('Cloud session expired. Please sign in again.');
+      return;
+    }
+
+    startMobileStream(token);
   }).catch((error) => {
     console.error(error);
     callbacks.onError((error as Error).message || 'Unable to refresh cloud session');

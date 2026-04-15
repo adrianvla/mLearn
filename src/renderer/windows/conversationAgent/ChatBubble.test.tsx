@@ -172,4 +172,51 @@ describe('ChatBubble hover triggers', () => {
 
     dispose();
   });
+
+  it('renders an urgent user safety notice with help text', async () => {
+    const { ChatBubble } = await import('./ChatBubble');
+    const message: ConversationMessage = {
+      role: 'user',
+      content: 'I want to hurt myself',
+      timestamp: 0,
+      safety: {
+        category: 'self-harm',
+        severity: 'urgent',
+        flaggedSpan: 'hurt myself',
+        source: 'checker',
+      },
+    };
+
+    const dispose = render(() => (
+      <ChatBubble message={message} triggerMode="hover" triggerKey="shift" />
+    ), container);
+
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Safety.UrgentNotice');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Safety.GetHelp');
+
+    dispose();
+  });
+
+  it('renders an assistant safety notice without the user help text', async () => {
+    const { ChatBubble } = await import('./ChatBubble');
+    const message: ConversationMessage = {
+      role: 'assistant',
+      content: 'I need to respond carefully here.',
+      timestamp: 0,
+      safety: {
+        category: 'self-harm-related',
+        severity: 'concern',
+        source: 'checker',
+      },
+    };
+
+    const dispose = render(() => (
+      <ChatBubble message={message} triggerMode="hover" triggerKey="shift" />
+    ), container);
+
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Safety.AssistantFiltered');
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.Safety.GetHelp');
+
+    dispose();
+  });
 });

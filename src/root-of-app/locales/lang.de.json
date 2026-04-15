@@ -308,6 +308,15 @@
       "Checker": {
         "Alternatives": "Alternativen"
       },
+      "Safety": {
+        "AssistantFiltered": "Eine potenziell unsichere Assistentenantwort wurde ersetzt.",
+        "AssistantReplacement": "Ich muss hier vorsichtig antworten. Wenn es um ein reales Selbstgefährdungsrisiko oder eine unmittelbare Gefahr geht, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, was los ist, und ich antworte weiterhin vorsichtig.",
+        "GetHelp": "Wenn das ein reales Risiko widerspiegelt, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region.",
+        "SensitiveNotice": "Sensibler selbstverletzungsbezogener Inhalt erkannt.",
+        "UrgentNotice": "Mögliches unmittelbares Selbstgefährdungsrisiko erkannt.",
+        "UserConcernResponse": "Ich muss darauf vorsichtig reagieren. Wenn das ein reales Selbstgefährdungsrisiko widerspiegelt, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, was los ist, und ich antworte weiter vorsichtig.",
+        "UserUrgentResponse": "Ich nehme das ernst. Wenn es um unmittelbare Gefahr oder Selbstgefährdungsrisiko geht, kontaktiere jetzt sofort den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, ob du gerade in unmittelbarer Gefahr bist, und ich antworte vorsichtig."
+      },
       "Commands": {
         "NewTopic": "Neues Thema",
         "NewTopicDesc": "Zu einem neuen Gesprächsthema wechseln"

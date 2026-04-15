@@ -4,7 +4,7 @@
  * Initiates the desktop login flow (opens browser → accepts one-time code).
  */
 
-import { Component, Show, createSignal } from 'solid-js';
+import { Component, Show, createSignal, onCleanup } from 'solid-js';
 import { useSettings } from '../../context/SettingsContext';
 import { useLocalization } from '../../context/LocalizationContext';
 import { getBridge } from '../../../shared/bridges';
@@ -13,6 +13,7 @@ import {
   startCloudDesktopLogin,
   exchangeCloudDesktopCode,
 } from '../../services/cloudAuthService';
+import { cancelCloudSessionRecovery } from '../../services/cloudSessionManager';
 import './CloudReLoginModal.css';
 
 export interface CloudReLoginModalProps {
@@ -31,31 +32,29 @@ export const CloudReLoginModal: Component<CloudReLoginModalProps> = (props) => {
   const { t } = useLocalization();
 
   const [loginPending, setLoginPending] = createSignal(false);
+  const [pendingState, setPendingState] = createSignal('');
   const [pendingVerifier, setPendingVerifier] = createSignal('');
   const [manualCode, setManualCode] = createSignal('');
   const [error, setError] = createSignal('');
   const [exchanging, setExchanging] = createSignal(false);
 
-  async function handleStartLogin() {
+  function resetLocalState(): void {
+    setLoginPending(false);
+    setPendingState('');
+    setPendingVerifier('');
+    setManualCode('');
     setError('');
-    setLoginPending(true);
-    try {
-      const login = await startCloudDesktopLogin(settings);
-      setPendingVerifier(login.codeVerifier);
-      await getBridge().window.openExternalUrl(login.loginUrl);
-    } catch (e) {
-      console.error(e);
-      setError(String(e));
-      setLoginPending(false);
-    }
+    setExchanging(false);
   }
 
-  async function handleCompleteLogin() {
-    const code = manualCode().trim();
-    if (!code || !pendingVerifier()) return;
+  async function completeSignIn(code: string): Promise<void> {
+    if (!code || !pendingVerifier()) {
+      return;
+    }
 
     setExchanging(true);
     setError('');
+
     try {
       const result = await exchangeCloudDesktopCode(settings, code, pendingVerifier());
       updateSettings({
@@ -67,10 +66,7 @@ export const CloudReLoginModal: Component<CloudReLoginModalProps> = (props) => {
         cloudAuthExpiresAt: result.expiresAt ?? 0,
         cloudAuthStatus: 'signed-in',
       });
-      // Reset state
-      setLoginPending(false);
-      setPendingVerifier('');
-      setManualCode('');
+      resetLocalState();
       props.onReLoginSuccess?.();
       props.onClose();
     } catch (e) {
@@ -81,13 +77,50 @@ export const CloudReLoginModal: Component<CloudReLoginModalProps> = (props) => {
     }
   }
 
-  function handleClose() {
-    setLoginPending(false);
-    setPendingVerifier('');
-    setManualCode('');
+  async function handleStartLogin() {
     setError('');
+    setLoginPending(true);
+    try {
+      const login = await startCloudDesktopLogin(settings);
+      setPendingState(login.state);
+      setPendingVerifier(login.codeVerifier);
+      await getBridge().window.openExternalUrl(login.loginUrl);
+    } catch (e) {
+      console.error(e);
+      setError(String(e));
+      setLoginPending(false);
+    }
+  }
+
+  async function handleCompleteLogin() {
+    const code = manualCode().trim();
+    await completeSignIn(code);
+  }
+
+  function handleClose() {
+    resetLocalState();
+    cancelCloudSessionRecovery();
     props.onClose();
   }
+
+  const cleanupDeepLink = getBridge().window.onAuthDeepLink(async (payload) => {
+    if (!payload.code || !payload.state) {
+      if (payload.error) {
+        setError(payload.error);
+      }
+      return;
+    }
+
+    if (!pendingState() || payload.state !== pendingState()) {
+      return;
+    }
+
+    await completeSignIn(payload.code);
+  });
+
+  onCleanup(() => {
+    cleanupDeepLink();
+  });
 
   const footer = (
     <div class="modal-footer-actions">

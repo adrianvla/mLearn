@@ -1166,6 +1166,8 @@ export interface ConversationMessage {
   widgets?: ChatWidget[];
   /** Inline corrections applied to user messages by the AI tutor */
   corrections?: MistakeWidgetData[];
+  /** Safety signal produced by the checker sidecar */
+  safety?: ConversationSafetyFlag;
   /** Generation timing stats (assistant messages only) */
   streamStats?: StreamStats;
   /** Whether the TTS output was interrupted by the user speaking */
@@ -1225,6 +1227,19 @@ export interface MistakeWidgetData {
   source?: 'agent' | 'checker';
   /** Alternative corrections suggested by the checker agent */
   alternatives?: string[];
+}
+
+export type ConversationSafetyCategory = 'self-harm' | 'self-harm-related';
+
+export type ConversationSafetySeverity = 'concern' | 'urgent';
+
+export interface ConversationSafetyFlag {
+  category: ConversationSafetyCategory;
+  severity: ConversationSafetySeverity;
+  flaggedSpan?: string;
+  contextBefore?: string;
+  contextAfter?: string;
+  source?: 'checker';
 }
 
 // ============================================================================

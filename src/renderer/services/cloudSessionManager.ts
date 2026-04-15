@@ -13,8 +13,14 @@ interface CloudSessionController {
   openCloudReLoginModal: () => void;
 }
 
+interface PendingCloudSessionRecovery {
+  promise: Promise<string | null>;
+  resolve: (token: string | null) => void;
+}
+
 let controller: CloudSessionController | null = null;
 let refreshInFlight: Promise<string | null> | null = null;
+let pendingSessionRecovery: PendingCloudSessionRecovery | null = null;
 
 function buildExpiredSessionPatch(): Partial<Settings> {
   return {
@@ -76,6 +82,53 @@ export function getCloudSessionSettings(): Settings | null {
   return controller?.getSettings() ?? null;
 }
 
+function resolvePendingSessionRecovery(token: string | null): void {
+  if (!pendingSessionRecovery) {
+    return;
+  }
+
+  const pending = pendingSessionRecovery;
+  pendingSessionRecovery = null;
+  pending.resolve(token);
+}
+
+function requestCloudSessionRecovery(openModal: boolean = true): Promise<string | null> | null {
+  const active = controller;
+  if (!active) {
+    return null;
+  }
+
+  if (!pendingSessionRecovery) {
+    let resolveRecovery: (token: string | null) => void = () => {};
+    const promise = new Promise<string | null>((resolve) => {
+      resolveRecovery = resolve;
+    });
+
+    pendingSessionRecovery = {
+      promise,
+      resolve: resolveRecovery,
+    };
+  }
+
+  if (openModal) {
+    active.openCloudReLoginModal();
+  }
+
+  return pendingSessionRecovery.promise;
+}
+
+export function syncCloudSessionState(settings: Settings): void {
+  const accessToken = resolveCloudAccessToken(settings);
+
+  if (settings.cloudAuthStatus === 'signed-in' && accessToken) {
+    resolvePendingSessionRecovery(accessToken);
+  }
+}
+
+export function cancelCloudSessionRecovery(): void {
+  resolvePendingSessionRecovery(null);
+}
+
 export function clearCloudSession(openModal: boolean = true): void {
   const active = controller;
   if (!active) {
@@ -85,7 +138,7 @@ export function clearCloudSession(openModal: boolean = true): void {
   active.updateSettings(buildExpiredSessionPatch());
 
   if (openModal) {
-    active.openCloudReLoginModal();
+    void requestCloudSessionRecovery(true);
   }
 }
 
@@ -111,11 +164,20 @@ export async function ensureCloudAccessToken(
   const hasRefreshToken = !!initialSettings.cloudAuthRefreshToken;
   const shouldOpenModal = options.openModalOnExpiry !== false;
 
+  if (pendingSessionRecovery && (!currentToken || options.forceRefresh)) {
+    return pendingSessionRecovery.promise;
+  }
+
   if (!currentToken && !hasRefreshToken) {
     if (initialSettings.cloudAuthStatus === 'signed-in') {
-      clearCloudSession(shouldOpenModal);
+      clearCloudSession(false);
     }
-    return null;
+
+    if (!shouldOpenModal) {
+      return null;
+    }
+
+    return requestCloudSessionRecovery(true);
   }
 
   if (!options.forceRefresh && currentToken && !isCloudAccessTokenExpiringSoon(initialSettings, CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS)) {
@@ -124,9 +186,14 @@ export async function ensureCloudAccessToken(
 
   if (!hasRefreshToken) {
     if (initialSettings.cloudAuthStatus === 'signed-in') {
-      clearCloudSession(shouldOpenModal);
+      clearCloudSession(false);
     }
-    return null;
+
+    if (!shouldOpenModal) {
+      return null;
+    }
+
+    return requestCloudSessionRecovery(true);
   }
 
   if (refreshInFlight) {
@@ -158,7 +225,11 @@ export async function ensureCloudAccessToken(
       }
 
       if (isCloudSessionError(error) && latestSettings.cloudAuthStatus === 'signed-in') {
-        clearCloudSession(shouldOpenModal);
+        clearCloudSession(false);
+
+        if (shouldOpenModal) {
+          return requestCloudSessionRecovery(true);
+        }
       }
 
       return null;

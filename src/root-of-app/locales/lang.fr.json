@@ -308,6 +308,15 @@
       "Checker": {
         "Alternatives": "Alternatives"
       },
+      "Safety": {
+        "AssistantFiltered": "Une réponse potentiellement dangereuse de l'assistant a été remplacée.",
+        "AssistantReplacement": "Je dois répondre avec prudence ici. S'il s'agit d'un risque réel d'automutilation ou d'un danger immédiat, contactez tout de suite les services d'urgence locaux ou une ligne de crise de votre région. Si vous voulez, dites-moi ce qui se passe et je continuerai à répondre avec prudence.",
+        "GetHelp": "Si cela correspond à un risque réel, contactez maintenant les services d'urgence locaux ou une ligne de crise de votre région.",
+        "SensitiveNotice": "Contenu sensible lié à l'automutilation détecté.",
+        "UrgentNotice": "Risque possible d'automutilation immédiate détecté.",
+        "UserConcernResponse": "Je dois répondre prudemment à cela. Si cela reflète un risque réel d'automutilation, contactez maintenant les services d'urgence locaux ou une ligne de crise de votre région. Si vous voulez, dites-moi ce qui se passe et je continuerai à répondre avec prudence.",
+        "UserUrgentResponse": "Je prends cela au sérieux. S'il s'agit d'un danger immédiat ou d'un risque d'automutilation, contactez tout de suite les services d'urgence locaux ou une ligne de crise de votre région. Si vous voulez, dites-moi si vous êtes en danger immédiat et je répondrai avec prudence."
+      },
       "Commands": {
         "NewTopic": "Nouveau sujet",
         "NewTopicDesc": "Passer à un nouveau sujet de conversation"

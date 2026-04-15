@@ -6,6 +6,7 @@
 
 import type {
   MistakeWidgetData,
+  ConversationSafetyFlag,
   LLMChatMessage,
   LLMToolDefinition,
   LLMStreamChunk,
@@ -19,11 +20,22 @@ import { getBridge } from '../../shared/bridges';
 
 export interface CheckerResult {
   corrections: MistakeWidgetData[];
+  safety: ConversationSafetyFlag | null;
+}
+
+export interface CheckerMessageOptions {
+  speakerRole?: 'user' | 'assistant';
+  includeCorrections?: boolean;
 }
 
 export interface CheckerAgentInstance {
   /** Check a user message for mistakes and return corrections */
-  checkMessage: (userText: string, langName: string, customInstructions?: string) => Promise<CheckerResult>;
+  checkMessage: (
+    userText: string,
+    langName: string,
+    customInstructions?: string,
+    options?: CheckerMessageOptions,
+  ) => Promise<CheckerResult>;
   /** Abort the current check */
   abort: () => void;
 }
@@ -32,7 +44,7 @@ export interface CheckerAgentInstance {
 // Tool Definition
 // ============================================================================
 
-const CHECKER_TOOL: LLMToolDefinition = {
+const CORRECTION_TOOL: LLMToolDefinition = {
   name: 'suggest_corrections',
   description: 'Suggest corrections for unnatural or incorrect language in the learner\'s message. Multiple corrections can be batched into a single call.',
   parameters: {
@@ -79,26 +91,90 @@ const CHECKER_TOOL: LLMToolDefinition = {
   },
 };
 
+const SAFETY_TOOL: LLMToolDefinition = {
+  name: 'flag_self_harm_risk',
+  description: 'Flag self-harm or closely related safety risk found in the reviewed message.',
+  parameters: {
+    type: 'object',
+    properties: {
+      category: {
+        type: 'string',
+        enum: ['self-harm', 'self-harm-related'],
+        description: 'Use "self-harm" for direct self-harm intent or facilitation, and "self-harm-related" for closely related risky content that still requires caution.',
+      },
+      severity: {
+        type: 'string',
+        enum: ['concern', 'urgent'],
+        description: 'Use "urgent" when the message suggests immediate danger, active intent, plans, or instructions. Use "concern" for non-immediate but still meaningful self-harm-related risk.',
+      },
+      flagged_span: {
+        type: 'string',
+        description: 'The exact text span that triggered the safety concern, copied verbatim when possible.',
+      },
+      context_before: {
+        type: 'string',
+        description: 'Text immediately before the flagged span for disambiguation.',
+      },
+      context_after: {
+        type: 'string',
+        description: 'Text immediately after the flagged span for disambiguation.',
+      },
+    },
+    required: ['category', 'severity', 'flagged_span'],
+  },
+};
+
+const SAFE_TOOL: LLMToolDefinition = {
+  name: 'mark_safe',
+  description: 'Mark the reviewed message as having no self-harm-related safety concern.',
+  parameters: {
+    type: 'object',
+    properties: {},
+  },
+};
+
 // ============================================================================
 // System Prompt
 // ============================================================================
 
-function buildCheckerPrompt(langName: string, customInstructions?: string): string {
-  let prompt = `You are a language correction assistant for ${langName}. Your ONLY job is to review the learner's message and identify any grammatical, vocabulary, spelling, or stylistic issues.
+function buildCheckerPrompt(
+  langName: string,
+  customInstructions?: string,
+  options: CheckerMessageOptions = {},
+): string {
+  const speakerRole = options.speakerRole === 'assistant' ? 'assistant' : 'learner';
+  const includeCorrections = options.includeCorrections ?? options.speakerRole !== 'assistant';
+
+  let prompt = `You are a safety-aware language review assistant for ${langName}. You are reviewing a ${speakerRole}'s message.
+
+## Primary Duty: Safety
+- Detect direct self-harm, suicidal ideation, self-injury, requests for methods, planning, preparation, encouragement, glorification, or anything closely related that requires a more cautious response.
+- If and only if you detect that kind of risk, call the "flag_self_harm_risk" tool.
+- If there is no self-harm-related safety concern in the reviewed message, call the "mark_safe" tool.
+- Use category "self-harm" for direct self-harm intent, plans, instructions, encouragement, or facilitation.
+- Use category "self-harm-related" for nearby risky content that still requires caution but is less direct.
+- Use severity "urgent" when the message suggests immediate danger, active intent, plans, access to means, countdowns, or detailed instructions.
+- Use severity "concern" for non-immediate but still meaningful self-harm-related risk.
+- Every safety flag MUST include flagged_span copied exactly from the reviewed message. Never invent, paraphrase, or generalize the flagged span.
+- Do NOT flag greetings, small talk, ordinary encouragement, neutral tutoring language, generic frustration, or general emotional language unless the reviewed message itself explicitly contains self-harm-related content.
+- Do NOT flag neutral dictionary definitions, historical discussion, literary analysis, translation exercises, or other purely educational discussion unless the message is personally directed, asks how to do it, encourages it, or otherwise clearly requires caution.
+
+## Secondary Duty: Language Review
+- If language corrections are enabled, review the message for mistakes, unnatural phrasing, or awkward expressions.
+- If language corrections are disabled, DO NOT suggest grammar, vocabulary, spelling, or stylistic edits.
 
 ## Rules
-- Analyze (silently) the learner's message for mistakes, unnatural phrasing, or awkward expressions.
-- If you find issues, call the "suggest_corrections" tool with all corrections.
-- If the message is correct and natural, respond with an empty message (no tool call).
-- Do NOT add any visible text in your response. Only call the tool or produce nothing.
+- Analyze the message silently.
+- Only call tools. Do NOT add any visible text in your response.
+- Never call both "flag_self_harm_risk" and "mark_safe" for the same message.
 - The error_span must be copied EXACTLY from the learner's message. Do not translate or alter it.
 - When the same word or phrase appears multiple times, provide context_before and/or context_after for disambiguation.
 - Provide alternatives when there are multiple valid ways to express the same thing.
-- Do NOT correct text that is not in ${langName} — the learner may mix languages occasionally.
+- Do NOT correct text that is not in ${langName} — the message may mix languages occasionally.
 - Do NOT correct names.
 - Do NOT correct formality.
 - Do NOT correct anything if it's just to rewrite the sentence.
-- If you believe that there is nothing to correct, respond with an empty message (no tool call).
+- If there is no safety issue and no correction to make, call "mark_safe".
 
 ## Casual Speech Policy
 - Be LENIENT with casual, colloquial, or informal speech. Casual register is VALID and should NOT be corrected.
@@ -112,6 +188,12 @@ function buildCheckerPrompt(langName: string, customInstructions?: string): stri
 - Use "typo" for obvious spelling mistakes or typos.
 - Use "unnatural" for phrasing that is technically correct but sounds awkward or unnatural to a native speaker. Only flag clearly unnatural phrasing, not stylistic preferences. Do NOT flag casual speech as "unnatural".
 - Use "other" only when none of the above categories fit.`;
+
+  if (includeCorrections) {
+    prompt += '\n- If you find language issues, call the "suggest_corrections" tool with all corrections.';
+  } else {
+    prompt += '\n- Language corrections are disabled for this scan. Ignore grammar and style unless the message is itself unsafe.';
+  }
 
   if (customInstructions) {
     prompt += `\n\n## Session Instructions (from the learner)
@@ -137,14 +219,19 @@ export function createCheckerAgent(): CheckerAgentInstance {
     getBridge().llm.llmStreamAbort();
   }
 
-  function checkMessage(userText: string, langName: string, customInstructions?: string): Promise<CheckerResult> {
+  function checkMessage(
+    userText: string,
+    langName: string,
+    customInstructions?: string,
+    options: CheckerMessageOptions = {},
+  ): Promise<CheckerResult> {
     return new Promise((resolve) => {
       aborted = false;
       const bridge = getBridge();
 
       const systemMsg: LLMChatMessage = {
         role: 'system',
-        content: buildCheckerPrompt(langName, customInstructions),
+        content: buildCheckerPrompt(langName, customInstructions, options),
       };
 
       const userMsg: LLMChatMessage = {
@@ -153,7 +240,11 @@ export function createCheckerAgent(): CheckerAgentInstance {
       };
 
       const messages: LLMChatMessage[] = [systemMsg, userMsg];
-      const tools: LLMToolDefinition[] = [CHECKER_TOOL];
+      const tools: LLMToolDefinition[] = [SAFETY_TOOL, SAFE_TOOL];
+      const includeCorrections = options.includeCorrections ?? options.speakerRole !== 'assistant';
+      if (includeCorrections) {
+        tools.push(CORRECTION_TOOL);
+      }
 
       console.log('[CheckerAgent] Prompt:', JSON.stringify(messages, null, 2));
 
@@ -166,7 +257,7 @@ export function createCheckerAgent(): CheckerAgentInstance {
         if (chunk.error) {
           streamCleanup?.();
           streamCleanup = null;
-          resolve({ corrections: [] });
+          resolve({ corrections: [], safety: null });
           return;
         }
 
@@ -185,12 +276,12 @@ export function createCheckerAgent(): CheckerAgentInstance {
           streamCleanup = null;
 
           if (aborted) {
-            resolve({ corrections: [] });
+            resolve({ corrections: [], safety: null });
             return;
           }
 
-          const corrections = parseCheckerToolCalls(collectedToolCalls, accumulated);
-          resolve({ corrections });
+          const result = parseCheckerToolCalls(collectedToolCalls, accumulated, userText, includeCorrections);
+          resolve(result);
         }
       });
 
@@ -205,12 +296,21 @@ export function createCheckerAgent(): CheckerAgentInstance {
 // Parsing
 // ============================================================================
 
-function parseCheckerToolCalls(toolCalls: ToolCall[], content: string): MistakeWidgetData[] {
+function parseCheckerToolCalls(
+  toolCalls: ToolCall[],
+  content: string,
+  sourceText: string,
+  includeCorrections: boolean,
+): CheckerResult {
   const corrections: MistakeWidgetData[] = [];
+  let safety: ConversationSafetyFlag | null = null;
 
   // Process structured tool calls
   for (const tc of toolCalls) {
     if (tc.name === 'suggest_corrections') {
+      if (!includeCorrections) {
+        continue;
+      }
       const rawCorrections = tc.arguments.corrections as Record<string, unknown>[] | undefined;
       if (rawCorrections && Array.isArray(rawCorrections)) {
         for (const entry of rawCorrections) {
@@ -218,14 +318,26 @@ function parseCheckerToolCalls(toolCalls: ToolCall[], content: string): MistakeW
           if (correction) corrections.push(correction);
         }
       }
+      continue;
+    }
+
+    if (tc.name === 'mark_safe') {
+      continue;
+    }
+
+    if (tc.name === 'flag_self_harm_risk') {
+      safety = mergeSafetyFlags(safety, parseSafetyEntry(tc.arguments, sourceText));
     }
   }
 
   // Fallback: parse tool calls from plain text content
-  if (corrections.length === 0 && content) {
+  if ((corrections.length === 0 || !safety) && content) {
     const parsed = parseToolCallsFromContent(content);
     for (const tc of parsed) {
       if (tc.name === 'suggest_corrections') {
+        if (!includeCorrections) {
+          continue;
+        }
         const rawCorrections = tc.arguments.corrections as Record<string, unknown>[] | undefined;
         if (rawCorrections && Array.isArray(rawCorrections)) {
           for (const entry of rawCorrections) {
@@ -233,11 +345,20 @@ function parseCheckerToolCalls(toolCalls: ToolCall[], content: string): MistakeW
             if (correction) corrections.push(correction);
           }
         }
+        continue;
+      }
+
+      if (tc.name === 'mark_safe') {
+        continue;
+      }
+
+      if (tc.name === 'flag_self_harm_risk') {
+        safety = mergeSafetyFlags(safety, parseSafetyEntry(tc.arguments, sourceText));
       }
     }
   }
 
-  return corrections;
+  return { corrections, safety };
 }
 
 function parseCorrectionEntry(entry: Record<string, unknown>): MistakeWidgetData | null {
@@ -259,18 +380,91 @@ function parseCorrectionEntry(entry: Record<string, unknown>): MistakeWidgetData
   };
 }
 
+function normalizeCheckerText(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function hasGroundedFlaggedSpan(sourceText: string, flaggedSpan: string): boolean {
+  if (sourceText.includes(flaggedSpan)) {
+    return true;
+  }
+
+  const normalizedSource = normalizeCheckerText(sourceText);
+  const normalizedSpan = normalizeCheckerText(flaggedSpan);
+  if (!normalizedSpan) {
+    return false;
+  }
+
+  return normalizedSource.includes(normalizedSpan);
+}
+
+function parseSafetyEntry(entry: Record<string, unknown>, sourceText: string): ConversationSafetyFlag | null {
+  const category = entry.category;
+  const severity = entry.severity;
+
+  if (
+    category !== 'self-harm'
+    && category !== 'self-harm-related'
+    || (severity !== 'concern' && severity !== 'urgent')
+  ) {
+    return null;
+  }
+
+  const flaggedSpan = typeof entry.flagged_span === 'string' && entry.flagged_span.trim()
+    ? entry.flagged_span.trim()
+    : undefined;
+
+  if (!flaggedSpan || !hasGroundedFlaggedSpan(sourceText, flaggedSpan)) {
+    return null;
+  }
+
+  return {
+    category,
+    severity,
+    flaggedSpan,
+    contextBefore: typeof entry.context_before === 'string' ? entry.context_before : undefined,
+    contextAfter: typeof entry.context_after === 'string' ? entry.context_after : undefined,
+    source: 'checker',
+  };
+}
+
+function mergeSafetyFlags(
+  current: ConversationSafetyFlag | null,
+  incoming: ConversationSafetyFlag | null,
+): ConversationSafetyFlag | null {
+  if (!incoming) {
+    return current;
+  }
+
+  if (!current) {
+    return incoming;
+  }
+
+  if (current.severity !== incoming.severity) {
+    return current.severity === 'urgent' ? current : incoming;
+  }
+
+  if (current.category !== incoming.category) {
+    return current.category === 'self-harm' ? current : incoming;
+  }
+
+  return current.flaggedSpan ? current : incoming;
+}
+
 /** Parse tool calls from plain text content (some models output them inline) */
 function parseToolCallsFromContent(content: string): ToolCall[] {
   const toolCalls: ToolCall[] = [];
 
-  const pattern = /suggest_corrections\s*\(\s*(\{[\s\S]*?\})\s*\)/g;
+  const pattern = /(suggest_corrections|flag_self_harm_risk|mark_safe)\s*\(\s*(\{[\s\S]*?\})?\s*\)/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(content)) !== null) {
     try {
-      const args = JSON.parse(match[1]) as Record<string, unknown>;
+      const args = match[2]
+        ? JSON.parse(match[2]) as Record<string, unknown>
+        : {};
       toolCalls.push({
         id: `checker_parsed_${Date.now()}_${toolCalls.length}`,
-        name: 'suggest_corrections',
+        name: match[1],
         arguments: args,
       });
     } catch (e) {
@@ -281,13 +475,15 @@ function parseToolCallsFromContent(content: string): ToolCall[] {
 
   // Pattern without parentheses
   if (toolCalls.length === 0) {
-    const noParen = /suggest_corrections\s*(\{[\s\S]*?\})/g;
+    const noParen = /(suggest_corrections|flag_self_harm_risk|mark_safe)\s*(\{[\s\S]*?\})?/g;
     while ((match = noParen.exec(content)) !== null) {
       try {
-        const args = JSON.parse(match[1]) as Record<string, unknown>;
+        const args = match[2]
+          ? JSON.parse(match[2]) as Record<string, unknown>
+          : {};
         toolCalls.push({
           id: `checker_parsed_${Date.now()}_${toolCalls.length}`,
-          name: 'suggest_corrections',
+          name: match[1],
           arguments: args,
         });
       } catch (e) {

@@ -106,6 +106,96 @@ describe('checkerAgent', () => {
         userMessageIndex: -1,
         source: 'checker',
       });
+      expect(result.safety).toBeNull();
+    });
+
+    it('resolves with safety from structured tool calls', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('I want to hurt myself', 'English');
+
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc1',
+          name: 'flag_self_harm_risk',
+          arguments: {
+            category: 'self-harm',
+            severity: 'urgent',
+            flagged_span: 'hurt myself',
+          },
+        }],
+      });
+      streamCallback!({ done: true });
+
+      const result = await promise;
+
+      expect(result.corrections).toHaveLength(0);
+      expect(result.safety).toMatchObject({
+        category: 'self-harm',
+        severity: 'urgent',
+        flaggedSpan: 'hurt myself',
+        source: 'checker',
+      });
+    });
+
+    it('routes shorthand-like input through the checker stream instead of a local phrase list', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('kms', 'English');
+
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
+
+      streamCallback!({ done: true });
+
+      const result = await promise;
+
+      expect(result.corrections).toHaveLength(0);
+      expect(result.safety).toBeNull();
+    });
+
+    it('ignores safety tool calls that are not grounded in the reviewed message', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Hello, nice to meet you.', 'English');
+
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc1',
+          name: 'flag_self_harm_risk',
+          arguments: {
+            category: 'self-harm-related',
+            severity: 'concern',
+            flagged_span: 'hurt myself',
+          },
+        }],
+      });
+      streamCallback!({ done: true });
+
+      const result = await promise;
+      expect(result.safety).toBeNull();
+    });
+
+    it('ignores mark_safe tool calls and keeps the result unflagged', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Hello there.', 'English');
+
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc1',
+          name: 'mark_safe',
+          arguments: {},
+        }],
+      });
+      streamCallback!({ done: true });
+
+      const result = await promise;
+      expect(result.corrections).toHaveLength(0);
+      expect(result.safety).toBeNull();
     });
 
     it('resolves with empty corrections when no tool call and no content', async () => {
@@ -118,6 +208,7 @@ describe('checkerAgent', () => {
 
       const result = await promise;
       expect(result.corrections).toHaveLength(0);
+      expect(result.safety).toBeNull();
     });
 
     it('resolves with empty corrections on error chunk', async () => {
@@ -130,6 +221,7 @@ describe('checkerAgent', () => {
 
       const result = await promise;
       expect(result.corrections).toHaveLength(0);
+      expect(result.safety).toBeNull();
     });
 
     it('collects multiple corrections from a single tool call', async () => {
@@ -191,6 +283,60 @@ describe('checkerAgent', () => {
       const result = await promise;
       expect(result.corrections).toHaveLength(1);
       expect(result.corrections[0].errorSpan).toBe('goed');
+      expect(result.safety).toBeNull();
+    });
+
+    it('falls back to inline safety tool-call parsing when no structured tool calls', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const jsonPayload = JSON.stringify({
+        category: 'self-harm-related',
+        severity: 'concern',
+        flagged_span: 'I do not want to be here anymore',
+      });
+      const promise = agent.checkMessage('I do not want to be here anymore', 'English');
+
+      streamCallback!({ content: `flag_self_harm_risk(${jsonPayload})` });
+      streamCallback!({ done: true });
+
+      const result = await promise;
+      expect(result.corrections).toHaveLength(0);
+      expect(result.safety).toMatchObject({
+        category: 'self-harm-related',
+        severity: 'concern',
+        flaggedSpan: 'I do not want to be here anymore',
+      });
+    });
+
+    it('treats inline mark_safe output as unflagged', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Hello there', 'English');
+
+      streamCallback!({ content: 'mark_safe({})' });
+      streamCallback!({ done: true });
+
+      const result = await promise;
+      expect(result.corrections).toHaveLength(0);
+      expect(result.safety).toBeNull();
+    });
+
+    it('omits correction tools for assistant safety-only scans', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+
+      const promise = agent.checkMessage('Please tell me how to hurt myself', 'English', undefined, {
+        speakerRole: 'assistant',
+        includeCorrections: false,
+      });
+
+      const [, tools] = mockBridge.llm.llmStream.mock.calls[0] as [unknown, Array<{ name: string }>];
+      expect(tools.map((tool) => tool.name)).toEqual(['flag_self_harm_risk', 'mark_safe']);
+
+      streamCallback!({ done: true });
+      await promise;
     });
 
     it('cleans up stream listener after done', async () => {
@@ -306,6 +452,7 @@ describe('checkerAgent', () => {
 
       const result = await promise;
       expect(result.corrections).toHaveLength(0);
+      expect(result.safety).toBeNull();
     });
 
     it('ignores malformed JSON in content', async () => {
@@ -499,4 +646,5 @@ describe('checkerAgent', () => {
       expect(result.corrections).toHaveLength(0);
     });
   });
+
 });
