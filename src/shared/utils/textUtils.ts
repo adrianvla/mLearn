@@ -423,6 +423,22 @@ export function stripHtmlForTts(text: string, useReadings = false): string {
   return result.trim();
 }
 
+/**
+ * Limit consecutive dots/periods to a maximum count.
+ * Handles ASCII `.`, fullwidth `．`, and ellipsis `…` (expanded to 3 dots first).
+ * Prevents TTS backend failures caused by long runs of punctuation.
+ */
+export function limitConsecutiveDots(text: string, max = 3): string {
+  if (!text) return '';
+  // Expand ellipsis characters into 3 dots so the regex below can normalize them
+  let result = text.replace(/…/g, '...');
+  // Collapse runs of ASCII dot and fullwidth dot to at most `max`
+  const pattern = new RegExp(`[.．]{${max + 1},}`, 'g');
+  const replacement = '.'.repeat(max);
+  result = result.replace(pattern, replacement);
+  return result;
+}
+
 // ============================================================================
 // Language Display Names
 // ============================================================================
