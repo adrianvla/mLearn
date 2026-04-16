@@ -14,6 +14,7 @@ import * as http from 'http';
 import * as https from 'https';
 import { spawn } from 'child_process';
 import { IPC_CHANNELS, API_ENDPOINTS, DEFAULT_CLOUD_API_URL } from '../../shared/constants';
+import { limitConsecutiveDots } from '../../shared/utils/textUtils';
 import type {
   VoiceModelStatus,
   VoiceSTTResult,
@@ -627,9 +628,12 @@ async function generateTTS(
   sender: Electron.WebContents,
   provider?: string,
 ): Promise<void> {
+  // Sanitize consecutive dots to prevent TTS backend failures
+  const sanitizedText = limitConsecutiveDots(text);
+
   // Cloud TTS has a completely different path — BFF → Modal streaming
   if (provider === 'cloud') {
-    return generateCloudTTS(text, language, sender);
+    return generateCloudTTS(sanitizedText, language, sender);
   }
 
   ttsAbortController = new AbortController();
@@ -679,7 +683,7 @@ async function generateTTS(
       }
     }
 
-    const body: Record<string, unknown> = { text, language, speed };
+    const body: Record<string, unknown> = { text: sanitizedText, language, speed };
     if (voiceSamplePath) {
       body.voiceSamplePath = voiceSamplePath;
     }

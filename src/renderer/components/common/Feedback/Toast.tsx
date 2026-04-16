@@ -5,6 +5,7 @@
 
 import { Component, createSignal, onCleanup, onMount, Show, JSX, For } from 'solid-js';
 import { Portal } from 'solid-js/web';
+import { createStore, produce } from 'solid-js/store';
 import './Toast.css';
 
 export type ToastVariant = 'success' | 'warning' | 'info' | 'error';
@@ -150,7 +151,7 @@ interface ToastItemData {
   class?: string;
 }
 
-const [toasts, setToasts] = createSignal<ToastItemData[]>([]);
+const [toasts, setToasts] = createStore<ToastItemData[]>([]);
 let toastIdCounter = 0;
 
 /**
@@ -158,22 +159,28 @@ let toastIdCounter = 0;
  */
 export function showToast(options: Omit<ToastProps, 'onClose'>): number {
   const id = ++toastIdCounter;
-  setToasts((prev) => [...prev, { id, ...options }]);
+  setToasts(produce((arr) => { arr.push({ id, ...options }); }));
   return id;
 }
 
 /**
  * Update an existing toast by id (e.g., change message or variant after async work completes)
+ * Uses store mutation to preserve item identity so <For> does not remount (no reanimate).
  */
 export function updateToast(id: number, updates: Partial<Omit<ToastItemData, 'id'>>): void {
-  setToasts((prev) => prev.map((t) => t.id === id ? { ...t, ...updates } : t));
+  const index = toasts.findIndex((t) => t.id === id);
+  if (index === -1) return;
+  setToasts(index, updates);
 }
 
 /**
  * Remove a toast by id
  */
 export function removeToast(id: number): void {
-  setToasts((prev) => prev.filter((t) => t.id !== id));
+  setToasts(produce((arr) => {
+    const idx = arr.findIndex((t) => t.id === id);
+    if (idx >= 0) arr.splice(idx, 1);
+  }));
 }
 
 /**
@@ -184,7 +191,7 @@ export const ToastContainer: Component = () => {
   return (
     <Portal mount={document.body}>
       <div class="toast-container">
-        <For each={toasts()}>
+        <For each={toasts}>
           {(toast) => (
             <ToastItem
               variant={toast.variant}

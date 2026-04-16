@@ -9,7 +9,7 @@ import { getBridge } from '../../shared/bridges';
 import { isMobile } from '../../shared/platform';
 import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../shared/backends';
-import { ensureCloudAccessToken, getCloudSessionSettings, handleCloudSessionError } from './cloudSessionManager';
+import { ensureCloudAccessToken, getCloudSessionSettings, handleCloudSessionError, isCloudSessionError } from './cloudSessionManager';
 
 // ============================================================================
 // Types
@@ -125,12 +125,16 @@ export function streamChat(
           && !hasRecoveredCloudSession
           && accumulated.length === 0
           && collectedToolCalls.length === 0
-          && handleCloudSessionError(chunkError)
+          && isCloudSessionError(chunkError)
         ) {
           hasRecoveredCloudSession = true;
           cleanupListener();
 
-          void ensureCloudAccessToken().then((accessToken) => {
+          // Force-refresh the token silently (via refresh token) instead of
+          // wiping the session and immediately opening a re-login modal.
+          // This prevents a duplicate modal when the main process read stale
+          // settings from disk before the async save completed.
+          void ensureCloudAccessToken({ forceRefresh: true }).then((accessToken) => {
             if (aborted) {
               return;
             }

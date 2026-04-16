@@ -668,3 +668,56 @@ describe('getLanguageDisplayName', () => {
     expect(getLanguageDisplayName('ar')).toBe('Arabic')
   })
 })
+
+// ============================================================================
+// limitConsecutiveDots
+// ============================================================================
+
+describe('limitConsecutiveDots', () => {
+  let limitConsecutiveDots: typeof import('./textUtils').limitConsecutiveDots
+
+  beforeAll(async () => {
+    const mod = await import('./textUtils')
+    limitConsecutiveDots = mod.limitConsecutiveDots
+  })
+
+  it('returns empty string for empty input', () => {
+    expect(limitConsecutiveDots('')).toBe('')
+  })
+
+  it('leaves text without dots unchanged', () => {
+    expect(limitConsecutiveDots('hello world')).toBe('hello world')
+  })
+
+  it('preserves up to 3 consecutive dots', () => {
+    expect(limitConsecutiveDots('wait...')).toBe('wait...')
+  })
+
+  it('collapses more than 3 consecutive ASCII dots', () => {
+    expect(limitConsecutiveDots('wait......')).toBe('wait...')
+  })
+
+  it('collapses fullwidth dots (．)', () => {
+    expect(limitConsecutiveDots('wait．．．．．')).toBe('wait...')
+  })
+
+  it('collapses mixed ASCII and fullwidth dots', () => {
+    expect(limitConsecutiveDots('wait..．．．..')).toBe('wait...')
+  })
+
+  it('expands ellipsis character (…) and collapses', () => {
+    expect(limitConsecutiveDots('wait……')).toBe('wait...')
+  })
+
+  it('handles multiple groups of dots in one string', () => {
+    expect(limitConsecutiveDots('a.....b......c')).toBe('a...b...c')
+  })
+
+  it('respects custom max parameter', () => {
+    expect(limitConsecutiveDots('a.....b', 2)).toBe('a..b')
+  })
+
+  it('preserves single dots (sentence endings)', () => {
+    expect(limitConsecutiveDots('Hello. World.')).toBe('Hello. World.')
+  })
+})

@@ -10,6 +10,7 @@ import { ipcMain, protocol, net } from 'electron';
 import { IPC_CHANNELS, API_ENDPOINTS, DEFAULT_CLOUD_API_URL } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
 import { loadSamplesManifest, getVoiceSamplePath } from './voiceService';
+import { limitConsecutiveDots } from '../../shared/utils/textUtils';
 import http from 'http';
 
 const SCHEME = 'flashcard-audio';
@@ -296,6 +297,8 @@ async function generateFlashcardTts(
 ): Promise<string | null> {
   if (!text || text === '-') return null;
 
+  // Sanitize consecutive dots to prevent TTS backend failures
+  const sanitizedText = limitConsecutiveDots(text);
   const output = audioPath(cardId, field);
 
   // Resolve voice sample path if provided
@@ -310,9 +313,9 @@ async function generateFlashcardTts(
     let success = false;
 
     if (provider === 'cloud' && cloudAuthToken) {
-      success = await generateViaCloud(text, language, output, cloudAuthToken, cloudApiUrl);
+      success = await generateViaCloud(sanitizedText, language, output, cloudAuthToken, cloudApiUrl);
     } else {
-      success = await generateViaLocal(text, language, output, provider, voiceSamplePath);
+      success = await generateViaLocal(sanitizedText, language, output, provider, voiceSamplePath);
     }
 
     if (success) {

@@ -57,11 +57,13 @@ vi.mock('../../shared/backends', () => ({
 const mockEnsureCloudAccessToken = vi.fn(async () => 'mock-cloud-token');
 const mockGetCloudSessionSettings = vi.fn(() => null);
 const mockHandleCloudSessionError = vi.fn(() => false);
+const mockIsCloudSessionError = vi.fn(() => false);
 
 vi.mock('./cloudSessionManager', () => ({
   ensureCloudAccessToken: (...args: unknown[]) => mockEnsureCloudAccessToken(...args),
   getCloudSessionSettings: () => mockGetCloudSessionSettings(),
   handleCloudSessionError: (...args: unknown[]) => mockHandleCloudSessionError(...args),
+  isCloudSessionError: (...args: unknown[]) => mockIsCloudSessionError(...args),
 }));
 
 // ============================================================================
@@ -103,6 +105,7 @@ describe('llmProvider', () => {
     mockEnsureCloudAccessToken.mockResolvedValue('mock-cloud-token');
     mockGetCloudSessionSettings.mockReturnValue(null);
     mockHandleCloudSessionError.mockReturnValue(false);
+    mockIsCloudSessionError.mockReturnValue(false);
 
     mockBridge.llm.onLLMStreamChunk.mockImplementation((cb: (chunk: LLMStreamChunk) => void) => {
       streamCallback = cb;
@@ -247,7 +250,7 @@ describe('llmProvider', () => {
       const onDone = vi.fn();
       const onError = vi.fn();
 
-      mockHandleCloudSessionError.mockReturnValue(true);
+      mockIsCloudSessionError.mockReturnValue(true);
       mockEnsureCloudAccessToken
         .mockResolvedValueOnce('initial-cloud-token')
         .mockResolvedValueOnce('recovered-cloud-token');
@@ -268,6 +271,7 @@ describe('llmProvider', () => {
       await flushPromises();
 
       expect(mockEnsureCloudAccessToken).toHaveBeenCalledTimes(2);
+      expect(mockEnsureCloudAccessToken).toHaveBeenLastCalledWith({ forceRefresh: true });
       expect(mockBridge.llm.onLLMStreamChunk).toHaveBeenCalledTimes(2);
       expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2);
 
