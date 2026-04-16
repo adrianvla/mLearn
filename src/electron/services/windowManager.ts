@@ -286,8 +286,13 @@ function makeMainWindowNormal(): void {
 }
 
 // Context menu for video
-function showVideoContextMenu(sender: Electron.WebContents, options?: { isWatchTogether?: boolean }): void {
+function showVideoContextMenu(
+  sender: Electron.WebContents,
+  options?: { isWatchTogether?: boolean; hasContextPhrase?: boolean; canExplainPhrase?: boolean },
+): void {
   const isWT = options?.isWatchTogether ?? false;
+  const hasContextPhrase = options?.hasContextPhrase ?? false;
+  const canExplainPhrase = options?.canExplainPhrase ?? false;
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'Sync Subtitles with Video',
@@ -300,7 +305,13 @@ function showVideoContextMenu(sender: Electron.WebContents, options?: { isWatchT
     { type: 'separator' },
     {
       label: 'Copy Subtitle',
+      enabled: hasContextPhrase,
       click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'copy-sub'),
+    },
+    {
+      label: 'Explain',
+      enabled: canExplainPhrase,
+      click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'explain-phrase'),
     },
     { type: 'separator' },
     {
@@ -317,6 +328,7 @@ function showVideoContextMenu(sender: Electron.WebContents, options?: { isWatchT
 interface ReaderContextMenuOptions {
   furiganaHiderEnabled: boolean;
   hasContextPhrase: boolean;
+  canExplainPhrase?: boolean;
 }
 
 function showReaderContextMenu(sender: Electron.WebContents, options: ReaderContextMenuOptions): void {
@@ -330,6 +342,11 @@ function showReaderContextMenu(sender: Electron.WebContents, options: ReaderCont
       label: 'Copy Phrase',
       enabled: options.hasContextPhrase,
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'copy-phrase'),
+    },
+    {
+      label: 'Explain',
+      enabled: options.canExplainPhrase ?? false,
+      click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'explain-phrase'),
     },
   ];
 

@@ -24,6 +24,7 @@ import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages } from '../../../services/pdfService';
 import { captureBlobThumbnail, saveToRecentItems } from '../../../services/thumbnailService';
 import { parseWorkName } from '../../../utils/subtitleParsing';
+import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { getWordStatus } from '../../../services/statsService';
 import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
@@ -201,6 +202,7 @@ export const ReaderRoute: Component = () => {
   const [explainerOpen, setExplainerOpen] = createSignal(false);
   const [explainerWord, setExplainerWord] = createSignal('');
   const [explainerContext, setExplainerContext] = createSignal('');
+  const [explainerMode, setExplainerMode] = createSignal<'word' | 'phrase'>('word');
   const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Initialize deep link bridge for mlearn://lookup
@@ -1164,19 +1166,34 @@ export const ReaderRoute: Component = () => {
             bridge.files.writeToClipboard(phrase);
           }
           break;
+        case 'explain-phrase':
+          if (!settings.llmEnabled) {
+            alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
+            break;
+          }
+
+          if (ocrContextPhrase()) {
+            handleOpenPhraseExplainer(ocrContextPhrase(), ocrContextMenuPosition());
+          }
+          break;
       }
     });
     onCleanup(cleanup);
   });
 
   // Handler for right-click context menu in reader on OCR boxes (has phrase to copy)
-  const handleOcrContextMenu = (contextPhrase: string, _boxIndex: number) => {
+  const handleOcrContextMenu = (contextPhrase: string, _boxIndex: number, position: { x: number; y: number }) => {
+    const cleanedPhrase = cleanContextPhrase(contextPhrase);
+    const hasContextPhrase = !!cleanedPhrase && cleanedPhrase !== '-';
+
     // Store the context phrase for copy functionality
-    setOcrContextPhrase(contextPhrase);
+    setOcrContextPhrase(cleanedPhrase);
+    setOcrContextMenuPosition(position);
 
     getBridge().window.showReaderCtxMenu({
       furiganaHiderEnabled: furiganaHiderEnabled(),
-      hasContextPhrase: !!contextPhrase && contextPhrase !== '-',
+      hasContextPhrase,
+      canExplainPhrase: settings.llmEnabled && hasContextPhrase,
     });
   };
 
@@ -1188,10 +1205,12 @@ export const ReaderRoute: Component = () => {
 
     // Clear context phrase since we're not on an OCR box
     setOcrContextPhrase('');
+    setOcrContextMenuPosition({ x: e.clientX + 16, y: e.clientY + 16 });
 
     getBridge().window.showReaderCtxMenu({
       furiganaHiderEnabled: furiganaHiderEnabled(),
       hasContextPhrase: false, // No phrase to copy when clicking on image
+      canExplainPhrase: false,
     });
   };
 
@@ -1539,6 +1558,7 @@ export const ReaderRoute: Component = () => {
 
   // Explainer popup handlers
   const handleOpenExplainer = (word: string, context: string, position: { x: number; y: number }) => {
+    setExplainerMode('word');
     setExplainerWord(word);
     setExplainerContext(context);
     setExplainerPosition(position);
@@ -1553,6 +1573,14 @@ export const ReaderRoute: Component = () => {
     }
   };
 
+  const handleOpenPhraseExplainer = (context: string, position: { x: number; y: number }) => {
+    setExplainerMode('phrase');
+    setExplainerWord('');
+    setExplainerContext(context);
+    setExplainerPosition(position);
+    setExplainerOpen(true);
+  };
+
   const handleCloseExplainer = () => {
     setExplainerOpen(false);
   };
@@ -1561,6 +1589,7 @@ export const ReaderRoute: Component = () => {
   let ocrHoverRequestId = 0;
   // Store current context phrase for use in WordHover
   const [ocrContextPhrase, setOcrContextPhrase] = createSignal('');
+  const [ocrContextMenuPosition, setOcrContextMenuPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const handleOcrWordHover = async (token: Token, rect: DOMRect, contextPhrase: string = '') => {
     const requestId = ++ocrHoverRequestId;
@@ -1974,6 +2003,7 @@ export const ReaderRoute: Component = () => {
             onClose={handleCloseExplainer}
             word={explainerWord()}
             contextPhrase={explainerContext()}
+          mode={explainerMode()}
             initialPosition={explainerPosition()}
         />
 

@@ -532,6 +532,7 @@
     },
     "Explainer": {
       "Explanation": "Explication",
+      "GenerationFailed": "L'explication IA n'a pas pu être générée. Réessayez.",
       "GeneratedBy": "Généré par {provider}",
       "Generating": "Génération...",
       "GrammarPoints": "Points de grammaire clés",

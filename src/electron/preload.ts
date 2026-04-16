@@ -154,10 +154,10 @@ const mLearnIPC = {
   resizeWindow: (size: WindowSize) => ipcRenderer.send(IPC_CHANNELS.CHANGE_WINDOW_SIZE, size),
   makePiP: (size: WindowSize) => ipcRenderer.send(IPC_CHANNELS.MAKE_PIP, size),
   unPiP: () => ipcRenderer.send(IPC_CHANNELS.MAKE_NORMAL),
-  showCtxMenu: (options?: { isWatchTogether?: boolean }) => ipcRenderer.send(IPC_CHANNELS.SHOW_CTX_MENU, options),
+  showCtxMenu: (options?: { isWatchTogether?: boolean; hasContextPhrase?: boolean; canExplainPhrase?: boolean }) => ipcRenderer.send(IPC_CHANNELS.SHOW_CTX_MENU, options),
   onContextMenuCommand: (callback: (command: string) => void) =>
     ipcOn(IPC_CHANNELS.CTX_MENU_COMMAND, (_event, command) => callback(command)),
-  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean }) => {
+  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean }) => {
     ipcRenderer.send(IPC_CHANNELS.SHOW_READER_CTX_MENU, options);
   },
   onReaderContextMenuCommand: (callback: (command: string) => void) =>

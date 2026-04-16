@@ -35,6 +35,16 @@ interface OpenAIMessage {
   tool_call_id?: string;
 }
 
+interface PartialCloudToolCallState {
+  id: string;
+  name: string;
+  argumentsText: string;
+  lastEmittedSignature: string | null;
+}
+
+type CloudToolCallDelta = NonNullable<NonNullable<NonNullable<CloudStreamEvent['choices']>[number]['delta']>['tool_calls']>[number];
+type CloudToolCallDeltaList = NonNullable<NonNullable<NonNullable<CloudStreamEvent['choices']>[number]['delta']>['tool_calls']>;
+
 /**
  * Convert provider-agnostic tool definitions to OpenAI format.
  */
@@ -101,6 +111,7 @@ export class CloudLLMAdapter {
     callbacks: CloudLLMCallbacks,
   ): Promise<void> {
     this.abortController = new AbortController();
+    const partialToolCalls = new Map<string, PartialCloudToolCallState>();
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -162,7 +173,7 @@ export class CloudLLMAdapter {
 
             try {
               const parsed = JSON.parse(data) as CloudStreamEvent;
-              const chunk = this.parseStreamEvent(parsed);
+              const chunk = this.parseStreamEvent(parsed, partialToolCalls);
               callbacks.onChunk(chunk);
 
               if (chunk.done) {
@@ -225,7 +236,10 @@ export class CloudLLMAdapter {
    * Parse a single SSE data event into an LLMStreamChunk.
    * Supports OpenAI-compatible format.
    */
-  private parseStreamEvent(event: CloudStreamEvent): LLMStreamChunk {
+  private parseStreamEvent(
+    event: CloudStreamEvent,
+    partialToolCalls: Map<string, PartialCloudToolCallState>,
+  ): LLMStreamChunk {
     const chunk: LLMStreamChunk = {};
 
     // OpenAI format: choices[0].delta.content
@@ -236,15 +250,10 @@ export class CloudLLMAdapter {
       }
 
       if (delta.tool_calls) {
-        chunk.toolCalls = delta.tool_calls.map((tc): LLMToolCall => ({
-          id: tc.id || '',
-          name: tc.function?.name || '',
-          arguments: tc.function?.arguments
-            ? (typeof tc.function.arguments === 'string'
-                ? safeParseJSON(tc.function.arguments)
-                : tc.function.arguments)
-            : {},
-        }));
+        const toolCalls = accumulateToolCallDeltas(delta.tool_calls, partialToolCalls);
+        if (toolCalls.length > 0) {
+          chunk.toolCalls = toolCalls;
+        }
       }
     }
 
@@ -275,6 +284,7 @@ interface CloudStreamEvent {
     delta?: {
       content?: string;
       tool_calls?: Array<{
+        index?: number;
         id?: string;
         function?: {
           name?: string;
@@ -292,11 +302,96 @@ interface CloudStreamEvent {
   eval_duration?: number;
 }
 
-function safeParseJSON(s: string): Record<string, unknown> {
-  try {
-    return JSON.parse(s);
-  } catch (e) {
-    console.error(e);
+function accumulateToolCallDeltas(
+  toolCalls: CloudToolCallDeltaList,
+  partialToolCalls: Map<string, PartialCloudToolCallState>,
+): LLMToolCall[] {
+  const emittedToolCalls: LLMToolCall[] = [];
+
+  for (const [fallbackIndex, toolCall] of toolCalls.entries()) {
+    const key = getToolCallKey(toolCall, fallbackIndex);
+    const state = partialToolCalls.get(key) ?? {
+      id: toolCall.id ?? '',
+      name: toolCall.function?.name ?? '',
+      argumentsText: '',
+      lastEmittedSignature: null,
+    };
+
+    if (toolCall.id) {
+      state.id = toolCall.id;
+    }
+
+    if (toolCall.function?.name) {
+      state.name = toolCall.function.name;
+    }
+
+    if (typeof toolCall.function?.arguments === 'string') {
+      state.argumentsText += toolCall.function.arguments;
+    }
+
+    partialToolCalls.set(key, state);
+
+    const normalizedArguments = getNormalizedToolArguments(state, toolCall.function?.arguments);
+    if (!state.name || !normalizedArguments) {
+      continue;
+    }
+
+    const signature = `${state.name}:${JSON.stringify(normalizedArguments)}`;
+    if (state.lastEmittedSignature === signature) {
+      continue;
+    }
+
+    state.lastEmittedSignature = signature;
+    emittedToolCalls.push({
+      id: state.id || `cloud_tool_call_${key}`,
+      name: state.name,
+      arguments: normalizedArguments,
+    });
+  }
+
+  return emittedToolCalls;
+}
+
+function getToolCallKey(
+  toolCall: CloudToolCallDelta,
+  fallbackIndex: number,
+): string {
+  if (typeof toolCall.index === 'number') {
+    return `index:${toolCall.index}`;
+  }
+
+  if (toolCall.id) {
+    return `id:${toolCall.id}`;
+  }
+
+  return `position:${fallbackIndex}`;
+}
+
+function getNormalizedToolArguments(
+  state: PartialCloudToolCallState,
+  latestArguments: string | Record<string, unknown> | undefined,
+): Record<string, unknown> | null {
+  if (latestArguments && typeof latestArguments !== 'string') {
+    return latestArguments;
+  }
+
+  return tryParseJSONRecord(state.argumentsText);
+}
+
+function tryParseJSONRecord(s: string): Record<string, unknown> | null {
+  const trimmed = s.trim();
+  if (!trimmed) {
     return {};
   }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

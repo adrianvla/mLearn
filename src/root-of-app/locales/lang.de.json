@@ -532,6 +532,7 @@
     },
     "Explainer": {
       "Explanation": "Erklärung",
+      "GenerationFailed": "Die KI-Erklärung konnte nicht erstellt werden. Versuchen Sie es erneut.",
       "GeneratedBy": "Generiert von {provider}",
       "Generating": "Wird generiert...",
       "GrammarPoints": "Wichtige Grammatikpunkte",

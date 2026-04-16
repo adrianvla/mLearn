@@ -7,13 +7,14 @@
 import { Component, Show, createSignal, createEffect, createMemo, onCleanup } from 'solid-js';
 import type { LLMToolCall } from '../../../shared/types';
 import { DraggablePopup, IconBtn } from '../common';
-import { EyeIcon, EyeOffIcon, BotIcon } from '../common/Misc/Icons';
+import { RefreshIcon, BotIcon } from '../common/Misc/Icons';
 import { useSettings, useLocalization, useLowPowerGate } from '../../context';
 import { getLanguageDisplayName } from '../../../shared/utils/textUtils';
-import { streamExplanation, getCachedExplanation, checkAvailability, requiresSetup } from '../../services/llmProvider';
+import { streamExplanation, getCachedExplanation, checkAvailability, requiresSetup, type ExplainerMode } from '../../services/llmProvider';
 import type { ParsedExplainer, ExplainerSection, GrammarPoint } from './ExplainerCards';
 import { ExplainerCards } from './ExplainerCards';
 import { buildExplainerGeneratedByLabel } from './explainerProviderLabel';
+import { hasExplainerGenerationOutput, normalizeExplainerErrorMessage } from './explainerPopupState';
 import { Spinner } from '../common';
 import './ExplainerPopup.css';
 
@@ -26,6 +27,8 @@ export interface ExplainerPopupProps {
   word: string;
   /** Context phrase/sentence containing the word */
   contextPhrase: string;
+  /** Whether this popup is for a word or a phrase explanation */
+  mode?: ExplainerMode;
   /** Initial position (optional) */
   initialPosition?: { x: number; y: number };
 }
@@ -36,30 +39,38 @@ export interface ExplainerPopupProps {
  */
 function toolCallsToParsedExplainer(toolCalls: LLMToolCall[], rawText: string): ParsedExplainer {
   const sections: ExplainerSection[] = [];
+  const latestByName = new Map<string, LLMToolCall>();
 
-  for (const tc of toolCalls) {
-    const args = tc.arguments as Record<string, unknown>;
-    switch (tc.name) {
-      case 'show_translation':
-        sections.push({
-          type: 'translation',
-          content: (args.translation as string) ?? '',
-        });
-        break;
-      case 'show_explanation':
-        sections.push({
-          type: 'explanation',
-          word: args.word as string | undefined,
-          content: (args.explanation as string) ?? '',
-        });
-        break;
-      case 'show_grammar_points':
-        sections.push({
-          type: 'grammar',
-          grammarPoints: (args.points as GrammarPoint[]) ?? [],
-        });
-        break;
-    }
+  for (const toolCall of toolCalls) {
+    latestByName.set(toolCall.name, toolCall);
+  }
+
+  const translationCall = latestByName.get('show_translation');
+  if (translationCall) {
+    const args = translationCall.arguments as Record<string, unknown>;
+    sections.push({
+      type: 'translation',
+      content: (args.translation as string) ?? '',
+    });
+  }
+
+  const explanationCall = latestByName.get('show_explanation');
+  if (explanationCall) {
+    const args = explanationCall.arguments as Record<string, unknown>;
+    sections.push({
+      type: 'explanation',
+      word: args.word as string | undefined,
+      content: (args.explanation as string) ?? '',
+    });
+  }
+
+  const grammarCall = latestByName.get('show_grammar_points');
+  if (grammarCall) {
+    const args = grammarCall.arguments as Record<string, unknown>;
+    sections.push({
+      type: 'grammar',
+      grammarPoints: (args.points as GrammarPoint[]) ?? [],
+    });
   }
 
   return { sections, rawText: rawText || undefined };
@@ -72,6 +83,8 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const { requestAccess } = useLowPowerGate();
+  const explainerMode = createMemo<ExplainerMode>(() => props.mode ?? 'word');
+  let activeStreamRequestId = 0;
 
   // State
   const [rawText, setRawText] = createSignal('');
@@ -79,7 +92,6 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [isComplete, setIsComplete] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  const [showRawMode, setShowRawMode] = createSignal(false);
   const [abortFn, setAbortFn] = createSignal<(() => void) | null>(null);
 
   // Build ParsedExplainer from accumulated tool calls
@@ -90,12 +102,22 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     return toolCallsToParsedExplainer(calls, text);
   });
 
-  const hasContent = createMemo(() => toolCalls().length > 0 || rawText().length > 0);
+  const hasContent = createMemo(() => {
+    const parsed = parsedContent();
+    return parsed.sections.length > 0 || !!parsed.rawText?.trim();
+  });
   const generatedByLabel = createMemo(() => buildExplainerGeneratedByLabel(settings.llmProvider, t));
+  const popupTitle = createMemo(() => {
+    if (explainerMode() === 'phrase' || !props.word) {
+      return t('mlearn.Explainer.Title');
+    }
+
+    return `${t('mlearn.Explainer.Title')} - ${props.word}`;
+  });
 
   // Start streaming when popup opens with a new word
   createEffect(() => {
-    if (props.isOpen && props.word && props.contextPhrase) {
+    if (props.isOpen && props.contextPhrase && (explainerMode() === 'phrase' || props.word)) {
       startStreaming();
     }
   });
@@ -103,20 +125,30 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   // Clean up on close
   createEffect(() => {
     if (!props.isOpen) {
-      const abort = abortFn();
-      if (abort) {
-        abort();
-        setAbortFn(null);
-      }
+      cancelActiveStream();
     }
   });
 
   onCleanup(() => {
-    const abort = abortFn();
-    if (abort) abort();
+    cancelActiveStream();
   });
 
-  const startStreaming = async () => {
+  const cancelActiveStream = () => {
+    activeStreamRequestId += 1;
+    const abort = abortFn();
+    if (abort) {
+      abort();
+      setAbortFn(null);
+    }
+  };
+
+  const getExplainerFailureMessage = () => t('mlearn.Explainer.GenerationFailed');
+
+  const startStreaming = async (options: { skipCache?: boolean } = {}) => {
+    const requestId = activeStreamRequestId + 1;
+    cancelActiveStream();
+    activeStreamRequestId = requestId;
+
     // Reset state
     setRawText('');
     setToolCalls([]);
@@ -125,13 +157,15 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     setError(null);
 
     // Check cache first
-    const cached = getCachedExplanation(props.word, props.contextPhrase);
-    if (cached) {
-      setToolCalls(cached.toolCalls);
-      setRawText(cached.rawText);
-      setIsLoading(false);
-      setIsComplete(true);
-      return;
+    if (!options.skipCache) {
+      const cached = getCachedExplanation(props.word, props.contextPhrase, explainerMode());
+      if (cached && hasExplainerGenerationOutput(cached.rawText, cached.toolCalls)) {
+        setToolCalls(cached.toolCalls);
+        setRawText(cached.rawText);
+        setIsLoading(false);
+        setIsComplete(true);
+        return;
+      }
     }
 
     // Check setup
@@ -144,6 +178,10 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
 
     // Check availability
     const status = await checkAvailability(settings);
+    if (requestId !== activeStreamRequestId) {
+      return;
+    }
+
     if (!status.available) {
       setError(status.reason === 'ollama_unreachable'
         ? t('mlearn.AI.OllamaNotReachable')
@@ -161,6 +199,10 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     // Low power gate: prompt before local LLM call
     if (settings.llmProvider !== 'cloud') {
       const allowed = await requestAccess('llm');
+      if (requestId !== activeStreamRequestId) {
+        return;
+      }
+
       if (!allowed) {
         setIsLoading(false);
         setIsComplete(true);
@@ -174,48 +216,72 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
       language,
       {
         onChunk: (_chunk, accumulated) => {
+          if (requestId !== activeStreamRequestId) {
+            return;
+          }
+
           setRawText(accumulated);
         },
         onToolCall: (tc) => {
+          if (requestId !== activeStreamRequestId) {
+            return;
+          }
+
           setToolCalls((prev) => [...prev, tc]);
         },
-        onDone: (finalContent, _allToolCalls, _stats) => {
+        onDone: (finalContent, allToolCalls, _stats) => {
+          if (requestId !== activeStreamRequestId) {
+            return;
+          }
+
+          if (!hasExplainerGenerationOutput(finalContent, allToolCalls)) {
+            setError(getExplainerFailureMessage());
+            setRawText('');
+            setToolCalls([]);
+            setIsLoading(false);
+            setIsComplete(true);
+            return;
+          }
+
           setRawText(finalContent);
           setIsLoading(false);
           setIsComplete(true);
         },
         onError: (err) => {
-          setError(err);
+          if (requestId !== activeStreamRequestId) {
+            return;
+          }
+
+          setError(normalizeExplainerErrorMessage(err, getExplainerFailureMessage()));
           setIsLoading(false);
           setIsComplete(true);
         },
       },
+      { mode: explainerMode() },
     );
+
+    if (requestId !== activeStreamRequestId) {
+      handle.abort();
+      return;
+    }
+
     setAbortFn(() => handle.abort);
   };
 
-  const handleToggleRawMode = () => setShowRawMode(!showRawMode());
-
-  const handleClose = () => {
-    const abort = abortFn();
-    if (abort) {
-      abort();
-      setAbortFn(null);
-    }
-    props.onClose();
+  const handleRegenerate = () => {
+    void startStreaming({ skipCache: true });
   };
 
-  const formattedRawText = createMemo(() => {
-    const text = rawText();
-    if (!text) return '';
-    return text.replace(/\n/g, '<br/>');
-  });
+  const handleClose = () => {
+    cancelActiveStream();
+    props.onClose();
+  };
 
   return (
     <DraggablePopup
       isOpen={props.isOpen}
       onClose={handleClose}
-      title={`${t('mlearn.Explainer.Title')} - ${props.word}`}
+      title={popupTitle()}
       initialPosition={props.initialPosition}
       initialSize={{ width: 420, height: 380 }}
       minSize={{ width: 320, height: 250 }}
@@ -225,17 +291,15 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
         <IconBtn
           variant="ghost"
           size="sm"
-          title={showRawMode() ? t('mlearn.Explainer.ShowParsed') : t('mlearn.Explainer.ShowRaw')}
-          onClick={handleToggleRawMode}
+          title={t('mlearn.ConversationAgent.Regenerate')}
+          onClick={handleRegenerate}
         >
-          <Show when={showRawMode()} fallback={<EyeOffIcon size={16} />}>
-            <EyeIcon size={16} />
-          </Show>
+          <RefreshIcon size={16} />
         </IconBtn>
       }
       footer={
         <div class="explainer-popup__footer">
-          <Show when={isComplete() && !error()}>
+          <Show when={isComplete() && !error() && hasContent()}>
             <span class="explainer-popup__status">
               <BotIcon size={14} />
               <span>{generatedByLabel()}</span>
@@ -268,22 +332,12 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
 
         {/* Content */}
         <Show when={hasContent() && !error()}>
-          {/* Raw mode - shows the raw text the LLM emitted (for debugging) */}
-          <Show when={showRawMode()}>
-            <div class="explainer-popup__raw">
-              <p innerHTML={formattedRawText()} />
-            </div>
-          </Show>
-
-          {/* Parsed mode - structured tool-call cards */}
-          <Show when={!showRawMode()}>
-            <ExplainerCards
-              data={parsedContent()}
-              targetWord={props.word}
-              contextPhrase={props.contextPhrase}
-              loading={false}
-            />
-          </Show>
+          <ExplainerCards
+            data={parsedContent()}
+            targetWord={explainerMode() === 'word' ? props.word : undefined}
+            contextPhrase={props.contextPhrase}
+            loading={false}
+          />
 
           {/* Streaming cursor indicator */}
           <Show when={isLoading() && hasContent()}>

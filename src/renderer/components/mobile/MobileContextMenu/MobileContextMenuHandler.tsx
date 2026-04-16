@@ -19,7 +19,16 @@ export const MobileContextMenuHandler: Component = () => {
       const detail = (e as CustomEvent).detail;
       if (detail.type === 'video') {
         const menuItems: ContextMenuItem[] = [
-          { id: 'copy-sub', label: t('mlearn.Video.CopySubtitle') || 'Copy Subtitle' },
+          {
+            id: 'copy-sub',
+            label: t('mlearn.Video.CopySubtitle') || 'Copy Subtitle',
+            disabled: !detail.options?.hasContextPhrase,
+          },
+          {
+            id: 'explain-phrase',
+            label: t('mlearn.WordHover.Explain') || 'Explain',
+            disabled: !detail.options?.canExplainPhrase,
+          },
           { id: 'sync-subs', label: t('mlearn.Video.SyncSubtitles') || 'Sync Subtitles' },
         ];
         if (detail.options?.isWatchTogether) {
@@ -40,6 +49,11 @@ export const MobileContextMenuHandler: Component = () => {
         if (detail.options?.hasContextPhrase) {
           readerItems.push({ id: 'copy-phrase', label: t('mlearn.Reader.CopyPhrase') || 'Copy Phrase' });
         }
+        readerItems.push({
+          id: 'explain-phrase',
+          label: t('mlearn.WordHover.Explain') || 'Explain',
+          disabled: !detail.options?.canExplainPhrase,
+        });
         setItems(readerItems);
         setResponseEvent('mlearn-reader-ctx-command');
         setOpen(true);

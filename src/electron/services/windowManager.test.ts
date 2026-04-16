@@ -522,6 +522,40 @@ describe('windowManager', () => {
       expect(wtItem).toBeDefined();
     });
 
+    it('SHOW_CTX_MENU: disables Copy Subtitle and Explain when no phrase is available', async () => {
+      const { setupWindowIPC } = await import('./windowManager');
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      const { Menu } = await import('electron');
+
+      fireOn(IPC_CHANNELS.SHOW_CTX_MENU, makeSenderEvent(), {
+        hasContextPhrase: false,
+        canExplainPhrase: false,
+      });
+
+      const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const copyItem = (template as Array<{ label?: string; enabled?: boolean }>).find(item => item.label === 'Copy Subtitle');
+      const explainItem = (template as Array<{ label?: string; enabled?: boolean }>).find(item => item.label === 'Explain');
+      expect(copyItem?.enabled).toBe(false);
+      expect(explainItem?.enabled).toBe(false);
+    });
+
+    it('SHOW_CTX_MENU: enables Explain when a phrase can be explained', async () => {
+      const { setupWindowIPC } = await import('./windowManager');
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      const { Menu } = await import('electron');
+
+      fireOn(IPC_CHANNELS.SHOW_CTX_MENU, makeSenderEvent(), {
+        hasContextPhrase: true,
+        canExplainPhrase: true,
+      });
+
+      const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const explainItem = (template as Array<{ label?: string; enabled?: boolean }>).find(item => item.label === 'Explain');
+      expect(explainItem?.enabled).toBe(true);
+    });
+
     it('SHOW_READER_CTX_MENU: builds and pops up a reader context menu', async () => {
       const { setupWindowIPC } = await import('./windowManager');
       setupWindowIPC();
@@ -583,6 +617,23 @@ describe('windowManager', () => {
       const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const copyItem = (template as Array<{ label?: string; enabled?: boolean }>).find(i => i.label === 'Copy Phrase');
       expect(copyItem?.enabled).toBe(false);
+    });
+
+    it('SHOW_READER_CTX_MENU: enables Explain when the current phrase can be explained', async () => {
+      const { setupWindowIPC } = await import('./windowManager');
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      const { Menu } = await import('electron');
+
+      fireOn(IPC_CHANNELS.SHOW_READER_CTX_MENU, makeSenderEvent(), {
+        furiganaHiderEnabled: false,
+        hasContextPhrase: true,
+        canExplainPhrase: true,
+      });
+
+      const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const explainItem = (template as Array<{ label?: string; enabled?: boolean }>).find(i => i.label === 'Explain');
+      expect(explainItem?.enabled).toBe(true);
     });
 
     it('OPEN_WINDOW: creates a child window for the given type', async () => {

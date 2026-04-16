@@ -17,6 +17,7 @@ import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { SubtitleSync } from '../../../components/subtitle';
+import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { WORD_STATUS } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
@@ -24,6 +25,7 @@ import { captureVideoThumbnail, getRecentItems, saveToRecentItems, updateRecentI
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaLevel } from '../../../utils/levelPercentages';
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
+import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { getWordStatus } from '../../../services/statsService';
 import { findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
@@ -101,6 +103,10 @@ export const VideoRoute: Component = () => {
   const [watchTogetherError, setWatchTogetherError] = createSignal('');
   const [showMediaDistributionModal, setShowMediaDistributionModal] = createSignal(false);
   const [showMediaReceiveModal, setShowMediaReceiveModal] = createSignal(false);
+  const [explainerOpen, setExplainerOpen] = createSignal(false);
+  const [explainerContext, setExplainerContext] = createSignal('');
+  const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [contextMenuPosition, setContextMenuPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Accumulated unknown words from subtitles
   const [accumulatedWords, setAccumulatedWords] = createSignal<VideoWordEntry[]>([]);
@@ -119,6 +125,7 @@ export const VideoRoute: Component = () => {
   const mediaStats = useMediaStats({ mediaType: 'video', language: settings.language });
 
   const getCurrentVideoElement = (): HTMLVideoElement | null => document.querySelector('video');
+  const currentSubtitlePhrase = createMemo(() => cleanContextPhrase(subtitles.currentSubtitle()?.text || ''));
 
   const loadSharedVideo = (url: string, name: string) => {
     setVideoSrc(url);
@@ -240,6 +247,16 @@ export const VideoRoute: Component = () => {
     setShowWatchTogetherCodeModal(false);
     setShowWatchTogetherModeModal(false);
     setWatchTogetherError('');
+  };
+
+  const handleOpenPhraseExplainer = (context: string, position: { x: number; y: number }) => {
+    setExplainerContext(context);
+    setExplainerPosition(position);
+    setExplainerOpen(true);
+  };
+
+  const handleCloseExplainer = () => {
+    setExplainerOpen(false);
   };
 
   const loadVideo = (path: string, name: string) => {
@@ -824,6 +841,18 @@ export const VideoRoute: Component = () => {
         }
         break;
       }
+      case 'explain-phrase': {
+        if (!settings.llmEnabled) {
+          alert(t('mlearn.WordHover.Alerts.ExplainRequiresLlm'));
+          break;
+        }
+
+        const contextPhrase = currentSubtitlePhrase();
+        if (contextPhrase) {
+          handleOpenPhraseExplainer(contextPhrase, contextMenuPosition());
+        }
+        break;
+      }
       case 'watch-together':
         handleWatchTogetherCommand();
         break;
@@ -1076,12 +1105,26 @@ export const VideoRoute: Component = () => {
           remoteSubtitleSize={watchTogether.remoteSubtitle()?.size ?? null}
           remoteSubtitleWeight={watchTogether.remoteSubtitle()?.weight ?? null}
           subtitles={subtitles}
-          ctxMenuOptions={{ isWatchTogether: watchTogether.isActive() }}
+          ctxMenuOptions={{
+            isWatchTogether: watchTogether.isActive(),
+            hasContextPhrase: !!currentSubtitlePhrase(),
+            canExplainPhrase: settings.llmEnabled && !!currentSubtitlePhrase(),
+          }}
+          onContextMenuOpen={setContextMenuPosition}
           onTimeUpdate={(time) => setCurrentVideoTime(time)}
           showWordSidebar={showWordSidebar()}
           onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
         />
       </Show>
+
+      <ExplainerPopup
+        isOpen={explainerOpen()}
+        onClose={handleCloseExplainer}
+        word=""
+        contextPhrase={explainerContext()}
+        mode="phrase"
+        initialPosition={explainerPosition()}
+      />
 
       <SubtitleSync 
         currentVideoTime={currentVideoTime}

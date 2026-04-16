@@ -75,7 +75,7 @@ export interface MLearnIPC {
   resizeWindow: (size: { width: number; height: number }) => void;
   makePiP: (size: { width: number; height: number }) => void;
   unPiP: () => void;
-  showCtxMenu: (options?: { isWatchTogether?: boolean }) => void;
+  showCtxMenu: (options?: { isWatchTogether?: boolean; hasContextPhrase?: boolean; canExplainPhrase?: boolean }) => void;
   showContact: () => void;
   openExternalUrl: (url: string) => Promise<boolean>;
   onAuthDeepLink: (callback: (payload: { code: string | null; state: string | null; error: string | null }) => void) => () => void;
@@ -117,7 +117,7 @@ export interface MLearnIPC {
   onOpenSettings: (callback: (section?: string) => void) => () => void;
   onOpenAside: (callback: () => void) => () => void;
   onContextMenuCommand: (callback: (command: string) => void) => () => void;
-  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean }) => void;
+  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean }) => void;
   onReaderContextMenuCommand: (callback: (command: string) => void) => () => void;
   onOpenWordDbEditor: (callback: () => void) => () => void;
   onOpenKanjiGrid: (callback: () => void) => () => void;
