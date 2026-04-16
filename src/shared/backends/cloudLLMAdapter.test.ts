@@ -268,6 +268,56 @@ describe('CloudLLMAdapter', () => {
         ]);
       });
 
+      it('buffers partial tool_call argument fragments until the JSON is complete', async () => {
+        const adapter = new CloudLLMAdapter('https://api.example.com', '');
+        const lines = [
+          'data: ' + JSON.stringify({
+            choices: [{
+              delta: {
+                tool_calls: [{
+                  index: 0,
+                  id: 'tc_streamed',
+                  function: {
+                    name: 'show_translation',
+                    arguments: '{"phrase":"Bonjour le monde",',
+                  },
+                }],
+              },
+            }],
+          }),
+          'data: ' + JSON.stringify({
+            choices: [{
+              delta: {
+                tool_calls: [{
+                  index: 0,
+                  function: {
+                    arguments: '"translation":"Hello world"}',
+                  },
+                }],
+              },
+            }],
+          }),
+          'data: [DONE]',
+        ];
+
+        mockFetch.mockResolvedValue(createSSEResponse(lines));
+        const cb = makeCallbacks();
+        await adapter.streamChat(baseMessages, baseTools, cb);
+
+        const toolCallChunks = cb.onChunk.mock.calls.filter(c => c[0].toolCalls !== undefined);
+        expect(toolCallChunks).toHaveLength(1);
+        expect(toolCallChunks[0][0].toolCalls).toEqual([
+          {
+            id: 'tc_streamed',
+            name: 'show_translation',
+            arguments: {
+              phrase: 'Bonjour le monde',
+              translation: 'Hello world',
+            },
+          },
+        ]);
+      });
+
       it('handles tool_calls with empty arguments string', async () => {
         const adapter = new CloudLLMAdapter('https://api.example.com', '');
         const event = {

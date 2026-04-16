@@ -51,7 +51,7 @@ export interface OcrOverlayProps {
   onWordHover?: (token: Token, rect: DOMRect, contextPhrase: string) => void;
   onWordLeave?: () => void;
   /** Called on right-click with context phrase for the clicked area */
-  onContextMenu?: (contextPhrase: string, boxIndex: number) => void;
+  onContextMenu?: (contextPhrase: string, boxIndex: number, position: { x: number; y: number }) => void;
   /** Called whenever the overlay has OCR token/context data ready for the current page. */
   onTokenDataChange?: (entries: Array<{ boxIndex: number; box: OcrBox; tokens: Token[]; contextPhrase: string }>) => void;
   /** Set of original box indices to highlight (e.g. from sidebar hover) */
@@ -360,7 +360,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
 
     // Get context phrase from context map
     const context = contextMap().get(boxIndex) || '';
-    props.onContextMenu?.(context, boxIndex);
+    props.onContextMenu?.(context, boxIndex, { x: e.clientX + 16, y: e.clientY + 16 });
   };
 
   // Only render when we have valid dimensions to calculate positions correctly

@@ -35,7 +35,9 @@ export interface VideoPlayerProps {
   /** Callback when video ends */
   onEnded?: () => void;
   /** Options forwarded to the native context menu */
-  ctxMenuOptions?: { isWatchTogether?: boolean };
+  ctxMenuOptions?: { isWatchTogether?: boolean; hasContextPhrase?: boolean; canExplainPhrase?: boolean };
+  /** Called when the native context menu opens so parent routes can anchor popups nearby */
+  onContextMenuOpen?: (position: { x: number; y: number }) => void;
   /** Whether the word sidebar is shown */
   showWordSidebar?: boolean;
   /** Toggle word sidebar visibility */
@@ -129,6 +131,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
 
   const handleContextMenu = (e: MouseEvent) => {
     e.preventDefault();
+    props.onContextMenuOpen?.({ x: e.clientX + 16, y: e.clientY + 16 });
     getBridge().window.showCtxMenu(props.ctxMenuOptions);
   };
 

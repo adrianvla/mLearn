@@ -532,6 +532,7 @@
     },
     "Explainer": {
       "Explanation": "解説",
+      "GenerationFailed": "AI解説を生成できませんでした。再生成してください。",
       "GeneratedBy": "生成元: {provider}",
       "Generating": "生成中...",
       "GrammarPoints": "主な文法ポイント",

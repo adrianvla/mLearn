@@ -121,8 +121,8 @@ export interface WindowBridge {
   resizeWindow: (size: { width: number; height: number }) => void;
   makePiP: (size: { width: number; height: number }) => void;
   unPiP: () => void;
-  showCtxMenu: (options?: { isWatchTogether?: boolean }) => void;
-  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean }) => void;
+  showCtxMenu: (options?: { isWatchTogether?: boolean; hasContextPhrase?: boolean; canExplainPhrase?: boolean }) => void;
+  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean }) => void;
   showContact: () => void;
   openExternalUrl: (url: string) => Promise<boolean>;
   openWindow: (payload: OpenWindowPayload) => void;

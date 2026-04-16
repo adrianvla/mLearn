@@ -28,6 +28,12 @@ export interface LLMStreamStats {
   tokensPerSecond: number;
 }
 
+export type ExplainerMode = 'word' | 'phrase';
+
+export interface StreamExplanationOptions {
+  mode?: ExplainerMode;
+}
+
 // ============================================================================
 // Explanation cache
 // ============================================================================
@@ -42,13 +48,14 @@ const explanationCache = new Map<string, CacheEntry>();
 const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-function getCacheKey(word: string, context: string): string {
-  const normalized = context.substring(0, 100).toLowerCase().trim();
-  return `${word}|||${normalized}`;
+function getCacheKey(word: string, context: string, mode: ExplainerMode = 'word'): string {
+  const normalizedWord = word.toLowerCase().trim();
+  const normalizedContext = context.substring(0, 100).toLowerCase().trim();
+  return `${mode}|||${normalizedWord}|||${normalizedContext}`;
 }
 
-export function getCachedExplanation(word: string, context: string): CacheEntry | null {
-  const key = getCacheKey(word, context);
+export function getCachedExplanation(word: string, context: string, mode: ExplainerMode = 'word'): CacheEntry | null {
+  const key = getCacheKey(word, context, mode);
   const entry = explanationCache.get(key);
   if (!entry) return null;
   if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
@@ -58,8 +65,14 @@ export function getCachedExplanation(word: string, context: string): CacheEntry 
   return entry;
 }
 
-function setCachedExplanation(word: string, context: string, toolCalls: LLMToolCall[], rawText: string): void {
-  const key = getCacheKey(word, context);
+function setCachedExplanation(
+  word: string,
+  context: string,
+  mode: ExplainerMode,
+  toolCalls: LLMToolCall[],
+  rawText: string,
+): void {
+  const key = getCacheKey(word, context, mode);
   if (explanationCache.size >= CACHE_MAX) {
     // Remove oldest 10%
     const entries = Array.from(explanationCache.entries());
@@ -438,6 +451,53 @@ export function requiresSetup(settings: Settings): boolean {
 // Explainer helpers
 // ============================================================================
 
+const WORD_EXPLAINER_TOOL_NAMES = ['show_translation', 'show_explanation', 'show_grammar_points'] as const;
+const PHRASE_EXPLAINER_TOOL_NAMES = ['show_translation', 'show_grammar_points'] as const;
+
+type ExplainerToolName = (typeof WORD_EXPLAINER_TOOL_NAMES)[number];
+
+interface ParsedExplainerToolCalls {
+  cleanedContent: string;
+  toolCalls: LLMToolCall[];
+}
+
+type ToolParseResult =
+  | { kind: 'success'; toolCall: LLMToolCall; endIndex: number }
+  | { kind: 'invalid'; nextIndex: number }
+  | { kind: 'incomplete' };
+
+function isRenderableExplainerToolCall(toolCall: LLMToolCall): boolean {
+  if (!toolCall.name) {
+    return false;
+  }
+
+  const args = toolCall.arguments as Record<string, unknown>;
+
+  switch (toolCall.name) {
+    case 'show_translation':
+      return typeof args.translation === 'string' && args.translation.trim().length > 0;
+    case 'show_explanation':
+      return typeof args.explanation === 'string' && args.explanation.trim().length > 0;
+    case 'show_grammar_points':
+      return Array.isArray(args.points) && args.points.some((point) => {
+        const candidate = point as { description?: unknown };
+        return typeof candidate.description === 'string' && candidate.description.trim().length > 0;
+      });
+    default:
+      return Object.values(args).some((value) => {
+        if (typeof value === 'string') {
+          return value.trim().length > 0;
+        }
+
+        if (Array.isArray(value)) {
+          return value.length > 0;
+        }
+
+        return value != null;
+      });
+  }
+}
+
 /**
  * Stream a word explanation using tool calls.
  * The LLM is instructed to use only tool calls (show_translation, show_explanation, show_grammar_points).
@@ -447,24 +507,71 @@ export function streamExplanation(
   contextPhrase: string,
   language: string,
   callbacks: LLMStreamCallbacks,
+  options: StreamExplanationOptions = {},
 ): { abort: () => void } {
-  const systemPrompt = buildExplainerSystemPrompt(language);
-  const userPrompt = buildExplainerUserPrompt(word, contextPhrase);
+  const mode = options.mode ?? 'word';
+  const systemPrompt = buildExplainerSystemPrompt(language, mode);
+  const userPrompt = buildExplainerUserPrompt(word, contextPhrase, mode);
 
   const messages: LLMChatMessage[] = [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
   ];
 
-  const tools = getExplainerTools();
+  const tools = getExplainerTools(mode);
+  const allowedToolNames = getExplainerToolNames(mode);
+  const mergedToolCalls: LLMToolCall[] = [];
+  const seenToolCalls = new Set<string>();
 
-  // Wrap callbacks to cache the result
+  const registerToolCall = (toolCall: LLMToolCall, emit: boolean): void => {
+    if (!isRenderableExplainerToolCall(toolCall)) {
+      return;
+    }
+
+    const signature = `${toolCall.name}:${JSON.stringify(toolCall.arguments)}`;
+    if (seenToolCalls.has(signature)) {
+      return;
+    }
+
+    seenToolCalls.add(signature);
+    mergedToolCalls.push(toolCall);
+
+    if (emit) {
+      callbacks.onToolCall(toolCall);
+    }
+  };
+
   const wrappedCallbacks: LLMStreamCallbacks = {
-    ...callbacks,
-    onDone: (finalContent, allToolCalls, stats) => {
-      setCachedExplanation(word, contextPhrase, allToolCalls, finalContent);
-      callbacks.onDone(finalContent, allToolCalls, stats);
+    onChunk: (content, accumulated) => {
+      const parsed = parseExplainerToolCallsFromContent(accumulated, allowedToolNames);
+
+      for (const toolCall of parsed.toolCalls) {
+        registerToolCall(toolCall, true);
+      }
+
+      callbacks.onChunk(content, parsed.cleanedContent);
     },
+    onToolCall: (toolCall) => {
+      registerToolCall(toolCall, true);
+    },
+    onDone: (finalContent, allToolCalls, stats) => {
+      const parsed = parseExplainerToolCallsFromContent(finalContent, allowedToolNames);
+
+      for (const toolCall of allToolCalls) {
+        registerToolCall(toolCall, false);
+      }
+
+      for (const toolCall of parsed.toolCalls) {
+        registerToolCall(toolCall, false);
+      }
+
+      if (mergedToolCalls.length > 0 || parsed.cleanedContent.trim().length > 0) {
+        setCachedExplanation(word, contextPhrase, mode, mergedToolCalls, parsed.cleanedContent);
+      }
+
+      callbacks.onDone(parsed.cleanedContent, mergedToolCalls, stats);
+    },
+    onError: callbacks.onError,
   };
 
   return streamChat(messages, tools, wrappedCallbacks);
@@ -474,27 +581,52 @@ export function streamExplanation(
 // Explainer prompt & tools
 // ============================================================================
 
-function buildExplainerSystemPrompt(language: string): string {
-  return `You are a language learning assistant that explains words and phrases in ${language}.
+function buildExplainerSystemPrompt(language: string, mode: ExplainerMode): string {
+  const requiresWordPanel = mode === 'word';
+  const requiredTools = requiresWordPanel
+    ? '1. show_translation\n2. show_explanation\n3. show_grammar_points'
+    : '1. show_translation\n2. show_grammar_points';
+  const fallbackSyntax = requiresWordPanel
+    ? 'show_translation({...})\nshow_explanation({...})\nshow_grammar_points({...})'
+    : 'show_translation({...})\nshow_grammar_points({...})';
 
-IMPORTANT: You MUST use ONLY the provided tool calls to structure your response. Do NOT write any raw text.
-Use these tools in order:
-1. show_translation — Provide the full sentence/phrase translation
-2. show_explanation — Explain the target word's meaning and usage in context
-3. show_grammar_points — List relevant grammar points found in the phrase
+  return `You are a language-learning explainer for ${language}. Your job is to fill the explanation cards in the app.
 
-Call each tool exactly once. Do not output any text outside of tool calls.`;
+Required tools, in order:
+${requiredTools}
+
+Rules:
+- The response is incomplete unless every required tool has been called.
+- Do NOT stop after the translation.
+- show_translation must translate the full phrase naturally and learner-friendly.
+${requiresWordPanel
+  ? '- show_explanation must explain what the target word means in this exact phrase, including the nuance or role it has here. Do not give a generic dictionary gloss divorced from the sentence.'
+  : '- Do not add a separate word-focused explanation. This request is phrase-only.'}
+- show_grammar_points must contain 1 to 4 concise grammar points when the phrase has meaningful grammar. For short/simple phrases, explain particles, endings, tense, politeness, aspect, or sentence structure instead of skipping the tool.
+- Keep each explanation concise and clear for a learner.
+- Do not output markdown or headings.
+- Prefer structured tool calls.
+- If tool calling is unavailable, emit the same tool calls as plain text using this exact syntax so the UI can still parse them while streaming:
+${fallbackSyntax}`;
 }
 
-function buildExplainerUserPrompt(word: string, contextPhrase: string): string {
+function buildExplainerUserPrompt(word: string, contextPhrase: string, mode: ExplainerMode): string {
+  if (mode === 'phrase') {
+    return `Explain this phrase for a learner. Only provide the translation and grammar cards. Phrase: "${contextPhrase}"`;
+  }
+
   return `Explain the word "${word}" in the context of this phrase: "${contextPhrase}"`;
 }
 
-function getExplainerTools(): LLMToolDefinition[] {
-  return [
+function getExplainerToolNames(mode: ExplainerMode): ReadonlyArray<ExplainerToolName> {
+  return mode === 'word' ? WORD_EXPLAINER_TOOL_NAMES : PHRASE_EXPLAINER_TOOL_NAMES;
+}
+
+function getExplainerTools(mode: ExplainerMode): LLMToolDefinition[] {
+  const tools: LLMToolDefinition[] = [
     {
       name: 'show_translation',
-      description: 'Display the translation of the full phrase/sentence.',
+      description: 'Display the translation of the full phrase or sentence.',
       parameters: {
         type: 'object',
         properties: {
@@ -504,13 +636,16 @@ function getExplainerTools(): LLMToolDefinition[] {
           },
           translation: {
             type: 'string',
-            description: 'The English translation of the phrase.',
+            description: 'A natural learner-friendly translation of the phrase.',
           },
         },
         required: ['phrase', 'translation'],
       },
     },
-    {
+  ];
+
+  if (mode === 'word') {
+    tools.push({
       name: 'show_explanation',
       description: 'Explain the meaning and usage of the target word in context.',
       parameters: {
@@ -527,34 +662,215 @@ function getExplainerTools(): LLMToolDefinition[] {
         },
         required: ['word', 'explanation'],
       },
-    },
-    {
-      name: 'show_grammar_points',
-      description: 'List grammar points found in the phrase that are relevant for the learner.',
-      parameters: {
-        type: 'object',
-        properties: {
-          points: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                term: {
-                  type: 'string',
-                  description: 'The grammar pattern or term.',
-                },
-                description: {
-                  type: 'string',
-                  description: 'Explanation of the grammar point.',
-                },
+    });
+  }
+
+  tools.push({
+    name: 'show_grammar_points',
+    description: 'List grammar points found in the phrase that are relevant for the learner.',
+    parameters: {
+      type: 'object',
+      properties: {
+        points: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              term: {
+                type: 'string',
+                description: 'The grammar pattern or term.',
               },
-              required: ['term', 'description'],
+              description: {
+                type: 'string',
+                description: 'Explanation of the grammar point.',
+              },
             },
-            description: 'Array of grammar points.',
+            required: ['term', 'description'],
           },
+          description: 'Array of grammar points.',
         },
-        required: ['points'],
       },
+      required: ['points'],
     },
-  ];
+  });
+
+  return tools;
+}
+
+function parseExplainerToolCallsFromContent(
+  content: string,
+  allowedToolNames: ReadonlyArray<ExplainerToolName>,
+): ParsedExplainerToolCalls {
+  const toolCalls: LLMToolCall[] = [];
+  let cleanedContent = '';
+  let cursor = 0;
+
+  while (cursor < content.length) {
+    const match = findNextExplainerToolStart(content, cursor, allowedToolNames);
+    if (!match) {
+      cleanedContent += content.slice(cursor);
+      break;
+    }
+
+    cleanedContent += content.slice(cursor, match.startIndex);
+
+    const parsed = tryParseExplainerToolCallAt(content, match.startIndex, match.name);
+    if (parsed.kind === 'success') {
+      toolCalls.push(parsed.toolCall);
+      cursor = parsed.endIndex;
+      continue;
+    }
+
+    if (parsed.kind === 'incomplete') {
+      cleanedContent += content.slice(match.startIndex);
+      break;
+    }
+
+    cleanedContent += content.slice(match.startIndex, parsed.nextIndex);
+    cursor = parsed.nextIndex;
+  }
+
+  return {
+    cleanedContent: cleanedContent.replace(/\n{3,}/g, '\n\n').trim(),
+    toolCalls,
+  };
+}
+
+function findNextExplainerToolStart(
+  content: string,
+  fromIndex: number,
+  allowedToolNames: ReadonlyArray<ExplainerToolName>,
+): { name: ExplainerToolName; startIndex: number } | null {
+  for (let index = fromIndex; index < content.length; index++) {
+    for (const name of allowedToolNames) {
+      if (!content.startsWith(name, index)) {
+        continue;
+      }
+
+      const prevChar = index === 0 ? '' : content[index - 1];
+      const nextChar = content[index + name.length] ?? '';
+
+      if (/[A-Za-z0-9_]/.test(prevChar) || /[A-Za-z0-9_]/.test(nextChar)) {
+        continue;
+      }
+
+      return { name, startIndex: index };
+    }
+  }
+
+  return null;
+}
+
+function tryParseExplainerToolCallAt(
+  content: string,
+  startIndex: number,
+  name: ExplainerToolName,
+): ToolParseResult {
+  let index = startIndex + name.length;
+
+  while (index < content.length && /\s/.test(content[index])) {
+    index += 1;
+  }
+
+  let hasOpeningParen = false;
+  if (content[index] === '(') {
+    hasOpeningParen = true;
+    index += 1;
+    while (index < content.length && /\s/.test(content[index])) {
+      index += 1;
+    }
+  }
+
+  if (index >= content.length) {
+    return { kind: 'incomplete' };
+  }
+
+  if (content[index] !== '{') {
+    return { kind: 'invalid', nextIndex: startIndex + name.length };
+  }
+
+  const parsedObject = parseBalancedJsonObject(content, index);
+  if (!parsedObject) {
+    return { kind: 'incomplete' };
+  }
+
+  let endIndex = parsedObject.endIndex;
+  while (endIndex < content.length && /\s/.test(content[endIndex])) {
+    endIndex += 1;
+  }
+
+  if (hasOpeningParen) {
+    if (endIndex >= content.length) {
+      return { kind: 'incomplete' };
+    }
+    if (content[endIndex] !== ')') {
+      return { kind: 'invalid', nextIndex: startIndex + name.length };
+    }
+    endIndex += 1;
+  }
+
+  try {
+    const args = JSON.parse(parsedObject.jsonText) as Record<string, unknown>;
+    return {
+      kind: 'success',
+      toolCall: {
+        id: `parsed_${Date.now()}_${startIndex}`,
+        name,
+        arguments: args,
+      },
+      endIndex,
+    };
+  } catch (error) {
+    console.error(error);
+    return { kind: 'invalid', nextIndex: startIndex + name.length };
+  }
+}
+
+function parseBalancedJsonObject(content: string, startIndex: number): { jsonText: string; endIndex: number } | null {
+  let depth = 0;
+  let inString = false;
+  let isEscaped = false;
+
+  for (let index = startIndex; index < content.length; index++) {
+    const char = content[index];
+
+    if (inString) {
+      if (isEscaped) {
+        isEscaped = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        isEscaped = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '{') {
+      depth += 1;
+      continue;
+    }
+
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return {
+          jsonText: content.slice(startIndex, index + 1),
+          endIndex: index + 1,
+        };
+      }
+    }
+  }
+
+  return null;
 }
