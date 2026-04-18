@@ -129,6 +129,13 @@ export interface Settings {
   flashcardMediaType: 'image' | 'video';
   /** Extra ms added before and after the subtitle when clipping video for flashcard (default 300) */
   flashcardVideoMargin: number;
+  /**
+   * When true, unknown words seen during media playback are captured as
+   * lightweight "Suggested Flashcards" (screenshot + context phrase only — no
+   * translation/LLM/TTS). The user reviews and promotes them later from the
+   * Suggested Flashcards tab.
+   */
+  autoSuggestFlashcards: boolean;
 
   // API URLs
   getCardUrl: string;
@@ -386,6 +393,7 @@ export const DEFAULT_SETTINGS: Settings = {
   leechThreshold: 10,
   flashcardMediaType: 'image',
   flashcardVideoMargin: 300,
+  autoSuggestFlashcards: true,
   devMode: false,
   lowBatteryMode: false,
   ocr_crop_padding: 200,
@@ -762,8 +770,61 @@ export interface FlashcardStore {
   meta: FlashcardMeta;
   /** Daily study statistics (keyed by date string YYYY-MM-DD) */
   dailyStats: Record<string, DailyStudyStats>;
+  /**
+   * Suggested flashcards captured automatically when the learner sees new
+   * words. Keyed by a language-prefixed word hash (same key scheme as
+   * wordCandidates). Suggestions only contain captured context (screenshot,
+   * phrase, source) — translation/LLM/TTS are not run until the user promotes
+   * them via the Suggested Flashcards tab.
+   */
+  suggestedFlashcards: Record<string, SuggestedFlashcard>;
+  /**
+   * Timestamps recording when words were last seen in the Word Sync window.
+   * Keyed by language-prefixed word hash (same scheme as wordKnowledge).
+   * Words seen less than ~30 days ago are skipped on next sync.
+   */
+  wordSyncSeen: Record<string, number>;
   /** Version for migrations */
   version: number;
+}
+
+/**
+ * A captured "suggested" flashcard – produced automatically when the learner
+ * encounters a new word during a study session. No translation/LLM/TTS work
+ * has been performed yet; those happen only when the suggestion is promoted
+ * to a full flashcard.
+ */
+export interface SuggestedFlashcard {
+  /** Stable id (UUID) used when later promoted into a full card */
+  id: string;
+  /** The word as captured (canonicalized before lookup) */
+  word: string;
+  /** Reading, if available at capture time */
+  reading?: string;
+  /** Part-of-speech from the source tokenizer, if available */
+  pos?: string;
+  /** Frequency list raw_level at capture time (null when not in freq list) */
+  level?: number | null;
+  /** Language code this suggestion belongs to */
+  language: string;
+  /** Cleaned context phrase (e.g. subtitle or OCR sentence) */
+  contextPhrase?: string;
+  /** HTML-coloured context (matches flashcard example format) */
+  contextHtml?: string;
+  /** Captured screenshot URL (flashcard-image:// or data URL) */
+  imageUrl?: string;
+  /** Captured video clip URL (flashcard-video:// or blob URL) */
+  videoUrl?: string;
+  /** Source media name (video file, book name, etc.) */
+  source?: string;
+  /** Hash of the source media (matches MediaStats.mediaHash when known) */
+  sourceMediaHash?: string;
+  /** When the suggestion was first captured */
+  createdAt: number;
+  /** Last time this suggestion was refreshed (e.g. seen again) */
+  lastSeen: number;
+  /** Number of times the word has been seen since capture */
+  count: number;
 }
 
 /**
@@ -1130,6 +1191,10 @@ export interface MediaSession {
   date: string;
   duration: number;
   wordsLearned: number;
+  /** Epoch ms when the session started (undefined for legacy sessions) */
+  startTime?: number;
+  /** Epoch ms when the session ended (undefined for legacy sessions) */
+  endTime?: number;
 }
 
 export interface MediaStats {

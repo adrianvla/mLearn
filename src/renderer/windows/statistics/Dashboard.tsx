@@ -1,7 +1,7 @@
 /**
  * Statistics Dashboard
- * Comprehensive learning analytics with pie charts, bar charts, heatmaps,
- * interval/ease distributions, forecast data, and word acquisition tracking.
+ * Learning analytics: card health, review activity, heatmaps, level breakdown,
+ * immersion tracking (scanline-merged), and word acquisition data.
  */
 
 import { Component, createMemo, createSignal, For, onMount, Show } from 'solid-js';
@@ -19,16 +19,35 @@ import {
 } from '../../services/statsService';
 import './Dashboard.css';
 
+/** Merge overlapping [start,end] intervals and return total non-overlapping duration. */
+function scanlineMerge(intervals: Array<{ start: number; end: number }>): number {
+  if (intervals.length === 0) return 0;
+  intervals.sort((a, b) => a.start - b.start);
+  let total = 0;
+  let curStart = intervals[0].start;
+  let curEnd = intervals[0].end;
+  for (let i = 1; i < intervals.length; i++) {
+    if (intervals[i].start <= curEnd) {
+      curEnd = Math.max(curEnd, intervals[i].end);
+    } else {
+      total += curEnd - curStart;
+      curStart = intervals[i].start;
+      curEnd = intervals[i].end;
+    }
+  }
+  total += curEnd - curStart;
+  return total;
+}
+
 export const Dashboard: Component = () => {
   const { store } = useFlashcards();
   const { settings } = useSettings();
-  const { getFreqLevelNames, getFrequency, getLanguageFeatures } = useLanguage();
+  const { wordFrequency, getFreqLevelNames, getFrequency, getLanguageFeatures } = useLanguage();
   const { t } = useLocalization();
 
-  // Initialize time watched
   initTimeWatched(settings);
 
-  // ── Media stats (reading/watching time) ──
+  // ── Media stats ──
   const [mediaStatsList, setMediaStatsList] = createSignal<MediaStats[]>([]);
 
   onMount(() => {
@@ -51,6 +70,34 @@ export const Dashboard: Component = () => {
     return { watchTime, readTime, totalImmersion: watchTime + readTime };
   });
 
+  // ── Immersion heatmap (scanline per day) ──
+  const immersionHeatmap = createMemo(() => {
+    const all = mediaStatsList();
+    const byDate = new Map<string, { legacy: number; intervals: Array<{ start: number; end: number }> }>();
+
+    for (const ms of all) {
+      for (const session of ms.sessions) {
+        if (!byDate.has(session.date)) {
+          byDate.set(session.date, { legacy: 0, intervals: [] });
+        }
+        const bucket = byDate.get(session.date)!;
+        if (session.startTime && session.endTime) {
+          bucket.intervals.push({ start: session.startTime, end: session.endTime });
+        } else {
+          bucket.legacy += session.duration;
+        }
+      }
+    }
+
+    const result: Record<string, number> = {};
+    for (const [date, { legacy, intervals }] of byDate) {
+      const merged = scanlineMerge(intervals);
+      const totalMinutes = Math.round((legacy + merged) / 60000);
+      if (totalMinutes > 0) result[date] = totalMinutes;
+    }
+    return result;
+  });
+
   // ── Flashcard aggregate stats ──
 
   const cards = createMemo(() => Object.values(store.flashcards));
@@ -64,30 +111,22 @@ export const Dashboard: Component = () => {
     let relearning = 0;
     let review = 0;
     let suspended = 0;
-    let buried = 0;
-    let totalEase = 0;
-    let reviewCardCount = 0;
     let totalReviews = 0;
     let totalLapses = 0;
     let matureCount = 0;
     let youngCount = 0;
+    let overdueCount = 0;
 
     const intervalBuckets = new Map<string, number>([
       ['< 1d', 0], ['1–7d', 0], ['1–4w', 0], ['1–6m', 0], ['> 6m', 0],
     ]);
 
-    const easeBuckets = new Map<string, number>([
-      ['130–150%', 0], ['150–200%', 0], ['200–250%', 0], ['250–300%', 0], ['> 300%', 0],
-    ]);
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const forecast = new Array(30).fill(0);
-    let overdueCount = 0;
 
     for (const card of all) {
       if (card.suspended) { suspended++; continue; }
-      if (card.buried) { buried++; continue; }
+      if (card.buried) continue;
       if (card.state === 'new') newCards++;
       else if (card.state === 'learning') learning++;
       else if (card.state === 'relearning') relearning++;
@@ -97,9 +136,6 @@ export const Dashboard: Component = () => {
       totalLapses += card.lapses;
 
       if (card.state === 'review') {
-        totalEase += card.ease;
-        reviewCardCount++;
-
         const days = card.interval / (1000 * 60 * 60 * 24);
         if (days >= 21) matureCount++;
         else youngCount++;
@@ -109,29 +145,15 @@ export const Dashboard: Component = () => {
         else if (days <= 28) intervalBuckets.set('1–4w', (intervalBuckets.get('1–4w') ?? 0) + 1);
         else if (days <= 180) intervalBuckets.set('1–6m', (intervalBuckets.get('1–6m') ?? 0) + 1);
         else intervalBuckets.set('> 6m', (intervalBuckets.get('> 6m') ?? 0) + 1);
-
-        const easePct = Math.round(card.ease * 100);
-        if (easePct <= 150) easeBuckets.set('130–150%', (easeBuckets.get('130–150%') ?? 0) + 1);
-        else if (easePct <= 200) easeBuckets.set('150–200%', (easeBuckets.get('150–200%') ?? 0) + 1);
-        else if (easePct <= 250) easeBuckets.set('200–250%', (easeBuckets.get('200–250%') ?? 0) + 1);
-        else if (easePct <= 300) easeBuckets.set('250–300%', (easeBuckets.get('250–300%') ?? 0) + 1);
-        else easeBuckets.set('> 300%', (easeBuckets.get('> 300%') ?? 0) + 1);
       }
 
       if (card.dueDate && card.state !== 'new') {
         const due = new Date(card.dueDate);
         due.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays < 0) {
-          overdueCount++;
-          forecast[0]++;
-        } else if (diffDays < 30) {
-          forecast[diffDays]++;
-        }
+        if (due.getTime() < today.getTime()) overdueCount++;
       }
     }
 
-    const avgEase = reviewCardCount > 0 ? totalEase / reviewCardCount : 2.5;
     const retentionRate = totalReviews > 0
       ? ((totalReviews - totalLapses) / totalReviews) * 100
       : 100;
@@ -142,8 +164,6 @@ export const Dashboard: Component = () => {
       learning: learning + relearning,
       review,
       suspended,
-      buried,
-      avgEase,
       retentionRate,
       totalReviews,
       totalLapses,
@@ -151,8 +171,6 @@ export const Dashboard: Component = () => {
       youngCount,
       overdueCount,
       intervalBuckets: Object.fromEntries(intervalBuckets),
-      easeBuckets: Object.fromEntries(easeBuckets),
-      forecast,
     };
   });
 
@@ -162,7 +180,8 @@ export const Dashboard: Component = () => {
     const ds = store.dailyStats;
     const entries = Object.entries(ds).sort(([a], [b]) => a.localeCompare(b));
 
-    const heatmapData: Record<string, number> = {};
+    const reviewHeatmap: Record<string, number> = {};
+    const lapsesHeatmap: Record<string, number> = {};
     let totalStudyTime = 0;
     let streakCurrent = 0;
     let streakMax = 0;
@@ -171,8 +190,8 @@ export const Dashboard: Component = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Calculate current streak
-    let streakDate = new Date(today);
+    // Current streak
+    const streakDate = new Date(today);
     let counting = true;
     while (counting) {
       const key = streakDate.toISOString().slice(0, 10);
@@ -187,11 +206,12 @@ export const Dashboard: Component = () => {
 
     for (const [date, stat] of entries) {
       const totalReviews = stat.newCardsStudied + stat.reviewCardsStudied;
-      heatmapData[date] = totalReviews;
+      reviewHeatmap[date] = totalReviews;
+      if (stat.lapses > 0) lapsesHeatmap[date] = stat.lapses;
       totalStudyTime += stat.timeSpent;
       if (totalReviews > 0) totalDaysStudied++;
 
-      // Max streak calculation
+      // Max streak
       let s = 0;
       const d = new Date(date);
       for (;;) {
@@ -205,7 +225,7 @@ export const Dashboard: Component = () => {
       if (s > streakMax) streakMax = s;
     }
 
-    // Last 30 days bar chart data
+    // Last 30 days bar chart
     const last30: BarChartDataPoint[] = [];
     for (let i = 29; i >= 0; i--) {
       const d = new Date(today);
@@ -231,7 +251,8 @@ export const Dashboard: Component = () => {
     const todayStat = ds[todayKey];
 
     return {
-      heatmapData,
+      reviewHeatmap,
+      lapsesHeatmap,
       totalStudyTime,
       streakCurrent,
       streakMax,
@@ -245,19 +266,16 @@ export const Dashboard: Component = () => {
     };
   });
 
-  // ── Word stats (from statsService) ──
-
+  // ── Word stats ──
   const wordStats = createMemo(() => getWordsLearnedInAppStats());
 
-  // ── Word acquisition stats (encounters until manual status change) ──
-
+  // ── Word acquisition (encounters until status change) ──
   const wordAcquisitionStats = createMemo(() => {
     const knowledge = store.wordKnowledge;
     const lang = settings.language;
     const values: number[] = [];
 
     for (const [key, entry] of Object.entries(knowledge)) {
-      // Only count entries for current language
       if (!key.startsWith(lang + ':')) continue;
       if (entry.statusChangedAtSeen !== undefined && entry.statusChangedAtSeen > 0) {
         values.push(entry.statusChangedAtSeen);
@@ -273,7 +291,6 @@ export const Dashboard: Component = () => {
       ? Math.round((values[values.length / 2 - 1] + values[values.length / 2]) / 2)
       : values[Math.floor(values.length / 2)];
 
-    // Distribution buckets
     const bucketDefs = [
       { label: '4–10', min: 4, max: 10 },
       { label: '11–25', min: 11, max: 25 },
@@ -311,7 +328,7 @@ export const Dashboard: Component = () => {
     { label: t('mlearn.Statistics.Legend.Viewed'), value: wordStats().unknown, color: 'var(--text-tertiary)' },
   ]);
 
-  // ── Formatted helpers ──
+  // ── Helpers ──
 
   const formatDuration = (ms: number) => {
     const totalSec = Math.floor(ms / 1000);
@@ -321,29 +338,12 @@ export const Dashboard: Component = () => {
     return `${minutes}m`;
   };
 
-  const formatEase = (ease: number) => `${Math.round(ease * 100)}%`;
+  const formatMinutes = (m: number) => {
+    if (m >= 60) return `${Math.floor(m / 60)}h ${m % 60}m`;
+    return `${m}m`;
+  };
 
-  // ── Forecast data ──
-
-  const forecastData = createMemo((): BarChartDataPoint[] => {
-    const today = new Date();
-    return cardStats().forecast.slice(0, 14).map((count, i) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() + i);
-      const label = i === 0
-        ? t('mlearn.Statistics.Dashboard.Today')
-        : i <= 6
-          ? d.toLocaleDateString(undefined, { weekday: 'short' })
-          : `${d.getMonth() + 1}/${d.getDate()}`;
-      return {
-        label: i % 2 === 0 ? label : '',
-        value: count,
-        color: i === 0 ? 'var(--color-warning)' : 'var(--color-primary)',
-      };
-    });
-  });
-
-  // ── Level breakdown ──
+  // ── Level breakdown (with total words per level from frequency data) ──
 
   const levelBreakdown = createMemo(() => {
     if (!getLanguageFeatures().supportsFrequencyLevels) return [];
@@ -352,6 +352,17 @@ export const Dashboard: Component = () => {
     entries.sort((a, b) => b.level - a.level);
     if (entries.length === 0) return [];
 
+    // Count total words per level from frequency dictionary
+    const totalPerLevel = new Map<number, number>();
+    for (const entry of entries) {
+      totalPerLevel.set(entry.level, 0);
+    }
+    for (const freqEntry of Object.values(wordFrequency)) {
+      const cur = totalPerLevel.get(freqEntry.raw_level);
+      if (cur !== undefined) totalPerLevel.set(freqEntry.raw_level, cur + 1);
+    }
+
+    // Count user progress per level
     const words = getWordsLearnedInApp();
     const buckets = new Map<number, { learned: number; learning: number; viewed: number }>();
     for (const entry of entries) {
@@ -367,39 +378,56 @@ export const Dashboard: Component = () => {
       else bucket.viewed++;
     }
 
-    return entries.map(e => ({
-      name: e.name || `${t('mlearn.Statistics.LevelColumn')} ${e.level}`,
-      ...(buckets.get(e.level) ?? { learned: 0, learning: 0, viewed: 0 }),
-    }));
+    return entries.map(e => {
+      const b = buckets.get(e.level) ?? { learned: 0, learning: 0, viewed: 0 };
+      const total = totalPerLevel.get(e.level) ?? 0;
+      const encountered = b.learned + b.learning + b.viewed;
+      return {
+        name: e.name || `${t('mlearn.Statistics.LevelColumn')} ${e.level}`,
+        ...b,
+        total,
+        encountered,
+        coveragePct: total > 0 ? Math.round((b.learned / total) * 100) : 0,
+      };
+    });
   });
+
+  // ── Heatmap color scales ──
+  const reviewColorScale = [
+    'var(--bg-intense)',
+    'color-mix(in srgb, var(--color-primary) 25%, transparent)',
+    'color-mix(in srgb, var(--color-primary) 50%, transparent)',
+    'color-mix(in srgb, var(--color-primary) 75%, transparent)',
+    'var(--color-primary)',
+  ];
+  const lapseColorScale = [
+    'var(--bg-intense)',
+    'color-mix(in srgb, var(--color-error) 25%, transparent)',
+    'color-mix(in srgb, var(--color-error) 50%, transparent)',
+    'color-mix(in srgb, var(--color-error) 75%, transparent)',
+    'var(--color-error)',
+  ];
+  const immersionColorScale = [
+    'var(--bg-intense)',
+    'color-mix(in srgb, var(--color-success) 25%, transparent)',
+    'color-mix(in srgb, var(--color-success) 50%, transparent)',
+    'color-mix(in srgb, var(--color-success) 75%, transparent)',
+    'var(--color-success)',
+  ];
 
   return (
     <div class="statistics-dashboard">
 
-      {/* ─── Header Stats Row ─── */}
+      {/* ─── Header Stats ─── */}
       <div class="dashboard-stats-row">
         <StatCard label={t('mlearn.Statistics.Dashboard.TotalCards')} value={cardStats().total} size="md" variant="elevated" />
         <StatCard label={t('mlearn.Statistics.Dashboard.RetentionRate')} value={`${cardStats().retentionRate.toFixed(1)}%`} size="md" variant="elevated"
           color={cardStats().retentionRate >= 90 ? 'success' : cardStats().retentionRate >= 80 ? 'warning' : 'error'} />
-        <StatCard label={t('mlearn.Statistics.Dashboard.AverageEase')} value={formatEase(cardStats().avgEase)} size="md" variant="elevated" />
-        <StatCard label={t('mlearn.Statistics.Dashboard.TotalReviews')} value={cardStats().totalReviews} size="md" variant="elevated" />
         <StatCard label={t('mlearn.Statistics.Dashboard.CurrentStreak')} value={`${dailyStatsData().streakCurrent}d`} size="md" variant="elevated" color="primary" />
         <StatCard label={t('mlearn.Statistics.Dashboard.TotalImmersion')} value={formatDuration(mediaTimeStats().totalImmersion)} size="md" variant="elevated" />
       </div>
 
-      {/* ─── Immersion Time Breakdown ─── */}
-      <Show when={mediaTimeStats().totalImmersion > 0}>
-        <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ImmersionTime')}</h3>
-          <div class="dashboard-stats-row compact">
-            <StatCard label={t('mlearn.Statistics.Dashboard.TimeWatched')} value={formatDuration(mediaTimeStats().watchTime)} size="sm" />
-            <StatCard label={t('mlearn.Statistics.Dashboard.TimeRead')} value={formatDuration(mediaTimeStats().readTime)} size="sm" />
-            <StatCard label={t('mlearn.Statistics.Dashboard.ReviewStudyTime')} value={formatDuration(dailyStatsData().totalStudyTime)} size="sm" />
-          </div>
-        </Panel>
-      </Show>
-
-      {/* ─── Today's Summary ─── */}
+      {/* ─── Today's Session ─── */}
       <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
         <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.TodaysSession')}</h3>
         <div class="dashboard-stats-row compact">
@@ -408,11 +436,106 @@ export const Dashboard: Component = () => {
           <StatCard label={t('mlearn.Statistics.Dashboard.Lapses')} value={dailyStatsData().todayLapses} size="sm" color={dailyStatsData().todayLapses > 0 ? 'error' : 'default'} />
           <StatCard label={t('mlearn.Statistics.Dashboard.Graduated')} value={dailyStatsData().todayGraduated} size="sm" color="success" />
           <StatCard label={t('mlearn.Statistics.Dashboard.StudyTime')} value={formatDuration(dailyStatsData().todayTime)} size="sm" />
-          <StatCard label={t('mlearn.Statistics.Dashboard.Overdue')} value={cardStats().overdueCount} size="sm" color={cardStats().overdueCount > 0 ? 'warning' : 'default'} />
         </div>
       </Panel>
 
-      {/* ─── Pie Charts Row ─── */}
+      {/* ─── Review Activity (Last 30 Days) ─── */}
+      <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
+        <div class="dashboard-section-header">
+          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ReviewActivity')}</h3>
+          <div class="dashboard-legend-inline">
+            <span class="legend-entry"><span class="legend-dot" style={{ background: 'var(--color-primary)' }} />{t('mlearn.Statistics.Dashboard.Reviews')}</span>
+            <span class="legend-entry"><span class="legend-dot" style={{ background: 'var(--color-success)' }} />{t('mlearn.Statistics.Dashboard.CardState.New')}</span>
+          </div>
+        </div>
+        <BarChart data={dailyStatsData().last30} height={100} stacked showValues={false} />
+      </Panel>
+
+      {/* ─── Heatmaps ─── */}
+      <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
+        <div class="dashboard-section-header">
+          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ReviewHeatmap')}</h3>
+          <div class="dashboard-meta-stats">
+            <span>{t('mlearn.Statistics.Dashboard.BestStreak')}: {dailyStatsData().streakMax}d</span>
+            <span>{t('mlearn.Statistics.Dashboard.DaysStudied')}: {dailyStatsData().totalDaysStudied}</span>
+            <span>{t('mlearn.Statistics.Dashboard.TotalTime')}: {formatDuration(dailyStatsData().totalStudyTime)}</span>
+          </div>
+        </div>
+        <Heatmap
+          data={dailyStatsData().reviewHeatmap}
+          weeks={20}
+          colorScale={reviewColorScale}
+          formatTooltip={(date, val) => `${date}: ${val} ${t('mlearn.Statistics.Dashboard.Reviews').toLowerCase()}`}
+        />
+      </Panel>
+
+      <Show when={Object.keys(dailyStatsData().lapsesHeatmap).length > 0}>
+        <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
+          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.LapseHeatmap')}</h3>
+          <Heatmap
+            data={dailyStatsData().lapsesHeatmap}
+            weeks={20}
+            colorScale={lapseColorScale}
+            formatTooltip={(date, val) => `${date}: ${val} ${t('mlearn.Statistics.Dashboard.Lapses').toLowerCase()}`}
+          />
+        </Panel>
+      </Show>
+
+      <Show when={Object.keys(immersionHeatmap()).length > 0}>
+        <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
+          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ImmersionHeatmap')}</h3>
+          <Heatmap
+            data={immersionHeatmap()}
+            weeks={20}
+            colorScale={immersionColorScale}
+            formatTooltip={(date, val) => `${date}: ${formatMinutes(val)}`}
+          />
+        </Panel>
+      </Show>
+
+      {/* ─── Level Breakdown ─── */}
+      <Show when={getLanguageFeatures().supportsFrequencyLevels && levelBreakdown().length > 0}>
+        <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
+          <h3 class="dashboard-section-title">{t('mlearn.Statistics.WordsByExamLevel')}</h3>
+          <table class="level-table">
+            <thead>
+              <tr>
+                <th>{t('mlearn.Statistics.LevelColumn')}</th>
+                <th>{t('mlearn.Statistics.Legend.Learned')}</th>
+                <th>{t('mlearn.Statistics.Legend.Learning')}</th>
+                <th>{t('mlearn.Statistics.Legend.Viewed')}</th>
+                <th class="level-num">{t('mlearn.Statistics.Dashboard.LevelTotal')}</th>
+                <th class="level-coverage-header">{t('mlearn.Statistics.Dashboard.LevelCoverage')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <For each={levelBreakdown()}>
+                {(row) => (
+                  <tr>
+                    <td>{row.name}</td>
+                    <td class="level-num">{row.learned}</td>
+                    <td class="level-num">{row.learning}</td>
+                    <td class="level-num">{row.viewed}</td>
+                    <td class="level-num">{row.total}</td>
+                    <td class="level-coverage-cell">
+                      <div class="level-coverage-bar">
+                        <Show when={row.total > 0}>
+                          <div class="level-coverage-fill level-coverage-learned" style={{ width: `${(row.learned / row.total) * 100}%` }} />
+                          <div class="level-coverage-fill level-coverage-learning" style={{ width: `${(row.learning / row.total) * 100}%` }} />
+                          <div class="level-coverage-fill level-coverage-viewed" style={{ width: `${(row.viewed / row.total) * 100}%` }} />
+                        </Show>
+                      </div>
+                      <span class="level-coverage-pct">{row.coveragePct}%</span>
+                    </td>
+                  </tr>
+                )}
+              </For>
+            </tbody>
+          </table>
+        </Panel>
+      </Show>
+
+      {/* ─── Card Analysis ─── */}
       <div class="dashboard-charts-row">
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
           <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.CardStates')}</h3>
@@ -450,60 +573,26 @@ export const Dashboard: Component = () => {
         </Show>
       </div>
 
-      {/* ─── Review Activity (Last 30 Days) ─── */}
+      {/* ─── Interval Distribution ─── */}
       <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-        <div class="dashboard-section-header">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ReviewActivity')}</h3>
-          <div class="dashboard-legend-inline">
-            <span class="legend-entry"><span class="legend-dot" style={{ background: 'var(--color-primary)' }} />{t('mlearn.Statistics.Dashboard.Reviews')}</span>
-            <span class="legend-entry"><span class="legend-dot" style={{ background: 'var(--color-success)' }} />{t('mlearn.Statistics.Dashboard.CardState.New')}</span>
-          </div>
+        <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.IntervalDistribution')}</h3>
+        <div class="horizontal-bars">
+          <For each={Object.entries(cardStats().intervalBuckets)}>
+            {([label, count]) => {
+              const max = Math.max(...Object.values(cardStats().intervalBuckets), 1);
+              return (
+                <div class="h-bar-row">
+                  <span class="h-bar-label">{label}</span>
+                  <div class="h-bar-track">
+                    <div class="h-bar-fill" style={{ width: `${(count / max) * 100}%` }} />
+                  </div>
+                  <span class="h-bar-value">{count}</span>
+                </div>
+              );
+            }}
+          </For>
         </div>
-        <BarChart data={dailyStatsData().last30} height={100} stacked showValues={false} />
       </Panel>
-
-      {/* ─── Distributions Row ─── */}
-      <div class="dashboard-charts-row">
-        <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.IntervalDistribution')}</h3>
-          <div class="horizontal-bars">
-            <For each={Object.entries(cardStats().intervalBuckets)}>
-              {([label, count]) => {
-                const max = Math.max(...Object.values(cardStats().intervalBuckets), 1);
-                return (
-                  <div class="h-bar-row">
-                    <span class="h-bar-label">{label}</span>
-                    <div class="h-bar-track">
-                      <div class="h-bar-fill" style={{ width: `${(count / max) * 100}%` }} />
-                    </div>
-                    <span class="h-bar-value">{count}</span>
-                  </div>
-                );
-              }}
-            </For>
-          </div>
-        </Panel>
-
-        <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.EaseDistribution')}</h3>
-          <div class="horizontal-bars">
-            <For each={Object.entries(cardStats().easeBuckets)}>
-              {([label, count]) => {
-                const max = Math.max(...Object.values(cardStats().easeBuckets), 1);
-                return (
-                  <div class="h-bar-row">
-                    <span class="h-bar-label">{label}</span>
-                    <div class="h-bar-track">
-                      <div class="h-bar-fill h-bar-fill-ease" style={{ width: `${(count / max) * 100}%` }} />
-                    </div>
-                    <span class="h-bar-value">{count}</span>
-                  </div>
-                );
-              }}
-            </For>
-          </div>
-        </Panel>
-      </div>
 
       {/* ─── Word Acquisition ─── */}
       <Show when={wordAcquisitionStats().count > 0}>
@@ -530,97 +619,6 @@ export const Dashboard: Component = () => {
               }}
             </For>
           </div>
-        </Panel>
-      </Show>
-
-      {/* ─── Forecast ─── */}
-      <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-        <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.Forecast')}</h3>
-        <BarChart data={forecastData()} height={90} showValues={false} />
-      </Panel>
-
-      {/* ─── Review Heatmap ─── */}
-      <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-        <div class="dashboard-section-header">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ReviewHeatmap')}</h3>
-          <div class="dashboard-meta-stats">
-            <span>{t('mlearn.Statistics.Dashboard.BestStreak')}: {dailyStatsData().streakMax}d</span>
-            <span>{t('mlearn.Statistics.Dashboard.DaysStudied')}: {dailyStatsData().totalDaysStudied}</span>
-            <span>{t('mlearn.Statistics.Dashboard.TotalTime')}: {formatDuration(dailyStatsData().totalStudyTime)}</span>
-          </div>
-        </div>
-        <Heatmap data={dailyStatsData().heatmapData} weeks={20} />
-      </Panel>
-
-      {/* ─── SRS Parameters ─── */}
-      <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-        <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.SrsConfig')}</h3>
-        <div class="srs-params-grid">
-          <div class="srs-param">
-            <span class="srs-param-label">{t('mlearn.Statistics.Dashboard.Srs.LearningSteps')}</span>
-            <span class="srs-param-value">{store.meta.learningSteps.join(', ')}m</span>
-          </div>
-          <div class="srs-param">
-            <span class="srs-param-label">{t('mlearn.Statistics.Dashboard.Srs.RelearnSteps')}</span>
-            <span class="srs-param-value">{store.meta.relearnSteps.join(', ')}m</span>
-          </div>
-          <div class="srs-param">
-            <span class="srs-param-label">{t('mlearn.Statistics.Dashboard.Srs.GraduatingInterval')}</span>
-            <span class="srs-param-value">{store.meta.graduatingInterval}d</span>
-          </div>
-          <div class="srs-param">
-            <span class="srs-param-label">{t('mlearn.Statistics.Dashboard.Srs.EasyInterval')}</span>
-            <span class="srs-param-value">{store.meta.easyInterval}d</span>
-          </div>
-          <div class="srs-param">
-            <span class="srs-param-label">{t('mlearn.Statistics.Dashboard.Srs.MaxInterval')}</span>
-            <span class="srs-param-value">{store.meta.maxInterval}d</span>
-          </div>
-          <div class="srs-param">
-            <span class="srs-param-label">{t('mlearn.Statistics.Dashboard.Srs.NewCardsPerDay')}</span>
-            <span class="srs-param-value">{store.meta.maxNewCardsPerDay}</span>
-          </div>
-          <div class="srs-param">
-            <span class="srs-param-label">{t('mlearn.Statistics.Dashboard.Srs.MaxReviewsPerDay')}</span>
-            <span class="srs-param-value">{store.meta.maxReviewsPerDay === -1 ? '∞' : store.meta.maxReviewsPerDay}</span>
-          </div>
-          <div class="srs-param">
-            <span class="srs-param-label">{t('mlearn.Statistics.Dashboard.Srs.NewIntervalMod')}</span>
-            <span class="srs-param-value">{store.meta.newIntervalModifier}%</span>
-          </div>
-          <div class="srs-param">
-            <span class="srs-param-label">{t('mlearn.Statistics.Dashboard.Srs.ReviewIntervalMod')}</span>
-            <span class="srs-param-value">{store.meta.reviewIntervalModifier}%</span>
-          </div>
-        </div>
-      </Panel>
-
-      {/* ─── Level Breakdown Table ─── */}
-      <Show when={getLanguageFeatures().supportsFrequencyLevels && levelBreakdown().length > 0}>
-        <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
-          <h3 class="dashboard-section-title">{t('mlearn.Statistics.WordsByExamLevel')}</h3>
-          <table class="level-table">
-            <thead>
-              <tr>
-                <th>{t('mlearn.Statistics.LevelColumn')}</th>
-                <th>{t('mlearn.Statistics.Legend.Learned')}</th>
-                <th>{t('mlearn.Statistics.Legend.Learning')}</th>
-                <th>{t('mlearn.Statistics.Legend.Viewed')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <For each={levelBreakdown()}>
-                {(row) => (
-                  <tr>
-                    <td>{row.name}</td>
-                    <td class="level-num">{row.learned}</td>
-                    <td class="level-num">{row.learning}</td>
-                    <td class="level-num">{row.viewed}</td>
-                  </tr>
-                )}
-              </For>
-            </tbody>
-          </table>
         </Panel>
       </Show>
     </div>

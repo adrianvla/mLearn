@@ -196,3 +196,12 @@
 .ca-stats-row.failed-word.severe .ca-stats-word {
   color: var(--color-danger);
 }
+
+/* ============ Filter row (added) ============ */
+
+.ca-stats-filter-row {
+  margin-bottom: var(--spacing-3);
+  display: flex;
+  gap: var(--spacing-2);
+  flex-wrap: wrap;
+}

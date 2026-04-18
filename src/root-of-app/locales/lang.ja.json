@@ -351,20 +351,28 @@
         "Failed": "失敗",
         "FailedGrammarCount": "失敗した文法",
         "FailedWords": "失敗した単語",
+        "Filter": {
+          "All": "すべて",
+          "FailedOnly": "失敗のみ",
+          "Unknown": "レベルなし"
+        },
         "Grammar": "文法",
         "GrammarLevels": "文法レベル",
         "Hovered": "ホバー回数",
         "Levels": "レベル",
         "NoFailedGrammar": "失敗した文法ポイントはまだありません。",
         "NoFailedWords": "失敗した単語はまだありません — 没入を続けましょう！",
+        "NoGrammarMatching": "条件に一致する文法がありません。",
         "NoLevelData": "レベル分布を計算するのに十分なデータがありません。",
         "NoMedia": "メディア統計はまだ保存されていません",
         "NoMediaHint": "動画を見たり本を読んだりすると、ここに分析結果が表示されます。",
+        "NoWordsMatching": "条件に一致する単語がありません。",
         "Overview": "概要",
         "Seen": "表示回数",
         "Unique": "ユニーク",
         "UniqueWords": "ユニーク単語数",
         "UnknownWords": "未知の単語",
+        "Words": "単語",
         "WordLevelDistribution": "単語レベル分布",
         "WordLevels": "単語レベル"
       },
@@ -758,9 +766,42 @@
           "Browse": "閲覧",
           "Generate": "生成",
           "Review": "復習",
-          "Statistics": "統計"
+          "Statistics": "統計",
+          "Suggested": "候補"
         },
         "Title": "フラッシュカード"
+      },
+      "Suggested": {
+        "Title": "候補のフラッシュカード",
+        "Description": "視聴・読書中に自動で集めた候補です。昇格すると翻訳・例文・音声が生成されます。",
+        "CountLabel": "{shown} 表示 · 合計 {total}",
+        "SearchPlaceholder": "単語または読みで検索…",
+        "EmptyTitle": "候補はまだありません",
+        "EmptyDescription": "没入中に出会う新しい単語がここに表示されます。",
+        "NoMatchTitle": "条件に一致する候補がありません",
+        "NoMatchDescription": "検索やフィルターを解除してみてください。",
+        "Filter": {
+          "AllWords": "すべての単語",
+          "FailedOnly": "失敗のみ",
+          "DictionaryOnly": "辞書登録の単語のみ",
+          "AllLevels": "すべてのレベル",
+          "Unknown": "レベルなし"
+        },
+        "SelectAll": "すべて選択",
+        "DeselectAll": "選択を解除",
+        "SelectCard": "候補を選択",
+        "SelectedCount": "{count} 件選択中",
+        "UseLLM": "例文を生成",
+        "UseTTS": "音声を生成",
+        "PromoteSelected": "選択を昇格",
+        "DeleteSelected": "選択を削除",
+        "Promote": "昇格",
+        "Delete": "削除",
+        "Promoting": "{current}/{total} を生成中…",
+        "Promoted": "{count} 枚のカードを作成しました",
+        "PromoteFailed": "候補の昇格に失敗しました。",
+        "Removed": "{count} 件の候補を削除しました",
+        "SeenCount": "{count} 回表示"
       }
     },
     "Global": {
@@ -1546,7 +1587,8 @@
           },
           "PreparedExamLevel": {
             "Description": "自動作成カードの目標レベル",
-            "Label": "目標試験レベル"
+            "Label": "目標試験レベル",
+            "NoTarget": "目標なし"
           },
           "EaseMapping": {
             "LearningEase": {
@@ -1785,9 +1827,13 @@
         "EaseDistribution": "容易度分布",
         "Forecast": "14日間の復習予測",
         "Graduated": "修了",
+        "ImmersionHeatmap": "没入ヒートマップ",
         "ImmersionTime": "没入時間",
         "IntervalDistribution": "間隔分布",
+        "LapseHeatmap": "失敗ヒートマップ",
         "Lapses": "失敗",
+        "LevelCoverage": "カバー率",
+        "LevelTotal": "合計",
         "Maturity": {
           "Mature": "成熟 (≥21日)",
           "Title": "成熟度",
@@ -2075,6 +2121,22 @@
       },
       "UnknownWords": "未知の単語",
       "WordCount": "{count} 語"
+    },
+    "WordSync": {
+      "FinishedTitle": "完了！",
+      "FinishedDescription": "{count}語を評価しました。単語知識が更新されました。",
+      "Progress": "{rated} / {total} 語",
+      "Unknown": "未知",
+      "Learning": "学習中",
+      "Known": "既知",
+      "Seen": "確認済み",
+      "RecheckAll": "全ての単語を再確認",
+      "Rated": {
+        "Unknown": "未知としてマーク",
+        "Learning": "学習中としてマーク",
+        "Known": "既知としてマーク",
+        "Seen": "30日間スキップ"
+      }
     }
   }
 }

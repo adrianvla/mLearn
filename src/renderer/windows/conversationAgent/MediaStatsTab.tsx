@@ -37,8 +37,10 @@ interface MediaView {
   mediaHash: string;
   assessedLevel: number | null;
   assessedLevelName: string;
-  failedWords: Array<{ word: string; ease: number; timesSeen: number; timesHovered: number }>;
-  failedGrammar: Array<{ pattern: string; ease: number; timesFailed: number }>;
+  failedWords: Array<{ word: string; ease: number; timesSeen: number; timesHovered: number; level: number | null }>;
+  failedGrammar: Array<{ pattern: string; ease: number; timesFailed: number; level: number | null }>;
+  allWords: Array<{ word: string; ease: number; timesSeen: number; timesHovered: number; level: number | null; failed: boolean }>;
+  allGrammar: Array<{ pattern: string; ease: number; timesFailed: number; level: number | null; failed: boolean }>;
   wordLevelEntries: LevelPercentageEntry[];
   grammarLevelEntries: LevelPercentageEntry[];
   totalUniqueWords: number;
@@ -66,6 +68,8 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
   const [subTab, setSubTab] = createSignal<string>('overview');
   const [allMediaStats, setAllMediaStats] = createSignal<MediaStats[]>([]);
   const [selectedHash, setSelectedHash] = createSignal<string>('');
+  const [wordsFilter, setWordsFilter] = createSignal<string>('failed-only');
+  const [grammarFilter, setGrammarFilter] = createSignal<string>('failed-only');
 
   // Load all saved media stats on mount
   onMount(() => {
@@ -89,14 +93,26 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
   const contextView = createMemo((): MediaView | null => {
     const ctx = props.context;
     if (!ctx) return null;
+    const enrichWord = (w: { word: string; ease: number; timesSeen: number; timesHovered: number }) => ({
+      ...w,
+      level: langCtx.getFrequency(w.word)?.raw_level ?? null,
+    });
+    const enrichGrammar = (g: { pattern: string; ease: number; timesFailed: number }) => ({
+      ...g,
+      level: langCtx.getGrammarPoint(g.pattern)?.level ?? null,
+    });
+    const failedWords = ctx.failedWords.map(enrichWord);
+    const failedGrammar = ctx.failedGrammar.map(enrichGrammar);
     return {
       mediaName: ctx.mediaName,
       mediaType: ctx.mediaType,
       mediaHash: ctx.mediaHash,
       assessedLevel: ctx.assessedLevel,
       assessedLevelName: ctx.assessedLevelName,
-      failedWords: ctx.failedWords,
-      failedGrammar: ctx.failedGrammar,
+      failedWords,
+      failedGrammar,
+      allWords: failedWords.map((w) => ({ ...w, failed: true })),
+      allGrammar: failedGrammar.map((g) => ({ ...g, failed: true })),
       wordLevelEntries: ctx.wordLevelPercentages?.entries || [],
       grammarLevelEntries: ctx.grammarLevelPercentages?.entries || [],
       totalUniqueWords: ctx.wordLevelPercentages?.totalUnique || 0,
@@ -138,8 +154,21 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
       }
     }
 
-    const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));
-    const failedGrammar = Object.values(stats.grammarEncountered).filter((g) => g.timesFailed > 0);
+    const allWords = Array.from(mediaWords.values()).map((w) => {
+      const failed = isWordMarkedFailed(w, settings);
+      const wLevel = langCtx.getFrequency(w.word)?.raw_level ?? null;
+      return { ...w, level: wLevel, failed };
+    });
+    const failedWords = allWords
+      .filter((w) => w.failed)
+      .map(({ failed: _failed, ...rest }) => rest);
+    const allGrammar = Object.values(stats.grammarEncountered).map((g) => {
+      const gLevel = langCtx.getGrammarPoint(g.pattern)?.level ?? null;
+      return { pattern: g.pattern, ease: g.ease, timesFailed: g.timesFailed, level: gLevel, failed: g.timesFailed > 0 };
+    });
+    const failedGrammar = allGrammar
+      .filter((g) => g.failed)
+      .map(({ failed: _failed, ...rest }) => rest);
 
     return {
       mediaName: stats.mediaName,
@@ -149,6 +178,8 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
       assessedLevelName: level !== null && levelNames[String(level)] ? levelNames[String(level)] : '',
       failedWords,
       failedGrammar,
+      allWords,
+      allGrammar,
       wordLevelEntries: wordLevels.entries,
       grammarLevelEntries: grammarLevels.entries,
       totalUniqueWords: wordLevels.totalUnique,
@@ -217,7 +248,7 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
     const v = selectedView();
     const items: TabItem[] = [
       { id: 'overview', label: t('mlearn.ConversationAgent.Stats.Overview') },
-      { id: 'words', label: t('mlearn.ConversationAgent.Stats.FailedWords'), badge: v?.failedWords.length || undefined },
+      { id: 'words', label: t('mlearn.ConversationAgent.Stats.Words'), badge: v?.failedWords.length || undefined },
       { id: 'grammar', label: t('mlearn.ConversationAgent.Stats.Grammar'), badge: v?.failedGrammar.length || undefined },
       { id: 'levels', label: t('mlearn.ConversationAgent.Stats.Levels') },
     ];
@@ -231,6 +262,33 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
       value: item.hash,
       label: `${item.name}${item.isCurrent ? ` (${t('mlearn.ConversationAgent.Stats.Current')})` : ''}`,
     }));
+
+  const buildLevelFilterOptions = (names: Record<string, string>) => {
+    const options = [
+      { value: 'all', label: t('mlearn.ConversationAgent.Stats.Filter.All') },
+      { value: 'failed-only', label: t('mlearn.ConversationAgent.Stats.Filter.FailedOnly') },
+    ];
+    const levels = Object.keys(names).map(Number).sort((a, b) => a - b);
+    for (const lvl of levels) {
+      options.push({ value: `level:${lvl}`, label: names[String(lvl)] });
+    }
+    options.push({ value: 'unknown', label: t('mlearn.ConversationAgent.Stats.Filter.Unknown') });
+    return options;
+  };
+
+  const wordsFilterOptions = createMemo(() => buildLevelFilterOptions(langCtx.getFreqLevelNames()));
+  const grammarFilterOptions = createMemo(() => buildLevelFilterOptions(langCtx.getGrammarLevelNames()));
+
+  const applyFilter = <T extends { level: number | null; failed: boolean }>(items: T[], filter: string): T[] => {
+    if (filter === 'all') return items;
+    if (filter === 'failed-only') return items.filter((i) => i.failed);
+    if (filter === 'unknown') return items.filter((i) => i.level == null);
+    if (filter.startsWith('level:')) {
+      const lvl = Number(filter.slice(6));
+      return items.filter((i) => i.level === lvl);
+    }
+    return items;
+  };
 
   return (
     <div class="ca-stats-tab">
@@ -324,61 +382,97 @@ export const MediaStatsTab: Component<MediaStatsTabProps> = (props) => {
                   </Show>
                 </TabPanel>
 
-                {/* Failed Words list */}
+                {/* Words list (filterable) */}
                 <TabPanel tabId="words" activeTab={subTab()}>
-                  <div class="ca-stats-list">
-                    <Show when={v().failedWords.length === 0}>
-                      <EmptyState
-                        title={t('mlearn.ConversationAgent.Stats.NoFailedWords')}
-                        size="sm"
-                        variant="minimal"
-                      />
-                    </Show>
-                    <For each={[...v().failedWords].sort((a, b) => a.ease - b.ease)}>
-                      {(entry) => (
-                        <div class={`ca-stats-row failed-word ${entry.ease < 1.5 ? 'severe' : ''}`}>
-                          <span class="ca-stats-word">{entry.word}</span>
-                          <span class="ca-stats-meta">
-                            <span class="ca-stats-seen">{t('mlearn.ConversationAgent.Stats.Seen')} {entry.timesSeen}x</span>
-                            <Show when={entry.timesHovered > 0}>
-                              <span class="ca-stats-hovered">{t('mlearn.ConversationAgent.Stats.Hovered')} {entry.timesHovered}x</span>
-                            </Show>
-                            <span class="ca-stats-ease" style={{ color: getEaseColor(entry.ease) }}>
-                              {entry.ease.toFixed(2)}
-                            </span>
-                          </span>
-                        </div>
-                      )}
-                    </For>
+                  <div class="ca-stats-filter-row">
+                    <SelectInput
+                      options={wordsFilterOptions()}
+                      value={wordsFilter()}
+                      onChange={(e) => setWordsFilter(e.currentTarget.value)}
+                      size="sm"
+                    />
                   </div>
+                  {(() => {
+                    const filtered = applyFilter(v().allWords, wordsFilter());
+                    const sorted = [...filtered].sort((a, b) => a.ease - b.ease);
+                    const levelNames = langCtx.getFreqLevelNames();
+                    return (
+                      <div class="ca-stats-list">
+                        <Show when={sorted.length === 0}>
+                          <EmptyState
+                            title={t('mlearn.ConversationAgent.Stats.NoWordsMatching')}
+                            size="sm"
+                            variant="minimal"
+                          />
+                        </Show>
+                        <For each={sorted}>
+                          {(entry) => (
+                            <div class={`ca-stats-row ${entry.failed ? 'failed-word' : ''} ${entry.ease < 1.5 ? 'severe' : ''}`}>
+                              <span class="ca-stats-word">{entry.word}</span>
+                              <span class="ca-stats-meta">
+                                <Show when={entry.level != null && levelNames[String(entry.level)]}>
+                                  <PillLabel level={entry.level ?? undefined}>{levelNames[String(entry.level)]}</PillLabel>
+                                </Show>
+                                <span class="ca-stats-seen">{t('mlearn.ConversationAgent.Stats.Seen')} {entry.timesSeen}x</span>
+                                <Show when={entry.timesHovered > 0}>
+                                  <span class="ca-stats-hovered">{t('mlearn.ConversationAgent.Stats.Hovered')} {entry.timesHovered}x</span>
+                                </Show>
+                                <span class="ca-stats-ease" style={{ color: getEaseColor(entry.ease) }}>
+                                  {entry.ease.toFixed(2)}
+                                </span>
+                              </span>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    );
+                  })()}
                 </TabPanel>
 
-                {/* Grammar */}
+                {/* Grammar (filterable) */}
                 <TabPanel tabId="grammar" activeTab={subTab()}>
-                  <div class="ca-stats-list">
-                    <Show when={v().failedGrammar.length === 0}>
-                      <EmptyState
-                        title={t('mlearn.ConversationAgent.Stats.NoFailedGrammar')}
-                        size="sm"
-                        variant="minimal"
-                      />
-                    </Show>
-                    <For each={[...v().failedGrammar].sort((a, b) => a.ease - b.ease)}>
-                      {(entry) => (
-                        <div class={`ca-stats-row failed-word ${entry.ease < 1.5 ? 'severe' : ''}`}>
-                          <span class="ca-stats-word">{entry.pattern}</span>
-                          <span class="ca-stats-meta">
-                            <Show when={entry.timesFailed > 0}>
-                              <span class="ca-stats-hovered">{t('mlearn.ConversationAgent.Stats.Failed')} {entry.timesFailed}x</span>
-                            </Show>
-                            <span class="ca-stats-ease" style={{ color: getEaseColor(entry.ease) }}>
-                              {entry.ease.toFixed(2)}
-                            </span>
-                          </span>
-                        </div>
-                      )}
-                    </For>
+                  <div class="ca-stats-filter-row">
+                    <SelectInput
+                      options={grammarFilterOptions()}
+                      value={grammarFilter()}
+                      onChange={(e) => setGrammarFilter(e.currentTarget.value)}
+                      size="sm"
+                    />
                   </div>
+                  {(() => {
+                    const filtered = applyFilter(v().allGrammar, grammarFilter());
+                    const sorted = [...filtered].sort((a, b) => a.ease - b.ease);
+                    const levelNames = langCtx.getGrammarLevelNames();
+                    return (
+                      <div class="ca-stats-list">
+                        <Show when={sorted.length === 0}>
+                          <EmptyState
+                            title={t('mlearn.ConversationAgent.Stats.NoGrammarMatching')}
+                            size="sm"
+                            variant="minimal"
+                          />
+                        </Show>
+                        <For each={sorted}>
+                          {(entry) => (
+                            <div class={`ca-stats-row ${entry.failed ? 'failed-word' : ''} ${entry.ease < 1.5 ? 'severe' : ''}`}>
+                              <span class="ca-stats-word">{entry.pattern}</span>
+                              <span class="ca-stats-meta">
+                                <Show when={entry.level != null && levelNames[String(entry.level)]}>
+                                  <PillLabel level={entry.level ?? undefined}>{levelNames[String(entry.level)]}</PillLabel>
+                                </Show>
+                                <Show when={entry.timesFailed > 0}>
+                                  <span class="ca-stats-hovered">{t('mlearn.ConversationAgent.Stats.Failed')} {entry.timesFailed}x</span>
+                                </Show>
+                                <span class="ca-stats-ease" style={{ color: getEaseColor(entry.ease) }}>
+                                  {entry.ease.toFixed(2)}
+                                </span>
+                              </span>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    );
+                  })()}
                 </TabPanel>
 
                 {/* Levels */}

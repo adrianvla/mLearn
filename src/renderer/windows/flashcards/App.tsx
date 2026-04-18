@@ -23,6 +23,7 @@ import {
   BookIcon,
   BarChartIcon,
   SparklesIcon,
+  PlusIcon,
   ProgressBar,
   MicrophoneIcon,
   VoiceSamplePicker,
@@ -42,6 +43,7 @@ import { syncFlashcardsPluginActivity, type FlashcardsTabId } from './pluginActi
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
+import { FlashcardsSuggested } from './FlashcardsSuggested';
 
 type TabId = FlashcardsTabId;
 
@@ -81,6 +83,7 @@ export const FlashcardsContent: Component = () => {
     intervalToString,
     generateExampleSentenceWithLLM,
     translateExampleSentence,
+    getSuggestedFlashcardsSync,
     isLoading,
   } = useFlashcards();
   const { t } = useLocalization();
@@ -393,6 +396,7 @@ export const FlashcardsContent: Component = () => {
 
   // Queue counts for UI
   const counts = createMemo(() => queueCounts());
+  const suggestedCount = createMemo(() => getSuggestedFlashcardsSync().length);
 
   const handleDeleteCard = async () => {
     const cardId = selectedCard();
@@ -652,6 +656,12 @@ export const FlashcardsContent: Component = () => {
       id: 'generate', 
       label: t('mlearn.Flashcards.UI.Tabs.Generate'),
       icon: <SparklesIcon size={16} />
+    },
+    { 
+      id: 'suggested', 
+      label: t('mlearn.Flashcards.UI.Tabs.Suggested'),
+      icon: <PlusIcon size={16} />,
+      badge: suggestedCount() > 0 ? suggestedCount() : undefined,
     },
     { 
       id: 'stats', 
@@ -964,6 +974,11 @@ export const FlashcardsContent: Component = () => {
                 })()}
               </Show>
             </div>
+          </Show>
+
+          {/* Suggested Tab */}
+          <Show when={activeTab() === 'suggested'}>
+            <FlashcardsSuggested />
           </Show>
 
           {/* Stats Tab */}

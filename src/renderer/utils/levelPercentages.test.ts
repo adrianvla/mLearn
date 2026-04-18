@@ -433,7 +433,11 @@ describe('assessMediaLevel', () => {
     expect(assessMediaLevel(data)).toBe(3);
   });
 
-  it('returns the level where cumulative uniquePercent first hits 50%', () => {
+  it('returns the level where cumulative weighted share crosses 50% (exponential weights)', () => {
+    // Entries are sorted by raw_level descending (easiest first).
+    // weights: idx0=1, idx1=2, idx2=4, idx3=8, idx4=16
+    // weightedCounts: 3,4,8,8,16  total=39
+    // Cumulative from hardest (idx4): 16 (41%), 24 (61.5%) → returns entries[3].level = 2
     const data: LevelPercentages = {
       entries: [
         { level: 5, levelName: 'E5', uniquePercent: 30, occurrencePercent: 30, uniqueCount: 3, occurrenceCount: 3 },
@@ -445,7 +449,7 @@ describe('assessMediaLevel', () => {
       totalUnique: 10,
       totalOccurrences: 10,
     };
-    expect(assessMediaLevel(data)).toBe(4);
+    expect(assessMediaLevel(data)).toBe(2);
   });
 
   it('returns last entry level when cumulative never reaches 50% (percentages do not sum to 100)', () => {
@@ -473,7 +477,9 @@ describe('assessMediaLevel', () => {
     expect(assessMediaLevel(data)).toBe(5);
   });
 
-  it('returns the exact entry at 50% (boundary)', () => {
+  it('weights the harder level enough to win at 50/50 unique split', () => {
+    // counts 5,5 → weighted 5,10 → total 15.
+    // Cumulative from hardest (idx 1, level 1): 10/15 = 66.7% → returns level 1
     const data: LevelPercentages = {
       entries: [
         { level: 3, levelName: 'B1', uniquePercent: 50, occurrencePercent: 50, uniqueCount: 5, occurrenceCount: 5 },
@@ -482,7 +488,7 @@ describe('assessMediaLevel', () => {
       totalUnique: 10,
       totalOccurrences: 10,
     };
-    expect(assessMediaLevel(data)).toBe(3);
+    expect(assessMediaLevel(data)).toBe(1);
   });
 
   it('entries iterate from highest level first (cumulative logic)', () => {

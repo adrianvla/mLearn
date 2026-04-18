@@ -1,0 +1,121 @@
+/**
+ * Word Sync Window styles.
+ */
+
+.word-sync {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--spacing-6);
+  padding: var(--spacing-8);
+  background: var(--bg-opaque);
+  user-select: none;
+  position: relative;
+}
+
+.word-sync-drag-region {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  -webkit-app-region: drag;
+}
+
+.word-sync-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.word-sync-counter {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.word-sync-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-8) var(--spacing-10);
+}
+
+.word-sync-word {
+  font-size: var(--font-size-5xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  text-align: center;
+  word-break: break-word;
+}
+
+.word-sync-reading {
+  font-size: var(--font-size-xl);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.word-sync-actions {
+  display: flex;
+  gap: var(--spacing-4);
+}
+
+.word-sync-btn {
+  min-width: 130px;
+  position: relative;
+}
+
+.word-sync-btn-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.2);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  margin-right: var(--spacing-2);
+  flex-shrink: 0;
+}
+
+.word-sync-feedback {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-sm);
+  transition: opacity 0.2s ease;
+}
+
+.word-sync-feedback--unknown {
+  color: var(--color-error);
+}
+
+.word-sync-feedback--learning {
+  color: var(--color-warning);
+}
+
+.word-sync-feedback--known {
+  color: var(--color-success);
+}
+
+.word-sync-feedback--seen {
+  color: var(--text-secondary);
+}
+
+.word-sync-finished {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-4);
+  height: 100%;
+  padding: var(--spacing-8);
+}
+
+.word-sync-recheck-btn {
+  margin-top: var(--spacing-2);
+}

@@ -293,6 +293,7 @@ export const WINDOW_TYPES = {
   STATISTICS: 'statistics',
   WORD_DEFINITION: 'word-definition',
   PLUGIN_HOST: 'plugin-host',
+  WORD_SYNC: 'word-sync',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];

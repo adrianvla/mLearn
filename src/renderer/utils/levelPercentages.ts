@@ -116,21 +116,46 @@ export function computeGrammarLevelPercentages(
 
 /**
  * Assess the difficulty level of a media based on word frequency distribution.
- * Returns the level that covers ~50% of unique words (weighted toward harder levels).
+ *
+ * Weights each level exponentially so that a single advanced word counts for
+ * far more than a beginner word. Levels are sorted in descending raw_level
+ * order (e.g. for JLPT: N5 rank=0 → weight 1, N4 rank=1 → weight 2, N3 rank=2
+ * → weight 4, …). The assessed level is the highest level whose cumulative
+ * weighted share, counted from hardest to easiest, reaches the 50% threshold.
+ *
+ * This prevents media with a long tail of advanced vocabulary from being
+ * misclassified as beginner just because the high-frequency top of the
+ * distribution is dominated by easy function words.
  */
 export function assessMediaLevel(wordPercentages: LevelPercentages): number | null {
-  if (wordPercentages.totalUnique === 0) return null;
+  const entries = wordPercentages.entries;
+  if (wordPercentages.totalUnique === 0 || entries.length === 0) return null;
 
+  // Entries are already sorted highest raw_level first (easiest first).
+  // Build weighted totals: rank 0 (easiest) → weight 1, then doubling.
+  const weights: number[] = entries.map((_, idx) => 2 ** idx);
+  let weightedTotal = 0;
+  const weightedCounts: number[] = entries.map((e, idx) => {
+    const w = e.uniqueCount * weights[idx];
+    weightedTotal += w;
+    return w;
+  });
+
+  if (weightedTotal === 0) return null;
+
+  // Accumulate from hardest to easiest — return the first level whose
+  // cumulative weighted percentage reaches the 50% threshold.
   let cumulative = 0;
-  // Entries are sorted highest level first (e.g., JLPT N5=5 first, N1=1 last)
-  for (const entry of wordPercentages.entries) {
-    cumulative += entry.uniquePercent;
-    if (cumulative >= 50) {
-      return entry.level;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    cumulative += weightedCounts[i];
+    if ((cumulative / weightedTotal) * 100 >= 50) {
+      return entries[i].level;
     }
   }
 
-  // If we got here, use the last level
-  const last = wordPercentages.entries[wordPercentages.entries.length - 1];
-  return last?.level ?? null;
+  // Fallback: hardest present level
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (entries[i].uniqueCount > 0) return entries[i].level;
+  }
+  return entries[entries.length - 1]?.level ?? null;
 }

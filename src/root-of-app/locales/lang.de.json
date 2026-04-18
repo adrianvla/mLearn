@@ -351,20 +351,28 @@
         "Failed": "Fehlgeschlagen",
         "FailedGrammarCount": "Grammatikfehler",
         "FailedWords": "Fehlgeschlagene Wörter",
+        "Filter": {
+          "All": "Alle",
+          "FailedOnly": "Nur fehlgeschlagen",
+          "Unknown": "Keine Stufe"
+        },
         "Grammar": "Grammatik",
         "GrammarLevels": "Grammatikstufen",
         "Hovered": "Gehovert",
         "Levels": "Stufen",
         "NoFailedGrammar": "Noch keine Grammatikfehler.",
         "NoFailedWords": "Noch keine fehlgeschlagenen Wörter — weiter im Immersion!",
+        "NoGrammarMatching": "Keine Grammatikpunkte entsprechen dem Filter.",
         "NoLevelData": "Nicht genügend Daten zur Berechnung der Stufenverteilung.",
         "NoMedia": "Noch keine Medienstatistiken gespeichert",
         "NoMediaHint": "Schauen Sie Videos oder lesen Sie Bücher, und die Analysen erscheinen hier.",
+        "NoWordsMatching": "Keine Wörter entsprechen dem Filter.",
         "Overview": "Übersicht",
         "Seen": "Gesehen",
         "Unique": "Einzigartig",
         "UniqueWords": "Einzigartige Wörter",
         "UnknownWords": "Unbekannte Wörter",
+        "Words": "Wörter",
         "WordLevelDistribution": "Wörterverteilung nach Stufe",
         "WordLevels": "Wortstufen"
       },
@@ -758,9 +766,42 @@
           "Browse": "Durchsuchen",
           "Generate": "Generieren",
           "Review": "Wiederholung",
-          "Statistics": "Statistiken"
+          "Statistics": "Statistiken",
+          "Suggested": "Vorschläge"
         },
         "Title": "Lernkarten"
+      },
+      "Suggested": {
+        "Title": "Vorgeschlagene Karten",
+        "Description": "Automatisch beim Lesen oder Schauen erfasst. Befördere sie, um Übersetzung, Beispiel und Audio zu erzeugen.",
+        "CountLabel": "{shown} angezeigt · {total} insgesamt",
+        "SearchPlaceholder": "Wort oder Lesung suchen…",
+        "EmptyTitle": "Noch keine Vorschläge",
+        "EmptyDescription": "Neue Wörter, die dir begegnen, erscheinen hier.",
+        "NoMatchTitle": "Keine Vorschläge passen zu den Filtern",
+        "NoMatchDescription": "Versuche, Suche oder Filter zurückzusetzen.",
+        "Filter": {
+          "AllWords": "Alle Wörter",
+          "FailedOnly": "Nur fehlgeschlagen",
+          "DictionaryOnly": "Nur Wörterbuchwörter",
+          "AllLevels": "Alle Niveaus",
+          "Unknown": "Kein Niveau"
+        },
+        "SelectAll": "Alle auswählen",
+        "DeselectAll": "Auswahl aufheben",
+        "SelectCard": "Vorschlag auswählen",
+        "SelectedCount": "{count} ausgewählt",
+        "UseLLM": "Beispiel generieren",
+        "UseTTS": "Audio generieren",
+        "PromoteSelected": "Ausgewählte befördern",
+        "DeleteSelected": "Ausgewählte löschen",
+        "Promote": "Befördern",
+        "Delete": "Löschen",
+        "Promoting": "Erzeuge {current}/{total}…",
+        "Promoted": "{count} Karte(n) erstellt",
+        "PromoteFailed": "Vorschläge konnten nicht befördert werden.",
+        "Removed": "{count} Vorschlag/Vorschläge entfernt",
+        "SeenCount": "{count}x gesehen"
       }
     },
     "Global": {
@@ -1546,7 +1587,8 @@
           },
           "PreparedExamLevel": {
             "Description": "Zielstufe für automatisch erstellte Karten",
-            "Label": "Ziel-Prüfungsstufe"
+            "Label": "Ziel-Prüfungsstufe",
+            "NoTarget": "Kein Ziel"
           },
           "EaseMapping": {
             "LearningEase": {
@@ -1785,9 +1827,13 @@
         "EaseDistribution": "Leichtigkeitsverteilung",
         "Forecast": "14-Tage-Wiederholungsvorhersage",
         "Graduated": "Abgeschlossen",
+        "ImmersionHeatmap": "Immersions-Heatmap",
         "ImmersionTime": "Immersionszeit",
         "IntervalDistribution": "Intervallverteilung",
+        "LapseHeatmap": "Fehler-Heatmap",
         "Lapses": "Fehler",
+        "LevelCoverage": "Abdeckung",
+        "LevelTotal": "Gesamt",
         "Maturity": {
           "Mature": "Reif (≥21T)",
           "Title": "Reife",
@@ -2075,6 +2121,22 @@
       },
       "UnknownWords": "Unbekannte Wörter",
       "WordCount": "{count} Wörter"
+    },
+    "WordSync": {
+      "FinishedTitle": "Fertig!",
+      "FinishedDescription": "Du hast {count} Wörter bewertet. Dein Wortwissen wurde aktualisiert.",
+      "Progress": "{rated} / {total} Wörter",
+      "Unknown": "Unbekannt",
+      "Learning": "Lernend",
+      "Known": "Bekannt",
+      "Seen": "Gesehen",
+      "RecheckAll": "Alle Wörter erneut prüfen",
+      "Rated": {
+        "Unknown": "Als unbekannt markiert",
+        "Learning": "Als lernend markiert",
+        "Known": "Als bekannt markiert",
+        "Seen": "Für 30 Tage übersprungen"
+      }
     }
   }
 }

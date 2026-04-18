@@ -351,20 +351,28 @@
         "Failed": "Ошибки",
         "FailedGrammarCount": "Ошибки в грамматике",
         "FailedWords": "Проблемные слова",
+        "Filter": {
+          "All": "Все",
+          "FailedOnly": "Только проблемные",
+          "Unknown": "Без уровня"
+        },
         "Grammar": "Грамматика",
         "GrammarLevels": "Уровни грамматики",
         "Hovered": "Наведений",
         "Levels": "Уровни",
         "NoFailedGrammar": "Грамматических ошибок пока нет.",
         "NoFailedWords": "Проблемных слов пока нет — продолжайте погружение!",
+        "NoGrammarMatching": "Нет грамматики, соответствующей фильтру.",
         "NoLevelData": "Недостаточно данных для расчёта распределения по уровням.",
         "NoMedia": "Статистика медиа ещё не сохранена",
         "NoMediaHint": "Смотрите видео или читайте книги, и здесь появится аналитика.",
+        "NoWordsMatching": "Нет слов, соответствующих фильтру.",
         "Overview": "Обзор",
         "Seen": "Просмотрено",
         "Unique": "Уникальные",
         "UniqueWords": "Уникальных слов",
         "UnknownWords": "Неизвестные слова",
+        "Words": "Слова",
         "WordLevelDistribution": "Распределение слов по уровням",
         "WordLevels": "Уровни слов"
       },
@@ -758,9 +766,42 @@
           "Browse": "Обзор",
           "Generate": "Генерация",
           "Review": "Повторение",
-          "Statistics": "Статистика"
+          "Statistics": "Статистика",
+          "Suggested": "Предложения"
         },
         "Title": "Карточки"
+      },
+      "Suggested": {
+        "Title": "Предлагаемые карточки",
+        "Description": "Автоматически собраны во время чтения или просмотра. Продвиньте, чтобы сгенерировать перевод, пример и аудио.",
+        "CountLabel": "{shown} показано · всего {total}",
+        "SearchPlaceholder": "Поиск по слову или чтению…",
+        "EmptyTitle": "Пока нет предложений",
+        "EmptyDescription": "Новые слова, встреченные при погружении, появятся здесь.",
+        "NoMatchTitle": "Нет предложений по фильтру",
+        "NoMatchDescription": "Попробуйте сбросить поиск или фильтр.",
+        "Filter": {
+          "AllWords": "Все слова",
+          "FailedOnly": "Только проблемные",
+          "DictionaryOnly": "Только словарные слова",
+          "AllLevels": "Все уровни",
+          "Unknown": "Без уровня"
+        },
+        "SelectAll": "Выбрать все",
+        "DeselectAll": "Сбросить выбор",
+        "SelectCard": "Выбрать предложение",
+        "SelectedCount": "Выбрано: {count}",
+        "UseLLM": "Сгенерировать пример",
+        "UseTTS": "Сгенерировать аудио",
+        "PromoteSelected": "Продвинуть выбранные",
+        "DeleteSelected": "Удалить выбранные",
+        "Promote": "Продвинуть",
+        "Delete": "Удалить",
+        "Promoting": "Генерация {current}/{total}…",
+        "Promoted": "Создано карточек: {count}",
+        "PromoteFailed": "Не удалось продвинуть предложения.",
+        "Removed": "Удалено предложений: {count}",
+        "SeenCount": "Замечено: {count}x"
       }
     },
     "Global": {
@@ -1546,7 +1587,8 @@
           },
           "PreparedExamLevel": {
             "Description": "Целевой уровень для автоматически создаваемых карточек",
-            "Label": "Целевой уровень экзамена"
+            "Label": "Целевой уровень экзамена",
+            "NoTarget": "Без цели"
           },
           "EaseMapping": {
             "LearningEase": {
@@ -1785,9 +1827,13 @@
         "EaseDistribution": "Распределение лёгкости",
         "Forecast": "Прогноз повторений на 14 дней",
         "Graduated": "Завершено",
+        "ImmersionHeatmap": "Тепловая карта погружения",
         "ImmersionTime": "Время погружения",
         "IntervalDistribution": "Распределение интервалов",
+        "LapseHeatmap": "Тепловая карта провалов",
         "Lapses": "Провалы",
+        "LevelCoverage": "Покрытие",
+        "LevelTotal": "Всего",
         "Maturity": {
           "Mature": "Зрелые (≥21д)",
           "Title": "Зрелость",
@@ -2075,6 +2121,22 @@
       },
       "UnknownWords": "Незнакомые слова",
       "WordCount": "{count} слов"
+    },
+    "WordSync": {
+      "FinishedTitle": "Готово!",
+      "FinishedDescription": "Вы оценили {count} слов. Ваши знания слов обновлены.",
+      "Progress": "{rated} / {total} слов",
+      "Unknown": "Неизвестно",
+      "Learning": "Изучаю",
+      "Known": "Знаю",
+      "Seen": "Видел",
+      "RecheckAll": "Проверить все слова заново",
+      "Rated": {
+        "Unknown": "Отмечено как неизвестное",
+        "Learning": "Отмечено как изучаемое",
+        "Known": "Отмечено как известное",
+        "Seen": "Пропущено на 30 дней"
+      }
     }
   }
 }

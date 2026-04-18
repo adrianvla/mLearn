@@ -578,6 +578,11 @@ function setupAppMenu(): void {
           label: 'Edit word knowledge database',
           click: () => createChildWindow('word-db-editor' as WindowType, { width: 1300, height: 800 }),
         },
+        { type: 'separator' },
+        {
+          label: 'Sync with me',
+          click: () => createChildWindow('word-sync' as WindowType, { width: 600, height: 500 }),
+        },
       ],
     },
     
