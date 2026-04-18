@@ -226,6 +226,8 @@ export interface Settings {
   readerWordHoverKey?: string;
   /** Whether to hide furigana with white boxes that reveal on hover */
   readerFuriganaHider?: boolean;
+  /** Whether to remove the gap between pages in double-page mode */
+  readerCollatePages?: boolean;
 
   // Reader magnifier settings
   /** Hotkey to activate the magnifying glass (e.g., 'z', 'Control', 'Alt') */
@@ -400,6 +402,7 @@ export const DEFAULT_SETTINGS: Settings = {
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'shift',
   readerFuriganaHider: false,
+  readerCollatePages: false,
   hideReadingForKnownWords: false,
   readerMagnifierHotkey: 'z',
   readerMagnifierZoom: 2,

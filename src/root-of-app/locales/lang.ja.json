@@ -1005,6 +1005,8 @@
       "Odaka": "尾高（おだか）"
     },
     "Reader": {
+      "CollatePages": "ページを結合",
+      "UncollatePages": "ページを分離",
       "CopyPhrase": "フレーズをコピー",
       "HideFurigana": "読みを隠す",
       "ShowFurigana": "読みを表示",

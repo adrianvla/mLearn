@@ -1005,6 +1005,8 @@
       "Odaka": "Queue haute (odaka)"
     },
     "Reader": {
+      "CollatePages": "Assembler les pages",
+      "UncollatePages": "Séparer les pages",
       "CopyPhrase": "Copier la phrase",
       "HideFurigana": "Masquer la lecture",
       "ShowFurigana": "Afficher la lecture",
