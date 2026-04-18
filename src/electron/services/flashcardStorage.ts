@@ -11,7 +11,7 @@ import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidat
 import { getUserDataPath } from '../utils/platform';
 import { extractBase64Images } from './flashcardImageStorage';
 
-const CURRENT_VERSION = 5;
+const CURRENT_VERSION = 6;
 
 let migrationInfo: { occurred: boolean; backupPath: string | null; fromVersion: number | null } = {
   occurred: false,
@@ -28,6 +28,8 @@ const DEFAULT_FLASHCARD_STORE: FlashcardStore = {
   ignoredWords: {},
   wordKnowledge: {},
   grammarKnowledge: {},
+  suggestedFlashcards: {},
+  wordSyncSeen: {},
   meta: {
     newCardsToday: 0,
     reviewsToday: 0,
@@ -141,6 +143,8 @@ function migrateV2ToV3(store: any): FlashcardStore {
     ignoredWords: store.ignoredWords || {},
     wordKnowledge: store.wordKnowledge || {},
     grammarKnowledge: store.grammarKnowledge || {},
+    suggestedFlashcards: store.suggestedFlashcards || {},
+    wordSyncSeen: store.wordSyncSeen || {},
     meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...store.meta },
     dailyStats: store.dailyStats || {},
     version: CURRENT_VERSION,
@@ -446,6 +450,8 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
     ignoredWords: {},
     wordKnowledge: {},
     grammarKnowledge: {},
+    suggestedFlashcards: {},
+    wordSyncSeen: {},
     meta,
     dailyStats: {},
     version: CURRENT_VERSION,
@@ -488,6 +494,8 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
     ignoredWords: fc_to_check.ignoredWords || {},
     wordKnowledge: fc_to_check.wordKnowledge || {},
     grammarKnowledge: fc_to_check.grammarKnowledge || {},
+    suggestedFlashcards: fc_to_check.suggestedFlashcards || {},
+    wordSyncSeen: fc_to_check.wordSyncSeen || {},
     meta: { ...DEFAULT_FLASHCARD_STORE.meta, ...fc_to_check.meta },
     dailyStats: fc_to_check.dailyStats || {},
     version: version,

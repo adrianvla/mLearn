@@ -400,6 +400,8 @@ interface FlashcardShardMeta {
   ignoredWords: FlashcardStore['ignoredWords'];
   wordKnowledge: FlashcardStore['wordKnowledge'];
   grammarKnowledge: FlashcardStore['grammarKnowledge'];
+  suggestedFlashcards: FlashcardStore['suggestedFlashcards'];
+  wordSyncSeen: FlashcardStore['wordSyncSeen'];
   dailyStats: FlashcardStore['dailyStats'];
   storeMeta: FlashcardStore['meta'];
   storeVersion: FlashcardStore['version'];
@@ -454,6 +456,8 @@ async function loadShardedFlashcards(): Promise<FlashcardStore> {
     ignoredWords: meta.ignoredWords ?? {},
     wordKnowledge: meta.wordKnowledge ?? {},
     grammarKnowledge: meta.grammarKnowledge ?? {},
+    suggestedFlashcards: meta.suggestedFlashcards ?? {},
+    wordSyncSeen: meta.wordSyncSeen ?? {},
     dailyStats: meta.dailyStats ?? {},
     meta: meta.storeMeta ?? ({} as FlashcardStore['meta']),
     version: meta.storeVersion ?? 0,
@@ -495,6 +499,8 @@ async function saveShardedFlashcards(store: FlashcardStore): Promise<void> {
     ignoredWords: store.ignoredWords,
     wordKnowledge: store.wordKnowledge,
     grammarKnowledge: store.grammarKnowledge,
+    suggestedFlashcards: store.suggestedFlashcards,
+    wordSyncSeen: store.wordSyncSeen,
     dailyStats: store.dailyStats,
     storeMeta: store.meta,
     storeVersion: store.version,

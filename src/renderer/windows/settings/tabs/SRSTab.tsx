@@ -521,6 +521,7 @@ export const SRSTab: Component = () => {
               value={settings.preparedExam.toString()}
               onChange={(e) => updateSettings({ preparedExam: parseInt(e.currentTarget.value) })}
             >
+              <option value="0">{t('mlearn.Settings.SRS.BuiltInFlashcards.PreparedExamLevel.NoTarget')}</option>
               <For each={freqLevels()}>
                 {([level, name]) => (
                   <option value={level}>{name}</option>

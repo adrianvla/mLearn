@@ -7,7 +7,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type WordCandidate } from '../../shared/types';
+import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type WordCandidate, type SuggestedFlashcard } from '../../shared/types';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
 import { useSettings } from './SettingsContext';
@@ -26,7 +26,7 @@ import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
 
 // Current store version
-const CURRENT_VERSION = 5;
+const CURRENT_VERSION = 6;
 
 type StoredFlashcardStore = Partial<FlashcardStore> & {
   wordToCardMap?: Record<string, string | string[]>;
@@ -97,6 +97,8 @@ function getDefaultStore(): FlashcardStore {
     wordStatsMap: {},
     knownUntracked: {},
     ignoredWords: {},
+    suggestedFlashcards: {},
+    wordSyncSeen: {},
     wordKnowledge: {},
     grammarKnowledge: {},
     meta: SRS.getDefaultMeta(),
@@ -119,6 +121,21 @@ export interface PendingFlashcardChoice {
   content: Partial<FlashcardContent> & { front: string; back: string };
   initialEase?: number;
   resolve: (target: 'srs' | 'anki' | 'cancel') => void;
+}
+
+/** Parameters for capturing a suggested flashcard on word encounter */
+export interface CaptureSuggestionParams {
+  word: string;
+  reading?: string;
+  pos?: string;
+  level?: number | null;
+  language?: string;
+  contextPhrase?: string;
+  contextHtml?: string;
+  imageUrl?: string;
+  videoUrl?: string;
+  source?: string;
+  sourceMediaHash?: string;
 }
 
 // Context interface
@@ -183,6 +200,19 @@ interface FlashcardContextValue {
   ignoreWordForLanguage: (word: string, reading?: string) => Promise<void>;
   unignoreWordForLanguage: (word: string) => Promise<void>;
 
+  // Suggested Flashcards (captured automatically, promoted on demand)
+  /** Capture a suggestion for a word seen during media playback (idempotent per word per language) */
+  captureSuggestedFlashcard: (params: CaptureSuggestionParams) => Promise<void>;
+  /** All suggestions for the current language, newest first */
+  getSuggestedFlashcardsSync: () => SuggestedFlashcard[];
+  /** Remove a suggestion without creating a card */
+  removeSuggestedFlashcard: (id: string) => void;
+  /** Promote suggestions into full flashcards (runs translation + optional LLM/TTS). Returns number promoted. */
+  promoteSuggestedFlashcards: (
+    ids: string[],
+    options?: { useLLM?: boolean; useTts?: boolean; onProgress?: (done: number, total: number) => void }
+  ) => Promise<number>;
+
   // Passive word knowledge tracking
   trackWordSeen: (word: string, reading?: string, easeBump?: number) => void;
   trackWordHovered: (word: string, reading?: string) => void;
@@ -193,6 +223,11 @@ interface FlashcardContextValue {
   isWordLearning: (wordHash: string) => boolean;
   isWordLearningByText: (word: string) => boolean;
   trackWordStatusChange: (word: string) => void;
+  setWordKnowledgeEase: (word: string, ease: number, reading?: string) => void;
+
+  // Word sync seen tracking
+  markWordSyncSeen: (word: string) => void;
+  clearAllWordSyncSeen: () => void;
 
   // Grammar knowledge tracking
   trackGrammarEncountered: (pattern: string, level?: number) => void;
@@ -476,6 +511,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
         grammarKnowledge: newGrammarKnowledge,
         meta,
         dailyStats: partial.dailyStats || {},
+        suggestedFlashcards: partial.suggestedFlashcards || {},
+        wordSyncSeen: partial.wordSyncSeen || {},
         version: CURRENT_VERSION,
       };
     }
@@ -491,6 +528,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
       grammarKnowledge: partial.grammarKnowledge || {},
       meta,
       dailyStats: partial.dailyStats || {},
+      suggestedFlashcards: partial.suggestedFlashcards || {},
+      wordSyncSeen: partial.wordSyncSeen || {},
       version: CURRENT_VERSION,
     };
   }
@@ -1336,6 +1375,235 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
+  /**
+   * Capture a lightweight suggestion for a word seen during playback/reading.
+   * Does NOT call translation/LLM/TTS — only stores screenshot + context.
+   */
+  const captureSuggestedFlashcard = async (params: CaptureSuggestionParams): Promise<void> => {
+    const { word } = params;
+    if (!word || !word.trim()) return;
+    const canonical = getCanonicalForm(word);
+    const lang = params.language ?? settings.language;
+    const wordHash = await SRS.hashWord(canonical);
+    const lk = langKey(lang, wordHash);
+    const now = Date.now();
+
+    // Skip if already has flashcard(s), is ignored, or marked known
+    const cardIds = store.wordToCardMap[lk];
+    if ((cardIds && cardIds.length > 0) || store.knownUntracked[lk] || store.ignoredWords[lk]) {
+      return;
+    }
+
+    setStore(produce((s) => {
+      const existing = s.suggestedFlashcards[lk];
+      if (existing) {
+        existing.count++;
+        existing.lastSeen = now;
+        // Only upgrade capture data if the previous capture lacked it
+        if (!existing.imageUrl && params.imageUrl) existing.imageUrl = params.imageUrl;
+        if (!existing.videoUrl && params.videoUrl) existing.videoUrl = params.videoUrl;
+        if (!existing.contextPhrase && params.contextPhrase) existing.contextPhrase = params.contextPhrase;
+        if (!existing.contextHtml && params.contextHtml) existing.contextHtml = params.contextHtml;
+        if (existing.level == null && params.level != null) existing.level = params.level;
+        if (!existing.pos && params.pos) existing.pos = params.pos;
+        if (!existing.reading && params.reading) existing.reading = params.reading;
+        if (!existing.source && params.source) existing.source = params.source;
+        if (!existing.sourceMediaHash && params.sourceMediaHash) existing.sourceMediaHash = params.sourceMediaHash;
+      } else {
+        s.suggestedFlashcards[lk] = {
+          id: crypto.randomUUID(),
+          word: canonical,
+          reading: params.reading,
+          pos: params.pos,
+          level: params.level ?? null,
+          language: lang,
+          contextPhrase: params.contextPhrase,
+          contextHtml: params.contextHtml,
+          imageUrl: params.imageUrl,
+          videoUrl: params.videoUrl,
+          source: params.source,
+          sourceMediaHash: params.sourceMediaHash,
+          createdAt: now,
+          lastSeen: now,
+          count: 1,
+        };
+      }
+    }));
+
+    saveFlashcards();
+  };
+
+  /** Get sorted suggestions for the current language (newest first). */
+  const getSuggestedFlashcardsSync = (): SuggestedFlashcard[] => {
+    const lang = settings.language;
+    return Object.values(store.suggestedFlashcards)
+      .filter((s) => s.language === lang)
+      .sort((a, b) => b.createdAt - a.createdAt);
+  };
+
+  /** Find the store key for a suggestion id */
+  const findSuggestionKey = (id: string): string | null => {
+    for (const [k, v] of Object.entries(store.suggestedFlashcards)) {
+      if (v.id === id) return k;
+    }
+    return null;
+  };
+
+  const removeSuggestedFlashcard = (id: string): void => {
+    const key = findSuggestionKey(id);
+    if (!key) return;
+    setStore(produce((s) => {
+      delete s.suggestedFlashcards[key];
+    }));
+    saveFlashcards();
+  };
+
+  /**
+   * Promote a batch of suggestions into real flashcards.
+   * Runs translation, then optionally LLM example / TTS generation per card.
+   */
+  const promoteSuggestedFlashcards = async (
+    ids: string[],
+    options?: { useLLM?: boolean; useTts?: boolean; onProgress?: (done: number, total: number) => void }
+  ): Promise<number> => {
+    const useLLM = options?.useLLM ?? false;
+    const useTts = options?.useTts ?? false;
+    const onProgress = options?.onProgress;
+    const total = ids.length;
+    if (total === 0) return 0;
+
+    const backend = getBackend({
+      mode: settings.backendMode,
+      url: settings.backendUrl,
+      authToken: settings.cloudAuthAccessToken || settings.cloudAuthToken,
+    });
+
+    let backendAvailable = false;
+    try {
+      backendAvailable = await backend.ping();
+    } catch (e) {
+      console.error(e);
+    }
+    if (!backendAvailable) {
+      showToast({ message: t('mlearn.Settings.SRS.BuiltInFlashcards.ForceRecreate.BackendUnavailable'), variant: 'error' });
+      return 0;
+    }
+
+    let created = 0;
+    let done = 0;
+    for (const id of ids) {
+      const key = findSuggestionKey(id);
+      if (!key) { done++; onProgress?.(done, total); continue; }
+      const suggestion = store.suggestedFlashcards[key];
+      if (!suggestion) { done++; onProgress?.(done, total); continue; }
+
+      try {
+        const translationResponse = await backend.translate(suggestion.word, suggestion.language);
+        const data = translationResponse?.data;
+        if (!data || !Array.isArray(data)) { done++; onProgress?.(done, total); continue; }
+
+        const firstEntry = data[0] as TranslationEntry | undefined;
+        const secondEntry = data[1] as TranslationEntry | undefined;
+        let backText = '';
+        if (firstEntry?.definitions) {
+          backText = Array.isArray(firstEntry.definitions) ? firstEntry.definitions.join('; ') : String(firstEntry.definitions);
+        }
+        if (!backText) { done++; onProgress?.(done, total); continue; }
+
+        const reading = firstEntry?.reading || suggestion.reading || '';
+        let pitchAccent: number | undefined;
+        if (data.length > 2 && data[2]) {
+          const pitchEntry = data[2] as Record<string, unknown>;
+          const pitches = (pitchEntry as { pitches?: Array<{ position?: number }> }).pitches;
+          if (pitches?.[0]?.position !== undefined) pitchAccent = pitches[0].position;
+        }
+        let definitionArr: string[] | undefined;
+        if (secondEntry?.definitions) {
+          definitionArr = Array.isArray(secondEntry.definitions)
+            ? secondEntry.definitions
+            : [String(secondEntry.definitions)];
+        }
+
+        let exampleSentence = suggestion.contextHtml || suggestion.contextPhrase || '';
+        let exampleMeaning = '';
+        if (useLLM) {
+          try {
+            const result = await generateExampleSentenceWithLLM(suggestion.word, backText, suggestion.language);
+            if (result.sentence) {
+              exampleSentence = result.sentence;
+              exampleMeaning = result.meaning;
+            }
+          } catch (e) {
+            console.warn(`Failed to generate LLM example for "${suggestion.word}":`, e);
+          }
+        }
+
+        const content: Partial<FlashcardContent> & { front: string; back: string } = {
+          type: 'word',
+          front: suggestion.word,
+          back: backText,
+          reading: reading || undefined,
+          pitchAccent,
+          pos: suggestion.pos,
+          level: suggestion.level ?? undefined,
+          example: exampleSentence || undefined,
+          exampleMeaning: exampleMeaning || undefined,
+          imageUrl: suggestion.imageUrl,
+          videoUrl: suggestion.videoUrl,
+          context: suggestion.contextPhrase,
+          source: suggestion.source,
+          word: suggestion.word,
+          pronunciation: reading || undefined,
+          translation: backText ? [backText] : undefined,
+          definition: definitionArr,
+        };
+
+        const newCardId = await addFlashcard(content, undefined, true);
+        created++;
+
+        // Optional TTS generation for word + example
+        if (useTts && isElectron()) {
+          try {
+            const bridge = getBridge();
+            const provider = settings.flashcardTtsProvider || 'kokoro';
+            const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
+            const cloudAuthToken = provider === 'cloud' ? (await ensureCloudAccessToken()) || undefined : undefined;
+            const cloudApiUrl = provider === 'cloud' ? settings.cloudApiUrl : undefined;
+            const ttsItems: Array<{ cardId: string; text: string; field: 'word' | 'example' }> = [
+              { cardId: newCardId, text: suggestion.word, field: 'word' },
+            ];
+            if (exampleSentence && !content.skipExampleTts) {
+              ttsItems.push({ cardId: newCardId, text: stripHtmlForTts(exampleSentence), field: 'example' });
+            }
+            await bridge.flashcards.batchGenerateFlashcardTts(
+              ttsItems,
+              suggestion.language,
+              provider,
+              voiceSampleId,
+              cloudAuthToken,
+              cloudApiUrl,
+            );
+          } catch (e) {
+            console.warn(`Failed to generate TTS for promoted suggestion "${suggestion.word}":`, e);
+          }
+        }
+
+        // Remove suggestion after successful promotion
+        setStore(produce((s) => {
+          delete s.suggestedFlashcards[key];
+        }));
+      } catch (e) {
+        console.warn(`Failed to promote suggestion "${suggestion?.word}":`, e);
+      } finally {
+        done++;
+        onProgress?.(done, total);
+      }
+    }
+
+    if (created > 0) saveFlashcards();
+    return created;
+  };
+
   // Ignore a word for the current language and stop tracking it.
   const ignoreWordForLanguage = async (word: string, reading?: string) => {
     const canonical = getCanonicalForm(word);
@@ -1564,6 +1832,58 @@ export const FlashcardProvider: ParentComponent = (props) => {
       if (entry && entry.statusChangedAtSeen === undefined) {
         entry.statusChangedAtSeen = entry.timesSeen;
       }
+    }));
+    saveFlashcards();
+  };
+
+  /**
+   * Directly set the ease factor for a word in wordKnowledge.
+   * Used by the "Sync with me" word assessment window to record user ratings.
+   */
+  const setWordKnowledgeEase = (word: string, ease: number, reading?: string) => {
+    const canonical = getCanonicalForm(word);
+    const wordHash = SRS.hashWordSync(canonical);
+    const lang = settings.language;
+    const lk = langKey(lang, wordHash);
+    if (store.knownUntracked[lk]) return;
+    const now = Date.now();
+
+    setStore(produce((s) => {
+      if (!s.wordKnowledge[lk]) {
+        s.wordKnowledge[lk] = {
+          ease,
+          lastSeen: now,
+          timesSeen: 0,
+          timesHovered: 0,
+          word: canonical,
+          reading,
+          language: lang,
+        };
+      } else {
+        s.wordKnowledge[lk].ease = ease;
+        s.wordKnowledge[lk].lastSeen = now;
+      }
+    }));
+    saveFlashcards();
+  };
+
+  // ========================
+  // Word Sync Seen
+  // ========================
+
+  const markWordSyncSeen = (word: string) => {
+    const canonical = getCanonicalForm(word);
+    const wordHash = SRS.hashWordSync(canonical);
+    const lk = langKey(settings.language, wordHash);
+    setStore(produce((s) => {
+      s.wordSyncSeen[lk] = Date.now();
+    }));
+    saveFlashcards();
+  };
+
+  const clearAllWordSyncSeen = () => {
+    setStore(produce((s) => {
+      s.wordSyncSeen = {};
     }));
     saveFlashcards();
   };
@@ -1902,20 +2222,49 @@ Translation: [${targetLang} translation]`;
 
     // Auto-create flashcards from word candidates if enabled
     if (settings.createUnseenCards && settings.enable_flashcard_creation) {
+      const useLLM = settings.flashcardLLMExamples ?? false;
+      const maxCards = settings.maxNewCardsPerDay ?? 10;
+      let createdTotal = 0;
+
+      // 1) First pass — use today's accumulated word candidates (existing logic).
       const candidateCount = Object.keys(store.wordCandidates).length;
       if (candidateCount > 0) {
-        const useLLM = settings.flashcardLLMExamples ?? false;
         try {
-          const created = await autoCreateFlashcardsFromCandidates(useLLM);
-          if (created > 0) {
-            showToast({
-              message: t('mlearn.Settings.SRS.BuiltInFlashcards.ForceRecreate.Created', { count: String(created) }),
-              variant: 'success'
-            });
-          }
+          createdTotal += await autoCreateFlashcardsFromCandidates(useLLM);
         } catch (e) {
-          console.error('Failed to auto-create flashcards:', e);
+          console.error('Failed to auto-create flashcards from candidates:', e);
         }
+      }
+
+      // 2) Fallback — if quota not reached, top up from the suggestions bin
+      //    (older automatically captured words that the user never promoted).
+      //    Replaces the previous "random dictionary cards" fallback.
+      const remaining = maxCards - createdTotal;
+      if (remaining > 0) {
+        const suggestions = getSuggestedFlashcardsSync();
+        if (suggestions.length > 0) {
+          // Prefer words with higher frequency levels (harder) and more hits;
+          // frontload older suggestions so the bin eventually drains.
+          const sorted = [...suggestions].sort((a, b) => {
+            // More failed/seen first
+            const byCount = b.count - a.count;
+            if (byCount !== 0) return byCount;
+            return a.createdAt - b.createdAt;
+          });
+          const pickIds = sorted.slice(0, remaining).map((s) => s.id);
+          try {
+            createdTotal += await promoteSuggestedFlashcards(pickIds, { useLLM });
+          } catch (e) {
+            console.error('Failed to auto-promote suggestions:', e);
+          }
+        }
+      }
+
+      if (createdTotal > 0) {
+        showToast({
+          message: t('mlearn.Settings.SRS.BuiltInFlashcards.ForceRecreate.Created', { count: String(createdTotal) }),
+          variant: 'success'
+        });
       }
     }
 
@@ -2094,6 +2443,10 @@ Translation: [${targetLang} translation]`;
     trackWordAppearance,
     ignoreWordForLanguage,
     unignoreWordForLanguage,
+    captureSuggestedFlashcard,
+    getSuggestedFlashcardsSync,
+    removeSuggestedFlashcard,
+    promoteSuggestedFlashcards,
     trackWordSeen,
     trackWordHovered,
     cancelWordHover,
@@ -2103,6 +2456,9 @@ Translation: [${targetLang} translation]`;
     isWordLearning,
     isWordLearningByText,
     trackWordStatusChange,
+    setWordKnowledgeEase,
+    markWordSyncSeen,
+    clearAllWordSyncSeen,
     trackGrammarEncountered,
     trackGrammarFailed,
     getGrammarKnowledge,

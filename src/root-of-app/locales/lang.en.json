@@ -349,20 +349,28 @@
         "Failed": "failed",
         "FailedGrammarCount": "Failed Grammar",
         "FailedWords": "Failed Words",
+        "Filter": {
+          "All": "All",
+          "FailedOnly": "Failed only",
+          "Unknown": "No level"
+        },
         "Grammar": "Grammar",
         "GrammarLevels": "Grammar Levels",
         "Hovered": "hovered",
         "Levels": "Levels",
         "NoFailedGrammar": "No failed grammar points yet.",
         "NoFailedWords": "No failed words yet — keep immersing!",
+        "NoGrammarMatching": "No grammar points match the current filter.",
         "NoLevelData": "Not enough data to compute level distribution.",
         "NoMedia": "No media stats saved yet",
         "NoMediaHint": "Watch a video or read a book to see analytics here.",
+        "NoWordsMatching": "No words match the current filter.",
         "Overview": "Overview",
         "Seen": "seen",
         "Unique": "Unique",
         "UniqueWords": "Unique Words",
         "UnknownWords": "Unknown Words",
+        "Words": "Words",
         "WordLevelDistribution": "Word Level Distribution",
         "WordLevels": "Word Levels"
       },
@@ -758,9 +766,42 @@
           "Browse": "Browse",
           "Generate": "Generate",
           "Review": "Review",
-          "Statistics": "Statistics"
+          "Statistics": "Statistics",
+          "Suggested": "Suggested"
         },
         "Title": "Flashcards"
+      },
+      "Suggested": {
+        "Title": "Suggested Flashcards",
+        "Description": "Automatically captured while you read or watch. Promote them to generate translation, example and audio.",
+        "CountLabel": "{shown} shown · {total} total",
+        "SearchPlaceholder": "Search word or reading…",
+        "EmptyTitle": "No suggestions yet",
+        "EmptyDescription": "New words you encounter during immersion will appear here.",
+        "NoMatchTitle": "No suggestions match your filters",
+        "NoMatchDescription": "Try clearing the search or filter.",
+        "Filter": {
+          "AllWords": "All words",
+          "FailedOnly": "Failed only",
+          "DictionaryOnly": "Dictionary words only",
+          "AllLevels": "All levels",
+          "Unknown": "No level"
+        },
+        "SelectAll": "Select all",
+        "DeselectAll": "Clear selection",
+        "SelectCard": "Select suggestion",
+        "SelectedCount": "{count} selected",
+        "UseLLM": "Generate example",
+        "UseTTS": "Generate audio",
+        "PromoteSelected": "Promote selected",
+        "DeleteSelected": "Delete selected",
+        "Promote": "Promote",
+        "Delete": "Delete",
+        "Promoting": "Generating {current}/{total}…",
+        "Promoted": "{count} flashcard(s) created",
+        "PromoteFailed": "Failed to promote suggestions.",
+        "Removed": "{count} suggestion(s) removed",
+        "SeenCount": "Seen {count}x"
       }
     },
     "Global": {
@@ -1546,7 +1587,8 @@
           },
           "PreparedExamLevel": {
             "Description": "Target proficiency level for auto-created cards",
-            "Label": "Target Exam Level"
+            "Label": "Target Exam Level",
+            "NoTarget": "No target"
           },
           "EaseMapping": {
             "LearningEase": {
@@ -1786,9 +1828,13 @@
         "EaseDistribution": "Ease Factor Distribution",
         "Forecast": "14-Day Review Forecast",
         "Graduated": "Graduated",
+        "ImmersionHeatmap": "Immersion Heatmap",
         "ImmersionTime": "Immersion Time",
         "IntervalDistribution": "Interval Distribution",
+        "LapseHeatmap": "Lapse Heatmap",
         "Lapses": "Lapses",
+        "LevelCoverage": "Coverage",
+        "LevelTotal": "Total",
         "Maturity": {
           "Mature": "Mature (≥21d)",
           "Title": "Maturity",
@@ -2076,6 +2122,22 @@
       },
       "UnknownWords": "Unknown Words",
       "WordCount": "{count} words"
+    },
+    "WordSync": {
+      "FinishedTitle": "All done!",
+      "FinishedDescription": "You rated {count} words. Your word knowledge has been updated.",
+      "Progress": "{rated} / {total} words",
+      "Unknown": "Unknown",
+      "Learning": "Learning",
+      "Known": "Known",
+      "Seen": "Seen",
+      "RecheckAll": "Recheck all words",
+      "Rated": {
+        "Unknown": "Marked as unknown",
+        "Learning": "Marked as learning",
+        "Known": "Marked as known",
+        "Seen": "Skipped for 30 days"
+      }
     }
   }
 }

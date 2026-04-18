@@ -62,6 +62,7 @@ export default defineConfig(({ mode }) => {
         'conversation-agent': resolve(__dirname, 'src/html/conversation-agent.html'),
         'word-definition': resolve(__dirname, 'src/html/word-definition.html'),
         'plugin-host': resolve(__dirname, 'src/html/plugin-host.html'),
+        'word-sync': resolve(__dirname, 'src/html/word-sync.html'),
       };
 
   return {

@@ -351,20 +351,28 @@
         "Failed": "Échoués",
         "FailedGrammarCount": "Erreurs de grammaire",
         "FailedWords": "Mots échoués",
+        "Filter": {
+          "All": "Tous",
+          "FailedOnly": "Échoués uniquement",
+          "Unknown": "Sans niveau"
+        },
         "Grammar": "Grammaire",
         "GrammarLevels": "Niveaux de grammaire",
         "Hovered": "Survolés",
         "Levels": "Niveaux",
         "NoFailedGrammar": "Aucune erreur de grammaire pour le moment.",
         "NoFailedWords": "Aucun mot échoué pour le moment — continuez l'immersion !",
+        "NoGrammarMatching": "Aucun point de grammaire ne correspond au filtre.",
         "NoLevelData": "Pas assez de données pour calculer la distribution des niveaux.",
         "NoMedia": "Aucune statistique média enregistrée",
         "NoMediaHint": "Regardez des vidéos ou lisez des livres, et les analyses apparaîtront ici.",
+        "NoWordsMatching": "Aucun mot ne correspond au filtre.",
         "Overview": "Vue d'ensemble",
         "Seen": "Vus",
         "Unique": "Uniques",
         "UniqueWords": "Mots uniques",
         "UnknownWords": "Mots inconnus",
+        "Words": "Mots",
         "WordLevelDistribution": "Distribution des niveaux de mots",
         "WordLevels": "Niveaux de mots"
       },
@@ -758,9 +766,42 @@
           "Browse": "Parcourir",
           "Generate": "Générer",
           "Review": "Révision",
-          "Statistics": "Statistiques"
+          "Statistics": "Statistiques",
+          "Suggested": "Suggestions"
         },
         "Title": "Cartes mémoire"
+      },
+      "Suggested": {
+        "Title": "Cartes suggérées",
+        "Description": "Capturées automatiquement lors de la lecture ou du visionnage. Promouvez-les pour générer traduction, exemple et audio.",
+        "CountLabel": "{shown} affichées · {total} au total",
+        "SearchPlaceholder": "Rechercher un mot ou une lecture…",
+        "EmptyTitle": "Aucune suggestion",
+        "EmptyDescription": "Les nouveaux mots rencontrés pendant l'immersion apparaîtront ici.",
+        "NoMatchTitle": "Aucune suggestion ne correspond",
+        "NoMatchDescription": "Essayez d'effacer la recherche ou le filtre.",
+        "Filter": {
+          "AllWords": "Tous les mots",
+          "FailedOnly": "Échoués uniquement",
+          "DictionaryOnly": "Mots du dictionnaire uniquement",
+          "AllLevels": "Tous les niveaux",
+          "Unknown": "Sans niveau"
+        },
+        "SelectAll": "Tout sélectionner",
+        "DeselectAll": "Effacer la sélection",
+        "SelectCard": "Sélectionner la suggestion",
+        "SelectedCount": "{count} sélectionnée(s)",
+        "UseLLM": "Générer un exemple",
+        "UseTTS": "Générer l'audio",
+        "PromoteSelected": "Promouvoir la sélection",
+        "DeleteSelected": "Supprimer la sélection",
+        "Promote": "Promouvoir",
+        "Delete": "Supprimer",
+        "Promoting": "Génération {current}/{total}…",
+        "Promoted": "{count} carte(s) créée(s)",
+        "PromoteFailed": "Échec de la promotion des suggestions.",
+        "Removed": "{count} suggestion(s) supprimée(s)",
+        "SeenCount": "Vu {count}x"
       }
     },
     "Global": {
@@ -1546,7 +1587,8 @@
           },
           "PreparedExamLevel": {
             "Description": "Niveau cible pour les cartes auto-créées",
-            "Label": "Niveau d'examen cible"
+            "Label": "Niveau d'examen cible",
+            "NoTarget": "Pas de cible"
           },
           "EaseMapping": {
             "LearningEase": {
@@ -1785,9 +1827,13 @@
         "EaseDistribution": "Distribution de facilité",
         "Forecast": "Prévision de révision sur 14 jours",
         "Graduated": "Terminées",
+        "ImmersionHeatmap": "Carte thermique d'immersion",
         "ImmersionTime": "Temps d'immersion",
         "IntervalDistribution": "Distribution des intervalles",
+        "LapseHeatmap": "Carte thermique des échecs",
         "Lapses": "Échecs",
+        "LevelCoverage": "Couverture",
+        "LevelTotal": "Total",
         "Maturity": {
           "Mature": "Mature (≥21j)",
           "Title": "Maturité",
@@ -2075,6 +2121,22 @@
       },
       "UnknownWords": "Mots inconnus",
       "WordCount": "{count} mots"
+    },
+    "WordSync": {
+      "FinishedTitle": "Terminé !",
+      "FinishedDescription": "Vous avez évalué {count} mots. Votre connaissance des mots a été mise à jour.",
+      "Progress": "{rated} / {total} mots",
+      "Unknown": "Inconnu",
+      "Learning": "En apprentissage",
+      "Known": "Connu",
+      "Seen": "Vu",
+      "RecheckAll": "Revérifier tous les mots",
+      "Rated": {
+        "Unknown": "Marqué comme inconnu",
+        "Learning": "Marqué comme en apprentissage",
+        "Known": "Marqué comme connu",
+        "Seen": "Reporté de 30 jours"
+      }
     }
   }
 }

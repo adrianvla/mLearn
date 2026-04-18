@@ -125,10 +125,6 @@
   min-width: 2px;
 }
 
-.h-bar-fill-ease {
-  background: var(--color-teal);
-}
-
 .h-bar-value {
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
@@ -144,34 +140,6 @@
   gap: var(--spacing-4);
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
-}
-
-/* ─── SRS Params ─── */
-
-.srs-params-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--spacing-2);
-}
-
-.srs-param {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-2) var(--spacing-3);
-  background: var(--bg);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-xs);
-}
-
-.srs-param-label {
-  color: var(--text-secondary);
-}
-
-.srs-param-value {
-  font-weight: var(--font-weight-medium);
-  color: var(--text-primary);
-  font-variant-numeric: tabular-nums;
 }
 
 /* ─── Level Table ─── */
@@ -211,4 +179,51 @@
 
 .level-table tr:last-child td {
   border-bottom: none;
+}
+
+.level-coverage-header {
+  text-align: right;
+}
+
+/* ─── Level Coverage Bar ─── */
+
+.level-coverage-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.level-coverage-bar {
+  flex: 1;
+  display: flex;
+  height: 8px;
+  background: var(--bg-intense);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.level-coverage-fill {
+  height: 100%;
+  transition: width var(--transition-normal);
+}
+
+.level-coverage-learned {
+  background: var(--color-success);
+}
+
+.level-coverage-learning {
+  background: var(--color-warning);
+}
+
+.level-coverage-viewed {
+  background: var(--text-tertiary);
+}
+
+.level-coverage-pct {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  min-width: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }

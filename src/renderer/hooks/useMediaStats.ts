@@ -72,12 +72,15 @@ export function useMediaStats(options: UseMediaStatsOptions) {
   // End the current session
   const endSession = () => {
     if (!isActive()) return;
-    const duration = Date.now() - sessionStart;
+    const endTime = Date.now();
+    const duration = endTime - sessionStart;
     setStats((prev) => {
       const session: MediaSession = {
         date: new Date().toISOString().split('T')[0],
         duration,
         wordsLearned: Object.keys(prev.wordsEncountered).length,
+        startTime: sessionStart,
+        endTime,
       };
       return {
         ...prev,

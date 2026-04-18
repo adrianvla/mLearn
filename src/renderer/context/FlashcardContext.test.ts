@@ -226,7 +226,7 @@ async function mountProvider() {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
-const CURRENT_VERSION = 5;
+const CURRENT_VERSION = 6;
 
 function makeEmptyStore(overrides?: Partial<FlashcardStore>): FlashcardStore {
   return {

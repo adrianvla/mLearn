@@ -477,6 +477,32 @@ export const ReaderRoute: Component = () => {
     return Array.from(deduped.values());
   });
 
+  // Capture suggested flashcards for newly visible unknown words in the reader.
+  // Reader captures lack screenshots (OCR crops are expensive) — only context + word.
+  const capturedSuggestionWords = new Set<string>();
+  createEffect(() => {
+    if (!settings.autoSuggestFlashcards || !settings.enable_flashcard_creation) return;
+    const unknown = visibleUnknownWords();
+    const mediaHash = mediaStats.stats().mediaHash;
+    const bookId = currentBookId();
+    for (const entry of unknown) {
+      if (capturedSuggestionWords.has(entry.word)) continue;
+      capturedSuggestionWords.add(entry.word);
+      const freq = langCtx.getFrequency(entry.word);
+      void flashcardCtx.captureSuggestedFlashcard({
+        word: entry.word,
+        pos: entry.token.type,
+        level: freq?.raw_level ?? null,
+        contextPhrase: cleanContextPhrase(entry.contextPhrase),
+        source: bookId || undefined,
+        sourceMediaHash: mediaHash || undefined,
+      });
+    }
+  });
+  createEffect(on(currentBookId, () => {
+    capturedSuggestionWords.clear();
+  }));
+
   const failedSidebarWordSet = createMemo<Set<string>>(() => {
     const failedWords = new Set<string>();
 

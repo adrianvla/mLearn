@@ -26,6 +26,7 @@ import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMedi
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
+import { tokensToColoredHtml } from '../../../utils/subtitleParsing';
 import { getWordStatus } from '../../../services/statsService';
 import { findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
@@ -126,6 +127,29 @@ export const VideoRoute: Component = () => {
 
   const getCurrentVideoElement = (): HTMLVideoElement | null => document.querySelector('video');
   const currentSubtitlePhrase = createMemo(() => cleanContextPhrase(subtitles.currentSubtitle()?.text || ''));
+
+  /** Capture the current video frame as a low-res JPEG data URL. Returns '' when unavailable. */
+  const captureVideoFrameDataUrl = (): string => {
+    try {
+      const video = getCurrentVideoElement();
+      if (!video || video.readyState < 2) return '';
+      const videoWidth = video.videoWidth || video.clientWidth || 0;
+      const videoHeight = video.videoHeight || video.clientHeight || 0;
+      if (videoWidth === 0 || videoHeight === 0) return '';
+      const targetWidth = 480;
+      const targetHeight = Math.round(videoHeight * (targetWidth / videoWidth));
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return '';
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.5);
+    } catch (e) {
+      console.error('captureVideoFrameDataUrl failed', e);
+      return '';
+    }
+  };
 
   const loadSharedVideo = (url: string, name: string) => {
     setVideoSrc(url);
@@ -415,6 +439,32 @@ export const VideoRoute: Component = () => {
 
     if (newEntries.length > 0) {
       setAccumulatedWords(prev => [...prev, ...newEntries]);
+
+      // Capture each as a lightweight "suggested flashcard" — screenshot +
+      // context only (no translation/LLM/TTS). The user reviews them later
+      // from the Flashcards → Suggested tab.
+      if (settings.autoSuggestFlashcards && settings.enable_flashcard_creation) {
+        const image = captureVideoFrameDataUrl();
+        const colourCodes = settings.colour_codes || langCtx.currentLangData()?.colour_codes || {};
+        const contextHtml = tokens.length > 0
+          ? tokensToColoredHtml(tokens, colourCodes)
+          : undefined;
+        const mediaName = currentVideoName();
+        const mediaHash = mediaStats.stats().mediaHash;
+        for (const entry of newEntries) {
+          const freq = langCtx.getFrequency(entry.word);
+          void flashcardCtx.captureSuggestedFlashcard({
+            word: entry.word,
+            pos: entry.token.type,
+            level: freq?.raw_level ?? null,
+            contextPhrase: cleanContextPhrase(entry.contextPhrase),
+            contextHtml,
+            imageUrl: image || undefined,
+            source: mediaName || undefined,
+            sourceMediaHash: mediaHash || undefined,
+          });
+        }
+      }
     }
   });
 

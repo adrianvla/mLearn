@@ -16,6 +16,8 @@ interface HeatmapProps {
   weeks?: number;
   colorScale?: string[];
   class?: string;
+  /** Custom tooltip formatter. Receives (date, value). Defaults to "{date}: {value} reviews" */
+  formatTooltip?: (date: string, value: number) => string;
 }
 
 export const Heatmap: Component<HeatmapProps> = (props) => {
@@ -23,9 +25,9 @@ export const Heatmap: Component<HeatmapProps> = (props) => {
 
   const colorScale = () => props.colorScale ?? [
     'var(--bg-intense)',
-    'rgba(74, 144, 217, 0.25)',
-    'rgba(74, 144, 217, 0.50)',
-    'rgba(74, 144, 217, 0.75)',
+    'color-mix(in srgb, var(--color-primary) 25%, transparent)',
+    'color-mix(in srgb, var(--color-primary) 50%, transparent)',
+    'color-mix(in srgb, var(--color-primary) 75%, transparent)',
     'var(--color-primary)',
   ];
 
@@ -78,6 +80,9 @@ export const Heatmap: Component<HeatmapProps> = (props) => {
 
   const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 
+  const formatTooltip = (date: string, value: number) =>
+    props.formatTooltip ? props.formatTooltip(date, value) : `${date}: ${value}`;
+
   return (
     <div class={`heatmap-container ${props.class ?? ''}`}>
       <div class="heatmap-grid">
@@ -95,7 +100,7 @@ export const Heatmap: Component<HeatmapProps> = (props) => {
                     <div
                       class="heatmap-cell"
                       style={{ background: getColor(day.value, grid().maxVal) }}
-                      title={`${day.date}: ${day.value} reviews`}
+                      title={formatTooltip(day.date, day.value)}
                     />
                   )}
                 </For>

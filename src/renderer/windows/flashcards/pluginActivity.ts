@@ -2,7 +2,7 @@ import { createEffect, onCleanup, type Accessor } from 'solid-js';
 
 import type { AppActivity } from '../../../shared/plugins/appActivity';
 
-export type FlashcardsTabId = 'review' | 'browse' | 'generate' | 'stats';
+export type FlashcardsTabId = 'review' | 'browse' | 'generate' | 'suggested' | 'stats';
 
 export const FLASHCARDS_ACTIVITY_SOURCE_ID = 'flashcards-window';
 
