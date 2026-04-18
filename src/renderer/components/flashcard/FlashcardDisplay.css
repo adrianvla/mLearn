@@ -48,9 +48,9 @@
   visibility: hidden;
   height: 0;
   min-height: 0;
-  padding: 0;
+  padding: 0 !important;
   overflow: hidden;
-  border: none;
+  border: none !important;
 }
 
 /* Front face */

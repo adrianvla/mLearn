@@ -1176,6 +1176,9 @@ export const ReaderRoute: Component = () => {
             handleOpenPhraseExplainer(ocrContextPhrase(), ocrContextMenuPosition());
           }
           break;
+        case 'toggle-collate-pages':
+          updateSettings({ readerCollatePages: !(settings.readerCollatePages ?? false) });
+          break;
       }
     });
     onCleanup(cleanup);
@@ -1194,6 +1197,8 @@ export const ReaderRoute: Component = () => {
       furiganaHiderEnabled: furiganaHiderEnabled(),
       hasContextPhrase,
       canExplainPhrase: settings.llmEnabled && hasContextPhrase,
+      collatePagesEnabled: settings.readerCollatePages ?? false,
+      isDoublePageMode: pageMode() === 'double',
     });
   };
 
@@ -1211,6 +1216,8 @@ export const ReaderRoute: Component = () => {
       furiganaHiderEnabled: furiganaHiderEnabled(),
       hasContextPhrase: false, // No phrase to copy when clicking on image
       canExplainPhrase: false,
+      collatePagesEnabled: settings.readerCollatePages ?? false,
+      isDoublePageMode: pageMode() === 'double',
     });
   };
 
@@ -1784,7 +1791,7 @@ export const ReaderRoute: Component = () => {
               when={pages().length > 0}
               fallback={<ReaderWelcomeCard isDragging={isDragging} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenPdf} />}
           >
-            <div class={`page-container ${pageMode()}`} ref={pageContainerRef}>
+            <div class={`page-container ${pageMode()}${(settings.readerCollatePages && pageMode() === 'double') ? ' collate' : ''}`} ref={pageContainerRef}>
               <For each={visiblePages()}>
                 {(page) => {
                   // Check if this page is being processed or is pending (for VISIBLE pages only)

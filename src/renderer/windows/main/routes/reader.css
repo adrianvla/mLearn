@@ -76,6 +76,21 @@
   flex-direction: row-reverse; /* Manga reading order */
 }
 
+/* Collate mode: stitch pages together by removing gap and inner border-radius */
+.page-container.collate {
+  gap: 0;
+}
+
+.page-container.collate .page:first-child .page-image {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.page-container.collate .page:last-child .page-image {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 /* Individual Page */
 .page {
   display: flex;
@@ -88,10 +103,12 @@
   max-width: 100%;
   max-height: calc(100vh - 48px - 30px - 2rem); /* nav + status + padding */
   object-fit: contain;
-  box-shadow: var(--shadow-lg);
   border-radius: var(--radius-sm);
   user-select: none;
   -webkit-user-drag: none;
+}
+.page-container:not(.collate) .page-image{
+  box-shadow: var(--shadow-lg);
 }
 
 .fit-height .page-image {

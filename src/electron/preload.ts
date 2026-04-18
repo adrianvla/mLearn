@@ -157,7 +157,7 @@ const mLearnIPC = {
   showCtxMenu: (options?: { isWatchTogether?: boolean; hasContextPhrase?: boolean; canExplainPhrase?: boolean }) => ipcRenderer.send(IPC_CHANNELS.SHOW_CTX_MENU, options),
   onContextMenuCommand: (callback: (command: string) => void) =>
     ipcOn(IPC_CHANNELS.CTX_MENU_COMMAND, (_event, command) => callback(command)),
-  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean }) => {
+  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => {
     ipcRenderer.send(IPC_CHANNELS.SHOW_READER_CTX_MENU, options);
   },
   onReaderContextMenuCommand: (callback: (command: string) => void) =>

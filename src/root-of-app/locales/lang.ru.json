@@ -1005,6 +1005,8 @@
       "Odaka": "Конечное повышение (одака)"
     },
     "Reader": {
+      "CollatePages": "Соединить страницы",
+      "UncollatePages": "Разъединить страницы",
       "CopyPhrase": "Копировать фразу",
       "HideFurigana": "Скрыть чтение",
       "ShowFurigana": "Показать чтение",

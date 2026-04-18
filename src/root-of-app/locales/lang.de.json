@@ -1005,6 +1005,8 @@
       "Odaka": "Endhoch (Odaka)"
     },
     "Reader": {
+      "CollatePages": "Seiten zusammenführen",
+      "UncollatePages": "Seiten trennen",
       "CopyPhrase": "Satz kopieren",
       "HideFurigana": "Lesung ausblenden",
       "ShowFurigana": "Lesung anzeigen",

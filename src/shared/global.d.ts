@@ -117,7 +117,7 @@ export interface MLearnIPC {
   onOpenSettings: (callback: (section?: string) => void) => () => void;
   onOpenAside: (callback: () => void) => () => void;
   onContextMenuCommand: (callback: (command: string) => void) => () => void;
-  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean }) => void;
+  showReaderCtxMenu: (options: { furiganaHiderEnabled: boolean; hasContextPhrase: boolean; canExplainPhrase?: boolean; collatePagesEnabled?: boolean; isDoublePageMode?: boolean }) => void;
   onReaderContextMenuCommand: (callback: (command: string) => void) => () => void;
   onOpenWordDbEditor: (callback: () => void) => () => void;
   onOpenKanjiGrid: (callback: () => void) => () => void;

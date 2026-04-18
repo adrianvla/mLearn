@@ -1005,6 +1005,8 @@
       "Odaka": "Odaka (尾高)"
     },
     "Reader": {
+      "CollatePages": "Collate pages",
+      "UncollatePages": "Uncollate pages",
       "CopyPhrase": "Copy phrase",
       "HideFurigana": "Hide reading",
       "ShowFurigana": "Show reading",

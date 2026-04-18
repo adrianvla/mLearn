@@ -329,6 +329,8 @@ interface ReaderContextMenuOptions {
   furiganaHiderEnabled: boolean;
   hasContextPhrase: boolean;
   canExplainPhrase?: boolean;
+  collatePagesEnabled?: boolean;
+  isDoublePageMode?: boolean;
 }
 
 function showReaderContextMenu(sender: Electron.WebContents, options: ReaderContextMenuOptions): void {
@@ -347,6 +349,12 @@ function showReaderContextMenu(sender: Electron.WebContents, options: ReaderCont
       label: 'Explain',
       enabled: options.canExplainPhrase ?? false,
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'explain-phrase'),
+    },
+    { type: 'separator' },
+    {
+      label: options.collatePagesEnabled ? 'Uncollate Pages' : 'Collate Pages',
+      enabled: options.isDoublePageMode ?? false,
+      click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-collate-pages'),
     },
   ];
 

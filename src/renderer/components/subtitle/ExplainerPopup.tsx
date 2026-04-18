@@ -4,7 +4,7 @@
  * Uses tool-call-based structured output via the unified LLM provider.
  */
 
-import { Component, Show, createSignal, createEffect, createMemo, onCleanup } from 'solid-js';
+import { Component, Show, createSignal, createEffect, createMemo, onCleanup, untrack } from 'solid-js';
 import type { LLMToolCall } from '../../../shared/types';
 import { DraggablePopup, IconBtn } from '../common';
 import { RefreshIcon, BotIcon } from '../common/Misc/Icons';
@@ -116,9 +116,12 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   });
 
   // Start streaming when popup opens with a new word
+  // Use untrack() inside to prevent settings reads in startStreaming from
+  // becoming dependencies of this effect (which would cause re-triggers on
+  // settings changes, restarting the stream and appearing to freeze).
   createEffect(() => {
     if (props.isOpen && props.contextPhrase && (explainerMode() === 'phrase' || props.word)) {
-      startStreaming();
+      untrack(() => { startStreaming(); });
     }
   });
 
@@ -156,116 +159,134 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     setIsComplete(false);
     setError(null);
 
-    // Check cache first
-    if (!options.skipCache) {
-      const cached = getCachedExplanation(props.word, props.contextPhrase, explainerMode());
-      if (cached && hasExplainerGenerationOutput(cached.rawText, cached.toolCalls)) {
-        setToolCalls(cached.toolCalls);
-        setRawText(cached.rawText);
+    // Snapshot reactive settings values so reads below don't leak into any
+    // outer tracking context (the calling createEffect uses untrack, but
+    // this is an extra safety measure for the synchronous path).
+    const currentSettings = settings;
+    const currentWord = props.word;
+    const currentContextPhrase = props.contextPhrase;
+    const currentMode = explainerMode();
+
+    try {
+      // Check cache first
+      if (!options.skipCache) {
+        const cached = getCachedExplanation(currentWord, currentContextPhrase, currentMode);
+        if (cached && hasExplainerGenerationOutput(cached.rawText, cached.toolCalls)) {
+          setToolCalls(cached.toolCalls);
+          setRawText(cached.rawText);
+          setIsLoading(false);
+          setIsComplete(true);
+          return;
+        }
+      }
+
+      // Check setup
+      if (requiresSetup(currentSettings)) {
+        setError(t('mlearn.AI.SetupRequired'));
         setIsLoading(false);
         setIsComplete(true);
         return;
       }
-    }
 
-    // Check setup
-    if (requiresSetup(settings)) {
-      setError(t('mlearn.AI.SetupRequired'));
-      setIsLoading(false);
-      setIsComplete(true);
-      return;
-    }
-
-    // Check availability
-    const status = await checkAvailability(settings);
-    if (requestId !== activeStreamRequestId) {
-      return;
-    }
-
-    if (!status.available) {
-      setError(status.reason === 'ollama_unreachable'
-        ? t('mlearn.AI.OllamaNotReachable')
-        : status.reason === 'model_not_downloaded'
-          ? t('mlearn.AI.DownloadModel')
-          : (status.reason ?? 'LLM unavailable'));
-      setIsLoading(false);
-      setIsComplete(true);
-      return;
-    }
-
-    // Stream via unified provider
-    const language = getLanguageDisplayName(settings.language);
-
-    // Low power gate: prompt before local LLM call
-    if (settings.llmProvider !== 'cloud') {
-      const allowed = await requestAccess('llm');
+      // Check availability
+      const status = await checkAvailability(currentSettings);
       if (requestId !== activeStreamRequestId) {
         return;
       }
 
-      if (!allowed) {
+      if (!status.available) {
+        setError(status.reason === 'ollama_unreachable'
+          ? t('mlearn.AI.OllamaNotReachable')
+          : status.reason === 'model_not_downloaded'
+            ? t('mlearn.AI.DownloadModel')
+            : (status.reason ?? 'LLM unavailable'));
         setIsLoading(false);
         setIsComplete(true);
         return;
       }
-    }
 
-    const handle = streamExplanation(
-      props.word,
-      props.contextPhrase,
-      language,
-      {
-        onChunk: (_chunk, accumulated) => {
-          if (requestId !== activeStreamRequestId) {
-            return;
-          }
+      // Stream via unified provider
+      const language = getLanguageDisplayName(currentSettings.language);
 
-          setRawText(accumulated);
-        },
-        onToolCall: (tc) => {
-          if (requestId !== activeStreamRequestId) {
-            return;
-          }
+      // Low power gate: prompt before local LLM call
+      if (currentSettings.llmProvider !== 'cloud') {
+        const allowed = await requestAccess('llm');
+        if (requestId !== activeStreamRequestId) {
+          return;
+        }
 
-          setToolCalls((prev) => [...prev, tc]);
-        },
-        onDone: (finalContent, allToolCalls, _stats) => {
-          if (requestId !== activeStreamRequestId) {
-            return;
-          }
+        if (!allowed) {
+          setIsLoading(false);
+          setIsComplete(true);
+          return;
+        }
+      }
 
-          if (!hasExplainerGenerationOutput(finalContent, allToolCalls)) {
-            setError(getExplainerFailureMessage());
-            setRawText('');
-            setToolCalls([]);
+      const handle = streamExplanation(
+        currentWord,
+        currentContextPhrase,
+        language,
+        {
+          onChunk: (_chunk, accumulated) => {
+            if (requestId !== activeStreamRequestId) {
+              return;
+            }
+
+            setRawText(accumulated);
+          },
+          onToolCall: (tc) => {
+            if (requestId !== activeStreamRequestId) {
+              return;
+            }
+
+            setToolCalls((prev) => [...prev, tc]);
+          },
+          onDone: (finalContent, allToolCalls, _stats) => {
+            if (requestId !== activeStreamRequestId) {
+              return;
+            }
+
+            if (!hasExplainerGenerationOutput(finalContent, allToolCalls)) {
+              setError(getExplainerFailureMessage());
+              setRawText('');
+              setToolCalls([]);
+              setIsLoading(false);
+              setIsComplete(true);
+              return;
+            }
+
+            setRawText(finalContent);
             setIsLoading(false);
             setIsComplete(true);
-            return;
-          }
+          },
+          onError: (err) => {
+            if (requestId !== activeStreamRequestId) {
+              return;
+            }
 
-          setRawText(finalContent);
-          setIsLoading(false);
-          setIsComplete(true);
+            setError(normalizeExplainerErrorMessage(err, getExplainerFailureMessage()));
+            setIsLoading(false);
+            setIsComplete(true);
+          },
         },
-        onError: (err) => {
-          if (requestId !== activeStreamRequestId) {
-            return;
-          }
+        { mode: currentMode },
+      );
 
-          setError(normalizeExplainerErrorMessage(err, getExplainerFailureMessage()));
-          setIsLoading(false);
-          setIsComplete(true);
-        },
-      },
-      { mode: explainerMode() },
-    );
+      if (requestId !== activeStreamRequestId) {
+        handle.abort();
+        return;
+      }
 
-    if (requestId !== activeStreamRequestId) {
-      handle.abort();
-      return;
+      setAbortFn(() => handle.abort);
+    } catch (err) {
+      // Safety net: ensure isLoading is always reset even on unexpected errors
+      console.error('[ExplainerPopup] startStreaming error:', err);
+      if (requestId === activeStreamRequestId) {
+        setError(getExplainerFailureMessage());
+        setIsLoading(false);
+        setIsComplete(true);
+      }
     }
-
-    setAbortFn(() => handle.abort);
   };
 
   const handleRegenerate = () => {
