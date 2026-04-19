@@ -2,7 +2,7 @@
  * Edit Translation Dialog Styles
  */
 
-@import url('../../../components/common/Text/PitchAccent.css');
+@import url('../../../components/language-specific/PitchAccent.css');
 
 /* Body content area */
 .edit-translation-dialog__body {

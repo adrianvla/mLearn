@@ -11,7 +11,7 @@
  */
 
 /* Import pitch accent styles */
-@import url('../common/Text/PitchAccent.css');
+@import url('../language-specific/PitchAccent.css');
 @import url('../common/Label/Label.css');
 
 /* Container — perspective lives here so the card wrapper rotates inside it */

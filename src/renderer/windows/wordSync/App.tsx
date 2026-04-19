@@ -1,29 +1,4 @@
-/**
- * Word Sync Window
- *
- * Presents frequency-list words one at a time for the user to rate.
- * Ratings: Unknown (1), Learning (2), Known (3), Seen (4).
- *
- * Unknown / Learning / Known set the word's passive ease AND mark the word
- * as "sync-seen" so it won't be re-asked for ~30 days.
- * "Seen" only marks the word as sync-seen (no ease change).
- *
- * Adaptive sampling:
- *   - Starts at the easiest level (highest raw_level).
- *   - "Known" → moves toward harder words (lower raw_level).
- *   - "Unknown" → moves toward easier words (higher raw_level).
- *   - "Learning" / "Seen" → no level change.
- *
- * Only words at or below the "Target exam level" setting are shown.
- * preparedExam === 0 means no target (show all levels).
- *
- * "All done" is shown only when every eligible word has been rated in
- * this session — i.e. the session cursors have exhausted every group.
- *
- * A "Recheck all" button lets the user ignore the 30-day seen filter.
- */
-
-import { Component, Show, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
+import { Component, Show, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource } from 'solid-js';
 import {
   WindowWrapper,
   useLocalization,
@@ -31,27 +6,35 @@ import {
   useLanguage,
   useFlashcards,
 } from '../../context';
-import { Btn, EmptyState, PillLabel } from '../../components/common';
+import { Btn, EmptyState, PillLabel, ToggleSwitch, WordWithReading } from '../../components/common';
 import { SRS_EASE } from '../../../shared/constants';
 import { hashWordSync } from '../../services/srsAlgorithm';
+import { fetchTranslation } from '../../hooks/useTranslation';
+import { extractKanjiChars } from '../../../shared/utils/textUtils';
+import {
+  wasExplicitlySyncRated,
+  shouldIncludeForLevel,
+  calculateKanjiBoost,
+  calculateWordWeight,
+  isWordEligible,
+  THIRTY_DAYS_MS,
+} from './wordSyncPool';
+import { fetchAnkiWordsCache, isWordInAnkiCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { getWordStatus } from '../../services/statsService';
+import { getEffectiveWordStatus, numericToWordStatus, getAnkiWordKnowledgeStatus } from '../../components/subtitle/wordHoverHelpers';
 import './WordSync.css';
 
-/** Rating the user can assign to a word. */
-type Rating = 'unknown' | 'learning' | 'known' | 'seen';
+type Rating = 'unknown' | 'learning' | 'known';
 
-/** An entry in the pool of words eligible for sampling. */
 interface PoolEntry {
   word: string;
   reading: string;
   level: number;
   levelName: string;
-  /** Weight for sampling priority — words seen more often get higher weight. */
   weight: number;
 }
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-
-const RATING_EASE: Record<Exclude<Rating, 'seen'>, number> = {
+const RATING_EASE: Record<Rating, number> = {
   unknown: SRS_EASE.MIN,
   learning: SRS_EASE.DEFAULT_LEARNING,
   known: SRS_EASE.DEFAULT_KNOWN,
@@ -66,6 +49,7 @@ const WordSyncContent: Component = () => {
     setWordKnowledgeEase,
     markWordSyncSeen,
     getWordKnowledge,
+    getCardByWordSync,
   } = useFlashcards();
 
   // ─── State ───────────────────────────────────────────
@@ -75,6 +59,33 @@ const WordSyncContent: Component = () => {
   const [lastRating, setLastRating] = createSignal<Rating | null>(null);
   const [finished, setFinished] = createSignal(false);
   const [ignoreSeenFilter, setIgnoreSeenFilter] = createSignal(false);
+  const [unknownOnly, setUnknownOnly] = createSignal(false);
+  const [showTranslation, setShowTranslation] = createSignal(false);
+
+  const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
+  const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched());
+
+  onMount(() => {
+    if (settings.use_anki && !isAnkiCacheFetched()) {
+      fetchAnkiWordsCache().then(() => setAnkiCacheReady(true));
+    }
+  });
+
+  // ─── Translation for current word ───────────────────
+  const [translation] = createResource(
+    () => currentWord()?.word,
+    async (word) => {
+      if (!word) return null;
+      return fetchTranslation(word);
+    },
+  );
+
+  const translationText = createMemo(() => {
+    const t = translation();
+    if (!t?.data?.[0]) return '';
+    const defs = t.data[0].definitions;
+    return Array.isArray(defs) ? defs.join('; ') : defs;
+  });
 
   // ─── Pool of eligible words grouped by level ────────
   const levelNames = createMemo(() => langCtx.getFreqLevelNames());
@@ -82,7 +93,6 @@ const WordSyncContent: Component = () => {
     Object.keys(levelNames()).map(Number).sort((a, b) => b - a),
   );
 
-  /** Check if a word was sync-seen within the last 30 days. */
   function isSyncSeenRecently(word: string, langPrefix: string): boolean {
     const lk = langPrefix + hashWordSync(word);
     const ts = store.wordSyncSeen[lk];
@@ -90,28 +100,81 @@ const WordSyncContent: Component = () => {
     return (Date.now() - ts) < THIRTY_DAYS_MS;
   }
 
-  /** All words in the frequency list at/below target level, grouped by raw_level. */
-  const wordPool = createMemo(() => {
+  // ─── Known kanji set for logographic boost ──────────
+  // Builds a set of distinct kanji characters from words that are
+  // explicitly known (rated "known" through Word Sync). Only active
+  // when the current language uses a logographic script.
+  const knownKanjiSet = createMemo((): Set<string> => {
+    const features = langCtx.getLanguageFeatures();
+    if (!features.isLogographic) return new Set();
+
+    const lang = settings.language;
+    const prefix = lang + ':';
+    const result = new Set<string>();
+
+    for (const [key, entry] of Object.entries(store.wordKnowledge)) {
+      if (!key.startsWith(prefix)) continue;
+      if (!wasExplicitlySyncRated(entry)) continue;
+      if (entry.ease < SRS_EASE.DEFAULT_KNOWN) continue;
+      for (const ch of extractKanjiChars(entry.word)) {
+        result.add(ch);
+      }
+    }
+
+    return result;
+  });
+
+  // ─── Word pool ──────────────────────────────────────
+   const wordPool = createMemo(() => {
     const freq = langCtx.wordFrequency;
     const names = levelNames();
     const target = settings.preparedExam;
     const skipSeen = !ignoreSeenFilter();
+    const onlyUnknown = unknownOnly();
+    const staleDaysMs = settings.wordSyncStaleLearningDays * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const rated = sessionRatedSet();
+    const kanjiSet = knownKanjiSet();
+    const useAnki = settings.use_anki && ankiCacheReady();
+    const { knowledgeSourceOrder, knowledgeResolutionMode } = settings;
 
     const groups = new Map<number, PoolEntry[]>();
     const lang = settings.language;
     const prefix = lang + ':';
 
     for (const [word, entry] of Object.entries(freq)) {
-      // Respect "Target exam level" filter.
-      if (target > 0 && entry.raw_level > target) continue;
+      if (!shouldIncludeForLevel(entry.raw_level, target)) continue;
 
-      // Skip words seen in the sync window within the last 30 days.
-      if (skipSeen && isSyncSeenRecently(word, prefix)) continue;
+      if (rated.has(word)) continue;
 
-      // Weight: base 1 + timesSeen from passive knowledge.
       const lk = prefix + hashWordSync(word);
+
+      if (store.knownUntracked[lk]) continue;
+      if (store.ignoredWords[lk]) continue;
+
       const knowledge = getWordKnowledge(lk);
-      const timesSeen = knowledge?.timesSeen ?? 0;
+
+      if (onlyUnknown) {
+        const manualStatus = numericToWordStatus(getWordStatus(word));
+        const card = getCardByWordSync(word);
+        const ankiStatus = useAnki ? getAnkiWordKnowledgeStatus(
+          findAnkiWordMatchInCache([word])?.cards,
+          settings.ankiLearningThreshold,
+          settings.ankiKnownThreshold,
+        ) : null;
+        const status = getEffectiveWordStatus(
+          card, manualStatus, ankiStatus,
+          knowledgeSourceOrder, knowledgeResolutionMode,
+        );
+        if (status !== 'unknown') continue;
+      }
+
+      const seenRecently = isSyncSeenRecently(word, prefix);
+
+      if (!isWordEligible(knowledge, seenRecently, skipSeen, staleDaysMs, now)) continue;
+
+      const kanjiBoost = calculateKanjiBoost(word, kanjiSet);
+      const weight = calculateWordWeight(knowledge?.ease, kanjiBoost);
 
       const lvl = entry.raw_level;
       if (!groups.has(lvl)) groups.set(lvl, []);
@@ -120,11 +183,10 @@ const WordSyncContent: Component = () => {
         reading: entry.reading,
         level: lvl,
         levelName: names[String(lvl)] ?? `Level ${lvl}`,
-        weight: 1 + timesSeen,
+        weight,
       });
     }
 
-    // Weighted shuffle: words seen more often appear earlier.
     for (const group of groups.values()) {
       weightedShuffle(group);
     }
@@ -132,16 +194,11 @@ const WordSyncContent: Component = () => {
     return groups;
   });
 
-  /** Index into the current level's array so we don't repeat words in a session. */
   let levelCursors = new Map<number, number>();
 
-  /**
-   * Weighted shuffle: sorts the array so that entries with higher weight
-   * are more likely to appear earlier. Uses the algorithm:
-   *   sortKey = -weight * random^(1/weight)  (reservoir-style weighted sampling)
-   * This produces a full ordering where higher-weight items land near the front
-   * proportionally more often, while still visiting every item eventually.
-   */
+  // Reservoir-style weighted sampling: sortKey = -weight * random^(1/weight).
+  // Higher-weight items land near the front proportionally more often
+  // while still visiting every item eventually.
   function weightedShuffle(arr: PoolEntry[]) {
     arr.sort((a, b) => {
       const ka = -Math.pow(Math.random(), 1 / a.weight);
@@ -150,19 +207,30 @@ const WordSyncContent: Component = () => {
     });
   }
 
-  /** Pick the next word to show from the current sampling level. */
   function pickNext() {
-    const levels = sortedLevels(); // easiest first (highest number)
+    const levels = sortedLevels();
     if (levels.length === 0) { setFinished(true); return; }
 
     let lvl = samplingLevel();
-    // Clamp to valid range.
     if (!levels.includes(lvl)) lvl = levels[0];
 
     const pool = wordPool();
+    const idx = levels.indexOf(lvl);
 
-    // Try the current level first, then expand outward.
-    const tryOrder = [lvl, ...levels.filter((l) => l !== lvl)];
+    // Build directional try order: current level first, then expand
+    // outward biased by the last rating direction.
+    const tryOrder: number[] = [lvl];
+    for (let dist = 1; dist < levels.length; dist++) {
+      const easierIdx = idx - dist;
+      const harderIdx = idx + dist;
+      if (lastRating() === 'known') {
+        if (harderIdx < levels.length) tryOrder.push(levels[harderIdx]);
+        if (easierIdx >= 0) tryOrder.push(levels[easierIdx]);
+      } else {
+        if (easierIdx >= 0) tryOrder.push(levels[easierIdx]);
+        if (harderIdx < levels.length) tryOrder.push(levels[harderIdx]);
+      }
+    }
 
     for (const tryLvl of tryOrder) {
       const group = pool.get(tryLvl);
@@ -176,55 +244,47 @@ const WordSyncContent: Component = () => {
       }
     }
 
-    // All words exhausted.
     setFinished(true);
     setCurrentWord(null);
   }
 
-  /** Handle a user rating. */
   function rate(rating: Rating) {
     const w = currentWord();
     if (!w) return;
 
-    if (rating !== 'seen') {
-      setWordKnowledgeEase(w.word, RATING_EASE[rating], w.reading);
+    setWordKnowledgeEase(w.word, RATING_EASE[rating], w.reading);
+
+    if (rating === 'unknown') {
+      markWordSyncSeen(w.word);
     }
 
-    // Always mark the word as sync-seen so it's skipped for 30 days.
-    markWordSyncSeen(w.word);
+    setSessionRatedSet((s) => { s.add(w.word); return s; });
 
     setRatedCount((c) => c + 1);
     setLastRating(rating);
 
-    // Adjust sampling level.
     const levels = sortedLevels();
     const idx = levels.indexOf(samplingLevel());
 
     if (rating === 'known' && idx < levels.length - 1) {
-      // Move toward harder words (lower raw_level = further in sorted array).
       setSamplingLevel(levels[idx + 1]);
     } else if (rating === 'unknown' && idx > 0) {
-      // Move toward easier words (higher raw_level = earlier in sorted array).
       setSamplingLevel(levels[idx - 1]);
     }
-    // 'learning' / 'seen' → no level change.
 
     pickNext();
   }
 
-  /** Reset the pool to include all words, ignoring the seen filter. */
   function recheckAll() {
     setIgnoreSeenFilter(true);
     setFinished(false);
     setRatedCount(0);
     setLastRating(null);
+    setSessionRatedSet(new Set<string>());
     levelCursors = new Map();
 
-    // Re-initialise sampling.
     const levels = sortedLevels();
     if (levels.length > 0) setSamplingLevel(levels[0]);
-    // wordPool memo will recompute because ignoreSeenFilter changed.
-    // We need to wait for the next micro-task so the memo updates.
     queueMicrotask(() => pickNext());
   }
 
@@ -234,14 +294,31 @@ const WordSyncContent: Component = () => {
     if (e.key === '1') rate('unknown');
     else if (e.key === '2') rate('learning');
     else if (e.key === '3') rate('known');
-    else if (e.key === '4') rate('seen');
   }
 
+  // Guard: only pick the first word once, after language data has loaded.
+  const [initialized, setInitialized] = createSignal(false);
+
+  createEffect(() => {
+    if (!langCtx.isLoading() && !initialized()) {
+      setInitialized(true);
+      const levels = sortedLevels();
+      if (levels.length > 0) setSamplingLevel(levels[0]);
+      pickNext();
+    }
+  });
+
+  // Re-evaluate current word when Anki cache arrives after initial pick
+  createEffect(on(ankiCacheReady, (ready) => {
+    if (!ready || !initialized() || !unknownOnly() || !settings.use_anki) return;
+    const word = currentWord();
+    if (word && isWordInAnkiCache(word.word)) {
+      levelCursors = new Map();
+      pickNext();
+    }
+  }, { defer: true }));
+
   onMount(() => {
-    // Initialise sampling at the easiest available level.
-    const levels = sortedLevels();
-    if (levels.length > 0) setSamplingLevel(levels[0]);
-    pickNext();
     window.addEventListener('keydown', handleKeyDown);
   });
 
@@ -264,7 +341,6 @@ const WordSyncContent: Component = () => {
 
   return (
     <div class="word-sync">
-      <div class="word-sync-drag-region" />
 
       <Show when={!finished()} fallback={
         <div class="word-sync-finished">
@@ -283,7 +359,6 @@ const WordSyncContent: Component = () => {
           </Btn>
         </div>
       }>
-        {/* Progress bar */}
         <div class="word-sync-header">
           <span class="word-sync-counter">
             {t('mlearn.WordSync.Progress', {
@@ -291,6 +366,17 @@ const WordSyncContent: Component = () => {
               total: String(totalAvailable()),
             })}
           </span>
+          <ToggleSwitch
+            checked={unknownOnly()}
+            onChange={(v) => {
+              setUnknownOnly(v);
+              levelCursors = new Map();
+              setFinished(false);
+              setLastRating(null);
+              queueMicrotask(() => pickNext());
+            }}
+            label={t('mlearn.WordSync.UnknownOnly')}
+          />
           <Show when={currentWord()}>
             <PillLabel level={currentWord()!.level}>
               {levelLabel()}
@@ -298,19 +384,32 @@ const WordSyncContent: Component = () => {
           </Show>
         </div>
 
-        {/* Word display */}
         <Show when={currentWord()}>
           {(w) => (
             <div class="word-sync-card">
-              <div class="word-sync-word">{w().word}</div>
-              <Show when={w().reading && w().reading !== w().word}>
-                <div class="word-sync-reading">{w().reading}</div>
+              <div class="word-sync-word">
+                <WordWithReading
+                  word={w().word}
+                  reading={w().reading}
+                />
+              </div>
+              <Show when={showTranslation() && translationText()}>
+                <div class="word-sync-translation">{translationText()}</div>
               </Show>
+              <Btn
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowTranslation((v) => !v)}
+                class="word-sync-translation-toggle"
+              >
+                {showTranslation()
+                  ? t('mlearn.WordSync.HideTranslation')
+                  : t('mlearn.WordSync.ShowTranslation')}
+              </Btn>
             </div>
           )}
         </Show>
 
-        {/* Rating buttons */}
         <div class="word-sync-actions">
           <Btn
             variant="danger"
@@ -339,23 +438,9 @@ const WordSyncContent: Component = () => {
             <span class="word-sync-btn-key">3</span>
             {t('mlearn.WordSync.Known')}
           </Btn>
-          <Btn
-            variant="ghost"
-            size="lg"
-            onClick={() => rate('seen')}
-            class="word-sync-btn word-sync-btn--seen"
-          >
-            <span class="word-sync-btn-key">4</span>
-            {t('mlearn.WordSync.Seen')}
-          </Btn>
         </div>
 
-        {/* Last rating feedback */}
-        <Show when={lastRating()}>
-          <div class={`word-sync-feedback word-sync-feedback--${lastRating()}`}>
-            {t(`mlearn.WordSync.Rated.${lastRating()!.charAt(0).toUpperCase() + lastRating()!.slice(1)}`)}
-          </div>
-        </Show>
+
       </Show>
     </div>
   );
@@ -363,7 +448,7 @@ const WordSyncContent: Component = () => {
 
 export const WordSyncApp: Component = () => {
   return (
-    <WindowWrapper showDragRegion={false}>
+    <WindowWrapper showDragRegion={true}>
       <WordSyncContent />
     </WindowWrapper>
   );

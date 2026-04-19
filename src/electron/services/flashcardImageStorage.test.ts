@@ -40,6 +40,8 @@ function makeMinimalStore(overrides: Partial<FlashcardStore> = {}): FlashcardSto
     ignoredWords: {},
     wordKnowledge: {},
     grammarKnowledge: {},
+    suggestedFlashcards: {},
+    wordSyncSeen: {},
     meta: {
       newCardsToday: 0,
       reviewsToday: 0,
@@ -460,6 +462,99 @@ describe('flashcardImageStorage', () => {
       extractBase64Images(store);
 
       expect(fs.existsSync(imageDir)).toBe(true);
+    });
+
+    it('extracts base64 imageUrl from suggestedFlashcards', () => {
+      const suggestionId = 'sug-001';
+      const dataUrl = makePngDataUrl('suggestion-img');
+      const store = makeMinimalStore({
+        suggestedFlashcards: {
+          'en:abc123': {
+            id: suggestionId,
+            word: 'hello',
+            language: 'en',
+            level: null,
+            createdAt: 0,
+            lastSeen: 0,
+            count: 1,
+            imageUrl: dataUrl,
+          },
+        },
+      });
+
+      const result = extractBase64Images(store);
+
+      expect(result).toBe(true);
+      expect(store.suggestedFlashcards['en:abc123'].imageUrl).toBe(`flashcard-image://suggested-${suggestionId}.png`);
+
+      const filePath = path.join(tempDir.tmpDir, 'flashcard-images', `suggested-${suggestionId}.png`);
+      expect(fs.existsSync(filePath)).toBe(true);
+      expect(fs.readFileSync(filePath).toString()).toBe('suggestion-img');
+    });
+
+    it('skips suggestedFlashcards without base64 imageUrl', () => {
+      const store = makeMinimalStore({
+        suggestedFlashcards: {
+          'en:def456': {
+            id: 'sug-002',
+            word: 'test',
+            language: 'en',
+            level: null,
+            createdAt: 0,
+            lastSeen: 0,
+            count: 1,
+            imageUrl: 'flashcard-image://already-saved.jpg',
+          },
+          'en:ghi789': {
+            id: 'sug-003',
+            word: 'empty',
+            language: 'en',
+            level: null,
+            createdAt: 0,
+            lastSeen: 0,
+            count: 1,
+          },
+        },
+      });
+
+      const result = extractBase64Images(store);
+
+      expect(result).toBe(false);
+      expect(store.suggestedFlashcards['en:def456'].imageUrl).toBe('flashcard-image://already-saved.jpg');
+      expect(store.suggestedFlashcards['en:ghi789'].imageUrl).toBeUndefined();
+    });
+
+    it('extracts images from both flashcards and suggestedFlashcards', () => {
+      const dataUrl1 = makePngDataUrl('card-data');
+      const dataUrl2 = makeJpegDataUrl('suggestion-data');
+      const store = makeMinimalStore({
+        flashcards: {
+          'card-both': {
+            id: 'card-both',
+            content: { type: 'word', front: 'a', back: 'b', imageUrl: dataUrl1 },
+            state: 'new', ease: 2.5, interval: 0, dueDate: 0,
+            reviews: 0, lapses: 0, learningStep: 0, createdAt: 0, lastReviewed: 0, lastUpdated: 0,
+          },
+        },
+        suggestedFlashcards: {
+          'en:both': {
+            id: 'sug-both',
+            word: 'both',
+            language: 'en',
+            level: null,
+            createdAt: 0,
+            lastSeen: 0,
+            count: 1,
+            imageUrl: dataUrl2,
+          },
+        },
+      });
+
+      const result = extractBase64Images(store);
+
+      expect(result).toBe(true);
+      expect(store.flashcards['card-both'].content.imageUrl).toBe('flashcard-image://card-both.png');
+      expect(store.suggestedFlashcards['en:both'].imageUrl).toBe('flashcard-image://suggested-sug-both.jpg');
     });
   });
 

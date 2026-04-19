@@ -181,7 +181,7 @@
   border-bottom: none;
 }
 
-.level-coverage-header {
+.level-table th.level-num {
   text-align: right;
 }
 
@@ -191,6 +191,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
+  min-width: 120px;
 }
 
 .level-coverage-bar {

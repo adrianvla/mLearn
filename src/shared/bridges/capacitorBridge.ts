@@ -306,6 +306,19 @@ async function extractBase64ImagesToFiles(store: FlashcardStore): Promise<boolea
       }
     }
   }
+
+  if (store.suggestedFlashcards) {
+    for (const [key, suggestion] of Object.entries(store.suggestedFlashcards)) {
+      if (!suggestion || !isBase64DataUrl(suggestion.imageUrl)) continue;
+      const fileKey = `suggested-${suggestion.id || key}`;
+      const url = await saveImageFile(fileKey, suggestion.imageUrl);
+      if (url && url !== suggestion.imageUrl) {
+        suggestion.imageUrl = url;
+        modified = true;
+      }
+    }
+  }
+
   return modified;
 }
 

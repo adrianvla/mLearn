@@ -92,6 +92,24 @@ export function extractBase64Images(store: FlashcardStore): boolean {
     }
   }
 
+  // Also extract base64 images from suggested flashcards
+  if (store.suggestedFlashcards) {
+    for (const [key, suggestion] of Object.entries(store.suggestedFlashcards)) {
+      if (!suggestion || !isBase64DataUrl(suggestion.imageUrl)) continue;
+
+      const ext = extensionFromDataUrl(suggestion.imageUrl);
+      const filename = `suggested-${suggestion.id || key}.${ext}`;
+      const filePath = path.join(imageDir, filename);
+
+      const buffer = dataUrlToBuffer(suggestion.imageUrl);
+      if (buffer) {
+        fs.writeFileSync(filePath, buffer);
+        suggestion.imageUrl = `flashcard-image://${filename}`;
+        modified = true;
+      }
+    }
+  }
+
   return modified;
 }
 

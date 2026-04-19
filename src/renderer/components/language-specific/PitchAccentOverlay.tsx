@@ -12,11 +12,11 @@
  */
 
 import { Component, JSX, Show, createMemo, createSignal, createEffect, children as resolveChildren } from 'solid-js';
-import { useSettings, useLanguage } from '../../../context';
-import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
-import { getCachedTranslation } from '../../../hooks/useTranslation';
-import { extractPitchPosition, extractReadingValue } from '../../../utils/translationCacheParsers';
-import { PillLabel } from '../Label';
+import { useSettings, useLanguage } from '../../context';
+import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
+import { getCachedTranslation } from '../../hooks/useTranslation';
+import { extractPitchPosition, extractReadingValue } from '../../utils/translationCacheParsers';
+import { PillLabel } from '../common/Label';
 import './PitchAccent.css';
 
 export interface PitchAccentOverlayProps {

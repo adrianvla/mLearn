@@ -505,7 +505,7 @@ export const Dashboard: Component = () => {
                 <th>{t('mlearn.Statistics.Legend.Learning')}</th>
                 <th>{t('mlearn.Statistics.Legend.Viewed')}</th>
                 <th class="level-num">{t('mlearn.Statistics.Dashboard.LevelTotal')}</th>
-                <th class="level-coverage-header">{t('mlearn.Statistics.Dashboard.LevelCoverage')}</th>
+                <th>{t('mlearn.Statistics.Dashboard.LevelCoverage')}</th>
               </tr>
             </thead>
             <tbody>

@@ -116,6 +116,8 @@ export interface Settings {
   maxNewCardsPerDay: number;
   proportionOfExamCards: number;
   preparedExam: number;
+  /** Days after which a "learning" word is re-shown in Word Sync (default 30) */
+  wordSyncStaleLearningDays: number;
   createUnseenCards: boolean;
   /** Use LLM to generate example sentences when auto-creating flashcards */
   flashcardLLMExamples: boolean;
@@ -386,6 +388,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxNewCardsPerDay: 10,
   proportionOfExamCards: 0.5,
   preparedExam: 3,
+  wordSyncStaleLearningDays: 30,
   createUnseenCards: true,
   flashcardLLMExamples: false,
   newDayHour: 4,
@@ -877,6 +880,10 @@ export interface PassiveWordKnowledge {
   language?: string;
   /** timesSeen when user first manually changed status (undefined = never changed) */
   statusChangedAtSeen?: number;
+  /** Timestamp of last knowledge status change (manual rating, sync, or SRS-driven) */
+  lastStatusChange?: number;
+  /** Timestamp when this word was explicitly rated in the Word Sync window (undefined = never) */
+  wordSyncRatedAt?: number;
 }
 
 /** Ignored word entry tracked per language for browse/unignore workflows */

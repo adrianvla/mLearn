@@ -79,6 +79,23 @@ export function katakanaToHiragana(text: string): string {
 }
 
 /**
+ * Extract distinct kanji (CJK ideograph) characters from text.
+ * Returns a Set of unique characters in the CJK Unified Ideographs /
+ * CJK Compatibility Ideographs ranges.
+ */
+export function extractKanjiChars(text: string): Set<string> {
+  const result = new Set<string>();
+  if (!text) return result;
+  for (const ch of text) {
+    const cp = ch.codePointAt(0)!;
+    if ((cp >= 0x3400 && cp <= 0x9FFF) || (cp >= 0xF900 && cp <= 0xFAFF)) {
+      result.add(ch);
+    }
+  }
+  return result;
+}
+
+/**
  * Extract only kana characters from mixed text
  */
 export function extractKana(text: string): string {

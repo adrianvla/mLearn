@@ -5,7 +5,7 @@
  */
 
 import { Component, Show, createMemo } from 'solid-js';
-import { buildPitchAccentHtml, getPitchAccentInfo } from '../../../utils/pitchAccent';
+import { buildPitchAccentHtml, getPitchAccentInfo } from '../../utils/pitchAccent';
 import './PitchAccent.css';
 
 export interface PitchAccentProps {

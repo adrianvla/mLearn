@@ -6,6 +6,6 @@
 
 @import url('../components/subtitle/SubtitleContainer.css');
 @import url('../components/subtitle/SubtitleWord.css');
-@import url('../components/common/Text/PitchAccent.css');
+@import url('../components/language-specific/PitchAccent.css');
 @import url('../components/common/Text/FrequencyStars.css');
 @import url('../components/common/Label/Label.css');

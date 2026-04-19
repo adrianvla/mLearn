@@ -27,6 +27,7 @@ import {
   ProgressBar,
   MicrophoneIcon,
   VoiceSamplePicker,
+  CollapsibleStickyHeader,
 } from '../../components/common';
 import { showToast, updateToast, removeToast } from '../../components/common/Feedback/Toast';
 import { stripHtmlForTts } from '../../../shared/utils/textUtils';
@@ -734,32 +735,34 @@ export const FlashcardsContent: Component = () => {
 
           {/* Browse Tab */}
           <Show when={activeTab() === 'browse'}>
-            <div class="flashcards-browse">
-              {/* Search Header */}
-              <div class="flashcards-browse-header">
-                <Input
-                  placeholder={t('mlearn.Flashcards.Browse.SearchPlaceholder')}
-                  value={searchQuery()}
-                  onInput={(e) => setSearchQuery(e.currentTarget.value)}
-                  leftIcon={<SearchIcon size={16} />}
-                  size="md"
-                  class="flashcards-search-input"
-                />
-                <Select
-                  options={sortOptions()}
-                  value={sortBy()}
-                  onChange={(e) => setSortBy(e.currentTarget.value)}
-                  class="flashcards-sort-select"
-                />
-                <Show when={flashcards().length > 0}>
-                  <span class="flashcards-count">
-                    {t('mlearn.Flashcards.Browse.ShowingCount', {
-                      count: filteredFlashcards().length,
-                      total: flashcards().length
-                    })}
-                  </span>
-                </Show>
-              </div>
+            {(() => {
+              let browseRef: HTMLDivElement | undefined;
+              return (
+                <div class="flashcards-browse" ref={(el) => { browseRef = el; }}>
+                  <CollapsibleStickyHeader getScrollContainer={() => browseRef} class="flashcards-browse-header">
+                    <Input
+                      placeholder={t('mlearn.Flashcards.Browse.SearchPlaceholder')}
+                      value={searchQuery()}
+                      onInput={(e) => setSearchQuery(e.currentTarget.value)}
+                      leftIcon={<SearchIcon size={16} />}
+                      size="md"
+                      class="flashcards-search-input"
+                    />
+                    <Select
+                      options={sortOptions()}
+                      value={sortBy()}
+                      onChange={(e) => setSortBy(e.currentTarget.value)}
+                      class="flashcards-sort-select"
+                    />
+                    <Show when={flashcards().length > 0}>
+                      <span class="flashcards-count">
+                        {t('mlearn.Flashcards.Browse.ShowingCount', {
+                          count: filteredFlashcards().length,
+                          total: flashcards().length
+                        })}
+                      </span>
+                    </Show>
+                  </CollapsibleStickyHeader>
 
               <Show
                 when={flashcards().length > 0}
@@ -794,9 +797,8 @@ export const FlashcardsContent: Component = () => {
                         return (
                           <Card
                             title={
-                              card.content.reading && card.content.reading !== card.content.front
-                                  ? <FlashcardPitchAccent content={card.content} />
-                                  : card.content.front}
+                              <FlashcardPitchAccent content={card.content} />
+                            }
                             subtitle={undefined
                             }
                             headerActions={
@@ -849,7 +851,9 @@ export const FlashcardsContent: Component = () => {
                   </div>
                 </Show>
               </Show>
-            </div>
+              </div>
+              );
+            })()}
           </Show>
 
           {/* Generate Tab */}

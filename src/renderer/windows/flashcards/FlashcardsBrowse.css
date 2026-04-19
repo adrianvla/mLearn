@@ -15,15 +15,10 @@
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-  position:sticky;
-  top:0;
-  left:0;
-  right:0;
-  padding:var(--spacing-6);
-  z-index:var(--z-sticky);
-  background:var(--bg);
+  padding: var(--spacing-6);
+  background: var(--bg);
   backdrop-filter: var(--backdrop-filter);
-  border-bottom:1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .flashcards-search-input {
@@ -62,7 +57,7 @@
 .flashcards-grid .flashcard-translation{
   margin-bottom:calc(2rem + 2px + var(--spacing-4));
 }
-.flashcard-footer {
+.flashcards-grid .flashcard-footer {
   display: flex;
   gap: var(--spacing-2);
   bottom: 1rem;
@@ -71,13 +66,13 @@
   width: calc(100% - 2rem);
 }
 
-.flashcard-state {
+.flashcards-grid .flashcard-state {
   display: flex;
   justify-content: space-between;
   gap: var(--spacing-2);
 }
 
-.flashcard-actions {
+.flashcards-grid .flashcard-actions {
   display: flex;
   justify-content: space-between;
   gap: var(--spacing-2);

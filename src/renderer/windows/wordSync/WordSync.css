@@ -15,15 +15,6 @@
   position: relative;
 }
 
-.word-sync-drag-region {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 38px;
-  -webkit-app-region: drag;
-}
-
 .word-sync-header {
   display: flex;
   align-items: center;
@@ -52,10 +43,20 @@
   word-break: break-word;
 }
 
-.word-sync-reading {
-  font-size: var(--font-size-xl);
+.word-sync-word .ruby-text rt {
+  font-size: 0.45em;
+}
+
+.word-sync-translation {
+  font-size: var(--font-size-md);
   color: var(--text-secondary);
   text-align: center;
+  max-width: 300px;
+}
+
+.word-sync-translation-toggle {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
 }
 
 .word-sync-actions {
@@ -80,30 +81,6 @@
   font-weight: 600;
   margin-right: var(--spacing-2);
   flex-shrink: 0;
-}
-
-.word-sync-feedback {
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  padding: var(--spacing-1) var(--spacing-3);
-  border-radius: var(--radius-sm);
-  transition: opacity 0.2s ease;
-}
-
-.word-sync-feedback--unknown {
-  color: var(--color-error);
-}
-
-.word-sync-feedback--learning {
-  color: var(--color-warning);
-}
-
-.word-sync-feedback--known {
-  color: var(--color-success);
-}
-
-.word-sync-feedback--seen {
-  color: var(--text-secondary);
 }
 
 .word-sync-finished {

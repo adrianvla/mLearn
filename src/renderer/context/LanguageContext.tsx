@@ -103,7 +103,6 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const loadLangData = () => {
     const bridge = getBridge();
     console.log('[LanguageContext] Loading language data...');
-    bridge.localization.getLangData();
     ipcCleanups.push(bridge.localization.onLangData((data) => {
       console.log('[LanguageContext] Language data received');
       setLangData(reconcile(data as unknown as LanguageDataMap));
@@ -111,6 +110,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       parseGrammarData(data as unknown as LanguageDataMap);
       setIsLoading(false);
     }));
+    bridge.localization.getLangData();
   };
 
   // Parse word frequency data

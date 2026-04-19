@@ -159,7 +159,7 @@ describe('LanguageContext - provider behavior', () => {
     });
 
     const { dispose } = await mountProvider();
-    expect(callOrder).toEqual(['getLangData', 'onLangData']);
+    expect(callOrder).toEqual(['onLangData', 'getLangData']);
     dispose();
   });
 

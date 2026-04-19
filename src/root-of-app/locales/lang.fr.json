@@ -801,7 +801,8 @@
         "Promoted": "{count} carte(s) créée(s)",
         "PromoteFailed": "Échec de la promotion des suggestions.",
         "Removed": "{count} suggestion(s) supprimée(s)",
-        "SeenCount": "Vu {count}x"
+        "SeenCount": "Vu {count}x",
+        "NoPreviewImage": "Aucune image de prévisualisation"
       }
     },
     "Global": {
@@ -833,6 +834,7 @@
       "Flashcard": "Carte mémoire",
       "Import": "Importer",
       "Loading": "Chargement...",
+      "Ignore": "Ignorer",
       "Ok": "OK",
       "Ready": "Prêt",
       "Remove": "Retirer",
@@ -903,6 +905,10 @@
         "CharacterGrid": {
           "Description": "Aperçu visuel de votre connaissance des caractères",
           "Title": "Grille de caractères"
+        },
+        "WordSync": {
+          "Description": "Évaluez votre connaissance du vocabulaire",
+          "Title": "Sync des mots"
         }
       },
       "Errors": {
@@ -1590,6 +1596,10 @@
             "Label": "Niveau d'examen cible",
             "NoTarget": "Pas de cible"
           },
+          "StaleLearningDays": {
+            "Label": "Seuil d'apprentissage périmé (jours)",
+            "Description": "Réafficher les mots marqués \"En apprentissage\" dans la synchronisation après ce nombre de jours sans changement de statut"
+          },
           "EaseMapping": {
             "LearningEase": {
               "Label": "SRS intégré : Aisance d'apprentissage",
@@ -2129,13 +2139,14 @@
       "Unknown": "Inconnu",
       "Learning": "En apprentissage",
       "Known": "Connu",
-      "Seen": "Vu",
+      "ShowTranslation": "Afficher la traduction",
+      "HideTranslation": "Masquer la traduction",
       "RecheckAll": "Revérifier tous les mots",
+      "UnknownOnly": "Inconnus uniquement",
       "Rated": {
         "Unknown": "Marqué comme inconnu",
         "Learning": "Marqué comme en apprentissage",
-        "Known": "Marqué comme connu",
-        "Seen": "Reporté de 30 jours"
+        "Known": "Marqué comme connu"
       }
     }
   }
