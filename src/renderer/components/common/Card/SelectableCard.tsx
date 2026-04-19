@@ -19,7 +19,7 @@ export interface SelectableCardProps {
   /** Icon - can be an emoji, SVG element, or image path */
   icon?: string | JSX.Element;
   /** Card title */
-  title: string;
+  title: string | JSX.Element;
   /** Optional subtitle */
   subtitle?: string;
   /** Optional badge text (e.g., "Coming soon") */

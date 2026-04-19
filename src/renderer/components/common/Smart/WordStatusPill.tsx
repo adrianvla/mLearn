@@ -31,6 +31,7 @@ export interface WordStatusPillProps {
   word: string;
   onStatusChange?: (status: WordStatus) => void;
   onModalOpenChange?: (isOpen: boolean) => void;
+  iconOnly?: boolean;
 }
 
 export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
@@ -234,7 +235,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
         <PillBtn
           variant={statusVariant()}
           icon={statusIcon()}
-          label={statusLabel()}
+          label={props.iconOnly ? '' : statusLabel()}
           onClick={handleStatusChange}
         />
       </Tooltip>

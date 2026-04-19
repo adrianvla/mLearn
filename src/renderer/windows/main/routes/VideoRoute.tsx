@@ -455,6 +455,7 @@ export const VideoRoute: Component = () => {
           const freq = langCtx.getFrequency(entry.word);
           void flashcardCtx.captureSuggestedFlashcard({
             word: entry.word,
+            reading: freq?.reading,
             pos: entry.token.type,
             level: freq?.raw_level ?? null,
             contextPhrase: cleanContextPhrase(entry.contextPhrase),

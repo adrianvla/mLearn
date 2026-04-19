@@ -1831,6 +1831,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       const entry = s.wordKnowledge[lk];
       if (entry && entry.statusChangedAtSeen === undefined) {
         entry.statusChangedAtSeen = entry.timesSeen;
+        entry.lastStatusChange = Date.now();
       }
     }));
     saveFlashcards();
@@ -1858,10 +1859,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
           word: canonical,
           reading,
           language: lang,
+          lastStatusChange: now,
+          wordSyncRatedAt: now,
         };
       } else {
         s.wordKnowledge[lk].ease = ease;
         s.wordKnowledge[lk].lastSeen = now;
+        s.wordKnowledge[lk].lastStatusChange = now;
+        s.wordKnowledge[lk].wordSyncRatedAt = now;
       }
     }));
     saveFlashcards();

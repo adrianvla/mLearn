@@ -529,6 +529,20 @@ export const SRSTab: Component = () => {
               </For>
             </Select>
           </SettingRow>
+
+          <SettingRow
+            label={t('mlearn.Settings.SRS.BuiltInFlashcards.StaleLearningDays.Label')}
+            description={t('mlearn.Settings.SRS.BuiltInFlashcards.StaleLearningDays.Description')}
+          >
+            <input
+              type="number"
+              class="setting-input"
+              value={settings.wordSyncStaleLearningDays}
+              min={1}
+              max={365}
+              onChange={(e) => updateSettings({ wordSyncStaleLearningDays: parseInt(e.currentTarget.value) || 30 })}
+            />
+          </SettingRow>
         </Show>
 
         <SettingRow

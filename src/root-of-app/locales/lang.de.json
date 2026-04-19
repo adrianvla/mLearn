@@ -801,7 +801,8 @@
         "Promoted": "{count} Karte(n) erstellt",
         "PromoteFailed": "Vorschläge konnten nicht befördert werden.",
         "Removed": "{count} Vorschlag/Vorschläge entfernt",
-        "SeenCount": "{count}x gesehen"
+        "SeenCount": "{count}x gesehen",
+        "NoPreviewImage": "Kein Vorschaubild"
       }
     },
     "Global": {
@@ -833,6 +834,7 @@
       "Flashcard": "Lernkarte",
       "Import": "Importieren",
       "Loading": "Laden...",
+      "Ignore": "Ignorieren",
       "Ok": "OK",
       "Ready": "Bereit",
       "Remove": "Entfernen",
@@ -903,6 +905,10 @@
         "CharacterGrid": {
           "Description": "Visuelle Übersicht über Ihre Zeichenkenntnis",
           "Title": "Zeichenraster"
+        },
+        "WordSync": {
+          "Description": "Bewerten Sie Ihre Vokabelkenntnis",
+          "Title": "Wort-Sync"
         }
       },
       "Errors": {
@@ -1590,6 +1596,10 @@
             "Label": "Ziel-Prüfungsstufe",
             "NoTarget": "Kein Ziel"
           },
+          "StaleLearningDays": {
+            "Label": "Schwelle für veraltete Lernwörter (Tage)",
+            "Description": "Als \"Lernend\" markierte Wörter nach dieser Anzahl Tagen ohne Statusänderung erneut in der Wortsynchronisation anzeigen"
+          },
           "EaseMapping": {
             "LearningEase": {
               "Label": "Integriertes SRS: Lern-Ease",
@@ -2129,13 +2139,14 @@
       "Unknown": "Unbekannt",
       "Learning": "Lernend",
       "Known": "Bekannt",
-      "Seen": "Gesehen",
+      "ShowTranslation": "Übersetzung anzeigen",
+      "HideTranslation": "Übersetzung ausblenden",
       "RecheckAll": "Alle Wörter erneut prüfen",
+      "UnknownOnly": "Nur unbekannte",
       "Rated": {
         "Unknown": "Als unbekannt markiert",
         "Learning": "Als lernend markiert",
-        "Known": "Als bekannt markiert",
-        "Seen": "Für 30 Tage übersprungen"
+        "Known": "Als bekannt markiert"
       }
     }
   }

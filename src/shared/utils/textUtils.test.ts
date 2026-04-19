@@ -7,6 +7,7 @@ import {
   containsKanji,
   isAllKana,
   katakanaToHiragana,
+  extractKanjiChars,
   extractKana,
   isLatinOnly,
   isWordInLanguageScript,
@@ -216,6 +217,55 @@ describe('katakanaToHiragana', () => {
 
   it('converts boundary katakana ヶ correctly', () => {
     expect(katakanaToHiragana('ヶ')).toBe('ヶ'.charCodeAt(0) >= 0x30A1 ? 'ゖ' : 'ヶ')
+  })
+})
+
+// ============================================================================
+// extractKanjiChars
+// ============================================================================
+
+describe('extractKanjiChars', () => {
+  it('extracts distinct kanji from mixed text', () => {
+    expect(extractKanjiChars('東京に行きます')).toEqual(new Set(['東', '京', '行']))
+  })
+
+  it('returns empty set for pure hiragana', () => {
+    expect(extractKanjiChars('あいうえお')).toEqual(new Set())
+  })
+
+  it('returns empty set for pure katakana', () => {
+    expect(extractKanjiChars('アイウエオ')).toEqual(new Set())
+  })
+
+  it('returns empty set for Latin text', () => {
+    expect(extractKanjiChars('hello')).toEqual(new Set())
+  })
+
+  it('returns empty set for empty string', () => {
+    expect(extractKanjiChars('')).toEqual(new Set())
+  })
+
+  it('deduplicates repeated kanji', () => {
+    expect(extractKanjiChars('漢漢漢')).toEqual(new Set(['漢']))
+  })
+
+  it('handles Chinese text', () => {
+    expect(extractKanjiChars('北京是中国的首都')).toEqual(new Set(['北', '京', '是', '中', '国', '的', '首', '都']))
+  })
+
+  it('ignores kana mixed with kanji', () => {
+    const result = extractKanjiChars('漢あ字い')
+    expect(result).toEqual(new Set(['漢', '字']))
+    expect(result.has('あ')).toBe(false)
+    expect(result.has('い')).toBe(false)
+  })
+
+  it('handles CJK Extension A characters', () => {
+    expect(extractKanjiChars('\u3400')).toEqual(new Set(['\u3400']))
+  })
+
+  it('handles CJK Compatibility Ideographs', () => {
+    expect(extractKanjiChars('\uF900')).toEqual(new Set(['\uF900']))
   })
 })
 

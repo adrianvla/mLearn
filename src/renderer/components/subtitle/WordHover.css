@@ -5,7 +5,7 @@
 
 /* Import shared pill and pitch accent styling */
 @import url('../common/Label/Label.css');
-@import url('../common/Text/PitchAccent.css');
+@import url('../language-specific/PitchAccent.css');
 
 /* Main container - CSS-driven width based on content, capped at 400px */
 .word-hover-container {

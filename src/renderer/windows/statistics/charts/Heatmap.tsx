@@ -100,7 +100,7 @@ export const Heatmap: Component<HeatmapProps> = (props) => {
                     <div
                       class="heatmap-cell"
                       style={{ background: getColor(day.value, grid().maxVal) }}
-                      title={formatTooltip(day.date, day.value)}
+                      data-tooltip={formatTooltip(day.date, day.value)}
                     />
                   )}
                 </For>

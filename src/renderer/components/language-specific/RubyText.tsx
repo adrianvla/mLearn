@@ -6,7 +6,7 @@
 
 import { Component, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js/jsx-runtime';
-import { containsKanji, isAllKana } from '../../../../shared/utils/textUtils';
+import { containsKanji, isAllKana } from '../../../shared/utils/textUtils';
 import './RubyText.css';
 
 export interface RubyTextProps {

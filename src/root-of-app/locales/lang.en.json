@@ -801,7 +801,8 @@
         "Promoted": "{count} flashcard(s) created",
         "PromoteFailed": "Failed to promote suggestions.",
         "Removed": "{count} suggestion(s) removed",
-        "SeenCount": "Seen {count}x"
+        "SeenCount": "Seen {count}x",
+        "NoPreviewImage": "No preview image"
       }
     },
     "Global": {
@@ -833,6 +834,7 @@
       "Flashcard": "Flashcard",
       "Import": "Import",
       "Loading": "Loading...",
+      "Ignore": "Ignore",
       "Ok": "OK",
       "Ready": "Ready",
       "Remove": "Remove",
@@ -903,6 +905,10 @@
         "CharacterGrid": {
           "Description": "Visual overview of your character knowledge",
           "Title": "Character Grid"
+        },
+        "WordSync": {
+          "Description": "Rate your vocabulary knowledge",
+          "Title": "Word Sync"
         }
       },
       "Errors": {
@@ -1590,6 +1596,10 @@
             "Label": "Target Exam Level",
             "NoTarget": "No target"
           },
+          "StaleLearningDays": {
+            "Label": "Stale Learning Threshold (days)",
+            "Description": "Re-show words marked as \"Learning\" in Word Sync after this many days without a status change"
+          },
           "EaseMapping": {
             "LearningEase": {
               "Label": "Built-in SRS: Learning Ease",
@@ -2130,13 +2140,14 @@
       "Unknown": "Unknown",
       "Learning": "Learning",
       "Known": "Known",
-      "Seen": "Seen",
+      "ShowTranslation": "Show translation",
+      "HideTranslation": "Hide translation",
       "RecheckAll": "Recheck all words",
+      "UnknownOnly": "Unknown only",
       "Rated": {
         "Unknown": "Marked as unknown",
         "Learning": "Marked as learning",
-        "Known": "Marked as known",
-        "Seen": "Skipped for 30 days"
+        "Known": "Marked as known"
       }
     }
   }

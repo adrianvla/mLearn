@@ -477,23 +477,47 @@ export const ReaderRoute: Component = () => {
     return Array.from(deduped.values());
   });
 
-  // Capture suggested flashcards for newly visible unknown words in the reader.
-  // Reader captures lack screenshots (OCR crops are expensive) — only context + word.
+  const capturePageImageDataUrl = (pageId: string): string => {
+    try {
+      const img = imageRefs()[pageId];
+      if (!img || !img.naturalWidth) return '';
+      const targetWidth = 480;
+      const targetHeight = Math.round(img.naturalHeight * (targetWidth / img.naturalWidth));
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return '';
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.5);
+    } catch {
+      return '';
+    }
+  };
+
   const capturedSuggestionWords = new Set<string>();
   createEffect(() => {
     if (!settings.autoSuggestFlashcards || !settings.enable_flashcard_creation) return;
     const unknown = visibleUnknownWords();
     const mediaHash = mediaStats.stats().mediaHash;
     const bookId = currentBookId();
+    const capturedPages = new Map<string, string>();
     for (const entry of unknown) {
       if (capturedSuggestionWords.has(entry.word)) continue;
       capturedSuggestionWords.add(entry.word);
       const freq = langCtx.getFrequency(entry.word);
+      let image = capturedPages.get(entry.pageId);
+      if (image === undefined) {
+        image = capturePageImageDataUrl(entry.pageId);
+        capturedPages.set(entry.pageId, image);
+      }
       void flashcardCtx.captureSuggestedFlashcard({
         word: entry.word,
+        reading: freq?.reading,
         pos: entry.token.type,
         level: freq?.raw_level ?? null,
         contextPhrase: cleanContextPhrase(entry.contextPhrase),
+        imageUrl: image || undefined,
         source: bookId || undefined,
         sourceMediaHash: mediaHash || undefined,
       });
