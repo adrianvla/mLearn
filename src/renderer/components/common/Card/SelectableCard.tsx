@@ -26,6 +26,8 @@ export interface SelectableCardProps {
   badge?: string;
   /** Optional badge as JSX element (e.g., PillLabel) — overrides badge text */
   badgeElement?: JSX.Element;
+  /** Optional header actions area rendered next to the title */
+  headerActions?: JSX.Element;
   /** Size variant */
   size?: SelectableCardSize;
   /** Layout direction: vertical (centered, default) or horizontal (list-like) */
@@ -116,8 +118,13 @@ export const SelectableCard: Component<SelectableCardProps> = (props) => {
         </div>
       </Show>
 
-      {/* Title */}
-      <h3 class="selectable-card__title">{props.title}</h3>
+      {/* Title / header actions */}
+      <div class="selectable-card__header">
+        <h3 class="selectable-card__title">{props.title}</h3>
+        <Show when={props.headerActions}>
+          <div class="selectable-card__header-actions">{props.headerActions}</div>
+        </Show>
+      </div>
 
       {/* Subtitle */}
       <Show when={props.subtitle}>

@@ -43,4 +43,17 @@ describe('ankiWordsCache', () => {
       cards: [{ word: '仲間', factor: 1300, queue: 0, type: 0 }],
     });
   });
+
+  it('matches normalized lookup variants from the shared cache', async () => {
+    mockGetAnkiWordStatuses.mockResolvedValueOnce([{ word: '押し入れ', factor: 2300, queue: 2, type: 2 }]);
+
+    const { refreshAnkiWordsCache, findAnkiWordMatchInCache, isWordInAnkiCache } = await import('./ankiWordsCache');
+    await refreshAnkiWordsCache();
+
+    expect(findAnkiWordMatchInCache(['<ruby>押<rt>お</rt></ruby>し入れ'])).toEqual({
+      word: '押し入れ',
+      cards: [{ word: '押し入れ', factor: 2300, queue: 2, type: 2 }],
+    });
+    expect(isWordInAnkiCache('押し入れ\u200b')).toBe(true);
+  });
 });

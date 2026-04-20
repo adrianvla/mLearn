@@ -8,11 +8,38 @@
 
 import { getBackend } from '../../shared/backends';
 import type { AnkiWordStatusRecord } from '../../shared/backends/types';
+import { normalizeWordLookupText } from '../../shared/utils/textUtils';
 
 let ankiWordsSet: Set<string> = new Set();
 let ankiWordCardsMap: Map<string, AnkiWordStatusRecord[]> = new Map();
 let fetched = false;
 let fetchPromise: Promise<Set<string>> | null = null;
+
+function getLookupKeys(word: string): string[] {
+  const normalized = normalizeWordLookupText(word);
+  if (!normalized) {
+    return [];
+  }
+
+  return normalized === word ? [word] : [word, normalized];
+}
+
+function addWordLookup(
+  targetSet: Set<string>,
+  targetMap: Map<string, AnkiWordStatusRecord[]>,
+  word: string,
+  card: AnkiWordStatusRecord,
+): void {
+  for (const key of getLookupKeys(word)) {
+    targetSet.add(key);
+    const existing = targetMap.get(key);
+    if (existing) {
+      existing.push(card);
+    } else {
+      targetMap.set(key, [card]);
+    }
+  }
+}
 
 export interface AnkiWordCacheMatch {
   word: string;
@@ -31,18 +58,12 @@ export async function fetchAnkiWordsCache(): Promise<Set<string>> {
       const nextMap = new Map<string, AnkiWordStatusRecord[]>();
 
       for (const card of cards) {
-        const word = typeof card.word === 'string' ? card.word.trim() : '';
+        const word = normalizeWordLookupText(card.word);
         if (!word) {
           continue;
         }
 
-        nextSet.add(word);
-        const existing = nextMap.get(word);
-        if (existing) {
-          existing.push(card);
-        } else {
-          nextMap.set(word, [card]);
-        }
+        addWordLookup(nextSet, nextMap, word, { ...card, word });
       }
 
       ankiWordsSet = nextSet;
@@ -61,19 +82,18 @@ export async function fetchAnkiWordsCache(): Promise<Set<string>> {
 
 /** Synchronously check if a word exists in the Anki cache */
 export function isWordInAnkiCache(word: string): boolean {
-  return ankiWordsSet.has(word);
+  const keys = getLookupKeys(word);
+  return keys.some((key) => ankiWordsSet.has(key));
 }
 
 /** Return the first matched Anki cache entry, preserving candidate priority. */
 export function findAnkiWordMatchInCache(words: readonly string[]): AnkiWordCacheMatch | null {
   for (const word of words) {
-    if (!word) {
-      continue;
-    }
-
-    const cards = ankiWordCardsMap.get(word);
-    if (cards && cards.length > 0) {
-      return { word, cards };
+    for (const key of getLookupKeys(word)) {
+      const cards = ankiWordCardsMap.get(key);
+      if (cards && cards.length > 0) {
+        return { word: key, cards };
+      }
     }
   }
 

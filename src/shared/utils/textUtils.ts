@@ -368,6 +368,29 @@ export function normalizeReading(raw: string): string {
 }
 
 /**
+ * Normalize a word/expression for cache lookups without changing its meaning.
+ * Keeps the spelling intact while removing formatting and Unicode variance.
+ */
+export function normalizeWordLookupText(raw: string): string {
+  if (typeof raw !== 'string') return '';
+
+  let text = stripFurigana(raw);
+
+  try {
+    text = text.normalize('NFC');
+  } catch (e) {
+    console.error(e);
+  }
+
+  text = text
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\u00a0/g, ' ')
+    .trim();
+
+  return text;
+}
+
+/**
  * Escape HTML special characters for safe rendering
  */
 export function escapeHtml(text: string): string {

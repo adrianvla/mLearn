@@ -7,20 +7,21 @@
 import { Component, createSignal, For, Show, onMount, createEffect, createMemo, on } from 'solid-js';
 import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
 import {
-  getWordsLearnedInApp,
-  setWordStatus,
   loadWordsFromStorage,
 } from '../../services/statsService';
 import { WORD_STATUS } from '../../../shared/constants';
+import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { SearchBar, EntriesHeader, WordEntryRow, EditTranslationDialog, AnkiCardPreviewModal, type WordEntry, type TranslationOverride, type AnkiExportState, type WordDbBrowseMode } from './components';
 import { ModalLoadingOverlay, Spinner } from '../../components/common';
 import { FlashcardEditModal } from '../../components/flashcard';
 import { useAnki } from '../../hooks/useAnki';
+import { fetchAnkiWordsCache, isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
+import { resolveRendererWordKnowledge } from '../../services/wordKnowledge';
 import './WordDbEditorLayout.css';
 
 export const WordDbEditorContent: Component = () => {
-  const { wordFrequency, getFreqLevelNames } = useLanguage();
+  const { wordFrequency, getFreqLevelNames, getCanonicalForm, getWordVariants } = useLanguage();
   const { addFlashcard, hasWordSync, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage } = useFlashcards();
   const { t } = useLocalization();
   const { settings } = useSettings();
@@ -89,8 +90,14 @@ export const WordDbEditorContent: Component = () => {
       setAnkiWordsReady(true);
       return;
     }
+
+    if (isAnkiCacheFetched()) {
+      setAnkiWordsReady(true);
+      return;
+    }
+
     setAnkiWordsReady(false);
-    anki.fetchAnkiWords().then(() => {
+    fetchAnkiWordsCache().then(() => {
       setAnkiWordsReady(true);
     }).catch(() => {
       setAnkiWordsReady(true);
@@ -131,6 +138,28 @@ export const WordDbEditorContent: Component = () => {
     });
   };
 
+  const getEntryKnowledge = (word: string) => resolveRendererWordKnowledge({
+    word,
+    getCanonicalForm,
+    getWordVariants,
+    getCardByWordSync,
+    useAnki: ankiEnabled(),
+    ankiLearningThreshold: settings.ankiLearningThreshold,
+    ankiKnownThreshold: settings.ankiKnownThreshold,
+    knowledgeSourceOrder: settings.knowledgeSourceOrder,
+    knowledgeResolutionMode: settings.knowledgeResolutionMode,
+  });
+
+  const wordStatusToNumeric = (status: WordStatus): number => {
+    if (status === 'known') return WORD_STATUS.KNOWN;
+    if (status === 'learning') return WORD_STATUS.LEARNING;
+    return WORD_STATUS.UNKNOWN;
+  };
+
+  const knowledgeStatusToNumeric = (word: string): number => {
+    return wordStatusToNumeric(getEntryKnowledge(word).status);
+  };
+
   const ignoredEntries = createMemo<WordEntry[]>(() => {
     return getIgnoredWordsSync()
       .map((ignored) => {
@@ -142,7 +171,7 @@ export const WordDbEditorContent: Component = () => {
           reading: ignored.reading || freqEntry?.reading || '',
           level: freqEntry?.raw_level ?? -1,
           tracker: 'ignored',
-          status: getWordsLearnedInApp()[ignored.word] ?? WORD_STATUS.UNKNOWN,
+          status: knowledgeStatusToNumeric(ignored.word),
           alternateReadings: freqEntry?.alternateReadings,
           ignoredAt: ignored.ignoredAt,
         };
@@ -168,8 +197,6 @@ export const WordDbEditorContent: Component = () => {
       // Ensure storage is loaded first
       await loadWordsFromStorage();
 
-      // Get tracked words (word -> status)
-      const trackedWords = getWordsLearnedInApp();
       const wordEntries: WordEntry[] = [];
 
       // Get words from word frequency data (from langData)
@@ -186,10 +213,10 @@ export const WordDbEditorContent: Component = () => {
       for (let i = 0; i < totalWords; i++) {
         const [word, freqEntry] = freqWords[i];
         const uuid = word; // Use word as UUID for consistency
-        const status = trackedWords[word] ?? WORD_STATUS.UNKNOWN;
-        // Check if word is actually tracked as a flashcard (sync for better performance)
+        const knowledge = getEntryKnowledge(word);
+        const status = wordStatusToNumeric(knowledge.status);
         const isTracked = hasWordSync(word);
-        const inAnki = ankiEnabled() && anki.isWordInAnki(word);
+        const inAnki = !!knowledge.ankiMatch;
 
         wordEntries.push({
           uuid,
@@ -264,18 +291,16 @@ export const WordDbEditorContent: Component = () => {
   };
 
   // Change word status
-  const handleStatusChange = async (entry: WordEntry, newStatus: number) => {
+  const handleStatusChange = async (entry: WordEntry, newStatus: WordStatus) => {
     try {
-      // Update status in storage using word (not uuid)
-      setWordStatus(entry.word, newStatus);
-      // saveWordsToStorage is called automatically by setWordStatus
+      const numericStatus = knowledgeStatusToNumeric(entry.word);
 
       // Update local state
       setEntries(prev => prev.map(e =>
-          e.uuid === entry.uuid ? { ...e, status: newStatus } : e
+          e.uuid === entry.uuid ? { ...e, status: numericStatus } : e
       ));
       setFilteredEntries(prev => prev.map(e =>
-          e.uuid === entry.uuid ? { ...e, status: newStatus } : e
+          e.uuid === entry.uuid ? { ...e, status: numericStatus } : e
       ));
       console.log(`%cUpdated status for word "${entry.word}" to ${newStatus}`, 'color: lime;');
     } catch (e) {
@@ -439,6 +464,7 @@ export const WordDbEditorContent: Component = () => {
       });
 
       if (noteId) {
+        await refreshAnkiWordsCache();
         setAnkiExportStates(prev => ({ ...prev, [uuid]: 'exported' }));
         console.log(`%cExported "${entry.word}" to Anki (noteId: ${noteId})`, 'color: cyan;');
       } else {
@@ -451,6 +477,13 @@ export const WordDbEditorContent: Component = () => {
   };
 
   const ankiEnabled = createMemo(() => settings.use_anki);
+  const isEntryInAnki = (word: string): boolean => {
+    if (!ankiEnabled()) {
+      return false;
+    }
+
+    return !!getEntryKnowledge(word).ankiMatch;
+  };
 
   return (
       <div class="word-db-editor">
@@ -505,7 +538,9 @@ export const WordDbEditorContent: Component = () => {
                       onEdit={handleEdit}
                       onExportToAnki={ankiEnabled() ? handleExportToAnki : undefined}
                       onAnkiPreview={ankiEnabled() ? handleAnkiPreview : undefined}
-                      ankiExportState={ankiExportStates()[entry.uuid] || 'idle'}                      isInAnki={ankiEnabled() ? anki.isWordInAnki(entry.word) : false}                  />
+                      ankiExportState={ankiExportStates()[entry.uuid] || 'idle'}
+                      isInAnki={isEntryInAnki(entry.word)}
+                  />
               )}
             </For>
           </div>

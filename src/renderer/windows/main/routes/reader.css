@@ -188,6 +188,10 @@
   transition: opacity 0.3s ease-out;
 }
 
+.page-container.collate .page:first-child .page-loader-overlay {
+  justify-content: flex-start;
+}
+
 .page-loader-overlay.visible {
   opacity: 1;
 }

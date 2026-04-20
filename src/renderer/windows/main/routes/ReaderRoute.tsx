@@ -29,7 +29,7 @@ import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMedi
 import { getWordStatus } from '../../../services/statsService';
 import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
-import { findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
+import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { showToast } from '../../../components/common/Feedback/Toast';
@@ -126,9 +126,9 @@ export const ReaderRoute: Component = () => {
   const flashcardCtx = useFlashcards();
   const langCtx = useLanguage();
   const anki = useAnki();
-  const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm } = langCtx;
+  const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm, getWordVariants } = langCtx;
   const { translateWord } = useTranslation({ immediate: true });
-  const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm);
+  const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm, getWordVariants);
   const getManualWordStatus = (word: string): WordStatus => {
     const forms = getWordForms(word);
     return numericToWordStatus(getWordStatus(forms[0] ?? word, forms.slice(1)));
@@ -613,6 +613,7 @@ export const ReaderRoute: Component = () => {
           const ankiEase = getAnkiEaseForStatus(status, settings.ankiLearningEase, settings.ankiKnownEase);
           try {
             await anki.updateWordCards(trackedAnkiWord, ankiEase);
+            await refreshAnkiWordsCache();
           } catch (err) {
             console.error(`Failed to update Anki cards for "${entry.word}":`, err);
             showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });

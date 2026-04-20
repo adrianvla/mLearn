@@ -11,6 +11,7 @@ import { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL, getBackend, resetBacken
 import { getNodeServer } from '../../../../shared/backends/nodeServerAdapter';
 import { getBridge } from '../../../../shared/bridges';
 import { exchangeCloudDesktopCode, getCloudDashboardUrl, startCloudDesktopLogin } from '../../../services/cloudAuthService';
+import { handleCloudSessionError } from '../../../services/cloudSessionManager';
 import type { SelectOption } from '../../../components/common';
 import './ConnectionTab.css';
 
@@ -21,7 +22,7 @@ export const ConnectionTab: Component = () => {
   const { t } = useLocalization();
   // Test connection state
   const [testingBackend, setTestingBackend] = createSignal(false);
-  const [backendStatus, setBackendStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
+  const [backendStatus, setBackendStatus] = createSignal<'idle' | 'success' | 'error' | 'auth'>('idle');
   const [, setBackendError] = createSignal('');
 
   const [testingNode, setTestingNode] = createSignal(false);
@@ -60,8 +61,9 @@ export const ConnectionTab: Component = () => {
       if (!ok) setBackendError(t('mlearn.Connection.Unreachable') || 'Unreachable');
     } catch (e) {
       console.error(e);
-      setBackendStatus('error');
-      setBackendError(String(e));
+      const requiresSignIn = handleCloudSessionError(e, true);
+      setBackendStatus(requiresSignIn ? 'auth' : 'error');
+      setBackendError(requiresSignIn ? '' : String(e));
     } finally {
       setTestingBackend(false);
     }
@@ -310,6 +312,8 @@ export const ConnectionTab: Component = () => {
             >
               {backendStatus() === 'success'
                 ? (t('mlearn.Connection.Connected') || 'Connected')
+                : backendStatus() === 'auth'
+                  ? (t('mlearn.Connection.SignIn') || 'Sign in')
                 : backendStatus() === 'error'
                   ? (t('mlearn.Connection.Unreachable') || 'Unreachable')
                   : (t('mlearn.Connection.TestConnection') || 'Test Connection')

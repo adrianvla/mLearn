@@ -75,6 +75,8 @@ interface LanguageContextValue {
   getGrammarLevelNames: () => Record<string, string>;
   /** Resolve a pure-kana word to its canonical (kanji) form using frequency data */
   getCanonicalForm: (word: string) => string;
+  /** Return canonical + same-reading variants for a word, ordered by frequency */
+  getWordVariants: (word: string) => string[];
 }
 
 // Create context
@@ -92,6 +94,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const [isLoading, setIsLoading] = createSignal(true);
   // Maps hiragana reading → canonical kanji form (first/most-common entry from freq data)
   let readingToCanonical: Record<string, string> = {};
+  let readingToVariants: Record<string, string[]> = {};
   const [currentLang] = createSignal<string>(props.language || DEFAULT_SETTINGS.language);
   const ipcCleanups: Array<() => void> = [];
 
@@ -159,6 +162,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     // Build reverse map: hiragana reading → canonical kanji form
     // Only the first (most common) form for each reading is kept
     const rMap: Record<string, string> = {};
+    const variantsMap: Record<string, string[]> = {};
     for (let i = 0; i < freq.length; i++) {
       const entry = freq[i];
       if (!entry || entry.length < 2) continue;
@@ -170,8 +174,16 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       if (hiragana && !rMap[hiragana]) {
         rMap[hiragana] = word;
       }
+      if (hiragana) {
+        const variants = variantsMap[hiragana] ?? [];
+        if (!variants.includes(word)) {
+          variants.push(word);
+        }
+        variantsMap[hiragana] = variants;
+      }
     }
     readingToCanonical = rMap;
+    readingToVariants = variantsMap;
 
     setWordFrequency(reconcile(freqMap));
   };
@@ -213,6 +225,29 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     // Look up canonical form via reading
     const canonical = readingToCanonical[hiragana];
     return canonical || word;
+  };
+
+  const getWordVariants = (word: string): string[] => {
+    if (!word) return [];
+
+    const variants = new Set<string>();
+    variants.add(word);
+
+    const canonical = getCanonicalForm(word);
+    if (canonical) {
+      variants.add(canonical);
+    }
+
+    const freqEntry = wordFrequency[word] || (canonical ? wordFrequency[canonical] : undefined);
+    const reading = freqEntry?.reading;
+    if (reading) {
+      const hiragana = katakanaToHiragana(reading);
+      for (const variant of readingToVariants[hiragana] ?? []) {
+        variants.add(variant);
+      }
+    }
+
+    return Array.from(variants);
   };
 
   // Get level name from langdata (e.g., "JLPT N5" for level 5)
@@ -405,6 +440,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     getGrammarLevelName,
     getGrammarLevelNames,
     getCanonicalForm,
+    getWordVariants,
   };
 
   return (
