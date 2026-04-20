@@ -1,7 +1,7 @@
 import { Component, createEffect, createMemo, createSignal } from 'solid-js';
 import { useLanguage, useFlashcards, useLocalization, useSettings } from '../../../context';
 import { getWordStatus, setWordStatus } from '../../../services/statsService';
-import { findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
+import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import {
@@ -36,7 +36,7 @@ export interface WordStatusPillProps {
 
 export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const { settings, updateSettings } = useSettings();
-  const { getCanonicalForm } = useLanguage();
+  const { getCanonicalForm, getWordVariants } = useLanguage();
   const { getCardByWordSync, trackWordStatusChange } = useFlashcards();
   const { t } = useLocalization();
   const anki = useAnki();
@@ -46,7 +46,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const [pendingStatus, setPendingStatus] = createSignal<WordStatus | null>(null);
   const [pendingSkipAnki, setPendingSkipAnki] = createSignal(false);
 
-  const wordForms = createMemo(() => getWordFormCandidates(props.word, getCanonicalForm));
+  const wordForms = createMemo(() => getWordFormCandidates(props.word, getCanonicalForm, getWordVariants));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.word);
   const aliasWords = createMemo(() => wordForms().slice(1));
   const currentFlashcard = createMemo(() => getCardByWordSync(props.word));
@@ -109,6 +109,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
       const ankiEase = getAnkiEaseForStatus(nextStatus, settings.ankiLearningEase, settings.ankiKnownEase);
       anki.updateWordCards(ankiWord, ankiEase).then((result) => {
         if (result.updated > 0) {
+          void refreshAnkiWordsCache();
           const message = result.repositioned > 0
             ? t('mlearn.WordHover.AnkiUpdateRepositioned', { count: String(result.updated), repositioned: String(result.repositioned) })
             : t('mlearn.WordHover.AnkiUpdateSuccess', { count: String(result.updated) });

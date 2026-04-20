@@ -284,6 +284,15 @@ describe('HttpBackend', () => {
 
       expect(result).toBe(false);
     });
+
+    it('throws when the backend responds unauthorized', async () => {
+      mockFetch.mockResolvedValueOnce(makeErrorResponse(401, 'Unauthorized'));
+
+      await expect(backend.ping()).rejects.toMatchObject({
+        message: 'Unauthorized',
+        status: 401,
+      });
+    });
   });
 
   describe('auth token', () => {

@@ -5,12 +5,14 @@
  */
 
 import { Component, Show, For, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Btn, PillLabel, StatusLabel, numericToStatus, statusToNumeric, getNextStatus, PitchAccentOverlay, AnkiHoverPreview, Tooltip } from '../../../components/common';
+import { Btn, PillLabel, PitchAccentOverlay, AnkiHoverPreview, Tooltip } from '../../../components/common';
+import { WordStatusPill } from '../../../components/common/Smart';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
 import { useLocalization } from '../../../context';
 import { getCachedTranslation, getCachedReading, fetchTranslation } from '../../../hooks/useTranslation';
 import { extractPitchPosition } from '../../../utils/translationCacheParsers';
 import type { TranslationResponse, TranslationEntry } from '../../../../shared/types';
+import type { WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { containsKanji, isAllKana } from '../../../../shared/utils/textUtils';
 import './WordEntryRow.css';
 
@@ -94,7 +96,7 @@ export interface WordEntry {
 export interface WordEntryRowProps {
   entry: WordEntry;
   levelNames: Record<number, string>;
-  onStatusChange: (entry: WordEntry, newStatus: number) => void;
+  onStatusChange: (entry: WordEntry, newStatus: WordStatus) => void;
   onAddFlashcard: (entry: WordEntry) => void;
   onRemoveFlashcard: (entry: WordEntry) => void;
   onUnignore?: (entry: WordEntry) => void;
@@ -401,15 +403,9 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         </Show>
       </div>
       <div class="col status">
-        <StatusLabel
-          status={numericToStatus(props.entry.status)}
-          active={true}
-          onClick={() => {
-            const currentStatus = numericToStatus(props.entry.status);
-            const nextStatus = getNextStatus(currentStatus);
-            props.onStatusChange(props.entry, statusToNumeric(nextStatus));
-          }}
-          showIcon={false}
+        <WordStatusPill
+          word={props.entry.word}
+          onStatusChange={(status) => props.onStatusChange(props.entry, status)}
         />
       </div>
     </div>

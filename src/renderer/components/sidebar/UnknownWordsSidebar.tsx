@@ -74,13 +74,13 @@ const UnknownWordRow: Component<{
 }> = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
-  const { getFrequency, getLevelName, getLanguageFeatures, getCanonicalForm } = useLanguage();
+  const { getFrequency, getLevelName, getLanguageFeatures, getCanonicalForm, getWordVariants } = useLanguage();
   const { getCardByWordSync } = useFlashcards();
 
   const currentFlashcard = createMemo(() => getCardByWordSync(props.entry.word));
   const isTracked = createMemo(() => props.isAdding || currentFlashcard() !== null);
   const currentEase = createMemo(() => currentFlashcard()?.ease);
-  const wordForms = createMemo(() => getWordFormCandidates(props.entry.word, getCanonicalForm));
+  const wordForms = createMemo(() => getWordFormCandidates(props.entry.word, getCanonicalForm, getWordVariants));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.entry.word);
   const aliasWords = createMemo(() => wordForms().slice(1));
   const manualStatus = createMemo(() =>

@@ -14,6 +14,16 @@ export interface HttpBackendOptions {
   authToken?: string;
 }
 
+class HttpBackendStatusError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'HttpBackendStatusError';
+    this.status = status;
+  }
+}
+
 export class HttpBackend implements BackendAdapter {
   private readonly baseUrl: string;
   private readonly authToken?: string;
@@ -142,8 +152,18 @@ export class HttpBackend implements BackendAdapter {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+
+      if (res.status === 401) {
+        const errorText = await res.text();
+        throw new HttpBackendStatusError(401, errorText || 'Unauthorized');
+      }
+
       return res.ok;
     } catch (e) {
+      if (e instanceof HttpBackendStatusError) {
+        throw e;
+      }
+
       console.error(e);
       return false;
     }

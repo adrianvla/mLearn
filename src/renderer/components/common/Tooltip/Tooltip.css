@@ -6,23 +6,23 @@
 .tooltip-content {
   position: absolute;
   left: 0;
-  z-index: 100;
+  z-index: var(--z-tooltip);
   pointer-events: none;
   white-space: nowrap;
 }
 
 .tooltip-content--top {
   bottom: 100%;
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-1);
 }
 
 .tooltip-content--bottom {
   top: 100%;
-  margin-top: 4px;
+  margin-top: var(--spacing-1);
 }
 
 .tooltip-text {
-  padding: 4px 8px;
+  padding: var(--spacing-1) var(--spacing-2);
   background: var(--bg-nt-secondary); /*transparency workaround*/
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);

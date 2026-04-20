@@ -19,9 +19,8 @@ import {
   isWordEligible,
   THIRTY_DAYS_MS,
 } from './wordSyncPool';
-import { fetchAnkiWordsCache, isWordInAnkiCache, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
-import { getWordStatus } from '../../services/statsService';
-import { getEffectiveWordStatus, numericToWordStatus, getAnkiWordKnowledgeStatus } from '../../components/subtitle/wordHoverHelpers';
+import { fetchAnkiWordsCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
+import { resolveRendererWordKnowledge } from '../../services/wordKnowledge';
 import './WordSync.css';
 
 type Rating = 'unknown' | 'learning' | 'known';
@@ -65,10 +64,19 @@ const WordSyncContent: Component = () => {
   const [sessionRatedSet, setSessionRatedSet] = createSignal(new Set<string>(), { equals: false });
   const [ankiCacheReady, setAnkiCacheReady] = createSignal(isAnkiCacheFetched());
 
-  onMount(() => {
-    if (settings.use_anki && !isAnkiCacheFetched()) {
-      fetchAnkiWordsCache().then(() => setAnkiCacheReady(true));
+  createEffect(() => {
+    if (!settings.use_anki) {
+      setAnkiCacheReady(false);
+      return;
     }
+
+    if (isAnkiCacheFetched()) {
+      setAnkiCacheReady(true);
+      return;
+    }
+
+    setAnkiCacheReady(false);
+    fetchAnkiWordsCache().then(() => setAnkiCacheReady(true)).catch(() => setAnkiCacheReady(true));
   });
 
   // ─── Translation for current word ───────────────────
@@ -137,6 +145,7 @@ const WordSyncContent: Component = () => {
     const kanjiSet = knownKanjiSet();
     const useAnki = settings.use_anki && ankiCacheReady();
     const { knowledgeSourceOrder, knowledgeResolutionMode } = settings;
+    const getCanonicalForm = langCtx.getCanonicalForm;
 
     const groups = new Map<number, PoolEntry[]>();
     const lang = settings.language;
@@ -153,21 +162,19 @@ const WordSyncContent: Component = () => {
       if (store.ignoredWords[lk]) continue;
 
       const knowledge = getWordKnowledge(lk);
+      const resolvedKnowledge = resolveRendererWordKnowledge({
+        word,
+        getCanonicalForm,
+        getWordVariants: langCtx.getWordVariants,
+        getCardByWordSync,
+        useAnki,
+        ankiLearningThreshold: settings.ankiLearningThreshold,
+        ankiKnownThreshold: settings.ankiKnownThreshold,
+        knowledgeSourceOrder,
+        knowledgeResolutionMode,
+      });
 
-      if (onlyUnknown) {
-        const manualStatus = numericToWordStatus(getWordStatus(word));
-        const card = getCardByWordSync(word);
-        const ankiStatus = useAnki ? getAnkiWordKnowledgeStatus(
-          findAnkiWordMatchInCache([word])?.cards,
-          settings.ankiLearningThreshold,
-          settings.ankiKnownThreshold,
-        ) : null;
-        const status = getEffectiveWordStatus(
-          card, manualStatus, ankiStatus,
-          knowledgeSourceOrder, knowledgeResolutionMode,
-        );
-        if (status !== 'unknown') continue;
-      }
+      if (onlyUnknown && resolvedKnowledge.status !== 'unknown') continue;
 
       const seenRecently = isSyncSeenRecently(word, prefix);
 
@@ -312,7 +319,23 @@ const WordSyncContent: Component = () => {
   createEffect(on(ankiCacheReady, (ready) => {
     if (!ready || !initialized() || !unknownOnly() || !settings.use_anki) return;
     const word = currentWord();
-    if (word && isWordInAnkiCache(word.word)) {
+    if (word) {
+      const resolvedKnowledge = resolveRendererWordKnowledge({
+        word: word.word,
+        getCanonicalForm: langCtx.getCanonicalForm,
+        getWordVariants: langCtx.getWordVariants,
+        getCardByWordSync,
+        useAnki: true,
+        ankiLearningThreshold: settings.ankiLearningThreshold,
+        ankiKnownThreshold: settings.ankiKnownThreshold,
+        knowledgeSourceOrder: settings.knowledgeSourceOrder,
+        knowledgeResolutionMode: settings.knowledgeResolutionMode,
+      });
+
+      if (resolvedKnowledge.status === 'unknown') {
+        return;
+      }
+
       levelCursors = new Map();
       pickNext();
     }

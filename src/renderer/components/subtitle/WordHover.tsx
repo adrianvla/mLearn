@@ -81,7 +81,7 @@ export interface WordHoverProps {
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { addFlashcard, hasWordSync, getCardByWordSync } = useFlashcards();
-  const { getFrequency, getLevelName, getLanguageFeatures, currentLangData, getCanonicalForm } = useLanguage();
+  const { getFrequency, getLevelName, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
   const { tokenize } = useTokenizer();
   const { t } = useLocalization();
   const [wordUuid, setWordUuid] = createSignal<string>('');
@@ -121,7 +121,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return getCardByWordSync(word);
   });
 
-  const wordForms = createMemo(() => getWordFormCandidates(actualWord(), getCanonicalForm));
+  const wordForms = createMemo(() => getWordFormCandidates(actualWord(), getCanonicalForm, getWordVariants));
   const primaryWord = createMemo(() => wordForms()[0] ?? actualWord());
   const aliasWords = createMemo(() => wordForms().slice(1));
   const manualStatus = createMemo(() =>
@@ -754,4 +754,3 @@ const AnkiDuplicateWarningModal: Component<{
     </Modal>
   );
 };
-

@@ -104,6 +104,8 @@ const mockOllamaListModels = vi.fn<() => Promise<string[]>>();
 const mockAutoselectBuiltinModel = vi.fn<(memoryInfo: unknown) => (typeof builtinModels)[number]>((_) => builtinModels[1]);
 const mockResolveCloudApiUrl = vi.fn<(settings: unknown) => string>((_) => 'https://cloud.example.com');
 const mockCloudCheckAvailability = vi.fn<() => Promise<boolean>>();
+const mockEnsureCloudAccessToken = vi.fn<() => Promise<string | null>>();
+const mockHandleCloudSessionError = vi.fn<(error: unknown, openModal?: boolean) => boolean>();
 
 vi.mock('../../../context', () => ({
   useSettings: () => ({
@@ -140,6 +142,11 @@ vi.mock('../../../../shared/backends/cloudLLMAdapter', () => ({
   CloudLLMAdapter: vi.fn().mockImplementation(() => ({
     checkAvailability: mockCloudCheckAvailability,
   })),
+}));
+
+vi.mock('../../../services/cloudSessionManager', () => ({
+  ensureCloudAccessToken: () => mockEnsureCloudAccessToken(),
+  handleCloudSessionError: (error: unknown, openModal?: boolean) => mockHandleCloudSessionError(error, openModal),
 }));
 
 vi.mock('../../../../shared/builtinModels', () => ({
@@ -276,6 +283,10 @@ describe('AITab', () => {
     mockResolveCloudApiUrl.mockClear();
     mockCloudCheckAvailability.mockReset();
     mockCloudCheckAvailability.mockResolvedValue(true);
+    mockEnsureCloudAccessToken.mockReset();
+    mockEnsureCloudAccessToken.mockResolvedValue('cloud-access-token');
+    mockHandleCloudSessionError.mockReset();
+    mockHandleCloudSessionError.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -342,6 +353,54 @@ describe('AITab', () => {
     await flushPromises();
 
     expect(container.textContent).not.toContain('Detected 8 GB unified memory');
+
+    dispose();
+  });
+
+  it('shows sign in when cloud testing has no valid session', async () => {
+    setSettingsStore?.({
+      llmProvider: 'cloud',
+      cloudAuthStatus: 'signed-out',
+    });
+    mockEnsureCloudAccessToken.mockResolvedValueOnce(null);
+
+    const { dispose } = await renderAITab();
+
+    const testButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Test cloud connection'),
+    );
+
+    expect(testButton).toBeTruthy();
+    testButton!.click();
+    await flushPromises();
+
+    expect(mockEnsureCloudAccessToken).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain('Sign in');
+
+    dispose();
+  });
+
+  it('shows sign in when cloud testing hits an auth error', async () => {
+    setSettingsStore?.({
+      llmProvider: 'cloud',
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'cloud-access-token',
+    });
+    mockCloudCheckAvailability.mockRejectedValueOnce(new Error('401 unauthorized'));
+    mockHandleCloudSessionError.mockReturnValueOnce(true);
+
+    const { dispose } = await renderAITab();
+
+    const testButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Test cloud connection'),
+    );
+
+    expect(testButton).toBeTruthy();
+    testButton!.click();
+    await flushPromises();
+
+    expect(mockHandleCloudSessionError).toHaveBeenCalledWith(expect.any(Error), true);
+    expect(container.textContent).toContain('Sign in');
 
     dispose();
   });

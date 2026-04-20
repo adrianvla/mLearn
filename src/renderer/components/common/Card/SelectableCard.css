@@ -20,6 +20,20 @@
   user-select: none;
 }
 
+.selectable-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+}
+
+.selectable-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+}
+
 .selectable-card:hover:not(.disabled) {
   background: var(--panel-bg-hover);
   border-color: var(--color-border-hover);
@@ -57,7 +71,7 @@
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
-  padding-right:60px;
+  min-width: 0;
 }
 
 /* Subtitle */
@@ -170,7 +184,13 @@
 .selectable-card--horizontal .selectable-card__title {
   text-align: left;
   font-size: 0.9rem;
-  flex-shrink: 0;
+  flex: 1;
+}
+
+.selectable-card--horizontal .selectable-card__header {
+  flex: 1;
+  min-width: 0;
+  align-items: center;
 }
 
 .selectable-card--horizontal .selectable-card__subtitle {

@@ -28,7 +28,7 @@ import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForS
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { tokensToColoredHtml } from '../../../utils/subtitleParsing';
 import { getWordStatus } from '../../../services/statsService';
-import { findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
+import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../../services/cloudSessionManager';
@@ -62,7 +62,7 @@ export const VideoRoute: Component = () => {
   const flashcardCtx = useFlashcards();
   const subtitles = useSubtitles();
   const anki = useAnki();
-  const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm);
+  const getWordForms = (word: string): string[] => getWordFormCandidates(word, langCtx.getCanonicalForm, langCtx.getWordVariants);
   const getManualWordStatus = (word: string): WordStatus => {
     const forms = getWordForms(word);
     return numericToWordStatus(getWordStatus(forms[0] ?? word, forms.slice(1)));
@@ -591,6 +591,7 @@ export const VideoRoute: Component = () => {
           const ankiEase = getAnkiEaseForStatus(status, settings.ankiLearningEase, settings.ankiKnownEase);
           try {
             await anki.updateWordCards(trackedAnkiWord, ankiEase);
+            await refreshAnkiWordsCache();
           } catch (err) {
             console.error(`Failed to update Anki cards for "${entry.word}":`, err);
             showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });

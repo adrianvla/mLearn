@@ -13,6 +13,16 @@ export interface CloudLLMCallbacks {
   onError: (error: string) => void;
 }
 
+class CloudLLMStatusError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'CloudLLMStatusError';
+    this.status = status;
+  }
+}
+
 /** OpenAI-format tool definition */
 interface OpenAITool {
   type: 'function';
@@ -225,8 +235,18 @@ export class CloudLLMAdapter {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+
+      if (res.status === 401) {
+        const errorText = await res.text();
+        throw new CloudLLMStatusError(401, errorText || 'Unauthorized');
+      }
+
       return res.ok;
     } catch (e) {
+      if (e instanceof CloudLLMStatusError) {
+        throw e;
+      }
+
       console.error(e);
       return false;
     }

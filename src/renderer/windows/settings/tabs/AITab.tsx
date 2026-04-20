@@ -40,7 +40,7 @@ export const AITab: Component = () => {
 
   // Cloud LLM state
   const [testingCloudLLM, setTestingCloudLLM] = createSignal(false);
-  const [cloudLLMStatus, setCloudLLMStatus] = createSignal<'idle' | 'success' | 'error'>('idle');
+  const [cloudLLMStatus, setCloudLLMStatus] = createSignal<'idle' | 'success' | 'error' | 'auth'>('idle');
 
   // Autoselect state
   const [autoselectMsg, setAutoselectMsg] = createSignal<string | null>(null);
@@ -256,7 +256,7 @@ export const AITab: Component = () => {
     try {
       const accessToken = await ensureCloudAccessToken();
       if (!accessToken) {
-        setCloudLLMStatus('error');
+        setCloudLLMStatus('auth');
         return;
       }
 
@@ -269,8 +269,8 @@ export const AITab: Component = () => {
       setCloudLLMStatus(ok ? 'success' : 'error');
     } catch (e) {
       console.error(e);
-      handleCloudSessionError(e, false);
-      setCloudLLMStatus('error');
+      const requiresSignIn = handleCloudSessionError(e, true);
+      setCloudLLMStatus(requiresSignIn ? 'auth' : 'error');
     } finally {
       setTestingCloudLLM(false);
     }
@@ -553,6 +553,8 @@ export const AITab: Component = () => {
             >
               {cloudLLMStatus() === 'success'
                 ? t('mlearn.AI.Settings.CloudConfig.ConnectionSuccess')
+                : cloudLLMStatus() === 'auth'
+                  ? (t('mlearn.Connection.SignIn') || 'Sign in')
                 : cloudLLMStatus() === 'error'
                   ? t('mlearn.Connection.Unreachable')
                   : t('mlearn.AI.Settings.CloudConfig.TestConnection')

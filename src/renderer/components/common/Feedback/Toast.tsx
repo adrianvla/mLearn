@@ -3,7 +3,7 @@
  * A notification system that appears temporarily and auto-dismisses
  */
 
-import { Component, createSignal, onCleanup, onMount, Show, JSX, For } from 'solid-js';
+import { Component, createSignal, onCleanup, onMount, Show, JSX, For, createEffect } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { createStore, produce } from 'solid-js/store';
 import './Toast.css';
@@ -82,9 +82,23 @@ const ToastItem: Component<ToastProps> = (props) => {
   const [visible, setVisible] = createSignal(false);
   const [exiting, setExiting] = createSignal(false);
 
-  let timeoutId: ReturnType<typeof setTimeout>;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const clearCloseTimer = () => {
+    if (!timeoutId) {
+      return;
+    }
+
+    clearTimeout(timeoutId);
+    timeoutId = undefined;
+  };
 
   const handleClose = () => {
+    if (exiting()) {
+      return;
+    }
+
+    clearCloseTimer();
     setExiting(true);
     setTimeout(() => {
       setVisible(false);
@@ -96,15 +110,21 @@ const ToastItem: Component<ToastProps> = (props) => {
     requestAnimationFrame(() => {
       setVisible(true);
     });
+  });
 
+  createEffect(() => {
     const duration = props.duration ?? 5000;
-    if (duration > 0) {
-      timeoutId = setTimeout(handleClose, duration);
+    clearCloseTimer();
+
+    if (duration <= 0 || exiting()) {
+      return;
     }
+
+    timeoutId = setTimeout(handleClose, duration);
   });
 
   onCleanup(() => {
-    if (timeoutId) clearTimeout(timeoutId);
+    clearCloseTimer();
   });
 
   const getIcon = () => {

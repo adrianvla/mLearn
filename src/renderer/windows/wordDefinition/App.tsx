@@ -26,7 +26,7 @@ const ICON_CHECK = 'check';
 const WordDefinitionContent: Component = () => {
   const { settings } = useSettings();
   const { addFlashcard, hasWordSync, getCardByWordSync } = useFlashcards();
-  const { getFrequency, getLanguageFeatures, currentLangData, getCanonicalForm } = useLanguage();
+  const { getFrequency, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
   const { tokenize } = useTokenizer();
   const { t } = useLocalization();
 
@@ -121,7 +121,7 @@ const WordDefinitionContent: Component = () => {
 
   const currentEase = createMemo(() => currentFlashcard()?.ease);
 
-  const wordForms = createMemo(() => getWordFormCandidates(word(), getCanonicalForm));
+  const wordForms = createMemo(() => getWordFormCandidates(word(), getCanonicalForm, getWordVariants));
   const manualStatus = createMemo(() =>
     numericToWordStatus(getWordStatus(wordForms()[0] ?? word(), wordForms().slice(1)))
   );
