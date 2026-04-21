@@ -10,15 +10,18 @@
  * - Lemmatization
  * - Dependency parsing
  * - Named entity recognition
+ * 
+ * This implementation delegates to the Python backend via HTTP.
  */
 
 import type { LanguageCode } from './language-abstraction';
-import type { NLPBackend, MorphToken, TokenizationResult, NLPBackendConfig } from './nlp-backend-abstraction';
+import type { NLPBackend, TokenizationResult, NLPBackendConfig } from './nlp-backend-abstraction';
 import {
   NLPBackendError,
   NLPBackendNotAvailableError,
   NLPBackendNotInitializedError,
 } from './nlp-backend-abstraction';
+import { getNLPHttpAdapter } from './nlp-http-adapter';
 
 // ============================================================================
 // spaCy Backend Implementation
@@ -28,8 +31,7 @@ import {
  * spaCy NLP Backend for German and other languages
  * 
  * Handles morphological analysis using spaCy.
- * This is a placeholder implementation that defines the interface.
- * The actual spaCy integration happens in the Python backend.
+ * Delegates to Python backend via HTTP adapter.
  */
 export class SpaCyBackend implements NLPBackend {
   readonly id = 'spacy';
@@ -38,11 +40,12 @@ export class SpaCyBackend implements NLPBackend {
   
   private initialized = false;
   private readonly language: LanguageCode;
+  private httpAdapter = getNLPHttpAdapter();
   
   constructor(language: LanguageCode = 'de', config?: NLPBackendConfig) {
     this.language = language;
     // Config is stored for future use when integrating with Python backend
-    // Currently a placeholder implementation
+    // Currently uses HTTP adapter for communication
     void config;
   }
   
@@ -56,14 +59,12 @@ export class SpaCyBackend implements NLPBackend {
     }
     
     try {
-      // In a real implementation, this would:
-      // 1. Check if spaCy is installed
-      // 2. Load the language model (e.g., de_core_news_sm)
-      // 3. Initialize the NLP pipeline
-      
       console.log(`[SpaCyBackend] Initializing spaCy backend for ${this.language}`);
       
-      // Placeholder: assume spaCy is available
+      // Test connection to Python backend
+      // In a real implementation, this would check if spaCy is installed
+      // and load the language model (e.g., de_core_news_sm)
+      // For now, we assume the Python backend is available
       this.initialized = true;
       
       console.log(`[SpaCyBackend] spaCy backend initialized successfully for ${this.language}`);
@@ -90,27 +91,8 @@ export class SpaCyBackend implements NLPBackend {
       throw new NLPBackendNotAvailableError(this.id, language);
     }
     
-    const startTime = performance.now();
-    
     try {
-      // In a real implementation, this would:
-      // 1. Call the Python backend's spaCy tokenizer
-      // 2. Parse the output
-      // 3. Extract morphological information
-      // 4. Return TokenizationResult
-      
-      // Placeholder: return empty result
-      const tokens: MorphToken[] = [];
-      
-      const processingTime = performance.now() - startTime;
-      
-      return {
-        text,
-        language,
-        tokens,
-        processingTime,
-        confidence: 1.0,
-      };
+      return await this.httpAdapter.tokenize(text, language);
     } catch (error) {
       throw new NLPBackendError(
         this.id,
@@ -131,14 +113,7 @@ export class SpaCyBackend implements NLPBackend {
     }
     
     try {
-      // In a real implementation, this would batch process texts
-      // for better performance
-      
-      const results = await Promise.all(
-        texts.map(text => this.tokenize(text, language))
-      );
-      
-      return results;
+      return await this.httpAdapter.tokenizeBatch(texts, language);
     } catch (error) {
       throw new NLPBackendError(
         this.id,
@@ -159,12 +134,7 @@ export class SpaCyBackend implements NLPBackend {
     }
     
     try {
-      // In a real implementation, this would:
-      // 1. Look up the word in spaCy's lemmatizer
-      // 2. Return the lemma
-      
-      // Placeholder: return the word as-is
-      return word;
+      return await this.httpAdapter.getLemma(word, language);
     } catch (error) {
       throw new NLPBackendError(
         this.id,
@@ -209,10 +179,6 @@ export class SpaCyBackend implements NLPBackend {
     }
     
     try {
-      // In a real implementation, this would:
-      // 1. Release spaCy resources
-      // 2. Close connections
-      
       console.log(`[SpaCyBackend] Cleaning up spaCy backend for ${this.language}`);
       this.initialized = false;
       console.log(`[SpaCyBackend] spaCy backend cleaned up successfully for ${this.language}`);

@@ -11,15 +11,18 @@
  * - Lemmatization
  * - Reading extraction (furigana)
  * - Pitch accent detection
+ * 
+ * This implementation delegates to the Python backend via HTTP.
  */
 
 import type { LanguageCode } from './language-abstraction';
-import type { NLPBackend, MorphToken, TokenizationResult, NLPBackendConfig } from './nlp-backend-abstraction';
+import type { NLPBackend, TokenizationResult, NLPBackendConfig } from './nlp-backend-abstraction';
 import {
   NLPBackendError,
   NLPBackendNotAvailableError,
   NLPBackendNotInitializedError,
 } from './nlp-backend-abstraction';
+import { getNLPHttpAdapter } from './nlp-http-adapter';
 
 // ============================================================================
 // MeCab Backend Implementation
@@ -29,8 +32,7 @@ import {
  * MeCab NLP Backend for Japanese
  * 
  * Handles morphological analysis of Japanese text using MeCab.
- * This is a placeholder implementation that defines the interface.
- * The actual MeCab integration happens in the Python backend.
+ * Delegates to Python backend via HTTP adapter.
  */
 export class MeCabBackend implements NLPBackend {
   readonly id = 'mecab';
@@ -38,10 +40,11 @@ export class MeCabBackend implements NLPBackend {
   readonly supportedLanguages: LanguageCode[] = ['ja'];
   
   private initialized = false;
+  private httpAdapter = getNLPHttpAdapter();
   
   constructor(config?: NLPBackendConfig) {
     // Config is stored for future use when integrating with Python backend
-    // Currently a placeholder implementation
+    // Currently uses HTTP adapter for communication
     void config;
   }
   
@@ -55,14 +58,11 @@ export class MeCabBackend implements NLPBackend {
     }
     
     try {
-      // In a real implementation, this would:
-      // 1. Check if MeCab is installed
-      // 2. Load MeCab dictionaries
-      // 3. Initialize the analyzer
-      
       console.log('[MeCabBackend] Initializing MeCab backend');
       
-      // Placeholder: assume MeCab is available
+      // Test connection to Python backend
+      // In a real implementation, this would check if MeCab is installed
+      // For now, we assume the Python backend is available
       this.initialized = true;
       
       console.log('[MeCabBackend] MeCab backend initialized successfully');
@@ -89,27 +89,8 @@ export class MeCabBackend implements NLPBackend {
       throw new NLPBackendNotAvailableError(this.id, language);
     }
     
-    const startTime = performance.now();
-    
     try {
-      // In a real implementation, this would:
-      // 1. Call the Python backend's MeCab tokenizer
-      // 2. Parse the output
-      // 3. Extract morphological information
-      // 4. Return TokenizationResult
-      
-      // Placeholder: return empty result
-      const tokens: MorphToken[] = [];
-      
-      const processingTime = performance.now() - startTime;
-      
-      return {
-        text,
-        language,
-        tokens,
-        processingTime,
-        confidence: 1.0,
-      };
+      return await this.httpAdapter.tokenize(text, language);
     } catch (error) {
       throw new NLPBackendError(
         this.id,
@@ -130,14 +111,7 @@ export class MeCabBackend implements NLPBackend {
     }
     
     try {
-      // In a real implementation, this would batch process texts
-      // for better performance
-      
-      const results = await Promise.all(
-        texts.map(text => this.tokenize(text, language))
-      );
-      
-      return results;
+      return await this.httpAdapter.tokenizeBatch(texts, language);
     } catch (error) {
       throw new NLPBackendError(
         this.id,
@@ -158,12 +132,7 @@ export class MeCabBackend implements NLPBackend {
     }
     
     try {
-      // In a real implementation, this would:
-      // 1. Look up the word in MeCab dictionary
-      // 2. Return the dictionary form
-      
-      // Placeholder: return the word as-is
-      return word;
+      return await this.httpAdapter.getLemma(word, language);
     } catch (error) {
       throw new NLPBackendError(
         this.id,
@@ -184,12 +153,7 @@ export class MeCabBackend implements NLPBackend {
     }
     
     try {
-      // In a real implementation, this would:
-      // 1. Look up the word in MeCab dictionary
-      // 2. Extract the reading (furigana)
-      
-      // Placeholder: return undefined
-      return undefined;
+      return await this.httpAdapter.getReading(word, language);
     } catch (error) {
       throw new NLPBackendError(
         this.id,
@@ -210,12 +174,7 @@ export class MeCabBackend implements NLPBackend {
     }
     
     try {
-      // In a real implementation, this would:
-      // 1. Look up the word in pitch accent database
-      // 2. Return the pitch accent position
-      
-      // Placeholder: return undefined
-      return undefined;
+      return await this.httpAdapter.getPitchAccent(word, language);
     } catch (error) {
       throw new NLPBackendError(
         this.id,
@@ -232,10 +191,6 @@ export class MeCabBackend implements NLPBackend {
     }
     
     try {
-      // In a real implementation, this would:
-      // 1. Release MeCab resources
-      // 2. Close connections
-      
       console.log('[MeCabBackend] Cleaning up MeCab backend');
       this.initialized = false;
       console.log('[MeCabBackend] MeCab backend cleaned up successfully');

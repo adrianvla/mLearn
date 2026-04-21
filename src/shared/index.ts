@@ -53,3 +53,6 @@ export { DefaultNLPBackendRegistry, getNLPBackendRegistry, resetNLPBackendRegist
 export { DefaultNLPBackendFactory, getNLPBackendFactory, resetNLPBackendFactory } from './nlp-backend-factory';
 export { MeCabBackend } from './mecab-backend';
 export { SpaCyBackend } from './spacy-backend';
+
+// NLP HTTP adapter export
+export { NLPHttpAdapter, getNLPHttpAdapter, resetNLPHttpAdapter } from './nlp-http-adapter';

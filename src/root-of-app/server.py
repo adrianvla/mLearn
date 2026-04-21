@@ -29,6 +29,7 @@ _log(f"::QUIT_TOKEN::{config.QUIT_TOKEN}")
 
 # ── Route modules ──
 from routes import anki, nlp, ocr, llm, voice
+from routes import nlp_backends
 
 # ── FastAPI app ──
 app = FastAPI()
@@ -47,6 +48,7 @@ app.include_router(nlp.router)
 app.include_router(ocr.router)
 app.include_router(llm.router)
 app.include_router(voice.router)
+app.include_router(nlp_backends.router)
 
 
 # ── Middleware ──
