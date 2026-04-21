@@ -51,6 +51,7 @@ vi.mock('../platform', () => ({
 vi.mock('../../root-of-app/locales/lang.en.json', () => ({ default: { 'mlearn.App.Title': 'mLearn' } }));
 vi.mock('../../root-of-app/locales/lang.de.json', () => ({ default: { 'mlearn.App.Title': 'mLearn DE' } }));
 vi.mock('../../root-of-app/languages/ja.json', () => ({ default: { name: 'Japanese', code: 'ja' } }));
+vi.mock('../../root-of-app/languages/de.json', () => ({ default: { name: 'German', code: 'de' } }));
 
 // ============================================================================
 // Helper: build a minimal FlashcardStore
@@ -611,6 +612,10 @@ describe('Localization Bridge', () => {
     bridge.localization.onLangData(cb);
     bridge.localization.getLangData();
     await vi.waitFor(() => expect(cb).toHaveBeenCalledOnce(), { timeout: 5000 });
+    expect(cb).toHaveBeenCalledWith(expect.objectContaining({
+      ja: expect.objectContaining({ name: 'Japanese' }),
+      de: expect.objectContaining({ name: 'German' }),
+    }));
   });
 
   it('installLanguage emits lang-install-error on mobile', async () => {

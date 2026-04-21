@@ -90,7 +90,6 @@
             "Description": "Permettre au tuteur IA de se souvenir de faits vous concernant entre les conversations"
           },
           "Shared": {
-            "Due": "Échéance :",
             "Label": "Partager les souvenirs entre les agents",
             "Description": "Si activé, tous les agents peuvent accéder à tous les souvenirs. Si désactivé, chaque agent ne voit que les siens."
           },
@@ -99,8 +98,7 @@
         "SplitChecker": {
           "Label": "Agent correcteur séparé",
           "Description": "Utiliser un passage LLM séparé pour détecter et corriger les erreurs au lieu de l'agent de conversation.",
-            "AnkiDuplicate": "Doublon",
-            "Unseen": "Jamais vu"
+          "Title": "Agent correcteur"
         },
         "Title": "Paramètres IA"
       },
@@ -598,6 +596,7 @@
         "TtsTooltip": "Générer l'audio TTS pour tous les mots et exemples des cartes"
       },
       "Card": {
+        "Due": "Échéance :",
         "Ease": "Facilité :",
         "PlayExample": "Écouter la phrase d'exemple",
         "PlayWord": "Écouter la prononciation du mot",
@@ -606,7 +605,8 @@
         "RevealHint": "Cliquez ou appuyez sur Espace pour révéler la réponse",
         "ScreenshotAlt": "Capture d'écran",
         "Tracked": "Suivie",
-        "AnkiDuplicate": "Doublon"
+        "AnkiDuplicate": "Doublon",
+        "Unseen": "Jamais vu"
       },
       "EmptyState": {
         "NoCardsDescription": "Commencez à apprendre des mots en regardant des vidéos ou en lisant, et ils apparaîtront ici !",
@@ -1794,7 +1794,8 @@
         }
       },
       "About": {
-        "Licenses": "Licences"
+        "Licenses": "Licences",
+        "LicensesLoadError": "Impossible de charger les informations de licence."
       },
       "Tabs": {
         "AI": "IA",

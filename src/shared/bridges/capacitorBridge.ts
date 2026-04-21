@@ -44,6 +44,7 @@ import type {
 import { DEFAULT_SETTINGS } from '../types';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import { isCapacitor } from '../platform';
+import { loadBundledLanguageData, loadBundledLocaleStrings } from './bundledLanguageAssets';
 
 // ============================================================================
 // Simple Event Emitter for local pub/sub
@@ -673,8 +674,9 @@ const localizationBridge: LocalizationBridge = {
     // Load bundled locale data (always works offline)
     const loadBundled = async () => {
       try {
-        const mod = await import(`../../root-of-app/locales/lang.${lang}.json`);
-        emitter.emit('localization', { locale: lang, strings: mod.default || mod });
+        const strings = await loadBundledLocaleStrings(lang) ?? await loadBundledLocaleStrings('en') ?? {};
+        const locale = Object.keys(strings).length > 0 ? lang : 'en';
+        emitter.emit('localization', { locale, strings });
       } catch (e) {
         console.error(e);
         emitter.emit('localization', { locale: 'en', strings: {} });
@@ -711,10 +713,8 @@ const localizationBridge: LocalizationBridge = {
     // Load bundled language data (always works offline)
     const loadBundled = async () => {
       try {
-        const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-        const lang = settings.language || DEFAULT_SETTINGS.language;
-        const mod = await import(`../../root-of-app/languages/${lang}.json`);
-        emitter.emit('lang-data', mod.default || mod);
+        const langData = await loadBundledLanguageData();
+        emitter.emit('lang-data', langData as unknown as LanguageData);
       } catch (e) {
         console.error(e);
         emitter.emit('lang-data', {} as LanguageData);

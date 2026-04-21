@@ -3,11 +3,12 @@
  */
 
 import { Component, createMemo, createSignal } from 'solid-js';
-import { useSettings, useLocalization } from '../../../context';
+import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Btn, Select, SettingsIcon } from '../../../components/common';
 import { DEFAULT_SETTINGS, type Settings } from '../../../../shared/types';
 import { type AppTheme } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
+import { getBundledLocaleCodes } from '../../../../shared/bridges/bundledLanguageAssets';
 import '../SettingsForm.css';
 
 function assignImportedSetting<K extends keyof Settings>(
@@ -21,6 +22,7 @@ function assignImportedSetting<K extends keyof Settings>(
 export const GeneralTab: Component = () => {
   const { settings, updateSettings, saveSettings } = useSettings();
   const { t } = useLocalization();
+  const { langData, supportedLanguages } = useLanguage();
   const [exportError, setExportError] = createSignal<string | null>(null);
   const [importError, setImportError] = createSignal<string | null>(null);
   const [dataExportError, setDataExportError] = createSignal<string | null>(null);
@@ -36,6 +38,14 @@ export const GeneralTab: Component = () => {
     { value: 'glass-light', label: t('mlearn.Settings.Appearance.Theme.GlassLight') },
     { value: 'glass-dark', label: t('mlearn.Settings.Appearance.Theme.GlassDark') },
   ]);
+  const uiLanguageOptions = createMemo(() => getBundledLocaleCodes().map((code) => ({
+    value: code,
+    label: t(`mlearn.LocaleNames.${code}`),
+  })));
+  const learningLanguageOptions = createMemo(() => supportedLanguages().map((code) => ({
+    value: code,
+    label: langData[code]?.name_translated ?? langData[code]?.name ?? code.toUpperCase(),
+  })));
 
   const handleExportSettings = async () => {
     setExportError(null);
@@ -169,13 +179,8 @@ export const GeneralTab: Component = () => {
               updateSettings({ uiLanguage: lang });
               saveSettings();
             }}
-          >
-            <option value="en">{t('mlearn.LocaleNames.en')}</option>
-            <option value="ja">{t('mlearn.LocaleNames.ja')}</option>
-            <option value="de">{t('mlearn.LocaleNames.de')}</option>
-            <option value="fr">{t('mlearn.LocaleNames.fr')}</option>
-            <option value="ru">{t('mlearn.LocaleNames.ru')}</option>
-          </Select>
+            options={uiLanguageOptions()}
+          />
         </SettingRow>
 
         <SettingRow
@@ -185,11 +190,19 @@ export const GeneralTab: Component = () => {
           <Select
             class="setting-select"
             value={settings.language}
-            onChange={(e) => updateSettings({ language: e.currentTarget.value })}
-          >
-            <option value="ja">{t('mlearn.Languages.ja')}</option>
-            <option value="de">{t('mlearn.Languages.de')}</option>
-          </Select>
+            onChange={async (e) => {
+              const language = e.currentTarget.value;
+              updateSettings({ language });
+
+              const cleanup = getBridge().settings.onSettingsSaved(() => {
+                cleanup();
+                getBridge().server.restartBackend();
+              });
+
+              saveSettings();
+            }}
+            options={learningLanguageOptions()}
+          />
         </SettingRow>
       </SettingGroup>
 

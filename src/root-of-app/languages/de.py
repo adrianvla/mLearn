@@ -19,15 +19,12 @@ def LOAD_MODULE(_):
 
 def LANGUAGE_TOKENIZE(text):
     processed = nlp(text)
-    a = [(token.text, token.pos_) for token in processed]
-    # add spaces between words
-    for i in range(len(a) - 1):
-        if a[i + 1][1] != "PUNCT":
-            a[i] = (a[i][0] + " ", a[i][1])
-    b = []
-    for u in a:
-        b.append({"word": u[0], "type": u[1], "actual_word": u[0]})
-    return b
+    tokens = []
+    for token in processed:
+        display_word = token.text_with_ws
+        actual_word = token.lemma_.strip() or token.text.strip()
+        tokens.append({"word": display_word, "type": token.pos_, "actual_word": actual_word})
+    return tokens
 
 
 getTranslationUrl = "https://www.dwds.de/wb/"

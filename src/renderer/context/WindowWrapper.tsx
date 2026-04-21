@@ -3,7 +3,7 @@
  * Provides nested context providers for all windows (Russian Doll pattern)
  */
 
-import { ParentComponent, Component, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
+import { ParentComponent, Component, JSX, Show, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
 import { SettingsProvider, useSettings } from './SettingsContext';
 import './WindowWrapper.css';
 import { LanguageProvider } from './LanguageContext';
@@ -22,6 +22,16 @@ import { LowPowerGateProvider } from './LowPowerGateContext';
 import { isElectron } from '../../shared/platform';
 
 const ankiCacheToastGate = createAnkiCacheToastGate();
+
+const LanguageProviderBridge: Component<{ children?: JSX.Element }> = (props) => {
+  const { settings } = useSettings();
+
+  return (
+    <LanguageProvider language={settings.language}>
+      {props.children}
+    </LanguageProvider>
+  );
+};
 
 /**
  * MigrationHandler - Handles showing notifications for v1 data migration
@@ -189,7 +199,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean }> = (pro
             <WindowLoadingScreen />
             {/*<DevToastTester />*/}
             <LowPowerGateProvider>
-            <LanguageProvider>
+            <LanguageProviderBridge>
             <MigrationHandler>
                 <FlashcardProvider>
                   <Show when={(props.showDragRegion !== false) && isElectron()}>
@@ -201,7 +211,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean }> = (pro
                 </FlashcardProvider>
                 <ToastContainer />
               </MigrationHandler>
-            </LanguageProvider>
+            </LanguageProviderBridge>
             </LowPowerGateProvider>
           </SettingsProvider>
         </ResponsiveProvider>
