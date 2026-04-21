@@ -8,6 +8,9 @@ import { createStore, reconcile } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { isAllKana, katakanaToHiragana, containsKanji } from '../../shared/utils/textUtils';
+import { getNLPBackendRegistry } from '../../shared/nlp-backend-registry';
+import type { LanguageCode } from '../../shared/language-abstraction';
+import type { NLPBackend, TokenizationResult } from '../../shared/nlp-backend-abstraction';
 
 // Grammar entry with parsed data for lookup
 export interface GrammarEntry extends GrammarPoint {
@@ -77,6 +80,14 @@ interface LanguageContextValue {
   getCanonicalForm: (word: string) => string;
   /** Return canonical + same-reading variants for a word, ordered by frequency */
   getWordVariants: (word: string) => string[];
+  /** Tokenize text using the best available backend for the language */
+  tokenizeText: (text: string, language: LanguageCode) => Promise<TokenizationResult>;
+  /** Get the best backend for a given language */
+  getBestBackendForLanguage: (language: LanguageCode) => NLPBackend | null;
+  /** Initialize all available NLP backends */
+  initializeNLPBackends: () => Promise<void>;
+  /** Cleanup all NLP backends */
+  cleanupNLPBackends: () => Promise<void>;
 }
 
 // Create context
@@ -416,8 +427,50 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     return key in data.fixed_settings;
   };
 
+  // Tokenize text using the best available backend for the language
+  const tokenizeText = async (text: string, language: LanguageCode): Promise<TokenizationResult> => {
+    const registry = getNLPBackendRegistry();
+    const backends = registry.getBackendsForLanguage(language);
+    
+    if (backends.length === 0) {
+      throw new Error(`No NLP backend available for language: ${language}`);
+    }
+    
+    // Use the first (highest-priority) backend
+    const backend = backends[0];
+    
+    if (!backend.isReady()) {
+      throw new Error(`NLP backend for ${language} is not initialized`);
+    }
+    
+    return backend.tokenize(text, language);
+  };
+
+  // Get the best backend for a given language
+  const getBestBackendForLanguage = (language: LanguageCode): NLPBackend | null => {
+    const registry = getNLPBackendRegistry();
+    const backends = registry.getBackendsForLanguage(language);
+    return backends.length > 0 ? backends[0] : null;
+  };
+
+  // Initialize all available NLP backends
+  const initializeNLPBackends = async (): Promise<void> => {
+    const registry = getNLPBackendRegistry();
+    await registry.initializeAll();
+  };
+
+  // Cleanup all NLP backends
+  const cleanupNLPBackends = async (): Promise<void> => {
+    const registry = getNLPBackendRegistry();
+    await registry.cleanupAll();
+  };
+
   onMount(() => {
     loadLangData();
+    // Initialize NLP backends on mount
+    void initializeNLPBackends().catch(err => {
+      console.error('[LanguageContext] Failed to initialize NLP backends:', err);
+    });
   });
 
   createEffect(() => {
@@ -430,6 +483,10 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   onCleanup(() => {
     for (const cleanup of ipcCleanups) cleanup();
     ipcCleanups.length = 0;
+    // Cleanup NLP backends
+    void cleanupNLPBackends().catch(err => {
+      console.error('[LanguageContext] Failed to cleanup NLP backends:', err);
+    });
   });
 
   const value: LanguageContextValue = {
@@ -453,6 +510,10 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     getGrammarLevelNames,
     getCanonicalForm,
     getWordVariants,
+    tokenizeText,
+    getBestBackendForLanguage,
+    initializeNLPBackends,
+    cleanupNLPBackends,
   };
 
   return (
