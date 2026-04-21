@@ -1570,3 +1570,31 @@ export interface VoiceSessionAftermath {
   duration: number;
   messageCount: number;
 }
+
+// ============================================================================
+// Language Abstraction Re-exports
+// ============================================================================
+// Re-export language abstraction types for convenience
+export type {
+  LanguageCode,
+  ProficiencyFramework,
+  ProficiencyLevel,
+  ProficiencyFrameworkConfig,
+  PhoneticSystem,
+  MorphAnalysisStrategy,
+  DecompositionStrategy,
+  GrammarTaggingSystem,
+  LanguageMetadata,
+  LanguageRegistry,
+} from './language-abstraction';
+
+export {
+  isValidLanguageCode,
+  createJapaneseMetadata,
+  createGermanMetadata,
+  createDefaultLanguageRegistry,
+  getLanguageMetadata,
+  supportsFeature,
+  getDefaultProficiencyLevel,
+  getProficiencyLevels,
+} from './language-abstraction';
