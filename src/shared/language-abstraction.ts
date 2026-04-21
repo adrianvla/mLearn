@@ -401,3 +401,37 @@ export function getProficiencyLevels(
   );
   return framework?.levels || [];
 }
+
+// ============================================================================
+// Language Configuration Helpers
+// ============================================================================
+
+/**
+ * Get all supported language codes
+ */
+export function getSupportedLanguageCodes(): LanguageCode[] {
+  return ['ja', 'de'];
+}
+
+/**
+ * Check if a language code is supported
+ */
+export function isSupportedLanguage(code: unknown): code is LanguageCode {
+  return isValidLanguageCode(code) && getSupportedLanguageCodes().includes(code as LanguageCode);
+}
+
+/**
+ * Get language name in English
+ */
+export function getLanguageName(code: LanguageCode): string {
+  const metadata = code === 'ja' ? createJapaneseMetadata() : createGermanMetadata();
+  return metadata.name;
+}
+
+/**
+ * Get language name in native language
+ */
+export function getNativeLanguageName(code: LanguageCode): string {
+  const metadata = code === 'ja' ? createJapaneseMetadata() : createGermanMetadata();
+  return metadata.nativeName || metadata.name;
+}
