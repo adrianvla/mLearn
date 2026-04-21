@@ -1,0 +1,238 @@
+/**
+ * Tokenizer Test Component Styles
+ */
+
+.tokenizer-test-component {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 2rem;
+  background: var(--color-background-secondary);
+  border-radius: 8px;
+  font-family: var(--font-family-base);
+}
+
+.tokenizer-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tokenizer-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.tokenizer-header .subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.tokenizer-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.control-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.control-group select,
+.control-group textarea {
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-background-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: 0.875rem;
+}
+
+.control-group select:disabled,
+.control-group textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.control-group textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.tokenize-button {
+  padding: 0.75rem 1.5rem;
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  border: none;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.tokenize-button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.tokenize-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  padding: 1rem;
+  background: var(--color-error-background);
+  color: var(--color-error-text);
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.tokenizer-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.result-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.result-header h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.result-metadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.metadata-item {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.metadata-item strong {
+  color: var(--color-text-primary);
+}
+
+.tokens-table {
+  overflow-x: auto;
+}
+
+.tokens-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.tokens-table thead {
+  background: var(--color-background-tertiary);
+}
+
+.tokens-table th {
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tokens-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.tokens-table tbody tr:hover {
+  background: var(--color-background-tertiary);
+}
+
+.tokens-table .index {
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.tokens-table .surface {
+  font-weight: 500;
+}
+
+.tokens-table .base {
+  color: var(--color-text-secondary);
+}
+
+.tokens-table .pos {
+  background: var(--color-background-tertiary);
+  padding: 0.25rem 0.5rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.tokens-table .reading {
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.tokens-table .pitch {
+  text-align: center;
+}
+
+.raw-result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.raw-result h4 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.raw-result pre {
+  margin: 0;
+  padding: 1rem;
+  background: var(--color-background-tertiary);
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--color-text-primary);
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.placeholder p {
+  margin: 0;
+  font-size: 0.875rem;
+}

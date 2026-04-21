@@ -19,6 +19,7 @@ export {
   warmTranslationCache,
   getCachedTranslation
 } from './useTranslation';
+export { useNLPTokenizer, getCachedNLPTokenization, clearNLPTokenizationCache } from './useNLPTokenizer';
 export { useWordHover, getGlobalHoverManager } from './useWordHover';
 export { useMediaStats } from './useMediaStats';
 
