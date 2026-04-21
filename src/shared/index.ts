@@ -39,3 +39,17 @@ export {
   type LLMStreamChunk,
   type LLMModelStatus,
 } from './types';
+
+// Language abstraction exports
+export * from './language-abstraction';
+export { getLanguageRegistry } from './language-registry';
+export * from './language-metadata-schema';
+export * from './language-migration';
+export * from './german-language-config';
+
+// NLP backend abstraction exports
+export * from './nlp-backend-abstraction';
+export { DefaultNLPBackendRegistry, getNLPBackendRegistry, resetNLPBackendRegistry } from './nlp-backend-registry';
+export { DefaultNLPBackendFactory, getNLPBackendFactory, resetNLPBackendFactory } from './nlp-backend-factory';
+export { MeCabBackend } from './mecab-backend';
+export { SpaCyBackend } from './spacy-backend';
