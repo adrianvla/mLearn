@@ -60,7 +60,7 @@ export interface MLearnIPC {
   
   // Language Data
   getLangData: () => void;
-  onLangData: (callback: (data: LanguageData) => void) => () => void;
+  onLangData: (callback: (data: LanguageDataMap) => void) => () => void;
   installLanguage: (url: string) => void;
   onLanguageInstalled: (callback: (lang: string) => void) => () => void;
   onLanguageInstallError: (callback: (error: string) => void) => () => void;
@@ -277,6 +277,7 @@ declare global {
   }
   interface ImportMeta {
     readonly env: ImportMetaEnv;
+    glob: <T = () => Promise<unknown>>(pattern: string) => Record<string, T>;
   }
 }
 

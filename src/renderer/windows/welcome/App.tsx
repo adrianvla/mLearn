@@ -4,9 +4,9 @@
  * Uses real IPC to install Python backend and configure language
  */
 
-import { Component, Show, For, createSignal, createEffect, onMount, onCleanup } from 'solid-js';
+import { Component, Show, For, createSignal, createEffect, createMemo, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper } from '../../context';
-import { useSettings, useLocalization } from '../../context';
+import { useSettings, useLocalization, useLanguage } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import type { Settings, InstallOptions, InstallerState, PipProgress } from '../../../shared/types';
 import { PROXY_SERVER_PORT } from '../../../shared/constants';
@@ -18,30 +18,29 @@ interface LanguageOption {
   code: string;
   name: string;
   nativeName: string;
-  available: boolean;
 }
-
-const LANGUAGES: LanguageOption[] = [
-  { code: 'ja', name: 'Japanese', nativeName: '日本語', available: true },
-  { code: 'zh', name: 'Chinese', nativeName: '中文', available: true },
-  { code: 'ko', name: 'Korean', nativeName: '한국어', available: true },
-  { code: 'de', name: 'German', nativeName: 'Deutsch', available: true },
-  { code: 'fr', name: 'French', nativeName: 'Français', available: false },
-  { code: 'es', name: 'Spanish', nativeName: 'Español', available: false },
-];
 
 const WELCOME_TEXTS = ['Welcome!', 'ようこそ！', 'Wilkommen!', 'Bienvenue!', '欢迎！', 'Добро пожаловать!'];
 
-function resolveInitialLanguageCode(preferredLanguage?: string): string {
-  const availableLanguages = LANGUAGES.filter((language) => language.available);
-  const preferredMatch = availableLanguages.find((language) => language.code === preferredLanguage);
+function resolveInitialLanguageCode(preferredLanguage: string | undefined, availableLanguageCodes: readonly string[]): string {
+  if (preferredLanguage && availableLanguageCodes.includes(preferredLanguage)) {
+    return preferredLanguage;
+  }
 
-  return preferredMatch?.code ?? availableLanguages[0]?.code ?? LANGUAGES[0]?.code ?? '';
+  return availableLanguageCodes[0] ?? '';
 }
 
 const WelcomeContent: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
+  const { langData, supportedLanguages } = useLanguage();
+
+  const availableLanguageCodes = createMemo(() => supportedLanguages());
+  const availableLanguages = createMemo<LanguageOption[]>(() => availableLanguageCodes().map((code) => ({
+    code,
+    name: langData[code]?.name ?? code.toUpperCase(),
+    nativeName: langData[code]?.name_translated ?? langData[code]?.name ?? code.toUpperCase(),
+  })));
 
   const [installationStarted, setInstallationStarted] = createSignal(false);
   const [installationCompleted, setInstallationCompleted] = createSignal(false);
@@ -54,7 +53,7 @@ const WelcomeContent: Component = () => {
   const [includeOCR, setIncludeOCR] = createSignal(true);
   const [includeVoice, setIncludeVoice] = createSignal(true);
 
-  const [selectedLanguage, setSelectedLanguage] = createSignal<string>(resolveInitialLanguageCode(settings.language));
+  const [selectedLanguage, setSelectedLanguage] = createSignal<string>(resolveInitialLanguageCode(settings.language, availableLanguageCodes()));
 
   const [welcomeTextIndex, setWelcomeTextIndex] = createSignal(0);
   const [welcomeFading, setWelcomeFading] = createSignal(false);
@@ -108,12 +107,13 @@ const WelcomeContent: Component = () => {
   };
 
   const handleContinue = () => {
-    if (!installationCompleted()) return;
+    const languageCode = selectedLanguage();
+    if (!installationCompleted() || !languageCode) return;
 
-    updateSettings({ language: selectedLanguage() });
+    updateSettings({ language: languageCode });
 
     const bridge = getBridge();
-    bridge.settings.saveSettings({ language: selectedLanguage() } as Settings);
+    bridge.settings.saveSettings({ language: languageCode } as Settings);
     const settingsSavedCleanup = bridge.settings.onSettingsSaved(() => {
       settingsSavedCleanup();
       setOverallStatus(t('mlearn.Installer.Status.LanguageInstalledRestarting'));
@@ -225,7 +225,7 @@ const WelcomeContent: Component = () => {
     }));
 
     ipcCleanups.push(bridge.settings.onSettings((settings: Settings) => {
-      setSelectedLanguage(resolveInitialLanguageCode(settings.language));
+      setSelectedLanguage(resolveInitialLanguageCode(settings.language, availableLanguageCodes()));
       if (settings.llmEnabled !== undefined) {
         setIncludeLLM(settings.llmEnabled !== false);
       }
@@ -242,6 +242,22 @@ const WelcomeContent: Component = () => {
   onCleanup(() => {
     for (const cleanup of ipcCleanups) cleanup();
     ipcCleanups.length = 0;
+  });
+
+  createEffect(() => {
+    const currentSelection = selectedLanguage();
+    const languageCodes = availableLanguageCodes();
+
+    if (languageCodes.length === 0) {
+      if (currentSelection) {
+        setSelectedLanguage('');
+      }
+      return;
+    }
+
+    if (!currentSelection || !languageCodes.includes(currentSelection)) {
+      setSelectedLanguage(resolveInitialLanguageCode(settings.language, languageCodes));
+    }
   });
 
   createEffect(() => {
@@ -321,15 +337,14 @@ const WelcomeContent: Component = () => {
 
         <Show when={installationCompleted()}>
           <div class="welcome-window__languages">
-            <For each={LANGUAGES}>
+            <For each={availableLanguages()}>
               {(lang) => (
                 <SelectableCard
                   selected={selectedLanguage() === lang.code}
-                  disabled={!lang.available}
                   onClick={() => setSelectedLanguage(lang.code)}
                   icon={<span class="welcome-window__language-code">{lang.code.toUpperCase()}</span>}
                   title={lang.name}
-                  subtitle={lang.available ? lang.nativeName : t('mlearn.Global.ComingSoon')}
+                  subtitle={lang.nativeName}
                 />
               )}
             </For>
@@ -360,7 +375,7 @@ const WelcomeContent: Component = () => {
         <Btn
           variant="primary"
           onClick={installationCompleted() ? handleContinue : handleInstall}
-          disabled={installationStarted() && !installationCompleted()}
+          disabled={(installationStarted() && !installationCompleted()) || (installationCompleted() && !selectedLanguage())}
           class="welcome-window__action"
         >
           <Show when={!installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.StartInstallation')}</Show>

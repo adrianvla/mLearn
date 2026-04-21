@@ -9,7 +9,7 @@
 import type {
   Settings,
   FlashcardStore,
-  LanguageData,
+  LanguageDataMap,
   InstallOptions,
   InstallerState,
   OpenWindowPayload,
@@ -97,7 +97,7 @@ export interface LocalizationBridge {
   onLocalization: (callback: (data: { locale: string; strings: Record<string, unknown> }) => void) => () => void;
   changeUILanguage: (langCode: string) => void;
   getLangData: () => void;
-  onLangData: (callback: (data: LanguageData) => void) => () => void;
+  onLangData: (callback: (data: LanguageDataMap) => void) => () => void;
   installLanguage: (url: string) => void;
   onLanguageInstalled: (callback: (lang: string) => void) => () => void;
   onLanguageInstallError: (callback: (error: string) => void) => () => void;

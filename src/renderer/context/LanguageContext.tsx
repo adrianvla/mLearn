@@ -3,7 +3,7 @@
  * Manages language data and supported languages
  */
 
-import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
+import { createContext, useContext, ParentComponent, onMount, onCleanup, createMemo, createEffect, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
@@ -95,7 +95,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   // Maps hiragana reading → canonical kanji form (first/most-common entry from freq data)
   let readingToCanonical: Record<string, string> = {};
   let readingToVariants: Record<string, string[]> = {};
-  const [currentLang] = createSignal<string>(props.language || DEFAULT_SETTINGS.language);
+  const currentLang = createMemo<string>(() => props.language || DEFAULT_SETTINGS.language);
   const ipcCleanups: Array<() => void> = [];
 
   // Grammar lookup structures
@@ -120,7 +120,12 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const parseWordFrequency = (data: LanguageDataMap) => {
     const lang = currentLang();
     const langInfo = data[lang];
-    if (!langInfo?.freq) return;
+    if (!langInfo?.freq) {
+      readingToCanonical = {};
+      readingToVariants = {};
+      setWordFrequency(reconcile({}));
+      return;
+    }
 
     const freqMap: WordFrequencyMap = {};
     const freq = langInfo.freq;
@@ -413,6 +418,13 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
   onMount(() => {
     loadLangData();
+  });
+
+  createEffect(() => {
+    const lang = currentLang();
+    void lang;
+    parseWordFrequency(langData as LanguageDataMap);
+    parseGrammarData(langData as LanguageDataMap);
   });
 
   onCleanup(() => {

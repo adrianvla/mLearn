@@ -90,7 +90,6 @@
             "Description": "AIチューターが会話を越えてあなたに関する情報を記憶することを許可する"
           },
           "Shared": {
-            "Due": "期限:",
             "Label": "エージェント間で記憶を共有",
             "Description": "有効にすると、すべてのエージェントがすべての記憶にアクセスできます。無効にすると、各エージェントは自分の記憶のみ参照します。"
           },
@@ -99,8 +98,7 @@
         "SplitChecker": {
           "Label": "別の校正エージェント",
           "Description": "会話エージェントの代わりに、別のLLMパスでミスを検出・修正します。",
-            "AnkiDuplicate": "重複",
-            "Unseen": "未学習"
+          "Title": "校正エージェント"
         },
         "Title": "AI設定"
       },
@@ -598,6 +596,7 @@
         "TtsTooltip": "すべてのフラッシュカードの単語と例文にTTS音声を生成"
       },
       "Card": {
+        "Due": "期限:",
         "Ease": "容易度:",
         "PlayExample": "例文を再生",
         "PlayWord": "単語の発音を再生",
@@ -606,7 +605,8 @@
         "RevealHint": "クリックまたはスペースキーで答えを表示",
         "ScreenshotAlt": "スクリーンショット",
         "Tracked": "追跡中",
-        "AnkiDuplicate": "重複"
+        "AnkiDuplicate": "重複",
+        "Unseen": "未学習"
       },
       "EmptyState": {
         "NoCardsDescription": "動画視聴やリーダーで単語を学び始めると、ここに表示されます！",
@@ -1794,7 +1794,8 @@
         }
       },
       "About": {
-        "Licenses": "ライセンス"
+        "Licenses": "ライセンス",
+        "LicensesLoadError": "ライセンス情報を読み込めませんでした。"
       },
       "Tabs": {
         "AI": "AI",

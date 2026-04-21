@@ -90,7 +90,6 @@
             "Description": "Dem KI-Tutor erlauben, Fakten über dich über Gespräche hinweg zu merken"
           },
           "Shared": {
-            "Due": "Fällig:",
             "Label": "Erinnerungen zwischen Agenten teilen",
             "Description": "Wenn aktiviert, können alle Agenten auf alle Erinnerungen zugreifen. Wenn deaktiviert, sieht jeder Agent nur seine eigenen."
           },
@@ -99,8 +98,7 @@
         "SplitChecker": {
           "Label": "Separater Korrektur-Agent",
           "Description": "Einen separaten LLM-Durchgang verwenden, um Fehler zu erkennen und zu korrigieren, statt den Gesprächsagenten.",
-            "AnkiDuplicate": "Duplikat",
-            "Unseen": "Ungelesen"
+          "Title": "Korrektur-Agent"
         },
         "Title": "KI-Einstellungen"
       },
@@ -598,6 +596,7 @@
         "TtsTooltip": "TTS-Audio für alle Lernkarten-Wörter und Beispiele generieren"
       },
       "Card": {
+        "Due": "Fällig:",
         "Ease": "Leichtigkeit:",
         "PlayExample": "Beispielsatz abspielen",
         "PlayWord": "Wortaussprache abspielen",
@@ -606,7 +605,8 @@
         "RevealHint": "Klicken oder Leertaste drücken, um die Antwort zu zeigen",
         "ScreenshotAlt": "Screenshot",
         "Tracked": "Verfolgt",
-        "AnkiDuplicate": "Duplikat"
+        "AnkiDuplicate": "Duplikat",
+        "Unseen": "Ungelesen"
       },
       "EmptyState": {
         "NoCardsDescription": "Beginnen Sie beim Videoschauen oder Lesen Wörter zu lernen, und sie erscheinen hier!",
@@ -1794,7 +1794,8 @@
         }
       },
       "About": {
-        "Licenses": "Lizenzen"
+        "Licenses": "Lizenzen",
+        "LicensesLoadError": "Lizenzinformationen konnten nicht geladen werden."
       },
       "Tabs": {
         "AI": "KI",
