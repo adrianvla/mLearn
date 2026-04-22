@@ -183,7 +183,7 @@ function parseASS(content: string): Subtitle[] {
 
 export function useSubtitles() {
   const { settings } = useSettings();
-  const { tokenize } = useTokenizer();
+  const { tokenize } = useTokenizer({ language: settings.language });
 
   const [subtitles, setSubtitles] = createSignal<Subtitle[]>([]);
   const [currentIndex, setCurrentIndex] = createSignal(-1);

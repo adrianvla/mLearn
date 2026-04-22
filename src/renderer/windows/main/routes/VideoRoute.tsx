@@ -119,8 +119,8 @@ export const VideoRoute: Component = () => {
   const [showAnkiAddAllWarning, setShowAnkiAddAllWarning] = createSignal(false);
   const [pendingAddAllEntries, setPendingAddAllEntries] = createSignal<VideoWordEntry[]>([]);
 
-  const { tokenize } = useTokenizer();
-  const { translateWord } = useTranslation({ immediate: true });
+  const { tokenize } = useTokenizer({ language: settings.language });
+  const { translateWord } = useTranslation({ immediate: true, language: settings.language });
 
   // Media stats for this video session
   const mediaStats = useMediaStats({ mediaType: 'video', language: settings.language });
@@ -503,7 +503,7 @@ export const VideoRoute: Component = () => {
     });
     try {
       const word = entry.word;
-      const cached = getCachedTranslation(word);
+      const cached = getCachedTranslation(word, settings.language);
       let translationData = cached;
       if (!translationData) {
         try { translationData = await translateWord(word); } catch (e) {

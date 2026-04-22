@@ -8,13 +8,13 @@ import type { TranslationResponse, TranslationEntry, DictionaryEntry, Token } fr
 import { getBackend } from '../../shared/backends';
 import { getBridge } from '../../shared/bridges';
 import {
-  getCachedTranslationDB,
-  setCachedTranslationDB,
-  setCachedTranslationBatchDB,
-  getCachedDictionaryDB,
-  setCachedDictionaryDB,
-  getCachedTokensDB,
-  setCachedTokensDB,
+  getCachedTranslationByLanguageDB,
+  setCachedTranslationByLanguageDB,
+  setCachedTranslationBatchByLanguageDB,
+  getCachedDictionaryByLanguageDB,
+  setCachedDictionaryByLanguageDB,
+  getCachedTokensByLanguageDB,
+  setCachedTokensByLanguageDB,
 } from '../services/offlineCache';
 
 const translationCache = new Map<string, TranslationResponse>();
@@ -34,19 +34,31 @@ const dictionaryCache = new Map<string, DictionaryEntry[]>();
 // Local overrides storage key
 const OVERRIDE_KEY = 'ml_translation_overrides';
 
+function buildTranslationCacheKey(word: string, language?: string): string {
+  return `${language || 'default'}::${word}`;
+}
+
+function buildDictionaryCacheKey(word: string, reading: string, language?: string): string {
+  return `${language || 'default'}::${word}::${reading}`;
+}
+
+function buildTokenCacheKey(text: string, language?: string): string {
+  return `${language || 'default'}::${text}`;
+}
+
 /**
  * Get cached translation for a word (without fetching)
  * Returns null if not cached
  */
-export function getCachedTranslation(word: string): TranslationResponse | null {
-  return translationCache.get(word) || null;
+export function getCachedTranslation(word: string, language?: string): TranslationResponse | null {
+  return translationCache.get(buildTranslationCacheKey(word, language)) || null;
 }
 
 /**
  * Get reading from cached translation
  */
-export function getCachedReading(word: string): string | null {
-  const cached = translationCache.get(word);
+export function getCachedReading(word: string, language?: string): string | null {
+  const cached = translationCache.get(buildTranslationCacheKey(word, language));
   if (!cached?.data) return null;
   
   const firstEntry = cached.data[0] as TranslationEntry | undefined;
@@ -83,35 +95,37 @@ function writeOverrides(map: Record<string, TranslationResponse>): void {
 }
 
 // Fetch translation from backend (also exported for use by batch queues)
-export async function fetchTranslation(word: string): Promise<TranslationResponse> {
+export async function fetchTranslation(word: string, language?: string): Promise<TranslationResponse> {
+  const cacheKey = buildTranslationCacheKey(word, language);
   // Check override first
   const overrides = await readOverrides();
-  if (overrides[word]) {
-    return overrides[word];
+  if (overrides[cacheKey]) {
+    return overrides[cacheKey];
   }
 
   // Check in-memory cache
-  if (translationCache.has(word)) {
-    return translationCache.get(word)!;
+  if (translationCache.has(cacheKey)) {
+    return translationCache.get(cacheKey)!;
   }
 
   // Check IndexedDB persistent cache
-  const dbCached = await getCachedTranslationDB(word);
+  const dbCached = await getCachedTranslationByLanguageDB(word, language);
   if (dbCached) {
-    translationCache.set(word, dbCached);
+    translationCache.set(cacheKey, dbCached);
     setCacheVersion(v => v + 1);
     return dbCached;
   }
 
-  const data = await getBackend().translate(word);
-  translationCache.set(word, data);
+  const data = await getBackend().translate(word, language);
+  translationCache.set(cacheKey, data);
   setCacheVersion(v => v + 1);
-  setCachedTranslationDB(word, data);
+  void setCachedTranslationByLanguageDB(word, data, language);
   return data;
 }
 
 export interface UseTranslationOptions {
   immediate?: boolean;
+  language?: string;
 }
 
 export function useTranslation(options: UseTranslationOptions = {}) {
@@ -121,7 +135,7 @@ export function useTranslation(options: UseTranslationOptions = {}) {
     () => currentWord(),
     async (word) => {
       if (!word) return null;
-      return fetchTranslation(word);
+      return fetchTranslation(word, options.language);
     }
   );
 
@@ -134,18 +148,19 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   };
 
   const translateWord = async (word: string): Promise<TranslationResponse> => {
-    return fetchTranslation(word);
+    return fetchTranslation(word, options.language);
   };
 
   const setOverride = async (word: string, value: TranslationResponse | null) => {
     const overrides = await readOverrides();
+    const cacheKey = buildTranslationCacheKey(word, options.language);
     if (value === null) {
-      delete overrides[word];
+      delete overrides[cacheKey];
     } else {
-      overrides[word] = value;
+      overrides[cacheKey] = value;
     }
     writeOverrides(overrides);
-    translationCache.delete(word);
+    translationCache.delete(cacheKey);
   };
 
   const clearCache = () => {
@@ -172,18 +187,19 @@ export function useTranslation(options: UseTranslationOptions = {}) {
 export async function warmTranslationCache(
   words: string[],
   _translationUrl?: string,
-  _translatableTypes?: string[]
+  _translatableTypes?: string[],
+  language?: string,
 ): Promise<void> {
   const backend = getBackend();
   const unique = [...new Set(words)];
   const batchEntries: Array<{ word: string; data: TranslationResponse }> = [];
   const promises = unique
     .filter((w) => w && w.trim())
-    .filter((w) => !translationCache.has(w))
+    .filter((w) => !translationCache.has(buildTranslationCacheKey(w, language)))
     .map((word) =>
-      backend.translate(word)
+      backend.translate(word, language)
         .then((data) => {
-          translationCache.set(word, data);
+          translationCache.set(buildTranslationCacheKey(word, language), data);
           setCacheVersion(v => v + 1);
           batchEntries.push({ word, data });
         })
@@ -193,64 +209,77 @@ export async function warmTranslationCache(
     );
   await Promise.all(promises);
   if (batchEntries.length > 0) {
-    setCachedTranslationBatchDB(batchEntries);
+    void setCachedTranslationBatchByLanguageDB(batchEntries, language);
   }
 }
 
-export function useTokenizer() {
+export interface UseTokenizerOptions {
+  language?: string;
+}
+
+function createFallbackTokens(text: string): Token[] {
+  return [{ actual_word: text, word: text, type: 'UNKNOWN' }];
+}
+
+export function useTokenizer(options: UseTokenizerOptions = {}) {
   const tokenize = async (text: string) => {
     const key = typeof text === 'string' ? text : String(text);
-    if (!key.trim()) return [{ actual_word: key, word: key, type: '名詞' }];
-    if (tokenCache.has(key)) return tokenCache.get(key)!.tokens;
-    if (tokenInFlight.has(key)) return tokenInFlight.get(key)!;
+    const cacheKey = buildTokenCacheKey(key, options.language);
+    if (!key.trim()) return createFallbackTokens(key);
+    if (tokenCache.has(cacheKey)) return tokenCache.get(cacheKey)!.tokens;
+    if (tokenInFlight.has(cacheKey)) return tokenInFlight.get(cacheKey)!;
 
     const p = (async () => {
       // Check IndexedDB before hitting backend
-      const dbCached = await getCachedTokensDB(key);
+      const dbCached = await getCachedTokensByLanguageDB(key, options.language);
       if (dbCached) {
-        tokenCache.set(key, { tokens: dbCached, ts: Date.now() });
+        tokenCache.set(cacheKey, { tokens: dbCached, ts: Date.now() });
         return dbCached;
       }
 
-      const tokens = await getBackend().tokenize(key);
-      tokenCache.set(key, { tokens, ts: Date.now() });
+      const tokens = await getBackend().tokenize(key, options.language);
+      tokenCache.set(cacheKey, { tokens, ts: Date.now() });
       if (tokenCache.size > TOKEN_CACHE_MAX) {
         const firstKey = tokenCache.keys().next().value as string | undefined;
         if (firstKey) tokenCache.delete(firstKey);
       }
-      setCachedTokensDB(key, tokens);
+      void setCachedTokensByLanguageDB(key, tokens, options.language);
       return tokens;
     })();
 
-    tokenInFlight.set(key, p);
+    tokenInFlight.set(cacheKey, p);
     try {
       return await p;
     } catch (e) {
       console.error(e);
-      return [{ actual_word: key, word: key, type: '名詞' }];
+      return createFallbackTokens(key);
     } finally {
-      tokenInFlight.delete(key);
+      tokenInFlight.delete(cacheKey);
     }
   };
 
   return { tokenize };
 }
 
-export function useDictionary() {
+export interface UseDictionaryOptions {
+  language?: string;
+}
+
+export function useDictionary(options: UseDictionaryOptions = {}) {
   const lookup = async (word: string, reading?: string): Promise<DictionaryEntry[]> => {
     try {
       const readingKey = reading || '';
-      const cacheKey = `${word}::${readingKey}`;
+      const cacheKey = buildDictionaryCacheKey(word, readingKey, options.language);
       if (dictionaryCache.has(cacheKey)) return dictionaryCache.get(cacheKey)!;
 
       // Check IndexedDB persistent cache
-      const dbCached = await getCachedDictionaryDB(word, readingKey);
+      const dbCached = await getCachedDictionaryByLanguageDB(word, readingKey, options.language);
       if (dbCached) {
         dictionaryCache.set(cacheKey, dbCached);
         return dbCached;
       }
 
-      const data = await getBackend().translate(word);
+      const data = await getBackend().translate(word, options.language);
       // Transform backend response to DictionaryEntry array
       // Response format: { data: [TranslationEntry?, TranslationEntry?, PitchData?] }
       if (data.data && Array.isArray(data.data)) {
@@ -273,11 +302,11 @@ export function useDictionary() {
         }
         
         dictionaryCache.set(cacheKey, entries);
-        setCachedDictionaryDB(word, readingKey, entries);
+        void setCachedDictionaryByLanguageDB(word, readingKey, entries, options.language);
         return entries;
       }
       dictionaryCache.set(cacheKey, []);
-      setCachedDictionaryDB(word, readingKey, []);
+      void setCachedDictionaryByLanguageDB(word, readingKey, [], options.language);
       return [];
     } catch (e) {
       console.error('Dictionary lookup error:', e);

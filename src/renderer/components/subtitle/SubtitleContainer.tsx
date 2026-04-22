@@ -36,8 +36,8 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const { isTranslatable, detectGrammarInText, supportsGrammar, getCanonicalForm } = useLanguage();
   const flashcardCtx = useFlashcards();
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
-  const { lookup } = useDictionary();
-  const { translateWord } = useTranslation({ immediate: true });
+  const { lookup } = useDictionary({ language: settings.language });
+  const { translateWord } = useTranslation({ immediate: true, language: settings.language });
 
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
@@ -104,7 +104,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     
     // Check if translation is already cached (from pre-fetch)
     // This ensures pitch accent, JLPT level, etc. show immediately on first hover
-    const cachedTranslation = getCachedTranslation(lookupWord);
+    const cachedTranslation = getCachedTranslation(lookupWord, settings.language);
     
     // Set cached data if available, otherwise clear
     setTranslationData(cachedTranslation);

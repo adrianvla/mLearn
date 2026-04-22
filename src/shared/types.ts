@@ -473,13 +473,15 @@ export interface GrammarPoint {
   level: number;
 }
 
+export type LanguageFrequencyEntry = [string] | [string, string];
+
 export interface LanguageData {
   name: string;
   name_translated?: string;
   translatable: string[];  // Array of POS types that should be translated (e.g., ["名詞", "動詞"])
   colour_codes: ColorCodes;
   fixed_settings: Partial<Settings>;
-  freq?: [string, string][];
+  freq?: LanguageFrequencyEntry[];
   freq_level_names?: FrequencyLevelNames;
   /** Grammar points for this language */
   grammar?: GrammarPoint[];

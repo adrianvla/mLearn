@@ -8,7 +8,7 @@ import { Component, Show, For, createMemo, createSignal, onMount, onCleanup } fr
 import { Btn, PillLabel, PitchAccentOverlay, AnkiHoverPreview, Tooltip } from '../../../components/common';
 import { WordStatusPill } from '../../../components/common/Smart';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
-import { useLocalization } from '../../../context';
+import { useLocalization, useSettings } from '../../../context';
 import { getCachedTranslation, getCachedReading, fetchTranslation } from '../../../hooks/useTranslation';
 import { extractPitchPosition } from '../../../utils/translationCacheParsers';
 import type { TranslationResponse, TranslationEntry } from '../../../../shared/types';
@@ -24,14 +24,14 @@ export type AnkiExportState = 'idle' | 'exporting' | 'exported' | 'duplicate' | 
  * Uses fetchTranslation which populates the global translation cache,
  * so getCachedReading/getCachedTranslation work after fetch.
  */
-const translationQueue: Array<{ word: string; resolve: () => void }> = [];
+const translationQueue: Array<{ word: string; language: string; resolve: () => void }> = [];
 let isProcessingQueue = false;
 const BATCH_SIZE = 5;
 const BATCH_DELAY = 50;
 
-function enqueueTranslationFetch(word: string): Promise<void> {
+function enqueueTranslationFetch(word: string, language: string): Promise<void> {
   return new Promise((resolve) => {
-    translationQueue.push({ word, resolve });
+    translationQueue.push({ word, language, resolve });
     if (!isProcessingQueue) {
       processQueue();
     }
@@ -45,9 +45,9 @@ async function processQueue(): Promise<void> {
   while (translationQueue.length > 0) {
     const batch = translationQueue.splice(0, BATCH_SIZE);
     await Promise.all(
-      batch.map(async ({ word, resolve }) => {
+      batch.map(async ({ word, language, resolve }) => {
         try {
-          await fetchTranslation(word);
+          await fetchTranslation(word, language);
         } catch (e) {
           console.error(e);
         }
@@ -71,8 +71,8 @@ function extractTranslation(resp: TranslationResponse): string {
 }
 
 /** Extract pitch accent position from cached translation data */
-function extractPitchFromCache(word: string): number | null {
-  const cached = getCachedTranslation(word);
+function extractPitchFromCache(word: string, language?: string): number | null {
+  const cached = getCachedTranslation(word, language);
   if (!cached?.data) return null;
 
   return extractPitchPosition(cached.data[2]);
@@ -110,6 +110,7 @@ export interface WordEntryRowProps {
 
 export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { t } = useLocalization();
+  const { settings } = useSettings();
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
   let rowRef: HTMLDivElement | undefined;
@@ -119,7 +120,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   // Effective reading: translation cache reading > freq data > word
   const effectiveReading = createMemo(() => {
     fetchVersion(); // re-evaluate when fetch completes
-    const cached = getCachedReading(props.entry.word);
+    const cached = getCachedReading(props.entry.word, settings.language);
     return cached || props.entry.reading || props.entry.word;
   });
 
@@ -129,7 +130,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
       return props.entry.pitch;
     }
     fetchVersion(); // re-evaluate when fetch completes
-    return extractPitchFromCache(props.entry.word);
+    return extractPitchFromCache(props.entry.word, settings.language);
   });
 
   // Whether the word needs furigana (has kanji and reading differs)
@@ -145,7 +146,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const displayTranslation = createMemo(() => {
     fetchVersion(); // re-evaluate when fetch completes
     if (props.entry.translation) return props.entry.translation;
-    const cached = getCachedTranslation(props.entry.word);
+    const cached = getCachedTranslation(props.entry.word, settings.language);
     if (cached) return extractTranslation(cached);
     return '';
   });
@@ -220,11 +221,11 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   // Lazily fetch translation when the row becomes visible.
   // Uses fetchTranslation which populates the global cache (reading + translation + pitch).
   onMount(() => {
-    if (props.entry.translation && getCachedTranslation(props.entry.word)) {
+    if (props.entry.translation && getCachedTranslation(props.entry.word, settings.language)) {
       return;
     }
     // If already cached, just bump version to read from cache
-    if (getCachedTranslation(props.entry.word)) {
+    if (getCachedTranslation(props.entry.word, settings.language)) {
       setFetchVersion((v) => v + 1);
       return;
     }
@@ -234,7 +235,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         if (entries[0]?.isIntersecting && !fetched) {
           fetched = true;
           observer?.disconnect();
-          enqueueTranslationFetch(props.entry.word).then(() => {
+          enqueueTranslationFetch(props.entry.word, settings.language).then(() => {
             setFetchVersion((v) => v + 1);
           });
         }

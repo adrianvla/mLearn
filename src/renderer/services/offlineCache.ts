@@ -6,9 +6,9 @@
  * remains available offline.
  *
  * Three object stores:
- *  - translations: keyed by word → TranslationResponse
- *  - dictionary:   keyed by "word::reading" → DictionaryEntry[]
- *  - tokens:       keyed by text → Token[]
+ *  - translations: keyed by "language::word" → TranslationResponse
+ *  - dictionary:   keyed by "language::word::reading" → DictionaryEntry[]
+ *  - tokens:       keyed by "language::text" → Token[]
  *
  * Each entry carries an `updatedAt` timestamp for future TTL / eviction.
  */
@@ -21,6 +21,18 @@ const DB_VERSION = 1;
 const STORE_TRANSLATIONS = 'translations';
 const STORE_DICTIONARY = 'dictionary';
 const STORE_TOKENS = 'tokens';
+
+function buildTranslationKey(word: string, language?: string): string {
+  return `${language || 'default'}::${word}`;
+}
+
+function buildDictionaryKey(word: string, reading: string, language?: string): string {
+  return `${language || 'default'}::${word}::${reading}`;
+}
+
+function buildTokenKey(text: string, language?: string): string {
+  return `${language || 'default'}::${text}`;
+}
 
 // Maximum entries per store before oldest are pruned
 const MAX_TRANSLATIONS = 50_000;
@@ -185,14 +197,30 @@ export async function getCachedTranslationDB(word: string): Promise<TranslationR
   return idbGet<TranslationResponse>(STORE_TRANSLATIONS, word);
 }
 
+export async function getCachedTranslationByLanguageDB(word: string, language?: string): Promise<TranslationResponse | null> {
+  return idbGet<TranslationResponse>(STORE_TRANSLATIONS, buildTranslationKey(word, language));
+}
+
 export async function setCachedTranslationDB(word: string, data: TranslationResponse): Promise<void> {
   await idbPut(STORE_TRANSLATIONS, word, data);
+}
+
+export async function setCachedTranslationByLanguageDB(word: string, data: TranslationResponse, language?: string): Promise<void> {
+  await idbPut(STORE_TRANSLATIONS, buildTranslationKey(word, language), data);
 }
 
 export async function setCachedTranslationBatchDB(
   entries: Array<{ word: string; data: TranslationResponse }>
 ): Promise<void> {
   await idbPutBatch(STORE_TRANSLATIONS, entries.map(e => ({ key: e.word, value: e.data })));
+  await idbPrune(STORE_TRANSLATIONS, MAX_TRANSLATIONS);
+}
+
+export async function setCachedTranslationBatchByLanguageDB(
+  entries: Array<{ word: string; data: TranslationResponse }>,
+  language?: string,
+): Promise<void> {
+  await idbPutBatch(STORE_TRANSLATIONS, entries.map((e) => ({ key: buildTranslationKey(e.word, language), value: e.data })));
   await idbPrune(STORE_TRANSLATIONS, MAX_TRANSLATIONS);
 }
 
@@ -207,9 +235,17 @@ export async function getCachedDictionaryDB(word: string, reading: string): Prom
   return idbGet<DictionaryEntry[]>(STORE_DICTIONARY, key);
 }
 
+export async function getCachedDictionaryByLanguageDB(word: string, reading: string, language?: string): Promise<DictionaryEntry[] | null> {
+  return idbGet<DictionaryEntry[]>(STORE_DICTIONARY, buildDictionaryKey(word, reading, language));
+}
+
 export async function setCachedDictionaryDB(word: string, reading: string, entries: DictionaryEntry[]): Promise<void> {
   const key = `${word}::${reading}`;
   await idbPut(STORE_DICTIONARY, key, entries);
+}
+
+export async function setCachedDictionaryByLanguageDB(word: string, reading: string, entries: DictionaryEntry[], language?: string): Promise<void> {
+  await idbPut(STORE_DICTIONARY, buildDictionaryKey(word, reading, language), entries);
 }
 
 export async function clearDictionaryCacheDB(): Promise<void> {
@@ -222,8 +258,17 @@ export async function getCachedTokensDB(text: string): Promise<Token[] | null> {
   return idbGet<Token[]>(STORE_TOKENS, text);
 }
 
+export async function getCachedTokensByLanguageDB(text: string, language?: string): Promise<Token[] | null> {
+  return idbGet<Token[]>(STORE_TOKENS, buildTokenKey(text, language));
+}
+
 export async function setCachedTokensDB(text: string, tokens: Token[]): Promise<void> {
   await idbPut(STORE_TOKENS, text, tokens);
+  await idbPrune(STORE_TOKENS, MAX_TOKENS);
+}
+
+export async function setCachedTokensByLanguageDB(text: string, tokens: Token[], language?: string): Promise<void> {
+  await idbPut(STORE_TOKENS, buildTokenKey(text, language), tokens);
   await idbPrune(STORE_TOKENS, MAX_TOKENS);
 }
 
