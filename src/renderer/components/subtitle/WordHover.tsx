@@ -82,7 +82,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { addFlashcard, hasWordSync, getCardByWordSync } = useFlashcards();
   const { getFrequency, getLevelName, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
-  const { tokenize } = useTokenizer();
+  const { tokenize } = useTokenizer({ language: settings.language });
   const { t } = useLocalization();
   const [wordUuid, setWordUuid] = createSignal<string>('');
   // Flag to prevent effect from overwriting local isInSRS state during flashcard creation

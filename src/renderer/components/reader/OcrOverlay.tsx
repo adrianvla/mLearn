@@ -125,9 +125,9 @@ function estimateFontSize(text: string, width: number, height: number, vertical:
 
 export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const [hoveredBox, setHoveredBox] = createSignal<OcrBox | null>(null);
-  const { tokenize } = useTokenizer();
   const { isTranslatable, getLanguageFeatures } = useLanguage();
   const { settings } = useSettings();
+  const { tokenize } = useTokenizer({ language: settings.language });
   const [tokenMap, setTokenMap] = createSignal<Map<number, Token[]>>(new Map());
   const [observedWidth, setObservedWidth] = createSignal(0);
   const [observedHeight, setObservedHeight] = createSignal(0);
@@ -304,7 +304,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
             .map((t) => t.actual_word);
 
           if (translatableWords.length > 0) {
-            warmTranslationCache(translatableWords);
+            warmTranslationCache(translatableWords, undefined, undefined, settings.language);
           }
         })
         .catch(() => {

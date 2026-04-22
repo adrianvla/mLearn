@@ -16,6 +16,7 @@ router = APIRouter()
 
 class TokenizeRequest(BaseModel):
     text: str = Field(..., max_length=50000)
+    language: str | None = None
 
 
 class TokenizeResponse(BaseModel):
@@ -24,6 +25,7 @@ class TokenizeResponse(BaseModel):
 
 class TranslationRequest(BaseModel):
     word: str = Field(..., max_length=1000)
+    language: str | None = None
 
 
 class TranslationResponse(BaseModel):
@@ -33,7 +35,9 @@ class TranslationResponse(BaseModel):
 @router.post("/tokenize", response_model=TokenizeResponse)
 def tokenize(req: TokenizeRequest):
     _log("requested tokenization: ", req.text[:100])
-    mod = plugin_registry.get_active()
+    mod = plugin_registry.get_language(req.language) if req.language else plugin_registry.get_active()
+    if mod is None:
+        mod = plugin_registry.get_active()
     if mod is None:
         return {"tokens": []}
     tokens = mod.LANGUAGE_TOKENIZE(req.text)
@@ -43,7 +47,9 @@ def tokenize(req: TokenizeRequest):
 @router.post("/translate", response_model=TranslationResponse)
 def get_translation(req: TranslationRequest):
     _log("requested translation: ", req.word[:100])
-    mod = plugin_registry.get_active()
+    mod = plugin_registry.get_language(req.language) if req.language else plugin_registry.get_active()
+    if mod is None:
+        mod = plugin_registry.get_active()
     if mod is None:
         return {"data": []}
     return mod.LANGUAGE_TRANSLATE(req.word)

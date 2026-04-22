@@ -84,7 +84,7 @@ const WordSyncContent: Component = () => {
     () => currentWord()?.word,
     async (word) => {
       if (!word) return null;
-      return fetchTranslation(word);
+      return fetchTranslation(word, settings.language);
     },
   );
 

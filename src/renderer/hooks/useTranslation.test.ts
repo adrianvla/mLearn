@@ -1,15 +1,15 @@
 import { createRoot } from 'solid-js';
 import type { TranslationResponse, DictionaryEntry } from '../../shared/types';
 
-const mockTranslate = vi.fn<(word: string) => Promise<TranslationResponse>>();
-const mockTokenize = vi.fn<(text: string) => Promise<unknown[]>>();
+const mockTranslate = vi.fn<(word: string, language?: string) => Promise<TranslationResponse>>();
+const mockTokenize = vi.fn<(text: string, language?: string) => Promise<unknown[]>>();
 const mockKvGet = vi.fn<(key: string) => Promise<string | null>>().mockResolvedValue(null);
 const mockKvSet = vi.fn<(key: string, value: string) => Promise<void>>().mockResolvedValue(undefined);
 
 vi.mock('../../shared/backends', () => ({
   getBackend: () => ({
-    translate: (...args: unknown[]) => mockTranslate(...(args as [string])),
-    tokenize: (...args: unknown[]) => mockTokenize(...(args as [string])),
+    translate: (...args: unknown[]) => mockTranslate(...(args as [string, string?])),
+    tokenize: (...args: unknown[]) => mockTokenize(...(args as [string, string?])),
   }),
 }));
 
@@ -22,22 +22,22 @@ vi.mock('../../shared/bridges', () => ({
   }),
 }));
 
-const mockGetCachedTranslationDB = vi.fn<(word: string) => Promise<TranslationResponse | null>>().mockResolvedValue(null);
-const mockSetCachedTranslationDB = vi.fn<(word: string, data: TranslationResponse) => Promise<void>>().mockResolvedValue(undefined);
+const mockGetCachedTranslationByLanguageDB = vi.fn<(word: string, language?: string) => Promise<TranslationResponse | null>>().mockResolvedValue(null);
+const mockSetCachedTranslationByLanguageDB = vi.fn<(word: string, data: TranslationResponse, language?: string) => Promise<void>>().mockResolvedValue(undefined);
 const mockSetCachedTranslationBatchDB = vi.fn().mockResolvedValue(undefined);
-const mockGetCachedDictionaryDB = vi.fn<(word: string, reading: string) => Promise<DictionaryEntry[] | null>>().mockResolvedValue(null);
-const mockSetCachedDictionaryDB = vi.fn().mockResolvedValue(undefined);
-const mockGetCachedTokensDB = vi.fn<(text: string) => Promise<unknown[] | null>>().mockResolvedValue(null);
-const mockSetCachedTokensDB = vi.fn().mockResolvedValue(undefined);
+const mockGetCachedDictionaryByLanguageDB = vi.fn<(word: string, reading: string, language?: string) => Promise<DictionaryEntry[] | null>>().mockResolvedValue(null);
+const mockSetCachedDictionaryByLanguageDB = vi.fn().mockResolvedValue(undefined);
+const mockGetCachedTokensByLanguageDB = vi.fn<(text: string, language?: string) => Promise<unknown[] | null>>().mockResolvedValue(null);
+const mockSetCachedTokensByLanguageDB = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('../services/offlineCache', () => ({
-  getCachedTranslationDB: (...args: unknown[]) => mockGetCachedTranslationDB(...(args as [string])),
-  setCachedTranslationDB: (...args: unknown[]) => mockSetCachedTranslationDB(...(args as [string, TranslationResponse])),
-  setCachedTranslationBatchDB: (...args: unknown[]) => mockSetCachedTranslationBatchDB(...args),
-  getCachedDictionaryDB: (...args: unknown[]) => mockGetCachedDictionaryDB(...(args as [string, string])),
-  setCachedDictionaryDB: (...args: unknown[]) => mockSetCachedDictionaryDB(...args),
-  getCachedTokensDB: (...args: unknown[]) => mockGetCachedTokensDB(...(args as [string])),
-  setCachedTokensDB: (...args: unknown[]) => mockSetCachedTokensDB(...args),
+  getCachedTranslationByLanguageDB: (...args: unknown[]) => mockGetCachedTranslationByLanguageDB(...(args as [string, string?])),
+  setCachedTranslationByLanguageDB: (...args: unknown[]) => mockSetCachedTranslationByLanguageDB(...(args as [string, TranslationResponse, string?])),
+  setCachedTranslationBatchByLanguageDB: (...args: unknown[]) => mockSetCachedTranslationBatchDB(...args),
+  getCachedDictionaryByLanguageDB: (...args: unknown[]) => mockGetCachedDictionaryByLanguageDB(...(args as [string, string, string?])),
+  setCachedDictionaryByLanguageDB: (...args: unknown[]) => mockSetCachedDictionaryByLanguageDB(...args),
+  getCachedTokensByLanguageDB: (...args: unknown[]) => mockGetCachedTokensByLanguageDB(...(args as [string, string?])),
+  setCachedTokensByLanguageDB: (...args: unknown[]) => mockSetCachedTokensByLanguageDB(...args),
 }));
 
 function makeTranslationResponse(word: string): TranslationResponse {
@@ -55,7 +55,7 @@ describe('useTranslation', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
 
     vi.resetModules();
@@ -112,7 +112,7 @@ describe('fetchTranslation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
     vi.resetModules();
   });
@@ -120,7 +120,7 @@ describe('fetchTranslation', () => {
   it('calls backend.translate for an uncached word', async () => {
     const { fetchTranslation } = await import('./useTranslation');
     await fetchTranslation('hello');
-    expect(mockTranslate).toHaveBeenCalledWith('hello');
+    expect(mockTranslate).toHaveBeenCalledWith('hello', undefined);
   });
 
   it('returns the translation from the backend', async () => {
@@ -150,7 +150,7 @@ describe('fetchTranslation', () => {
 
   it('checks IndexedDB before calling backend', async () => {
     const dbResult = makeTranslationResponse('dbword');
-    mockGetCachedTranslationDB.mockResolvedValueOnce(dbResult);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValueOnce(dbResult);
     const { fetchTranslation } = await import('./useTranslation');
     const result = await fetchTranslation('dbword');
     expect(result).toEqual(dbResult);
@@ -162,12 +162,12 @@ describe('fetchTranslation', () => {
     mockTranslate.mockResolvedValue(data);
     const { fetchTranslation } = await import('./useTranslation');
     await fetchTranslation('store');
-    expect(mockSetCachedTranslationDB).toHaveBeenCalledWith('store', data);
+    expect(mockSetCachedTranslationByLanguageDB).toHaveBeenCalledWith('store', data, undefined);
   });
 
   it('respects overrides from KV store over backend', async () => {
     const override = makeTranslationResponse('overridden');
-    mockKvGet.mockResolvedValueOnce(JSON.stringify({ hello: override }));
+    mockKvGet.mockResolvedValueOnce(JSON.stringify({ 'default::hello': override }));
     const { fetchTranslation } = await import('./useTranslation');
     const result = await fetchTranslation('hello');
     expect(result).toEqual(override);
@@ -189,9 +189,18 @@ describe('fetchTranslation', () => {
     await fetchTranslation('word2');
     await fetchTranslation('word3');
     expect(mockTranslate).toHaveBeenCalledTimes(3);
-    expect(mockTranslate).toHaveBeenCalledWith('word1');
-    expect(mockTranslate).toHaveBeenCalledWith('word2');
-    expect(mockTranslate).toHaveBeenCalledWith('word3');
+    expect(mockTranslate).toHaveBeenCalledWith('word1', undefined);
+    expect(mockTranslate).toHaveBeenCalledWith('word2', undefined);
+    expect(mockTranslate).toHaveBeenCalledWith('word3', undefined);
+
+  });
+
+  it('uses language-aware cache and backend keys', async () => {
+    const { fetchTranslation } = await import('./useTranslation');
+    await fetchTranslation('haus', 'de');
+    expect(mockGetCachedTranslationByLanguageDB).toHaveBeenCalledWith('haus', 'de');
+    expect(mockTranslate).toHaveBeenCalledWith('haus', 'de');
+    expect(mockSetCachedTranslationByLanguageDB).toHaveBeenCalledWith('haus', expect.any(Object), 'de');
   });
 });
 
@@ -199,7 +208,7 @@ describe('getCachedTranslation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
     vi.resetModules();
   });
@@ -222,7 +231,7 @@ describe('getCachedReading', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
     vi.resetModules();
   });
@@ -273,7 +282,7 @@ describe('useTranslation.clearCache', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
     vi.resetModules();
   });
@@ -289,7 +298,7 @@ describe('useTranslation.clearCache', () => {
       dispose();
     });
 
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     await fetchTranslation('hello');
     expect(mockTranslate).toHaveBeenCalledTimes(2);
   });
@@ -299,7 +308,7 @@ describe('useTranslation.setOverride', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
     vi.resetModules();
   });
@@ -360,7 +369,7 @@ describe('useTranslation.translate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
     vi.resetModules();
   });
@@ -389,7 +398,7 @@ describe('useTranslation.translate', () => {
       });
     });
 
-    expect(mockTranslate).toHaveBeenCalledWith('imm');
+    expect(mockTranslate).toHaveBeenCalledWith('imm', undefined);
   });
 });
 
@@ -397,7 +406,7 @@ describe('useTranslation.translateWord', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
     vi.resetModules();
   });
@@ -416,7 +425,7 @@ describe('useTranslation.translateWord', () => {
 
     const result = await translateWordFn('test');
     expect(result).toEqual(expected);
-    expect(mockTranslate).toHaveBeenCalledWith('test');
+    expect(mockTranslate).toHaveBeenCalledWith('test', undefined);
   });
 });
 
@@ -424,7 +433,7 @@ describe('warmTranslationCache', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
     vi.resetModules();
   });
@@ -433,9 +442,9 @@ describe('warmTranslationCache', () => {
     const { warmTranslationCache } = await import('./useTranslation');
     await warmTranslationCache(['foo', 'bar', 'baz']);
     expect(mockTranslate).toHaveBeenCalledTimes(3);
-    expect(mockTranslate).toHaveBeenCalledWith('foo');
-    expect(mockTranslate).toHaveBeenCalledWith('bar');
-    expect(mockTranslate).toHaveBeenCalledWith('baz');
+    expect(mockTranslate).toHaveBeenCalledWith('foo', undefined);
+    expect(mockTranslate).toHaveBeenCalledWith('bar', undefined);
+    expect(mockTranslate).toHaveBeenCalledWith('baz', undefined);
   });
 
   it('deduplicates identical words', async () => {
@@ -448,7 +457,7 @@ describe('warmTranslationCache', () => {
     const { warmTranslationCache } = await import('./useTranslation');
     await warmTranslationCache(['', '  ', 'valid']);
     expect(mockTranslate).toHaveBeenCalledTimes(1);
-    expect(mockTranslate).toHaveBeenCalledWith('valid');
+    expect(mockTranslate).toHaveBeenCalledWith('valid', undefined);
   });
 
   it('skips already-cached words', async () => {
@@ -457,7 +466,7 @@ describe('warmTranslationCache', () => {
     mockTranslate.mockClear();
     await warmTranslationCache(['pre-cached', 'new-word']);
     expect(mockTranslate).toHaveBeenCalledTimes(1);
-    expect(mockTranslate).toHaveBeenCalledWith('new-word');
+    expect(mockTranslate).toHaveBeenCalledWith('new-word', undefined);
   });
 
   it('stores batch results in IndexedDB', async () => {
@@ -477,7 +486,7 @@ describe('warmTranslationCache', () => {
 describe('useTokenizer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetCachedTokensDB.mockResolvedValue(null);
+    mockGetCachedTokensByLanguageDB.mockResolvedValue(null);
     vi.resetModules();
   });
 
@@ -487,7 +496,7 @@ describe('useTokenizer', () => {
     const { useTokenizer } = await import('./useTranslation');
     const { tokenize } = useTokenizer();
     const result = await tokenize('hello world');
-    expect(mockTokenize).toHaveBeenCalledWith('hello world');
+    expect(mockTokenize).toHaveBeenCalledWith('hello world', undefined);
     expect(result).toEqual(tokens);
   });
 
@@ -496,7 +505,7 @@ describe('useTokenizer', () => {
     const { tokenize } = useTokenizer();
     const result = await tokenize('');
     expect(mockTokenize).not.toHaveBeenCalled();
-    expect(result).toEqual([{ actual_word: '', word: '', type: '名詞' }]);
+    expect(result).toEqual([{ actual_word: '', word: '', type: 'UNKNOWN' }]);
   });
 
   it('tokenize returns default token for whitespace-only text', async () => {
@@ -504,7 +513,7 @@ describe('useTokenizer', () => {
     const { tokenize } = useTokenizer();
     const result = await tokenize('   ');
     expect(mockTokenize).not.toHaveBeenCalled();
-    expect(result).toEqual([{ actual_word: '   ', word: '   ', type: '名詞' }]);
+    expect(result).toEqual([{ actual_word: '   ', word: '   ', type: 'UNKNOWN' }]);
   });
 
   it('tokenize caches result to avoid redundant backend calls', async () => {
@@ -519,7 +528,7 @@ describe('useTokenizer', () => {
 
   it('tokenize uses IndexedDB cache when available', async () => {
     const dbTokens = [{ actual_word: 'cached', word: 'cached', type: 'noun' }];
-    mockGetCachedTokensDB.mockResolvedValueOnce(dbTokens);
+    mockGetCachedTokensByLanguageDB.mockResolvedValueOnce(dbTokens);
     const { useTokenizer } = await import('./useTranslation');
     const { tokenize } = useTokenizer();
     const result = await tokenize('cached text');
@@ -533,7 +542,7 @@ describe('useTokenizer', () => {
     const { useTokenizer } = await import('./useTranslation');
     const { tokenize } = useTokenizer();
     await tokenize('save this');
-    expect(mockSetCachedTokensDB).toHaveBeenCalledWith('save this', tokens);
+    expect(mockSetCachedTokensByLanguageDB).toHaveBeenCalledWith('save this', tokens, undefined);
   });
 
   it('tokenize returns fallback token on backend error', async () => {
@@ -541,7 +550,19 @@ describe('useTokenizer', () => {
     const { useTokenizer } = await import('./useTranslation');
     const { tokenize } = useTokenizer();
     const result = await tokenize('fail text');
-    expect(result).toEqual([{ actual_word: 'fail text', word: 'fail text', type: '名詞' }]);
+    expect(result).toEqual([{ actual_word: 'fail text', word: 'fail text', type: 'UNKNOWN' }]);
+
+  });
+
+  it('tokenize uses language-aware cache and backend keys', async () => {
+    const tokens = [{ actual_word: 'Haus', word: 'Haus', type: 'noun' }];
+    mockTokenize.mockResolvedValue(tokens);
+    const { useTokenizer } = await import('./useTranslation');
+    const { tokenize } = useTokenizer({ language: 'de' });
+    await tokenize('Haus');
+    expect(mockGetCachedTokensByLanguageDB).toHaveBeenCalledWith('Haus', 'de');
+    expect(mockTokenize).toHaveBeenCalledWith('Haus', 'de');
+    expect(mockSetCachedTokensByLanguageDB).toHaveBeenCalledWith('Haus', tokens, 'de');
   });
 
   it('concurrent tokenize calls for same text are deduplicated', async () => {
@@ -566,7 +587,7 @@ describe('cacheVersion', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
     vi.resetModules();
   });
@@ -579,7 +600,7 @@ describe('cacheVersion', () => {
   });
 
   it('cacheVersion increments when IndexedDB cache is used', async () => {
-    mockGetCachedTranslationDB.mockResolvedValueOnce(makeTranslationResponse('db'));
+    mockGetCachedTranslationByLanguageDB.mockResolvedValueOnce(makeTranslationResponse('db'));
     const { cacheVersion, fetchTranslation } = await import('./useTranslation');
     const before = cacheVersion();
     await fetchTranslation('db');
@@ -599,7 +620,7 @@ describe('warmTranslationCache edge cases', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
     vi.resetModules();
   });
@@ -623,7 +644,7 @@ describe('getCachedReading edge cases', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedTranslationDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => makeTranslationResponse(word));
     vi.resetModules();
   });
@@ -656,7 +677,7 @@ describe('useDictionary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
-    mockGetCachedDictionaryDB.mockResolvedValue(null);
+    mockGetCachedDictionaryByLanguageDB.mockResolvedValue(null);
     mockTranslate.mockImplementation(async (word: string) => ({
       data: [
         { reading: word + 'reading', definitions: ['definition of ' + word] },
@@ -679,12 +700,12 @@ describe('useDictionary', () => {
     const { useDictionary } = await import('./useTranslation');
     const { lookup } = useDictionary();
     await lookup('test');
-    expect(mockTranslate).toHaveBeenCalledWith('test');
+    expect(mockTranslate).toHaveBeenCalledWith('test', undefined);
   });
 
   it('lookup uses IndexedDB cache when available', async () => {
     const dbEntries: DictionaryEntry[] = [{ word: 'cached', reading: 'よみ', meanings: ['cached meaning'] }];
-    mockGetCachedDictionaryDB.mockResolvedValueOnce(dbEntries);
+    mockGetCachedDictionaryByLanguageDB.mockResolvedValueOnce(dbEntries);
     const { useDictionary } = await import('./useTranslation');
     const { lookup } = useDictionary();
     const result = await lookup('cached');
@@ -704,7 +725,7 @@ describe('useDictionary', () => {
     const { useDictionary } = await import('./useTranslation');
     const { lookup } = useDictionary();
     await lookup('save');
-    expect(mockSetCachedDictionaryDB).toHaveBeenCalled();
+    expect(mockSetCachedDictionaryByLanguageDB).toHaveBeenCalled();
   });
 
   it('lookup returns empty array on backend error', async () => {
@@ -727,7 +748,7 @@ describe('useDictionary', () => {
     const { useDictionary } = await import('./useTranslation');
     const { lookup } = useDictionary();
     await lookup('world', 'せかい');
-    expect(mockGetCachedDictionaryDB).toHaveBeenCalledWith('world', 'せかい');
+    expect(mockGetCachedDictionaryByLanguageDB).toHaveBeenCalledWith('world', 'せかい', undefined);
   });
 
   it('lookup with different readings caches separately', async () => {
@@ -776,6 +797,16 @@ describe('useDictionary', () => {
     const { useDictionary } = await import('./useTranslation');
     const { lookup } = useDictionary();
     await lookup('word');
-    expect(mockGetCachedDictionaryDB).toHaveBeenCalledWith('word', '');
+    expect(mockGetCachedDictionaryByLanguageDB).toHaveBeenCalledWith('word', '', undefined);
+
+  });
+
+  it('lookup uses language-aware dictionary cache and backend keys', async () => {
+    const { useDictionary } = await import('./useTranslation');
+    const { lookup } = useDictionary({ language: 'de' });
+    await lookup('Haus');
+    expect(mockGetCachedDictionaryByLanguageDB).toHaveBeenCalledWith('Haus', '', 'de');
+    expect(mockTranslate).toHaveBeenCalledWith('Haus', 'de');
+    expect(mockSetCachedDictionaryByLanguageDB).toHaveBeenCalledWith('Haus', '', expect.any(Array), 'de');
   });
 });

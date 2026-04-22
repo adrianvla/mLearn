@@ -27,7 +27,7 @@ const WordDefinitionContent: Component = () => {
   const { settings } = useSettings();
   const { addFlashcard, hasWordSync, getCardByWordSync } = useFlashcards();
   const { getFrequency, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
-  const { tokenize } = useTokenizer();
+  const { tokenize } = useTokenizer({ language: settings.language });
   const { t } = useLocalization();
 
   const [word, setWord] = createSignal('');
@@ -69,7 +69,7 @@ const WordDefinitionContent: Component = () => {
     // Generate UUID
     toUniqueIdentifier(w).then((uuid) => setWordUuid(uuid)).catch(() => {});
 
-    fetchTranslation(w)
+    fetchTranslation(w, settings.language)
       .then((resp) => {
         if (id !== fetchId) return;
         const data = resp?.data || [];

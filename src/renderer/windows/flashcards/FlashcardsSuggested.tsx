@@ -125,7 +125,7 @@ export const FlashcardsSuggested: Component = () => {
   createEffect(() => {
     const words = filtered().map((suggestion) => suggestion.word).filter((word) => word.trim().length > 0);
     if (words.length === 0) return;
-    void warmTranslationCache(words);
+    void warmTranslationCache(words, undefined, undefined, settings.language);
   });
 
   const previewContentById = createMemo(() => {
@@ -133,11 +133,11 @@ export const FlashcardsSuggested: Component = () => {
 
     const content = new Map<string, FlashcardContent>();
     for (const suggestion of filtered()) {
-      const cachedTranslation = getCachedTranslation(suggestion.word);
+      const cachedTranslation = getCachedTranslation(suggestion.word, settings.language);
       const pitchAccent = cachedTranslation?.data
         ? extractPitchPosition(cachedTranslation.data[2]) ?? undefined
         : undefined;
-      const cachedReading = getCachedReading(suggestion.word) || undefined;
+      const cachedReading = getCachedReading(suggestion.word, settings.language) || undefined;
 
       content.set(suggestion.id, {
         front: suggestion.word,

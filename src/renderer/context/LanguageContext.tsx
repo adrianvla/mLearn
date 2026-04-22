@@ -5,7 +5,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createMemo, createEffect, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token } from '../../shared/types';
+import { DEFAULT_SETTINGS, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token, type LanguageFrequencyEntry } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { isAllKana, katakanaToHiragana, containsKanji } from '../../shared/utils/textUtils';
 import { getNLPBackendRegistry } from '../../shared/nlp-backend-registry';
@@ -113,6 +113,13 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   let grammarMap = new Map<string, GrammarEntry>();
   let grammarPatternsSorted: GrammarEntry[] = [];
 
+  const supportsReadingCanonicalization = (langInfo: LanguageData | null | undefined): boolean => {
+    if (!langInfo) return false;
+    const scripts = langInfo.supportedScripts || [];
+    const isLogographic = scripts.some((script) => ['Han', 'Hira', 'Kana', 'Hang', 'Bopo'].includes(script));
+    return isLogographic && langInfo.hasFurigana === true && langInfo.fixed_settings?.furigana !== false;
+  };
+
   // Load language data
   const loadLangData = () => {
     const bridge = getBridge();
@@ -141,12 +148,17 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     const freqMap: WordFrequencyMap = {};
     const freq = langInfo.freq;
     const levelNames = langInfo.freq_level_names || {};
+    const shouldCanonicalizeReadings = supportsReadingCanonicalization(langInfo);
     // Use per-language frequency boundaries, or spread evenly across 5 levels
     const boundaries = langInfo.freq_level_boundaries || defaultFreqBoundaries(freq.length);
 
     for (let i = 0; i < freq.length; i++) {
-      const entry = freq[i];
-      if (!entry || entry.length < 2) continue;
+      const entry = freq[i] as LanguageFrequencyEntry | undefined;
+      if (!entry?.[0]) continue;
+
+      const word = entry[0];
+      const reading = entry[1] ?? '';
+      if (!word) continue;
 
       let level = 1;
       if (i <= boundaries[0]) level = 5;
@@ -158,17 +170,17 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
       // Preserve first occurrence as primary (earlier = more common in frequency-ordered lists)
       // and collect subsequent readings as alternates
-      const existing = freqMap[entry[0]];
+      const existing = freqMap[word];
       if (existing) {
         if (!existing.alternateReadings) {
           existing.alternateReadings = [];
         }
-        if (entry[1] !== existing.reading && !existing.alternateReadings.includes(entry[1])) {
-          existing.alternateReadings.push(entry[1]);
+        if (reading && reading !== existing.reading && !existing.alternateReadings.includes(reading)) {
+          existing.alternateReadings.push(reading);
         }
       } else {
-        freqMap[entry[0]] = {
-          reading: entry[1],
+        freqMap[word] = {
+          reading,
           level: levelName,
           raw_level: level,
         };
@@ -180,12 +192,12 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     const rMap: Record<string, string> = {};
     const variantsMap: Record<string, string[]> = {};
     for (let i = 0; i < freq.length; i++) {
-      const entry = freq[i];
-      if (!entry || entry.length < 2) continue;
+      const entry = freq[i] as LanguageFrequencyEntry | undefined;
+      if (!entry?.[0]) continue;
       const word = entry[0];
-      const reading = entry[1];
+      const reading = entry[1] ?? '';
       // Skip if the word itself is pure kana (no kanji to normalize to)
-      if (!reading || !containsKanji(word)) continue;
+      if (!shouldCanonicalizeReadings || !reading || !containsKanji(word)) continue;
       const hiragana = katakanaToHiragana(reading);
       if (hiragana && !rMap[hiragana]) {
         rMap[hiragana] = word;
@@ -214,6 +226,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const getFrequency = (word: string): WordFrequencyEntry | null => {
     const direct = wordFrequency[word];
     if (direct) return direct;
+    if (!supportsReadingCanonicalization(currentLangData())) return null;
     // If word is pure kana, try to find its canonical kanji form in freq data
     if (isAllKana(word)) {
       const hiragana = katakanaToHiragana(word);
@@ -228,6 +241,7 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   // and should not inherit the canonical kanji source automatically.
   const getCanonicalForm = (word: string): string => {
     if (!word) return word;
+    if (!supportsReadingCanonicalization(currentLangData())) return word;
     // Already contains kanji — no normalization needed
     if (containsKanji(word)) return word;
     // Already in freq data as-is (some words are natively kana, e.g. ところ)
