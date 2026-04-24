@@ -8,6 +8,8 @@
     "dev": "concurrently -k \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
     "dev:electron": "wait-on tcp:3000 && tsc -p src/electron/tsconfig.json && npm run bundle:preload && cross-env NODE_ENV=development electron .",
+    "build:german-dict": "python3 src/root-of-app/languages/de/build_dict.py",
+    "prebuild": "npm run build:german-dict",
     "build": "tsc -p src/electron/tsconfig.json && npm run bundle:preload && vite build",
     "bundle:preload": "esbuild dist-electron/electron/preload.js --bundle --platform=node --outfile=dist-electron/electron/preload.js --allow-overwrite --external:electron",
     "build:web": "vite build --mode web",
