@@ -204,7 +204,7 @@ export const ConversationContent: Component = () => {
 
   // Word hover state
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
-  const { translateWord } = useTranslation({ immediate: true });
+  const { translateWord } = useTranslation({ immediate: true, language: settings.language });
   const { lookup } = useDictionary({ language: settings.language });
   const [translationData, setTranslationData] = createSignal<{ data?: (TranslationEntry | PitchData | null | undefined)[] } | null>(null);
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
@@ -246,6 +246,7 @@ export const ConversationContent: Component = () => {
     getSettings: () => settings,
     getLanguage: () => settings.language,
     getLanguageName: () => langName(),
+    getLanguageFeatures: () => getLanguageFeatures(),
     getMediaContext: () => mediaContext(),
     getSceneContext: () => sceneContext(),
     getTutorConfig: () => tutorConfig(),

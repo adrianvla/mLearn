@@ -473,15 +473,13 @@ export interface GrammarPoint {
   level: number;
 }
 
-export type LanguageFrequencyEntry = [string] | [string, string];
-
 export interface LanguageData {
   name: string;
   name_translated?: string;
   translatable: string[];  // Array of POS types that should be translated (e.g., ["名詞", "動詞"])
   colour_codes: ColorCodes;
   fixed_settings: Partial<Settings>;
-  freq?: LanguageFrequencyEntry[];
+  freq?: [string, string][];
   freq_level_names?: FrequencyLevelNames;
   /** Grammar points for this language */
   grammar?: GrammarPoint[];
@@ -505,6 +503,10 @@ export interface LanguageData {
   hasPitchAccent?: boolean;
   /** Whether the language supports character name detection in subtitles */
   hasCharacterNames?: boolean;
+  /** Whether this language has a distinct honorific/deferential register
+   *  (e.g. Japanese keigo, Korean jondaetmal). T/V distinctions like German
+   *  Sie/du do NOT count — set to false for those. */
+  hasHonorifics?: boolean;
   /** Frequency boundaries for level assignment [level5Max, level4Max, level3Max, level2Max] */
   freq_level_boundaries?: number[];
 }
@@ -1572,31 +1574,3 @@ export interface VoiceSessionAftermath {
   duration: number;
   messageCount: number;
 }
-
-// ============================================================================
-// Language Abstraction Re-exports
-// ============================================================================
-// Re-export language abstraction types for convenience
-export type {
-  LanguageCode,
-  ProficiencyFramework,
-  ProficiencyLevel,
-  ProficiencyFrameworkConfig,
-  PhoneticSystem,
-  MorphAnalysisStrategy,
-  DecompositionStrategy,
-  GrammarTaggingSystem,
-  LanguageMetadata,
-  LanguageRegistry,
-} from './language-abstraction';
-
-export {
-  isValidLanguageCode,
-  createJapaneseMetadata,
-  createGermanMetadata,
-  createDefaultLanguageRegistry,
-  getLanguageMetadata,
-  supportsFeature,
-  getDefaultProficiencyLevel,
-  getProficiencyLevels,
-} from './language-abstraction';
