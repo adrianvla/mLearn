@@ -4,9 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { TokenizationResult } from '../../shared/nlp-backend-abstraction';
 import type { LanguageCode } from '../../shared/language-abstraction';
-import { useNLPTokenizer, getCachedNLPTokenization, clearNLPTokenizationCache } from './useNLPTokenizer';
+import { useNLPTokenizer, getCachedNLPTokenization, clearNLPTokenizationCache, type TokenizationResult } from './useNLPTokenizer';
 
 // Mock tokenization results
 const mockJapaneseTokenization: TokenizationResult = {

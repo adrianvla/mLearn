@@ -4,9 +4,21 @@
  */
 
 import { createSignal } from 'solid-js';
-import type { TokenizationResult } from '../../shared/nlp-backend-abstraction';
 import type { LanguageCode } from '../../shared/language-abstraction';
-import { useLanguage } from '../context/LanguageContext';
+import { getBackend } from '../../shared/backends';
+
+export interface MorphToken {
+  surface: string;
+  base: string;
+  pos: string;
+  reading?: string;
+}
+
+export interface TokenizationResult {
+  text: string;
+  language: LanguageCode;
+  tokens: MorphToken[];
+}
 
 // In-flight deduplication: prevent concurrent identical tokenization requests
 const tokenInFlight = new Map<string, Promise<TokenizationResult>>();
@@ -84,9 +96,18 @@ async function tokenizeTextInternal(text: string, language: LanguageCode): Promi
   
   // Create new tokenization request
   const promise = (async () => {
-    const { tokenizeText } = useLanguage();
-    const result = await tokenizeText(text, language);
-    
+    const tokens = await getBackend().tokenize(text, language);
+    const result: TokenizationResult = {
+      text,
+      language,
+      tokens: tokens.map((token) => ({
+        surface: token.surface ?? token.word,
+        base: token.actual_word ?? token.word,
+        pos: token.partOfSpeech ?? token.type,
+        reading: token.reading,
+      })),
+    };
+
     // Store in cache (with LRU eviction)
     tokenCache.set(cacheKey, { result, ts: Date.now() });
     if (tokenCache.size > TOKEN_CACHE_MAX) {
