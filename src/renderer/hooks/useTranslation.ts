@@ -17,6 +17,7 @@ import {
   setCachedTokensByLanguageDB,
 } from '../services/offlineCache';
 
+const TRANSLATION_CACHE_MAX = 5000;
 const translationCache = new Map<string, TranslationResponse>();
 const [cacheVersion, setCacheVersion] = createSignal(0);
 
@@ -26,7 +27,26 @@ const tokenCache = new Map<string, { tokens: Token[]; ts: number }>();
 const tokenInFlight = new Map<string, Promise<Token[]>>();
 const TOKEN_CACHE_MAX = 1000;
 
+const DICTIONARY_CACHE_MAX = 5000;
 const dictionaryCache = new Map<string, DictionaryEntry[]>();
+
+function pruneMapFIFO<K, V>(map: Map<K, V>, max: number): void {
+  while (map.size > max) {
+    const firstKey = map.keys().next().value as K | undefined;
+    if (firstKey === undefined) return;
+    map.delete(firstKey);
+  }
+}
+
+function setTranslationCache(key: string, value: TranslationResponse): void {
+  translationCache.set(key, value);
+  pruneMapFIFO(translationCache, TRANSLATION_CACHE_MAX);
+}
+
+function setDictionaryCache(key: string, value: DictionaryEntry[]): void {
+  dictionaryCache.set(key, value);
+  pruneMapFIFO(dictionaryCache, DICTIONARY_CACHE_MAX);
+}
 
 const OVERRIDE_KEY = 'ml_translation_overrides';
 
@@ -92,13 +112,13 @@ export async function fetchTranslation(word: string, language?: string): Promise
 
   const dbCached = await getCachedTranslationByLanguageDB(word, language);
   if (dbCached) {
-    translationCache.set(cacheKey, dbCached);
+    setTranslationCache(cacheKey, dbCached);
     setCacheVersion((v) => v + 1);
     return dbCached;
   }
 
   const data = await getBackend().translate(word, language);
-  translationCache.set(cacheKey, data);
+  setTranslationCache(cacheKey, data);
   setCacheVersion((v) => v + 1);
   void setCachedTranslationByLanguageDB(word, data, language);
   return data;
@@ -174,7 +194,7 @@ export async function warmTranslationCache(
     .map((word) =>
       backend.translate(word, language)
         .then((data) => {
-          translationCache.set(buildTranslationCacheKey(word, language), data);
+          setTranslationCache(buildTranslationCacheKey(word, language), data);
           setCacheVersion((v) => v + 1);
           batchEntries.push({ word, data });
         })
@@ -214,10 +234,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
 
       const tokens = await getBackend().tokenize(key, options.language);
       tokenCache.set(cacheKey, { tokens, ts: Date.now() });
-      if (tokenCache.size > TOKEN_CACHE_MAX) {
-        const firstKey = tokenCache.keys().next().value as string | undefined;
-        if (firstKey) tokenCache.delete(firstKey);
-      }
+      pruneMapFIFO(tokenCache, TOKEN_CACHE_MAX);
       void setCachedTokensByLanguageDB(key, tokens, options.language);
       return tokens;
     })();
@@ -249,7 +266,7 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
 
       const dbCached = await getCachedDictionaryByLanguageDB(word, readingKey, options.language);
       if (dbCached) {
-        dictionaryCache.set(cacheKey, dbCached);
+        setDictionaryCache(cacheKey, dbCached);
         return dbCached;
       }
 
@@ -272,12 +289,12 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
           }
         }
 
-        dictionaryCache.set(cacheKey, entries);
+        setDictionaryCache(cacheKey, entries);
         void setCachedDictionaryByLanguageDB(word, readingKey, entries, options.language);
         return entries;
       }
 
-      dictionaryCache.set(cacheKey, []);
+      setDictionaryCache(cacheKey, []);
       void setCachedDictionaryByLanguageDB(word, readingKey, [], options.language);
       return [];
     } catch (e) {
