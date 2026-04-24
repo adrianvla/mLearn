@@ -5,12 +5,9 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createMemo, createEffect, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import { DEFAULT_SETTINGS, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token, type LanguageFrequencyEntry } from '../../shared/types';
+import { DEFAULT_SETTINGS, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { isAllKana, katakanaToHiragana, containsKanji } from '../../shared/utils/textUtils';
-import { getNLPBackendRegistry } from '../../shared/nlp-backend-registry';
-import type { LanguageCode } from '../../shared/language-abstraction';
-import type { NLPBackend, TokenizationResult } from '../../shared/nlp-backend-abstraction';
 
 // Grammar entry with parsed data for lookup
 export interface GrammarEntry extends GrammarPoint {
@@ -46,6 +43,8 @@ export interface LanguageFeatures {
   supportsGrammar: boolean;
   /** Whether the language uses CJK-style parentheses */
   usesCJKParentheses: boolean;
+  /** Whether the language has a distinct honorific/deferential register (e.g. Japanese keigo) */
+  supportsHonorifics: boolean;
 }
 
 // Context interface
@@ -80,14 +79,6 @@ interface LanguageContextValue {
   getCanonicalForm: (word: string) => string;
   /** Return canonical + same-reading variants for a word, ordered by frequency */
   getWordVariants: (word: string) => string[];
-  /** Tokenize text using the best available backend for the language */
-  tokenizeText: (text: string, language: LanguageCode) => Promise<TokenizationResult>;
-  /** Get the best backend for a given language */
-  getBestBackendForLanguage: (language: LanguageCode) => NLPBackend | null;
-  /** Initialize all available NLP backends */
-  initializeNLPBackends: () => Promise<void>;
-  /** Cleanup all NLP backends */
-  cleanupNLPBackends: () => Promise<void>;
 }
 
 // Create context
@@ -112,13 +103,6 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   // Grammar lookup structures
   let grammarMap = new Map<string, GrammarEntry>();
   let grammarPatternsSorted: GrammarEntry[] = [];
-
-  const supportsReadingCanonicalization = (langInfo: LanguageData | null | undefined): boolean => {
-    if (!langInfo) return false;
-    const scripts = langInfo.supportedScripts || [];
-    const isLogographic = scripts.some((script) => ['Han', 'Hira', 'Kana', 'Hang', 'Bopo'].includes(script));
-    return isLogographic && langInfo.hasFurigana === true && langInfo.fixed_settings?.furigana !== false;
-  };
 
   // Load language data
   const loadLangData = () => {
@@ -148,17 +132,12 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     const freqMap: WordFrequencyMap = {};
     const freq = langInfo.freq;
     const levelNames = langInfo.freq_level_names || {};
-    const shouldCanonicalizeReadings = supportsReadingCanonicalization(langInfo);
     // Use per-language frequency boundaries, or spread evenly across 5 levels
     const boundaries = langInfo.freq_level_boundaries || defaultFreqBoundaries(freq.length);
 
     for (let i = 0; i < freq.length; i++) {
-      const entry = freq[i] as LanguageFrequencyEntry | undefined;
-      if (!entry?.[0]) continue;
-
-      const word = entry[0];
-      const reading = entry[1] ?? '';
-      if (!word) continue;
+      const entry = freq[i];
+      if (!entry || entry.length < 2) continue;
 
       let level = 1;
       if (i <= boundaries[0]) level = 5;
@@ -170,17 +149,17 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
 
       // Preserve first occurrence as primary (earlier = more common in frequency-ordered lists)
       // and collect subsequent readings as alternates
-      const existing = freqMap[word];
+      const existing = freqMap[entry[0]];
       if (existing) {
         if (!existing.alternateReadings) {
           existing.alternateReadings = [];
         }
-        if (reading && reading !== existing.reading && !existing.alternateReadings.includes(reading)) {
-          existing.alternateReadings.push(reading);
+        if (entry[1] !== existing.reading && !existing.alternateReadings.includes(entry[1])) {
+          existing.alternateReadings.push(entry[1]);
         }
       } else {
-        freqMap[word] = {
-          reading,
+        freqMap[entry[0]] = {
+          reading: entry[1],
           level: levelName,
           raw_level: level,
         };
@@ -192,12 +171,12 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     const rMap: Record<string, string> = {};
     const variantsMap: Record<string, string[]> = {};
     for (let i = 0; i < freq.length; i++) {
-      const entry = freq[i] as LanguageFrequencyEntry | undefined;
-      if (!entry?.[0]) continue;
+      const entry = freq[i];
+      if (!entry || entry.length < 2) continue;
       const word = entry[0];
-      const reading = entry[1] ?? '';
+      const reading = entry[1];
       // Skip if the word itself is pure kana (no kanji to normalize to)
-      if (!shouldCanonicalizeReadings || !reading || !containsKanji(word)) continue;
+      if (!reading || !containsKanji(word)) continue;
       const hiragana = katakanaToHiragana(reading);
       if (hiragana && !rMap[hiragana]) {
         rMap[hiragana] = word;
@@ -226,7 +205,6 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   const getFrequency = (word: string): WordFrequencyEntry | null => {
     const direct = wordFrequency[word];
     if (direct) return direct;
-    if (!supportsReadingCanonicalization(currentLangData())) return null;
     // If word is pure kana, try to find its canonical kanji form in freq data
     if (isAllKana(word)) {
       const hiragana = katakanaToHiragana(word);
@@ -241,7 +219,6 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   // and should not inherit the canonical kanji source automatically.
   const getCanonicalForm = (word: string): string => {
     if (!word) return word;
-    if (!supportsReadingCanonicalization(currentLangData())) return word;
     // Already contains kanji — no normalization needed
     if (containsKanji(word)) return word;
     // Already in freq data as-is (some words are natively kana, e.g. ところ)
@@ -422,6 +399,8 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       supportsGrammar: data?.hasGrammar === true,
       // CJK parentheses for character names
       usesCJKParentheses: data?.usesCJKParentheses === true,
+      // Honorific/deferential register (keigo, jondaetmal) — drives casual-register directives in the conversation agent
+      supportsHonorifics: data?.hasHonorifics === true,
     };
   };
 
@@ -441,50 +420,8 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     return key in data.fixed_settings;
   };
 
-  // Tokenize text using the best available backend for the language
-  const tokenizeText = async (text: string, language: LanguageCode): Promise<TokenizationResult> => {
-    const registry = getNLPBackendRegistry();
-    const backends = registry.getBackendsForLanguage(language);
-    
-    if (backends.length === 0) {
-      throw new Error(`No NLP backend available for language: ${language}`);
-    }
-    
-    // Use the first (highest-priority) backend
-    const backend = backends[0];
-    
-    if (!backend.isReady()) {
-      throw new Error(`NLP backend for ${language} is not initialized`);
-    }
-    
-    return backend.tokenize(text, language);
-  };
-
-  // Get the best backend for a given language
-  const getBestBackendForLanguage = (language: LanguageCode): NLPBackend | null => {
-    const registry = getNLPBackendRegistry();
-    const backends = registry.getBackendsForLanguage(language);
-    return backends.length > 0 ? backends[0] : null;
-  };
-
-  // Initialize all available NLP backends
-  const initializeNLPBackends = async (): Promise<void> => {
-    const registry = getNLPBackendRegistry();
-    await registry.initializeAll();
-  };
-
-  // Cleanup all NLP backends
-  const cleanupNLPBackends = async (): Promise<void> => {
-    const registry = getNLPBackendRegistry();
-    await registry.cleanupAll();
-  };
-
   onMount(() => {
     loadLangData();
-    // Initialize NLP backends on mount
-    void initializeNLPBackends().catch(err => {
-      console.error('[LanguageContext] Failed to initialize NLP backends:', err);
-    });
   });
 
   createEffect(() => {
@@ -497,10 +434,6 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   onCleanup(() => {
     for (const cleanup of ipcCleanups) cleanup();
     ipcCleanups.length = 0;
-    // Cleanup NLP backends
-    void cleanupNLPBackends().catch(err => {
-      console.error('[LanguageContext] Failed to cleanup NLP backends:', err);
-    });
   });
 
   const value: LanguageContextValue = {
@@ -524,10 +457,6 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
     getGrammarLevelNames,
     getCanonicalForm,
     getWordVariants,
-    tokenizeText,
-    getBestBackendForLanguage,
-    initializeNLPBackends,
-    cleanupNLPBackends,
   };
 
   return (
