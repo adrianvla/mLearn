@@ -270,6 +270,29 @@ describe('offlineCache', () => {
 
       expect(result).toBeNull();
     });
+
+    it('prunes ~20% of oldest entries when over capacity', async () => {
+      const { storeMap } = setupFakeIndexedDB();
+      const dictStore = storeMap.get('dictionary')!;
+      const MAX_DICTIONARY = 50_000;
+      for (let i = 0; i < MAX_DICTIONARY + 1; i++) {
+        dictStore.data.set(`k${i}`, {
+          key: `k${i}`,
+          value: [{ word: `w${i}`, reading: 'r', meanings: ['m'] }] as DictionaryEntry[],
+          updatedAt: i,
+        });
+      }
+
+      const { setCachedDictionaryDB } = await loadOfflineCache();
+      await setCachedDictionaryDB('trigger', 'r', [{ word: 'trigger', reading: 'r', meanings: ['m'] }]);
+
+      const remaining = dictStore.data.size;
+      const expectedDeleted = Math.floor((MAX_DICTIONARY + 2) * 0.2);
+      expect(remaining).toBe(MAX_DICTIONARY + 2 - expectedDeleted);
+      expect(dictStore.data.has('trigger::r')).toBe(true);
+      expect(dictStore.data.has('k0')).toBe(false);
+      expect(dictStore.data.has(`k${MAX_DICTIONARY}`)).toBe(true);
+    });
   });
 
   describe('tokens', () => {
