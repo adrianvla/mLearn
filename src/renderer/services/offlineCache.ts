@@ -117,62 +117,38 @@ async function idbPutBatch<T>(storeName: string, entries: Array<{ key: string; v
   }
 }
 
-async function idbCount(storeName: string): Promise<number> {
-  try {
-    const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readonly');
-      const store = tx.objectStore(storeName);
-      const req = store.count();
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  } catch (e) {
-    console.error(e);
-    return 0;
-  }
-}
-
 async function idbPrune(storeName: string, maxEntries: number): Promise<void> {
   try {
-    const count = await idbCount(storeName);
-    if (count <= maxEntries) return;
-
-    const deleteCount = Math.floor(count * 0.2);
     const db = await openDB();
-    const entries = await new Promise<Array<{ key: string; updatedAt: number }>>((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readonly');
-      const store = tx.objectStore(storeName);
-      const req = store.openCursor();
-      const collected: Array<{ key: string; updatedAt: number }> = [];
-
-      req.onsuccess = () => {
-        const cursor = req.result;
-        if (!cursor) {
-          resolve(collected);
-          return;
-        }
-
-        const row = cursor.value as { key: string; updatedAt?: number };
-        collected.push({ key: row.key, updatedAt: row.updatedAt ?? 0 });
-        cursor.continue();
-      };
-      req.onerror = () => reject(req.error);
-    });
-
-    const keysToDelete = entries
-      .sort((a, b) => a.updatedAt - b.updatedAt)
-      .slice(0, deleteCount)
-      .map((entry) => entry.key);
-
-    if (keysToDelete.length === 0) return;
-
+    // Scan + delete inside ONE readwrite tx so no concurrent put can refresh
+    // an entry between our read of updatedAt and our decision to delete it.
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(storeName, 'readwrite');
       const store = tx.objectStore(storeName);
-      for (const key of keysToDelete) {
-        store.delete(key);
-      }
+      const collected: Array<{ key: string; updatedAt: number }> = [];
+      const req = store.openCursor();
+
+      req.onsuccess = () => {
+        const cursor = req.result;
+        if (cursor) {
+          const row = cursor.value as { key: string; updatedAt?: number };
+          collected.push({ key: row.key, updatedAt: row.updatedAt ?? 0 });
+          cursor.continue();
+          return;
+        }
+
+        if (collected.length <= maxEntries) return;
+        const deleteCount = Math.floor(collected.length * 0.2);
+        if (deleteCount <= 0) return;
+
+        collected.sort((a, b) => a.updatedAt - b.updatedAt);
+        // Deletes issued synchronously from the final cursor callback so the
+        // tx stays active (IDB closes a tx once no pending requests remain).
+        for (let i = 0; i < deleteCount; i++) {
+          store.delete(collected[i].key);
+        }
+      };
+      req.onerror = () => reject(req.error);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
