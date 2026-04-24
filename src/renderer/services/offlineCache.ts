@@ -34,7 +34,6 @@ function buildTokenKey(text: string, language?: string): string {
   return `${language || 'default'}::${text}`;
 }
 
-// Maximum entries per store before oldest are pruned
 const MAX_TRANSLATIONS = 50_000;
 const MAX_TOKENS = 5_000;
 
@@ -64,8 +63,6 @@ function openDB(): Promise<IDBDatabase> {
   });
   return dbPromise;
 }
-
-// ── Generic helpers ──
 
 async function idbGet<T>(storeName: string, key: string): Promise<T | null> {
   try {
@@ -98,7 +95,6 @@ async function idbPut<T>(storeName: string, key: string, value: T): Promise<void
     });
   } catch (e) {
     console.error(e);
-    // Silently fail — cache is best-effort
   }
 }
 
@@ -118,7 +114,6 @@ async function idbPutBatch<T>(storeName: string, entries: Array<{ key: string; v
     });
   } catch (e) {
     console.error(e);
-    // Silently fail
   }
 }
 
@@ -138,10 +133,6 @@ async function idbCount(storeName: string): Promise<number> {
   }
 }
 
-/**
- * Prune oldest entries when a store exceeds its limit.
- * Deletes the oldest 20% by updatedAt.
- */
 async function idbPrune(storeName: string, maxEntries: number): Promise<void> {
   try {
     const count = await idbCount(storeName);
@@ -149,29 +140,44 @@ async function idbPrune(storeName: string, maxEntries: number): Promise<void> {
 
     const deleteCount = Math.floor(count * 0.2);
     const db = await openDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readwrite');
+    const entries = await new Promise<Array<{ key: string; updatedAt: number }>>((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readonly');
       const store = tx.objectStore(storeName);
       const req = store.openCursor();
-      let deleted = 0;
+      const collected: Array<{ key: string; updatedAt: number }> = [];
 
-      // Cursor iterates in key order; we collect all then sort by updatedAt.
-      // For simplicity (and because IDB doesn't support sort by non-key),
-      // we just delete the first N entries which are the oldest insertions.
       req.onsuccess = () => {
         const cursor = req.result;
-        if (cursor && deleted < deleteCount) {
-          cursor.delete();
-          deleted++;
-          cursor.continue();
+        if (!cursor) {
+          resolve(collected);
+          return;
         }
+
+        const row = cursor.value as { key: string; updatedAt?: number };
+        collected.push({ key: row.key, updatedAt: row.updatedAt ?? 0 });
+        cursor.continue();
       };
+      req.onerror = () => reject(req.error);
+    });
+
+    const keysToDelete = entries
+      .sort((a, b) => a.updatedAt - b.updatedAt)
+      .slice(0, deleteCount)
+      .map((entry) => entry.key);
+
+    if (keysToDelete.length === 0) return;
+
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      for (const key of keysToDelete) {
+        store.delete(key);
+      }
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
   } catch (e) {
     console.error(e);
-    // Pruning failure is non-critical
   }
 }
 
@@ -187,11 +193,8 @@ async function idbClear(storeName: string): Promise<void> {
     });
   } catch (e) {
     console.error(e);
-    // Silently fail
   }
 }
-
-// ── Public API: Translations ──
 
 export async function getCachedTranslationDB(word: string): Promise<TranslationResponse | null> {
   return idbGet<TranslationResponse>(STORE_TRANSLATIONS, word);
@@ -209,10 +212,8 @@ export async function setCachedTranslationByLanguageDB(word: string, data: Trans
   await idbPut(STORE_TRANSLATIONS, buildTranslationKey(word, language), data);
 }
 
-export async function setCachedTranslationBatchDB(
-  entries: Array<{ word: string; data: TranslationResponse }>
-): Promise<void> {
-  await idbPutBatch(STORE_TRANSLATIONS, entries.map(e => ({ key: e.word, value: e.data })));
+export async function setCachedTranslationBatchDB(entries: Array<{ word: string; data: TranslationResponse }>): Promise<void> {
+  await idbPutBatch(STORE_TRANSLATIONS, entries.map((entry) => ({ key: entry.word, value: entry.data })));
   await idbPrune(STORE_TRANSLATIONS, MAX_TRANSLATIONS);
 }
 
@@ -220,7 +221,10 @@ export async function setCachedTranslationBatchByLanguageDB(
   entries: Array<{ word: string; data: TranslationResponse }>,
   language?: string,
 ): Promise<void> {
-  await idbPutBatch(STORE_TRANSLATIONS, entries.map((e) => ({ key: buildTranslationKey(e.word, language), value: e.data })));
+  await idbPutBatch(
+    STORE_TRANSLATIONS,
+    entries.map((entry) => ({ key: buildTranslationKey(entry.word, language), value: entry.data })),
+  );
   await idbPrune(STORE_TRANSLATIONS, MAX_TRANSLATIONS);
 }
 
@@ -228,11 +232,8 @@ export async function clearTranslationCacheDB(): Promise<void> {
   await idbClear(STORE_TRANSLATIONS);
 }
 
-// ── Public API: Dictionary ──
-
 export async function getCachedDictionaryDB(word: string, reading: string): Promise<DictionaryEntry[] | null> {
-  const key = `${word}::${reading}`;
-  return idbGet<DictionaryEntry[]>(STORE_DICTIONARY, key);
+  return idbGet<DictionaryEntry[]>(STORE_DICTIONARY, `${word}::${reading}`);
 }
 
 export async function getCachedDictionaryByLanguageDB(word: string, reading: string, language?: string): Promise<DictionaryEntry[] | null> {
@@ -240,8 +241,7 @@ export async function getCachedDictionaryByLanguageDB(word: string, reading: str
 }
 
 export async function setCachedDictionaryDB(word: string, reading: string, entries: DictionaryEntry[]): Promise<void> {
-  const key = `${word}::${reading}`;
-  await idbPut(STORE_DICTIONARY, key, entries);
+  await idbPut(STORE_DICTIONARY, `${word}::${reading}`, entries);
 }
 
 export async function setCachedDictionaryByLanguageDB(word: string, reading: string, entries: DictionaryEntry[], language?: string): Promise<void> {
@@ -251,8 +251,6 @@ export async function setCachedDictionaryByLanguageDB(word: string, reading: str
 export async function clearDictionaryCacheDB(): Promise<void> {
   await idbClear(STORE_DICTIONARY);
 }
-
-// ── Public API: Tokens ──
 
 export async function getCachedTokensDB(text: string): Promise<Token[] | null> {
   return idbGet<Token[]>(STORE_TOKENS, text);
@@ -275,8 +273,6 @@ export async function setCachedTokensByLanguageDB(text: string, tokens: Token[],
 export async function clearTokenCacheDB(): Promise<void> {
   await idbClear(STORE_TOKENS);
 }
-
-// ── Clear all caches ──
 
 export async function clearAllOfflineCaches(): Promise<void> {
   await Promise.all([
