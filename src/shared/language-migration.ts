@@ -59,10 +59,10 @@ export function migrateFlashcardStoreToLanguageMetadata(
   language: LanguageCode = 'ja'
 ): FlashcardStore {
   const migrated = { ...store };
-  
+
   // Migrate all flashcards
   const migratedFlashcards: Record<string, Flashcard> = {};
-  for (const [id, card] of Object.entries(store.flashcards)) {
+  for (const [id, card] of Object.entries(store.flashcards ?? {})) {
     const migratedCard = { ...card };
     migratedCard.content = { ...card.content };
     migratedCard.content.extra = migrateFlashcardToLanguageMetadata(
@@ -72,12 +72,12 @@ export function migrateFlashcardStoreToLanguageMetadata(
     migratedFlashcards[id] = migratedCard;
   }
   migrated.flashcards = migratedFlashcards;
-  
+
   // Update store metadata to indicate migration
-  migrated.meta = { ...store.meta };
+  migrated.meta = { ...(store.meta ?? {}) } as FlashcardStore['meta'];
   (migrated.meta as any).languageMigrationVersion = 1;
   (migrated.meta as any).lastLanguageMigration = Date.now();
-  
+
   return migrated;
 }
 
@@ -92,7 +92,7 @@ export function hasSettingsBeenMigrated(settings: Settings): boolean {
  * Check if flashcard store has been migrated to language metadata
  */
 export function hasFlashcardStoreBeenMigrated(store: FlashcardStore): boolean {
-  return !!(store.meta as any).languageMigrationVersion;
+  return !!(store.meta as any)?.languageMigrationVersion;
 }
 
 /**
