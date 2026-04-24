@@ -18,20 +18,16 @@ import {
 } from '../services/offlineCache';
 
 const translationCache = new Map<string, TranslationResponse>();
-
 const [cacheVersion, setCacheVersion] = createSignal(0);
 
 export { cacheVersion };
 
-// Tokenization cache (promise de-dup + LRU)
 const tokenCache = new Map<string, { tokens: Token[]; ts: number }>();
 const tokenInFlight = new Map<string, Promise<Token[]>>();
 const TOKEN_CACHE_MAX = 1000;
 
-// Dictionary cache
 const dictionaryCache = new Map<string, DictionaryEntry[]>();
 
-// Local overrides storage key
 const OVERRIDE_KEY = 'ml_translation_overrides';
 
 function buildTranslationCacheKey(word: string, language?: string): string {
@@ -46,34 +42,24 @@ function buildTokenCacheKey(text: string, language?: string): string {
   return `${language || 'default'}::${text}`;
 }
 
-/**
- * Get cached translation for a word (without fetching)
- * Returns null if not cached
- */
 export function getCachedTranslation(word: string, language?: string): TranslationResponse | null {
   return translationCache.get(buildTranslationCacheKey(word, language)) || null;
 }
 
-/**
- * Get reading from cached translation
- */
 export function getCachedReading(word: string, language?: string): string | null {
   const cached = translationCache.get(buildTranslationCacheKey(word, language));
   if (!cached?.data) return null;
-  
+
   const firstEntry = cached.data[0] as TranslationEntry | undefined;
-  if (firstEntry?.reading) {
-    // Strip HTML and accent markers from reading
-    let reading = firstEntry.reading;
-    const markerIdx = reading.indexOf('<!-- accent_start -->');
-    if (markerIdx !== -1) reading = reading.substring(0, markerIdx);
-    reading = reading.replace(/<[^>]*>/g, '').trim();
-    return reading || null;
-  }
-  return null;
+  if (!firstEntry?.reading) return null;
+
+  let reading = firstEntry.reading;
+  const markerIdx = reading.indexOf('<!-- accent_start -->');
+  if (markerIdx !== -1) reading = reading.substring(0, markerIdx);
+  reading = reading.replace(/<[^>]*>/g, '').trim();
+  return reading || null;
 }
 
-// In-memory cache of overrides, loaded once from KV store
 let overridesCache: Record<string, TranslationResponse> | null = null;
 
 async function readOverrides(): Promise<Record<string, TranslationResponse>> {
@@ -85,40 +71,35 @@ async function readOverrides(): Promise<Record<string, TranslationResponse>> {
     console.error(e);
     overridesCache = {};
   }
-  return overridesCache!;
+  return overridesCache ?? {};
 }
 
-// Write overrides to KV store
 function writeOverrides(map: Record<string, TranslationResponse>): void {
   overridesCache = map;
   getBridge().kvStore.kvSet(OVERRIDE_KEY, JSON.stringify(map));
 }
 
-// Fetch translation from backend (also exported for use by batch queues)
 export async function fetchTranslation(word: string, language?: string): Promise<TranslationResponse> {
   const cacheKey = buildTranslationCacheKey(word, language);
-  // Check override first
   const overrides = await readOverrides();
   if (overrides[cacheKey]) {
     return overrides[cacheKey];
   }
 
-  // Check in-memory cache
   if (translationCache.has(cacheKey)) {
     return translationCache.get(cacheKey)!;
   }
 
-  // Check IndexedDB persistent cache
   const dbCached = await getCachedTranslationByLanguageDB(word, language);
   if (dbCached) {
     translationCache.set(cacheKey, dbCached);
-    setCacheVersion(v => v + 1);
+    setCacheVersion((v) => v + 1);
     return dbCached;
   }
 
   const data = await getBackend().translate(word, language);
   translationCache.set(cacheKey, data);
-  setCacheVersion(v => v + 1);
+  setCacheVersion((v) => v + 1);
   void setCachedTranslationByLanguageDB(word, data, language);
   return data;
 }
@@ -136,7 +117,7 @@ export function useTranslation(options: UseTranslationOptions = {}) {
     async (word) => {
       if (!word) return null;
       return fetchTranslation(word, options.language);
-    }
+    },
   );
 
   const translate = async (word: string): Promise<TranslationResponse | null> => {
@@ -178,12 +159,6 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   };
 }
 
-/**
- * Pre-warm translation cache for a list of words.
- * @param words - Words to pre-fetch translations for
- * @param _translationUrl - Deprecated, ignored. Uses BackendAdapter.
- * @param _translatableTypes - Deprecated, ignored.
- */
 export async function warmTranslationCache(
   words: string[],
   _translationUrl?: string,
@@ -200,13 +175,14 @@ export async function warmTranslationCache(
       backend.translate(word, language)
         .then((data) => {
           translationCache.set(buildTranslationCacheKey(word, language), data);
-          setCacheVersion(v => v + 1);
+          setCacheVersion((v) => v + 1);
           batchEntries.push({ word, data });
         })
         .catch(() => {
           // Ignore errors during cache warming
-        })
+        }),
     );
+
   await Promise.all(promises);
   if (batchEntries.length > 0) {
     void setCachedTranslationBatchByLanguageDB(batchEntries, language);
@@ -230,7 +206,6 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     if (tokenInFlight.has(cacheKey)) return tokenInFlight.get(cacheKey)!;
 
     const p = (async () => {
-      // Check IndexedDB before hitting backend
       const dbCached = await getCachedTokensByLanguageDB(key, options.language);
       if (dbCached) {
         tokenCache.set(cacheKey, { tokens: dbCached, ts: Date.now() });
@@ -272,7 +247,6 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
       const cacheKey = buildDictionaryCacheKey(word, readingKey, options.language);
       if (dictionaryCache.has(cacheKey)) return dictionaryCache.get(cacheKey)!;
 
-      // Check IndexedDB persistent cache
       const dbCached = await getCachedDictionaryByLanguageDB(word, readingKey, options.language);
       if (dbCached) {
         dictionaryCache.set(cacheKey, dbCached);
@@ -280,31 +254,29 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
       }
 
       const data = await getBackend().translate(word, options.language);
-      // Transform backend response to DictionaryEntry array
-      // Response format: { data: [TranslationEntry?, TranslationEntry?, PitchData?] }
       if (data.data && Array.isArray(data.data)) {
         const entries: DictionaryEntry[] = [];
-        
+
         for (const entry of data.data) {
           if (!entry || typeof entry !== 'object') continue;
-          
-          // Check if it has definitions (TranslationEntry)
+
           const typedEntry = entry as TranslationEntry;
           if (typedEntry.definitions) {
             entries.push({
-              word: word,
+              word,
               reading: typedEntry.reading || '',
-              meanings: Array.isArray(typedEntry.definitions) 
-                ? typedEntry.definitions 
+              meanings: Array.isArray(typedEntry.definitions)
+                ? typedEntry.definitions
                 : [String(typedEntry.definitions)],
             });
           }
         }
-        
+
         dictionaryCache.set(cacheKey, entries);
         void setCachedDictionaryByLanguageDB(word, readingKey, entries, options.language);
         return entries;
       }
+
       dictionaryCache.set(cacheKey, []);
       void setCachedDictionaryByLanguageDB(word, readingKey, [], options.language);
       return [];
@@ -313,6 +285,6 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
       return [];
     }
   };
-  
+
   return { lookup };
 }
