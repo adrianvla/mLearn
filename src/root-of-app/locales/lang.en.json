@@ -1728,6 +1728,7 @@
       },
       "About": {
         "Licenses": "Licenses",
+        "FreeDictAttribution": "German dictionary data is derived from FreeDict.",
         "LicensesLoadError": "Unable to load license information."
       },
       "VideoPlayer": {

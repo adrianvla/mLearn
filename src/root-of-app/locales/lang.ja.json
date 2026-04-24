@@ -1795,6 +1795,7 @@
       },
       "About": {
         "Licenses": "ライセンス",
+        "FreeDictAttribution": "ドイツ語辞書データは FreeDict 由来です。",
         "LicensesLoadError": "ライセンス情報を読み込めませんでした。"
       },
       "Tabs": {
