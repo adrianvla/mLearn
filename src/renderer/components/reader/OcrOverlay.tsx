@@ -125,9 +125,9 @@ function estimateFontSize(text: string, width: number, height: number, vertical:
 
 export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const [hoveredBox, setHoveredBox] = createSignal<OcrBox | null>(null);
-  const { isTranslatable, getLanguageFeatures } = useLanguage();
   const { settings } = useSettings();
   const { tokenize } = useTokenizer({ language: settings.language });
+  const { isTranslatable, getLanguageFeatures } = useLanguage();
   const [tokenMap, setTokenMap] = createSignal<Map<number, Token[]>>(new Map());
   const [observedWidth, setObservedWidth] = createSignal(0);
   const [observedHeight, setObservedHeight] = createSignal(0);
@@ -206,6 +206,14 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
       ...box,
       __originalIdx: idx,
     }));
+
+    // Furigana detection is a reading-script feature (e.g. Japanese ruby text).
+    // For languages without phonetic readings, skip the geometric filter entirely —
+    // every detected box is real text and must be rendered.
+    const supportsReadings = langFeatures().supportsReadings;
+    if (!supportsReadings) {
+      return { filtered: boxesWithIdx, contextMapByOriginal: new Map<number, string>() };
+    }
 
     const { filtered, contextMap: ctxMap } = processOcrBoxes(boxesWithIdx, {
       ratio: settings.ocrFuriganaWidthRatio,
@@ -366,24 +374,27 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   // Only render when we have valid dimensions to calculate positions correctly
   const isReady = () => observedWidth() > 0 && observedHeight() > 0;
   
+  // Check if furigana hider is enabled (requires both user setting and reading-script language)
   // Check if furigana hider is enabled
-  const furiganaHiderEnabled = () => settings.readerFuriganaHider ?? false;
+  const furiganaHiderEnabled = () => (settings.readerFuriganaHider ?? false) && langFeatures().supportsReadings;
 
   return (
     <Show when={props.visible !== false && isReady()}>
       {/* Furigana Hider - white rectangles over furigana that fade on hover */}
-      <FuriganaHider
-        furiganaBoxes={furiganaBoxes()}
-        scaleFactor={scaleFactor()}
-        enabled={furiganaHiderEnabled()}
-        width={observedWidth()}
-        height={observedHeight()}
-        offsetLeft={imageOffsetLeft()}
-        offsetTop={imageOffsetTop()}
-      />
-      
+      <Show when={langFeatures().supportsReadings}>
+        <FuriganaHider
+          furiganaBoxes={furiganaBoxes()}
+          scaleFactor={scaleFactor()}
+          enabled={furiganaHiderEnabled()}
+          width={observedWidth()}
+          height={observedHeight()}
+          offsetLeft={imageOffsetLeft()}
+          offsetTop={imageOffsetTop()}
+        />
+      </Show>
+
       {/* Debug overlay for furigana boxes - shown with debug coloring */}
-      <Show when={props.debugOcr && furiganaBoxes().length > 0}>
+      <Show when={langFeatures().supportsReadings && props.debugOcr && furiganaBoxes().length > 0}>
         <div
           class="ocr-overlay"
           style={{
