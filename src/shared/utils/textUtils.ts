@@ -38,6 +38,87 @@ export const SMALL_KANA = new Set([
   'ゎ', 'ゕ', 'ゖ',
 ]);
 
+type LocaleScriptCode =
+  | 'arab'
+  | 'armn'
+  | 'beng'
+  | 'cyrl'
+  | 'deva'
+  | 'ethi'
+  | 'geor'
+  | 'grek'
+  | 'guru'
+  | 'hebr'
+  | 'khmr'
+  | 'latn'
+  | 'mlym'
+  | 'mymr'
+  | 'sinh'
+  | 'taml'
+  | 'telu'
+  | 'thai'
+  | 'knda';
+
+function getMaximizedLocaleScript(language: string): LocaleScriptCode | '' {
+  try {
+    const locale = new Intl.Locale(language).maximize();
+    return (locale.script || '').toLowerCase() as LocaleScriptCode | '';
+  } catch (e) {
+    console.error(e);
+    return '';
+  }
+}
+
+function hasLettersInScript(text: string, script: LocaleScriptCode): boolean {
+  switch (script) {
+    case 'latn':
+      return LATIN_LETTER_REGEX.test(text);
+    case 'cyrl':
+      return /[\u0400-\u04FF\u0500-\u052F]/u.test(text);
+    case 'arab':
+      return /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/u.test(text);
+    case 'deva':
+      return /[\u0900-\u097F]/u.test(text);
+    case 'thai':
+      return /[\u0E00-\u0E7F]/u.test(text);
+    case 'grek':
+      return /[\u0370-\u03FF\u1F00-\u1FFF]/u.test(text);
+    case 'hebr':
+      return /[\u0590-\u05FF\uFB1D-\uFB4F]/u.test(text);
+    case 'geor':
+      return /[\u10A0-\u10FF\u2D00-\u2D2F]/u.test(text);
+    case 'armn':
+      return /[\u0530-\u058F]/u.test(text);
+    case 'khmr':
+      return /[\u1780-\u17FF]/u.test(text);
+    case 'mymr':
+      return /[\u1000-\u109F]/u.test(text);
+    case 'beng':
+      return /[\u0980-\u09FF]/u.test(text);
+    case 'guru':
+      return /[\u0A00-\u0A7F]/u.test(text);
+    case 'taml':
+      return /[\u0B80-\u0BFF]/u.test(text);
+    case 'telu':
+      return /[\u0C00-\u0C7F]/u.test(text);
+    case 'knda':
+      return /[\u0C80-\u0CFF]/u.test(text);
+    case 'mlym':
+      return /[\u0D00-\u0D7F]/u.test(text);
+    case 'sinh':
+      return /[\u0D80-\u0DFF]/u.test(text);
+    case 'ethi':
+      return /[\u1200-\u137F]/u.test(text);
+    default:
+      return false;
+  }
+}
+
+function isShortCjkWord(word: string, language: string): boolean {
+  const codePointLength = [...word].length;
+  return codePointLength <= 1 && (language === 'ja' || language === 'ko' || language === 'zh' || language.startsWith('zh-'));
+}
+
 // ============================================================================
 // Text Detection Functions
 // ============================================================================
@@ -143,11 +224,12 @@ export function isLatinOnly(text: string): boolean {
  * Words that are purely numeric or punctuation return `false`.
  */
 export function isWordInLanguageScript(word: string, language: string): boolean {
-  if (!word || word.length <= 1) return false;
+  if (!word) return false;
 
   // Reject words that are purely numbers, punctuation, or symbols (universal)
   if (/^[\d.,;:%$€£¥₩\-–—\s]+$/.test(word)) return false;
   if (/^[^\p{L}\p{N}]+$/u.test(word)) return false;
+  if (isShortCjkWord(word, language)) return false;
 
   switch (language) {
     case 'ja':
@@ -168,14 +250,7 @@ export function isWordInLanguageScript(word: string, language: string): boolean 
       // For all other languages: check via Intl.Locale.maximize() to discover
       // the expected script, then verify the word contains letters of that
       // script. Falls back to "has any letter" for unknown scripts.
-      let expectedScript = '';
-      try {
-        const locale = new Intl.Locale(language).maximize();
-        expectedScript = (locale.script || '').toLowerCase();
-      } catch (e) {
-        console.error(e);
-        // Unknown locale — accept any word that has letters
-      }
+      const expectedScript = getMaximizedLocaleScript(language);
 
       // Must contain at least one Unicode letter
       if (!/\p{L}/u.test(word)) return false;
@@ -183,50 +258,7 @@ export function isWordInLanguageScript(word: string, language: string): boolean 
       // If we couldn't determine script, accept anything with letters
       if (!expectedScript) return true;
 
-      // Script-specific checks
-      switch (expectedScript) {
-        case 'latn':
-          return LATIN_LETTER_REGEX.test(word);
-        case 'cyrl':
-          return /[\u0400-\u04FF\u0500-\u052F]/u.test(word);
-        case 'arab':
-          return /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/u.test(word);
-        case 'deva':
-          return /[\u0900-\u097F]/u.test(word);
-        case 'thai':
-          return /[\u0E00-\u0E7F]/u.test(word);
-        case 'grek':
-          return /[\u0370-\u03FF\u1F00-\u1FFF]/u.test(word);
-        case 'hebr':
-          return /[\u0590-\u05FF\uFB1D-\uFB4F]/u.test(word);
-        case 'geor':
-          return /[\u10A0-\u10FF\u2D00-\u2D2F]/u.test(word);
-        case 'armn':
-          return /[\u0530-\u058F]/u.test(word);
-        case 'khmr':
-          return /[\u1780-\u17FF]/u.test(word);
-        case 'mymr':
-          return /[\u1000-\u109F]/u.test(word);
-        case 'beng':
-          return /[\u0980-\u09FF]/u.test(word);
-        case 'guru':
-          return /[\u0A00-\u0A7F]/u.test(word);
-        case 'taml':
-          return /[\u0B80-\u0BFF]/u.test(word);
-        case 'telu':
-          return /[\u0C00-\u0C7F]/u.test(word);
-        case 'knda':
-          return /[\u0C80-\u0CFF]/u.test(word);
-        case 'mlym':
-          return /[\u0D00-\u0D7F]/u.test(word);
-        case 'sinh':
-          return /[\u0D80-\u0DFF]/u.test(word);
-        case 'ethi':
-          return /[\u1200-\u137F]/u.test(word);
-        default:
-          // Unknown script — accept any word with letters
-          return true;
-      }
+      return hasLettersInScript(word, expectedScript);
     }
   }
 }
@@ -335,12 +367,16 @@ export function isValidSTTResult(text: string, language: string): boolean {
       return true;
 
     default: {
-      // For Latin-script languages (en, fr, de, es, etc.):
-      // Reject if the text is entirely CJK characters
+      // For other languages, reject text that has letters but none in the
+      // expected script. Still allow mixed-script text if it contains target
+      // script letters (e.g. Latin text with some embedded CJK).
       const hasCJK = CJK_IDEOGRAPH_REGEX.test(trimmed);
-      const hasLatin = LATIN_LETTER_REGEX.test(trimmed);
+      const hasLetters = /\p{L}/u.test(trimmed);
+      const expectedScript = getMaximizedLocaleScript(language);
 
-      if (hasCJK && !hasLatin) return false;
+      if (!hasLetters) return true;
+      if (!expectedScript) return !(hasCJK && !LATIN_LETTER_REGEX.test(trimmed));
+      if (!hasLettersInScript(trimmed, expectedScript)) return false;
 
       return true;
     }

@@ -47,7 +47,7 @@ export interface PitchAccentOverlayProps {
 }
 
 /** Extract pitch position from translation cache data */
-function extractPitchFromCache(word: string, language: string): number | null {
+function extractPitchFromCache(word: string, language?: string): number | null {
   const cached = getCachedTranslation(word, language);
   if (!cached?.data) return null;
 
@@ -55,7 +55,7 @@ function extractPitchFromCache(word: string, language: string): number | null {
 }
 
 /** Extract reading from translation cache data */
-function extractReadingFromCache(word: string, language: string): string | null {
+function extractReadingFromCache(word: string, language?: string): string | null {
   const cached = getCachedTranslation(word, language);
   return extractReadingValue(cached?.data);
 }
