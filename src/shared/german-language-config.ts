@@ -160,19 +160,24 @@ export const GERMAN_COMPOUND_PATTERNS = [
 
 /**
  * Supported dictionary backends for German
+ *
+ * Primary backend is the bundled FreeDict SQLite database shipped with the
+ * Python backend (src/root-of-app/dictionaries/freedict-deu-eng/), mirroring
+ * the Japanese Jitendex pipeline. Online backends are kept for optional
+ * external lookup links in the UI.
  */
 export const GERMAN_DICTIONARY_BACKENDS = [
+  {
+    name: 'freedict',
+    label: 'FreeDict (Offline)',
+    url: '',
+    offline: true,
+    priority: 1,
+  },
   {
     name: 'wiktionary',
     label: 'Wiktionary',
     url: 'https://en.wiktionary.org/wiki/',
-    offline: false,
-    priority: 1,
-  },
-  {
-    name: 'dwds',
-    label: 'DWDS (Digitales Wörterbuch der deutschen Sprache)',
-    url: 'https://www.dwds.de/wb/',
     offline: false,
     priority: 2,
   },
@@ -301,7 +306,7 @@ export const GERMAN_LANGUAGE_METADATA: LanguageMetadata = {
   
   // Dictionary support
   hasDictionarySupport: true,
-  dictionaryBackends: ['wiktionary', 'dwds', 'duden'],
+  dictionaryBackends: ['freedict', 'wiktionary', 'duden'],
   
   // OCR support
   hasOCRSupport: true,

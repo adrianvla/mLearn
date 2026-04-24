@@ -163,7 +163,7 @@ export interface LanguageMetadata {
   
   // Dictionary support
   hasDictionarySupport: boolean;
-  dictionaryBackends: string[]; // e.g., ['jmdict', 'wiktionary', 'dwds']
+  dictionaryBackends: string[]; // e.g., ['jmdict', 'freedict', 'wiktionary']
   
   // OCR support
   hasOCRSupport: boolean;
@@ -321,7 +321,7 @@ export function createGermanMetadata(): LanguageMetadata {
     ],
     defaultProficiencyFramework: 'cefr',
     hasDictionarySupport: true,
-    dictionaryBackends: ['wiktionary', 'dwds'],
+    dictionaryBackends: ['freedict', 'wiktionary'],
     hasOCRSupport: true,
     hasOCRRamSaver: false,
     hasTTSSupport: true,
