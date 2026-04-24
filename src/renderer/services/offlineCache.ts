@@ -35,6 +35,7 @@ function buildTokenKey(text: string, language?: string): string {
 }
 
 const MAX_TRANSLATIONS = 50_000;
+const MAX_DICTIONARY = 50_000;
 const MAX_TOKENS = 5_000;
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -218,10 +219,12 @@ export async function getCachedDictionaryByLanguageDB(word: string, reading: str
 
 export async function setCachedDictionaryDB(word: string, reading: string, entries: DictionaryEntry[]): Promise<void> {
   await idbPut(STORE_DICTIONARY, `${word}::${reading}`, entries);
+  await idbPrune(STORE_DICTIONARY, MAX_DICTIONARY);
 }
 
 export async function setCachedDictionaryByLanguageDB(word: string, reading: string, entries: DictionaryEntry[], language?: string): Promise<void> {
   await idbPut(STORE_DICTIONARY, buildDictionaryKey(word, reading, language), entries);
+  await idbPrune(STORE_DICTIONARY, MAX_DICTIONARY);
 }
 
 export async function clearDictionaryCacheDB(): Promise<void> {
