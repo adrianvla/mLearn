@@ -805,4 +805,60 @@ describe('useDictionary', () => {
     expect(mockTranslate).toHaveBeenCalledWith('Haus', 'de');
     expect(mockSetCachedDictionaryByLanguageDB).toHaveBeenCalledWith('Haus', '', expect.any(Array), 'de');
   });
+
+  it('translationCache evicts oldest entries past cap (FIFO, prevents unbounded growth)', async () => {
+    const { fetchTranslation } = await import('./useTranslation');
+    const cap = 5000;
+    for (let i = 0; i < cap + 5; i++) {
+      await fetchTranslation(`word-${i}`);
+    }
+    expect(mockTranslate).toHaveBeenCalledTimes(cap + 5);
+
+    mockTranslate.mockClear();
+    await fetchTranslation('word-0');
+    expect(mockTranslate).toHaveBeenCalledTimes(1);
+
+    mockTranslate.mockClear();
+    await fetchTranslation(`word-${cap + 4}`);
+    expect(mockTranslate).not.toHaveBeenCalled();
+  }, 20000);
+
+  it('dictionaryCache evicts oldest entries past cap (FIFO, prevents unbounded growth)', async () => {
+    const { useDictionary } = await import('./useTranslation');
+    const { lookup } = useDictionary();
+    const cap = 5000;
+    for (let i = 0; i < cap + 5; i++) {
+      await lookup(`dict-${i}`);
+    }
+    expect(mockTranslate).toHaveBeenCalledTimes(cap + 5);
+
+    mockTranslate.mockClear();
+    await lookup('dict-0');
+    expect(mockTranslate).toHaveBeenCalledTimes(1);
+
+    mockTranslate.mockClear();
+    await lookup(`dict-${cap + 4}`);
+    expect(mockTranslate).not.toHaveBeenCalled();
+  }, 20000);
+
+  it('tokenCache evicts oldest entries past cap (FIFO, regression test for prune helper refactor)', async () => {
+    mockTokenize.mockImplementation(async (text: string) => [
+      { word: text, actual_word: text, type: 'NOUN' },
+    ]);
+    const { useTokenizer } = await import('./useTranslation');
+    const { tokenize } = useTokenizer();
+    const cap = 1000;
+    for (let i = 0; i < cap + 5; i++) {
+      await tokenize(`tok-${i}`);
+    }
+    expect(mockTokenize).toHaveBeenCalledTimes(cap + 5);
+
+    mockTokenize.mockClear();
+    await tokenize('tok-0');
+    expect(mockTokenize).toHaveBeenCalledTimes(1);
+
+    mockTokenize.mockClear();
+    await tokenize(`tok-${cap + 4}`);
+    expect(mockTokenize).not.toHaveBeenCalled();
+  }, 20000);
 });
