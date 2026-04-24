@@ -10,6 +10,8 @@ import type { Settings, FlashcardStore } from '@shared/types';
 import type { LanguageCode } from '@shared/language-abstraction';
 import {
   performLanguageMetadataMigration,
+  migrateSettingsToLanguageMetadata,
+  migrateFlashcardStoreToLanguageMetadata,
   hasSettingsBeenMigrated,
   hasFlashcardStoreBeenMigrated,
 } from '@shared/language-migration';
@@ -57,12 +59,8 @@ export function migrateSettingsIfNeeded(settings: Settings): Settings {
   console.log('[LanguageMigration] Migrating settings to include language metadata');
   
   try {
-    const { settings: migratedSettings } = performLanguageMetadataMigration(
-      settings,
-      { flashcards: {} } as FlashcardStore, // Dummy store for settings-only migration
-      (settings.language || 'ja') as LanguageCode
-    );
-    
+    const migratedSettings = migrateSettingsToLanguageMetadata(settings);
+
     console.log('[LanguageMigration] Settings migration completed successfully');
     return migratedSettings;
   } catch (error) {
@@ -92,12 +90,8 @@ export function migrateFlashcardStoreIfNeeded(
   console.log('[LanguageMigration] Migrating flashcard store to include language metadata');
   
   try {
-    const { store: migratedStore } = performLanguageMetadataMigration(
-      { language } as Settings, // Dummy settings for store-only migration
-      store,
-      language
-    );
-    
+    const migratedStore = migrateFlashcardStoreToLanguageMetadata(store, language);
+
     console.log('[LanguageMigration] Flashcard store migration completed successfully');
     return migratedStore;
   } catch (error) {
