@@ -1795,6 +1795,7 @@
       },
       "About": {
         "Licenses": "Licences",
+        "FreeDictAttribution": "Les données du dictionnaire allemand proviennent de FreeDict.",
         "LicensesLoadError": "Impossible de charger les informations de licence."
       },
       "Tabs": {
