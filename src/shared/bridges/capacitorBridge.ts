@@ -611,6 +611,10 @@ const flashcardBridge: FlashcardBridge = {
   async getFlashcardTtsMeta() {
     return null;
   },
+
+  async deleteFlashcardTts(_cardId: string) {
+    return undefined;
+  },
 };
 
 const pluginBridge: PluginBridge = {
