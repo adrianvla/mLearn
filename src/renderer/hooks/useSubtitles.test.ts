@@ -2,6 +2,11 @@ import { createRoot } from 'solid-js';
 import { useSubtitles } from './useSubtitles';
 
 const mockTokenize = vi.fn().mockResolvedValue([]);
+const mockParseSubtitle = vi.fn((text: string) => ({
+  text,
+  readingOverrides: [],
+}));
+const mockShouldRemoveParentheticalContent = vi.fn((language: string) => language === 'ja');
 
 vi.mock('../context', () => ({
   useSettings: vi.fn(() => ({
@@ -16,10 +21,8 @@ vi.mock('./useTranslation', () => ({
 }));
 
 vi.mock('../utils/subtitleParsing', () => ({
-  parseSubtitle: vi.fn((text: string) => ({
-    text,
-    readingOverrides: [],
-  })),
+  parseSubtitle: (...args: unknown[]) => mockParseSubtitle(...(args as [string, string])),
+  shouldRemoveParentheticalContent: (...args: unknown[]) => mockShouldRemoveParentheticalContent(...(args as [string])),
 }));
 
 const SRT_CONTENT = `1
@@ -65,6 +68,8 @@ Dialogue: 0,0:00:05.00,0:00:08.00,Default,,0,0,0,,Second subtitle
 describe('useSubtitles', () => {
   beforeEach(() => {
     mockTokenize.mockResolvedValue([]);
+    mockParseSubtitle.mockImplementation((text: string) => ({ text, readingOverrides: [] }));
+    mockShouldRemoveParentheticalContent.mockImplementation((language: string) => language === 'ja');
   });
 
   // ========================================================================
@@ -514,6 +519,44 @@ Valid line
     });
   });
 
+  it('preserves parenthetical subtitle content for German when removal is enabled', async () => {
+    const { useSettings } = await import('../context');
+    vi.mocked(useSettings).mockReturnValueOnce({
+      settings: { language: 'de', subsOffsetTime: 0, removeParentheses: true, removeSpeakerNames: false },
+    } as never);
+
+    await createRoot(async (dispose) => {
+      const hook = useSubtitles();
+      hook.loadSubtitles(`1
+00:00:01,000 --> 00:00:03,000
+Hallo (leise)
+`, 'srt');
+      await hook.updateTime(2.0);
+      expect(mockTokenize).toHaveBeenCalledWith('Hallo (leise)');
+      dispose();
+    });
+  });
+
+  it('removes parenthetical subtitle content for Japanese when removal is enabled', async () => {
+    const { useSettings } = await import('../context');
+    vi.mocked(useSettings).mockReturnValueOnce({
+      settings: { language: 'ja', subsOffsetTime: 0, removeParentheses: true, removeSpeakerNames: false },
+    } as never);
+
+    mockParseSubtitle.mockImplementation((text: string) => ({ text, readingOverrides: [] }));
+
+    await createRoot(async (dispose) => {
+      const hook = useSubtitles();
+      hook.loadSubtitles(`1
+00:00:01,000 --> 00:00:03,000
+漢字(かんじ)
+`, 'srt');
+      await hook.updateTime(2.0);
+      expect(mockTokenize).toHaveBeenCalledWith('漢字');
+      dispose();
+    });
+  });
+
   it('updateTime uses fallback tokens when tokenize returns empty', async () => {
     mockTokenize.mockResolvedValue([]);
     await createRoot(async (dispose) => {
@@ -602,8 +645,7 @@ Valid line
   // ========================================================================
 
   it('updateTime applies reading overrides from parseSubtitle', async () => {
-    const { parseSubtitle } = await import('../utils/subtitleParsing');
-    vi.mocked(parseSubtitle).mockReturnValue({
+    mockParseSubtitle.mockReturnValue({
       text: 'Hello world',
       readingOverrides: [{ word: 'Hello', reading: 'helo' }],
     });

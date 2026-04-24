@@ -7,7 +7,7 @@ import { createSignal, createMemo } from 'solid-js';
 import type { Subtitle, Token } from '../../shared/types';
 import { useSettings } from '../context';
 import { useTokenizer } from './useTranslation';
-import { parseSubtitle } from '../utils/subtitleParsing';
+import { parseSubtitle, shouldRemoveParentheticalContent } from '../utils/subtitleParsing';
 
 // Parse SRT format subtitles
 function parseSRT(content: string): Subtitle[] {
@@ -297,7 +297,7 @@ export function useSubtitles() {
       }
 
       // Remove all parenthesized content (must happen before parseSubtitle which handles furigana parens)
-      if (settings.removeParentheses) {
+      if (settings.removeParentheses && shouldRemoveParentheticalContent(settings.language)) {
         rawText = rawText.replace(/\([^)]*\)/g, '').replace(/（[^）]*）/g, '').trim();
       }
 

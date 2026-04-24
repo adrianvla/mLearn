@@ -139,6 +139,20 @@ describe('HttpBackend', () => {
 
       await expect(backend.translate('unknown')).rejects.toThrow('Translation request failed: 404');
     });
+
+    it('includes language in translate request body when provided', async () => {
+      mockFetch.mockResolvedValueOnce(makeOkResponse({ data: [] }));
+
+      await backend.translate('Haus', 'de');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://127.0.0.1:7752/translate',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ word: 'Haus', language: 'de' }),
+        }),
+      );
+    });
   });
 
   describe('ocr', () => {

@@ -81,6 +81,10 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
 
   const isDark = () => settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker';
 
+  const isValidWordForCurrentLanguage = (word: string) => {
+    return Boolean(word?.trim()) && isWordInLanguageScript(word.trim(), settings.language);
+  };
+
   // Load media stats on mount
   onMount(() => {
     const bridge = getBridge();
@@ -330,6 +334,10 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     }
 
     // Add as custom word and auto-select
+    if (!isValidWordForCurrentLanguage(query)) {
+      return;
+    }
+
     const newWord: TutorWordSelection = { word: query, ease: -1 };
     batch(() => {
       setCustomWords(prev => [...prev, newWord]);
@@ -342,6 +350,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
   const canAddCustom = createMemo(() => {
     const query = searchQuery().trim();
     if (!query) return false;
+    if (!isValidWordForCurrentLanguage(query)) return false;
     return !allWords().some(w => w.word.toLowerCase() === query.toLowerCase());
   });
 
@@ -462,6 +471,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
               if (!item.word || typeof item.word !== 'string') continue;
               const word = item.word.trim();
               if (!word) continue;
+              if (!isValidWordForCurrentLanguage(word)) continue;
 
               const entry: TutorWordSelection = {
                 word,

@@ -71,7 +71,7 @@ function extractTranslation(resp: TranslationResponse): string {
 }
 
 /** Extract pitch accent position from cached translation data */
-function extractPitchFromCache(word: string, language?: string): number | null {
+function extractPitchFromCache(word: string, language: string): number | null {
   const cached = getCachedTranslation(word, language);
   if (!cached?.data) return null;
 
