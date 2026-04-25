@@ -67,11 +67,14 @@ export class HttpBackend implements BackendAdapter {
     return ((data.tokens || data) as unknown) as Token[];
   }
 
-  async translate(word: string, _language?: string): Promise<TranslationResponse> {
+  async translate(word: string, language?: string): Promise<TranslationResponse> {
+    const body: Record<string, string> = { word };
+    if (language) body.language = language;
+
     const res = await fetch(this.buildUrl('/translate'), {
       method: 'POST',
       headers: this.headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ word }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(10_000),
     });
 

@@ -491,6 +491,12 @@ describe('Flashcard Bridge', () => {
     expect(result).toBeNull();
   });
 
+  it('deleteFlashcardTts resolves without error (no-op on mobile)', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    await expect(bridge.flashcards.deleteFlashcardTts('card1')).resolves.toBeUndefined();
+  });
+
   it('saveFlashcardImage saves base64 data URL via Filesystem', async () => {
     const { Filesystem } = await import('@capacitor/filesystem');
     const { createCapacitorBridge } = await import('./capacitorBridge');

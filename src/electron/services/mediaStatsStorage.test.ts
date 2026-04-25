@@ -270,3 +270,67 @@ describe('LIST_MEDIA_STATS IPC handler', () => {
     expect(result).toHaveLength(2);
   });
 });
+
+describe('pruneMediaStats', () => {
+  it('does nothing when entry count is below the cap', () => {
+    mod.saveMediaStats('a', makeStats('a'));
+    mod.saveMediaStats('b', makeStats('b'));
+    mod.pruneMediaStats(10);
+    const dir = path.join(tempDir.tmpDir, 'media-stats');
+    expect(fs.readdirSync(dir).length).toBe(2);
+  });
+
+  it('does nothing when the directory does not exist', () => {
+    expect(() => mod.pruneMediaStats(5)).not.toThrow();
+  });
+
+  it('removes least-recently-accessed entries until at most maxEntries remain', () => {
+    const oldest = makeStats('old');
+    oldest.lastAccessed = 1000;
+    mod.saveMediaStats('old', oldest);
+
+    const middle = makeStats('mid');
+    middle.lastAccessed = 5000;
+    mod.saveMediaStats('mid', middle);
+
+    const newest = makeStats('new');
+    newest.lastAccessed = 9000;
+    mod.saveMediaStats('new', newest);
+
+    mod.pruneMediaStats(2);
+
+    const dir = path.join(tempDir.tmpDir, 'media-stats');
+    const remaining = fs.readdirSync(dir).sort();
+    expect(remaining).toEqual(['mid.json', 'new.json']);
+  });
+
+  it('treats files with corrupt JSON as oldest (epoch 0) and prunes them first', () => {
+    const dir = path.join(tempDir.tmpDir, 'media-stats');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'corrupt.json'), '{ bad', 'utf-8');
+
+    const recent = makeStats('recent');
+    recent.lastAccessed = Date.now();
+    mod.saveMediaStats('recent', recent);
+
+    mod.pruneMediaStats(1);
+
+    const remaining = fs.readdirSync(dir).sort();
+    expect(remaining).toEqual(['recent.json']);
+  });
+
+  it('saveMediaStats triggers prune when over the default cap', () => {
+    const baseTime = 1_000_000;
+    for (let i = 0; i < 502; i++) {
+      const s = makeStats(`h${i}`);
+      s.lastAccessed = baseTime + i;
+      mod.saveMediaStats(`h${i}`, s);
+    }
+    const dir = path.join(tempDir.tmpDir, 'media-stats');
+    const files = fs.readdirSync(dir);
+    expect(files.length).toBe(500);
+    expect(files).toContain('h501.json');
+    expect(files).not.toContain('h0.json');
+    expect(files).not.toContain('h1.json');
+  });
+});

@@ -5,7 +5,7 @@
 
 import { Component, createSignal, onMount, Show } from 'solid-js';
 import { useTranslation } from '../../../hooks/useTranslation';
-import { useLocalization } from '../../../context';
+import { useLocalization, useSettings } from '../../../context';
 import {
   Input,
   Modal,
@@ -37,7 +37,8 @@ export interface TranslationOverride {
 }
 
 export const EditTranslationDialog: Component<EditTranslationDialogProps> = (props) => {
-  const { translateWord, setOverride } = useTranslation();
+  const { settings } = useSettings();
+  const { translateWord, setOverride } = useTranslation({ language: settings.language });
   const { t } = useLocalization();
   
   const [reading, setReading] = createSignal('');

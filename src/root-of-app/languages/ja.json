@@ -35,6 +35,7 @@
   "hasOcrRamSaver": true,
   "supportsVerticalText": true,
   "hasFurigana": true,
+  "hasHonorifics": true,
   "freq": [
     [
       "N5",

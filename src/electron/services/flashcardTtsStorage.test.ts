@@ -205,6 +205,7 @@ describe('flashcardTtsStorage', () => {
       expect(ipcMain.handle).toHaveBeenCalledWith('flashcard-tts-generate', expect.any(Function));
       expect(ipcMain.handle).toHaveBeenCalledWith('flashcard-tts-batch-generate', expect.any(Function));
       expect(ipcMain.handle).toHaveBeenCalledWith('flashcard-tts-get-meta', expect.any(Function));
+      expect(ipcMain.handle).toHaveBeenCalledWith('flashcard-tts-delete', expect.any(Function));
     });
   });
 
@@ -309,6 +310,54 @@ describe('flashcardTtsStorage', () => {
       const handler = mockIpcHandlers.get('flashcard-tts-get-meta');
       const result = await handler!({}, 'card-ex-meta', 'example');
       expect(result).toEqual(meta);
+    });
+  });
+
+  describe('FLASHCARD_TTS_DELETE handler', () => {
+    beforeEach(() => {
+      setupFlashcardTtsIPC();
+    });
+
+    it('removes audio + meta files for both word and example fields', async () => {
+      const audioDir = path.join(tempDir.tmpDir, 'flashcard-audio');
+      fs.mkdirSync(audioDir, { recursive: true });
+      const files = [
+        'card-del-word.ogg',
+        'card-del-word.meta.json',
+        'card-del-example.ogg',
+        'card-del-example.meta.json',
+      ];
+      for (const f of files) fs.writeFileSync(path.join(audioDir, f), 'data');
+
+      const handler = mockIpcHandlers.get('flashcard-tts-delete');
+      await handler!({}, 'card-del');
+
+      for (const f of files) {
+        expect(fs.existsSync(path.join(audioDir, f))).toBe(false);
+      }
+    });
+
+    it('is a no-op when no files exist for the card', async () => {
+      const handler = mockIpcHandlers.get('flashcard-tts-delete');
+      expect(() => handler!({}, 'card-missing')).not.toThrow();
+    });
+
+    it('is a no-op when audio directory does not exist', async () => {
+      const handler = mockIpcHandlers.get('flashcard-tts-delete');
+      expect(() => handler!({}, 'card-no-dir')).not.toThrow();
+    });
+
+    it('only removes files for the requested cardId', async () => {
+      const audioDir = path.join(tempDir.tmpDir, 'flashcard-audio');
+      fs.mkdirSync(audioDir, { recursive: true });
+      fs.writeFileSync(path.join(audioDir, 'card-A-word.ogg'), 'a');
+      fs.writeFileSync(path.join(audioDir, 'card-B-word.ogg'), 'b');
+
+      const handler = mockIpcHandlers.get('flashcard-tts-delete');
+      await handler!({}, 'card-A');
+
+      expect(fs.existsSync(path.join(audioDir, 'card-A-word.ogg'))).toBe(false);
+      expect(fs.existsSync(path.join(audioDir, 'card-B-word.ogg'))).toBe(true);
     });
   });
 

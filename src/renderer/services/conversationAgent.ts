@@ -25,6 +25,7 @@ import type {
 } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
+import type { LanguageFeatures } from '../context/LanguageContext';
 
 // ============================================================================
 // Types
@@ -34,6 +35,7 @@ interface AgentDeps {
   getSettings: () => Settings;
   getLanguage: () => string;
   getLanguageName: () => string;
+  getLanguageFeatures: () => LanguageFeatures;
   getMediaContext: () => ConversationAgentContext | null;
   getSceneContext: () => string;
   flashcardCtx: {
@@ -155,8 +157,11 @@ function buildSystemPrompt(
   splitChecker?: boolean,
   inlineBackstory?: boolean,
   disabledTools?: Set<string>,
+  features?: LanguageFeatures,
 ): string {
   const isToolDisabled = (name: string) => disabledTools?.has(name) ?? false;
+  const supportsHonorifics = features?.supportsHonorifics ?? false;
+  const supportsReadings = features?.supportsReadings ?? false;
 
   // Build personality section
   let personalitySection: string;
@@ -170,7 +175,9 @@ function buildSystemPrompt(
   } else if (agentConfig?.personality === 'roleplay' && agentConfig.roleplayName) {
     const formalityNote = agentConfig.roleplayFormality === 'polite'
       ? `- Use formal, polite ${langName} — proper grammar and respectful language.`
-      : `- Use casual, informal ${langName} only. NEVER use formal or polite register — no honorifics, no deferential verb forms, no polite sentence endings. Speak like a close friend.`;
+      : (supportsHonorifics
+        ? `- Use casual, informal ${langName} only. NEVER use formal or polite register — no honorifics, no deferential verb forms, no polite sentence endings. Speak like a close friend.`
+        : `- Use casual, informal ${langName} only. Speak like a close friend, using contractions and everyday vocabulary. Avoid stiff or overly formal phrasing.`);
     const quotesSection = agentConfig.roleplayQuotes && agentConfig.roleplayQuotes.length > 0
       ? `\nSample quotes (match the style, don't repeat these lines verbatim):\n${agentConfig.roleplayQuotes.map((q) => `- "${q}"`).join('\n')}`
       : '';
@@ -192,7 +199,9 @@ ${formalityNote}
     personalitySection = `## Personality
 - Patient, encouraging, and warm.
 - Use casual, colloquial ${langName} — speak like a close friend, NOT like a teacher or textbook.
-- NEVER use formal or polite register. Use informal verb forms, contractions, and casual sentence endings. Avoid honorific or deferential language entirely.
+${supportsHonorifics
+  ? `- NEVER use formal or polite register. Use informal verb forms, contractions, and casual sentence endings. Avoid honorific or deferential language entirely.`
+  : `- Prefer informal phrasing, contractions, and everyday vocabulary over stiff or textbook-style language.`}
 - Celebrate progress and good usage.
 - When the learner struggles, simplify rather than switch languages entirely.`;
   }
@@ -223,8 +232,8 @@ ${identitySection}
 - Naturally correct mistakes the learner makes using the "correct_mistake" tool.`}${isToolDisabled('create_quiz') ? '' : `
 - Periodically quiz the learner using the "create_quiz" tool based on vocabulary or grammar used in the conversation.`}
 - If the learner writes in another language, reply in ${langName} and gently guide them back to ${langName}.
-- Base conversation topics on the media the learner is consuming — discuss scenes, character actions, plot, and themes rather than generic topics like weather or hobbies.
-- Do not quiz the reader on character readings if ${langName} has any. 
+- Base conversation topics on the media the learner is consuming — discuss scenes, character actions, plot, and themes rather than generic topics like weather or hobbies.${supportsReadings ? `
+- Do not quiz the reader on character readings if ${langName} has any.` : ''}
 
 ${personalitySection}
 `;
@@ -632,7 +641,11 @@ const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
 // Voice-Mode System Prompt
 // ============================================================================
 
-function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentContext | null): string {
+function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentContext | null, features?: LanguageFeatures): string {
+  const supportsHonorifics = features?.supportsHonorifics ?? false;
+  const registerLine = supportsHonorifics
+    ? `- Speak naturally and conversationally, as if chatting with a friend. Use casual register — avoid honorifics and overly formal speech.`
+    : `- Speak naturally and conversationally, as if chatting with a friend.`;
   let prompt = `You are a friendly, natural-sounding language tutor for ${langName} in a live voice conversation.
 
 ## Rules
@@ -642,7 +655,7 @@ function buildVoiceSystemPrompt(langName: string, mediaCtx: ConversationAgentCon
 - Do NOT use emojis.
 - Do NOT use interaction markers like [chuckles], [laughs], *smiles*, etc.
 - Do NOT use asterisks for emphasis or actions.
-- Speak naturally and conversationally, as if chatting with a friend.
+${registerLine}
 - If the learner makes a mistake, gently mention the correction in your speech AND call the "note_mistake" tool.
 - The "note_mistake" tool MUST be called at the END of your response whenever the learner makes an error.
 - Do NOT correct speech patterns that are valid informal/casual variations. Only correct actual mistakes.
@@ -1353,12 +1366,13 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const targetLevelName = targetLevel !== null ? (deps.getLevelName?.(targetLevel) ?? undefined) : undefined;
 
     const includeKnowledge = deps.getIncludeKnowledgeInfo?.() ?? true;
+    const langFeatures = deps.getLanguageFeatures();
 
     const systemMsg: LLMChatMessage = {
       role: 'system',
       content: isVoice
-        ? buildVoiceSystemPrompt(langName, mediaCtx)
-        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, includeKnowledge, splitChecker, inlineBackstory, effectiveDisabled),
+        ? buildVoiceSystemPrompt(langName, mediaCtx, langFeatures)
+        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, includeKnowledge, splitChecker, inlineBackstory, effectiveDisabled, langFeatures),
     };
 
     const messages: LLMChatMessage[] = [

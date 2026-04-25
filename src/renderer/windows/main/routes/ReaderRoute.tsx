@@ -127,7 +127,7 @@ export const ReaderRoute: Component = () => {
   const langCtx = useLanguage();
   const anki = useAnki();
   const { detectGrammarInText, supportsGrammar, isTranslatable, currentLangData, getCanonicalForm, getWordVariants } = langCtx;
-  const { translateWord } = useTranslation({ immediate: true });
+  const { translateWord } = useTranslation({ immediate: true, language: settings.language });
   const getWordForms = (word: string): string[] => getWordFormCandidates(word, getCanonicalForm, getWordVariants);
   const getManualWordStatus = (word: string): WordStatus => {
     const forms = getWordForms(word);
@@ -145,8 +145,8 @@ export const ReaderRoute: Component = () => {
       settings.ankiKnownThreshold,
     );
   };
-  const { tokenize } = useTokenizer();
-  const { lookup } = useDictionary();
+  const { tokenize } = useTokenizer({ language: settings.language });
+  const { lookup } = useDictionary({ language: settings.language });
   const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
 
   // Media stats for this reader session
@@ -547,7 +547,7 @@ export const ReaderRoute: Component = () => {
     });
 
     try {
-      const translationData = getCachedTranslation(entry.word) ?? await translateWord(entry.word);
+      const translationData = getCachedTranslation(entry.word, settings.language) ?? await translateWord(entry.word);
       const image = imageRefs()[entry.pageId] || null;
       const anchorRect = getAnchorRectForWord(entry);
       const manualStatus = getManualWordStatus(entry.word);
@@ -1672,7 +1672,7 @@ export const ReaderRoute: Component = () => {
 
     // Check if translation is already cached (from pre-warm)
     // This ensures pitch accent pill shows immediately on first hover
-    const cachedTranslation = getCachedTranslation(lookupWord);
+    const cachedTranslation = getCachedTranslation(lookupWord, settings.language);
 
     // Set cached data if available, otherwise clear
     setOcrTranslationData(cachedTranslation);

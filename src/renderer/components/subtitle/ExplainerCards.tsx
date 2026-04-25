@@ -6,7 +6,7 @@
 
 import { Component, For, Show, createMemo, createResource } from 'solid-js';
 import type { Token } from '../../../shared/types';
-import { useLanguage, useLocalization } from '../../context';
+import { useLanguage, useLocalization, useSettings } from '../../context';
 import { useTokenizer } from '../../hooks/useTranslation';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 // Types previously from explainerParser — now defined here for tool-call-based flow
@@ -72,7 +72,8 @@ export interface GrammarCardProps {
  * Colored Phrase - uses createResource pattern for async tokenization
  */
 const ColoredPhrase: Component<{ phrase: string; targetWord?: string }> = (props) => {
-  const { tokenize } = useTokenizer();
+  const { settings } = useSettings();
+  const { tokenize } = useTokenizer({ language: settings.language });
   const { currentLangData } = useLanguage();
   
   const colourCodes = createMemo(() => {

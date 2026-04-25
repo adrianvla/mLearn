@@ -64,6 +64,14 @@ function makeObjectStore(fakeStore: FakeStore, tx: FakeTx) {
       });
       return req;
     },
+    delete(key: string) {
+      fakeStore.data.delete(key);
+      const req = makeFakeRequest(undefined);
+      queueMicrotask(() => {
+        req._fire(true);
+      });
+      return req;
+    },
     openCursor() {
       const entries = [...fakeStore.data.values()];
       let index = 0;
@@ -72,6 +80,8 @@ function makeObjectStore(fakeStore: FakeStore, tx: FakeTx) {
         if (index < entries.length) {
           const entry = entries[index];
           req.result = {
+            value: entry,
+            key: entry.key,
             delete() {
               fakeStore.data.delete(entry.key);
             },
@@ -79,7 +89,7 @@ function makeObjectStore(fakeStore: FakeStore, tx: FakeTx) {
               index++;
               queueMicrotask(advance);
             },
-          };
+          } as unknown as { delete(): void; continue(): void };
           req._fire(true);
         } else {
           req.result = null;
@@ -260,6 +270,29 @@ describe('offlineCache', () => {
 
       expect(result).toBeNull();
     });
+
+    it('prunes ~20% of oldest entries when over capacity', async () => {
+      const { storeMap } = setupFakeIndexedDB();
+      const dictStore = storeMap.get('dictionary')!;
+      const MAX_DICTIONARY = 50_000;
+      for (let i = 0; i < MAX_DICTIONARY + 1; i++) {
+        dictStore.data.set(`k${i}`, {
+          key: `k${i}`,
+          value: [{ word: `w${i}`, reading: 'r', meanings: ['m'] }] as DictionaryEntry[],
+          updatedAt: i,
+        });
+      }
+
+      const { setCachedDictionaryDB } = await loadOfflineCache();
+      await setCachedDictionaryDB('trigger', 'r', [{ word: 'trigger', reading: 'r', meanings: ['m'] }]);
+
+      const remaining = dictStore.data.size;
+      const expectedDeleted = Math.floor((MAX_DICTIONARY + 2) * 0.2);
+      expect(remaining).toBe(MAX_DICTIONARY + 2 - expectedDeleted);
+      expect(dictStore.data.has('trigger::r')).toBe(true);
+      expect(dictStore.data.has('k0')).toBe(false);
+      expect(dictStore.data.has(`k${MAX_DICTIONARY}`)).toBe(true);
+    });
   });
 
   describe('tokens', () => {
@@ -301,6 +334,48 @@ describe('offlineCache', () => {
       const result = await getCachedTokensDB('hi');
 
       expect(result).toBeNull();
+    });
+
+    it('prunes ~20% of oldest entries in a single readwrite transaction when over capacity', async () => {
+      const { storeMap } = setupFakeIndexedDB();
+      const tokenStore = storeMap.get('tokens')!;
+      const MAX_TOKENS = 5_000;
+      for (let i = 0; i < MAX_TOKENS + 1; i++) {
+        tokenStore.data.set(`k${i}`, {
+          key: `k${i}`,
+          value: [{ word: `w${i}`, actual_word: `w${i}`, type: '名詞' }] as Token[],
+          updatedAt: i,
+        });
+      }
+
+      const { setCachedTokensDB } = await loadOfflineCache();
+      await setCachedTokensDB('trigger', [{ word: 'trigger', actual_word: 'trigger', type: '名詞' }]);
+
+      const remaining = tokenStore.data.size;
+      const expectedDeleted = Math.floor((MAX_TOKENS + 2) * 0.2);
+      expect(remaining).toBe(MAX_TOKENS + 2 - expectedDeleted);
+      expect(tokenStore.data.has('trigger')).toBe(true);
+      expect(tokenStore.data.has('k0')).toBe(false);
+      expect(tokenStore.data.has(`k${MAX_TOKENS}`)).toBe(true);
+    });
+
+    it('does not prune when entry count is at or below capacity', async () => {
+      const { storeMap } = setupFakeIndexedDB();
+      const tokenStore = storeMap.get('tokens')!;
+      const MAX_TOKENS = 5_000;
+      for (let i = 0; i < MAX_TOKENS - 1; i++) {
+        tokenStore.data.set(`k${i}`, {
+          key: `k${i}`,
+          value: [{ word: `w${i}`, actual_word: `w${i}`, type: '名詞' }] as Token[],
+          updatedAt: i,
+        });
+      }
+
+      const { setCachedTokensDB } = await loadOfflineCache();
+      await setCachedTokensDB('trigger', [{ word: 'trigger', actual_word: 'trigger', type: '名詞' }]);
+
+      expect(tokenStore.data.size).toBe(MAX_TOKENS);
+      expect(tokenStore.data.has('k0')).toBe(true);
     });
   });
 
