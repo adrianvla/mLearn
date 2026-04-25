@@ -1795,7 +1795,6 @@
       },
       "About": {
         "Licenses": "Лицензии",
-        "FreeDictAttribution": "Данные немецкого словаря получены из FreeDict.",
         "LicensesLoadError": "Не удалось загрузить информацию о лицензии."
       },
       "Tabs": {

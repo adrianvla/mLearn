@@ -46,9 +46,6 @@ export const AboutTab: Component = () => {
         <p>
           {t('mlearn.About.Description')}
         </p>
-        <p>
-          {t('mlearn.Settings.About.FreeDictAttribution')}
-        </p>
       </div>
 
       <div class="about-links">
