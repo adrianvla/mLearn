@@ -238,7 +238,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   const { settings } = useSettings();
   const { hasWordSync, isWordIgnoredSync } = useFlashcards();
   const { getFrequency } = useLanguage();
-  const { translateWord } = useTranslation({ immediate: true });
+  const { translateWord } = useTranslation({ immediate: true, language: settings.language });
   const [translations, setTranslations] = createStore<Record<string, TranslationResponse | null | undefined>>({});
   const requestedWords = new Set<string>();
   const [sortKey, setSortKey] = createSignal(props.defaultSort);
@@ -270,7 +270,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   createEffect(() => {
     for (const entry of props.words()) {
       if (translations[entry.word] !== undefined || requestedWords.has(entry.word)) continue;
-      const cached = getCachedTranslation(entry.word);
+      const cached = getCachedTranslation(entry.word, settings.language);
       if (cached) {
         setTranslations(entry.word, cached);
         continue;

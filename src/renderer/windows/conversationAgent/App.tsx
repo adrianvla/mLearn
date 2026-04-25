@@ -204,8 +204,8 @@ export const ConversationContent: Component = () => {
 
   // Word hover state
   const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
-  const { translateWord } = useTranslation({ immediate: true });
-  const { lookup } = useDictionary();
+  const { translateWord } = useTranslation({ immediate: true, language: settings.language });
+  const { lookup } = useDictionary({ language: settings.language });
   const [translationData, setTranslationData] = createSignal<{ data?: (TranslationEntry | PitchData | null | undefined)[] } | null>(null);
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
@@ -246,6 +246,7 @@ export const ConversationContent: Component = () => {
     getSettings: () => settings,
     getLanguage: () => settings.language,
     getLanguageName: () => langName(),
+    getLanguageFeatures: () => getLanguageFeatures(),
     getMediaContext: () => mediaContext(),
     getSceneContext: () => sceneContext(),
     getTutorConfig: () => tutorConfig(),
@@ -758,7 +759,7 @@ export const ConversationContent: Component = () => {
     const requestId = ++hoverRequestId;
 
     // Show immediately with cached data if available
-    const cached = getCachedTranslation(lookupWord);
+    const cached = getCachedTranslation(lookupWord, settings.language);
     setTranslationData(cached ? { data: cached.data as (TranslationEntry | PitchData | null | undefined)[] } : null);
     setDictionaryEntries([]);
     setIsLoadingDict(true);

@@ -211,7 +211,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     cacheVersion(); // reactive dependency: recompute when cache changes
     const word = props.token.actual_word ?? displayWord();
     if (!word) return null;
-    return getCachedReading(word);
+    return getCachedReading(word, settings.language);
   });
 
   // Get effective reading (token.reading takes precedence, then cached)
@@ -283,7 +283,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     cacheVersion(); // reactive dependency: recompute when cache changes
     const word = props.token.actual_word ?? displayWord();
     if (!word) return null;
-    return getCachedTranslation(word);
+    return getCachedTranslation(word, settings.language);
   });
 
   // The actual word for pitch accent lookup

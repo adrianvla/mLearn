@@ -428,6 +428,19 @@ async def voice_tts_generate(req: TTSRequest):
             )
         if provider == "qwen3":
             return await _generate_tts_qwen3(req)
+        if provider == "kokoro" and req.language not in _KOKORO_LANG_MAP:
+            # Kokoro has no phonemizer for this language; delegate to Qwen3
+            # which supports a broader language set (see _QWEN3_LANG_MAP).
+            if req.language in _QWEN3_LANG_MAP:
+                _log(
+                    f"Kokoro does not support language '{req.language}'; "
+                    "falling back to Qwen3-TTS"
+                )
+                return await _generate_tts_qwen3(req)
+            raise HTTPException(
+                status_code=400,
+                detail=f"No TTS engine supports language '{req.language}'",
+            )
         return await _generate_tts_kokoro(req)
     except Exception as e:
         _log("TTS generation error:", e)

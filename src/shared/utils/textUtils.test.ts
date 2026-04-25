@@ -420,6 +420,18 @@ describe('isWordInLanguageScript', () => {
     it('handles unknown language by accepting words with letters', () => {
       expect(isWordInLanguageScript('hello', 'xx')).toBe(true)
     })
+
+    it('accepts Latin-script words for German', () => {
+      expect(isWordInLanguageScript('Straße', 'de')).toBe(true)
+    })
+
+    it('accepts Cyrillic-script words for Russian', () => {
+      expect(isWordInLanguageScript('привет', 'ru')).toBe(true)
+    })
+
+    it('rejects pure Latin words for Russian', () => {
+      expect(isWordInLanguageScript('hello', 'ru')).toBe(false)
+    })
   })
 })
 
@@ -503,6 +515,24 @@ describe('isValidSTTResult', () => {
 
     it('returns true for Latin with some CJK mixed in', () => {
       expect(isValidSTTResult('hello 漢字', 'en')).toBe(true)
+    })
+  })
+
+  describe('other locale-script languages', () => {
+    it('returns true for Cyrillic text in Russian context', () => {
+      expect(isValidSTTResult('привет мир', 'ru')).toBe(true)
+    })
+
+    it('returns false for pure Latin text in Russian context', () => {
+      expect(isValidSTTResult('hello world', 'ru')).toBe(false)
+    })
+
+    it('returns true for Arabic text in Arabic context', () => {
+      expect(isValidSTTResult('مرحبا بالعالم', 'ar')).toBe(true)
+    })
+
+    it('returns false for pure CJK text in German context', () => {
+      expect(isValidSTTResult('北京', 'de')).toBe(false)
     })
   })
 })

@@ -47,16 +47,16 @@ export interface PitchAccentOverlayProps {
 }
 
 /** Extract pitch position from translation cache data */
-function extractPitchFromCache(word: string): number | null {
-  const cached = getCachedTranslation(word);
+function extractPitchFromCache(word: string, language?: string): number | null {
+  const cached = getCachedTranslation(word, language);
   if (!cached?.data) return null;
 
   return extractPitchPosition(cached.data[2]);
 }
 
 /** Extract reading from translation cache data */
-function extractReadingFromCache(word: string): string | null {
-  const cached = getCachedTranslation(word);
+function extractReadingFromCache(word: string, language?: string): string | null {
+  const cached = getCachedTranslation(word, language);
   return extractReadingValue(cached?.data);
 }
 
@@ -108,10 +108,10 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
     if (!word) return;
 
     const checkCache = () => {
-      const pitch = extractPitchFromCache(word);
+      const pitch = extractPitchFromCache(word, settings.language);
       if (pitch !== null) {
         setCachedPitch(pitch);
-        const reading = extractReadingFromCache(word);
+        const reading = extractReadingFromCache(word, settings.language);
         if (reading) setCachedReading(reading);
         return true;
       }

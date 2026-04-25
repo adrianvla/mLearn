@@ -5,6 +5,7 @@ import {
   buildFuriganaHtml,
   extractKanaReading,
   parseWorkName,
+  shouldRemoveParentheticalContent,
 } from './subtitleParsing';
 
 describe('parseSubtitle', () => {
@@ -62,6 +63,12 @@ describe('parseSubtitle', () => {
 
   it('does NOT create override for Latin word before parens', () => {
     const result = parseSubtitle('hello(world)', 'ja');
+    expect(result.readingOverrides).toEqual([]);
+  });
+
+  it('preserves parenthetical content for German subtitles', () => {
+    const result = parseSubtitle('Hallo (leise)', 'de');
+    expect(result.text).toBe('Hallo (leise)');
     expect(result.readingOverrides).toEqual([]);
   });
 
@@ -215,6 +222,20 @@ describe('extractKanaReading', () => {
   it('handles reading with only kanji and no kana gracefully', () => {
     const result = extractKanaReading('漢字');
     expect(typeof result).toBe('string');
+  });
+
+  it('preserves non-kana readings when no kana is present', () => {
+    expect(extractKanaReading('hallo')).toBe('hallo');
+  });
+});
+
+describe('shouldRemoveParentheticalContent', () => {
+  it('returns true for Japanese', () => {
+    expect(shouldRemoveParentheticalContent('ja')).toBe(true);
+  });
+
+  it('returns false for German', () => {
+    expect(shouldRemoveParentheticalContent('de')).toBe(false);
   });
 });
 

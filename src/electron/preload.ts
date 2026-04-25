@@ -127,6 +127,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_BATCH_GENERATE, items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl),
   getFlashcardTtsMeta: (cardId: string, field: 'word' | 'example'): Promise<{ provider: string; generatedAt: string; language: string } | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET_META, cardId, field),
+  deleteFlashcardTts: (cardId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_DELETE, cardId),
   
   // ========== Migration ==========
   onFlashcardMigrationComplete: (callback: (info: { occurred: boolean; backupPath: string | null; fromVersion: number | null }) => void) =>

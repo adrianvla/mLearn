@@ -21,6 +21,7 @@ function createMockIPC() {
     generateFlashcardTts: vi.fn(),
     batchGenerateFlashcardTts: vi.fn(),
     getFlashcardTtsMeta: vi.fn(),
+    deleteFlashcardTts: vi.fn(),
     getLocalization: vi.fn(),
     onLocalization: vi.fn(),
     changeUILanguage: vi.fn(),
@@ -361,6 +362,12 @@ describe('flashcardBridge', () => {
     const bridge = createElectronBridge();
     bridge.flashcards.getFlashcardTtsMeta('card-1', 'example');
     expect(mockIPC.getFlashcardTtsMeta).toHaveBeenCalledWith('card-1', 'example');
+  });
+
+  it('deleteFlashcardTts passes cardId to ipc.deleteFlashcardTts', () => {
+    const bridge = createElectronBridge();
+    bridge.flashcards.deleteFlashcardTts('card-1');
+    expect(mockIPC.deleteFlashcardTts).toHaveBeenCalledWith('card-1');
   });
 });
 
