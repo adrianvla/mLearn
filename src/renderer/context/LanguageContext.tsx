@@ -43,6 +43,8 @@ export interface LanguageFeatures {
   supportsGrammar: boolean;
   /** Whether the language uses CJK-style parentheses */
   usesCJKParentheses: boolean;
+  /** Whether the language has a distinct honorific/deferential register (e.g. Japanese keigo) */
+  supportsHonorifics: boolean;
 }
 
 // Context interface
@@ -397,6 +399,8 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
       supportsGrammar: data?.hasGrammar === true,
       // CJK parentheses for character names
       usesCJKParentheses: data?.usesCJKParentheses === true,
+      // Honorific/deferential register (keigo, jondaetmal) — drives casual-register directives in the conversation agent
+      supportsHonorifics: data?.hasHonorifics === true,
     };
   };
 

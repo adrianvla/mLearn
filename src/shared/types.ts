@@ -503,6 +503,10 @@ export interface LanguageData {
   hasPitchAccent?: boolean;
   /** Whether the language supports character name detection in subtitles */
   hasCharacterNames?: boolean;
+  /** Whether this language has a distinct honorific/deferential register
+   *  (e.g. Japanese keigo, Korean jondaetmal). T/V distinctions like German
+   *  Sie/du do NOT count — set to false for those. */
+  hasHonorifics?: boolean;
   /** Frequency boundaries for level assignment [level5Max, level4Max, level3Max, level2Max] */
   freq_level_boundaries?: number[];
 }

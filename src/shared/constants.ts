@@ -260,6 +260,7 @@ export const IPC_CHANNELS = {
   FLASHCARD_TTS_GENERATE: 'flashcard-tts-generate',
   FLASHCARD_TTS_BATCH_GENERATE: 'flashcard-tts-batch-generate',
   FLASHCARD_TTS_GET_META: 'flashcard-tts-get-meta',
+  FLASHCARD_TTS_DELETE: 'flashcard-tts-delete',
 
   // Data export/import
   DATA_EXPORT: 'data-export',

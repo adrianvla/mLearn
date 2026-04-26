@@ -50,7 +50,7 @@ export interface ReadingOverride {
  *
  * @returns The cleaned text and any reading overrides found
  */
-export function parseSubtitle(text: string, _language: string): {
+export function parseSubtitle(text: string, language: string): {
   text: string;
   readingOverrides: ReadingOverride[];
 } {
@@ -73,11 +73,14 @@ export function parseSubtitle(text: string, _language: string): {
     }
   }
 
-  // Clean the text by removing the furigana annotations, keeping just the kanji
-  // 漢字(かんじ) -> 漢字
-  let cleanedText = text
+  const shouldStripReadingParentheses = language === 'ja';
+
+  let cleanedText = text;
+  if (shouldStripReadingParentheses) {
+    cleanedText = text
       .replace(/([^\s(（]+)\([^)）]+\)/g, '$1')
       .replace(/([^\s(（]+)（[^)）]+）/g, '$1');
+  }
 
   return {
     text: cleanedText,
@@ -174,6 +177,10 @@ export function extractKanaReading(reading: string | undefined): string {
   if (kanaOnly) return kanaOnly;
 
   return normalized;
+}
+
+export function shouldRemoveParentheticalContent(language: string): boolean {
+  return language === 'ja';
 }
 
 // ============================================================================

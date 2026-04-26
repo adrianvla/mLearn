@@ -1000,6 +1000,18 @@ export const FlashcardProvider: ParentComponent = (props) => {
       );
     }
 
+    // Clean up associated image file
+    if (card.content.imageUrl) {
+      getBridge().flashcards.deleteFlashcardImage(id).catch((err: unknown) =>
+        console.warn('Failed to delete flashcard image:', err)
+      );
+    }
+
+    // Clean up associated TTS audio (word + example fields)
+    getBridge().flashcards.deleteFlashcardTts(id).catch((err: unknown) =>
+      console.warn('Failed to delete flashcard TTS:', err)
+    );
+
     saveFlashcards();
     return true;
   };

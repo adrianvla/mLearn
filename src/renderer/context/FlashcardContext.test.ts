@@ -26,6 +26,8 @@ const mockBridge = {
     onFlashcardConnectOpen: vi.fn(),
     onReviewFlashcardRequest: vi.fn(),
     deleteFlashcardVideo: vi.fn().mockResolvedValue(undefined),
+    deleteFlashcardImage: vi.fn().mockResolvedValue(undefined),
+    deleteFlashcardTts: vi.fn().mockResolvedValue(undefined),
     generateFlashcardTts: vi.fn().mockResolvedValue(null),
   },
   migration: {

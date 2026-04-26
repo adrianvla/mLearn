@@ -25,11 +25,60 @@ function getStatsFilePath(mediaHash: string): string {
   return path.join(getMediaStatsDir(), `${mediaHash}.json`);
 }
 
+/** Maximum number of media-stats entries kept on disk. Prunes LRU by `lastAccessed`. */
+const MAX_MEDIA_STATS_ENTRIES = 500;
+
+/**
+ * Remove the least-recently-accessed media-stats files until at most `maxEntries` remain.
+ * Files without a parseable `lastAccessed` field are treated as oldest (epoch 0).
+ */
+export function pruneMediaStats(maxEntries: number = MAX_MEDIA_STATS_ENTRIES): void {
+  if (maxEntries < 0) return;
+  const dir = getMediaStatsDir();
+  if (!fs.existsSync(dir)) return;
+
+  let files: string[];
+  try {
+    files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+  } catch (e) {
+    console.error(e);
+    return;
+  }
+  if (files.length <= maxEntries) return;
+
+  const entries: Array<{ file: string; lastAccessed: number }> = [];
+  for (const file of files) {
+    const fullPath = path.join(dir, file);
+    let lastAccessed = 0;
+    try {
+      const raw = fs.readFileSync(fullPath, 'utf-8');
+      const parsed = JSON.parse(raw) as Partial<MediaStats>;
+      if (typeof parsed.lastAccessed === 'number' && Number.isFinite(parsed.lastAccessed)) {
+        lastAccessed = parsed.lastAccessed;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    entries.push({ file, lastAccessed });
+  }
+
+  entries.sort((a, b) => a.lastAccessed - b.lastAccessed);
+  const toDelete = entries.slice(0, entries.length - maxEntries);
+  for (const { file } of toDelete) {
+    try {
+      fs.unlinkSync(path.join(dir, file));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+}
+
 export function saveMediaStats(mediaHash: string, stats: MediaStats): void {
   try {
     ensureDir();
     const filePath = getStatsFilePath(mediaHash);
     fs.writeFileSync(filePath, JSON.stringify(stats, null, 2), 'utf-8');
+    pruneMediaStats();
   } catch (error) {
     console.error('Failed to save media stats:', error);
   }

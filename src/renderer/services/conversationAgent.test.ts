@@ -12,6 +12,24 @@ import type {
 } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { createConversationAgent, type StreamCallbacks } from './conversationAgent';
+import type { LanguageFeatures } from '../context/LanguageContext';
+
+const DEFAULT_LANGUAGE_FEATURES: LanguageFeatures = {
+  supportsReadings: true,
+  supportsPitchAccent: true,
+  isLogographic: true,
+  isRTL: false,
+  supportsColorCodes: true,
+  usesLatinScript: false,
+  supportsFrequencyLevels: true,
+  hasFixedSettings: false,
+  fixedSettingKeys: [],
+  supportsCharacterNames: true,
+  supportsVerticalText: true,
+  supportsGrammar: true,
+  usesCJKParentheses: true,
+  supportsHonorifics: true,
+};
 
 // ============================================================================
 // Mock setup
@@ -47,6 +65,7 @@ interface MockDeps {
   getSettings: () => typeof DEFAULT_SETTINGS;
   getLanguage: () => string;
   getLanguageName: () => string;
+  getLanguageFeatures: () => LanguageFeatures;
   getMediaContext: () => ConversationAgentContext | null;
   getSceneContext: () => string;
   flashcardCtx: {
@@ -72,6 +91,7 @@ function createMockDeps(overrides?: Partial<MockDeps>): MockDeps {
     getSettings: () => ({ ...DEFAULT_SETTINGS }),
     getLanguage: () => 'ja',
     getLanguageName: () => 'Japanese',
+    getLanguageFeatures: () => DEFAULT_LANGUAGE_FEATURES,
     getMediaContext: () => null,
     getSceneContext: () => '',
     flashcardCtx: {
@@ -188,6 +208,75 @@ describe('createConversationAgent', () => {
       const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
       expect(sysMsg).toBeDefined();
       expect(sysMsg.content).toContain('Japanese');
+    });
+
+    it('emits honorific-avoidance directive when language supports honorifics (ja)', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('honorific');
+    });
+
+    it('omits honorific-avoidance directive when language lacks honorifics (de)', () => {
+      const deps = createMockDeps({
+        getLanguage: () => 'de',
+        getLanguageName: () => 'German',
+        getLanguageFeatures: () => ({
+          ...DEFAULT_LANGUAGE_FEATURES,
+          supportsHonorifics: false,
+          supportsReadings: false,
+          isLogographic: false,
+          usesLatinScript: true,
+          supportsPitchAccent: false,
+        }),
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).not.toContain('honorific');
+      expect(sysMsg.content).not.toContain('deferential');
+      expect(sysMsg.content).toContain('German');
+    });
+
+    it('emits character-readings directive only when language supports readings (ja)', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('character readings');
+    });
+
+    it('omits character-readings directive when language has no readings (de)', () => {
+      const deps = createMockDeps({
+        getLanguage: () => 'de',
+        getLanguageName: () => 'German',
+        getLanguageFeatures: () => ({
+          ...DEFAULT_LANGUAGE_FEATURES,
+          supportsHonorifics: false,
+          supportsReadings: false,
+          isLogographic: false,
+          usesLatinScript: true,
+        }),
+      });
+      const agent = createConversationAgent(deps);
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).not.toContain('character readings');
     });
 
     it('calls onChunk with accumulated content as chunks arrive', () => {
