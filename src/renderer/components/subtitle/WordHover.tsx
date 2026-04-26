@@ -82,7 +82,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { addFlashcard, hasWordSync, getCardByWordSync } = useFlashcards();
   const { getFrequency, getLevelName, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
-  const { tokenize } = useTokenizer();
+  const { tokenize } = useTokenizer({ language: settings.language });
   const { t } = useLocalization();
   const [wordUuid, setWordUuid] = createSignal<string>('');
   // Flag to prevent effect from overwriting local isInSRS state during flashcard creation
@@ -162,16 +162,14 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     setHasCachedExplanation(!!cached);
   });
 
-  // Computed position signal - updated after render when dimensions are known
   const [computedPosition, setComputedPosition] = createSignal<{ left: number; top: number }>({ left: 0, top: 0 });
+  let subtitleHoverRef: HTMLElement | null = null;
 
-  // Get the actual rendered dimensions from CSS (width is fit-content, capped at 400px)
   const getHoverDimensions = (): { width: number; height: number } => {
-    const subtitleHover = hoverRef?.querySelector('.subtitle_hover') as HTMLElement | null;
-    if (!subtitleHover) return { width: 280, height: 200 };
+    if (!subtitleHoverRef) return { width: 280, height: 200 };
     return {
-      width: subtitleHover.offsetWidth || 280,
-      height: subtitleHover.offsetHeight || 200,
+      width: subtitleHoverRef.offsetWidth || 280,
+      height: subtitleHoverRef.offsetHeight || 200,
     };
   };
 
@@ -263,33 +261,45 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return { left: Math.round(left), top: Math.round(top) };
   };
 
-  // Effect to update position after render when dimensions are available
   createEffect(() => {
-    // Track dependencies: when these change, recalculate position
     const visible = isShown();
-    // Access props to establish reactive dependencies
+    void actualWord();
     void props.anchorRect;
     void props.position.x;
     void props.position.y;
+    void props.translationData;
+    void props.dictionaryEntries;
     
-    if (!visible) return;
+    if (!visible || !subtitleHoverRef) return;
     
-    // Use requestAnimationFrame to ensure DOM has painted
     requestAnimationFrame(() => {
       const { width, height } = getHoverDimensions();
       const newPos = calculateBoundedPosition(width, height);
-      
-      // Debug logging (uncomment and add `const bounds = getUIBounds();` to enable)
-      // console.log(
-      //   `%c[WordHover] Position Debug:%c\n` +
-      //   `  Hover size: ${width}×${height}px\n` +
-      //   `  Position: (${newPos.left}, ${newPos.top})`,
-      //   'color: #00bcd4; font-weight: bold;',
-      //   'color: #aaa;'
-      // );
-      
       setComputedPosition(newPos);
     });
+  });
+
+  createEffect(() => {
+    const visible = isShown();
+    if (!visible || !subtitleHoverRef) return;
+
+    const ro = new ResizeObserver(() => {
+      const { width, height } = getHoverDimensions();
+      const newPos = calculateBoundedPosition(width, height);
+      setComputedPosition(newPos);
+    });
+
+    ro.observe(subtitleHoverRef);
+
+    requestAnimationFrame(() => {
+      const { width, height } = getHoverDimensions();
+      const newPos = calculateBoundedPosition(width, height);
+      setComputedPosition(newPos);
+    });
+
+    return () => {
+      ro.disconnect();
+    };
   });
 
   const hoverStyle = createMemo((): JSX.CSSProperties => {
@@ -463,7 +473,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return props.pitchAccent ?? pitchAccentFromData();
   });
 
-  const posType = () => props.token.partOfSpeech || props.token.type || '';
+  const posType = createMemo(() => props.token.partOfSpeech || props.token.type || '');
 
   // Get level from word frequency (like old app's wordFreq[word].level)
   // Using actualWord() to properly track token changes
@@ -609,6 +619,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     >
       <div
         class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${(settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker') ? 'dark' : ''}`}
+        ref={(el) => { subtitleHoverRef = el; }}
         onMouseEnter={() => props.onMouseEnter?.()}
         onMouseLeave={() => { if (!isInternalModalOpen() && !isAddingFlashcard()) props.onMouseLeave?.(); }}
       >

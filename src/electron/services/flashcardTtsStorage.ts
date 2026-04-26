@@ -401,6 +401,33 @@ function toAudioUrl(filePath: string): string {
 }
 
 /**
+ * Delete the audio + metadata files for a flashcard card (both `word` and `example` fields).
+ */
+export function deleteFlashcardTts(cardId: string): void {
+  const audioDir = getAudioDir();
+  if (!fs.existsSync(audioDir)) return;
+
+  for (const field of ['word', 'example'] as const) {
+    const audio = audioPath(cardId, field);
+    const meta = metaPath(cardId, field);
+    if (fs.existsSync(audio)) {
+      try {
+        fs.unlinkSync(audio);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    if (fs.existsSync(meta)) {
+      try {
+        fs.unlinkSync(meta);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+}
+
+/**
  * Setup IPC handlers for flashcard TTS operations.
  */
 export function setupFlashcardTtsIPC(): void {
@@ -424,5 +451,9 @@ export function setupFlashcardTtsIPC(): void {
 
   ipcMain.handle(IPC_CHANNELS.FLASHCARD_TTS_GET_META, (_event, cardId: string, field: 'word' | 'example') => {
     return getFlashcardTtsMeta(cardId, field);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.FLASHCARD_TTS_DELETE, (_event, cardId: string) => {
+    deleteFlashcardTts(cardId);
   });
 }

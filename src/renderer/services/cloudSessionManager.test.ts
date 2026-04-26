@@ -99,6 +99,43 @@ describe('cloudSessionManager', () => {
     cleanup();
   });
 
+  it('queues recovery before controller registers and opens modal on registration', async () => {
+    const {
+      registerCloudSessionController,
+      ensureCloudAccessToken,
+      syncCloudSessionState,
+    } = await import('./cloudSessionManager');
+
+    const pendingToken = ensureCloudAccessToken();
+
+    const sentinel = Symbol('pending');
+    expect(await Promise.race([pendingToken, Promise.resolve(sentinel)])).toBe(sentinel);
+
+    let currentSettings = makeSettings({
+      cloudAuthStatus: 'signed-out',
+      cloudAuthAccessToken: '',
+      cloudAuthRefreshToken: '',
+    });
+    const openCloudReLoginModal = vi.fn();
+
+    const cleanup = registerCloudSessionController({
+      getSettings: () => currentSettings,
+      updateSettings: vi.fn(),
+      openCloudReLoginModal,
+    });
+
+    expect(openCloudReLoginModal).toHaveBeenCalledOnce();
+
+    currentSettings = makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'fresh-access-token',
+    });
+    syncCloudSessionState(currentSettings);
+
+    await expect(pendingToken).resolves.toBe('fresh-access-token');
+    cleanup();
+  });
+
   it('waits for reauthentication after a refresh fails with a session error', async () => {
     const {
       registerCloudSessionController,
