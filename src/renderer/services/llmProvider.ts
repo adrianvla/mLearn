@@ -409,8 +409,8 @@ export async function checkAvailability(settings: Settings): Promise<{ available
         : { available: false, reason: 'cloud_unreachable' };
     } catch (error) {
       console.error(error);
-      handleCloudSessionError(error, false);
-      return { available: false, reason: 'cloud_unreachable' };
+      const isAuthError = handleCloudSessionError(error, true);
+      return { available: false, reason: isAuthError ? 'auth_required' : 'cloud_unreachable' };
     }
   }
 

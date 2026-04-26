@@ -106,11 +106,11 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     // This ensures pitch accent, JLPT level, etc. show immediately on first hover
     const cachedTranslation = getCachedTranslation(lookupWord, settings.language);
     
-    // Set cached data if available, otherwise clear
-    setTranslationData(cachedTranslation);
+    setTranslationData(cachedTranslation ?? null);
     setDictionaryEntries([]);
     setIsLoadingDict(false);
     setCurrentHoverToken(token);
+    setWordStatus('unknown');
     
     showHover({ 
       word: displayWord,

@@ -100,12 +100,13 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
   const [cachedReading, setCachedReading] = createSignal<string | null>(null);
 
   createEffect(() => {
-    if (!isEnabled()) return;
-    // Only poll if no explicit pitch is provided
-    if (props.pitchPosition !== undefined && props.pitchPosition !== null) return;
-
     const word = props.word;
+    if (!isEnabled()) return;
+    if (props.pitchPosition !== undefined && props.pitchPosition !== null) return;
     if (!word) return;
+
+    setCachedPitch(null);
+    setCachedReading(null);
 
     const checkCache = () => {
       const pitch = extractPitchFromCache(word, settings.language);
@@ -120,18 +121,33 @@ export const PitchAccentOverlay: Component<PitchAccentOverlayProps> = (props) =>
 
     if (checkCache()) return;
 
-    // Poll for cache population
     let attempts = 0;
     const maxAttempts = 20;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    const clearAllTimers = () => {
+      for (const t of timers) {
+        clearTimeout(t);
+      }
+      timers.length = 0;
+    };
+
     const poll = () => {
-      if (checkCache()) return;
+      if (checkCache()) {
+        clearAllTimers();
+        return;
+      }
       attempts++;
       if (attempts < maxAttempts) {
-        setTimeout(poll, attempts < 10 ? 50 : 100);
+        timers.push(setTimeout(poll, attempts < 10 ? 50 : 100));
       }
     };
-    const timer = setTimeout(poll, 50);
-    return () => clearTimeout(timer);
+
+    timers.push(setTimeout(poll, 50));
+
+    return () => {
+      clearAllTimers();
+    };
   });
 
   // Effective pitch position: explicit prop > cached
