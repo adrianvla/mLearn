@@ -156,7 +156,7 @@ def init():
     if LANGUAGE_DIR_PATH not in sys.path:
         sys.path.append(LANGUAGE_DIR_PATH)
     _lang_mod = importlib.import_module(LANGUAGE)
-    _lang_mod.LOAD_MODULE(RESPATH)
+    _lang_mod.LOAD_MODULE(ROOT_OF_APP_DIR)
     plugin_registry.register_language(LANGUAGE, _lang_mod)
     plugin_registry.set_active(LANGUAGE)
     print(f"[config] Registered built-in language: {LANGUAGE}")
