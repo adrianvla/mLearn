@@ -54,16 +54,40 @@ vi.mock('../../shared/backends', () => ({
   resolveCloudApiUrl: vi.fn(() => 'https://api.example.com'),
 }));
 
-const mockEnsureCloudAccessToken = vi.fn(async () => 'mock-cloud-token');
+const mockEnsureCloudAccessToken = vi.fn<(...args: unknown[]) => Promise<string | null>>(async () => 'mock-cloud-token');
 const mockGetCloudSessionSettings = vi.fn(() => null);
-const mockHandleCloudSessionError = vi.fn(() => false);
-const mockIsCloudSessionError = vi.fn(() => false);
+const mockIsCloudSessionError = vi.fn<(...args: unknown[]) => boolean>(() => false);
+const mockWithCloudAuth = vi.fn<(...args: unknown[]) => Promise<unknown>>(async (op?: unknown) => {
+  if (typeof op !== 'function') {
+    return undefined;
+  }
+
+  return op('mock-cloud-token');
+});
+
+class MockCloudSessionCancelledError extends Error {
+  code = 'cloud_session_cancelled';
+  constructor(message = 'Cloud sign-in canceled') {
+    super(message);
+    this.name = 'CloudSessionCancelledError';
+  }
+}
+
+class MockCloudUnreachableError extends Error {
+  code = 'cloud_unreachable';
+  constructor(message = 'Cloud is unreachable') {
+    super(message);
+    this.name = 'CloudUnreachableError';
+  }
+}
 
 vi.mock('./cloudSessionManager', () => ({
-  ensureCloudAccessToken: (...args: unknown[]) => mockEnsureCloudAccessToken(...args),
+  CloudSessionCancelledError: MockCloudSessionCancelledError,
+  CloudUnreachableError: MockCloudUnreachableError,
+  ensureCloudAccessToken: (options?: unknown) => mockEnsureCloudAccessToken(options),
   getCloudSessionSettings: () => mockGetCloudSessionSettings(),
-  handleCloudSessionError: (...args: unknown[]) => mockHandleCloudSessionError(...args),
-  isCloudSessionError: (...args: unknown[]) => mockIsCloudSessionError(...args),
+  isCloudSessionError: (error: unknown) => mockIsCloudSessionError(error),
+  withCloudAuth: (op: unknown, options?: unknown) => mockWithCloudAuth(op, options),
 }));
 
 // ============================================================================
@@ -104,8 +128,14 @@ describe('llmProvider', () => {
     mockIsMobile.mockReturnValue(false);
     mockEnsureCloudAccessToken.mockResolvedValue('mock-cloud-token');
     mockGetCloudSessionSettings.mockReturnValue(null);
-    mockHandleCloudSessionError.mockReturnValue(false);
     mockIsCloudSessionError.mockReturnValue(false);
+    mockWithCloudAuth.mockImplementation(async (op?: unknown) => {
+      if (typeof op !== 'function') {
+        return undefined;
+      }
+
+      return op('mock-cloud-token');
+    });
 
     mockBridge.llm.onLLMStreamChunk.mockImplementation((cb: (chunk: LLMStreamChunk) => void) => {
       streamCallback = cb;
@@ -201,6 +231,9 @@ describe('llmProvider', () => {
 
       streamCallback!({ error: 'Model crashed' });
 
+      await Promise.resolve();
+      await Promise.resolve();
+
       expect(onError).toHaveBeenCalledWith('Model crashed');
       expect(onDone).not.toHaveBeenCalled();
       expect(mockCleanup).toHaveBeenCalledOnce();
@@ -245,46 +278,48 @@ describe('llmProvider', () => {
       expect(mockCleanup).toHaveBeenCalledOnce();
     });
 
-    it('retries a cloud stream once after session recovery when the first failure happens before any content', async () => {
-      const { streamChat } = await import('./llmProvider');
-      const onDone = vi.fn();
-      const onError = vi.fn();
+     it('wraps cloud streams in withCloudAuth with safe retry predicate', async () => {
+       const { streamChat } = await import('./llmProvider');
+       const onDone = vi.fn();
+       const onError = vi.fn();
 
-      mockIsCloudSessionError.mockReturnValue(true);
-      mockEnsureCloudAccessToken
-        .mockResolvedValueOnce('initial-cloud-token')
-        .mockResolvedValueOnce('recovered-cloud-token');
-
-      streamChat(
-        [{ role: 'user', content: 'hello' }],
-        [],
+       streamChat(
+         [{ role: 'user', content: 'hello' }],
+         [],
         { onChunk: vi.fn(), onDone, onError, onToolCall: vi.fn() },
-        makeSettings({ llmProvider: 'cloud' }),
-      );
+         makeSettings({ llmProvider: 'cloud' }),
+       );
 
-      await flushPromises();
-      expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(1);
+       await flushPromises();
+       expect(mockWithCloudAuth).toHaveBeenCalledOnce();
+       const options = mockWithCloudAuth.mock.calls[0]?.[1] as { alreadyEmittedOutput?: () => boolean } | undefined;
+       expect(options?.alreadyEmittedOutput?.()).toBe(false);
 
-      streamCallback!({ error: '401 invalid session' });
+       streamCallback!({ content: 'Recovered reply' });
+       expect(options?.alreadyEmittedOutput?.()).toBe(true);
+       streamCallback!({ done: true });
 
-      await flushPromises();
-      await flushPromises();
-
-      expect(mockEnsureCloudAccessToken).toHaveBeenCalledTimes(2);
-      expect(mockEnsureCloudAccessToken).toHaveBeenLastCalledWith({ forceRefresh: true });
-      expect(mockBridge.llm.onLLMStreamChunk).toHaveBeenCalledTimes(2);
-      expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2);
-
-      streamCallback!({ content: 'Recovered reply' });
-      streamCallback!({ done: true });
-
-      expect(onDone).toHaveBeenCalledWith(
+       expect(onDone).toHaveBeenCalledWith(
         'Recovered reply',
         [],
-        expect.objectContaining({ totalTime: expect.any(Number) }),
-      );
-      expect(onError).not.toHaveBeenCalled();
-    });
+         expect.objectContaining({ totalTime: expect.any(Number) }),
+       );
+       expect(onError).not.toHaveBeenCalled();
+     });
+
+     it('passes typed cloud errors through onError', async () => {
+       const { streamChat } = await import('./llmProvider');
+       const onError = vi.fn();
+       const cancelledError = new MockCloudSessionCancelledError();
+
+       mockWithCloudAuth.mockRejectedValueOnce(cancelledError);
+
+       streamChat([], [], { onChunk: vi.fn(), onDone: vi.fn(), onError, onToolCall: vi.fn() }, makeSettings({ llmProvider: 'cloud' }));
+
+       await flushPromises();
+
+       expect(onError).toHaveBeenCalledWith(cancelledError);
+     });
   });
 
   // --------------------------------------------------------------------------
@@ -384,7 +419,28 @@ describe('llmProvider', () => {
       const result = await checkAvailability(makeSettings({ llmProvider: 'cloud', cloudAuthAccessToken: 'token123' }));
       expect(result).toEqual({ available: false, reason: 'cloud_unreachable' });
     });
-  });
+
+     it('returns auth_required when ensureCloudAccessToken returns null', async () => {
+       mockEnsureCloudAccessToken.mockResolvedValue(null);
+       const { checkAvailability } = await import('./llmProvider');
+       const result = await checkAvailability(makeSettings({ llmProvider: 'cloud' }));
+       expect(result).toEqual({ available: false, reason: 'auth_required' });
+     });
+
+     it('does not open modal for cloud diagnostic auth failures', async () => {
+       mockEnsureCloudAccessToken.mockRejectedValue(new MockCloudSessionCancelledError());
+       const { checkAvailability } = await import('./llmProvider');
+       const result = await checkAvailability(makeSettings({ llmProvider: 'cloud' }));
+       expect(result).toEqual({ available: false, reason: 'auth_required' });
+     });
+
+     it('returns cloud_unreachable for CloudUnreachableError during diagnostics', async () => {
+       mockEnsureCloudAccessToken.mockRejectedValue(new MockCloudUnreachableError());
+       const { checkAvailability } = await import('./llmProvider');
+       const result = await checkAvailability(makeSettings({ llmProvider: 'cloud' }));
+       expect(result).toEqual({ available: false, reason: 'cloud_unreachable' });
+     });
+   });
 
   // --------------------------------------------------------------------------
   // streamExplanation / explanation cache

@@ -97,7 +97,17 @@ describe('HttpBackend', () => {
     it('throws when response is not ok', async () => {
       mockFetch.mockResolvedValueOnce(makeErrorResponse(500));
 
-      await expect(backend.tokenize('test')).rejects.toThrow('Tokenization failed: 500');
+      await expect(backend.tokenize('test')).rejects.toThrow('Tokenization failed: 500 - error');
+    });
+
+    it('throws structured error on 401 so auth can be detected', async () => {
+      mockFetch.mockResolvedValueOnce(makeErrorResponse(401, 'Unauthorized'));
+
+      await expect(backend.tokenize('test')).rejects.toMatchObject({
+        name: 'HttpBackendStatusError',
+        status: 401,
+        message: 'Tokenization failed: 401 - Unauthorized',
+      });
     });
 
     it('includes Authorization header when authToken is provided', async () => {
@@ -137,7 +147,17 @@ describe('HttpBackend', () => {
     it('throws when response is not ok', async () => {
       mockFetch.mockResolvedValueOnce(makeErrorResponse(404));
 
-      await expect(backend.translate('unknown')).rejects.toThrow('Translation request failed: 404');
+      await expect(backend.translate('unknown')).rejects.toThrow('Translation request failed: 404 - error');
+    });
+
+    it('throws structured error on 401 so auth can be detected', async () => {
+      mockFetch.mockResolvedValueOnce(makeErrorResponse(401, 'Unauthorized'));
+
+      await expect(backend.translate('test')).rejects.toMatchObject({
+        name: 'HttpBackendStatusError',
+        status: 401,
+        message: 'Translation request failed: 401 - Unauthorized',
+      });
     });
 
     it('includes language in translate request body when provided', async () => {
@@ -199,6 +219,17 @@ describe('HttpBackend', () => {
 
       await expect(backend.ocr(blob)).rejects.toThrow('OCR request failed: 422 - Unprocessable Entity');
     });
+
+    it('throws structured error on 401 so auth can be detected', async () => {
+      const blob = new Blob(['img'], { type: 'image/png' });
+      mockFetch.mockResolvedValueOnce(makeErrorResponse(401, 'Unauthorized'));
+
+      await expect(backend.ocr(blob)).rejects.toMatchObject({
+        name: 'HttpBackendStatusError',
+        status: 401,
+        message: 'OCR request failed: 401 - Unauthorized',
+      });
+    });
   });
 
   describe('getCard', () => {
@@ -223,7 +254,17 @@ describe('HttpBackend', () => {
     it('throws when response is not ok', async () => {
       mockFetch.mockResolvedValueOnce(makeErrorResponse(500));
 
-      await expect(backend.getCard({ word: 'test' })).rejects.toThrow('getCard failed: 500');
+      await expect(backend.getCard({ word: 'test' })).rejects.toThrow('getCard failed: 500 - error');
+    });
+
+    it('throws structured error on 401 so auth can be detected', async () => {
+      mockFetch.mockResolvedValueOnce(makeErrorResponse(401, 'Unauthorized'));
+
+      await expect(backend.getCard({ word: 'test' })).rejects.toMatchObject({
+        name: 'HttpBackendStatusError',
+        status: 401,
+        message: 'getCard failed: 401 - Unauthorized',
+      });
     });
   });
 

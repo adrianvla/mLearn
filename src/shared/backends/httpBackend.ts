@@ -51,6 +51,16 @@ export class HttpBackend implements BackendAdapter {
     return h;
   }
 
+  /**
+   * Throw a structured error for non-ok responses so callers can detect
+   * auth failures (401) vs other server errors.
+   */
+  private async throwOnError(res: Response, label: string): Promise<void> {
+    if (res.ok) return;
+    const text = await res.text().catch(() => '');
+    throw new HttpBackendStatusError(res.status, `${label} failed: ${res.status}${text ? ` - ${text}` : ''}`);
+  }
+
   async tokenize(text: string, language?: string): Promise<Token[]> {
     const body: Record<string, string> = { text };
     if (language) body.language = language;
@@ -62,7 +72,7 @@ export class HttpBackend implements BackendAdapter {
       signal: AbortSignal.timeout(10_000),
     });
 
-    if (!res.ok) throw new Error(`Tokenization failed: ${res.status}`);
+    await this.throwOnError(res, 'Tokenization');
     const data = await res.json() as Record<string, unknown>;
     return ((data.tokens || data) as unknown) as Token[];
   }
@@ -78,7 +88,7 @@ export class HttpBackend implements BackendAdapter {
       signal: AbortSignal.timeout(10_000),
     });
 
-    if (!res.ok) throw new Error(`Translation request failed: ${res.status}`);
+    await this.throwOnError(res, 'Translation request');
     return (await res.json()) as TranslationResponse;
   }
 
@@ -101,11 +111,7 @@ export class HttpBackend implements BackendAdapter {
       signal: AbortSignal.timeout(30_000),
     });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`OCR request failed: ${res.status} - ${errorText}`);
-    }
-
+    await this.throwOnError(res, 'OCR request');
     return (await res.json()) as OCRResult;
   }
 
@@ -117,7 +123,7 @@ export class HttpBackend implements BackendAdapter {
       signal: AbortSignal.timeout(10_000),
     });
 
-    if (!res.ok) throw new Error(`getCard failed: ${res.status}`);
+    await this.throwOnError(res, 'getCard');
     return res.json();
   }
 

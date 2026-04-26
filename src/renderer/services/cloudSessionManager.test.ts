@@ -2,19 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 
-const mockRefreshCloudSession = vi.fn();
-const mockResolveCloudAccessToken = vi.fn((settings: Settings) => (
+const mockRefreshCloudSession = vi.fn<(settings: Settings) => Promise<{ accessToken: string; refreshToken: string; expiresAt?: number }>>();
+const mockResolveCloudAccessToken = vi.fn<(settings: Settings) => string>((settings: Settings) => (
   settings.cloudAuthAccessToken || settings.cloudAuthToken || ''
 ));
-const mockIsCloudAccessTokenExpiringSoon = vi.fn(() => false);
-const mockNormalizeCloudAuthExpiresAt = vi.fn((expiresAt?: number) => expiresAt ?? 0);
+const mockIsCloudAccessTokenExpiringSoon = vi.fn<(settings: Settings, bufferMs?: number) => boolean>(() => false);
+const mockNormalizeCloudAuthExpiresAt = vi.fn<(expiresAt?: number, accessToken?: string) => number>((expiresAt?: number) => expiresAt ?? 0);
 
 vi.mock('./cloudAuthService', () => ({
   CLOUD_ACCESS_TOKEN_REFRESH_BUFFER_MS: 60_000,
-  isCloudAccessTokenExpiringSoon: (...args: unknown[]) => mockIsCloudAccessTokenExpiringSoon(...args),
-  normalizeCloudAuthExpiresAt: (...args: unknown[]) => mockNormalizeCloudAuthExpiresAt(...args),
-  refreshCloudSession: (...args: unknown[]) => mockRefreshCloudSession(...args),
-  resolveCloudAccessToken: (...args: unknown[]) => mockResolveCloudAccessToken(...args),
+  isCloudAccessTokenExpiringSoon: (settings: Settings, bufferMs?: number) => mockIsCloudAccessTokenExpiringSoon(settings, bufferMs),
+  normalizeCloudAuthExpiresAt: (expiresAt?: number, accessToken?: string) => mockNormalizeCloudAuthExpiresAt(expiresAt, accessToken),
+  refreshCloudSession: (settings: Settings) => mockRefreshCloudSession(settings),
+  resolveCloudAccessToken: (settings: Settings) => mockResolveCloudAccessToken(settings),
 }));
 
 function makeSettings(overrides: Partial<Settings> = {}): Settings {
@@ -96,6 +96,205 @@ describe('cloudSessionManager', () => {
     cancelCloudSessionRecovery();
 
     await expect(pendingToken).resolves.toBeNull();
+    cleanup();
+  });
+
+  it('shares a single recovery promise across concurrent withCloudAuth waiters', async () => {
+    const {
+      registerCloudSessionController,
+      syncCloudSessionState,
+      withCloudAuth,
+    } = await import('./cloudSessionManager');
+
+    let currentSettings = makeSettings({
+      cloudAuthStatus: 'signed-out',
+      cloudAuthAccessToken: '',
+      cloudAuthRefreshToken: '',
+    });
+    const openCloudReLoginModal = vi.fn();
+
+    const cleanup = registerCloudSessionController({
+      getSettings: () => currentSettings,
+      updateSettings: vi.fn(),
+      openCloudReLoginModal,
+    });
+
+    const op = vi.fn(async (token: string) => `ok:${token}`);
+    const pending = [withCloudAuth(op), withCloudAuth(op), withCloudAuth(op)];
+
+    expect(openCloudReLoginModal).toHaveBeenCalledOnce();
+    expect(op).not.toHaveBeenCalled();
+
+    currentSettings = makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'recovered-token',
+      cloudAuthRefreshToken: 'refresh-token',
+    });
+    syncCloudSessionState(currentSettings);
+
+    await expect(Promise.all(pending)).resolves.toEqual([
+      'ok:recovered-token',
+      'ok:recovered-token',
+      'ok:recovered-token',
+    ]);
+    expect(op).toHaveBeenCalledTimes(3);
+    cleanup();
+  });
+
+  it('throws CloudSessionCancelledError when recovery is cancelled via withCloudAuth', async () => {
+    const {
+      registerCloudSessionController,
+      cancelCloudSessionRecovery,
+      withCloudAuth,
+      CloudSessionCancelledError,
+    } = await import('./cloudSessionManager');
+
+    const cleanup = registerCloudSessionController({
+      getSettings: () => makeSettings({
+        cloudAuthStatus: 'signed-out',
+        cloudAuthAccessToken: '',
+        cloudAuthRefreshToken: '',
+      }),
+      updateSettings: vi.fn(),
+      openCloudReLoginModal: vi.fn(),
+    });
+
+    const pending = withCloudAuth(async (token) => token);
+    cancelCloudSessionRecovery();
+
+    await expect(pending).rejects.toBeInstanceOf(CloudSessionCancelledError);
+    cleanup();
+  });
+
+  it('retries once after a 401 before any output is emitted', async () => {
+    const {
+      registerCloudSessionController,
+      withCloudAuth,
+    } = await import('./cloudSessionManager');
+
+    mockRefreshCloudSession.mockResolvedValueOnce({
+      accessToken: 'renewed-token',
+      refreshToken: 'refresh-token',
+      expiresAt: 1_735_689_600_000,
+    });
+
+    let currentSettings = makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'initial-token',
+      cloudAuthRefreshToken: 'refresh-token',
+    });
+
+    const updateSettings = vi.fn((partial: Partial<Settings>) => {
+      currentSettings = { ...currentSettings, ...partial };
+    });
+    const openCloudReLoginModal = vi.fn();
+
+    const cleanup = registerCloudSessionController({
+      getSettings: () => currentSettings,
+      updateSettings,
+      openCloudReLoginModal,
+    });
+
+    const op = vi.fn()
+      .mockRejectedValueOnce(new Error('401 invalid session'))
+      .mockResolvedValueOnce('success');
+
+    const pending = withCloudAuth(op, {
+      alreadyEmittedOutput: () => false,
+    });
+
+    await expect(pending).resolves.toBe('success');
+    expect(mockRefreshCloudSession).toHaveBeenCalledOnce();
+    expect(openCloudReLoginModal).not.toHaveBeenCalled();
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({
+      cloudAuthAccessToken: 'renewed-token',
+      cloudAuthRefreshToken: 'refresh-token',
+      cloudAuthStatus: 'signed-in',
+    }));
+    expect(op).toHaveBeenCalledTimes(2);
+    expect(op).toHaveBeenNthCalledWith(1, 'initial-token');
+    expect(op).toHaveBeenNthCalledWith(2, 'renewed-token');
+    cleanup();
+  });
+
+  it('does not open recovery for transport failures and throws CloudUnreachableError', async () => {
+    const {
+      registerCloudSessionController,
+      withCloudAuth,
+      CloudUnreachableError,
+    } = await import('./cloudSessionManager');
+
+    const openCloudReLoginModal = vi.fn();
+    const cleanup = registerCloudSessionController({
+      getSettings: () => makeSettings({
+        cloudAuthStatus: 'signed-in',
+        cloudAuthAccessToken: 'token',
+        cloudAuthRefreshToken: 'refresh-token',
+      }),
+      updateSettings: vi.fn(),
+      openCloudReLoginModal,
+    });
+
+    const pending = withCloudAuth(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+
+    await expect(pending).rejects.toBeInstanceOf(CloudUnreachableError);
+    expect(openCloudReLoginModal).not.toHaveBeenCalled();
+    cleanup();
+  });
+
+  it('rethrows 401 errors when output has already been emitted', async () => {
+    const {
+      registerCloudSessionController,
+      withCloudAuth,
+    } = await import('./cloudSessionManager');
+
+    const openCloudReLoginModal = vi.fn();
+    const cleanup = registerCloudSessionController({
+      getSettings: () => makeSettings({
+        cloudAuthStatus: 'signed-in',
+        cloudAuthAccessToken: 'token',
+        cloudAuthRefreshToken: 'refresh-token',
+      }),
+      updateSettings: vi.fn(),
+      openCloudReLoginModal,
+    });
+
+    const authError = new Error('401 invalid session');
+    const pending = withCloudAuth(
+      async () => {
+        throw authError;
+      },
+      { alreadyEmittedOutput: () => true },
+    );
+
+    await expect(pending).rejects.toBe(authError);
+    expect(openCloudReLoginModal).not.toHaveBeenCalled();
+    cleanup();
+  });
+
+  it('throws CloudUnreachableError when refresh fails for transport reasons and no fallback token exists', async () => {
+    const {
+      registerCloudSessionController,
+      ensureCloudAccessToken,
+      CloudUnreachableError,
+    } = await import('./cloudSessionManager');
+
+    mockIsCloudAccessTokenExpiringSoon.mockReturnValue(true);
+    mockRefreshCloudSession.mockRejectedValue(new Error('network timeout'));
+
+    const cleanup = registerCloudSessionController({
+      getSettings: () => makeSettings({
+        cloudAuthStatus: 'signed-in',
+        cloudAuthAccessToken: '',
+        cloudAuthRefreshToken: 'refresh-token',
+      }),
+      updateSettings: vi.fn(),
+      openCloudReLoginModal: vi.fn(),
+    });
+
+    await expect(ensureCloudAccessToken()).rejects.toBeInstanceOf(CloudUnreachableError);
     cleanup();
   });
 
@@ -185,5 +384,102 @@ describe('cloudSessionManager', () => {
 
     await expect(pendingToken).resolves.toBe('renewed-access-token');
     cleanup();
+  });
+
+  it('opens re-login modal when refresh fails with session error even if cloudAuthStatus is not signed-in', async () => {
+    const {
+      registerCloudSessionController,
+      ensureCloudAccessToken,
+      syncCloudSessionState,
+    } = await import('./cloudSessionManager');
+
+    mockIsCloudAccessTokenExpiringSoon.mockReturnValue(true);
+    mockRefreshCloudSession.mockRejectedValue(new Error('401 invalid session'));
+
+    let currentSettings = makeSettings({
+      cloudAuthStatus: 'signed-out',
+      cloudAuthAccessToken: '',
+      cloudAuthRefreshToken: 'refresh-token',
+    });
+    const updateSettings = vi.fn((partial: Partial<Settings>) => {
+      currentSettings = { ...currentSettings, ...partial };
+    });
+    const openCloudReLoginModal = vi.fn();
+
+    const cleanup = registerCloudSessionController({
+      getSettings: () => currentSettings,
+      updateSettings,
+      openCloudReLoginModal,
+    });
+
+    const pendingToken = ensureCloudAccessToken();
+
+    await vi.waitFor(() => {
+      expect(openCloudReLoginModal).toHaveBeenCalledOnce();
+    });
+
+    const sentinel = Symbol('pending');
+    expect(await Promise.race([pendingToken, Promise.resolve(sentinel)])).toBe(sentinel);
+
+    currentSettings = makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'renewed-access-token',
+      cloudAuthRefreshToken: 'renewed-refresh-token',
+    });
+    syncCloudSessionState(currentSettings);
+
+    await expect(pendingToken).resolves.toBe('renewed-access-token');
+    cleanup();
+  });
+
+  it('restores previous controller when a newer one unregisters', async () => {
+    const {
+      registerCloudSessionController,
+      ensureCloudAccessToken,
+      syncCloudSessionState,
+    } = await import('./cloudSessionManager');
+
+    let mainWindowSettings = makeSettings({
+      cloudAuthStatus: 'signed-out',
+      cloudAuthAccessToken: '',
+      cloudAuthRefreshToken: '',
+    });
+    const mainOpenModal = vi.fn();
+    const mainCleanup = registerCloudSessionController({
+      getSettings: () => mainWindowSettings,
+      updateSettings: vi.fn(),
+      openCloudReLoginModal: mainOpenModal,
+    });
+
+    let settingsWindowSettings = makeSettings({
+      cloudAuthStatus: 'signed-out',
+      cloudAuthAccessToken: '',
+      cloudAuthRefreshToken: '',
+    });
+    const settingsOpenModal = vi.fn();
+    const settingsCleanup = registerCloudSessionController({
+      getSettings: () => settingsWindowSettings,
+      updateSettings: vi.fn(),
+      openCloudReLoginModal: settingsOpenModal,
+    });
+
+    settingsCleanup();
+
+    const pendingToken = ensureCloudAccessToken();
+
+    expect(mainOpenModal).toHaveBeenCalledOnce();
+    expect(settingsOpenModal).not.toHaveBeenCalled();
+
+    const sentinel = Symbol('pending');
+    expect(await Promise.race([pendingToken, Promise.resolve(sentinel)])).toBe(sentinel);
+
+    mainWindowSettings = makeSettings({
+      cloudAuthStatus: 'signed-in',
+      cloudAuthAccessToken: 'fresh-token',
+    });
+    syncCloudSessionState(mainWindowSettings);
+
+    await expect(pendingToken).resolves.toBe('fresh-token');
+    mainCleanup();
   });
 });

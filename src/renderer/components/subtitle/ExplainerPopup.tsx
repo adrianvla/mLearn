@@ -6,11 +6,12 @@
 
 import { Component, Show, createSignal, createEffect, createMemo, onCleanup, untrack } from 'solid-js';
 import type { LLMToolCall } from '../../../shared/types';
-import { DraggablePopup, IconBtn } from '../common';
+import { Button, DraggablePopup, IconBtn } from '../common';
 import { RefreshIcon, BotIcon } from '../common/Misc/Icons';
 import { useSettings, useLocalization, useLowPowerGate } from '../../context';
 import { getLanguageDisplayName } from '../../../shared/utils/textUtils';
-import { streamExplanation, getCachedExplanation, checkAvailability, requiresSetup, type ExplainerMode } from '../../services/llmProvider';
+import { streamExplanation, getCachedExplanation, requiresSetup, type ExplainerMode } from '../../services/llmProvider';
+import { CloudSessionCancelledError, CloudUnreachableError } from '../../services/cloudSessionManager';
 import type { ParsedExplainer, ExplainerSection, GrammarPoint } from './ExplainerCards';
 import { ExplainerCards } from './ExplainerCards';
 import { buildExplainerGeneratedByLabel } from './explainerProviderLabel';
@@ -92,7 +93,16 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [isComplete, setIsComplete] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  const [errorKind, setErrorKind] = createSignal<'generic' | 'cancelled' | 'unreachable' | null>(null);
   const [abortFn, setAbortFn] = createSignal<(() => void) | null>(null);
+
+  const isCancelledCloudError = (value: unknown): boolean => value instanceof CloudSessionCancelledError
+    || (typeof value === 'object' && value !== null && 'code' in value && (value as { code?: unknown }).code === 'cloud_session_cancelled')
+    || (value instanceof Error && value.name === 'CloudSessionCancelledError');
+
+  const isUnreachableCloudError = (value: unknown): boolean => value instanceof CloudUnreachableError
+    || (typeof value === 'object' && value !== null && 'code' in value && (value as { code?: unknown }).code === 'cloud_unreachable')
+    || (value instanceof Error && value.name === 'CloudUnreachableError');
 
   // Build ParsedExplainer from accumulated tool calls
   const parsedContent = createMemo<ParsedExplainer>(() => {
@@ -158,6 +168,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     setIsLoading(true);
     setIsComplete(false);
     setError(null);
+    setErrorKind(null);
 
     // Snapshot reactive settings values so reads below don't leak into any
     // outer tracking context (the calling createEffect uses untrack, but
@@ -183,23 +194,6 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
       // Check setup
       if (requiresSetup(currentSettings)) {
         setError(t('mlearn.AI.SetupRequired'));
-        setIsLoading(false);
-        setIsComplete(true);
-        return;
-      }
-
-      // Check availability
-      const status = await checkAvailability(currentSettings);
-      if (requestId !== activeStreamRequestId) {
-        return;
-      }
-
-      if (!status.available) {
-        setError(status.reason === 'ollama_unreachable'
-          ? t('mlearn.AI.OllamaNotReachable')
-          : status.reason === 'model_not_downloaded'
-            ? t('mlearn.AI.DownloadModel')
-            : (status.reason ?? 'LLM unavailable'));
         setIsLoading(false);
         setIsComplete(true);
         return;
@@ -264,7 +258,16 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
               return;
             }
 
-            setError(normalizeExplainerErrorMessage(err, getExplainerFailureMessage()));
+            if (isCancelledCloudError(err)) {
+              setError(t('mlearn.CloudReLogin.SignInCanceled'));
+              setErrorKind('cancelled');
+            } else if (isUnreachableCloudError(err)) {
+              setError(t('mlearn.AI.CloudUnreachable'));
+              setErrorKind('unreachable');
+            } else {
+              setError(normalizeExplainerErrorMessage(typeof err === 'string' ? err : err instanceof Error ? err.message : null, getExplainerFailureMessage()));
+              setErrorKind('generic');
+            }
             setIsLoading(false);
             setIsComplete(true);
           },
@@ -282,7 +285,16 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
       // Safety net: ensure isLoading is always reset even on unexpected errors
       console.error('[ExplainerPopup] startStreaming error:', err);
       if (requestId === activeStreamRequestId) {
-        setError(getExplainerFailureMessage());
+        if (isCancelledCloudError(err)) {
+          setError(t('mlearn.CloudReLogin.SignInCanceled'));
+          setErrorKind('cancelled');
+        } else if (isUnreachableCloudError(err)) {
+          setError(t('mlearn.AI.CloudUnreachable'));
+          setErrorKind('unreachable');
+        } else {
+          setError(getExplainerFailureMessage());
+          setErrorKind('generic');
+        }
         setIsLoading(false);
         setIsComplete(true);
       }
@@ -348,6 +360,13 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
         <Show when={error()}>
           <div class="explainer-popup__error">
             <p>{error()}</p>
+            <Show when={errorKind() === 'cancelled'}>
+              <div class="explainer-popup__error-action-row">
+                <Button size="sm" variant="primary" onClick={handleRegenerate}>
+                  {t('mlearn.CloudReLogin.RetryAction')}
+                </Button>
+              </div>
+            </Show>
           </div>
         </Show>
 

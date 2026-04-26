@@ -115,9 +115,9 @@ const WindowLoadingScreen: Component = () => {
   return (
       <Show when={visible()}>
       <div class={`window-loading-overlay ${fadeOut() ? 'fade-out' : ''}`}>
-        <svg class="window-loading-spinner" width="40" height="40" viewBox="0 0 48 48">
-          <rect x="2" y="2" width="44" height="44" fill="none" stroke="currentColor" stroke-width="8" style="opacity: 0.1"/>
-          <rect x="2" y="2" width="44" height="44" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="square" stroke-dasharray="44 132" class="window-loading-spinner-dash"/>
+        <svg width="40" height="40" viewBox="0 0 48 48">
+          <rect x="2" y="2" width="44" height="44" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="8"/>
+          <rect x="2" y="2" width="44" height="44" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="square" stroke-dasharray="44 132" class="window-loading-spinner-dash"/>
         </svg>
       </div>
     </Show>
