@@ -45,6 +45,12 @@
   font-size: var(--font-size-sm);
 }
 
+.explainer-popup__error-action-row {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: var(--spacing-3);
+}
+
 /* Raw mode display */
 .explainer-popup__raw {
   font-family: var(--font-mono, monospace);

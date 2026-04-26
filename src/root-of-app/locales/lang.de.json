@@ -1,6 +1,7 @@
 {
   "mlearn": {
     "AI": {
+      "CloudUnreachable": "Der Cloud-Dienst ist nicht erreichbar. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
       "DownloadModel": "Modell herunterladen",
       "ModelNotDownloaded": "Modell ist noch nicht heruntergeladen.",
       "ModelReady": "Modell ist bereit.",
@@ -204,6 +205,8 @@
     "CloudReLogin": {
       "CodeHint": "Geben Sie den Einmalcode von der Anmeldeseite ein.",
       "Hint": "Klicken Sie auf Anmelden, um die Anmeldeseite im Browser zu öffnen.",
+      "RetryAction": "Erneut versuchen",
+      "SignInCanceled": "Die Anmeldung wurde abgebrochen.",
       "SessionExpired": "Ihre Cloud-Sitzung ist abgelaufen. Bitte melden Sie sich erneut an, um fortzufahren.",
       "SessionRefreshed": "Sitzung aktualisiert. Bitte versuchen Sie es erneut.",
       "Title": "Sitzung abgelaufen"

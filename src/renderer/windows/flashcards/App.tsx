@@ -36,8 +36,7 @@ import { getBackend } from '../../../shared/backends';
 import { isElectron } from '../../../shared/platform';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
-import { ensureCloudAccessToken } from '../../services/cloudSessionManager';
-import { checkAvailability } from '../../services/llmProvider';
+import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../../services/cloudSessionManager';
 import type { Flashcard, FlashcardContent, TTSProvider } from '../../../shared/types';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
 import { syncFlashcardsPluginActivity, type FlashcardsTabId } from './pluginActivity';
@@ -130,6 +129,26 @@ export const FlashcardsContent: Component = () => {
   const [showRepairModal, setShowRepairModal] = createSignal(false);
   const [, setRepairRunning] = createSignal(false);
 
+  const isCloudSessionCancelled = (error: unknown): boolean => error instanceof CloudSessionCancelledError
+    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_session_cancelled');
+
+  const isCloudUnreachable = (error: unknown): boolean => error instanceof CloudUnreachableError
+    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_unreachable');
+
+  const handleCloudOperationFallback = (error: unknown): boolean => {
+    if (isCloudSessionCancelled(error)) {
+      showToast({ message: t('mlearn.CloudReLogin.SignInCanceled'), variant: 'warning', duration: 5000 });
+      return true;
+    }
+
+    if (isCloudUnreachable(error)) {
+      showToast({ message: t('mlearn.AI.CloudUnreachable'), variant: 'error', duration: 6000 });
+      return true;
+    }
+
+    return false;
+  };
+
   createEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
@@ -209,48 +228,43 @@ export const FlashcardsContent: Component = () => {
     const language = settings.language;
 
     if (llmJobs.length > 0) {
-      const availability = await checkAvailability(settings);
-      if (!availability.available) {
-        showToast({ message: t('mlearn.Flashcards.Repair.LLMUnavailable'), variant: 'error', duration: 6000 });
-      } else {
-        const llmToastId = showToast({
-          variant: 'info',
-          title: t('mlearn.Flashcards.Repair.LLMToastTitle'),
-          content: (
-            <ProgressBar value={0} size="md" variant="primary" showPercent percentPosition="below" />
-          ),
-          duration: 0,
-        });
+      const llmToastId = showToast({
+        variant: 'info',
+        title: t('mlearn.Flashcards.Repair.LLMToastTitle'),
+        content: (
+          <ProgressBar value={0} size="md" variant="primary" showPercent percentPosition="below" />
+        ),
+        duration: 0,
+      });
 
-        let llmSucceeded = 0;
-        let llmFailed = 0;
-        for (let i = 0; i < llmJobs.length; i++) {
-          const job = llmJobs[i];
-          try {
-            const translation = await translateExampleSentence(job.exampleText, language);
-            if (translation) {
-              updateFlashcardContent(job.cardId, { exampleMeaning: translation });
-              llmSucceeded++;
-            } else {
-              llmFailed++;
-            }
-          } catch (e) {
-            console.error(e);
+      let llmSucceeded = 0;
+      let llmFailed = 0;
+      for (let i = 0; i < llmJobs.length; i++) {
+        const job = llmJobs[i];
+        try {
+          const translation = await translateExampleSentence(job.exampleText, language);
+          if (translation) {
+            updateFlashcardContent(job.cardId, { exampleMeaning: translation });
+            llmSucceeded++;
+          } else {
             llmFailed++;
           }
-          updateToast(llmToastId, {
-            content: (
-              <ProgressBar value={Math.round(((i + 1) / llmJobs.length) * 100)} size="sm" variant="primary" showPercent percentPosition="below" />
-            ),
-          });
+        } catch (e) {
+          console.error(e);
+          llmFailed++;
         }
+        updateToast(llmToastId, {
+          content: (
+            <ProgressBar value={Math.round(((i + 1) / llmJobs.length) * 100)} size="sm" variant="primary" showPercent percentPosition="below" />
+          ),
+        });
+      }
 
-        removeToast(llmToastId);
-        if (llmFailed > 0) {
-          showToast({ variant: 'warning', title: t('mlearn.Flashcards.Repair.LLMDoneWithErrors', { count: llmSucceeded, failed: llmFailed }), duration: 5000 });
-        } else if (llmSucceeded > 0) {
-          showToast({ variant: 'success', title: t('mlearn.Flashcards.Repair.LLMDone', { count: llmSucceeded }), duration: 4000 });
-        }
+      removeToast(llmToastId);
+      if (llmFailed > 0) {
+        showToast({ variant: 'warning', title: t('mlearn.Flashcards.Repair.LLMDoneWithErrors', { count: llmSucceeded, failed: llmFailed }), duration: 5000 });
+      } else if (llmSucceeded > 0) {
+        showToast({ variant: 'success', title: t('mlearn.Flashcards.Repair.LLMDone', { count: llmSucceeded }), duration: 4000 });
       }
     }
 
@@ -258,7 +272,6 @@ export const FlashcardsContent: Component = () => {
       const bridge = getBridge();
       const provider = settings.flashcardTtsProvider;
       const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
-      let cloudAuthToken: string | undefined;
       const cloudApiUrl = settings.cloudApiUrl || undefined;
       const total = ttsJobs.length;
       let succeeded = 0;
@@ -272,14 +285,7 @@ export const FlashcardsContent: Component = () => {
         duration: 0,
       });
 
-      if (provider === 'cloud') {
-        cloudAuthToken = (await ensureCloudAccessToken()) || undefined;
-        if (!cloudAuthToken) {
-          setRepairRunning(false);
-          removeToast(toastId);
-          return;
-        }
-      } else {
+      if (provider !== 'cloud') {
         const allowed = await requestAccess('tts');
         if (!allowed) {
           setRepairRunning(false);
@@ -296,16 +302,38 @@ export const FlashcardsContent: Component = () => {
 
         for (const job of pending) {
           try {
-            const result = await bridge.flashcards.generateFlashcardTts(
-              job.cardId, job.text, language, job.field, provider,
-              voiceSampleId, cloudAuthToken, cloudApiUrl
-            );
+            const result = provider === 'cloud'
+              ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(
+                job.cardId,
+                job.text,
+                language,
+                job.field,
+                provider,
+                voiceSampleId,
+                cloudToken,
+                cloudApiUrl,
+              ))
+              : await bridge.flashcards.generateFlashcardTts(
+                job.cardId,
+                job.text,
+                language,
+                job.field,
+                provider,
+                voiceSampleId,
+                undefined,
+                cloudApiUrl,
+              );
             if (result) {
               succeeded++;
             } else {
               failedThisRound.push(job);
             }
           } catch (e) {
+            if (handleCloudOperationFallback(e)) {
+              setRepairRunning(false);
+              removeToast(toastId);
+              return;
+            }
             console.error(e);
             failedThisRound.push(job);
           }
@@ -456,7 +484,6 @@ export const FlashcardsContent: Component = () => {
     const cards = flashcards();
     const provider = bulkTtsProvider();
     const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
-    let cloudAuthToken: string | undefined;
     const cloudApiUrl = settings.cloudApiUrl || undefined;
     const language = settings.language;
 
@@ -507,13 +534,7 @@ export const FlashcardsContent: Component = () => {
     const startTime = Date.now();
     setBulkProgress({ current: 0, total: items.length, label: t('mlearn.Flashcards.Bulk.TtsProgress'), startTime });
 
-    if (provider === 'cloud') {
-      cloudAuthToken = (await ensureCloudAccessToken()) || undefined;
-      if (!cloudAuthToken) {
-        setBulkProgress(null);
-        return;
-      }
-    } else {
+    if (provider !== 'cloud') {
       const allowed = await requestAccess('tts');
       if (!allowed) {
         setBulkProgress(null);
@@ -525,10 +546,22 @@ export const FlashcardsContent: Component = () => {
     let failed = 0;
     // Generate one-by-one so we can show progress
     for (const item of items) {
-      const result = await bridge.flashcards.generateFlashcardTts(item.cardId, item.text, language, item.field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
-      if (result) {
-        generated++;
-      } else {
+      try {
+        const result = provider === 'cloud'
+          ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(item.cardId, item.text, language, item.field, provider, voiceSampleId, cloudToken, cloudApiUrl))
+          : await bridge.flashcards.generateFlashcardTts(item.cardId, item.text, language, item.field, provider, voiceSampleId, undefined, cloudApiUrl);
+        if (result) {
+          generated++;
+        } else {
+          failed++;
+        }
+      } catch (error) {
+        if (handleCloudOperationFallback(error)) {
+          setBulkProgress(null);
+          return;
+        }
+
+        console.error(error);
         failed++;
       }
       setBulkProgress({ current: generated + failed, total: items.length, label: t('mlearn.Flashcards.Bulk.TtsProgress'), startTime });
@@ -544,12 +577,6 @@ export const FlashcardsContent: Component = () => {
 
   const handleBulkExamples = async () => {
     if (bulkProgress()) return;
-
-    const availability = await checkAvailability(settings);
-    if (!availability.available) {
-      showToast({ message: t('mlearn.Flashcards.Bulk.ExamplesLLMUnavailable'), variant: 'error', duration: 6000 });
-      return;
-    }
 
     const cards = flashcards();
     const language = settings.language;

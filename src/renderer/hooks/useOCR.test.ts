@@ -75,6 +75,15 @@ const mockEnsureCloudAccessToken = vi.fn(async () => {
   return accessToken || legacyToken || null;
 });
 
+const mockWithCloudAuth = vi.fn(async <T>(op: (token: string) => Promise<T>) => {
+  const token = await mockEnsureCloudAccessToken();
+  if (!token) {
+    throw new Error('Missing cloud authentication token');
+  }
+
+  return op(token);
+});
+
 vi.mock('../context/SettingsContext', () => ({
   useSettings: () => ({
     settings: mockSettings,
@@ -83,6 +92,7 @@ vi.mock('../context/SettingsContext', () => ({
 
 vi.mock('../services/cloudSessionManager', () => ({
   ensureCloudAccessToken: (...args: unknown[]) => mockEnsureCloudAccessToken(...args),
+  withCloudAuth: (...args: unknown[]) => mockWithCloudAuth(...args as Parameters<typeof mockWithCloudAuth>),
 }));
 
 function makePngBlob(size = 100): Blob {

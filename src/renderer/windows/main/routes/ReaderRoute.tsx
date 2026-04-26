@@ -1,4 +1,4 @@
-import { ensureCloudAccessToken } from '../../../services/cloudSessionManager';
+import { withCloudAuth } from '../../../services/cloudSessionManager';
 /**
  * Reader Route
  * Manga/Image OCR reader integrated into main window via router
@@ -787,14 +787,13 @@ export const ReaderRoute: Component = () => {
 
       if (settings.ocrProvider === 'cloud') {
         // Cloud OCR via HATEOAS job flow
-        const cloudApiUrl = resolveCloudApiUrl(settings);
-        const cloudToken = await ensureCloudAccessToken();
-        if (!cloudToken) throw new Error('Cloud OCR requires authentication');
-
-        const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
         const language = settings.language;
         const engine = turbo ? 'rapid' : undefined;
-        const cloudResult = await adapter.recognize(prepared.blob, language, engine);
+        const cloudApiUrl = resolveCloudApiUrl(settings);
+        const cloudResult = await withCloudAuth(async (cloudToken) => {
+          const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
+          return adapter.recognize(prepared.blob, language, engine);
+        });
 
         // Convert cloud box format {x,y,width,height} to reader OcrBox format {box: [[x1,y1]...]}
         const convertedBoxes: OcrResult['boxes'] = (cloudResult.boxes || []).map(b => ({
@@ -1844,7 +1843,19 @@ export const ReaderRoute: Component = () => {
           >
             <div class={`page-container ${pageMode()}${(settings.readerCollatePages && pageMode() === 'double') ? ' collate' : ''}`} ref={pageContainerRef}>
               <For each={visiblePages()}>
-                {(page) => {
+                {(page, i) => {
+                  // Determine visual side for collated double-page mode.
+                  // Container uses flex-direction: row-reverse (manga reading order),
+                  // so visiblePages[0] (DOM first, lower index) renders on the visual RIGHT
+                  // and visiblePages[1] (DOM second, higher index) renders on the visual LEFT.
+                  const pageSideClass = () => {
+                    const isCollatedSpread =
+                      pageMode() === 'double' &&
+                      settings.readerCollatePages &&
+                      visiblePages().length === 2;
+                    if (!isCollatedSpread) return '';
+                    return i() === 0 ? 'page-right' : 'page-left';
+                  };
                   // Check if this page is being processed or is pending (for VISIBLE pages only)
                   const currentTask = () => processingTask();
                   const isProcessing = () => {
@@ -1923,7 +1934,7 @@ export const ReaderRoute: Component = () => {
                   };
 
                   return (
-                      <div class="page">
+                      <div class={`page ${pageSideClass()}`}>
                         <img
                             class="page-image"
                             src={page.src}
