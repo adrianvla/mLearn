@@ -9,7 +9,14 @@ import { getBridge } from '../../shared/bridges';
 import { isMobile } from '../../shared/platform';
 import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../shared/backends';
-import { ensureCloudAccessToken, getCloudSessionSettings, handleCloudSessionError, isCloudSessionError } from './cloudSessionManager';
+import {
+  CloudSessionCancelledError,
+  CloudUnreachableError,
+  ensureCloudAccessToken,
+  getCloudSessionSettings,
+  isCloudSessionError,
+  withCloudAuth,
+} from './cloudSessionManager';
 
 // ============================================================================
 // Types
@@ -19,7 +26,7 @@ export interface LLMStreamCallbacks {
   onChunk: (content: string, accumulated: string) => void;
   onToolCall: (toolCall: LLMToolCall) => void;
   onDone: (finalContent: string, allToolCalls: LLMToolCall[], stats?: LLMStreamStats) => void;
-  onError: (error: string) => void;
+  onError: (error: unknown) => void;
 }
 
 export interface LLMStreamStats {
@@ -117,7 +124,6 @@ export function streamChat(
   let firstTokenTime = 0;
   let cleanup: (() => void) | null = null;
   let aborted = false;
-  let hasRecoveredCloudSession = false;
 
   function cleanupListener() {
     cleanup?.();
@@ -125,53 +131,16 @@ export function streamChat(
     if (activeCleanup === cleanupListener) activeCleanup = null;
   }
 
-  const startStream = () => {
+  const runStreamAttempt = () => new Promise<void>((resolve, reject) => {
     if (aborted) {
+      resolve();
       return;
     }
 
     cleanup = bridge.llm.onLLMStreamChunk((chunk: LLMStreamChunk) => {
       if (chunk.error) {
-        const chunkError = chunk.error;
-        if (
-          activeSettings?.llmProvider === 'cloud'
-          && !hasRecoveredCloudSession
-          && accumulated.length === 0
-          && collectedToolCalls.length === 0
-          && isCloudSessionError(chunkError)
-        ) {
-          hasRecoveredCloudSession = true;
-          cleanupListener();
-
-          // Force-refresh the token silently (via refresh token) instead of
-          // wiping the session and immediately opening a re-login modal.
-          // This prevents a duplicate modal when the main process read stale
-          // settings from disk before the async save completed.
-          void ensureCloudAccessToken({ forceRefresh: true }).then((accessToken) => {
-            if (aborted) {
-              return;
-            }
-
-            if (!accessToken) {
-              callbacks.onError(chunkError);
-              return;
-            }
-
-            startStream();
-          }).catch((error) => {
-            console.error(error);
-            if (!aborted) {
-              callbacks.onError((error as Error).message || chunkError);
-            }
-          });
-          return;
-        }
-
-        if (activeSettings?.llmProvider === 'cloud') {
-          handleCloudSessionError(chunkError);
-        }
-        callbacks.onError(chunkError);
         cleanupListener();
+        reject(chunk.error);
         return;
       }
 
@@ -207,6 +176,7 @@ export function streamChat(
 
         callbacks.onDone(accumulated, collectedToolCalls, stats);
         cleanupListener();
+        resolve();
       }
     });
 
@@ -216,27 +186,30 @@ export function streamChat(
       console.log('[LLMProvider] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
     }
     bridge.llm.llmStream(messages, tools);
+  });
+
+  const startStream = async () => {
+    if (activeSettings?.llmProvider !== 'cloud') {
+      await runStreamAttempt();
+      return;
+    }
+
+    await withCloudAuth(
+      async () => {
+        await runStreamAttempt();
+      },
+      {
+        alreadyEmittedOutput: () => accumulated.length > 0 || collectedToolCalls.length > 0,
+      },
+    );
   };
 
-  if (activeSettings?.llmProvider === 'cloud') {
-    void ensureCloudAccessToken().then((accessToken) => {
-      if (!accessToken) {
-        if (!aborted) {
-          callbacks.onError('Cloud session expired. Please sign in again.');
-        }
-        return;
-      }
-
-      startStream();
-    }).catch((error) => {
-      console.error(error);
-      if (!aborted) {
-        callbacks.onError((error as Error).message || 'Unable to refresh cloud session');
-      }
-    });
-  } else {
-    startStream();
-  }
+  void startStream().catch((error) => {
+    console.error(error);
+    if (!aborted) {
+      callbacks.onError(error);
+    }
+  });
 
   return {
     abort: () => {
@@ -275,7 +248,6 @@ function streamChatMobile(
   let firstTokenTime = 0;
   const collectedToolCalls: LLMToolCall[] = [];
   let aborted = false;
-  let hasRecoveredCloudSession = false;
 
   // Determine the cloud URL: tethered via desktop's forwarding endpoint
   let url: string;
@@ -288,43 +260,13 @@ function streamChatMobile(
     return { abort: () => {} };
   }
 
-  const startMobileStream = (token: string) => {
+  const startMobileStream = (token: string) => new Promise<void>((resolve, reject) => {
     mobileCloudAdapter = new CloudLLMAdapter(url, token);
 
     mobileCloudAdapter.streamChat(messages, tools, {
       onChunk: (chunk) => {
         if (chunk.error) {
-          const chunkError = chunk.error;
-          if (
-            !hasRecoveredCloudSession
-            && accumulated.length === 0
-            && collectedToolCalls.length === 0
-            && handleCloudSessionError(chunkError)
-          ) {
-            hasRecoveredCloudSession = true;
-
-            void ensureCloudAccessToken().then((recoveredToken) => {
-              if (aborted) {
-                return;
-              }
-
-              if (!recoveredToken) {
-                callbacks.onError(chunkError);
-                return;
-              }
-
-              startMobileStream(recoveredToken);
-            }).catch((error) => {
-              console.error(error);
-              if (!aborted) {
-                callbacks.onError((error as Error).message || chunkError);
-              }
-            });
-            return;
-          }
-
-          handleCloudSessionError(chunkError);
-          callbacks.onError(chunkError);
+          reject(chunk.error);
           return;
         }
         if (chunk.content) {
@@ -344,28 +286,26 @@ function streamChatMobile(
         const ttft = firstTokenTime ? firstTokenTime - startTime : 0;
         const stats: LLMStreamStats = { timeToFirstToken: ttft, totalTime, tokensPerSecond: 0 };
         callbacks.onDone(accumulated, collectedToolCalls, stats);
+        resolve();
       },
       onError: (error) => {
-        handleCloudSessionError(error);
-        callbacks.onError(error);
+        reject(error);
       },
     });
-  };
+  });
 
-  void ensureCloudAccessToken().then((token) => {
-    if (aborted) {
-      return;
-    }
-
-    if (!token) {
-      callbacks.onError('Cloud session expired. Please sign in again.');
-      return;
-    }
-
-    startMobileStream(token);
-  }).catch((error) => {
+  void withCloudAuth(
+    async (token) => {
+      await startMobileStream(token);
+    },
+    {
+      alreadyEmittedOutput: () => accumulated.length > 0 || collectedToolCalls.length > 0,
+    },
+  ).catch((error) => {
     console.error(error);
-    callbacks.onError((error as Error).message || 'Unable to refresh cloud session');
+    if (!aborted) {
+      callbacks.onError(error);
+    }
   });
 
   return {
@@ -382,7 +322,8 @@ function streamChatMobile(
 // ============================================================================
 
 /**
- * Check if the LLM is ready to use (provider-specific checks)
+ * Diagnostics only. Real cloud operations should use withCloudAuth, not preflight via checkAvailability.
+ * Check if the LLM is ready to use (provider-specific checks).
  */
 export async function checkAvailability(settings: Settings): Promise<{ available: boolean; reason?: string }> {
   const bridge = getBridge();
@@ -392,25 +333,30 @@ export async function checkAvailability(settings: Settings): Promise<{ available
   }
 
   if (settings.llmProvider === 'cloud') {
-    const accessToken = await ensureCloudAccessToken();
-    if (!accessToken) {
-      return { available: false, reason: 'cloud_unreachable' };
-    }
-
-    const cloudApiUrl = resolveCloudApiUrl(settings);
-    const adapter = new CloudLLMAdapter(
-      cloudApiUrl,
-      accessToken,
-    );
     try {
+      const accessToken = await ensureCloudAccessToken({ interactive: false, openModalOnExpiry: false });
+      if (!accessToken) {
+        return { available: false, reason: 'auth_required' };
+      }
+
+      const cloudApiUrl = resolveCloudApiUrl(settings);
+      const adapter = new CloudLLMAdapter(
+        cloudApiUrl,
+        accessToken,
+      );
       const reachable = await adapter.checkAvailability();
       return reachable
         ? { available: true }
         : { available: false, reason: 'cloud_unreachable' };
     } catch (error) {
       console.error(error);
-      const isAuthError = handleCloudSessionError(error, true);
-      return { available: false, reason: isAuthError ? 'auth_required' : 'cloud_unreachable' };
+      if (error instanceof CloudSessionCancelledError || isCloudSessionError(error)) {
+        return { available: false, reason: 'auth_required' };
+      }
+      if (error instanceof CloudUnreachableError) {
+        return { available: false, reason: 'cloud_unreachable' };
+      }
+      return { available: false, reason: 'cloud_unreachable' };
     }
   }
 

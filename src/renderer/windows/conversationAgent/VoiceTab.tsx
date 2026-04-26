@@ -7,7 +7,7 @@
 import { Component, Show, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
 import { useSettings, useLocalization, useLowPowerGate } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { ensureCloudAccessToken } from '../../services/cloudSessionManager';
+import { withCloudAuth } from '../../services/cloudSessionManager';
 import {
   Btn,
   IconBtn,
@@ -320,12 +320,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
           }
         })();
       } else {
-        (async () => {
-          const accessToken = await ensureCloudAccessToken();
-          if (accessToken) {
+        void withCloudAuth(async () => {
             getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider);
-          }
-        })();
+        }).catch((error) => {
+          console.error(error);
+        });
       }
     }
   });
@@ -774,7 +773,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       {/* Checking model status */}
       <Show when={isChecking()}>
         <div class="voice-download-section">
-          <Spinner size={32} shape="square" cornerRadius={0} />
+          <Spinner size={32} />
         </div>
       </Show>
 
@@ -826,7 +825,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             {/* Initializing engines indicator */}
             <Show when={isInitializing()}>
               <div class="voice-initializing">
-                <Spinner size={32} shape="square" cornerRadius={0} />
+                <Spinner size={32} />
                 <span class="voice-initializing-text">
                   {t('mlearn.ConversationAgent.Voice.Initializing')}
                 </span>
@@ -836,7 +835,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
             {/* TTS model loading indicator */}
             <Show when={!isInitializing() && ttsModelLoading()}>
               <div class="voice-initializing">
-                <Spinner size={32} shape="square" cornerRadius={0} />
+                <Spinner size={32} />
                 <span class="voice-initializing-text">
                   {t('mlearn.ConversationAgent.Voice.LoadingTtsModel')}
                 </span>

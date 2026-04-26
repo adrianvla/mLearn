@@ -1,7 +1,8 @@
 /**
  * Window Loading Overlay Styles
- * Theme-aware overlay shown during initial window load.
- * Uses CSS variables to match the current theme, preventing flash.
+ * Dark bootstrap overlay shown during initial window load.
+ * Uses hardcoded black/#fff to match the HTML loading screen exactly,
+ * preventing any flash during the handoff.
  */
 
 @keyframes square-dash {
@@ -16,17 +17,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-opaque, #f5f5f5);
+  background: #000000;
   transition: opacity 0.3s ease;
 }
 
 .window-loading-overlay.fade-out {
   opacity: 0;
   pointer-events: none;
-}
-
-.window-loading-spinner {
-  color: var(--text-primary, #1a1a1a);
 }
 
 .window-loading-spinner-dash {
