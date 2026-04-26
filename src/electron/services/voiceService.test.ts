@@ -125,6 +125,7 @@ vi.mock('../utils/platform', () => ({
   getResourcePath: vi.fn(() => '/resources'),
   getPipExecutablePath: vi.fn(() => '/env/bin/pip'),
   getPythonExecutablePath: vi.fn(() => '/env/bin/python'),
+  getBundledDistElectronPath: vi.fn((...segments: string[]) => ['/dist-electron', ...segments].join('/')),
   isWindows: false,
 }));
 
