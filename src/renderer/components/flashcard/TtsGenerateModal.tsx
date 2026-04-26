@@ -14,7 +14,7 @@ import { getBackend } from '../../../shared/backends';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../../shared/utils/textUtils';
 import { showToast, updateToast, removeToast } from '../common/Feedback/Toast';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
-import { ensureCloudAccessToken } from '../../services/cloudSessionManager';
+import { withCloudAuth } from '../../services/cloudSessionManager';
 import type { TTSProvider } from '../../../shared/types';
 import './TtsGenerateModal.css';
 
@@ -131,21 +131,6 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
     }
 
     const [tasks, setTasks] = createSignal<TaskState[]>(taskList);
-    let cloudAuthToken: string | undefined;
-
-    const getCloudTtsToken = async (): Promise<string | null> => {
-      if (prov !== 'cloud') {
-        return '';
-      }
-
-      if (cloudAuthToken !== undefined) {
-        return cloudAuthToken || null;
-      }
-
-      cloudAuthToken = (await ensureCloudAccessToken()) || '';
-      return cloudAuthToken || null;
-    };
-
     const toastId = showToast({
       variant: 'info',
       title: t('mlearn.CardEditor.Regenerate.Title'),
@@ -247,19 +232,15 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
             updateTask('wordTts', 'error');
             hadError = true;
           } else {
-            const wordCloudToken = await getCloudTtsToken();
-            if (prov === 'cloud' && !wordCloudToken) {
-              updateTask('wordTts', 'error');
-              hadError = true;
-            } else {
-              const result = await bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, cloudAuthToken, cloudApiUrl);
+            const result = prov === 'cloud'
+              ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, cloudToken, cloudApiUrl))
+              : await bridge.flashcards.generateFlashcardTts(props.cardId, clean, language, 'word', prov, sampleId, undefined, cloudApiUrl);
               if (result) {
                 updateTask('wordTts', 'done');
               } else {
                 updateTask('wordTts', 'error');
                 hadError = true;
               }
-            }
           }
         } else {
           updateTask('wordTts', 'done');
@@ -290,19 +271,15 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
             updateTask('exampleTts', 'error');
             hadError = true;
           } else {
-            const exampleCloudToken = await getCloudTtsToken();
-            if (prov === 'cloud' && !exampleCloudToken) {
-              updateTask('exampleTts', 'error');
-              hadError = true;
-            } else {
-              const result = await bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, cloudAuthToken, cloudApiUrl);
+            const result = prov === 'cloud'
+              ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, cloudToken, cloudApiUrl))
+              : await bridge.flashcards.generateFlashcardTts(props.cardId, textForTts, language, 'example', prov, sampleId, undefined, cloudApiUrl);
               if (result) {
                 updateTask('exampleTts', 'done');
               } else {
                 updateTask('exampleTts', 'error');
                 hadError = true;
               }
-            }
           }
         } else {
           updateTask('exampleTts', 'done');

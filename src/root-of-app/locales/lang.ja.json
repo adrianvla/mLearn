@@ -1,6 +1,7 @@
 {
   "mlearn": {
     "AI": {
+      "CloudUnreachable": "クラウドサービスに接続できません。接続を確認して、もう一度お試しください。",
       "DownloadModel": "モデルをダウンロード",
       "ModelNotDownloaded": "モデルはまだダウンロードされていません。",
       "ModelReady": "モデルは準備完了です。",
@@ -204,6 +205,8 @@
     "CloudReLogin": {
       "CodeHint": "ログインページのワンタイムコードを入力してください。",
       "Hint": "サインインをクリックしてブラウザでログインページを開きます。",
+      "RetryAction": "再試行",
+      "SignInCanceled": "サインインはキャンセルされました。",
       "SessionExpired": "クラウドセッションの有効期限が切れました。続行するには再度ログインしてください。",
       "SessionRefreshed": "セッションが更新されました。もう一度お試しください。",
       "Title": "セッション期限切れ"

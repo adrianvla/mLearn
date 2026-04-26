@@ -20,8 +20,8 @@ import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
 import { isElectron } from '../../shared/platform';
 import { getPassiveHoverDelayMs, getPassiveHoverEaseDecrease, hasReachedPassiveHoverFailCount, shouldDecreaseEaseOnPassiveFailure } from '../../shared/utils/passiveWordTracking';
-import { streamChat, checkAvailability } from '../services/llmProvider';
-import { ensureCloudAccessToken } from '../services/cloudSessionManager';
+import { streamChat } from '../services/llmProvider';
+import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../services/cloudSessionManager';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
 
@@ -276,6 +276,26 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   // Pending flashcard creation choice (SRS vs Anki)
   const [pendingFlashcardChoice, setPendingFlashcardChoice] = createSignal<PendingFlashcardChoice | null>(null);
+
+  const isCloudSessionCancelled = (error: unknown): boolean => error instanceof CloudSessionCancelledError
+    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_session_cancelled');
+
+  const isCloudUnreachable = (error: unknown): boolean => error instanceof CloudUnreachableError
+    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_unreachable');
+
+  const handleCloudOperationFallback = (error: unknown): boolean => {
+    if (isCloudSessionCancelled(error)) {
+      showToast({ message: t('mlearn.CloudReLogin.SignInCanceled'), variant: 'warning', duration: 5000 });
+      return true;
+    }
+
+    if (isCloudUnreachable(error)) {
+      showToast({ message: t('mlearn.AI.CloudUnreachable'), variant: 'error', duration: 6000 });
+      return true;
+    }
+
+    return false;
+  };
 
   const resolvePendingFlashcardChoice = (target: 'srs' | 'anki' | 'cancel') => {
     const pending = pendingFlashcardChoice();
@@ -877,25 +897,16 @@ export const FlashcardProvider: ParentComponent = (props) => {
       const provider = settings.flashcardTtsProvider;
       const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
       const language = settings.language;
-      const cloudAuthToken = provider === 'cloud'
-        ? (await ensureCloudAccessToken()) || undefined
-        : undefined;
       const cloudApiUrl = settings.cloudApiUrl || undefined;
-
-      if (provider === 'cloud' && !cloudAuthToken) {
-        updatePostCreateTask(wordLabel, 'wordTts', 'error');
-        if (hasExample && !skipExampleTts) {
-          updatePostCreateTask(wordLabel, 'exampleTts', 'error');
-        }
-        return;
-      }
 
       // Word TTS
       updatePostCreateTask(wordLabel, 'wordTts', 'running');
       try {
         const cleanWord = stripHtmlForTts(card.content.front);
         if (cleanWord && cleanWord !== '-') {
-          const result = await bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+          const result = provider === 'cloud'
+            ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, cloudToken, cloudApiUrl))
+            : await bridge.flashcards.generateFlashcardTts(cardId, cleanWord, language, 'word', provider, voiceSampleId, undefined, cloudApiUrl);
           if (result) {
             updatePostCreateTask(wordLabel, 'wordTts', 'done');
           } else {
@@ -905,6 +916,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           updatePostCreateTask(wordLabel, 'wordTts', 'done');
         }
       } catch (err) {
+        handleCloudOperationFallback(err);
         console.warn('Failed to generate word TTS:', err);
         updatePostCreateTask(wordLabel, 'wordTts', 'error');
       }
@@ -915,7 +927,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
         try {
           const cleanExample = stripHtmlForTts(card.content.example!);
           if (cleanExample && cleanExample !== '-') {
-            const result = await bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, cloudAuthToken, cloudApiUrl);
+            const result = provider === 'cloud'
+              ? await withCloudAuth((cloudToken) => bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, cloudToken, cloudApiUrl))
+              : await bridge.flashcards.generateFlashcardTts(cardId, cleanExample, language, 'example', provider, voiceSampleId, undefined, cloudApiUrl);
             if (result) {
               updatePostCreateTask(wordLabel, 'exampleTts', 'done');
             } else {
@@ -925,6 +939,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             updatePostCreateTask(wordLabel, 'exampleTts', 'done');
           }
         } catch (err) {
+          handleCloudOperationFallback(err);
           console.warn('Failed to generate example TTS:', err);
           updatePostCreateTask(wordLabel, 'exampleTts', 'error');
         }
@@ -1579,7 +1594,6 @@ export const FlashcardProvider: ParentComponent = (props) => {
             const bridge = getBridge();
             const provider = settings.flashcardTtsProvider || 'kokoro';
             const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
-            const cloudAuthToken = provider === 'cloud' ? (await ensureCloudAccessToken()) || undefined : undefined;
             const cloudApiUrl = provider === 'cloud' ? settings.cloudApiUrl : undefined;
             const ttsItems: Array<{ cardId: string; text: string; field: 'word' | 'example' }> = [
               { cardId: newCardId, text: suggestion.word, field: 'word' },
@@ -1587,17 +1601,29 @@ export const FlashcardProvider: ParentComponent = (props) => {
             if (exampleSentence && !content.skipExampleTts) {
               ttsItems.push({ cardId: newCardId, text: stripHtmlForTts(exampleSentence), field: 'example' });
             }
-            await bridge.flashcards.batchGenerateFlashcardTts(
-              ttsItems,
-              suggestion.language,
-              provider,
-              voiceSampleId,
-              cloudAuthToken,
-              cloudApiUrl,
-            );
-          } catch (e) {
-            console.warn(`Failed to generate TTS for promoted suggestion "${suggestion.word}":`, e);
+            if (provider === 'cloud') {
+              await withCloudAuth((cloudToken) => bridge.flashcards.batchGenerateFlashcardTts(
+                ttsItems,
+                suggestion.language,
+                provider,
+                voiceSampleId,
+                cloudToken,
+                cloudApiUrl,
+              ));
+            } else {
+              await bridge.flashcards.batchGenerateFlashcardTts(
+                ttsItems,
+                suggestion.language,
+                provider,
+                voiceSampleId,
+                undefined,
+                cloudApiUrl,
+              );
           }
+        } catch (e) {
+          handleCloudOperationFallback(e);
+          console.warn(`Failed to generate TTS for promoted suggestion "${suggestion.word}":`, e);
+        }
         }
 
         // Remove suggestion after successful promotion
@@ -2115,59 +2141,58 @@ export const FlashcardProvider: ParentComponent = (props) => {
    * Returns { sentence, meaning }. The meaning is translated to the user's app language.
    */
   const generateExampleSentenceWithLLM = async (word: string, definition: string, language: string): Promise<{ sentence: string; meaning: string }> => {
-    const availability = await checkAvailability(settings);
-    if (!availability.available) {
-      showToast({ message: t('mlearn.Flashcards.Repair.LLMUnavailable'), variant: 'error', duration: 6000 });
-      return { sentence: '', meaning: '' };
-    }
-
     // Low power gate: prompt before local LLM call
     if (settings.llmProvider !== 'cloud') {
       const allowed = await requestAccess('llm');
       if (!allowed) return { sentence: '', meaning: '' };
     }
 
-    return new Promise((resolve, reject) => {
-      const targetLang = getLanguageDisplayName(settings.uiLanguage || 'en');
-      const prompt = `Generate a simple, natural example sentence using the word "${word}" (meaning: ${definition}) in ${language}. Then provide a ${targetLang} translation of the sentence. Format your response exactly as:
+    try {
+      return await new Promise((resolve, reject) => {
+        const targetLang = getLanguageDisplayName(settings.uiLanguage || 'en');
+        const prompt = `Generate a simple, natural example sentence using the word "${word}" (meaning: ${definition}) in ${language}. Then provide a ${targetLang} translation of the sentence. Format your response exactly as:
 Sentence: [sentence in ${language}]
 Translation: [${targetLang} translation]`;
 
-      const messages = [
-        { role: 'system' as const, content: 'You are a helpful language learning assistant. Generate natural, simple example sentences.' },
-        { role: 'user' as const, content: prompt },
-      ];
+        const messages = [
+          { role: 'system' as const, content: 'You are a helpful language learning assistant. Generate natural, simple example sentences.' },
+          { role: 'user' as const, content: prompt },
+        ];
 
-      const { abort } = streamChat(messages, [], {
-        onChunk: () => {},
-        onToolCall: () => {},
-        onDone: (finalContent: string) => {
-          // Parse the response
-          const sentenceMatch = finalContent.match(/Sentence:\s*(.+)/i);
-          const translationMatch = finalContent.match(/Translation:\s*(.+)/i);
+        const { abort } = streamChat(messages, [], {
+          onChunk: () => {},
+          onToolCall: () => {},
+          onDone: (finalContent: string) => {
+            const sentenceMatch = finalContent.match(/Sentence:\s*(.+)/i);
+            const translationMatch = finalContent.match(/Translation:\s*(.+)/i);
 
-          resolve({
-            sentence: sentenceMatch?.[1]?.trim() || '',
-            meaning: translationMatch?.[1]?.trim() || '',
-          });
-        },
-        onError: (error: string) => {
-          reject(new Error(error));
-        },
-      }, settings);
+            resolve({
+              sentence: sentenceMatch?.[1]?.trim() || '',
+              meaning: translationMatch?.[1]?.trim() || '',
+            });
+          },
+          onError: (error: unknown) => {
+            reject(error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'Unknown error'));
+          },
+        }, settings);
 
-      // Safety timeout - abort after 30 seconds
-      const safetyTimeout = setTimeout(() => {
-        abort();
-        reject(new Error('LLM timeout'));
-      }, 30_000);
+        const safetyTimeout = setTimeout(() => {
+          abort();
+          reject(new Error('LLM timeout'));
+        }, 30_000);
 
-      // Clear timeout on completion (handled by onDone/onError above)
-      const origResolve = resolve;
-      const origReject = reject;
-      resolve = (val) => { clearTimeout(safetyTimeout); origResolve(val); };
-      reject = (err) => { clearTimeout(safetyTimeout); origReject(err); };
-    });
+        const origResolve = resolve;
+        const origReject = reject;
+        resolve = (val) => { clearTimeout(safetyTimeout); origResolve(val); };
+        reject = (err) => { clearTimeout(safetyTimeout); origReject(err); };
+      });
+    } catch (error) {
+      if (handleCloudOperationFallback(error)) {
+        return { sentence: '', meaning: '' };
+      }
+
+      throw error;
+    }
   };
 
   /**
@@ -2186,35 +2211,43 @@ Translation: [${targetLang} translation]`;
       if (!allowed) return '';
     }
 
-    return new Promise((resolve, reject) => {
-      const prompt = `Translate the following ${sourceLanguage} sentence to ${targetLang}. Respond with ONLY the translation, nothing else.\n\n${plainText}`;
+    try {
+      return await new Promise((resolve, reject) => {
+        const prompt = `Translate the following ${sourceLanguage} sentence to ${targetLang}. Respond with ONLY the translation, nothing else.\n\n${plainText}`;
 
-      const messages = [
-        { role: 'system' as const, content: `You are a translator. Provide only the translation to ${targetLang}, no explanations.` },
-        { role: 'user' as const, content: prompt },
-      ];
+        const messages = [
+          { role: 'system' as const, content: `You are a translator. Provide only the translation to ${targetLang}, no explanations.` },
+          { role: 'user' as const, content: prompt },
+        ];
 
-      const { abort } = streamChat(messages, [], {
-        onChunk: () => {},
-        onToolCall: () => {},
-        onDone: (finalContent: string) => {
-          resolve(finalContent.trim());
-        },
-        onError: (error: string) => {
-          reject(new Error(error));
-        },
-      }, settings);
+        const { abort } = streamChat(messages, [], {
+          onChunk: () => {},
+          onToolCall: () => {},
+          onDone: (finalContent: string) => {
+            resolve(finalContent.trim());
+          },
+          onError: (error: unknown) => {
+            reject(error instanceof Error ? error : new Error(typeof error === 'string' ? error : 'Unknown error'));
+          },
+        }, settings);
 
-      const safetyTimeout = setTimeout(() => {
-        abort();
-        reject(new Error('LLM translation timeout'));
-      }, 30_000);
+        const safetyTimeout = setTimeout(() => {
+          abort();
+          reject(new Error('LLM translation timeout'));
+        }, 30_000);
 
-      const origResolve = resolve;
-      const origReject = reject;
-      resolve = (val) => { clearTimeout(safetyTimeout); origResolve(val); };
-      reject = (err) => { clearTimeout(safetyTimeout); origReject(err); };
-    });
+        const origResolve = resolve;
+        const origReject = reject;
+        resolve = (val) => { clearTimeout(safetyTimeout); origResolve(val); };
+        reject = (err) => { clearTimeout(safetyTimeout); origReject(err); };
+      });
+    } catch (error) {
+      if (handleCloudOperationFallback(error)) {
+        return '';
+      }
+
+      throw error;
+    }
   };
 
   // Handle broadcast from other windows

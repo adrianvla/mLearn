@@ -505,7 +505,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
           console.error('[VocabGen] LLM stream error:', error);
           setIsGenerating(false);
           abortGeneration = null;
-          setGenerationError(error);
+          setGenerationError(typeof error === 'string' ? error : error instanceof Error ? error.message : t('mlearn.AITutorSetup.GenerateError'));
         },
       },
       settings,

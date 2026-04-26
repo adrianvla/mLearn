@@ -188,8 +188,12 @@
   transition: opacity 0.3s ease-out;
 }
 
-.page-container.collate .page:first-child .page-loader-overlay {
+.page-container.collate .page.page-left .page-loader-overlay {
   justify-content: flex-start;
+}
+
+.page-container.collate .page.page-right .page-loader-overlay {
+  justify-content: flex-end;
 }
 
 .page-loader-overlay.visible {
@@ -203,7 +207,7 @@
 
 .page-loader-overlay .loader-ring{
   gap:0;
-  align-items:end;
+  align-items:flex-end;
 }
 
 /* Mobile adaptations — reader inside MobileLayout */

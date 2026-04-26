@@ -9,7 +9,12 @@ import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../shared/backends';
-import { ensureCloudAccessToken, handleCloudSessionError } from '../../services/cloudSessionManager';
+import {
+  CloudSessionCancelledError,
+  CloudUnreachableError,
+  ensureCloudAccessToken,
+  handleCloudSessionError,
+} from '../../services/cloudSessionManager';
 import {
   loadAgents,
   addAgent,
@@ -60,7 +65,7 @@ import type { StreamCallbacks } from '../../services/conversationAgent';
 import type { ConversationMessage, ConversationAgentContext, Token, ChatWidget, MistakeWidgetData, ConversationSafetyFlag, DictionaryEntry, TranslationEntry, PitchData, VoiceMistake, VoiceSessionAftermath, TutorSessionConfig, AgentConfig, AgentMemoryEntry } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import { isLatinOnly } from '../../../shared/utils/textUtils';
-import { getConversationErrorMessage, isCloudSessionError } from './errorUtils';
+import { getConversationErrorMessage } from './errorUtils';
 import { canRegenerateAssistantMessage, getLatestAssistantMessageIndex, isStreamingAssistantBubble, shouldHideAssistantBubble } from './messageState';
 import './ConversationAgent.css';
 
@@ -147,6 +152,10 @@ export const ConversationContent: Component = () => {
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
   const { isActive: isLowPowerActive, requestAccess: requestLlmAccess } = useLowPowerGate();
+  const isCloudSessionCancelled = (error: unknown): boolean => error instanceof CloudSessionCancelledError
+    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_session_cancelled');
+  const isCloudUnreachable = (error: unknown): boolean => error instanceof CloudUnreachableError
+    || (typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'cloud_unreachable');
 
   const [activeTab, setActiveTab] = createSignal<string>('chat');
   const [mediaContext, setMediaContext] = createSignal<ConversationAgentContext | null>(null);
@@ -953,7 +962,6 @@ export const ConversationContent: Component = () => {
       onError: (error) => {
         clearAssistantStreamState();
 
-        const errorMessage = getConversationErrorMessage(error);
         const updateLastMessage = (content: string) => {
           setMessages((prev) => {
             const updated = [...prev];
@@ -973,22 +981,17 @@ export const ConversationContent: Component = () => {
           });
         };
 
-        // Detect cloud 401 errors — attempt token refresh, then show re-login modal
-        const is401 = settings.llmProvider === 'cloud' && isCloudSessionError(error);
-
-        if (is401) {
-          ensureCloudAccessToken({ forceRefresh: true }).then((accessToken) => {
-            if (accessToken) {
-              updateLastMessage(t('mlearn.CloudReLogin.SessionRefreshed'));
-            } else {
-              updateLastMessage(t('mlearn.CloudReLogin.SessionExpired'));
-            }
-          }).catch(() => {
-            updateLastMessage(`Error: ${errorMessage}`);
-          });
+        if (isCloudSessionCancelled(error)) {
+          updateLastMessage(t('mlearn.CloudReLogin.SignInCanceled'));
           return;
         }
 
+        if (isCloudUnreachable(error)) {
+          updateLastMessage(t('mlearn.AI.CloudUnreachable'));
+          return;
+        }
+
+        const errorMessage = getConversationErrorMessage(error);
         updateLastMessage(`Error: ${errorMessage}`);
       },
     };

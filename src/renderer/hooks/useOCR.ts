@@ -8,7 +8,7 @@ import { createSignal } from 'solid-js';
 import { useServer, useLowPowerGate } from '../context';
 import { useSettings } from '../context/SettingsContext';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../shared/backends';
-import { ensureCloudAccessToken } from '../services/cloudSessionManager';
+import { withCloudAuth } from '../services/cloudSessionManager';
 
 // Max target area for OCR (preserve aspect ratio) - matches legacy app
 const MAX_OCR_AREA_TURBO = 1000 * 1600; // 1.6M pixels — turbo mode
@@ -380,13 +380,12 @@ export function useOCR() {
   /** Run OCR via the cloud HATEOAS job flow (CloudOCRAdapter) */
   const recognizeViaCloud = async (imageBlob: Blob, turbo: boolean): Promise<OCRResult> => {
     const cloudApiUrl = resolveCloudApiUrl(settings);
-    const cloudToken = await ensureCloudAccessToken();
-    if (!cloudToken) throw new Error('Cloud OCR requires authentication. Please log in to Cloud first.');
-
-    const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
     const language = settings.language;
     const engine = turbo ? 'rapid' : undefined;
-    const result = await adapter.recognize(imageBlob, language, engine);
+    const result = await withCloudAuth(async (cloudToken) => {
+      const adapter = new CloudOCRAdapter(cloudApiUrl, cloudToken);
+      return adapter.recognize(imageBlob, language, engine);
+    });
 
     return {
       text: result.text,

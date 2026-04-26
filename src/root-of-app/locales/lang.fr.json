@@ -1,6 +1,7 @@
 {
   "mlearn": {
     "AI": {
+      "CloudUnreachable": "Le service cloud est inaccessible. Vérifiez votre connexion et réessayez.",
       "DownloadModel": "Télécharger le modèle",
       "ModelNotDownloaded": "Le modèle n'est pas encore téléchargé.",
       "ModelReady": "Le modèle est prêt.",
@@ -204,6 +205,8 @@
     "CloudReLogin": {
       "CodeHint": "Entrez le code unique de la page de connexion.",
       "Hint": "Cliquez sur Se connecter pour ouvrir la page de connexion dans votre navigateur.",
+      "RetryAction": "Réessayer",
+      "SignInCanceled": "La connexion a été annulée.",
       "SessionExpired": "Votre session cloud a expiré. Veuillez vous reconnecter pour continuer.",
       "SessionRefreshed": "Session actualisée. Veuillez réessayer.",
       "Title": "Session expirée"
