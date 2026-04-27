@@ -200,6 +200,27 @@ describe('llmProvider', () => {
       expect(onDone).toHaveBeenCalledWith('response', [toolCall], expect.objectContaining({ totalTime: expect.any(Number) }));
     });
 
+    it('logs completed LLM output in dev mode', async () => {
+      const { streamChat } = await import('./llmProvider');
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const toolCall: LLMToolCall = { id: 'tc-dev', name: 'show_translation', arguments: { phrase: 'hello', translation: 'bonjour' } };
+
+      streamChat(
+        [{ role: 'user', content: 'hello' }],
+        [],
+        { onChunk: vi.fn(), onDone: vi.fn(), onError: vi.fn(), onToolCall: vi.fn() },
+        makeSettings({ devMode: true }),
+      );
+
+      streamCallback!({ content: 'response' });
+      streamCallback!({ toolCalls: [toolCall] });
+      streamCallback!({ done: true, evalCount: 10, evalDuration: 1_000_000_000 });
+
+      expect(consoleSpy).toHaveBeenCalledWith('[LLMProvider] Prompt sent to LLM:', expect.any(String));
+      expect(consoleSpy).toHaveBeenCalledWith('[LLMProvider] LLM stream completed:', expect.stringContaining('"finalContent": "response"'));
+      expect(consoleSpy).toHaveBeenCalledWith('[LLMProvider] LLM stream completed:', expect.stringContaining('"show_translation"'));
+    });
+
     it('calls onToolCall for each tool call in the stream', async () => {
       const { streamChat } = await import('./llmProvider');
       const onChunk = vi.fn();
@@ -527,6 +548,271 @@ describe('llmProvider', () => {
       expect(onChunk).toHaveBeenLastCalledWith(expect.any(String), '');
     });
 
+    it('repairs incomplete word explanations by requesting every missing tool call', async () => {
+      const { streamExplanation } = await import('./llmProvider');
+      const onDone = vi.fn();
+      const onToolCall = vi.fn();
+
+      streamExplanation('ジーニスト', 'そしてＮｏ４ヒーローベストジーニスト！', 'Japanese', {
+        onChunk: vi.fn(),
+        onDone,
+        onError: vi.fn(),
+        onToolCall,
+      });
+
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc-translation',
+          name: 'show_translation',
+          arguments: {
+            phrase: 'そしてＮｏ４ヒーローベストジーニスト！',
+            translation: 'And the No. 4 hero, Best Jeanist!',
+          },
+        }],
+      });
+      streamCallback!({ done: true });
+
+      expect(onDone).not.toHaveBeenCalled();
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2);
+      const [, repairTools] = mockBridge.llm.llmStream.mock.calls[1] as [unknown, Array<{ name: string }>];
+      expect(repairTools.map((tool) => tool.name)).toEqual(['show_explanation', 'show_grammar_points']);
+
+      streamCallback!({
+        toolCalls: [
+          {
+            id: 'tc-explanation',
+            name: 'show_explanation',
+            arguments: {
+              word: 'ジーニスト',
+              explanation: 'In this context, ジーニスト is part of the hero name Best Jeanist.',
+            },
+          },
+          {
+            id: 'tc-grammar',
+            name: 'show_grammar_points',
+            arguments: {
+              points: [
+                {
+                  term: 'そして',
+                  description: 'Connects this announcement to the previous one as “and then/and”.',
+                },
+              ],
+            },
+          },
+        ],
+      });
+      streamCallback!({ done: true });
+
+      expect(onToolCall).toHaveBeenCalledTimes(3);
+      const [, finalToolCalls] = onDone.mock.calls[0] as [string, LLMToolCall[]];
+      expect(finalToolCalls.map((toolCall) => toolCall.name)).toEqual([
+        'show_translation',
+        'show_explanation',
+        'show_grammar_points',
+      ]);
+    });
+
+    it('repairs incomplete phrase explanations by requesting the missing grammar tool only', async () => {
+      const { streamExplanation } = await import('./llmProvider');
+      const onDone = vi.fn();
+
+      streamExplanation('', 'Bonjour le monde', 'French', {
+        onChunk: vi.fn(),
+        onDone,
+        onError: vi.fn(),
+        onToolCall: vi.fn(),
+      }, { mode: 'phrase' });
+
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc-translation',
+          name: 'show_translation',
+          arguments: { phrase: 'Bonjour le monde', translation: 'Hello world' },
+        }],
+      });
+      streamCallback!({ done: true });
+
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2);
+      const [, repairTools] = mockBridge.llm.llmStream.mock.calls[1] as [unknown, Array<{ name: string }>];
+      expect(repairTools.map((tool) => tool.name)).toEqual(['show_grammar_points']);
+
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc-grammar',
+          name: 'show_grammar_points',
+          arguments: { points: [{ term: 'Bonjour', description: 'A greeting used at the start of the phrase.' }] },
+        }],
+      });
+      streamCallback!({ done: true });
+
+      const [, finalToolCalls] = onDone.mock.calls[0] as [string, LLMToolCall[]];
+      expect(finalToolCalls.map((toolCall) => toolCall.name)).toEqual(['show_translation', 'show_grammar_points']);
+    });
+
+    it('does not finish or cache when aborted during an explainer repair attempt', async () => {
+      const { streamExplanation, getCachedExplanation } = await import('./llmProvider');
+      const onDone = vi.fn();
+      const onToolCall = vi.fn();
+
+      const handle = streamExplanation('hi', 'Hi there', 'French', {
+        onChunk: vi.fn(),
+        onDone,
+        onError: vi.fn(),
+        onToolCall,
+      });
+
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc-translation',
+          name: 'show_translation',
+          arguments: { phrase: 'Hi there', translation: 'Salut' },
+        }],
+      });
+      streamCallback!({ done: true });
+
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2);
+      handle.abort();
+
+      streamCallback!({
+        toolCalls: [
+          {
+            id: 'tc-explanation',
+            name: 'show_explanation',
+            arguments: { word: 'hi', explanation: 'A casual greeting in this context.' },
+          },
+          {
+            id: 'tc-grammar',
+            name: 'show_grammar_points',
+            arguments: { points: [{ term: 'Greeting', description: 'A short greeting phrase.' }] },
+          },
+        ],
+      });
+      streamCallback!({ done: true });
+
+      expect(onDone).not.toHaveBeenCalled();
+      expect(onToolCall).toHaveBeenCalledTimes(1);
+      expect(getCachedExplanation('hi', 'Hi there')).toBeNull();
+    });
+
+    it('does not cache partial output when repair attempts are exhausted', async () => {
+      const { streamExplanation, getCachedExplanation } = await import('./llmProvider');
+      const onDone = vi.fn();
+
+      streamExplanation('hi', 'Hi there', 'French', {
+        onChunk: vi.fn(),
+        onDone,
+        onError: vi.fn(),
+        onToolCall: vi.fn(),
+      });
+
+      streamCallback!({
+        toolCalls: [{
+          id: 'tc-translation',
+          name: 'show_translation',
+          arguments: { phrase: 'Hi there', translation: 'Salut' },
+        }],
+      });
+
+      for (let attempt = 0; attempt <= 3; attempt += 1) {
+        streamCallback!({ done: true });
+      }
+
+      expect(onDone).toHaveBeenCalledOnce();
+      const [, finalToolCalls] = onDone.mock.calls[0] as [string, LLMToolCall[]];
+      expect(finalToolCalls.map((toolCall) => toolCall.name)).toEqual(['show_translation']);
+      expect(getCachedExplanation('hi', 'Hi there')).toBeNull();
+    });
+
+    it('parses tolerant fallback tool-call syntax for explanation and grammar sections', async () => {
+      const { streamExplanation } = await import('./llmProvider');
+      const onDone = vi.fn();
+      const onToolCall = vi.fn();
+
+      streamExplanation('つもり', '殺すつもりはない', 'Japanese', {
+        onChunk: vi.fn(),
+        onDone,
+        onError: vi.fn(),
+        onToolCall,
+      });
+
+      streamCallback!({ content: 'show_translation: {phrase: \'殺すつもりはない\', translation: \'I do not intend to kill.\'}' });
+      streamCallback!({ content: '\nshow_explanation({word: \'つもり\', explanation: \'In this sentence, つもり expresses intention or plan.\',})' });
+      streamCallback!({ content: '\nshow_grammar_points: {points: [{term: \'つもり\', description: \'Nominalizer used for intention or plan.\',}, {term: \'はない\', description: \'Negates the stated intention.\',},],}' });
+      streamCallback!({ done: true });
+
+      expect(onToolCall).toHaveBeenCalledTimes(3);
+
+      const [, finalToolCalls] = onDone.mock.calls[0] as [string, LLMToolCall[]];
+      expect(finalToolCalls).toEqual([
+        expect.objectContaining({
+          name: 'show_translation',
+          arguments: {
+            phrase: '殺すつもりはない',
+            translation: 'I do not intend to kill.',
+          },
+        }),
+        expect.objectContaining({
+          name: 'show_explanation',
+          arguments: {
+            word: 'つもり',
+            explanation: 'In this sentence, つもり expresses intention or plan.',
+          },
+        }),
+        expect.objectContaining({
+          name: 'show_grammar_points',
+          arguments: {
+            points: [
+              {
+                term: 'つもり',
+                description: 'Nominalizer used for intention or plan.',
+              },
+              {
+                term: 'はない',
+                description: 'Negates the stated intention.',
+              },
+            ],
+          },
+        }),
+      ]);
+    });
+
+    it('preserves apostrophes and JSON-like text inside tolerant fallback values', async () => {
+      const { streamExplanation } = await import('./llmProvider');
+      const onDone = vi.fn();
+
+      streamExplanation('intention', 'I do not intend to leave', 'English', {
+        onChunk: vi.fn(),
+        onDone,
+        onError: vi.fn(),
+        onToolCall: vi.fn(),
+      });
+
+      streamCallback!({ content: 'show_translation: {phrase: "I do not intend to leave", translation: "I do not intend to leave"}' });
+      streamCallback!({ content: '\nshow_explanation: {word: \'intention\', explanation: \'It\'s the speaker\'s plan here, not {term: value} JSON.\'}' });
+      streamCallback!({ content: '\nshow_grammar_points: {points: [{term: \'do not\', description: \'The auxiliary doesn\'t change the main verb.\',},],}' });
+      streamCallback!({ done: true });
+
+      const [, finalToolCalls] = onDone.mock.calls[0] as [string, LLMToolCall[]];
+      expect(finalToolCalls[1]).toEqual(expect.objectContaining({
+        name: 'show_explanation',
+        arguments: {
+          word: 'intention',
+          explanation: "It's the speaker's plan here, not {term: value} JSON.",
+        },
+      }));
+      expect(finalToolCalls[2]).toEqual(expect.objectContaining({
+        name: 'show_grammar_points',
+        arguments: {
+          points: [
+            {
+              term: 'do not',
+              description: "The auxiliary doesn't change the main verb.",
+            },
+          ],
+        },
+      }));
+    });
+
     it('ignores incomplete structured tool-call fragments', async () => {
       const { streamExplanation } = await import('./llmProvider');
       const onDone = vi.fn();
@@ -553,17 +839,45 @@ describe('llmProvider', () => {
 
     it('caches the result after onDone and returns it on second call', async () => {
       const { streamExplanation, getCachedExplanation } = await import('./llmProvider');
-      const toolCall: LLMToolCall = { id: 'tc1', name: 'show_translation', arguments: { phrase: 'hi', translation: 'salut' } };
+      const toolCalls: LLMToolCall[] = [
+        { id: 'tc1', name: 'show_translation', arguments: { phrase: 'hi', translation: 'salut' } },
+        { id: 'tc2', name: 'show_explanation', arguments: { word: 'hi', explanation: 'A casual greeting in this context.' } },
+        { id: 'tc3', name: 'show_grammar_points', arguments: { points: [{ term: 'Greeting', description: 'Short greeting phrase.' }] } },
+      ];
 
       const onDone = vi.fn();
       streamExplanation('hi', 'Hi there', 'French', { onChunk: vi.fn(), onDone, onError: vi.fn(), onToolCall: vi.fn() });
 
-      streamCallback!({ toolCalls: [toolCall] });
+      streamCallback!({ toolCalls });
       streamCallback!({ done: true });
 
       const cached = getCachedExplanation('hi', 'Hi there');
       expect(cached).not.toBeNull();
-      expect(cached!.toolCalls).toEqual([toolCall]);
+      expect(cached!.toolCalls).toEqual(toolCalls);
+    });
+
+    it('does not cache translation-only structured word explanations', async () => {
+      const { streamExplanation, getCachedExplanation } = await import('./llmProvider');
+      const toolCall: LLMToolCall = { id: 'tc1', name: 'show_translation', arguments: { phrase: 'hi', translation: 'salut' } };
+
+      streamExplanation('hi', 'Hi there', 'French', { onChunk: vi.fn(), onDone: vi.fn(), onError: vi.fn(), onToolCall: vi.fn() });
+
+      streamCallback!({ toolCalls: [toolCall] });
+      streamCallback!({ done: true });
+
+      expect(getCachedExplanation('hi', 'Hi there')).toBeNull();
+    });
+
+    it('does not cache incomplete structured output with leftover fallback text', async () => {
+      const { streamExplanation, getCachedExplanation } = await import('./llmProvider');
+
+      streamExplanation('hi', 'Hi there', 'French', { onChunk: vi.fn(), onDone: vi.fn(), onError: vi.fn(), onToolCall: vi.fn() });
+
+      streamCallback!({ content: 'show_translation({"phrase":"Hi there","translation":"Salut"})' });
+      streamCallback!({ content: '\nshow_explanation({"word":"hi","explanation":"A casual greeting."' });
+      streamCallback!({ done: true });
+
+      expect(getCachedExplanation('hi', 'Hi there')).toBeNull();
     });
 
     it('returns null from getCachedExplanation when entry is missing', async () => {

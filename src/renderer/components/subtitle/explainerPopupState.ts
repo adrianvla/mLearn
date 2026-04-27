@@ -1,5 +1,12 @@
 import type { LLMToolCall } from '../../../shared/types';
 
+type ExplainerOutputMode = 'word' | 'phrase';
+
+const REQUIRED_EXPLAINER_TOOLS_BY_MODE: Record<ExplainerOutputMode, string[]> = {
+  word: ['show_translation', 'show_explanation', 'show_grammar_points'],
+  phrase: ['show_translation', 'show_grammar_points'],
+};
+
 export function normalizeExplainerErrorMessage(value: string | null | undefined, fallbackMessage: string): string {
   const trimmed = value?.trim();
   return trimmed ? trimmed : fallbackMessage;
@@ -39,4 +46,23 @@ function hasRenderableExplainerToolCall(toolCall: LLMToolCall): boolean {
 
 export function hasExplainerGenerationOutput(finalContent: string, toolCalls: LLMToolCall[]): boolean {
   return finalContent.trim().length > 0 || toolCalls.some(hasRenderableExplainerToolCall);
+}
+
+export function hasCompleteStructuredExplainerOutput(toolCalls: LLMToolCall[], mode: ExplainerOutputMode): boolean {
+  const renderableToolNames = new Set(
+    toolCalls
+      .filter(hasRenderableExplainerToolCall)
+      .map((toolCall) => toolCall.name),
+  );
+
+  return REQUIRED_EXPLAINER_TOOLS_BY_MODE[mode].every((name) => renderableToolNames.has(name));
+}
+
+export function hasCompleteExplainerGenerationOutput(
+  finalContent: string,
+  toolCalls: LLMToolCall[],
+  mode: ExplainerOutputMode,
+): boolean {
+  const hasRawFallback = finalContent.trim().length > 0 && toolCalls.length === 0;
+  return hasRawFallback || hasCompleteStructuredExplainerOutput(toolCalls, mode);
 }

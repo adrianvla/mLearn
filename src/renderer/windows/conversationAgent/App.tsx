@@ -1416,20 +1416,22 @@ export const ConversationContent: Component = () => {
           </div>
 
           {/* Word Hover Popup */}
-          <Show when={hoverData() && hoverData()!.token}>
-            <WordHover
-              token={hoverData()!.token!}
-              word={hoverData()!.word}
-              position={hoverData()!.position}
-              anchorRect={hoverData()!.anchorRect}
-              dictionaryEntries={dictionaryEntries()}
-              translationData={translationData() || undefined}
-              isLoading={isLoadingDict()}
-              visible={isVisible()}
-              onMouseEnter={cancelHide}
-              onMouseLeave={hideHover}
-              onClose={hideHover}
-            />
+          <Show when={hoverData()} keyed>
+            {(data) => data.token ? (
+              <WordHover
+                token={data.token}
+                word={data.word}
+                position={data.position}
+                anchorRect={data.anchorRect}
+                dictionaryEntries={dictionaryEntries()}
+                translationData={translationData() || undefined}
+                isLoading={isLoadingDict()}
+                visible={isVisible()}
+                onMouseEnter={cancelHide}
+                onMouseLeave={hideHover}
+                onClose={hideHover}
+              />
+            ) : null}
           </Show>
 
           {/* AI disclaimer */}
