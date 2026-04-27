@@ -17,6 +17,7 @@ import {
   isCloudSessionError,
   withCloudAuth,
 } from './cloudSessionManager';
+import { hasCompleteStructuredExplainerOutput } from '../components/subtitle/explainerPopupState';
 
 // ============================================================================
 // Types
@@ -69,6 +70,12 @@ export function getCachedExplanation(word: string, context: string, mode: Explai
     explanationCache.delete(key);
     return null;
   }
+
+  if (!hasCacheableExplainerOutput(entry.rawText, entry.toolCalls, mode)) {
+    explanationCache.delete(key);
+    return null;
+  }
+
   return entry;
 }
 
@@ -174,6 +181,7 @@ export function streamChat(
           tokensPerSecond,
         };
 
+        logCompletedLLMStream(activeSettings, accumulated, collectedToolCalls, stats);
         callbacks.onDone(accumulated, collectedToolCalls, stats);
         cleanupListener();
         resolve();
@@ -285,6 +293,7 @@ function streamChatMobile(
         const totalTime = Date.now() - startTime;
         const ttft = firstTokenTime ? firstTokenTime - startTime : 0;
         const stats: LLMStreamStats = { timeToFirstToken: ttft, totalTime, tokensPerSecond: 0 };
+        logCompletedLLMStream(settings, accumulated, collectedToolCalls, stats);
         callbacks.onDone(accumulated, collectedToolCalls, stats);
         resolve();
       },
@@ -458,6 +467,7 @@ export function streamExplanation(
   const mode = options.mode ?? 'word';
   const systemPrompt = buildExplainerSystemPrompt(language, mode);
   const userPrompt = buildExplainerUserPrompt(word, contextPhrase, mode);
+  const requiredToolNames = getExplainerToolNames(mode);
 
   const messages: LLMChatMessage[] = [
     { role: 'system', content: systemPrompt },
@@ -465,9 +475,13 @@ export function streamExplanation(
   ];
 
   const tools = getExplainerTools(mode);
-  const allowedToolNames = getExplainerToolNames(mode);
   const mergedToolCalls: LLMToolCall[] = [];
   const seenToolCalls = new Set<string>();
+  const cleanedContentParts: string[] = [];
+  const maxRepairAttempts = requiredToolNames.length;
+  let repairAttempts = 0;
+  let aborted = false;
+  let activeHandle: { abort: () => void } | null = null;
 
   const registerToolCall = (toolCall: LLMToolCall, emit: boolean): void => {
     if (!isRenderableExplainerToolCall(toolCall)) {
@@ -487,40 +501,93 @@ export function streamExplanation(
     }
   };
 
-  const wrappedCallbacks: LLMStreamCallbacks = {
-    onChunk: (content, accumulated) => {
-      const parsed = parseExplainerToolCallsFromContent(accumulated, allowedToolNames);
+  const finish = (stats?: LLMStreamStats): void => {
+    if (aborted) {
+      return;
+    }
 
-      for (const toolCall of parsed.toolCalls) {
-        registerToolCall(toolCall, true);
-      }
+    const finalContent = cleanedContentParts.filter((part) => part.trim().length > 0).join('\n\n');
 
-      callbacks.onChunk(content, parsed.cleanedContent);
-    },
-    onToolCall: (toolCall) => {
-      registerToolCall(toolCall, true);
-    },
-    onDone: (finalContent, allToolCalls, stats) => {
-      const parsed = parseExplainerToolCallsFromContent(finalContent, allowedToolNames);
+    if (hasCacheableExplainerOutput(finalContent, mergedToolCalls, mode)) {
+      setCachedExplanation(word, contextPhrase, mode, mergedToolCalls, finalContent);
+    }
 
-      for (const toolCall of allToolCalls) {
-        registerToolCall(toolCall, false);
-      }
-
-      for (const toolCall of parsed.toolCalls) {
-        registerToolCall(toolCall, false);
-      }
-
-      if (mergedToolCalls.length > 0 || parsed.cleanedContent.trim().length > 0) {
-        setCachedExplanation(word, contextPhrase, mode, mergedToolCalls, parsed.cleanedContent);
-      }
-
-      callbacks.onDone(parsed.cleanedContent, mergedToolCalls, stats);
-    },
-    onError: callbacks.onError,
+    callbacks.onDone(finalContent, mergedToolCalls, stats);
   };
 
-  return streamChat(messages, tools, wrappedCallbacks);
+  const startAttempt = (
+    attemptMessages: LLMChatMessage[],
+    attemptToolNames: ReadonlyArray<ExplainerToolName>,
+  ): void => {
+    const attemptTools = tools.filter((tool) => attemptToolNames.includes(tool.name as ExplainerToolName));
+
+    const wrappedCallbacks: LLMStreamCallbacks = {
+      onChunk: (content, accumulated) => {
+        if (aborted) {
+          return;
+        }
+
+        const parsed = parseExplainerToolCallsFromContent(accumulated, attemptToolNames);
+
+        for (const toolCall of parsed.toolCalls) {
+          registerToolCall(toolCall, true);
+        }
+
+        callbacks.onChunk(content, parsed.cleanedContent);
+      },
+      onToolCall: (toolCall) => {
+        if (aborted) {
+          return;
+        }
+
+        registerToolCall(toolCall, true);
+      },
+      onDone: (finalContent, allToolCalls, stats) => {
+        if (aborted) {
+          return;
+        }
+
+        const parsed = parseExplainerToolCallsFromContent(finalContent, attemptToolNames);
+
+        for (const toolCall of allToolCalls) {
+          registerToolCall(toolCall, false);
+        }
+
+        for (const toolCall of parsed.toolCalls) {
+          registerToolCall(toolCall, false);
+        }
+
+        if (parsed.cleanedContent.trim().length > 0) {
+          cleanedContentParts.push(parsed.cleanedContent);
+        }
+
+        const missingToolNames = getMissingExplainerToolNames(mergedToolCalls, requiredToolNames);
+        const hasGeneratedSomething = cleanedContentParts.length > 0 || mergedToolCalls.length > 0;
+        if (!aborted && hasGeneratedSomething && missingToolNames.length > 0 && repairAttempts < maxRepairAttempts) {
+          repairAttempts += 1;
+          startAttempt(
+            buildExplainerRepairMessages(word, contextPhrase, language, mode, missingToolNames, mergedToolCalls),
+            missingToolNames,
+          );
+          return;
+        }
+
+        finish(stats);
+      },
+      onError: callbacks.onError,
+    };
+
+    activeHandle = streamChat(attemptMessages, attemptTools, wrappedCallbacks);
+  };
+
+  startAttempt(messages, requiredToolNames);
+
+  return {
+    abort: () => {
+      aborted = true;
+      activeHandle?.abort();
+    },
+  };
 }
 
 // ============================================================================
@@ -535,6 +602,9 @@ function buildExplainerSystemPrompt(language: string, mode: ExplainerMode): stri
   const fallbackSyntax = requiresWordPanel
     ? 'show_translation({...})\nshow_explanation({...})\nshow_grammar_points({...})'
     : 'show_translation({...})\nshow_grammar_points({...})';
+  const fallbackExample = requiresWordPanel
+    ? 'show_translation({"phrase":"...","translation":"..."})\nshow_explanation({"word":"...","explanation":"..."})\nshow_grammar_points({"points":[{"term":"...","description":"..."}]})'
+    : 'show_translation({"phrase":"...","translation":"..."})\nshow_grammar_points({"points":[{"term":"...","description":"..."}]})';
 
   return `You are a language-learning explainer for ${language}. Your job is to fill the explanation cards in the app.
 
@@ -553,7 +623,10 @@ ${requiresWordPanel
 - Do not output markdown or headings.
 - Prefer structured tool calls.
 - If tool calling is unavailable, emit the same tool calls as plain text using this exact syntax so the UI can still parse them while streaming:
-${fallbackSyntax}`;
+${fallbackSyntax}
+
+Plain-text fallback example:
+${fallbackExample}`;
 }
 
 function buildExplainerUserPrompt(word: string, contextPhrase: string, mode: ExplainerMode): string {
@@ -564,8 +637,61 @@ function buildExplainerUserPrompt(word: string, contextPhrase: string, mode: Exp
   return `Explain the word "${word}" in the context of this phrase: "${contextPhrase}"`;
 }
 
+function buildExplainerRepairMessages(
+  word: string,
+  contextPhrase: string,
+  language: string,
+  mode: ExplainerMode,
+  missingToolNames: ReadonlyArray<ExplainerToolName>,
+  existingToolCalls: LLMToolCall[],
+): LLMChatMessage[] {
+  const requiredCards = missingToolNames.join(', ');
+  const existingOutput = existingToolCalls.length > 0
+    ? JSON.stringify(existingToolCalls.map((toolCall) => ({ name: toolCall.name, arguments: toolCall.arguments })), null, 2)
+    : 'No explainer cards have been generated yet.';
+  const wordInstruction = mode === 'word'
+    ? `Target word: "${word}". Explain this target word in context when show_explanation is missing.`
+    : 'This is phrase mode. Do not add show_explanation.';
+
+  return [
+    {
+      role: 'system',
+      content: `You are completing missing language-learning explainer cards for ${language}.
+Only call the missing tool functions requested by the user.
+Do not repeat cards already generated.
+Do not output markdown, prose, or headings.
+Every missing card must be returned as its own tool call.`,
+    },
+    {
+      role: 'user',
+      content: `The previous response was incomplete.
+Missing required tool calls: ${requiredCards}
+Phrase: "${contextPhrase}"
+${wordInstruction}
+
+Already generated cards:
+${existingOutput}
+
+Call every missing tool exactly once now.`,
+    },
+  ];
+}
+
 function getExplainerToolNames(mode: ExplainerMode): ReadonlyArray<ExplainerToolName> {
   return mode === 'word' ? WORD_EXPLAINER_TOOL_NAMES : PHRASE_EXPLAINER_TOOL_NAMES;
+}
+
+function getMissingExplainerToolNames(
+  toolCalls: LLMToolCall[],
+  requiredToolNames: ReadonlyArray<ExplainerToolName>,
+): ExplainerToolName[] {
+  const renderableToolNames = new Set(
+    toolCalls
+      .filter(isRenderableExplainerToolCall)
+      .map((toolCall) => toolCall.name),
+  );
+
+  return requiredToolNames.filter((name) => !renderableToolNames.has(name));
 }
 
 function getExplainerTools(mode: ExplainerMode): LLMToolDefinition[] {
@@ -641,6 +767,28 @@ function getExplainerTools(mode: ExplainerMode): LLMToolDefinition[] {
   });
 
   return tools;
+}
+
+function hasCacheableExplainerOutput(rawText: string, toolCalls: LLMToolCall[], mode: ExplainerMode): boolean {
+  const hasRawFallback = rawText.trim().length > 0 && toolCalls.length === 0;
+  return hasRawFallback || hasCompleteStructuredExplainerOutput(toolCalls, mode);
+}
+
+function logCompletedLLMStream(
+  settings: Settings | undefined,
+  finalContent: string,
+  toolCalls: LLMToolCall[],
+  stats: LLMStreamStats,
+): void {
+  if (!settings?.devMode) {
+    return;
+  }
+
+  console.log('[LLMProvider] LLM stream completed:', JSON.stringify({
+    finalContent,
+    toolCalls,
+    stats,
+  }, null, 2));
 }
 
 function parseExplainerToolCallsFromContent(
@@ -719,6 +867,13 @@ function tryParseExplainerToolCallAt(
   }
 
   let hasOpeningParen = false;
+  if (content[index] === ':') {
+    index += 1;
+    while (index < content.length && /\s/.test(content[index])) {
+      index += 1;
+    }
+  }
+
   if (content[index] === '(') {
     hasOpeningParen = true;
     index += 1;
@@ -756,7 +911,7 @@ function tryParseExplainerToolCallAt(
   }
 
   try {
-    const args = JSON.parse(parsedObject.jsonText) as Record<string, unknown>;
+    const args = parseToolCallArguments(parsedObject.jsonText);
     return {
       kind: 'success',
       toolCall: {
@@ -767,20 +922,225 @@ function tryParseExplainerToolCallAt(
       endIndex,
     };
   } catch (error) {
-    console.error(error);
     return { kind: 'invalid', nextIndex: startIndex + name.length };
+  }
+}
+
+function parseToolCallArguments(jsonText: string): Record<string, unknown> {
+  try {
+    return JSON.parse(jsonText) as Record<string, unknown>;
+  } catch {
+    const normalized = normalizeJsonLikeObject(jsonText);
+    return JSON.parse(normalized) as Record<string, unknown>;
+  }
+}
+
+function normalizeJsonLikeObject(jsonText: string): string {
+  return transformJsonLikeObject(jsonText);
+}
+
+function transformJsonLikeObject(jsonText: string): string {
+  let converted = '';
+  let index = 0;
+  let expectObjectKey = false;
+
+  while (index < jsonText.length) {
+    const char = jsonText[index];
+
+    if (char === '"') {
+      const doubleQuotedString = readDoubleQuotedString(jsonText, index);
+      if (!doubleQuotedString) {
+        return jsonText;
+      }
+
+      converted += jsonText.slice(index, doubleQuotedString.endIndex);
+      index = doubleQuotedString.endIndex;
+      expectObjectKey = false;
+      continue;
+    }
+
+    if (char === "'") {
+      const singleQuotedString = readSingleQuotedString(jsonText, index, expectObjectKey);
+      if (!singleQuotedString) {
+        return jsonText;
+      }
+
+      converted += JSON.stringify(singleQuotedString.value);
+      index = singleQuotedString.endIndex;
+      expectObjectKey = false;
+      continue;
+    }
+
+    if ((char === '{' || char === ',') && readObjectKey(jsonText, index + 1)) {
+      converted += char;
+      index += 1;
+      expectObjectKey = true;
+      continue;
+    }
+
+    if (expectObjectKey) {
+      const objectKey = readObjectKey(jsonText, index);
+      if (objectKey) {
+        converted += `${objectKey.leadingWhitespace}"${objectKey.key}"`;
+        index = objectKey.endIndex;
+        expectObjectKey = false;
+        continue;
+      }
+    }
+
+    if (char === ',' && isTrailingJsonComma(jsonText, index)) {
+      index += 1;
+      continue;
+    }
+
+    converted += char;
+    index += 1;
+  }
+
+  return converted;
+}
+
+function readDoubleQuotedString(jsonText: string, startIndex: number): { endIndex: number } | null {
+  let index = startIndex + 1;
+  let isEscaped = false;
+
+  while (index < jsonText.length) {
+    const char = jsonText[index];
+
+    if (isEscaped) {
+      isEscaped = false;
+      index += 1;
+      continue;
+    }
+
+    if (char === '\\') {
+      isEscaped = true;
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      return { endIndex: index + 1 };
+    }
+
+    index += 1;
+  }
+
+  return null;
+}
+
+function readSingleQuotedString(jsonText: string, startIndex: number, isObjectKey: boolean): { value: string; endIndex: number } | null {
+  let value = '';
+  let index = startIndex + 1;
+
+  while (index < jsonText.length) {
+    const char = jsonText[index];
+
+    if (char === "'") {
+      if (!isObjectKey && isApostropheInsideWord(jsonText, index)) {
+        value += char;
+        index += 1;
+        continue;
+      }
+
+      return { value, endIndex: index + 1 };
+    }
+
+    if (char === '\\') {
+      const nextChar = jsonText[index + 1];
+      if (!nextChar) {
+        return null;
+      }
+
+      value += decodeJsonLikeEscape(nextChar);
+      index += 2;
+      continue;
+    }
+
+    value += char;
+    index += 1;
+  }
+
+  return null;
+}
+
+function isApostropheInsideWord(jsonText: string, index: number): boolean {
+  const previousChar = jsonText[index - 1] ?? '';
+  const nextChar = jsonText[index + 1] ?? '';
+  return /[\p{L}\p{N}]/u.test(previousChar) && /[\p{L}\p{N}]/u.test(nextChar);
+}
+
+function readObjectKey(jsonText: string, startIndex: number): { leadingWhitespace: string; key: string; endIndex: number } | null {
+  let index = startIndex;
+  let leadingWhitespace = '';
+
+  while (index < jsonText.length && /\s/.test(jsonText[index])) {
+    leadingWhitespace += jsonText[index];
+    index += 1;
+  }
+
+  const keyStart = index;
+  const firstChar = jsonText[index] ?? '';
+  if (!/[A-Za-z_$]/.test(firstChar)) {
+    return null;
+  }
+
+  index += 1;
+  while (index < jsonText.length && /[A-Za-z0-9_$-]/.test(jsonText[index])) {
+    index += 1;
+  }
+
+  let colonIndex = index;
+  while (colonIndex < jsonText.length && /\s/.test(jsonText[colonIndex])) {
+    colonIndex += 1;
+  }
+
+  if (jsonText[colonIndex] !== ':') {
+    return null;
+  }
+
+  return {
+    leadingWhitespace,
+    key: jsonText.slice(keyStart, index),
+    endIndex: index,
+  };
+}
+
+function isTrailingJsonComma(jsonText: string, commaIndex: number): boolean {
+  let index = commaIndex + 1;
+  while (index < jsonText.length && /\s/.test(jsonText[index])) {
+    index += 1;
+  }
+
+  return jsonText[index] === '}' || jsonText[index] === ']';
+}
+
+function decodeJsonLikeEscape(char: string): string {
+  switch (char) {
+    case 'b':
+      return '\b';
+    case 'f':
+      return '\f';
+    case 'n':
+      return '\n';
+    case 'r':
+      return '\r';
+    case 't':
+      return '\t';
+    default:
+      return char;
   }
 }
 
 function parseBalancedJsonObject(content: string, startIndex: number): { jsonText: string; endIndex: number } | null {
   let depth = 0;
-  let inString = false;
+  let stringQuote: '"' | "'" | null = null;
   let isEscaped = false;
 
   for (let index = startIndex; index < content.length; index++) {
     const char = content[index];
 
-    if (inString) {
+    if (stringQuote) {
       if (isEscaped) {
         isEscaped = false;
         continue;
@@ -791,14 +1151,14 @@ function parseBalancedJsonObject(content: string, startIndex: number): { jsonTex
         continue;
       }
 
-      if (char === '"') {
-        inString = false;
+      if (char === stringQuote && !(stringQuote === "'" && isApostropheInsideWord(content, index))) {
+        stringQuote = null;
       }
       continue;
     }
 
-    if (char === '"') {
-      inString = true;
+    if (char === '"' || char === "'") {
+      stringQuote = char;
       continue;
     }
 

@@ -404,27 +404,29 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       </div>
 
       {/* Word hover popup */}
-      <Show when={hoverData()}>
-        <WordHover
-          token={hoverData()!.token!}
-          word={hoverData()!.word || hoverData()!.token?.surface || hoverData()!.token?.word || ''}
-          position={hoverData()!.position}
-          anchorRect={hoverData()!.anchorRect}
-          dictionaryEntries={dictionaryEntries()}
-          translationData={translationData() || undefined}
-          status={wordStatus()}
-          isLoading={isLoadingDict()}
-          contextPhrase={props.originalText || props.tokens.map(t => t.surface ?? t.word).join('')}
-          onStatusChange={setWordStatus}
-          onClose={hideHover}
-          visible={isVisible()}
-          onMouseEnter={cancelHide}
-          onMouseLeave={hideHover}
-          onOpenExplainer={handleOpenExplainer}
-          subtitleStart={props.subtitleStart}
-          subtitleEnd={props.subtitleEnd}
-          videoSrc={props.videoSrc}
-        />
+      <Show when={hoverData()} keyed>
+        {(data) => data.token ? (
+          <WordHover
+            token={data.token}
+            word={data.word || data.token.surface || data.token.word || ''}
+            position={data.position}
+            anchorRect={data.anchorRect}
+            dictionaryEntries={dictionaryEntries()}
+            translationData={translationData() || undefined}
+            status={wordStatus()}
+            isLoading={isLoadingDict()}
+            contextPhrase={props.originalText || props.tokens.map(t => t.surface ?? t.word).join('')}
+            onStatusChange={setWordStatus}
+            onClose={hideHover}
+            visible={isVisible()}
+            onMouseEnter={cancelHide}
+            onMouseLeave={hideHover}
+            onOpenExplainer={handleOpenExplainer}
+            subtitleStart={props.subtitleStart}
+            subtitleEnd={props.subtitleEnd}
+            videoSrc={props.videoSrc}
+          />
+        ) : null}
       </Show>
       
       {/* LLM Explainer popup */}

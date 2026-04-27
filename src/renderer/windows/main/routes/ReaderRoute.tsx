@@ -2015,12 +2015,13 @@ export const ReaderRoute: Component = () => {
             onZoneDeltaThresholdChange={setZoneDeltaThreshold}
         />
 
-        <Show when={ocrHoverData() && ocrHoverData()!.token}>
-          <WordHover
-              token={ocrHoverData()!.token!}
-              word={ocrHoverData()!.word || ocrHoverData()!.token?.surface || ocrHoverData()!.token?.word || ''}
-              position={ocrHoverData()!.position}
-              anchorRect={ocrHoverData()!.anchorRect}
+        <Show when={ocrHoverData()} keyed>
+          {(hoverData) => hoverData.token ? (
+            <WordHover
+              token={hoverData.token}
+              word={hoverData.word || hoverData.token.surface || hoverData.token.word || ''}
+              position={hoverData.position}
+              anchorRect={hoverData.anchorRect}
               dictionaryEntries={ocrDictionaryEntries()}
               translationData={ocrTranslationData() || undefined}
               status={ocrWordStatus()}
@@ -2029,7 +2030,7 @@ export const ReaderRoute: Component = () => {
               ocrImageElement={(() => {
                 // Find the correct page image based on anchor position
                 // This is crucial for double-page mode where words could be on either page
-                const anchorRect = ocrHoverData()!.anchorRect;
+                const anchorRect = hoverData.anchorRect;
                 if (anchorRect) {
                   const anchorCenterX = (anchorRect.left + anchorRect.right) / 2;
                   const anchorCenterY = (anchorRect.top + anchorRect.bottom) / 2;
@@ -2063,7 +2064,8 @@ export const ReaderRoute: Component = () => {
               onMouseEnter={cancelOcrHide}
               onMouseLeave={hideOcrHover}
               onOpenExplainer={handleOpenExplainer}
-          />
+            />
+          ) : null}
         </Show>
 
         {/* LLM Explainer Popup */}
