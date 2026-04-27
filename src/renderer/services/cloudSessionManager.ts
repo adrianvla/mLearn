@@ -154,12 +154,17 @@ export function isCloudSessionError(error: unknown): boolean {
     || code === '401'
     || code === 'unauthorized'
     || code === 'invalid_session'
+    || code === 'invalid_refresh_token'
     || message.includes('401')
     || message.includes('unauthorized')
     || message.includes('invalid session')
     || message.includes('session expired')
     || message.includes('token expired')
-    || message.includes('jwt expired');
+    || message.includes('jwt expired')
+    || message.includes('refresh token is invalid')
+    || message.includes('invalid refresh token')
+    || message.includes('refresh token expired')
+    || message.includes('missing cloud refresh token');
 }
 
 export function registerCloudSessionController(next: CloudSessionController): () => void {
