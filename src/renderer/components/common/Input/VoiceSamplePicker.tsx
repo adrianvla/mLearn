@@ -18,6 +18,9 @@ import { ConfirmDialog } from '../Modal/ConfirmDialog';
 import { PlayIcon, PauseIcon, TrashIcon } from '../Misc';
 import type { VoiceSample, VoiceTtsAudio } from '../../../../shared/types';
 import './VoiceSamplePicker.css';
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.voiceSamplePicker");
 
 export interface VoiceSamplePickerProps {
   value: string;
@@ -65,7 +68,7 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
         setVoiceSamples(samples);
       }
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Voice samples not available (e.g., mobile)
     }
 
@@ -145,14 +148,14 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
             const updated = await getBridge().voice.voiceSampleList();
             if (updated) setVoiceSamples(updated);
           } catch (e) {
-            console.error(e);
+            log.error("error", e);
             // Transcription failed — not critical
           } finally {
             setTranscribing(false);
           }
         }
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         // Upload failed
       }
     };
@@ -219,7 +222,7 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
 
       await audio.play();
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setPlayingSample(false);
     }
   }
@@ -256,7 +259,7 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
   function stopTtsPlayback() {
     if (ttsSource) {
       try { ttsSource.stop(); } catch (e) {
-        console.error(e);
+        log.error("error", e);
       }
       ttsSource.disconnect();
       ttsSource = null;
@@ -286,7 +289,7 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
       void withCloudAuth(async () => {
         getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider);
       }).catch((error) => {
-        console.error(error);
+        log.error("error", error);
         setTtsGenerating(false);
       });
       return;

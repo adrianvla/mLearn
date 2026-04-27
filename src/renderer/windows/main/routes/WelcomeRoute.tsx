@@ -16,6 +16,9 @@ import Icon from '../../../components/common/Icons/Icon';
 import { isMobile } from '../../../../shared/platform';
 import './welcome.css';
 import AppLogo from "@renderer/components/common/Misc/AppLogo";
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.welcome");
 
 const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
 const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
@@ -33,7 +36,7 @@ export const WelcomeRoute: Component = () => {
       const items = await getRecentItems();
       setRecentItems(items);
     } catch (e) {
-      console.error('Failed to load recent items:', e);
+      log.error('Failed to load recent items:', e);
     }
   });
 
@@ -100,7 +103,7 @@ export const WelcomeRoute: Component = () => {
   const openRecent = (item: RecentItem) => {
     // Don't try to open items with no path (legacy items or failed saves)
     if (!item.path || !item.path.trim()) {
-      console.warn('[Welcome] Cannot open recent item - no path saved:', item.name);
+      log.warn('[Welcome] Cannot open recent item - no path saved:', item.name);
       // Show alert and navigate to the appropriate route - user can then drag/drop
       alert(t('mlearn.Home.Errors.UnableToOpen'));
       if (item.type === 'video') {

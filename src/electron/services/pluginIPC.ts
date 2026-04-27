@@ -25,6 +25,9 @@ import {
 import { createPluginBusStore } from './pluginBus';
 import { installPlugin, selectAndInstallPlugin, uninstallPlugin } from './pluginInstaller';
 import { openManagedChildWindow } from './windowManager';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.pluginIPC');
 
 const pluginBusStore = createPluginBusStore();
 const pluginHostPublishers = new Map<number, PluginBusPublisher>();
@@ -198,7 +201,7 @@ function loadPluginKV(pluginId: string): Record<string, string> {
       );
     }
   } catch (error) {
-    console.error('[pluginIPC] Failed to read plugin KV store:', error);
+    log.error('[pluginIPC] Failed to read plugin KV store:', error);
   }
 
   return {};

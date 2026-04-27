@@ -13,6 +13,9 @@ import { useLocalization } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { isElectron } from '../../../../shared/platform';
 import './ErrorModal.css';
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.errorModal");
 
 export type ErrorSeverity = 'error' | 'fatal' | 'warning';
 
@@ -95,7 +98,7 @@ export const ErrorModal: Component<ErrorModalProps> = (props) => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (e) {
-      console.error('Failed to copy error:', e);
+      log.error('Failed to copy error:', e);
     }
   };
 

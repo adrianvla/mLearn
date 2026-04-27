@@ -8,6 +8,9 @@ import { createStore, reconcile } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type LanguageDataMap, type LanguageData, type WordFrequencyMap, type WordFrequencyEntry, type Settings, type GrammarPoint, type Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { isAllKana, katakanaToHiragana, containsKanji } from '../../shared/utils/textUtils';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.context.language");
 
 // Grammar entry with parsed data for lookup
 export interface GrammarEntry extends GrammarPoint {
@@ -107,9 +110,9 @@ export const LanguageProvider: ParentComponent<{ language?: string }> = (props) 
   // Load language data
   const loadLangData = () => {
     const bridge = getBridge();
-    console.log('[LanguageContext] Loading language data...');
+    log.info('[LanguageContext] Loading language data...');
     ipcCleanups.push(bridge.localization.onLangData((data) => {
-      console.log('[LanguageContext] Language data received');
+      log.info('[LanguageContext] Language data received');
       setLangData(reconcile(data as unknown as LanguageDataMap));
       parseWordFrequency(data as unknown as LanguageDataMap);
       parseGrammarData(data as unknown as LanguageDataMap);

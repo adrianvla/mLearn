@@ -11,6 +11,9 @@ import { ollamaStreamChatUnified, ollamaAbortStream } from './ollamaService';
 import { builtinStreamChat, builtinAbortStream } from './builtinLLMService';
 import { CloudLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
 import { DEFAULT_CLOUD_API_URL } from '../../shared/constants';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.llmRouter');
 
 let cloudAdapter: CloudLLMAdapter | null = null;
 
@@ -54,7 +57,7 @@ export function setupLLMRouterIPC(): void {
         await builtinStreamChat(event.sender, messages, tools || [], settings.builtinModel || undefined);
       }
     } catch (err) {
-      console.error('[LLMRouter] Stream error:', (err as Error).message);
+      log.error('[LLMRouter] Stream error:', (err as Error).message);
       const errorChunk: LLMStreamChunk = {
         error: (err as Error).message || 'Failed to start LLM stream',
         done: true,

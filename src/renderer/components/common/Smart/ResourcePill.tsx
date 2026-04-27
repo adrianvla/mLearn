@@ -7,6 +7,9 @@ import { PillBtn } from '../Button';
 import { ClockIcon } from '../Misc';
 import { Tooltip } from '../Tooltip';
 import { EasePill } from './EasePill';
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.resourcePill");
 
 const ICON_CROSS2 = 'cross2';
 const ICON_ANKI = 'anki';
@@ -88,7 +91,7 @@ export const ResourcePill: Component<ResourcePillProps> = (props) => {
         setAnkiHoverCardInfo(null);
       }
     } catch (error) {
-      console.error(error);
+      log.error("error", error);
       setAnkiHoverCard(null);
       setAnkiHoverCardInfo(null);
     } finally {

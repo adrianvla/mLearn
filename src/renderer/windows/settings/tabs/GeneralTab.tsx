@@ -10,6 +10,9 @@ import { type AppTheme } from '../../../../shared/constants';
 import { getBridge } from '../../../../shared/bridges';
 import { getBundledLocaleCodes } from '../../../../shared/bridges/bundledLanguageAssets';
 import '../SettingsForm.css';
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.settings.general");
 
 function assignImportedSetting<K extends keyof Settings>(
   target: Partial<Settings>,
@@ -62,7 +65,7 @@ export const GeneralTab: Component = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (e) {
-      console.error('Failed to export settings:', e);
+      log.error('Failed to export settings:', e);
       setExportError(t('mlearn.Settings.UI.SaveError'));
     }
   };
@@ -102,7 +105,7 @@ export const GeneralTab: Component = () => {
         
         alert(t('mlearn.Global.Success'));
       } catch (e) {
-        console.error('Failed to import settings:', e);
+        log.error('Failed to import settings:', e);
         setImportError(t('mlearn.Settings.UI.SaveError'));
       }
     };
@@ -120,7 +123,7 @@ export const GeneralTab: Component = () => {
         }
       }
     } catch (e) {
-      console.error('Failed to export data:', e);
+      log.error('Failed to export data:', e);
       setDataExportError(String(e));
     } finally {
       setDataExporting(false);
@@ -141,7 +144,7 @@ export const GeneralTab: Component = () => {
         setDataImportError(result.error);
       }
     } catch (e) {
-      console.error('Failed to import data:', e);
+      log.error('Failed to import data:', e);
       setDataImportError(String(e));
     } finally {
       setDataImporting(false);

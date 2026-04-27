@@ -20,6 +20,12 @@ import { consumePendingFlashcardMigration, setMigrationListenerReady } from './m
 import { createAnkiCacheToastGate } from './windowWrapperNotifications';
 import { LowPowerGateProvider } from './LowPowerGateContext';
 import { isElectron } from '../../shared/platform';
+import { installRendererLogSink } from '../utils/installLogSink';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.context.windowWrapper");
+
+installRendererLogSink();
 
 const ankiCacheToastGate = createAnkiCacheToastGate();
 
@@ -74,7 +80,7 @@ const MigrationHandler: ParentComponent = (props) => {
     // Listen for flashcard migration events from electron
     const handleFlashcardMigration = (e: Event) => {
       const info = (e as CustomEvent).detail;
-      console.log('[MigrationHandler] Received flashcard migration event:', info);
+      log.info('[MigrationHandler] Received flashcard migration event:', info);
       showFlashcardMigrationToast(info);
     };
 
@@ -83,7 +89,7 @@ const MigrationHandler: ParentComponent = (props) => {
     // Signal that listener is ready
     setMigrationListenerReady(true);
     showFlashcardMigrationToast(consumePendingFlashcardMigration() ?? undefined);
-    console.log('[MigrationHandler] Migration listener registered');
+    log.info('[MigrationHandler] Migration listener registered');
 
     onCleanup(() => {
       setMigrationListenerReady(false);
@@ -139,9 +145,9 @@ const WindowLoadingScreen: Component = () => {
 //         message: 'Toast system operational',
 //         duration: 3000,
 //       });
-//       console.log('[DevToastTester] Toast fired');
+//       log.info('[DevToastTester] Toast fired');
 //     }
-//     console.log('[DevToastTester] a');
+//     log.info('[DevToastTester] a');
 //   });
 //
 //   return null;

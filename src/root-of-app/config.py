@@ -12,6 +12,9 @@ import importlib
 import platform
 
 import plugin_registry
+from logging_utils import get_logger
+
+log = get_logger("config")
 
 ROOT_OF_APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -51,11 +54,11 @@ def _raise_fd_limit():
         _desired = min(_hard, 65536) if _hard > 0 else 65536
         if _soft < _desired:
             _resource.setrlimit(_resource.RLIMIT_NOFILE, (_desired, _hard))
-            print(f"Raised RLIMIT_NOFILE from {_soft} to {_desired} (hard={_hard})")
+            log.info(f"Raised RLIMIT_NOFILE from {_soft} to {_desired} (hard={_hard})")
         else:
-            print(f"RLIMIT_NOFILE already sufficient: soft={_soft} hard={_hard}")
+            log.info(f"RLIMIT_NOFILE already sufficient: soft={_soft} hard={_hard}")
     except Exception as _rlimit_err:
-        print(f"Could not adjust RLIMIT_NOFILE: {_rlimit_err}")
+        log.warning(f"Could not adjust RLIMIT_NOFILE: {_rlimit_err}")
 
 
 def _configure_utf8_streams():
@@ -95,7 +98,7 @@ def init():
     _configure_utf8_streams()
 
     arguments = sys.argv[1:]
-    print("Arguments: ", arguments)
+    log.info(f"Arguments:  {arguments}")
 
     ANKI_CONNECT_URL = arguments[0]
     FETCH_ANKI = arguments[1] == "true"
@@ -122,19 +125,19 @@ def init():
                     ANKI_FIELD_READING = settings.get("anki_field_reading", "Reading")
                     ANKI_FIELD_MEANING = settings.get("anki_field_meaning", "Meaning")
                     OCR_RAM_SAVER = settings.get("ocrRamSaver", False)
-                    print(
+                    log.info(
                         f"Loaded Anki field mappings: Expression="
                         f"'{ANKI_FIELD_EXPRESSION}', Reading="
                         f"'{ANKI_FIELD_READING}', Meaning="
                         f"'{ANKI_FIELD_MEANING}'"
                     )
-                    print(f"OCR Ram Saver: {OCR_RAM_SAVER}")
+                    log.info(f"OCR Ram Saver: {OCR_RAM_SAVER}")
             except Exception as e:
-                print(f"Error reading settings.json: {e}")
+                log.error(f"Error reading settings.json: {e}", exc_info=True)
 
-    print("Arguments: ", ANKI_CONNECT_URL, FETCH_ANKI, LANGUAGE)
-    print("LLM allowed:", LLM_ALLOWED)
-    print("OCR allowed:", OCR_ALLOWED)
+    log.info(f"Arguments:  {ANKI_CONNECT_URL} {FETCH_ANKI} {LANGUAGE}")
+    log.info(f"LLM allowed: {LLM_ALLOWED}")
+    log.info(f"OCR allowed: {OCR_ALLOWED}")
 
     LANGUAGE_DIR_PATH = os.path.join(ROOT_OF_APP_DIR, "languages")
 
@@ -148,9 +151,9 @@ def init():
                     _lang_cfg.get("supportsVerticalText", False)
                 )
         except Exception as _e:
-            print(f"Warning: failed to read {_lang_json_path}: {_e}")
-    print("Supports vertical text:", SUPPORTS_VERTICAL_TEXT)
-    print("Language dir path: ", LANGUAGE_DIR_PATH)
+            log.warning(f"Warning: failed to read {_lang_json_path}: {_e}")
+    log.info(f"Supports vertical text: {SUPPORTS_VERTICAL_TEXT}")
+    log.info(f"Language dir path:  {LANGUAGE_DIR_PATH}")
 
     # Load and register built-in language module
     if LANGUAGE_DIR_PATH not in sys.path:
@@ -159,7 +162,7 @@ def init():
     _lang_mod.LOAD_MODULE(ROOT_OF_APP_DIR)
     plugin_registry.register_language(LANGUAGE, _lang_mod)
     plugin_registry.set_active(LANGUAGE)
-    print(f"[config] Registered built-in language: {LANGUAGE}")
+    log.info(f"[config] Registered built-in language: {LANGUAGE}")
 
 
 def get_runtime_info() -> dict:

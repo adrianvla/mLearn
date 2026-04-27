@@ -1,3 +1,6 @@
+import { getLogger } from '../utils/logger';
+
+const log = getLogger("shared.backends.cloudTTS");
 /**
  * Cloud TTS Adapter
  *
@@ -106,7 +109,7 @@ export class CloudTTSAdapter {
 
       callbacks.onDone();
     } catch (err) {
-      console.error(err);
+      log.error("error", err);
       if ((err as Error).name === 'AbortError') {
         callbacks.onDone();
         return;
@@ -156,7 +159,7 @@ export class CloudTTSAdapter {
       clearTimeout(timeoutId);
       return res.ok;
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return false;
     }
   }

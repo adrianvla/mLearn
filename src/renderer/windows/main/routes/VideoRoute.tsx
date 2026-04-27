@@ -45,6 +45,9 @@ import { collectDroppedMediaFiles } from './videoDropUtils';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import './video.css';
+import { getLogger } from '@shared/utils/logger';
+
+const log = getLogger("renderer.video");
 
 /** Convert a filesystem path to a local-media:// URL that the renderer can load */
 const toLocalMediaUrl = (filePath: string): string => `local-media://${filePath}`;
@@ -146,7 +149,7 @@ export const VideoRoute: Component = () => {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       return canvas.toDataURL('image/jpeg', 0.5);
     } catch (e) {
-      console.error('captureVideoFrameDataUrl failed', e);
+      log.error('captureVideoFrameDataUrl failed', e);
       return '';
     }
   };
@@ -230,7 +233,7 @@ export const VideoRoute: Component = () => {
       watchTogether.activateRoomWithUserId(session, accessToken, settings.cloudAuthUserId);
       setShowWatchTogetherCodeModal(true);
     } catch (error) {
-      console.error(error);
+      log.error("error", error);
       setWatchTogetherError((error as Error).message || String(error));
     } finally {
       setWatchTogetherBusy(false);
@@ -248,7 +251,7 @@ export const VideoRoute: Component = () => {
       watchTogether.activateRoomWithUserId(session, accessToken, settings.cloudAuthUserId);
       setShowWatchTogetherCodeModal(true);
     } catch (error) {
-      console.error(error);
+      log.error("error", error);
       setWatchTogetherError((error as Error).message || String(error));
     } finally {
       setWatchTogetherBusy(false);
@@ -507,7 +510,7 @@ export const VideoRoute: Component = () => {
       let translationData = cached;
       if (!translationData) {
         try { translationData = await translateWord(word); } catch (e) {
-          console.error(e);
+          log.error("error", e);
         }
       }
       const freq = langCtx.getFrequency(word);
@@ -530,24 +533,24 @@ export const VideoRoute: Component = () => {
       });
 
       // If video mode, clip and save the video segment
-      console.log('[VideoRoute] addVideoWordFlashcard: flashcardMediaType=', settings.flashcardMediaType, 'videoSrc=', videoSrc(), 'subtitleStart=', entry.subtitleStart, 'subtitleEnd=', entry.subtitleEnd);
+      log.info('[VideoRoute] addVideoWordFlashcard: flashcardMediaType=', settings.flashcardMediaType, 'videoSrc=', videoSrc(), 'subtitleStart=', entry.subtitleStart, 'subtitleEnd=', entry.subtitleEnd);
       if (settings.flashcardMediaType === 'video' && videoSrc() && entry.subtitleStart != null && entry.subtitleEnd != null) {
         const { clipVideo } = await import('../../../services/videoClipService');
         const margin = (settings.flashcardVideoMargin ?? 300) / 1000;
         const start = Math.max(0, entry.subtitleStart - margin);
         const end = entry.subtitleEnd + margin;
-        console.log('[VideoRoute] addVideoWordFlashcard: calling clipVideo, start=', start, 'end=', end);
+        log.info('[VideoRoute] addVideoWordFlashcard: calling clipVideo, start=', start, 'end=', end);
         const videoData = await clipVideo(videoSrc(), start, end);
-        console.log('[VideoRoute] addVideoWordFlashcard: clipVideo result=', videoData == null ? 'null' : `Uint8Array(${videoData.byteLength})`);
+        log.info('[VideoRoute] addVideoWordFlashcard: clipVideo result=', videoData == null ? 'null' : `Uint8Array(${videoData.byteLength})`);
         if (videoData) {
           const { toUniqueIdentifier } = await import('../../../services/statsService');
           const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
           const videoUrl = await getBridge().flashcards.saveFlashcardVideo(cardId, videoData.buffer as ArrayBuffer);
-          console.log('[VideoRoute] addVideoWordFlashcard: saveFlashcardVideo result=', videoUrl);
+          log.info('[VideoRoute] addVideoWordFlashcard: saveFlashcardVideo result=', videoUrl);
           if (videoUrl) {
             content.videoUrl = videoUrl;
             content.skipExampleTts = true;
-            console.log('[VideoRoute] addVideoWordFlashcard: content.videoUrl set to', videoUrl);
+            log.info('[VideoRoute] addVideoWordFlashcard: content.videoUrl set to', videoUrl);
           } else {
             showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
           }
@@ -555,12 +558,12 @@ export const VideoRoute: Component = () => {
           showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
         }
       } else {
-        console.log('[VideoRoute] addVideoWordFlashcard: skipping video clip — condition not met');
+        log.info('[VideoRoute] addVideoWordFlashcard: skipping video clip — condition not met');
       }
 
       await flashcardCtx.addFlashcard(content, ease);
     } catch (err) {
-      console.error('Failed to add flashcard from video sidebar:', err);
+      log.error('Failed to add flashcard from video sidebar:', err);
     } finally {
       setAddingSidebarWords(prev => {
         const next = new Set(prev);
@@ -593,7 +596,7 @@ export const VideoRoute: Component = () => {
             await anki.updateWordCards(trackedAnkiWord, ankiEase);
             await refreshAnkiWordsCache();
           } catch (err) {
-            console.error(`Failed to update Anki cards for "${entry.word}":`, err);
+            log.error(`Failed to update Anki cards for "${entry.word}":`, err);
             showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
           }
         } else {
@@ -662,7 +665,7 @@ export const VideoRoute: Component = () => {
           setCurrentSubtitlePath(pendingSubtitle);
         }
       } catch (error) {
-        console.error('Failed to auto-load subtitles for saved video:', error);
+        log.error('Failed to auto-load subtitles for saved video:', error);
       }
     };
 

@@ -22,7 +22,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 import config
-from logging_utils import _log
+from logging_utils import get_logger
+
+log = get_logger("llm")
 
 router = APIRouter()
 
@@ -88,7 +90,7 @@ def _llm_unload():
     with _llm_lock:
         if _llm_model is None and _llm_tokenizer is None:
             return
-        _log("LLM idle timeout reached — unloading model to free memory")
+        log.info("LLM idle timeout reached — unloading model to free memory")
         try:
             del _llm_model
             del _llm_tokenizer
@@ -108,7 +110,7 @@ def _llm_unload():
                     torch.mps.empty_cache()
             except Exception:
                 pass
-        _log("LLM unloaded successfully")
+        log.info("LLM unloaded successfully")
 
 
 # ── Cache helpers ──
@@ -157,7 +159,7 @@ def _llm_cache_exists() -> bool:
             if _llm_snapshot_ready(entry):
                 return True
     except Exception as exc:
-        _log("LLM cache detection error", exc)
+        log.warning(f"LLM cache detection error {exc}")
     return False
 
 
@@ -174,7 +176,7 @@ def _set_expected_llm_size() -> None:
                 info = api.model_info(LLM_MODEL_ID)
                 expected_bytes = info.safetensors_size or info.size
             except Exception as exc:
-                _log("LLM expected size lookup failed", exc)
+                log.warning(f"LLM expected size lookup failed {exc}")
         if expected_bytes is None:
             expected_bytes = MIN_LLM_DOWNLOAD_BYTES
         _LLM_EXPECTED_BYTES = int(expected_bytes)
@@ -213,7 +215,7 @@ def _llm_download_bytes() -> Tuple[int, bool]:
                 except OSError:
                     continue
     except Exception as exc:
-        _log("LLM download byte scan failed", exc)
+        log.warning(f"LLM download byte scan failed {exc}")
     return total, ready
 
 
@@ -253,7 +255,7 @@ def _ensure_llm_loaded():
             else:
                 device = "cpu"
                 dtype = torch.float32
-            _log("Initializing LLM", {"device": device, "dtype": str(dtype)})
+            log.info(f"Initializing LLM {{'device': {device!r}, 'dtype': {str(dtype)!r}}}")
 
             tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_ID)
             load_kwargs = {
@@ -273,9 +275,8 @@ def _ensure_llm_loaded():
                     and load_kwargs.get("torch_dtype") is not torch.float32
                 ):
                     load_kwargs["torch_dtype"] = torch.float32
-                    _log(
-                        "LLM load retry",
-                        {"reason": "float32 fallback", "error": str(first_exc)},
+                    log.warning(
+                        f"LLM load retry {{'reason': 'float32 fallback', 'error': {str(first_exc)!r}}}"
                     )
                     model = AutoModelForCausalLM.from_pretrained(
                         LLM_MODEL_ID, **load_kwargs
@@ -297,7 +298,7 @@ def _ensure_llm_loaded():
             _llm_device = device
             _llm_dtype = dtype
             _llm_touch()
-            _log("LLM ready")
+            log.info("LLM ready")
         except Exception as exc:
             _llm_tokenizer = None
             _llm_model = None
@@ -362,19 +363,15 @@ async def llm_status():
 @router.post("/llm", response_model=LlmResponse)
 async def llm_endpoint(req: LlmRequest):
     """DEPRECATED: LLM inference has moved to node-llama-cpp."""
-    _log(
-        "LLM request",
-        {
-            "chars": len(req.prompt),
-            "max_new_tokens": req.max_new_tokens,
-        },
+    log.info(
+        f"LLM request {{'chars': {len(req.prompt)}, 'max_new_tokens': {req.max_new_tokens}}}"
     )
     if not config.LLM_ALLOWED:
         raise HTTPException(status_code=403, detail="LLM disabled by user")
     try:
         _ensure_llm_loaded()
     except RuntimeError as exc:
-        _log("LLM init error", exc)
+        log.error(f"LLM init error {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
 
     torch = config.torch
@@ -406,26 +403,22 @@ async def llm_endpoint(req: LlmRequest):
         text = await asyncio.to_thread(_run_inference)
         return {"output": text, "device": _llm_device}
     except Exception as exc:
-        _log("LLM generation error", exc)
+        log.error(f"LLM generation error {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail="Generation failed")
 
 
 @router.post("/llm/stream")
 async def llm_stream_endpoint(req: LlmRequest):
     """DEPRECATED: Streaming LLM endpoint."""
-    _log(
-        "LLM stream request",
-        {
-            "chars": len(req.prompt),
-            "max_new_tokens": req.max_new_tokens,
-        },
+    log.info(
+        f"LLM stream request {{'chars': {len(req.prompt)}, 'max_new_tokens': {req.max_new_tokens}}}"
     )
     if not config.LLM_ALLOWED:
         raise HTTPException(status_code=403, detail="LLM disabled by user")
     try:
         _ensure_llm_loaded()
     except RuntimeError as exc:
-        _log("LLM init error", exc)
+        log.error(f"LLM init error {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
 
     torch = config.torch
@@ -477,7 +470,7 @@ async def llm_stream_endpoint(req: LlmRequest):
             )
             generation_thread.join()
         except Exception as exc:
-            _log("LLM stream error", exc)
+            log.error(f"LLM stream error {exc}", exc_info=True)
             yield f"data: {json.dumps({'error': str(exc), 'done': True})}\n\n"
 
     return StreamingResponse(

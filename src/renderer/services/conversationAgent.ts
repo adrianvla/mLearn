@@ -26,6 +26,9 @@ import type {
 import { getBridge } from '../../shared/bridges';
 import { getBackend } from '../../shared/backends';
 import type { LanguageFeatures } from '../context/LanguageContext';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.conversationAgent");
 
 // ============================================================================
 // Types
@@ -829,7 +832,7 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
         // Truncate to avoid overwhelming the context
         return content.length > 3000 ? content.slice(0, 3000) + '\n\n[Content truncated]' : content;
       } catch (err) {
-        console.error(err);
+        log.error("error", err);
         return `Error fetching URL: ${(err as Error).message}`;
       }
     }
@@ -897,7 +900,7 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
         }
         return lines.join('\n');
       } catch (err) {
-        console.error(err);
+        log.error("error", err);
         return `Error searching Wikipedia: ${(err as Error).message}`;
       }
     }
@@ -928,7 +931,7 @@ async function executeToolWithResponse(toolCall: ToolCall, deps: AgentDeps): Pro
         }
         return lines.join('\n');
       } catch (err) {
-        console.error(err);
+        log.error("error", err);
         return `Error searching Fandom: ${(err as Error).message}`;
       }
     }
@@ -961,7 +964,7 @@ async function tokenizeText(text: string, langCode: string): Promise<Token[]> {
     const tokens = await getBackend().tokenize(text, langCode);
     return tokens;
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return [];
   } finally {
     clearTimeout(timeoutId);
@@ -1024,7 +1027,7 @@ function parseToolCallsFromContent(content: string): { cleanedContent: string; t
       });
       cleanedContent = cleanedContent.replace(fullMatch, '');
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // If JSON parsing fails, leave the text in place
     }
   }
@@ -1113,7 +1116,7 @@ function streamReformulation(
       }
     });
 
-    console.log('[ConversationAgent:Reformulation] Prompt:', JSON.stringify([systemMsg, userMsg], null, 2));
+    log.info('[ConversationAgent:Reformulation] Prompt:', JSON.stringify([systemMsg, userMsg], null, 2));
 
     bridge.llm.llmStream([systemMsg, userMsg], []);
   });
@@ -1192,7 +1195,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
             break; // No change — stop iterating
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           break; // Reformulation failed — use what we have
         }
       }
@@ -1381,7 +1384,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     ];
 
     // Always log prompts for debugging
-    console.log('[ConversationAgent] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
+    log.info('[ConversationAgent] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
 
     let accumulated = '';
     const collectedToolCalls: ToolCall[] = [];

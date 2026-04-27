@@ -9,6 +9,9 @@ import type { Settings } from '../../shared/types';
 import { WORD_STATUS } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
 import { isElectron } from '../../shared/platform';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.stats");
 
 // Word tracking status lookup
 const LOOKUP_STATUS: Record<number, string> = {
@@ -184,7 +187,7 @@ export function setWordStatus(word: string, status: number, aliases: readonly st
   });
   // Auto-save after status change (like old app's changeKnownStatus)
   saveWordsToStorage();
-  console.log(`Set and saved known status for word: ${word} to ${status}`);
+  log.info(`Set and saved known status for word: ${word} to ${status}`);
 }
 
 /**
@@ -242,22 +245,22 @@ export async function loadWordsFromStorage(): Promise<void> {
     const stored = await bridge.kvStore.kvGet(WORD_STATUS_STORE_KEY);
     if (stored) {
       setWordsLearnedInApp(JSON.parse(stored));
-      console.log('[statsService] Loaded word statuses from KV store');
+      log.info('[statsService] Loaded word statuses from KV store');
       return;
     }
 
     const migrationAlreadyImported = await bridge.kvStore.kvGet(WORD_STATUS_MIGRATION_MARKER_KEY);
     if (migrationAlreadyImported) {
-      console.log('[statsService] Skipping v1 word status migration because it has already been imported');
+      log.info('[statsService] Skipping v1 word status migration because it has already been imported');
       return;
     }
     
     // No local data found - check for data migrated by main process
     // This handles the case where old app used file:// and new app uses localhost
-    console.log('[statsService] No local data found, will check main process migration data');
+    log.info('[statsService] No local data found, will check main process migration data');
     await loadFromMainProcessMigration();
   } catch (e) {
-    console.error('[statsService] Failed to load words from storage:', e);
+    log.error('[statsService] Failed to load words from storage:', e);
   }
 }
 
@@ -284,9 +287,9 @@ async function migrateFromV1Data(knownAdjustment: Record<string, number>): Promi
         }
       : { occurred: false, backupData: null, migratedWordCount: 0 };
 
-    console.log(`[statsService] Migrated ${migratedWordCount} word statuses from v1 to v2`);
+    log.info(`[statsService] Migrated ${migratedWordCount} word statuses from v1 to v2`);
   } catch (e) {
-    console.error('[statsService] Failed to migrate v1 knownAdjustment:', e);
+    log.error('[statsService] Failed to migrate v1 knownAdjustment:', e);
   }
 }
 
@@ -299,11 +302,11 @@ async function loadFromMainProcessMigration(): Promise<void> {
     try {
       const knownAdjustment = await getBridge().migration.getMigratedItem('knownAdjustment');
       if (knownAdjustment && typeof knownAdjustment === 'object') {
-        console.log('[statsService] Found knownAdjustment in main process migration data');
+        log.info('[statsService] Found knownAdjustment in main process migration data');
         await migrateFromV1Data(knownAdjustment as Record<string, number>);
       }
     } catch (e) {
-      console.warn('[statsService] Failed to get migrated data from main process:', e);
+      log.warn('[statsService] Failed to get migrated data from main process:', e);
     }
   }
 }
@@ -315,7 +318,7 @@ export async function saveWordsToStorage(): Promise<void> {
   try {
     await getBridge().kvStore.kvSet('mlearn_words_learned', JSON.stringify(wordsLearnedInApp()));
   } catch (e) {
-    console.error('Failed to save words to storage:', e);
+    log.error('Failed to save words to storage:', e);
   }
 }
 
@@ -464,6 +467,6 @@ export {
 // This ensures data is available before any component tries to access it
 if (typeof window !== 'undefined') {
   loadWordsFromStorage().then(() => {
-    console.log('[statsService] Auto-initialized word statuses on module load');
+    log.info('[statsService] Auto-initialized word statuses on module load');
   });
 }

@@ -19,6 +19,9 @@ import { useAnki } from '../../hooks/useAnki';
 import { fetchAnkiWordsCache, isAnkiCacheFetched, refreshAnkiWordsCache } from '../../services/ankiWordsCache';
 import { resolveRendererWordKnowledge } from '../../services/wordKnowledge';
 import './WordDbEditorLayout.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.wordDbEditor.app");
 
 export const WordDbEditorContent: Component = () => {
   const { wordFrequency, getFreqLevelNames, getCanonicalForm, getWordVariants } = useLanguage();
@@ -76,9 +79,9 @@ export const WordDbEditorContent: Component = () => {
     try {
       await loadWordsFromStorage();
       setIsInitialized(true);
-      console.log('Word DB Editor: Loaded words from storage');
+      log.info('Word DB Editor: Loaded words from storage');
     } catch (e) {
-      console.error('Word DB Editor: Failed to load words:', e);
+      log.error('Word DB Editor: Failed to load words:', e);
       setIsInitialized(true);
     }
   });
@@ -204,7 +207,7 @@ export const WordDbEditorContent: Component = () => {
       const totalWords = freqWords.length;
 
       if (totalWords === 0) {
-        console.warn('No word frequency data available');
+        log.warn('No word frequency data available');
         setEntries([]);
         setFilteredEntries([]);
         return;
@@ -239,7 +242,7 @@ export const WordDbEditorContent: Component = () => {
       setFilteredEntries(buildFilteredEntries(wordEntries));
       setLoadProgress(100);
     } catch (e) {
-      console.error('Failed to load words:', e);
+      log.error('Failed to load words:', e);
     } finally {
       setIsLoading(false);
     }
@@ -302,9 +305,9 @@ export const WordDbEditorContent: Component = () => {
       setFilteredEntries(prev => prev.map(e =>
           e.uuid === entry.uuid ? { ...e, status: numericStatus } : e
       ));
-      console.log(`%cUpdated status for word "${entry.word}" to ${newStatus}`, 'color: lime;');
+      log.info(`%cUpdated status for word "${entry.word}" to ${newStatus}`, 'color: lime;');
     } catch (e) {
-      console.error('Failed to update word status:', e);
+      log.error('Failed to update word status:', e);
     }
   };
 
@@ -331,9 +334,9 @@ export const WordDbEditorContent: Component = () => {
       setFilteredEntries(prev => prev.map(e =>
           e.uuid === entry.uuid ? { ...e, tracker: 'flashcards' } : e
       ));
-      console.log(`%cAdded flashcard for word "${entry.word}"`, 'color: cyan;');
+      log.info(`%cAdded flashcard for word "${entry.word}"`, 'color: cyan;');
     } catch (e) {
-      console.error('Failed to add flashcard:', e);
+      log.error('Failed to add flashcard:', e);
     }
   };
 
@@ -354,9 +357,9 @@ export const WordDbEditorContent: Component = () => {
       setFilteredEntries(prev => prev.map(e =>
           e.uuid === entry.uuid ? { ...e, tracker: 'nothing' } : e
       ));
-      console.log(`%cRemoved flashcard for word "${entry.word}"`, 'color: orange;');
+      log.info(`%cRemoved flashcard for word "${entry.word}"`, 'color: orange;');
     } catch (e) {
-      console.error('Failed to remove flashcard:', e);
+      log.error('Failed to remove flashcard:', e);
     }
   };
 
@@ -364,7 +367,7 @@ export const WordDbEditorContent: Component = () => {
     try {
       await unignoreWordForLanguage(entry.word);
     } catch (e) {
-      console.error('Failed to unignore word:', e);
+      log.error('Failed to unignore word:', e);
     }
   };
 
@@ -401,7 +404,7 @@ export const WordDbEditorContent: Component = () => {
 
     setEditDialogOpen(false);
     setEditingEntry(null);
-    console.log(`%cUpdated translation data for word "${entry.word}"`, 'color: lime;');
+    log.info(`%cUpdated translation data for word "${entry.word}"`, 'color: lime;');
   };
 
   const handleAnkiPreview = (entry: WordEntry) => {
@@ -442,7 +445,7 @@ export const WordDbEditorContent: Component = () => {
       const isConnected = await anki.checkConnection();
       if (!isConnected) {
         setAnkiExportStates(prev => ({ ...prev, [uuid]: 'error' }));
-        console.warn('Anki is not connected');
+        log.warn('Anki is not connected');
         return;
       }
 
@@ -466,12 +469,12 @@ export const WordDbEditorContent: Component = () => {
       if (noteId) {
         await refreshAnkiWordsCache();
         setAnkiExportStates(prev => ({ ...prev, [uuid]: 'exported' }));
-        console.log(`%cExported "${entry.word}" to Anki (noteId: ${noteId})`, 'color: cyan;');
+        log.info(`%cExported "${entry.word}" to Anki (noteId: ${noteId})`, 'color: cyan;');
       } else {
         setAnkiExportStates(prev => ({ ...prev, [uuid]: 'error' }));
       }
     } catch (e) {
-      console.error('Failed to export to Anki:', e);
+      log.error('Failed to export to Anki:', e);
       setAnkiExportStates(prev => ({ ...prev, [uuid]: 'error' }));
     }
   };

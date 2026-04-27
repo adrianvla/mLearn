@@ -8,6 +8,10 @@ Plugin language modules register themselves through register_language().
 
 from typing import Any, Dict, Optional
 
+from logging_utils import get_logger
+
+log = get_logger("plugins")
+
 _registry: Dict[str, Any] = {}
 _active_language: str = ""
 
@@ -15,7 +19,7 @@ _active_language: str = ""
 def register_language(language_id: str, module: Any) -> None:
     """Register a language module under the given ID."""
     _registry[language_id] = module
-    print(f"[plugin_registry] Registered language: {language_id}")
+    log.info(f"[plugin_registry] Registered language: {language_id}")
 
 
 def get_language(language_id: str) -> Optional[Any]:

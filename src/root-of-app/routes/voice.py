@@ -26,7 +26,9 @@ from starlette.responses import Response
 from typing import Optional
 
 import config
-from logging_utils import _log
+from logging_utils import get_logger
+
+log = get_logger("voice")
 
 router = APIRouter()
 
@@ -148,19 +150,19 @@ def _voice_unload():
     any_unloaded = False
     with _voice_vad_lock:
         if _voice_vad_model is not None:
-            _log("Voice idle — unloading VAD model")
+            log.info("Voice idle — unloading VAD model")
             del _voice_vad_model
             _voice_vad_model = None
             any_unloaded = True
     with _voice_stt_lock:
         if _voice_stt_model is not None:
-            _log("Voice idle — unloading STT model")
+            log.info("Voice idle — unloading STT model")
             del _voice_stt_model
             _voice_stt_model = None
             any_unloaded = True
     with _voice_tts_lock:
         if _voice_tts_pipeline is not None:
-            _log("Voice idle — unloading TTS pipeline")
+            log.info("Voice idle — unloading TTS pipeline")
             del _voice_tts_pipeline
             _voice_tts_pipeline = None
             any_unloaded = True
@@ -175,7 +177,7 @@ def _voice_unload():
                     torch.mps.empty_cache()
             except Exception:
                 pass
-        _log("Voice models unloaded")
+        log.info("Voice models unloaded")
 
 
 # ── Device helpers ──
@@ -212,7 +214,7 @@ def _ensure_vad_loaded():
         if _voice_vad_model is not None:
             return _voice_vad_model
         try:
-            _log("Loading Silero VAD model...")
+            log.info("Loading Silero VAD model...")
             torch = config.torch
             _torch = importlib.import_module("torch") if torch is None else torch
             model, utils = _torch.hub.load(
@@ -222,11 +224,11 @@ def _ensure_vad_loaded():
                 onnx=False,
             )
             _voice_vad_model = {"model": model, "utils": utils}
-            _log("Silero VAD loaded")
+            log.info("Silero VAD loaded")
             _voice_touch()
             return _voice_vad_model
         except Exception as e:
-            _log("Failed to load VAD:", e)
+            log.error(f"Failed to load VAD: {e}", exc_info=True)
             raise
 
 
@@ -238,7 +240,7 @@ def _ensure_stt_loaded():
         if _voice_stt_model is not None:
             return _voice_stt_model
         try:
-            _log("Loading faster-whisper STT model (small)...")
+            log.info("Loading faster-whisper STT model (small)...")
             from faster_whisper import WhisperModel
 
             device = _get_stt_device()
@@ -248,11 +250,11 @@ def _ensure_stt_loaded():
                 device=device,
                 compute_type=compute_type,
             )
-            _log(f"faster-whisper loaded on {device}")
+            log.info(f"faster-whisper loaded on {device}")
             _voice_touch()
             return _voice_stt_model
         except Exception as e:
-            _log("Failed to load STT:", e)
+            log.error(f"Failed to load STT: {e}", exc_info=True)
             raise
 
 
@@ -265,7 +267,7 @@ def _ensure_tts_loaded():
         if _voice_tts_pipeline is not None:
             return _voice_tts_pipeline
         try:
-            _log("Loading Kokoro-82M TTS pipeline...")
+            log.info("Loading Kokoro-82M TTS pipeline...")
             from kokoro import KPipeline
 
             lang_code = _KOKORO_LANG_MAP.get(config.LANGUAGE, "a")
@@ -273,11 +275,11 @@ def _ensure_tts_loaded():
                 lang_code=lang_code,
                 repo_id="hexgrad/Kokoro-82M",
             )
-            _log(f"Kokoro TTS pipeline loaded (lang={lang_code})")
+            log.info(f"Kokoro TTS pipeline loaded (lang={lang_code})")
             _voice_touch()
             return _voice_tts_pipeline
         except Exception as e:
-            _log("Failed to load Kokoro TTS:", e)
+            log.error(f"Failed to load Kokoro TTS: {e}", exc_info=True)
             raise
 
 
@@ -383,7 +385,7 @@ async def voice_download_models():
     try:
         _voice_stt_downloading = True
         _voice_stt_progress = 0.0
-        _log("Pre-downloading STT model...")
+        log.info("Pre-downloading STT model...")
         _ensure_stt_loaded()
         _voice_stt_progress = 1.0
         _voice_stt_downloading = False
@@ -395,7 +397,7 @@ async def voice_download_models():
         try:
             _voice_tts_downloading = True
             _voice_tts_progress = 0.0
-            _log("Pre-downloading TTS model...")
+            log.info("Pre-downloading TTS model...")
             if _tts_provider == "qwen3":
                 _ensure_qwen3_tts_loaded()
             else:
@@ -432,7 +434,7 @@ async def voice_tts_generate(req: TTSRequest):
             # Kokoro has no phonemizer for this language; delegate to Qwen3
             # which supports a broader language set (see _QWEN3_LANG_MAP).
             if req.language in _QWEN3_LANG_MAP:
-                _log(
+                log.info(
                     f"Kokoro does not support language '{req.language}'; "
                     "falling back to Qwen3-TTS"
                 )
@@ -443,7 +445,7 @@ async def voice_tts_generate(req: TTSRequest):
             )
         return await _generate_tts_kokoro(req)
     except Exception as e:
-        _log("TTS generation error:", e)
+        log.error(f"TTS generation error: {e}", exc_info=True)
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -640,7 +642,7 @@ def _ensure_qwen3_tts_loaded():
                                 last_pct = pct_10
                                 mb_done = cur / (1024 * 1024)
                                 mb_total = total_bytes / (1024 * 1024)
-                                _log(
+                                log.info(
                                     f"Qwen3-TTS download: {mb_done:.0f}/{mb_total:.0f} MB ({pct:.0%})"
                                 )
                         except Exception:
@@ -650,10 +652,10 @@ def _ensure_qwen3_tts_loaded():
             monitor_thread = threading.Thread(target=_monitor, daemon=True)
 
             if total_bytes > 0 and cache_blobs_dir:
-                _log(f"Downloading Qwen3-TTS model ({total_bytes / (1024**3):.1f} GB)…")
+                log.info(f"Downloading Qwen3-TTS model ({total_bytes / (1024**3):.1f} GB)…")
                 monitor_thread.start()
             else:
-                _log("Loading Qwen3-TTS model…")
+                log.info("Loading Qwen3-TTS model…")
 
             import torch
             from qwen_tts import Qwen3TTSModel
@@ -665,7 +667,7 @@ def _ensure_qwen3_tts_loaded():
                 if torch.backends.mps.is_available()
                 else "cpu"
             )
-            _log(f"Loading Qwen3-TTS on device: {device}")
+            log.info(f"Loading Qwen3-TTS on device: {device}")
 
             # Qwen3TTSModel is a wrapper (not nn.Module), so .to() is not
             # available.  Pass device_map for CUDA; for MPS / CPU, load on
@@ -684,14 +686,14 @@ def _ensure_qwen3_tts_loaded():
             stop_monitor.set()
             _set_tts_progress(1.0)
             _qwen3_model_loading = False
-            _log(f"Qwen3-TTS model loaded successfully on {device}")
+            log.info(f"Qwen3-TTS model loaded successfully on {device}")
             _voice_touch()
             return _qwen3_tts_model
         except Exception as e:
             stop_monitor.set()
             _qwen3_model_loading = False
             _voice_tts_progress = 0.0
-            _log("Failed to load Qwen3-TTS:", e)
+            log.error(f"Failed to load Qwen3-TTS: {e}", exc_info=True)
             raise
 
 
@@ -717,7 +719,7 @@ def _get_qwen3_voice_prompt(model, voice_sample_path: str | None):
         return _qwen3_voice_prompt_cache[cache_key]
 
     try:
-        _log(f"Creating Qwen3 voice clone prompt from {str(voice_sample_path)[:100]}")
+        log.info(f"Creating Qwen3 voice clone prompt from {str(voice_sample_path)[:100]}")
 
         # Load reference audio transcript from sidecar .txt file
         # Electron saves the sidecar by replacing the audio extension with .txt
@@ -728,7 +730,7 @@ def _get_qwen3_voice_prompt(model, voice_sample_path: str | None):
             try:
                 with open(transcript_path, "r", encoding="utf-8") as f:
                     ref_text = f.read().strip()
-                _log(f"Using transcript from {str(transcript_path)[:100]}")
+                log.info(f"Using transcript from {str(transcript_path)[:100]}")
             except Exception:
                 pass
 
@@ -745,10 +747,10 @@ def _get_qwen3_voice_prompt(model, voice_sample_path: str | None):
             )
 
         _qwen3_voice_prompt_cache[cache_key] = prompt
-        _log("Qwen3 voice prompt cached")
+        log.info("Qwen3 voice prompt cached")
         return prompt
     except Exception as e:
-        _log("Failed to create Qwen3 voice prompt:", e)
+        log.error(f"Failed to create Qwen3 voice prompt: {e}", exc_info=True)
         return None
 
 
@@ -825,12 +827,11 @@ async def _generate_tts_qwen3(req: TTSRequest):
                         or "nan" in str(e)
                     )
                     if is_retryable and attempt < max_retries - 1:
-                        _log(
-                            f"Qwen3-TTS retryable error on sentence {i} (attempt {attempt + 1}/{max_retries}):",
-                            e,
+                        log.warning(
+                            f"Qwen3-TTS retryable error on sentence {i} (attempt {attempt + 1}/{max_retries}): {e}"
                         )
                         continue
-                    _log(f"Qwen3-TTS error on sentence {i}:", e)
+                    log.error(f"Qwen3-TTS error on sentence {i}: {e}", exc_info=True)
                     break
 
         if not all_audio:
@@ -883,7 +884,7 @@ async def voice_transcribe(req: TranscribeRequest):
         text = " ".join(seg.text for seg in segments).strip()
         return {"text": text, "language": info.language}
     except Exception as e:
-        _log("Transcription error:", e)
+        log.error(f"Transcription error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -996,7 +997,7 @@ async def voice_stream_ws(websocket: WebSocket):
                         }
                     )
             except Exception as e:
-                _log("Final STT error:", e)
+                log.error(f"Final STT error: {e}", exc_info=True)
                 await websocket.send_json({"type": "error", "message": str(e)})
 
         while True:
@@ -1115,7 +1116,7 @@ async def voice_stream_ws(websocket: WebSocket):
                                     }
                                 )
                         except Exception as e:
-                            _log("Partial STT error:", e)
+                            log.warning(f"Partial STT error: {e}")
                 else:
                     if is_speaking:
                         speech_buffer.extend(chunk_data)
@@ -1133,9 +1134,9 @@ async def voice_stream_ws(websocket: WebSocket):
                         silence_start = None
 
     except WebSocketDisconnect:
-        _log("Voice WebSocket disconnected")
+        log.info("Voice WebSocket disconnected")
     except Exception as e:
-        _log("Voice WebSocket error:", e)
+        log.error(f"Voice WebSocket error: {e}", exc_info=True)
         traceback.print_exc()
         try:
             await websocket.send_json({"type": "error", "message": str(e)})

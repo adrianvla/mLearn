@@ -14,6 +14,9 @@ import { exchangeCloudDesktopCode, getCloudDashboardUrl, startCloudDesktopLogin 
 import { handleCloudSessionError } from '../../../services/cloudSessionManager';
 import type { SelectOption } from '../../../components/common';
 import './ConnectionTab.css';
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.settings.connection");
 
 type BackendMode = 'local' | 'tethered';
 
@@ -60,7 +63,7 @@ export const ConnectionTab: Component = () => {
       setBackendStatus(ok ? 'success' : 'error');
       if (!ok) setBackendError(t('mlearn.Connection.Unreachable') || 'Unreachable');
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       const requiresSignIn = handleCloudSessionError(e, true);
       setBackendStatus(requiresSignIn ? 'auth' : 'error');
       setBackendError(requiresSignIn ? '' : String(e));
@@ -79,7 +82,7 @@ export const ConnectionTab: Component = () => {
       setNodeStatus(ok ? 'success' : 'error');
       if (!ok) setNodeError(t('mlearn.Connection.Unreachable') || 'Unreachable');
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setNodeStatus('error');
       setNodeError(String(e));
     } finally {
@@ -96,7 +99,7 @@ export const ConnectionTab: Component = () => {
       setPendingVerifier(login.codeVerifier);
       await getBridge().window.openExternalUrl(login.loginUrl);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setBackendStatus('error');
       setBackendError(String(e));
       setCloudLoginPending(false);
@@ -145,7 +148,7 @@ export const ConnectionTab: Component = () => {
       setManualDesktopCode('');
       setCloudLoginPending(false);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setBackendStatus('error');
       setBackendError(String(e));
     }
@@ -176,7 +179,7 @@ export const ConnectionTab: Component = () => {
       setBackendStatus('success');
       setBackendError('');
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setBackendStatus('error');
       setBackendError(String(e));
     } finally {

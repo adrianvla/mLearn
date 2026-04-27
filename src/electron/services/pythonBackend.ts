@@ -10,7 +10,7 @@ import http from 'http';
 import { spawn, exec, ChildProcess } from 'child_process';
 import { ipcMain } from 'electron';
 import * as tar from 'tar';
-import { IPC_CHANNELS, PYTHON_BACKEND_PORT, PYTHON_DOWNLOAD_BASE } from '../../shared/constants';
+import { IPC_CHANNELS, PYTHON_BACKEND_PORT, PYTHON_DOWNLOAD_BASE, LOG_PATTERN_PREFIX, LOG_PATTERN_VERSION } from '../../shared/constants';
 import type { InstallOptions, InstallerState, PipRequirementsConfig, PipProgress } from '../../shared/types';
 import { 
   getResourcePath, 
@@ -24,6 +24,89 @@ import {
 } from '../utils/platform';
 import { loadSettings } from './settings';
 import { getCurrentWindow, getMainWindow } from './windowManager';
+import { getLogger, type LogLevel } from '../../shared/utils/logger';
+
+const pyLog = getLogger('python');
+const lifecycleLog = getLogger('python.lifecycle');
+const log = getLogger('electron.pythonBackend');
+
+const POSIX_SIGNAL_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  SIGTERM: 'terminated',
+  SIGINT: 'interrupted',
+  SIGKILL: 'force-killed (out of memory or external kill)',
+  SIGSEGV: 'segmentation fault (native crash)',
+  SIGBUS: 'bus error (memory alignment / mmap failure)',
+  SIGABRT: 'aborted (assertion or fatal error)',
+  SIGFPE: 'floating-point exception',
+  SIGILL: 'illegal instruction',
+  SIGHUP: 'hangup',
+  SIGPIPE: 'broken pipe',
+};
+
+function describeExitReason(code: number | null, signal: NodeJS.Signals | null): string {
+  if (signal) {
+    const desc = POSIX_SIGNAL_DESCRIPTIONS[signal];
+    return desc ? `${signal} (${desc})` : signal;
+  }
+  if (code === null) return 'unknown';
+  if (code === 0) return 'exit 0 (clean)';
+  if (code === 1) return 'exit 1 (uncaught Python exception)';
+  if (code === 2) return 'exit 2 (argument or import error)';
+  if (code > 128) {
+    const sigNum = code - 128;
+    return `exit ${code} (signal ${sigNum})`;
+  }
+  return `exit ${code}`;
+}
+
+function readLogTail(filePath: string, maxBytes: number): string {
+  try {
+    const stat = fs.statSync(filePath);
+    const start = Math.max(0, stat.size - maxBytes);
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const buf = Buffer.alloc(stat.size - start);
+      fs.readSync(fd, buf, 0, buf.length, start);
+      return buf.toString('utf8');
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return '';
+  }
+}
+
+function buildCrashSummary(
+  code: number | null,
+  signal: NodeJS.Signals | null,
+  recentTail: readonly string[],
+): string {
+  const reason = describeExitReason(code, signal);
+  const sections: string[] = [
+    `The Python backend stopped unexpectedly: ${reason}.`,
+  ];
+
+  const userData = getUserDataPath();
+  const crashPath = path.join(userData, 'logs', 'python_crash.log');
+  const pythonLogPath = path.join(userData, 'logs', 'python.log');
+
+  const crashTail = readLogTail(crashPath, 4096).trim();
+  if (crashTail) {
+    sections.push(`--- python_crash.log (tail) ---\n${crashTail}`);
+  }
+
+  if (recentTail.length > 0) {
+    sections.push(`--- recent stdout (last ${recentTail.length}) ---\n${recentTail.join('\n')}`);
+  } else {
+    const pythonTail = readLogTail(pythonLogPath, 2048).trim();
+    if (pythonTail) {
+      sections.push(`--- python.log (tail) ---\n${pythonTail}`);
+    }
+  }
+
+  sections.push(`Logs: ${path.join(userData, 'logs')}`);
+  return sections.join('\n\n');
+}
 
 // State
 let pythonChildProcess: ChildProcess | null = null;
@@ -109,7 +192,7 @@ function sendStatusUpdate(message: string): void {
   try {
     getCurrentWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, message);
   } catch (e) {
-    console.error('Failed to send status update:', e);
+    log.error('Failed to send status update:', e);
   }
 }
 
@@ -118,7 +201,7 @@ function sendPipProgress(progress: PipProgress): void {
   try {
     getCurrentWindow()?.webContents.send(IPC_CHANNELS.PIP_PROGRESS, progress);
   } catch (e) {
-    console.error('Failed to send pip progress:', e);
+    log.error('Failed to send pip progress:', e);
   }
 }
 
@@ -234,14 +317,14 @@ function handleInstallerFailure(message: string, options?: { detail?: string; em
         detail: options.detail || null,
       });
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
     }
   }
 
   try {
     getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
   }
 }
 
@@ -251,7 +334,7 @@ function loadPipRequirementsConfig(): PipRequirementsConfig {
     const data = readResourceFile('pip_requirements.json');
     return JSON.parse(data);
   } catch (e) {
-    console.error('Failed to load pip requirements config:', e);
+    log.error('Failed to load pip requirements config:', e);
     return {
       core: ['flask', 'requests', 'jaconv', 'fugashi', 'unidic-lite'],
       ocr: ['manga-ocr'],
@@ -328,7 +411,7 @@ function downloadFile(
           handleInstallerFailure('Downloaded file is empty', { emitNetworkError: true });
           return;
         }
-        console.log('Download complete!');
+        log.info('Download complete!');
         callback();
       });
     });
@@ -439,7 +522,7 @@ function startServerReadyPolling(): void {
 
 // Start Python backend
 function pythonFound(): void {
-  console.log('Python found, starting backend...');
+  log.info('Python found, starting backend...');
   
   if (isFirstTimeSetup) return;
 
@@ -460,57 +543,113 @@ function pythonFound(): void {
   pendingCriticalError = null;
   pendingStartupStatusMessage = null;
   let ankiErrorReason = '';
+  const recentLogTail: string[] = [];
+  const TAIL_MAX = 40;
+
+  const pushTail = (line: string): void => {
+    recentLogTail.push(line);
+    if (recentLogTail.length > TAIL_MAX) recentLogTail.shift();
+  };
+
+  const V2_PREFIX = `${LOG_PATTERN_PREFIX}${LOG_PATTERN_VERSION}::`;
+  const V1_PREFIX = LOG_PATTERN_PREFIX;
+  const VALID_LEVELS = new Set<LogLevel>(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']);
+
+  const forwardStatusToRenderer = (message: string): void => {
+    try {
+      bufferStartupStatusMessage(message);
+      getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, message);
+    } catch (e) {
+      log.error("error", e);
+    }
+  };
+
+  const handleV2Record = (level: LogLevel, module: string, msg: string): void => {
+    const childName = module.startsWith('python.') ? module.slice('python.'.length) : module === 'python' ? 'core' : module;
+    const child = pyLog.child(childName);
+    switch (level) {
+      case 'DEBUG': child.debug(msg); break;
+      case 'INFO': child.info(msg); break;
+      case 'WARN': child.warn(msg); break;
+      case 'ERROR': child.error(msg); break;
+      case 'FATAL': child.fatal(msg); break;
+    }
+    pushTail(`${level} [${module}] ${msg}`);
+    if (module === 'ocr' || module.startsWith('ocr.')) {
+      try {
+        getMainWindow()?.webContents.send(IPC_CHANNELS.OCR_STATUS_UPDATE, msg);
+      } catch (e) {
+        log.error("error", e);
+      }
+    }
+    if (module === 'anki' && msg.startsWith('ANKI_ERROR')) {
+      lastExitWasAnkiError = true;
+      ankiErrorReason = msg.replace('ANKI_ERROR', '').trim();
+    }
+    forwardStatusToRenderer(msg);
+  };
+
+  const handleV1Record = (channel: string, message: string): void => {
+    if (message.startsWith('ANKI_ERROR')) {
+      lastExitWasAnkiError = true;
+      ankiErrorReason = message.replace('ANKI_ERROR', '').trim();
+    }
+    if (channel.startsWith('OCR')) {
+      try {
+        getMainWindow()?.webContents.send(IPC_CHANNELS.OCR_STATUS_UPDATE, message);
+      } catch (e) {
+        log.error("error", e);
+      }
+    }
+    pushTail(`[${channel}] ${message}`);
+    forwardStatusToRenderer(message);
+  };
 
   const handleSTDOUT = (data: Buffer): void => {
     const text = data.toString('utf8');
-    console.log('Python:', text);
-
     const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
     for (const line of lines) {
-      if (line.startsWith('::STATUS::')) {
-        const parts = line.substring('::STATUS::'.length).split('::');
+      if (line.startsWith(V2_PREFIX)) {
+        const parts = line.substring(V2_PREFIX.length).split('::');
+        if (parts.length >= 4) {
+          const level = parts[0] as LogLevel;
+          const module = parts[1];
+          const msg = parts.slice(3).join('::');
+          if (VALID_LEVELS.has(level)) {
+            handleV2Record(level, module, msg);
+            continue;
+          }
+        }
+      }
+      if (line.startsWith(V1_PREFIX)) {
+        const parts = line.substring(V1_PREFIX.length).split('::');
         if (parts.length >= 3) {
-          const channel = parts[0];
-          const message = parts.slice(2).join('::');
-
-          // Detect Anki error before process exits
-          if (message.startsWith('ANKI_ERROR')) {
-            lastExitWasAnkiError = true;
-            ankiErrorReason = message.replace('ANKI_ERROR', '').trim();
-          }
-          
-          try {
-            if (channel.startsWith('OCR')) {
-              getMainWindow()?.webContents.send(IPC_CHANNELS.OCR_STATUS_UPDATE, message);
-            }
-            bufferStartupStatusMessage(message);
-            getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, message);
-          } catch (e) {
-            console.error(e);
-          }
+          handleV1Record(parts[0], parts.slice(2).join('::'));
           continue;
         }
       }
-      try {
-        bufferStartupStatusMessage(line);
-        getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, line);
-      } catch (e) {
-        console.error(e);
-      }
+      pyLog.info(line);
+      pushTail(line);
+      forwardStatusToRenderer(line);
     }
   };
 
   const handleSTDERR = (data: Buffer): void => {
-    console.error('Python stderr:', data.toString());
+    const text = data.toString('utf8');
+    const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+    for (const line of lines) {
+      pyLog.warn(`stderr: ${line}`);
+      pushTail(`stderr: ${line}`);
+    }
     try {
-      getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, 'stderr: ' + data.toString('utf8'));
+      getMainWindow()?.webContents.send(IPC_CHANNELS.SERVER_STATUS_UPDATE, 'stderr: ' + text);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
     }
   };
 
-  const handleClose = (code: number | null): void => {
-    console.log(`Python process exited with code ${code}`);
+  const handleClose = (code: number | null, signal: NodeJS.Signals | null): void => {
+    lifecycleLog.info(`python exited code=${code ?? 'null'} signal=${signal ?? 'null'}`);
     pythonChildProcess = null;
     serverLoaded = false;
     if (serverLoadCheckInterval) {
@@ -526,15 +665,17 @@ function pythonFound(): void {
         IPC_CHANNELS.ANKI_CONNECTION_ERROR,
         reason
       );
-    } else {
-      const errorMsg = `Critical error: Python server stopped (exit code: ${code}). App restart may be required.`;
-      pendingCriticalError = errorMsg;
-      pendingAnkiError = null;
-      getMainWindow()?.webContents.send(
-        IPC_CHANNELS.SERVER_CRITICAL_ERROR,
-        errorMsg
-      );
+      return;
     }
+
+    const errorMsg = buildCrashSummary(code, signal, recentLogTail);
+    lifecycleLog.error(errorMsg);
+    pendingCriticalError = errorMsg;
+    pendingAnkiError = null;
+    getMainWindow()?.webContents.send(
+      IPC_CHANNELS.SERVER_CRITICAL_ERROR,
+      errorMsg
+    );
   };
 
   const args = [
@@ -577,7 +718,7 @@ function pythonFound(): void {
 
 // Find Python installation
 export async function findPython(): Promise<boolean> {
-  console.log('Finding Python...');
+  log.info('Finding Python...');
 
   const possibilities = [
     path.join(process.resourcesPath, 'env', 'bin', 'python3'),
@@ -588,14 +729,14 @@ export async function findPython(): Promise<boolean> {
 
   for (const pythonPath of possibilities) {
     if (fs.existsSync(pythonPath)) {
-      console.log('Python found at:', pythonPath);
+      log.info('Python found at:', pythonPath);
       pythonSuccessInstall = true;
       pythonFound();
       return true;
     }
   }
 
-  console.log('Python not found, starting installer...');
+  log.info('Python not found, starting installer...');
   waitingForInstallChoice = true;
   isFirstTimeSetup = true;
   
@@ -603,7 +744,7 @@ export async function findPython(): Promise<boolean> {
   try {
     getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
   }
 
   return false;
@@ -612,7 +753,7 @@ export async function findPython(): Promise<boolean> {
 // Start Python installation
 export function startPythonInstall(options: InstallOptions): void {
   if (installInProgress) {
-    console.warn('Installation already in progress');
+    log.warn('Installation already in progress');
     return;
   }
 
@@ -624,12 +765,12 @@ export function startPythonInstall(options: InstallOptions): void {
   const selectedComponents = ['Python runtime'];
   if (options.includeLLM) selectedComponents.push('Local language model support');
   if (options.includeOCR) selectedComponents.push('OCR reader support');
-  console.log('Installing:', selectedComponents.join(', '));
+  log.info('Installing:', selectedComponents.join(', '));
 
   try {
     getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALL_STARTED, options);
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
   }
 
   sendStatusUpdate('Downloading Python...');
@@ -639,11 +780,11 @@ export function startPythonInstall(options: InstallOptions): void {
     if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
     if (fs.existsSync(envPath)) fs.rmSync(envPath, { recursive: true, force: true });
   } catch (e) {
-    console.warn('Cleanup failed:', e);
+    log.warn('Cleanup failed:', e);
   }
 
   const pipRequirements = buildPipRequirementList(options);
-  console.log('Pip packages:', pipRequirements.join(', '));
+  log.info('Pip packages:', pipRequirements.join(', '));
 
   const pythonUrl = getPythonDownloadUrl(PYTHON_DOWNLOAD_BASE);
 
@@ -708,33 +849,33 @@ export function startPythonInstall(options: InstallOptions): void {
       };
 
       pipProcess.stdout.on('data', (data) => {
-        console.log('pip:', data.toString());
+        log.info('pip:', data.toString());
         processPipLines(data.toString(), false);
       });
 
       pipProcess.stderr.on('data', (data) => {
-        console.error('pip error:', data.toString());
+        log.error('pip error:', data.toString());
         processPipLines(data.toString(), true);
       });
 
       pipProcess.on('close', (code) => {
         installInProgress = false;
         if (code === 0 || code === null) {
-          console.log('Installation complete');
+          log.info('Installation complete');
           pythonSuccessInstall = true;
           sendStatusUpdate('Installation complete');
           // Don't close welcome window — let the user select a language first.
           // The welcome window will show language selection on "Installation complete".
           // Transition to main window happens via handleContinue → forceRestartApp.
         } else {
-          console.error('pip install failed with code:', code);
+          log.error('pip install failed with code:', code);
           waitingForInstallChoice = true;
           sendStatusUpdate(`ERROR: pip exited with code ${code}`);
           getCurrentWindow()?.webContents.send(IPC_CHANNELS.INSTALLER_AWAITING_CHOICE);
         }
       });
     } catch (error) {
-      console.error('Extraction/installation failed:', error);
+      log.error('Extraction/installation failed:', error);
       handleInstallerFailure('Installation failed', {
         detail: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -750,7 +891,7 @@ export function terminatePythonBackend(): void {
   try {
     pythonChildProcess.kill('SIGINT');
   } catch (e) {
-    console.warn('Failed to SIGINT python:', e);
+    log.warn('Failed to SIGINT python:', e);
   }
 
   // Send quit request to server
@@ -771,13 +912,13 @@ export function terminatePythonBackend(): void {
   setTimeout(() => {
     if (pythonChildProcess && !pythonChildProcess.killed) {
       try { pythonChildProcess.kill('SIGTERM'); } catch (e) {
-        console.error(e);
+        log.error("error", e);
       }
     }
     setTimeout(() => {
       if (pythonChildProcess && !pythonChildProcess.killed) {
         try { pythonChildProcess.kill('SIGKILL'); } catch (e) {
-          console.error(e);
+          log.error("error", e);
         }
       }
     }, 400);
@@ -786,7 +927,7 @@ export function terminatePythonBackend(): void {
 
 // Restart the Python backend without relaunching Electron
 export function restartPythonBackend(): void {
-  console.log('Restarting Python backend...');
+  log.info('Restarting Python backend...');
   
   // Reset state
   serverLoaded = false;

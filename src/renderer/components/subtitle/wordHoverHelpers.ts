@@ -4,6 +4,9 @@ import type { KnowledgeSource, KnowledgeResolutionMode, WordStatus } from '../..
 import type { AnkiWordStatusRecord } from '../../../shared/backends/types';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.wordHoverHelpers");
 
 export type { WordStatus } from '../../../shared/constants';
 export { WORD_STATUS_VALUES } from '../../../shared/constants';
@@ -308,7 +311,7 @@ function screenshotVideo(): string {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/jpeg', 0.5);
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return '';
   }
 }
@@ -332,7 +335,7 @@ function extractExampleHtml(wordUuid: string | undefined, fallbackText: string):
 
     return clone.innerHTML || fallbackText || '-';
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return fallbackText || '-';
   }
 }
@@ -431,7 +434,7 @@ function captureOcrScreenshot(anchorRect: DOMRect | undefined, ocrImageElement: 
     ctx.drawImage(pageImg, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/jpeg', 0.5);
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return '';
   }
 }
@@ -474,7 +477,7 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
         const tokens = await params.tokenize(contextPhrase);
         exampleHtml = tokensToColoredHtml(tokens, params.colourCodes, word);
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         exampleHtml = contextPhrase;
       }
     } else {

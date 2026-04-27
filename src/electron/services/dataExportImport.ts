@@ -18,6 +18,9 @@ import path from 'path';
 import AdmZip from 'adm-zip';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.dataExportImport');
 
 /** All user data items to include in a full export */
 const DATA_FILES = [
@@ -127,7 +130,7 @@ async function importAllData(): Promise<boolean> {
     // Security: prevent path traversal
     const normalized = path.normalize(entryName);
     if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
-      console.warn(`[DataImport] Skipping suspicious entry: ${entryName}`);
+      log.warn(`[DataImport] Skipping suspicious entry: ${entryName}`);
       continue;
     }
 
@@ -138,7 +141,7 @@ async function importAllData(): Promise<boolean> {
     );
 
     if (!isKnownFile && !isInKnownDir) {
-      console.warn(`[DataImport] Skipping unknown entry: ${entryName}`);
+      log.warn(`[DataImport] Skipping unknown entry: ${entryName}`);
       continue;
     }
 
@@ -169,7 +172,7 @@ export function setupDataExportImportIPC(): void {
       const filePath = await exportAllData();
       return { success: true, filePath };
     } catch (error) {
-      console.error('[DataExportImport] Export failed:', error);
+      log.error('[DataExportImport] Export failed:', error);
       return { success: false, error: String(error) };
     }
   });
@@ -179,7 +182,7 @@ export function setupDataExportImportIPC(): void {
       const imported = await importAllData();
       return { success: imported };
     } catch (error) {
-      console.error('[DataExportImport] Import failed:', error);
+      log.error('[DataExportImport] Import failed:', error);
       return { success: false, error: String(error) };
     }
   });

@@ -1,3 +1,6 @@
+import { getLogger } from '../utils/logger';
+
+const log = getLogger("shared.backends.cloudOCR");
 /**
  * Cloud OCR Adapter
  *
@@ -168,7 +171,7 @@ export class CloudOCRAdapter {
       clearTimeout(timeoutId);
       return res.ok;
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return false;
     }
   }

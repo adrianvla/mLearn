@@ -9,6 +9,9 @@ import { useServer, useLowPowerGate } from '../context';
 import { useSettings } from '../context/SettingsContext';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../shared/backends';
 import { withCloudAuth } from '../services/cloudSessionManager';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.hooks.useOCR");
 
 // Max target area for OCR (preserve aspect ratio) - matches legacy app
 const MAX_OCR_AREA_TURBO = 1000 * 1600; // 1.6M pixels — turbo mode
@@ -82,7 +85,7 @@ async function transcodeBlobToPng(
       });
     }
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     /* fallthrough to data URL path */
   }
 
@@ -153,7 +156,7 @@ async function prepareBlobForOCR(blob: Blob, turbo = true): Promise<PreparedImag
       h = img.naturalHeight || img.height;
     }
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     /* ignore; we will attempt direct transcode at native size */
   }
 
@@ -283,7 +286,7 @@ async function inputToBlobForOCR(
     try {
       ctx.drawImage(input, 0, 0, newW, newH);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Cross-origin taint - try fetching the src directly
       const res = await fetch(input.src, { mode: 'cors' });
       const blob = await res.blob();
@@ -438,7 +441,7 @@ export function useOCR() {
       setLastResult(result);
       return result;
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       const message = e instanceof Error ? e.message : 'OCR failed';
       setError(message);
       return null;
@@ -505,7 +508,7 @@ export function useOCR() {
       const base64 = await win.mlearn.captureScreen();
       return recognizeBase64(base64);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       const message = e instanceof Error ? e.message : 'Screen capture failed';
       setError(message);
       return null;

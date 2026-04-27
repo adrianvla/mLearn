@@ -14,6 +14,9 @@
  */
 
 import type { TranslationResponse, DictionaryEntry, Token } from '../../shared/types';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.offlineCache");
 
 const DB_NAME = 'mlearn-offline-cache';
 const DB_VERSION = 1;
@@ -79,7 +82,7 @@ async function idbGet<T>(storeName: string, key: string): Promise<T | null> {
       req.onerror = () => reject(req.error);
     });
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return null;
   }
 }
@@ -95,7 +98,7 @@ async function idbPut<T>(storeName: string, key: string, value: T): Promise<void
       tx.onerror = () => reject(tx.error);
     });
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
   }
 }
 
@@ -114,7 +117,7 @@ async function idbPutBatch<T>(storeName: string, entries: Array<{ key: string; v
       tx.onerror = () => reject(tx.error);
     });
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
   }
 }
 
@@ -154,7 +157,7 @@ async function idbPrune(storeName: string, maxEntries: number): Promise<void> {
       tx.onerror = () => reject(tx.error);
     });
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
   }
 }
 
@@ -169,7 +172,7 @@ async function idbClear(storeName: string): Promise<void> {
       tx.onerror = () => reject(tx.error);
     });
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
   }
 }
 

@@ -20,6 +20,9 @@ import type { AgentConfig, LLMChatMessage, LLMStreamChunk } from '../../../share
 import { getBridge } from '../../../shared/bridges';
 import { exploreWikiForStoryContext } from './wikiExplorationAgent';
 import './RoleplayQuickStart.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.conversationAgent.roleplayQuickStart");
 
 type Step = 'character-name' | 'fandom-url' | 'searching' | 'media-type' | 'progress-point' | 'extracting' | 'review';
 
@@ -168,7 +171,7 @@ function parseStreamingJSON(raw: string): ParsedLLMFields {
       if (parsed.context) result.context = parsed.context;
       return result;
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Incomplete JSON — fall through to incremental parsing
     }
   }
@@ -271,7 +274,7 @@ async function fetchChapterSummaries(
         }
       }
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Continue with remaining batches
     }
   }
@@ -385,7 +388,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
         setStep('fandom-url');
       }
     } catch (err) {
-      console.error(err);
+      log.error("error", err);
       setError((err as Error).message);
       setStep('fandom-url');
     }
@@ -482,7 +485,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
             }
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           // Not critical — continue without story context
         }
       }
@@ -503,7 +506,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
               fetchedStoryContext += `\n\n=== ${sec.line} ===\n${secText}`;
             }
           } catch (e) {
-            console.error(e);
+            log.error("error", e);
             // Skip this section
           }
         }
@@ -523,7 +526,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
             fetchedStoryContext = `Story structure from "${foundStoryPage}":\n${arcNames.map((n) => `- ${n}`).join('\n')}`;
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           // Not critical
         }
       }
@@ -556,7 +559,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
 
       setStep('media-type');
     } catch (err) {
-      console.error(err);
+      log.error("error", err);
       setError((err as Error).message);
       setStep('fandom-url');
     }
@@ -590,7 +593,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
           (msg) => setLlmProgress(msg),
         );
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         // Continue without chapter summaries
       }
     }
@@ -615,7 +618,7 @@ export const RoleplayQuickStart: Component<RoleplayQuickStartProps> = (props) =>
           setStoryPageTitle(exploration.storyPageTitle);
         }
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         // Continue without explored context
       }
     }
@@ -706,7 +709,7 @@ Generate the JSON object now.`,
                 context: parsed.context || '',
               });
             } catch (e) {
-              console.error(e);
+              log.error("error", e);
               // Use the raw extracted data as fallback
               resolve({ lore: ext.lore.slice(0, 500), quotes: ext.quotes, context: '' });
             }
@@ -714,7 +717,7 @@ Generate the JSON object now.`,
         });
 
         if (settings.devMode) {
-          console.log('[QuickStart] Prompt sent to LLM:', JSON.stringify([systemMsg, userMsg], null, 2));
+          log.info('[QuickStart] Prompt sent to LLM:', JSON.stringify([systemMsg, userMsg], null, 2));
         }
 
         bridge.llm.llmStream([systemMsg, userMsg], []);
@@ -728,7 +731,7 @@ Generate the JSON object now.`,
       });
       setStep('review');
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Fallback to raw extracted data
       setStep('review');
     }

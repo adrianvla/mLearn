@@ -202,7 +202,7 @@ describe('llmProvider', () => {
 
     it('logs completed LLM output in dev mode', async () => {
       const { streamChat } = await import('./llmProvider');
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
       const toolCall: LLMToolCall = { id: 'tc-dev', name: 'show_translation', arguments: { phrase: 'hello', translation: 'bonjour' } };
 
       streamChat(
@@ -216,9 +216,10 @@ describe('llmProvider', () => {
       streamCallback!({ toolCalls: [toolCall] });
       streamCallback!({ done: true, evalCount: 10, evalDuration: 1_000_000_000 });
 
-      expect(consoleSpy).toHaveBeenCalledWith('[LLMProvider] Prompt sent to LLM:', expect.any(String));
-      expect(consoleSpy).toHaveBeenCalledWith('[LLMProvider] LLM stream completed:', expect.stringContaining('"finalContent": "response"'));
-      expect(consoleSpy).toHaveBeenCalledWith('[LLMProvider] LLM stream completed:', expect.stringContaining('"show_translation"'));
+      const calls = consoleSpy.mock.calls.map((c) => c.join(' '));
+      expect(calls.some((line) => line.includes('[LLMProvider] Prompt sent to LLM:'))).toBe(true);
+      expect(calls.some((line) => line.includes('[LLMProvider] LLM stream completed:') && line.includes('"finalContent": "response"'))).toBe(true);
+      expect(calls.some((line) => line.includes('[LLMProvider] LLM stream completed:') && line.includes('show_translation'))).toBe(true);
     });
 
     it('calls onToolCall for each tool call in the stream', async () => {

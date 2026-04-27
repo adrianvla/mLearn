@@ -6,6 +6,9 @@
  */
 
 import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall } from '../types';
+import { getLogger } from '../utils/logger';
+
+const log = getLogger("shared.backends.cloudLLM");
 
 export interface CloudLLMCallbacks {
   onChunk: (chunk: LLMStreamChunk) => void;
@@ -191,7 +194,7 @@ export class CloudLLMAdapter {
                 return;
               }
             } catch (e) {
-              console.error(e);
+              log.error("error", e);
               // Skip malformed JSON
             }
           }
@@ -202,7 +205,7 @@ export class CloudLLMAdapter {
       callbacks.onChunk({ done: true });
       callbacks.onDone();
     } catch (err) {
-      console.error(err);
+      log.error("error", err);
       if ((err as Error).name === 'AbortError') {
         callbacks.onChunk({ done: true });
         callbacks.onDone();
@@ -247,7 +250,7 @@ export class CloudLLMAdapter {
         throw e;
       }
 
-      console.error(e);
+      log.error("error", e);
       return false;
     }
   }

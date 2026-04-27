@@ -8,6 +8,9 @@ import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
 import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
+import { getLogger } from '../shared/utils/logger';
+
+const log = getLogger('electron.preload');
 
 /**
  * Type-safe IPC API exposed to renderer
@@ -194,6 +197,9 @@ const mLearnIPC = {
   onOcrStatusUpdate: (callback: (message: string) => void) =>
     ipcOn(IPC_CHANNELS.OCR_STATUS_UPDATE, (_event, message) => callback(message)),
 
+  // ========== Logging ==========
+  sendLogRecord: (record: unknown) => ipcRenderer.send(IPC_CHANNELS.LOG_RECORD, record),
+
   // ========== Installation ==========
   startInstall: (options: InstallOptions) => ipcRenderer.send(IPC_CHANNELS.START_INSTALL, options),
   requestInstallerState: () => ipcRenderer.send(IPC_CHANNELS.INSTALLER_STATE_REQUEST),
@@ -282,7 +288,7 @@ const mLearnIPC = {
     try {
       return webUtils.getPathForFile(file);
     } catch (e) {
-      console.error(e);
+      log.error('getPathForFile failed', e);
       return '';
     }
   },

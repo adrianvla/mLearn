@@ -8,6 +8,9 @@
 
 import type { Token, TranslationResponse } from '../types';
 import type { AnkiWordStatusRecord, BackendAdapter, OCRResult } from './types';
+import { getLogger } from '../utils/logger';
+
+const log = getLogger("shared.backends.http");
 
 export interface HttpBackendOptions {
   /** Bearer token for auth (optional) */
@@ -173,7 +176,7 @@ export class HttpBackend implements BackendAdapter {
         throw e;
       }
 
-      console.error(e);
+      log.error("error", e);
       return false;
     }
   }

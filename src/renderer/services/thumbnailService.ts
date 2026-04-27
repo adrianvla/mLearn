@@ -4,6 +4,9 @@
  */
 
 import { getBridge } from '../../shared/bridges';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.thumbnail");
 
 /**
  * Capture a screenshot from a video element and return as a data URL
@@ -20,7 +23,7 @@ export function captureVideoThumbnail(
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      console.warn('Failed to get canvas 2D context');
+      log.warn('Failed to get canvas 2D context');
       return '';
     }
 
@@ -29,7 +32,7 @@ export function captureVideoThumbnail(
     const videoHeight = video.videoHeight || video.clientHeight || 0;
 
     if (videoWidth === 0 || videoHeight === 0) {
-      console.warn('Video has no dimensions');
+      log.warn('Video has no dimensions');
       return '';
     }
 
@@ -47,7 +50,7 @@ export function captureVideoThumbnail(
     // Return as JPEG data URL
     return canvas.toDataURL('image/jpeg', quality);
   } catch (e) {
-    console.error('Failed to capture video thumbnail:', e);
+    log.error('Failed to capture video thumbnail:', e);
     return '';
   }
 }
@@ -84,7 +87,7 @@ export function captureImageThumbnail(
 
     return canvas.toDataURL('image/jpeg', quality);
   } catch (e) {
-    console.error('Failed to capture image thumbnail:', e);
+    log.error('Failed to capture image thumbnail:', e);
     return '';
   }
 }
@@ -151,7 +154,7 @@ export async function saveToRecentItems(
   try {
     // Warn if saving without path - these items won't be openable
     if (!item.path || !item.path.trim()) {
-      console.warn(`[Recent] Saving item "${item.name}" without path - it cannot be reopened from welcome screen`);
+      log.warn(`[Recent] Saving item "${item.name}" without path - it cannot be reopened from welcome screen`);
     }
     
     const items = await getRecentItems();
@@ -175,7 +178,7 @@ export async function saveToRecentItems(
     
     await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(updated));
   } catch (e) {
-    console.error('Failed to save recent item:', e);
+    log.error('Failed to save recent item:', e);
   }
 }
 
@@ -187,7 +190,7 @@ export async function getRecentItems(): Promise<RecentItem[]> {
     const stored = await getBridge().kvStore.kvGet(STORAGE_KEY);
     return stored ? JSON.parse(stored) : [];
   } catch (e) {
-    console.error('Failed to get recent items:', e);
+    log.error('Failed to get recent items:', e);
     return [];
   }
 }
@@ -204,7 +207,7 @@ export async function updateRecentItemThumbnail(name: string, thumbnail: string)
       await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
     }
   } catch (e) {
-    console.error('Failed to update recent item thumbnail:', e);
+    log.error('Failed to update recent item thumbnail:', e);
   }
 }
 
@@ -221,7 +224,7 @@ export async function updateRecentItemProgress(name: string, progress: number): 
       await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
     }
   } catch (e) {
-    console.error('Failed to update recent item progress:', e);
+    log.error('Failed to update recent item progress:', e);
   }
 }
 
@@ -235,7 +238,7 @@ export async function updateRecentItemSubtitlePath(name: string, subtitlePath: s
       await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
     }
   } catch (e) {
-    console.error('Failed to update recent item subtitle path:', e);
+    log.error('Failed to update recent item subtitle path:', e);
   }
 }
 
@@ -248,7 +251,7 @@ export async function updateRecentItemThumbnailByPath(path: string, thumbnail: s
       await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
     }
   } catch (e) {
-    console.error('Failed to update recent item thumbnail by path:', e);
+    log.error('Failed to update recent item thumbnail by path:', e);
   }
 }
 
@@ -262,7 +265,7 @@ export async function updateRecentItemProgressByPath(path: string, progress: num
       await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
     }
   } catch (e) {
-    console.error('Failed to update recent item progress by path:', e);
+    log.error('Failed to update recent item progress by path:', e);
   }
 }
 
@@ -276,7 +279,7 @@ export async function updateRecentItemSubtitlePathByPath(path: string, subtitleP
       await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
     }
   } catch (e) {
-    console.error('Failed to update recent item subtitle path by path:', e);
+    log.error('Failed to update recent item subtitle path by path:', e);
   }
 }
 
@@ -290,7 +293,7 @@ export async function updateRecentItemPlaybackTime(name: string, playbackTime: n
       await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
     }
   } catch (e) {
-    console.error('Failed to update recent item playback time:', e);
+    log.error('Failed to update recent item playback time:', e);
   }
 }
 
@@ -304,6 +307,6 @@ export async function updateRecentItemPlaybackTimeByPath(path: string, playbackT
       await getBridge().kvStore.kvSet(STORAGE_KEY, JSON.stringify(items));
     }
   } catch (e) {
-    console.error('Failed to update recent item playback time by path:', e);
+    log.error('Failed to update recent item playback time by path:', e);
   }
 }

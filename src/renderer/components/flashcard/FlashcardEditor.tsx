@@ -16,6 +16,9 @@ import { isElectron } from '../../../shared/platform';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { showToast } from '../common/Feedback/Toast';
 import './FlashcardEditor.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.flashcardEditor");
 
 export interface FlashcardEditorProps {
   /** Flashcard to edit (null for new card) */
@@ -147,7 +150,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
             exampleHtml = tokensToColoredHtml(tokens, settings.colour_codes || {}, front());
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           // Use plain text if tokenization fails
         }
         setExample(exampleHtml);
@@ -160,7 +163,7 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
         showToast({ message: t('mlearn.CardEditor.RegenerateExample'), variant: 'success' });
       }
     } catch (e) {
-      console.warn('Failed to regenerate example:', e);
+      log.warn('Failed to regenerate example:', e);
     } finally {
       setRegeneratingExample(false);
     }

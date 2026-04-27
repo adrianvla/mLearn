@@ -24,6 +24,9 @@ import { streamChat } from '../services/llmProvider';
 import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from '../services/cloudSessionManager';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.context.flashcard");
 
 // Current store version
 const CURRENT_VERSION = 6;
@@ -336,11 +339,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Handle migration IPC event
   const handleMigrationComplete = (...args: unknown[]) => {
     const info = args[0] as { occurred: boolean; backupPath: string | null; fromVersion: number | null } | undefined;
-    console.log('[FlashcardContext] Received migration IPC:', info);
+    log.info('[FlashcardContext] Received migration IPC:', info);
     if (info?.occurred) {
-      console.log('[FlashcardContext] Flashcard migration completed from v', info.fromVersion);
+      log.info('[FlashcardContext] Flashcard migration completed from v', info.fromVersion);
       const dispatchMigrationEvent = () => {
-        console.log('[FlashcardContext] Dispatching migration event to window');
+        log.info('[FlashcardContext] Dispatching migration event to window');
         window.dispatchEvent(new CustomEvent('mlearn-flashcard-migration', { 
           detail: info 
         }));
@@ -368,12 +371,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
             setStore(reconcile(checked));
             refreshQueue();
           } catch (e) {
-            console.error('Failed to parse flashcards from KV store:', e);
+            log.error('Failed to parse flashcards from KV store:', e);
           }
         }
         setIsLoading(false);
       }).catch((e) => {
-        console.error('Failed to load flashcards from KV store:', e);
+        log.error('Failed to load flashcards from KV store:', e);
         setIsLoading(false);
       });
     }
@@ -568,7 +571,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     try {
       serializedStore = JSON.parse(JSON.stringify(store));
     } catch (e) {
-      console.error('Failed to serialize flashcard store:', e);
+      log.error('Failed to serialize flashcard store:', e);
       return;
     }
 
@@ -582,7 +585,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     try {
       broadcastChannel?.postMessage({ type: 'update', store: serializedStore });
     } catch (e) {
-      console.error('Failed to broadcast flashcard update:', e);
+      log.error('Failed to broadcast flashcard update:', e);
     }
   };
 
@@ -673,7 +676,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (entry.restore) {
       const result = entry.restore();
       if (result && typeof (result as Promise<void>).then === 'function') {
-        (result as Promise<void>).catch(console.error);
+        (result as Promise<void>).catch((err) => log.error("unhandled promise rejection", err));
       }
     }
 
@@ -688,7 +691,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Add new flashcard - now supports multiple cards per word
   // When use_anki is enabled, shows a choice modal (SRS vs Anki) before creation
   const addFlashcard = async (content: Partial<FlashcardContent> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean): Promise<string> => {
-    console.log('%caddFlashcard called with:', 'color: magenta; font-weight: bold;', content.front);
+    log.info('%caddFlashcard called with:', 'color: magenta; font-weight: bold;', content.front);
 
     // Intercept: if Anki integration is enabled and choice not skipped, let user choose SRS vs Anki
     if (settings.use_anki && !skipAnkiChoice && !settings.flashcardSkipAnkiChoice) {
@@ -697,12 +700,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
       });
 
       if (target === 'cancel') {
-        console.log(`Flashcard creation for "${content.front}" was cancelled by user.`);
+        log.info(`Flashcard creation for "${content.front}" was cancelled by user.`);
         return '';
       }
       if (target === 'anki') {
         // The modal handles Anki export; we don't create a local SRS card
-        console.log(`Flashcard for "${content.front}" was exported to Anki.`);
+        log.info(`Flashcard for "${content.front}" was exported to Anki.`);
         return '';
       }
       // target === 'srs' → continue with normal SRS creation below
@@ -714,11 +717,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const wordHash = await SRS.hashWord(canonical);
     const lang = settings.language;
     const lk = langKey(lang, wordHash);
-    console.log('%caddFlashcard: wordHash generated:', 'color: magenta;', wordHash);
+    log.info('%caddFlashcard: wordHash generated:', 'color: magenta;', wordHash);
 
     // Check if marked as known (skip flashcard creation)
     if (store.knownUntracked[lk]) {
-      console.log(`Word "${word}" is marked as known, not creating flashcard.`);
+      log.info(`Word "${word}" is marked as known, not creating flashcard.`);
       return '';
     }
 
@@ -782,7 +785,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     refreshQueue();
     saveFlashcards();
-    console.log(`Created new flashcard for word: ${word} (now has ${store.wordToCardMap[lk]?.length || 1} cards)`);
+    log.info(`Created new flashcard for word: ${word} (now has ${store.wordToCardMap[lk]?.length || 1} cards)`);
 
     // Post-creation async tasks: translate example and generate TTS
     // Only run for user-initiated creation (skipAnkiChoice is true for batch/auto creation)
@@ -886,7 +889,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         }
         updatePostCreateTask(wordLabel, 'translation', 'done');
       } catch (err) {
-        console.warn('Failed to translate example sentence:', err);
+        log.warn('Failed to translate example sentence:', err);
         updatePostCreateTask(wordLabel, 'translation', 'error');
       }
     };
@@ -917,7 +920,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         }
       } catch (err) {
         handleCloudOperationFallback(err);
-        console.warn('Failed to generate word TTS:', err);
+        log.warn('Failed to generate word TTS:', err);
         updatePostCreateTask(wordLabel, 'wordTts', 'error');
       }
 
@@ -940,7 +943,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           }
         } catch (err) {
           handleCloudOperationFallback(err);
-          console.warn('Failed to generate example TTS:', err);
+          log.warn('Failed to generate example TTS:', err);
           updatePostCreateTask(wordLabel, 'exampleTts', 'error');
         }
       }
@@ -1011,20 +1014,20 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // Clean up associated video file
     if (card.content.videoUrl) {
       getBridge().flashcards.deleteFlashcardVideo(id).catch((err: unknown) =>
-        console.warn('Failed to delete flashcard video:', err)
+        log.warn('Failed to delete flashcard video:', err)
       );
     }
 
     // Clean up associated image file
     if (card.content.imageUrl) {
       getBridge().flashcards.deleteFlashcardImage(id).catch((err: unknown) =>
-        console.warn('Failed to delete flashcard image:', err)
+        log.warn('Failed to delete flashcard image:', err)
       );
     }
 
     // Clean up associated TTS audio (word + example fields)
     getBridge().flashcards.deleteFlashcardTts(id).catch((err: unknown) =>
-      console.warn('Failed to delete flashcard TTS:', err)
+      log.warn('Failed to delete flashcard TTS:', err)
     );
 
     saveFlashcards();
@@ -1509,7 +1512,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     try {
       backendAvailable = await backend.ping();
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
     }
     if (!backendAvailable) {
       showToast({ message: t('mlearn.Settings.SRS.BuiltInFlashcards.ForceRecreate.BackendUnavailable'), variant: 'error' });
@@ -1561,7 +1564,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
               exampleMeaning = result.meaning;
             }
           } catch (e) {
-            console.warn(`Failed to generate LLM example for "${suggestion.word}":`, e);
+            log.warn(`Failed to generate LLM example for "${suggestion.word}":`, e);
           }
         }
 
@@ -1622,7 +1625,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           }
         } catch (e) {
           handleCloudOperationFallback(e);
-          console.warn(`Failed to generate TTS for promoted suggestion "${suggestion.word}":`, e);
+          log.warn(`Failed to generate TTS for promoted suggestion "${suggestion.word}":`, e);
         }
         }
 
@@ -1631,7 +1634,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           delete s.suggestedFlashcards[key];
         }));
       } catch (e) {
-        console.warn(`Failed to promote suggestion "${suggestion?.word}":`, e);
+        log.warn(`Failed to promote suggestion "${suggestion?.word}":`, e);
       } finally {
         done++;
         onProgress?.(done, total);
@@ -2028,7 +2031,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     try {
       backendAvailable = await backend.ping();
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       backendAvailable = false;
     }
 
@@ -2098,7 +2101,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
             exampleSentence = result.sentence;
             exampleMeaning = result.meaning;
           } catch (e) {
-            console.warn(`Failed to generate LLM example for "${candidate.word}":`, e);
+            log.warn(`Failed to generate LLM example for "${candidate.word}":`, e);
           }
         }
 
@@ -2125,7 +2128,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
           delete s.wordCandidates[compositeKey];
         }));
       } catch (e) {
-        console.warn(`Failed to auto-create flashcard for "${candidate.word}":`, e);
+        log.warn(`Failed to auto-create flashcard for "${candidate.word}":`, e);
       }
     }
 
@@ -2282,7 +2285,7 @@ Translation: [${targetLang} translation]`;
         try {
           createdTotal += await autoCreateFlashcardsFromCandidates(useLLM);
         } catch (e) {
-          console.error('Failed to auto-create flashcards from candidates:', e);
+          log.error('Failed to auto-create flashcards from candidates:', e);
         }
       }
 
@@ -2305,7 +2308,7 @@ Translation: [${targetLang} translation]`;
           try {
             createdTotal += await promoteSuggestedFlashcards(pickIds, { useLLM });
           } catch (e) {
-            console.error('Failed to auto-promote suggestions:', e);
+            log.error('Failed to auto-promote suggestions:', e);
           }
         }
       }
@@ -2358,7 +2361,7 @@ Translation: [${targetLang} translation]`;
             changeKnownStatusInStats(update.word, update.status);
           }
         } catch (e) {
-          console.error('[Tethered] Failed to process pill updates:', e);
+          log.error('[Tethered] Failed to process pill updates:', e);
         }
       }));
 
@@ -2369,7 +2372,7 @@ Translation: [${targetLang} translation]`;
             trackWordAppearance(word);
           }
         } catch (e) {
-          console.error('[Tethered] Failed to process word appearance updates:', e);
+          log.error('[Tethered] Failed to process word appearance updates:', e);
         }
       }));
 
@@ -2380,7 +2383,7 @@ Translation: [${targetLang} translation]`;
             trackWordAppearance(update.word);
           }
         } catch (e) {
-          console.error('[Tethered] Failed to process flashcard creation attempts:', e);
+          log.error('[Tethered] Failed to process flashcard creation attempts:', e);
         }
       }));
 
@@ -2414,7 +2417,7 @@ Translation: [${targetLang} translation]`;
             }
           }
         } catch (e) {
-          console.error('[Tethered] Failed to process flashcard creation:', e);
+          log.error('[Tethered] Failed to process flashcard creation:', e);
         }
       }));
 
@@ -2428,11 +2431,11 @@ Translation: [${targetLang} translation]`;
               if (list.length > 20) list.length = 20;
               bridge.kvStore.kvSet('mlearn_recently_watched', JSON.stringify(list));
             }).catch((e) => {
-              console.warn('[Tethered] Failed to save last watched:', e);
+              log.warn('[Tethered] Failed to save last watched:', e);
             });
           }
         } catch (e) {
-          console.error('[Tethered] Failed to process last watched updates:', e);
+          log.error('[Tethered] Failed to process last watched updates:', e);
         }
       }));
     }

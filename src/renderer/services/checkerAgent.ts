@@ -13,6 +13,9 @@ import type {
   ToolCall,
 } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.checkerAgent");
 
 // ============================================================================
 // Types
@@ -246,7 +249,7 @@ export function createCheckerAgent(): CheckerAgentInstance {
         tools.push(CORRECTION_TOOL);
       }
 
-      console.log('[CheckerAgent] Prompt:', JSON.stringify(messages, null, 2));
+      log.info('[CheckerAgent] Prompt:', JSON.stringify(messages, null, 2));
 
       const collectedToolCalls: ToolCall[] = [];
       let accumulated = '';
@@ -468,7 +471,7 @@ function parseToolCallsFromContent(content: string): ToolCall[] {
         arguments: args,
       });
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // JSON parse failed
     }
   }
@@ -487,7 +490,7 @@ function parseToolCallsFromContent(content: string): ToolCall[] {
           arguments: args,
         });
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         // JSON parse failed
       }
     }

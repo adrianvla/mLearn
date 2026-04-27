@@ -24,6 +24,9 @@ import { ChatBubble } from './ChatBubble';
 import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceMode, VoiceSample, Token, TTSProvider } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './VoiceTab.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.conversationAgent.voice");
 
 // ============================================================================
 // Icons
@@ -160,7 +163,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         }
       }
     } catch (err) {
-      console.error('[VoiceTab] Failed to check voice models:', err);
+      log.error('[VoiceTab] Failed to check voice models:', err);
     } finally {
       setIsChecking(false);
     }
@@ -172,7 +175,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       const samples = await getBridge().voice.voiceSampleList();
       if (samples) setVoiceSamples(samples);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // ignore
     }
   };
@@ -323,7 +326,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         void withCloudAuth(async () => {
             getBridge().voice.voiceTtsGenerate(last.content, props.language, ttsSpeed(), sampleId, provider);
         }).catch((error) => {
-          console.error(error);
+          log.error("error", error);
         });
       }
     }
@@ -378,7 +381,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       updateVisualizer();
       setMicError('');
     } catch (err) {
-      console.error('Microphone access error:', err);
+      log.error('Microphone access error:', err);
       setMicError(t('mlearn.ConversationAgent.Voice.MicPermission'));
     }
   };
@@ -538,7 +541,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const stopTTSPlayback = () => {
     if (ttsSource) {
       try { ttsSource.stop(); } catch (e) {
-        console.error(e);
+        log.error("error", e);
       }
       ttsSource = null;
     }
@@ -670,7 +673,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         await getBridge().voice.voiceSampleUpload(filePath, name);
         await loadVoiceSamples();
       } catch (err) {
-        console.error('[VoiceTab] Failed to upload voice sample:', err);
+        log.error('[VoiceTab] Failed to upload voice sample:', err);
       }
     };
     input.click();

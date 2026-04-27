@@ -8,6 +8,9 @@ import {
   PluginPermission,
 } from '../../shared/plugins/types';
 import { getUserDataPath } from '../utils/platform';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.pluginManager');
 
 const MANIFEST_FILE_NAME = 'plugin.json';
 const DEFAULT_PLUGIN_MAIN = 'dist/main.js';
@@ -105,7 +108,7 @@ export function loadPersistedState(): PersistedPluginState {
       permissionsGranted: isStringRecord(parsed.permissionsGranted) ? parsed.permissionsGranted : {},
     });
   } catch (error) {
-    console.error('[plugins] Failed to load persisted plugin state:', error);
+    log.error('[plugins] Failed to load persisted plugin state:', error);
     return { disabled: [], permissionsGranted: {} };
   }
 }
@@ -118,7 +121,7 @@ export function savePersistedState(state: PersistedPluginState): void {
     fs.mkdirSync(path.dirname(statePath), { recursive: true });
     fs.writeFileSync(statePath, JSON.stringify(normalized, null, 2), 'utf-8');
   } catch (error) {
-    console.error('[plugins] Failed to save persisted plugin state:', error);
+    log.error('[plugins] Failed to save persisted plugin state:', error);
   }
 }
 
@@ -358,7 +361,7 @@ export function discoverPlugins(): void {
       const manifest = validateManifest(rawManifest, pluginDir);
 
       if (registry.has(manifest.id)) {
-        console.warn(`[plugins] Duplicate plugin id '${manifest.id}' in ${pluginDir}; skipping`);
+        log.warn(`[plugins] Duplicate plugin id '${manifest.id}' in ${pluginDir}; skipping`);
         continue;
       }
 
@@ -393,7 +396,7 @@ export function discoverPlugins(): void {
 
       registry.set(manifest.id, entry);
     } catch (error) {
-      console.error(`[plugins] Failed to discover plugin at ${pluginDir}:`, error);
+      log.error(`[plugins] Failed to discover plugin at ${pluginDir}:`, error);
     }
   }
 }
@@ -445,7 +448,7 @@ export async function initPluginManager(): Promise<void> {
     }
   }
 
-  console.log(`[plugins] Plugin manager initialized with ${registry.size} plugin(s)`);
+  log.info(`[plugins] Plugin manager initialized with ${registry.size} plugin(s)`);
 }
 
 export function listPlugins(): PluginState[] {
@@ -477,7 +480,7 @@ export async function disablePlugin(id: string): Promise<PluginState | null> {
     try {
       await deactivate();
     } catch (error) {
-      console.error(`[plugins] Failed to deactivate plugin '${id}':`, error);
+      log.error(`[plugins] Failed to deactivate plugin '${id}':`, error);
     }
   }
 

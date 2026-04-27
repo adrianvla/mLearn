@@ -9,6 +9,9 @@ import path from 'path';
 import { app, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.kvStore');
 
 let store: Record<string, string> | null = null;
 
@@ -33,7 +36,7 @@ async function loadStore(): Promise<Record<string, string>> {
     try {
       await fs.promises.access(storePath);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       store = {};
       return store;
     }
@@ -42,12 +45,12 @@ async function loadStore(): Promise<Record<string, string>> {
     if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
       store = parsed as Record<string, string>;
     } else {
-      console.warn('[kvStore] Loaded data is not a plain object — using empty store');
+      log.warn('[kvStore] Loaded data is not a plain object — using empty store');
       store = {};
     }
     return store;
   } catch (error) {
-    console.error('[kvStore] Failed to load store:', error);
+    log.error('[kvStore] Failed to load store:', error);
     store = {};
     return store;
   }
@@ -61,13 +64,13 @@ async function persistStore(): Promise<void> {
     try {
       await fs.promises.access(dir);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       await fs.promises.mkdir(dir, { recursive: true });
     }
     await fs.promises.writeFile(tmpPath, JSON.stringify(store, null, 2));
     await fs.promises.rename(tmpPath, storePath);
   } catch (error) {
-    console.error('[kvStore] Failed to persist store:', error);
+    log.error('[kvStore] Failed to persist store:', error);
   }
 }
 

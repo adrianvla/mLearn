@@ -12,6 +12,9 @@ import { getUserDataPath } from '../utils/platform';
 import { loadSamplesManifest, getVoiceSamplePath } from './voiceService';
 import { limitConsecutiveDots } from '../../shared/utils/textUtils';
 import http from 'http';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.flashcardTtsStorage');
 
 const SCHEME = 'flashcard-audio';
 
@@ -58,7 +61,7 @@ function writeMetadata(cardId: string, field: 'word' | 'example', provider: stri
   try {
     fs.writeFileSync(metaPath(cardId, field), JSON.stringify(meta));
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     // Non-critical — silently ignore
   }
 }
@@ -70,7 +73,7 @@ function getFlashcardTtsMeta(cardId: string, field: 'word' | 'example'): { provi
   try {
     return JSON.parse(fs.readFileSync(mp, 'utf8'));
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return null;
   }
 }
@@ -93,7 +96,7 @@ function getFlashcardTts(cardId: string, field: 'word' | 'example'): string | nu
       // Corrupt / truncated file — remove it so repair can regenerate
       fs.unlinkSync(filePath);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // stat/unlink failed — treat as missing
     }
   }
@@ -132,11 +135,11 @@ async function generateViaLocal(text: string, language: string, outputPath: stri
           res.on('data', (chunk) => errorChunks.push(chunk));
           res.on('end', () => {
             const errorBody = Buffer.concat(errorChunks).toString().slice(0, 500);
-            console.error(`${label} HTTP ${res.statusCode} for "${textSnippet}": ${errorBody}`);
+            log.error(`${label} HTTP ${res.statusCode} for "${textSnippet}": ${errorBody}`);
             resolve(false);
           });
           res.on('error', () => {
-            console.error(`${label} HTTP ${res.statusCode} for "${textSnippet}" (error reading body)`);
+            log.error(`${label} HTTP ${res.statusCode} for "${textSnippet}" (error reading body)`);
             resolve(false);
           });
           return;
@@ -151,23 +154,23 @@ async function generateViaLocal(text: string, language: string, outputPath: stri
             fs.writeFileSync(outputPath, data);
             resolve(true);
           } else {
-            console.error(`${label} empty response body for "${textSnippet}"`);
+            log.error(`${label} empty response body for "${textSnippet}"`);
             resolve(false);
           }
         });
         res.on('error', (err) => {
-          console.error(`${label} response stream error for "${textSnippet}":`, err.message);
+          log.error(`${label} response stream error for "${textSnippet}":`, err.message);
           resolve(false);
         });
       },
     );
 
     req.on('error', (err) => {
-      console.error(`${label} request error for "${textSnippet}":`, err.message);
+      log.error(`${label} request error for "${textSnippet}":`, err.message);
       resolve(false);
     });
     req.on('timeout', () => {
-      console.error(`${label} request timed out for "${textSnippet}"`);
+      log.error(`${label} request timed out for "${textSnippet}"`);
       req.destroy();
       resolve(false);
     });
@@ -221,7 +224,7 @@ async function generateViaCloud(text: string, language: string, outputPath: stri
               }
               resolve({ streamUrl });
             } catch (e) {
-              console.error(e);
+              log.error("error", e);
               reject(e);
             }
           });
@@ -270,7 +273,7 @@ async function generateViaCloud(text: string, language: string, outputPath: stri
     }
     return false;
   } catch (e) {
-    console.error('[FlashcardTTS] Cloud generation failed:', e);
+    log.error('[FlashcardTTS] Cloud generation failed:', e);
     return false;
   }
 }
@@ -325,12 +328,12 @@ async function generateFlashcardTts(
 
     if (attempt < MAX_TTS_ATTEMPTS) {
       const delay = TTS_RETRY_BASE_DELAY * Math.pow(2, attempt - 1);
-      console.error(`[FlashcardTTS] attempt ${attempt}/${MAX_TTS_ATTEMPTS} failed for "${cardId}-${field}", retrying in ${delay}ms`);
+      log.error(`[FlashcardTTS] attempt ${attempt}/${MAX_TTS_ATTEMPTS} failed for "${cardId}-${field}", retrying in ${delay}ms`);
       await new Promise((r) => setTimeout(r, delay));
     }
   }
 
-  console.error(`[FlashcardTTS] all ${MAX_TTS_ATTEMPTS} attempts failed for "${cardId}-${field}"`);
+  log.error(`[FlashcardTTS] all ${MAX_TTS_ATTEMPTS} attempts failed for "${cardId}-${field}"`);
   return null;
 }
 
@@ -414,14 +417,14 @@ export function deleteFlashcardTts(cardId: string): void {
       try {
         fs.unlinkSync(audio);
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
       }
     }
     if (fs.existsSync(meta)) {
       try {
         fs.unlinkSync(meta);
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
       }
     }
   }

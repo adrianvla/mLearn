@@ -15,6 +15,9 @@ import {
   type FlashcardStore,
 } from '../../services/flashcardSyncService';
 import './FlashcardSyncModal.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.flashcardSyncModal");
 
 interface QRCodeRenderer {
   toCanvas: (
@@ -108,7 +111,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       // Start connection
       await startConnection();
     } catch (e) {
-      console.error('Failed to load sync libraries:', e);
+      log.error('Failed to load sync libraries:', e);
       setError(t('mlearn.Flashcards.Sync.Error.LoadLibraries', { error: e instanceof Error ? e.message : String(e) }));
       setPhase('error');
     }
@@ -136,7 +139,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       try {
         peer.destroy();
       } catch (e) {
-        console.error('Error destroying peer:', e);
+        log.error('Error destroying peer:', e);
       }
       peer = null;
     }
@@ -158,7 +161,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       
       peer.on('signal', (data: unknown) => {
         const signalStr = JSON.stringify(data);
-        console.log('Generated signal data:', signalStr.length, 'bytes');
+        log.info('Generated signal data:', signalStr.length, 'bytes');
         
         // Calculate number of chunks
         const numChunks = Math.ceil(signalStr.length / 60);
@@ -174,7 +177,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       });
       
       peer.on('connect', () => {
-        console.log('Peer connected!');
+        log.info('Peer connected!');
         setPhase('syncing');
         setStatusText(t('mlearn.Flashcards.Sync.ConnectedSyncing'));
         stopScanning();
@@ -188,13 +191,13 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       });
       
       peer.on('error', (err: Error) => {
-        console.error('Peer error:', err);
+        log.error('Peer error:', err);
         setError(err.message);
         setPhase('error');
       });
       
     } catch (e) {
-      console.error('Connection error:', e);
+      log.error('Connection error:', e);
       setError(t('mlearn.Flashcards.Sync.Error.Connection'));
       setPhase('error');
     }
@@ -231,7 +234,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         });
         qrCodeEl.appendChild(canvas);
       } catch (e) {
-        console.error('QR render error:', e);
+        log.error('QR render error:', e);
       }
       
       // Cycle to next chunk
@@ -293,7 +296,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         scan();
       }
     } catch (e) {
-      console.error('Camera access error:', e);
+      log.error('Camera access error:', e);
       setError(t('mlearn.Flashcards.Sync.Error.CameraAccess'));
       setPhase('error');
     }
@@ -320,7 +323,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       setProgress((current / total) * 100);
       
       if (isComplete) {
-        console.log('All QR chunks collected');
+        log.info('All QR chunks collected');
         const assembled = chunkCollector.assemble();
         const signal = JSON.parse(assembled);
         peer?.signal(signal);
@@ -329,7 +332,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         setStatusText(t('mlearn.Flashcards.Sync.EstablishingConnection'));
       }
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Ignore invalid QR codes
     }
   };
@@ -340,7 +343,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     try {
       await sendChunkedWithBackpressure(peer, 'sync', storeData);
     } catch (e) {
-      console.error('Error sending flashcards:', e);
+      log.error('Error sending flashcards:', e);
       setError(t('mlearn.Flashcards.Sync.Error.Connection'));
       setPhase('error');
     }
@@ -383,7 +386,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         }
       }
     } catch (e) {
-      console.error('Error handling incoming data:', e);
+      log.error('Error handling incoming data:', e);
     }
   };
 

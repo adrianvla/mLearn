@@ -6,6 +6,9 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { getBridge } from '../../shared/bridges';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.context.localization");
 
 // Type for nested locale strings
 export type LocaleStrings = Record<string, unknown>;
@@ -68,10 +71,10 @@ export const LocalizationProvider: ParentComponent = (props) => {
   // Load localization from platform bridge
   const loadLocalization = () => {
     const bridge = getBridge();
-    console.log('[LocalizationContext] Loading localization...');
+    log.info('[LocalizationContext] Loading localization...');
     // Set up listener BEFORE sending request to avoid race condition
     ipcCleanups.push(bridge.localization.onLocalization((data) => {
-      console.log('[LocalizationContext] Localization received, locale:', data.locale);
+      log.info('[LocalizationContext] Localization received, locale:', data.locale);
       setLocale(data.locale);
       setStrings(reconcile(data.strings as LocaleStrings));
       setIsLoaded(true);
@@ -87,7 +90,7 @@ export const LocalizationProvider: ParentComponent = (props) => {
       // Only log warning if strings are loaded but the key is missing
       // Don't warn during initial load when strings haven't been fetched yet
       if (process.env.NODE_ENV !== 'production' && isLoaded() && Object.keys(strings).length > 0) {
-        console.warn(`[Localization] String not found: ${path}`);
+        log.warn(`[Localization] String not found: ${path}`);
       }
       // Return the last part of the path as fallback for better UX
       // const fallback = path.split('.').pop() || path;
@@ -109,7 +112,7 @@ export const LocalizationProvider: ParentComponent = (props) => {
     try {
       broadcastChannel?.postMessage({ type: 'language-change', locale: langCode });
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Ignore broadcast errors
     }
   };
@@ -131,7 +134,7 @@ export const LocalizationProvider: ParentComponent = (props) => {
       broadcastChannel = new BroadcastChannel(LOCALIZATION_CHANNEL);
       broadcastChannel.onmessage = handleBroadcast;
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // BroadcastChannel not available
     }
 

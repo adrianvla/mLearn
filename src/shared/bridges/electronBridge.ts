@@ -142,6 +142,7 @@ const serverBridge: ServerBridge = {
   onAnkiConnectionError: (cb) => getIPC().onAnkiConnectionError(cb),
   restartBackendAnkiOverride: (disableAnki) => getIPC().restartBackendAnkiOverride(disableAnki),
   onOcrStatusUpdate: (cb) => getIPC().onOcrStatusUpdate(cb),
+  sendLogRecord: (record) => getIPC().sendLogRecord(record),
   restartApp: () => getIPC().restartApp(),
   forceRestartApp: () => getIPC().forceRestartApp(),
   restartBackend: () => getIPC().restartBackend(),

@@ -20,12 +20,17 @@ import config
 
 config.init()
 
+# ── Logging ──
+from logging_utils import get_logger, install_crash_handler, set_log_dir, _process_stats
+
+install_crash_handler(config.USER_DATA_PATH)
+set_log_dir(config.USER_DATA_PATH)
+
+log = get_logger("server")
+
 config.QUIT_TOKEN = secrets.token_hex(32)
 
-# ── Logging ──
-from logging_utils import _log, _process_stats
-
-_log(f"::QUIT_TOKEN::{config.QUIT_TOKEN}")
+log.info(f"::QUIT_TOKEN::{config.QUIT_TOKEN}")
 
 # ── Route modules ──
 from routes import anki, nlp, ocr, llm, voice
@@ -54,14 +59,13 @@ app.include_router(voice.router)
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    _log("HTTP", request.method, str(request.url))
+    log.info(f"HTTP {request.method} {request.url}")
     try:
         response = await call_next(request)
-        _log("HTTP Response", response.status_code, request.method, str(request.url))
+        log.info(f"HTTP Response {response.status_code} {request.method} {request.url}")
         return response
     except Exception:
-        _log("HTTP Exception during handling:")
-        _log(traceback.format_exc())
+        log.error("HTTP Exception during handling:", exc_info=True)
         raise
 
 
@@ -79,18 +83,18 @@ async def health():
 
 @app.on_event("startup")
 async def startup_event():
-    _log("Getting all cards")
+    log.info("Getting all cards")
     _process_stats("startup")
-    _log("Runtime info:", config.get_runtime_info())
+    log.info(f"Runtime info: {config.get_runtime_info()}")
 
     resp = anki.get_all_cards()
     if not resp:
-        _log("Anki is offline, loading from Cache")
+        log.info("Anki is offline, loading from Cache")
         if anki.get_all_cards_CACHE():
-            _log("Loaded from cache")
+            log.info("Loaded from cache")
         else:
-            _log("Failed to load from cache")
-            _log("ANKI_ERROR", "connection_failed")
+            log.error("Failed to load from cache")
+            log.error("ANKI_ERROR connection_failed")
             sys.exit(-1)
 
     # Faulthandler for crash diagnostics
@@ -113,9 +117,9 @@ async def startup_event():
                     )
             except Exception:
                 pass
-        _log(f"Faulthandler enabled; crash logs -> {crash_log_path}")
+        log.info(f"Faulthandler enabled; crash logs -> {crash_log_path}")
     except Exception as e:
-        _log("Failed to enable faulthandler:", e)
+        log.error(f"Failed to enable faulthandler: {e}", exc_info=True)
 
     # Mark transformers preimport as not yet done; it will be triggered
     # lazily via POST /ocr/warmup when the reader is first opened,

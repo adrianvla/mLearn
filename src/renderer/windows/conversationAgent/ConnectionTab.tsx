@@ -17,6 +17,9 @@ import {
 import type { SelectOption } from '../../components/common';
 import type { OllamaModel } from '../../../shared/types';
 import './ConnectionTab.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.conversationAgent.connection");
 
 export const ConnectionTab: Component = () => {
   const { settings, updateSetting } = useSettings();
@@ -46,7 +49,7 @@ export const ConnectionTab: Component = () => {
       const connected = await getBridge().llm.ollamaCheck();
       setTestStatus(connected ? 'success' : 'failed');
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setTestStatus('failed');
     }
   };
@@ -58,7 +61,7 @@ export const ConnectionTab: Component = () => {
       const models = (await getBridge().llm.ollamaListModels()) as OllamaModel[] | undefined;
       setAvailableModels(models || []);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setAvailableModels([]);
     }
     setLoadingModels(false);

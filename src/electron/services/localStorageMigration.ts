@@ -17,6 +17,9 @@ import path from 'path';
 import fs from 'fs';
 import { getUserDataPath } from '../utils/platform';
 import { IPC_CHANNELS } from '../../shared/constants';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.localStorageMigration');
 
 // Migration status
 interface MigrationResult {
@@ -73,7 +76,7 @@ export function getMigratedLocalStorage(): MigratedLocalStorage | null {
     try {
       return JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
     } catch (e) {
-      console.error('Failed to read migrated localStorage:', e);
+      log.error('Failed to read migrated localStorage:', e);
     }
   }
   return null;
@@ -124,12 +127,12 @@ async function createMigrationWindow(): Promise<BrowserWindow> {
                   try {
                     data[key] = JSON.parse(value);
                   } catch (e) {
-                    console.error(e);
+                    log.error("error", e);
                     data[key] = value;
                   }
                 }
               } catch (e) {
-                console.warn('Failed to read key:', key);
+                log.warn('Failed to read key:', key);
               }
             }
           }
@@ -168,12 +171,12 @@ async function extractLocalStorage(window: BrowserWindow): Promise<Record<string
                 try {
                   data[key] = JSON.parse(value);
                 } catch (e) {
-                  console.error(e);
+                  log.error("error", e);
                   data[key] = value;
                 }
               }
             } catch (e) {
-              console.warn('Failed to read key:', key);
+              log.warn('Failed to read key:', key);
             }
           }
         }
@@ -183,7 +186,7 @@ async function extractLocalStorage(window: BrowserWindow): Promise<Record<string
     
     return data || {};
   } catch (e) {
-    console.error('Failed to extract localStorage:', e);
+    log.error('Failed to extract localStorage:', e);
     return {};
   }
 }
@@ -232,11 +235,11 @@ function processMigratedData(rawData: Record<string, unknown>): MigratedLocalSto
  * Perform the localStorage migration
  */
 export async function migrateLocalStorage(): Promise<MigrationResult> {
-  console.log('[Migration] Starting localStorage migration...');
+  log.info('[Migration] Starting localStorage migration...');
   
   // Check if already migrated
   if (hasMigrationBeenAttempted()) {
-    console.log('[Migration] Migration already attempted, skipping.');
+    log.info('[Migration] Migration already attempted, skipping.');
     return {
       success: true,
       migratedKeys: [],
@@ -255,10 +258,10 @@ export async function migrateLocalStorage(): Promise<MigrationResult> {
     // Extract localStorage
     const rawData = await extractLocalStorage(migrationWindow);
     
-    console.log('[Migration] Found localStorage keys:', Object.keys(rawData));
+    log.info('[Migration] Found localStorage keys:', Object.keys(rawData));
     
     if (Object.keys(rawData).length === 0) {
-      console.log('[Migration] No localStorage data found to migrate.');
+      log.info('[Migration] No localStorage data found to migrate.');
       const result: MigrationResult = {
         success: true,
         migratedKeys: [],
@@ -275,7 +278,7 @@ export async function migrateLocalStorage(): Promise<MigrationResult> {
     fs.writeFileSync(dataPath, JSON.stringify(processedData, null, 2));
     
     const migratedKeys = Object.keys(processedData);
-    console.log('[Migration] Successfully migrated keys:', migratedKeys);
+    log.info('[Migration] Successfully migrated keys:', migratedKeys);
     
     const result: MigrationResult = {
       success: true,
@@ -286,7 +289,7 @@ export async function migrateLocalStorage(): Promise<MigrationResult> {
     
     return result;
   } catch (error) {
-    console.error('[Migration] Migration failed:', error);
+    log.error('[Migration] Migration failed:', error);
     const result: MigrationResult = {
       success: false,
       migratedKeys: [],

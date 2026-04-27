@@ -1,3 +1,6 @@
+import { getLogger } from './logger';
+
+const log = getLogger("shared.utils.textUtils");
 /**
  * Shared Text Utilities
  * Centralized functions for text processing across languages
@@ -64,7 +67,7 @@ function getMaximizedLocaleScript(language: string): LocaleScriptCode | '' {
     const locale = new Intl.Locale(language).maximize();
     return (locale.script || '').toLowerCase() as LocaleScriptCode | '';
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return '';
   }
 }
@@ -415,7 +418,7 @@ export function normalizeWordLookupText(raw: string): string {
   try {
     text = text.normalize('NFC');
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
   }
 
   text = text

@@ -37,6 +37,9 @@ import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
 import type { FlashcardContent, SuggestedFlashcard } from '../../../shared/types';
 import './FlashcardsSuggested.css';
+import { getLogger } from '@shared/utils/logger';
+
+const log = getLogger("renderer.flashcards.flashcardsSuggested");
 
 type QuickFilter = 'all' | 'failed' | 'dict';
 
@@ -256,7 +259,7 @@ export const FlashcardsSuggested: Component = () => {
       removeSuggestedFlashcard(s.id);
       showToast({ message: t('mlearn.Global.Ignore'), variant: 'info' });
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       showToast({ message: t('mlearn.Global.Error'), variant: 'error' });
     }
   };

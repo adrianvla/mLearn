@@ -9,6 +9,9 @@ import { ipcMain, IpcMainEvent } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { MediaStats } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.mediaStatsStorage');
 
 function getMediaStatsDir(): string {
   return path.join(getUserDataPath(), 'media-stats');
@@ -41,7 +44,7 @@ export function pruneMediaStats(maxEntries: number = MAX_MEDIA_STATS_ENTRIES): v
   try {
     files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return;
   }
   if (files.length <= maxEntries) return;
@@ -57,7 +60,7 @@ export function pruneMediaStats(maxEntries: number = MAX_MEDIA_STATS_ENTRIES): v
         lastAccessed = parsed.lastAccessed;
       }
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
     }
     entries.push({ file, lastAccessed });
   }
@@ -68,7 +71,7 @@ export function pruneMediaStats(maxEntries: number = MAX_MEDIA_STATS_ENTRIES): v
     try {
       fs.unlinkSync(path.join(dir, file));
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
     }
   }
 }
@@ -80,7 +83,7 @@ export function saveMediaStats(mediaHash: string, stats: MediaStats): void {
     fs.writeFileSync(filePath, JSON.stringify(stats, null, 2), 'utf-8');
     pruneMediaStats();
   } catch (error) {
-    console.error('Failed to save media stats:', error);
+    log.error('Failed to save media stats:', error);
   }
 }
 
@@ -92,7 +95,7 @@ export function getMediaStats(mediaHash: string): MediaStats | null {
       return JSON.parse(data) as MediaStats;
     }
   } catch (error) {
-    console.error('Failed to load media stats:', error);
+    log.error('Failed to load media stats:', error);
   }
   return null;
 }
@@ -109,14 +112,14 @@ export function listMediaStats(): MediaStats[] {
         const data = fs.readFileSync(path.join(dir, file), 'utf-8');
         results.push(JSON.parse(data) as MediaStats);
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         // Skip corrupt files
       }
     }
 
     return results;
   } catch (error) {
-    console.error('Failed to list media stats:', error);
+    log.error('Failed to list media stats:', error);
     return [];
   }
 }

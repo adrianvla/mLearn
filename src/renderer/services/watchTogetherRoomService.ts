@@ -1,5 +1,8 @@
 import { resolveCloudApiUrl } from '../../shared/backends';
 import type { Settings } from '../../shared/types';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.watchTogetherRoom");
 
 export interface WatchTogetherAction {
   method: string;
@@ -260,17 +263,17 @@ export function subscribeToWatchTogetherRoom(
         callback(payload.room);
       }
     } catch (error) {
-      console.error('[WatchTogether] Failed to parse Worker socket message', error);
+      log.error('[WatchTogether] Failed to parse Worker socket message', error);
     }
   });
 
   socket.addEventListener('error', (error) => {
-    console.error('[WatchTogether] Worker socket error', error);
+    log.error('[WatchTogether] Worker socket error', error);
   });
 
   socket.addEventListener('close', (event) => {
     if (event.wasClean) return;
-    console.warn('[WatchTogether] Worker socket closed unexpectedly', event.code, event.reason);
+    log.warn('[WatchTogether] Worker socket closed unexpectedly', event.code, event.reason);
   });
 
   return () => {

@@ -8,6 +8,11 @@ import { PLUGIN_IPC_CHANNELS } from './plugins/constants';
 export const PYTHON_BACKEND_PORT = 7752;
 export const PROXY_SERVER_PORT = 7753;
 
+// Structured log wire format: ::STATUS::v2::<LEVEL>::<MODULE>::<TS>::<MESSAGE>
+// Mirrored on the Python side in logging_utils.py — keep these in sync.
+export const LOG_PATTERN_PREFIX = '::STATUS::';
+export const LOG_PATTERN_VERSION = 'v2';
+
 // Cloud service URLs
 export const DEFAULT_CLOUD_LOGIN_URL = 'https://mlearn.kikan.net';
 export const DEFAULT_CLOUD_API_URL = 'https://mlearn-cloud.kikan.net';
@@ -115,6 +120,7 @@ export const IPC_CHANNELS = {
   SERVER_LOAD: 'server-load',
   SERVER_STATUS_UPDATE: 'server-status-update',
   SERVER_CRITICAL_ERROR: 'server-critical-error',
+  LOG_RECORD: 'log-record',
   ANKI_CONNECTION_ERROR: 'anki-connection-error',
   RESTART_BACKEND_ANKI_OVERRIDE: 'restart-backend-anki-override',
   OCR_STATUS_UPDATE: 'ocr-status-update',

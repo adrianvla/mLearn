@@ -7,6 +7,9 @@ import { ipcMain, dialog, BrowserWindow, app } from 'electron';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { IPC_CHANNELS } from '../../shared/constants';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.fileOperations');
 
 // Image file extensions to read from directories
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.tif']);
@@ -48,7 +51,7 @@ export function setupFileOperationsIPC(): void {
       
       return { files };
     } catch (error) {
-      console.error('[FileOps] Failed to read directory:', error);
+      log.error('[FileOps] Failed to read directory:', error);
       throw error;
     }
   });
@@ -60,7 +63,7 @@ export function setupFileOperationsIPC(): void {
       const data = await fs.readFile(validatedPath);
       return { data: data.buffer };
     } catch (error) {
-      console.error('[FileOps] Failed to read PDF file:', error);
+      log.error('[FileOps] Failed to read PDF file:', error);
       throw error;
     }
   });
@@ -124,7 +127,7 @@ export function setupFileOperationsIPC(): void {
       const data = await fs.readFile(resolved);
       return data.buffer;
     } catch (e) {
-      console.error(e);
+      log.error('READ_MEDIA_FILE failed', e);
       return null;
     }
   });

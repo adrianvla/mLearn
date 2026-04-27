@@ -24,6 +24,9 @@ import { loadSettings, loadLangData, saveSettings } from './settings';
 import { getMainWindow } from './windowManager';
 import { getFlashcardEaseMap, loadFlashcards, saveFlashcards } from './flashcardStorage';
 import { loadLocalization } from './localization';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.webServer');
 
 // Server instances
 let httpServer: http.Server | null = null;
@@ -93,7 +96,7 @@ export function setLocalStorage(data: Record<string, unknown>): void {
 function flushPillUpdates(): void {
   const mainWindow = getMainWindow();
   if (!mainWindow || mainWindow.isDestroyed() || pillQueuedUpdates.length === 0) return;
-  console.log('Sending queued pill updates to main window:', pillQueuedUpdates);
+  log.info('Sending queued pill updates to main window:', pillQueuedUpdates);
   mainWindow.webContents.send(IPC_CHANNELS.UPDATE_PILLS, JSON.stringify(pillQueuedUpdates));
   pillQueuedUpdates = [];
 }
@@ -101,7 +104,7 @@ function flushPillUpdates(): void {
 function flushWordAppearanceUpdates(): void {
   const mainWindow = getMainWindow();
   if (!mainWindow || mainWindow.isDestroyed() || wordAppearanceQueuedUpdates.length === 0) return;
-  console.log('Sending queued word appearance updates to main window:', wordAppearanceQueuedUpdates);
+  log.info('Sending queued word appearance updates to main window:', wordAppearanceQueuedUpdates);
   mainWindow.webContents.send(IPC_CHANNELS.UPDATE_WORD_APPEARANCE, JSON.stringify(wordAppearanceQueuedUpdates));
   wordAppearanceQueuedUpdates = [];
 }
@@ -109,7 +112,7 @@ function flushWordAppearanceUpdates(): void {
 function flushAttemptFlashcardCreationUpdates(): void {
   const mainWindow = getMainWindow();
   if (!mainWindow || mainWindow.isDestroyed() || attemptFlashcardCreationQueuedUpdates.length === 0) return;
-  console.log('Sending queued flashcard creation attempts to main window:', attemptFlashcardCreationQueuedUpdates);
+  log.info('Sending queued flashcard creation attempts to main window:', attemptFlashcardCreationQueuedUpdates);
   mainWindow.webContents.send(IPC_CHANNELS.UPDATE_ATTEMPT_FLASHCARD_CREATION, JSON.stringify(attemptFlashcardCreationQueuedUpdates));
   attemptFlashcardCreationQueuedUpdates = [];
 }
@@ -117,7 +120,7 @@ function flushAttemptFlashcardCreationUpdates(): void {
 function flushCreateFlashcardUpdates(): void {
   const mainWindow = getMainWindow();
   if (!mainWindow || mainWindow.isDestroyed() || createFlashcardQueuedUpdates.length === 0) return;
-  console.log('Sending queued flashcard creation updates to main window:', createFlashcardQueuedUpdates);
+  log.info('Sending queued flashcard creation updates to main window:', createFlashcardQueuedUpdates);
   mainWindow.webContents.send(IPC_CHANNELS.UPDATE_CREATE_FLASHCARD, JSON.stringify(createFlashcardQueuedUpdates));
   createFlashcardQueuedUpdates = [];
 }
@@ -125,7 +128,7 @@ function flushCreateFlashcardUpdates(): void {
 function flushLastWatchedUpdates(): void {
   const mainWindow = getMainWindow();
   if (!mainWindow || mainWindow.isDestroyed() || lastWatchedQueuedUpdates.length === 0) return;
-  console.log('Sending queued last watched updates to main window:', lastWatchedQueuedUpdates);
+  log.info('Sending queued last watched updates to main window:', lastWatchedQueuedUpdates);
   mainWindow.webContents.send(IPC_CHANNELS.UPDATE_LAST_WATCHED, JSON.stringify(lastWatchedQueuedUpdates));
   lastWatchedQueuedUpdates = [];
 }
@@ -186,7 +189,7 @@ function getHostAndPort(urlString: string): [string | null, string | null] {
     const parsed = new URL(urlString);
     return [parsed.hostname, parsed.port || (parsed.protocol === 'https:' ? '443' : '80')];
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return [null, null];
   }
 }
@@ -395,12 +398,12 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
       });
       res.end(js);
     } catch (error) {
-      console.error('Error generating settings.js:', error);
+      log.error('Error generating settings.js:', error);
       res.writeHead(500, {
         'Content-Type': 'application/javascript',
         ...corsHeaders,
       });
-      res.end(`console.error("mLearn: Failed to generate settings.js");`);
+      res.end(`log.error("mLearn: Failed to generate settings.js");`);
     }
     return;
   }
@@ -509,7 +512,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
         const data = await response.json();
         sendJsonResponse(res, data);
       } catch (e) {
-        console.error('Error forwarding to Anki:', e);
+        log.error('Error forwarding to Anki:', e);
         sendJsonResponse(res, { error: (e as Error).message }, 500);
       }
     });
@@ -522,7 +525,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     const status = parseInt(query.value || '0', 10);
     
     if (word) {
-      console.log('Received pill update:', word, status);
+      log.info('Received pill update:', word, status);
       pillQueuedUpdates.push({ word, status });
       flushPillUpdates();
     }
@@ -555,7 +558,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           content = JSON.parse(content);
         }
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         // Content might not be JSON
       }
       
@@ -577,12 +580,12 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           const parsed = JSON.parse(body);
           if (parsed && parsed.content) {
             createFlashcardQueuedUpdates.push({ content: parsed.content });
-            console.log('Create new flashcard (HTTP):', parsed.content);
+            log.info('Create new flashcard (HTTP):', parsed.content);
             flushCreateFlashcardUpdates();
           }
           sendJsonResponse(res, { status: 'ok' });
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
         }
       });
@@ -610,7 +613,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           return;
         }
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         // Invalid payload
       }
     }
@@ -633,7 +636,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
         getMainWindow()?.webContents.send(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, encoded);
         sendJsonResponse(res, { status: 'ok' });
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         sendJsonResponse(res, { status: 'error', error: 'Invalid message format' }, 400);
       }
     } else {
@@ -655,7 +658,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     try {
       parsedUrl = new URL(targetUrl);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       res.writeHead(400, corsHeaders);
       res.end('Invalid URL');
       return;
@@ -722,7 +725,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           await saveSettings(incoming);
           sendJsonResponse(res, { status: 'ok' });
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           sendJsonResponse(res, { error: 'Invalid JSON' }, 400);
         }
       });
@@ -746,7 +749,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           await saveFlashcards(incoming);
           sendJsonResponse(res, { status: 'ok' });
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           sendJsonResponse(res, { error: 'Invalid JSON' }, 400);
         }
       });
@@ -790,7 +793,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
 
 // Handle WebSocket connection
 function handleWebSocketConnection(ws: WebSocket): void {
-  console.log('WebSocket client connected');
+  log.info('WebSocket client connected');
   connectedClients.add(ws);
 
   ws.on('message', (message: Buffer) => {
@@ -800,7 +803,7 @@ function handleWebSocketConnection(ws: WebSocket): void {
       // Handle create-new-flashcard action from tethered mode
       if (data && data.action === 'create-new-flashcard') {
         createFlashcardQueuedUpdates.push({ content: data.content });
-        console.log('Create new flashcard:', data.content);
+        log.info('Create new flashcard:', data.content);
         flushCreateFlashcardUpdates();
         return;
       }
@@ -819,7 +822,7 @@ function handleWebSocketConnection(ws: WebSocket): void {
           screenshotUrl: data.screenshotUrl,
           videoUrl: data.videoUrl,
         });
-        console.log('Last watched update:', data);
+        log.info('Last watched update:', data);
         flushLastWatchedUpdates();
         return;
       }
@@ -837,17 +840,17 @@ function handleWebSocketConnection(ws: WebSocket): void {
         }
       }
     } catch (e) {
-      console.error('WebSocket message error:', e);
+      log.error('WebSocket message error:', e);
     }
   });
 
   ws.on('close', () => {
-    console.log('WebSocket client disconnected');
+    log.info('WebSocket client disconnected');
     connectedClients.delete(ws);
   });
 
   ws.on('error', (error: Error) => {
-    console.error('WebSocket error:', error);
+    log.error('WebSocket error:', error);
     connectedClients.delete(ws);
   });
 }
@@ -863,7 +866,7 @@ export function startWebServer(): void {
 
   // Handle server errors
   httpServer.on('error', (error: NodeJS.ErrnoException) => {
-    console.error('Web server error:', error);
+    log.error('Web server error:', error);
     
     let errorMessage = `Web server error: ${error.message}`;
     
@@ -895,7 +898,7 @@ export function startWebServer(): void {
   });
 
   httpServer.listen(PROXY_SERVER_PORT, () => {
-    console.log(`Web server listening on http://127.0.0.1:${PROXY_SERVER_PORT}`);
+    log.info(`Web server listening on http://127.0.0.1:${PROXY_SERVER_PORT}`);
   });
 
   // Setup IPC handlers

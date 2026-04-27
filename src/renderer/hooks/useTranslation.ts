@@ -16,6 +16,9 @@ import {
   getCachedTokensByLanguageDB,
   setCachedTokensByLanguageDB,
 } from '../services/offlineCache';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.hooks.useTranslation");
 
 const TRANSLATION_CACHE_MAX = 5000;
 const translationCache = new Map<string, TranslationResponse>();
@@ -88,7 +91,7 @@ async function readOverrides(): Promise<Record<string, TranslationResponse>> {
     const raw = await getBridge().kvStore.kvGet(OVERRIDE_KEY);
     overridesCache = raw ? JSON.parse(raw) : {};
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     overridesCache = {};
   }
   return overridesCache ?? {};
@@ -243,7 +246,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     try {
       return await p;
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return createFallbackTokens(key);
     } finally {
       tokenInFlight.delete(cacheKey);
@@ -298,7 +301,7 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
       void setCachedDictionaryByLanguageDB(word, readingKey, [], options.language);
       return [];
     } catch (e) {
-      console.error('Dictionary lookup error:', e);
+      log.error('Dictionary lookup error:', e);
       return [];
     }
   };

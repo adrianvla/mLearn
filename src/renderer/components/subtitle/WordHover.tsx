@@ -30,6 +30,9 @@ import { getBridge } from '../../../shared/bridges';
 import { showToast } from '../common/Feedback/Toast';
 import { getWordFormCandidates } from '../../utils/wordForms';
 import './WordHover.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.wordHover");
 
 export type { WordStatus } from './wordHoverHelpers';
 
@@ -147,7 +150,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         const uuid = await toUniqueIdentifier(word);
         setWordUuid(uuid);
       } catch (e) {
-        console.error('Failed to load word status:', e);
+        log.error('Failed to load word status:', e);
       }
     })();
   });
@@ -325,7 +328,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     // Prevent duplicate requests - early return if already adding
     if (isAddingFlashcard()) {
-      console.log('%cFlashcard add request blocked - already adding', 'color: orange;');
+      log.info('%cFlashcard add request blocked - already adding', 'color: orange;');
       return;
     }
     
@@ -390,7 +393,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         // isInSRS and currentEase are now reactive memos that will update automatically
         // when the flashcard is added to the store via BroadcastChannel sync
       } catch (err) {
-        console.error('Failed to add flashcard:', err);
+        log.error('Failed to add flashcard:', err);
         alert(t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }));
       } finally {
         // Always clear the adding flag when done
@@ -575,7 +578,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       setShowDuplicateWarning(true);
       return;
     }
-    handleAddFlashcard(entry, e).catch(console.error);
+    handleAddFlashcard(entry, e).catch((err) => log.error("unhandled promise rejection", err));
   };
 
   const confirmDuplicateAdd = (dontRemind: boolean) => {
@@ -583,7 +586,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     if (dontRemind) {
       updateSettings({ skipAnkiDuplicateWarning: true });
     }
-    handleAddFlashcard().catch(console.error);
+    handleAddFlashcard().catch((err) => log.error("unhandled promise rejection", err));
   };
 
   // LLM Explain pill using PillBtn component

@@ -17,6 +17,9 @@ import type { LLMProvider, LLMModelStatus, OCRProvider, SystemMemoryInfo } from 
 import { ensureCloudAccessToken, handleCloudSessionError } from '../../../services/cloudSessionManager';
 import '../SettingsForm.css';
 import './AITab.css';
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.settings.ai");
 
 export const AITab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -142,7 +145,7 @@ export const AITab: Component = () => {
       const status = await getBridge().llm.llmCheckModel(modelFile ?? settings.builtinModel);
       setModelStatus(status);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Ignore — status will remain default
     }
   }
@@ -163,7 +166,7 @@ export const AITab: Component = () => {
       setAutoselectMsg(`Detected ${memGb} GB ${memLabel} — selected ${selected.displayName}`);
       await checkModelStatus(selected.modelFile);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setAutoselectMsg(null);
     } finally {
       setAutoselecting(false);
@@ -177,7 +180,7 @@ export const AITab: Component = () => {
       const list = await bridge.llm.llmListDownloadedModels();
       setDownloadedModels(list);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setDownloadedModels([]);
     }
   }
@@ -195,7 +198,7 @@ export const AITab: Component = () => {
       }
       await fetchDownloadedModels();
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // silently ignore
     } finally {
       setDeletingModel(null);
@@ -213,7 +216,7 @@ export const AITab: Component = () => {
     try {
       getBridge().llm.llmDownloadModel(getModelUrl(model), model.modelFile);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setModelStatus((prev) => ({ ...prev, downloading: false, error: String(e) }));
     }
   }
@@ -225,7 +228,7 @@ export const AITab: Component = () => {
       const ok = await getBridge().llm.ollamaCheck();
       setOllamaConnected(ok);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setOllamaConnected(false);
     } finally {
       setOllamaTesting(false);
@@ -243,7 +246,7 @@ export const AITab: Component = () => {
         updateSettings({ ollamaModel: modelList[0] });
       }
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setOllamaModels([]);
     } finally {
       setLoadingModels(false);
@@ -268,7 +271,7 @@ export const AITab: Component = () => {
       const ok = await adapter.checkAvailability();
       setCloudLLMStatus(ok ? 'success' : 'error');
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       const requiresSignIn = handleCloudSessionError(e, true);
       setCloudLLMStatus(requiresSignIn ? 'auth' : 'error');
     } finally {

@@ -98,6 +98,7 @@ export interface MLearnIPC {
   onAnkiConnectionError: (callback: (reason: string) => void) => () => void;
   restartBackendAnkiOverride: (disableAnki: boolean) => void;
   onOcrStatusUpdate: (callback: (message: string) => void) => () => void;
+sendLogRecord: (record: unknown) => void;
   
   // Python Installer
   startInstall: (options: InstallOptions) => void;

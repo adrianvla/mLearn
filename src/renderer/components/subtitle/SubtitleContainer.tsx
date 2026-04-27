@@ -12,6 +12,9 @@ import { WordHover, WordStatus } from './WordHover';
 import { ExplainerPopup } from './ExplainerPopup';
 import { initWordLookupBridge } from '../../services/wordLookupService';
 import './SubtitleContainer.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.subtitleContainer");
 
 export interface SubtitleContainerProps {
   tokens: Token[];
@@ -133,7 +136,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
         
         setTranslationData(translation);
       } catch (e) {
-        console.error('Translation failed:', e);
+        log.error('Translation failed:', e);
       }
     }
     
@@ -168,7 +171,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
         if (currentHoverToken() !== token) return;
         setDictionaryEntries(entries);
       } catch (e) {
-        console.error('Dictionary lookup failed:', e);
+        log.error('Dictionary lookup failed:', e);
         if (requestId !== hoverRequestId) return;
         if (currentHoverToken() !== token) return;
         setDictionaryEntries([]);
@@ -335,7 +338,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
           const reading = first?.reading ?? token.reading ?? '';
           if (translationText) translator.addCard(displayWord, reading, translationText);
         } catch (_e) {
-          console.error(_e);
+          log.error("error", _e);
           /* ignore translation failures for live list */
         }
       })();

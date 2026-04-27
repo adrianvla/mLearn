@@ -9,6 +9,9 @@
 import { getBackend } from '../../shared/backends';
 import type { AnkiWordStatusRecord } from '../../shared/backends/types';
 import { normalizeWordLookupText } from '../../shared/utils/textUtils';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.ankiWordsCache");
 
 let ankiWordsSet: Set<string> = new Set();
 let ankiWordCardsMap: Map<string, AnkiWordStatusRecord[]> = new Map();
@@ -70,7 +73,7 @@ export async function fetchAnkiWordsCache(): Promise<Set<string>> {
       ankiWordCardsMap = nextMap;
       fetched = true;
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Silently fail — ankiWordsSet stays empty
     }
     fetchPromise = null;

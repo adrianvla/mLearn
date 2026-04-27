@@ -15,6 +15,9 @@ import { FlashcardEditor } from './FlashcardEditor';
 import { useLocalization } from '../../context';
 import type { TabItem } from '../common/Tabs/TabContainer';
 import './FlashcardEditModal.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.flashcardEditModal");
 
 export interface FlashcardEditModalProps {
   isOpen: boolean;
@@ -89,7 +92,7 @@ function parseFieldValue(key: string, raw: DraftValue): unknown {
     try {
       return JSON.parse(trimmed);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return trimmed;
     }
   }

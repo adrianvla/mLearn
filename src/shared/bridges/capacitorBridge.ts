@@ -45,6 +45,9 @@ import { DEFAULT_SETTINGS } from '../types';
 import { PYTHON_BACKEND_PORT, PROXY_SERVER_PORT } from '../constants';
 import { isCapacitor } from '../platform';
 import { loadBundledLanguageData, loadBundledLocaleStrings } from './bundledLanguageAssets';
+import { getLogger } from '../utils/logger';
+
+const log = getLogger("shared.bridges.capacitor");
 
 // ============================================================================
 // Simple Event Emitter for local pub/sub
@@ -97,8 +100,8 @@ async function storageGet(key: string): Promise<string | null> {
       return result.value;
     }
   } catch (e) {
-    console.error(e);
-    console.log('[CapacitorBridge] Preferences.get failed, falling back to localStorage:', e);
+    log.error("error", e);
+    log.info('[CapacitorBridge] Preferences.get failed, falling back to localStorage:', e);
   }
   return localStorage.getItem(key);
 }
@@ -112,8 +115,8 @@ async function storageSet(key: string, value: string): Promise<void> {
       await mod.Preferences.set({ key, value });
     }
   } catch (e) {
-    console.error(e);
-    console.log('[CapacitorBridge] Preferences.set failed, data saved to localStorage only:', e);
+    log.error("error", e);
+    log.info('[CapacitorBridge] Preferences.set failed, data saved to localStorage only:', e);
   }
 }
 
@@ -147,7 +150,7 @@ function convertToWebViewUrl(fileUri: string): string {
       return cap.convertFileSrc(fileUri);
     }
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     // Fall through
   }
   return fileUri;
@@ -183,7 +186,7 @@ async function ensureDir(dirPath: string): Promise<void> {
       recursive: true,
     });
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     // Directory may already exist — ignore
   }
 }
@@ -260,7 +263,7 @@ async function deleteImageFile(cardId: string): Promise<void> {
         directory: mod.Directory.Data,
       });
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // File may not exist with this extension — ignore
     }
   }
@@ -279,7 +282,7 @@ async function deleteVideoFile(cardId: string): Promise<void> {
       directory: mod.Directory.Data,
     });
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     // File may not exist — ignore
   }
 }
@@ -357,7 +360,7 @@ const settingsBridge: SettingsBridge = {
         emitter.emit('settings', settings);
       })
       .catch(e => {
-        console.error('[CapacitorBridge] Failed to load settings, using defaults:', e);
+        log.error('[CapacitorBridge] Failed to load settings, using defaults:', e);
         emitter.emit('settings', { ...DEFAULT_SETTINGS });
       });
   },
@@ -369,7 +372,7 @@ const settingsBridge: SettingsBridge = {
         emitter.emit('settings-saved');
       })
       .catch(e => {
-        console.error('[CapacitorBridge] Failed to save settings:', e);
+        log.error('[CapacitorBridge] Failed to save settings:', e);
       });
   },
 
@@ -434,7 +437,7 @@ async function loadShardedFlashcards(): Promise<FlashcardStore> {
         if (mod) await mod.Preferences.remove({ key: FLASHCARD_LEGACY_KEY });
         localStorage.removeItem(FLASHCARD_LEGACY_KEY);
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
       }
       return legacy;
     }
@@ -543,19 +546,19 @@ const flashcardBridge: FlashcardBridge = {
         const migrated = await extractBase64ImagesToFiles(data);
         if (migrated) {
           saveShardedFlashcards(data)
-            .catch(e => console.error('[CapacitorBridge] Failed to save migrated flashcards:', e));
+            .catch(e => log.error('[CapacitorBridge] Failed to save migrated flashcards:', e));
         }
         emitter.emit('flashcards', data);
       })
       .catch(e => {
-        console.error('[CapacitorBridge] Failed to load flashcards, using empty store:', e);
+        log.error('[CapacitorBridge] Failed to load flashcards, using empty store:', e);
         emitter.emit('flashcards', { flashcards: {}, wordCandidates: {} });
       });
   },
 
   saveFlashcards(flashcards: FlashcardStore) {
     saveShardedFlashcards(flashcards)
-      .catch(e => console.error('[CapacitorBridge] Failed to save flashcards:', e));
+      .catch(e => log.error('[CapacitorBridge] Failed to save flashcards:', e));
   },
 
   onFlashcards(callback) {
@@ -682,7 +685,7 @@ const localizationBridge: LocalizationBridge = {
         const locale = Object.keys(strings).length > 0 ? lang : 'en';
         emitter.emit('localization', { locale, strings });
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         emitter.emit('localization', { locale: 'en', strings: {} });
       }
     };
@@ -720,7 +723,7 @@ const localizationBridge: LocalizationBridge = {
         const langData = await loadBundledLanguageData();
         emitter.emit('lang-data', langData as unknown as LanguageData);
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         emitter.emit('lang-data', {} as LanguageData);
       }
     };
@@ -785,7 +788,7 @@ const fileBridge: FileBridge = {
       );
       return { files };
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return { files: [] };
     }
   },
@@ -923,7 +926,7 @@ const windowBridge: WindowBridge = {
       try {
         sessionStorage.setItem(`mlearn_window_ctx_${payload.type}`, JSON.stringify(payload.context));
       } catch (e) {
-        console.error('[CapacitorBridge] Failed to store window context:', e);
+        log.error('[CapacitorBridge] Failed to store window context:', e);
       }
     }
 
@@ -953,7 +956,7 @@ const windowBridge: WindowBridge = {
         return;
       }
     } catch (e) {
-      console.error('[CapacitorBridge] Failed to read window context:', e);
+      log.error('[CapacitorBridge] Failed to read window context:', e);
     }
     queueMicrotask(() => {
       windowContextCallbacks.forEach(cb => cb(null));
@@ -1032,6 +1035,10 @@ const serverBridge: ServerBridge = {
 
   onOcrStatusUpdate(callback) {
     return emitter.on('ocr-status-update', callback as Listener);
+  },
+
+  sendLogRecord() {
+    /* logs surface via console on capacitor; no IPC sink available */
   },
 
   restartApp() {
@@ -1135,7 +1142,7 @@ const llmBridge: LLMBridge = {
                 const chunk = JSON.parse(line.slice(6));
                 emitter.emit('llm-stream-chunk', chunk);
               } catch (e) {
-                console.error(e);
+                log.error("error", e);
               }
             }
           }
@@ -1214,7 +1221,7 @@ const llmBridge: LLMBridge = {
                   total_duration: data.total_duration,
                 });
               } catch (e) {
-                console.error(e);
+                log.error("error", e);
               }
             }
           }
@@ -1242,7 +1249,7 @@ const llmBridge: LLMBridge = {
       const data = await res.json();
       return data.models || [];
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return [];
     }
   },
@@ -1253,7 +1260,7 @@ const llmBridge: LLMBridge = {
       const res = await fetch(`${settings.ollamaUrl || 'http://localhost:11434'}/api/tags`);
       return res.ok;
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return false;
     }
   },
@@ -1293,7 +1300,7 @@ const speechBridge: SpeechBridge = {
       recognition.start();
       (window as unknown as Record<string, unknown>).__mlearnSpeechRecognition = recognition;
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
     }
   },
 
@@ -1477,7 +1484,7 @@ const genericBridge: GenericIPCBridge = {
       const content = await res.text();
       return { content };
     } catch (err) {
-      console.error(err);
+      log.error("error", err);
       return { content: '', error: String(err) };
     }
   },
@@ -1519,7 +1526,7 @@ const dataBridge: DataBridge = {
 
       return { success: true };
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return { success: false, error: String(e) };
     }
   },
@@ -1559,7 +1566,7 @@ const dataBridge: DataBridge = {
 
           resolve({ success: true });
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           resolve({ success: false, error: String(e) });
         }
       };
@@ -1582,7 +1589,7 @@ const kvStoreBridge: KVStoreBridge = {
       const mod = await getPreferencesModule();
       if (mod) await mod.Preferences.remove({ key });
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
     }
   },
   kvGetAll: async () => {

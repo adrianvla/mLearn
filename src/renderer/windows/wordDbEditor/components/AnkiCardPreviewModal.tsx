@@ -10,6 +10,9 @@ import { getBackend } from '../../../../shared/backends';
 import { dueDateToString } from '../../../services/srsAlgorithm';
 import { getAnkiDueDisplayValue, shouldShowAnkiEase, type AnkiCardSchedulingInfo } from '../../../components/common/AnkiHoverPreview/ankiHoverPreviewLogic';
 import './AnkiCardPreviewModal.css';
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.wordDbEditor.ankiCardPreviewModal");
 
 interface CardFields {
   [fieldName: string]: { value: string; order: number };
@@ -52,7 +55,7 @@ export const AnkiCardPreviewModal: Component<AnkiCardPreviewModalProps> = (props
         setError(t('mlearn.WordDbEditor.Anki.NoCardFound'));
       }
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setError(String(e));
     } finally {
       setLoading(false);

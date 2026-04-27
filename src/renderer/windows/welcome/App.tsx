@@ -13,6 +13,9 @@ import { PROXY_SERVER_PORT } from '../../../shared/constants';
 import { Panel, Btn, SelectableCard, AlertBanner, LogConsole, CheckboxCard, ProgressBar } from '../../components/common';
 import type { LogEntry } from '../../components/common/Text/LogConsole';
 import './welcome.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.welcome.app");
 
 interface LanguageOption {
   code: string;
@@ -100,7 +103,7 @@ const WelcomeContent: Component = () => {
     try {
       getBridge().installer.startInstall({ includeLLM: includeLLM(), includeOCR: includeOCR(), includeVoice: includeVoice() });
     } catch (e) {
-      console.error('Failed to start installation:', e);
+      log.error('Failed to start installation:', e);
       setOverallStatus(t('mlearn.Installer.Status.CouldNotStart'));
       setInstallationStarted(false);
     }

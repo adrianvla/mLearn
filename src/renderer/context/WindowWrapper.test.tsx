@@ -86,6 +86,7 @@ vi.mock('./windowWrapperNotifications', () => ({
 
 vi.mock('../../shared/platform', () => ({
   isElectron: () => false,
+  getPlatform: () => 'web',
 }));
 
 describe('WindowWrapper', () => {

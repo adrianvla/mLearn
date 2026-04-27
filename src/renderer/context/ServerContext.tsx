@@ -6,6 +6,9 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
 import { isElectron } from '../../shared/platform';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.context.server");
 
 // Server status types
 type ServerStatus = 'loading' | 'connected' | 'error' | 'installing';
@@ -51,7 +54,7 @@ export const ServerProvider: ParentComponent = (props) => {
     } else {
       await bridge.kvStore.kvSet('_ls_migrated', '1');
     }
-    console.log('[ServerContext] Migrated localStorage → KV store');
+    log.info('[ServerContext] Migrated localStorage → KV store');
   };
 
   // Send KV store snapshot to main process so the web server
@@ -66,7 +69,7 @@ export const ServerProvider: ParentComponent = (props) => {
   const setupListeners = () => {
     if (!isElectronApp) {
       // On mobile/web, there is no local Python server
-      console.log('[ServerContext] Non-Electron mode, marking server as connected');
+      log.info('[ServerContext] Non-Electron mode, marking server as connected');
       setStatus('connected');
       setStatusMessage('Connected (Tethered Mode)');
       return;

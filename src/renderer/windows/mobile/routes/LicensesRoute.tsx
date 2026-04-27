@@ -7,6 +7,9 @@
 import { Component, onMount, createSignal } from 'solid-js';
 import { useLocalization } from '../../../context';
 import './LicensesRoute.css';
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.mobile.licenses");
 
 export const LicensesRoute: Component = () => {
   const { t } = useLocalization();
@@ -24,7 +27,7 @@ export const LicensesRoute: Component = () => {
         }
       }
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setHtml(`<p>${t('mlearn.Settings.About.LicensesLoadError')}</p>`);
     }
   });

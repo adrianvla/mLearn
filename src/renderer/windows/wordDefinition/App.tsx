@@ -19,6 +19,9 @@ import {
 import { openWordLookup } from '../../services/wordLookupService';
 import { getWordFormCandidates } from '../../utils/wordForms';
 import './WordDefinition.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.wordDefinition.app");
 
 const ICON_CROSS2 = 'cross2';
 const ICON_CHECK = 'check';
@@ -96,7 +99,7 @@ const WordDefinitionContent: Component = () => {
       })
       .catch((err) => {
         if (id !== fetchId) return;
-        console.error('WordDefinition: translation fetch failed:', err);
+        log.error('WordDefinition: translation fetch failed:', err);
       })
       .finally(() => {
         if (id !== fetchId) return;
@@ -169,7 +172,7 @@ const WordDefinitionContent: Component = () => {
       });
       await addFlashcard(content, ease);
     } catch (err) {
-      console.error('Failed to add flashcard:', err);
+      log.error('Failed to add flashcard:', err);
       alert(t('mlearn.WordHover.Errors.FailedToAddFlashcard', { error: String(err) }));
     } finally {
       setIsAddingFlashcard(false);

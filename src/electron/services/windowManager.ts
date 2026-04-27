@@ -10,6 +10,9 @@ import { IPC_CHANNELS, WindowType, PROXY_SERVER_PORT } from '../../shared/consta
 import type { WindowSize, OpenWindowPayload } from '../../shared/types';
 import { isMac, isLinux, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.windowManager');
 
 // Window references
 let mainWindow: BrowserWindow | null = null;
@@ -517,7 +520,7 @@ function setupAppMenu(): void {
                 message: 'Copied! See Help menu for usage instructions.',
               });
             } catch (e) {
-              console.error('Failed to copy injector script:', e);
+              log.error('Failed to copy injector script:', e);
             }
           },
         },

@@ -29,6 +29,9 @@ import type {
   LLMChatMessage,
 } from '../../../shared/types';
 import './WordSelector.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.wordSelector");
 
 interface WordSelectorProps {
   selected: TutorWordSelection[];
@@ -421,7 +424,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
                 }
               }
               if (!cleaned) {
-                console.error('[VocabGen] Response was empty after stripping think tags and fences');
+                log.error('[VocabGen] Response was empty after stripping think tags and fences');
                 setGenerationError(t('mlearn.AITutorSetup.GenerateError'));
                 return;
               }
@@ -436,7 +439,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
               }
             }
             if (!jsonStr) {
-              console.error('[VocabGen] No JSON array found in response');
+              log.error('[VocabGen] No JSON array found in response');
               setGenerationError(t('mlearn.AITutorSetup.GenerateError'));
               return;
             }
@@ -447,7 +450,7 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
               parsed = JSON.parse(jsonStr);
             } catch (parseErr) {
               // Try to salvage: find last complete object, trim remainder, close the array
-              console.warn('[VocabGen] Initial parse failed, attempting salvage:', parseErr);
+              log.warn('[VocabGen] Initial parse failed, attempting salvage:', parseErr);
               const lastCloseBrace = jsonStr.lastIndexOf('}');
               if (lastCloseBrace > 0) {
                 const salvaged = jsonStr.slice(0, lastCloseBrace + 1) + ']';
@@ -497,12 +500,12 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
               setTopicInput('');
             });
           } catch (err) {
-            console.error('[VocabGen] Failed to parse generated vocabulary:', err);
+            log.error('[VocabGen] Failed to parse generated vocabulary:', err);
             setGenerationError(t('mlearn.AITutorSetup.GenerateError'));
           }
         },
         onError: (error) => {
-          console.error('[VocabGen] LLM stream error:', error);
+          log.error('[VocabGen] LLM stream error:', error);
           setIsGenerating(false);
           abortGeneration = null;
           setGenerationError(typeof error === 'string' ? error : error instanceof Error ? error.message : t('mlearn.AITutorSetup.GenerateError'));

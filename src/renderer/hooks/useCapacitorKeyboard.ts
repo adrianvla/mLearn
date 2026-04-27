@@ -7,6 +7,9 @@
 
 import { onCleanup, onMount } from 'solid-js';
 import { isMobile } from '../../shared/platform';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.hooks.useCapacitorKeyboard");
 
 export function useCapacitorKeyboard() {
   if (!isMobile()) return;
@@ -30,7 +33,7 @@ export function useCapacitorKeyboard() {
         hideListener.remove();
       });
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // @capacitor/keyboard not available (e.g., in browser dev mode)
     }
   });

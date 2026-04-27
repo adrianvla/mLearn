@@ -12,6 +12,9 @@ import { protocol, app } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { getPluginsDir } from './pluginManager';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.localMediaProtocol');
 
 const SCHEME = 'local-media';
 const PLUGIN_UI_SCHEME = 'plugin-ui';
@@ -150,7 +153,7 @@ export function setupLocalMediaProtocol(): void {
     try {
       stat = await fs.promises.stat(resolvedPath);
     } catch (e) {
-      console.error(e);
+      log.error('local-media stat failed', e);
       return new Response('File not found', { status: 404 });
     }
 

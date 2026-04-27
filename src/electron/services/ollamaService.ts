@@ -9,6 +9,9 @@ import type { OllamaModel, OllamaChatMessage, OllamaToolDefinition, LLMStreamChu
 import { loadSettings } from './settings';
 import http from 'http';
 import https from 'https';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.ollamaService');
 
 /**
  * Parse Ollama URL into components for http/https request
@@ -86,7 +89,7 @@ function jsonRequest(
         try {
           resolve(JSON.parse(data));
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           resolve(data);
         }
       });
@@ -178,7 +181,7 @@ function streamChat(
             sender.send(IPC_CHANNELS.OLLAMA_CHAT_STREAM, chunk);
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           // Skip malformed lines
         }
       }
@@ -198,7 +201,7 @@ function streamChat(
             });
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           if (!doneSent && !sender.isDestroyed()) {
             sender.send(IPC_CHANNELS.OLLAMA_CHAT_STREAM, { done: true });
           }
@@ -304,7 +307,7 @@ async function checkConnection(): Promise<boolean> {
     await jsonRequest(`${baseUrl}/api/tags`, 'GET', undefined, 5_000);
     return true;
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return false;
   }
 }
@@ -346,7 +349,7 @@ function pullModel(sender: Electron.WebContents, modelName: string): void {
             sender.send(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, parsed);
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
         }
       }
     });
@@ -359,7 +362,7 @@ function pullModel(sender: Electron.WebContents, modelName: string): void {
             sender.send(IPC_CHANNELS.OLLAMA_PULL_MODEL_PROGRESS, parsed);
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
         }
       }
       if (!sender.isDestroyed()) {
@@ -522,7 +525,7 @@ function streamChatUnified(
             sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
         }
       }
     });
@@ -565,7 +568,7 @@ function streamChatUnified(
             sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, chunk);
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           if (!doneSent && !sender.isDestroyed()) {
             sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, { done: true } as LLMStreamChunk);
           }
@@ -614,7 +617,7 @@ export function setupOllamaIPC(): void {
       const result = await chatCompletion(messages, tools);
       event.reply(IPC_CHANNELS.OLLAMA_CHAT, result);
     } catch (err) {
-      console.error(err);
+      log.error("error", err);
       event.reply(IPC_CHANNELS.OLLAMA_CHAT, {
         content: `[Error: ${(err as Error).message}]`,
       });
@@ -637,7 +640,7 @@ export function setupOllamaIPC(): void {
       const models = await listModels();
       return models.map(m => m.name);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return [];
     }
   });
@@ -653,7 +656,7 @@ export function setupOllamaIPC(): void {
       const content = await fetchUrlRaw(url, 15_000);
       return { content };
     } catch (err) {
-      console.error(err);
+      log.error("error", err);
       return { content: '', error: (err as Error).message };
     }
   });

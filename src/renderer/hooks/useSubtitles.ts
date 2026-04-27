@@ -8,6 +8,9 @@ import type { Subtitle, Token } from '../../shared/types';
 import { useSettings } from '../context';
 import { useTokenizer } from './useTranslation';
 import { parseSubtitle, shouldRemoveParentheticalContent } from '../utils/subtitleParsing';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.hooks.useSubtitles");
 
 // Parse SRT format subtitles
 function parseSRT(content: string): Subtitle[] {
@@ -322,7 +325,7 @@ export function useSubtitles() {
         setTokens(buildFallbackTokens(cleanedText));
       }
     } catch (e) {
-      console.error('Tokenization failed:', e);
+      log.error('Tokenization failed:', e);
       setTokens(buildFallbackTokens(sub.text));
     } finally {
       setIsTokenizing(false);

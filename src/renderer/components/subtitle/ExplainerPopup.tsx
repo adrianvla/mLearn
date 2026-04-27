@@ -18,6 +18,9 @@ import { buildExplainerGeneratedByLabel } from './explainerProviderLabel';
 import { hasExplainerGenerationOutput, normalizeExplainerErrorMessage } from './explainerPopupState';
 import { Spinner } from '../common';
 import './ExplainerPopup.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.explainerPopup");
 
 export interface ExplainerPopupProps {
   /** Whether the popup is open */
@@ -283,7 +286,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
       setAbortFn(() => handle.abort);
     } catch (err) {
       // Safety net: ensure isLoading is always reset even on unexpected errors
-      console.error('[ExplainerPopup] startStreaming error:', err);
+      log.error('[ExplainerPopup] startStreaming error:', err);
       if (requestId === activeStreamRequestId) {
         if (isCancelledCloudError(err)) {
           setError(t('mlearn.CloudReLogin.SignInCanceled'));

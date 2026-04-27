@@ -12,6 +12,9 @@ import { Component, createSignal, createEffect, onCleanup } from 'solid-js';
 import { useSettings } from '../../context';
 import { Badge } from '../common';
 import './MagnifyingGlass.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.magnifyingGlass");
 
 export interface MagnifyingGlassProps {
     /** The container element that holds the page images */
@@ -214,7 +217,7 @@ export const MagnifyingGlass: Component<MagnifyingGlassProps> = (props) => {
                 size
             );
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
             // Handle potential cross-origin or security errors
             ctx.fillStyle = 'rgba(50, 50, 50, 0.8)';
             ctx.fillRect(0, 0, size, size);

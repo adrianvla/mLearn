@@ -10,6 +10,9 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import { Settings, DEFAULT_SETTINGS, LanguageDataMap } from '../../shared/types';
 import { getUserDataPath, getAppPath, getResourcePath } from '../utils/platform';
 import { setUILanguage } from './localization';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.settings');
 
 let settingsSaveQueue: Promise<void> = Promise.resolve();
 
@@ -24,7 +27,7 @@ export function loadSettings(): Settings {
       const data = fs.readFileSync(settingsPath, 'utf-8');
       const parsed: unknown = JSON.parse(data);
       if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        console.warn('[settings] Loaded data is not a plain object — using defaults');
+        log.warn('[settings] Loaded data is not a plain object — using defaults');
         return { ...DEFAULT_SETTINGS };
       }
       const loaded = parsed as Partial<Settings>;
@@ -42,7 +45,7 @@ export function loadSettings(): Settings {
       return { ...DEFAULT_SETTINGS, ...migrated };
     }
   } catch (error) {
-    console.error('Failed to load settings:', error);
+    log.error('Failed to load settings:', error);
   }
   return { ...DEFAULT_SETTINGS };
 }
@@ -67,7 +70,7 @@ export async function saveSettings(settings: Settings): Promise<void> {
   try {
     await queuedSave;
   } catch (error) {
-    console.error('Failed to save settings:', error);
+    log.error('Failed to save settings:', error);
   }
 }
 
@@ -85,7 +88,7 @@ export function loadLangData(): LanguageDataMap {
 
   try {
     if (!languagesDir) {
-      console.warn('Languages directory not found:', candidateDirs.join(', '));
+      log.warn('Languages directory not found:', candidateDirs.join(', '));
       return getDefaultLangData();
     }
 
@@ -99,12 +102,12 @@ export function loadLangData(): LanguageDataMap {
           const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
           langData[langCode] = data;
         } catch (e) {
-          console.error(`Failed to load language file ${file}:`, e);
+          log.error(`Failed to load language file ${file}:`, e);
         }
       }
     }
   } catch (error) {
-    console.error('Failed to load language data:', error);
+    log.error('Failed to load language data:', error);
   }
 
   if (Object.keys(langData).length === 0) {

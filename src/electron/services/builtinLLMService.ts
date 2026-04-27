@@ -11,6 +11,9 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import { downloadFileWithProgress } from '../utils/downloadManager';
 import { BUILTIN_MODELS, getModelUrl } from '../../shared/builtinModels';
 import type { LLMStreamChunk, LLMModelStatus, LLMChatMessage, LLMToolDefinition, LLMToolCall } from '../../shared/types';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.builtinLLMService');
 
 const MODEL_DIR_NAME = 'models';
 const IDLE_UNLOAD_MS = 10 * 60 * 1000; // 10 minutes
@@ -96,7 +99,7 @@ async function downloadModel(
     downloadProgress = 1;
     sender.send(IPC_CHANNELS.LLM_DOWNLOAD_PROGRESS, getModelStatus(modelFile));
   } catch (err) {
-    console.error(err);
+    log.error('Model download failed', err as Error);
     isDownloading = false;
     throw err;
   }
@@ -279,7 +282,7 @@ async function streamChat(
     };
     sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, doneChunk);
   } catch (err) {
-    console.error(err);
+    log.error('LLM stream error', err as Error);
     if ((err as Error).name === 'AbortError' || currentAbortController?.signal.aborted) {
       const abortChunk: LLMStreamChunk = { done: true, content: '' };
       sender.send(IPC_CHANNELS.LLM_STREAM_CHUNK, abortChunk);
@@ -319,7 +322,7 @@ export function setupBuiltinLLMIPC(): void {
       );
       event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, getModelStatus(resolvedModelFile));
     } catch (err) {
-      console.error(err);
+      log.error('Model download IPC handler failed', err as Error);
       const status: LLMModelStatus = {
         ...getModelStatus(resolvedModelFile),
         error: (err as Error).message,

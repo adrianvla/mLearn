@@ -9,6 +9,9 @@ import { createSignal } from 'solid-js';
 import { useSettings } from '../context';
 import { PROXY_SERVER_PORT } from '../../shared/constants';
 import { getBackend } from '../../shared/backends';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.hooks.useAnki");
 
 const ANKI_CONNECT_VERSION = 6;
 
@@ -69,7 +72,7 @@ export function useAnki() {
       setIsConnected(true);
       return true;
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setIsConnected(false);
       return false;
     }
@@ -81,7 +84,7 @@ export function useAnki() {
       setDecks(deckNames);
       return deckNames;
     } catch (e) {
-      console.error('Failed to fetch decks:', e);
+      log.error('Failed to fetch decks:', e);
       return [];
     }
   };
@@ -92,7 +95,7 @@ export function useAnki() {
       setModels(modelNames);
       return modelNames;
     } catch (e) {
-      console.error('Failed to fetch models:', e);
+      log.error('Failed to fetch models:', e);
       return [];
     }
   };
@@ -101,7 +104,7 @@ export function useAnki() {
     try {
       return await ankiRequest<string[]>(getProxyUrl(), 'modelFieldNames', { modelName });
     } catch (e) {
-      console.error('Failed to fetch model fields:', e);
+      log.error('Failed to fetch model fields:', e);
       return [];
     }
   };
@@ -110,7 +113,7 @@ export function useAnki() {
     try {
       return await ankiRequest<number>(getProxyUrl(), 'createDeck', { deck: deckName });
     } catch (e) {
-      console.error('Failed to create deck:', e);
+      log.error('Failed to create deck:', e);
       return null;
     }
   };
@@ -148,7 +151,7 @@ export function useAnki() {
     try {
       await ankiRequest(getProxyUrl(), 'createDeck', { deck: deckName });
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Ignore - deck may already exist
     }
 
@@ -191,7 +194,7 @@ export function useAnki() {
     try {
       return await ankiRequest<number>(getProxyUrl(), 'addNote', { note });
     } catch (e) {
-      console.error('Failed to add note:', e);
+      log.error('Failed to add note:', e);
       throw new Error(`Failed to add note: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
@@ -204,7 +207,7 @@ export function useAnki() {
         query: `deck:"${deck}" "${fieldExpression}:${word}"`,
       });
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return [];
     }
   };
@@ -219,7 +222,7 @@ export function useAnki() {
     try {
       return await ankiRequest<AnkiNoteInfo[]>(getProxyUrl(), 'notesInfo', { notes: noteIds });
     } catch (e) {
-      console.error('Failed to get notes info:', e);
+      log.error('Failed to get notes info:', e);
       return [];
     }
   };
@@ -236,7 +239,7 @@ export function useAnki() {
       });
       return notes.length > 0 ? notes[0] : null;
     } catch (e) {
-      console.error('Failed to fetch sample note:', e);
+      log.error('Failed to fetch sample note:', e);
       return null;
     }
   };
@@ -245,7 +248,7 @@ export function useAnki() {
     try {
       await ankiRequest(getProxyUrl(), 'sync');
     } catch (e) {
-      console.error('Failed to sync Anki:', e);
+      log.error('Failed to sync Anki:', e);
     }
   };
 
@@ -254,7 +257,7 @@ export function useAnki() {
       await ankiRequest(getProxyUrl(), 'guiDeckBrowser');
       await ankiRequest(getProxyUrl(), 'guiSelectDeck', { deck: deckName });
     } catch (e) {
-      console.error('Failed to open deck in Anki:', e);
+      log.error('Failed to open deck in Anki:', e);
     }
   };
 
@@ -266,7 +269,7 @@ export function useAnki() {
       setAnkiWords(wordSet);
       return wordSet;
     } catch (e) {
-      console.error('Failed to fetch Anki words from backend:', e);
+      log.error('Failed to fetch Anki words from backend:', e);
       return new Set();
     }
   };
@@ -281,7 +284,7 @@ export function useAnki() {
     try {
       return await ankiRequest<number[]>(getProxyUrl(), 'findCards', { query });
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return [];
     }
   };
@@ -292,7 +295,7 @@ export function useAnki() {
     try {
       return await ankiRequest<AnkiCardInfo[]>(getProxyUrl(), 'cardsInfo', { cards: cardIds });
     } catch (e) {
-      console.error('Failed to get cards info:', e);
+      log.error('Failed to get cards info:', e);
       return [];
     }
   };
@@ -305,7 +308,7 @@ export function useAnki() {
         easeFactors,
       });
     } catch (e) {
-      console.error('Failed to set ease factors:', e);
+      log.error('Failed to set ease factors:', e);
       return cardIds.map(() => false);
     }
   };
@@ -316,7 +319,7 @@ export function useAnki() {
       await ankiRequest(getProxyUrl(), 'setDueDate', { cards: cardIds, days });
       return true;
     } catch (e) {
-      console.error('Failed to set due date:', e);
+      log.error('Failed to set due date:', e);
       return false;
     }
   };

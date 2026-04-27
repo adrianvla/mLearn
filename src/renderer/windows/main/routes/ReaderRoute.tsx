@@ -44,6 +44,9 @@ import {
   type WebkitFileSystemAnyEntry,
 } from '../../../utils/webkitFileSystem';
 import './reader.css';
+import { getLogger } from '@shared/utils/logger';
+
+const log = getLogger("renderer.reader");
 
 interface PageImage {
   id: string;
@@ -90,7 +93,7 @@ const loadSavedPageIndex = async (bookId: string | null): Promise<number | null>
     const val = parseInt(raw, 10);
     return Number.isFinite(val) ? val : null;
   } catch (err) {
-    console.warn('[Reader] Failed to read saved page index', err);
+    log.warn('[Reader] Failed to read saved page index', err);
     return null;
   }
 };
@@ -615,7 +618,7 @@ export const ReaderRoute: Component = () => {
             await anki.updateWordCards(trackedAnkiWord, ankiEase);
             await refreshAnkiWordsCache();
           } catch (err) {
-            console.error(`Failed to update Anki cards for "${entry.word}":`, err);
+            log.error(`Failed to update Anki cards for "${entry.word}":`, err);
             showToast({ message: t('mlearn.WordHover.AnkiUpdateFailed'), variant: 'error' });
           }
         } else {
@@ -854,7 +857,7 @@ export const ReaderRoute: Component = () => {
       }
       return result;
     } catch (error) {
-      console.error('OCR error:', error);
+      log.error('OCR error:', error);
       // We don't set error status globally to avoid flashing errors for background tasks
       return null;
     }
@@ -1060,7 +1063,7 @@ export const ReaderRoute: Component = () => {
 
       setOcrStatus(t('mlearn.Reader.Status.Ready'));
     } catch (error) {
-      console.error('[Reader] Failed to load from path:', error);
+      log.error('[Reader] Failed to load from path:', error);
       setOcrStatus(t('mlearn.Reader.Status.FailedToLoad'));
     }
   };
@@ -1159,7 +1162,7 @@ export const ReaderRoute: Component = () => {
         });
         setOcrStatus(t('mlearn.Reader.Status.Ready'));
       } catch (error) {
-        console.error('[Reader] Failed to load PDF:', error);
+        log.error('[Reader] Failed to load PDF:', error);
         setOcrStatus(t('mlearn.Reader.Status.FailedToLoadPdf'));
       }
     };
@@ -1426,7 +1429,7 @@ export const ReaderRoute: Component = () => {
 
         if (savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < pdfImages.length) {
           startPage = savedPageIndex;
-          console.log(`[Reader] Restored page position ${startPage} for PDF "${bookId}"`);
+          log.info(`[Reader] Restored page position ${startPage} for PDF "${bookId}"`);
         }
 
         const newPages: PageImage[] = pdfImages.map((img, index) => ({
@@ -1455,7 +1458,7 @@ export const ReaderRoute: Component = () => {
         setOcrStatus(t('mlearn.Reader.Status.Ready'));
         return;
       } catch (error) {
-        console.error('Failed to load PDF:', error);
+        log.error('Failed to load PDF:', error);
         setOcrStatus(t('mlearn.Reader.Status.FailedToLoadPdf'));
         return;
       }
@@ -1504,7 +1507,7 @@ export const ReaderRoute: Component = () => {
 
     if (savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < files.length) {
       startPage = savedPageIndex;
-      console.log(`[Reader] Restored page position ${startPage} for book "${bookId}"`);
+      log.info(`[Reader] Restored page position ${startPage} for book "${bookId}"`);
     }
 
     const newPages: PageImage[] = files.map((file, index) => ({
@@ -1549,7 +1552,7 @@ export const ReaderRoute: Component = () => {
         progress,
       }, thumbnail);
     } catch (e) {
-      console.error('Failed to save recent:', e);
+      log.error('Failed to save recent:', e);
     }
   };
 
@@ -1694,7 +1697,7 @@ export const ReaderRoute: Component = () => {
         if (requestId !== ocrHoverRequestId) return;
         setOcrTranslationData(translation);
       } catch (_e) {
-        console.error(_e);
+        log.error("error", _e);
         /* ignore */
       }
     }
@@ -1705,7 +1708,7 @@ export const ReaderRoute: Component = () => {
         if (requestId !== ocrHoverRequestId) return;
         setOcrDictionaryEntries(entries);
       } catch (_e) {
-        console.error(_e);
+        log.error("error", _e);
         if (requestId !== ocrHoverRequestId) return;
         setOcrDictionaryEntries([]);
       }

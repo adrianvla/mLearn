@@ -13,6 +13,9 @@ import { useAnki } from '../../hooks/useAnki';
 import { showToast } from '../common/Feedback/Toast';
 import type { PendingFlashcardChoice } from '../../context/FlashcardContext';
 import './FlashcardCreationChoiceModal.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.flashcardCreationChoiceModal");
 
 interface FlashcardCreationChoiceModalProps {
   choice: PendingFlashcardChoice;
@@ -56,7 +59,7 @@ const FlashcardCreationChoiceModalInner: Component<FlashcardCreationChoiceModalP
           showToast({ message: t('mlearn.FlashcardChoice.AnkiError'), variant: 'error' });
         }
       } catch (err) {
-        console.error('Failed to export to Anki:', err);
+        log.error('Failed to export to Anki:', err);
         showToast({ message: t('mlearn.FlashcardChoice.AnkiError'), variant: 'error' });
       } finally {
         setIsExporting(false);

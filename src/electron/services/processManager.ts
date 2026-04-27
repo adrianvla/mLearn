@@ -6,13 +6,16 @@
 import { app, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { terminatePythonBackend, isServerLoaded } from './pythonBackend';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.processManager');
 
 // Restart the application
 export function restartApp(): void {
   if (!isServerLoaded()) return;
   
   terminatePythonBackend();
-  console.log('Restarting app');
+  log.info('Restarting app');
   
   setTimeout(() => {
     app.relaunch();
@@ -23,7 +26,7 @@ export function restartApp(): void {
 // Force restart without checking server status
 export function forceRestartApp(): void {
   terminatePythonBackend();
-  console.log('Force restarting app');
+  log.info('Force restarting app');
   
   setTimeout(() => {
     app.relaunch();

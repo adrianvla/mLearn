@@ -9,6 +9,9 @@
 import type { Settings } from '../types';
 import type { FlashcardStore } from '../types';
 import { PROXY_SERVER_PORT } from '../constants';
+import { getLogger } from '../utils/logger';
+
+const log = getLogger("shared.backends.nodeServer");
 
 export interface NodeServerAdapter {
   /** Base URL of the node server (e.g. http://192.168.1.10:7753) */
@@ -101,7 +104,7 @@ export class HttpNodeServerAdapter implements NodeServerAdapter {
       clearTimeout(timeoutId);
       return res.ok;
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return false;
     }
   }

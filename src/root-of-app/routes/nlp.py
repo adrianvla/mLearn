@@ -13,7 +13,9 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 
 import plugin_registry
-from logging_utils import _log
+from logging_utils import get_logger
+
+log = get_logger("nlp")
 
 router = APIRouter()
 
@@ -47,7 +49,7 @@ class TranslationResponse(BaseModel):
 
 @router.post("/tokenize", response_model=TokenizeResponse)
 def tokenize(req: TokenizeRequest):
-    _log("requested tokenization: ", req.text[:100])
+    log.info(f"requested tokenization:  {req.text[:100]}")
     mod = _resolve_module(req.language)
     if mod is None:
         return {"tokens": []}
@@ -57,7 +59,7 @@ def tokenize(req: TokenizeRequest):
 
 @router.post("/translate", response_model=TranslationResponse)
 def get_translation(req: TranslationRequest):
-    _log("requested translation: ", req.word[:100])
+    log.info(f"requested translation:  {req.word[:100]}")
     mod = _resolve_module(req.language)
     if mod is None:
         return {"data": []}

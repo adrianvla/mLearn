@@ -34,6 +34,9 @@ import {
 } from '../utils/platform';
 import { loadSettings } from './settings';
 import WebSocket from 'ws';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.voiceService');
 
 // ============================================================================
 // Paths
@@ -66,7 +69,7 @@ export function loadSamplesManifest(): VoiceSample[] {
   try {
     return JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return [];
   }
 }
@@ -90,7 +93,7 @@ function fetchJson(url: string): Promise<Record<string, unknown>> {
       res.on('data', (chunk: string) => { data += chunk; });
       res.on('end', () => {
         try { resolve(JSON.parse(data)); } catch (e) {
-          console.error(e);
+          log.error("error", e);
           reject(e);
         }
       });
@@ -160,7 +163,7 @@ function loadVoicePackages(): string[] {
     }
   }
 
-  console.error('Failed to load voice package config from any known path');
+  log.error('Failed to load voice package config from any known path');
   return [];
 }
 
@@ -184,7 +187,7 @@ function loadQwen3Packages(): string[] {
     }
   }
 
-  console.error('Failed to load Qwen3 package config from any known path');
+  log.error('Failed to load Qwen3 package config from any known path');
   return [];
 }
 
@@ -209,7 +212,7 @@ function installVoicePackages(
     const executable = isWindows ? getPythonExecutablePath() : pipExecutable;
     const envPath = path.join(getResourcePath(), 'env');
 
-    console.log('[VoiceService] Installing voice packages:', packages.join(', '));
+    log.info('[VoiceService] Installing voice packages:', packages.join(', '));
 
     const pipProcess = spawn(executable, pipArgs, { cwd: envPath });
 
@@ -250,7 +253,7 @@ function installVoicePackages(
 
     pipProcess.stdout.on('data', (data: Buffer) => {
       const text = data.toString('utf8');
-      console.log('[VoiceService] pip:', text);
+      log.info('[VoiceService] pip:', text);
       outputBuffer += text;
       const lines = outputBuffer.split(/\r?\n/);
       outputBuffer = lines.pop() || '';
@@ -258,22 +261,22 @@ function installVoicePackages(
     });
 
     pipProcess.stderr.on('data', (data: Buffer) => {
-      console.error('[VoiceService] pip error:', data.toString());
+      log.error('[VoiceService] pip error:', data.toString());
     });
 
     pipProcess.on('close', (code) => {
       if (outputBuffer.trim()) processLine(outputBuffer);
       if (code === 0 || code === null) {
-        console.log('[VoiceService] Voice packages installed successfully');
+        log.info('[VoiceService] Voice packages installed successfully');
         resolve(true);
       } else {
-        console.error('[VoiceService] pip install failed with code:', code);
+        log.error('[VoiceService] pip install failed with code:', code);
         resolve(false);
       }
     });
 
     pipProcess.on('error', (err) => {
-      console.error('[VoiceService] Failed to spawn pip:', err);
+      log.error('[VoiceService] Failed to spawn pip:', err);
       resolve(false);
     });
   });
@@ -321,7 +324,7 @@ async function checkModelStatus(_language: string): Promise<VoiceModelStatus> {
     status.progress =
       (((sttRes.progress as number) ?? 0) + ((ttsRes.progress as number) ?? 0)) / 2;
   } catch (err) {
-    console.error(err);
+    log.error("error", err);
     status.error = err instanceof Error ? err.message : String(err);
   }
 
@@ -351,7 +354,7 @@ function startSession(
     activeSender = sender;
 
     ws.on('open', () => {
-      console.log('[VoiceService] WebSocket connected to Python backend');
+      log.info('[VoiceService] WebSocket connected to Python backend');
     });
 
     ws.on('message', (rawData: WebSocket.RawData) => {
@@ -380,19 +383,19 @@ function startSession(
             // Respond to server keepalive pings
             break;
           case 'error':
-            console.error('[VoiceService] Backend error:', msg.message);
+            log.error('[VoiceService] Backend error:', msg.message);
             activeSender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
               error: msg.message,
             });
             break;
         }
       } catch (e) {
-        console.error('[VoiceService] Failed to parse WS message:', e);
+        log.error('[VoiceService] Failed to parse WS message:', e);
       }
     });
 
     ws.on('error', (err) => {
-      console.error('[VoiceService] WebSocket error:', err);
+      log.error('[VoiceService] WebSocket error:', err);
       if (activeSender) {
         activeSender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
           error: err.message || 'WebSocket connection error',
@@ -401,14 +404,14 @@ function startSession(
     });
 
     ws.on('close', () => {
-      console.log('[VoiceService] WebSocket closed');
+      log.info('[VoiceService] WebSocket closed');
       if (activeWs === ws) {
         activeWs = null;
         activeSession = false;
       }
     });
   } catch (err) {
-    console.error('[VoiceService] Failed to connect:', err);
+    log.error('[VoiceService] Failed to connect:', err);
     sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
       error: err instanceof Error ? err.message : String(err),
     });
@@ -420,7 +423,7 @@ function stopSession(): void {
   activeSender = null;
   if (activeWs) {
     try { activeWs.close(); } catch (e) {
-      console.error(e);
+      log.error("error", e);
     }
     activeWs = null;
   }
@@ -431,7 +434,7 @@ function sendAudioChunk(samples: Float32Array): void {
   try {
     activeWs.send(Buffer.from(samples.buffer, samples.byteOffset, samples.byteLength));
   } catch (e) {
-    console.error('[VoiceService] Failed to send audio chunk:', e);
+    log.error('[VoiceService] Failed to send audio chunk:', e);
   }
 }
 
@@ -440,7 +443,7 @@ function sendFlush(): void {
   try {
     activeWs.send(JSON.stringify({ type: 'flush' }));
   } catch (e) {
-    console.error('[VoiceService] Failed to send flush command:', e);
+    log.error('[VoiceService] Failed to send flush command:', e);
   }
 }
 
@@ -449,7 +452,7 @@ function sendSilenceThresholdUpdate(threshold: number): void {
   try {
     activeWs.send(JSON.stringify({ type: 'silence_threshold', value: threshold }));
   } catch (e) {
-    console.error('[VoiceService] Failed to send silence threshold update:', e);
+    log.error('[VoiceService] Failed to send silence threshold update:', e);
   }
 }
 
@@ -514,7 +517,7 @@ async function generateCloudTTS(
               }
               resolve({ streamUrl: url });
             } catch (e) {
-              console.error(e);
+              log.error("error", e);
               reject(e);
             }
           });
@@ -608,7 +611,7 @@ async function generateCloudTTS(
     });
   } catch (err) {
     if (!ttsAbortController?.signal.aborted) {
-      console.error('[VoiceService] Cloud TTS error:', err);
+      log.error('[VoiceService] Cloud TTS error:', err);
     }
   }
 
@@ -644,7 +647,7 @@ async function generateTTS(
     const ttsStatus = await fetchJson(API_ENDPOINTS.voiceTtsStatus);
     modelLoading = !(ttsStatus.loaded as boolean);
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     // If status check fails, proceed without the flag
   }
 
@@ -667,7 +670,7 @@ async function generateTTS(
           downloadProgress: s.progress as number ?? 0,
         });
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
       }
     }, 2000);
   }
@@ -709,7 +712,7 @@ async function generateTTS(
 
     if (boundariesHeader) {
       try { boundaries = JSON.parse(boundariesHeader as string); } catch (e) {
-        console.error(e);
+        log.error("error", e);
       }
     }
 
@@ -758,7 +761,7 @@ async function generateTTS(
     }
   } catch (err) {
     if (!ttsAbortController?.signal.aborted) {
-      console.error('[VoiceService] TTS generation error:', err);
+      log.error('[VoiceService] TTS generation error:', err);
     }
   }
 
@@ -782,7 +785,7 @@ export function setupVoiceIPC(): void {
   // Model status
   ipcMain.handle(IPC_CHANNELS.VOICE_MODEL_STATUS, async (_event, language: string) => {
     const status = await checkModelStatus(language);
-    console.log('[VoiceService] Model status for', language, ':', JSON.stringify(status));
+    log.info('[VoiceService] Model status for', language, ':', JSON.stringify(status));
     return status;
   });
 
@@ -844,7 +847,7 @@ export function setupVoiceIPC(): void {
       }
       emitProgress(finalStatus);
     } catch (err) {
-      console.error('[VoiceService] Model download failed:', err);
+      log.error('[VoiceService] Model download failed:', err);
       event.sender.send(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD_PROGRESS, {
         sttDownloaded: false,
         ttsDownloaded: false,
@@ -895,7 +898,7 @@ export function setupVoiceIPC(): void {
     IPC_CHANNELS.VOICE_TTS_GENERATE,
     (event, text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string) => {
       generateTTS(text, language, speed ?? 1.0, voiceSampleId, event.sender, provider).catch((err) => {
-        console.error('[VoiceService] TTS error:', err);
+        log.error('[VoiceService] TTS error:', err);
       });
     },
   );

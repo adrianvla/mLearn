@@ -8,6 +8,9 @@ import path from 'path';
 import { ipcMain, BrowserWindow } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getAppPath, getResourcePath } from '../utils/platform';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.localization');
 
 export type LocaleStrings = Record<string, unknown>;
 
@@ -39,7 +42,7 @@ export function loadLocalization(langCode: string): LocaleStrings {
   const localesDir = getLocalesDir();
   
   if (!localesDir) {
-    console.warn('Locales directory not found');
+    log.warn('Locales directory not found');
     return {};
   }
   
@@ -50,14 +53,14 @@ export function loadLocalization(langCode: string): LocaleStrings {
       const data = fs.readFileSync(filePath, 'utf-8');
       return JSON.parse(data);
     } else {
-      console.warn(`Locale file not found: ${filePath}`);
+      log.warn(`Locale file not found: ${filePath}`);
       // Fall back to English if requested locale doesn't exist
       if (langCode !== 'en') {
         return loadLocalization('en');
       }
     }
   } catch (error) {
-    console.error(`Failed to load localization for ${langCode}:`, error);
+    log.error(`Failed to load localization for ${langCode}:`, error);
   }
   
   return {};
@@ -100,7 +103,7 @@ export function initializeLocalization(): void {
       savedLang = settings.uiLanguage;
     }
   } catch (e) {
-    console.error(e);
+    log.error('Failed to read uiLanguage from settings', e);
     // Settings not available yet, use English
   }
   currentLocale = savedLang;

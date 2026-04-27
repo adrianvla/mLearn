@@ -9,6 +9,9 @@ import { getBridge } from '../../../../shared/bridges';
 import type { PluginInstallResult, PluginState, PluginStatus } from '../../../../shared/plugins/types';
 import type { LabelVariant } from '../../../components/common/Label/Label';
 import './PluginsTab.css';
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.settings.plugins");
 
 const PLUGIN_STATUS_VARIANT: Record<PluginStatus, LabelVariant> = {
   active: 'success',
@@ -50,7 +53,7 @@ export const PluginsTab: Component = () => {
     try {
       return sortPlugins(await bridge.plugins.pluginGetList());
     } catch (error) {
-      console.error('Failed to load plugins:', error);
+      log.error('Failed to load plugins:', error);
       setLoadErrorMessage(String(error));
       return [];
     }
@@ -69,7 +72,7 @@ export const PluginsTab: Component = () => {
       const result = await bridge.plugins.pluginSelectAndInstall();
       handleInstallResult(result);
     } catch (error) {
-      console.error('Failed to install plugin:', error);
+      log.error('Failed to install plugin:', error);
       setActionErrorMessage(String(error));
     } finally {
       setInstalling(false);
@@ -89,7 +92,7 @@ export const PluginsTab: Component = () => {
         mutatePlugins((currentPlugins) => upsertPlugin(currentPlugins ?? [], updatedPlugin));
       }
     } catch (error) {
-      console.error(`Failed to update plugin ${pluginId}:`, error);
+      log.error(`Failed to update plugin ${pluginId}:`, error);
       setActionErrorMessage(String(error));
     } finally {
       setBusyPluginId(null);
@@ -106,7 +109,7 @@ export const PluginsTab: Component = () => {
         mutatePlugins((currentPlugins) => removePlugin(currentPlugins ?? [], pluginId));
       }
     } catch (error) {
-      console.error(`Failed to uninstall plugin ${pluginId}:`, error);
+      log.error(`Failed to uninstall plugin ${pluginId}:`, error);
       setActionErrorMessage(String(error));
     } finally {
       setBusyPluginId(null);
@@ -123,7 +126,7 @@ export const PluginsTab: Component = () => {
         setActionErrorMessage(t('mlearn.Settings.Plugins.OpenWindowError'));
       }
     } catch (error) {
-      console.error(`Failed to open plugin window for ${pluginId}:`, error);
+      log.error(`Failed to open plugin window for ${pluginId}:`, error);
       setActionErrorMessage(String(error));
     } finally {
       setBusyPluginId(null);

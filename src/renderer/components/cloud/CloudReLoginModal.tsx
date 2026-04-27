@@ -15,6 +15,9 @@ import {
 } from '../../services/cloudAuthService';
 import { cancelCloudSessionRecovery } from '../../services/cloudSessionManager';
 import './CloudReLoginModal.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.cloudReLoginModal");
 
 export interface CloudReLoginModalProps {
   isOpen: boolean;
@@ -70,7 +73,7 @@ export const CloudReLoginModal: Component<CloudReLoginModalProps> = (props) => {
       props.onReLoginSuccess?.();
       props.onClose();
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setError(String(e));
     } finally {
       setExchanging(false);
@@ -86,7 +89,7 @@ export const CloudReLoginModal: Component<CloudReLoginModalProps> = (props) => {
       setPendingVerifier(login.codeVerifier);
       await getBridge().window.openExternalUrl(login.loginUrl);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setError(String(e));
       setLoginPending(false);
     }

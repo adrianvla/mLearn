@@ -18,6 +18,9 @@ import {
   withCloudAuth,
 } from './cloudSessionManager';
 import { hasCompleteStructuredExplainerOutput } from '../components/subtitle/explainerPopupState';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.llmProvider");
 
 // ============================================================================
 // Types
@@ -191,7 +194,7 @@ export function streamChat(
     activeCleanup = cleanupListener;
 
     if (activeSettings?.devMode) {
-      console.log('[LLMProvider] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
+      log.info('[LLMProvider] Prompt sent to LLM:', JSON.stringify(messages, null, 2));
     }
     bridge.llm.llmStream(messages, tools);
   });
@@ -213,7 +216,7 @@ export function streamChat(
   };
 
   void startStream().catch((error) => {
-    console.error(error);
+    log.error("error", error);
     if (!aborted) {
       callbacks.onError(error);
     }
@@ -311,7 +314,7 @@ function streamChatMobile(
       alreadyEmittedOutput: () => accumulated.length > 0 || collectedToolCalls.length > 0,
     },
   ).catch((error) => {
-    console.error(error);
+    log.error("error", error);
     if (!aborted) {
       callbacks.onError(error);
     }
@@ -358,7 +361,7 @@ export async function checkAvailability(settings: Settings): Promise<{ available
         ? { available: true }
         : { available: false, reason: 'cloud_unreachable' };
     } catch (error) {
-      console.error(error);
+      log.error("error", error);
       if (error instanceof CloudSessionCancelledError || isCloudSessionError(error)) {
         return { available: false, reason: 'auth_required' };
       }
@@ -377,7 +380,7 @@ export async function checkAvailability(settings: Settings): Promise<{ available
       }
       return { available: true };
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return { available: false, reason: 'ollama_unreachable' };
     }
   }
@@ -390,7 +393,7 @@ export async function checkAvailability(settings: Settings): Promise<{ available
     }
     return { available: true };
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return { available: false, reason: 'model_check_failed' };
   }
 }
@@ -784,7 +787,7 @@ function logCompletedLLMStream(
     return;
   }
 
-  console.log('[LLMProvider] LLM stream completed:', JSON.stringify({
+  log.info('[LLMProvider] LLM stream completed:', JSON.stringify({
     finalContent,
     toolCalls,
     stats,

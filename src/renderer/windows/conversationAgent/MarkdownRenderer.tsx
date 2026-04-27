@@ -12,6 +12,9 @@ import { Marked, type Token as MarkedToken, type Tokens } from 'marked';
 import type { Token } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './MarkdownRenderer.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.conversationAgent.markdownRenderer");
 
 // ============================================================================
 // Markdown → HTML (streaming / plain fallback)
@@ -34,7 +37,7 @@ export function parseMarkdownToHtml(content: string): string {
     }
     return markedInstance.parseInline(trimmed) as string;
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return content;
   }
 }
@@ -151,7 +154,7 @@ export const MarkdownRenderer: Component<MarkdownRendererProps> = (props) => {
     try {
       ast = markedInstance.lexer(props.content);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return null;
     }
     return renderMarkedTokens(ast, consumer, props);

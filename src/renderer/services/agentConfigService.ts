@@ -5,6 +5,9 @@
 
 import type { AgentConfig, AgentMemoryEntry } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.agentConfig");
 
 const AGENTS_KEY = 'agent-configs';
 const ACTIVE_AGENT_KEY = 'active-agent-id';
@@ -21,7 +24,7 @@ export async function loadAgents(): Promise<AgentConfig[]> {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return [];
   }
 }
@@ -109,13 +112,13 @@ export async function migrateIfNeeded(): Promise<void> {
               await saveAllMemories(tagged);
             }
           } catch (e) {
-            console.error(e);
+            log.error("error", e);
           }
         }
       }
     }
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
   }
 
   // Clean up old keys
@@ -134,7 +137,7 @@ export async function loadAllMemories(): Promise<AgentMemoryEntry[]> {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return [];
   }
 }

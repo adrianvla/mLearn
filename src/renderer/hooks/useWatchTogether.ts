@@ -30,6 +30,9 @@ import {
   type MediaOfferHandle,
   type MediaTransferMetadata,
 } from '../services/mediaDistributionService';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.hooks.useWatchTogether");
 
 export interface WatchTogetherMessage {
   action: string;
@@ -239,7 +242,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
           deactivate();
           return;
         }
-        console.error('[WatchTogether] Signaling error:', error);
+        log.error('[WatchTogether] Signaling error:', error);
       },
     });
 
@@ -253,7 +256,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         setMediaSendComplete(true);
       },
       onSendError: (error) => {
-        console.error('[WatchTogether] Media send error:', error);
+        log.error('[WatchTogether] Media send error:', error);
         setIsSendingMedia(false);
       },
     }, {
@@ -266,7 +269,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         setMediaReceiveResult({ file, meta });
       },
       onReceiveError: (error) => {
-        console.error('[WatchTogether] Media receive error:', error);
+        log.error('[WatchTogether] Media receive error:', error);
         setIsReceivingMedia(false);
       },
     });
@@ -327,7 +330,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       });
       applyRoomState(updatedSession.room);
     } catch (error) {
-      console.error('[WatchTogether] Failed to persist room playback state', error);
+      log.error('[WatchTogether] Failed to persist room playback state', error);
     }
   }
 
@@ -366,14 +369,14 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
 
     if (activeMode === 'room-owner') {
       void closeWatchTogetherRoom(session, accessToken).catch((error) => {
-        console.error(`[WatchTogether] Failed to close room ${context}`, error);
+        log.error(`[WatchTogether] Failed to close room ${context}`, error);
       });
       return;
     }
 
     if (activeMode === 'room-viewer') {
       void leaveWatchTogetherRoom(session, accessToken).catch((error) => {
-        console.error(`[WatchTogether] Failed to leave room ${context}`, error);
+        log.error(`[WatchTogether] Failed to leave room ${context}`, error);
       });
     }
   }
@@ -541,7 +544,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     try {
       msg = JSON.parse(raw);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return;
     }
 

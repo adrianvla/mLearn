@@ -18,6 +18,9 @@ import {
 import { WORD_STATUS } from '../../../shared/constants';
 import { Spinner, PillLabel, LegendItem, BookIcon, AlertBanner } from '../../components/common';
 import './kanjiGrid.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.kanjiGrid.app");
 
 interface KanjiData {
   kanji: string;
@@ -252,7 +255,7 @@ export const KanjiGridContent: Component = () => {
       setKanjiData(sorted);
       setLevelKanji(levels);
     } catch (e) {
-      console.error('Failed to build kanji stats:', e);
+      log.error('Failed to build kanji stats:', e);
     } finally {
       setIsLoading(false);
     }

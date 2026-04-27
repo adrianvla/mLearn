@@ -9,6 +9,9 @@ import { useServer, useSettings, useLanguage, useLocalization } from '../../../c
 import { LoadingOverlay as BaseLoadingOverlay, ErrorModal } from '../../../components/common/Modal';
 import { Btn } from '../../../components/common/Button';
 import { getBridge } from '../../../../shared/bridges';
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.main.loadingOverlay");
 
 export const LoadingOverlay: Component = () => {
   const server = useServer();
@@ -50,7 +53,7 @@ export const LoadingOverlay: Component = () => {
   // Listen for critical errors from the server
   onMount(() => {
     const handleCriticalError = (errorMessage: string) => {
-        console.error('[LoadingOverlay] Critical error received:', errorMessage);
+        log.error('[LoadingOverlay] Critical error received:', errorMessage);
         
         // Parse error messages for known error types
         let details: string | undefined;
@@ -74,7 +77,7 @@ export const LoadingOverlay: Component = () => {
       };
 
     const handleAnkiError = (reason: string) => {
-      console.error('[LoadingOverlay] Anki connection error received:', reason);
+      log.error('[LoadingOverlay] Anki connection error received:', reason);
       setAnkiError(reason);
     };
 
@@ -84,7 +87,7 @@ export const LoadingOverlay: Component = () => {
     try {
       cleanupAnki = bridge.server.onAnkiConnectionError(handleAnkiError);
     } catch (e) {
-      console.warn('[LoadingOverlay] onAnkiConnectionError not available:', e);
+      log.warn('[LoadingOverlay] onAnkiConnectionError not available:', e);
     }
     onCleanup(() => {
       cleanupCritical();

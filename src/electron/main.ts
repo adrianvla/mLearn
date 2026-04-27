@@ -13,6 +13,7 @@ import { setupFlashcardImageIPC, registerFlashcardImageScheme, setupFlashcardIma
 import { setupFlashcardTtsIPC, registerFlashcardAudioScheme, setupFlashcardAudioProtocol } from './services/flashcardTtsStorage';
 import { setupFlashcardVideoIPC, registerFlashcardVideoScheme, setupFlashcardVideoProtocol } from './services/flashcardVideoStorage';
 import { setupSettingsIPC } from './services/settings';
+import { setupLoggingService } from './services/loggingService';
 import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
 import { setupFileOperationsIPC } from './services/fileOperations';
@@ -30,6 +31,9 @@ import { initPluginManager } from './services/pluginManager';
 import { setupPluginIPC } from './services/pluginIPC';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
+import { getLogger } from '../shared/utils/logger';
+
+const log = getLogger('electron.main');
 
 interface AuthDeepLinkPayload {
   code: string | null;
@@ -56,7 +60,7 @@ function parseAuthDeepLink(rawUrl: string): AuthDeepLinkPayload | null {
       error: parsed.searchParams.get('error'),
     };
   } catch (e) {
-    console.error(e);
+    log.error('parseAuthDeepLink failed', e);
     return null;
   }
 }
@@ -73,7 +77,7 @@ function parseLookupDeepLink(rawUrl: string): string | null {
     const word = parsed.searchParams.get('word');
     return word && word.trim() ? word.trim() : null;
   } catch (e) {
-    console.error(e);
+    log.error('parseLookupDeepLink failed', e);
     return null;
   }
 }
@@ -162,7 +166,7 @@ async function raiseFileDescriptorLimits(): Promise<void> {
         );
       }
     } catch {
-      console.warn(
+      log.warn(
         `Could not raise kern.maxfiles (needs root). If OCR fails, run: ` +
         `sudo sysctl -w kern.maxfiles=524288 kern.maxfilesperproc=524288`,
       );
@@ -171,7 +175,7 @@ async function raiseFileDescriptorLimits(): Promise<void> {
     try {
       await execAsync('sysctl -w fs.file-max=524288', { timeout: 2000 });
     } catch (e) {
-      console.error(e);
+      log.error('Failed to raise fs.file-max', e);
     }
   }
 }
@@ -211,6 +215,7 @@ function setupAllIPC(): void {
   ipcInitialized = true;
 
   setupBaseIPC();
+  setupLoggingService();
   setupSettingsIPC();
   setupLocalizationIPC();
   setupFlashcardIPC();
@@ -313,12 +318,12 @@ if (!gotSingleInstanceLock) {
 }
 
 app.on('before-quit', () => {
-  console.log('App before-quit: terminating Python backend');
+  log.info('App before-quit: terminating Python backend');
   terminatePythonBackend();
 });
 
 app.on('quit', () => {
-  console.log('App quit: cleanup');
+  log.info('App quit: cleanup');
   stopWebServer();
   terminatePythonBackend();
 });

@@ -68,6 +68,9 @@ import { isLatinOnly } from '../../../shared/utils/textUtils';
 import { getConversationErrorMessage } from './errorUtils';
 import { canRegenerateAssistantMessage, getLatestAssistantMessageIndex, isStreamingAssistantBubble, shouldHideAssistantBubble } from './messageState';
 import './ConversationAgent.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.conversationAgent.app");
 
 /**
  * Known tool names used by the conversation agent.
@@ -289,11 +292,11 @@ export const ConversationContent: Component = () => {
   const enqueueCheckerTask = (task: () => Promise<void>) => {
     checkerTaskQueue = checkerTaskQueue
       .catch((error) => {
-        console.error(error);
+        log.error("error", error);
       })
       .then(task)
       .catch((error) => {
-        console.error(error);
+        log.error("error", error);
       });
 
     return checkerTaskQueue;
@@ -359,7 +362,7 @@ export const ConversationContent: Component = () => {
           getBridge().speech.ttsSpeak(assistantText, settings.language);
         }
       } catch (error) {
-        console.error(error);
+        log.error("error", error);
         const currentMessage = messages()[assistantMsgIndex];
         if (
           settings.autoSpeak
@@ -597,7 +600,7 @@ export const ConversationContent: Component = () => {
           setIsConnected(status?.downloaded ?? false);
         }
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         handleCloudSessionError(e, false);
         setIsConnected(false);
       } finally {
@@ -791,7 +794,7 @@ export const ConversationContent: Component = () => {
           setTranslationData({ data: result.data as (TranslationEntry | PitchData | null | undefined)[] });
         }
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         // Ignore translation errors
       }
     }
@@ -802,7 +805,7 @@ export const ConversationContent: Component = () => {
       if (requestId !== hoverRequestId) return;
       setDictionaryEntries(entries);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Ignore dictionary errors
     }
     if (requestId === hoverRequestId) {

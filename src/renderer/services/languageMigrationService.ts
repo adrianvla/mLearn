@@ -16,6 +16,9 @@ import {
   hasFlashcardStoreBeenMigrated,
 } from '@shared/language-migration';
 import { initializeLanguageRegistry } from '@shared/language-registry';
+import { getLogger } from '@shared/utils/logger';
+
+const log = getLogger("renderer.services.languageMigration");
 
 // ============================================================================
 // Migration State
@@ -52,19 +55,19 @@ export function migrateSettingsIfNeeded(settings: Settings): Settings {
   
   // Check if already migrated
   if (hasSettingsBeenMigrated(settings)) {
-    console.log('[LanguageMigration] Settings already migrated');
+    log.info('[LanguageMigration] Settings already migrated');
     return settings;
   }
   
-  console.log('[LanguageMigration] Migrating settings to include language metadata');
+  log.info('[LanguageMigration] Migrating settings to include language metadata');
   
   try {
     const migratedSettings = migrateSettingsToLanguageMetadata(settings);
 
-    console.log('[LanguageMigration] Settings migration completed successfully');
+    log.info('[LanguageMigration] Settings migration completed successfully');
     return migratedSettings;
   } catch (error) {
-    console.error('[LanguageMigration] Settings migration failed:', error);
+    log.error('[LanguageMigration] Settings migration failed:', error);
     // Return original settings if migration fails
     return settings;
   }
@@ -83,19 +86,19 @@ export function migrateFlashcardStoreIfNeeded(
   
   // Check if already migrated
   if (hasFlashcardStoreBeenMigrated(store)) {
-    console.log('[LanguageMigration] Flashcard store already migrated');
+    log.info('[LanguageMigration] Flashcard store already migrated');
     return store;
   }
   
-  console.log('[LanguageMigration] Migrating flashcard store to include language metadata');
+  log.info('[LanguageMigration] Migrating flashcard store to include language metadata');
   
   try {
     const migratedStore = migrateFlashcardStoreToLanguageMetadata(store, language);
 
-    console.log('[LanguageMigration] Flashcard store migration completed successfully');
+    log.info('[LanguageMigration] Flashcard store migration completed successfully');
     return migratedStore;
   } catch (error) {
-    console.error('[LanguageMigration] Flashcard store migration failed:', error);
+    log.error('[LanguageMigration] Flashcard store migration failed:', error);
     // Return original store if migration fails
     return store;
   }
@@ -111,7 +114,7 @@ export async function performFullLanguageMigration(
   language: LanguageCode = 'ja'
 ): Promise<{ settings: Settings; store: FlashcardStore }> {
   if (migrationInProgress) {
-    console.warn('[LanguageMigration] Migration already in progress');
+    log.warn('[LanguageMigration] Migration already in progress');
     return { settings, store };
   }
   
@@ -121,11 +124,11 @@ export async function performFullLanguageMigration(
     // Initialize language registry
     initializeLanguageRegistry();
     
-    console.log('[LanguageMigration] Starting full language metadata migration');
+    log.info('[LanguageMigration] Starting full language metadata migration');
     
     // Check if both are already migrated
     if (hasSettingsBeenMigrated(settings) && hasFlashcardStoreBeenMigrated(store)) {
-      console.log('[LanguageMigration] Both settings and store already migrated');
+      log.info('[LanguageMigration] Both settings and store already migrated');
       migrationCompleted = true;
       return { settings, store };
     }
@@ -137,12 +140,12 @@ export async function performFullLanguageMigration(
       language
     );
     
-    console.log('[LanguageMigration] Full migration completed successfully');
+    log.info('[LanguageMigration] Full migration completed successfully');
     migrationCompleted = true;
     
     return { settings: migratedSettings, store: migratedStore };
   } catch (error) {
-    console.error('[LanguageMigration] Full migration failed:', error);
+    log.error('[LanguageMigration] Full migration failed:', error);
     migrationCompleted = false;
     return { settings, store };
   } finally {
@@ -158,11 +161,11 @@ export async function performFullLanguageMigration(
  * Log migration status for debugging
  */
 export function logMigrationStatus(settings: Settings, store: FlashcardStore): void {
-  console.log('[LanguageMigration] Status Report:');
-  console.log(`  - Settings migrated: ${hasSettingsBeenMigrated(settings)}`);
-  console.log(`  - Store migrated: ${hasFlashcardStoreBeenMigrated(store)}`);
-  console.log(`  - Migration completed: ${migrationCompleted}`);
-  console.log(`  - Migration in progress: ${migrationInProgress}`);
-  console.log(`  - Current language: ${settings.language || 'ja'}`);
-  console.log(`  - Flashcard count: ${Object.keys(store.flashcards).length}`);
+  log.info('[LanguageMigration] Status Report:');
+  log.info(`  - Settings migrated: ${hasSettingsBeenMigrated(settings)}`);
+  log.info(`  - Store migrated: ${hasFlashcardStoreBeenMigrated(store)}`);
+  log.info(`  - Migration completed: ${migrationCompleted}`);
+  log.info(`  - Migration in progress: ${migrationInProgress}`);
+  log.info(`  - Current language: ${settings.language || 'ja'}`);
+  log.info(`  - Flashcard count: ${Object.keys(store.flashcards).length}`);
 }

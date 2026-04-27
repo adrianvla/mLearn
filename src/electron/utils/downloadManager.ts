@@ -8,6 +8,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as https from 'https';
 import * as http from 'http';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.downloadManager');
 
 export interface DownloadProgress {
   downloadedBytes: number;
@@ -95,7 +98,7 @@ export function downloadFileWithProgress(
 
         fileStream.on('error', (err) => {
           try { fs.unlinkSync(tempPath); } catch (e) {
-            console.error(e);
+            log.error('Failed to unlink temp download file', e);
           }
           reject(err);
         });

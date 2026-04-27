@@ -15,7 +15,9 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 import config
-from logging_utils import _log
+from logging_utils import get_logger
+
+log = get_logger("anki")
 
 router = APIRouter()
 
@@ -34,7 +36,7 @@ def get_all_cards_CACHE() -> bool:
 
     # Migration: if only .pkl exists, convert it to .json then rename it to .pkl.bak
     if not os.path.exists(json_path) and os.path.exists(pkl_path):
-        _log("Migrating anki-cache.pkl to anki-cache.json")
+        log.info("Migrating anki-cache.pkl to anki-cache.json")
         try:
             import pickle as _pickle
 
@@ -43,13 +45,13 @@ def get_all_cards_CACHE() -> bool:
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(data, f)
             os.rename(pkl_path, pkl_path + ".bak")
-            _log("Migration complete; old cache renamed to anki-cache.pkl.bak")
+            log.info("Migration complete; old cache renamed to anki-cache.pkl.bak")
         except Exception as e:
-            _log(f"Migration from .pkl failed: {e}")
+            log.error(f"Migration from .pkl failed: {e}", exc_info=True)
             return False
 
     if not os.path.exists(json_path):
-        _log("Cache file not found")
+        log.warning("Cache file not found")
         return False
     try:
         with open(json_path, "r", encoding="utf-8") as f:
@@ -63,7 +65,7 @@ def get_all_cards_CACHE() -> bool:
             who_contain = data.get("who_contain", {})
         return True
     except Exception as e:
-        print(f"Failed to load cache: {e}")
+        log.error(f"Failed to load cache: {e}", exc_info=True)
         return False
 
 
@@ -90,10 +92,10 @@ def _anki_invoke(action, **params):
             raise Exception(response["error"])
         return response["result"]
     except urllib.error.URLError as e:
-        _log(f"Failed to connect to Anki: {e}")
+        log.error(f"Failed to connect to Anki: {e}")
         return None
     except Exception as e:
-        _log(f"An error occurred: {e}")
+        log.error(f"An error occurred: {e}", exc_info=True)
         return None
 
 
@@ -101,22 +103,22 @@ def get_all_cards() -> bool:
     """Fetch all cards from AnkiConnect and build lookup indices."""
     global all_cards, cards_per_id, words_ids, who_contain
 
-    _log("Fetch Anki is set to", config.FETCH_ANKI)
+    log.info(f"Fetch Anki is set to {config.FETCH_ANKI}")
     if not config.FETCH_ANKI:
         return True
 
-    _log("Loading all card ids")
+    log.info("Loading all card ids")
     card_ids = _anki_invoke("findCards", query="deck:*")
     if card_ids is None:
-        _log("Failed to load card ids")
+        log.error("Failed to load card ids")
         return False
-    _log("Loaded all card ids")
-    _log("Loading all cards")
+    log.info("Loaded all card ids")
+    log.info("Loading all cards")
     all_cards = _anki_invoke("cardsInfo", cards=card_ids)
     if all_cards is None:
-        _log("Failed to load cards")
+        log.error("Failed to load cards")
         return False
-    _log("Recieved all cards")
+    log.info("Recieved all cards")
 
     # Filter and map fields
     all_cards_temp = []
@@ -172,8 +174,8 @@ def get_all_cards() -> bool:
     all_cards = [card for card in all_cards if "Expression" in card["fields"]]
 
     if len(all_cards) == 0:
-        _log("No valid cards found, maybe you have selected the wrong deck?")
-        _log("ANKI_ERROR", "no_valid_cards")
+        log.error("No valid cards found, maybe you have selected the wrong deck?")
+        log.error("ANKI_ERROR no_valid_cards")
         sys.exit(-1)
         return False
 
@@ -183,8 +185,8 @@ def get_all_cards() -> bool:
         words = "".join([i for i in words if ord(i) > 128])
         words_ids[words] = card["cardId"]
         cards_per_id[card["cardId"]] = card
-    _log("Loaded all cards")
-    _log("Loading who_contain")
+    log.info("Loaded all cards")
+    log.info("Loading who_contain")
 
     # Generate who_contain index
     no_duplicates: dict = {}
@@ -201,7 +203,7 @@ def get_all_cards() -> bool:
                 no_duplicates[character] = set([characters])
                 who_contain[character] = [(characters, card["cardId"])]
 
-    _log("Loaded who_contain")
+    log.info("Loaded who_contain")
 
     # Save cache
     with open(
@@ -321,7 +323,7 @@ def get_card(req: GetCardRequest):
 
 @router.post("/control")
 def control(req: ControlRequest):
-    _log("/control called with function:", req.function)
+    log.info(f"/control called with function: {req.function}")
     if req.function == "ping":
         return {"response": "pong"}
     elif req.function == "reload":
@@ -338,7 +340,7 @@ def quit_endpoint(
     if x_quit_token != config.QUIT_TOKEN:
         response.status_code = 403
         return {"response": "forbidden"}
-    _log("Received /quit; exiting shortly...")
+    log.info("Received /quit; exiting shortly...")
 
     def _shutdown():
         os._exit(0)

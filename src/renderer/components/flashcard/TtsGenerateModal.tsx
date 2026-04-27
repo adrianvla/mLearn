@@ -17,6 +17,9 @@ import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { withCloudAuth } from '../../services/cloudSessionManager';
 import type { TTSProvider } from '../../../shared/types';
 import './TtsGenerateModal.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.ttsGenerateModal");
 
 export interface TtsGenerateModalProps {
   isOpen: boolean;
@@ -169,7 +172,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
               exampleHtml = tokensToColoredHtml(tokens, settings.colour_codes || {}, props.wordText);
             }
           } catch (e) {
-            console.error(e);
+            log.error("error", e);
           }
           updateFlashcardContent(props.cardId, {
             example: exampleHtml,
@@ -184,7 +187,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
           examplePhraseFailed = true;
         }
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         updateTask('examplePhrase', 'error');
         hadError = true;
         examplePhraseFailed = true;
@@ -246,7 +249,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
           updateTask('wordTts', 'done');
         }
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         updateTask('wordTts', 'error');
         hadError = true;
       }
@@ -285,7 +288,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
           updateTask('exampleTts', 'done');
         }
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         updateTask('exampleTts', 'error');
         hadError = true;
       }
@@ -305,7 +308,7 @@ export const TtsGenerateModal: Component<TtsGenerateModalProps> = (props) => {
         }
         updateTask('translation', 'done');
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         updateTask('translation', 'error');
         hadError = true;
       }

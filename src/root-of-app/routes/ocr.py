@@ -24,14 +24,12 @@ from PIL import Image
 from typing import List
 
 import config
-from logging_utils import (
-    _log,
-    _log_ocr,
-    _log_ocr_init,
-    _log_ocr_run,
-    _log_ocr_dl,
-    _process_stats,
-)
+from logging_utils import get_logger, _process_stats
+
+log = get_logger("ocr")
+log_init = get_logger("ocr.init")
+log_run = get_logger("ocr.run")
+log_dl = get_logger("ocr.dl")
 
 router = APIRouter()
 
@@ -91,7 +89,7 @@ def _ocr_unload_inner():
     global _rapid_ocr, _paddle_ocr, _manga_ocr
     any_unloaded = False
     if _rapid_ocr is not None:
-        _log_ocr("OCR idle timeout — unloading RapidOCR")
+        log.info("OCR idle timeout — unloading RapidOCR")
         try:
             del _rapid_ocr
         except Exception:
@@ -99,7 +97,7 @@ def _ocr_unload_inner():
         _rapid_ocr = None
         any_unloaded = True
     if _paddle_ocr is not None:
-        _log_ocr("OCR idle timeout — unloading PaddleOCR")
+        log.info("OCR idle timeout — unloading PaddleOCR")
         try:
             del _paddle_ocr
         except Exception:
@@ -107,7 +105,7 @@ def _ocr_unload_inner():
         _paddle_ocr = None
         any_unloaded = True
     if _manga_ocr is not None:
-        _log_ocr("OCR idle timeout — unloading MangaOCR")
+        log.info("OCR idle timeout — unloading MangaOCR")
         try:
             del _manga_ocr
         except Exception:
@@ -125,7 +123,7 @@ def _ocr_unload_inner():
                     torch.mps.empty_cache()
             except Exception:
                 pass
-        _log_ocr("OCR models unloaded successfully")
+        log.info("OCR models unloaded successfully")
 
 
 # ── Engine initialisation ──
@@ -134,7 +132,7 @@ def _ocr_unload_inner():
 def _get_rapid_ocr():
     global _rapid_ocr
     if not config.OCR_ALLOWED:
-        _log_ocr_init("OCR disabled; RapidOCR not initialised")
+        log_init.info("OCR disabled; RapidOCR not initialised")
         return None
     with _ocr_model_lock:
         if _rapid_ocr is not None:
@@ -147,7 +145,7 @@ def _init_rapid_ocr():
     try:
         from rapidocr import RapidOCR, LangRec  # type: ignore
     except Exception as e:
-        _log_ocr_init("RapidOCR import error", e)
+        log_init.error(f"RapidOCR import error {e}", exc_info=True)
         return None
 
     lang_map = {
@@ -164,7 +162,7 @@ def _init_rapid_ocr():
     }
     lang_type = lang_map.get(config.LANGUAGE, LangRec.EN)
 
-    _log_ocr_init("Initializing RapidOCR with lang", str(lang_type))
+    log_init.info(f"Initializing RapidOCR with lang {str(lang_type)}")
     t0 = time.perf_counter()
     params = {
         "Global.use_cls": False,
@@ -176,7 +174,7 @@ def _init_rapid_ocr():
         params["Det.unclip_ratio"] = 1.5
     _rapid_ocr = RapidOCR(params=params)
     t1 = time.perf_counter()
-    _log_ocr_init(f"RapidOCR initialized in {t1 - t0:.2f}s")
+    log_init.info(f"RapidOCR initialized in {t1 - t0:.2f}s")
     _process_stats("rapid_ocr_init")
     return _rapid_ocr
 
@@ -184,7 +182,7 @@ def _init_rapid_ocr():
 def _get_paddle_ocr():
     global _paddle_ocr
     if not config.OCR_ALLOWED:
-        _log_ocr_init("OCR disabled; PaddleOCR not initialised")
+        log_init.info("OCR disabled; PaddleOCR not initialised")
         return None
     with _ocr_model_lock:
         if _paddle_ocr is not None:
@@ -197,7 +195,7 @@ def _init_paddle_ocr():
     try:
         from paddleocr import PaddleOCR  # type: ignore
     except Exception as e:
-        _log_ocr_init("PaddleOCR import error", e)
+        log_init.error(f"PaddleOCR import error {e}", exc_info=True)
         return None
     langs = {
         "de": "german",
@@ -213,10 +211,10 @@ def _init_paddle_ocr():
     try:
         import paddle  # type: ignore
 
-        _log_ocr_init("PaddlePaddle version", getattr(paddle, "__version__", "unknown"))
+        log_init.info(f"PaddlePaddle version {getattr(paddle, '__version__', 'unknown')}")
     except Exception as e:
-        _log_ocr_init("Paddle import/version error", e)
-    _log_ocr_init("Initializing PaddleOCR with lang", lang_code)
+        log_init.warning(f"Paddle import/version error {e}")
+    log_init.info(f"Initializing PaddleOCR with lang {lang_code}")
     t0 = time.perf_counter()
     _paddle_ocr = PaddleOCR(
         lang=lang_code,
@@ -225,7 +223,7 @@ def _init_paddle_ocr():
         use_doc_unwarping=False,
     )
     t1 = time.perf_counter()
-    _log_ocr_init(f"PaddleOCR initialized in {t1 - t0:.2f}s")
+    log_init.info(f"PaddleOCR initialized in {t1 - t0:.2f}s")
     _process_stats("paddle_init")
     return _paddle_ocr
 
@@ -233,17 +231,11 @@ def _init_paddle_ocr():
 def _paddle_run_ocr(paddle_inst, img):
     try:
         res = paddle_inst.ocr(img, cls=False)
-        _log_ocr_run(
-            "paddle ocr produced", len(res) if isinstance(res, list) else "n/a", "items"
-        )
+        log_run.info(f"paddle ocr produced {len(res) if isinstance(res, list) else 'n/a'} items")
         return res
     except TypeError:
         res = paddle_inst.ocr(img)
-        _log_ocr_run(
-            "paddle ocr produced (compat)",
-            len(res) if isinstance(res, list) else "n/a",
-            "items",
-        )
+        log_run.info(f"paddle ocr produced (compat) {len(res) if isinstance(res, list) else 'n/a'} items")
         return res
 
 
@@ -351,7 +343,7 @@ def _extract_lines_from_paddle_result(result):
                 txt, scr = item[1][0], float(item[1][1])
             flat.append((pts, txt, scr))
     except Exception as e:
-        _log_ocr_run(f"Failed to parse PaddleOCR lines: {e}")
+        log_run.error(f"Failed to parse PaddleOCR lines: {e}")
         return []
     return flat
 
@@ -359,7 +351,7 @@ def _extract_lines_from_paddle_result(result):
 def _get_manga_ocr():
     global _manga_ocr
     if not config.OCR_ALLOWED:
-        _log_ocr_init("OCR disabled; MangaOCR not initialised")
+        log_init.info("OCR disabled; MangaOCR not initialised")
         return None
     with _ocr_model_lock:
         if _manga_ocr is not None:
@@ -375,24 +367,24 @@ def _init_manga_ocr():
     _transformers_preimport_done.wait(timeout=120)
     try:
         _fd_count = len(os.listdir("/dev/fd"))
-        _log_ocr_init(f"Process FDs before MangaOCR init: {_fd_count}")
+        log_init.info(f"Process FDs before MangaOCR init: {_fd_count}")
     except Exception:
         pass
     gc.collect()
     try:
         from manga_ocr import MangaOcr  # type: ignore
     except Exception as e:
-        _log_ocr_init("MangaOCR import error", e)
+        log_init.error(f"MangaOCR import error {e}", exc_info=True)
         return None
     try:
-        _log_ocr_init("Initializing MangaOCR")
+        log_init.info("Initializing MangaOCR")
         t0 = time.perf_counter()
         _manga_ocr = MangaOcr()
         t1 = time.perf_counter()
-        _log_ocr_init(f"MangaOCR initialized in {t1 - t0:.2f}s")
+        log_init.info(f"MangaOCR initialized in {t1 - t0:.2f}s")
         _process_stats("mangaocr_init")
     except Exception as e:
-        _log_ocr_init("Failed to initialize MangaOCR", e)
+        log_init.error(f"Failed to initialize MangaOCR {e}", exc_info=True)
         _manga_ocr = None
     return _manga_ocr
 
@@ -447,7 +439,7 @@ def _opencv_detect_text_regions(np_img, prefer_vertical: bool = False):
         boxes.append(box)
 
     boxes.sort(key=lambda b: (b[0][1], b[0][0]))
-    _log_ocr_run(f"OpenCV morphological detection found {len(boxes)} regions")
+    log_run.info(f"OpenCV morphological detection found {len(boxes)} regions")
     return boxes
 
 
@@ -483,12 +475,12 @@ def _regroup_boxes_for_vertical_text(boxes):
 
     tall_count = sum(1 for r in rects if r["h"] > r["w"] * 1.3)
     if tall_count >= len(rects) * 0.5:
-        _log_ocr_run(
+        log_run.info(
             f"Vertical regroup: {tall_count}/{len(rects)} already vertical, skipping"
         )
         return boxes
 
-    _log_ocr_run(
+    log_run.info(
         f"Vertical regroup: only {tall_count}/{len(rects)} vertical, "
         "regrouping into columns"
     )
@@ -546,7 +538,7 @@ def _regroup_boxes_for_vertical_text(boxes):
             ]
         )
 
-    _log_ocr_run(f"Vertical regroup: {len(boxes)} boxes → {len(merged)} columns")
+    log_run.info(f"Vertical regroup: {len(boxes)} boxes → {len(merged)} columns")
     return merged
 
 
@@ -559,20 +551,20 @@ def _load_image_from_inputs(
         )
     try:
         if file_bytes is not None:
-            _log("Loading image from file bytes of length:", len(file_bytes))
+            log.info(f"Loading image from file bytes of length: {len(file_bytes)}")
             img = Image.open(io.BytesIO(file_bytes))
-            _log("Loaded image: mode=", img.mode, " size=", img.size)
+            log.info(f"Loaded image: mode= {img.mode}  size= {img.size}")
             return img.convert("RGB")
         else:
             raw_part = image_base64.split(",")[-1] if image_base64 else ""
-            _log("Loading image from base64 of length:", len(raw_part))
+            log.info(f"Loading image from base64 of length: {len(raw_part)}")
             raw = base64.b64decode(raw_part)
             img = Image.open(io.BytesIO(raw))
-            _log("Loaded image: mode=", img.mode, " size=", img.size)
+            log.info(f"Loaded image: mode= {img.mode}  size= {img.size}")
             return img.convert("RGB")
     except Exception as e:
-        _log("_load_image_from_inputs error:", e)
-        _log(traceback.format_exc())
+        log.error(f"_load_image_from_inputs error: {e}", exc_info=True)
+        log.error(traceback.format_exc())
         raise HTTPException(status_code=400, detail="Invalid image data.")
 
 
@@ -596,7 +588,7 @@ def _extract_rapid_ocr_boxes(result) -> list:
             scr = float(scores[i]) if scores is not None and i < len(scores) else None
             flat.append((pts, txt, scr))
     except Exception as e:
-        _log_ocr_run("_extract_rapid_ocr_boxes error:", e)
+        log_run.error(f"_extract_rapid_ocr_boxes error: {e}", exc_info=True)
     return flat
 
 
@@ -695,7 +687,7 @@ _warmup_started = False
 def _do_warmup():
     """Run the heavy transformers pre-import in the current thread."""
     try:
-        _log_ocr_init("Pre-importing transformers for MangaOCR (lazy warmup)...")
+        log_init.info("Pre-importing transformers for MangaOCR (lazy warmup)...")
         from transformers import (  # noqa: F401
             ViTImageProcessor,
             AutoTokenizer,
@@ -704,9 +696,9 @@ def _do_warmup():
         )
 
         gc.collect()
-        _log_ocr_init("Transformers pre-import done (lazy warmup)")
+        log_init.info("Transformers pre-import done (lazy warmup)")
     except Exception as e:
-        _log_ocr_init("Transformers pre-import failed (non-fatal):", e)
+        log_init.warning(f"Transformers pre-import failed (non-fatal): {e}")
     finally:
         _transformers_preimport_done.set()
 
@@ -781,7 +773,7 @@ async def ocr_endpoint(
         except (ValueError, TypeError):
             pass
 
-    _log_ocr_run(f"Loading Neural Network (turbo={is_turbo})")
+    log_run.info(f"Loading Neural Network (turbo={is_turbo})")
     _process_stats("ocr_req")
     _ocr_touch()
     try:
@@ -806,7 +798,7 @@ async def ocr_endpoint(
             np_img_bgr = _cv2.cvtColor(np_img, _cv2.COLOR_RGB2BGR)
 
             if config.LANGUAGE == "ja":
-                _log_ocr_run(
+                log_run.info(
                     f"Japanese OCR — Turbo ON, "
                     f"Ram Saver {'ON' if use_ram_saver else 'OFF'}"
                 )
@@ -818,7 +810,7 @@ async def ocr_endpoint(
                         np_img_bgr, prefer_vertical=config.SUPPORTS_VERTICAL_TEXT
                     )
                     t3 = time.perf_counter()
-                    _log_ocr_run(
+                    log_run.info(
                         f"OpenCV detection {t3 - t2:.2f}s, {len(initial_boxes)} boxes"
                     )
                     timing_detection_ms = (t3 - t2) * 1000
@@ -831,7 +823,7 @@ async def ocr_endpoint(
                         raise HTTPException(
                             status_code=500, detail="RapidOCR not available"
                         )
-                    _log_ocr_run(f"RapidOCR handle ready in {t1 - t0:.2f}s (turbo)")
+                    log_run.info(f"RapidOCR handle ready in {t1 - t0:.2f}s (turbo)")
 
                     det_img = np_img_bgr
                     scale = 1.0
@@ -839,7 +831,7 @@ async def ocr_endpoint(
                         scale = 2000.0 / float(max(H, W))
                         new_w = max(1, int(W * scale))
                         new_h = max(1, int(H * scale))
-                        _log_ocr_run(
+                        log_run.info(
                             f"Downscaling for detection "
                             f"{W}x{H}->{new_w}x{new_h} scale={scale:.3f}"
                         )
@@ -854,7 +846,7 @@ async def ocr_endpoint(
                         rapid, det_img, use_det=True, use_cls=False, use_rec=False
                     )
                     t3 = time.perf_counter()
-                    _log_ocr_run(f"RapidOCR detection-only {t3 - t2:.2f}s")
+                    log_run.info(f"RapidOCR detection-only {t3 - t2:.2f}s")
                     timing_detection_ms = (t3 - t2) * 1000
                     timing_detection_engine = "RapidOCR"
 
@@ -871,12 +863,12 @@ async def ocr_endpoint(
                             [[float(x) * inv, float(y) * inv] for x, y in pts]
                             for pts in initial_boxes
                         ]
-                    _log_ocr_run(f"Found {len(initial_boxes)} boxes after rescale")
+                    log_run.info(f"Found {len(initial_boxes)} boxes after rescale")
 
                 if config.SUPPORTS_VERTICAL_TEXT and initial_boxes:
                     initial_boxes = _regroup_boxes_for_vertical_text(initial_boxes)
 
-                _log_ocr_run("Recognizing text with MangaOCR...")
+                log_run.info("Recognizing text with MangaOCR...")
                 mocr = _get_manga_ocr()
                 if mocr is None:
                     raise HTTPException(
@@ -905,20 +897,20 @@ async def ocr_endpoint(
                                 is_vertical=_is_box_vertical(full_box),
                             )
                         )
-                        _log_ocr_run(f"Full-image fallback len={len(full_txt)}")
+                        log_run.info(f"Full-image fallback len={len(full_txt)}")
                     except Exception as e:
-                        _log_ocr_run("Full-image fallback error", e)
+                        log_run.warning(f"Full-image fallback error {e}")
                 else:
                     for i, pts in enumerate(initial_boxes):
                         crop = _crop_by_box(image, pts)
                         t_box_s = time.perf_counter()
                         try:
                             txt = await asyncio.to_thread(mocr, crop) or ""
-                            _log_ocr_run(
+                            log_run.info(
                                 f"Recognition progress {i + 1}/{len(initial_boxes)}"
                             )
                         except Exception as e:
-                            _log_ocr_run(f"MangaOCR error box {i + 1}", e)
+                            log_run.error(f"MangaOCR error box {i + 1} {e}")
                             txt = ""
                         per_box_times.append((time.perf_counter() - t_box_s) * 1000)
                         box_pts = [[float(x), float(y)] for x, y in pts]
@@ -941,27 +933,27 @@ async def ocr_endpoint(
                     raise HTTPException(
                         status_code=500, detail="RapidOCR not available"
                     )
-                _log_ocr_run(f"RapidOCR handle ready in {t1 - t0:.2f}s (turbo)")
-                _log_ocr_run("Recognizing text positions...")
+                log_run.info(f"RapidOCR handle ready in {t1 - t0:.2f}s (turbo)")
+                log_run.info("Recognizing text positions...")
 
                 t2 = time.perf_counter()
                 out = await asyncio.to_thread(
                     rapid, np_img_bgr, use_det=True, use_cls=False, use_rec=True
                 )
                 t3 = time.perf_counter()
-                _log_ocr_run(f"RapidOCR e2e {t3 - t2:.2f}s")
+                log_run.info(f"RapidOCR e2e {t3 - t2:.2f}s")
                 timing_detection_ms = (t3 - t2) * 1000
                 timing_detection_engine = "RapidOCR"
                 timing_recognition_ms = (t3 - t2) * 1000
                 timing_recognition_engine = "RapidOCR"
 
                 lines = _extract_rapid_ocr_boxes(out)
-                _log_ocr_run(f"Extracted {len(lines)} lines (e2e)")
+                log_run.info(f"Extracted {len(lines)} lines (e2e)")
                 for i, (pts, txt, scr) in enumerate(lines):
                     if pts is None:
                         continue
                     if i % 25 == 0:
-                        _log_ocr_run(f"Recognition progress {i + 1}/{len(lines)}")
+                        log_run.info(f"Recognition progress {i + 1}/{len(lines)}")
                     box_pts = [[float(x), float(y)] for x, y in pts]
                     results.append(
                         OcrBox(
@@ -974,7 +966,7 @@ async def ocr_endpoint(
         else:
             # ── Accurate mode: PaddleOCR ──
             if config.LANGUAGE == "ja":
-                _log_ocr_run(
+                log_run.info(
                     f"Japanese OCR — Turbo OFF (PaddleOCR), "
                     f"Ram Saver {'ON' if use_ram_saver else 'OFF'}"
                 )
@@ -989,7 +981,7 @@ async def ocr_endpoint(
                         np_img_bgr, prefer_vertical=config.SUPPORTS_VERTICAL_TEXT
                     )
                     t3 = time.perf_counter()
-                    _log_ocr_run(
+                    log_run.info(
                         f"OpenCV detection {t3 - t2:.2f}s, {len(initial_boxes)} boxes"
                     )
                     timing_detection_ms = (t3 - t2) * 1000
@@ -1002,7 +994,7 @@ async def ocr_endpoint(
                         raise HTTPException(
                             status_code=500, detail="PaddleOCR not available"
                         )
-                    _log_ocr_run(f"PaddleOCR handle ready in {t1 - t0:.2f}s")
+                    log_run.info(f"PaddleOCR handle ready in {t1 - t0:.2f}s")
 
                     det_img = np_img
                     scale = 1.0
@@ -1017,7 +1009,7 @@ async def ocr_endpoint(
                         scale = float(effective_max_dim) / float(max(H, W))
                         new_w = max(1, int(W * scale))
                         new_h = max(1, int(H * scale))
-                        _log_ocr_run(
+                        log_run.info(
                             f"Downscaling for detection "
                             f"{W}x{H}->{new_w}x{new_h} scale={scale:.3f}"
                         )
@@ -1028,12 +1020,12 @@ async def ocr_endpoint(
                     t2 = time.perf_counter()
                     det = await asyncio.to_thread(_paddle_run_ocr, paddle, det_img)
                     t3 = time.perf_counter()
-                    _log_ocr_run(f"PaddleOCR detection {t3 - t2:.2f}s")
+                    log_run.info(f"PaddleOCR detection {t3 - t2:.2f}s")
                     timing_detection_ms = (t3 - t2) * 1000
                     timing_detection_engine = "PaddleOCR"
 
                     lines = _extract_lines_from_paddle_result(det)
-                    _log_ocr_run(f"Extracted {len(lines)} lines (det stage)")
+                    log_run.info(f"Extracted {len(lines)} lines (det stage)")
                     initial_boxes = [
                         item[0] for item in lines if item and item[0] is not None
                     ]
@@ -1043,9 +1035,9 @@ async def ocr_endpoint(
                             [[float(x) * inv, float(y) * inv] for x, y in pts]
                             for pts in initial_boxes
                         ]
-                    _log_ocr_run(f"Found {len(initial_boxes)} boxes after rescale")
+                    log_run.info(f"Found {len(initial_boxes)} boxes after rescale")
 
-                _log_ocr_run("Recognizing text with MangaOCR...")
+                log_run.info("Recognizing text with MangaOCR...")
                 mocr = _get_manga_ocr()
                 if mocr is None:
                     raise HTTPException(
@@ -1074,20 +1066,20 @@ async def ocr_endpoint(
                                 is_vertical=_is_box_vertical(full_box),
                             )
                         )
-                        _log_ocr_run(f"Full-image fallback len={len(full_txt)}")
+                        log_run.info(f"Full-image fallback len={len(full_txt)}")
                     except Exception as e:
-                        _log_ocr_run("Full-image fallback error", e)
+                        log_run.warning(f"Full-image fallback error {e}")
                 else:
                     for i, pts in enumerate(initial_boxes):
                         crop = _crop_by_box(image, pts)
                         t_box_s = time.perf_counter()
                         try:
                             txt = await asyncio.to_thread(mocr, crop) or ""
-                            _log_ocr_run(
+                            log_run.info(
                                 f"Recognition progress {i + 1}/{len(initial_boxes)}"
                             )
                         except Exception as e:
-                            _log_ocr_run(f"MangaOCR error box {i + 1}", e)
+                            log_run.error(f"MangaOCR error box {i + 1} {e}")
                             txt = ""
                         per_box_times_acc.append((time.perf_counter() - t_box_s) * 1000)
                         box_pts = [[float(x), float(y)] for x, y in pts]
@@ -1110,8 +1102,8 @@ async def ocr_endpoint(
                     raise HTTPException(
                         status_code=500, detail="PaddleOCR not available"
                     )
-                _log_ocr_run(f"PaddleOCR handle ready in {t1 - t0:.2f}s")
-                _log_ocr_run("Recognizing text positions...")
+                log_run.info(f"PaddleOCR handle ready in {t1 - t0:.2f}s")
+                log_run.info("Recognizing text positions...")
 
                 H_e2e, W_e2e = int(np_img.shape[0]), int(np_img.shape[1])
                 paddle_img = np_img
@@ -1128,7 +1120,7 @@ async def ocr_endpoint(
                         paddle_e2e_scale = float(eff_max) / float(max(H_e2e, W_e2e))
                         nw = max(1, int(W_e2e * paddle_e2e_scale))
                         nh = max(1, int(H_e2e * paddle_e2e_scale))
-                        _log_ocr_run(
+                        log_run.info(
                             f"Downscaling for PaddleOCR e2e "
                             f"{W_e2e}x{H_e2e}->{nw}x{nh} "
                             f"scale={paddle_e2e_scale:.3f}"
@@ -1140,20 +1132,20 @@ async def ocr_endpoint(
                 t2 = time.perf_counter()
                 out = await asyncio.to_thread(_paddle_run_ocr, paddle, paddle_img)
                 t3 = time.perf_counter()
-                _log_ocr_run(f"PaddleOCR e2e {t3 - t2:.2f}s")
+                log_run.info(f"PaddleOCR e2e {t3 - t2:.2f}s")
                 timing_detection_ms = (t3 - t2) * 1000
                 timing_detection_engine = "PaddleOCR"
                 timing_recognition_ms = (t3 - t2) * 1000
                 timing_recognition_engine = "PaddleOCR"
 
                 lines = _extract_lines_from_paddle_result(out)
-                _log_ocr_run(f"Extracted {len(lines)} lines (e2e)")
+                log_run.info(f"Extracted {len(lines)} lines (e2e)")
                 inv_e2e = 1.0 / paddle_e2e_scale if paddle_e2e_scale != 1.0 else 1.0
                 for i, (pts, txt, scr) in enumerate(lines):
                     if pts is None:
                         continue
                     if i % 25 == 0:
-                        _log_ocr_run(f"Recognition progress {i + 1}/{len(lines)}")
+                        log_run.info(f"Recognition progress {i + 1}/{len(lines)}")
                     if inv_e2e != 1.0:
                         box_pts = [
                             [float(x) * inv_e2e, float(y) * inv_e2e] for x, y in pts
@@ -1169,7 +1161,7 @@ async def ocr_endpoint(
                         )
                     )
 
-        _log_ocr_run(f"Final boxes {len(results)}")
+        log_run.info(f"Final boxes {len(results)}")
         _process_stats("ocr_done")
         t_total_end = time.perf_counter()
         response_data: dict = {
@@ -1199,9 +1191,9 @@ async def ocr_endpoint(
             response_data["processing_times"] = times.model_dump(exclude_none=True)
         return response_data
     except HTTPException:
-        _log_ocr_run("/ocr http exception")
+        log_run.warning("/ocr http exception")
         raise
     except Exception as e:
-        _log_ocr_run("Unhandled error", e)
-        _log_ocr_run(traceback.format_exc())
+        log_run.error(f"Unhandled error {e}", exc_info=True)
+        log_run.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail="OCR processing error")

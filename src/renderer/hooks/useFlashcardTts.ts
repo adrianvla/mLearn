@@ -10,6 +10,9 @@ import { useLocalization } from '../context';
 import { isElectron } from '../../shared/platform';
 import { stripFurigana } from '../../shared/utils/textUtils';
 import { showToast } from '../components/common/Feedback/Toast';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.hooks.useFlashcardTts");
 
 interface FlashcardTtsState {
   isPlaying: boolean;
@@ -130,7 +133,7 @@ export function useFlashcardTts() {
             await playUrl(existingUrl + '?t=' + Date.now(), myGenId);
             return;
           } catch (e) {
-            console.error(e);
+            log.error("error", e);
             if (myGenId !== generationId) return;
           }
         }
@@ -151,7 +154,7 @@ export function useFlashcardTts() {
         bridge.speech.ttsSpeak(cleanText, language);
       }
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Ensure state is always reset on any error to prevent stuck buttons
       if (myGenId === generationId) {
         setState({ isPlaying: false, isGenerating: false, playingField: null });

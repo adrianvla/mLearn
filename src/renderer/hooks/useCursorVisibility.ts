@@ -5,6 +5,9 @@
  */
 
 import { createSignal, onCleanup, onMount } from 'solid-js';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.hooks.useCursorVisibility");
 
 interface CursorVisibilityOptions {
   /** Time in ms before hiding cursor (default: 2000) */
@@ -49,7 +52,7 @@ export function useCursorVisibility(options: CursorVisibilityOptions = {}) {
         window.mlearn.changeTrafficLights(true);
       }
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Ignore if not available
     }
 
@@ -67,7 +70,7 @@ export function useCursorVisibility(options: CursorVisibilityOptions = {}) {
           window.mlearn.changeTrafficLights(false);
         }
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         // Ignore if not available
       }
     }, hideDelay);

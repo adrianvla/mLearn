@@ -17,6 +17,9 @@ import { getBridge } from '../../shared/bridges';
 // without relying on node_modules at runtime or fetching from a CDN.
 import coreJsUrl from '@ffmpeg/core?url';
 import coreWasmUrl from '@ffmpeg/core/wasm?url';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.videoClip");
 
 let ffmpegInstance: FFmpeg | null = null;
 let loadPromise: Promise<void> | null = null;
@@ -48,7 +51,7 @@ async function getFFmpeg(): Promise<FFmpeg> {
       const urls = await loadCoreURLs();
       await ffmpegInstance!.load(urls);
     })().catch((err) => {
-      console.error('Failed to load ffmpeg.wasm:', err);
+      log.error('Failed to load ffmpeg.wasm:', err);
       ffmpegInstance = null;
       loadPromise = null;
       throw err;
@@ -60,21 +63,21 @@ async function getFFmpeg(): Promise<FFmpeg> {
 }
 
 async function fetchVideoData(videoUrl: string): Promise<Uint8Array | null> {
-  console.log('[VideoClip] fetchVideoData: url=', videoUrl);
+  log.info('[VideoClip] fetchVideoData: url=', videoUrl);
   if (videoUrl.startsWith(LOCAL_MEDIA_SCHEME)) {
     let filePath = videoUrl.slice(LOCAL_MEDIA_SCHEME.length);
-    console.log('[VideoClip] fetchVideoData: detected local-media scheme, raw path=', filePath);
+    log.info('[VideoClip] fetchVideoData: detected local-media scheme, raw path=', filePath);
     if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
       filePath = filePath.slice(1);
-      console.log('[VideoClip] fetchVideoData: Windows path corrected to=', filePath);
+      log.info('[VideoClip] fetchVideoData: Windows path corrected to=', filePath);
     }
-    console.log('[VideoClip] fetchVideoData: calling readMediaFile with path=', filePath);
+    log.info('[VideoClip] fetchVideoData: calling readMediaFile with path=', filePath);
     const buffer = await getBridge().files.readMediaFile(filePath);
-    console.log('[VideoClip] fetchVideoData: readMediaFile result=', buffer == null ? 'null' : `ArrayBuffer(${buffer.byteLength})`);
+    log.info('[VideoClip] fetchVideoData: readMediaFile result=', buffer == null ? 'null' : `ArrayBuffer(${buffer.byteLength})`);
     if (!buffer) return null;
     return new Uint8Array(buffer);
   }
-  console.log('[VideoClip] fetchVideoData: using fetchFile for non-local-media URL');
+  log.info('[VideoClip] fetchVideoData: using fetchFile for non-local-media URL');
   return fetchFile(videoUrl);
 }
 
@@ -94,39 +97,39 @@ export async function clipVideo(
   const start = Math.max(0, startSeconds);
   const end = Math.max(start + 0.1, endSeconds);
 
-  console.log('[VideoClip] clipVideo: url=', videoUrl, 'start=', start, 'end=', end);
+  log.info('[VideoClip] clipVideo: url=', videoUrl, 'start=', start, 'end=', end);
 
   try {
-    console.log('[VideoClip] clipVideo: fetching video data...');
+    log.info('[VideoClip] clipVideo: fetching video data...');
     const sourceData = await fetchVideoData(videoUrl);
-    console.log('[VideoClip] clipVideo: sourceData=', sourceData == null ? 'null' : `Uint8Array(${sourceData.byteLength})`);
+    log.info('[VideoClip] clipVideo: sourceData=', sourceData == null ? 'null' : `Uint8Array(${sourceData.byteLength})`);
     if (!sourceData) return null;
 
     const maxSize = isDesktop() ? MAX_FILE_SIZE_DESKTOP : MAX_FILE_SIZE_MOBILE;
     if (sourceData.byteLength > maxSize) {
-      console.warn(
+      log.warn(
         `Video file too large for clipping (${(sourceData.byteLength / 1024 / 1024).toFixed(0)}MB). ` +
         `Max: ${(maxSize / 1024 / 1024).toFixed(0)}MB. Falling back to image.`
       );
       return null;
     }
 
-    console.log('[VideoClip] clipVideo: loading ffmpeg...');
+    log.info('[VideoClip] clipVideo: loading ffmpeg...');
     const ffmpeg = await getFFmpeg();
-    console.log('[VideoClip] clipVideo: ffmpeg loaded, loaded=', ffmpeg.loaded);
+    log.info('[VideoClip] clipVideo: ffmpeg loaded, loaded=', ffmpeg.loaded);
 
     const urlPath = videoUrl.split('?')[0];
     const ext = urlPath.match(/\.(\w{2,5})$/)?.[1] || 'mp4';
     const inputName = `input.${ext}`;
     const outputName = 'output.mp4';
 
-    console.log('[VideoClip] clipVideo: writing input file:', inputName);
+    log.info('[VideoClip] clipVideo: writing input file:', inputName);
     await ffmpeg.writeFile(inputName, sourceData);
 
     const startStr = start.toFixed(3);
     const endStr = end.toFixed(3);
 
-    console.log('[VideoClip] clipVideo: running stream copy from', startStr, 'to', endStr);
+    log.info('[VideoClip] clipVideo: running stream copy from', startStr, 'to', endStr);
     let exitCode = await ffmpeg.exec([
       '-ss', startStr,
       '-to', endStr,
@@ -135,15 +138,15 @@ export async function clipVideo(
       '-avoid_negative_ts', 'make_zero',
       outputName,
     ]);
-    console.log('[VideoClip] clipVideo: stream copy exit code=', exitCode);
+    log.info('[VideoClip] clipVideo: stream copy exit code=', exitCode);
 
     if (exitCode !== 0) {
-      console.warn('Stream copy failed, falling back to re-encoding');
+      log.warn('Stream copy failed, falling back to re-encoding');
       try { await ffmpeg.deleteFile(outputName); } catch (e) {
-        console.error(e);
+        log.error("error", e);
       }
 
-      console.log('[VideoClip] clipVideo: running re-encode...');
+      log.info('[VideoClip] clipVideo: running re-encode...');
       exitCode = await ffmpeg.exec([
         '-ss', startStr,
         '-to', endStr,
@@ -153,29 +156,29 @@ export async function clipVideo(
         '-avoid_negative_ts', 'make_zero',
         outputName,
       ]);
-      console.log('[VideoClip] clipVideo: re-encode exit code=', exitCode);
+      log.info('[VideoClip] clipVideo: re-encode exit code=', exitCode);
     }
 
     if (exitCode !== 0) {
-      console.error('ffmpeg.wasm clipping failed with exit code:', exitCode);
+      log.error('ffmpeg.wasm clipping failed with exit code:', exitCode);
       await cleanup(ffmpeg, inputName, outputName);
       return null;
     }
 
-    console.log('[VideoClip] clipVideo: reading output file...');
+    log.info('[VideoClip] clipVideo: reading output file...');
     const result = await ffmpeg.readFile(outputName);
-    console.log('[VideoClip] clipVideo: result type=', typeof result, result instanceof Uint8Array ? `Uint8Array(${result.byteLength})` : String(result).slice(0, 80));
+    log.info('[VideoClip] clipVideo: result type=', typeof result, result instanceof Uint8Array ? `Uint8Array(${result.byteLength})` : String(result).slice(0, 80));
     await cleanup(ffmpeg, inputName, outputName);
 
     if (typeof result === 'string') {
-      console.error('ffmpeg.readFile returned string instead of Uint8Array');
+      log.error('ffmpeg.readFile returned string instead of Uint8Array');
       return null;
     }
 
-    console.log('[VideoClip] clipVideo: SUCCESS, returning clip of', result.byteLength, 'bytes');
+    log.info('[VideoClip] clipVideo: SUCCESS, returning clip of', result.byteLength, 'bytes');
     return result;
   } catch (err) {
-    console.error('Video clipping failed:', err);
+    log.error('Video clipping failed:', err);
     return null;
   }
 }
@@ -183,7 +186,7 @@ export async function clipVideo(
 async function cleanup(ffmpeg: FFmpeg, ...files: string[]): Promise<void> {
   for (const file of files) {
     try { await ffmpeg.deleteFile(file); } catch (e) {
-      console.error(e);
+      log.error("error", e);
     }
   }
 }

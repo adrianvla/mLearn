@@ -1,5 +1,8 @@
 import { resolveCloudApiUrl, resolveCloudLoginUrl } from '../../shared/backends';
 import type { Settings } from '../../shared/types';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.cloudAuth");
 
 export interface CloudLoginRequest {
   state: string;
@@ -47,7 +50,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     return JSON.parse(decodeBase64Url(payload)) as Record<string, unknown>;
   } catch (error) {
-    console.error(error);
+    log.error("error", error);
     return null;
   }
 }
@@ -221,7 +224,7 @@ export async function validateCloudAccessToken(settings: Settings): Promise<bool
     clearTimeout(timeoutId);
     return response.ok;
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return false;
   }
 }
@@ -269,7 +272,7 @@ export async function validateAndRefreshCloudSession(settings: Settings): Promis
       expiresAt: refreshed.expiresAt,
     };
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     return { status: 'expired' };
   }
 }

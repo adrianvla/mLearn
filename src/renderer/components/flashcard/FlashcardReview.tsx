@@ -19,6 +19,9 @@ import type { ButtonVariant } from '../common/Button/Button';
 import type { Rating } from '../../services/srsAlgorithm';
 import { getSessionProgress } from './flashcardReviewSession';
 import './FlashcardReview.css';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.flashcardReview");
 
 export interface FlashcardReviewProps {
   onComplete?: () => void;
@@ -249,7 +252,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             exampleHtml = tokensToColoredHtml(tokens, colourCodes, card.content.front);
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           // Use plain text if tokenization fails
         }
         updateFlashcardContent(cardId, {
@@ -259,7 +262,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         showToast({ message: t('mlearn.CardEditor.RegenerateExample'), variant: 'success' });
       }
     } catch (e) {
-      console.warn('Failed to regenerate example:', e);
+      log.warn('Failed to regenerate example:', e);
     } finally {
       setRegeneratingExample(false);
     }

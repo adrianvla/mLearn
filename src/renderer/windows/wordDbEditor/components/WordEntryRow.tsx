@@ -15,6 +15,9 @@ import type { TranslationResponse, TranslationEntry } from '../../../../shared/t
 import type { WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { containsKanji, isAllKana } from '../../../../shared/utils/textUtils';
 import './WordEntryRow.css';
+import { getLogger } from '../../../../shared/utils/logger';
+
+const log = getLogger("renderer.wordDbEditor.wordEntryRow");
 
 /** Export result state for per-row Anki feedback */
 export type AnkiExportState = 'idle' | 'exporting' | 'exported' | 'duplicate' | 'error';
@@ -49,7 +52,7 @@ async function processQueue(): Promise<void> {
         try {
           await fetchTranslation(word, language);
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
         }
         resolve();
       })
@@ -211,7 +214,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         });
       }
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // ignore
     } finally {
       setAnkiHoverLoading(false);

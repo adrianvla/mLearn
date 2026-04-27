@@ -44,6 +44,9 @@ import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
 import { FlashcardsSuggested } from './FlashcardsSuggested';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.flashcards.app");
 
 type TabId = FlashcardsTabId;
 
@@ -250,7 +253,7 @@ export const FlashcardsContent: Component = () => {
             llmFailed++;
           }
         } catch (e) {
-          console.error(e);
+          log.error("error", e);
           llmFailed++;
         }
         updateToast(llmToastId, {
@@ -334,7 +337,7 @@ export const FlashcardsContent: Component = () => {
               removeToast(toastId);
               return;
             }
-            console.error(e);
+            log.error("error", e);
             failedThisRound.push(job);
           }
           processed++;
@@ -561,7 +564,7 @@ export const FlashcardsContent: Component = () => {
           return;
         }
 
-        console.error(error);
+        log.error("error", error);
         failed++;
       }
       setBulkProgress({ current: generated + failed, total: items.length, label: t('mlearn.Flashcards.Bulk.TtsProgress'), startTime });
@@ -617,7 +620,7 @@ export const FlashcardsContent: Component = () => {
               exampleHtml = tokensToColoredHtml(tokens, colourCodes, card.content.front);
             }
           } catch (e) {
-            console.error(e);
+            log.error("error", e);
             // Use plain text if tokenization fails
           }
           updateFlashcardContent(card.id, {
@@ -629,7 +632,7 @@ export const FlashcardsContent: Component = () => {
           failed++;
         }
       } catch (e) {
-        console.warn(`Failed to generate example for "${card.content.front}":`, e);
+        log.warn(`Failed to generate example for "${card.content.front}":`, e);
         failed++;
       }
       setBulkProgress({ current: generated + failed, total: needExamples.length, label: t('mlearn.Flashcards.Bulk.ExamplesProgress'), startTime });

@@ -18,6 +18,9 @@ import {
   registerCloudSessionController,
   syncCloudSessionState,
 } from '../services/cloudSessionManager';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.context.settings");
 
 // Context interface
 interface SettingsContextValue {
@@ -72,10 +75,10 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Load settings from main process or platform bridge
   const loadSettings = () => {
     const bridge = getBridge();
-    console.log('[SettingsContext] Loading settings...');
+    log.info('[SettingsContext] Loading settings...');
     // Set up listener BEFORE sending request to avoid race condition
     ipcCleanups.push(bridge.settings.onSettings((loadedSettings) => {
-      console.log('[SettingsContext] Settings received');
+      log.info('[SettingsContext] Settings received');
       const mergedSettings = pendingSettingsSnapshot
         ? { ...loadedSettings, ...pendingSettingsSnapshot }
         : loadedSettings;

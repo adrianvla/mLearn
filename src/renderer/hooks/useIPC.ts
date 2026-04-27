@@ -5,6 +5,9 @@
 
 import { createSignal, createEffect, onCleanup } from 'solid-js';
 import type { Settings, Flashcard, WindowType } from '../../shared/types';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.hooks.useIPC");
 
 // Type definitions for the IPC API exposed through preload
 interface MLearnAPI {
@@ -141,7 +144,7 @@ export function useIPC() {
         const response = await fetch('/api/status');
         return response.ok;
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         return false;
       }
     }
@@ -293,7 +296,7 @@ export function useBackendStatus() {
       const status = await getBackendStatus();
       setIsConnected(status);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setIsConnected(false);
     } finally {
       setIsChecking(false);

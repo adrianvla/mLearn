@@ -10,6 +10,9 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import type { FlashcardStore, WordStats, Flashcard, FlashcardState, WordCandidate, FlashcardContent } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 import { extractBase64Images } from './flashcardImageStorage';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger('electron.flashcardStorage');
 
 const CURRENT_VERSION = 6;
 
@@ -105,7 +108,7 @@ function calculateWordStats(cards: Flashcard[]): WordStats {
 }
 
 function migrateV2ToV3(store: any): FlashcardStore {
-  console.log('Migrating flashcard store from v2 to v3...');
+  log.info('Migrating flashcard store from v2 to v3...');
   
   const newWordToCardMap: Record<string, string[]> = {};
   const wordStatsMap: Record<string, WordStats> = {};
@@ -170,7 +173,7 @@ function isSha256Hex(key: string): boolean {
 }
 
 function migrateV4ToV5(store: FlashcardStore): FlashcardStore {
-  console.log('[flashcardStorage] Migrating store from v4 to v5 (canonical SHA-256 keys)...');
+  log.info('[flashcardStorage] Migrating store from v4 to v5 (canonical SHA-256 keys)...');
 
   const newWordToCardMap: Record<string, string[]> = {};
   const newWordStatsMap: Record<string, WordStats> = {};
@@ -264,7 +267,7 @@ function migrateV4ToV5(store: FlashcardStore): FlashcardStore {
   const upgradedCount =
     Object.keys(store.wordToCardMap).filter(k => !isSha256Hex(k)).length +
     Object.keys(store.wordKnowledge).filter(k => !isSha256Hex(k.includes(':') ? k.split(':')[1] : k)).length;
-  console.log(`[flashcardStorage] v4→v5: re-hashed ${upgradedCount} legacy keys`);
+  log.info(`[flashcardStorage] v4→v5: re-hashed ${upgradedCount} legacy keys`);
 
   return migrated;
 }
@@ -315,14 +318,14 @@ function createBackup(originalPath: string): string {
   if (fs.existsSync(originalPath)) {
     const data = fs.readFileSync(originalPath, 'utf-8');
     fs.writeFileSync(backupPath, data);
-    console.log(`Created backup at: ${backupPath}`);
+    log.info(`Created backup at: ${backupPath}`);
   }
   
   return backupPath;
 }
 
 function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardStore {
-  console.log('Migrating flashcard store from v1 (old app) to v3...');
+  log.info('Migrating flashcard store from v1 (old app) to v3...');
   
   migrationInfo = {
     occurred: true,
@@ -439,7 +442,7 @@ function migrateV1ToV3(store: V1FlashcardStore, backupPath: string): FlashcardSt
     newCardsDate: today,
   };
   
-  console.log(`Migrated ${Object.keys(newFlashcards).length} flashcards from v1 to v3`);
+  log.info(`Migrated ${Object.keys(newFlashcards).length} flashcards from v1 to v3`);
   
   return {
     flashcards: newFlashcards,
@@ -481,7 +484,7 @@ function checkFlashcards(fc_to_check: any): FlashcardStore {
   }
 
   if (!isValidFlashcardStore(fc_to_check)) {
-    console.warn('[flashcardStorage] Loaded store has unexpected structure — using defaults');
+    log.warn('[flashcardStorage] Loaded store has unexpected structure — using defaults');
     return { ...DEFAULT_FLASHCARD_STORE };
   }
 
@@ -516,7 +519,7 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
     try {
       await fs.promises.access(filePath);
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       return { ...DEFAULT_FLASHCARD_STORE };
     }
     const data = await fs.promises.readFile(filePath, 'utf-8');
@@ -524,7 +527,7 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
     const parsedJson = JSON.stringify(parsed);
 
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      console.warn('[flashcardStorage] Loaded JSON is not a plain object — using defaults');
+      log.warn('[flashcardStorage] Loaded JSON is not a plain object — using defaults');
       return { ...DEFAULT_FLASHCARD_STORE };
     }
 
@@ -541,7 +544,7 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
 
     return store;
   } catch (error) {
-    console.error('Failed to load flashcards:', error);
+    log.error('Failed to load flashcards:', error);
   }
   return { ...DEFAULT_FLASHCARD_STORE };
 }
@@ -557,13 +560,13 @@ export async function saveFlashcards(store: FlashcardStore): Promise<void> {
       try {
         await fs.promises.access(dir);
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         await fs.promises.mkdir(dir, { recursive: true });
       }
       await fs.promises.writeFile(tmpPath, JSON.stringify(store, null, 2));
       await fs.promises.rename(tmpPath, filePath);
     } catch (error) {
-      console.error('Failed to save flashcards:', error);
+      log.error('Failed to save flashcards:', error);
     }
   });
 }

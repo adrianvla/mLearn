@@ -9,6 +9,9 @@
 
 import type { LLMChatMessage, LLMToolCall, LLMToolDefinition, LLMStreamChunk } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.conversationAgent.wikiExplorationAgent");
 
 export interface WikiExplorationResult {
   storyContext: string;
@@ -205,7 +208,7 @@ function parseToolCallsFromContent(content: string): LLMToolCall[] {
         arguments: args,
       });
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       // Skip malformed JSON
     }
   }
@@ -358,7 +361,7 @@ You MUST call submit_result when done, even if you found nothing (submit empty s
             content: result,
           });
         } catch (err) {
-          console.error(err);
+          log.error("error", err);
           messages.push({
             role: 'tool',
             toolName: tc.name,

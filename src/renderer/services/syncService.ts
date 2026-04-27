@@ -9,6 +9,9 @@
 
 import type { Settings, Flashcard, FlashcardStore } from '../../shared/types';
 import { getNodeServer } from '../../shared/backends/nodeServerAdapter';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.sync");
 
 // ============================================================================
 // Types
@@ -69,7 +72,7 @@ async function pullSettings(): Promise<void> {
       callbacks.onSettingsReceived(merged);
     }
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     // Will be handled by overall sync error
   }
 }
@@ -114,7 +117,7 @@ async function pullFlashcards(): Promise<void> {
       callbacks.onFlashcardsReceived(merged);
     }
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     // Will be handled by overall sync error
   }
 }
@@ -228,7 +231,7 @@ async function syncAll(): Promise<void> {
 
     setStatus('synced');
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     setStatus('error');
   }
 }

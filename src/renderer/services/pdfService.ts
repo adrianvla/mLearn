@@ -6,6 +6,9 @@
 
 // Import pdf.js library - this creates window.pdfjsLib
 import './pdf.mjs';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.services.pdf");
 
 interface PdfJsViewport {
   width: number;
@@ -162,7 +165,7 @@ export async function pdfToImages(
   try {
     pdf.cleanup();
   } catch (e) {
-    console.error(e);
+    log.error("error", e);
     // Ignore cleanup errors
   }
   

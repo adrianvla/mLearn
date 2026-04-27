@@ -20,6 +20,9 @@ import {
 } from '../../../components/common';
 import type { TranslationResponse } from '@shared/types';
 import './EditTranslationDialog.css';
+import { getLogger } from '@shared/utils/logger';
+
+const log = getLogger("renderer.wordDbEditor.editTranslationDialog");
 
 export interface EditTranslationDialogProps {
   word: string;
@@ -94,7 +97,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
           applyTranslationData(translation.data);
         }
       } catch (e) {
-        console.error('Failed to load translation data:', e);
+        log.error('Failed to load translation data:', e);
       } finally {
         setIsLoading(false);
       }
@@ -159,7 +162,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
       
       props.onClose();
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setError(String(e));
     }
   };
@@ -173,7 +176,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
         applyTranslationData(translation.data);
       }
     } catch (e) {
-      console.error(e);
+      log.error("error", e);
       setError(t('mlearn.WordDbEditor.EditTranslation.RevertError') + ': ' + String(e));
     } finally {
       setIsLoading(false);

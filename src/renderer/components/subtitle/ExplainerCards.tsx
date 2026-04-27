@@ -9,6 +9,9 @@ import type { Token } from '../../../shared/types';
 import { useLanguage, useLocalization, useSettings } from '../../context';
 import { useTokenizer } from '../../hooks/useTranslation';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger("renderer.components.explainerCards");
 // Types previously from explainerParser — now defined here for tool-call-based flow
 export type ExplainerSectionType = 'translation' | 'explanation' | 'grammar';
 
@@ -92,7 +95,7 @@ const ColoredPhrase: Component<{ phrase: string; targetWord?: string }> = (props
           return tokensToColoredHtml(tokens, colors, target);
         }
       } catch (e) {
-        console.error(e);
+        log.error("error", e);
         // Fallback to plain text
       }
       return phrase;

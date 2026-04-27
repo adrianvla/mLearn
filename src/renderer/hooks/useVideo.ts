@@ -5,6 +5,9 @@
 
 import { createSignal, createMemo, onCleanup } from 'solid-js';
 import { createStore } from 'solid-js/store';
+import { getLogger } from '../../shared/utils/logger';
+
+const log = getLogger("renderer.hooks.useVideo");
 
 export interface VideoState {
   currentTime: number;
@@ -122,7 +125,7 @@ export function useVideo() {
     try {
       await videoRef.play();
     } catch (e) {
-      console.error('Play failed:', e);
+      log.error('Play failed:', e);
     }
   };
 
@@ -175,7 +178,7 @@ export function useVideo() {
         await videoRef.requestPictureInPicture();
       }
     } catch (e) {
-      console.error('PiP toggle failed:', e);
+      log.error('PiP toggle failed:', e);
     }
   };
 
@@ -187,7 +190,7 @@ export function useVideo() {
         await videoRef.parentElement.requestFullscreen();
       }
     } catch (e) {
-      console.error('Fullscreen toggle failed:', e);
+      log.error('Fullscreen toggle failed:', e);
     }
   };
 
