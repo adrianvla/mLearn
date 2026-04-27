@@ -55,10 +55,15 @@ export function registerLocalMediaScheme(): void {
     {
       scheme: SCHEME,
       privileges: {
-        standard: false,
+        // `standard: true` is required for reliable HTTP Range request handling
+        // by Chromium when the scheme also declares `stream: true`. With
+        // `standard: false`, packaged builds intermittently drop the Range
+        // header, causing video seek to snap to position 0 or fail to play.
+        standard: true,
         secure: true,
         supportFetchAPI: true,
         stream: true,
+        corsEnabled: true,
         bypassCSP: false,
       },
     },
@@ -88,6 +93,45 @@ export function registerPluginUiScheme(): void {
  * Chromium's file:// handler via net.fetch does not reliably support Range headers,
  * which causes seeks to snap to position 0.
  */
+function isPathAllowed(resolvedPath: string): boolean {
+  const userDirNames = ['home', 'userData', 'downloads', 'documents', 'videos', 'music', 'pictures', 'desktop'] as const;
+  const userDirs: string[] = [];
+  for (const name of userDirNames) {
+    try {
+      userDirs.push(app.getPath(name));
+    } catch {
+      /* empty */
+    }
+  }
+
+  for (const base of userDirs) {
+    if (resolvedPath === base) return true;
+    if (resolvedPath.startsWith(base + path.sep)) return true;
+  }
+
+  if (process.platform === 'darwin') {
+    if (resolvedPath === '/Volumes' || resolvedPath.startsWith('/Volumes' + path.sep)) return true;
+    return false;
+  }
+
+  if (process.platform === 'linux') {
+    for (const mountRoot of ['/mnt', '/media', '/run/media']) {
+      if (resolvedPath === mountRoot || resolvedPath.startsWith(mountRoot + path.sep)) return true;
+    }
+    return false;
+  }
+
+  if (process.platform === 'win32') {
+    // Allow any drive letter on Windows. The OS file picker already constrains
+    // user-chosen paths; arbitrary scheme requests still cannot escape the
+    // drive-letter prefix because `path.resolve` normalizes traversal.
+    if (/^[A-Za-z]:[\\/]/.test(resolvedPath)) return true;
+    return false;
+  }
+
+  return false;
+}
+
 export function setupLocalMediaProtocol(): void {
   protocol.handle(SCHEME, async (request) => {
     let filePath = decodeURIComponent(request.url.slice(`${SCHEME}://`.length));
@@ -98,12 +142,7 @@ export function setupLocalMediaProtocol(): void {
     }
 
     const resolvedPath = path.resolve(filePath);
-    const allowedBases = [
-      app.getPath('home'),
-      app.getPath('userData'),
-    ];
-    const isAllowed = allowedBases.some(base => resolvedPath.startsWith(base + path.sep) || resolvedPath === base);
-    if (!isAllowed) {
+    if (!isPathAllowed(resolvedPath)) {
       return new Response('Access denied', { status: 403 });
     }
 

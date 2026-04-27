@@ -109,6 +109,34 @@ describe('localMediaProtocol', () => {
       expect(response.status).toBe(403);
     });
 
+    it('allows linux mount paths under /mnt, /media, /run/media', async () => {
+      if (process.platform !== 'linux') return;
+      const { setupLocalMediaProtocol } = await import('./localMediaProtocol');
+      setupLocalMediaProtocol();
+
+      const handler = mockProtocolHandlers.get('local-media');
+      expect(handler).toBeDefined();
+
+      for (const base of ['/mnt', '/media', '/run/media']) {
+        const response = await handler!(new Request(`local-media://${base}/usb-drive/video.mp4`));
+        expect(response.status).not.toBe(403);
+      }
+    });
+
+    it('rejects linux paths outside mount roots and user dirs', async () => {
+      if (process.platform !== 'linux') return;
+      const { setupLocalMediaProtocol } = await import('./localMediaProtocol');
+      setupLocalMediaProtocol();
+
+      const handler = mockProtocolHandlers.get('local-media');
+      expect(handler).toBeDefined();
+
+      for (const denied of ['/etc/shadow', '/var/log/syslog', '/proc/cpuinfo', '/root/secret']) {
+        const response = await handler!(new Request(`local-media://${denied}`));
+        expect(response.status).toBe(403);
+      }
+    });
+
     it('returns 200 with correct MIME type for an mp4 file', async () => {
       const { setupLocalMediaProtocol } = await import('./localMediaProtocol');
       setupLocalMediaProtocol();

@@ -11,6 +11,8 @@ ios
 src/root-of-app/dictionaries
 .github
 .agents
+.sisyphus
+AGENTS.md
 .vscode
 .venv
 .worktrees/

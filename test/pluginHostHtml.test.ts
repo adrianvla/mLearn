@@ -9,7 +9,7 @@ describe('plugin-host html CSP', () => {
     const html = fs.readFileSync(htmlPath, 'utf-8');
 
     expect(html).toContain("script-src 'self' plugin-ui:");
-    expect(html).toContain("img-src 'self' data: blob: flashcard-image: plugin-ui:");
-    expect(html).toContain("media-src 'self' blob: * flashcard-audio: local-media: plugin-ui:");
+    expect(html).toContain("img-src 'self' data: blob: flashcard-image: local-media: plugin-ui:");
+    expect(html).toContain("media-src 'self' blob: * flashcard-audio: flashcard-video: local-media: plugin-ui:");
   });
 });

@@ -8,8 +8,8 @@
         style-src 'self' 'unsafe-inline';
         connect-src *;
         script-src 'self' plugin-ui:;
-        img-src 'self' data: blob: flashcard-image: plugin-ui:;
-        media-src 'self' blob: * flashcard-audio: local-media: plugin-ui:;
+        img-src 'self' data: blob: flashcard-image: local-media: plugin-ui:;
+        media-src 'self' blob: * flashcard-audio: flashcard-video: local-media: plugin-ui:;
         worker-src 'self' blob:;
     ">
     <title>Plugin Host - mLearn</title>

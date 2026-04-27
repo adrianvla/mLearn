@@ -8,8 +8,8 @@
         style-src 'self' 'unsafe-inline';
         connect-src *;
         script-src 'self' 'wasm-unsafe-eval';
-        img-src 'self' data: blob: flashcard-image:;
-        media-src 'self' blob: * flashcard-audio:;
+        img-src 'self' data: blob: flashcard-image: local-media:;
+        media-src 'self' blob: * flashcard-audio: flashcard-video: local-media:;
         worker-src 'self' blob:;
     ">
     <title>Flashcards - mLearn</title>
