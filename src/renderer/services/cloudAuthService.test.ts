@@ -374,6 +374,20 @@ describe('refreshCloudSession', () => {
     await expect(refreshCloudSession(settings)).rejects.toThrow('Refresh token expired');
   });
 
+  it('attaches HTTP status to the thrown error so it can be classified', async () => {
+    mockFetch.mockResolvedValue(mockErrorJson(401, { error: 'Refresh token is invalid' }));
+    const settings = makeSettings({ cloudAuthRefreshToken: 'rt' });
+    try {
+      await refreshCloudSession(settings);
+      throw new Error('expected refreshCloudSession to throw');
+    } catch (error) {
+      const record = error as { status?: number; code?: string; message?: string };
+      expect(record.status).toBe(401);
+      expect(record.code).toBe('unauthorized');
+      expect(record.message).toBe('Refresh token is invalid');
+    }
+  });
+
   it('throws with status code when no error message', async () => {
     mockFetch.mockResolvedValue(mockErrorJson(500, {}));
     const settings = makeSettings({ cloudAuthRefreshToken: 'rt' });

@@ -205,9 +205,13 @@
   transition: opacity 0.5s ease-out;
 }
 
-.page-loader-overlay .loader-ring{
-  gap:0;
-  align-items:flex-end;
+.page-loader-overlay .loader-ring {
+  gap: 0;
+  align-items: flex-end;
+}
+
+.page-container.collate .page.page-left .page-loader-overlay .loader-ring {
+  align-items: flex-start;
 }
 
 /* Mobile adaptations — reader inside MobileLayout */

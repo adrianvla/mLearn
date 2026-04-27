@@ -182,7 +182,14 @@ export async function refreshCloudSession(settings: Settings): Promise<{ accessT
   };
 
   if (!response.ok || !payload.session?.accessToken || !payload.session.refreshToken) {
-    throw new Error(payload.error || `Session refresh failed: ${response.status}`);
+    const refreshError: Error & { status?: number; code?: string } = new Error(
+      payload.error || `Session refresh failed: ${response.status}`,
+    );
+    refreshError.status = response.status;
+    if (response.status === 401) {
+      refreshError.code = 'unauthorized';
+    }
+    throw refreshError;
   }
 
   return {
