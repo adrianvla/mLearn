@@ -15,8 +15,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-opaque);
-  color: var(--text-primary);
+  /*background: var(--bg-opaque);*/
+  background:black;
+  /*color: var(--text-primary);*/
+  color:white;
   transition: opacity 0.3s ease;
 }
 
