@@ -244,6 +244,15 @@ export interface WatchTogetherBridge {
   onWatchTogetherRequest: (callback: (data: unknown) => void) => () => void;
 }
 
+export interface OverlayBridge {
+  sendOverlayVideoState: (state: import('../types').OverlayVideoState) => void;
+  onOverlayVideoState: (callback: (state: import('../types').OverlayVideoState) => void) => () => void;
+  requestOverlaySync: () => void;
+  onOverlayRequestSync: (callback: () => void) => () => void;
+  launchOverlay: () => void;
+  onOverlayLaunch: (callback: () => void) => () => void;
+}
+
 export interface CrossWindowBridge {
   onUpdatePills: (callback: (data: unknown) => void) => () => void;
   onUpdateWordAppearance: (callback: (data: unknown) => void) => () => void;
@@ -280,6 +289,19 @@ export interface DataBridge {
   dataImport: () => Promise<{ success: boolean; error?: string }>;
 }
 
+export interface BrowserInfo {
+  name: string;
+  type: 'chrome' | 'firefox' | 'unknown';
+  path: string;
+  profilePath?: string;
+  isInstalled: boolean;
+}
+
+export interface BrowserBridge {
+  detectBrowsers: (customPaths?: string[]) => Promise<BrowserInfo[]>;
+  installExtension: (browser: BrowserInfo) => Promise<{ success: boolean; error?: string }>;
+}
+
 export interface KVStoreBridge {
   kvGet: (key: string) => Promise<string | null>;
   kvSet: (key: string, value: string) => Promise<void>;
@@ -306,10 +328,12 @@ export interface PlatformBridge {
   voice: VoiceBridge;
   mediaStats: MediaStatsBridge;
   watchTogether: WatchTogetherBridge;
+  overlay: OverlayBridge;
   crossWindow: CrossWindowBridge;
   license: LicenseBridge;
   migration: MigrationBridge;
   generic: GenericIPCBridge;
   data: DataBridge;
   kvStore: KVStoreBridge;
+  browser: BrowserBridge;
 }

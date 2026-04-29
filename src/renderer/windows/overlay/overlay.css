@@ -1,0 +1,34 @@
+.overlay-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background-color: transparent;
+  position: relative;
+  pointer-events: none;
+}
+
+.overlay-container.interactive {
+  pointer-events: auto;
+}
+
+.overlay-container.drag-over {
+  background-color: rgba(0, 0, 0, 0.15); /*TODO: refactor colors and positioning to use css variables. Not doing so results in technical debt*/
+}
+
+.overlay-subtitle-wrapper {
+  position: absolute;
+  bottom: 48px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.overlay-subtitle-wrapper .subtitles {
+  position: relative;
+  bottom: auto;
+  pointer-events: auto;
+}

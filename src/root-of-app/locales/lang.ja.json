@@ -1811,8 +1811,34 @@
         "Reader": "リーダー",
         "SRS": "SRS",
         "Statistics": "統計",
-        "VideoPlayer": "動画プレーヤー"
+        "VideoPlayer": "動画プレーヤー",
+        "BrowserExtension": "ブラウザ拡張機能"
       }
+    },
+    "BrowserExtension": {
+      "Title": "ブラウザ拡張機能",
+      "Description": "mLearnブラウザ拡張機能をインストールして、動画の再生をアプリと同期します。",
+      "DetectedBrowsers": "検出されたブラウザ",
+      "Detecting": "ブラウザを検出中...",
+      "DetectError": "ブラウザの検出に失敗しました。もう一度お試しください。",
+      "NoBrowsers": "ブラウザが検出されません",
+      "NoBrowsersHint": "ブラウザが自動検出されない場合は、以下にカスタムブラウザパスを追加してください。",
+      "Install": "インストール",
+      "Installing": "インストール中...",
+      "Installed": "インストール済み",
+      "InstallFailed": "インストールに失敗しました",
+      "Retry": "再試行",
+      "ManualTitle": "手動インストール",
+      "ManualChrome": "Chrome拡張機能（chrome://extensions/）を開き、デベロッパーモードを有効にして、「パッケージ化されていない拡張機能を読み込む」をクリックし、extension/dist/フォルダを選択してください。",
+      "ManualFirefox": "about:debugging を開き、「このFirefox」をクリックしてから、「一時的なアドオンを読み込む」をクリックし、extension/dist/manifest.json ファイルを選択してください。",
+      "ManualUnknown": "パッケージ化されていない拡張機能の読み込みについては、お使いのブラウザのドキュメントを参照してください。",
+      "CustomPath": "カスタムブラウザパス",
+      "CustomPathLabel": "ブラウザ実行ファイルのパス",
+      "CustomPathPlaceholder": "/path/to/browser/executable",
+      "ConnectionStatus": "拡張機能の接続状態",
+      "ExtensionStatus": "ステータス",
+      "Connected": "接続済み",
+      "Disconnected": "未接続"
     },
     "Statistics": {
       "Actions": {
@@ -1936,6 +1962,17 @@
       },
       "VideoClipFailed": "動画クリップの作成に失敗しました。スクリーンショットを使用します",
       "WatchTogether": "一緒に見る"
+    },
+    "Overlay": {
+      "Close": "オーバーレイを閉じる",
+      "ControlsAria": "オーバーレイコントロール",
+      "DecreaseOffset": "字幕オフセットを100ms減らす",
+      "DropSubtitle": "字幕ファイルをここにドラッグ＆ドロップ",
+      "IncreaseOffset": "字幕オフセットを100ms増やす",
+      "LoadSubtitles": "字幕を読み込む",
+      "OffsetTooltip": "字幕タイミングオフセット",
+      "SyncActive": "同期中",
+      "SyncInactive": "同期停止"
     },
     "WatchTogether": {
       "Mode": {
@@ -2151,6 +2188,13 @@
         "Unknown": "未知としてマーク",
         "Learning": "学習中としてマーク",
         "Known": "既知としてマーク"
+      }
+    },
+    "Menu": {
+      "BrowserExtension": {
+        "Title": "ブラウザ拡張機能",
+        "InstallExtension": "拡張機能をインストール...",
+        "OpenOverlayWindow": "オーバーレイウィンドウを開く"
       }
     }
   }

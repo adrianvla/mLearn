@@ -1,11 +1,9 @@
 /**
  * Web Server Service
- * Provides HTTP/WebSocket server for tethered mode and watch-together functionality
- * 
+ * Provides HTTP/WebSocket server for mobile sync and watch-together functionality
+ *
  * This server handles:
- * - Serving tethered mode scripts (core.js, settings.js, quick-lookup.js)
- * - Serving the userscript for mobile tethered mode
- * - API endpoints for flashcard creation, pills, word appearance tracking
+ * - REST API endpoints for mobile sync (settings, flashcards, localization)
  * - Proxy forwarding to Python backend
  * - WebSocket for watch-together functionality
  * - Serving static assets (CSS, fonts, icons)
@@ -21,8 +19,8 @@ import { ipcMain } from 'electron';
 import { PROXY_SERVER_PORT, PYTHON_BACKEND_PORT, IPC_CHANNELS } from '../../shared/constants';
 import { getAppPath, getResourcePath } from '../utils/platform';
 import { loadSettings, loadLangData, saveSettings } from './settings';
-import { getMainWindow } from './windowManager';
-import { getFlashcardEaseMap, loadFlashcards, saveFlashcards } from './flashcardStorage';
+import { getMainWindow, getOverlayWindow, launchOverlayWindow } from './windowManager';
+import { loadFlashcards, saveFlashcards } from './flashcardStorage';
 import { loadLocalization } from './localization';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -35,17 +33,6 @@ let wss: WebSocketServer | null = null;
 // Connected WebSocket clients
 const connectedClients: Set<WebSocket> = new Set();
 
-// Queued updates for main window
-let pillQueuedUpdates: Array<{ word: string; status: number }> = [];
-let wordAppearanceQueuedUpdates: string[] = [];
-let attemptFlashcardCreationQueuedUpdates: Array<{ word: string; content: unknown }> = [];
-let createFlashcardQueuedUpdates: Array<{ content: unknown }> = [];
-let lastWatchedQueuedUpdates: Array<{ name: string; screenshotUrl: string; videoUrl: string }> = [];
-
-// LocalStorage data received from renderer
-let localStorageData: Record<string, unknown> = {};
-
-// CORS headers
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -53,7 +40,7 @@ const corsHeaders: Record<string, string> = {
   'Access-Control-Max-Age': '86400',
 };
 
-// Generated once at process start; exported so tethered clients can receive it via QR code.
+// Generated once at process start; exported so mobile clients can receive it via QR code.
 export const SERVER_AUTH_TOKEN = crypto.randomBytes(32).toString('hex');
 
 // Allowlisted proxy domains — only these hostnames may be fetched via /?url=
@@ -87,52 +74,6 @@ export function broadcastToClients(message: string): void {
   }
 }
 
-// Set local storage data
-export function setLocalStorage(data: Record<string, unknown>): void {
-  localStorageData = data;
-}
-
-// Flush queued updates to main window
-function flushPillUpdates(): void {
-  const mainWindow = getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed() || pillQueuedUpdates.length === 0) return;
-  log.info('Sending queued pill updates to main window:', pillQueuedUpdates);
-  mainWindow.webContents.send(IPC_CHANNELS.UPDATE_PILLS, JSON.stringify(pillQueuedUpdates));
-  pillQueuedUpdates = [];
-}
-
-function flushWordAppearanceUpdates(): void {
-  const mainWindow = getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed() || wordAppearanceQueuedUpdates.length === 0) return;
-  log.info('Sending queued word appearance updates to main window:', wordAppearanceQueuedUpdates);
-  mainWindow.webContents.send(IPC_CHANNELS.UPDATE_WORD_APPEARANCE, JSON.stringify(wordAppearanceQueuedUpdates));
-  wordAppearanceQueuedUpdates = [];
-}
-
-function flushAttemptFlashcardCreationUpdates(): void {
-  const mainWindow = getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed() || attemptFlashcardCreationQueuedUpdates.length === 0) return;
-  log.info('Sending queued flashcard creation attempts to main window:', attemptFlashcardCreationQueuedUpdates);
-  mainWindow.webContents.send(IPC_CHANNELS.UPDATE_ATTEMPT_FLASHCARD_CREATION, JSON.stringify(attemptFlashcardCreationQueuedUpdates));
-  attemptFlashcardCreationQueuedUpdates = [];
-}
-
-function flushCreateFlashcardUpdates(): void {
-  const mainWindow = getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed() || createFlashcardQueuedUpdates.length === 0) return;
-  log.info('Sending queued flashcard creation updates to main window:', createFlashcardQueuedUpdates);
-  mainWindow.webContents.send(IPC_CHANNELS.UPDATE_CREATE_FLASHCARD, JSON.stringify(createFlashcardQueuedUpdates));
-  createFlashcardQueuedUpdates = [];
-}
-
-function flushLastWatchedUpdates(): void {
-  const mainWindow = getMainWindow();
-  if (!mainWindow || mainWindow.isDestroyed() || lastWatchedQueuedUpdates.length === 0) return;
-  log.info('Sending queued last watched updates to main window:', lastWatchedQueuedUpdates);
-  mainWindow.webContents.send(IPC_CHANNELS.UPDATE_LAST_WATCHED, JSON.stringify(lastWatchedQueuedUpdates));
-  lastWatchedQueuedUpdates = [];
-}
-
 // Get the base directory for static files
 function getStaticBasePath(): string {
   const appPath = getAppPath();
@@ -156,31 +97,6 @@ function getStaticBasePath(): string {
   }
   
   return path.join(appPath, 'src', 'html');
-}
-
-// Get the scripts directory
-function getScriptsPath(): string {
-  const appPath = getAppPath();
-  const resourcePath = getResourcePath();
-  
-  // In dev, __dirname is dist-electron/electron/services, so we need to go up more levels
-  // to find the project root scripts directory
-  const candidatePaths = [
-    path.join(appPath, 'scripts'),
-    path.join(resourcePath, 'scripts'),
-    // In dev mode, go from dist-electron/electron/services to project root
-    path.join(__dirname, '..', '..', '..', 'scripts'),
-    // Alternative: from dist-electron to project root
-    path.join(__dirname, '..', '..', 'scripts'),
-  ];
-  
-  for (const p of candidatePaths) {
-    if (fs.existsSync(p)) {
-      return p;
-    }
-  }
-  
-  return path.join(appPath, 'scripts');
 }
 
 // Parse URL with host and port
@@ -289,122 +205,11 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
 <body>
   <h1>mLearn Backend</h1>
   <p>Hi, this is the mLearn Backend server.</p>
-  <p>This server responds to HTTP requests made by the Injected mLearn Application, as well as by the Tethered version of mLearn for Mobile.</p>
-  <p>This server also responds to WebSockets, a feature used by mLearn's Watch Together feature.</p>
+  <p>This server provides REST API endpoints for mobile sync and WebSocket for watch-together functionality.</p>
   <hr>
-  <p>If you want to install the mLearn Mobile UserScript for use in Tethered Mode, please click <a href="/mLearn.user.js">here</a>.</p>
   <script>document.getElementById("current_url") && (document.getElementById("current_url").innerText = window.location.href);</script>
 </body>
 </html>`);
-    return;
-  }
-
-  // Serve userscript
-  if (pathname === '/mLearn.user.js') {
-    const scriptsPath = getScriptsPath();
-    const scriptPath = path.join(scriptsPath, 'userscript.js');
-    
-    if (fs.existsSync(scriptPath)) {
-      res.writeHead(200, {
-        'Content-Type': 'application/javascript',
-        ...corsHeaders,
-      });
-      const stream = fs.createReadStream(scriptPath);
-      stream.pipe(res);
-      res.on('close', () => stream.destroy());
-      res.on('error', () => stream.destroy());
-    } else {
-      res.writeHead(404, corsHeaders);
-      res.end('Script not found');
-    }
-    return;
-  }
-
-  // Serve core.js for tethered mode
-  if (pathname === '/core.js') {
-    const basePath = getStaticBasePath();
-    const filePath = path.join(basePath, 'tethered', 'core.js');
-    serveStaticFile(res, filePath);
-    return;
-  }
-
-  // Serve quick-lookup.js for tethered mode
-  if (pathname === '/quick-lookup.js') {
-    const basePath = getStaticBasePath();
-    const filePath = path.join(basePath, 'tethered', 'quick-lookup.js');
-    serveStaticFile(res, filePath);
-    return;
-  }
-
-  // Serve settings.js - dynamic JavaScript with settings, lang data, localStorage, and word knowledge
-  if (pathname === '/settings.js') {
-    if (!requireAuth(req, res)) return;
-    try {
-      const settings = loadSettings();
-      const langData = loadLangData();
-      const easeHashmap = await getFlashcardEaseMap();
-      const flashcardStore = await loadFlashcards();
-      
-      // Build word-keyed knowledge map from the flashcard store
-      // This avoids hash function mismatches between Node and browser crypto
-      const wordKnowledgeMap: Record<string, {
-        hasFlashcard: boolean;
-        bestEase: number;
-        bestState: string;
-        cardCount: number;
-        totalReviews: number;
-        bestInterval: number;
-      }> = {};
-      
-      for (const flashcard of Object.values(flashcardStore.flashcards)) {
-        const word = flashcard.content?.front;
-        if (!word) continue;
-        const existing = wordKnowledgeMap[word];
-        if (!existing) {
-          wordKnowledgeMap[word] = {
-            hasFlashcard: true,
-            bestEase: flashcard.ease,
-            bestState: flashcard.state,
-            cardCount: 1,
-            totalReviews: flashcard.reviews || 0,
-            bestInterval: flashcard.interval || 0,
-          };
-        } else {
-          existing.cardCount++;
-          existing.totalReviews += flashcard.reviews || 0;
-          if (flashcard.ease > existing.bestEase) existing.bestEase = flashcard.ease;
-          if (flashcard.interval > existing.bestInterval) existing.bestInterval = flashcard.interval;
-          const stateOrder: Record<string, number> = { 'new': 0, 'learning': 1, 'relearning': 2, 'review': 3 };
-          if ((stateOrder[flashcard.state] || 0) > (stateOrder[existing.bestState] || 0)) {
-            existing.bestState = flashcard.state;
-          }
-        }
-      }
-      
-      let js = '';
-      js += `globalThis.lang_data = ${JSON.stringify(langData)};\n`;
-      const { cloudAuthAccessToken: _a, cloudAuthToken: _b, ...sanitizedSettings } = settings;
-      js += `globalThis.settings = ${JSON.stringify(sanitizedSettings)};\n`;
-      js += `globalThis.lS = ${JSON.stringify(localStorageData)};\n`;
-      js += `globalThis.easeHashmap = ${JSON.stringify(easeHashmap)};\n`;
-      js += `globalThis.wordKnowledgeMap = ${JSON.stringify(wordKnowledgeMap)};\n`;
-      js += `globalThis.knownUntrackedHashes = ${JSON.stringify(flashcardStore.knownUntracked || {})};\n`;
-      js += `globalThis.knownEaseThreshold = ${JSON.stringify(settings.known_ease_threshold)};\n`;
-      js += `globalThis.serverProtocol = 'http';\n`;
-      
-      res.writeHead(200, {
-        'Content-Type': 'application/javascript',
-        ...corsHeaders,
-      });
-      res.end(js);
-    } catch (error) {
-      log.error('Error generating settings.js:', error);
-      res.writeHead(500, {
-        'Content-Type': 'application/javascript',
-        ...corsHeaders,
-      });
-      res.end(`log.error("mLearn: Failed to generate settings.js");`);
-    }
     return;
   }
 
@@ -412,15 +217,6 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
   if (pathname === '/light_style.css' || pathname === '/pages/assets/light_style.css') {
     const basePath = getStaticBasePath();
     const filePath = path.join(basePath, 'assets', 'light_style.css');
-    serveStaticFile(res, filePath);
-    return;
-  }
-
-  // Serve assets from /pages/assets/ path (for compatibility with old core.js)
-  if (pathname.startsWith('/pages/assets/')) {
-    const assetPath = pathname.replace('/pages/assets/', '');
-    const basePath = getStaticBasePath();
-    const filePath = path.join(basePath, 'assets', assetPath);
     serveStaticFile(res, filePath);
     return;
   }
@@ -519,129 +315,28 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     return;
   }
 
-  // API: Pills update (GET for compatibility with script injection)
-  if (pathname === '/api/pills') {
-    const word = query.key;
-    const status = parseInt(query.value || '0', 10);
-    
-    if (word) {
-      log.info('Received pill update:', word, status);
-      pillQueuedUpdates.push({ word, status });
-      flushPillUpdates();
+  // API: Overlay sync (POST with JSON body)
+  if (pathname === '/api/overlay-sync') {
+    if (req.method !== 'POST') {
+      res.writeHead(405, corsHeaders);
+      res.end('Method not allowed');
+      return;
     }
-    
-    sendJsonResponse(res, { status: 'ok' });
-    return;
-  }
-
-  // API: Word appearance tracking (GET for compatibility)
-  if (pathname === '/api/word-appearance') {
-    const word = query.word;
-    
-    if (word) {
-      wordAppearanceQueuedUpdates.push(word);
-      flushWordAppearanceUpdates();
-    }
-    
-    sendJsonResponse(res, { status: 'ok' });
-    return;
-  }
-
-  // API: Attempt flashcard creation (GET for compatibility)
-  if (pathname === '/api/attempt-flashcard-creation') {
-    const word = query.word;
-    let content = query.content;
-    
-    if (word) {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk.toString(); });
+    req.on('end', () => {
       try {
-        if (content && typeof content === 'string') {
-          content = JSON.parse(content);
+        const parsed = JSON.parse(body);
+        const overlay = getOverlayWindow();
+        if (overlay && !overlay.isDestroyed()) {
+          overlay.webContents.send(IPC_CHANNELS.OVERLAY_VIDEO_STATE, parsed);
         }
-      } catch (e) {
-        log.error("error", e);
-        // Content might not be JSON
-      }
-      
-      attemptFlashcardCreationQueuedUpdates.push({ word, content });
-      flushAttemptFlashcardCreationUpdates();
-    }
-    
-    sendJsonResponse(res, { status: 'ok' });
-    return;
-  }
-
-  // API: Create flashcard (POST with JSON body - HTTP fallback for WebSocket)
-  if (pathname === '/api/create-flashcard') {
-    if (req.method === 'POST') {
-      let body = '';
-      req.on('data', (chunk) => { body += chunk.toString(); });
-      req.on('end', () => {
-        try {
-          const parsed = JSON.parse(body);
-          if (parsed && parsed.content) {
-            createFlashcardQueuedUpdates.push({ content: parsed.content });
-            log.info('Create new flashcard (HTTP):', parsed.content);
-            flushCreateFlashcardUpdates();
-          }
-          sendJsonResponse(res, { status: 'ok' });
-        } catch (e) {
-          log.error("error", e);
-          sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
-        }
-      });
-    } else {
-      sendJsonResponse(res, { status: 'ok' });
-    }
-    return;
-  }
-
-  // API: Update last watched (GET with base64 payload)
-  if (pathname === '/api/update-last-watched') {
-    const payload = query.payload;
-    
-    if (payload) {
-      try {
-        const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'));
-        if (decoded && decoded.action === 'update-last-watched') {
-          lastWatchedQueuedUpdates.push({
-            name: decoded.name,
-            screenshotUrl: decoded.screenshotUrl,
-            videoUrl: decoded.videoUrl,
-          });
-          flushLastWatchedUpdates();
-          sendJsonResponse(res, { status: 'ok' });
-          return;
-        }
-      } catch (e) {
-        log.error("error", e);
-        // Invalid payload
-      }
-    }
-    
-    sendJsonResponse(res, { status: 'error', error: 'Invalid payload' }, 400);
-    return;
-  }
-
-  // API: Watch together (GET with base64 message)
-  if (pathname === '/api/watch-together') {
-    const message = query.message;
-    
-    if (message) {
-      try {
-        const decoded = Buffer.from(message, 'base64').toString('utf8');
-        const parsedMessage = JSON.parse(decoded);
-        const encoded = JSON.stringify(parsedMessage);
-        broadcastToClients(encoded);
-        // Also forward to the desktop renderer so it can react
-        getMainWindow()?.webContents.send(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, encoded);
         sendJsonResponse(res, { status: 'ok' });
       } catch (e) {
-        log.error("error", e);
-        sendJsonResponse(res, { status: 'error', error: 'Invalid message format' }, 400);
+        log.error('Error parsing overlay-sync body:', e);
+        sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
       }
-    } else {
-      sendJsonResponse(res, { status: 'error', error: 'Missing message parameter' }, 400);
-    }
+    });
     return;
   }
 
@@ -704,6 +399,14 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
   // API: Ping / health check
   if (pathname === '/api/ping') {
     sendJsonResponse(res, { status: 'ok' });
+    return;
+  }
+
+  if (pathname === '/api/overlay-state') {
+    const rawSettings = loadSettings();
+    const { cloudAuthAccessToken: _a, cloudAuthToken: _b, ...safeSettings } = rawSettings;
+    const currentLangData = loadLangData();
+    sendJsonResponse(res, { status: 'ok', settings: safeSettings, langData: currentLangData });
     return;
   }
 
@@ -786,6 +489,24 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     return;
   }
 
+  // API: Launch overlay window (localhost only)
+  if (pathname === '/api/overlay-launch' && req.method === 'POST') {
+    const remoteAddress = req.socket.remoteAddress;
+    const isLocalhost = remoteAddress === '127.0.0.1' || remoteAddress === '::ffff:127.0.0.1' || remoteAddress === '::1';
+    if (!isLocalhost) {
+      sendJsonResponse(res, { error: 'Forbidden' }, 403);
+      return;
+    }
+    try {
+      launchOverlayWindow();
+      sendJsonResponse(res, { status: 'ok' });
+    } catch (e) {
+      log.error('Failed to launch overlay window', e);
+      sendJsonResponse(res, { error: 'Failed to launch overlay' }, 500);
+    }
+    return;
+  }
+
   // Default 404
   res.writeHead(404, corsHeaders);
   res.end('Not found');
@@ -798,40 +519,10 @@ function handleWebSocketConnection(ws: WebSocket): void {
 
   ws.on('message', (message: Buffer) => {
     try {
-      const data = JSON.parse(message.toString());
-      
-      // Handle create-new-flashcard action from tethered mode
-      if (data && data.action === 'create-new-flashcard') {
-        createFlashcardQueuedUpdates.push({ content: data.content });
-        log.info('Create new flashcard:', data.content);
-        flushCreateFlashcardUpdates();
-        return;
-      }
-      
-      // Handle attempt-flashcard-creation action from tethered mode
-      if (data && data.action === 'attempt-flashcard-creation') {
-        attemptFlashcardCreationQueuedUpdates.push({ word: data.word, content: data.content });
-        flushAttemptFlashcardCreationUpdates();
-        return;
-      }
-      
-      // Handle update-last-watched action
-      if (data && data.action === 'update-last-watched') {
-        lastWatchedQueuedUpdates.push({
-          name: data.name,
-          screenshotUrl: data.screenshotUrl,
-          videoUrl: data.videoUrl,
-        });
-        log.info('Last watched update:', data);
-        flushLastWatchedUpdates();
-        return;
-      }
-      
       // Forward to renderer and broadcast to other WS clients.
       // Messages arrive with an `action` field (play, pause, sync, etc.) from
-      // tethered clients acting as watch-together masters, or with a `type`
-      // field from future structured messages. Both paths need to reach the
-      // renderer AND all other connected clients.
+      // watch-together masters, or with a `type` field from future structured messages.
+      // Both paths need to reach the renderer AND all other connected clients.
       const raw = message.toString();
       getMainWindow()?.webContents.send(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, raw);
       for (const client of connectedClients) {
@@ -902,10 +593,6 @@ export function startWebServer(): void {
   });
 
   // Setup IPC handlers
-  ipcMain.on(IPC_CHANNELS.SEND_LS, (_event, data) => {
-    setLocalStorage(data);
-  });
-
   ipcMain.on(IPC_CHANNELS.WATCH_TOGETHER_SEND, (_event, message) => {
     broadcastToClients(message);
   });

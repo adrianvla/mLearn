@@ -129,7 +129,15 @@ sendLogRecord: (record: unknown) => void;
   watchTogetherSend: (message: unknown) => void;
   onWatchTogetherLaunch: (callback: (data: unknown) => void) => () => void;
   onWatchTogetherRequest: (callback: (data: unknown) => void) => () => void;
-  
+
+  // Overlay
+  sendOverlayVideoState: (state: import('./types').OverlayVideoState) => void;
+  onOverlayVideoState: (callback: (state: import('./types').OverlayVideoState) => void) => () => void;
+  requestOverlaySync: () => void;
+  onOverlayRequestSync: (callback: () => void) => () => void;
+  launchOverlay: () => void;
+  onOverlayLaunch: (callback: () => void) => () => void;
+
   // Pill/Word Updates (cross-window sync)
   onUpdatePills: (callback: (data: unknown) => void) => () => void;
   onUpdateWordAppearance: (callback: (data: unknown) => void) => () => void;
@@ -254,6 +262,10 @@ sendLogRecord: (record: unknown) => void;
   // Data Export/Import
   dataExport: () => Promise<{ success: boolean; filePath?: string | null; error?: string }>;
   dataImport: () => Promise<{ success: boolean; error?: string }>;
+
+  // Browser Detection & Extension Installation
+  detectBrowsers: (customPaths?: string[]) => Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>>;
+  installExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ success: boolean; error?: string }>;
 
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;

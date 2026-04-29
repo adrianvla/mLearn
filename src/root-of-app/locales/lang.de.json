@@ -1811,8 +1811,34 @@
         "Reader": "Leser",
         "SRS": "SRS",
         "Statistics": "Statistiken",
-        "VideoPlayer": "Videoplayer"
+        "VideoPlayer": "Videoplayer",
+        "BrowserExtension": "Browser-Erweiterung"
       }
+    },
+    "BrowserExtension": {
+      "Title": "Browser-Erweiterung",
+      "Description": "Installieren Sie die mLearn Browser-Erweiterung, um die Videowiedergabe mit der App zu synchronisieren.",
+      "DetectedBrowsers": "Erkannte Browser",
+      "Detecting": "Browser werden erkannt...",
+      "DetectError": "Browsererkennung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+      "NoBrowsers": "Keine Browser erkannt",
+      "NoBrowsersHint": "Fügen Sie unten einen benutzerdefinierten Browserpfad hinzu, wenn Ihr Browser nicht automatisch erkannt wird.",
+      "Install": "Installieren",
+      "Installing": "Wird installiert...",
+      "Installed": "Installiert",
+      "InstallFailed": "Installation fehlgeschlagen",
+      "Retry": "Wiederholen",
+      "ManualTitle": "Manuelle Installation",
+      "ManualChrome": "Öffnen Sie Chrome-Erweiterungen (chrome://extensions/), aktivieren Sie den Entwicklermodus, klicken Sie auf Entpackt laden und wählen Sie den Ordner extension/dist/ aus.",
+      "ManualFirefox": "Öffnen Sie about:debugging, klicken Sie auf Dieser Firefox, dann auf Temporäres Add-on laden und wählen Sie die Datei extension/dist/manifest.json aus.",
+      "ManualUnknown": "Bitte konsultieren Sie die Dokumentation Ihres Browsers zum Laden entpackter Erweiterungen.",
+      "CustomPath": "Benutzerdefinierter Browserpfad",
+      "CustomPathLabel": "Pfad zur Browser-Datei",
+      "CustomPathPlaceholder": "/pfad/zur/browser/datei",
+      "ConnectionStatus": "Erweiterungsverbindung",
+      "ExtensionStatus": "Status",
+      "Connected": "Verbunden",
+      "Disconnected": "Getrennt"
     },
     "Statistics": {
       "Actions": {
@@ -1936,6 +1962,17 @@
       },
       "VideoClipFailed": "Videoclip fehlgeschlagen, Screenshot wird verwendet",
       "WatchTogether": "Gemeinsam ansehen"
+    },
+    "Overlay": {
+      "Close": "Overlay schließen",
+      "ControlsAria": "Overlay-Steuerung",
+      "DecreaseOffset": "Untertitel-Offset um 100ms verringern",
+      "DropSubtitle": "Ziehen Sie eine Untertiteldatei hierher",
+      "IncreaseOffset": "Untertitel-Offset um 100ms erhöhen",
+      "LoadSubtitles": "Untertitel laden",
+      "OffsetTooltip": "Untertitel-Timing-Offset",
+      "SyncActive": "Synchronisation aktiv",
+      "SyncInactive": "Synchronisation inaktiv"
     },
     "WatchTogether": {
       "Mode": {
@@ -2151,6 +2188,13 @@
         "Unknown": "Als unbekannt markiert",
         "Learning": "Als lernend markiert",
         "Known": "Als bekannt markiert"
+      }
+    },
+    "Menu": {
+      "BrowserExtension": {
+        "Title": "Browser-Erweiterung",
+        "InstallExtension": "Erweiterung installieren...",
+        "OpenOverlayWindow": "Overlay-Fenster öffnen"
       }
     }
   }

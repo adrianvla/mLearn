@@ -27,6 +27,8 @@ import { setupSpeechIPC } from './services/speechService';
 import { setupVoiceIPC } from './services/voiceService';
 import { setupDataExportImportIPC } from './services/dataExportImport';
 import { setupKVStoreIPC } from './services/kvStore';
+import { setupBrowserDetectionIPC } from './services/browserDetection';
+import { setupExtensionInstallerIPC } from './services/extensionInstaller';
 import { initPluginManager } from './services/pluginManager';
 import { setupPluginIPC } from './services/pluginIPC';
 import { IPC_CHANNELS } from '../shared/constants';
@@ -235,6 +237,8 @@ function setupAllIPC(): void {
   setupVoiceIPC();
   setupDataExportImportIPC();
   setupKVStoreIPC();
+  setupBrowserDetectionIPC();
+  setupExtensionInstallerIPC();
   setupPluginIPC();
   setupKillHandlers();
 }
@@ -278,7 +282,7 @@ async function initialize(): Promise<void> {
   // Create windows and start services
   await createAppWindows();
 
-  if (!app.isDefaultProtocolClient('mlearn')) {
+  if (app.isPackaged && !app.isDefaultProtocolClient('mlearn')) {
     if (process.defaultApp && process.argv.length >= 2) {
       app.setAsDefaultProtocolClient('mlearn', process.execPath, [path.resolve(process.argv[1])]);
     } else {

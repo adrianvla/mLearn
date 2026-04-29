@@ -22,12 +22,14 @@ import type {
   VoiceBridge,
   MediaStatsBridge,
   WatchTogetherBridge,
+  OverlayBridge,
   CrossWindowBridge,
   LicenseBridge,
   MigrationBridge,
   GenericIPCBridge,
   DataBridge,
   KVStoreBridge,
+  BrowserBridge,
 } from './types';
 
 function getIPC(): MLearnIPC {
@@ -233,6 +235,15 @@ const watchTogetherBridge: WatchTogetherBridge = {
   onWatchTogetherRequest: (cb) => getIPC().onWatchTogetherRequest(cb),
 };
 
+const overlayBridge: OverlayBridge = {
+  sendOverlayVideoState: (state) => getIPC().sendOverlayVideoState(state),
+  onOverlayVideoState: (cb) => getIPC().onOverlayVideoState(cb),
+  requestOverlaySync: () => getIPC().requestOverlaySync(),
+  onOverlayRequestSync: (cb) => getIPC().onOverlayRequestSync(cb),
+  launchOverlay: () => getIPC().launchOverlay(),
+  onOverlayLaunch: (cb) => getIPC().onOverlayLaunch(cb),
+};
+
 const crossWindowBridge: CrossWindowBridge = {
   onUpdatePills: (cb) => getIPC().onUpdatePills(cb),
   onUpdateWordAppearance: (cb) => getIPC().onUpdateWordAppearance(cb),
@@ -277,6 +288,11 @@ const kvStoreBridge: KVStoreBridge = {
   kvSetBatch: (entries) => getIPC().kvSetBatch(entries),
 };
 
+const browserBridge: BrowserBridge = {
+  detectBrowsers: (customPaths) => getIPC().detectBrowsers(customPaths),
+  installExtension: (browser) => getIPC().installExtension(browser),
+};
+
 export function createElectronBridge(): PlatformBridge {
   return {
     settings: settingsBridge,
@@ -292,11 +308,13 @@ export function createElectronBridge(): PlatformBridge {
     voice: voiceBridge,
     mediaStats: mediaStatsBridge,
     watchTogether: watchTogetherBridge,
+    overlay: overlayBridge,
     crossWindow: crossWindowBridge,
     license: licenseBridge,
     migration: migrationBridge,
     generic: genericBridge,
     data: dataBridge,
     kvStore: kvStoreBridge,
+    browser: browserBridge,
   };
 }

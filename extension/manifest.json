@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "mLearn Browser Extension",
+  "version": "1.0.0",
+  "description": "Language learning overlay for streaming video content",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content-script.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "mLearn"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2mKqH+dXzr/VKSWRVMa4x8kCN/z4dCqLRHAlYuT3lYq4gRj8Z5kF0qP8gQ0W4Rq0fB7dE7P1mZqL3qL9qX4h8kCN/z4dCqLRHAlYuT3lYq4gRj8Z5kF0qP8gQ0W4Rq0fB7dE7P1mZqL3qL9qX4h8kCN/z4dCqLRHAlYuT3lYq4gRj8Z5kF0qP8gQ0W4Rq0fB7dE7P1mZqL3qL9qX4h8kCN/z4dCqLRHAlYuT3lYq4gRj8Z5kF0qP8gQ0W4Rq0fB7dE7P1mZqL3qL9qX4h8kCN/z4dCqLRHAlYuT3lYq4gRj8Z5kF0qP8gQ0W4Rq0fB7dE7P1mZqL3qL9qX4h8kCN/z4dCqLRHAlYuT3lYq4gRj8Z5kF0qP8gQ0W4Rq0fB7dE7P1mZqL3qL9qX4h8kCN/z4dCqLRHAlYuT3lYq4gRj8Z5kF0qP8gQ0W4Rq0fB7dE7P1mZqL3qL9qX4h8kCN/z4dCqLRHAlYuT3lYq4gRj8Z5kF0qP8gQ0W4Rq0fB7dE7P1mZqL3qL9qX4h8kCN/z4dCqLRHAlYuT3lYq4gRj8Z5kF0qP8gQ0W4Rq0fB7dE7P1mZqL3qL9qX4h8kCN/z4dCqLRHAlYuT3lYq4gRj8Z5kF0qP8gQ0W4Rq0fB7dE7P1mZqL3qL9qX4h8kCN/z4dCqLRHAlYuT3lYq4gRj8Z5kF0qP8gQ0W4Rq0fB7dE7P1mZqL3qL9qX4h8kCN/z4dCqLRHA=="
+}

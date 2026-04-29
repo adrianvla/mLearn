@@ -2,6 +2,8 @@
  * Subtitle Styles - aggregate import
  * Individual styles live in their component CSS files.
  * This file re-exports them for window-level consumers.
+
+ TODO: this file is technical debt, subtitle components/consumers must import this at the component-level
  */
 
 @import url('../components/subtitle/SubtitleContainer.css');

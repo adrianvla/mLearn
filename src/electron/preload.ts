@@ -6,7 +6,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import { getLogger } from '../shared/utils/logger';
 
@@ -237,6 +237,17 @@ const mLearnIPC = {
   onWatchTogetherRequest: (callback: (message: string) => void) =>
     ipcOn(IPC_CHANNELS.WATCH_TOGETHER_REQUEST, (_event, message) => callback(message)),
 
+  // ========== Overlay ==========
+  sendOverlayVideoState: (state: OverlayVideoState) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_VIDEO_STATE, state),
+  onOverlayVideoState: (callback: (state: OverlayVideoState) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_VIDEO_STATE, (_event, state) => callback(state)),
+  requestOverlaySync: () => ipcRenderer.send(IPC_CHANNELS.OVERLAY_REQUEST_SYNC),
+  onOverlayRequestSync: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_REQUEST_SYNC, () => callback()),
+  launchOverlay: () => ipcRenderer.send(IPC_CHANNELS.OVERLAY_LAUNCH),
+  onOverlayLaunch: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_LAUNCH, () => callback()),
+
   // ========== Tethered Updates ==========
   onUpdatePills: (callback: (data: string) => void) =>
     ipcOn(IPC_CHANNELS.UPDATE_PILLS, (_event, data) => callback(data)),
@@ -410,6 +421,12 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.DATA_EXPORT),
   dataImport: (): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke(IPC_CHANNELS.DATA_IMPORT),
+
+  // ========== Browser Detection ==========
+  detectBrowsers: (customPaths?: string[]): Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>> =>
+    ipcRenderer.invoke(IPC_CHANNELS.DETECT_BROWSERS, customPaths),
+  installExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.INSTALL_EXTENSION, browser),
 
   // ========== KV Store ==========
   kvGet: (key: string): Promise<string | null> =>

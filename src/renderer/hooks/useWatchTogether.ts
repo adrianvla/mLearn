@@ -59,6 +59,16 @@ interface UseWatchTogetherOptions {
   getVideoSrc: () => string;
   /** Returns the current media title for cloud room sync. */
   getVideoTitle?: () => string;
+  /** Called when a remote play command is received and no local video element is available. */
+  onReceivePlay?: (time: number) => void;
+  /** Called when a remote pause command is received and no local video element is available. */
+  onReceivePause?: (time: number) => void;
+  /** Called when a remote seek command is received and no local video element is available. */
+  onReceiveSeek?: (time: number) => void;
+  /** When true, the hook runs in overlay mode and skips video element time checks. */
+  isOverlay?: boolean;
+  /** Returns the current playback time when in overlay mode. */
+  getCurrentTime?: () => number;
 }
 
 export function useWatchTogether(options: UseWatchTogetherOptions) {
@@ -158,6 +168,16 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
           setRemoteSubtitle(null);
         }
 
+        if (options.isOverlay) {
+          options.onReceiveSeek?.(message.currentTime);
+          if (message.paused) {
+            options.onReceivePause?.(message.currentTime);
+          } else {
+            options.onReceivePlay?.(message.currentTime);
+          }
+          break;
+        }
+
         const video = options.getVideo();
         if (!video) {
           return;
@@ -180,6 +200,10 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       }
 
       case 'sync-play': {
+        if (options.isOverlay) {
+          if (message.time !== undefined) options.onReceivePlay?.(message.time);
+          break;
+        }
         const video = options.getVideo();
         if (!video) return;
         suppressEvents = true;
@@ -189,6 +213,10 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       }
 
       case 'sync-pause': {
+        if (options.isOverlay) {
+          if (message.time !== undefined) options.onReceivePause?.(message.time);
+          break;
+        }
         const video = options.getVideo();
         if (!video) return;
         suppressEvents = true;
@@ -199,6 +227,10 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       }
 
       case 'sync-seek': {
+        if (options.isOverlay) {
+          if (message.time !== undefined) options.onReceiveSeek?.(message.time);
+          break;
+        }
         const video = options.getVideo();
         if (!video) return;
         suppressEvents = true;
@@ -278,12 +310,14 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   function sendFullState(): void {
     if (!peerServiceRef || mode() !== 'room-owner') return;
 
-    const video = options.getVideo();
+    const video = options.isOverlay ? null : options.getVideo();
     const payload: PeerDataMessage = {
       type: 'sync-state',
       mediaUrl: options.getVideoSrc(),
       mediaTitle: options.getVideoTitle?.() || '',
-      currentTime: video?.currentTime ?? 0,
+      currentTime: options.isOverlay
+        ? (options.getCurrentTime?.() ?? 0)
+        : (video?.currentTime ?? 0),
       paused: video?.paused ?? true,
       playbackRate: video?.playbackRate ?? 1,
       subtitlesHtml: latestSubtitleState?.html ?? null,
@@ -552,6 +586,16 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       if (!msg.action) {
         if (mode() !== 'inactive') return;
 
+        if (options.isOverlay) {
+          bridge.watchTogether.watchTogetherSend(JSON.stringify({
+            action: 'request-response',
+            url: options.getVideoSrc(),
+            time: options.getCurrentTime?.() ?? 0,
+            video_playing: false,
+          }));
+          return;
+        }
+
         const video = options.getVideo();
         if (video) {
           bridge.watchTogether.watchTogetherSend(JSON.stringify({
@@ -561,6 +605,33 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
             video_playing: !video.paused,
           }));
         }
+      }
+      return;
+    }
+
+    if (options.isOverlay) {
+      switch (msg.action) {
+        case 'play':
+          if (msg.time !== undefined) options.onReceivePlay?.(msg.time);
+          break;
+        case 'pause':
+          if (msg.time !== undefined) options.onReceivePause?.(msg.time);
+          break;
+        case 'sync':
+          if (msg.time !== undefined) options.onReceiveSeek?.(msg.time);
+          break;
+        case 'request-response':
+          if (msg.time !== undefined) {
+            options.onReceiveSeek?.(msg.time);
+            if (msg.video_playing) {
+              options.onReceivePlay?.(msg.time);
+            } else {
+              options.onReceivePause?.(msg.time);
+            }
+          }
+          break;
+        default:
+          break;
       }
       return;
     }

@@ -3,19 +3,18 @@
  * Handles creation and management of all application windows
  */
 
-import { BrowserWindow, app, ipcMain, Menu, dialog, shell, clipboard } from 'electron';
+import { BrowserWindow, app, ipcMain, Menu, dialog } from 'electron';
 import path from 'path';
 import fs from 'fs';
-import { IPC_CHANNELS, WindowType, PROXY_SERVER_PORT } from '../../shared/constants';
+import { IPC_CHANNELS, WindowType } from '../../shared/constants';
 import type { WindowSize, OpenWindowPayload } from '../../shared/types';
 import { isMac, isLinux, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
-import { getLogger } from '../../shared/utils/logger';
-
-const log = getLogger('electron.windowManager');
+import { getCurrentLocaleData } from './localization';
 
 // Window references
 let mainWindow: BrowserWindow | null = null;
+let overlayWindow: BrowserWindow | null = null;
 let currentWindow: BrowserWindow | null = null;
 const childWindows: Map<string, BrowserWindow> = new Map();
 
@@ -43,6 +42,10 @@ export function getMainWindow(): BrowserWindow | null {
 
 export function getCurrentWindow(): BrowserWindow | null {
   return currentWindow;
+}
+
+export function getOverlayWindow(): BrowserWindow | null {
+  return overlayWindow;
 }
 
 // Get preload script path
@@ -365,11 +368,46 @@ function showReaderContextMenu(sender: Electron.WebContents, options: ReaderCont
   menu.popup({ window: BrowserWindow.fromWebContents(sender) || undefined });
 }
 
+function getLocalizedString(path: string): string {
+  const { strings } = getCurrentLocaleData();
+  const keys = path.split('.');
+  let current: unknown = strings;
+
+  for (const key of keys) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return path;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+
+  return typeof current === 'string' ? current : path;
+}
+
+export function launchOverlayWindow(): void {
+  const existing = childWindows.get('overlay');
+  if (existing && !existing.isDestroyed()) {
+    existing.focus();
+    return;
+  }
+  const win = createChildWindow('overlay' as WindowType, {
+    width: 400,
+    height: 200,
+    transparent: true,
+    alwaysOnTop: true,
+    frame: false,
+    skipTaskbar: true,
+    resizable: false,
+  });
+  overlayWindow = win;
+  win.on('closed', () => {
+    overlayWindow = null;
+  });
+}
+
 // Setup application menu
 function setupAppMenu(): void {
   const settings = loadSettings();
-  const appPath = getAppPath();
-  
+  //TODO: translate strings of menu.
   const appMenu: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'About mLearn',
@@ -483,56 +521,7 @@ function setupAppMenu(): void {
         },
       ],
     },
-    
-    // Connect menu
-    {
-      label: 'Connect',
-      submenu: [
-        {
-          label: 'Copy Page Injector Script',
-          click: () => {
-            try {
-              // Try multiple candidate paths for the injector script
-              const candidatePaths = [
-                path.join(appPath, 'scripts', 'injector.js'),
-                path.join(__dirname, '..', '..', '..', 'scripts', 'injector.js'),
-                path.join(__dirname, '..', '..', 'scripts', 'injector.js'),
-              ];
-              
-              let scriptPath: string | null = null;
-              for (const p of candidatePaths) {
-                if (fs.existsSync(p)) {
-                  scriptPath = p;
-                  break;
-                }
-              }
-              
-              if (!scriptPath) {
-                throw new Error('Injector script not found');
-              }
-              
-              let text = fs.readFileSync(scriptPath, 'utf-8');
-              text = text.replace(/ISMLEARNTETHERED_TO_REPLACE/g, 'true');
-              clipboard.writeText(text);
-              dialog.showMessageBox({
-                type: 'info',
-                title: 'Copied!',
-                message: 'Copied! See Help menu for usage instructions.',
-              });
-            } catch (e) {
-              log.error('Failed to copy injector script:', e);
-            }
-          },
-        },
-        {
-          label: 'Install UserScript',
-          click: () => {
-            shell.openExternal(`http://127.0.0.1:${PROXY_SERVER_PORT}/mLearn.user.js`);
-          },
-        },
-      ],
-    },
-    
+
     // Flashcards menu
     {
       label: 'Flashcards',
@@ -565,6 +554,20 @@ function setupAppMenu(): void {
       ],
     },
     
+    {
+      label: getLocalizedString('mlearn.Menu.BrowserExtension.Title'),
+      submenu: [
+        {
+          label: getLocalizedString('mlearn.Menu.BrowserExtension.InstallExtension'),
+          click: () => openSettingsWindow('browser-extension'),
+        },
+        {
+          label: getLocalizedString('mlearn.Menu.BrowserExtension.OpenOverlayWindow'),
+          click: () => launchOverlayWindow(),
+        },
+      ],
+    },
+
     // Statistics menu
     {
       label: 'Statistics',
@@ -593,17 +596,6 @@ function setupAppMenu(): void {
     {
       label: 'Help',
       submenu: [
-        {
-          label: 'About Online Browser Mode',
-          click: () => {
-            dialog.showMessageBox({
-              type: 'info',
-              title: 'Help - Online Browser Mode',
-              message: 'Online Browser Mode allows you to use mLearn in a browser with a video.\n\nRight-click on a video, click "Inspect Element", go to Console, and paste the injector script from the Connect menu.',
-            });
-          },
-        },
-        { type: 'separator' },
         {
           label: 'About mLearn',
           click: () => openSettingsWindow('about'),
@@ -676,5 +668,25 @@ export function setupWindowIPC(): void {
   // Flashcard syncing window
   ipcMain.on(IPC_CHANNELS.FLASHCARD_CONNECT_OPEN, () => {
     createChildWindow('connect-qr' as WindowType, { width: 600, height: 700 });
+  });
+
+  ipcMain.on(IPC_CHANNELS.OVERLAY_LAUNCH, () => {
+    launchOverlayWindow();
+  });
+
+  // Forward overlay video state to overlay window
+  ipcMain.on(IPC_CHANNELS.OVERLAY_VIDEO_STATE, (_event, state: unknown) => {
+    const target = overlayWindow;
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.OVERLAY_VIDEO_STATE, state);
+    }
+  });
+
+  // Forward overlay sync request to main window
+  ipcMain.on(IPC_CHANNELS.OVERLAY_REQUEST_SYNC, () => {
+    const target = mainWindow;
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.OVERLAY_REQUEST_SYNC);
+    }
   });
 }

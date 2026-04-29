@@ -21,12 +21,14 @@ import type {
   VoiceBridge,
   MediaStatsBridge,
   WatchTogetherBridge,
+  OverlayBridge,
   CrossWindowBridge,
   LicenseBridge,
   MigrationBridge,
   GenericIPCBridge,
   DataBridge,
   KVStoreBridge,
+  BrowserBridge,
 } from './types';
 import type {
   PluginBusEnvelope,
@@ -1421,6 +1423,19 @@ const watchTogetherBridge: WatchTogetherBridge = {
 };
 
 // ============================================================================
+// Overlay Bridge (not supported on mobile)
+// ============================================================================
+
+const overlayBridge: OverlayBridge = {
+  sendOverlayVideoState: noop,
+  onOverlayVideoState: noopCleanup,
+  requestOverlaySync: noop,
+  onOverlayRequestSync: noopCleanup,
+  launchOverlay: noop,
+  onOverlayLaunch: noopCleanup,
+};
+
+// ============================================================================
 // Cross-Window Bridge (no-ops on single-window mobile)
 // ============================================================================
 
@@ -1493,6 +1508,15 @@ const genericBridge: GenericIPCBridge = {
 // ============================================================================
 // Data Export/Import Bridge (JSON-based on mobile)
 // ============================================================================
+
+const browserBridge: BrowserBridge = {
+  async detectBrowsers() {
+    return [];
+  },
+  async installExtension() {
+    return { success: false, error: 'Browser extensions are not supported on mobile' };
+  },
+};
 
 const dataBridge: DataBridge = {
   async dataExport() {
@@ -1626,11 +1650,13 @@ export function createCapacitorBridge(): PlatformBridge {
     voice: voiceBridge,
     mediaStats: mediaStatsBridge,
     watchTogether: watchTogetherBridge,
+    overlay: overlayBridge,
     crossWindow: crossWindowBridge,
     license: licenseBridge,
     migration: migrationBridge,
     generic: genericBridge,
     data: dataBridge,
     kvStore: kvStoreBridge,
+    browser: browserBridge,
   };
 }

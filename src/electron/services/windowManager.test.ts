@@ -783,14 +783,5 @@ describe('windowManager', () => {
       const viewMenu = (template as Array<{ label?: string }>).find(item => item.label === 'View');
       expect(viewMenu).toBeDefined();
     });
-
-    it('includes a Connect menu in the app menu template', async () => {
-      const { createMainWindow } = await import('./windowManager');
-      createMainWindow();
-      const { Menu } = await import('electron');
-      const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      const connectMenu = (template as Array<{ label?: string }>).find(item => item.label === 'Connect');
-      expect(connectMenu).toBeDefined();
-    });
   });
 });

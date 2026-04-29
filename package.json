@@ -30,7 +30,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "build:extension": "tsc -p extension/tsconfig.json && cp extension/manifest.json extension/dist/manifest.json && mkdir -p extension/dist/popup && cp extension/src/popup/popup.html extension/src/popup/popup.css extension/dist/popup/"
   },
   "keywords": [
     "language-learning",
@@ -48,6 +49,7 @@
     "@capacitor/cli": "^8.1.0",
     "@capacitor/ios": "^8.1.0",
     "@types/adm-zip": "^0.5.7",
+    "@types/chrome": "^0.0.309",
     "@types/marked": "^5.0.2",
     "@types/node": "^22.10.7",
     "@vitest/coverage-v8": "^4.1.0",

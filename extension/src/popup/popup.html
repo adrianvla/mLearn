@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mLearn</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <span class="logo">mLearn</span>
+      <div class="connection-status" id="connectionStatus">
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-text" id="statusText">mLearn not running</span>
+      </div>
+    </header>
+
+    <section class="video-state" id="videoState">
+      <div class="state-row">
+        <span class="state-label">Time</span>
+        <span class="state-value" id="timeValue">--:--</span>
+      </div>
+      <div class="state-row">
+        <span class="state-label">State</span>
+        <span class="state-value" id="playValue">No video</span>
+      </div>
+    </section>
+
+    <section class="actions">
+      <button class="btn btn-primary" id="requestSyncBtn" type="button">Request Sync</button>
+      <button class="btn btn-secondary" id="openOverlayBtn" type="button">Open Overlay</button>
+    </section>
+  </div>
+  <script src="popup.js" type="module"></script>
+</body>
+</html>

@@ -1811,8 +1811,34 @@
         "Reader": "Reader",
         "SRS": "SRS",
         "Statistics": "Statistics",
-        "VideoPlayer": "Video Player"
+        "VideoPlayer": "Video Player",
+        "BrowserExtension": "Browser Extension"
       }
+    },
+    "BrowserExtension": {
+      "Title": "Browser Extension",
+      "Description": "Install the mLearn browser extension to sync video playback with the app.",
+      "DetectedBrowsers": "Detected Browsers",
+      "Detecting": "Detecting browsers...",
+      "DetectError": "Failed to detect browsers. Please try again.",
+      "NoBrowsers": "No browsers detected",
+      "NoBrowsersHint": "Add a custom browser path below if your browser is not detected automatically.",
+      "Install": "Install",
+      "Installing": "Installing...",
+      "Installed": "Installed",
+      "InstallFailed": "Installation failed",
+      "Retry": "Retry",
+      "ManualTitle": "Manual Installation",
+      "ManualChrome": "Open Chrome Extensions (chrome://extensions/), enable Developer mode, click Load unpacked, and select the extension/dist/ folder.",
+      "ManualFirefox": "Open about:debugging, click This Firefox, then click Load Temporary Add-on and select the extension/dist/manifest.json file.",
+      "ManualUnknown": "Please refer to your browser's documentation for loading unpacked extensions.",
+      "CustomPath": "Custom Browser Path",
+      "CustomPathLabel": "Browser executable path",
+      "CustomPathPlaceholder": "/path/to/browser/executable",
+      "ConnectionStatus": "Extension Connection",
+      "ExtensionStatus": "Status",
+      "Connected": "Connected",
+      "Disconnected": "Disconnected"
     },
     "Statistics": {
       "Actions": {
@@ -1936,6 +1962,17 @@
       },
       "VideoClipFailed": "Video clip failed, using screenshot instead",
       "WatchTogether": "Watch together"
+    },
+    "Overlay": {
+      "Close": "Close overlay",
+      "ControlsAria": "Overlay controls",
+      "DecreaseOffset": "Decrease subtitle offset by 100ms",
+      "DropSubtitle": "Drag and drop a subtitle file here",
+      "IncreaseOffset": "Increase subtitle offset by 100ms",
+      "LoadSubtitles": "Load subtitles",
+      "OffsetTooltip": "Subtitle timing offset",
+      "SyncActive": "Sync active",
+      "SyncInactive": "Sync inactive"
     },
     "WatchTogether": {
       "Mode": {
@@ -2151,6 +2188,13 @@
         "Unknown": "Marked as unknown",
         "Learning": "Marked as learning",
         "Known": "Marked as known"
+      }
+    },
+    "Menu": {
+      "BrowserExtension": {
+        "Title": "Browser Extension",
+        "InstallExtension": "Install Extension...",
+        "OpenOverlayWindow": "Open Overlay Window"
       }
     }
   }

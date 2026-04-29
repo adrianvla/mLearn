@@ -1811,8 +1811,34 @@
         "Reader": "Lecteur",
         "SRS": "SRS",
         "Statistics": "Statistiques",
-        "VideoPlayer": "Lecteur vidéo"
+        "VideoPlayer": "Lecteur vidéo",
+        "BrowserExtension": "Extension navigateur"
       }
+    },
+    "BrowserExtension": {
+      "Title": "Extension navigateur",
+      "Description": "Installez l'extension navigateur mLearn pour synchroniser la lecture vidéo avec l'application.",
+      "DetectedBrowsers": "Navigateurs détectés",
+      "Detecting": "Détection des navigateurs...",
+      "DetectError": "Échec de la détection des navigateurs. Veuillez réessayer.",
+      "NoBrowsers": "Aucun navigateur détecté",
+      "NoBrowsersHint": "Ajoutez un chemin de navigateur personnalisé ci-dessous si votre navigateur n'est pas détecté automatiquement.",
+      "Install": "Installer",
+      "Installing": "Installation en cours...",
+      "Installed": "Installé",
+      "InstallFailed": "L'installation a échoué",
+      "Retry": "Réessayer",
+      "ManualTitle": "Installation manuelle",
+      "ManualChrome": "Ouvrez les extensions Chrome (chrome://extensions/), activez le mode développeur, cliquez sur Charger l'extension non empaquetée et sélectionnez le dossier extension/dist/.",
+      "ManualFirefox": "Ouvrez about:debugging, cliquez sur Ce Firefox, puis sur Charger un module complémentaire temporaire et sélectionnez le fichier extension/dist/manifest.json.",
+      "ManualUnknown": "Veuillez consulter la documentation de votre navigateur pour charger des extensions non empaquetées.",
+      "CustomPath": "Chemin de navigateur personnalisé",
+      "CustomPathLabel": "Chemin de l'exécutable du navigateur",
+      "CustomPathPlaceholder": "/chemin/vers/l/executable/du/navigateur",
+      "ConnectionStatus": "Connexion de l'extension",
+      "ExtensionStatus": "Statut",
+      "Connected": "Connecté",
+      "Disconnected": "Déconnecté"
     },
     "Statistics": {
       "Actions": {
@@ -1936,6 +1962,17 @@
       },
       "VideoClipFailed": "Le clip vidéo a échoué, utilisation de la capture d'écran",
       "WatchTogether": "Regarder ensemble"
+    },
+    "Overlay": {
+      "Close": "Fermer l'overlay",
+      "ControlsAria": "Contrôles de l'overlay",
+      "DecreaseOffset": "Diminuer le décalage des sous-titres de 100ms",
+      "DropSubtitle": "Glissez et déposez un fichier de sous-titres ici",
+      "IncreaseOffset": "Augmenter le décalage des sous-titres de 100ms",
+      "LoadSubtitles": "Charger les sous-titres",
+      "OffsetTooltip": "Décalage temporel des sous-titres",
+      "SyncActive": "Sync active",
+      "SyncInactive": "Sync inactive"
     },
     "WatchTogether": {
       "Mode": {
@@ -2151,6 +2188,13 @@
         "Unknown": "Marqué comme inconnu",
         "Learning": "Marqué comme en apprentissage",
         "Known": "Marqué comme connu"
+      }
+    },
+    "Menu": {
+      "BrowserExtension": {
+        "Title": "Extension de navigateur",
+        "InstallExtension": "Installer l'extension...",
+        "OpenOverlayWindow": "Ouvrir la fenêtre de superposition"
       }
     }
   }

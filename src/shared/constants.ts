@@ -150,7 +150,14 @@ export const IPC_CHANNELS = {
   WATCH_TOGETHER_REQUEST: 'watch-together-request',
   WATCH_TOGETHER_SEND: 'watch-together-send',
   IS_WATCHING_TOGETHER: 'is-watching-together',
-  
+
+  OVERLAY_VIDEO_STATE: 'overlay-video-state',
+  OVERLAY_REQUEST_SYNC: 'overlay-request-sync',
+  OVERLAY_LAUNCH: 'overlay-launch',
+
+  DETECT_BROWSERS: 'detect-browsers',
+  INSTALL_EXTENSION: 'install-extension',
+
   // Updates from tethered clients
   UPDATE_PILLS: 'update-pills',
   UPDATE_WORD_APPEARANCE: 'update-word-appearance',
@@ -301,6 +308,7 @@ export const WINDOW_TYPES = {
   WORD_DEFINITION: 'word-definition',
   PLUGIN_HOST: 'plugin-host',
   WORD_SYNC: 'word-sync',
+  OVERLAY: 'overlay',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];

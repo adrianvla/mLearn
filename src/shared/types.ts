@@ -9,6 +9,19 @@ import type { SubtitleTheme, NumericWordStatus, WindowType as ConstWindowType, W
 export type WindowType = ConstWindowType;
 
 // ============================================================================
+// Overlay Types
+// ============================================================================
+
+export interface OverlayVideoState {
+  currentTime: number;
+  isPlaying: boolean;
+  duration: number;
+  playbackRate: number;
+  url?: string;
+  title?: string;
+}
+
+// ============================================================================
 // Settings Types
 // ============================================================================
 
