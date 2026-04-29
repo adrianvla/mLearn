@@ -2191,11 +2191,48 @@
       }
     },
     "Menu": {
+      "About": "mLearnについて",
       "BrowserExtension": {
         "Title": "ブラウザ拡張機能",
         "InstallExtension": "拡張機能をインストール...",
         "OpenOverlayWindow": "オーバーレイウィンドウを開く"
-      }
+      },
+      "Cancel": "キャンセル",
+      "CollatePages": "ページを連結",
+      "CopyPhrase": "フレーズをコピー",
+      "CopySubtitle": "字幕をコピー",
+      "Create": "作成",
+      "Edit": "編集",
+      "EditWordKnowledgeDatabase": "単語知識データベースを編集",
+      "Explain": "解説",
+      "File": "ファイル",
+      "Flashcards": "フラッシュカード",
+      "ForceRecreateFlashcards": "今日のフラッシュカードを強制再作成",
+      "Help": "ヘルプ",
+      "HideReading": "読みを非表示",
+      "OpenDevTools": "DevToolsを開く",
+      "OpenLiveWordTranslator": "ライブ単語翻訳を開く",
+      "OpenSyncingWindow": "同期ウィンドウを開く",
+      "RecreateFlashcards": {
+        "Title": "フラッシュカードを再作成",
+        "Message": "追跡中の単語候補から新しいフラッシュカードが作成されます。続行しますか？",
+        "Cancel": "キャンセル",
+        "Create": "作成"
+      },
+      "ReviewFlashcards": "フラッシュカードを復習",
+      "Settings": "設定",
+      "ShowKanjiGrid": "漢字グリッドを表示",
+      "ShowLearningStatistics": "学習統計を表示",
+      "ShowReading": "読みを表示",
+      "Statistics": "統計",
+      "StopWatchTogether": "Watch Togetherを停止",
+      "SyncSubtitles": "字幕を動画に同期",
+      "SyncWithMe": "自分と同期",
+      "UncollatePages": "ページ連結を解除",
+      "Video": "ビデオ",
+      "View": "表示",
+      "WatchTogether": "Watch Together",
+      "Window": "ウィンドウ"
     }
   }
 }

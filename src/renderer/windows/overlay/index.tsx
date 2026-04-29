@@ -10,7 +10,6 @@ import { WindowWrapper } from '../../context';
 // Import global styles
 import '../../styles/index.css';
 import '../../styles/base.css';
-import '../../styles/subtitle.css'; //TODO: this file is technical debt
 import './overlay.css';
 
 const root = document.getElementById('root');

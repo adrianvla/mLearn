@@ -2191,11 +2191,48 @@
       }
     },
     "Menu": {
+      "About": "О mLearn",
       "BrowserExtension": {
         "Title": "Расширение браузера",
         "InstallExtension": "Установить расширение...",
         "OpenOverlayWindow": "Открыть окно оверлея"
-      }
+      },
+      "Cancel": "Отмена",
+      "CollatePages": "Собрать страницы",
+      "CopyPhrase": "Копировать фразу",
+      "CopySubtitle": "Копировать субтитры",
+      "Create": "Создать",
+      "Edit": "Редактировать",
+      "EditWordKnowledgeDatabase": "Редактировать базу знаний слов",
+      "Explain": "Объяснить",
+      "File": "Файл",
+      "Flashcards": "Карточки",
+      "ForceRecreateFlashcards": "Принудительно создать новые карточки на сегодня",
+      "Help": "Справка",
+      "HideReading": "Скрыть чтение",
+      "OpenDevTools": "Открыть DevTools",
+      "OpenLiveWordTranslator": "Открыть переводчик слов",
+      "OpenSyncingWindow": "Открыть окно синхронизации",
+      "RecreateFlashcards": {
+        "Title": "Пересоздать карточки",
+        "Message": "Будут созданы новые карточки из отслеживаемых слов. Продолжить?",
+        "Cancel": "Отмена",
+        "Create": "Создать"
+      },
+      "ReviewFlashcards": "Повторить карточки",
+      "Settings": "Настройки",
+      "ShowKanjiGrid": "Показать сетку кандзи",
+      "ShowLearningStatistics": "Показать статистику обучения",
+      "ShowReading": "Показать чтение",
+      "Statistics": "Статистика",
+      "StopWatchTogether": "Остановить Watch Together",
+      "SyncSubtitles": "Синхронизировать субтитры с видео",
+      "SyncWithMe": "Синхронизировать со мной",
+      "UncollatePages": "Разобрать страницы",
+      "Video": "Видео",
+      "View": "Вид",
+      "WatchTogether": "Watch Together",
+      "Window": "Окно"
     }
   }
 }

@@ -1,4 +1,4 @@
-.overlay-controls-container { /*TODO: hardcoding colors is technical debt. To refactor.*/
+.overlay-controls-container {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -27,10 +27,10 @@
   justify-content: space-between;
   height: 40px;
   padding: 0 var(--spacing-3);
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-controls-bg);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-sm);
-  color: #ffffff;
+  color: var(--overlay-controls-text);
   user-select: none;
   -webkit-app-region: drag;
   opacity: 0;
@@ -74,7 +74,7 @@
   width: 8px;
   height: 8px;
   border-radius: var(--radius-full);
-  background-color: #888;
+  background-color: var(--overlay-sync-indicator-default);
   transition: background-color var(--transition-slow);
 }
 
@@ -95,8 +95,8 @@
   padding: var(--spacing-1) var(--spacing-2);
   border: none;
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  background: var(--overlay-controls-btn-bg);
+  color: var(--overlay-controls-text);
   font-size: var(--font-size-xs);
   cursor: pointer;
   transition: background var(--transition-fast);
@@ -106,7 +106,7 @@
 .overlay-load-btn:hover,
 .overlay-close-btn:hover,
 .overlay-offset-btn:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--overlay-controls-btn-hover-bg);
 }
 
 .overlay-close-btn {

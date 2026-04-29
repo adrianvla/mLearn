@@ -2191,11 +2191,48 @@
       }
     },
     "Menu": {
+      "About": "Über mLearn",
       "BrowserExtension": {
         "Title": "Browser-Erweiterung",
         "InstallExtension": "Erweiterung installieren...",
         "OpenOverlayWindow": "Overlay-Fenster öffnen"
-      }
+      },
+      "Cancel": "Abbrechen",
+      "CollatePages": "Seiten zusammenstellen",
+      "CopyPhrase": "Phrase kopieren",
+      "CopySubtitle": "Untertitel kopieren",
+      "Create": "Erstellen",
+      "Edit": "Bearbeiten",
+      "EditWordKnowledgeDatabase": "Wortwissensdatenbank bearbeiten",
+      "Explain": "Erklären",
+      "File": "Datei",
+      "Flashcards": "Karteikarten",
+      "ForceRecreateFlashcards": "Karteikarten für heute neu erstellen",
+      "Help": "Hilfe",
+      "HideReading": "Lesung ausblenden",
+      "OpenDevTools": "DevTools öffnen",
+      "OpenLiveWordTranslator": "Live-Wort-Übersetzer öffnen",
+      "OpenSyncingWindow": "Synchronisierungsfenster öffnen",
+      "RecreateFlashcards": {
+        "Title": "Karteikarten neu erstellen",
+        "Message": "Dies erstellt neue Karteikarten aus Ihren verfolgten Wortkandidaten. Fortfahren?",
+        "Cancel": "Abbrechen",
+        "Create": "Erstellen"
+      },
+      "ReviewFlashcards": "Karteikarten wiederholen",
+      "Settings": "Einstellungen",
+      "ShowKanjiGrid": "Kanji-Raster anzeigen",
+      "ShowLearningStatistics": "Lernstatistiken anzeigen",
+      "ShowReading": "Lesung anzeigen",
+      "Statistics": "Statistiken",
+      "StopWatchTogether": "Watch Together beenden",
+      "SyncSubtitles": "Untertitel mit Video synchronisieren",
+      "SyncWithMe": "Mit mir synchronisieren",
+      "UncollatePages": "Seiten nicht zusammenstellen",
+      "Video": "Video",
+      "View": "Ansicht",
+      "WatchTogether": "Watch Together",
+      "Window": "Fenster"
     }
   }
 }

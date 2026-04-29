@@ -291,5 +291,13 @@
 
   /*for OSes*/
   --navbar-margin-left: 70px;
+
+  /* ========== Overlay Specific ========== */
+  --overlay-dragover-bg: rgba(0, 0, 0, 0.15);
+  --overlay-controls-bg: rgba(0, 0, 0, 0.5);
+  --overlay-controls-text: #ffffff;
+  --overlay-controls-btn-bg: rgba(255, 255, 255, 0.15);
+  --overlay-controls-btn-hover-bg: rgba(255, 255, 255, 0.25);
+  --overlay-sync-indicator-default: #888;
 }
 

@@ -301,27 +301,27 @@ function showVideoContextMenu(
   const canExplainPhrase = options?.canExplainPhrase ?? false;
   const template: Electron.MenuItemConstructorOptions[] = [
     {
-      label: 'Sync Subtitles with Video',
+      label: getLocalizedString('mlearn.Menu.SyncSubtitles'),
       click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'sync-subs'),
     },
     {
-      label: 'Open Live Word Translator',
+      label: getLocalizedString('mlearn.Menu.OpenLiveWordTranslator'),
       click: () => mainWindow?.webContents.send(IPC_CHANNELS.SHOW_ASIDE),
     },
     { type: 'separator' },
     {
-      label: 'Copy Subtitle',
+      label: getLocalizedString('mlearn.Menu.CopySubtitle'),
       enabled: hasContextPhrase,
       click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'copy-sub'),
     },
     {
-      label: 'Explain',
+      label: getLocalizedString('mlearn.Menu.Explain'),
       enabled: canExplainPhrase,
       click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'explain-phrase'),
     },
     { type: 'separator' },
     {
-      label: isWT ? 'Stop Watch Together' : 'Watch Together',
+      label: isWT ? getLocalizedString('mlearn.Menu.StopWatchTogether') : getLocalizedString('mlearn.Menu.WatchTogether'),
       click: () => sender.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'watch-together'),
     },
   ];
@@ -342,23 +342,23 @@ interface ReaderContextMenuOptions {
 function showReaderContextMenu(sender: Electron.WebContents, options: ReaderContextMenuOptions): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     {
-      label: options.furiganaHiderEnabled ? 'Show Reading' : 'Hide Reading',
+      label: options.furiganaHiderEnabled ? getLocalizedString('mlearn.Menu.ShowReading') : getLocalizedString('mlearn.Menu.HideReading'),
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-furigana'),
     },
     { type: 'separator' },
     {
-      label: 'Copy Phrase',
+      label: getLocalizedString('mlearn.Menu.CopyPhrase'),
       enabled: options.hasContextPhrase,
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'copy-phrase'),
     },
     {
-      label: 'Explain',
+      label: getLocalizedString('mlearn.Menu.Explain'),
       enabled: options.canExplainPhrase ?? false,
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'explain-phrase'),
     },
     { type: 'separator' },
     {
-      label: options.collatePagesEnabled ? 'Uncollate Pages' : 'Collate Pages',
+      label: options.collatePagesEnabled ? getLocalizedString('mlearn.Menu.UncollatePages') : getLocalizedString('mlearn.Menu.CollatePages'),
       enabled: options.isDoublePageMode ?? false,
       click: () => sender.send(IPC_CHANNELS.READER_CTX_MENU_COMMAND, 'toggle-collate-pages'),
     },
@@ -407,15 +407,14 @@ export function launchOverlayWindow(): void {
 // Setup application menu
 function setupAppMenu(): void {
   const settings = loadSettings();
-  //TODO: translate strings of menu.
   const appMenu: Electron.MenuItemConstructorOptions[] = [
     {
-      label: 'About mLearn',
+      label: getLocalizedString('mlearn.Menu.About'),
       click: () => openSettingsWindow('about'),
     },
     { type: 'separator' },
     {
-      label: 'Settings',
+      label: getLocalizedString('mlearn.Menu.Settings'),
       click: () => openSettingsWindow('general'),
     },
     { type: 'separator' },
@@ -436,7 +435,7 @@ function setupAppMenu(): void {
     
     // File menu
     {
-      label: 'File',
+      label: getLocalizedString('mlearn.Menu.File'),
       submenu: [
         isMac ? { role: 'close' as const } : { role: 'quit' as const },
         ...(!isMac ? appMenu : []),
@@ -445,10 +444,10 @@ function setupAppMenu(): void {
     
     // Edit menu
     {
-      label: 'Edit',
+      label: getLocalizedString('mlearn.Menu.Edit'),
       submenu: [
         {
-          label: 'Settings',
+          label: getLocalizedString('mlearn.Menu.Settings'),
           click: () => openSettingsWindow('general'),
         },
         { role: 'undo' },
@@ -471,23 +470,23 @@ function setupAppMenu(): void {
     
     // View menu
     {
-      label: 'View',
+      label: getLocalizedString('mlearn.Menu.View'),
       submenu: [
         {
-          label: 'Open Live Word Translator',
+          label: getLocalizedString('mlearn.Menu.OpenLiveWordTranslator'),
           click: () => mainWindow?.webContents.send(IPC_CHANNELS.SHOW_ASIDE),
         },
         { type: 'separator' },
         { role: 'togglefullscreen' },
         ...((settings.devMode || !isPackaged) ? [
-          { label: 'Open DevTools', role: 'toggleDevTools' as const },
+          { label: getLocalizedString('mlearn.Menu.OpenDevTools'), role: 'toggleDevTools' as const },
         ] : []),
       ],
     },
     
     // Window menu
     {
-      label: 'Window',
+      label: getLocalizedString('mlearn.Menu.Window'),
       submenu: [
         { role: 'minimize' },
         { role: 'zoom' },
@@ -504,19 +503,19 @@ function setupAppMenu(): void {
     
     // Video menu
     {
-      label: 'Video',
+      label: getLocalizedString('mlearn.Menu.Video'),
       submenu: [
         {
-          label: 'Sync Subtitles with Video',
+          label: getLocalizedString('mlearn.Menu.SyncSubtitles'),
           click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'sync-subs'),
         },
         {
-          label: 'Copy Subtitle',
+          label: getLocalizedString('mlearn.Menu.CopySubtitle'),
           click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'copy-sub'),
         },
         { type: 'separator' },
         {
-          label: 'Watch Together',
+          label: getLocalizedString('mlearn.Menu.WatchTogether'),
           click: () => mainWindow?.webContents.send(IPC_CHANNELS.CTX_MENU_COMMAND, 'watch-together'),
         },
       ],
@@ -524,21 +523,24 @@ function setupAppMenu(): void {
 
     // Flashcards menu
     {
-      label: 'Flashcards',
+      label: getLocalizedString('mlearn.Menu.Flashcards'),
       submenu: [
         {
-          label: 'Review Flashcards',
+          label: getLocalizedString('mlearn.Menu.ReviewFlashcards'),
           click: () => createChildWindow('flashcards' as WindowType, { width: 800, height: 600 }),
         },
         {
-          label: 'Force recreate new flashcards for today',
+          label: getLocalizedString('mlearn.Menu.ForceRecreateFlashcards'),
           click: async () => {
             if (!mainWindow) return;
             const { response } = await dialog.showMessageBox(mainWindow, {
               type: 'question',
-              title: 'Recreate Flashcards',
-              message: 'This will create new flashcards from your tracked word candidates. Continue?',
-              buttons: ['Cancel', 'Create'],
+              title: getLocalizedString('mlearn.Menu.RecreateFlashcards.Title'),
+              message: getLocalizedString('mlearn.Menu.RecreateFlashcards.Message'),
+              buttons: [
+                getLocalizedString('mlearn.Menu.RecreateFlashcards.Cancel'),
+                getLocalizedString('mlearn.Menu.RecreateFlashcards.Create'),
+              ],
               defaultId: 1,
               cancelId: 0,
             });
@@ -548,7 +550,7 @@ function setupAppMenu(): void {
           },
         },
         {
-          label: 'Open Syncing Window',
+          label: getLocalizedString('mlearn.Menu.OpenSyncingWindow'),
           click: () => createChildWindow('connect-qr' as WindowType, { width: 600, height: 700 }),
         },
       ],
@@ -570,23 +572,23 @@ function setupAppMenu(): void {
 
     // Statistics menu
     {
-      label: 'Statistics',
+      label: getLocalizedString('mlearn.Menu.Statistics'),
       submenu: [
         {
-          label: 'Show learning statistics',
+          label: getLocalizedString('mlearn.Menu.ShowLearningStatistics'),
           click: () => createChildWindow('statistics' as WindowType, { width: 800, height: 600 }),
         },
         {
-          label: 'Show Kanji grid',
+          label: getLocalizedString('mlearn.Menu.ShowKanjiGrid'),
           click: () => createChildWindow('kanji-grid' as WindowType, { width: 1200, height: 800 }),
         },
         {
-          label: 'Edit word knowledge database',
+          label: getLocalizedString('mlearn.Menu.EditWordKnowledgeDatabase'),
           click: () => createChildWindow('word-db-editor' as WindowType, { width: 1300, height: 800 }),
         },
         { type: 'separator' },
         {
-          label: 'Sync with me',
+          label: getLocalizedString('mlearn.Menu.SyncWithMe'),
           click: () => createChildWindow('word-sync' as WindowType, { width: 600, height: 500 }),
         },
       ],
@@ -594,10 +596,10 @@ function setupAppMenu(): void {
     
     // Help menu
     {
-      label: 'Help',
+      label: getLocalizedString('mlearn.Menu.Help'),
       submenu: [
         {
-          label: 'About mLearn',
+          label: getLocalizedString('mlearn.Menu.About'),
           click: () => openSettingsWindow('about'),
         },
       ],

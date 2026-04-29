@@ -163,6 +163,60 @@ vi.mock('./settings', () => ({
   loadSettings: vi.fn(() => ({ devMode: false })),
 }));
 
+vi.mock('./localization', () => ({
+  getCurrentLocaleData: vi.fn(() => ({
+    locale: 'en',
+    strings: {
+      mlearn: {
+        Menu: {
+          About: 'About mLearn',
+          BrowserExtension: {
+            Title: 'Browser Extension',
+            InstallExtension: 'Install Extension...',
+            OpenOverlayWindow: 'Open Overlay Window',
+          },
+          Cancel: 'Cancel',
+          CollatePages: 'Collate Pages',
+          CopyPhrase: 'Copy Phrase',
+          CopySubtitle: 'Copy Subtitle',
+          Create: 'Create',
+          Edit: 'Edit',
+          EditWordKnowledgeDatabase: 'Edit word knowledge database',
+          Explain: 'Explain',
+          File: 'File',
+          Flashcards: 'Flashcards',
+          ForceRecreateFlashcards: 'Force recreate new flashcards for today',
+          Help: 'Help',
+          HideReading: 'Hide Reading',
+          OpenDevTools: 'Open DevTools',
+          OpenLiveWordTranslator: 'Open Live Word Translator',
+          OpenSyncingWindow: 'Open Syncing Window',
+          RecreateFlashcards: {
+            Title: 'Recreate Flashcards',
+            Message: 'This will create new flashcards from your tracked word candidates. Continue?',
+            Cancel: 'Cancel',
+            Create: 'Create',
+          },
+          ReviewFlashcards: 'Review Flashcards',
+          Settings: 'Settings',
+          ShowKanjiGrid: 'Show Kanji grid',
+          ShowLearningStatistics: 'Show learning statistics',
+          ShowReading: 'Show Reading',
+          Statistics: 'Statistics',
+          StopWatchTogether: 'Stop Watch Together',
+          SyncSubtitles: 'Sync Subtitles with Video',
+          SyncWithMe: 'Sync with me',
+          UncollatePages: 'Uncollate Pages',
+          Video: 'Video',
+          View: 'View',
+          WatchTogether: 'Watch Together',
+          Window: 'Window',
+        },
+      },
+    },
+  })),
+}));
+
 function fireOn(channel: string, event: Record<string, unknown>, ...args: unknown[]) {
   const handler = ipcOnHandlers.get(channel);
   if (!handler) throw new Error(`No ipcMain.on handler registered for "${channel}"`);

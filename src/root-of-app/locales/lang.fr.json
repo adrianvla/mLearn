@@ -2191,11 +2191,48 @@
       }
     },
     "Menu": {
+      "About": "À propos de mLearn",
       "BrowserExtension": {
         "Title": "Extension de navigateur",
         "InstallExtension": "Installer l'extension...",
         "OpenOverlayWindow": "Ouvrir la fenêtre de superposition"
-      }
+      },
+      "Cancel": "Annuler",
+      "CollatePages": "Regrouper les pages",
+      "CopyPhrase": "Copier la phrase",
+      "CopySubtitle": "Copier le sous-titre",
+      "Create": "Créer",
+      "Edit": "Modifier",
+      "EditWordKnowledgeDatabase": "Modifier la base de données de mots",
+      "Explain": "Expliquer",
+      "File": "Fichier",
+      "Flashcards": "Cartes mémoire",
+      "ForceRecreateFlashcards": "Forcer la recréation des cartes pour aujourd'hui",
+      "Help": "Aide",
+      "HideReading": "Masquer la lecture",
+      "OpenDevTools": "Ouvrir les DevTools",
+      "OpenLiveWordTranslator": "Ouvrir le traducteur de mots en direct",
+      "OpenSyncingWindow": "Ouvrir la fenêtre de synchronisation",
+      "RecreateFlashcards": {
+        "Title": "Recréer les cartes",
+        "Message": "Cela créera de nouvelles cartes à partir de vos candidats suivis. Continuer?",
+        "Cancel": "Annuler",
+        "Create": "Créer"
+      },
+      "ReviewFlashcards": "Réviser les cartes",
+      "Settings": "Paramètres",
+      "ShowKanjiGrid": "Afficher la grille des kanji",
+      "ShowLearningStatistics": "Afficher les statistiques d'apprentissage",
+      "ShowReading": "Afficher la lecture",
+      "Statistics": "Statistiques",
+      "StopWatchTogether": "Arrêter Watch Together",
+      "SyncSubtitles": "Synchroniser les sous-titres avec la vidéo",
+      "SyncWithMe": "Synchroniser avec moi",
+      "UncollatePages": "Désactiver le regroupement des pages",
+      "Video": "Vidéo",
+      "View": "Affichage",
+      "WatchTogether": "Watch Together",
+      "Window": "Fenêtre"
     }
   }
 }
