@@ -8,7 +8,7 @@
  * being saved as real flashcards.
  */
 
-import { Component, For, Show, createSignal, createMemo, createEffect } from 'solid-js';
+import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
 import {
   Btn,
   Input,
@@ -34,6 +34,7 @@ import { showToast } from '../../components/common/Feedback/Toast';
 import { cacheVersion, getCachedReading, getCachedTranslation, warmTranslationCache } from '../../hooks/useTranslation';
 import { extractPitchPosition } from '../../utils/translationCacheParsers';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
+import { createVirtualizer } from '../../hooks/useVirtualizer';
 import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
 import type { FlashcardContent, SuggestedFlashcard } from '../../../shared/types';
 import './FlashcardsSuggested.css';
@@ -64,6 +65,7 @@ export const FlashcardsSuggested: Component = () => {
   const [promoting, setPromoting] = createSignal<{ current: number; total: number } | null>(null);
 
   let suggestedRef: HTMLDivElement | undefined;
+  let virtualScrollRef: HTMLDivElement | undefined;
 
   // Keyed by the per-language suggestion list so Solid re-reads on store update.
   const suggestions = createMemo(() => getSuggestedFlashcardsSync());
@@ -123,6 +125,45 @@ export const FlashcardsSuggested: Component = () => {
 
       return true;
     });
+  });
+
+  const [containerWidth, setContainerWidth] = createSignal(0);
+  const CARD_MIN_WIDTH = 300;
+  const CARD_GAP = 16;
+
+  const columns = createMemo(() => {
+    const w = containerWidth();
+    if (w === 0) return 1;
+    return Math.max(1, Math.floor((w + CARD_GAP) / (CARD_MIN_WIDTH + CARD_GAP)));
+  });
+
+  const rowCount = createMemo(() => {
+    const c = columns();
+    return Math.ceil(filtered().length / c);
+  });
+
+  const CARD_HEIGHT = 220;
+
+  const virtualizer = createMemo(() => {
+    const rows = rowCount();
+    return createVirtualizer({
+      count: rows,
+      getScrollElement: () => virtualScrollRef,
+      estimateSize: () => CARD_HEIGHT + CARD_GAP,
+      overscan: 3,
+    });
+  });
+
+  createEffect(() => {
+    const el = virtualScrollRef;
+    if (!el) return;
+
+    const updateWidth = () => setContainerWidth(el.clientWidth);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateWidth) : null;
+    if (ro) ro.observe(el);
+    updateWidth();
+
+    onCleanup(() => { if (ro) ro.disconnect(); });
   });
 
   createEffect(() => {
@@ -385,92 +426,119 @@ export const FlashcardsSuggested: Component = () => {
           )}
         </Show>
 
-        <div class="flashcards-suggested-grid">
-          <For each={filtered()}>
-            {(s) => {
-              const checked = () => selected().has(s.id);
-              const levelLabel = formatLevel(s);
-              const previewContent = () => previewContentById().get(s.id) ?? {
-                front: s.word,
-                reading: s.reading,
-                back: '',
-                type: 'word' as const,
-                pos: s.pos,
-              };
-              return (
-                <Tooltip
-                  delay={200}
-                  position="top"
-                  class="flashcards-suggested-tooltip-wrapper"
-                  content={
-                    <div class="flashcards-suggested-preview">
-                      <Show when={s.imageUrl}>
-                        <img src={s.imageUrl} alt="" class="flashcards-suggested-image" loading="lazy" />
-                      </Show>
-                      <Show when={!s.imageUrl}>
-                        <div class="flashcards-suggested-no-image">{t('mlearn.Flashcards.Suggested.NoPreviewImage')}</div>
-                      </Show>
-                    </div>
-                  }
-                >
-                  <SelectableCard
-                    selected={checked()}
-                    onClick={() => toggleSelect(s.id)}
-                    title={<FlashcardPitchAccent content={previewContent()} />}
-                    headerActions={
-                      <Show when={levelLabel}>
-                        <PillLabel level={s.level ?? undefined}>{levelLabel}</PillLabel>
-                      </Show>
-                    }
-                    class="flashcards-suggested-card"
+        <div class="flashcards-suggested-scroll" ref={(el) => { virtualScrollRef = el; }}>
+          <div class="flashcards-suggested-virtual-container" style={{ height: `${virtualizer().getTotalSize()}px` }}>
+            <For each={virtualizer().getVirtualItems()}>
+              {(item) => {
+                const colCount = columns();
+                const startIdx = item.index * colCount;
+                const endIdx = Math.min(startIdx + colCount, filtered().length);
+                const rowItems = filtered().slice(startIdx, endIdx);
+
+                return (
+                  <div
+                    class="flashcards-suggested-grid-row"
+                    style={{
+                      position: 'absolute',
+                      top: '0',
+                      left: '0',
+                      width: '100%',
+                      height: `${CARD_HEIGHT}px`,
+                      'margin-bottom': `${CARD_GAP}px`,
+                      transform: `translateY(${item.start}px)`,
+                      'grid-template-columns': `repeat(${colCount}, minmax(0, 1fr))`,
+                    }}
                   >
-                    <div class="flashcard-translation">
-                      <Show when={s.contextPhrase}>
-                        <div class="flashcards-suggested-context">{s.contextPhrase}</div>
-                      </Show>
-                      <div class="flashcards-suggested-meta">
-                        <span>{t('mlearn.Flashcards.Suggested.SeenCount', { count: String(s.count) })}</span>
-                        <Show when={s.source}>
-                          <span class="flashcards-suggested-source" title={s.source}>• {s.source}</span>
-                        </Show>
-                      </div>
-                    </div>
-                    <div class="flashcard-footer">
-                      <div class="flashcard-state" onClick={(e) => e.stopPropagation()}>
-                        <WordStatusPill word={s.word} onStatusChange={(status) => handleSuggestedStatusChange(s, status)} />
-                      </div>
-                      <div class="flashcard-actions">
-                        <Btn
-                          size="xs"
-                          variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
-                          icon={<TrashIcon size={14} />}
-                          title={t('mlearn.Global.Delete')}
-                        />
-                        <Btn
-                          size="xs"
-                          variant="ghost"
-                          onClick={(e) => { e.stopPropagation(); handleIgnoreOne(s); }}
-                          icon={<EyeOffIcon size={14} />}
-                          title={t('mlearn.Global.Ignore')}
-                        />
-                        <Btn
-                          size="xs"
-                          variant="primary"
-                          onClick={(e) => { e.stopPropagation(); handlePromoteOne(s.id); }}
-                          icon={<PlusIcon size={14} />}
-                          disabled={!!promoting()}
-                          title={t('mlearn.Flashcards.Suggested.Promote')}
-                        >
-                          {t('mlearn.Flashcards.Suggested.Promote')}
-                        </Btn>
-                      </div>
-                    </div>
-                  </SelectableCard>
-                </Tooltip>
-              );
-            }}
-          </For>
+                    <For each={rowItems}>
+                      {(s) => {
+                        const checked = () => selected().has(s.id);
+                        const levelLabel = formatLevel(s);
+                        const previewContent = () => previewContentById().get(s.id) ?? {
+                          front: s.word,
+                          reading: s.reading,
+                          back: '',
+                          type: 'word' as const,
+                          pos: s.pos,
+                        };
+                        return (
+                          <Tooltip
+                            delay={200}
+                            position="top"
+                            class="flashcards-suggested-tooltip-wrapper"
+                            content={
+                              <div class="flashcards-suggested-preview">
+                                <Show when={s.imageUrl}>
+                                  <img src={s.imageUrl} alt="" class="flashcards-suggested-image" loading="lazy" />
+                                </Show>
+                                <Show when={!s.imageUrl}>
+                                  <div class="flashcards-suggested-no-image">{t('mlearn.Flashcards.Suggested.NoPreviewImage')}</div>
+                                </Show>
+                              </div>
+                            }
+                          >
+                            <SelectableCard
+                              selected={checked()}
+                              onClick={() => toggleSelect(s.id)}
+                              title={<FlashcardPitchAccent content={previewContent()} />}
+                              headerActions={
+                                <Show when={levelLabel}>
+                                  <PillLabel level={s.level ?? undefined}>{levelLabel}</PillLabel>
+                                </Show>
+                              }
+                              class="flashcards-suggested-card"
+                            >
+                              <div class="flashcard-translation">
+                                <Show when={s.contextPhrase}>
+                                  <div class="flashcards-suggested-context">{s.contextPhrase}</div>
+                                </Show>
+                                <div class="flashcards-suggested-meta">
+                                  <span>{t('mlearn.Flashcards.Suggested.SeenCount', { count: String(s.count) })}</span>
+                                  <Show when={s.source}>
+                                    <span class="flashcards-suggested-source" title={s.source}>• {s.source}</span>
+                                  </Show>
+                                </div>
+                              </div>
+                              <div class="flashcard-footer">
+                                <div class="flashcard-state" onClick={(e) => e.stopPropagation()}>
+                                  <WordStatusPill word={s.word} onStatusChange={(status) => handleSuggestedStatusChange(s, status)} />
+                                </div>
+                                <div class="flashcard-actions">
+                                  <Btn
+                                    size="xs"
+                                    variant="ghost"
+                                    onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
+                                    icon={<TrashIcon size={14} />}
+                                    title={t('mlearn.Global.Delete')}
+                                  />
+                                  <Btn
+                                    size="xs"
+                                    variant="ghost"
+                                    onClick={(e) => { e.stopPropagation(); handleIgnoreOne(s); }}
+                                    icon={<EyeOffIcon size={14} />}
+                                    title={t('mlearn.Global.Ignore')}
+                                  />
+                                  <Btn
+                                    size="xs"
+                                    variant="primary"
+                                    onClick={(e) => { e.stopPropagation(); handlePromoteOne(s.id); }}
+                                    icon={<PlusIcon size={14} />}
+                                    disabled={!!promoting()}
+                                    title={t('mlearn.Flashcards.Suggested.Promote')}
+                                  >
+                                    {t('mlearn.Flashcards.Suggested.Promote')}
+                                  </Btn>
+                                </div>
+                              </div>
+                            </SelectableCard>
+                          </Tooltip>
+                        );
+                      }}
+                    </For>
+                  </div>
+                );
+              }}
+            </For>
+          </div>
           <Show when={filtered().length === 0}>
             <div class="flashcards-suggested-nomatch">
               <EmptyState
