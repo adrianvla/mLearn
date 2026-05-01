@@ -19,6 +19,11 @@ export interface BrowserInfo {
   isInstalled: boolean;
 }
 
+export interface CustomBrowserPath {
+  path: string;
+  type: 'chrome' | 'firefox';
+}
+
 interface BrowserDefinition {
   name: string;
   type: 'chrome' | 'firefox' | 'unknown';
@@ -394,22 +399,25 @@ async function detectMacBrowsersWithMdfind(): Promise<BrowserInfo[]> {
  * @param customPaths Optional additional paths to check for browser executables.
  * @returns Array of detected browsers. Empty array if none found.
  */
-export async function detectBrowsers(customPaths?: string[]): Promise<BrowserInfo[]> {
+export async function detectBrowsers(customPaths?: CustomBrowserPath[]): Promise<BrowserInfo[]> {
   const results: BrowserInfo[] = [];
   const foundPaths = new Set<string>();
+  const definitions = getBrowserDefinitions();
 
   if (customPaths && customPaths.length > 0) {
-    for (const customPath of customPaths) {
-      const resolved = path.resolve(customPath);
+    for (const custom of customPaths) {
+      const resolved = path.resolve(custom.path);
       if (foundPaths.has(resolved)) continue;
       foundPaths.add(resolved);
 
       try {
         if (fs.existsSync(resolved)) {
+          const def = definitions.find((d) => d.type === custom.type);
           results.push({
             name: path.basename(resolved),
-            type: 'unknown',
+            type: custom.type,
             path: resolved,
+            profilePath: def?.profilePath,
             isInstalled: true,
           });
         }
@@ -419,7 +427,6 @@ export async function detectBrowsers(customPaths?: string[]): Promise<BrowserInf
     }
   }
 
-  const definitions = getBrowserDefinitions();
   for (const def of definitions) {
     for (const browserPath of def.paths) {
       if (foundPaths.has(browserPath)) continue;
@@ -468,7 +475,7 @@ export async function detectBrowsers(customPaths?: string[]): Promise<BrowserInf
  * Set up IPC handler for browser detection and extension installation.
  */
 export function setupBrowserDetectionIPC(): void {
-  ipcMain.handle(IPC_CHANNELS.DETECT_BROWSERS, async (_event, customPaths?: string[]) => {
+  ipcMain.handle(IPC_CHANNELS.DETECT_BROWSERS, async (_event, customPaths?: CustomBrowserPath[]) => {
     return detectBrowsers(customPaths);
   });
 

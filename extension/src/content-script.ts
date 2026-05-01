@@ -1,4 +1,4 @@
-import type { VideoState, VideoStateMessage } from './types';
+import type { VideoState, VideoStateMessage, GeometryUpdateMessage, VideoViewportGeometry } from './types';
 
 declare const chrome: {
   runtime?: {
@@ -16,6 +16,8 @@ const TIMEUPDATE_THROTTLE_MS = 250;
 let trackedVideo: TrackedVideo | null = null;
 let mutationObserver: MutationObserver | null = null;
 let isDestroyed = false;
+let geometryInterval: ReturnType<typeof setInterval> | null = null;
+let lastGeometry: VideoViewportGeometry | null = null;
 
 function getChromeRuntime(): { sendMessage: (message: unknown) => void } | undefined {
   if (typeof chrome !== 'undefined' && chrome?.runtime?.sendMessage) {
@@ -103,6 +105,78 @@ function attachToVideo(video: HTMLVideoElement): void {
   video.addEventListener('ratechange', handleRateChange);
 
   sendVideoState(video);
+  startGeometryPolling();
+}
+
+function getVideoGeometry(video: HTMLVideoElement): VideoViewportGeometry {
+  const rect = video.getBoundingClientRect();
+  return {
+    rectX: rect.x,
+    rectY: rect.y,
+    width: rect.width,
+    height: rect.height,
+    screenX: window.screenX,
+    screenY: window.screenY,
+  };
+}
+
+function sendGeometryUpdate(geometry: VideoViewportGeometry): void {
+  const runtime = getChromeRuntime();
+  if (!runtime) return;
+
+  const message: GeometryUpdateMessage = {
+    type: 'GEOMETRY_UPDATE',
+    geometry,
+    timestamp: Date.now(),
+  };
+
+  try {
+    runtime.sendMessage(message);
+  } catch {
+    // chrome.runtime may become unavailable during navigation
+  }
+}
+
+function startGeometryPolling(): void {
+  if (geometryInterval) return;
+
+  // Send initial geometry after a short delay so the video has rendered
+  setTimeout(() => {
+    if (isDestroyed || !trackedVideo) return;
+    const geometry = getVideoGeometry(trackedVideo.element);
+    lastGeometry = geometry;
+    sendGeometryUpdate(geometry);
+  }, 100);
+
+  let heartbeatCounter = 0;
+  geometryInterval = setInterval(() => {
+    if (isDestroyed || !trackedVideo) return;
+
+    const geometry = getVideoGeometry(trackedVideo.element);
+    heartbeatCounter++;
+
+    const changed =
+      !lastGeometry ||
+      lastGeometry.rectX !== geometry.rectX ||
+      lastGeometry.rectY !== geometry.rectY ||
+      lastGeometry.width !== geometry.width ||
+      lastGeometry.height !== geometry.height;
+
+    // Send on change, or every 10 ticks (~1s) as a heartbeat
+    if (changed || heartbeatCounter >= 10) {
+      lastGeometry = geometry;
+      sendGeometryUpdate(geometry);
+      if (heartbeatCounter >= 10) heartbeatCounter = 0;
+    }
+  }, 100);
+}
+
+function stopGeometryPolling(): void {
+  if (geometryInterval) {
+    clearInterval(geometryInterval);
+    geometryInterval = null;
+  }
+  lastGeometry = null;
 }
 
 function detachFromVideo(): void {
@@ -116,6 +190,7 @@ function detachFromVideo(): void {
   video.removeEventListener('ratechange', handleRateChange);
 
   trackedVideo = null;
+  stopGeometryPolling();
 }
 
 function findVideoInNode(node: Node): HTMLVideoElement | null {
@@ -196,9 +271,10 @@ function destroy(): void {
   isDestroyed = true;
   detachFromVideo();
   teardownMutationObserver();
+  stopGeometryPolling();
 }
 
-export function initContentScript(): void {
+function initContentScript(): void {
   if (isDestroyed) return;
 
   const video = scanForVideo();

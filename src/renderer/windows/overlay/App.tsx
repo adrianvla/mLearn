@@ -1,8 +1,8 @@
-import { Component, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
+import { Component, createSignal, createMemo, onMount, onCleanup, createEffect } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
-import type { OverlayVideoState } from '../../../shared/types';
+import type { OverlayVideoState, OverlayGeometry } from '../../../shared/types';
 import { SubtitleContainer } from '../../components/subtitle/SubtitleContainer';
-import { OverlayControls } from '../../components/overlay/OverlayControls';
+import { OverlayControls, BorderFlash, triggerBorderFlash } from '../../components/overlay';
 import { useSubtitles } from '../../hooks/useSubtitles';
 import { useSettings } from '../../context';
 import { useWatchTogether } from '../../hooks/useWatchTogether';
@@ -57,6 +57,16 @@ export const App: Component = () => {
   });
 
   onMount(() => {
+    const cleanupGeometry = bridge.overlay.onOverlayGeometry((_geometry: OverlayGeometry) => {
+      triggerBorderFlash();
+    });
+
+    onCleanup(() => {
+      cleanupGeometry();
+    });
+  });
+
+  onMount(() => {
     const interval = setInterval(() => {
       if (Date.now() - lastSyncAt() > 5000) {
         setIsConnected(false);
@@ -64,6 +74,15 @@ export const App: Component = () => {
     }, 1000);
 
     onCleanup(() => clearInterval(interval));
+  });
+
+  // Click-through: ignore mouse events unless interactive
+  onMount(() => {
+    bridge.overlay.setOverlayIgnoreMouseEvents(true);
+  });
+
+  createEffect(() => {
+    bridge.overlay.setOverlayIgnoreMouseEvents(!isInteractive());
   });
 
   const handleOpenSubtitleFile = async () => {
@@ -151,6 +170,7 @@ export const App: Component = () => {
         formatTime={formatTime}
         onInteractiveChange={setIsInteractive}
       />
+      <BorderFlash />
     </div>
   );
 };

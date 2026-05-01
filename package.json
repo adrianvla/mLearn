@@ -31,7 +31,7 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "build:extension": "tsc -p extension/tsconfig.json && cp extension/manifest.json extension/dist/manifest.json && mkdir -p extension/dist/popup && cp extension/src/popup/popup.html extension/src/popup/popup.css extension/dist/popup/"
+    "build:extension": "tsc -p extension/tsconfig.json && sed -i '' '/^export {};$/d' extension/dist/content-script.js && cp extension/manifest.json extension/dist/manifest.json && mkdir -p extension/dist/popup && cp extension/src/popup/popup.html extension/src/popup/popup.css extension/dist/popup/"
   },
   "keywords": [
     "language-learning",

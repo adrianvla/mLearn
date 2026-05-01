@@ -6,7 +6,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayGeometry } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import { getLogger } from '../shared/utils/logger';
 
@@ -247,6 +247,9 @@ const mLearnIPC = {
   launchOverlay: () => ipcRenderer.send(IPC_CHANNELS.OVERLAY_LAUNCH),
   onOverlayLaunch: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.OVERLAY_LAUNCH, () => callback()),
+  onOverlayGeometry: (callback: (geometry: OverlayGeometry) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_GEOMETRY, (_event, geometry) => callback(geometry)),
+  setOverlayIgnoreMouseEvents: (ignore: boolean) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_SET_IGNORE_MOUSE_EVENTS, ignore),
 
   // ========== Tethered Updates ==========
   onUpdatePills: (callback: (data: string) => void) =>
@@ -287,6 +290,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.SELECT_BOOK_FOLDER),
   selectPdfFile: (): Promise<string | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.SELECT_PDF_FILE),
+  selectBrowserFile: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SELECT_BROWSER_FILE),
   readMediaFile: (filePath: string): Promise<ArrayBuffer | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.READ_MEDIA_FILE, filePath),
     
@@ -423,10 +428,14 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.DATA_IMPORT),
 
   // ========== Browser Detection ==========
-  detectBrowsers: (customPaths?: string[]): Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>> =>
+  detectBrowsers: (customPaths?: Array<{ path: string; type: 'chrome' | 'firefox' }>): Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>> =>
     ipcRenderer.invoke(IPC_CHANNELS.DETECT_BROWSERS, customPaths),
-  installExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }): Promise<{ success: boolean; error?: string }> =>
+  installExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }): Promise<{ success: boolean; path?: string; error?: string }> =>
     ipcRenderer.invoke(IPC_CHANNELS.INSTALL_EXTENSION, browser),
+  uninstallExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.UNINSTALL_EXTENSION, browser),
+  isExtensionInstalled: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }): Promise<{ installed: boolean }> =>
+    ipcRenderer.invoke(IPC_CHANNELS.IS_EXTENSION_INSTALLED, browser),
 
   // ========== KV Store ==========
   kvGet: (key: string): Promise<string | null> =>

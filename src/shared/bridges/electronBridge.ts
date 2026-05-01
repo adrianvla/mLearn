@@ -105,6 +105,7 @@ const fileBridge: FileBridge = {
   selectSubtitleFile: () => getIPC().selectSubtitleFile(),
   selectBookFolder: () => getIPC().selectBookFolder(),
   selectPdfFile: () => getIPC().selectPdfFile(),
+  selectBrowserFile: () => getIPC().selectBrowserFile(),
   getLocalMediaUrl: (path) => getIPC().getLocalMediaUrl(path),
   getPathForFile: (file) => getIPC().getPathForFile(file),
   writeToClipboard: (text) => getIPC().writeToClipboard(text),
@@ -242,6 +243,8 @@ const overlayBridge: OverlayBridge = {
   onOverlayRequestSync: (cb) => getIPC().onOverlayRequestSync(cb),
   launchOverlay: () => getIPC().launchOverlay(),
   onOverlayLaunch: (cb) => getIPC().onOverlayLaunch(cb),
+  onOverlayGeometry: (cb) => getIPC().onOverlayGeometry(cb),
+  setOverlayIgnoreMouseEvents: (ignore) => getIPC().setOverlayIgnoreMouseEvents(ignore),
 };
 
 const crossWindowBridge: CrossWindowBridge = {
@@ -291,6 +294,8 @@ const kvStoreBridge: KVStoreBridge = {
 const browserBridge: BrowserBridge = {
   detectBrowsers: (customPaths) => getIPC().detectBrowsers(customPaths),
   installExtension: (browser) => getIPC().installExtension(browser),
+  uninstallExtension: (browser) => getIPC().uninstallExtension(browser),
+  isExtensionInstalled: (browser) => getIPC().isExtensionInstalled(browser),
 };
 
 export function createElectronBridge(): PlatformBridge {

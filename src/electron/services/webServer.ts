@@ -19,7 +19,7 @@ import { ipcMain } from 'electron';
 import { PROXY_SERVER_PORT, PYTHON_BACKEND_PORT, IPC_CHANNELS } from '../../shared/constants';
 import { getAppPath, getResourcePath } from '../utils/platform';
 import { loadSettings, loadLangData, saveSettings } from './settings';
-import { getMainWindow, getOverlayWindow, launchOverlayWindow } from './windowManager';
+import { getMainWindow, getOverlayWindow, launchOverlayWindow, updateOverlayGeometry } from './windowManager';
 import { loadFlashcards, saveFlashcards } from './flashcardStorage';
 import { loadLocalization } from './localization';
 import { getLogger } from '../../shared/utils/logger';
@@ -310,6 +310,32 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
       } catch (e) {
         log.error('Error forwarding to Anki:', e);
         sendJsonResponse(res, { error: (e as Error).message }, 500);
+      }
+    });
+    return;
+  }
+
+  // API: Overlay geometry (POST with JSON body)
+  if (pathname === '/api/overlay-geometry') {
+    if (req.method !== 'POST') {
+      res.writeHead(405, corsHeaders);
+      res.end('Method not allowed');
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(body);
+        updateOverlayGeometry(parsed);
+        const overlay = getOverlayWindow();
+        if (overlay && !overlay.isDestroyed()) {
+          overlay.webContents.send(IPC_CHANNELS.OVERLAY_GEOMETRY, parsed);
+        }
+        sendJsonResponse(res, { status: 'ok' });
+      } catch (e) {
+        log.error('Error parsing overlay-geometry body:', e);
+        sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
       }
     });
     return;

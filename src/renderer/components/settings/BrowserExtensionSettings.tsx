@@ -3,13 +3,13 @@
  * Detects browsers, shows install status, provides manual fallback instructions
  */
 
-import { Component, createSignal, onMount, Show, For } from 'solid-js';
-import { useLocalization } from '../../context';
+import { Component, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
+import { useLocalization, useSettings } from '../../context';
 import {
   SettingRow,
   SettingGroup,
   Btn,
-  Input,
+  Select,
   TabContent,
   EmptyState,
   Spinner,
@@ -17,7 +17,7 @@ import {
   Indicator,
 } from '../common';
 import { getBridge } from '../../../shared/bridges';
-import type { BrowserInfo } from '../../../shared/bridges/types';
+import type { BrowserInfo, CustomBrowserPath } from '../../../shared/bridges/types';
 import './BrowserExtensionSettings.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -29,15 +29,22 @@ interface BrowserInstallState {
   browser: BrowserInfo;
   status: InstallStatus;
   error?: string;
+  installPath?: string;
 }
+
+const BROWSER_TYPE_OPTIONS = [
+  { value: 'chrome', label: 'Chromium (Chrome, Edge, Brave, etc.)' },
+  { value: 'firefox', label: 'Firefox (Firefox, Zen, LibreWolf, etc.)' },
+];
 
 export const BrowserExtensionSettings: Component = () => {
   const { t } = useLocalization();
+  const { settings, updateSetting } = useSettings();
   const [browsers, setBrowsers] = createSignal<BrowserInstallState[]>([]);
   const [loading, setLoading] = createSignal(true);
-  const [customPath, setCustomPath] = createSignal('');
-  const [customPaths, setCustomPaths] = createSignal<string[]>([]);
-  const [connectionStatus] = createSignal<'connected' | 'disconnected'>('disconnected');
+  const [customPathType, setCustomPathType] = createSignal<'chrome' | 'firefox'>('chrome');
+  const [customPaths, setCustomPaths] = createSignal<CustomBrowserPath[]>([]);
+  const [connectionStatus, setConnectionStatus] = createSignal<'connected' | 'disconnected'>('disconnected');
   const [detectError, setDetectError] = createSignal<string | null>(null);
 
   const loadBrowsers = async () => {
@@ -45,12 +52,31 @@ export const BrowserExtensionSettings: Component = () => {
     setDetectError(null);
     try {
       const detected = await getBridge().browser.detectBrowsers(customPaths());
-      setBrowsers(
-        detected.map((b) => ({
-          browser: b,
-          status: 'idle' as InstallStatus,
-        })),
+      const installedPaths = new Set(settings.installedBrowserExtensions);
+
+      const browserStates = await Promise.all(
+        detected.map(async (browser) => {
+          const wasInstalled = installedPaths.has(browser.path);
+          let status: InstallStatus = 'idle';
+
+          if (wasInstalled && browser.profilePath) {
+            try {
+              const check = await getBridge().browser.isExtensionInstalled(browser);
+              status = check.installed ? 'success' : 'idle';
+            } catch (e) {
+              log.warn(`Failed to check extension status for ${browser.name}:`, e);
+              status = 'idle';
+            }
+          }
+
+          return {
+            browser,
+            status,
+          };
+        }),
       );
+
+      setBrowsers(browserStates);
     } catch (e) {
       log.error('Failed to detect browsers:', e);
       setDetectError(t('mlearn.BrowserExtension.DetectError'));
@@ -61,7 +87,36 @@ export const BrowserExtensionSettings: Component = () => {
 
   onMount(() => {
     loadBrowsers();
+
+    const checkConnection = async () => {
+      try {
+        const response = await fetch('http://127.0.0.1:7753/api/ping', { method: 'GET' });
+        setConnectionStatus(response.ok ? 'connected' : 'disconnected');
+      } catch {
+        setConnectionStatus('disconnected');
+      }
+    };
+
+    checkConnection();
+    const interval = setInterval(checkConnection, 5000);
+
+    onCleanup(() => clearInterval(interval));
   });
+
+  const addInstalledBrowser = (browserPath: string) => {
+    const current = settings.installedBrowserExtensions;
+    if (!current.includes(browserPath)) {
+      updateSetting('installedBrowserExtensions', [...current, browserPath]);
+    }
+  };
+
+  const removeInstalledBrowser = (browserPath: string) => {
+    const current = settings.installedBrowserExtensions;
+    updateSetting(
+      'installedBrowserExtensions',
+      current.filter((p) => p !== browserPath),
+    );
+  };
 
   const handleInstall = async (index: number) => {
     const current = browsers();
@@ -76,7 +131,8 @@ export const BrowserExtensionSettings: Component = () => {
       const result = await getBridge().browser.installExtension(item.browser);
       const updated = [...browsers()];
       if (result.success) {
-        updated[index] = { ...updated[index], status: 'success' };
+        updated[index] = { ...updated[index], status: 'success', installPath: result.path };
+        addInstalledBrowser(item.browser.path);
       } else {
         updated[index] = {
           ...updated[index],
@@ -97,17 +153,56 @@ export const BrowserExtensionSettings: Component = () => {
     }
   };
 
-  const handleAddCustomPath = () => {
-    const path = customPath().trim();
-    if (!path) return;
-    if (customPaths().includes(path)) return;
-    setCustomPaths((prev) => [...prev, path]);
-    setCustomPath('');
-    loadBrowsers();
+  const handleUninstall = async (index: number) => {
+    const current = browsers();
+    const item = current[index];
+    if (!item) return;
+
+    const next = [...current];
+    next[index] = { ...item, status: 'installing', error: undefined };
+    setBrowsers(next);
+
+    try {
+      const result = await getBridge().browser.uninstallExtension(item.browser);
+      const updated = [...browsers()];
+      if (result.success) {
+        updated[index] = { ...updated[index], status: 'idle' };
+        removeInstalledBrowser(item.browser.path);
+      } else {
+        updated[index] = {
+          ...updated[index],
+          status: 'error',
+          error: result.error || t('mlearn.BrowserExtension.UninstallFailed'),
+        };
+      }
+      setBrowsers(updated);
+    } catch (e) {
+      log.error('Uninstall failed:', e);
+      const updated = [...browsers()];
+      updated[index] = {
+        ...updated[index],
+        status: 'error',
+        error: t('mlearn.BrowserExtension.UninstallFailed'),
+      };
+      setBrowsers(updated);
+    }
+  };
+
+  const handleBrowseBrowser = async () => {
+    try {
+      const path = await getBridge().files.selectBrowserFile();
+      if (!path) return;
+      if (customPaths().some((c) => c.path === path)) return;
+
+      setCustomPaths((prev) => [...prev, { path, type: customPathType() }]);
+      loadBrowsers();
+    } catch (e) {
+      log.error('Failed to browse for browser:', e);
+    }
   };
 
   const handleRemoveCustomPath = (path: string) => {
-    setCustomPaths((prev) => prev.filter((p) => p !== path));
+    setCustomPaths((prev) => prev.filter((c) => c.path !== path));
     loadBrowsers();
   };
 
@@ -154,7 +249,6 @@ export const BrowserExtensionSettings: Component = () => {
       }}
       padding="lg"
     >
-      {/* ── Detected Browsers ── */}
       <SettingGroup title={t('mlearn.BrowserExtension.DetectedBrowsers')}>
         <Show when={loading()}>
           <div class="browser-extension-loading">
@@ -187,17 +281,38 @@ export const BrowserExtensionSettings: Component = () => {
                       <Show when={item.browser.profilePath}>
                         <span class="browser-profile">{item.browser.profilePath}</span>
                       </Show>
+                      <Show when={item.status === 'success' && item.installPath}>
+                        <span class="browser-install-path">
+                          {t('mlearn.BrowserExtension.InstalledAt')}: {item.installPath}
+                        </span>
+                      </Show>
                     </div>
                   </div>
                   <div class="browser-actions">
-                    <Btn
-                      size="sm"
-                      onClick={() => handleInstall(index())}
-                      disabled={item.status === 'installing'}
-                      variant={item.status === 'success' ? 'success' : item.status === 'error' ? 'danger' : 'default'}
+                    <Show
+                      when={item.status === 'success'}
+                      fallback={
+                        <Btn
+                          size="sm"
+                          onClick={() => handleInstall(index())}
+                          disabled={item.status === 'installing'}
+                          variant={
+                            item.status === 'error' ? 'danger' : 'default'
+                          }
+                        >
+                          {getInstallLabel(item.status)}
+                        </Btn>
+                      }
                     >
-                      {getInstallLabel(item.status)}
-                    </Btn>
+                      <Btn
+                        size="sm"
+                        variant="danger"
+                        onClick={() => handleUninstall(index())}
+                        disabled={item.status === 'installing'}
+                      >
+                        {t('mlearn.BrowserExtension.Uninstall')}
+                      </Btn>
+                    </Show>
                   </div>
                   <Show when={item.status === 'error'}>
                     <div class="browser-install-error">
@@ -215,32 +330,44 @@ export const BrowserExtensionSettings: Component = () => {
         </Show>
       </SettingGroup>
 
-      {/* ── Custom Browser Path ── */}
       <SettingGroup title={t('mlearn.BrowserExtension.CustomPath')}>
-        <SettingRow label={t('mlearn.BrowserExtension.CustomPathLabel')}>
+        <SettingRow label={t('mlearn.BrowserExtension.CustomPathLabel')} style={{ "flex-direction": 'column', "align-items": 'flex-start' }}>
           <div class="custom-path-row">
-            <Input
-              class="custom-path-input"
-              value={customPath()}
-              onInput={(e) => setCustomPath(e.currentTarget.value)}
-              placeholder={t('mlearn.BrowserExtension.CustomPathPlaceholder')}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddCustomPath();
-              }}
+            <Select
+              class="custom-path-type-select"
+              value={customPathType()}
+              options={BROWSER_TYPE_OPTIONS}
+              onChange={(e) =>
+                setCustomPathType(e.currentTarget.value as 'chrome' | 'firefox')
+              }
             />
-            <Btn size="sm" onClick={handleAddCustomPath} disabled={!customPath().trim()}>
-              {t('mlearn.Global.Add')}
+            <Btn size="sm" onClick={handleBrowseBrowser}>
+              {t('mlearn.BrowserExtension.Browse')}
             </Btn>
           </div>
+          <span class="custom-path-hint">
+            {t('mlearn.BrowserExtension.CustomPathHint')}
+          </span>
         </SettingRow>
 
         <Show when={customPaths().length > 0}>
           <div class="custom-paths-list">
             <For each={customPaths()}>
-              {(path) => (
+              {(custom) => (
                 <div class="custom-path-item">
-                  <span class="custom-path-text">{path}</span>
-                  <Btn size="sm" variant="danger" onClick={() => handleRemoveCustomPath(path)}>
+                  <span class="custom-path-text">
+                    {custom.path}
+                    <span class="custom-path-badge">
+                      {custom.type === 'chrome'
+                        ? 'Chromium'
+                        : 'Firefox'}
+                    </span>
+                  </span>
+                  <Btn
+                    size="sm"
+                    variant="danger"
+                    onClick={() => handleRemoveCustomPath(custom.path)}
+                  >
                     {t('mlearn.Global.Remove')}
                   </Btn>
                 </div>
@@ -250,7 +377,6 @@ export const BrowserExtensionSettings: Component = () => {
         </Show>
       </SettingGroup>
 
-      {/* ── Extension Connection Status ── */}
       <SettingGroup title={t('mlearn.BrowserExtension.ConnectionStatus')}>
         <SettingRow label={t('mlearn.BrowserExtension.ExtensionStatus')}>
           <div class="connection-status-row">

@@ -48,6 +48,23 @@ export function getOverlayWindow(): BrowserWindow | null {
   return overlayWindow;
 }
 
+export function updateOverlayGeometry(geometry: { x: number; y: number; width: number; height: number }): void {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return;
+  win.setBounds({
+    x: Math.round(geometry.x),
+    y: Math.round(geometry.y),
+    width: Math.round(geometry.width),
+    height: Math.round(geometry.height),
+  });
+}
+
+export function setOverlayIgnoreMouseEvents(ignore: boolean): void {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return;
+  win.setIgnoreMouseEvents(ignore, { forward: true });
+}
+
 // Get preload script path
 function resolveExistingPath(candidates: string[]): string {
   for (const candidate of candidates) {
@@ -183,7 +200,7 @@ export function createChildWindow(
     return existingWindow;
   }
 
-  const platformOptions: Partial<Electron.BrowserWindowConstructorOptions> = isMac
+  const platformOptions: Partial<Electron.BrowserWindowConstructorOptions> = isMac && options.frame !== false
     ? { titleBarStyle: 'hidden' }
     : {};
 
@@ -393,6 +410,7 @@ export function launchOverlayWindow(): void {
     width: 400,
     height: 200,
     transparent: true,
+    backgroundColor: undefined,
     alwaysOnTop: true,
     frame: false,
     skipTaskbar: true,
@@ -690,5 +708,10 @@ export function setupWindowIPC(): void {
     if (target && !target.isDestroyed()) {
       target.webContents.send(IPC_CHANNELS.OVERLAY_REQUEST_SYNC);
     }
+  });
+
+  // Set overlay ignore mouse events (click-through)
+  ipcMain.on(IPC_CHANNELS.OVERLAY_SET_IGNORE_MOUSE_EVENTS, (_event, ignore: boolean) => {
+    setOverlayIgnoreMouseEvents(ignore);
   });
 }

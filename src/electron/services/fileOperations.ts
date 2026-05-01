@@ -120,6 +120,15 @@ export function setupFileOperationsIPC(): void {
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
 
+  ipcMain.handle(IPC_CHANNELS.SELECT_BROWSER_FILE, async () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog({
+      ...(focusedWindow ? { browserWindow: focusedWindow } : {}),
+      properties: ['openFile'],
+    } as Electron.OpenDialogOptions);
+    return result.canceled ? null : result.filePaths[0] ?? null;
+  });
+
   ipcMain.handle(IPC_CHANNELS.READ_MEDIA_FILE, async (_event, filePath: string) => {
     try {
       const resolved = path.resolve(filePath);

@@ -39,7 +39,7 @@ function setPlatform(platform: 'mac' | 'windows' | 'linux'): void {
 }
 
 describe('browserDetection', () => {
-  let detectBrowsers: (customPaths?: string[]) => Promise<import('./browserDetection').BrowserInfo[]>;
+  let detectBrowsers: (customPaths?: import('./browserDetection').CustomBrowserPath[]) => Promise<import('./browserDetection').BrowserInfo[]>;
   let setupBrowserDetectionIPC: () => void;
 
   beforeEach(async () => {
@@ -341,11 +341,11 @@ describe('browserDetection', () => {
 
       it('detects browser at custom path', async () => {
         mockExistsSync.mockImplementation((p: string) => p === '/opt/mybrowser/browser');
-        const results = await detectBrowsers(['/opt/mybrowser/browser']);
+        const results = await detectBrowsers([{ path: '/opt/mybrowser/browser', type: 'chrome' }]);
         expect(results).toHaveLength(1);
         expect(results[0]).toMatchObject({
           name: 'browser',
-          type: 'unknown',
+          type: 'chrome',
           path: '/opt/mybrowser/browser',
           isInstalled: true,
         });
@@ -353,15 +353,15 @@ describe('browserDetection', () => {
 
       it('ignores non-existent custom paths', async () => {
         mockExistsSync.mockReturnValue(false);
-        const results = await detectBrowsers(['/nonexistent/browser']);
+        const results = await detectBrowsers([{ path: '/nonexistent/browser', type: 'chrome' }]);
         expect(results).toEqual([]);
       });
 
       it('deduplicates custom paths', async () => {
         mockExistsSync.mockImplementation((p: string) => p === '/opt/mybrowser/browser');
         const results = await detectBrowsers([
-          '/opt/mybrowser/browser',
-          '/opt/mybrowser/browser',
+          { path: '/opt/mybrowser/browser', type: 'chrome' },
+          { path: '/opt/mybrowser/browser', type: 'chrome' },
         ]);
         expect(results).toHaveLength(1);
       });
@@ -370,7 +370,7 @@ describe('browserDetection', () => {
         mockExistsSync.mockImplementation((p: string) =>
           p === '/opt/custom/browser' || p === '/usr/bin/firefox'
         );
-        const results = await detectBrowsers(['/opt/custom/browser']);
+        const results = await detectBrowsers([{ path: '/opt/custom/browser', type: 'chrome' }]);
         expect(results).toHaveLength(2);
         const names = results.map(r => r.name).sort();
         expect(names).toEqual(['Firefox', 'browser']);
@@ -399,9 +399,10 @@ describe('browserDetection', () => {
       mockExistsSync.mockImplementation((p: string) => p === '/opt/custom/browser');
       setupBrowserDetectionIPC();
       const [, handler] = mockIpcMainHandle.mock.calls[0];
-      const result = await handler({}, ['/opt/custom/browser']);
+      const result = await handler({}, [{ path: '/opt/custom/browser', type: 'chrome' }]);
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe('browser');
+      expect(result[0].type).toBe('chrome');
     });
   });
 });

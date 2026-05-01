@@ -154,9 +154,13 @@ export const IPC_CHANNELS = {
   OVERLAY_VIDEO_STATE: 'overlay-video-state',
   OVERLAY_REQUEST_SYNC: 'overlay-request-sync',
   OVERLAY_LAUNCH: 'overlay-launch',
+  OVERLAY_GEOMETRY: 'overlay-geometry',
+  OVERLAY_SET_IGNORE_MOUSE_EVENTS: 'overlay-set-ignore-mouse-events',
 
   DETECT_BROWSERS: 'detect-browsers',
   INSTALL_EXTENSION: 'install-extension',
+  UNINSTALL_EXTENSION: 'uninstall-extension',
+  IS_EXTENSION_INSTALLED: 'is-extension-installed',
 
   // Updates from tethered clients
   UPDATE_PILLS: 'update-pills',
@@ -187,6 +191,7 @@ export const IPC_CHANNELS = {
   SELECT_SUBTITLE_FILE: 'select-subtitle-file',
   SELECT_BOOK_FOLDER: 'select-book-folder',
   SELECT_PDF_FILE: 'select-pdf-file',
+  SELECT_BROWSER_FILE: 'select-browser-file',
   GET_LOCAL_MEDIA_URL: 'get-local-media-url',
 
   // Media stats

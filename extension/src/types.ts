@@ -1,3 +1,19 @@
+export interface VideoGeometry {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface VideoViewportGeometry {
+  rectX: number;
+  rectY: number;
+  width: number;
+  height: number;
+  screenX: number;
+  screenY: number;
+}
+
 export interface VideoState {
   currentTime: number;
   duration: number;
@@ -8,7 +24,7 @@ export interface VideoState {
 }
 
 export interface SyncMessage {
-  type: 'SYNC_STATE' | 'GET_STATE' | 'STATE_RESPONSE' | 'ERROR' | 'VIDEO_STATE' | 'CONNECTION_STATUS';
+  type: 'SYNC_STATE' | 'GET_STATE' | 'STATE_RESPONSE' | 'ERROR' | 'VIDEO_STATE' | 'GEOMETRY_UPDATE' | 'CONNECTION_STATUS';
   videoState?: VideoState;
   state?: VideoState;
   error?: string;
@@ -22,6 +38,12 @@ export type ConnectionStatus = 'connected' | 'disconnected' | 'connecting';
 export interface ExtensionMessage {
   type: 'MLearnExtensionReady' | 'MLearnVideoState' | 'MLearnError';
   payload?: unknown;
+  timestamp: number;
+}
+
+export interface GeometryUpdateMessage {
+  type: 'GEOMETRY_UPDATE';
+  geometry: VideoViewportGeometry;
   timestamp: number;
 }
 

@@ -19,7 +19,7 @@ if (!root) {
 }
 
 const WrappedApp = () => (
-  <WindowWrapper showDragRegion={false}>
+  <WindowWrapper showDragRegion={false} transparent>
     <App />
   </WindowWrapper>
 );

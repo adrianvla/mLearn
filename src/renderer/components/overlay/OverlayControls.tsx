@@ -1,5 +1,6 @@
 import { Component, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { useLocalization } from '../../context';
+import { IconBtn, Btn } from '../common/Button';
 import './OverlayControls.css';
 
 export interface OverlayControlsProps {
@@ -30,7 +31,7 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
   const [isAltHeld, setIsAltHeld] = createSignal(false);
   const [isHovered, setIsHovered] = createSignal(false);
 
-  const isVisible = () => isAltHeld() || isHovered();
+  const isVisible = () => isAltHeld() || isHovered() || !props.hasSubtitles || !props.isConnected;
 
   onMount(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -66,6 +67,19 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
   };
 
   const offsetMs = () => Math.round(props.subtitleOffset * 1000);
+
+  const minusIcon = (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+
+  const plusIcon = (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
 
   return (
     <div
@@ -103,17 +117,13 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
 
         <div class="overlay-controls-center">
           <div class="overlay-offset-control">
-            <button
-              type="button"
-              class="overlay-offset-btn"
+            <IconBtn
+              size="xs"
+              icon={minusIcon}
               onClick={handleOffsetDecrease}
               aria-label={t('mlearn.Overlay.DecreaseOffset')}
               title={t('mlearn.Overlay.DecreaseOffset')}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
+            />
             <span
               class="overlay-offset-value"
               title={t('mlearn.Overlay.OffsetTooltip')}
@@ -121,18 +131,13 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
               {offsetMs() >= 0 ? '+' : ''}
               {offsetMs()}ms
             </span>
-            <button
-              type="button"
-              class="overlay-offset-btn"
+            <IconBtn
+              size="xs"
+              icon={plusIcon}
               onClick={handleOffsetIncrease}
               aria-label={t('mlearn.Overlay.IncreaseOffset')}
               title={t('mlearn.Overlay.IncreaseOffset')}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
+            />
           </div>
         </div>
 
@@ -155,33 +160,19 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
             }
             role="status"
           />
-          <button
-            type="button"
-            class="overlay-load-btn"
+          <Btn
+            size="sm"
             onClick={props.onLoadSubtitles}
           >
             {t('mlearn.Overlay.LoadSubtitles')}
-          </button>
-          <button
-            type="button"
-            class="overlay-close-btn"
+          </Btn>
+          <IconBtn
+            size="sm"
+            icon="cross"
             onClick={props.onClose}
             aria-label={t('mlearn.Overlay.Close')}
             title={t('mlearn.Overlay.Close')}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              aria-hidden="true"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+          />
         </div>
       </div>
     </div>

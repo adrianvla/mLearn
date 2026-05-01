@@ -19,6 +19,7 @@ export interface Virtualizer {
   getTotalSize: () => number;
   scrollToIndex: (index: number) => void;
   measure: () => void;
+  measureElement: (el: HTMLElement | null) => void;
 }
 
 export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
@@ -129,16 +130,20 @@ export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
     });
   });
 
-  const itemRefs = new Map<number, HTMLElement>();
+  const measureElement = (el: HTMLElement | null) => {
+    if (!el || !measureDynamic) return;
+    const indexAttr = el.getAttribute('data-index');
+    if (indexAttr == null) return;
+    const index = Number(indexAttr);
+    if (Number.isNaN(index)) return;
+    const height = el.getBoundingClientRect().height;
+    if (height > 0) {
+      measurements.set(index, height);
+    }
+  };
 
   const measure = () => {
     if (!measureDynamic) return;
-    for (const [index, el] of itemRefs) {
-      const height = el.getBoundingClientRect().height;
-      if (height > 0) {
-        measurements.set(index, height);
-      }
-    }
     setScrollTop((v) => v);
   };
 
@@ -158,5 +163,6 @@ export function createVirtualizer(options: VirtualizerOptions): Virtualizer {
     getTotalSize: () => totalSize(),
     scrollToIndex,
     measure,
+    measureElement,
   };
 }

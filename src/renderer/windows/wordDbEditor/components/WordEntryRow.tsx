@@ -31,10 +31,15 @@ const translationQueue: Array<{ word: string; language: string; resolve: () => v
 let isProcessingQueue = false;
 const BATCH_SIZE = 5;
 const BATCH_DELAY = 50;
+const MAX_QUEUE_SIZE = 200;
 
 function enqueueTranslationFetch(word: string, language: string): Promise<void> {
   return new Promise((resolve) => {
     translationQueue.push({ word, language, resolve });
+    if (translationQueue.length > MAX_QUEUE_SIZE) {
+      const dropped = translationQueue.splice(0, translationQueue.length - MAX_QUEUE_SIZE);
+      for (const item of dropped) item.resolve();
+    }
     if (!isProcessingQueue) {
       processQueue();
     }
@@ -117,8 +122,6 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
   let rowRef: HTMLDivElement | undefined;
-  let observer: IntersectionObserver | undefined;
-  let fetched = false;
 
   // Effective reading: translation cache reading > freq data > word
   const effectiveReading = createMemo(() => {
@@ -221,35 +224,26 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     }
   };
 
-  // Lazily fetch translation when the row becomes visible.
-  // Uses fetchTranslation which populates the global cache (reading + translation + pitch).
+  let fetchTimer: ReturnType<typeof setTimeout> | undefined;
+
   onMount(() => {
     if (props.entry.translation && getCachedTranslation(props.entry.word, settings.language)) {
       return;
     }
-    // If already cached, just bump version to read from cache
     if (getCachedTranslation(props.entry.word, settings.language)) {
       setFetchVersion((v) => v + 1);
       return;
     }
 
-    observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && !fetched) {
-          fetched = true;
-          observer?.disconnect();
-          enqueueTranslationFetch(props.entry.word, settings.language).then(() => {
-            setFetchVersion((v) => v + 1);
-          });
-        }
-      },
-      { threshold: 0 }
-    );
-    if (rowRef) observer.observe(rowRef);
+    fetchTimer = setTimeout(() => {
+      enqueueTranslationFetch(props.entry.word, settings.language).then(() => {
+        setFetchVersion((v) => v + 1);
+      });
+    }, 300);
   });
 
   onCleanup(() => {
-    observer?.disconnect();
+    if (fetchTimer) clearTimeout(fetchTimer);
   });
   
   return (

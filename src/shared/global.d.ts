@@ -137,6 +137,8 @@ sendLogRecord: (record: unknown) => void;
   onOverlayRequestSync: (callback: () => void) => () => void;
   launchOverlay: () => void;
   onOverlayLaunch: (callback: () => void) => () => void;
+  onOverlayGeometry: (callback: (geometry: import('./types').OverlayGeometry) => void) => () => void;
+  setOverlayIgnoreMouseEvents: (ignore: boolean) => void;
 
   // Pill/Word Updates (cross-window sync)
   onUpdatePills: (callback: (data: unknown) => void) => () => void;
@@ -171,6 +173,7 @@ sendLogRecord: (record: unknown) => void;
   selectSubtitleFile: () => Promise<string | null>;
   selectBookFolder: () => Promise<string | null>;
   selectPdfFile: () => Promise<string | null>;
+  selectBrowserFile: () => Promise<string | null>;
   readMediaFile: (filePath: string) => Promise<ArrayBuffer | null>;
   /**
    * Convert a local file path to a local-media:// URL for secure media playback.
@@ -264,8 +267,10 @@ sendLogRecord: (record: unknown) => void;
   dataImport: () => Promise<{ success: boolean; error?: string }>;
 
   // Browser Detection & Extension Installation
-  detectBrowsers: (customPaths?: string[]) => Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>>;
-  installExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ success: boolean; error?: string }>;
+  detectBrowsers: (customPaths?: Array<{ path: string; type: 'chrome' | 'firefox' }>) => Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>>;
+  installExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ success: boolean; path?: string; error?: string }>;
+  uninstallExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ success: boolean; error?: string }>;
+  isExtensionInstalled: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ installed: boolean }>;
 
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;

@@ -84,12 +84,16 @@ function updateUI(state: PopupState): void {
   }
 }
 
-function sendMessage(type: PopupMessage['type']): void {
+function sendMessage(type: PopupMessage['type'], callback?: (response: PopupMessage) => void): void {
   const message: PopupMessage = {
     type,
     timestamp: Date.now(),
   };
-  chrome.runtime.sendMessage(message);
+  if (callback) {
+    chrome.runtime.sendMessage(message, callback);
+  } else {
+    chrome.runtime.sendMessage(message);
+  }
 }
 
 function handleStateUpdate(message: PopupMessage): void {
@@ -106,7 +110,9 @@ function handleStateUpdate(message: PopupMessage): void {
 function initPopup(): void {
   const { requestSyncBtn, openOverlayBtn } = getElements();
 
-  sendMessage('GET_POPUP_STATE');
+  sendMessage('GET_POPUP_STATE', (response) => {
+    handleStateUpdate(response as PopupMessage);
+  });
 
   chrome.runtime.onMessage.addListener((message: PopupMessage) => {
     handleStateUpdate(message);
@@ -119,8 +125,6 @@ function initPopup(): void {
   openOverlayBtn.addEventListener('click', () => {
     sendMessage('OPEN_OVERLAY');
   });
-
-  updateUI(DEFAULT_STATE);
 }
 
 document.addEventListener('DOMContentLoaded', initPopup);

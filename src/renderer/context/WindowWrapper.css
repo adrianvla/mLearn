@@ -22,6 +22,10 @@
   transition: opacity 0.3s ease;
 }
 
+.window-loading-overlay.transparent-bg {
+  background: transparent;
+}
+
 .window-loading-overlay.fade-out {
   opacity: 0;
   pointer-events: none;

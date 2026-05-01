@@ -21,6 +21,13 @@ export interface OverlayVideoState {
   title?: string;
 }
 
+export interface OverlayGeometry {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 // ============================================================================
 // Settings Types
 // ============================================================================
@@ -331,6 +338,9 @@ export interface Settings {
   /** Whether to use a separate checker agent for correcting mistakes */
   agentSplitChecker: boolean;
 
+  /** List of browser paths that have the mLearn browser extension installed */
+  installedBrowserExtensions: string[];
+
   // First-run tracking
   hasCompletedSetup?: boolean;
 }
@@ -467,6 +477,7 @@ export const DEFAULT_SETTINGS: Settings = {
   agentMemoryEnabled: true,
   agentMemoryShared: true,
   agentSplitChecker: true,
+  installedBrowserExtensions: [],
 };
 
 // ============================================================================

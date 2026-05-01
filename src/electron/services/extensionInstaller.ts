@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { ipcMain } from 'electron';
+import AdmZip from 'adm-zip';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getLogger } from '../../shared/utils/logger';
 import type { BrowserInfo } from './browserDetection';
@@ -8,6 +10,27 @@ import type { BrowserInfo } from './browserDetection';
 const log = getLogger('electron.extensionInstaller');
 
 const EXTENSION_DIR_NAME = 'mlearn-extension';
+const FIREFOX_EXTENSION_ID = 'mlearn@morisinc.net';
+
+interface ExtensionManifest {
+  manifest_version: number;
+  name: string;
+  version: string;
+  description?: string;
+  key?: string;
+  browser_specific_settings?: {
+    gecko?: {
+      id?: string;
+    };
+  };
+  [key: string]: unknown;
+}
+
+export interface InstallResult {
+  success: boolean;
+  path?: string;
+  error?: string;
+}
 
 async function copyDirRecursive(src: string, dest: string): Promise<void> {
   await fs.promises.mkdir(dest, { recursive: true });
@@ -29,10 +52,72 @@ function getExtensionSourceDir(): string {
   return path.resolve(__dirname, '..', '..', '..', 'extension', 'dist');
 }
 
-export async function installExtension(browserInfo: BrowserInfo): Promise<boolean> {
+function readExtensionManifest(sourceDir: string): ExtensionManifest | null {
+  const manifestPath = path.join(sourceDir, 'manifest.json');
+  try {
+    const data = fs.readFileSync(manifestPath, 'utf-8');
+    return JSON.parse(data) as ExtensionManifest;
+  } catch (error) {
+    log.warn('Failed to read extension manifest:', error);
+    return null;
+  }
+}
+
+function getFirefoxExtensionId(manifest: ExtensionManifest): string {
+  return manifest.browser_specific_settings?.gecko?.id ?? FIREFOX_EXTENSION_ID;
+}
+
+function computeChromeExtensionId(manifestKeyBase64: string): string {
+  try {
+    const publicKey = Buffer.from(manifestKeyBase64, 'base64');
+    const hash = crypto.createHash('sha256').update(publicKey).digest();
+    const first16 = hash.slice(0, 16);
+
+    let id = '';
+    for (const byte of first16) {
+      id += String.fromCharCode('a'.charCodeAt(0) + ((byte >> 4) & 0x0f));
+      id += String.fromCharCode('a'.charCodeAt(0) + (byte & 0x0f));
+    }
+
+    return id;
+  } catch (error) {
+    log.error('Failed to compute extension ID:', error);
+    const hash = crypto.createHash('sha256').update(manifestKeyBase64).digest('hex').slice(0, 32);
+    return hash;
+  }
+}
+
+function getChromeExtensionsDir(profilePath: string): string {
+  return path.join(profilePath, 'Extensions');
+}
+
+function getChromeExtensionDir(profilePath: string, extensionId: string, version: string): string {
+  return path.join(getChromeExtensionsDir(profilePath), extensionId, version);
+}
+
+function addDirToZip(zip: AdmZip, dirPath: string, zipRoot: string): void {
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    const zipPath = path.join(zipRoot, entry.name);
+    if (entry.isDirectory()) {
+      addDirToZip(zip, fullPath, zipPath);
+    } else {
+      zip.addLocalFile(fullPath, zipRoot);
+    }
+  }
+}
+
+function createExtensionXpi(sourceDir: string, destPath: string): void {
+  const zip = new AdmZip();
+  addDirToZip(zip, sourceDir, '');
+  zip.writeZip(destPath);
+}
+
+export async function installExtension(browserInfo: BrowserInfo): Promise<InstallResult> {
   if (!browserInfo.profilePath) {
     log.warn(`No profile path available for browser: ${browserInfo.name}`);
-    return false;
+    return { success: false, error: 'No profile path available' };
   }
 
   const sourceDir = getExtensionSourceDir();
@@ -41,19 +126,34 @@ export async function installExtension(browserInfo: BrowserInfo): Promise<boolea
     const sourceStats = await fs.promises.stat(sourceDir);
     if (!sourceStats.isDirectory()) {
       log.warn(`Extension source directory does not exist: ${sourceDir}`);
-      return false;
+      return { success: false, error: 'Extension source directory does not exist' };
     }
   } catch {
     log.warn(`Extension source directory not found: ${sourceDir}`);
-    return false;
+    return { success: false, error: 'Extension source directory not found' };
   }
+
+  const manifest = readExtensionManifest(sourceDir);
+  if (!manifest) {
+    log.warn('Could not read extension manifest');
+    return { success: false, error: 'Could not read extension manifest' };
+  }
+
+  const version = manifest.version || '1.0.0';
 
   try {
     if (browserInfo.type === 'chrome') {
-      const extensionsDir = path.join(browserInfo.profilePath, 'Extensions', EXTENSION_DIR_NAME);
-      await copyDirRecursive(sourceDir, extensionsDir);
-      log.info(`Extension installed for ${browserInfo.name} at ${extensionsDir}`);
-      return true;
+      if (!manifest.key) {
+        log.warn('Extension manifest is missing the "key" field required for Chrome installation');
+        return { success: false, error: 'Extension manifest is missing the key field' };
+      }
+
+      const extensionId = computeChromeExtensionId(manifest.key);
+      const extensionDir = getChromeExtensionDir(browserInfo.profilePath, extensionId, version);
+
+      await copyDirRecursive(sourceDir, extensionDir);
+      log.info(`Extension installed for ${browserInfo.name} at ${extensionDir} (ID: ${extensionId})`);
+      return { success: true, path: extensionDir };
     }
 
     if (browserInfo.type === 'firefox') {
@@ -67,18 +167,105 @@ export async function installExtension(browserInfo: BrowserInfo): Promise<boolea
           .map((e) => path.join(profilesDir, e.name));
       } catch {
         log.warn(`Could not read Firefox profiles directory: ${profilesDir}`);
-        return false;
+        return { success: false, error: 'Could not read Firefox profiles directory' };
       }
 
       if (profileDirs.length === 0) {
         log.warn(`No Firefox profiles found in: ${profilesDir}`);
-        return false;
+        return { success: false, error: 'No Firefox profiles found' };
       }
+
+      const extensionId = manifest ? getFirefoxExtensionId(manifest) : FIREFOX_EXTENSION_ID;
 
       for (const profileDir of profileDirs) {
         const extensionsDir = path.join(profileDir, 'extensions');
-        await copyDirRecursive(sourceDir, extensionsDir);
-        log.info(`Extension installed for ${browserInfo.name} profile at ${extensionsDir}`);
+        await fs.promises.mkdir(extensionsDir, { recursive: true });
+
+        const xpiPath = path.join(extensionsDir, `${extensionId}.xpi`);
+        createExtensionXpi(sourceDir, xpiPath);
+        log.info(`Extension installed for ${browserInfo.name} profile at ${xpiPath} (ID: ${extensionId})`);
+      }
+      return { success: true, path: `${extensionId}.xpi` };
+    }
+
+    log.warn(`Unsupported browser type: ${browserInfo.type}`);
+    return { success: false, error: `Unsupported browser type: ${browserInfo.type}` };
+  } catch (error) {
+    log.error(`Failed to install extension for ${browserInfo.name}:`, error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function uninstallExtension(browserInfo: BrowserInfo): Promise<boolean> {
+  if (!browserInfo.profilePath) {
+    log.warn(`No profile path available for browser: ${browserInfo.name}`);
+    return false;
+  }
+
+  const sourceDir = getExtensionSourceDir();
+  const manifest = readExtensionManifest(sourceDir);
+  const version = manifest?.version || '1.0.0';
+
+  try {
+    if (browserInfo.type === 'chrome') {
+      if (!manifest?.key) {
+        const legacyDir = path.join(
+          getChromeExtensionsDir(browserInfo.profilePath),
+          EXTENSION_DIR_NAME,
+        );
+        if (fs.existsSync(legacyDir)) {
+          await fs.promises.rm(legacyDir, { recursive: true, force: true });
+          log.info(`Removed legacy extension for ${browserInfo.name} at ${legacyDir}`);
+        }
+        return true;
+      }
+
+      const extensionId = computeChromeExtensionId(manifest.key);
+      const extensionDir = getChromeExtensionDir(browserInfo.profilePath, extensionId, version);
+
+      if (fs.existsSync(extensionDir)) {
+        await fs.promises.rm(extensionDir, { recursive: true, force: true });
+        log.info(`Extension uninstalled for ${browserInfo.name} from ${extensionDir}`);
+      }
+
+      const idDir = path.join(getChromeExtensionsDir(browserInfo.profilePath), extensionId);
+      try {
+        const remainingVersions = await fs.promises.readdir(idDir);
+        if (remainingVersions.length === 0) {
+          await fs.promises.rmdir(idDir);
+        }
+      } catch {}
+
+      return true;
+    }
+
+    if (browserInfo.type === 'firefox') {
+      const profilesDir = browserInfo.profilePath;
+      let profileDirs: string[] = [];
+
+      try {
+        const entries = await fs.promises.readdir(profilesDir, { withFileTypes: true });
+        profileDirs = entries
+          .filter((e) => e.isDirectory())
+          .map((e) => path.join(profilesDir, e.name));
+      } catch {
+        return false;
+      }
+
+      const extensionId = manifest ? getFirefoxExtensionId(manifest) : FIREFOX_EXTENSION_ID;
+
+      for (const profileDir of profileDirs) {
+        const xpiPath = path.join(profileDir, 'extensions', `${extensionId}.xpi`);
+        if (fs.existsSync(xpiPath)) {
+          await fs.promises.rm(xpiPath, { force: true });
+          log.info(`Extension XPI uninstalled for ${browserInfo.name} profile from ${xpiPath}`);
+        }
+
+        const legacyDir = path.join(profileDir, 'extensions', EXTENSION_DIR_NAME);
+        if (fs.existsSync(legacyDir)) {
+          await fs.promises.rm(legacyDir, { recursive: true, force: true });
+          log.info(`Removed legacy unpacked extension for ${browserInfo.name} profile from ${legacyDir}`);
+        }
       }
       return true;
     }
@@ -86,14 +273,74 @@ export async function installExtension(browserInfo: BrowserInfo): Promise<boolea
     log.warn(`Unsupported browser type: ${browserInfo.type}`);
     return false;
   } catch (error) {
-    log.error(`Failed to install extension for ${browserInfo.name}:`, error);
+    log.error(`Failed to uninstall extension for ${browserInfo.name}:`, error);
+    return false;
+  }
+}
+
+export async function isExtensionInstalled(browserInfo: BrowserInfo): Promise<boolean> {
+  if (!browserInfo.profilePath) {
+    return false;
+  }
+
+  const sourceDir = getExtensionSourceDir();
+  const manifest = readExtensionManifest(sourceDir);
+  const version = manifest?.version || '1.0.0';
+
+  try {
+    if (browserInfo.type === 'chrome') {
+      if (!manifest?.key) {
+        const legacyDir = path.join(
+          getChromeExtensionsDir(browserInfo.profilePath),
+          EXTENSION_DIR_NAME,
+        );
+        return fs.existsSync(legacyDir);
+      }
+
+      const extensionId = computeChromeExtensionId(manifest.key);
+      const extensionDir = getChromeExtensionDir(browserInfo.profilePath, extensionId, version);
+      return fs.existsSync(extensionDir);
+    }
+
+    if (browserInfo.type === 'firefox') {
+      const profilesDir = browserInfo.profilePath;
+      try {
+        const entries = await fs.promises.readdir(profilesDir, { withFileTypes: true });
+        const profileDirs = entries
+          .filter((e) => e.isDirectory())
+          .map((e) => path.join(profilesDir, e.name));
+
+        const extensionId = manifest ? getFirefoxExtensionId(manifest) : FIREFOX_EXTENSION_ID;
+
+        for (const profileDir of profileDirs) {
+          const xpiPath = path.join(profileDir, 'extensions', `${extensionId}.xpi`);
+          if (fs.existsSync(xpiPath)) {
+            return true;
+          }
+        }
+      } catch {
+        return false;
+      }
+    }
+
+    return false;
+  } catch {
     return false;
   }
 }
 
 export function setupExtensionInstallerIPC(): void {
   ipcMain.handle(IPC_CHANNELS.INSTALL_EXTENSION, async (_event, browserInfo: BrowserInfo) => {
-    const success = await installExtension(browserInfo);
-    return { success, error: success ? undefined : 'Extension installation failed' };
+    return installExtension(browserInfo);
+  });
+
+  ipcMain.handle(IPC_CHANNELS.UNINSTALL_EXTENSION, async (_event, browserInfo: BrowserInfo) => {
+    const success = await uninstallExtension(browserInfo);
+    return { success, error: success ? undefined : 'Extension uninstallation failed' };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.IS_EXTENSION_INSTALLED, async (_event, browserInfo: BrowserInfo) => {
+    const installed = await isExtensionInstalled(browserInfo);
+    return { installed };
   });
 }

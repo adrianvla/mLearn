@@ -112,6 +112,7 @@ export interface FileBridge {
   selectSubtitleFile: () => Promise<string | null>;
   selectBookFolder: () => Promise<string | null>;
   selectPdfFile: () => Promise<string | null>;
+  selectBrowserFile: () => Promise<string | null>;
   getLocalMediaUrl: (filePath: string) => Promise<string | null>;
   getPathForFile: (file: File) => string;
   writeToClipboard: (text: string) => void;
@@ -251,6 +252,8 @@ export interface OverlayBridge {
   onOverlayRequestSync: (callback: () => void) => () => void;
   launchOverlay: () => void;
   onOverlayLaunch: (callback: () => void) => () => void;
+  onOverlayGeometry: (callback: (geometry: import('../types').OverlayGeometry) => void) => () => void;
+  setOverlayIgnoreMouseEvents: (ignore: boolean) => void;
 }
 
 export interface CrossWindowBridge {
@@ -297,9 +300,16 @@ export interface BrowserInfo {
   isInstalled: boolean;
 }
 
+export interface CustomBrowserPath {
+  path: string;
+  type: 'chrome' | 'firefox';
+}
+
 export interface BrowserBridge {
-  detectBrowsers: (customPaths?: string[]) => Promise<BrowserInfo[]>;
-  installExtension: (browser: BrowserInfo) => Promise<{ success: boolean; error?: string }>;
+  detectBrowsers: (customPaths?: CustomBrowserPath[]) => Promise<BrowserInfo[]>;
+  installExtension: (browser: BrowserInfo) => Promise<{ success: boolean; path?: string; error?: string }>;
+  uninstallExtension: (browser: BrowserInfo) => Promise<{ success: boolean; error?: string }>;
+  isExtensionInstalled: (browser: BrowserInfo) => Promise<{ installed: boolean }>;
 }
 
 export interface KVStoreBridge {

@@ -867,6 +867,18 @@ const fileBridge: FileBridge = {
     });
   },
 
+  async selectBrowserFile() {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.onchange = () => {
+        const file = input.files?.[0];
+        resolve(file ? URL.createObjectURL(file) : null);
+      };
+      input.click();
+    });
+  },
+
   async getLocalMediaUrl(filePath: string) {
     // On mobile, blob URLs are the media URLs
     return filePath;
@@ -1433,6 +1445,8 @@ const overlayBridge: OverlayBridge = {
   onOverlayRequestSync: noopCleanup,
   launchOverlay: noop,
   onOverlayLaunch: noopCleanup,
+  onOverlayGeometry: noopCleanup,
+  setOverlayIgnoreMouseEvents: noop,
 };
 
 // ============================================================================
@@ -1515,6 +1529,12 @@ const browserBridge: BrowserBridge = {
   },
   async installExtension() {
     return { success: false, error: 'Browser extensions are not supported on mobile' };
+  },
+  async uninstallExtension() {
+    return { success: false, error: 'Browser extensions are not supported on mobile' };
+  },
+  async isExtensionInstalled() {
+    return { installed: false };
   },
 };
 

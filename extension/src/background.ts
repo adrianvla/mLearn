@@ -1,9 +1,10 @@
-import type { SyncMessage, VideoState, ConnectionStatus, PopupMessage, VideoStateMessage } from './types';
+import type { SyncMessage, VideoState, ConnectionStatus, PopupMessage, VideoStateMessage, VideoViewportGeometry } from './types';
 
 const MLEARN_BASE_URL = 'http://127.0.0.1:7753';
 const PING_INTERVAL_SECONDS = 5;
 const PING_ALARM_NAME = 'mlearn-ping';
 const SYNC_DEBOUNCE_MS = 500;
+const GEOMETRY_DEBOUNCE_MS = 50;
 const MAX_RETRY_DELAY_MS = 30000;
 const INITIAL_RETRY_DELAY_MS = 1000;
 
@@ -61,6 +62,45 @@ function setupMessageListener(): void {
               return true;
             }
 
+      if (message.type === 'GEOMETRY_UPDATE' && 'geometry' in message && message.geometry) {
+        const viewportGeometry = message.geometry as VideoViewportGeometry;
+        const windowId = _sender.tab?.windowId;
+
+        if (windowId !== undefined && chrome.windows) {
+          chrome.windows.get(windowId).then((win) => {
+            const left = win.left ?? viewportGeometry.screenX;
+            // On macOS chrome.windows.get() can return top: 0 incorrectly;
+            // fall back to window.screenY from the content script when that happens
+            const top = (win.top && win.top > 0) ? win.top : viewportGeometry.screenY;
+            const absoluteGeometry = {
+              x: left + viewportGeometry.rectX,
+              y: top + viewportGeometry.rectY,
+              width: viewportGeometry.width,
+              height: viewportGeometry.height,
+            };
+            handleGeometryUpdate(absoluteGeometry);
+            sendResponse({ received: true });
+          }).catch(() => {
+            handleGeometryUpdate({
+              x: viewportGeometry.screenX + viewportGeometry.rectX,
+              y: viewportGeometry.screenY + viewportGeometry.rectY,
+              width: viewportGeometry.width,
+              height: viewportGeometry.height,
+            });
+            sendResponse({ received: true });
+          });
+        } else {
+          handleGeometryUpdate({
+            x: viewportGeometry.rectX,
+            y: viewportGeometry.rectY,
+            width: viewportGeometry.width,
+            height: viewportGeometry.height,
+          });
+          sendResponse({ received: true });
+        }
+        return true;
+      }
+
       if (message.type === 'SYNC_STATE' && message.videoState) {
         handleVideoState(message.videoState, undefined, message.tabId);
         sendResponse({ received: true });
@@ -73,7 +113,9 @@ function setupMessageListener(): void {
       }
 
       if (message.type === 'GET_POPUP_STATE') {
-        sendResponse(buildPopupStateResponse());
+        pingMlearn().then(() => {
+          sendResponse(buildPopupStateResponse());
+        });
         return true;
       }
 
@@ -98,6 +140,8 @@ function setupMessageListener(): void {
 }
 
 let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let geometryDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingGeometry: { x: number; y: number; width: number; height: number } | null = null;
 
 function handleVideoState(state: VideoState, meta?: { url: string; title: string }, _tabId?: number): void {
   lastVideoState = state;
@@ -109,6 +153,48 @@ function handleVideoState(state: VideoState, meta?: { url: string; title: string
   syncDebounceTimer = setTimeout(() => {
     forwardVideoState(state, meta);
   }, SYNC_DEBOUNCE_MS);
+}
+
+function handleGeometryUpdate(geometry: { x: number; y: number; width: number; height: number }): void {
+  pendingGeometry = geometry;
+
+  if (geometryDebounceTimer) {
+    clearTimeout(geometryDebounceTimer);
+  }
+
+  geometryDebounceTimer = setTimeout(() => {
+    if (pendingGeometry) {
+      forwardGeometry(pendingGeometry);
+      pendingGeometry = null;
+    }
+  }, GEOMETRY_DEBOUNCE_MS);
+}
+
+async function forwardGeometry(geometry: { x: number; y: number; width: number; height: number }): Promise<void> {
+  if (status === 'disconnected') {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${MLEARN_BASE_URL}/api/overlay-geometry`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(geometry),
+    });
+
+    if (response.ok) {
+      retryDelay = INITIAL_RETRY_DELAY_MS;
+      if (status !== 'connected') {
+        setConnectionStatus('connected');
+      }
+    } else {
+      handleConnectionError();
+    }
+  } catch (error) {
+    handleConnectionError();
+  }
 }
 
 async function forwardVideoState(state: VideoState, meta?: { url: string; title: string }): Promise<void> {
@@ -155,10 +241,6 @@ function handleConnectionError(): void {
 }
 
 async function pingMlearn(): Promise<void> {
-  if (status === 'connecting') {
-    return;
-  }
-
   try {
     const response = await fetch(`${MLEARN_BASE_URL}/api/ping`, {
       method: 'GET',
@@ -210,6 +292,11 @@ export function cleanupServiceWorker(): void {
     syncDebounceTimer = null;
   }
 
+  if (geometryDebounceTimer) {
+    clearTimeout(geometryDebounceTimer);
+    geometryDebounceTimer = null;
+  }
+
   chrome.alarms.clearAll();
 }
 
@@ -226,3 +313,5 @@ export function sendVideoState(state: VideoState): void {
 export function getLastVideoState(): VideoState | null {
   return lastVideoState;
 }
+
+initServiceWorker();
