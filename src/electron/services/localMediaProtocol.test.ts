@@ -285,7 +285,7 @@ describe('localMediaProtocol', () => {
       const filePath = '/home/user/videos/myvideo.mp4';
       const url = toLocalMediaUrl(filePath);
 
-      expect(url).toBe(`local-media://${encodeURIComponent(filePath)}`);
+      expect(url).toBe('local-media://localhost/home/user/videos/myvideo.mp4');
     });
 
     it('preserves the scheme correctly', async () => {
@@ -301,7 +301,7 @@ describe('localMediaProtocol', () => {
 
       const url = toLocalMediaUrl('C:/Users/user/video.mp4');
 
-      expect(url).toBe('local-media://C%3A%2FUsers%2Fuser%2Fvideo.mp4');
+      expect(url).toBe('local-media://localhost/C%3A/Users/user/video.mp4');
     });
 
     it('handles paths with spaces', async () => {
@@ -310,7 +310,7 @@ describe('localMediaProtocol', () => {
       const filePath = '/home/user/my videos/great video.mp4';
       const url = toLocalMediaUrl(filePath);
 
-      expect(url).toBe(`local-media://${encodeURIComponent(filePath)}`);
+      expect(url).toBe('local-media://localhost/home/user/my%20videos/great%20video.mp4');
     });
   });
 

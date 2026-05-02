@@ -1017,4 +1017,47 @@ describe('useVideoKeyboard', () => {
       expect(removeSpy).toHaveBeenCalledWith('keydown', expect.any(Function));
     });
   });
+
+  it('works globally even when getScope is provided but focus is outside', () => {
+    let video: ReturnType<typeof useVideo>;
+    let dispose: () => void;
+
+    createRoot((d) => {
+      video = useVideo();
+      dispose = d;
+      const el = createMockVideoElement();
+      el.play = vi.fn().mockResolvedValue(undefined);
+      el.pause = vi.fn();
+      video.attachVideo(el);
+      const scope = document.createElement('div');
+      document.body.appendChild(scope);
+      useVideoKeyboard(video, { getScope: () => scope });
+    });
+
+    const toggleSpy = vi.spyOn(video!, 'togglePlay');
+
+    // Dispatch from document.body (outside scope) — should still work
+    document.body.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'Space', bubbles: true })
+    );
+
+    expect(toggleSpy).toHaveBeenCalled();
+    dispose!();
+  });
+
+  it('ignores keydown when focused on contenteditable element', () => {
+    const { video, dispose } = setupKeyboard();
+    const toggleSpy = vi.spyOn(video, 'togglePlay');
+
+    const editable = document.createElement('div');
+    editable.contentEditable = 'true';
+    document.body.appendChild(editable);
+
+    editable.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'Space', bubbles: true })
+    );
+
+    expect(toggleSpy).not.toHaveBeenCalled();
+    dispose();
+  });
 });

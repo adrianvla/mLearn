@@ -50,7 +50,11 @@ import { getLogger } from '@shared/utils/logger';
 const log = getLogger("renderer.video");
 
 /** Convert a filesystem path to a local-media:// URL that the renderer can load */
-const toLocalMediaUrl = (filePath: string): string => `local-media://${encodeURIComponent(filePath)}`;
+const toLocalMediaUrl = (filePath: string): string => {
+  const normalized = filePath.replace(/\\/g, '/');
+  const encoded = normalized.split('/').map(encodeURIComponent).join('/');
+  return `local-media://localhost${encoded.startsWith('/') ? encoded : '/' + encoded}`;
+};
 
 const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
 const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';

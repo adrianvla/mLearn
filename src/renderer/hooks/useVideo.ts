@@ -69,6 +69,7 @@ export function useVideo(options: UseVideoOptions = {}) {
     element.addEventListener('canplay', handleCanPlay);
     element.addEventListener('playing', handlePlaying);
     element.addEventListener('progress', handleProgress);
+    element.addEventListener('error', handleError);
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
   };
@@ -91,6 +92,7 @@ export function useVideo(options: UseVideoOptions = {}) {
     videoRef.removeEventListener('canplay', handleCanPlay);
     videoRef.removeEventListener('playing', handlePlaying);
     videoRef.removeEventListener('progress', handleProgress);
+    videoRef.removeEventListener('error', handleError);
 
     document.removeEventListener('fullscreenchange', handleFullscreenChange);
 
@@ -165,6 +167,12 @@ export function useVideo(options: UseVideoOptions = {}) {
     if (videoRef && !videoRef.paused) {
       setState('isBuffering', false);
     }
+  };
+
+  const handleError = () => {
+    if (!videoRef) return;
+    const err = videoRef.error;
+    log.error('Video element error:', err?.code, err?.message);
   };
 
   // Control methods
@@ -340,19 +348,15 @@ export function useVideo(options: UseVideoOptions = {}) {
 }
 
 // Keyboard shortcuts hook
-export function useVideoKeyboard(video: ReturnType<typeof useVideo>, options: { getScope?: () => HTMLElement | null } = {}) {
+export function useVideoKeyboard(video: ReturnType<typeof useVideo>, _options: { getScope?: () => HTMLElement | null } = {}) {
   const handleKeyDown = (e: KeyboardEvent) => {
-    const scope = options.getScope?.();
-    // If scope is provided, only handle when focus is inside or on the scope
-    if (scope) {
-      const target = e.target as Node;
-      if (target !== scope && !scope.contains(target as Node)) {
-        return;
-      }
-    }
-
-    // Skip if focused on input
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+    // Skip if focused on an interactive text element
+    const target = e.target as HTMLElement;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target.isContentEditable
+    ) {
       return;
     }
 
@@ -402,11 +406,9 @@ export function useVideoKeyboard(video: ReturnType<typeof useVideo>, options: { 
     }
   };
 
-  const scope = options.getScope?.();
-  const target = scope ?? document;
-  target.addEventListener('keydown', handleKeyDown as EventListener);
-  
+  document.addEventListener('keydown', handleKeyDown as EventListener);
+
   onCleanup(() => {
-    target.removeEventListener('keydown', handleKeyDown as EventListener);
+    document.removeEventListener('keydown', handleKeyDown as EventListener);
   });
 }
