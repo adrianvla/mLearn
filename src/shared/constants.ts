@@ -156,6 +156,8 @@ export const IPC_CHANNELS = {
   OVERLAY_LAUNCH: 'overlay-launch',
   OVERLAY_GEOMETRY: 'overlay-geometry',
   OVERLAY_SET_IGNORE_MOUSE_EVENTS: 'overlay-set-ignore-mouse-events',
+  OVERLAY_SUBTITLE_TRACKS: 'overlay-subtitle-tracks',
+  OVERLAY_COMMAND: 'overlay-command',
 
   DETECT_BROWSERS: 'detect-browsers',
   INSTALL_EXTENSION: 'install-extension',

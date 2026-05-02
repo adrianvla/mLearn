@@ -6,7 +6,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayGeometry } from '../shared/types';
+import type { Settings, FlashcardStore, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import { getLogger } from '../shared/utils/logger';
 
@@ -250,6 +250,9 @@ const mLearnIPC = {
   onOverlayGeometry: (callback: (geometry: OverlayGeometry) => void) =>
     ipcOn(IPC_CHANNELS.OVERLAY_GEOMETRY, (_event, geometry) => callback(geometry)),
   setOverlayIgnoreMouseEvents: (ignore: boolean) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_SET_IGNORE_MOUSE_EVENTS, ignore),
+  sendOverlayCommand: (cmd: OverlayCommand) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_COMMAND, cmd),
+  onOverlaySubtitleTracks: (callback: (tracks: OverlaySubtitleTracks) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, (_event, tracks) => callback(tracks)),
 
   // ========== Tethered Updates ==========
   onUpdatePills: (callback: (data: string) => void) =>

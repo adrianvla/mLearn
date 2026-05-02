@@ -50,7 +50,9 @@ export interface VideoPlayerProps {
 
 export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   const { settings } = useSettings();
-  const video = useVideo();
+  const video = useVideo({
+    getFullscreenContainer: () => containerRef ?? null,
+  });
   const subtitles = props.subtitles;
 
   // Cursor visibility with 2s timeout - matches legacy behavior
@@ -123,8 +125,8 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
     props.onTimeUpdate?.(time);
   });
 
-  // Enable keyboard shortcuts
-  useVideoKeyboard(video);
+  // Enable keyboard shortcuts (scoped to player container)
+  useVideoKeyboard(video, { getScope: () => containerRef ?? null });
 
   // Enable touch gestures on mobile
   useVideoTouch(video, () => containerRef);

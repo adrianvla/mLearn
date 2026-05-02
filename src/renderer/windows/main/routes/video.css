@@ -16,74 +16,36 @@
   flex: 1;
   min-height: 0;
 }
-
-.back-button {
+.video-route > .video-nav{
   position: absolute;
-  top: 0.5rem;
-  left: calc(100px + 1rem);
-  z-index: 100;
-  background:var(--bg);
-  color:var(--text-secondary);
-  transition:all var(--transition-slow);
-  backdrop-filter: var(--backdrop-filter);
+  top: var(--spacing-2);
+  left: calc(100px + var(--spacing-2));
+  z-index: var(--z-foreground);
+  display:flex;
+  gap: var(--spacing-2);
 }
-
-.conversation-agent-button {
-  position: absolute;
-  top: 0.5rem;
-  left: calc(100px + 7.5rem);
-  z-index: 100;
+.video-route > .video-nav > button {
+  z-index: var(--z-foreground);
   background: var(--bg);
   color: var(--text-secondary);
   transition: all var(--transition-slow);
   backdrop-filter: var(--backdrop-filter);
 }
-
-.watch-together-room-button {
-  position: absolute;
-  top: 0.5rem;
-  left: calc(100px + 14rem);
-  z-index: 100;
-  background: var(--bg);
-  color: var(--text-secondary);
-  transition: all var(--transition-slow);
-  backdrop-filter: var(--backdrop-filter);
-}
-
-body.hide-cursor .back-button {
+body.hide-cursor .video-route > .video-nav > button {
   opacity: 0;
   pointer-events: none;
 }
 
-body.hide-cursor .conversation-agent-button {
-  opacity: 0;
-  pointer-events: none;
-}
-
-body.hide-cursor .watch-together-room-button {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.back-button:hover {
-  color:var(--text-primary);
-}
-
-.conversation-agent-button:hover {
+.video-route > .video-nav > button:hover {
   color: var(--text-primary);
 }
-
-.watch-together-room-button:hover {
-  color: var(--text-primary);
-}
-
 .drop-zone-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
+  padding: var(--spacing-8);
 }
 
 .drop-zone {
@@ -98,25 +60,30 @@ body.hide-cursor .watch-together-room-button {
 }
 
 .drop-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+  font-size: var(--font-size-5xl);
+  margin-bottom: var(--spacing-4);
 }
 
 .drop-zone h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
-  margin: 0 0 0.5rem;
+  margin: 0 0 var(--spacing-2);
 }
 
 .drop-zone p {
   color: var(--text-secondary);
-  margin: 0 0 1.5rem;
+  margin: 0 0 var(--spacing-6);
 }
 
 .drop-actions {
   display: flex;
-  gap: 1rem;
+  gap: var(--spacing-4);
   justify-content: center;
   flex-wrap: wrap;
+}
+
+/*patch*/
+.video-route .collapsible-sticky-header{
+  margin-top: 0;
 }

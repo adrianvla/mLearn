@@ -26,9 +26,6 @@ export interface TtsMetadata {
   language: string;
 }
 
-/** Monotonically increasing generation counter to detect stale async results */
-let generationId = 0;
-
 export function useFlashcardTts() {
   const { t } = useLocalization();
   const [state, setState] = createSignal<FlashcardTtsState>({
@@ -39,6 +36,8 @@ export function useFlashcardTts() {
   const [metadata, setMetadata] = createSignal<TtsMetadata | null>(null);
 
   let currentAudio: HTMLAudioElement | null = null;
+  /** Per-instance generation counter to detect stale async results */
+  let generationId = 0;
 
   /** Stop any currently playing audio and cancel pending generation */
   const stop = () => {
@@ -152,6 +151,8 @@ export function useFlashcardTts() {
       // Fallback: system TTS (works on all platforms)
       if (myGenId === generationId) {
         bridge.speech.ttsSpeak(cleanText, language);
+        // System TTS is fire-and-forget; update state optimistically
+        setState({ isPlaying: false, isGenerating: false, playingField: null });
       }
     } catch (e) {
       log.error("error", e);

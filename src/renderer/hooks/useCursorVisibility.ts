@@ -4,7 +4,7 @@
  * Matches legacy app behavior: fade out after 2s of no mouse movement
  */
 
-import { createSignal, onCleanup, onMount } from 'solid-js';
+import { createSignal, onCleanup, onMount, createEffect } from 'solid-js';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.hooks.useCursorVisibility");
@@ -29,10 +29,16 @@ export function useCursorVisibility(options: CursorVisibilityOptions = {}) {
   } = options;
 
   const [isVisible, setIsVisible] = createSignal(true);
+  const [isEnabled, setIsEnabled] = createSignal(enabled);
   let hideTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  // Keep signal in sync with prop changes
+  createEffect(() => {
+    setIsEnabled(enabled);
+  });
+
   const showCursor = () => {
-    if (!enabled) return;
+    if (!isEnabled()) return;
 
     // Clear any pending hide timeout
     if (hideTimeout) {
@@ -58,7 +64,7 @@ export function useCursorVisibility(options: CursorVisibilityOptions = {}) {
 
     // Schedule hide
     hideTimeout = setTimeout(() => {
-      if (!enabled) return;
+      if (!isEnabled()) return;
       setIsVisible(false);
       if (useBodyClass) {
         document.body.classList.add('hide-cursor');
@@ -98,8 +104,17 @@ export function useCursorVisibility(options: CursorVisibilityOptions = {}) {
     }
   };
 
+  // React to enabled changes
+  createEffect(() => {
+    if (!isEnabled()) {
+      forceShow();
+    } else {
+      showCursor();
+    }
+  });
+
   onMount(() => {
-    if (!enabled) return;
+    if (!isEnabled()) return;
 
     const targetEl = target || document;
     targetEl.addEventListener('mousemove', showCursor);

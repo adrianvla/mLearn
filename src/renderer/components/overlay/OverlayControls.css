@@ -1,3 +1,8 @@
+/**
+ * OverlayControls Component Styles
+ * Styled to match VideoControls for a consistent player experience.
+ */
+
 .overlay-controls-container {
   position: absolute;
   bottom: 0;
@@ -5,12 +10,22 @@
   right: 0;
   z-index: var(--z-overlay);
   pointer-events: none;
+  /* Hardcoded dark-theme contrast values (same as VideoControls) */
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: rgba(255, 255, 255, 0.4);
+  --bg: rgba(130, 130, 130, 0.2);
+  --bg-intense: rgba(255, 255, 255, 0.15);
+  --border-color: rgba(255, 255, 255, 0.15);
+  --border-color-intense: rgba(255, 255, 255, 0.25);
+  --backdrop-filter: blur(20px) saturate(2) brightness(0.3);
 }
 
 .overlay-controls-container.interactive {
   pointer-events: auto;
 }
 
+/* Trigger strip — invisible hot zone that reveals the bar */
 .overlay-controls-trigger {
   position: absolute;
   bottom: 0;
@@ -21,22 +36,13 @@
   z-index: 1;
 }
 
+/* The actual control bar */
 .overlay-controls-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 40px;
-  padding: 0 var(--spacing-3);
-  background: var(--overlay-controls-bg);
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-sm);
-  color: var(--overlay-controls-text);
-  user-select: none;
-  -webkit-app-region: drag;
   opacity: 0;
   transform: translateY(100%);
-  transition: opacity var(--transition-normal), transform var(--transition-normal);
+  transition: opacity var(--transition-slow), transform var(--transition-slow);
   pointer-events: none;
+  -webkit-app-region: drag;
 }
 
 .overlay-controls-bar.visible {
@@ -45,12 +51,48 @@
   pointer-events: auto;
 }
 
+.overlay-controls-bar .panel {
+  background: var(--bg);
+  backdrop-filter: var(--backdrop-filter);
+}
+
+/* Progress bar */
+.overlay-progress-bar {
+  height: 6px;
+  background-color: var(--bg);
+  cursor: pointer;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  transition: height var(--transition-slow);
+}
+
+.overlay-progress-bar:hover {
+  height: 12px;
+}
+
+.overlay-progress-fill {
+  background: var(--text-secondary);
+  transition: background var(--transition-slow), border-radius var(--transition-slow);
+}
+
+.overlay-progress-fill.dragging {
+  background: var(--text-primary);
+}
+
+/* Inner controls row */
+.overlay-controls-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.5rem;
+}
+
+/* Left / Right / Center sections */
 .overlay-controls-left,
-.overlay-controls-center,
 .overlay-controls-right {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
+  gap: 0.25rem;
   -webkit-app-region: no-drag;
 }
 
@@ -58,17 +100,80 @@
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
 }
 
-.overlay-status-text {
-  opacity: 0.85;
+/* Volume control */
+.overlay-volume-control {
+  display: flex;
+  align-items: center;
 }
 
-.overlay-hint {
-  opacity: 0.6;
+.overlay-volume-slider {
+  width: 80px;
+  accent-color: var(--color-primary);
+}
+
+/* Time display */
+.overlay-time-display {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-left: 0.5rem;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+/* Buffering indicator */
+.overlay-buffering-indicator {
+  opacity: 0.7;
   font-style: italic;
+  margin-left: var(--spacing-1);
 }
 
+/* Playback speed select */
+.overlay-speed-select {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--font-size-xs);
+  min-width: 3.5rem;
+}
+
+.overlay-speed-select:hover {
+  color: var(--text-primary);
+}
+
+.overlay-speed-select:focus {
+  outline: none;
+}
+
+.overlay-speed-select option {
+  background: var(--bg-intense);
+  color: var(--text-primary);
+}
+
+/* Subtitle offset control */
+.overlay-offset-control {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.overlay-offset-value {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+  min-width: 48px;
+  text-align: center;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+/* Sync indicator */
 .overlay-sync-indicator {
   display: inline-block;
   width: 8px;
@@ -86,16 +191,11 @@
   background-color: var(--color-error);
 }
 
-.overlay-offset-control {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
+/* Inactive button state */
+.overlay-controls-bar .btn-icon.btn-ghost.inactive {
+  color: var(--text-secondary);
 }
 
-.overlay-offset-value {
-  font-size: var(--font-size-xs);
-  font-variant-numeric: tabular-nums;
-  opacity: 0.9;
-  min-width: 48px;
-  text-align: center;
+.overlay-controls-bar .btn-icon.btn-ghost.inactive:hover:not(:disabled) {
+  color: var(--text-primary);
 }

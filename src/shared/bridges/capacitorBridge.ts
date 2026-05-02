@@ -1447,6 +1447,8 @@ const overlayBridge: OverlayBridge = {
   onOverlayLaunch: noopCleanup,
   onOverlayGeometry: noopCleanup,
   setOverlayIgnoreMouseEvents: noop,
+  sendOverlayCommand: noop,
+  onOverlaySubtitleTracks: noopCleanup,
 };
 
 // ============================================================================

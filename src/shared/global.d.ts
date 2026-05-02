@@ -139,6 +139,8 @@ sendLogRecord: (record: unknown) => void;
   onOverlayLaunch: (callback: () => void) => () => void;
   onOverlayGeometry: (callback: (geometry: import('./types').OverlayGeometry) => void) => () => void;
   setOverlayIgnoreMouseEvents: (ignore: boolean) => void;
+  sendOverlayCommand: (cmd: import('./types').OverlayCommand) => void;
+  onOverlaySubtitleTracks: (callback: (tracks: import('./types').OverlaySubtitleTracks) => void) => () => void;
 
   // Pill/Word Updates (cross-window sync)
   onUpdatePills: (callback: (data: unknown) => void) => () => void;

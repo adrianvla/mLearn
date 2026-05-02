@@ -17,6 +17,10 @@ export interface OverlayVideoState {
   isPlaying: boolean;
   duration: number;
   playbackRate: number;
+  volume?: number;
+  muted?: boolean;
+  isWaiting?: boolean;
+  isFullscreen?: boolean;
   url?: string;
   title?: string;
 }
@@ -26,6 +30,20 @@ export interface OverlayGeometry {
   y: number;
   width: number;
   height: number;
+  isFullscreen?: boolean;
+}
+
+export interface OverlayCommand {
+  command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume';
+  time?: number;
+  rate?: number;
+  volume?: number;
+}
+
+export interface OverlaySubtitleTracks {
+  tracks: Array<{ kind: string; src: string; srclang: string; label: string }>;
+  textTracks: Array<{ language: string; text: string }>;
+  url: string;
 }
 
 // ============================================================================

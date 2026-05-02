@@ -94,6 +94,9 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   const canControl = createMemo(() => mode() === 'local' || mode() === 'room-owner');
   const isRoomMode = createMemo(() => mode() === 'room-owner' || mode() === 'room-viewer');
 
+  // Object URL tracking for cleanup
+  let receivedObjectUrl: string | null = null;
+
   // ---------------------------------------------------------------------------
   // IPC listeners — registered once and cleaned up on unmount
   // ---------------------------------------------------------------------------
@@ -127,6 +130,12 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     cleanups.length = 0;
 
     releaseRoomSession(activeMode, session, accessToken, 'during cleanup');
+
+    // Revoke any lingering object URLs
+    if (receivedObjectUrl) {
+      URL.revokeObjectURL(receivedObjectUrl);
+      receivedObjectUrl = null;
+    }
   });
 
   // ---------------------------------------------------------------------------
@@ -183,19 +192,19 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
           return;
         }
 
-        suppressEvents = true;
-        if (Math.abs(video.currentTime - message.currentTime) > 0.75) {
-          video.currentTime = message.currentTime;
-        }
-        if (Math.abs(video.playbackRate - message.playbackRate) > 0.01) {
-          video.playbackRate = message.playbackRate;
-        }
-        if (message.paused) {
-          video.pause();
-          suppressEvents = false;
-        } else {
-          video.play().finally(() => { suppressEvents = false; });
-        }
+        runSuppressed(() => {
+          if (Math.abs(video.currentTime - message.currentTime) > 0.75) {
+            video.currentTime = message.currentTime;
+          }
+          if (Math.abs(video.playbackRate - message.playbackRate) > 0.01) {
+            video.playbackRate = message.playbackRate;
+          }
+          if (message.paused) {
+            video.pause();
+          } else {
+            void video.play().catch(() => {});
+          }
+        });
         break;
       }
 
@@ -206,9 +215,10 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         }
         const video = options.getVideo();
         if (!video) return;
-        suppressEvents = true;
-        if (message.time !== undefined) video.currentTime = message.time;
-        video.play().finally(() => { suppressEvents = false; });
+        runSuppressed(() => {
+          if (message.time !== undefined) video.currentTime = message.time;
+          return video.play().catch(() => {});
+        });
         break;
       }
 
@@ -219,10 +229,10 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         }
         const video = options.getVideo();
         if (!video) return;
-        suppressEvents = true;
-        if (message.time !== undefined) video.currentTime = message.time;
-        video.pause();
-        suppressEvents = false;
+        runSuppressed(() => {
+          if (message.time !== undefined) video.currentTime = message.time;
+          video.pause();
+        });
         break;
       }
 
@@ -233,9 +243,9 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         }
         const video = options.getVideo();
         if (!video) return;
-        suppressEvents = true;
-        if (message.time !== undefined) video.currentTime = message.time;
-        suppressEvents = false;
+        runSuppressed(() => {
+          if (message.time !== undefined) video.currentTime = message.time;
+        });
         break;
       }
 
@@ -298,7 +308,14 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       onReceiveProgress: (progress) => setMediaReceiveProgress(progress),
       onReceiveComplete: (file, meta) => {
         setIsReceivingMedia(false);
+        // Clean up previous object URL before creating a new one
+        if (receivedObjectUrl) {
+          URL.revokeObjectURL(receivedObjectUrl);
+        }
+        const url = URL.createObjectURL(file);
+        receivedObjectUrl = url;
         setMediaReceiveResult({ file, meta });
+        setReceivedMediaUrl({ url, title: meta.fileName });
       },
       onReceiveError: (error) => {
         log.error('[WatchTogether] Media receive error:', error);
@@ -311,6 +328,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     if (!peerServiceRef || mode() !== 'room-owner') return;
 
     const video = options.isOverlay ? null : options.getVideo();
+    const roomStateValue = roomState();
     const payload: PeerDataMessage = {
       type: 'sync-state',
       mediaUrl: options.getVideoSrc(),
@@ -318,8 +336,8 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       currentTime: options.isOverlay
         ? (options.getCurrentTime?.() ?? 0)
         : (video?.currentTime ?? 0),
-      paused: video?.paused ?? true,
-      playbackRate: video?.playbackRate ?? 1,
+      paused: video ? video.paused : (roomStateValue?.paused ?? true),
+      playbackRate: video?.playbackRate ?? roomStateValue?.playbackRate ?? 1,
       subtitlesHtml: latestSubtitleState?.html ?? null,
       subtitleSize: latestSubtitleState?.size ?? null,
       subtitleWeight: latestSubtitleState?.weight ?? null,
@@ -390,7 +408,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     setPendingMediaOffer(null);
     setMediaSendComplete(false);
     setMediaReceiveResult(null);
-    setReceivedMediaUrl(null);
+    // Don't clear receivedMediaUrl here; let the consumer decide when to unload
   }
 
   function releaseRoomSession(
@@ -455,12 +473,16 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     else activate();
   }
 
-  async function runSuppressed(task: () => void | Promise<void>): Promise<void> {
-    suppressEvents = true;
-    try {
-      await task();
-    } finally {
-      suppressEvents = false;
+  // Reentrant suppressEvents using a counter instead of a boolean
+  let suppressCount = 0;
+
+  function runSuppressed(task: () => void | Promise<void>): void {
+    suppressCount++;
+    const result = task();
+    if (result && typeof result.then === 'function') {
+      result.finally(() => { suppressCount--; });
+    } else {
+      suppressCount--;
     }
   }
 
@@ -564,14 +586,16 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   }
 
   function clearReceivedMediaUrl(): void {
+    if (receivedObjectUrl) {
+      URL.revokeObjectURL(receivedObjectUrl);
+      receivedObjectUrl = null;
+    }
     setReceivedMediaUrl(null);
   }
 
   // ---------------------------------------------------------------------------
   // Incoming — apply remote commands to the local video element (local mode)
   // ---------------------------------------------------------------------------
-
-  let suppressEvents = false;
 
   function handleIncomingMessage(raw: string): void {
     let msg: WatchTogetherMessage;
@@ -641,39 +665,44 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     switch (msg.action) {
       case 'play':
         if (video) {
-          suppressEvents = true;
-          if (msg.time !== undefined) video.currentTime = msg.time;
-          video.play().finally(() => { suppressEvents = false; });
+          runSuppressed(() => {
+            if (msg.time !== undefined) video.currentTime = msg.time;
+            return video.play().catch(() => {});
+          });
         }
         break;
 
       case 'pause':
         if (video) {
-          suppressEvents = true;
-          if (msg.time !== undefined) video.currentTime = msg.time;
-          video.pause();
-          suppressEvents = false;
+          runSuppressed(() => {
+            if (msg.time !== undefined) video.currentTime = msg.time;
+            video.pause();
+          });
         }
         break;
 
-      case 'sync':
-        if (video && msg.time !== undefined) {
-          suppressEvents = true;
-          video.currentTime = msg.time;
-          suppressEvents = false;
+      case 'sync': {
+        const syncTime = msg.time;
+        if (video && syncTime !== undefined) {
+          runSuppressed(() => {
+            video.currentTime = syncTime;
+          });
         }
         break;
+      }
 
-      case 'request-response':
-        if (video && msg.time !== undefined) {
-          suppressEvents = true;
-          video.currentTime = msg.time;
-          if (msg.video_playing) {
-            video.play().finally(() => { suppressEvents = false; });
-          } else {
-            suppressEvents = false;
-          }
+      case 'request-response': {
+        const reqTime = msg.time;
+        if (video && reqTime !== undefined) {
+          runSuppressed(() => {
+            video.currentTime = reqTime;
+            if (msg.video_playing) {
+              void video.play().catch(() => {});
+            }
+          });
         }
+        break;
+      }
         break;
 
       default:
@@ -707,7 +736,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     sendSync,
     sendSubtitles,
     runSuppressed,
-    get isSuppressed() { return suppressEvents; },
+    get isSuppressed() { return suppressCount > 0; },
 
     // Media distribution
     isSendingMedia,

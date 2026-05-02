@@ -65,7 +65,7 @@ async function getFFmpeg(): Promise<FFmpeg> {
 async function fetchVideoData(videoUrl: string): Promise<Uint8Array | null> {
   log.info('[VideoClip] fetchVideoData: url=', videoUrl);
   if (videoUrl.startsWith(LOCAL_MEDIA_SCHEME)) {
-    let filePath = videoUrl.slice(LOCAL_MEDIA_SCHEME.length);
+    let filePath = decodeURIComponent(videoUrl.slice(LOCAL_MEDIA_SCHEME.length));
     log.info('[VideoClip] fetchVideoData: detected local-media scheme, raw path=', filePath);
     if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
       filePath = filePath.slice(1);

@@ -492,7 +492,8 @@ export function useOCR() {
     }
 
     ctx.drawImage(video, 0, 0);
-    return recognizeCanvas(canvas);
+    // Use inputToBlobForOCR to respect max area limits (prevents 4K crash)
+    return recognize(canvas);
   };
 
   // Capture screenshot and perform OCR (Electron only)

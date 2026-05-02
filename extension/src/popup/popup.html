@@ -25,9 +25,18 @@
         <span class="state-label">State</span>
         <span class="state-value" id="playValue">No video</span>
       </div>
+      <div class="state-row">
+        <span class="state-label">Volume</span>
+        <span class="state-value" id="volumeValue">--</span>
+      </div>
     </section>
 
     <section class="actions">
+      <div class="playback-controls">
+        <button class="btn btn-secondary" id="seekBackBtn" type="button">-5s</button>
+        <button class="btn btn-primary" id="playPauseBtn" type="button" disabled>Play</button>
+        <button class="btn btn-secondary" id="seekForwardBtn" type="button">+5s</button>
+      </div>
       <button class="btn btn-primary" id="requestSyncBtn" type="button">Request Sync</button>
       <button class="btn btn-secondary" id="openOverlayBtn" type="button">Open Overlay</button>
     </section>

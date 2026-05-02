@@ -11,6 +11,7 @@ import type { WindowSize, OpenWindowPayload } from '../../shared/types';
 import { isMac, isLinux, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
 import { getCurrentLocaleData } from './localization';
+import { queueCommand } from './webServer';
 
 // Window references
 let mainWindow: BrowserWindow | null = null;
@@ -713,5 +714,10 @@ export function setupWindowIPC(): void {
   // Set overlay ignore mouse events (click-through)
   ipcMain.on(IPC_CHANNELS.OVERLAY_SET_IGNORE_MOUSE_EVENTS, (_event, ignore: boolean) => {
     setOverlayIgnoreMouseEvents(ignore);
+  });
+
+  // Queue overlay commands to be forwarded to the browser extension
+  ipcMain.on(IPC_CHANNELS.OVERLAY_COMMAND, (_event, cmd: { command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume'; time?: number; rate?: number; volume?: number }) => {
+    queueCommand(cmd);
   });
 }

@@ -50,7 +50,7 @@ import { getLogger } from '@shared/utils/logger';
 const log = getLogger("renderer.video");
 
 /** Convert a filesystem path to a local-media:// URL that the renderer can load */
-const toLocalMediaUrl = (filePath: string): string => `local-media://${filePath}`;
+const toLocalMediaUrl = (filePath: string): string => `local-media://${encodeURIComponent(filePath)}`;
 
 const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
 const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
@@ -287,7 +287,9 @@ export const VideoRoute: Component = () => {
   };
 
   const loadVideo = (path: string, name: string) => {
-    setVideoSrc(toLocalMediaUrl(path));
+    const url = toLocalMediaUrl(path);
+    log.info('[VideoRoute] loadVideo: path=', path, 'url=', url);
+    setVideoSrc(url);
     setCurrentVideoTime(0);
     setCurrentVideoDuration(null);
     setCurrentVideoPath(path);
@@ -926,6 +928,7 @@ export const VideoRoute: Component = () => {
     );
 
     if (droppedMedia.video) {
+      log.info('[VideoRoute] handleDrop: video filePath=', droppedMedia.video.filePath, 'fileName=', droppedMedia.video.fileName);
       if (droppedMedia.video.filePath) {
         loadVideo(droppedMedia.video.filePath, droppedMedia.video.fileName);
         await saveVideoToRecentItems(
@@ -934,7 +937,9 @@ export const VideoRoute: Component = () => {
           droppedMedia.subtitle?.filePath,
         );
       } else {
-        setVideoSrc(URL.createObjectURL(droppedMedia.video.file));
+        const blobUrl = URL.createObjectURL(droppedMedia.video.file);
+        log.info('[VideoRoute] handleDrop: using blobUrl=', blobUrl);
+        setVideoSrc(blobUrl);
         setCurrentVideoTime(0);
         setCurrentVideoDuration(null);
         setCurrentVideoPath('');
@@ -1094,36 +1099,38 @@ export const VideoRoute: Component = () => {
       <WindowDragRegion />
 
       {/* Back button */}
-      <NavBtn class="back-button" onClick={goHome} title={t('mlearn.Video.Tooltip.GoHome')}>
-        {t('mlearn.Video.UI.GoHome')}
-      </NavBtn>
-
-      <NavBtn
-        class="conversation-agent-button"
-        onClick={openConversationAgent}
-        title={t('mlearn.Video.Tooltip.OpenConversationAgent')}
-      >
-        {t('mlearn.Video.UI.OpenConversationAgent')}
-      </NavBtn>
-
-      <Show when={watchTogether.isRoomMode()}>
-        <NavBtn
-          class="watch-together-room-button"
-          onClick={openWatchTogetherCodeModal}
-          title={t('mlearn.WatchTogether.Code.OpenRoomPanel')}
-        >
-          {t('mlearn.WatchTogether.Code.OpenRoomPanel')}
+      <div class="video-nav">
+        <NavBtn class="back-button" onClick={goHome} title={t('mlearn.Video.Tooltip.GoHome')}>
+          {t('mlearn.Video.UI.GoHome')}
         </NavBtn>
-        <Show when={watchTogether.canControl()}>
+
+        <NavBtn
+          class="conversation-agent-button"
+          onClick={openConversationAgent}
+          title={t('mlearn.Video.Tooltip.OpenConversationAgent')}
+        >
+          {t('mlearn.Video.UI.OpenConversationAgent')}
+        </NavBtn>
+
+        <Show when={watchTogether.isRoomMode()}>
           <NavBtn
-            class="watch-together-distribute-button"
-            onClick={() => setShowMediaDistributionModal(true)}
-            title={t('mlearn.WatchTogether.Media.DistributeTitle')}
+            class="watch-together-room-button"
+            onClick={openWatchTogetherCodeModal}
+            title={t('mlearn.WatchTogether.Code.OpenRoomPanel')}
           >
-            {t('mlearn.WatchTogether.Media.DistributeAction')}
+            {t('mlearn.WatchTogether.Code.OpenRoomPanel')}
           </NavBtn>
+          <Show when={watchTogether.canControl()}>
+            <NavBtn
+              class="watch-together-distribute-button"
+              onClick={() => setShowMediaDistributionModal(true)}
+              title={t('mlearn.WatchTogether.Media.DistributeTitle')}
+            >
+              {t('mlearn.WatchTogether.Media.DistributeAction')}
+            </NavBtn>
+          </Show>
         </Show>
-      </Show>
+      </div>
 
       <Show
         when={!showDropZone()}

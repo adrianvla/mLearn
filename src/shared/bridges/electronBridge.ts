@@ -245,6 +245,8 @@ const overlayBridge: OverlayBridge = {
   onOverlayLaunch: (cb) => getIPC().onOverlayLaunch(cb),
   onOverlayGeometry: (cb) => getIPC().onOverlayGeometry(cb),
   setOverlayIgnoreMouseEvents: (ignore) => getIPC().setOverlayIgnoreMouseEvents(ignore),
+  sendOverlayCommand: (cmd) => getIPC().sendOverlayCommand(cmd),
+  onOverlaySubtitleTracks: (cb) => getIPC().onOverlaySubtitleTracks(cb),
 };
 
 const crossWindowBridge: CrossWindowBridge = {

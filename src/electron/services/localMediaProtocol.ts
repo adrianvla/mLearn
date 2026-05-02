@@ -25,7 +25,7 @@ const MIME_TYPES: Record<string, string> = {
   '.webm': 'video/webm',
   '.mkv': 'video/x-matroska',
   '.avi': 'video/x-msvideo',
-  '.mov': 'video/quicktime',
+  '.mov': 'video/mp4',
   '.m4v': 'video/mp4',
   '.ogv': 'video/ogg',
   '.mp3': 'audio/mpeg',
@@ -254,5 +254,5 @@ export function setupPluginUiProtocol(): void {
  * Convert a filesystem path to a `local-media://` URL for use in the renderer.
  */
 export function toLocalMediaUrl(filePath: string): string {
-  return `${SCHEME}://${filePath}`;
+  return `${SCHEME}://${encodeURIComponent(filePath)}`;
 }

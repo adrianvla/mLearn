@@ -21,6 +21,7 @@
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --radius-full: 9999px;
 
   --spacing-1: 0.25rem;
   --spacing-2: 0.5rem;
@@ -132,6 +133,15 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
+}
+
+.playback-controls {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.playback-controls .btn {
+  flex: 1;
 }
 
 .btn {

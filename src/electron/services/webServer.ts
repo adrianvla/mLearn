@@ -33,6 +33,43 @@ let wss: WebSocketServer | null = null;
 // Connected WebSocket clients
 const connectedClients: Set<WebSocket> = new Set();
 
+// Command queue for bidirectional extension sync (overlay -> extension)
+interface PendingCommand {
+  id: string;
+  command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume';
+  time?: number;
+  rate?: number;
+  volume?: number;
+  timestamp: number;
+}
+const pendingCommands: PendingCommand[] = [];
+const MAX_PENDING_COMMANDS = 20;
+const COMMAND_TTL_MS = 30000;
+
+export function queueCommand(cmd: Omit<PendingCommand, 'id' | 'timestamp'>): void {
+  const command: PendingCommand = {
+    ...cmd,
+    id: crypto.randomBytes(8).toString('hex'),
+    timestamp: Date.now(),
+  };
+  pendingCommands.push(command);
+  // Prune old commands
+  while (pendingCommands.length > MAX_PENDING_COMMANDS) {
+    pendingCommands.shift();
+  }
+  // Also prune expired commands
+  const cutoff = Date.now() - COMMAND_TTL_MS;
+  while (pendingCommands.length > 0 && pendingCommands[0].timestamp < cutoff) {
+    pendingCommands.shift();
+  }
+}
+
+function getAndClearPendingCommands(): PendingCommand[] {
+  const cmds = [...pendingCommands];
+  pendingCommands.length = 0;
+  return cmds;
+}
+
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -366,6 +403,54 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     return;
   }
 
+  // API: Overlay subtitles (POST with JSON body)
+  if (pathname === '/api/overlay-subtitles') {
+    if (req.method !== 'POST') {
+      res.writeHead(405, corsHeaders);
+      res.end('Method not allowed');
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(body);
+        const overlay = getOverlayWindow();
+        if (overlay && !overlay.isDestroyed()) {
+          overlay.webContents.send(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, parsed);
+        }
+        sendJsonResponse(res, { status: 'ok' });
+      } catch (e) {
+        log.error('Error parsing overlay-subtitles body:', e);
+        sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
+      }
+    });
+    return;
+  }
+
+  // API: Overlay command (POST from overlay -> forwarded to extension)
+  if (pathname === '/api/overlay-command' && req.method === 'POST') {
+    const remoteAddress = req.socket.remoteAddress;
+    const isLocalhost = remoteAddress === '127.0.0.1' || remoteAddress === '::ffff:127.0.0.1' || remoteAddress === '::1';
+    if (!isLocalhost) {
+      sendJsonResponse(res, { error: 'Forbidden' }, 403);
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(body);
+        queueCommand(parsed);
+        sendJsonResponse(res, { status: 'ok' });
+      } catch (e) {
+        log.error('Error parsing overlay-command body:', e);
+        sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
+      }
+    });
+    return;
+  }
+
   // Proxy for external URLs (CORS bypass)
   if (pathname === '/' && query.url) {
     let targetUrl = query.url;
@@ -425,6 +510,12 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
   // API: Ping / health check
   if (pathname === '/api/ping') {
     sendJsonResponse(res, { status: 'ok' });
+    return;
+  }
+
+  // API: Command poll (for extension background script)
+  if (pathname === '/api/command-poll') {
+    sendJsonResponse(res, { status: 'ok', commands: getAndClearPendingCommands() });
     return;
   }
 

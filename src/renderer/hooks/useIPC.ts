@@ -3,7 +3,7 @@
  * Type-safe wrapper around Electron IPC communication
  */
 
-import { createSignal, createEffect, onCleanup } from 'solid-js';
+import { createSignal, createEffect, onCleanup, on } from 'solid-js';
 import type { Settings, Flashcard, WindowType } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -66,14 +66,15 @@ export function useIsElectron(): boolean {
 // Check if running in tethered mode
 export function useIsTethered(): boolean {
   const api = getAPI();
-  return api?.isTethered ?? true;
+  // Default to false when no API is present (plain browser)
+  return api?.isTethered ?? false;
 }
 
 // Generic IPC hook for calling API methods
 export function useIPC() {
   const api = getAPI();
   const isElectron = api !== null;
-  const isTethered = api?.isTethered ?? true;
+  const isTethered = api?.isTethered ?? false;
 
   // Settings
   const getSettings = async (): Promise<Settings | null> => {
@@ -166,7 +167,7 @@ export function useIPC() {
     filters?: Array<{ name: string; extensions: string[] }>;
   }): Promise<string | null> => {
     if (!api) {
-      // In tethered mode, use input element
+      // In tethered/browser mode, use input element
       return new Promise((resolve) => {
         const input = document.createElement('input');
         input.type = 'file';
@@ -176,7 +177,14 @@ export function useIPC() {
             .join(',');
         }
         input.onchange = () => {
-          resolve(input.files?.[0]?.name || null);
+          const file = input.files?.[0];
+          if (!file) {
+            resolve(null);
+            return;
+          }
+          // In browser mode we can only get the filename, not a full path.
+          // Return a pseudo-path so consumers can still detect that a file was selected.
+          resolve(file.name);
         };
         input.click();
       });
@@ -272,16 +280,22 @@ export function useIPCEvent<T>(
 ) {
   const api = getAPI();
 
-  createEffect(() => {
-    if (!api) return;
+  // Use `on` to explicitly track channel/handler as dependencies
+  createEffect(
+    on(
+      () => [channel, handler] as [string, (data: T) => void],
+      ([currentChannel, currentHandler]) => {
+        if (!api) return;
 
-    const callback = (_event: unknown, data: T) => handler(data);
-    api.on(channel, callback as (...args: unknown[]) => void);
+        const callback = (_event: unknown, data: T) => currentHandler(data);
+        api.on(currentChannel, callback as (...args: unknown[]) => void);
 
-    onCleanup(() => {
-      api.off(channel, callback as (...args: unknown[]) => void);
-    });
-  });
+        onCleanup(() => {
+          api.off(currentChannel, callback as (...args: unknown[]) => void);
+        });
+      }
+    )
+  );
 }
 
 // Hook for backend status with auto-refresh

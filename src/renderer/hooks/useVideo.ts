@@ -19,10 +19,17 @@ export interface VideoState {
   isLoaded: boolean;
   isPiP: boolean;
   isFullscreen: boolean;
+  isBuffering: boolean;
 }
 
-export function useVideo() {
+export interface UseVideoOptions {
+  /** Container element to use for fullscreen (defaults to video parent) */
+  getFullscreenContainer?: () => HTMLElement | null;
+}
+
+export function useVideo(options: UseVideoOptions = {}) {
   let videoRef: HTMLVideoElement | null = null;
+  let objectUrlRef: string | null = null;
 
   const [state, setState] = createStore<VideoState>({
     currentTime: 0,
@@ -34,6 +41,7 @@ export function useVideo() {
     isLoaded: false,
     isPiP: false,
     isFullscreen: false,
+    isBuffering: false,
   });
 
   const [videoSrc, setVideoSrc] = createSignal<string>('');
@@ -55,6 +63,12 @@ export function useVideo() {
     element.addEventListener('loadeddata', handleLoaded);
     element.addEventListener('enterpictureinpicture', handlePiPEnter);
     element.addEventListener('leavepictureinpicture', handlePiPLeave);
+    element.addEventListener('ratechange', handleRateChange);
+    element.addEventListener('waiting', handleWaiting);
+    element.addEventListener('stalled', handleStalled);
+    element.addEventListener('canplay', handleCanPlay);
+    element.addEventListener('playing', handlePlaying);
+    element.addEventListener('progress', handleProgress);
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
   };
@@ -71,6 +85,12 @@ export function useVideo() {
     videoRef.removeEventListener('loadeddata', handleLoaded);
     videoRef.removeEventListener('enterpictureinpicture', handlePiPEnter);
     videoRef.removeEventListener('leavepictureinpicture', handlePiPLeave);
+    videoRef.removeEventListener('ratechange', handleRateChange);
+    videoRef.removeEventListener('waiting', handleWaiting);
+    videoRef.removeEventListener('stalled', handleStalled);
+    videoRef.removeEventListener('canplay', handleCanPlay);
+    videoRef.removeEventListener('playing', handlePlaying);
+    videoRef.removeEventListener('progress', handleProgress);
 
     document.removeEventListener('fullscreenchange', handleFullscreenChange);
 
@@ -117,6 +137,34 @@ export function useVideo() {
 
   const handleFullscreenChange = () => {
     setState('isFullscreen', !!document.fullscreenElement);
+  };
+
+  const handleRateChange = () => {
+    if (!videoRef) return;
+    setState('playbackRate', videoRef!.playbackRate);
+  };
+
+  const handleWaiting = () => {
+    setState('isBuffering', true);
+  };
+
+  const handleStalled = () => {
+    setState('isBuffering', true);
+  };
+
+  const handleCanPlay = () => {
+    setState('isBuffering', false);
+  };
+
+  const handlePlaying = () => {
+    setState('isBuffering', false);
+  };
+
+  const handleProgress = () => {
+    // Progress event fires as data is downloaded; if we're playing, we're not buffering
+    if (videoRef && !videoRef.paused) {
+      setState('isBuffering', false);
+    }
   };
 
   // Control methods
@@ -186,8 +234,11 @@ export function useVideo() {
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
-      } else if (videoRef?.parentElement) {
-        await videoRef.parentElement.requestFullscreen();
+      } else {
+        const container = options.getFullscreenContainer?.() ?? videoRef?.parentElement;
+        if (container) {
+          await container.requestFullscreen();
+        }
       }
     } catch (e) {
       log.error('Fullscreen toggle failed:', e);
@@ -195,21 +246,28 @@ export function useVideo() {
   };
 
   const loadVideo = (src: string) => {
+    // Revoke previous object URL if any
+    if (objectUrlRef) {
+      URL.revokeObjectURL(objectUrlRef);
+      objectUrlRef = null;
+    }
+
+    log.info('useVideo.loadVideo: src=', src);
     setVideoSrc(src);
-    setState({ isLoaded: false, currentTime: 0, duration: 0 });
+    setState({ isLoaded: false, currentTime: 0, duration: 0, isBuffering: false });
 
     if (videoRef) {
       videoRef.src = src;
       videoRef.load();
+    } else {
+      log.warn('useVideo.loadVideo: videoRef is null, cannot set src');
     }
   };
 
   const loadVideoFile = (file: File) => {
     const url = URL.createObjectURL(file);
+    objectUrlRef = url;
     loadVideo(url);
-    
-    // Clean up object URL when new video is loaded
-    onCleanup(() => URL.revokeObjectURL(url));
   };
 
   // Formatted time helpers
@@ -237,6 +295,10 @@ export function useVideo() {
   // Cleanup on unmount
   onCleanup(() => {
     detachVideo();
+    if (objectUrlRef) {
+      URL.revokeObjectURL(objectUrlRef);
+      objectUrlRef = null;
+    }
   });
 
   return {
@@ -278,8 +340,17 @@ export function useVideo() {
 }
 
 // Keyboard shortcuts hook
-export function useVideoKeyboard(video: ReturnType<typeof useVideo>) {
+export function useVideoKeyboard(video: ReturnType<typeof useVideo>, options: { getScope?: () => HTMLElement | null } = {}) {
   const handleKeyDown = (e: KeyboardEvent) => {
+    const scope = options.getScope?.();
+    // If scope is provided, only handle when focus is inside or on the scope
+    if (scope) {
+      const target = e.target as Node;
+      if (target !== scope && !scope.contains(target as Node)) {
+        return;
+      }
+    }
+
     // Skip if focused on input
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
       return;
@@ -331,9 +402,11 @@ export function useVideoKeyboard(video: ReturnType<typeof useVideo>) {
     }
   };
 
-  document.addEventListener('keydown', handleKeyDown);
+  const scope = options.getScope?.();
+  const target = scope ?? document;
+  target.addEventListener('keydown', handleKeyDown as EventListener);
   
   onCleanup(() => {
-    document.removeEventListener('keydown', handleKeyDown);
+    target.removeEventListener('keydown', handleKeyDown as EventListener);
   });
 }

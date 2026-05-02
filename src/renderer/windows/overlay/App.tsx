@@ -1,6 +1,6 @@
 import { Component, createSignal, createMemo, onMount, onCleanup, createEffect } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
-import type { OverlayVideoState, OverlayGeometry } from '../../../shared/types';
+import type { OverlayVideoState, OverlayGeometry, OverlaySubtitleTracks } from '../../../shared/types';
 import { SubtitleContainer } from '../../components/subtitle/SubtitleContainer';
 import { OverlayControls, BorderFlash, triggerBorderFlash } from '../../components/overlay';
 import { useSubtitles } from '../../hooks/useSubtitles';
@@ -19,6 +19,22 @@ const formatTime = (seconds: number): string => {
   return `${pad(m)}:${pad(s)}`;
 };
 
+const DISCONNECT_TIMEOUT_MS = 15000;
+
+/** DOM selectors that should be interactive (not click-through). */
+const INTERACTIVE_SELECTORS = [
+  '.overlay-controls-trigger',
+  '.overlay-controls-bar',
+  '.subtitles',
+  '.toast-container',
+];
+
+function isOverInteractiveRegion(e: MouseEvent): boolean {
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  if (!el) return false;
+  return INTERACTIVE_SELECTORS.some((sel) => el.closest(sel));
+}
+
 export const App: Component = () => {
   const bridge = getBridge();
   const subtitles = useSubtitles();
@@ -28,11 +44,16 @@ export const App: Component = () => {
   const [lastSyncAt, setLastSyncAt] = createSignal<number>(0);
   const [isConnected, setIsConnected] = createSignal(false);
   const [dragOver, setDragOver] = createSignal(false);
-  const [isInteractive, setIsInteractive] = createSignal(false);
+  const [mouseInteractive, setMouseInteractive] = createSignal(false);
 
   const hasSubtitles = createMemo(() => subtitles.subtitles().length > 0);
   const currentTime = createMemo(() => videoState()?.currentTime ?? 0);
   const duration = createMemo(() => videoState()?.duration ?? 0);
+  const isPlaying = createMemo(() => videoState()?.isPlaying ?? false);
+  const isBuffering = createMemo(() => videoState()?.isWaiting ?? false);
+  const volume = createMemo(() => videoState()?.volume ?? 1);
+  const isMuted = createMemo(() => videoState()?.muted ?? false);
+  const playbackRate = createMemo(() => videoState()?.playbackRate ?? 1);
 
   const watchTogether = useWatchTogether({
     getVideo: () => null,
@@ -67,8 +88,21 @@ export const App: Component = () => {
   });
 
   onMount(() => {
+    const cleanupTracks = bridge.overlay.onOverlaySubtitleTracks((tracks: OverlaySubtitleTracks) => {
+      // If no subtitles are loaded, auto-load the first text track
+      if (subtitles.subtitles().length === 0 && tracks.textTracks.length > 0) {
+        subtitles.loadSubtitles(tracks.textTracks[0].text);
+      }
+    });
+
+    onCleanup(() => {
+      cleanupTracks();
+    });
+  });
+
+  onMount(() => {
     const interval = setInterval(() => {
-      if (Date.now() - lastSyncAt() > 5000) {
+      if (Date.now() - lastSyncAt() > DISCONNECT_TIMEOUT_MS) {
         setIsConnected(false);
       }
     }, 1000);
@@ -76,14 +110,119 @@ export const App: Component = () => {
     onCleanup(() => clearInterval(interval));
   });
 
-  // Click-through: ignore mouse events unless interactive
+  // Dynamic click-through: the window starts click-through and only becomes
+  // interactive when the cursor is over interactive regions (controls, trigger,
+  // subtitles, toasts).  Because the Electron main process calls
+  // setIgnoreMouseEvents(true, { forward: true }) the renderer still receives
+  // mousemove events while click-through, letting us detect when the cursor
+  // enters an interactive region and switch back.
   onMount(() => {
-    bridge.overlay.setOverlayIgnoreMouseEvents(true);
+    const updateInteractivity = (e: MouseEvent) => {
+      // If a mouse button is held the user may be dragging a file. Switch to
+      // interactive so dragenter/dragover/drop events are received.
+      if (e.buttons > 0) {
+        if (!mouseInteractive()) setMouseInteractive(true);
+        return;
+      }
+      const next = isOverInteractiveRegion(e);
+      if (next !== mouseInteractive()) {
+        setMouseInteractive(next);
+      }
+    };
+
+    const handleMouseLeave = () => {
+      setMouseInteractive(false);
+    };
+
+    // Drag-and-drop requires the window to be interactive. These events only
+    // fire when the window is already in interactive mode (the e.buttons check
+    // above ensures we switch before the drag reaches the window).
+    let dragDepth = 0;
+    const handleDragEnter = () => {
+      dragDepth++;
+      setMouseInteractive(true);
+    };
+    const handleDragLeave = () => {
+      dragDepth--;
+      if (dragDepth <= 0) {
+        dragDepth = 0;
+        setMouseInteractive(false);
+      }
+    };
+    const handleDragDrop = () => {
+      dragDepth = 0;
+      setMouseInteractive(false);
+    };
+
+    document.addEventListener('mousemove', updateInteractivity);
+    document.addEventListener('mouseleave', handleMouseLeave);
+    document.addEventListener('dragenter', handleDragEnter);
+    document.addEventListener('dragleave', handleDragLeave);
+    document.addEventListener('drop', handleDragDrop);
+
+    onCleanup(() => {
+      document.removeEventListener('mousemove', updateInteractivity);
+      document.removeEventListener('mouseleave', handleMouseLeave);
+      document.removeEventListener('dragenter', handleDragEnter);
+      document.removeEventListener('dragleave', handleDragLeave);
+      document.removeEventListener('drop', handleDragDrop);
+    });
   });
 
   createEffect(() => {
-    bridge.overlay.setOverlayIgnoreMouseEvents(!isInteractive());
+    bridge.overlay.setOverlayIgnoreMouseEvents(!mouseInteractive());
   });
+
+  // Keyboard shortcuts for bidirectional control
+  onMount(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isConnected()) return;
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          handlePlayPause();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          handleSeek(-5);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          handleSeek(5);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    onCleanup(() => window.removeEventListener('keydown', handleKeyDown));
+  });
+
+  const handlePlayPause = () => {
+    if (!isConnected()) return;
+    const cmd = isPlaying() ? 'pause' : 'play';
+    bridge.overlay.sendOverlayCommand({ command: cmd });
+  };
+
+  const handleSeek = (time: number) => {
+    if (!isConnected()) return;
+    const target = Math.max(0, Math.min(duration(), time));
+    bridge.overlay.sendOverlayCommand({ command: 'seek', time: target });
+  };
+
+  const handleVolumeChange = (value: number) => {
+    if (!isConnected()) return;
+    bridge.overlay.sendOverlayCommand({ command: 'setVolume', volume: Math.max(0, Math.min(1, value)) });
+  };
+
+  const handleToggleMute = () => {
+    if (!isConnected()) return;
+    bridge.overlay.sendOverlayCommand({ command: 'setVolume', volume: isMuted() ? volume() || 1 : 0 });
+  };
+
+  const handlePlaybackRateChange = (rate: number) => {
+    if (!isConnected()) return;
+    bridge.overlay.sendOverlayCommand({ command: 'setRate', rate });
+  };
 
   const handleOpenSubtitleFile = async () => {
     const filePath = await bridge.files.selectSubtitleFile();
@@ -137,7 +276,7 @@ export const App: Component = () => {
   return (
     <div
       class="overlay-container"
-      classList={{ 'drag-over': dragOver(), interactive: isInteractive() }}
+      classList={{ 'drag-over': dragOver() }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -163,12 +302,21 @@ export const App: Component = () => {
         duration={duration()}
         isConnected={isConnected()}
         hasSubtitles={hasSubtitles()}
+        isPlaying={isPlaying()}
+        isBuffering={isBuffering()}
+        volume={volume()}
+        isMuted={isMuted()}
+        playbackRate={playbackRate()}
         subtitleOffset={settings.subsOffsetTime}
+        onPlayPause={handlePlayPause}
+        onSeek={handleSeek}
+        onVolumeChange={handleVolumeChange}
+        onToggleMute={handleToggleMute}
+        onPlaybackRateChange={handlePlaybackRateChange}
         onOffsetChange={handleOffsetChange}
         onLoadSubtitles={handleOpenSubtitleFile}
         onClose={handleClose}
         formatTime={formatTime}
-        onInteractiveChange={setIsInteractive}
       />
       <BorderFlash />
     </div>

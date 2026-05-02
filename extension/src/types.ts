@@ -12,6 +12,7 @@ export interface VideoViewportGeometry {
   height: number;
   screenX: number;
   screenY: number;
+  isFullscreen: boolean;
 }
 
 export interface VideoState {
@@ -19,12 +20,15 @@ export interface VideoState {
   duration: number;
   isPlaying: boolean;
   playbackRate?: number;
-  element?: HTMLVideoElement;
+  volume?: number;
+  muted?: boolean;
   src: string;
+  isWaiting?: boolean;
+  isFullscreen?: boolean;
 }
 
 export interface SyncMessage {
-  type: 'SYNC_STATE' | 'GET_STATE' | 'STATE_RESPONSE' | 'ERROR' | 'VIDEO_STATE' | 'GEOMETRY_UPDATE' | 'CONNECTION_STATUS';
+  type: 'SYNC_STATE' | 'GET_STATE' | 'STATE_RESPONSE' | 'ERROR' | 'VIDEO_STATE' | 'GEOMETRY_UPDATE' | 'CONNECTION_STATUS' | 'SUBTITLE_TRACKS' | 'EXTENSION_COMMAND';
   videoState?: VideoState;
   state?: VideoState;
   error?: string;
@@ -54,6 +58,23 @@ export interface VideoStateMessage {
     url: string;
     title: string;
   };
+  timestamp: number;
+}
+
+export interface SubtitleTracksMessage {
+  type: 'SUBTITLE_TRACKS';
+  tracks: Array<{ kind: string; src: string; srclang: string; label: string }>;
+  textTracks: Array<{ language: string; text: string }>;
+  url: string;
+  timestamp: number;
+}
+
+export interface ExtensionCommandMessage {
+  type: 'EXTENSION_COMMAND';
+  command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume';
+  time?: number;
+  rate?: number;
+  volume?: number;
   timestamp: number;
 }
 

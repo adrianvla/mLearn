@@ -254,6 +254,8 @@ export interface OverlayBridge {
   onOverlayLaunch: (callback: () => void) => () => void;
   onOverlayGeometry: (callback: (geometry: import('../types').OverlayGeometry) => void) => () => void;
   setOverlayIgnoreMouseEvents: (ignore: boolean) => void;
+  sendOverlayCommand: (cmd: import('../types').OverlayCommand) => void;
+  onOverlaySubtitleTracks: (callback: (tracks: import('../types').OverlaySubtitleTracks) => void) => () => void;
 }
 
 export interface CrossWindowBridge {

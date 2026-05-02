@@ -15,7 +15,9 @@ const log = getLogger("renderer.hooks.useSubtitles");
 // Parse SRT format subtitles
 function parseSRT(content: string): Subtitle[] {
   const subtitles: Subtitle[] = [];
-  const blocks = content.trim().split(/\n\n+/);
+  // Normalize line endings to handle Windows \r\n and old Mac \r
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const blocks = normalized.trim().split(/\n\n+/);
 
   for (const block of blocks) {
     const lines = block.split('\n');
@@ -51,7 +53,9 @@ function parseSRT(content: string): Subtitle[] {
 // Parse VTT format subtitles
 function parseVTT(content: string): Subtitle[] {
   const subtitles: Subtitle[] = [];
-  const lines = content.split('\n');
+  // Normalize line endings
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalized.split('\n');
   let i = 0;
 
   // Skip header
@@ -60,55 +64,67 @@ function parseVTT(content: string): Subtitle[] {
   }
 
   while (i < lines.length) {
+    const line = lines[i].trim();
+
+    // Skip empty lines and optional cue IDs (lines that don't contain -->)
+    if (!line || !line.includes('-->')) {
+      // If it looks like a cue ID (not a timestamp), skip it
+      if (line && !line.match(/^\d{2}:/)) {
+        i++;
+        continue;
+      }
+      // If empty line, just advance
+      if (!line) {
+        i++;
+        continue;
+      }
+    }
+
     const timeLine = lines[i];
     const timeMatch = timeLine.match(
       /(\d{2}):(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[.,](\d{3})/
     );
 
-    if (!timeMatch) {
-      // Try shorter format HH:MM.mmm
+    let start = 0;
+    let end = 0;
+    let parsed = false;
+
+    if (timeMatch) {
+      start = 
+        parseInt(timeMatch[1]) * 3600 +
+        parseInt(timeMatch[2]) * 60 +
+        parseInt(timeMatch[3]) +
+        parseInt(timeMatch[4]) / 1000;
+
+      end = 
+        parseInt(timeMatch[5]) * 3600 +
+        parseInt(timeMatch[6]) * 60 +
+        parseInt(timeMatch[7]) +
+        parseInt(timeMatch[8]) / 1000;
+      parsed = true;
+    } else {
+      // Try shorter format MM:SS.mmm
       const shortMatch = timeLine.match(
         /(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(\d{2}):(\d{2})[.,](\d{3})/
       );
-      
+
       if (shortMatch) {
-        const start = 
+        start = 
           parseInt(shortMatch[1]) * 60 +
           parseInt(shortMatch[2]) +
           parseInt(shortMatch[3]) / 1000;
-        const end = 
+        end = 
           parseInt(shortMatch[4]) * 60 +
           parseInt(shortMatch[5]) +
           parseInt(shortMatch[6]) / 1000;
-
-        i++;
-        const textLines: string[] = [];
-        while (i < lines.length && lines[i].trim() && !lines[i].includes('-->')) {
-          textLines.push(lines[i].replace(/<[^>]*>/g, ''));
-          i++;
-        }
-        
-        if (textLines.length > 0) {
-          subtitles.push({ start, end, text: textLines.join('\n') });
-        }
-        continue;
+        parsed = true;
       }
-      
+    }
+
+    if (!parsed) {
       i++;
       continue;
     }
-
-    const start = 
-      parseInt(timeMatch[1]) * 3600 +
-      parseInt(timeMatch[2]) * 60 +
-      parseInt(timeMatch[3]) +
-      parseInt(timeMatch[4]) / 1000;
-
-    const end = 
-      parseInt(timeMatch[5]) * 3600 +
-      parseInt(timeMatch[6]) * 60 +
-      parseInt(timeMatch[7]) +
-      parseInt(timeMatch[8]) / 1000;
 
     i++;
     const textLines: string[] = [];
@@ -128,7 +144,9 @@ function parseVTT(content: string): Subtitle[] {
 // Parse ASS/SSA format subtitles
 function parseASS(content: string): Subtitle[] {
   const subtitles: Subtitle[] = [];
-  const lines = content.split('\n');
+  // Normalize line endings
+  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalized.split('\n');
   
   let inEvents = false;
   let formatFields: string[] = [];
@@ -150,7 +168,14 @@ function parseASS(content: string): Subtitle[] {
       }
 
       if (line.startsWith('Dialogue:')) {
-        const parts = line.substring(9).split(',');
+        // Some ASS files include a "Marked" field: Dialogue: Marked=0,...
+        // Normalize by removing the optional Marked prefix
+        let dialogueLine = line;
+        if (dialogueLine.includes('Marked=')) {
+          dialogueLine = dialogueLine.replace(/Marked=\d+,?/, '');
+        }
+
+        const parts = dialogueLine.substring(9).split(',');
         const startIdx = formatFields.indexOf('start');
         const endIdx = formatFields.indexOf('end');
         const textIdx = formatFields.indexOf('text');
@@ -192,10 +217,15 @@ export function useSubtitles() {
   const [currentIndex, setCurrentIndex] = createSignal(-1);
   const [tokens, setTokens] = createSignal<Token[]>([]);
   const [isTokenizing, setIsTokenizing] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+
+  // Generation counter to prevent race conditions during rapid seeking
+  let tokenizationGen = 0;
 
   // Load subtitles from text content
   const loadSubtitles = (content: string, format?: 'srt' | 'vtt' | 'ass') => {
     let parsed: Subtitle[];
+    setError(null);
 
     // Auto-detect format if not specified
     if (!format) {
@@ -208,33 +238,45 @@ export function useSubtitles() {
       }
     }
 
-    switch (format) {
-      case 'vtt':
-        parsed = parseVTT(content);
-        break;
-      case 'ass':
-        parsed = parseASS(content);
-        break;
-      default:
-        parsed = parseSRT(content);
+    try {
+      switch (format) {
+        case 'vtt':
+          parsed = parseVTT(content);
+          break;
+        case 'ass':
+          parsed = parseASS(content);
+          break;
+        default:
+          parsed = parseSRT(content);
+      }
+    } catch (e) {
+      log.error('Subtitle parsing failed:', e);
+      setError('Failed to parse subtitles');
+      parsed = [];
     }
 
     setSubtitles(parsed);
     setCurrentIndex(-1);
     setTokens([]);
+    tokenizationGen++;
   };
 
   // Load subtitles from file
   const loadSubtitleFile = async (file: File) => {
-    const content = await file.text();
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    
-    let format: 'srt' | 'vtt' | 'ass' | undefined;
-    if (ext === 'vtt') format = 'vtt';
-    else if (ext === 'ass' || ext === 'ssa') format = 'ass';
-    else if (ext === 'srt') format = 'srt';
+    try {
+      const content = await file.text();
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      
+      let format: 'srt' | 'vtt' | 'ass' | undefined;
+      if (ext === 'vtt') format = 'vtt';
+      else if (ext === 'ass' || ext === 'ssa') format = 'ass';
+      else if (ext === 'srt') format = 'srt';
 
-    loadSubtitles(content, format);
+      loadSubtitles(content, format);
+    } catch (e) {
+      log.error('Failed to read subtitle file:', e);
+      setError('Failed to read subtitle file');
+    }
   };
 
   // Get current subtitle for a given time
@@ -276,6 +318,9 @@ export function useSubtitles() {
 
     setCurrentIndex(idx);
     setIsTokenizing(true);
+    setError(null);
+
+    const myGen = ++tokenizationGen;
 
     const buildFallbackTokens = (text: string): Token[] => {
       const trimmed = text.trim();
@@ -306,7 +351,14 @@ export function useSubtitles() {
 
       const { text: cleanedText, readingOverrides } = parseSubtitle(rawText, settings.language);
       
+      // If a newer tokenization was requested, abandon this one
+      if (myGen !== tokenizationGen) return;
+
       const newTokens = await tokenize(cleanedText);
+
+      // Double-check generation after await
+      if (myGen !== tokenizationGen) return;
+
       if (Array.isArray(newTokens) && newTokens.length > 0) {
         if (readingOverrides.length > 0) {
           for (const token of newTokens) {
@@ -326,9 +378,12 @@ export function useSubtitles() {
       }
     } catch (e) {
       log.error('Tokenization failed:', e);
+      if (myGen !== tokenizationGen) return;
       setTokens(buildFallbackTokens(sub.text));
     } finally {
-      setIsTokenizing(false);
+      if (myGen === tokenizationGen) {
+        setIsTokenizing(false);
+      }
     }
   };
 
@@ -344,6 +399,8 @@ export function useSubtitles() {
     setSubtitles([]);
     setCurrentIndex(-1);
     setTokens([]);
+    setError(null);
+    tokenizationGen++;
   };
 
   return {
@@ -352,6 +409,7 @@ export function useSubtitles() {
     currentIndex,
     tokens,
     isTokenizing,
+    error,
     loadSubtitles,
     loadSubtitleFile,
     updateTime,
