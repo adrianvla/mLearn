@@ -161,7 +161,7 @@ interface FlashcardContextValue {
   buryCard: (id: string) => void;
 
   // Review operations
-  answerCard: (rating: SRS.Rating, cardId?: string) => boolean;
+  answerCard: (rating: SRS.Rating, cardId?: string, timeSpentMs?: number) => boolean;
   getCurrentCard: () => Flashcard | null;
   getPreviewDueDates: () => Record<SRS.Rating, number> | null;
 
@@ -1099,7 +1099,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // Answer current card
   // cardId should always be passed from the UI to avoid a second getNextCard() call
   // (which uses Math.random() and may return a different card than the one displayed).
-  const answerCard = (rating: SRS.Rating, cardId?: string): boolean => {
+  const answerCard = (rating: SRS.Rating, cardId?: string, timeSpentMs?: number): boolean => {
     const card = cardId ? (store.flashcards[cardId] ?? null) : getCurrentCard();
     if (!card) return false;
 
@@ -1183,6 +1183,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
       if ((card.state === 'learning' || card.state === 'new') && updated.state === 'review') {
         s.dailyStats[today].graduated++;
+      }
+
+      // Track study time
+      if (timeSpentMs && timeSpentMs > 0) {
+        s.dailyStats[today].timeSpent += timeSpentMs;
       }
     }));
 

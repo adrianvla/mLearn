@@ -30,7 +30,13 @@ export const VideoPlayerTab: Component = () => {
         >
           <ToggleSwitch
             checked={settings.showLiveTranslator ?? true}
-            onChange={(checked) => updateSettings({ showLiveTranslator: checked })}
+            onChange={(checked) => {
+              if (checked) {
+                updateSettings({ showLiveTranslator: true, openAside: true });
+              } else {
+                updateSettings({ showLiveTranslator: false });
+              }
+            }}
           />
         </SettingRow>
 
