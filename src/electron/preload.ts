@@ -451,6 +451,16 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.KV_GET_ALL),
   kvSetBatch: (entries: Record<string, string>): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.KV_SET_BATCH, entries),
+
+  // ========== Diagnostics ==========
+  runDiagnostics: (): Promise<import('../shared/diagnostics/types').DiagnosticsReport> =>
+    ipcRenderer.invoke('diagnostics-run-all'),
+  onDiagnosticsProgress: (callback: (progress: import('../shared/diagnostics/types').DiagnosticsProgressEvent) => void) =>
+    ipcOn('diagnostics-progress', (_event, progress) => callback(progress)),
+  onDiagnosticsComplete: (callback: (report: import('../shared/diagnostics/types').DiagnosticsReport) => void) =>
+    ipcOn('diagnostics-complete', (_event, report) => callback(report)),
+  saveDiagnosticsReport: (reportJson: string): Promise<string> =>
+    ipcRenderer.invoke('diagnostics-save-report', reportJson),
 };
 
 const mLearnInternal = {

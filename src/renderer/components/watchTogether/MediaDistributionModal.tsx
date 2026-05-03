@@ -3,13 +3,6 @@ import { useLocalization } from '../../context';
 import { Btn, Modal, Panel, ProgressBar } from '../common';
 import './MediaDistributionModal.css';
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
 export interface MediaDistributionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -17,32 +10,20 @@ export interface MediaDistributionModalProps {
   isSending: boolean;
   sendProgress: number;
   sendComplete: boolean;
-  onStartDistribution: (file: Blob, fileName: string, subtitleContent: string | null) => void;
+  onStartDistribution: () => Promise<void>;
   onCancel: () => void;
-  videoSrc: string;
+  videoName: string;
   subtitleContent: string | null;
 }
 
 export const MediaDistributionModal: Component<MediaDistributionModalProps> = (props) => {
   const { t } = useLocalization();
-  const [selectedFile, setSelectedFile] = createSignal<File | null>(null);
   const [loadingFile, setLoadingFile] = createSignal(false);
 
-  let fileInputRef: HTMLInputElement | undefined;
-
-  const handleFileSelect = (event: Event) => {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
-    setSelectedFile(file);
-  };
-
   const handleStartDistribution = async () => {
-    const file = selectedFile();
-    if (!file) return;
-
     setLoadingFile(true);
     try {
-      props.onStartDistribution(file, file.name, props.subtitleContent);
+      await props.onStartDistribution();
     } finally {
       setLoadingFile(false);
     }
@@ -61,41 +42,17 @@ export const MediaDistributionModal: Component<MediaDistributionModalProps> = (p
       <div class="media-distribution-modal">
         <Show when={!props.isSending && !props.sendComplete}>
           <Panel variant="solid" rounded="lg" padding="lg">
-            <div class="media-distribution-info">
-              <span class="media-distribution-info-label">
-                {t('mlearn.WatchTogether.Media.SelectFile')}
-              </span>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/*,audio/*,.mkv,.srt,.vtt,.ass"
-                onChange={handleFileSelect}
-              />
+            <div class="media-distribution-stats">
+              <div class="media-distribution-stat">
+                <span class="media-distribution-stat-label">
+                  {t('mlearn.WatchTogether.Media.FileName')}
+                </span>
+                <span class="media-distribution-stat-value">
+                  {props.videoName || '-'}
+                </span>
+              </div>
             </div>
           </Panel>
-
-          <Show when={selectedFile()}>
-            <Panel variant="solid" rounded="lg" padding="lg">
-              <div class="media-distribution-stats">
-                <div class="media-distribution-stat">
-                  <span class="media-distribution-stat-label">
-                    {t('mlearn.WatchTogether.Media.FileName')}
-                  </span>
-                  <span class="media-distribution-stat-value">
-                    {selectedFile()!.name}
-                  </span>
-                </div>
-                <div class="media-distribution-stat">
-                  <span class="media-distribution-stat-label">
-                    {t('mlearn.WatchTogether.Media.FileSize')}
-                  </span>
-                  <span class="media-distribution-stat-value">
-                    {formatFileSize(selectedFile()!.size)}
-                  </span>
-                </div>
-              </div>
-            </Panel>
-          </Show>
 
           <Panel variant="solid" rounded="lg" padding="lg">
             <div class="media-distribution-stats">
@@ -127,7 +84,7 @@ export const MediaDistributionModal: Component<MediaDistributionModalProps> = (p
             <Btn
               variant="primary"
               onClick={handleStartDistribution}
-              disabled={!selectedFile() || props.connectedPeerCount === 0}
+              disabled={!props.videoName || props.connectedPeerCount === 0}
               loading={loadingFile()}
             >
               {t('mlearn.WatchTogether.Media.StartDistribution')}

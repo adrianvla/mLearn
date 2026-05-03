@@ -29,6 +29,7 @@ import type {
   DataBridge,
   KVStoreBridge,
   BrowserBridge,
+  DiagnosticsBridge,
 } from './types';
 import type {
   PluginBusEnvelope,
@@ -1540,6 +1541,13 @@ const browserBridge: BrowserBridge = {
   },
 };
 
+const diagnosticsBridge: DiagnosticsBridge = {
+  runDiagnostics: async () => ({ timestamp: new Date().toISOString(), appVersion: '0.0.0', platform: 'capacitor', suites: [], summary: { passed: 0, failed: 0, skipped: 0, total: 0, durationMs: 0 } }),
+  onDiagnosticsProgress: () => () => {},
+  onDiagnosticsComplete: () => () => {},
+  saveDiagnosticsReport: async () => '',
+};
+
 const dataBridge: DataBridge = {
   async dataExport() {
     try {
@@ -1680,5 +1688,6 @@ export function createCapacitorBridge(): PlatformBridge {
     data: dataBridge,
     kvStore: kvStoreBridge,
     browser: browserBridge,
+    diagnostics: diagnosticsBridge,
   };
 }

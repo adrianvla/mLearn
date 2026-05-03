@@ -30,6 +30,7 @@ import {
   type MediaOfferHandle,
   type MediaTransferMetadata,
 } from '../services/mediaDistributionService';
+import type { IceServerConfig } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.hooks.useWatchTogether");
@@ -69,6 +70,8 @@ interface UseWatchTogetherOptions {
   isOverlay?: boolean;
   /** Returns the current playback time when in overlay mode. */
   getCurrentTime?: () => number;
+  /** ICE servers for WebRTC peer connections. */
+  iceServers?: IceServerConfig[];
 }
 
 export function useWatchTogether(options: UseWatchTogetherOptions) {
@@ -286,7 +289,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         }
         log.error('[WatchTogether] Signaling error:', error);
       },
-    });
+    }, { iceServers: options.iceServers });
 
     peerServiceRef = peerService;
 

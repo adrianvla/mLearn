@@ -314,6 +314,13 @@ export interface BrowserBridge {
   isExtensionInstalled: (browser: BrowserInfo) => Promise<{ installed: boolean }>;
 }
 
+export interface DiagnosticsBridge {
+  runDiagnostics: () => Promise<import('../diagnostics/types').DiagnosticsReport>;
+  onDiagnosticsProgress: (callback: (progress: import('../diagnostics/types').DiagnosticsProgressEvent) => void) => () => void;
+  onDiagnosticsComplete: (callback: (report: import('../diagnostics/types').DiagnosticsReport) => void) => () => void;
+  saveDiagnosticsReport: (reportJson: string) => Promise<string>;
+}
+
 export interface KVStoreBridge {
   kvGet: (key: string) => Promise<string | null>;
   kvSet: (key: string, value: string) => Promise<void>;
@@ -348,4 +355,5 @@ export interface PlatformBridge {
   data: DataBridge;
   kvStore: KVStoreBridge;
   browser: BrowserBridge;
+  diagnostics: DiagnosticsBridge;
 }

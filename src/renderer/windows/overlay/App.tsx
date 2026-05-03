@@ -60,6 +60,7 @@ export const App: Component = () => {
     getVideoSrc: () => videoState()?.url ?? '',
     isOverlay: true,
     getCurrentTime: () => currentTime(),
+    iceServers: settings.iceServers,
   });
 
   onMount(() => {

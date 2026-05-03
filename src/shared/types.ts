@@ -78,6 +78,12 @@ export const CUSTOMIZABLE_CSS_VARS = [
   'border-color-intense',
 ] as const;
 
+export interface IceServerConfig {
+  urls: string;
+  username?: string;
+  credential?: string;
+}
+
 export interface Settings {
   // Knowledge thresholds
   /** Built-in SRS ease above which a word is considered learning (integer, 0–5000 = 0.0–5.0 scale) */
@@ -359,6 +365,9 @@ export interface Settings {
   /** List of browser paths that have the mLearn browser extension installed */
   installedBrowserExtensions: string[];
 
+  // WebRTC ICE servers for watch-together peer connections
+  iceServers: IceServerConfig[];
+
   // First-run tracking
   hasCompletedSetup?: boolean;
 }
@@ -496,6 +505,10 @@ export const DEFAULT_SETTINGS: Settings = {
   agentMemoryShared: true,
   agentSplitChecker: true,
   installedBrowserExtensions: [],
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ],
 };
 
 // ============================================================================

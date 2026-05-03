@@ -5,7 +5,7 @@
 
 import { Component, Show, createSignal, onCleanup } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, ToggleSwitch } from '../../../components/common';
+import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, ToggleSwitch, Textarea } from '../../../components/common';
 import { isMobile } from '../../../../shared/platform';
 import { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL, getBackend, resetBackend } from '../../../../shared/backends';
 import { getNodeServer } from '../../../../shared/backends/nodeServerAdapter';
@@ -353,6 +353,28 @@ export const ConnectionTab: Component = () => {
           </SettingRow>
         </SettingGroup>
       </Show>
+
+      {/* ── WebRTC ICE Servers ── */}
+      <SettingGroup title={t('mlearn.Connection.ICEServers') || 'WebRTC ICE Servers'}>
+        <SettingRow
+          label={t('mlearn.Connection.ICEServersLabel') || 'STUN / TURN servers'}
+          description={t('mlearn.Connection.ICEServersDescription') || 'One server URL per line. Used for Watch Together peer connections.'}
+        >
+          <Textarea
+            value={settings.iceServers.map((s) => s.urls).join('\n')}
+            onInput={(e) => {
+              const lines = e.currentTarget.value.split('\n');
+              const servers = lines
+                .map((l) => l.trim())
+                .filter((l) => l.length > 0)
+                .map((l) => ({ urls: l }));
+              updateSetting('iceServers', servers);
+            }}
+            placeholder="stun:stun.example.com:19302"
+            fullWidth
+          />
+        </SettingRow>
+      </SettingGroup>
 
     </TabContent>
   );

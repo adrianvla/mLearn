@@ -49,6 +49,10 @@ export interface PeerServiceCallbacks {
   onSignalingError: (error: string) => void;
 }
 
+export interface PeerServiceOptions {
+  iceServers?: { urls: string; username?: string; credential?: string }[];
+}
+
 interface PeerConnection {
   userId: string;
   peer: SimplePeerInstance;
@@ -101,6 +105,7 @@ export function createPeerService(
   signalingConfig: SignalingSocket,
   localUserId: string,
   callbacks: PeerServiceCallbacks,
+  options?: PeerServiceOptions,
 ): PeerServiceInstance {
   const peers = new Map<string, PeerConnection>();
   let signalingWs: WebSocket | null = null;
@@ -193,7 +198,13 @@ export function createPeerService(
     if (destroyed || peers.has(remoteUserId)) return;
 
     const Peer = await ensureSimplePeer();
-    const peer = new Peer({ initiator, trickle: true });
+    const peer = new Peer({
+      initiator,
+      trickle: true,
+      config: {
+        iceServers: options?.iceServers ?? [],
+      },
+    });
 
     const conn: PeerConnection = {
       userId: remoteUserId,

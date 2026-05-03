@@ -91,6 +91,7 @@ export const VideoRoute: Component = () => {
     getVideo: () => document.querySelector('video'),
     getVideoSrc: () => videoSrc(),
     getVideoTitle: () => currentVideoName(),
+    iceServers: settings.iceServers,
   });
 
   const [videoSrc, setVideoSrc] = createSignal<string>('');
@@ -398,8 +399,29 @@ export const VideoRoute: Component = () => {
     setShowMediaReceiveModal(false);
   };
 
-  const handleStartMediaDistribution = (file: Blob, fileName: string, subtitleContent: string | null) => {
-    watchTogether.startMediaDistribution(file, fileName, subtitleContent);
+  const handleStartMediaDistribution = async () => {
+    const path = currentVideoPath();
+    const src = videoSrc();
+    const name = currentVideoName();
+
+    if (!src && !path) return;
+
+    let file: Blob;
+    try {
+      if (path) {
+        const buffer = await getBridge().files.readMediaFile(path);
+        if (!buffer) throw new Error('Failed to read video file');
+        file = new Blob([buffer]);
+      } else {
+        const response = await fetch(src);
+        file = await response.blob();
+      }
+    } catch (error) {
+      log.error('Failed to prepare video for distribution:', error);
+      return;
+    }
+
+    watchTogether.startMediaDistribution(file, name, subtitleContent() || null);
   };
 
   syncVideoPluginActivity({
@@ -1122,7 +1144,7 @@ export const VideoRoute: Component = () => {
             onClick={openWatchTogetherCodeModal}
             title={t('mlearn.WatchTogether.Code.OpenRoomPanel')}
           >
-            {t('mlearn.WatchTogether.Code.OpenRoomPanel')}
+            {`${t('mlearn.WatchTogether.Code.OpenRoomPanel')}: ${watchTogether.roomSession()?.room.roomCode ?? ''}`}
           </NavBtn>
           <Show when={watchTogether.canControl()}>
             <NavBtn
@@ -1262,7 +1284,7 @@ export const VideoRoute: Component = () => {
         sendComplete={watchTogether.mediaSendComplete()}
         onStartDistribution={handleStartMediaDistribution}
         onCancel={() => { watchTogether.cancelMediaDistribution(); setShowMediaDistributionModal(false); }}
-        videoSrc={videoSrc()}
+        videoName={currentVideoName()}
         subtitleContent={subtitleContent() || null}
       />
 

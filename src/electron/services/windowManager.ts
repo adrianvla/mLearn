@@ -189,6 +189,44 @@ export function createWelcomeWindow(): BrowserWindow {
   return welcomeWindow;
 }
 
+// Create diagnostics window
+export function createDiagnosticsWindow(): BrowserWindow {
+  const existing = childWindows.get('diagnostics' as WindowType);
+  if (existing && !existing.isDestroyed()) {
+    existing.focus();
+    return existing;
+  }
+
+  const window = new BrowserWindow({
+    width: 900,
+    height: 700,
+    webPreferences: {
+      preload: getPreloadPath(),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+    frame: false,
+    backgroundColor: '#000000',
+    ...(isMac ? { titleBarStyle: 'hidden' } : {}),
+  });
+
+  childWindows.set('diagnostics' as WindowType, window);
+
+  const isDev = process.env.NODE_ENV === 'development';
+  if (isDev) {
+    window.loadURL('http://localhost:3000/src/html/diagnostics.html');
+  } else {
+    window.loadFile(getWindowHtmlPath('diagnostics'));
+  }
+
+  window.on('closed', () => {
+    childWindows.delete('diagnostics' as WindowType);
+  });
+
+  return window;
+}
+
 // Create a generic child window
 export function createChildWindow(
   type: WindowType,

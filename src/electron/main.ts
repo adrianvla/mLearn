@@ -15,7 +15,7 @@ import { setupFlashcardVideoIPC, registerFlashcardVideoScheme, setupFlashcardVid
 import { setupSettingsIPC } from './services/settings';
 import { setupLoggingService } from './services/loggingService';
 import { setupLocalizationIPC } from './services/localization';
-import { setupWindowIPC, createMainWindow, createWelcomeWindow } from './services/windowManager';
+import { setupWindowIPC, createMainWindow, createWelcomeWindow, createDiagnosticsWindow } from './services/windowManager';
 import { setupFileOperationsIPC } from './services/fileOperations';
 import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageMigration';
 import { registerLocalMediaScheme, registerPluginUiScheme, setupLocalMediaProtocol, setupPluginUiProtocol } from './services/localMediaProtocol';
@@ -31,6 +31,7 @@ import { setupBrowserDetectionIPC } from './services/browserDetection';
 import { setupExtensionInstallerIPC } from './services/extensionInstaller';
 import { initPluginManager } from './services/pluginManager';
 import { setupPluginIPC } from './services/pluginIPC';
+import { setupDiagnosticsIPC } from './services/diagnostics';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 import { getLogger } from '../shared/utils/logger';
@@ -81,6 +82,15 @@ function parseLookupDeepLink(rawUrl: string): string | null {
   } catch (e) {
     log.error('parseLookupDeepLink failed', e);
     return null;
+  }
+}
+
+function isDiagnosticsDeepLink(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    return parsed.protocol === 'mlearn:' && parsed.hostname === 'diagnostics';
+  } catch {
+    return false;
   }
 }
 
@@ -142,6 +152,11 @@ function handlePossibleDeepLinkValue(value: string): void {
   const lookupWord = parseLookupDeepLink(value);
   if (lookupWord) {
     dispatchLookupDeepLink(lookupWord);
+    return;
+  }
+  if (isDiagnosticsDeepLink(value)) {
+    createDiagnosticsWindow();
+    return;
   }
 }
 
@@ -240,11 +255,20 @@ function setupAllIPC(): void {
   setupBrowserDetectionIPC();
   setupExtensionInstallerIPC();
   setupPluginIPC();
+  setupDiagnosticsIPC();
   setupKillHandlers();
 }
 
 // Create windows and start services
 async function createAppWindows(): Promise<void> {
+  // Check for diagnostics mode
+  const isDiagnosticsMode = process.argv.includes('--diagnostics');
+  if (isDiagnosticsMode) {
+    createDiagnosticsWindow();
+    startWebServer();
+    return;
+  }
+
   // Start Python backend
   const pythonFound = await findPython();
   

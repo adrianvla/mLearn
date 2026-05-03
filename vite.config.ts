@@ -64,6 +64,7 @@ export default defineConfig(({ mode }) => {
         'plugin-host': resolve(__dirname, 'src/html/plugin-host.html'),
         'word-sync': resolve(__dirname, 'src/html/word-sync.html'),
         overlay: resolve(__dirname, 'src/html/overlay.html'),
+        diagnostics: resolve(__dirname, 'src/html/diagnostics.html'),
       };
 
   return {

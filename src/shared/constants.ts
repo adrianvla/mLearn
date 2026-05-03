@@ -316,6 +316,7 @@ export const WINDOW_TYPES = {
   PLUGIN_HOST: 'plugin-host',
   WORD_SYNC: 'word-sync',
   OVERLAY: 'overlay',
+  DIAGNOSTICS: 'diagnostics',
 } as const;
 
 export type WindowType = typeof WINDOW_TYPES[keyof typeof WINDOW_TYPES];

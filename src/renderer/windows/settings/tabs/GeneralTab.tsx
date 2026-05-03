@@ -236,6 +236,17 @@ export const GeneralTab: Component = () => {
           />
         </SettingRow>
 
+        {(settings.devMode || import.meta.env.DEV) && (
+          <SettingRow
+            label="Diagnostics"
+            description="Run a comprehensive test of all features and integrations."
+          >
+            <Btn size="sm" onClick={() => getBridge().window.openWindow({ type: 'diagnostics', options: { width: 900, height: 700 } })}>
+              Run Diagnostics
+            </Btn>
+          </SettingRow>
+        )}
+
         <SettingRow
           label={t('mlearn.Settings.Performance.LowBatteryMode.Label')}
           description={t('mlearn.Settings.Performance.LowBatteryMode.Description')}

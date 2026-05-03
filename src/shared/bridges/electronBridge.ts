@@ -30,6 +30,7 @@ import type {
   DataBridge,
   KVStoreBridge,
   BrowserBridge,
+  DiagnosticsBridge,
 } from './types';
 
 function getIPC(): MLearnIPC {
@@ -300,6 +301,13 @@ const browserBridge: BrowserBridge = {
   isExtensionInstalled: (browser) => getIPC().isExtensionInstalled(browser),
 };
 
+const diagnosticsBridge: DiagnosticsBridge = {
+  runDiagnostics: () => getIPC().runDiagnostics(),
+  onDiagnosticsProgress: (cb) => getIPC().onDiagnosticsProgress(cb),
+  onDiagnosticsComplete: (cb) => getIPC().onDiagnosticsComplete(cb),
+  saveDiagnosticsReport: (reportJson) => getIPC().saveDiagnosticsReport(reportJson),
+};
+
 export function createElectronBridge(): PlatformBridge {
   return {
     settings: settingsBridge,
@@ -323,5 +331,6 @@ export function createElectronBridge(): PlatformBridge {
     data: dataBridge,
     kvStore: kvStoreBridge,
     browser: browserBridge,
+    diagnostics: diagnosticsBridge,
   };
 }

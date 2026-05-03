@@ -279,6 +279,12 @@ sendLogRecord: (record: unknown) => void;
   closeWindow: () => void;
   getWindowContext: (windowType: string) => void;
   onWindowContext: (callback: (context: Record<string, unknown> | null) => void) => (() => void) | undefined;
+
+  // Diagnostics
+  runDiagnostics: () => Promise<import('./diagnostics/types').DiagnosticsReport>;
+  onDiagnosticsProgress: (callback: (progress: import('./diagnostics/types').DiagnosticsProgressEvent) => void) => () => void;
+  onDiagnosticsComplete: (callback: (report: import('./diagnostics/types').DiagnosticsReport) => void) => () => void;
+  saveDiagnosticsReport: (reportJson: string) => Promise<string>;
 }
 
 export interface MLearnInternal {
