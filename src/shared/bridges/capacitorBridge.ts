@@ -1086,6 +1086,7 @@ const serverBridge: ServerBridge = {
 
 const installerBridge: InstallerBridge = {
   startInstall: noop,
+  cancelInstall: noop,
   requestInstallerState: noop,
   onPythonSuccess: noopCleanup,
   onInstallStarted: noopCleanup,
@@ -1297,7 +1298,8 @@ const speechBridge: SpeechBridge = {
 
       const recognition = new (SpeechRecognition as new () => Record<string, unknown>)() as {
         lang: string; continuous: boolean; interimResults: boolean;
-        onresult: (event: Event) => void; start: () => void;
+        onresult: (event: Event) => void; onerror: (event: Event) => void; onend: () => void; onnomatch: () => void;
+        start: () => void; stop: () => void;
       };
       recognition.lang = language;
       recognition.continuous = true;
@@ -1310,6 +1312,20 @@ const speechBridge: SpeechBridge = {
           transcript: result[0].transcript,
           isFinal: result.isFinal,
         });
+      };
+
+      recognition.onerror = (event: Event) => {
+        const e = event as unknown as { error: string; message: string };
+        log.error('[CapacitorBridge] SpeechRecognition error:', e.error, e.message);
+        emitter.emit('stt-result', { transcript: '', isFinal: true, error: e.error });
+      };
+
+      recognition.onnomatch = () => {
+        emitter.emit('stt-result', { transcript: '', isFinal: true });
+      };
+
+      recognition.onend = () => {
+        (window as unknown as Record<string, unknown>).__mlearnSpeechRecognition = undefined;
       };
 
       recognition.start();
@@ -1332,6 +1348,10 @@ const speechBridge: SpeechBridge = {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = language;
     utterance.onend = () => emitter.emit('tts-status', { speaking: false, progress: 1 });
+    utterance.onerror = (event) => {
+      log.error('[CapacitorBridge] SpeechSynthesis error:', event);
+      emitter.emit('tts-status', { speaking: false, progress: 0, error: String(event) });
+    };
     emitter.emit('tts-status', { speaking: true, progress: 0 });
     speechSynthesis.speak(utterance);
   },

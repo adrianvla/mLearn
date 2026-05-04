@@ -118,6 +118,8 @@ export const App: Component = () => {
   // mousemove events while click-through, letting us detect when the cursor
   // enters an interactive region and switch back.
   onMount(() => {
+    let rafId: number | null = null;
+
     const updateInteractivity = (e: MouseEvent) => {
       // If a mouse button is held the user may be dragging a file. Switch to
       // interactive so dragenter/dragover/drop events are received.
@@ -125,10 +127,17 @@ export const App: Component = () => {
         if (!mouseInteractive()) setMouseInteractive(true);
         return;
       }
-      const next = isOverInteractiveRegion(e);
-      if (next !== mouseInteractive()) {
-        setMouseInteractive(next);
-      }
+
+      // Skip scheduling a new RAF if one is already pending
+      if (rafId !== null) return;
+
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const next = isOverInteractiveRegion(e);
+        if (next !== mouseInteractive()) {
+          setMouseInteractive(next);
+        }
+      });
     };
 
     const handleMouseLeave = () => {
@@ -162,6 +171,7 @@ export const App: Component = () => {
     document.addEventListener('drop', handleDragDrop);
 
     onCleanup(() => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       document.removeEventListener('mousemove', updateInteractivity);
       document.removeEventListener('mouseleave', handleMouseLeave);
       document.removeEventListener('dragenter', handleDragEnter);

@@ -20,11 +20,12 @@ import {
   AboutTab,
   VideoPlayerTab,
   BrowserExtensionTab,
+  ComponentsTab,
 } from './tabs';
 import Icon from '../../components/common/Icons/Icon';
 import './SettingsLayout.css';
 
-type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'video-player' | 'ai' | 'connection' | 'plugins' | 'about' | 'browser-extension';
+type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'video-player' | 'ai' | 'connection' | 'plugins' | 'components' | 'about' | 'browser-extension';
 
 interface SettingsTab {
   id: TabId;
@@ -42,6 +43,7 @@ const TABS: SettingsTab[] = [
   { id: 'ai', labelKey: 'mlearn.Settings.Tabs.AI', icon: 'bot' },
   { id: 'connection', labelKey: 'mlearn.Settings.Tabs.Connection', icon: 'link' },
   { id: 'plugins', labelKey: 'mlearn.Settings.Tabs.Plugins', icon: 'cog' },
+  { id: 'components', labelKey: 'mlearn.Settings.Tabs.Components', icon: 'cog' },
   { id: 'browser-extension', labelKey: 'mlearn.Settings.Tabs.BrowserExtension', icon: 'link' },
   { id: 'about', labelKey: 'mlearn.Settings.Tabs.About', icon: 'star' },
 ];
@@ -66,6 +68,7 @@ export const SettingsContent: Component = () => {
     if (normalized.includes('ai') || normalized.includes('llm')) return 'ai';
     if (normalized.includes('connect') || normalized.includes('tether') || normalized.includes('cloud') || normalized.includes('backend')) return 'connection';
     if (normalized.includes('plugin') || normalized.includes('permission')) return 'plugins';
+    if (normalized.includes('component') || normalized.includes('module')) return 'components';
     if (normalized.includes('browser') || normalized.includes('extension')) return 'browser-extension';
     if (normalized.includes('reader')) return 'reader';
     if (normalized.includes('video') || normalized.includes('player') || normalized.includes('subtitle')) return 'video-player';
@@ -128,6 +131,9 @@ export const SettingsContent: Component = () => {
           </Show>
           <Show when={activeTab() === 'plugins'}>
             <PluginsTab />
+          </Show>
+          <Show when={activeTab() === 'components'}>
+            <ComponentsTab />
           </Show>
           <Show when={activeTab() === 'browser-extension'}>
             <BrowserExtensionTab />

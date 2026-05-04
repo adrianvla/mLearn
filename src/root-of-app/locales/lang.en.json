@@ -246,7 +246,10 @@
       "SigningIn": "Signing in...",
       "TestConnection": "Test Connection",
       "Title": "Connection",
-      "Unreachable": "Unreachable"
+      "Unreachable": "Unreachable",
+      "ICEServers": "WebRTC ICE Servers",
+      "ICEServersLabel": "STUN / TURN servers",
+      "ICEServersDescription": "Used for Watch Together peer connections."
     },
     "ConversationAgent": {
       "Agents": {
@@ -930,6 +933,8 @@
         "NetworkError": "Network error occurred. Please check your connection and try again."
       },
       "Buttons": {
+        "CancelInstall": "Cancel Installation",
+        "CancelRestart": "Cancel Restart",
         "Continue": "Continue",
         "Installing": "Installing...",
         "StartInstallation": "Start Installation"
@@ -952,7 +957,7 @@
         "ChooseComponents": "Choose the components you want to install, then click Install.",
         "ClickToBegin": "Click Install to begin.",
         "DownloadNote": "All downloads are handled automatically. A stable connection is recommended.",
-        "ForgetSomething": "If you forget to install something, delete mLearn and restart the installer again.",
+        "ForgetSomething": "Components cannot be added after installation. Select everything you need now.",
         "LanguageUnlocks": "Language selection unlocks after setup finishes."
       },
       "Status": {
@@ -1805,6 +1810,7 @@
         "About": "About",
         "Appearance": "Appearance",
         "Behaviour": "Behaviour",
+        "Components": "Components",
         "Connection": "Connection",
         "General": "General",
         "Plugins": "Plugins",
@@ -2237,6 +2243,26 @@
       "View": "View",
       "WatchTogether": "Watch Together",
       "Window": "Window"
+    },
+    "ComponentsTab": {
+      "Description": "Manage installed components. Toggle modules on or off and reinstall to apply changes.",
+      "Reinstall": "Reinstall Components",
+      "RestartNote": "The app will restart after installation completes."
+    },
+    "Diagnostics": {
+      "Title": "mLearn Diagnostics",
+      "RunAllTests": "Run All Tests",
+      "RunAgain": "Run Again",
+      "Running": "Running…",
+      "ExportJson": "Export JSON",
+      "ErrorTitle": "Diagnostics failed",
+      "ReportSavedTo": "Report saved to:",
+      "FilterAll": "All",
+      "FilterPass": "Pass",
+      "FilterFail": "Fail",
+      "FilterSkip": "Skip",
+      "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
+      "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
     }
   }
 }

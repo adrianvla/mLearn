@@ -60,11 +60,11 @@ const WelcomeContent: Component = () => {
 
   const [welcomeTextIndex, setWelcomeTextIndex] = createSignal(0);
   const [welcomeFading, setWelcomeFading] = createSignal(false);
+  const [restartCountdown, setRestartCountdown] = createSignal<number | null>(null);
+  let restartTimer: ReturnType<typeof setTimeout> | null = null;
 
   const logInfo = (message: string) => {
-    const level = message.toLowerCase().includes('error') ? 'error' as const : 
-                  message.toLowerCase().includes('complete') ? 'success' as const : 'info' as const;
-    setStatusLogs(prev => [...prev, { message, level }]);
+    setStatusLogs(prev => [...prev, { message }]);
   };
 
   const installCompleted = () => {
@@ -109,26 +109,60 @@ const WelcomeContent: Component = () => {
     }
   };
 
+  const handleCancelInstall = () => {
+    getBridge().installer.cancelInstall();
+    setInstallationStarted(false);
+    setOverallStatus(t('mlearn.Installer.Status.NotStarted'));
+  };
+
   const handleContinue = () => {
     const languageCode = selectedLanguage();
     if (!installationCompleted() || !languageCode) return;
 
-    updateSettings({ language: languageCode });
+    const settingsToSave: Partial<Settings> = {
+      language: languageCode,
+      llmEnabled: includeLLM(),
+      ocrEnabled: includeOCR(),
+      voiceEnabled: includeVoice(),
+    };
+
+    updateSettings(settingsToSave);
 
     const bridge = getBridge();
-    bridge.settings.saveSettings({ language: languageCode } as Settings);
+    bridge.settings.saveSettings(settingsToSave as Settings);
     const settingsSavedCleanup = bridge.settings.onSettingsSaved(() => {
       settingsSavedCleanup();
       setOverallStatus(t('mlearn.Installer.Status.LanguageInstalledRestarting'));
-      setTimeout(() => {
+      setRestartCountdown(3);
+      const countdownInterval = setInterval(() => {
+        setRestartCountdown((prev) => {
+          if (prev === null || prev <= 1) {
+            clearInterval(countdownInterval);
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      restartTimer = setTimeout(() => {
+        clearInterval(countdownInterval);
+        setRestartCountdown(null);
         fetch(`http://127.0.0.1:${PROXY_SERVER_PORT}/quit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: '{}',
         }).catch(() => { /* ignore */ });
         bridge.server.forceRestartApp();
-      }, 5000);
+      }, 3000);
     });
+  };
+
+  const handleCancelRestart = () => {
+    if (restartTimer) {
+      clearTimeout(restartTimer);
+      restartTimer = null;
+    }
+    setRestartCountdown(null);
+    setOverallStatus(t('mlearn.Installer.Status.Complete'));
   };
 
   const ipcCleanups: Array<() => void> = [];
@@ -234,6 +268,9 @@ const WelcomeContent: Component = () => {
       }
       if (settings.ocrEnabled !== undefined) {
         setIncludeOCR(settings.ocrEnabled !== false);
+      }
+      if (settings.voiceEnabled !== undefined) {
+        setIncludeVoice(settings.voiceEnabled !== false);
       }
     }));
 
@@ -375,16 +412,37 @@ const WelcomeContent: Component = () => {
           />
         </Show>
 
-        <Btn
-          variant="primary"
-          onClick={installationCompleted() ? handleContinue : handleInstall}
-          disabled={(installationStarted() && !installationCompleted()) || (installationCompleted() && !selectedLanguage())}
-          class="welcome-window__action"
-        >
-          <Show when={!installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.StartInstallation')}</Show>
-          <Show when={installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.Installing')}</Show>
-          <Show when={installationCompleted()}>{t('mlearn.Installer.Buttons.Continue')}</Show>
-        </Btn>
+        <Show when={restartCountdown() !== null}>
+          <Btn
+            variant="secondary"
+            onClick={handleCancelRestart}
+            class="welcome-window__action"
+          >
+            {t('mlearn.Installer.Buttons.CancelRestart')} ({restartCountdown()})
+          </Btn>
+        </Show>
+        <Show when={restartCountdown() === null}>
+          <Show when={installationStarted() && !installationCompleted()}>
+            <Btn
+              variant="secondary"
+              onClick={handleCancelInstall}
+              class="welcome-window__action"
+            >
+              {t('mlearn.Installer.Buttons.CancelInstall')}
+            </Btn>
+          </Show>
+          <Show when={!installationStarted() || installationCompleted()}>
+            <Btn
+              variant="primary"
+              onClick={installationCompleted() ? handleContinue : handleInstall}
+              disabled={(installationStarted() && !installationCompleted()) || (installationCompleted() && !selectedLanguage())}
+              class="welcome-window__action"
+            >
+              <Show when={!installationStarted() && !installationCompleted()}>{t('mlearn.Installer.Buttons.StartInstallation')}</Show>
+              <Show when={installationCompleted()}>{t('mlearn.Installer.Buttons.Continue')}</Show>
+            </Btn>
+          </Show>
+        </Show>
       </Panel>
     </div>
   );

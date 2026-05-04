@@ -96,6 +96,11 @@ vi.mock('fs', async (importOriginal) => {
   };
 });
 
+let mockQuitToken: string | null = null;
+vi.mock('./pythonBackend', () => ({
+  getQuitToken: () => mockQuitToken,
+}));
+
 type SpawnEventCallback = (...args: unknown[]) => void;
 
 class MockChildProcess {
@@ -411,6 +416,23 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
     onHandlers.get('voice-start-session')?.(event, 'ja', 'vad', 2.0);
     expect(lastCreatedWebSocket?.url).toContain('language=ja');
     expect(lastCreatedWebSocket?.url).toContain('silence=2');
+  });
+
+  it('includes quit token in WebSocket URL when available', () => {
+    mockQuitToken = 'abc123def456';
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
+    expect(lastCreatedWebSocket?.url).toContain('token=abc123def456');
+    mockQuitToken = null;
+  });
+
+  it('does not include token param when quit token is null', () => {
+    mockQuitToken = null;
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
+    expect(lastCreatedWebSocket?.url).not.toContain('token=');
   });
 
   it('closes the WebSocket when stopSession is called', () => {

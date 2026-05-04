@@ -1805,6 +1805,7 @@
         "About": "アプリについて",
         "Appearance": "外観",
         "Behaviour": "動作",
+        "Components": "コンポーネント",
         "Connection": "接続",
         "General": "一般",
         "Plugins": "プラグイン",
@@ -2237,6 +2238,11 @@
       "View": "表示",
       "WatchTogether": "Watch Together",
       "Window": "ウィンドウ"
+    },
+    "ComponentsTab": {
+      "Description": "インストール済みのコンポーネントを管理します。モジュールをオンまたはオフに切り替え、変更を適用するために再インストールします。",
+      "Reinstall": "コンポーネントを再インストール",
+      "RestartNote": "インストールが完了すると、アプリが再起動します。"
     }
   }
 }

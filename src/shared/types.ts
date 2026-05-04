@@ -247,6 +247,7 @@ export interface Settings {
   // Feature flags
   llmEnabled: boolean;
   ocrEnabled: boolean;
+  voiceEnabled: boolean;
   devMode: boolean;
 
   /** Low battery mode: intercepts local neural network calls (LLM, TTS, OCR) with a user prompt */
@@ -428,6 +429,7 @@ export const DEFAULT_SETTINGS: Settings = {
   openAside: true,
   llmEnabled: true,
   ocrEnabled: true,
+  voiceEnabled: true,
   subsOffsetTime: 0,
   immediateFetch: false,
   subtitleTheme: 'shadow',
@@ -454,7 +456,7 @@ export const DEFAULT_SETTINGS: Settings = {
   liveTranslatorIncludeKnown: false,
   blurKnownWords: false,
   ocrRamSaver: false,
-  ocrTurboMode: true,
+  ocrTurboMode: false,
   ocrFuriganaDetection: true,
   ocrFuriganaWidthRatio: 1.5,
   ocrFuriganaNeighborWindowMultiplier: 2.4,

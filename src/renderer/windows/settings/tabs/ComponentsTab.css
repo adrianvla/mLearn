@@ -1,0 +1,114 @@
+.components-tab {
+  padding: var(--spacing-4);
+}
+
+.components-tab__title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-6);
+}
+
+.components-tab__panel {
+  max-width: 600px;
+}
+
+.components-tab__description {
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-6);
+  line-height: var(--line-height-relaxed);
+}
+
+.components-tab__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-6);
+}
+
+.components-tab__item {
+  padding: var(--spacing-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-nt-primary);
+}
+
+.components-tab__item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-2);
+}
+
+.components-tab__item-title {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.components-tab__item-desc {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.components-tab__toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  width: 44px;
+  height: 24px;
+}
+
+.components-tab__toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.components-tab__toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--border-color-intense);
+  border-radius: var(--radius-full);
+  transition: background var(--transition-normal);
+}
+
+.components-tab__toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: var(--text-on-strong);
+  border-radius: 50%;
+  transition: transform var(--transition-normal);
+}
+
+.components-tab__toggle input:checked + .components-tab__toggle-slider {
+  background: var(--color-primary);
+}
+
+.components-tab__toggle input:checked + .components-tab__toggle-slider::before {
+  transform: translateX(20px);
+}
+
+.components-tab__toggle input:focus + .components-tab__toggle-slider {
+  box-shadow: 0 0 0 2px var(--color-primary-hover);
+}
+
+.components-tab__action {
+  width: 100%;
+  margin-bottom: var(--spacing-4);
+}
+
+.components-tab__note {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.components-tab__alert {
+  margin-bottom: var(--spacing-4);
+}

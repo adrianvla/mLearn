@@ -7,7 +7,7 @@
 import { Component, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
 import { useServer, useSettings, useLanguage, useLocalization } from '../../../context';
 import { LoadingOverlay as BaseLoadingOverlay, ErrorModal } from '../../../components/common/Modal';
-import { Btn } from '../../../components/common/Button';
+import { showToast } from '../../../components/common/Feedback/Toast';
 import { getBridge } from '../../../../shared/bridges';
 import { getLogger } from '../../../../shared/utils/logger';
 
@@ -21,8 +21,6 @@ export const LoadingOverlay: Component = () => {
   
   // Track critical errors from the server
   const [criticalError, setCriticalError] = createSignal<{ message: string; details?: string } | null>(null);
-  // Track Anki-specific connection errors
-  const [ankiError, setAnkiError] = createSignal<string | null>(null);
 
   const isLoading = createMemo(
     () => !server.isConnected() || settings.isLoading() || language.isLoading()
@@ -77,8 +75,16 @@ export const LoadingOverlay: Component = () => {
       };
 
     const handleAnkiError = (reason: string) => {
-      log.error('[LoadingOverlay] Anki connection error received:', reason);
-      setAnkiError(reason);
+      log.warn('[LoadingOverlay] Anki connection error received:', reason);
+      showToast({
+        variant: 'warning',
+        title: t('mlearn.ErrorModal.Title.AnkiError'),
+        message:
+          reason === 'no_valid_cards'
+            ? t('mlearn.ErrorModal.Messages.AnkiNoValidCards')
+            : t('mlearn.ErrorModal.Messages.AnkiConnectionFailed'),
+        duration: 8000,
+      });
     };
 
     const bridge = getBridge();
@@ -104,71 +110,10 @@ export const LoadingOverlay: Component = () => {
     getBridge().window.closeWindow();
   };
 
-  // Anki recovery actions
-  const handleAnkiDisableSession = () => {
-    setAnkiError(null);
-    server.resetToLoading();
-    getBridge().server.restartBackendAnkiOverride(true);
-  };
-
-  const handleAnkiDisablePermanent = () => {
-    setAnkiError(null);
-    settings.updateSettings({ use_anki: false });
-    server.resetToLoading();
-    getBridge().server.restartBackendAnkiOverride(false);
-  };
-
-  const handleAnkiTryAgain = () => {
-    setAnkiError(null);
-    server.restartBackend();
-  };
-
-  const ankiErrorMessage = createMemo(() => {
-    const reason = ankiError();
-    if (reason === 'no_valid_cards') {
-      return t('mlearn.ErrorModal.Messages.AnkiNoValidCards');
-    }
-    return t('mlearn.ErrorModal.Messages.AnkiConnectionFailed');
-  });
-
   return (
     <>
-      {/* Anki connection error modal */}
-      <Show when={ankiError()}>
-        <ErrorModal
-          isOpen={true}
-          severity="error"
-          title={t('mlearn.ErrorModal.Title.AnkiError')}
-          message={ankiErrorMessage()}
-          showRetry={false}
-          showQuit={false}
-          actions={
-            <>
-              <Btn
-                variant="default"
-                onClick={handleAnkiDisableSession}
-              >
-                {t('mlearn.ErrorModal.AnkiDisableSession')}
-              </Btn>
-              <Btn
-                variant="danger"
-                onClick={handleAnkiDisablePermanent}
-              >
-                {t('mlearn.ErrorModal.AnkiDisablePermanent')}
-              </Btn>
-              <Btn
-                variant="primary"
-                onClick={handleAnkiTryAgain}
-              >
-                {t('mlearn.Global.TryAgain')}
-              </Btn>
-            </>
-          }
-        />
-      </Show>
-
       {/* Error modal - shown when there's a critical error */}
-      <Show when={!ankiError() ? criticalError() : null}>
+      <Show when={criticalError()}>
         {(error) => (
           <ErrorModal
             isOpen={true}
@@ -185,7 +130,7 @@ export const LoadingOverlay: Component = () => {
       </Show>
 
       {/* Loading overlay - shown during initialization when no error */}
-      <Show when={!criticalError() && !ankiError()}>
+      <Show when={!criticalError()}>
         <BaseLoadingOverlay
           isOpen={isLoading()}
           title={t('mlearn.Global.AppName')}

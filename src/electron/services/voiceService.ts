@@ -33,6 +33,7 @@ import {
   isWindows,
 } from '../utils/platform';
 import { loadSettings } from './settings';
+import { getQuitToken } from './pythonBackend';
 import WebSocket from 'ws';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -290,6 +291,9 @@ let activeWs: WebSocket | null = null;
 let activeSession = false;
 let activeSender: Electron.WebContents | null = null;
 
+const MAX_QUEUED_AUDIO_CHUNKS = 256;
+let pendingAudioChunks: Float32Array[] = [];
+
 // ============================================================================
 // TTS Abort
 // ============================================================================
@@ -337,7 +341,7 @@ async function checkModelStatus(_language: string): Promise<VoiceModelStatus> {
 
 function startSession(
   language: string,
-  _mode: VoiceMode,
+  mode: VoiceMode,
   silenceThreshold: number,
   sender: Electron.WebContents,
 ): void {
@@ -345,7 +349,8 @@ function startSession(
     stopSession();
   }
 
-  const wsUrl = `${API_ENDPOINTS.voiceStream}?language=${encodeURIComponent(language)}&silence=${silenceThreshold}`;
+  const token = getQuitToken();
+  const wsUrl = `${API_ENDPOINTS.voiceStream}?language=${encodeURIComponent(language)}&silence=${silenceThreshold}&mode=${encodeURIComponent(mode)}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
 
   try {
     const ws = new WebSocket(wsUrl);
@@ -355,6 +360,14 @@ function startSession(
 
     ws.on('open', () => {
       log.info('[VoiceService] WebSocket connected to Python backend');
+      for (const chunk of pendingAudioChunks) {
+        try {
+          ws.send(Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength));
+        } catch (e) {
+          log.error('[VoiceService] Failed to send queued audio chunk:', e);
+        }
+      }
+      pendingAudioChunks = [];
     });
 
     ws.on('message', (rawData: WebSocket.RawData) => {
@@ -421,6 +434,7 @@ function startSession(
 function stopSession(): void {
   activeSession = false;
   activeSender = null;
+  pendingAudioChunks = [];
   if (activeWs) {
     try { activeWs.close(); } catch (e) {
       log.error("error", e);
@@ -430,7 +444,12 @@ function stopSession(): void {
 }
 
 function sendAudioChunk(samples: Float32Array): void {
-  if (!activeWs || activeWs.readyState !== WebSocket.OPEN) return;
+  if (!activeWs || activeWs.readyState !== WebSocket.OPEN) {
+    if (pendingAudioChunks.length < MAX_QUEUED_AUDIO_CHUNKS) {
+      pendingAudioChunks.push(samples);
+    }
+    return;
+  }
   try {
     activeWs.send(Buffer.from(samples.buffer, samples.byteOffset, samples.byteLength));
   } catch (e) {

@@ -8,7 +8,12 @@ import type { DiagnosticTestSuite } from './types';
 const suites: DiagnosticTestSuite[] = [];
 
 export function registerDiagnosticSuite(suite: DiagnosticTestSuite): void {
-  suites.push(suite);
+  const existingIndex = suites.findIndex(s => s.name === suite.name);
+  if (existingIndex !== -1) {
+    suites[existingIndex] = suite;
+  } else {
+    suites.push(suite);
+  }
 }
 
 export function getDiagnosticSuites(): DiagnosticTestSuite[] {

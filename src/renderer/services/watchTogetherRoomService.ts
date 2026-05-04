@@ -249,12 +249,17 @@ export async function leaveWatchTogetherRoom(
   );
 }
 
+function appendAuthTokenToUrl(url: string, token: string): string {
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}token=${encodeURIComponent(token)}`;
+}
+
 export function subscribeToWatchTogetherRoom(
   session: WatchTogetherRoomSession,
   accessToken: string,
   callback: (room: WatchTogetherRoomState) => void,
 ): () => void {
-  const socket = new WebSocket(session.socket.url, [session.socket.protocol, accessToken]);
+  const socket = new WebSocket(appendAuthTokenToUrl(session.socket.url, accessToken), [session.socket.protocol]);
 
   socket.addEventListener('message', (event) => {
     try {

@@ -52,10 +52,19 @@ function getExtensionSourceDir(): string {
   return path.resolve(__dirname, '..', '..', '..', 'extension', 'dist');
 }
 
-function readExtensionManifest(sourceDir: string): ExtensionManifest | null {
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.promises.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readExtensionManifest(sourceDir: string): Promise<ExtensionManifest | null> {
   const manifestPath = path.join(sourceDir, 'manifest.json');
   try {
-    const data = fs.readFileSync(manifestPath, 'utf-8');
+    const data = await fs.promises.readFile(manifestPath, 'utf-8');
     return JSON.parse(data) as ExtensionManifest;
   } catch (error) {
     log.warn('Failed to read extension manifest:', error);
@@ -95,22 +104,22 @@ function getChromeExtensionDir(profilePath: string, extensionId: string, version
   return path.join(getChromeExtensionsDir(profilePath), extensionId, version);
 }
 
-function addDirToZip(zip: AdmZip, dirPath: string, zipRoot: string): void {
-  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+async function addDirToZip(zip: AdmZip, dirPath: string, zipRoot: string): Promise<void> {
+  const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
     const zipPath = path.join(zipRoot, entry.name);
     if (entry.isDirectory()) {
-      addDirToZip(zip, fullPath, zipPath);
+      await addDirToZip(zip, fullPath, zipPath);
     } else {
       zip.addLocalFile(fullPath, zipRoot);
     }
   }
 }
 
-function createExtensionXpi(sourceDir: string, destPath: string): void {
+async function createExtensionXpi(sourceDir: string, destPath: string): Promise<void> {
   const zip = new AdmZip();
-  addDirToZip(zip, sourceDir, '');
+  await addDirToZip(zip, sourceDir, '');
   zip.writeZip(destPath);
 }
 
@@ -133,7 +142,7 @@ export async function installExtension(browserInfo: BrowserInfo): Promise<Instal
     return { success: false, error: 'Extension source directory not found' };
   }
 
-  const manifest = readExtensionManifest(sourceDir);
+  const manifest = await readExtensionManifest(sourceDir);
   if (!manifest) {
     log.warn('Could not read extension manifest');
     return { success: false, error: 'Could not read extension manifest' };
@@ -182,7 +191,7 @@ export async function installExtension(browserInfo: BrowserInfo): Promise<Instal
         await fs.promises.mkdir(extensionsDir, { recursive: true });
 
         const xpiPath = path.join(extensionsDir, `${extensionId}.xpi`);
-        createExtensionXpi(sourceDir, xpiPath);
+        await createExtensionXpi(sourceDir, xpiPath);
         log.info(`Extension installed for ${browserInfo.name} profile at ${xpiPath} (ID: ${extensionId})`);
       }
       return { success: true, path: `${extensionId}.xpi` };
@@ -203,7 +212,7 @@ export async function uninstallExtension(browserInfo: BrowserInfo): Promise<bool
   }
 
   const sourceDir = getExtensionSourceDir();
-  const manifest = readExtensionManifest(sourceDir);
+  const manifest = await readExtensionManifest(sourceDir);
   const version = manifest?.version || '1.0.0';
 
   try {
@@ -213,7 +222,7 @@ export async function uninstallExtension(browserInfo: BrowserInfo): Promise<bool
           getChromeExtensionsDir(browserInfo.profilePath),
           EXTENSION_DIR_NAME,
         );
-        if (fs.existsSync(legacyDir)) {
+        if (await pathExists(legacyDir)) {
           await fs.promises.rm(legacyDir, { recursive: true, force: true });
           log.info(`Removed legacy extension for ${browserInfo.name} at ${legacyDir}`);
         }
@@ -223,7 +232,7 @@ export async function uninstallExtension(browserInfo: BrowserInfo): Promise<bool
       const extensionId = computeChromeExtensionId(manifest.key);
       const extensionDir = getChromeExtensionDir(browserInfo.profilePath, extensionId, version);
 
-      if (fs.existsSync(extensionDir)) {
+      if (await pathExists(extensionDir)) {
         await fs.promises.rm(extensionDir, { recursive: true, force: true });
         log.info(`Extension uninstalled for ${browserInfo.name} from ${extensionDir}`);
       }
@@ -256,13 +265,13 @@ export async function uninstallExtension(browserInfo: BrowserInfo): Promise<bool
 
       for (const profileDir of profileDirs) {
         const xpiPath = path.join(profileDir, 'extensions', `${extensionId}.xpi`);
-        if (fs.existsSync(xpiPath)) {
+        if (await pathExists(xpiPath)) {
           await fs.promises.rm(xpiPath, { force: true });
           log.info(`Extension XPI uninstalled for ${browserInfo.name} profile from ${xpiPath}`);
         }
 
         const legacyDir = path.join(profileDir, 'extensions', EXTENSION_DIR_NAME);
-        if (fs.existsSync(legacyDir)) {
+        if (await pathExists(legacyDir)) {
           await fs.promises.rm(legacyDir, { recursive: true, force: true });
           log.info(`Removed legacy unpacked extension for ${browserInfo.name} profile from ${legacyDir}`);
         }
@@ -284,7 +293,7 @@ export async function isExtensionInstalled(browserInfo: BrowserInfo): Promise<bo
   }
 
   const sourceDir = getExtensionSourceDir();
-  const manifest = readExtensionManifest(sourceDir);
+  const manifest = await readExtensionManifest(sourceDir);
   const version = manifest?.version || '1.0.0';
 
   try {
@@ -294,12 +303,12 @@ export async function isExtensionInstalled(browserInfo: BrowserInfo): Promise<bo
           getChromeExtensionsDir(browserInfo.profilePath),
           EXTENSION_DIR_NAME,
         );
-        return fs.existsSync(legacyDir);
+        return await pathExists(legacyDir);
       }
 
       const extensionId = computeChromeExtensionId(manifest.key);
       const extensionDir = getChromeExtensionDir(browserInfo.profilePath, extensionId, version);
-      return fs.existsSync(extensionDir);
+      return await pathExists(extensionDir);
     }
 
     if (browserInfo.type === 'firefox') {
@@ -314,7 +323,7 @@ export async function isExtensionInstalled(browserInfo: BrowserInfo): Promise<bo
 
         for (const profileDir of profileDirs) {
           const xpiPath = path.join(profileDir, 'extensions', `${extensionId}.xpi`);
-          if (fs.existsSync(xpiPath)) {
+          if (await pathExists(xpiPath)) {
             return true;
           }
         }

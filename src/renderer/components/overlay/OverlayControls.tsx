@@ -108,13 +108,31 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
     return (props.currentTime / props.duration) * 100;
   });
 
-  const handleProgressDrag = (e: MouseEvent) => {
+  const handleMouseDown = () => {
+    setIsDragging(true);
+    window.addEventListener('mousemove', handleWindowMouseMove);
+    window.addEventListener('mouseup', handleWindowMouseUp);
+  };
+
+  const handleWindowMouseMove = (e: MouseEvent) => {
     if (!isDragging()) return;
-    const bar = e.currentTarget as HTMLDivElement;
-    const rect = bar.getBoundingClientRect();
-    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const progressBarEl = document.querySelector('.overlay-progress-bar') as HTMLDivElement;
+    if (!progressBarEl) return;
+    const barRect = progressBarEl.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (e.clientX - barRect.left) / barRect.width));
     props.onSeek(percent * props.duration);
   };
+
+  const handleWindowMouseUp = () => {
+    setIsDragging(false);
+    window.removeEventListener('mousemove', handleWindowMouseMove);
+    window.removeEventListener('mouseup', handleWindowMouseUp);
+  };
+
+  onCleanup(() => {
+    window.removeEventListener('mousemove', handleWindowMouseMove);
+    window.removeEventListener('mouseup', handleWindowMouseUp);
+  });
 
   const handleOffsetDecrease = () => {
     props.onOffsetChange(Math.round((props.subtitleOffset - 0.1) * 10) / 10);
@@ -155,10 +173,7 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
             trackClass="overlay-progress-bar"
             fillClass={`overlay-progress-fill ${isDragging() ? 'dragging' : ''}`}
             onClick={(percent) => props.onSeek((percent / 100) * props.duration)}
-            onMouseDown={() => setIsDragging(true)}
-            onMouseUp={() => setIsDragging(false)}
-            onMouseMove={handleProgressDrag}
-            onMouseLeave={() => setIsDragging(false)}
+            onMouseDown={handleMouseDown}
             rounded={false}
           />
 

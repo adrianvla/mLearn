@@ -912,6 +912,7 @@ async def voice_stream_ws(websocket: WebSocket):
 
     language = websocket.query_params.get("language", config.LANGUAGE or "en")
     silence_threshold = float(websocket.query_params.get("silence", "1.5"))
+    mode = websocket.query_params.get("mode", "vad")
 
     try:
         _reload_tts_settings()
@@ -1053,6 +1054,15 @@ async def voice_stream_ws(websocket: WebSocket):
                 chunk_data = bytes(audio_buffer[:chunk_bytes])
                 del audio_buffer[:chunk_bytes]
 
+                # PTT mode: accumulate all audio, skip VAD
+                if mode == "push-to-talk":
+                    if not is_speaking:
+                        is_speaking = True
+                        speech_buffer = bytearray()
+                    speech_buffer.extend(chunk_data)
+                    continue
+
+                # VAD mode: run voice activity detection
                 samples = np.frombuffer(chunk_data, dtype=np.float32)
                 torch = config.torch
                 _torch = importlib.import_module("torch") if torch is None else torch

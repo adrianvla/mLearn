@@ -186,8 +186,8 @@ describe('watchTogetherRoomService', () => {
     const unsubscribe = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom);
     const socket = MockWebSocket.instances[0];
 
-    expect(socket.url).toBe('wss://cloud.example.com/api/watch-together/rooms/room-1/socket');
-    expect(socket.protocols).toEqual(['mlearn-watch-v1', 'worker-access-token']);
+    expect(socket.url).toBe('wss://cloud.example.com/api/watch-together/rooms/room-1/socket?token=worker-access-token');
+    expect(socket.protocols).toEqual(['mlearn-watch-v1']);
 
     socket.emit('message', {
       data: JSON.stringify({

@@ -68,6 +68,12 @@ body.theme-darker {
 
     --overlay-bg: rgba(0, 0, 0, 0.6);
     --overlay-bg-soft: rgba(0, 0, 0, 0.4);
+
+    /* LogConsole level backgrounds - higher opacity for dark backgrounds */
+    --log-console-info-bg: rgba(52, 152, 219, 0.30);
+    --log-console-success-bg: rgba(88, 195, 51, 0.30);
+    --log-console-warning-bg: rgba(241, 196, 15, 0.30);
+    --log-console-error-bg: rgba(231, 76, 60, 0.30);
 }
 
 /* === End index.css === */

@@ -156,6 +156,7 @@ const serverBridge: ServerBridge = {
 
 const installerBridge: InstallerBridge = {
   startInstall: (opts) => getIPC().startInstall(opts),
+  cancelInstall: () => getIPC().cancelInstall(),
   requestInstallerState: () => getIPC().requestInstallerState(),
   onPythonSuccess: (cb) => getIPC().onPythonSuccess(cb),
   onInstallStarted: (cb) => getIPC().onInstallStarted(cb),

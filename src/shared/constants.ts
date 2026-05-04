@@ -135,6 +135,7 @@ export const IPC_CHANNELS = {
   INSTALLER_AWAITING_CHOICE: 'installer-awaiting-choice',
   INSTALLER_NETWORK_ERROR: 'installer-network-error',
   PIP_PROGRESS: 'pip-progress',
+  CANCEL_INSTALL: 'cancel-install',
   
   // UI
   SHOW_SETTINGS: 'show-settings',

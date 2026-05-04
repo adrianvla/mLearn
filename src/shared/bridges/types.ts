@@ -162,6 +162,7 @@ export interface ServerBridge {
 
 export interface InstallerBridge {
   startInstall: (options: InstallOptions) => void;
+  cancelInstall: () => void;
   requestInstallerState: () => void;
   onPythonSuccess: (callback: (success: boolean) => void) => () => void;
   onInstallStarted: (callback: (options: InstallOptions) => void) => () => void;

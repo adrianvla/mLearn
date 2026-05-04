@@ -84,14 +84,14 @@
 
   --bg-opaque: #f5f5f5;
 
-  --bg: rgba(85, 85, 85, 0.1);
-  --bg-intense: rgba(85, 85, 85, 0.15);
+  --bg: rgba(200,200,200, 0.7);
+  --bg-intense: rgba(220,220,220, 0.8);
   --bg-nt-primary: rgb(238,238,238); /*non-translucent*/
   --bg-nt-secondary: rgb(230,230,230); /*non-translucent*/
   --accent-bg: rgba(255, 255, 255, 0.2);
   --accent: rgba(255, 255, 255, 0.8);
-  --backdrop-filter: blur(10px) saturate(2) brightness(1.1);
-  --backdrop-filter-nodim: blur(10px) saturate(2) brightness(1.1);
+  --backdrop-filter: blur(10px) saturate(1) brightness(1.1);
+  --backdrop-filter-nodim: blur(10px) saturate(1) brightness(1.1);
   --border-color: rgba(85, 85, 85, 0.15);
   --border-color-intense: rgba(85, 85, 85, 0.25);
 
@@ -177,7 +177,7 @@
   /* ========== Text Color Aliases ========== */
   /* Used by components for consistency */
   --text-primary: #1a1a1a;
-  --text-secondary: #666666;
+  --text-secondary: #444;
   --text-tertiary: rgba(0, 0, 0, 0.4);
   
   /* ========== Additional Color Aliases ========== */

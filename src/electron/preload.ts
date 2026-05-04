@@ -202,6 +202,7 @@ const mLearnIPC = {
 
   // ========== Installation ==========
   startInstall: (options: InstallOptions) => ipcRenderer.send(IPC_CHANNELS.START_INSTALL, options),
+  cancelInstall: () => ipcRenderer.send(IPC_CHANNELS.CANCEL_INSTALL),
   requestInstallerState: () => ipcRenderer.send(IPC_CHANNELS.INSTALLER_STATE_REQUEST),
   onPythonSuccess: (callback: (success: boolean) => void) =>
     ipcOn(IPC_CHANNELS.SUCCESSFUL_INSTALL, (_event, success) => callback(success)),

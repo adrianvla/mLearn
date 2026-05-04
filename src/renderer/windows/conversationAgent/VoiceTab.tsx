@@ -147,6 +147,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const ttsSpeed = () => settings.voiceTtsSpeed ?? 1.0;
   const silenceThreshold = () => settings.voiceSilenceThreshold ?? 1.2;
 
+  let currentVoiceMode: VoiceMode = voiceMode();
+  createEffect(() => {
+    currentVoiceMode = voiceMode();
+  });
+
   // ============================================================================
   // Check model status on mount and language change
   // ============================================================================
@@ -366,10 +371,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
       scriptNode.onaudioprocess = (e) => {
         if (!isCallActive()) return;
-        if (voiceMode() === 'push-to-talk' && !pttActive()) return;
-        // Don't stream mic audio to backend during TTS playback — prevents
-        // TTS echo from triggering the server-side VAD. Barge-in is detected
-        // locally via the analyser node instead.
+        if (currentVoiceMode === 'push-to-talk' && !pttActive()) return;
         if (ttsPlaying) return;
 
         const inputData = e.inputBuffer.getChannelData(0);
@@ -643,6 +645,24 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const setVoiceMode = (mode: VoiceMode) => {
     updateSettings({ ...settings, voiceMode: mode });
   };
+
+  createEffect(
+    on(
+      () => settings.voiceMode,
+      (mode, prevMode) => {
+        if (mode !== prevMode && isCallActive() && !isInitializing()) {
+          stopAudioCapture();
+          getBridge().voice.voiceStopSession();
+          getBridge().voice.voiceStartSession(
+            props.language,
+            mode as VoiceMode,
+            settings.voiceSilenceThreshold ?? 1.2,
+          );
+          startAudioCapture();
+        }
+      },
+    ),
+  );
 
   const setTtsProvider = (provider: TTSProvider) => {
     updateSettings({ ...settings, ttsProvider: provider });

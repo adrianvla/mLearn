@@ -1805,6 +1805,7 @@
         "About": "Über",
         "Appearance": "Darstellung",
         "Behaviour": "Verhalten",
+        "Components": "Komponenten",
         "Connection": "Verbindung",
         "General": "Allgemein",
         "Plugins": "Plugins",
@@ -2237,6 +2238,11 @@
       "View": "Ansicht",
       "WatchTogether": "Watch Together",
       "Window": "Fenster"
+    },
+    "ComponentsTab": {
+      "Description": "Verwalten Sie installierte Komponenten. Schalten Sie Module ein oder aus und installieren Sie sie erneut, um Änderungen anzuwenden.",
+      "Reinstall": "Komponenten neu installieren",
+      "RestartNote": "Die App wird nach Abschluss der Installation neu gestartet."
     }
   }
 }

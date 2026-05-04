@@ -3,6 +3,7 @@
  */
 
 import { Component, createSignal, For, Show, onMount, onCleanup } from 'solid-js';
+import { useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 
 import type { DiagnosticsReport, DiagnosticsProgressEvent, TestSuiteResult } from '../../../shared/diagnostics/types';
@@ -11,12 +12,14 @@ import { TestSuiteCard } from './components/TestSuiteCard';
 import './diagnostics.css';
 
 export const DiagnosticsApp: Component = () => {
+  const { t } = useLocalization();
   const [isRunning, setIsRunning] = createSignal(false);
   const [report, setReport] = createSignal<DiagnosticsReport | null>(null);
   const [suites, setSuites] = createSignal<TestSuiteResult[]>([]);
   const [currentProgress, setCurrentProgress] = createSignal<DiagnosticsProgressEvent | null>(null);
   const [filter, setFilter] = createSignal<'all' | 'pass' | 'fail' | 'skip'>('all');
   const [exportPath, setExportPath] = createSignal<string | null>(null);
+  const [error, setError] = createSignal<string | null>(null);
 
   const bridge = getBridge();
   let unlistenProgress: (() => void) | null = null;
@@ -68,12 +71,14 @@ export const DiagnosticsApp: Component = () => {
     setReport(null);
     setSuites([]);
     setExportPath(null);
+    setError(null);
     try {
       const result = await bridge.diagnostics.runDiagnostics();
       setReport(result);
       setSuites(result.suites);
     } catch (err) {
       console.error('Diagnostics failed:', err);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsRunning(false);
       setCurrentProgress(null);
@@ -112,17 +117,17 @@ export const DiagnosticsApp: Component = () => {
   return (
     <div class="diagnostics-root">
       <div class="diagnostics-header">
-        <h1>mLearn Diagnostics</h1>
+        <h1>{t('mlearn.Diagnostics.Title')}</h1>
         <div class="diagnostics-actions">
           <Show when={!isRunning()}>
-            <button class="diagnostics-btn primary" onClick={runDiagnostics} disabled={isRunning()}>
-              {report() ? 'Run Again' : 'Run All Tests'}
+            <button type="button" class="diagnostics-btn primary" onClick={runDiagnostics} disabled={isRunning()}>
+              {report() ? t('mlearn.Diagnostics.RunAgain') : t('mlearn.Diagnostics.RunAllTests')}
             </button>
           </Show>
           <Show when={isRunning()}>
             <div class="diagnostics-running">
               <span class="diagnostics-spinner" />
-              <span>Running…</span>
+              <span>{t('mlearn.Diagnostics.Running')}</span>
               <Show when={currentProgress()}>
                 <span class="diagnostics-progress-detail">
                   {currentProgress()?.suiteName} :: {currentProgress()?.testName}
@@ -131,16 +136,23 @@ export const DiagnosticsApp: Component = () => {
             </div>
           </Show>
           <Show when={report()}>
-            <button class="diagnostics-btn" onClick={exportReport}>
-              Export JSON
+            <button type="button" class="diagnostics-btn" onClick={exportReport}>
+              {t('mlearn.Diagnostics.ExportJson')}
             </button>
           </Show>
         </div>
       </div>
 
+      <Show when={error()}>
+        <div class="diagnostics-error-banner">
+          <strong>{t('mlearn.Diagnostics.ErrorTitle')}</strong>
+          <span>{error()}</span>
+        </div>
+      </Show>
+
       <Show when={exportPath()}>
         <div class="diagnostics-export-notice">
-          Report saved to: {exportPath()}
+          {t('mlearn.Diagnostics.ReportSavedTo')} {exportPath()}
         </div>
       </Show>
 
@@ -150,10 +162,10 @@ export const DiagnosticsApp: Component = () => {
 
       <Show when={report()}>
         <div class="diagnostics-filters">
-          <button class={filter() === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>All</button>
-          <button class={filter() === 'pass' ? 'active' : ''} onClick={() => setFilter('pass')}>Pass</button>
-          <button class={filter() === 'fail' ? 'active' : ''} onClick={() => setFilter('fail')}>Fail</button>
-          <button class={filter() === 'skip' ? 'active' : ''} onClick={() => setFilter('skip')}>Skip</button>
+          <button type="button" class={filter() === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>{t('mlearn.Diagnostics.FilterAll')}</button>
+          <button type="button" class={filter() === 'pass' ? 'active' : ''} onClick={() => setFilter('pass')}>{t('mlearn.Diagnostics.FilterPass')}</button>
+          <button type="button" class={filter() === 'fail' ? 'active' : ''} onClick={() => setFilter('fail')}>{t('mlearn.Diagnostics.FilterFail')}</button>
+          <button type="button" class={filter() === 'skip' ? 'active' : ''} onClick={() => setFilter('skip')}>{t('mlearn.Diagnostics.FilterSkip')}</button>
         </div>
       </Show>
 
@@ -171,10 +183,9 @@ export const DiagnosticsApp: Component = () => {
 
       <Show when={!isRunning() && !report() && suites().length === 0}>
         <div class="diagnostics-empty">
-          <p>Click "Run All Tests" to validate every feature in mLearn.</p>
+          <p>{t('mlearn.Diagnostics.EmptyTitle')}</p>
           <p class="diagnostics-empty-sub">
-            This will test the Python backend, LLM providers, cloud connectivity,
-            dictionaries, OCR, voice, storage, media protocols, and more — all using real services.
+            {t('mlearn.Diagnostics.EmptyDescription')}
           </p>
         </div>
       </Show>

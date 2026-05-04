@@ -199,6 +199,36 @@ function serveStaticFile(res: http.ServerResponse, filePath: string): void {
   res.on('error', () => stream.destroy());
 }
 
+// Type guard for overlay geometry
+function validateGeometry(data: unknown): data is { x: number; y: number; width: number; height: number } {
+  if (typeof data !== 'object' || data === null) return false;
+  const obj = data as Record<string, unknown>;
+  return (
+    typeof obj.x === 'number' &&
+    typeof obj.y === 'number' &&
+    typeof obj.width === 'number' &&
+    typeof obj.height === 'number'
+  );
+}
+
+// Type guard for video state
+function validateVideoState(data: unknown): data is { currentTime: number; isPlaying: boolean; duration: number } {
+  if (typeof data !== 'object' || data === null) return false;
+  const obj = data as Record<string, unknown>;
+  return (
+    typeof obj.currentTime === 'number' &&
+    typeof obj.isPlaying === 'boolean' &&
+    typeof obj.duration === 'number'
+  );
+}
+
+// Type guard for subtitle tracks
+function validateSubtitleTracks(data: unknown): data is { tracks: unknown[]; textTracks: unknown[] } {
+  if (typeof data !== 'object' || data === null) return false;
+  const obj = data as Record<string, unknown>;
+  return Array.isArray(obj.tracks) && Array.isArray(obj.textTracks);
+}
+
 function requireAuth(req: http.IncomingMessage, res: http.ServerResponse): boolean {
   if (req.headers['x-auth-token'] !== SERVER_AUTH_TOKEN) {
     res.writeHead(401, { ...corsHeaders, 'Content-Type': 'application/json' });
@@ -364,6 +394,10 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     req.on('end', () => {
       try {
         const parsed = JSON.parse(body);
+        if (!validateGeometry(parsed)) {
+          sendJsonResponse(res, { status: 'error', error: 'Invalid geometry: x, y, width, height must be numbers' }, 400);
+          return;
+        }
         updateOverlayGeometry(parsed);
         const overlay = getOverlayWindow();
         if (overlay && !overlay.isDestroyed()) {
@@ -390,6 +424,10 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     req.on('end', () => {
       try {
         const parsed = JSON.parse(body);
+        if (!validateVideoState(parsed)) {
+          sendJsonResponse(res, { status: 'error', error: 'Invalid video state: currentTime, isPlaying, duration must be present and correctly typed' }, 400);
+          return;
+        }
         const overlay = getOverlayWindow();
         if (overlay && !overlay.isDestroyed()) {
           overlay.webContents.send(IPC_CHANNELS.OVERLAY_VIDEO_STATE, parsed);
@@ -415,6 +453,10 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     req.on('end', () => {
       try {
         const parsed = JSON.parse(body);
+        if (!validateSubtitleTracks(parsed)) {
+          sendJsonResponse(res, { status: 'error', error: 'Invalid subtitle tracks: tracks and textTracks must be arrays' }, 400);
+          return;
+        }
         const overlay = getOverlayWindow();
         if (overlay && !overlay.isDestroyed()) {
           overlay.webContents.send(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, parsed);

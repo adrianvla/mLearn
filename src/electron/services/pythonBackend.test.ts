@@ -19,10 +19,12 @@ vi.mock('electron', () => ({
 
 const mockSpawn = vi.fn();
 const mockExec = vi.fn();
+const mockExecSync = vi.fn(() => '');
 
 vi.mock('child_process', () => ({
   spawn: mockSpawn,
   exec: mockExec,
+  execSync: mockExecSync,
   ChildProcess: class {},
 }));
 

@@ -1,14 +1,8 @@
 import { Component, createSignal, onCleanup } from 'solid-js';
 import './BorderFlash.css';
 
-let globalTrigger: (() => void) | null = null;
+const globalTriggers = new Set<() => void>();
 
-/**
- * BorderFlash — flashes the window borders twice to indicate a reposition.
- *
- * Import and render once inside the overlay. Call triggerBorderFlash()
- * from anywhere to start the animation.
- */
 export const BorderFlash: Component = () => {
   const [isFlashing, setIsFlashing] = createSignal(false);
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -22,11 +16,9 @@ export const BorderFlash: Component = () => {
     }, 600);
   };
 
-  globalTrigger = trigger;
+  globalTriggers.add(trigger);
   onCleanup(() => {
-    if (globalTrigger === trigger) {
-      globalTrigger = null;
-    }
+    globalTriggers.delete(trigger);
     if (timer) clearTimeout(timer);
   });
 
@@ -40,5 +32,5 @@ export const BorderFlash: Component = () => {
 };
 
 export const triggerBorderFlash = (): void => {
-  globalTrigger?.();
+  globalTriggers.forEach((trigger) => trigger());
 };

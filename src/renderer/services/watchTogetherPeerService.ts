@@ -41,12 +41,33 @@ const BINARY_TYPE_VIDEO_CHUNK = 0x01;
 /** Maximum buffered bytes before pausing sends. */
 const MAX_BUFFERED_AMOUNT = 64 * 1024;
 
+/** Reconnection delays with exponential backoff. */
+const INITIAL_RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 30000;
+const MAX_RECONNECT_ATTEMPTS = 10;
+
+/** Heartbeat interval to keep the signaling connection alive. */
+const HEARTBEAT_INTERVAL_MS = 15000;
+const HEARTBEAT_TIMEOUT_MS = 10000;
+
+/** Connection establishment timeout. */
+const CONNECTION_TIMEOUT_MS = 10000;
+
+/** WebSocket close codes that indicate permanent failure — do not retry. */
+const PERMANENT_CLOSE_CODES = new Set([
+  1002, // Protocol error
+  1008, // Policy violation (e.g., invalid token)
+  1011, // Server error
+]);
+
 export interface PeerServiceCallbacks {
   onPeerConnected: (userId: string) => void;
   onPeerDisconnected: (userId: string) => void;
   onDataMessage: (fromUserId: string, message: PeerDataMessage) => void;
   onBinaryChunk: (fromUserId: string, chunkType: number, chunkIndex: number, data: Uint8Array) => void;
   onSignalingError: (error: string) => void;
+  onSignalingReconnecting?: (attempt: number) => void;
+  onSignalingReconnected?: () => void;
 }
 
 export interface PeerServiceOptions {
@@ -110,30 +131,144 @@ export function createPeerService(
   const peers = new Map<string, PeerConnection>();
   let signalingWs: WebSocket | null = null;
   let destroyed = false;
+  let reconnectAttempts = 0;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let pingIntervalTimer: ReturnType<typeof setInterval> | null = null;
+  let pongTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+  let connectionTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function clearReconnectTimer(): void {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  }
+
+  function clearHeartbeatTimers(): void {
+    if (pingIntervalTimer) {
+      clearInterval(pingIntervalTimer);
+      pingIntervalTimer = null;
+    }
+    if (pongTimeoutTimer) {
+      clearTimeout(pongTimeoutTimer);
+      pongTimeoutTimer = null;
+    }
+  }
+
+  function clearConnectionTimeout(): void {
+    if (connectionTimeoutTimer) {
+      clearTimeout(connectionTimeoutTimer);
+      connectionTimeoutTimer = null;
+    }
+  }
+
+  function clearAllTimers(): void {
+    clearReconnectTimer();
+    clearHeartbeatTimers();
+    clearConnectionTimeout();
+  }
+
+  function scheduleReconnect(): void {
+    if (destroyed) return;
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      callbacks.onSignalingError('Signaling connection failed permanently');
+      return;
+    }
+
+    reconnectAttempts++;
+    const delay = Math.min(
+      INITIAL_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttempts - 1),
+      MAX_RECONNECT_DELAY_MS,
+    );
+
+    callbacks.onSignalingReconnecting?.(reconnectAttempts);
+
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      openSignalingSocket();
+    }, delay);
+  }
+
+  function startHeartbeat(): void {
+    clearHeartbeatTimers();
+    pingIntervalTimer = setInterval(() => {
+      if (!signalingWs || signalingWs.readyState !== WebSocket.OPEN) return;
+      signalingWs.send('ping');
+      pongTimeoutTimer = setTimeout(() => {
+        signalingWs?.close();
+      }, HEARTBEAT_TIMEOUT_MS);
+    }, HEARTBEAT_INTERVAL_MS);
+  }
 
   function openSignalingSocket(): void {
     if (destroyed) return;
 
-    const ws = new WebSocket(signalingConfig.url, [
-      signalingConfig.protocol,
-      signalingConfig.accessToken,
-    ]);
+    if (signalingWs) {
+      const oldWs = signalingWs;
+      signalingWs = null;
+      oldWs.close();
+    }
+
+    clearAllTimers();
+
+    const url = signalingConfig.url.includes('?')
+      ? `${signalingConfig.url}&token=${encodeURIComponent(signalingConfig.accessToken)}`
+      : `${signalingConfig.url}?token=${encodeURIComponent(signalingConfig.accessToken)}`;
+    const ws = new WebSocket(url, [signalingConfig.protocol]);
+
+    connectionTimeoutTimer = setTimeout(() => {
+      connectionTimeoutTimer = null;
+      if (ws.readyState !== WebSocket.OPEN) {
+        ws.close();
+      }
+    }, CONNECTION_TIMEOUT_MS);
+
+    ws.addEventListener('open', () => {
+      if (destroyed) return;
+      clearConnectionTimeout();
+      reconnectAttempts = 0;
+      callbacks.onSignalingReconnected?.();
+      startHeartbeat();
+    });
 
     ws.addEventListener('message', (event) => {
       if (destroyed) return;
+
+      if (String(event.data) === 'pong') {
+        if (pongTimeoutTimer) {
+          clearTimeout(pongTimeoutTimer);
+          pongTimeoutTimer = null;
+        }
+        return;
+      }
+
       handleSignalingMessage(String(event.data));
     });
 
     ws.addEventListener('error', () => {
       if (destroyed) return;
-      callbacks.onSignalingError('Signaling connection error');
     });
 
     ws.addEventListener('close', (event) => {
       if (destroyed) return;
-      if (!event.wasClean) {
-        callbacks.onSignalingError('Signaling connection lost');
+      clearConnectionTimeout();
+      clearHeartbeatTimers();
+
+      if (event.wasClean) {
+        return;
       }
+
+      const closeCode = event.code;
+      const closeReason = event.reason || 'no reason';
+      const logUrl = signalingConfig.url.replace(/\?.*$/, '').replace(/token=[^&]*/g, 'token=<redacted>');
+
+      if (PERMANENT_CLOSE_CODES.has(closeCode)) {
+        callbacks.onSignalingError(`Signaling connection closed permanently (code=${closeCode}, reason=${closeReason}, url=${logUrl})`);
+        return;
+      }
+
+      callbacks.onSignalingError(`Signaling connection lost (code=${closeCode}, reason=${closeReason}, attempt=${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS}, url=${logUrl})`);
+      scheduleReconnect();
     });
 
     signalingWs = ws;
@@ -347,6 +482,7 @@ export function createPeerService(
 
   function destroy(): void {
     destroyed = true;
+    clearAllTimers();
 
     for (const conn of peers.values()) {
       try {

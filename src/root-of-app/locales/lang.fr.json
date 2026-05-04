@@ -1805,6 +1805,7 @@
         "About": "À propos",
         "Appearance": "Apparence",
         "Behaviour": "Comportement",
+        "Components": "Composants",
         "Connection": "Connexion",
         "General": "Général",
         "Plugins": "Plugins",
@@ -2237,6 +2238,11 @@
       "View": "Affichage",
       "WatchTogether": "Watch Together",
       "Window": "Fenêtre"
+    },
+    "ComponentsTab": {
+      "Description": "Gérez les composants installés. Activez ou désactivez les modules et réinstallez pour appliquer les modifications.",
+      "Reinstall": "Réinstaller les composants",
+      "RestartNote": "L'application redémarrera après la fin de l'installation."
     }
   }
 }
