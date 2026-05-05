@@ -24,6 +24,11 @@ export interface WatchTogetherRoomState {
   currentTime: number;
   paused: boolean;
   playbackRate: number;
+  mediaUrl?: string;
+  mediaTitle?: string;
+  subtitleHtml?: string;
+  subtitleSize?: number;
+  subtitleWeight?: number;
   stateVersion: number;
   status: 'active' | 'closed';
   lastUsedAt: string;
@@ -50,6 +55,11 @@ export interface WatchTogetherRoomPlaybackPayload {
   currentTime: number;
   paused: boolean;
   playbackRate: number;
+  mediaUrl?: string;
+  mediaTitle?: string;
+  subtitleHtml?: string;
+  subtitleSize?: number;
+  subtitleWeight?: number;
 }
 
 interface WatchTogetherRoomResponse {

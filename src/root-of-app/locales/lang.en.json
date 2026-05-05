@@ -249,7 +249,8 @@
       "Unreachable": "Unreachable",
       "ICEServers": "WebRTC ICE Servers",
       "ICEServersLabel": "STUN / TURN servers",
-      "ICEServersDescription": "Used for Watch Together peer connections."
+      "ICEServersDescription": "Used for Watch Together peer connections.",
+      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
     },
     "ConversationAgent": {
       "Agents": {
@@ -2046,7 +2047,9 @@
         "ReceivePrompt": "A peer wants to send you a media file. Do you want to receive it?",
         "Receiving": "Receiving media...",
         "ReceiveComplete": "Media received successfully.",
-        "LoadMedia": "Load Media"
+        "LoadMedia": "Load Media",
+        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
+        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
       }
     },
     "WordDbEditor": {

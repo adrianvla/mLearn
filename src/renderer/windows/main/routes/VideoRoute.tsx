@@ -9,8 +9,7 @@ import { useSubtitles, useWatchTogether, useMediaStats } from '../../../hooks';
 import { isElectron as isElectronPlatform } from '../../../../shared/platform';
 import { useLocalization, useSettings, useLanguage, useFlashcards } from '../../../context';
 import { CloudReLoginModal } from '../../../components/cloud';
-import { WatchTogetherCodeModal, WatchTogetherModeModal, MediaDistributionModal, MediaReceiveModal } from '../../../components/watchTogether';
-import type { MediaTransferMetadata } from '../../../services/mediaDistributionService';
+import { WatchTogetherCodeModal, WatchTogetherModeModal } from '../../../components/watchTogether';
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
 import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
@@ -91,7 +90,8 @@ export const VideoRoute: Component = () => {
     getVideo: () => document.querySelector('video'),
     getVideoSrc: () => videoSrc(),
     getVideoTitle: () => currentVideoName(),
-    iceServers: settings.iceServers,
+    supabaseUrl: settings.supabaseUrl,
+    supabaseAnonKey: settings.supabaseAnonKey,
   });
 
   const [videoSrc, setVideoSrc] = createSignal<string>('');
@@ -110,8 +110,6 @@ export const VideoRoute: Component = () => {
   const [showWatchTogetherSignInModal, setShowWatchTogetherSignInModal] = createSignal(false);
   const [watchTogetherBusy, setWatchTogetherBusy] = createSignal(false);
   const [watchTogetherError, setWatchTogetherError] = createSignal('');
-  const [showMediaDistributionModal, setShowMediaDistributionModal] = createSignal(false);
-  const [showMediaReceiveModal, setShowMediaReceiveModal] = createSignal(false);
   const [explainerOpen, setExplainerOpen] = createSignal(false);
   const [explainerContext, setExplainerContext] = createSignal('');
   const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -346,83 +344,27 @@ export const VideoRoute: Component = () => {
     watchTogether.sendSync(getCurrentVideoElement()?.currentTime ?? 0);
   });
 
-  // Show the media receive modal when a pending offer arrives
   createEffect(() => {
-    const offer = watchTogether.pendingMediaOffer();
-    if (offer) {
-      setShowMediaReceiveModal(true);
-    }
-  });
+    const state = watchTogether.roomState();
+    if (!state?.mediaUrl || watchTogether.mode() !== 'room-viewer') return;
 
-  // When the owner sends a sync-state with a new mediaUrl, load the video (viewer mode)
-  createEffect(() => {
-    const received = watchTogether.receivedMediaUrl();
-    if (!received) return;
-
-    if (!isRemoteWatchTogetherUrl(received.url)) {
-      watchTogether.clearReceivedMediaUrl();
+    if (!isRemoteWatchTogetherUrl(state.mediaUrl)) {
       return;
     }
 
-    loadSharedVideo(received.url, received.title);
-    watchTogether.clearReceivedMediaUrl();
+    loadSharedVideo(state.mediaUrl, state.mediaTitle || '');
   });
 
-  // When the room is closed by the host, notify the viewer
   createEffect(() => {
-    if (!watchTogether.roomClosedByHost()) return;
+    if (watchTogether.roomState()?.status !== 'closed') return;
     showToast({
       message: t('mlearn.WatchTogether.Code.RoomClosed'),
       variant: 'warning',
     });
     setShowWatchTogetherCodeModal(false);
     setShowWatchTogetherModeModal(false);
-    watchTogether.clearRoomClosedByHost();
+    watchTogether.deactivate();
   });
-
-  // When a media file is received via WebRTC, allow loading it
-  const handleLoadReceivedMedia = (file: Blob, meta: MediaTransferMetadata) => {
-    const objectUrl = URL.createObjectURL(file);
-    setVideoSrc(objectUrl);
-    setCurrentVideoTime(0);
-    setCurrentVideoDuration(null);
-    setCurrentVideoPath('');
-    setShowDropZone(false);
-    setCurrentVideoName(meta.fileName);
-
-    if (meta.subtitleContent) {
-      setSubtitleContent(meta.subtitleContent);
-      setCurrentSubtitlePath('');
-    }
-
-    watchTogether.clearMediaReceiveResult();
-    setShowMediaReceiveModal(false);
-  };
-
-  const handleStartMediaDistribution = async () => {
-    const path = currentVideoPath();
-    const src = videoSrc();
-    const name = currentVideoName();
-
-    if (!src && !path) return;
-
-    let file: Blob;
-    try {
-      if (path) {
-        const buffer = await getBridge().files.readMediaFile(path);
-        if (!buffer) throw new Error('Failed to read video file');
-        file = new Blob([buffer]);
-      } else {
-        const response = await fetch(src);
-        file = await response.blob();
-      }
-    } catch (error) {
-      log.error('Failed to prepare video for distribution:', error);
-      return;
-    }
-
-    watchTogether.startMediaDistribution(file, name, subtitleContent() || null);
-  };
 
   syncVideoPluginActivity({
     workName: currentVideoName,
@@ -1146,15 +1088,6 @@ export const VideoRoute: Component = () => {
           >
             {`${t('mlearn.WatchTogether.Code.OpenRoomPanel')}: ${watchTogether.roomSession()?.room.roomCode ?? ''}`}
           </NavBtn>
-          <Show when={watchTogether.canControl()}>
-            <NavBtn
-              class="watch-together-distribute-button"
-              onClick={() => setShowMediaDistributionModal(true)}
-              title={t('mlearn.WatchTogether.Media.DistributeTitle')}
-            >
-              {t('mlearn.WatchTogether.Media.DistributeAction')}
-            </NavBtn>
-          </Show>
         </Show>
       </div>
 
@@ -1275,31 +1208,7 @@ export const VideoRoute: Component = () => {
         codeHint={t('mlearn.WatchTogether.Code.SignInCodeHint')}
       />
 
-      <MediaDistributionModal
-        isOpen={showMediaDistributionModal()}
-        onClose={() => setShowMediaDistributionModal(false)}
-        connectedPeerCount={watchTogether.connectedPeerCount()}
-        isSending={watchTogether.isSendingMedia()}
-        sendProgress={watchTogether.mediaSendProgress()}
-        sendComplete={watchTogether.mediaSendComplete()}
-        onStartDistribution={handleStartMediaDistribution}
-        onCancel={() => { watchTogether.cancelMediaDistribution(); setShowMediaDistributionModal(false); }}
-        videoName={currentVideoName()}
-        subtitleContent={subtitleContent() || null}
-      />
 
-      <MediaReceiveModal
-        isOpen={showMediaReceiveModal()}
-        onClose={() => setShowMediaReceiveModal(false)}
-        offerMeta={watchTogether.pendingMediaOffer()?.meta ?? null}
-        isReceiving={watchTogether.isReceivingMedia()}
-        receiveProgress={watchTogether.mediaReceiveProgress()}
-        receiveResult={watchTogether.mediaReceiveResult()}
-        onAccept={() => watchTogether.acceptMediaOffer()}
-        onReject={() => { watchTogether.rejectMediaOffer(); setShowMediaReceiveModal(false); }}
-        onLoadReceived={handleLoadReceivedMedia}
-        onDismiss={() => { watchTogether.clearMediaReceiveResult(); setShowMediaReceiveModal(false); }}
-      />
     </div>
   );
 };

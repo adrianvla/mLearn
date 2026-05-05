@@ -4,9 +4,8 @@
  * Two modes:
  * 1. **Local** — Desktop broadcasts to tethered browser clients via WebSocket
  *    (port 7753) through the Electron web server.
- * 2. **Room** (owner / viewer) — Peers connect via WebRTC (SimplePeer) with
- *    signaling relayed through the BFF Worker Durable Object WebSocket.
- *    Playback sync and media distribution flow over WebRTC data channels.
+ * 2. **Room** (owner / viewer) — Room state is synced via Supabase Realtime
+ *    database subscriptions. Playback commands are persisted via REST API.
  */
 
 import { createMemo, createSignal, onCleanup } from 'solid-js';
@@ -18,19 +17,7 @@ import {
   type WatchTogetherRoomSession,
   type WatchTogetherRoomState,
 } from '../services/watchTogetherRoomService';
-import {
-  createPeerService,
-  type PeerDataMessage,
-  type PeerServiceInstance,
-  type SignalingSocket,
-} from '../services/watchTogetherPeerService';
-import {
-  createMediaDistribution,
-  type MediaDistributionInstance,
-  type MediaOfferHandle,
-  type MediaTransferMetadata,
-} from '../services/mediaDistributionService';
-import type { IceServerConfig } from '../../shared/types';
+import { subscribeToWatchTogetherRoom } from '../services/watchTogetherRealtime';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.hooks.useWatchTogether");
@@ -70,8 +57,10 @@ interface UseWatchTogetherOptions {
   isOverlay?: boolean;
   /** Returns the current playback time when in overlay mode. */
   getCurrentTime?: () => number;
-  /** ICE servers for WebRTC peer connections. */
-  iceServers?: IceServerConfig[];
+  /** Supabase project URL for Realtime subscriptions. */
+  supabaseUrl?: string;
+  /** Supabase anon key for Realtime subscriptions. */
+  supabaseAnonKey?: string;
 }
 
 export function useWatchTogether(options: UseWatchTogetherOptions) {
@@ -79,26 +68,11 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   const [roomSession, setRoomSession] = createSignal<WatchTogetherRoomSession | null>(null);
   const [roomState, setRoomState] = createSignal<WatchTogetherRoomState | null>(null);
   const [remoteSubtitle, setRemoteSubtitle] = createSignal<RemoteSubtitleState | null>(null);
-  const [connectedPeerCount, setConnectedPeerCount] = createSignal(0);
-
-  // Media distribution state exposed to UI
-  const [mediaSendProgress, setMediaSendProgress] = createSignal(0);
-  const [mediaReceiveProgress, setMediaReceiveProgress] = createSignal(0);
-  const [isSendingMedia, setIsSendingMedia] = createSignal(false);
-  const [isReceivingMedia, setIsReceivingMedia] = createSignal(false);
-  const [pendingMediaOffer, setPendingMediaOffer] = createSignal<{ meta: MediaTransferMetadata; handle: MediaOfferHandle } | null>(null);
-  const [mediaSendComplete, setMediaSendComplete] = createSignal(false);
-  const [mediaReceiveResult, setMediaReceiveResult] = createSignal<{ file: Blob; meta: MediaTransferMetadata } | null>(null);
-  const [receivedMediaUrl, setReceivedMediaUrl] = createSignal<{ url: string; title: string } | null>(null);
-  const [roomClosedByHost, setRoomClosedByHost] = createSignal(false);
 
   const cleanups: Array<() => void> = [];
   const isActive = createMemo(() => mode() !== 'inactive');
   const canControl = createMemo(() => mode() === 'local' || mode() === 'room-owner');
   const isRoomMode = createMemo(() => mode() === 'room-owner' || mode() === 'room-viewer');
-
-  // Object URL tracking for cleanup
-  let receivedObjectUrl: string | null = null;
 
   // ---------------------------------------------------------------------------
   // IPC listeners — registered once and cleaned up on unmount
@@ -133,225 +107,14 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     cleanups.length = 0;
 
     releaseRoomSession(activeMode, session, accessToken, 'during cleanup');
-
-    // Revoke any lingering object URLs
-    if (receivedObjectUrl) {
-      URL.revokeObjectURL(receivedObjectUrl);
-      receivedObjectUrl = null;
-    }
   });
 
   // ---------------------------------------------------------------------------
-  // WebRTC peer service + media distribution
+  // Room state helpers
   // ---------------------------------------------------------------------------
 
   let roomAccessToken = '';
-  let peerServiceRef: PeerServiceInstance | null = null;
-  let mediaDistRef: MediaDistributionInstance | null = null;
-  let latestSubtitleState: RemoteSubtitleState | null = null;
-
-  function handlePeerDataMessage(_fromUserId: string, message: PeerDataMessage): void {
-    // Route media-related messages to the media distribution service
-    if (message.type.startsWith('media-')) {
-      mediaDistRef?.handleDataMessage(_fromUserId, message);
-      return;
-    }
-
-    // Sync messages — only applied when in viewer mode
-    if (mode() !== 'room-viewer') return;
-
-    switch (message.type) {
-      case 'sync-state': {
-        // Notify UI of new media URL so it can load the video
-        if (message.mediaUrl) {
-          const current = receivedMediaUrl();
-          if (!current || current.url !== message.mediaUrl) {
-            setReceivedMediaUrl({ url: message.mediaUrl, title: message.mediaTitle });
-          }
-        }
-
-        if (message.subtitlesHtml) {
-          setRemoteSubtitle({
-            html: message.subtitlesHtml,
-            size: message.subtitleSize ?? 32,
-            weight: message.subtitleWeight ?? 700,
-          });
-        } else {
-          setRemoteSubtitle(null);
-        }
-
-        if (options.isOverlay) {
-          options.onReceiveSeek?.(message.currentTime);
-          if (message.paused) {
-            options.onReceivePause?.(message.currentTime);
-          } else {
-            options.onReceivePlay?.(message.currentTime);
-          }
-          break;
-        }
-
-        const video = options.getVideo();
-        if (!video) {
-          return;
-        }
-
-        runSuppressed(() => {
-          if (Math.abs(video.currentTime - message.currentTime) > 0.75) {
-            video.currentTime = message.currentTime;
-          }
-          if (Math.abs(video.playbackRate - message.playbackRate) > 0.01) {
-            video.playbackRate = message.playbackRate;
-          }
-          if (message.paused) {
-            video.pause();
-          } else {
-            void video.play().catch(() => {});
-          }
-        });
-        break;
-      }
-
-      case 'sync-play': {
-        if (options.isOverlay) {
-          if (message.time !== undefined) options.onReceivePlay?.(message.time);
-          break;
-        }
-        const video = options.getVideo();
-        if (!video) return;
-        runSuppressed(() => {
-          if (message.time !== undefined) video.currentTime = message.time;
-          return video.play().catch(() => {});
-        });
-        break;
-      }
-
-      case 'sync-pause': {
-        if (options.isOverlay) {
-          if (message.time !== undefined) options.onReceivePause?.(message.time);
-          break;
-        }
-        const video = options.getVideo();
-        if (!video) return;
-        runSuppressed(() => {
-          if (message.time !== undefined) video.currentTime = message.time;
-          video.pause();
-        });
-        break;
-      }
-
-      case 'sync-seek': {
-        if (options.isOverlay) {
-          if (message.time !== undefined) options.onReceiveSeek?.(message.time);
-          break;
-        }
-        const video = options.getVideo();
-        if (!video) return;
-        runSuppressed(() => {
-          if (message.time !== undefined) video.currentTime = message.time;
-        });
-        break;
-      }
-
-      case 'sync-subtitles':
-        setRemoteSubtitle({ html: message.html, size: message.size, weight: message.weight });
-        break;
-    }
-  }
-
-  function setupPeerService(session: WatchTogetherRoomSession, accessToken: string, localUserId: string): void {
-    const signalingConfig: SignalingSocket = {
-      url: session.socket.url,
-      protocol: session.socket.protocol,
-      accessToken,
-    };
-
-    const peerService = createPeerService(signalingConfig, localUserId, {
-      onPeerConnected: () => {
-        setConnectedPeerCount(peerServiceRef?.getConnectedPeerIds().length ?? 0);
-
-        // When a new peer connects and we're the owner, send the current state
-        if (mode() === 'room-owner') {
-          sendFullState();
-        }
-      },
-      onPeerDisconnected: () => {
-        setConnectedPeerCount(peerServiceRef?.getConnectedPeerIds().length ?? 0);
-      },
-      onDataMessage: handlePeerDataMessage,
-      onBinaryChunk: (fromUserId, chunkType, chunkIndex, data) => {
-        mediaDistRef?.handleBinaryChunk(fromUserId, chunkType, chunkIndex, data);
-      },
-      onSignalingError: (error) => {
-        if (error === 'room-closed') {
-          setRoomClosedByHost(true);
-          deactivate();
-          return;
-        }
-        log.error('[WatchTogether] Signaling error:', error);
-      },
-    }, { iceServers: options.iceServers });
-
-    peerServiceRef = peerService;
-
-    // Set up media distribution
-    mediaDistRef = createMediaDistribution(peerService, {
-      onSendProgress: (progress) => setMediaSendProgress(progress),
-      onSendComplete: () => {
-        setIsSendingMedia(false);
-        setMediaSendComplete(true);
-      },
-      onSendError: (error) => {
-        log.error('[WatchTogether] Media send error:', error);
-        setIsSendingMedia(false);
-      },
-    }, {
-      onOffer: (meta, handle) => {
-        setPendingMediaOffer({ meta, handle });
-      },
-      onReceiveProgress: (progress) => setMediaReceiveProgress(progress),
-      onReceiveComplete: (file, meta) => {
-        setIsReceivingMedia(false);
-        // Clean up previous object URL before creating a new one
-        if (receivedObjectUrl) {
-          URL.revokeObjectURL(receivedObjectUrl);
-        }
-        const url = URL.createObjectURL(file);
-        receivedObjectUrl = url;
-        setMediaReceiveResult({ file, meta });
-        setReceivedMediaUrl({ url, title: meta.fileName });
-      },
-      onReceiveError: (error) => {
-        log.error('[WatchTogether] Media receive error:', error);
-        setIsReceivingMedia(false);
-      },
-    });
-  }
-
-  function sendFullState(): void {
-    if (!peerServiceRef || mode() !== 'room-owner') return;
-
-    const video = options.isOverlay ? null : options.getVideo();
-    const roomStateValue = roomState();
-    const payload: PeerDataMessage = {
-      type: 'sync-state',
-      mediaUrl: options.getVideoSrc(),
-      mediaTitle: options.getVideoTitle?.() || '',
-      currentTime: options.isOverlay
-        ? (options.getCurrentTime?.() ?? 0)
-        : (video?.currentTime ?? 0),
-      paused: video ? video.paused : (roomStateValue?.paused ?? true),
-      playbackRate: video?.playbackRate ?? roomStateValue?.playbackRate ?? 1,
-      subtitlesHtml: latestSubtitleState?.html ?? null,
-      subtitleSize: latestSubtitleState?.size ?? null,
-      subtitleWeight: latestSubtitleState?.weight ?? null,
-    };
-
-    peerServiceRef.sendToAll(payload);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Room state helpers (kept for room metadata, not for real-time sync)
-  // ---------------------------------------------------------------------------
+  let unsubscribeRealtimeRef: (() => void) | null = null;
 
   function applyRoomState(nextRoomState: WatchTogetherRoomState): void {
     const currentRoomState = roomState();
@@ -367,7 +130,14 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     setRoomSession((current) => current ? { ...current, room: nextRoomState } : current);
   }
 
-  async function persistRoomPlaybackState(currentTime: number, paused: boolean, playbackRate: number): Promise<void> {
+  async function persistRoomPlaybackState(
+    currentTime: number,
+    paused: boolean,
+    playbackRate: number,
+    subtitleHtml?: string,
+    subtitleSize?: number,
+    subtitleWeight?: number,
+  ): Promise<void> {
     if (mode() !== 'room-owner') {
       return;
     }
@@ -378,11 +148,24 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     }
 
     try {
-      const updatedSession = await updateWatchTogetherRoomState(session, roomAccessToken, {
+      const payload: {
+        currentTime: number;
+        paused: boolean;
+        playbackRate: number;
+        subtitleHtml?: string;
+        subtitleSize?: number;
+        subtitleWeight?: number;
+      } = {
         currentTime,
         paused,
         playbackRate,
-      });
+      };
+      if (subtitleHtml !== undefined) {
+        payload.subtitleHtml = subtitleHtml;
+        payload.subtitleSize = subtitleSize;
+        payload.subtitleWeight = subtitleWeight;
+      }
+      const updatedSession = await updateWatchTogetherRoomState(session, roomAccessToken, payload);
       applyRoomState(updatedSession.room);
     } catch (error) {
       log.error('[WatchTogether] Failed to persist room playback state', error);
@@ -390,28 +173,12 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   }
 
   function cleanupRoomConnection(): void {
-    mediaDistRef?.destroy();
-    mediaDistRef = null;
-    peerServiceRef?.destroy();
-    peerServiceRef = null;
+    unsubscribeRealtimeRef?.();
+    unsubscribeRealtimeRef = null;
     roomAccessToken = '';
-    latestSubtitleState = null;
     setRoomSession(null);
     setRoomState(null);
     setRemoteSubtitle(null);
-    setConnectedPeerCount(0);
-    resetMediaState();
-  }
-
-  function resetMediaState(): void {
-    setMediaSendProgress(0);
-    setMediaReceiveProgress(0);
-    setIsSendingMedia(false);
-    setIsReceivingMedia(false);
-    setPendingMediaOffer(null);
-    setMediaSendComplete(false);
-    setMediaReceiveResult(null);
-    // Don't clear receivedMediaUrl here; let the consumer decide when to unload
   }
 
   function releaseRoomSession(
@@ -446,7 +213,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     setMode('local');
   }
 
-  function activateRoomWithUserId(session: WatchTogetherRoomSession, accessToken: string, localUserId: string): void {
+  function activateRoomWithUserId(session: WatchTogetherRoomSession, accessToken: string, _localUserId: string): void {
     const previousMode = mode();
     const previousSession = roomSession();
     const previousAccessToken = roomAccessToken;
@@ -458,7 +225,81 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     applyRoomState(session.room);
     setMode(session.canControl ? 'room-owner' : 'room-viewer');
 
-    setupPeerService(session, accessToken, localUserId);
+    if (options.supabaseUrl && options.supabaseAnonKey) {
+      unsubscribeRealtimeRef = subscribeToWatchTogetherRoom(
+        options.supabaseUrl,
+        options.supabaseAnonKey,
+        session.room.roomId,
+        accessToken,
+        (roomRow) => {
+          // Map DB row to WatchTogetherRoomState
+          const nextState: WatchTogetherRoomState = {
+            roomId: roomRow.id as string,
+            roomCode: roomRow.room_code as string,
+            ownerUserId: roomRow.owner_user_id as string,
+            currentTime: roomRow.current_time_seconds as number,
+            paused: roomRow.paused as boolean,
+            playbackRate: roomRow.playback_rate as number,
+            mediaUrl: roomRow.media_url as string | undefined,
+            mediaTitle: roomRow.media_title as string | undefined,
+            subtitleHtml: roomRow.subtitle_html as string | undefined,
+            subtitleSize: roomRow.subtitle_size as number | undefined,
+            subtitleWeight: roomRow.subtitle_weight as number | undefined,
+            stateVersion: roomRow.state_version as number,
+            status: roomRow.status as 'active' | 'closed',
+            lastUsedAt: roomRow.last_used_at as string,
+            createdAt: roomRow.created_at as string,
+            updatedAt: roomRow.updated_at as string,
+            closedAt: roomRow.closed_at as string | null,
+          };
+          applyRoomState(nextState);
+
+          if (mode() === 'room-viewer') {
+            // Handle subtitles
+            if (nextState.subtitleHtml) {
+              setRemoteSubtitle({
+                html: nextState.subtitleHtml,
+                size: nextState.subtitleSize ?? 32,
+                weight: nextState.subtitleWeight ?? 700,
+              });
+            } else {
+              setRemoteSubtitle(null);
+            }
+            // Sync video
+            if (!options.isOverlay) {
+              const video = options.getVideo();
+              if (video) {
+                runSuppressed(() => {
+                  if (Math.abs(video.currentTime - nextState.currentTime) > 0.75) {
+                    video.currentTime = nextState.currentTime;
+                  }
+                  if (Math.abs(video.playbackRate - nextState.playbackRate) > 0.01) {
+                    video.playbackRate = nextState.playbackRate;
+                  }
+                  if (nextState.paused) {
+                    video.pause();
+                  } else {
+                    void video.play().catch(() => {});
+                  }
+                });
+              }
+            } else {
+              options.onReceiveSeek?.(nextState.currentTime);
+              if (nextState.paused) {
+                options.onReceivePause?.(nextState.currentTime);
+              } else {
+                options.onReceivePlay?.(nextState.currentTime);
+              }
+            }
+          }
+
+          // Handle room closed
+          if (nextState.status === 'closed') {
+            deactivate();
+          }
+        },
+      );
+    }
   }
 
   function deactivate(): void {
@@ -503,8 +344,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       send({ action: 'play', time });
       return;
     }
-    if (mode() === 'room-owner' && peerServiceRef) {
-      peerServiceRef.sendToAll({ type: 'sync-play', time });
+    if (mode() === 'room-owner') {
       void persistRoomPlaybackState(time, false, options.getVideo()?.playbackRate ?? roomState()?.playbackRate ?? 1);
     }
   }
@@ -514,8 +354,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       send({ action: 'pause', time });
       return;
     }
-    if (mode() === 'room-owner' && peerServiceRef) {
-      peerServiceRef.sendToAll({ type: 'sync-pause', time });
+    if (mode() === 'room-owner') {
       void persistRoomPlaybackState(time, true, options.getVideo()?.playbackRate ?? roomState()?.playbackRate ?? 1);
     }
   }
@@ -525,8 +364,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       send({ action: 'sync', time });
       return;
     }
-    if (mode() === 'room-owner' && peerServiceRef) {
-      peerServiceRef.sendToAll({ type: 'sync-seek', time });
+    if (mode() === 'room-owner') {
       void persistRoomPlaybackState(
         time,
         options.getVideo()?.paused ?? roomState()?.paused ?? true,
@@ -540,60 +378,19 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       send({ action: 'subtitles', subtitle: html, size, weight });
       return;
     }
-    latestSubtitleState = { html, size, weight };
-    if (mode() === 'room-owner' && peerServiceRef) {
-      peerServiceRef.sendToAll({ type: 'sync-subtitles', html, size, weight });
+    if (mode() === 'room-owner') {
+      const video = options.isOverlay ? null : options.getVideo();
+      void persistRoomPlaybackState(
+        options.isOverlay
+          ? (options.getCurrentTime?.() ?? 0)
+          : (video?.currentTime ?? roomState()?.currentTime ?? 0),
+        video ? video.paused : (roomState()?.paused ?? true),
+        video?.playbackRate ?? roomState()?.playbackRate ?? 1,
+        html,
+        size,
+        weight,
+      );
     }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Media distribution
-  // ---------------------------------------------------------------------------
-
-  function startMediaDistribution(file: Blob, fileName: string, subtitleContent: string | null): void {
-    if (!mediaDistRef) return;
-    setIsSendingMedia(true);
-    setMediaSendProgress(0);
-    setMediaSendComplete(false);
-    mediaDistRef.startDistribution(file, fileName, subtitleContent);
-  }
-
-  function cancelMediaDistribution(): void {
-    mediaDistRef?.cancelDistribution();
-    setIsSendingMedia(false);
-    setMediaSendProgress(0);
-  }
-
-  function acceptMediaOffer(): void {
-    const offer = pendingMediaOffer();
-    if (!offer) return;
-    offer.handle.accept();
-    setPendingMediaOffer(null);
-    setIsReceivingMedia(true);
-    setMediaReceiveProgress(0);
-  }
-
-  function rejectMediaOffer(): void {
-    const offer = pendingMediaOffer();
-    if (!offer) return;
-    offer.handle.reject();
-    setPendingMediaOffer(null);
-  }
-
-  function clearMediaReceiveResult(): void {
-    setMediaReceiveResult(null);
-  }
-
-  function clearRoomClosedByHost(): void {
-    setRoomClosedByHost(false);
-  }
-
-  function clearReceivedMediaUrl(): void {
-    if (receivedObjectUrl) {
-      URL.revokeObjectURL(receivedObjectUrl);
-      receivedObjectUrl = null;
-    }
-    setReceivedMediaUrl(null);
   }
 
   // ---------------------------------------------------------------------------
@@ -706,7 +503,6 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         }
         break;
       }
-        break;
 
       default:
         if (video) {
@@ -729,7 +525,6 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     roomSession,
     roomState,
     remoteSubtitle,
-    connectedPeerCount,
     activate,
     activateRoomWithUserId,
     deactivate,
@@ -740,23 +535,5 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     sendSubtitles,
     runSuppressed,
     get isSuppressed() { return suppressCount > 0; },
-
-    // Media distribution
-    isSendingMedia,
-    isReceivingMedia,
-    mediaSendProgress,
-    mediaReceiveProgress,
-    mediaSendComplete,
-    mediaReceiveResult,
-    pendingMediaOffer,
-    startMediaDistribution,
-    cancelMediaDistribution,
-    acceptMediaOffer,
-    rejectMediaOffer,
-    clearMediaReceiveResult,
-    receivedMediaUrl,
-    roomClosedByHost,
-    clearRoomClosedByHost,
-    clearReceivedMediaUrl,
   };
 }

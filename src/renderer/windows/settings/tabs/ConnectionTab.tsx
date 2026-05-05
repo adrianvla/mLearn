@@ -3,9 +3,9 @@
  * Configure backend mode (Local / Tethered) and connection testing for mobile tethering.
  */
 
-import { Component, Show, For, createSignal, onCleanup } from 'solid-js';
+import { Component, Show, createSignal, onCleanup } from 'solid-js';
 import { useSettings, useLocalization } from '../../../context';
-import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, ToggleSwitch, IconBtn } from '../../../components/common';
+import { SettingRow, SettingGroup, Btn, Select, Input, TabContent, HintText, LinkIcon, ToggleSwitch } from '../../../components/common';
 import { isMobile } from '../../../../shared/platform';
 import { DEFAULT_CLOUD_LOGIN_URL, DEFAULT_CLOUD_API_URL, getBackend, resetBackend } from '../../../../shared/backends';
 import { getNodeServer } from '../../../../shared/backends/nodeServerAdapter';
@@ -353,65 +353,6 @@ export const ConnectionTab: Component = () => {
           </SettingRow>
         </SettingGroup>
       </Show>
-
-      {/* ── WebRTC ICE Servers ── */}
-      <SettingGroup title={t('mlearn.Connection.ICEServers') || 'WebRTC ICE Servers'}>
-        <SettingRow
-          label={t('mlearn.Connection.ICEServersLabel') || 'STUN / TURN servers'}
-          description={t('mlearn.Connection.ICEServersDescription') || 'Used for Watch Together peer connections.'}
-        >
-          <div class="ice-servers-list">
-            <For each={settings.iceServers}>
-              {(server, index) => (
-                <div class="ice-server-row">
-                  <Input
-                    value={server.urls}
-                    onInput={(e) => {
-                      const newServers = [...settings.iceServers];
-                      const value = e.currentTarget.value.trim();
-                      if (value.length === 0) {
-                        newServers.splice(index(), 1);
-                      } else {
-                        newServers[index()] = { ...server, urls: value };
-                      }
-                      updateSetting('iceServers', newServers);
-                    }}
-                    placeholder="stun:stun.example.com:19302"
-                    fullWidth
-                  />
-                  <IconBtn
-                    icon="cross"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const newServers = [...settings.iceServers];
-                      newServers.splice(index(), 1);
-                      updateSetting('iceServers', newServers);
-                    }}
-                    aria-label={t('mlearn.Global.Remove') || 'Remove'}
-                  />
-                </div>
-              )}
-            </For>
-            <div class="ice-server-row">
-              <Input
-                value=""
-                onInput={(e) => {
-                  const value = e.currentTarget.value.trim();
-                  if (value.length > 0) {
-                    updateSetting('iceServers', [
-                      ...settings.iceServers,
-                      { urls: value },
-                    ]);
-                  }
-                }}
-                placeholder="stun:stun.example.com:19302"
-                fullWidth
-              />
-            </div>
-          </div>
-        </SettingRow>
-      </SettingGroup>
 
     </TabContent>
   );

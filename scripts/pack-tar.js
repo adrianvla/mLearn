@@ -44,7 +44,7 @@ async function pack() {
   ensureDir(RELEASE_DIR);
 
   run("npm run build");
-  run("npx electron-builder --dir");
+  run("CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --dir");
 
   const unpackedDir = findUnpackedDir();
   const unpackedName = path.basename(unpackedDir);

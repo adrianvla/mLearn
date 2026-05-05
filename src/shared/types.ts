@@ -366,8 +366,9 @@ export interface Settings {
   /** List of browser paths that have the mLearn browser extension installed */
   installedBrowserExtensions: string[];
 
-  // WebRTC ICE servers for watch-together peer connections
-  iceServers: IceServerConfig[];
+  // Supabase configuration for Watch Together realtime sync
+  supabaseUrl: string;
+  supabaseAnonKey: string;
 
   // First-run tracking
   hasCompletedSetup?: boolean;
@@ -507,10 +508,8 @@ export const DEFAULT_SETTINGS: Settings = {
   agentMemoryShared: true,
   agentSplitChecker: true,
   installedBrowserExtensions: [],
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
+  supabaseUrl: 'https://txacpviufzpvieiabwzg.supabase.co',
+  supabaseAnonKey: 'sb_publishable_G0ZiKYlL96Bqxnty-_s9SA_x6WQgPqJ',
 };
 
 // ============================================================================
