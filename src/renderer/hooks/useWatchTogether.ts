@@ -4,8 +4,8 @@
  * Two modes:
  * 1. **Local** — Desktop broadcasts to tethered browser clients via WebSocket
  *    (port 7753) through the Electron web server.
- * 2. **Room** (owner / viewer) — Room state is synced via Supabase Realtime
- *    database subscriptions. Playback commands are persisted via REST API.
+ * 2. **Room** (owner / viewer) — Room state is synced via Worker WebSocket.
+ *    The Worker broadcasts room-state messages to all connected clients.
  */
 
 import { createMemo, createSignal, onCleanup } from 'solid-js';
@@ -14,10 +14,10 @@ import {
   closeWatchTogetherRoom,
   leaveWatchTogetherRoom,
   updateWatchTogetherRoomState,
+  subscribeToWatchTogetherRoom,
   type WatchTogetherRoomSession,
   type WatchTogetherRoomState,
 } from '../services/watchTogetherRoomService';
-import { subscribeToWatchTogetherRoom } from '../services/watchTogetherRealtime';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.hooks.useWatchTogether");
@@ -57,10 +57,6 @@ interface UseWatchTogetherOptions {
   isOverlay?: boolean;
   /** Returns the current playback time when in overlay mode. */
   getCurrentTime?: () => number;
-  /** Supabase project URL for Realtime subscriptions. */
-  supabaseUrl?: string;
-  /** Supabase anon key for Realtime subscriptions. */
-  supabaseAnonKey?: string;
 }
 
 export function useWatchTogether(options: UseWatchTogetherOptions) {
@@ -225,81 +221,57 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     applyRoomState(session.room);
     setMode(session.canControl ? 'room-owner' : 'room-viewer');
 
-    if (options.supabaseUrl && options.supabaseAnonKey) {
-      unsubscribeRealtimeRef = subscribeToWatchTogetherRoom(
-        options.supabaseUrl,
-        options.supabaseAnonKey,
-        session.room.roomId,
-        accessToken,
-        (roomRow) => {
-          // Map DB row to WatchTogetherRoomState
-          const nextState: WatchTogetherRoomState = {
-            roomId: roomRow.id as string,
-            roomCode: roomRow.room_code as string,
-            ownerUserId: roomRow.owner_user_id as string,
-            currentTime: roomRow.current_time_seconds as number,
-            paused: roomRow.paused as boolean,
-            playbackRate: roomRow.playback_rate as number,
-            mediaUrl: roomRow.media_url as string | undefined,
-            mediaTitle: roomRow.media_title as string | undefined,
-            subtitleHtml: roomRow.subtitle_html as string | undefined,
-            subtitleSize: roomRow.subtitle_size as number | undefined,
-            subtitleWeight: roomRow.subtitle_weight as number | undefined,
-            stateVersion: roomRow.state_version as number,
-            status: roomRow.status as 'active' | 'closed',
-            lastUsedAt: roomRow.last_used_at as string,
-            createdAt: roomRow.created_at as string,
-            updatedAt: roomRow.updated_at as string,
-            closedAt: roomRow.closed_at as string | null,
-          };
-          applyRoomState(nextState);
+    unsubscribeRealtimeRef = subscribeToWatchTogetherRoom(
+      session,
+      accessToken,
+      (nextState) => {
+        applyRoomState(nextState);
 
-          if (mode() === 'room-viewer') {
-            // Handle subtitles
-            if (nextState.subtitleHtml) {
-              setRemoteSubtitle({
-                html: nextState.subtitleHtml,
-                size: nextState.subtitleSize ?? 32,
-                weight: nextState.subtitleWeight ?? 700,
+        if (mode() === 'room-viewer') {
+          // Handle subtitles
+          if (nextState.subtitleHtml) {
+            setRemoteSubtitle({
+              html: nextState.subtitleHtml,
+              size: nextState.subtitleSize ?? 32,
+              weight: nextState.subtitleWeight ?? 700,
+            });
+          } else {
+            setRemoteSubtitle(null);
+          }
+          // Sync video
+          if (!options.isOverlay) {
+            const video = options.getVideo();
+            if (video) {
+              runSuppressed(() => {
+                if (Math.abs(video.currentTime - nextState.currentTime) > 0.75) {
+                  video.currentTime = nextState.currentTime;
+                }
+                if (Math.abs(video.playbackRate - nextState.playbackRate) > 0.01) {
+                  video.playbackRate = nextState.playbackRate;
+                }
+                if (nextState.paused) {
+                  video.pause();
+                } else {
+                  void video.play().catch(() => {});
+                }
               });
-            } else {
-              setRemoteSubtitle(null);
             }
-            // Sync video
-            if (!options.isOverlay) {
-              const video = options.getVideo();
-              if (video) {
-                runSuppressed(() => {
-                  if (Math.abs(video.currentTime - nextState.currentTime) > 0.75) {
-                    video.currentTime = nextState.currentTime;
-                  }
-                  if (Math.abs(video.playbackRate - nextState.playbackRate) > 0.01) {
-                    video.playbackRate = nextState.playbackRate;
-                  }
-                  if (nextState.paused) {
-                    video.pause();
-                  } else {
-                    void video.play().catch(() => {});
-                  }
-                });
-              }
+          } else {
+            options.onReceiveSeek?.(nextState.currentTime);
+            if (nextState.paused) {
+              options.onReceivePause?.(nextState.currentTime);
             } else {
-              options.onReceiveSeek?.(nextState.currentTime);
-              if (nextState.paused) {
-                options.onReceivePause?.(nextState.currentTime);
-              } else {
-                options.onReceivePlay?.(nextState.currentTime);
-              }
+              options.onReceivePlay?.(nextState.currentTime);
             }
           }
+        }
 
-          // Handle room closed
-          if (nextState.status === 'closed') {
-            deactivate();
-          }
-        },
-      );
-    }
+        // Handle room closed
+        if (nextState.status === 'closed') {
+          deactivate();
+        }
+      },
+    );
   }
 
   function deactivate(): void {

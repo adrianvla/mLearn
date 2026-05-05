@@ -90,8 +90,6 @@ export const VideoRoute: Component = () => {
     getVideo: () => document.querySelector('video'),
     getVideoSrc: () => videoSrc(),
     getVideoTitle: () => currentVideoName(),
-    supabaseUrl: settings.supabaseUrl,
-    supabaseAnonKey: settings.supabaseAnonKey,
   });
 
   const [videoSrc, setVideoSrc] = createSignal<string>('');
