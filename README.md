@@ -1,264 +1,345 @@
 # mLearn
-This repo contains the source code for the desktop app [mLearn](https://mlearn.morisinc.net).
 
-# Warning ⚠️
-WIP: The app is currently being rewritten in Typescript, which will be v2.0.0. **The current stable version is still v1.4.0**, which is available in the releases tab. To download this one, clone the repository, and run `npm i` and `npm run start`.
-
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/adrianvla/mLearn/releases)
+[![License](https://img.shields.io/badge/license-Sustainable%20Use%20License-green)](LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/adrianvla/mLearn)
-# Overview
 
-### Supercharge your language learning journey by watching native content
+> **Supercharge your language learning journey by watching native content**
 
-mLearn is an all-in-one immersion app that integrates well with [Anki](https://github.com/ankitects/anki).
+mLearn is an all-in-one immersion app that knows what you know. Watch videos, read manga, chat with an AI tutor, and review flashcards — all while the app passively tracks every word you encounter to build a personalized model of your knowledge.
 
-# Screenshots
-<img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn.webp" alt="screenshot1"/>
-<img src="https://mlearn.morisinc.net/img/statistics.webp" alt="exam learning features">
-<img src="https://mlearn.morisinc.net/img/Screenshot%202025-09-19%20at%2022.03.49.png" alt="character knowledge grid">
-<img alt="legends" src="https://morisinc.net/assets/img/mlearn-screenshot.png" />
+**[Website](https://mlearn.morisinc.net)** | **[Releases](https://github.com/adrianvla/mLearn/releases)** | **[Issues](https://github.com/adrianvla/mLearn/issues)**
 
+---
 
+## Screenshots
 
-# Features
+<img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn.webp" alt="Video player with subtitle overlay" width="800"/>
 
-<img width="1863" alt="Screenshot 2024-12-12 at 20 41 56" src="https://github.com/user-attachments/assets/c5732d93-6927-426b-bd02-4e23e85ca442" />
-<img width="1861" alt="Screenshot 2024-12-12 at 20 42 10" src="https://github.com/user-attachments/assets/3c22f01d-7ebb-4505-95db-f3e4ced921a4" />
-# More info
-Additional information can be found on [mLearn](https://mlearn.morisinc.net).
+<img src="https://mlearn.morisinc.net/img/statistics.webp" alt="Statistics dashboard" width="800"/>
 
+<img src="https://mlearn.morisinc.net/img/Screenshot%202025-09-19%20at%2022.03.49.png" alt="Kanji knowledge grid" width="800"/>
 
-# Dependencies
- - Electron.js
- - JQuery.js
- - HLS.js
+---
 
-# FAQ
+## Features
+
+### Core Learning Modes
+
+| Feature | Description |
+|---------|-------------|
+| **Video Immersion** | Drag & drop videos or stream URLs (`.m3u8`, `.mp4`). Color-coded subtitle overlay with instant word lookup. One-click flashcard creation with video screenshots. |
+| **Reader / OCR** | Open image folders or PDFs with real-time OCR (RapidOCR, PaddleOCR, MangaOCR). Click any text for instant lookup. Double-page spread mode, furigana toggle, magnifying glass. |
+| **AI Conversation Agent** | Full AI tutor with voice chat. Built-in Qwen3-4B (runs offline), Ollama, or Cloud LLM. Corrects mistakes, creates quizzes, adapts to your level. |
+| **SRS Flashcards** | Anki-like spaced repetition with 5 tabs: Review, Browse, Generate, Suggested, Statistics. Bulk TTS generation, LLM example sentences, pitch accent display. |
+| **Word Passive Tracking** | Auto-tracks every word you see/hover across all media. Failed words feed into your SRS queue automatically. |
+| **Word Sync** | Intelligent vocabulary assessment with kanji-boosted weighted sampling. Efficiently tests what you actually don't know. |
+
+### Social & Sync
+
+| Feature | Description |
+|---------|-------------|
+| **Watch Together** | Sync video playback across devices. Local network or cloud rooms with P2P media sharing. |
+| **Between-Devices Sync** | Desktop ↔ Mobile sync via tethered mode (local network) or cloud. Bidirectional settings + flashcard sync. |
+| **P2P Flashcard Sync** | Share flashcards instantly via QR code + WebRTC. |
+
+### AI & Voice
+
+| Feature | Description |
+|---------|-------------|
+| **Text-to-Speech** | Kokoro (82M), Qwen3-TTS (1.7B), System TTS, or remote. Voice cloning with custom samples. |
+| **Speech-to-Text** | Whisper-small via faster-whisper with Silero VAD. Voice activity detection or push-to-talk modes. |
+| **LLM Word Explainer** | Instant AI explanations for any word with 500-entry cache. |
+| **Bulk AI Generation** | Generate example sentences and audio for hundreds of cards at once. |
+
+### Visual & Customization
+
+| Feature | Description |
+|---------|-------------|
+| **Subtitle Overlay** | Transparent always-on-top window for subtitles over **any application**. Works with the browser extension for streaming sites. |
+| **Browser Extension** | Chrome/Firefox extension that brings mLearn's subtitle overlay to any streaming website. |
+| **Statistics Dashboard** | Heatmaps, streaks, immersion tracking, review activity, level breakdowns, word acquisition analytics. |
+| **Kanji Grid** | Visual knowledge map of all kanji colored by status with level filtering. |
+| **7 Themes** | Light, Dark, Darker, Light High Contrast, Dark High Contrast, Glass Light, Glass Dark. |
+| **Plugin System** | Extensible plugin architecture for custom learning tools. |
+
+### Mobile
+
+| Feature | Description |
+|---------|-------------|
+| **iOS & Android** | 🚧 Coming Soon. Full mobile app via Capacitor. Reuses desktop routes with mobile-optimized layout. Tethered mode connects to desktop backend. |
+| **Flashcards PWA** | ✅ [mlearn-app.kikan.net](https://mlearn-app.kikan.net/) — Progressive Web App for flashcard review. Syncs with desktop via cloud or tethered mode. Use it on any device with a browser while waiting for native apps. [Source](https://github.com/adrianvla/mlearn-mobile-app) |
+
+---
+
+## What's New in v2.0
+
+v2.0 is a complete rewrite in **TypeScript + SolidJS** with major new capabilities:
+
+- **AI Conversation Agent** — Full AI tutor with voice chat, tool calling, and memory
+- **OCR Reader** — Manga/comic/PDF reader with 3 OCR engines
+- **Statistics Dashboard** — Comprehensive analytics with heatmaps and immersion tracking
+- **Watch Together** — Synced video watching with P2P media share
+- **TTS / Voice** — Kokoro, Qwen3-TTS, voice cloning
+- **STT / Speech Recognition** — Whisper-based voice input
+- **Browser Extension** — Chrome/Firefox extension for streaming sites
+- **Subtitle Overlay** — Always-on-top subtitle window for any video
+- **Between-Devices Sync** — Mobile ↔ Desktop sync
+- **Cloud Backend** — Remote server support in addition to local/tethered
+- **Word Passive Tracking** — Auto-tracks word encounters across all media
+- **Word Sync** — Smart vocabulary assessment with kanji-boosted sampling
+- **Flashcards PWA** — [mlearn-app.kikan.net](https://mlearn-app.kikan.net/) for flashcard review on any device with sync ([source](https://github.com/adrianvla/mlearn-mobile-app))
+- **Mobile App** — iOS/Android via Capacitor (coming soon)
+- **Plugin System** — Extensible plugin host architecture
+- **Kanji Grid** — Visual kanji knowledge map
+- **7 Themes** — Including glass themes
+- **Bulk AI Generation** — Bulk TTS + example generation
+- **Video Clipping** — Auto-clip video segments for flashcards
+
+---
+
+## Platform Support
+
+| Platform | Status |
+|----------|--------|
+| macOS (Apple Silicon) | ✅ Fully supported |
+| macOS (Intel) | ✅ Fully supported |
+| Linux (x86_64) | ✅ Fully supported |
+| Windows (x86_64) | ✅ Fully supported |
+| iOS | 🚧 Coming Soon — [Get notified](https://mlearn.morisinc.net) |
+| Android | 🚧 Coming Soon — [Get notified](https://mlearn.morisinc.net) |
+| Web (Flashcards PWA) | ✅ [mlearn-app.kikan.net](https://mlearn-app.kikan.net/) — sync your flashcards and review on any device ([source](https://github.com/adrianvla/mlearn-mobile-app)) |
+| Browser Extension | ✅ Chrome / Firefox |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | SolidJS (signals-based reactivity), TypeScript |
+| **Desktop** | Electron 41, multi-window architecture |
+| **Mobile** | Capacitor 8 (iOS/Android) |
+| **Backend** | Python FastAPI (port 7752) |
+| **Build** | Vite 6 with custom multi-page config |
+| **Testing** | Vitest with coverage |
+| **Styling** | CSS per component, 7-theme system |
+
+---
+
+## Quick Start
+
+### Download
+Get the latest release from the [Releases page](https://github.com/adrianvla/mLearn/releases).
+
+### Run from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/adrianvla/mLearn.git
+cd mLearn
+
+# Install dependencies
+npm install
+
+# Download language dictionaries (not included in the repo due to size)
+# Japanese: Place Yomitan-format dictionaries in src/root-of-app/dictionaries/jitendex-yomitan/
+#   The app will build a SQLite cache from them on first run.
+#   Get compatible dictionaries from the Yomitan project (e.g. Jitendex).
+# German: The German dictionary is built automatically from the source data
+#   when you run `npm run build` (via the `build:german-dict` script).
+
+# Development mode (Vite + Electron)
+npm run dev
+
+# Or start the mobile dev server
+npm run dev:mobile
+```
+
+### Build for Production
+
+```bash
+# macOS
+npm run dist:mac
+
+# Windows
+npm run dist:win
+
+# Linux
+npm run dist:linux
+
+# All platforms
+npm run dist
+```
+
+---
+
+## Architecture Overview
+
+```
+Renderer (SolidJS) → getBridge() → Electron IPC | Capacitor local storage
+                   → getBackend() → Python Backend (port 7752, HTTP)
+Electron Main → Web Server (port 7753, tethered mode)
+```
+
+The app uses platform abstraction layers so the same renderer code works across Electron, Capacitor, and web:
+- **`getBridge()`** — PlatformBridge for IPC/storage (16 sub-interfaces)
+- **`getBackend()`** — BackendAdapter for Python API calls (local / tethered / cloud modes)
+- **`getPlatform()`** — `'electron' | 'capacitor' | 'web'`
+
+**15 Desktop Windows** (each a separate Vite entry):
+Main, Welcome, Video, Reader, Flashcards, Conversation Agent, Statistics, Settings, Kanji Grid, Word Definition, Word DB Editor, Word Sync, Connect QR, Plugin Host, Licenses, **Overlay**
+
+**Mobile** (in development): Single `mobile.html` with HashRouter, reuses desktop routes wrapped in `MobileLayout` + `BottomTabBar`.
+
+---
+
+## How to Add Your Own Language
+
+Language modules consist of a Python tokenizer + a JSON config. Place them in `src/root-of-app/languages/`.
+
+### Required Python functions:
+
+```python
+def LANGUAGE_TOKENIZE(text):
+    """Return list of tokens with word, actual_word, and type fields."""
+    return [
+        {"word": "run", "actual_word": "run", "type": "verb"},
+        # ...
+    ]
+
+def LOAD_MODULE(folder):
+    """Called on module load. Use for caching dictionaries."""
+    pass
+
+def LANGUAGE_TRANSLATE(word):
+    """Return {"data": [{"reading": "...", "definitions": "..."}, ...]}."""
+    return {"data": []}
+```
+
+### Required JSON config:
+
+```json
+{
+  "name": "Your Language",
+  "name_translated": "...",
+  "translatable": ["noun", "verb", "adjective"],
+  "colour_codes": {
+    "noun": "#ebccfd",
+    "verb": "#d6cefd"
+  },
+  "fixed_settings": {},
+  "freq": [["level1", "word1"], ["level1", "word2"]],
+  "freq_level_names": {"1": "Beginner", "2": "Intermediate"}
+}
+```
+
+See `src/root-of-app/languages/ja/` and `src/root-of-app/languages/de/` for complete examples.
+
+---
+
+## FAQ
 
 ### Which languages are supported?
-mLearn ships with complete German and Japanese support. You can add your own languages too by following the guide on the GitHub page.
+mLearn ships with complete **German** and **Japanese** support. You can add your own language by following the guide above.
 
 ### Can the app work offline?
-For now, Offline-mode is restricted to Japanese because no free open-source German dictionary was available at the time of writing this.
+Yes! The Japanese dictionary works fully offline. German requires online access (no free open-source German dictionary was available). The built-in AI tutor (Qwen3-4B) also runs completely offline.
 
 ### Can the app work without Anki?
-Yes, you'll just have to disable it by opening the settings menu.
-
-### Which platforms are supported?
-macOS on Apple Silicon, macOS on x86, Linux on x86, Windows on x86
+Yes. Anki integration is optional and can be disabled in Settings.
 
 ### Is it free?
-Since we wanted to make education free, mLearn is absolutely free forever and opensource.
+mLearn is free to use and **source-available**. It is licensed under the [Sustainable Use License v1.0](LICENSE).
 
-### mLearn crashes even if I have opened Anki
-If you have restarted the app recently, it may have not closed properly; open your task manager and kill the process named 'python3'.
+> **Why source-available?** This project represents thousands of hours of work (around ~1.5 years of development at the time of writing this) across NLP pipelines, OCR engines, AI tutoring systems, and multi-platform architecture. The Sustainable Use License keeps the code transparent and accessible for personal use and non-commercial sharing, while protecting against resale or exploitation — so the app can remain free for learners without being stripped for parts.
 
 ### How do I stream a video?
-By pasting a link to a streaming playlist (e.g. ending in .m3u8 or .mp4 or other video streaming formats), mLearn will automatically start playing that video.
+Paste a link to a streaming playlist (e.g., ending in `.m3u8` or `.mp4`) into the video player, or drag & drop a local video file.
 
-### How do I find the stream link of a video?
-To find the URL of a stream, download the [CocoCut video downloader Google Chrome extension](https://chromewebstore.google.com/detail/video-downloader-cococut/ekhbcipncbkfpkaianbjbcbmfehjflpf), then go to the website you want to stream from. CocoCut is going to list you streaming links ending in .m3u8. You can copy and paste them into mLearn.
+### How do I add subtitles?
+Drag & drop subtitle files (`.srt`, `.vtt`, `.ass`) onto the video player or overlay window.
 
-### I opened Anki, but mLearn cannot see that I have opened it
+### How does the subtitle overlay work?
+Open the overlay window (from the video player's context menu or via the browser extension). It's a transparent, always-on-top window that syncs with the video and lets you look up words without leaving your content.
+
+### I opened Anki, but mLearn cannot see it
 Install the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) plugin.
 
-### Why does the Japanese version of the app use so much RAM?
-Since the Japanese version of mLearn doesn't send requests over the internet for each word definition, it has to load a HUGE dictionary into the computer's RAM for faster word access (which makes it use less power).
+### Why does Japanese use so much RAM?
+The Japanese dictionary is loaded into RAM for instant word access (no internet requests per word). This trades RAM for speed and power efficiency.
 
-### How do I add subtitles to a video?
-Just drag'n'drop them onto the mLearn video player.
+### How do I use the browser extension?
+Build it with `npm run build:extension`, then load the `extension/dist/` folder as an unpacked extension in Chrome/Edge/Firefox. It will communicate with the running mLearn desktop app.
 
 ### I found a bug!
-Please open a GitHub issue.
+Please open a [GitHub issue](https://github.com/adrianvla/mLearn/issues).
 
+---
 
+## Development
 
-# How to add your own language
-The language install URL needs to have the following code (mLearn will parse the contents of it):
-```json
-{
-  "json": {...},
-  "lang_py": "https://.../../.py",
-  "lang": "LANGUAGE_NAME"
-}
+### Commands
+
+```bash
+npm run dev           # Vite (3000) + Electron concurrent
+npm run typecheck     # CRITICAL: both tsconfigs before commit
+npm run build         # Production build
+npm run test          # Vitest (all 3 projects)
+npm run test:coverage # Vitest with coverage
+npm run dev:mobile    # Capacitor watch mode
+npm run build:mobile  # Capacitor build → dist-mobile/
+npm run build:extension # Build browser extension
 ```
 
-For example, for Japanese it would be:
-```json
-{
-  "json": {
-    "name": "Japanese",
-    "translatable": [
-      "名詞",
-      "動詞",
-      "形状詞",
-      "副詞",
-      "副詞節",
-      "形容詞"
-    ],
-    "name_translated": "日本語",
-    "colour_codes": {
-      "名詞": "#ebccfd",
-      "動詞": "#d6cefd",
-      "助詞": "#f5d7b8",
-      "助動詞": "#ffefd1",
-      "形状詞": "#def6ff",
-      "副詞": "#b8cdf5",
-      "接尾辞": "#aac8c4",
-      "感動詞": "#eacbcb",
-      "代名詞": "#f1ccfd",
-      "補助記号": "#cccccccc",
-      "連体詞": "#def6ff",
-      "形容詞": "#def6ff",
-      "形容動詞": "#def6ff"
-    },
-    "fixed_settings": {},
-    "freq": [["N5", "N5"],
-    ["会う", "あう"],
-    ["青", "あお"],
-    ["青い", "あおい"], 
-      ...(more)...
-      ], 
-    "freq_level_names": {"5": "JLPT N5", "4": "JLPT N4", "3": "JLPT N3", "2": "JLPT N2", "1": "JLPT N1"}
-  },
-  "lang_py": "URL THAT POINTS TO THE SOURCE CODE OF JA.PY",
-  "lang": "ja"
-}
+### Project Structure
+
+```
+src/
+├── electron/        # Main process (CommonJS). IPC, window management, services
+├── renderer/        # SolidJS UI. Components, windows, hooks, contexts
+├── shared/          # Types, constants, platform bridges/backends
+├── root-of-app/     # Python FastAPI backend. NLP, translation, OCR, TTS
+└── html/            # Electron window entries + mobile.html
+extension/           # Chrome/Firefox browser extension
+android/, ios/       # Capacitor native projects
+examples/plugins/    # Plugin templates
 ```
 
-The python file must have the following functions:
-  - LANGUAGE_TOKENIZE(text):
-     This gets raw text and returns a tokenized version of the text. Each token has 3 fields: "word", which is the word in the same form as it is in the text, "actual_word", its original dictionary form, and "type" which is the grammatical type of the word.
-     For example, LANGUAGE_TOKENIZE("僕はテープを買ってきた")　would return
-      ```python
-          [
-            {"word": "僕", "actual_word": "僕", "type": "代名詞"},
-            {"word": "は", "actual_word": "は", "type": "助詞"},
-            {"word": "テープ", "actual_word": "テープ", "type": "名詞"},
-            {"word": "を", "actual_word": "を", "type": "助詞"},
-            {"word": "買っ", "actual_word": "買う", "type": "動詞"},
-            {"word": "て", "actual_word": "て", "type": "助詞"},
-            {"word": "き", "actual_word": "くる", "type": "動詞"},
-            {"word": "た", "actual_word": "た", "type": "助動詞"}
-        ]
+### Before Committing
+1. `npm run typecheck` — validates both tsconfigs
+2. New IPC → add to `IPC_CHANNELS`, implement in both bridges
+3. Settings changes → update `Settings` interface + `DEFAULT_SETTINGS`
+4. New renderer code → use `getBridge()`/`getBackend()`, never direct IPC
 
-      ```
-  - LOAD_MODULE(folder), which is called when the module is loaded, where folder is the resources folder of the app. This is mainly used to cache dictionaries
-  - LANGUAGE_TRANSLATE(word) returns ```{"data": [{'reading':'','definitions':''},{'reading': '', 'definitions': ''},{'reading':'','definitions':''},{'reading': '', 'definitions': ''},...]}``` that contain the definitions of the word.
+---
 
-Examples of such files can be found in the "languages" directory.
-
-# How to build
-```shell
-npm run dist:mac
-npm run dist:win
-npm run dist:linux
-```
-
-# How to run in dev mode
-```shell
-npm install
-npm run start
-```
-
-# License
-Additional licenses for libraries may be found in the "Settings → about" section of the app.
+## License
 
 This software is licensed under the **Sustainable Use License v1.0**. See the [LICENSE](LICENSE) file for the full text.
 
 ```
 Copyright (C) 2024-2026 Adrian Vlasov
-  
-  Sustainable Use License
-  
-  Version 1.0
-  
-  Acceptance
-  
-  By using the software, you agree to all of the terms and conditions below.
-  
-  Copyright License
-  
-  The licensor grants you a non-exclusive, royalty-free, worldwide,
-  non-sublicensable, non-transferable license to use, copy,
-  distribute, make available, and prepare derivative works of
-  the software, in each case subject to the limitations below.
-  
-  Limitations
-  
-  You may use or modify the software only for your own internal
-  business purposes or for non-commercial or personal use. You
-  may distribute the software or provide it to others only if
-  you do so free of charge for non-commercial purposes. You
-  may not alter, remove, or obscure any licensing, copyright,
-  or other notices of the licensor in the software. Any use
-  of the licensor's trademarks is subject to applicable law.
-  
-  Patents
-  
-  The licensor grants you a license, under any patent claims the
-  licensor can license, or becomes able to license, to make, have
-  made, use, sell, offer for sale, import and have imported the
-  software, in each case subject to the limitations and conditions
-  in this license. This license does not cover any patent claims
-  that you cause to be infringed by modifications or additions to
-  the software. If you or your company make any written claim that
-  the software infringes or contributes to infringement of any
-  patent, your patent license for the software granted under these
-  terms ends immediately. If your company makes such a claim, your
-  patent license ends immediately for work on behalf of your company.
-  
-  Notices
-  
-  You must ensure that anyone who gets a copy of any part of the
-  software from you also gets a copy of these terms. If you modify the
-  software, you must include in any modified copies of the software
-  a prominent notice stating that you have modified the software.
-  
-  No Other Rights
-  
-  These terms do not imply any licenses other
-  than those expressly granted in these terms.
-  
-  Termination
-  
-  If you use the software in violation of these terms, such use is
-  not licensed, and your license will automatically terminate. If
-  the licensor provides you with a notice of your violation, and
-  you cease all violation of this license no later than 30 days
-  after you receive that notice, your license will be reinstated
-  retroactively. However, if you violate these terms after such
-  reinstatement, any additional violation of these terms will
-  cause your license to terminate automatically and permanently.
-  
-  No Liability
-  
-  As far as the law allows, the software comes as is, without
-  any warranty or condition, and the licensor will not be liable
-  to you for any damages arising out of these terms or the use
-  or nature of the software, under any kind of legal claim.
-  
-  Definitions
-  
-  The "licensor" is the entity offering these terms.
-  
-  The "software" is the software the licensor makes
-  available under these terms, including any portion of it.
-  
-  "You" refers to the individual or entity agreeing to these terms.
-  
-  "Your company" is any legal entity, sole proprietorship,
-  or other kind of organization that you work for, plus all
-  organizations that have control over, are under the control
-  of, or are under common control with that organization. Control
-  means ownership of substantially all the assets of an entity,
-  or the power to direct its management and policies by vote,
-  contract, or otherwise. Control can be direct or indirect.
-  
-  "Your license" is the license granted to
-  you for the software under these terms.
-  
-  "Use" means anything you do with
-  the software requiring your license.
-  
-  "Trademark" means trademarks, service marks, and similar rights.
-  ```
+
+Sustainable Use License — Version 1.0
+
+By using the software, you agree to all of the terms and conditions below.
+
+The licensor grants you a non-exclusive, royalty-free, worldwide,
+non-sublicensable, non-transferable license to use, copy,
+distribute, make available, and prepare derivative works of
+the software, in each case subject to the limitations below.
+
+You may use or modify the software only for your own internal
+business purposes or for non-commercial or personal use. You
+may distribute the software or provide it to others only if
+you do so free of charge for non-commercial purposes.
+```
+
+Additional licenses for third-party libraries may be found in the **Settings → About** section of the app.
+
+---
+
+<p align="center">
+  Made with ❤
+</p>
