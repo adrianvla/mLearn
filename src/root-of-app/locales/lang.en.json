@@ -1348,6 +1348,31 @@
           "error": "Error"
         }
       },
+      "Shiritori": {
+        "Title": "Shiritori",
+        "Description": "Chain Japanese nouns. The next word must start with the last kana. Words ending in ん make you lose. No duplicates allowed.",
+        "Turn": {
+          "User": "Your turn — say a word starting with \"{kana}\"",
+          "UserFirst": "Your turn — say any Japanese noun",
+          "Computer": "Computer's turn",
+          "ComputerThinking": "Computer is thinking..."
+        },
+        "Error": {
+          "Empty": "Please enter a word.",
+          "Duplicate": "You cannot use a word twice.",
+          "NotFound": "That word was not found in the dictionary.",
+          "WrongStart": "That word must start with \"{kana}\".",
+          "EndsWithN": "Word ends in ん — you lose!",
+          "NoReading": "Could not determine the reading of that word."
+        },
+        "GameOver": {
+          "UserWins": "You win!",
+          "ComputerWins": "Computer wins!",
+          "PlayAgain": "Play Again"
+        },
+        "Submit": "Submit",
+        "LanguageWarning": "This plugin is only available when Japanese is the active language. Please switch to Japanese in the settings to play."
+      },
       "KnowledgePriority": {
         "Description": "Configure how word knowledge is determined from multiple sources",
         "ResolutionMode": {
@@ -1948,7 +1973,11 @@
       "Controls": {
         "Mute": "Mute",
         "PlaybackSpeed": "Playback speed",
-        "Unmute": "Unmute"
+        "Unmute": "Unmute",
+        "SubtitleNone": "None",
+        "SubtitleExternal": "User-provided subtitles",
+        "SubtitleTrack": "Subtitle track",
+        "AudioTrack": "Audio track"
       },
       "CopySubtitle": "Copy subtitle",
       "SyncSubtitles": "Sync subtitles",
@@ -1972,6 +2001,7 @@
         }
       },
       "VideoClipFailed": "Video clip failed, using screenshot instead",
+      "SubtitleExtractionFailed": "Could not extract subtitles from this video. The file may be too large. Try loading an external subtitle file instead.",
       "WatchTogether": "Watch together"
     },
     "Overlay": {
@@ -2029,7 +2059,9 @@
         "SignInRequiredMessage": "Sign in with your mLearn Cloud account to use room codes.",
         "SignInModalTitle": "Sign In for Watch Together",
         "SignInHint": "Enter your mLearn Cloud credentials",
-        "SignInCodeHint": "If you received a device code, enter it below"
+        "SignInCodeHint": "If you received a device code, enter it below",
+        "PeerJoinedSingular": "A peer joined your room",
+        "PeerJoinedPlural": "{count} peers joined your room"
       },
       "Media": {
         "DistributeTitle": "Distribute Media",

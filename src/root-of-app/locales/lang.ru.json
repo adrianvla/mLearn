@@ -1342,6 +1342,31 @@
           "error": "Ошибка"
         }
       },
+      "Shiritori": {
+        "Title": "Shiritori",
+        "Description": "Chain Japanese nouns. The next word must start with the last kana. Words ending in ん make you lose. No duplicates allowed.",
+        "Turn": {
+          "User": "Your turn — say a word starting with \"{kana}\"",
+          "UserFirst": "Your turn — say any Japanese noun",
+          "Computer": "Computer's turn",
+          "ComputerThinking": "Computer is thinking..."
+        },
+        "Error": {
+          "Empty": "Please enter a word.",
+          "Duplicate": "You cannot use a word twice.",
+          "NotFound": "That word was not found in the dictionary.",
+          "WrongStart": "That word must start with \"{kana}\".",
+          "EndsWithN": "Word ends in ん — you lose!",
+          "NoReading": "Could not determine the reading of that word."
+        },
+        "GameOver": {
+          "UserWins": "You win!",
+          "ComputerWins": "Computer wins!",
+          "PlayAgain": "Play Again"
+        },
+        "Submit": "Submit",
+        "LanguageWarning": "This plugin is only available when Japanese is the active language. Please switch to Japanese in the settings to play."
+      },
       "KnowledgePriority": {
         "Description": "Настройте, как знание слов определяется из нескольких источников",
         "ResolutionMode": {
@@ -1942,7 +1967,11 @@
       "Controls": {
         "Mute": "Выключить звук",
         "PlaybackSpeed": "Скорость воспроизведения",
-        "Unmute": "Включить звук"
+        "Unmute": "Включить звук",
+        "SubtitleNone": "Нет",
+        "SubtitleExternal": "Субтитры пользователя",
+        "SubtitleTrack": "Дорожка субтитров",
+        "AudioTrack": "Аудиодорожка"
       },
       "CopySubtitle": "Копировать субтитры",
       "SyncSubtitles": "Синхронизировать субтитры",
@@ -1966,6 +1995,7 @@
         }
       },
       "VideoClipFailed": "Не удалось создать видеоклип, используется скриншот",
+      "SubtitleExtractionFailed": "Не удалось извлечь субтитры из этого видео. Возможно, файл слишком большой. Попробуйте загрузить внешний файл субтитров.",
       "WatchTogether": "Смотреть вместе"
     },
     "Overlay": {
@@ -2023,7 +2053,9 @@
         "SignInRequiredMessage": "Войдите в аккаунт mLearn Cloud, чтобы использовать коды комнат.",
         "SignInModalTitle": "Вход для совместного просмотра",
         "SignInHint": "Введите данные учётной записи mLearn Cloud",
-        "SignInCodeHint": "Если вы получили код устройства, введите его ниже"
+        "SignInCodeHint": "Если вы получили код устройства, введите его ниже",
+        "PeerJoinedSingular": "Участник присоединился к вашей комнате",
+        "PeerJoinedPlural": "{count} участников присоединились к вашей комнате"
       },
       "Media": {
         "DistributeTitle": "Раздать медиа",

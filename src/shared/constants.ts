@@ -275,6 +275,7 @@ export const IPC_CHANNELS = {
   FLASHCARD_VIDEO_DELETE: 'flashcard-video-delete',
 
   READ_MEDIA_FILE: 'read-media-file',
+  READ_MEDIA_FILE_CHUNK: 'read-media-file-chunk',
 
   // Flashcard TTS audio files
   FLASHCARD_TTS_GET: 'flashcard-tts-get',

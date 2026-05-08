@@ -804,6 +804,10 @@ const fileBridge: FileBridge = {
     return null;
   },
 
+  async readMediaFileChunk(_filePath: string, _offset: number, _length: number) {
+    return null;
+  },
+
   async selectVideoFile() {
     // Use HTML file input for video selection
     return new Promise((resolve) => {

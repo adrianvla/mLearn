@@ -1342,6 +1342,31 @@
           "error": "Fehler"
         }
       },
+      "Shiritori": {
+        "Title": "Shiritori",
+        "Description": "Chain Japanese nouns. The next word must start with the last kana. Words ending in ん make you lose. No duplicates allowed.",
+        "Turn": {
+          "User": "Your turn — say a word starting with \"{kana}\"",
+          "UserFirst": "Your turn — say any Japanese noun",
+          "Computer": "Computer's turn",
+          "ComputerThinking": "Computer is thinking..."
+        },
+        "Error": {
+          "Empty": "Please enter a word.",
+          "Duplicate": "You cannot use a word twice.",
+          "NotFound": "That word was not found in the dictionary.",
+          "WrongStart": "That word must start with \"{kana}\".",
+          "EndsWithN": "Word ends in ん — you lose!",
+          "NoReading": "Could not determine the reading of that word."
+        },
+        "GameOver": {
+          "UserWins": "You win!",
+          "ComputerWins": "Computer wins!",
+          "PlayAgain": "Play Again"
+        },
+        "Submit": "Submit",
+        "LanguageWarning": "This plugin is only available when Japanese is the active language. Please switch to Japanese in the settings to play."
+      },
       "KnowledgePriority": {
         "Description": "Konfigurieren Sie, wie Wortwissen aus mehreren Quellen ermittelt wird",
         "ResolutionMode": {
@@ -1942,7 +1967,11 @@
       "Controls": {
         "Mute": "Stummschalten",
         "PlaybackSpeed": "Wiedergabegeschwindigkeit",
-        "Unmute": "Ton einschalten"
+        "Unmute": "Ton einschalten",
+        "SubtitleNone": "Keine",
+        "SubtitleExternal": "Benutzerdefinierte Untertitel",
+        "SubtitleTrack": "Untertitelspur",
+        "AudioTrack": "Audiospur"
       },
       "CopySubtitle": "Untertitel kopieren",
       "SyncSubtitles": "Untertitel synchronisieren",
@@ -1966,6 +1995,7 @@
         }
       },
       "VideoClipFailed": "Videoclip fehlgeschlagen, Screenshot wird verwendet",
+      "SubtitleExtractionFailed": "Untertitel konnten nicht extrahiert werden. Die Datei ist möglicherweise zu groß. Versuchen Sie stattdessen eine externe Untertiteldatei zu laden.",
       "WatchTogether": "Gemeinsam ansehen"
     },
     "Overlay": {
@@ -2023,7 +2053,9 @@
         "SignInRequiredMessage": "Melde dich mit deinem mLearn-Cloud-Konto an, um Raumcodes zu verwenden.",
         "SignInModalTitle": "Anmelden für Gemeinsam ansehen",
         "SignInHint": "Gib deine mLearn-Cloud-Anmeldedaten ein",
-        "SignInCodeHint": "Falls du einen Gerätecode erhalten hast, gib ihn unten ein"
+        "SignInCodeHint": "Falls du einen Gerätecode erhalten hast, gib ihn unten ein",
+        "PeerJoinedSingular": "Ein Teilnehmer ist deinem Raum beigetreten",
+        "PeerJoinedPlural": "{count} Teilnehmer sind deinem Raum beigetreten"
       },
       "Media": {
         "DistributeTitle": "Medien verteilen",

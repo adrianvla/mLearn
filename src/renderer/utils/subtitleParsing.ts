@@ -209,25 +209,40 @@ export { tokensToColoredHtml, cleanContextPhrase, formatForClipboard } from './p
 export function parseWorkName(name: string): string {
   if (!name) return '';
 
-  // Step 1: Remove only short extensions (like .srt, .ass, .sub, .pdf, .cbz, .cbr)
+  // Step 1: Remove only short extensions (like .srt, .ass, .sub, .pdf, .cbz, .cbr, .mkv, .mp4)
   let cleaned = name.replace(/\.[^.]{1,4}$/, '');
 
-  // Step 2: Normalize separators (replace . and _ with spaces)
+  // Step 2: Remove dot-separated codec versions (e.g. DDP2.0, AAC5.1) before normalizing dots
+  cleaned = cleaned.replace(/\b(DDP|AAC|DD\+)\d+(?:\.\d+)?\b/gi, '');
+
+  // Step 3: Normalize separators (replace . and _ with spaces)
   cleaned = cleaned.replace(/[._]/g, ' ');
 
-  // Step 3: Remove junk tags (common release tags, codecs, sources, etc.)
-  cleaned = cleaned.replace(/\b(WEBRip|BluRay|HDTV|Netflix|AMZN|x264|x265|HEVC|AVC|AAC|DDP|1080p|720p|480p|2160p|4K|Subtitles|REPACK|PROPER|WEB-DL|BDRip|DVDRip|HDRip)\b/gi, '');
+  // Step 4: Remove junk tags (common release tags, codecs, sources, etc.)
+  const releaseTags =
+    'WEBRip|BluRay|HDTV|Netflix|AMZN|NF|HBO|HMAX|DSNP|DSNY|HULU|APTV|PCOK|PMTP|' +
+    'x264|x265|h264|h265|HEVC|AVC|AC3|EAC3|FLAC|TRUEHD|DTS(?:-HD)?|MP3|' +
+    '1080p|720p|480p|2160p|4K|UHD|FHD|HD|SD|' +
+    'Subtitles|SUBBED|DUBBED|REPACK|PROPER|READNFO|INTERNAL|LIMITED|' +
+    'WEB-DL|BDRip|DVDRip|HDRip|WEB';
+  cleaned = cleaned.replace(new RegExp(`\\b(?:${releaseTags})\\b`, 'gi'), '');
 
-  // Step 4: Keep season/episode identifiers like S01E02 intact
+  // Step 5: Keep season/episode identifiers like S01E02 intact
   // Normalize "S01E02" to "S01E2" (remove leading 0 in episode number)
   cleaned = cleaned.replace(/S(\d{1,2})E0?(\d{1,2})/gi, (_m, s, e) => `S${s}E${parseInt(e)}`);
 
-  // Step 5: Remove common language codes as standalone words
+  // Step 6: Remove common language codes as standalone words
   cleaned = cleaned.replace(/\b(ja|en|fr|es|de|it|pt|ru|zh|ko|jpn|eng|jap|deu|fra|spa|ita|por|rus|kor|chi)\b/gi, '');
 
-  // Step 6: Remove bracketed/parenthesized junk (e.g. [720p], (BD), {WEB})
+  // Step 7: Remove bracketed/parenthesized junk (e.g. [720p], (BD), {WEB})
   cleaned = cleaned.replace(/\[[^\]]*\]|\{[^}]*\}|\([^)]*\)/g, '');
 
-  // Step 7: Collapse multiple spaces, trim
-  return cleaned.replace(/ {2,}/g, ' ').trim();
+  // Step 8: Collapse multiple spaces, trim
+  cleaned = cleaned.replace(/ {2,}/g, ' ').trim();
+
+  // Step 9: Strip orphaned leading/trailing hyphens or punctuation artifacts
+  cleaned = cleaned.replace(/(^[-–—]+|[-–—]+$)/g, '');
+
+  // Final trim after hyphen removal
+  return cleaned.trim();
 }

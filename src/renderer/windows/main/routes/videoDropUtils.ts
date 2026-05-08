@@ -1,9 +1,12 @@
+import { parseWorkName } from '../../../utils/subtitleParsing';
+
 const VIDEO_FILE_EXTENSIONS = new Set(['mp4', 'webm', 'mkv', 'avi', 'mov']);
 const SUBTITLE_FILE_EXTENSIONS = new Set(['srt', 'vtt', 'ass', 'ssa']);
 
 export interface DroppedVideoFile {
   file: File;
   fileName: string;
+  displayName: string;
   filePath: string;
 }
 
@@ -40,6 +43,7 @@ export async function collectDroppedMediaFiles(
       video = {
         file,
         fileName: file.name,
+        displayName: parseWorkName(file.name),
         filePath: resolveFilePath(file),
       };
       continue;

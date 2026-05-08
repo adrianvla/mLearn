@@ -129,7 +129,6 @@ const WelcomeContent: Component = () => {
     updateSettings(settingsToSave);
 
     const bridge = getBridge();
-    bridge.settings.saveSettings(settingsToSave as Settings);
     const settingsSavedCleanup = bridge.settings.onSettingsSaved(() => {
       settingsSavedCleanup();
       setOverallStatus(t('mlearn.Installer.Status.LanguageInstalledRestarting'));

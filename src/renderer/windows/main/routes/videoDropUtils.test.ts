@@ -20,6 +20,7 @@ describe('collectDroppedMediaFiles', () => {
 
     expect(result.video).toMatchObject({
       fileName: 'lesson.mp4',
+      displayName: 'lesson',
       filePath: '/videos/lesson.mp4',
     });
     expect(result.subtitle).toEqual({
@@ -42,11 +43,25 @@ describe('collectDroppedMediaFiles', () => {
 
     expect(result.video).toMatchObject({
       fileName: 'final.mkv',
+      displayName: 'final',
       filePath: '/final.mkv',
     });
     expect(result.subtitle).toEqual({
       content: 'final',
       filePath: '/final.ass',
     });
+  });
+
+  it('extracts a clean display name from complex release filenames', async () => {
+    const video = new File(['video-bytes'], 'The.Queens.Classroom.S01E01.1080p.NF.WEB-DL.DDP2.0.x264-HBO.mkv', {
+      type: 'video/x-matroska',
+    });
+
+    const result = await collectDroppedMediaFiles([video], (file) => `/videos/${file.name}`);
+
+    expect(result.video).toBeDefined();
+    expect(result.video!.fileName).toBe('The.Queens.Classroom.S01E01.1080p.NF.WEB-DL.DDP2.0.x264-HBO.mkv');
+    expect(result.video!.displayName).toBe('The Queens Classroom S01E1');
+    expect(result.video!.filePath).toBe('/videos/The.Queens.Classroom.S01E01.1080p.NF.WEB-DL.DDP2.0.x264-HBO.mkv');
   });
 });

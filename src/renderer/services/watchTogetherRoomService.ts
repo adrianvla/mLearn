@@ -31,6 +31,7 @@ export interface WatchTogetherRoomState {
   subtitleWeight?: number;
   stateVersion: number;
   status: 'active' | 'closed';
+  peerCount: number;
   lastUsedAt: string;
   createdAt: string;
   updatedAt: string;
@@ -81,6 +82,18 @@ interface WatchTogetherRoomResponse {
 interface WatchTogetherSocketMessage {
   type: 'room-state';
   room: WatchTogetherRoomState;
+}
+
+interface WatchTogetherPeerJoinedMessage {
+  type: 'peer-joined';
+  room: WatchTogetherRoomState;
+  peerId: string;
+}
+
+interface WatchTogetherPeerLeftMessage {
+  type: 'peer-left';
+  room: WatchTogetherRoomState;
+  peerId: string;
 }
 
 function resolveWatchTogetherApiUrl(settings: Settings): string {
@@ -264,18 +277,34 @@ function appendAuthTokenToUrl(url: string, token: string): string {
   return `${url}${separator}token=${encodeURIComponent(token)}`;
 }
 
+export interface WatchTogetherPeerEvent {
+  type: 'joined' | 'left';
+  peerId: string;
+  room: WatchTogetherRoomState;
+}
+
 export function subscribeToWatchTogetherRoom(
   session: WatchTogetherRoomSession,
   accessToken: string,
-  callback: (room: WatchTogetherRoomState) => void,
+  onRoomState: (room: WatchTogetherRoomState) => void,
+  onPeerEvent?: (event: WatchTogetherPeerEvent) => void,
 ): () => void {
   const socket = new WebSocket(appendAuthTokenToUrl(session.socket.url, accessToken), [session.socket.protocol]);
 
   socket.addEventListener('message', (event) => {
     try {
-      const payload = JSON.parse(String(event.data)) as WatchTogetherSocketMessage;
+      const payload = JSON.parse(String(event.data)) as
+        | WatchTogetherSocketMessage
+        | WatchTogetherPeerJoinedMessage
+        | WatchTogetherPeerLeftMessage;
       if (payload.type === 'room-state') {
-        callback(payload.room);
+        onRoomState(payload.room);
+      } else if (payload.type === 'peer-joined') {
+        onRoomState(payload.room);
+        onPeerEvent?.({ type: 'joined', peerId: payload.peerId, room: payload.room });
+      } else if (payload.type === 'peer-left') {
+        onRoomState(payload.room);
+        onPeerEvent?.({ type: 'left', peerId: payload.peerId, room: payload.room });
       }
     } catch (error) {
       log.error('[WatchTogether] Failed to parse Worker socket message', error);

@@ -1342,6 +1342,31 @@
           "error": "エラー"
         }
       },
+      "Shiritori": {
+        "Title": "しりとり",
+        "Description": "日本語の名詞を繋げよう。次の言葉は前の言葉の最後の文字から始まる必要があります。ん で終わる言葉を言うと負けです。同じ言葉は2回使えません。",
+        "Turn": {
+          "User": "あなたの番 — 「{kana}」から始まる言葉を言ってください",
+          "UserFirst": "あなたの番 — 日本語の名詞を言ってください",
+          "Computer": "コンピューターの番",
+          "ComputerThinking": "コンピューターが考えています..."
+        },
+        "Error": {
+          "Empty": "言葉を入力してください。",
+          "Duplicate": "同じ言葉は2回使えません。",
+          "NotFound": "その言葉は辞書に見つかりませんでした。",
+          "WrongStart": "その言葉は「{kana}」から始まる必要があります。",
+          "EndsWithN": "ん で終わる言葉 — あなたの負け！",
+          "NoReading": "その言葉の読み方を判別できませんでした。"
+        },
+        "GameOver": {
+          "UserWins": "あなたの勝ち！",
+          "ComputerWins": "コンピューターの勝ち！",
+          "PlayAgain": "もう一度遊ぶ"
+        },
+        "Submit": "送信",
+        "LanguageWarning": "このプラグインは日本語が選択されている時のみ利用できます。設定で日本語に切り替えてください。"
+      },
       "KnowledgePriority": {
         "Description": "複数のソースからの単語知識の決定方法を設定",
         "ResolutionMode": {
@@ -1942,7 +1967,11 @@
       "Controls": {
         "Mute": "ミュート",
         "PlaybackSpeed": "再生速度",
-        "Unmute": "ミュート解除"
+        "Unmute": "ミュート解除",
+        "SubtitleNone": "なし",
+        "SubtitleExternal": "ユーザー提供字幕",
+        "SubtitleTrack": "字幕トラック",
+        "AudioTrack": "音声トラック"
       },
       "CopySubtitle": "字幕をコピー",
       "SyncSubtitles": "字幕を同期",
@@ -1966,6 +1995,7 @@
         }
       },
       "VideoClipFailed": "動画クリップの作成に失敗しました。スクリーンショットを使用します",
+      "SubtitleExtractionFailed": "この動画から字幕を抽出できませんでした。ファイルが大きすぎる可能性があります。外部の字幕ファイルを読み込んでみてください。",
       "WatchTogether": "一緒に見る"
     },
     "Overlay": {
@@ -2023,7 +2053,9 @@
         "SignInRequiredMessage": "ルームコードを使用するには、mLearn Cloudアカウントでサインインしてください。",
         "SignInModalTitle": "一緒に視聴のサインイン",
         "SignInHint": "mLearn Cloudの認証情報を入力してください",
-        "SignInCodeHint": "デバイスコードを受け取った場合は、以下に入力してください"
+        "SignInCodeHint": "デバイスコードを受け取った場合は、以下に入力してください",
+        "PeerJoinedSingular": "参加者がルームに参加しました",
+        "PeerJoinedPlural": "{count}人の参加者がルームに参加しました"
       },
       "Media": {
         "DistributeTitle": "メディアを配信",

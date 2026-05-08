@@ -150,6 +150,33 @@ body.hide-cursor .video-controls {
   color: var(--text-primary);
 }
 
+.video-track-select {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--font-size-xs);
+  min-width: 4rem;
+  max-width: 8rem;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.video-track-select:hover {
+  color: var(--text-primary);
+}
+
+.video-track-select:focus {
+  outline: none;
+}
+
+.video-track-select option {
+  background: var(--bg-intense);
+  color: var(--text-primary);
+}
+
 /* Inactive control buttons - use secondary text color */
 .video-controls .btn-icon.btn-ghost.inactive {
   color: var(--text-secondary);

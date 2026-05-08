@@ -178,6 +178,7 @@ sendLogRecord: (record: unknown) => void;
   selectPdfFile: () => Promise<string | null>;
   selectBrowserFile: () => Promise<string | null>;
   readMediaFile: (filePath: string) => Promise<ArrayBuffer | null>;
+  readMediaFileChunk: (filePath: string, offset: number, length: number) => Promise<ArrayBuffer | null>;
   /**
    * Convert a local file path to a local-media:// URL for secure media playback.
    * Use this for video/audio files to bypass Electron's file:// restrictions.

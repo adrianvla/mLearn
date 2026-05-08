@@ -19,6 +19,8 @@ import {
   type WatchTogetherRoomState,
 } from '../services/watchTogetherRoomService';
 import { getLogger } from '../../shared/utils/logger';
+import { showToast, updateToast } from '../components/common/Feedback/Toast';
+import { useLocalization } from '../context';
 
 const log = getLogger("renderer.hooks.useWatchTogether");
 
@@ -60,15 +62,19 @@ interface UseWatchTogetherOptions {
 }
 
 export function useWatchTogether(options: UseWatchTogetherOptions) {
+  const { t } = useLocalization();
   const [mode, setMode] = createSignal<WatchTogetherMode>('inactive');
   const [roomSession, setRoomSession] = createSignal<WatchTogetherRoomSession | null>(null);
   const [roomState, setRoomState] = createSignal<WatchTogetherRoomState | null>(null);
   const [remoteSubtitle, setRemoteSubtitle] = createSignal<RemoteSubtitleState | null>(null);
+  const [peerCount, setPeerCount] = createSignal<number>(0);
 
   const cleanups: Array<() => void> = [];
   const isActive = createMemo(() => mode() !== 'inactive');
   const canControl = createMemo(() => mode() === 'local' || mode() === 'room-owner');
   const isRoomMode = createMemo(() => mode() === 'room-owner' || mode() === 'room-viewer');
+
+  let peerJoinToastId: number | null = null;
 
   // ---------------------------------------------------------------------------
   // IPC listeners — registered once and cleaned up on unmount
@@ -133,6 +139,8 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     subtitleHtml?: string,
     subtitleSize?: number,
     subtitleWeight?: number,
+    mediaUrl?: string,
+    mediaTitle?: string,
   ): Promise<void> {
     if (mode() !== 'room-owner') {
       return;
@@ -151,6 +159,8 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         subtitleHtml?: string;
         subtitleSize?: number;
         subtitleWeight?: number;
+        mediaUrl?: string;
+        mediaTitle?: string;
       } = {
         currentTime,
         paused,
@@ -160,6 +170,12 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         payload.subtitleHtml = subtitleHtml;
         payload.subtitleSize = subtitleSize;
         payload.subtitleWeight = subtitleWeight;
+      }
+      if (mediaUrl !== undefined) {
+        payload.mediaUrl = mediaUrl;
+      }
+      if (mediaTitle !== undefined) {
+        payload.mediaTitle = mediaTitle;
       }
       const updatedSession = await updateWatchTogetherRoomState(session, roomAccessToken, payload);
       applyRoomState(updatedSession.room);
@@ -226,6 +242,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       accessToken,
       (nextState) => {
         applyRoomState(nextState);
+        setPeerCount(nextState.peerCount ?? 0);
 
         if (mode() === 'room-viewer') {
           // Handle subtitles
@@ -269,6 +286,31 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         // Handle room closed
         if (nextState.status === 'closed') {
           deactivate();
+        }
+      },
+      (event) => {
+        if (event.type === 'joined') {
+          setPeerCount(event.room.peerCount ?? 0);
+          if (mode() === 'room-owner') {
+            const count = event.room.peerCount ?? 0;
+            const message = count === 1
+              ? t('mlearn.WatchTogether.Code.PeerJoinedSingular')
+              : t('mlearn.WatchTogether.Code.PeerJoinedPlural').replace('{count}', String(count));
+            if (peerJoinToastId !== null) {
+              updateToast(peerJoinToastId, { message, variant: 'info' });
+            } else {
+              peerJoinToastId = showToast({
+                message,
+                variant: 'info',
+                duration: 5000,
+              });
+              setTimeout(() => {
+                peerJoinToastId = null;
+              }, 5500);
+            }
+          }
+        } else if (event.type === 'left') {
+          setPeerCount(event.room.peerCount ?? 0);
         }
       },
     );
@@ -341,6 +383,11 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         time,
         options.getVideo()?.paused ?? roomState()?.paused ?? true,
         options.getVideo()?.playbackRate ?? roomState()?.playbackRate ?? 1,
+        undefined,
+        undefined,
+        undefined,
+        options.getVideoSrc(),
+        options.getVideoTitle?.(),
       );
     }
   }
@@ -497,6 +544,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     roomSession,
     roomState,
     remoteSubtitle,
+    peerCount,
     activate,
     activateRoomWithUserId,
     deactivate,

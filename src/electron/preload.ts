@@ -298,7 +298,9 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.SELECT_BROWSER_FILE),
   readMediaFile: (filePath: string): Promise<ArrayBuffer | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.READ_MEDIA_FILE, filePath),
-    
+  readMediaFileChunk: (filePath: string, offset: number, length: number): Promise<ArrayBuffer | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.READ_MEDIA_FILE_CHUNK, filePath, offset, length),
+
   /**
    * Get filesystem path for a File object.
    * Required for Electron v32+ where File.path was removed.

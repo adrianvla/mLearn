@@ -89,3 +89,5 @@ export interface PluginHostContext {
   ui: PluginUIContribution;
   initialContext?: Record<string, unknown>;
 }
+
+export type PluginComponentLibraryRef = Record<string, unknown>;

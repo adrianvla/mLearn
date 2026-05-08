@@ -59,14 +59,6 @@ const PiPIcon: Component = () => (
     </svg>
 );
 
-const SubtitleIcon: Component = () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
-        <line x1="6" y1="14" x2="18" y2="14" />
-        <line x1="6" y1="18" x2="14" y2="18" />
-    </svg>
-);
-
 const WordListIcon: Component = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="8" y1="6" x2="21" y2="6" />
@@ -79,6 +71,12 @@ const WordListIcon: Component = () => (
 );
 
 // ============ Main Component ============
+
+export interface DetectedTrack {
+    index: number;
+    label: string;
+    language: string | null;
+}
 
 export interface VideoControlsProps {
     /** Video hook instance */
@@ -93,6 +91,16 @@ export interface VideoControlsProps {
     showWordSidebar?: boolean;
     /** Toggle word sidebar visibility */
     onToggleWordSidebar?: () => void;
+    /** Whether the user has provided external subtitles */
+    hasExternalSubtitles?: boolean;
+    /** Audio tracks detected via ffmpeg */
+    detectedAudioTracks?: DetectedTrack[];
+    /** Subtitle tracks detected via ffmpeg */
+    detectedSubtitleTracks?: DetectedTrack[];
+    /** Currently active detected subtitle track index */
+    activeDetectedSubtitleTrack?: number | null;
+    /** Callback when user selects a detected subtitle track */
+    onSelectDetectedSubtitleTrack?: (index: number | null) => void;
 }
 
 // Speed options for playback rate menu
@@ -217,16 +225,80 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                             aria-label={t('mlearn.Video.Controls.PlaybackSpeed')}
                         />
 
-                        {/* Subtitles toggle */}
-                        <IconBtn
-                            variant="ghost"
-                            active={settings.showSubtitles}
-                            class={settings.showSubtitles ? '' : 'inactive'}
-                            onClick={() => updateSettings({ showSubtitles: !settings.showSubtitles })}
-                            aria-label={t('mlearn.Global.Aria.ToggleSubtitles')}
-                        >
-                            <SubtitleIcon />
-                        </IconBtn>
+                        <Show when={state.textTracks.length > 0 || props.detectedSubtitleTracks?.length || props.hasExternalSubtitles}>
+                            <Select
+                                class="video-track-select video-subtitle-select"
+                                options={[
+                                    { value: 'off', label: t('mlearn.Video.Controls.SubtitleNone') },
+                                    ...(props.hasExternalSubtitles ? [{ value: 'external', label: t('mlearn.Video.Controls.SubtitleExternal') }] : []),
+                                    ...state.textTracks.map((track, i) => ({
+                                        value: `browser:${i}`,
+                                        label: track.label || track.language || `Track ${i + 1}`,
+                                    })),
+                                    ...(props.detectedSubtitleTracks || []).map((track, i) => ({
+                                        value: `detected:${i}`,
+                                        label: track.label || track.language || `Track ${i + 1}`,
+                                    })),
+                                ]}
+                                value={(() => {
+                                    if (!settings.showSubtitles) return 'off';
+                                    if (props.hasExternalSubtitles && props.subtitles.subtitles().length > 0) return 'external';
+                                    const activeBrowser = state.textTracks.findIndex(t => t.mode === 'showing');
+                                    if (activeBrowser >= 0) return `browser:${activeBrowser}`;
+                                    if (props.activeDetectedSubtitleTrack != null) return `detected:${props.activeDetectedSubtitleTrack}`;
+                                    return 'off';
+                                })()}
+                                onChange={(e) => {
+                                    const val = e.currentTarget.value;
+                                    if (val === 'off') {
+                                        updateSettings({ showSubtitles: false });
+                                        props.video.disableTextTracks();
+                                        props.onSelectDetectedSubtitleTrack?.(null);
+                                    } else if (val === 'external') {
+                                        updateSettings({ showSubtitles: true });
+                                        props.video.disableTextTracks();
+                                        props.onSelectDetectedSubtitleTrack?.(null);
+                                    } else if (val.startsWith('browser:')) {
+                                        updateSettings({ showSubtitles: true });
+                                        props.video.setTextTrack(parseInt(val.slice(8), 10));
+                                        props.onSelectDetectedSubtitleTrack?.(null);
+                                    } else if (val.startsWith('detected:')) {
+                                        updateSettings({ showSubtitles: true });
+                                        props.video.disableTextTracks();
+                                        props.onSelectDetectedSubtitleTrack?.(parseInt(val.slice(9), 10));
+                                    }
+                                }}
+                                aria-label={t('mlearn.Video.Controls.SubtitleTrack')}
+                            />
+                        </Show>
+
+                        <Show when={state.audioTracks.length > 1 || (props.detectedAudioTracks && props.detectedAudioTracks.length > 1)}>
+                            <Select
+                                class="video-track-select video-audio-select"
+                                options={state.audioTracks.length > 0
+                                    ? state.audioTracks.map((track, i) => ({
+                                        value: String(i),
+                                        label: track.label || track.language || `Track ${i + 1}`,
+                                    }))
+                                    : (props.detectedAudioTracks || []).map((track, i) => ({
+                                        value: String(i),
+                                        label: track.label || track.language || `Track ${i + 1}`,
+                                    }))}
+                                value={(() => {
+                                    if (state.audioTracks.length > 0) {
+                                        const active = state.audioTracks.findIndex(t => t.enabled);
+                                        return active >= 0 ? String(active) : '0';
+                                    }
+                                    return '0';
+                                })()}
+                                onChange={(e) => {
+                                    if (state.audioTracks.length > 0) {
+                                        props.video.setAudioTrack(parseInt(e.currentTarget.value, 10));
+                                    }
+                                }}
+                                aria-label={t('mlearn.Video.Controls.AudioTrack')}
+                            />
+                        </Show>
 
                         {/* Word sidebar toggle */}
                         <Show when={props.onToggleWordSidebar}>

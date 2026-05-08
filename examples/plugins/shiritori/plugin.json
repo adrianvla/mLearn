@@ -1,0 +1,15 @@
+{
+  "id": "shiritori",
+  "name": "Shiritori",
+  "version": "0.1.0",
+  "apiVersion": "1.0.0",
+  "description": "A Japanese word-chain game (しりとり). Players take turns saying words that start with the last kana of the previous word. Words ending in ん make you lose. Words cannot be reused.",
+  "author": "mLearn",
+  "main": "dist/main.cjs",
+  "capabilities": ["ui-panel"],
+  "permissions": ["kv-store", "open-window"],
+  "ui": {
+    "type": "component",
+    "componentPath": "dist/ui.js"
+  }
+}

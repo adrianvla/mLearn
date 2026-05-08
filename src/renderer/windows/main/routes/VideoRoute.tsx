@@ -25,7 +25,7 @@ import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMedi
 import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent, getEffectiveWordStatus, getAnkiEaseForStatus, getAnkiWordKnowledgeStatus, numericToWordStatus, type WordStatus } from '../../../components/subtitle/wordHoverHelpers';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
-import { tokensToColoredHtml } from '../../../utils/subtitleParsing';
+import { tokensToColoredHtml, parseWorkName } from '../../../utils/subtitleParsing';
 import { getWordStatus } from '../../../services/statsService';
 import { findAnkiWordMatchInCache, refreshAnkiWordsCache } from '../../../services/ankiWordsCache';
 import { useAnki } from '../../../hooks/useAnki';
@@ -41,6 +41,7 @@ import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hoo
 import type { ConversationAgentContext } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
 import { collectDroppedMediaFiles } from './videoDropUtils';
+import { detectMediaTracks, extractSubtitleTrack } from '../../../services/mediaTrackService';
 import { getWordFormCandidates } from '../../../utils/wordForms';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import './video.css';
@@ -58,7 +59,10 @@ const toLocalMediaUrl = (filePath: string): string => {
 const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
 const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
 
-const getMediaNameFromPath = (filePath: string): string => filePath.split('/').pop() || filePath.split('\\').pop() || 'Video';
+const getMediaNameFromPath = (filePath: string): string => {
+  const rawName = filePath.split('/').pop() || filePath.split('\\').pop() || 'Video';
+  return parseWorkName(rawName);
+};
 
 export const VideoRoute: Component = () => {
   const navigate = useNavigate();
@@ -102,6 +106,9 @@ export const VideoRoute: Component = () => {
   const [currentVideoPath, setCurrentVideoPath] = createSignal('');
   const [, setCurrentSubtitlePath] = createSignal('');
   const [showWordSidebar, setShowWordSidebar] = createSignal(false);
+  const [detectedAudioTracks, setDetectedAudioTracks] = createSignal<Array<{ index: number; label: string; language: string | null }>>([]);
+  const [detectedSubtitleTracks, setDetectedSubtitleTracks] = createSignal<Array<{ index: number; label: string; language: string | null; extractedPath?: string }>>([]);
+  const [activeDetectedSubtitleTrack, setActiveDetectedSubtitleTrack] = createSignal<number | null>(null);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [showWatchTogetherModeModal, setShowWatchTogetherModeModal] = createSignal(false);
   const [showWatchTogetherCodeModal, setShowWatchTogetherCodeModal] = createSignal(false);
@@ -177,6 +184,8 @@ export const VideoRoute: Component = () => {
       currentTime: video?.currentTime ?? currentVideoTime(),
       paused: video?.paused ?? true,
       playbackRate: video?.playbackRate ?? 1,
+      mediaUrl,
+      mediaTitle: currentVideoName(),
     };
   };
 
@@ -287,7 +296,24 @@ export const VideoRoute: Component = () => {
     setExplainerOpen(false);
   };
 
-  const loadVideo = (path: string, name: string) => {
+  const handleSelectDetectedSubtitleTrack = async (index: number | null) => {
+    if (index === null) {
+      setActiveDetectedSubtitleTrack(null);
+      return;
+    }
+    const tracks = detectedSubtitleTracks();
+    const track = tracks[index];
+    if (!track) return;
+    const src = videoSrc();
+    if (!src) return;
+    setActiveDetectedSubtitleTrack(index);
+    const result = await extractSubtitleTrack(src, track.index);
+    if (result.success && result.content) {
+      setSubtitleContent(result.content);
+    }
+  };
+
+  const loadVideo = async (path: string, name: string) => {
     const url = toLocalMediaUrl(path);
     log.info('[VideoRoute] loadVideo: path=', path, 'url=', url);
     setVideoSrc(url);
@@ -298,6 +324,42 @@ export const VideoRoute: Component = () => {
     setCurrentSubtitlePath('');
     setShowDropZone(false);
     setCurrentVideoName(name);
+    setDetectedAudioTracks([]);
+    setDetectedSubtitleTracks([]);
+    setActiveDetectedSubtitleTrack(null);
+
+    if (isElectronPlatform() && path) {
+      const tracks = await detectMediaTracks(url);
+      if (tracks.audioTracks.length > 0 || tracks.subtitleTracks.length > 0) {
+        setDetectedAudioTracks(
+          tracks.audioTracks.map((t) => ({
+            index: t.index,
+            label: t.label || t.language || `Audio ${t.index + 1}`,
+            language: t.language,
+          })),
+        );
+        const subtitleTrackInfos = tracks.subtitleTracks.map((t) => ({
+          index: t.index,
+          label: t.label || t.language || `Subtitle ${t.index + 1}`,
+          language: t.language,
+        }));
+        setDetectedSubtitleTracks(subtitleTrackInfos);
+
+        if (subtitleTrackInfos.length > 0) {
+          const firstTrack = tracks.subtitleTracks[0];
+          const result = await extractSubtitleTrack(url, firstTrack.index);
+          if (result.success && result.content) {
+            setSubtitleContent(result.content);
+            setActiveDetectedSubtitleTrack(0);
+          } else {
+            showToast({
+              message: t('mlearn.Video.SubtitleExtractionFailed'),
+              variant: 'warning',
+            });
+          }
+        }
+      }
+    }
   };
 
   const saveVideoToRecentItems = async (path: string, name: string, subtitlePath?: string) => {
@@ -894,12 +956,12 @@ export const VideoRoute: Component = () => {
     );
 
     if (droppedMedia.video) {
-      log.info('[VideoRoute] handleDrop: video filePath=', droppedMedia.video.filePath, 'fileName=', droppedMedia.video.fileName);
+      log.info('[VideoRoute] handleDrop: video filePath=', droppedMedia.video.filePath, 'fileName=', droppedMedia.video.fileName, 'displayName=', droppedMedia.video.displayName);
       if (droppedMedia.video.filePath) {
-        loadVideo(droppedMedia.video.filePath, droppedMedia.video.fileName);
+        loadVideo(droppedMedia.video.filePath, droppedMedia.video.displayName);
         await saveVideoToRecentItems(
           droppedMedia.video.filePath,
-          droppedMedia.video.fileName,
+          droppedMedia.video.displayName,
           droppedMedia.subtitle?.filePath,
         );
       } else {
@@ -912,7 +974,7 @@ export const VideoRoute: Component = () => {
         setSubtitleContent('');
         setCurrentSubtitlePath('');
         setShowDropZone(false);
-        setCurrentVideoName(droppedMedia.video.fileName);
+        setCurrentVideoName(droppedMedia.video.displayName);
       }
     }
 
@@ -1133,6 +1195,10 @@ export const VideoRoute: Component = () => {
           onTimeUpdate={(time) => setCurrentVideoTime(time)}
           showWordSidebar={showWordSidebar()}
           onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
+          detectedAudioTracks={detectedAudioTracks()}
+          detectedSubtitleTracks={detectedSubtitleTracks()}
+          activeDetectedSubtitleTrack={activeDetectedSubtitleTrack()}
+          onSelectDetectedSubtitleTrack={handleSelectDetectedSubtitleTrack}
         />
       </Show>
 

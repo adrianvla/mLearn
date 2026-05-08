@@ -1342,6 +1342,31 @@
           "error": "Erreur"
         }
       },
+      "Shiritori": {
+        "Title": "Shiritori",
+        "Description": "Chain Japanese nouns. The next word must start with the last kana. Words ending in ん make you lose. No duplicates allowed.",
+        "Turn": {
+          "User": "Your turn — say a word starting with \"{kana}\"",
+          "UserFirst": "Your turn — say any Japanese noun",
+          "Computer": "Computer's turn",
+          "ComputerThinking": "Computer is thinking..."
+        },
+        "Error": {
+          "Empty": "Please enter a word.",
+          "Duplicate": "You cannot use a word twice.",
+          "NotFound": "That word was not found in the dictionary.",
+          "WrongStart": "That word must start with \"{kana}\".",
+          "EndsWithN": "Word ends in ん — you lose!",
+          "NoReading": "Could not determine the reading of that word."
+        },
+        "GameOver": {
+          "UserWins": "You win!",
+          "ComputerWins": "Computer wins!",
+          "PlayAgain": "Play Again"
+        },
+        "Submit": "Submit",
+        "LanguageWarning": "This plugin is only available when Japanese is the active language. Please switch to Japanese in the settings to play."
+      },
       "KnowledgePriority": {
         "Description": "Configurer comment la connaissance des mots est déterminée à partir de multiples sources",
         "ResolutionMode": {
@@ -1942,7 +1967,11 @@
       "Controls": {
         "Mute": "Couper le son",
         "PlaybackSpeed": "Vitesse de lecture",
-        "Unmute": "Activer le son"
+        "Unmute": "Activer le son",
+        "SubtitleNone": "Aucun",
+        "SubtitleExternal": "Sous-titres fournis par l'utilisateur",
+        "SubtitleTrack": "Piste de sous-titres",
+        "AudioTrack": "Piste audio"
       },
       "CopySubtitle": "Copier le sous-titre",
       "SyncSubtitles": "Synchroniser les sous-titres",
@@ -1966,6 +1995,7 @@
         }
       },
       "VideoClipFailed": "Le clip vidéo a échoué, utilisation de la capture d'écran",
+      "SubtitleExtractionFailed": "Impossible d'extraire les sous-titres de cette vidéo. Le fichier est peut-être trop volumineux. Essayez de charger un fichier de sous-titres externe.",
       "WatchTogether": "Regarder ensemble"
     },
     "Overlay": {
@@ -2023,7 +2053,9 @@
         "SignInRequiredMessage": "Connectez-vous avec votre compte mLearn Cloud pour utiliser les codes de salle.",
         "SignInModalTitle": "Connexion pour Regarder ensemble",
         "SignInHint": "Entrez vos identifiants mLearn Cloud",
-        "SignInCodeHint": "Si vous avez reçu un code d'appareil, entrez-le ci-dessous"
+        "SignInCodeHint": "Si vous avez reçu un code d'appareil, entrez-le ci-dessous",
+        "PeerJoinedSingular": "Un participant a rejoint votre salle",
+        "PeerJoinedPlural": "{count} participants ont rejoint votre salle"
       },
       "Media": {
         "DistributeTitle": "Distribuer le média",
