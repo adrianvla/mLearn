@@ -14,6 +14,8 @@ mLearn is an all-in-one immersion app that knows what you know. Watch videos, re
 
 ## Screenshots
 
+<img alt="legends" src="https://morisinc.net/assets/img/mlearn-screenshot.png" />
+
 <img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn.webp" alt="Video player with subtitle overlay" width="800"/>
 
 <img src="https://mlearn.morisinc.net/img/statistics.webp" alt="Statistics dashboard" width="800"/>
