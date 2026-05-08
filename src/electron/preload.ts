@@ -300,6 +300,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.READ_MEDIA_FILE, filePath),
   readMediaFileChunk: (filePath: string, offset: number, length: number): Promise<ArrayBuffer | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.READ_MEDIA_FILE_CHUNK, filePath, offset, length),
+  getFileSize: (filePath: string): Promise<number | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_FILE_SIZE, filePath),
 
   /**
    * Get filesystem path for a File object.

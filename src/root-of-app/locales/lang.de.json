@@ -1995,7 +1995,8 @@
         }
       },
       "VideoClipFailed": "Videoclip fehlgeschlagen, Screenshot wird verwendet",
-      "SubtitleExtractionFailed": "Untertitel konnten nicht extrahiert werden. Die Datei ist möglicherweise zu groß. Versuchen Sie stattdessen eine externe Untertiteldatei zu laden.",
+      "SubtitleExtractionFailed": "Untertitel konnten nicht extrahiert werden. Versuchen Sie stattdessen eine externe Untertiteldatei zu laden.",
+      "SubtitleTracksDetected": "Untertitelspuren erkannt. Auto-Extraktion nicht verfügbar für große Dateien. Laden Sie eine externe Untertiteldatei oder extrahieren Sie sie mit ffmpeg.",
       "WatchTogether": "Gemeinsam ansehen"
     },
     "Overlay": {

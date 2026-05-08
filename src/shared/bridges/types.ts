@@ -109,6 +109,7 @@ export interface FileBridge {
   readPdfFile: (filePath: string) => Promise<{ data: ArrayBuffer }>;
   readMediaFile: (filePath: string) => Promise<ArrayBuffer | null>;
   readMediaFileChunk: (filePath: string, offset: number, length: number) => Promise<ArrayBuffer | null>;
+  getFileSize: (filePath: string) => Promise<number | null>;
   selectVideoFile: () => Promise<string | null>;
   selectSubtitleFile: () => Promise<string | null>;
   selectBookFolder: () => Promise<string | null>;

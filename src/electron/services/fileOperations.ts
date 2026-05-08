@@ -171,4 +171,21 @@ export function setupFileOperationsIPC(): void {
       return null;
     }
   });
+
+  ipcMain.handle(IPC_CHANNELS.GET_FILE_SIZE, async (_event, filePath: string) => {
+    try {
+      log.info('GET_FILE_SIZE: input=', filePath);
+      const resolved = path.resolve(filePath);
+      if (!path.isAbsolute(resolved)) {
+        log.warn('GET_FILE_SIZE: not an absolute path');
+        return null;
+      }
+      const stat = await fs.stat(resolved);
+      log.info('GET_FILE_SIZE: size=', stat.size);
+      return stat.size;
+    } catch (e) {
+      log.error('GET_FILE_SIZE failed:', (e as Error).message);
+      return null;
+    }
+  });
 }

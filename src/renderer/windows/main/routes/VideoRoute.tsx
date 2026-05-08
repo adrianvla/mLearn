@@ -346,16 +346,26 @@ export const VideoRoute: Component = () => {
         setDetectedSubtitleTracks(subtitleTrackInfos);
 
         if (subtitleTrackInfos.length > 0) {
-          const firstTrack = tracks.subtitleTracks[0];
-          const result = await extractSubtitleTrack(url, firstTrack.index);
-          if (result.success && result.content) {
-            setSubtitleContent(result.content);
-            setActiveDetectedSubtitleTrack(0);
-          } else {
+          const fileSize = await getBridge().files.getFileSize(path);
+          const maxSize = 512 * 1024 * 1024;
+          if (fileSize != null && fileSize > maxSize) {
+            log.info('[VideoRoute] loadVideo: file too large for auto-extraction', fileSize);
             showToast({
-              message: t('mlearn.Video.SubtitleExtractionFailed'),
-              variant: 'warning',
+              message: t('mlearn.Video.SubtitleTracksDetected'),
+              variant: 'info',
             });
+          } else {
+            const firstTrack = tracks.subtitleTracks[0];
+            const result = await extractSubtitleTrack(url, firstTrack.index);
+            if (result.success && result.content) {
+              setSubtitleContent(result.content);
+              setActiveDetectedSubtitleTrack(0);
+            } else {
+              showToast({
+                message: t('mlearn.Video.SubtitleExtractionFailed'),
+                variant: 'warning',
+              });
+            }
           }
         }
       }

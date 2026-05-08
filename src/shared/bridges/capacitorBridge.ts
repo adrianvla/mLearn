@@ -808,6 +808,10 @@ const fileBridge: FileBridge = {
     return null;
   },
 
+  async getFileSize(_filePath: string) {
+    return null;
+  },
+
   async selectVideoFile() {
     // Use HTML file input for video selection
     return new Promise((resolve) => {

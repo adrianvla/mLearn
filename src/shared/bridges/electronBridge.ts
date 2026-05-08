@@ -103,6 +103,7 @@ const fileBridge: FileBridge = {
   readPdfFile: (path) => getIPC().readPdfFile(path),
   readMediaFile: (path) => getIPC().readMediaFile(path),
   readMediaFileChunk: (path, offset, length) => getIPC().readMediaFileChunk(path, offset, length),
+  getFileSize: (path) => getIPC().getFileSize(path),
   selectVideoFile: () => getIPC().selectVideoFile(),
   selectSubtitleFile: () => getIPC().selectSubtitleFile(),
   selectBookFolder: () => getIPC().selectBookFolder(),

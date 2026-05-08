@@ -1995,7 +1995,8 @@
         }
       },
       "VideoClipFailed": "Le clip vidéo a échoué, utilisation de la capture d'écran",
-      "SubtitleExtractionFailed": "Impossible d'extraire les sous-titres de cette vidéo. Le fichier est peut-être trop volumineux. Essayez de charger un fichier de sous-titres externe.",
+      "SubtitleExtractionFailed": "Impossible d'extraire les sous-titres de cette vidéo. Essayez de charger un fichier de sous-titres externe.",
+      "SubtitleTracksDetected": "Pistes de sous-titres détectées. L'extraction automatique n'est pas disponible pour les fichiers volumineux. Chargez un fichier de sous-titres externe ou extrayez-les avec ffmpeg.",
       "WatchTogether": "Regarder ensemble"
     },
     "Overlay": {

@@ -2001,7 +2001,8 @@
         }
       },
       "VideoClipFailed": "Video clip failed, using screenshot instead",
-      "SubtitleExtractionFailed": "Could not extract subtitles from this video. The file may be too large. Try loading an external subtitle file instead.",
+      "SubtitleExtractionFailed": "Could not extract subtitles from this video. Try loading an external subtitle file instead.",
+      "SubtitleTracksDetected": "Subtitle tracks detected. Auto-extraction not available for large files. Load an external subtitle file or extract them with ffmpeg.",
       "WatchTogether": "Watch together"
     },
     "Overlay": {

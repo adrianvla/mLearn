@@ -85,6 +85,8 @@ export async function detectMediaTracks(videoUrl: string): Promise<DetectTracksR
   }
 }
 
+const MAX_EXTRACTION_SIZE = 512 * 1024 * 1024;
+
 export async function extractSubtitleTrack(
   videoUrl: string,
   streamIndex: number,
@@ -94,6 +96,10 @@ export async function extractSubtitleTrack(
     const sourceData = await fetchVideoData(videoUrl);
     if (!sourceData) {
       return { success: false, error: 'Failed to fetch video data' };
+    }
+    if (sourceData.byteLength > MAX_EXTRACTION_SIZE) {
+      log.warn('[MediaTrack] extractSubtitleTrack: file too large for wasm extraction', sourceData.byteLength);
+      return { success: false, error: 'File too large for in-app subtitle extraction' };
     }
 
     const ffmpeg = await getFFmpeg();
