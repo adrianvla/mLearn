@@ -246,7 +246,11 @@
       "SigningIn": "Вход...",
       "TestConnection": "Проверить подключение",
       "Title": "Подключение",
-      "Unreachable": "Недоступен"
+      "Unreachable": "Недоступен",
+      "ICEServers": "WebRTC ICE Servers",
+      "ICEServersLabel": "STUN / TURN servers",
+      "ICEServersDescription": "Used for Watch Together peer connections.",
+      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
     },
     "ConversationAgent": {
       "Agents": {
@@ -932,7 +936,9 @@
       "Buttons": {
         "Continue": "Продолжить",
         "Installing": "Установка...",
-        "StartInstallation": "Начать установку"
+        "StartInstallation": "Начать установку",
+        "CancelInstall": "Cancel Installation",
+        "CancelRestart": "Cancel Restart"
       },
       "Components": {
         "ExplainAi": {
@@ -2074,7 +2080,9 @@
         "ReceivePrompt": "Участник хочет отправить вам медиафайл. Хотите его получить?",
         "Receiving": "Получение медиа...",
         "ReceiveComplete": "Медиа успешно получено.",
-        "LoadMedia": "Загрузить медиа"
+        "LoadMedia": "Загрузить медиа",
+        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
+        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
       }
     },
     "WordDbEditor": {
@@ -2276,6 +2284,21 @@
       "Description": "Управляйте установленными компонентами. Включайте или выключайте модули и переустанавливайте для применения изменений.",
       "Reinstall": "Переустановить компоненты",
       "RestartNote": "Приложение перезапустится после завершения установки."
+    },
+    "Diagnostics": {
+      "Title": "mLearn Diagnostics",
+      "RunAllTests": "Run All Tests",
+      "RunAgain": "Run Again",
+      "Running": "Running…",
+      "ExportJson": "Export JSON",
+      "ErrorTitle": "Diagnostics failed",
+      "ReportSavedTo": "Report saved to:",
+      "FilterAll": "All",
+      "FilterPass": "Pass",
+      "FilterFail": "Fail",
+      "FilterSkip": "Skip",
+      "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
+      "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
     }
   }
 }

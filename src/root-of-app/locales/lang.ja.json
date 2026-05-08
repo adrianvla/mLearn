@@ -246,7 +246,11 @@
       "SigningIn": "サインイン中...",
       "TestConnection": "接続テスト",
       "Title": "接続",
-      "Unreachable": "到達不能"
+      "Unreachable": "到達不能",
+      "ICEServers": "WebRTC ICE Servers",
+      "ICEServersLabel": "STUN / TURN servers",
+      "ICEServersDescription": "Used for Watch Together peer connections.",
+      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
     },
     "ConversationAgent": {
       "Agents": {
@@ -932,7 +936,9 @@
       "Buttons": {
         "Continue": "続行",
         "Installing": "インストール中...",
-        "StartInstallation": "インストール開始"
+        "StartInstallation": "インストール開始",
+        "CancelInstall": "Cancel Installation",
+        "CancelRestart": "Cancel Restart"
       },
       "Components": {
         "ExplainAi": {
@@ -2074,7 +2080,9 @@
         "ReceivePrompt": "ピアがメディアファイルを送信しようとしています。受信しますか？",
         "Receiving": "メディアを受信中...",
         "ReceiveComplete": "メディアを正常に受信しました。",
-        "LoadMedia": "メディアを読み込む"
+        "LoadMedia": "メディアを読み込む",
+        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
+        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
       }
     },
     "WordDbEditor": {
@@ -2276,6 +2284,21 @@
       "Description": "インストール済みのコンポーネントを管理します。モジュールをオンまたはオフに切り替え、変更を適用するために再インストールします。",
       "Reinstall": "コンポーネントを再インストール",
       "RestartNote": "インストールが完了すると、アプリが再起動します。"
+    },
+    "Diagnostics": {
+      "Title": "mLearn Diagnostics",
+      "RunAllTests": "Run All Tests",
+      "RunAgain": "Run Again",
+      "Running": "Running…",
+      "ExportJson": "Export JSON",
+      "ErrorTitle": "Diagnostics failed",
+      "ReportSavedTo": "Report saved to:",
+      "FilterAll": "All",
+      "FilterPass": "Pass",
+      "FilterFail": "Fail",
+      "FilterSkip": "Skip",
+      "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
+      "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
     }
   }
 }

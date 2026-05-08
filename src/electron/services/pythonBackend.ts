@@ -1172,9 +1172,9 @@ export function setupPythonBackendIPC(): void {
     }
   });
 
-  ipcMain.on(IPC_CHANNELS.START_INSTALL, (_event, rawOptions) => {
+  ipcMain.on(IPC_CHANNELS.START_INSTALL, async (_event, rawOptions) => {
     const options = rawOptions && typeof rawOptions === 'object' ? rawOptions : {};
-    startPythonInstall({
+    await startPythonInstall({
       includeLLM: options.includeLLM ?? true,
       includeOCR: options.includeOCR ?? true,
       includeVoice: options.includeVoice ?? true,

@@ -203,7 +203,11 @@ describe('pythonBackend', () => {
       const mockProcess = {
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() },
-        on: vi.fn(),
+        on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+          if (event === 'close') {
+            handler(0);
+          }
+        }),
         kill: vi.fn(),
         killed: false,
       };
@@ -240,25 +244,25 @@ describe('pythonBackend', () => {
       expect(mockWebContents.send.mock.calls.length).toBe(sendCount);
     });
 
-    it('sends INSTALL_STARTED with options', () => {
+    it('sends INSTALL_STARTED with options', async () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
       mockHttpsGet.mockReturnValue(createMockHttpReq());
 
       const options = { includeLLM: false, includeOCR: true, includeVoice: false };
-      mod.startPythonInstall(options);
+      await mod.startPythonInstall(options);
 
       expect(mockWebContents.send).toHaveBeenCalledWith('install-started', options);
     });
 
-    it('initiates https download', () => {
+    it('initiates https download', async () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
       mockHttpsGet.mockReturnValue(createMockHttpReq());
 
-      mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
+      await mod.startPythonInstall({ includeLLM: true, includeOCR: true, includeVoice: true });
 
       expect(mockHttpsGet).toHaveBeenCalled();
     });
@@ -280,14 +284,30 @@ describe('pythonBackend', () => {
         configurable: true,
       });
 
-      const mockProcess = {
+      const backendMockProcess = {
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() },
         on: vi.fn(),
         kill: vi.fn(),
         killed: false,
       };
-      mockSpawn.mockReturnValue(mockProcess);
+
+      mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+        if (args[0] === '--version') {
+          return {
+            stdout: { on: vi.fn() },
+            stderr: { on: vi.fn() },
+            on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+              if (event === 'close') {
+                handler(0);
+              }
+            }),
+            kill: vi.fn(),
+            killed: false,
+          };
+        }
+        return backendMockProcess;
+      });
 
       vi.resetModules();
       mod = await import('./pythonBackend');
@@ -303,7 +323,7 @@ describe('pythonBackend', () => {
 
       mod.terminatePythonBackend();
 
-      expect(mockProcess.kill).toHaveBeenCalledWith('SIGINT');
+      expect(backendMockProcess.kill).toHaveBeenCalledWith('SIGINT');
     });
   });
 
@@ -366,7 +386,11 @@ describe('pythonBackend', () => {
           }),
         },
         stderr: { on: vi.fn() },
-        on: vi.fn(),
+        on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+          if (event === 'close') {
+            handler(0);
+          }
+        }),
         kill: vi.fn(),
         killed: false,
       };
@@ -376,7 +400,7 @@ describe('pythonBackend', () => {
       mod = await import('./pythonBackend');
 
       await mod.findPython();
-      stdoutHandler?.(Buffer.from('::STATUS::ANKI::123::Loaded from cache\n'));
+      stdoutHandler!(Buffer.from('::STATUS::ANKI::123::Loaded from cache\n'));
 
       mod.setupPythonBackendIPC();
 
@@ -408,7 +432,7 @@ describe('pythonBackend', () => {
       );
     });
 
-    it('START_INSTALL triggers startPythonInstall with options', () => {
+    it('START_INSTALL triggers startPythonInstall with options', async () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
@@ -417,7 +441,7 @@ describe('pythonBackend', () => {
       mod.setupPythonBackendIPC();
 
       const listeners = mockIpcListeners.get('start-install') || [];
-      listeners[0]({}, { includeLLM: false, includeOCR: true });
+      await listeners[0]({}, { includeLLM: false, includeOCR: true });
 
       expect(mockWebContents.send).toHaveBeenCalledWith(
         'install-started',
@@ -425,7 +449,7 @@ describe('pythonBackend', () => {
       );
     });
 
-    it('START_INSTALL uses defaults when rawOptions is null', () => {
+    it('START_INSTALL uses defaults when rawOptions is null', async () => {
       const mockWebContents = { send: vi.fn() };
       mockGetCurrentWindow.mockReturnValue({ webContents: mockWebContents });
 
@@ -434,7 +458,7 @@ describe('pythonBackend', () => {
       mod.setupPythonBackendIPC();
 
       const listeners = mockIpcListeners.get('start-install') || [];
-      listeners[0]({}, null);
+      await listeners[0]({}, null);
 
       expect(mockWebContents.send).toHaveBeenCalledWith(
         'install-started',
