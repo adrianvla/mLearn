@@ -6,8 +6,8 @@
 .log-console {
   display: flex;
   flex-direction: column;
-  background: var(--log-console-bg);
-  border: 1px solid var(--log-console-border);
+  background: var(--bg-nt-primary);
+  border: 1px solid var(--border-color-intense);
   border-radius: var(--radius-md);
   overflow: hidden;
   font-family: var(--font-family-mono);
@@ -19,14 +19,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 0.75rem;
-  background: var(--log-console-header-bg);
-  border-bottom: 1px solid var(--log-console-border);
+  background: var(--bg-nt-secondary);
+  border-bottom: 1px solid var(--border-color-intense);
 }
 
 .log-console__title {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--log-console-title);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0;
@@ -40,7 +40,7 @@
 .log-console__action-btn {
   background: transparent;
   border: none;
-  color: var(--log-console-action);
+  color: var(--text-tertiary);
   cursor: pointer;
   padding: 0.25rem;
   border-radius: 4px;
@@ -51,8 +51,8 @@
 }
 
 .log-console__action-btn:hover {
-  color: var(--log-console-action-hover);
-  background: var(--log-console-action-hover-bg);
+  color: var(--text-primary);
+  background: var(--bg-intense);
 }
 
 /* Content */
@@ -73,7 +73,7 @@
   padding: 0.25rem 0;
   font-size: 0.75rem;
   line-height: 1.5;
-  border-bottom: 1px solid var(--log-console-entry-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .log-console__entry:last-child {
@@ -83,37 +83,37 @@
 /* Timestamp */
 .log-console__timestamp {
   flex-shrink: 0;
-  color: var(--log-console-timestamp);
+  color: var(--text-tertiary);
   font-size: 0.6875rem;
 }
 
 /* Message */
 .log-console__message {
   flex: 1;
-  color: var(--log-console-message);
+  color: var(--text-primary);
   word-break: break-word;
   white-space: pre-wrap;
 }
 
 /* Log level variants */
 .log-console__entry--info .log-console__message {
-  color: var(--log-console-info);
+  color: var(--color-info);
 }
 
 .log-console__entry--success .log-console__message {
-  color: var(--log-console-success);
+  color: var(--color-success);
 }
 
 .log-console__entry--warning .log-console__message {
-  color: var(--log-console-warning);
+  color: var(--color-warning);
 }
 
 .log-console__entry--error .log-console__message {
-  color: var(--log-console-error);
+  color: var(--color-error);
 }
 
 .log-console__entry--debug .log-console__message {
-  color: var(--log-console-debug);
+  color: var(--text-secondary);
 }
 
 /* Level indicator */
@@ -127,28 +127,28 @@
 }
 
 .log-console__entry--info .log-console__level {
-  background: var(--log-console-info-bg);
-  color: var(--log-console-info);
+  background: var(--bg-info-hover);
+  color: var(--color-info);
 }
 
 .log-console__entry--success .log-console__level {
-  background: var(--log-console-success-bg);
-  color: var(--log-console-success);
+  background: var(--bg-success-hover);
+  color: var(--color-success);
 }
 
 .log-console__entry--warning .log-console__level {
-  background: var(--log-console-warning-bg);
-  color: var(--log-console-warning);
+  background: var(--bg-warning-hover);
+  color: var(--color-warning);
 }
 
 .log-console__entry--error .log-console__level {
-  background: var(--log-console-error-bg);
-  color: var(--log-console-error);
+  background: var(--bg-danger-hover);
+  color: var(--color-error);
 }
 
 .log-console__entry--debug .log-console__level {
-  background: var(--log-console-debug-bg);
-  color: var(--log-console-debug);
+  background: var(--bg-intense);
+  color: var(--text-secondary);
 }
 
 /* Empty state */
@@ -158,7 +158,7 @@
   justify-content: center;
   height: 100%;
   min-height: 80px;
-  color: var(--log-console-empty);
+  color: var(--text-tertiary);
   font-size: 0.75rem;
 }
 
@@ -172,12 +172,12 @@
 }
 
 .log-console__content::-webkit-scrollbar-thumb {
-  background: var(--log-console-scrollbar);
+  background: var(--text-tertiary);
   border-radius: 3px;
 }
 
 .log-console__content::-webkit-scrollbar-thumb:hover {
-  background: var(--log-console-scrollbar-hover);
+  background: var(--text-secondary);
 }
 
 /* Size variants */
@@ -197,8 +197,8 @@
   bottom: 0.5rem;
   right: 0.5rem;
   font-size: 0.625rem;
-  color: var(--log-console-empty);
-  background: var(--log-console-header-bg);
+  color: var(--text-tertiary);
+  background: var(--bg-nt-secondary);
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
   pointer-events: none;

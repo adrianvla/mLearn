@@ -272,11 +272,6 @@ export async function leaveWatchTogetherRoom(
   );
 }
 
-function appendAuthTokenToUrl(url: string, token: string): string {
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}token=${encodeURIComponent(token)}`;
-}
-
 export interface WatchTogetherPeerEvent {
   type: 'joined' | 'left';
   peerId: string;
@@ -289,7 +284,7 @@ export function subscribeToWatchTogetherRoom(
   onRoomState: (room: WatchTogetherRoomState) => void,
   onPeerEvent?: (event: WatchTogetherPeerEvent) => void,
 ): () => void {
-  const socket = new WebSocket(appendAuthTokenToUrl(session.socket.url, accessToken), [session.socket.protocol]);
+  const socket = new WebSocket(session.socket.url, [session.socket.protocol, accessToken]);
 
   socket.addEventListener('message', (event) => {
     try {
