@@ -30,6 +30,7 @@ export interface InstallResult {
   success: boolean;
   path?: string;
   error?: string;
+  extensionPath?: string;
 }
 
 async function copyDirRecursive(src: string, dest: string): Promise<void> {
@@ -126,7 +127,7 @@ async function createExtensionXpi(sourceDir: string, destPath: string): Promise<
 export async function installExtension(browserInfo: BrowserInfo): Promise<InstallResult> {
   if (!browserInfo.profilePath) {
     log.warn(`No profile path available for browser: ${browserInfo.name}`);
-    return { success: false, error: 'No profile path available' };
+    return { success: false, error: 'No profile path available', extensionPath: getExtensionSourceDir() };
   }
 
   const sourceDir = getExtensionSourceDir();
@@ -135,17 +136,17 @@ export async function installExtension(browserInfo: BrowserInfo): Promise<Instal
     const sourceStats = await fs.promises.stat(sourceDir);
     if (!sourceStats.isDirectory()) {
       log.warn(`Extension source directory does not exist: ${sourceDir}`);
-      return { success: false, error: 'Extension source directory does not exist' };
+      return { success: false, error: 'Extension source directory does not exist', extensionPath: sourceDir };
     }
   } catch {
     log.warn(`Extension source directory not found: ${sourceDir}`);
-    return { success: false, error: 'Extension source directory not found' };
+    return { success: false, error: 'Extension source directory not found', extensionPath: sourceDir };
   }
 
   const manifest = await readExtensionManifest(sourceDir);
   if (!manifest) {
     log.warn('Could not read extension manifest');
-    return { success: false, error: 'Could not read extension manifest' };
+    return { success: false, error: 'Could not read extension manifest', extensionPath: sourceDir };
   }
 
   const version = manifest.version || '1.0.0';
@@ -154,7 +155,7 @@ export async function installExtension(browserInfo: BrowserInfo): Promise<Instal
     if (browserInfo.type === 'chrome') {
       if (!manifest.key) {
         log.warn('Extension manifest is missing the "key" field required for Chrome installation');
-        return { success: false, error: 'Extension manifest is missing the key field' };
+        return { success: false, error: 'Extension manifest is missing the key field', extensionPath: sourceDir };
       }
 
       const extensionId = computeChromeExtensionId(manifest.key);
@@ -176,12 +177,12 @@ export async function installExtension(browserInfo: BrowserInfo): Promise<Instal
           .map((e) => path.join(profilesDir, e.name));
       } catch {
         log.warn(`Could not read Firefox profiles directory: ${profilesDir}`);
-        return { success: false, error: 'Could not read Firefox profiles directory' };
+        return { success: false, error: 'Could not read Firefox profiles directory', extensionPath: sourceDir };
       }
 
       if (profileDirs.length === 0) {
         log.warn(`No Firefox profiles found in: ${profilesDir}`);
-        return { success: false, error: 'No Firefox profiles found' };
+        return { success: false, error: 'No Firefox profiles found', extensionPath: sourceDir };
       }
 
       const extensionId = manifest ? getFirefoxExtensionId(manifest) : FIREFOX_EXTENSION_ID;
@@ -198,10 +199,10 @@ export async function installExtension(browserInfo: BrowserInfo): Promise<Instal
     }
 
     log.warn(`Unsupported browser type: ${browserInfo.type}`);
-    return { success: false, error: `Unsupported browser type: ${browserInfo.type}` };
+    return { success: false, error: `Unsupported browser type: ${browserInfo.type}`, extensionPath: sourceDir };
   } catch (error) {
     log.error(`Failed to install extension for ${browserInfo.name}:`, error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return { success: false, error: error instanceof Error ? error.message : String(error), extensionPath: sourceDir };
   }
 }
 

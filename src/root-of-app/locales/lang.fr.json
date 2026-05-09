@@ -1874,7 +1874,15 @@
       "ConnectionStatus": "Connexion de l'extension",
       "ExtensionStatus": "Statut",
       "Connected": "Connecté",
-      "Disconnected": "Déconnecté"
+      "Disconnected": "Déconnecté",
+      "OpenExtensionFolder": "Ouvrir le dossier de l'extension",
+      "CopyExtensionPath": "Copier le chemin",
+      "ExtensionPathCopied": "Chemin copié dans le presse-papiers",
+      "ManualInstallHint": "L'installation automatique a échoué. Vous pouvez installer l'extension manuellement:",
+      "Step1": "Ouvrez la page des extensions de votre navigateur (chrome://extensions/ ou about:addons)",
+      "Step2": "Activez le mode développeur (Chrome) ou ouvrez l'icône d'engrenage (Firefox)",
+      "Step3": "Cliquez sur 'Charger l'extension non empaquetée' (Chrome) ou 'Charger un module complémentaire temporaire' (Firefox)",
+      "Step4": "Sélectionnez le dossier d'extension qui a été ouvert"
     },
     "Statistics": {
       "Actions": {

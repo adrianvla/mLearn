@@ -25,6 +25,7 @@ class MockWebSocket {
   public readonly url: string;
   public readonly protocols: string[];
   public readyState = MockWebSocket.CONNECTING;
+  public sentMessages: string[] = [];
   public close = vi.fn(() => {
     this.readyState = MockWebSocket.CLOSED;
   });
@@ -47,6 +48,10 @@ class MockWebSocket {
     for (const callback of this.listeners.get(type) ?? []) {
       callback(event);
     }
+  }
+
+  send(data: string): void {
+    this.sentMessages.push(data);
   }
 }
 
@@ -187,8 +192,8 @@ describe('watchTogetherRoomService', () => {
     const unsubscribe = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom);
     const socket = MockWebSocket.instances[0];
 
-    expect(socket.url).toBe('wss://cloud.example.com/api/watch-together/rooms/room-1/socket?token=worker-access-token');
-    expect(socket.protocols).toEqual(['mlearn-watch-v1']);
+    expect(socket.url).toBe('wss://cloud.example.com/api/watch-together/rooms/room-1/socket');
+    expect(socket.protocols).toEqual(['mlearn-watch-v1', 'worker-access-token']);
 
     socket.emit('message', {
       data: JSON.stringify({
@@ -207,6 +212,32 @@ describe('watchTogetherRoomService', () => {
     socket.readyState = MockWebSocket.OPEN;
     unsubscribe();
     expect(socket.close).toHaveBeenCalled();
+  });
+
+  it('sends ping periodically after socket opens', () => {
+    vi.useFakeTimers();
+    const session = createSessionResponse().data as WatchTogetherRoomSession['actions'] extends never ? never : WatchTogetherRoomSession;
+    const onRoom = vi.fn();
+
+    const unsubscribe = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom);
+    const socket = MockWebSocket.instances[0];
+
+    vi.advanceTimersByTime(30000);
+    expect(socket.sentMessages).toEqual([]);
+
+    socket.readyState = MockWebSocket.OPEN;
+    socket.emit('open', {});
+    vi.advanceTimersByTime(30000);
+    expect(socket.sentMessages).toEqual(['ping']);
+
+    vi.advanceTimersByTime(30000);
+    expect(socket.sentMessages).toEqual(['ping', 'ping']);
+
+    unsubscribe();
+    vi.advanceTimersByTime(30000);
+    expect(socket.sentMessages).toEqual(['ping', 'ping']);
+
+    vi.useRealTimers();
   });
 
   it('forwards peer-joined events to the peer event callback', () => {

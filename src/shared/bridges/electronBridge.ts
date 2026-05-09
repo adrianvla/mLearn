@@ -302,6 +302,7 @@ const browserBridge: BrowserBridge = {
   installExtension: (browser) => getIPC().installExtension(browser),
   uninstallExtension: (browser) => getIPC().uninstallExtension(browser),
   isExtensionInstalled: (browser) => getIPC().isExtensionInstalled(browser),
+  openExtensionFolder: () => getIPC().openExtensionFolder(),
 };
 
 const diagnosticsBridge: DiagnosticsBridge = {

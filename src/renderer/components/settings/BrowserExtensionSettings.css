@@ -114,6 +114,38 @@
   line-height: 1.5;
 }
 
+.manual-install-guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.manual-install-hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  margin: 0;
+  font-weight: 500;
+}
+
+.manual-install-steps {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+  padding-left: var(--spacing-5);
+  line-height: 1.6;
+}
+
+.manual-install-steps li {
+  margin-bottom: var(--spacing-1);
+}
+
+.manual-install-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
+}
+
 .custom-path-row {
   display: flex;
   align-items: stretch;

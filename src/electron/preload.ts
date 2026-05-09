@@ -444,6 +444,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.UNINSTALL_EXTENSION, browser),
   isExtensionInstalled: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }): Promise<{ installed: boolean }> =>
     ipcRenderer.invoke(IPC_CHANNELS.IS_EXTENSION_INSTALLED, browser),
+  openExtensionFolder: (): Promise<boolean> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTENSION_FOLDER),
 
   // ========== KV Store ==========
   kvGet: (key: string): Promise<string | null> =>

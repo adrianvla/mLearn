@@ -1874,7 +1874,15 @@
       "ConnectionStatus": "Extension Connection",
       "ExtensionStatus": "Status",
       "Connected": "Connected",
-      "Disconnected": "Disconnected"
+      "Disconnected": "Disconnected",
+      "OpenExtensionFolder": "Open Extension Folder",
+      "CopyExtensionPath": "Copy Path",
+      "ExtensionPathCopied": "Path copied to clipboard",
+      "ManualInstallHint": "Automatic installation failed. You can install the extension manually:",
+      "Step1": "Open your browser's extensions page (chrome://extensions/ or about:addons)",
+      "Step2": "Enable Developer mode (Chrome) or open the gear icon (Firefox)",
+      "Step3": "Click 'Load unpacked' (Chrome) or 'Load Temporary Add-on' (Firefox)",
+      "Step4": "Select the extension folder that was opened"
     },
     "Statistics": {
       "Actions": {

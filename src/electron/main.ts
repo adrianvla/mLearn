@@ -221,6 +221,12 @@ function setupBaseIPC(): void {
     await shell.openExternal(url);
     return true;
   });
+
+  ipcMain.handle(IPC_CHANNELS.OPEN_EXTENSION_FOLDER, async () => {
+    const extensionDir = path.resolve(__dirname, '..', '..', '..', 'extension', 'dist');
+    const result = await shell.openPath(extensionDir);
+    return result === '';
+  });
 }
 
 // Track whether IPC handlers have been registered

@@ -278,13 +278,29 @@ export interface WatchTogetherPeerEvent {
   room: WatchTogetherRoomState;
 }
 
+const PING_INTERVAL_MS = 30000;
+
+export interface WatchTogetherRoomStateWithTimestamp extends WatchTogetherRoomState {
+  /** Server timestamp (ISO 8601) when this state was broadcast. */
+  timestamp?: string;
+}
+
 export function subscribeToWatchTogetherRoom(
   session: WatchTogetherRoomSession,
   accessToken: string,
-  onRoomState: (room: WatchTogetherRoomState) => void,
+  onRoomState: (room: WatchTogetherRoomStateWithTimestamp) => void,
   onPeerEvent?: (event: WatchTogetherPeerEvent) => void,
 ): () => void {
   const socket = new WebSocket(session.socket.url, [session.socket.protocol, accessToken]);
+  let pingInterval: number | null = null;
+
+  socket.addEventListener('open', () => {
+    pingInterval = window.setInterval(() => {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send('ping');
+      }
+    }, PING_INTERVAL_MS);
+  });
 
   socket.addEventListener('message', (event) => {
     try {
@@ -293,12 +309,12 @@ export function subscribeToWatchTogetherRoom(
         | WatchTogetherPeerJoinedMessage
         | WatchTogetherPeerLeftMessage;
       if (payload.type === 'room-state') {
-        onRoomState(payload.room);
+        onRoomState(payload.room as WatchTogetherRoomStateWithTimestamp);
       } else if (payload.type === 'peer-joined') {
-        onRoomState(payload.room);
+        onRoomState(payload.room as WatchTogetherRoomStateWithTimestamp);
         onPeerEvent?.({ type: 'joined', peerId: payload.peerId, room: payload.room });
       } else if (payload.type === 'peer-left') {
-        onRoomState(payload.room);
+        onRoomState(payload.room as WatchTogetherRoomStateWithTimestamp);
         onPeerEvent?.({ type: 'left', peerId: payload.peerId, room: payload.room });
       }
     } catch (error) {
@@ -311,11 +327,19 @@ export function subscribeToWatchTogetherRoom(
   });
 
   socket.addEventListener('close', (event) => {
+    if (pingInterval !== null) {
+      window.clearInterval(pingInterval);
+      pingInterval = null;
+    }
     if (event.wasClean) return;
     log.warn('[WatchTogether] Worker socket closed unexpectedly', event.code, event.reason);
   });
 
   return () => {
+    if (pingInterval !== null) {
+      window.clearInterval(pingInterval);
+      pingInterval = null;
+    }
     if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
       socket.close();
     }

@@ -17,6 +17,7 @@ import {
   subscribeToWatchTogetherRoom,
   type WatchTogetherRoomSession,
   type WatchTogetherRoomState,
+  type WatchTogetherRoomStateWithTimestamp,
 } from '../services/watchTogetherRoomService';
 import { getLogger } from '../../shared/utils/logger';
 import { showToast, updateToast } from '../components/common/Feedback/Toast';
@@ -117,6 +118,10 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
 
   let roomAccessToken = '';
   let unsubscribeRealtimeRef: (() => void) | null = null;
+  let ownerSyncInterval: number | null = null;
+
+  const OWNER_SYNC_INTERVAL_MS = 3000;
+  const SYNC_DRIFT_THRESHOLD_S = 0.75;
 
   function applyRoomState(nextRoomState: WatchTogetherRoomState): void {
     const currentRoomState = roomState();
@@ -187,6 +192,10 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   function cleanupRoomConnection(): void {
     unsubscribeRealtimeRef?.();
     unsubscribeRealtimeRef = null;
+    if (ownerSyncInterval !== null) {
+      window.clearInterval(ownerSyncInterval);
+      ownerSyncInterval = null;
+    }
     roomAccessToken = '';
     setRoomSession(null);
     setRoomState(null);
@@ -225,6 +234,16 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     setMode('local');
   }
 
+  function computeDriftCompensatedTime(nextState: WatchTogetherRoomStateWithTimestamp): number {
+    if (nextState.paused) {
+      return nextState.currentTime;
+    }
+    const timestamp = nextState.timestamp;
+    const receivedAt = timestamp ? new Date(timestamp).getTime() : Date.now();
+    const elapsed = (Date.now() - receivedAt) / 1000;
+    return nextState.currentTime + Math.max(0, elapsed);
+  }
+
   function activateRoomWithUserId(session: WatchTogetherRoomSession, accessToken: string, _localUserId: string): void {
     const previousMode = mode();
     const previousSession = roomSession();
@@ -237,6 +256,25 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     applyRoomState(session.room);
     setMode(session.canControl ? 'room-owner' : 'room-viewer');
 
+    if (session.canControl) {
+      ownerSyncInterval = window.setInterval(() => {
+        if (mode() !== 'room-owner') return;
+        const video = options.getVideo();
+        if (video && !video.paused) {
+          void persistRoomPlaybackState(
+            video.currentTime,
+            false,
+            video.playbackRate,
+            undefined,
+            undefined,
+            undefined,
+            options.getVideoSrc(),
+            options.getVideoTitle?.(),
+          );
+        }
+      }, OWNER_SYNC_INTERVAL_MS);
+    }
+
     unsubscribeRealtimeRef = subscribeToWatchTogetherRoom(
       session,
       accessToken,
@@ -245,6 +283,8 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         setPeerCount(nextState.peerCount ?? 0);
 
         if (mode() === 'room-viewer') {
+          const targetTime = computeDriftCompensatedTime(nextState);
+
           // Handle subtitles
           if (nextState.subtitleHtml) {
             setRemoteSubtitle({
@@ -260,8 +300,8 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
             const video = options.getVideo();
             if (video) {
               runSuppressed(() => {
-                if (Math.abs(video.currentTime - nextState.currentTime) > 0.75) {
-                  video.currentTime = nextState.currentTime;
+                if (Math.abs(video.currentTime - targetTime) > SYNC_DRIFT_THRESHOLD_S) {
+                  video.currentTime = targetTime;
                 }
                 if (Math.abs(video.playbackRate - nextState.playbackRate) > 0.01) {
                   video.playbackRate = nextState.playbackRate;
@@ -274,11 +314,11 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
               });
             }
           } else {
-            options.onReceiveSeek?.(nextState.currentTime);
+            options.onReceiveSeek?.(targetTime);
             if (nextState.paused) {
-              options.onReceivePause?.(nextState.currentTime);
+              options.onReceivePause?.(targetTime);
             } else {
-              options.onReceivePlay?.(nextState.currentTime);
+              options.onReceivePlay?.(targetTime);
             }
           }
         }

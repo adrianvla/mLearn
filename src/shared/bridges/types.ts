@@ -312,9 +312,10 @@ export interface CustomBrowserPath {
 
 export interface BrowserBridge {
   detectBrowsers: (customPaths?: CustomBrowserPath[]) => Promise<BrowserInfo[]>;
-  installExtension: (browser: BrowserInfo) => Promise<{ success: boolean; path?: string; error?: string }>;
+  installExtension: (browser: BrowserInfo) => Promise<{ success: boolean; path?: string; error?: string; extensionPath?: string }>;
   uninstallExtension: (browser: BrowserInfo) => Promise<{ success: boolean; error?: string }>;
   isExtensionInstalled: (browser: BrowserInfo) => Promise<{ installed: boolean }>;
+  openExtensionFolder: () => Promise<boolean>;
 }
 
 export interface DiagnosticsBridge {

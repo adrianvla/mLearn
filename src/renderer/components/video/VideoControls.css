@@ -185,3 +185,15 @@ body.hide-cursor .video-controls {
 .video-controls .btn-icon.btn-ghost.inactive:hover:not(:disabled) {
   color: var(--text-primary);
 }
+
+.video-controls .btn-icon.btn-ghost {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+}
+
+.video-controls .btn-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}

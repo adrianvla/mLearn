@@ -273,9 +273,10 @@ sendLogRecord: (record: unknown) => void;
 
   // Browser Detection & Extension Installation
   detectBrowsers: (customPaths?: Array<{ path: string; type: 'chrome' | 'firefox' }>) => Promise<Array<{ name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }>>;
-  installExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ success: boolean; path?: string; error?: string }>;
+  installExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ success: boolean; path?: string; error?: string; extensionPath?: string }>;
   uninstallExtension: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ success: boolean; error?: string }>;
   isExtensionInstalled: (browser: { name: string; type: 'chrome' | 'firefox' | 'unknown'; path: string; profilePath?: string; isInstalled: boolean }) => Promise<{ installed: boolean }>;
+  openExtensionFolder: () => Promise<boolean>;
 
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;

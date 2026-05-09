@@ -1874,7 +1874,15 @@
       "ConnectionStatus": "拡張機能の接続状態",
       "ExtensionStatus": "ステータス",
       "Connected": "接続済み",
-      "Disconnected": "未接続"
+      "Disconnected": "未接続",
+      "OpenExtensionFolder": "拡張機能フォルダを開く",
+      "CopyExtensionPath": "パスをコピー",
+      "ExtensionPathCopied": "パスをクリップボードにコピーしました",
+      "ManualInstallHint": "自動インストールに失敗しました。手動で拡張機能をインストールできます:",
+      "Step1": "ブラウザの拡張機能ページを開きます (chrome://extensions/ または about:addons)",
+      "Step2": "デベロッパーモードを有効にします (Chrome) または歯車アイコンを開きます (Firefox)",
+      "Step3": "'パッケージ化されていない拡張機能を読み込む' (Chrome) または '一時的なアドオンを読み込む' (Firefox) をクリックします",
+      "Step4": "開かれた拡張機能フォルダを選択します"
     },
     "Statistics": {
       "Actions": {

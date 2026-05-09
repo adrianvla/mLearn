@@ -30,6 +30,7 @@ interface BrowserInstallState {
   status: InstallStatus;
   error?: string;
   installPath?: string;
+  extensionPath?: string;
 }
 
 const BROWSER_TYPE_OPTIONS = [
@@ -124,7 +125,7 @@ export const BrowserExtensionSettings: Component = () => {
     if (!item) return;
 
     const next = [...current];
-    next[index] = { ...item, status: 'installing', error: undefined };
+    next[index] = { ...item, status: 'installing', error: undefined, extensionPath: undefined };
     setBrowsers(next);
 
     try {
@@ -138,6 +139,7 @@ export const BrowserExtensionSettings: Component = () => {
           ...updated[index],
           status: 'error',
           error: result.error || t('mlearn.BrowserExtension.InstallFailed'),
+          extensionPath: result.extensionPath,
         };
       }
       setBrowsers(updated);
@@ -230,14 +232,16 @@ export const BrowserExtensionSettings: Component = () => {
     }
   };
 
-  const getManualInstructions = (type: BrowserInfo['type']) => {
-    if (type === 'chrome') {
-      return t('mlearn.BrowserExtension.ManualChrome');
+  const handleOpenExtensionFolder = async () => {
+    try {
+      await getBridge().browser.openExtensionFolder();
+    } catch (e) {
+      log.error('Failed to open extension folder:', e);
     }
-    if (type === 'firefox') {
-      return t('mlearn.BrowserExtension.ManualFirefox');
-    }
-    return t('mlearn.BrowserExtension.ManualUnknown');
+  };
+
+  const handleCopyExtensionPath = (extensionPath: string) => {
+    getBridge().files.writeToClipboard(extensionPath);
   };
 
   return (
@@ -317,9 +321,28 @@ export const BrowserExtensionSettings: Component = () => {
                   <Show when={item.status === 'error'}>
                     <div class="browser-install-error">
                       <span class="error-text">{item.error}</span>
-                      <div class="manual-instructions">
-                        <strong>{t('mlearn.BrowserExtension.ManualTitle')}</strong>
-                        <p>{getManualInstructions(item.browser.type)}</p>
+                      <div class="manual-install-guide">
+                        <p class="manual-install-hint">{t('mlearn.BrowserExtension.ManualInstallHint')}</p>
+                        <ol class="manual-install-steps">
+                          <li>{t('mlearn.BrowserExtension.Step1')}</li>
+                          <li>{t('mlearn.BrowserExtension.Step2')}</li>
+                          <li>{t('mlearn.BrowserExtension.Step3')}</li>
+                          <li>{t('mlearn.BrowserExtension.Step4')}</li>
+                        </ol>
+                      </div>
+                      <div class="manual-install-actions">
+                        <Btn size="sm" onClick={handleOpenExtensionFolder}>
+                          {t('mlearn.BrowserExtension.OpenExtensionFolder')}
+                        </Btn>
+                        <Show when={item.extensionPath}>
+                          <Btn
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleCopyExtensionPath(item.extensionPath!)}
+                          >
+                            {t('mlearn.BrowserExtension.CopyExtensionPath')}
+                          </Btn>
+                        </Show>
                       </div>
                     </div>
                   </Show>

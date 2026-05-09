@@ -164,6 +164,7 @@ export const IPC_CHANNELS = {
   INSTALL_EXTENSION: 'install-extension',
   UNINSTALL_EXTENSION: 'uninstall-extension',
   IS_EXTENSION_INSTALLED: 'is-extension-installed',
+  OPEN_EXTENSION_FOLDER: 'open-extension-folder',
 
   // Updates from tethered clients
   UPDATE_PILLS: 'update-pills',

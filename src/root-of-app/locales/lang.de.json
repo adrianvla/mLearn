@@ -1874,7 +1874,15 @@
       "ConnectionStatus": "Erweiterungsverbindung",
       "ExtensionStatus": "Status",
       "Connected": "Verbunden",
-      "Disconnected": "Getrennt"
+      "Disconnected": "Getrennt",
+      "OpenExtensionFolder": "Erweiterungsordner öffnen",
+      "CopyExtensionPath": "Pfad kopieren",
+      "ExtensionPathCopied": "Pfad in die Zwischenablage kopiert",
+      "ManualInstallHint": "Die automatische Installation ist fehlgeschlagen. Sie können die Erweiterung manuell installieren:",
+      "Step1": "Öffnen Sie die Erweiterungsseite Ihres Browsers (chrome://extensions/ oder about:addons)",
+      "Step2": "Aktivieren Sie den Entwicklermodus (Chrome) oder öffnen Sie das Zahnrad-Symbol (Firefox)",
+      "Step3": "Klicken Sie auf 'Entpackte Erweiterung laden' (Chrome) oder 'Temporäres Add-on laden' (Firefox)",
+      "Step4": "Wählen Sie den geöffneten Erweiterungsordner aus"
     },
     "Statistics": {
       "Actions": {

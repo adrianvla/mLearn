@@ -1567,6 +1567,9 @@ const browserBridge: BrowserBridge = {
   async isExtensionInstalled() {
     return { installed: false };
   },
+  async openExtensionFolder() {
+    return false;
+  },
 };
 
 const diagnosticsBridge: DiagnosticsBridge = {
