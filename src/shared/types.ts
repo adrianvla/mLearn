@@ -46,6 +46,23 @@ export interface OverlaySubtitleTracks {
   url: string;
 }
 
+export interface OverlayBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface OverlayDelta {
+  x: number;
+  y: number;
+}
+
+export interface OverlaySizeDelta {
+  width: number;
+  height: number;
+}
+
 // ============================================================================
 // Settings Types
 // ============================================================================
@@ -231,6 +248,7 @@ export interface Settings {
   showSubtitles?: boolean; // Toggle subtitle visibility
   showTranslation?: boolean; // Show translation line
   videoFit?: 'contain' | 'cover' | 'fill'; // Video object fit
+  overlayAutoPosition?: boolean; // Enable automatic overlay positioning from browser extension
 
   // Subtitle processing
   removeParentheses?: boolean; // Remove content in parentheses from subtitles
@@ -435,6 +453,7 @@ export const DEFAULT_SETTINGS: Settings = {
   subtitleTheme: 'shadow',
   subtitle_font_size: 40,
   subtitle_font_weight: 400,
+  overlayAutoPosition: true,
   showPitchAccent: true,
   timeWatched: 0,
   maxNewCardsPerDay: 10,

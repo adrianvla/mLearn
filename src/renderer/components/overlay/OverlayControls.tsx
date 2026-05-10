@@ -34,6 +34,39 @@ const SubtitleIcon: Component = () => (
   </svg>
 );
 
+const DragIcon: Component = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="9" cy="5" r="1" />
+    <circle cx="15" cy="5" r="1" />
+    <circle cx="9" cy="12" r="1" />
+    <circle cx="15" cy="12" r="1" />
+    <circle cx="9" cy="19" r="1" />
+    <circle cx="15" cy="19" r="1" />
+  </svg>
+);
+
+const ResizeIcon: Component = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polyline points="15 3 21 3 21 9" />
+    <polyline points="9 21 3 21 3 15" />
+    <line x1="21" y1="3" x2="14" y2="10" />
+    <line x1="3" y1="21" x2="10" y2="14" />
+  </svg>
+);
+
+const AutoPositionIcon: Component<{ enabled: boolean }> = (props) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <Show when={props.enabled} fallback={<>
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <line x1="9" y1="3" x2="9" y2="21" />
+    </>}>
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <line x1="9" y1="3" x2="9" y2="21" />
+      <path d="M15 8l3 3-3 3" />
+    </Show>
+  </svg>
+);
+
 // Speed options for playback rate menu
 const SPEED_OPTIONS: SelectOption[] = [
   { value: '0.5', label: '0.5x' },
@@ -56,6 +89,7 @@ export interface OverlayControlsProps {
   isMuted?: boolean;
   playbackRate?: number;
   subtitleOffset: number;
+  autoPositionEnabled?: boolean;
   onPlayPause?: () => void;
   onSeek: (time: number) => void;
   onVolumeChange?: (value: number) => void;
@@ -64,6 +98,13 @@ export interface OverlayControlsProps {
   onOffsetChange: (offset: number) => void;
   onLoadSubtitles: () => void;
   onClose: () => void;
+  onDragStart?: () => void;
+  onDragMove?: (deltaX: number, deltaY: number) => void;
+  onDragEnd?: () => void;
+  onResizeStart?: () => void;
+  onResizeMove?: (deltaWidth: number, deltaHeight: number) => void;
+  onResizeEnd?: () => void;
+  onToggleAutoPosition?: () => void;
   formatTime: (seconds: number) => string;
 }
 
@@ -143,6 +184,77 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
   };
 
   const offsetMs = () => Math.round(props.subtitleOffset * 1000);
+
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let isWindowDragging = false;
+
+  const handleDragMouseDown = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isWindowDragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    props.onDragStart?.();
+    window.addEventListener('mousemove', handleDragMouseMove);
+    window.addEventListener('mouseup', handleDragMouseUp);
+  };
+
+  const handleDragMouseMove = (e: MouseEvent) => {
+    if (!isWindowDragging) return;
+    const deltaX = e.clientX - dragStartX;
+    const deltaY = e.clientY - dragStartY;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    props.onDragMove?.(deltaX, deltaY);
+  };
+
+  const handleDragMouseUp = () => {
+    if (!isWindowDragging) return;
+    isWindowDragging = false;
+    props.onDragEnd?.();
+    window.removeEventListener('mousemove', handleDragMouseMove);
+    window.removeEventListener('mouseup', handleDragMouseUp);
+  };
+
+  let resizeStartX = 0;
+  let resizeStartY = 0;
+  let isWindowResizing = false;
+
+  const handleResizeMouseDown = (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    isWindowResizing = true;
+    resizeStartX = e.clientX;
+    resizeStartY = e.clientY;
+    props.onResizeStart?.();
+    window.addEventListener('mousemove', handleResizeMouseMove);
+    window.addEventListener('mouseup', handleResizeMouseUp);
+  };
+
+  const handleResizeMouseMove = (e: MouseEvent) => {
+    if (!isWindowResizing) return;
+    const deltaX = e.clientX - resizeStartX;
+    const deltaY = e.clientY - resizeStartY;
+    resizeStartX = e.clientX;
+    resizeStartY = e.clientY;
+    props.onResizeMove?.(deltaX, deltaY);
+  };
+
+  const handleResizeMouseUp = () => {
+    if (!isWindowResizing) return;
+    isWindowResizing = false;
+    props.onResizeEnd?.();
+    window.removeEventListener('mousemove', handleResizeMouseMove);
+    window.removeEventListener('mouseup', handleResizeMouseUp);
+  };
+
+  onCleanup(() => {
+    window.removeEventListener('mousemove', handleDragMouseMove);
+    window.removeEventListener('mouseup', handleDragMouseUp);
+    window.removeEventListener('mousemove', handleResizeMouseMove);
+    window.removeEventListener('mouseup', handleResizeMouseUp);
+  });
 
   return (
     <div
@@ -280,6 +392,52 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                 }
                 role="status"
               />
+
+              {/* Load subtitles */}
+              <IconBtn
+                variant="ghost"
+                size="sm"
+                onClick={props.onLoadSubtitles}
+                aria-label={t('mlearn.Overlay.LoadSubtitles')}
+                title={t('mlearn.Overlay.LoadSubtitles')}
+              >
+                <SubtitleIcon />
+              </IconBtn>
+
+              {/* Auto-position toggle */}
+              <Show when={props.onToggleAutoPosition}>
+                <IconBtn
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => props.onToggleAutoPosition?.()}
+                  aria-label={props.autoPositionEnabled ? t('mlearn.Overlay.DisableAutoPosition') : t('mlearn.Overlay.EnableAutoPosition')}
+                  title={props.autoPositionEnabled ? t('mlearn.Overlay.DisableAutoPosition') : t('mlearn.Overlay.EnableAutoPosition')}
+                >
+                  <AutoPositionIcon enabled={props.autoPositionEnabled ?? true} />
+                </IconBtn>
+              </Show>
+
+              {/* Drag handle */}
+              <Show when={props.onDragStart}>
+                <div
+                  class="overlay-drag-handle"
+                  onMouseDown={handleDragMouseDown}
+                  title={t('mlearn.Overlay.DragToMove')}
+                >
+                  <DragIcon />
+                </div>
+              </Show>
+
+              {/* Resize handle */}
+              <Show when={props.onResizeStart}>
+                <div
+                  class="overlay-resize-handle"
+                  onMouseDown={handleResizeMouseDown}
+                  title={t('mlearn.Overlay.DragToResize')}
+                >
+                  <ResizeIcon />
+                </div>
+              </Show>
 
               {/* Load subtitles */}
               <IconBtn

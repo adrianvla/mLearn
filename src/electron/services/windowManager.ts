@@ -49,21 +49,90 @@ export function getOverlayWindow(): BrowserWindow | null {
   return overlayWindow;
 }
 
-export function updateOverlayGeometry(geometry: { x: number; y: number; width: number; height: number }): void {
-  const win = getOverlayWindow();
-  if (!win || win.isDestroyed()) return;
-  win.setBounds({
-    x: Math.round(geometry.x),
-    y: Math.round(geometry.y),
-    width: Math.round(geometry.width),
-    height: Math.round(geometry.height),
-  });
-}
-
 export function setOverlayIgnoreMouseEvents(ignore: boolean): void {
   const win = getOverlayWindow();
   if (!win || win.isDestroyed()) return;
   win.setIgnoreMouseEvents(ignore, { forward: true });
+}
+
+// Overlay manual positioning state
+interface OverlayManualDelta {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+let overlayManualDelta: OverlayManualDelta = { x: 0, y: 0, width: 0, height: 0 };
+let overlayAutoPositionEnabled = true;
+
+export function getOverlayAutoPositionEnabled(): boolean {
+  return overlayAutoPositionEnabled;
+}
+
+export function setOverlayAutoPositionEnabled(enabled: boolean): void {
+  overlayAutoPositionEnabled = enabled;
+  const win = getOverlayWindow();
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(IPC_CHANNELS.OVERLAY_AUTO_POSITION_CHANGED, enabled);
+  }
+}
+
+export function resetOverlayManualDelta(): void {
+  overlayManualDelta = { x: 0, y: 0, width: 0, height: 0 };
+}
+
+export function getOverlayBounds(): { x: number; y: number; width: number; height: number } | null {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return null;
+  const bounds = win.getBounds();
+  return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+}
+
+export function moveOverlayBy(deltaX: number, deltaY: number): void {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return;
+  const bounds = win.getBounds();
+  overlayManualDelta.x += deltaX;
+  overlayManualDelta.y += deltaY;
+  win.setBounds({
+    x: Math.round(bounds.x + deltaX),
+    y: Math.round(bounds.y + deltaY),
+    width: bounds.width,
+    height: bounds.height,
+  });
+}
+
+export function resizeOverlayBy(deltaWidth: number, deltaHeight: number): void {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return;
+  const bounds = win.getBounds();
+  overlayManualDelta.width += deltaWidth;
+  overlayManualDelta.height += deltaHeight;
+  win.setBounds({
+    x: bounds.x,
+    y: bounds.y,
+    width: Math.max(200, Math.round(bounds.width + deltaWidth)),
+    height: Math.max(100, Math.round(bounds.height + deltaHeight)),
+  });
+}
+
+export function updateOverlayGeometry(geometry: { x: number; y: number; width: number; height: number }): void {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return;
+  const corrected = overlayAutoPositionEnabled
+    ? {
+        x: Math.round(geometry.x + overlayManualDelta.x),
+        y: Math.round(geometry.y + overlayManualDelta.y),
+        width: Math.max(200, Math.round(geometry.width + overlayManualDelta.width)),
+        height: Math.max(100, Math.round(geometry.height + overlayManualDelta.height)),
+      }
+    : {
+        x: Math.round(geometry.x),
+        y: Math.round(geometry.y),
+        width: Math.round(geometry.width),
+        height: Math.round(geometry.height),
+      };
+  win.setBounds(corrected);
 }
 
 // Get preload script path
@@ -453,7 +522,7 @@ export function launchOverlayWindow(): void {
     alwaysOnTop: true,
     frame: false,
     skipTaskbar: true,
-    resizable: false,
+    resizable: true,
   });
   overlayWindow = win;
   win.on('closed', () => {
@@ -757,5 +826,25 @@ export function setupWindowIPC(): void {
   // Queue overlay commands to be forwarded to the browser extension
   ipcMain.on(IPC_CHANNELS.OVERLAY_COMMAND, (_event, cmd: { command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume'; time?: number; rate?: number; volume?: number }) => {
     queueCommand(cmd);
+  });
+
+  // Move overlay window by delta (manual drag)
+  ipcMain.handle(IPC_CHANNELS.OVERLAY_MOVE_BY, (_event, delta: { x: number; y: number }) => {
+    moveOverlayBy(delta.x, delta.y);
+  });
+
+  // Resize overlay window by delta (manual resize)
+  ipcMain.handle(IPC_CHANNELS.OVERLAY_RESIZE_BY, (_event, delta: { width: number; height: number }) => {
+    resizeOverlayBy(delta.width, delta.height);
+  });
+
+  // Get overlay window bounds
+  ipcMain.handle(IPC_CHANNELS.OVERLAY_GET_BOUNDS, () => {
+    return getOverlayBounds();
+  });
+
+  // Set overlay auto-position enabled
+  ipcMain.handle(IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION, (_event, enabled: boolean) => {
+    setOverlayAutoPositionEnabled(enabled);
   });
 }

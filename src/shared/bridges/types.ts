@@ -259,6 +259,11 @@ export interface OverlayBridge {
   setOverlayIgnoreMouseEvents: (ignore: boolean) => void;
   sendOverlayCommand: (cmd: import('../types').OverlayCommand) => void;
   onOverlaySubtitleTracks: (callback: (tracks: import('../types').OverlaySubtitleTracks) => void) => () => void;
+  overlayMoveBy: (delta: import('../types').OverlayDelta) => Promise<void>;
+  overlayResizeBy: (delta: import('../types').OverlaySizeDelta) => Promise<void>;
+  overlayGetBounds: () => Promise<import('../types').OverlayBounds | null>;
+  overlaySetAutoPosition: (enabled: boolean) => Promise<void>;
+  onOverlayAutoPositionChanged: (callback: (enabled: boolean) => void) => () => void;
 }
 
 export interface CrossWindowBridge {

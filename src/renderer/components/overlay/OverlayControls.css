@@ -199,3 +199,43 @@
 .overlay-controls-bar .btn-icon.btn-ghost.inactive:hover:not(:disabled) {
   color: var(--text-primary);
 }
+
+/* Drag handle */
+.overlay-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  cursor: grab;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-normal), background-color var(--transition-normal);
+}
+
+.overlay-drag-handle:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-intense);
+}
+
+.overlay-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Resize handle */
+.overlay-resize-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  cursor: nwse-resize;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-normal), background-color var(--transition-normal);
+}
+
+.overlay-resize-handle:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-intense);
+}

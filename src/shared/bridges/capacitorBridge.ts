@@ -1478,6 +1478,11 @@ const overlayBridge: OverlayBridge = {
   setOverlayIgnoreMouseEvents: noop,
   sendOverlayCommand: noop,
   onOverlaySubtitleTracks: noopCleanup,
+  overlayMoveBy: async () => {},
+  overlayResizeBy: async () => {},
+  overlayGetBounds: async () => null,
+  overlaySetAutoPosition: async () => {},
+  onOverlayAutoPositionChanged: noopCleanup,
 };
 
 // ============================================================================

@@ -21,12 +21,13 @@ const formatTime = (seconds: number): string => {
 
 const DISCONNECT_TIMEOUT_MS = 15000;
 
-/** DOM selectors that should be interactive (not click-through). */
 const INTERACTIVE_SELECTORS = [
   '.overlay-controls-trigger',
   '.overlay-controls-bar',
   '.subtitles',
   '.toast-container',
+  '.overlay-drag-handle',
+  '.overlay-resize-handle',
 ];
 
 function isOverInteractiveRegion(e: MouseEvent): boolean {
@@ -45,6 +46,7 @@ export const App: Component = () => {
   const [isConnected, setIsConnected] = createSignal(false);
   const [dragOver, setDragOver] = createSignal(false);
   const [mouseInteractive, setMouseInteractive] = createSignal(false);
+  const [autoPositionEnabled, setAutoPositionEnabled] = createSignal(true);
 
   const hasSubtitles = createMemo(() => subtitles.subtitles().length > 0);
   const currentTime = createMemo(() => videoState()?.currentTime ?? 0);
@@ -89,7 +91,6 @@ export const App: Component = () => {
 
   onMount(() => {
     const cleanupTracks = bridge.overlay.onOverlaySubtitleTracks((tracks: OverlaySubtitleTracks) => {
-      // If no subtitles are loaded, auto-load the first text track
       if (subtitles.subtitles().length === 0 && tracks.textTracks.length > 0) {
         subtitles.loadSubtitles(tracks.textTracks[0].text);
       }
@@ -108,6 +109,22 @@ export const App: Component = () => {
     }, 1000);
 
     onCleanup(() => clearInterval(interval));
+  });
+
+  onMount(() => {
+    const cleanup = bridge.overlay.onOverlayAutoPositionChanged((enabled: boolean) => {
+      setAutoPositionEnabled(enabled);
+    });
+    onCleanup(() => cleanup());
+  });
+
+  onMount(() => {
+    bridge.overlay.overlayGetBounds().then((bounds) => {
+      if (bounds) {
+        setLastSyncAt(Date.now());
+        setIsConnected(true);
+      }
+    });
   });
 
   // Dynamic click-through: the window starts click-through and only becomes
@@ -283,6 +300,36 @@ export const App: Component = () => {
     bridge.window.closeWindow();
   };
 
+  const handleDragStart = () => {
+    triggerBorderFlash();
+  };
+
+  const handleDragMove = (deltaX: number, deltaY: number) => {
+    bridge.overlay.overlayMoveBy({ x: deltaX, y: deltaY });
+  };
+
+  const handleDragEnd = () => {
+    triggerBorderFlash();
+  };
+
+  const handleResizeStart = () => {
+    triggerBorderFlash();
+  };
+
+  const handleResizeMove = (deltaWidth: number, deltaHeight: number) => {
+    bridge.overlay.overlayResizeBy({ width: deltaWidth, height: deltaHeight });
+  };
+
+  const handleResizeEnd = () => {
+    triggerBorderFlash();
+  };
+
+  const handleToggleAutoPosition = () => {
+    const next = !autoPositionEnabled();
+    setAutoPositionEnabled(next);
+    bridge.overlay.overlaySetAutoPosition(next);
+  };
+
   return (
     <div
       class="overlay-container"
@@ -318,6 +365,7 @@ export const App: Component = () => {
         isMuted={isMuted()}
         playbackRate={playbackRate()}
         subtitleOffset={settings.subsOffsetTime}
+        autoPositionEnabled={autoPositionEnabled()}
         onPlayPause={handlePlayPause}
         onSeek={handleSeek}
         onVolumeChange={handleVolumeChange}
@@ -326,6 +374,13 @@ export const App: Component = () => {
         onOffsetChange={handleOffsetChange}
         onLoadSubtitles={handleOpenSubtitleFile}
         onClose={handleClose}
+        onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
+        onDragEnd={handleDragEnd}
+        onResizeStart={handleResizeStart}
+        onResizeMove={handleResizeMove}
+        onResizeEnd={handleResizeEnd}
+        onToggleAutoPosition={handleToggleAutoPosition}
         formatTime={formatTime}
       />
       <BorderFlash />

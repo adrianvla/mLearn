@@ -142,6 +142,11 @@ sendLogRecord: (record: unknown) => void;
   setOverlayIgnoreMouseEvents: (ignore: boolean) => void;
   sendOverlayCommand: (cmd: import('./types').OverlayCommand) => void;
   onOverlaySubtitleTracks: (callback: (tracks: import('./types').OverlaySubtitleTracks) => void) => () => void;
+  overlayMoveBy: (delta: { x: number; y: number }) => Promise<void>;
+  overlayResizeBy: (delta: { width: number; height: number }) => Promise<void>;
+  overlayGetBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
+  overlaySetAutoPosition: (enabled: boolean) => Promise<void>;
+  onOverlayAutoPositionChanged: (callback: (enabled: boolean) => void) => () => void;
 
   // Pill/Word Updates (cross-window sync)
   onUpdatePills: (callback: (data: unknown) => void) => () => void;

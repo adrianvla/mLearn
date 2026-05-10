@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const ipcOnHandlers = new Map<string, (...args: unknown[]) => void>();
+const ipcHandleHandlers = new Map<string, (...args: unknown[]) => unknown>();
 
 const mockMenuInstance = { popup: vi.fn() };
 
@@ -125,7 +126,9 @@ vi.mock('electron', () => ({
     on: vi.fn((channel: string, handler: (...args: unknown[]) => void) => {
       ipcOnHandlers.set(channel, handler);
     }),
-    handle: vi.fn(),
+    handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
+      ipcHandleHandlers.set(channel, handler);
+    }),
     removeHandler: vi.fn(),
   },
   Menu: {
@@ -223,6 +226,12 @@ function fireOn(channel: string, event: Record<string, unknown>, ...args: unknow
   handler(event, ...args);
 }
 
+async function fireHandle(channel: string, event: Record<string, unknown>, ...args: unknown[]) {
+  const handler = ipcHandleHandlers.get(channel);
+  if (!handler) throw new Error(`No ipcMain.handle handler registered for "${channel}"`);
+  return handler(event, ...args);
+}
+
 function makeSenderEvent() {
   const win = makeMockWindow();
   return { sender: win.webContents, reply: vi.fn() };
@@ -232,6 +241,7 @@ describe('windowManager', () => {
   beforeEach(() => {
     vi.resetModules();
     ipcOnHandlers.clear();
+    ipcHandleHandlers.clear();
     createdWindows.length = 0;
     mockMenuInstance.popup.mockReset();
     mockFromWebContents.mockReset();
@@ -423,7 +433,7 @@ describe('windowManager', () => {
       const { setupWindowIPC } = await import('./windowManager');
       setupWindowIPC();
       const { IPC_CHANNELS } = await import('../../shared/constants');
-      const expectedChannels = [
+      const expectedOnChannels = [
         IPC_CHANNELS.TRAFFIC_LIGHTS,
         IPC_CHANNELS.CHANGE_WINDOW_SIZE,
         IPC_CHANNELS.MAKE_PIP,
@@ -435,9 +445,23 @@ describe('windowManager', () => {
         IPC_CHANNELS.CLOSE_WINDOW,
         IPC_CHANNELS.GET_VERSION,
         IPC_CHANNELS.FLASHCARD_CONNECT_OPEN,
+        IPC_CHANNELS.OVERLAY_VIDEO_STATE,
+        IPC_CHANNELS.OVERLAY_REQUEST_SYNC,
+        IPC_CHANNELS.OVERLAY_LAUNCH,
+        IPC_CHANNELS.OVERLAY_SET_IGNORE_MOUSE_EVENTS,
+        IPC_CHANNELS.OVERLAY_COMMAND,
       ];
-      for (const ch of expectedChannels) {
-        expect(ipcOnHandlers.has(ch), `Missing handler for "${ch}"`).toBe(true);
+      for (const ch of expectedOnChannels) {
+        expect(ipcOnHandlers.has(ch), `Missing ipcMain.on handler for "${ch}"`).toBe(true);
+      }
+      const expectedHandleChannels = [
+        IPC_CHANNELS.OVERLAY_MOVE_BY,
+        IPC_CHANNELS.OVERLAY_RESIZE_BY,
+        IPC_CHANNELS.OVERLAY_GET_BOUNDS,
+        IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION,
+      ];
+      for (const ch of expectedHandleChannels) {
+        expect(ipcHandleHandlers.has(ch), `Missing ipcMain.handle handler for "${ch}"`).toBe(true);
       }
     });
 
@@ -808,6 +832,105 @@ describe('windowManager', () => {
       const lastWin = createdWindows[createdWindows.length - 1];
       expect(lastWin.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/connect-qr.html');
       delete process.env.NODE_ENV;
+    });
+
+    it('OVERLAY_MOVE_BY: moves the overlay window by the provided delta', async () => {
+      const { setupWindowIPC, launchOverlayWindow } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      overlayWin.getBounds.mockReturnValue({ x: 100, y: 200, width: 400, height: 200 });
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      await fireHandle(IPC_CHANNELS.OVERLAY_MOVE_BY, {}, { x: 10, y: -20 });
+
+      expect(overlayWin.setBounds).toHaveBeenCalledWith({
+        x: 110,
+        y: 180,
+        width: 400,
+        height: 200,
+      });
+    });
+
+    it('OVERLAY_RESIZE_BY: resizes the overlay window by the provided delta', async () => {
+      const { setupWindowIPC, launchOverlayWindow } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      overlayWin.getBounds.mockReturnValue({ x: 100, y: 200, width: 400, height: 200 });
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      await fireHandle(IPC_CHANNELS.OVERLAY_RESIZE_BY, {}, { width: 50, height: 30 });
+
+      expect(overlayWin.setBounds).toHaveBeenCalledWith({
+        x: 100,
+        y: 200,
+        width: 450,
+        height: 230,
+      });
+    });
+
+    it('OVERLAY_RESIZE_BY: enforces minimum dimensions', async () => {
+      const { setupWindowIPC, launchOverlayWindow } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      overlayWin.getBounds.mockReturnValue({ x: 100, y: 200, width: 400, height: 200 });
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      await fireHandle(IPC_CHANNELS.OVERLAY_RESIZE_BY, {}, { width: -300, height: -150 });
+
+      expect(overlayWin.setBounds).toHaveBeenCalledWith({
+        x: 100,
+        y: 200,
+        width: 200,
+        height: 100,
+      });
+    });
+
+    it('OVERLAY_GET_BOUNDS: returns current overlay bounds', async () => {
+      const { setupWindowIPC, launchOverlayWindow } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      overlayWin.getBounds.mockReturnValue({ x: 50, y: 100, width: 400, height: 200 });
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      const result = await fireHandle(IPC_CHANNELS.OVERLAY_GET_BOUNDS, {});
+
+      expect(result).toEqual({ x: 50, y: 100, width: 400, height: 200 });
+    });
+
+    it('OVERLAY_SET_AUTO_POSITION: toggles auto-position and notifies overlay', async () => {
+      const { setupWindowIPC, launchOverlayWindow } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      setupWindowIPC();
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+
+      await fireHandle(IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION, {}, false);
+
+      expect(overlayWin.webContents.send).toHaveBeenCalledWith(
+        IPC_CHANNELS.OVERLAY_AUTO_POSITION_CHANGED,
+        false,
+      );
+    });
+
+    it('updateOverlayGeometry: applies manual delta corrections when auto-position is enabled', async () => {
+      const { launchOverlayWindow, updateOverlayGeometry, setOverlayAutoPositionEnabled } = await import('./windowManager');
+      launchOverlayWindow();
+      const overlayWin = createdWindows[createdWindows.length - 1];
+      overlayWin.getBounds.mockReturnValue({ x: 0, y: 0, width: 400, height: 200 });
+      setOverlayAutoPositionEnabled(true);
+
+      updateOverlayGeometry({ x: 100, y: 100, width: 400, height: 200 });
+
+      expect(overlayWin.setBounds).toHaveBeenCalledWith({
+        x: 100,
+        y: 100,
+        width: 400,
+        height: 200,
+      });
     });
   });
 

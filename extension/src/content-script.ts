@@ -449,6 +449,7 @@ interface TrackedVideo {
   element: HTMLVideoElement;
   lastSentTime: number;
   lastSrc: string;
+  isWaiting: boolean;
 }
 
 const TIMEUPDATE_THROTTLE_MS = 250;
@@ -460,10 +461,10 @@ let isDestroyed = false;
 let geometryInterval: ReturnType<typeof setInterval> | null = null;
 let lastGeometry: VideoViewportGeometry | null = null;
 let lastVolume = -1;
-let isWaiting = false;
 
 let headlessModeEnabled = false;
 let headlessSubtitles: ParsedSubtitle[] = [];
+let urlObserver: MutationObserver | null = null;
 
 function getChromeRuntime(): ChromeRuntime | undefined {
   if (typeof chrome !== 'undefined' && chrome?.runtime?.sendMessage) {
@@ -515,7 +516,7 @@ function extractVideoState(video: HTMLVideoElement): VideoState {
     volume: video.volume,
     muted: video.muted,
     src: video.currentSrc || video.src || window.location.href,
-    isWaiting: isWaiting,
+    isWaiting: trackedVideo?.isWaiting ?? false,
     isFullscreen: !!document.fullscreenElement && document.fullscreenElement.contains(video),
   };
 }
@@ -557,14 +558,14 @@ function handleTimeUpdate(this: HTMLVideoElement): void {
 }
 
 function handlePlay(this: HTMLVideoElement): void {
-  if (isDestroyed) return;
-  isWaiting = false;
+  if (isDestroyed || !trackedVideo) return;
+  trackedVideo.isWaiting = false;
   sendVideoState(this);
 }
 
 function handlePause(this: HTMLVideoElement): void {
-  if (isDestroyed) return;
-  isWaiting = false;
+  if (isDestroyed || !trackedVideo) return;
+  trackedVideo.isWaiting = false;
   sendVideoState(this);
 }
 
@@ -588,28 +589,28 @@ function handleVolumeChange(this: HTMLVideoElement): void {
 }
 
 function handleWaiting(this: HTMLVideoElement): void {
-  if (isDestroyed) return;
-  isWaiting = true;
+  if (isDestroyed || !trackedVideo) return;
+  trackedVideo.isWaiting = true;
   sendVideoState(this);
 }
 
 function handleCanPlay(this: HTMLVideoElement): void {
-  if (isDestroyed) return;
-  if (isWaiting) {
-    isWaiting = false;
+  if (isDestroyed || !trackedVideo) return;
+  if (trackedVideo.isWaiting) {
+    trackedVideo.isWaiting = false;
     sendVideoState(this);
   }
 }
 
 function handleStalled(this: HTMLVideoElement): void {
-  if (isDestroyed) return;
-  isWaiting = true;
+  if (isDestroyed || !trackedVideo) return;
+  trackedVideo.isWaiting = true;
   sendVideoState(this);
 }
 
 function handleEnded(this: HTMLVideoElement): void {
-  if (isDestroyed) return;
-  isWaiting = false;
+  if (isDestroyed || !trackedVideo) return;
+  trackedVideo.isWaiting = false;
   sendVideoState(this);
 }
 
@@ -645,6 +646,7 @@ function attachToVideo(video: HTMLVideoElement): void {
     element: video,
     lastSentTime: 0,
     lastSrc: video.currentSrc || video.src || window.location.href,
+    isWaiting: false,
   };
   lastVolume = video.volume;
 
@@ -783,7 +785,6 @@ function detachFromVideo(): void {
 
   trackedVideo = null;
   lastVolume = -1;
-  isWaiting = false;
   stopGeometryPolling();
 }
 
@@ -1116,6 +1117,10 @@ function destroy(): void {
   disableSubtitleInjection();
   headlessSubtitles = [];
   headlessModeEnabled = false;
+  if (urlObserver) {
+    urlObserver.disconnect();
+    urlObserver = null;
+  }
 }
 
 function initContentScript(): void {
@@ -1136,15 +1141,26 @@ function initContentScript(): void {
   const originalPushState = history.pushState;
   const originalReplaceState = history.replaceState;
 
-  history.pushState = function pushState(...args: unknown[]) {
-    originalPushState.apply(this, args as [unknown, string, string | URL | null | undefined]);
+  function wrappedPushState(this: History, ...args: unknown[]) {
+    const result = originalPushState.apply(this, args as [unknown, string, string | URL | null | undefined]);
     checkUrlChange();
-  };
+    return result;
+  }
 
-  history.replaceState = function replaceState(...args: unknown[]) {
-    originalReplaceState.apply(this, args as [unknown, string, string | URL | null | undefined]);
+  function wrappedReplaceState(this: History, ...args: unknown[]) {
+    const result = originalReplaceState.apply(this, args as [unknown, string, string | URL | null | undefined]);
     checkUrlChange();
-  };
+    return result;
+  }
+
+  // Preserve function name and length for compatibility with other scripts
+  Object.defineProperty(wrappedPushState, 'name', { value: 'pushState' });
+  Object.defineProperty(wrappedPushState, 'length', { value: originalPushState.length });
+  Object.defineProperty(wrappedReplaceState, 'name', { value: 'replaceState' });
+  Object.defineProperty(wrappedReplaceState, 'length', { value: originalReplaceState.length });
+
+  history.pushState = wrappedPushState;
+  history.replaceState = wrappedReplaceState;
 
   window.addEventListener('popstate', checkUrlChange);
 
@@ -1163,7 +1179,7 @@ function initContentScript(): void {
   }
 
   // Fallback MutationObserver for navigation detection
-  const urlObserver = new MutationObserver(() => {
+  urlObserver = new MutationObserver(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
       checkUrlChange();
@@ -1173,7 +1189,7 @@ function initContentScript(): void {
 
   window.addEventListener('beforeunload', () => {
     destroy();
-    urlObserver.disconnect();
+    urlObserver?.disconnect();
     history.pushState = originalPushState;
     history.replaceState = originalReplaceState;
   });

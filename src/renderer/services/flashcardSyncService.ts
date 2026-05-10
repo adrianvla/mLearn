@@ -1,26 +1,25 @@
-/**
- * Flashcard Sync Service
- * Handles peer-to-peer flashcard syncing via WebRTC (like the old app's connect module)
- * Uses QR codes for connection establishment
- *
- * Updated to work with new UUID-keyed FlashcardStore format (v3)
- * Supports multiple flashcards per word with O(1) word stats lookup
- */
-
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type WordCandidate, type WordStats, type FlashcardState } from '../../shared/types';
 
-// Chunk size for sending data over WebRTC
 const CHUNK_SIZE = 16000;
 
-// Max buffered bytes before waiting for drain
-const MAX_BUFFERED_AMOUNT = 64 * 1024;
-
-// QR code chunk size for signal data
-const QR_CHUNK_SIZE = 60;
+const WORKER_API_URL = 'https://mlearn-cloud.kikan.net';
 
 export interface SyncChunk {
   type: string;
-  data: [number, string, number]; // [index, chunk, total]
+  data: [number, string, number];
+}
+
+export interface SyncRoom {
+  roomId: string;
+  roomCode: string;
+  status: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface SyncRoomResponse {
+  data: SyncRoom;
+  actions: Record<string, unknown>;
 }
 
 export interface SyncCallbacks {
@@ -32,9 +31,6 @@ export interface SyncCallbacks {
   onError: (error: string) => void;
 }
 
-/**
- * Split text into chunks for transmission
- */
 export function splitTextIntoChunks(text: string, chunkSize: number = CHUNK_SIZE): string[] {
   if (typeof text !== 'string') {
     throw new TypeError('First argument must be a string');
@@ -50,22 +46,6 @@ export function splitTextIntoChunks(text: string, chunkSize: number = CHUNK_SIZE
   return chunks;
 }
 
-/**
- * Split data into QR code friendly chunks
- */
-export function splitForQR(data: string): string[] {
-  const numberOfChunks = Math.ceil(data.length / QR_CHUNK_SIZE);
-  const chunkSize = Math.ceil(data.length / numberOfChunks);
-  const chunks: string[] = [];
-  for (let i = 0; i < data.length; i += chunkSize) {
-    chunks.push(data.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
-
-/**
- * Generate unique identifier for a word (SHA-256 hash)
- */
 export async function toUniqueIdentifier(word: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(word);
@@ -74,17 +54,11 @@ export async function toUniqueIdentifier(word: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/**
- * Compare flashcard states - returns positive if a is "better" than b
- */
 function compareStates(a: FlashcardState, b: FlashcardState): number {
   const order: Record<FlashcardState, number> = { 'new': 0, 'learning': 1, 'relearning': 2, 'review': 3 };
   return order[a] - order[b];
 }
 
-/**
- * Calculate aggregated word stats from all cards for a word
- */
 function calculateWordStats(cards: Flashcard[]): WordStats {
   if (cards.length === 0) {
     return {
@@ -125,26 +99,12 @@ function calculateWordStats(cards: Flashcard[]): WordStats {
   };
 }
 
-/**
- * Merge incoming flashcards with local flashcards
- * Updated for new UUID-keyed Record format (v3) with multiple cards per word
- *
- * Merge strategy:
- * - Flashcards: Merge all cards, deduplicate by ID
- * - wordToCardMap: Merge arrays of card IDs per word
- * - wordStatsMap: Recalculate from merged flashcards
- * - wordCandidates: Keep max counts and latest lastSeen
- * - knownUntracked: Union of both sets
- * - meta: Preserve local settings, update date if remote is today
- */
 export async function mergeFlashcards(
     localStore: FlashcardStore,
     remoteStore: FlashcardStore
 ): Promise<FlashcardStore> {
-  // Start with a deep copy of local store
   const merged: FlashcardStore = JSON.parse(JSON.stringify(localStore));
 
-  // Merge knownUntracked (union)
   if (remoteStore.knownUntracked) {
     for (const [wordHash, value] of Object.entries(remoteStore.knownUntracked)) {
       if (value) {
@@ -153,7 +113,6 @@ export async function mergeFlashcards(
     }
   }
 
-  // Merge wordCandidates (keep max count and latest lastSeen)
   if (remoteStore.wordCandidates) {
     for (const [key, value] of Object.entries(remoteStore.wordCandidates)) {
       const myValue = merged.wordCandidates[key];
@@ -164,7 +123,6 @@ export async function mergeFlashcards(
       if (!myValue) {
         merged.wordCandidates[key] = remoteCandidate;
       } else {
-        // Both exist - merge by taking max values
         merged.wordCandidates[key] = {
           word: myValue.word || remoteCandidate.word || key,
           count: Math.max(myValue.count || 0, remoteCandidate.count || 0),
@@ -175,16 +133,12 @@ export async function mergeFlashcards(
     }
   }
 
-  // Merge flashcards - add all remote cards that don't exist locally
-  // If same ID exists, keep the one with more reviews or latest update
   for (const [cardId, remoteCard] of Object.entries(remoteStore.flashcards)) {
     const localCard = merged.flashcards[cardId];
     
     if (!localCard) {
-      // Card doesn't exist locally - add it
       merged.flashcards[cardId] = remoteCard;
     } else {
-      // Card exists in both - merge based on review history
       const localReviews = localCard.reviews || 0;
       const remoteReviews = remoteCard.reviews || 0;
       const localUpdated = localCard.lastUpdated || 0;
@@ -192,13 +146,11 @@ export async function mergeFlashcards(
 
       if (remoteReviews > localReviews ||
           (remoteReviews === localReviews && remoteUpdated > localUpdated)) {
-        // Use remote card's SRS data but merge content
         merged.flashcards[cardId] = {
           ...remoteCard,
           content: {
             ...localCard.content,
             ...remoteCard.content,
-            // Keep longer example/image data
             example: (remoteCard.content.example?.length || 0) > (localCard.content.example?.length || 0)
                 ? remoteCard.content.example
                 : localCard.content.example,
@@ -206,7 +158,6 @@ export async function mergeFlashcards(
           },
         };
       } else if (remoteUpdated > localUpdated) {
-        // Keep local SRS data but update content
         merged.flashcards[cardId].content = {
           ...localCard.content,
           ...remoteCard.content,
@@ -216,7 +167,6 @@ export async function mergeFlashcards(
     }
   }
 
-  // Rebuild wordToCardMap from all flashcards (with language-prefixed keys)
   const newWordToCardMap: Record<string, string[]> = {};
   for (const [cardId, card] of Object.entries(merged.flashcards)) {
     const word = card.content.front;
@@ -234,7 +184,6 @@ export async function mergeFlashcards(
   }
   merged.wordToCardMap = newWordToCardMap;
 
-  // Rebuild wordStatsMap from merged flashcards
   const newWordStatsMap: Record<string, WordStats> = {};
   for (const [wordHash, cardIds] of Object.entries(merged.wordToCardMap)) {
     const cards = cardIds.map(id => merged.flashcards[id]).filter(Boolean);
@@ -247,9 +196,6 @@ export async function mergeFlashcards(
   return merged;
 }
 
-/**
- * Chunk collector for assembling fragmented data
- */
 export class ChunkCollector {
   private chunks: Record<number, string> = {};
   private totalChunks: number = 0;
@@ -285,47 +231,133 @@ export class ChunkCollector {
   }
 }
 
-/**
- * Wait until the data channel's buffered amount drops below the threshold.
- * Falls back to a polling interval if the `bufferedamountlow` event isn't available.
- */
-function waitForBufferDrain(channel: RTCDataChannel): Promise<void> {
-  return new Promise<void>((resolve) => {
-    const check = () => {
-      if (channel.bufferedAmount <= MAX_BUFFERED_AMOUNT) {
-        resolve();
-      } else {
-        setTimeout(check, 5);
-      }
-    };
-    setTimeout(check, 5);
+export async function createSyncRoom(): Promise<SyncRoomResponse> {
+  const response = await fetch(`${WORKER_API_URL}/api/flashcard-sync/rooms`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
   });
+
+  if (!response.ok) {
+    throw new Error(`Failed to create sync room: ${response.status} ${response.statusText}`);
+  }
+
+  return response.json() as Promise<SyncRoomResponse>;
 }
 
-/**
- * Send chunked data over a SimplePeer connection with backpressure handling.
- * Prevents "RTCDataChannel send queue is full" by waiting for the buffer to drain
- * between sends when it exceeds `MAX_BUFFERED_AMOUNT`.
- */
-export async function sendChunkedWithBackpressure(
-  peer: SimplePeerInstance,
-  type: string,
-  payload: string,
-): Promise<void> {
-  const chunks = splitTextIntoChunks(payload, CHUNK_SIZE);
-  const channel = peer._channel;
+export function buildSyncSocketUrl(roomId: string, role: 'sender' | 'receiver'): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'wss:';
+  return `${protocol}//${new URL(WORKER_API_URL).host}/api/flashcard-sync/rooms/${roomId}/socket?_role=${role}`;
+}
 
-  for (let i = 0; i < chunks.length; i++) {
-    if (channel && channel.bufferedAmount > MAX_BUFFERED_AMOUNT) {
-      await waitForBufferDrain(channel);
+export interface SyncSocketMessage {
+  type: 'offer' | 'request_chunk' | 'chunk_data' | 'chunk_received' | 'complete' | 'error' | 'peer_connected' | 'peer_disconnected';
+  index?: number;
+  data?: string;
+  totalChunks?: number;
+  totalSize?: number;
+  chunkList?: Array<{ index: number; hash: string; size: number }>;
+  message?: string;
+  role?: 'sender' | 'receiver';
+}
+
+export class SyncSocketClient {
+  private ws: WebSocket | null = null;
+  private roomId: string;
+  private role: 'sender' | 'receiver';
+  private onMessageCallback: ((msg: SyncSocketMessage) => void) | null = null;
+  private onOpenCallback: (() => void) | null = null;
+  private onCloseCallback: (() => void) | null = null;
+  private onErrorCallback: ((error: string) => void) | null = null;
+
+  constructor(roomId: string, role: 'sender' | 'receiver') {
+    this.roomId = roomId;
+    this.role = role;
+  }
+
+  connect(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const url = buildSyncSocketUrl(this.roomId, this.role);
+      this.ws = new WebSocket(url, 'mlearn-flashcard-sync-v1');
+
+      this.ws.onopen = () => {
+        this.onOpenCallback?.();
+        resolve();
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data as string) as SyncSocketMessage;
+          this.onMessageCallback?.(msg);
+        } catch {
+          this.onErrorCallback?.('Invalid message received');
+        }
+      };
+
+      this.ws.onclose = () => {
+        this.onCloseCallback?.();
+      };
+
+      this.ws.onerror = () => {
+        this.onErrorCallback?.('WebSocket error');
+        reject(new Error('WebSocket connection failed'));
+      };
+    });
+  }
+
+  send(message: SyncSocketMessage): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
     }
+  }
 
-    peer.send(JSON.stringify({
-      type: `${type}-chunk`,
-      data: [i, chunks[i], chunks.length],
-    }));
+  disconnect(): void {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+  }
+
+  onMessage(callback: (msg: SyncSocketMessage) => void): void {
+    this.onMessageCallback = callback;
+  }
+
+  onOpen(callback: () => void): void {
+    this.onOpenCallback = callback;
+  }
+
+  onClose(callback: () => void): void {
+    this.onCloseCallback = callback;
+  }
+
+  onError(callback: (error: string) => void): void {
+    this.onErrorCallback = callback;
   }
 }
 
-// Re-export types for convenience
+export function computeChunkHash(chunk: string): Promise<string> {
+  const encoder = new TextEncoder();
+  return crypto.subtle.digest('SHA-256', encoder.encode(chunk)).then((buffer) => {
+    const array = Array.from(new Uint8Array(buffer));
+    return array.map((b) => b.toString(16).padStart(2, '0')).join('');
+  });
+}
+
+export async function prepareChunkList(data: string): Promise<Array<{ index: number; hash: string; size: number }>> {
+  const chunks = splitTextIntoChunks(data, CHUNK_SIZE);
+  const chunkList: Array<{ index: number; hash: string; size: number }> = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    const hash = await computeChunkHash(chunks[i]);
+    chunkList.push({
+      index: i,
+      hash,
+      size: chunks[i].length,
+    });
+  }
+
+  return chunkList;
+}
+
 export type { FlashcardStore, Flashcard };

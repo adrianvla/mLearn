@@ -736,6 +736,41 @@ export const VideoRoute: Component = () => {
       updateVideoProgress();
     }, 10000); // Save progress every 10 seconds
 
+    // Set up overlay video state sync interval
+    const overlaySyncInterval = window.setInterval(() => {
+      const video = getCurrentVideoElement();
+      if (!video) return;
+      bridge.overlay.sendOverlayVideoState({
+        currentTime: video.currentTime,
+        isPlaying: !video.paused,
+        duration: video.duration && isFinite(video.duration) ? video.duration : 0,
+        playbackRate: video.playbackRate,
+        volume: video.volume,
+        muted: video.muted,
+        isWaiting: video.readyState < 3,
+        url: videoSrc(),
+        title: currentVideoName(),
+      });
+    }, 250); // Sync overlay every 250ms
+    ipcCleanups.push(() => clearInterval(overlaySyncInterval));
+
+    // Respond to overlay sync requests
+    ipcCleanups.push(bridge.overlay.onOverlayRequestSync(() => {
+      const video = getCurrentVideoElement();
+      if (!video) return;
+      bridge.overlay.sendOverlayVideoState({
+        currentTime: video.currentTime,
+        isPlaying: !video.paused,
+        duration: video.duration && isFinite(video.duration) ? video.duration : 0,
+        playbackRate: video.playbackRate,
+        volume: video.volume,
+        muted: video.muted,
+        isWaiting: video.readyState < 3,
+        url: videoSrc(),
+        title: currentVideoName(),
+      });
+    }));
+
     // Attach watch-together listeners to the video element once it exists.
     // Uses a short poll because the <video> may not be in the DOM yet.
     const attachWatchTogetherListeners = () => {

@@ -35,6 +35,7 @@ import { setupDiagnosticsIPC } from './services/diagnostics';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 import { getLogger } from '../shared/utils/logger';
+import { getResourcePath } from './utils/platform';
 
 const log = getLogger('electron.main');
 
@@ -223,7 +224,7 @@ function setupBaseIPC(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.OPEN_EXTENSION_FOLDER, async () => {
-    const extensionDir = path.resolve(__dirname, '..', '..', '..', 'extension', 'dist');
+    const extensionDir = path.join(getResourcePath(), 'extension', 'dist');
     log.info(`Opening extension folder: ${extensionDir}`);
 
     try {

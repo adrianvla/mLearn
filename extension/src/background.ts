@@ -510,6 +510,9 @@ function activateRoom(session: WatchTogetherRoomSessionExt, accessToken: string)
   }
 
   if (session.role === 'owner' && session.actions.update_state) {
+    if (ownerSyncInterval) {
+      clearInterval(ownerSyncInterval);
+    }
     ownerSyncInterval = setInterval(() => {
       if (!lastVideoState || !currentRoomSession) return;
 
@@ -1100,7 +1103,8 @@ export function cleanupServiceWorker(): void {
 
   cleanupRoomConnection();
 
-  chrome.alarms.clearAll();
+  chrome.alarms.clear(PING_ALARM_NAME);
+  chrome.alarms.clear(COMMAND_POLL_ALARM_NAME);
 }
 
 export function handleSyncMessage(message: SyncMessage): void {

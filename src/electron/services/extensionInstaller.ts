@@ -5,6 +5,7 @@ import { ipcMain } from 'electron';
 import AdmZip from 'adm-zip';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getLogger } from '../../shared/utils/logger';
+import { getResourcePath } from '../utils/platform';
 import type { BrowserInfo } from './browserDetection';
 
 const log = getLogger('electron.extensionInstaller');
@@ -50,7 +51,7 @@ async function copyDirRecursive(src: string, dest: string): Promise<void> {
 }
 
 function getExtensionSourceDir(): string {
-  return path.resolve(__dirname, '..', '..', '..', 'extension', 'dist');
+  return path.join(getResourcePath(), 'extension', 'dist');
 }
 
 async function pathExists(filePath: string): Promise<boolean> {

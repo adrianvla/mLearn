@@ -251,6 +251,11 @@ const overlayBridge: OverlayBridge = {
   setOverlayIgnoreMouseEvents: (ignore) => getIPC().setOverlayIgnoreMouseEvents(ignore),
   sendOverlayCommand: (cmd) => getIPC().sendOverlayCommand(cmd),
   onOverlaySubtitleTracks: (cb) => getIPC().onOverlaySubtitleTracks(cb),
+  overlayMoveBy: (delta) => getIPC().overlayMoveBy(delta),
+  overlayResizeBy: (delta) => getIPC().overlayResizeBy(delta),
+  overlayGetBounds: () => getIPC().overlayGetBounds(),
+  overlaySetAutoPosition: (enabled) => getIPC().overlaySetAutoPosition(enabled),
+  onOverlayAutoPositionChanged: (cb) => getIPC().onOverlayAutoPositionChanged(cb),
 };
 
 const crossWindowBridge: CrossWindowBridge = {

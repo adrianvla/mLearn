@@ -79,14 +79,11 @@ function getBoundingRect(box: number[][]): { x: number; y: number; width: number
   };
 }
 
-let fontMeasureCanvas: HTMLCanvasElement | null = null;
-
 // Measure a reasonable font size to fit text in the OCR box
 function estimateFontSize(text: string, width: number, height: number, vertical: boolean): number {
   if (!text || width <= 0 || height <= 0) return 12;
   const basePx = 100;
-  fontMeasureCanvas ??= document.createElement('canvas');
-  const canvas = fontMeasureCanvas;
+  const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) return 12;
   ctx.font = `400 ${basePx}px sans-serif`;

@@ -159,6 +159,11 @@ export const IPC_CHANNELS = {
   OVERLAY_SET_IGNORE_MOUSE_EVENTS: 'overlay-set-ignore-mouse-events',
   OVERLAY_SUBTITLE_TRACKS: 'overlay-subtitle-tracks',
   OVERLAY_COMMAND: 'overlay-command',
+  OVERLAY_MOVE_BY: 'overlay-move-by',
+  OVERLAY_RESIZE_BY: 'overlay-resize-by',
+  OVERLAY_GET_BOUNDS: 'overlay-get-bounds',
+  OVERLAY_SET_AUTO_POSITION: 'overlay-set-auto-position',
+  OVERLAY_AUTO_POSITION_CHANGED: 'overlay-auto-position-changed',
 
   DETECT_BROWSERS: 'detect-browsers',
   INSTALL_EXTENSION: 'install-extension',

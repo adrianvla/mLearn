@@ -237,13 +237,13 @@ export const BrowserExtensionSettings: Component = () => {
     try {
       const success = await getBridge().browser.openExtensionFolder();
       if (success) {
-        showToast({ variant: 'success', message: t('mlearn.BrowserExtension.OpenExtensionFolder') });
+        showToast({ variant: 'success', message: t('mlearn.BrowserExtension.OpenExtensionFolderSuccess') });
       } else {
-        showToast({ variant: 'error', message: t('mlearn.BrowserExtension.InstallFailed') });
+        showToast({ variant: 'error', message: t('mlearn.BrowserExtension.OpenExtensionFolderFailed') });
       }
     } catch (e) {
       log.error('Failed to open extension folder:', e);
-      showToast({ variant: 'error', message: t('mlearn.BrowserExtension.InstallFailed') });
+      showToast({ variant: 'error', message: t('mlearn.BrowserExtension.OpenExtensionFolderFailed') });
     }
   };
 
