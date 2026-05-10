@@ -2072,6 +2072,23 @@
         "PeerJoinedSingular": "Ein Teilnehmer ist deinem Raum beigetreten",
         "PeerJoinedPlural": "{count} Teilnehmer sind deinem Raum beigetreten"
       },
+      "Extension": {
+        "HeadlessMode": "Headless-Modus",
+        "Enable": "Aktivieren",
+        "Disable": "Deaktivieren",
+        "Subtitles": "Untertitel",
+        "LoadSubtitleFile": "Untertiteldatei laden",
+        "SyncOffset": "Synchronisierungsversatz",
+        "SignInRequired": "Melde dich an, um Watch Together zu nutzen",
+        "SignIn": "Anmelden",
+        "Host": "Hosten",
+        "Join": "Beitreten",
+        "CreateRoom": "Raum erstellen",
+        "RoomCodePlaceholder": "Raumcode eingeben",
+        "RoomCode": "Raumcode",
+        "Peers": "Teilnehmer",
+        "LeaveRoom": "Raum verlassen"
+      },
       "Media": {
         "DistributeTitle": "Medien verteilen",
         "DistributeSubtitle": "Mediendatei über WebRTC an verbundene Peers senden",

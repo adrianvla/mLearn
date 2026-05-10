@@ -89,11 +89,121 @@ export type PopupMessageType =
   | 'REQUEST_SYNC'
   | 'OPEN_OVERLAY'
   | 'GET_POPUP_STATE'
-  | 'POPUP_STATE_UPDATE';
+  | 'POPUP_STATE_UPDATE'
+  | 'TOGGLE_HEADLESS_MODE'
+  | 'GET_HEADLESS_STATE'
+  | 'HEADLESS_STATE_UPDATE'
+  | 'LOAD_SUBTITLES'
+  | 'SET_SUBTITLE_OFFSET'
+  | 'WATCH_TOGETHER_CREATE_ROOM'
+  | 'WATCH_TOGETHER_JOIN_ROOM'
+  | 'WATCH_TOGETHER_LEAVE_ROOM'
+  | 'WATCH_TOGETHER_GET_STATE';
 
 export interface PopupMessage {
   type: PopupMessageType;
   connectionStatus?: ConnectionStatus;
   videoState?: VideoState;
   timestamp?: number;
+  enabled?: boolean;
+  subtitleContent?: string;
+  subtitleFormat?: 'srt' | 'vtt' | 'ass';
+  offset?: number;
+  roomCode?: string;
+  accessToken?: string;
+  headlessState?: HeadlessPopupState;
+  watchTogetherState?: WatchTogetherExtensionState;
+  error?: string;
+}
+
+export type HeadlessMode = 'disabled' | 'enabled';
+
+export interface HeadlessPopupState {
+  mode: HeadlessMode;
+  subtitleOffset: number;
+  subtitlesLoaded: boolean;
+  currentSubtitleText: string | null;
+}
+
+export interface HeadlessStateMessage {
+  type: 'HEADLESS_STATE_CHANGED';
+  enabled: boolean;
+}
+
+export interface HeadlessSubtitleMessage {
+  type: 'HEADLESS_SUBTITLE_UPDATE';
+  text: string | null;
+  offset: number;
+}
+
+export interface HeadlessCommandMessage {
+  type: 'HEADLESS_COMMAND';
+  command: 'play' | 'pause' | 'seek' | 'setRate' | 'setVolume';
+  time?: number;
+  rate?: number;
+  volume?: number;
+}
+
+export interface ParsedSubtitle {
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface WatchTogetherExtensionState {
+  isInRoom: boolean;
+  roomCode: string | null;
+  role: 'owner' | 'viewer' | null;
+  peerCount: number;
+  isConnecting: boolean;
+  error: string | null;
+}
+
+export interface WatchTogetherRoomStateExt {
+  roomId: string;
+  roomCode: string;
+  ownerUserId: string;
+  currentTime: number;
+  paused: boolean;
+  playbackRate: number;
+  mediaUrl?: string;
+  mediaTitle?: string;
+  subtitleHtml?: string;
+  subtitleSize?: number;
+  subtitleWeight?: number;
+  stateVersion: number;
+  status: 'active' | 'closed';
+  peerCount: number;
+  lastUsedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+}
+
+export interface WatchTogetherRoomSessionExt {
+  role: 'owner' | 'viewer';
+  canControl: boolean;
+  room: WatchTogetherRoomStateExt;
+  socket: {
+    url: string;
+    protocol: string;
+  };
+  actions: {
+    refresh: { method: string; url: string };
+    connect_socket: { method: string; url: string };
+    update_state?: { method: string; url: string };
+    close_room?: { method: string; url: string };
+    leave_room?: { method: string; url: string };
+  };
+}
+
+export interface WatchTogetherPlaybackPayloadExt {
+  currentTime: number;
+  paused: boolean;
+  playbackRate: number;
+  mediaUrl?: string;
+  mediaTitle?: string;
+  subtitleHtml?: string;
+  subtitleSize?: number;
+  subtitleWeight?: number;
 }

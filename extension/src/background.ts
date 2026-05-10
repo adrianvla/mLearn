@@ -7,9 +7,27 @@ import type {
   VideoViewportGeometry,
   SubtitleTracksMessage,
   ExtensionCommandMessage,
-} from './types';
+  HeadlessMode,
+  HeadlessPopupState,
+  HeadlessStateMessage,
+  HeadlessSubtitleMessage,
+  HeadlessCommandMessage,
+  WatchTogetherExtensionState,
+  WatchTogetherRoomSessionExt,
+  WatchTogetherPlaybackPayloadExt,
+  WatchTogetherRoomStateExt,
+  ParsedSubtitle,
+} from './types.js';
+import {
+  loadHeadlessMode,
+  setHeadlessMode,
+  isHeadlessEnabled,
+  toggleHeadlessMode,
+} from './headless/headlessState.js';
+import { parseSubtitles, findCurrentSubtitle } from './headless/subtitleParser.js';
 
 const MLEARN_BASE_URL = 'http://127.0.0.1:7753';
+const DEFAULT_CLOUD_API_URL = 'https://mlearn-cloud.kikan.net';
 const PING_INTERVAL_SECONDS = 5;
 const PING_ALARM_NAME = 'mlearn-ping';
 const COMMAND_POLL_INTERVAL_SECONDS = 2;
@@ -25,10 +43,40 @@ let lastSubtitleTracks: SubtitleTracksMessage | null = null;
 let retryDelay = INITIAL_RETRY_DELAY_MS;
 let pingAlarmListener: ((alarm: chrome.alarms.Alarm) => void) | null = null;
 
+let headlessMode: HeadlessMode = 'disabled';
+let headlessSubtitleOffset = 0;
+let headlessSubtitlesLoaded = false;
+let headlessCurrentSubtitleText: string | null = null;
+let parsedSubtitles: ParsedSubtitle[] = [];
+
+let watchTogetherState: WatchTogetherExtensionState = {
+  isInRoom: false,
+  roomCode: null,
+  role: null,
+  peerCount: 0,
+  isConnecting: false,
+  error: null,
+};
+let currentRoomSession: WatchTogetherRoomSessionExt | null = null;
+let roomAccessToken = '';
+let unsubscribeRealtimeRef: (() => void) | null = null;
+let ownerSyncInterval: ReturnType<typeof setInterval> | null = null;
+
+let cloudApiUrl = DEFAULT_CLOUD_API_URL;
+
 export function initServiceWorker(): void {
   status = 'connecting';
   setupPingAlarm();
   setupMessageListener();
+}
+
+export async function initHeadlessMode(): Promise<void> {
+  const mode = await loadHeadlessMode();
+  headlessMode = mode;
+
+  if (mode === 'enabled' && status === 'connected') {
+    disableHeadlessMode();
+  }
 }
 
 export function getConnectionStatus(): ConnectionStatus {
@@ -39,6 +87,12 @@ function setConnectionStatus(newStatus: ConnectionStatus): void {
   if (status !== newStatus) {
     status = newStatus;
     notifyContentScriptsOfStatus();
+
+    if (status === 'connected') {
+      disableHeadlessMode();
+    } else {
+      notifyPopupOfState();
+    }
   }
 }
 
@@ -61,7 +115,446 @@ function buildPopupStateResponse(): PopupMessage {
     connectionStatus: status,
     videoState: lastVideoState ?? undefined,
     timestamp: Date.now(),
+    headlessState: buildHeadlessPopupState(),
+    watchTogetherState: buildWatchTogetherPopupState(),
   };
+}
+
+function buildHeadlessPopupState(): HeadlessPopupState {
+  return {
+    mode: headlessMode,
+    subtitleOffset: headlessSubtitleOffset,
+    subtitlesLoaded: headlessSubtitlesLoaded,
+    currentSubtitleText: headlessCurrentSubtitleText,
+  };
+}
+
+function buildWatchTogetherPopupState(): WatchTogetherExtensionState {
+  return { ...watchTogetherState };
+}
+
+function notifyPopupOfState(): void {
+  const message = buildPopupStateResponse();
+  try {
+    chrome.runtime.sendMessage(message).catch(() => {});
+  } catch {
+    // Popup may not be open
+  }
+}
+
+async function handleHeadlessModeToggle(): Promise<HeadlessMode> {
+  const next = await toggleHeadlessMode();
+  headlessMode = next;
+
+  if (next === 'enabled') {
+    headlessSubtitleOffset = 0;
+    headlessSubtitlesLoaded = false;
+    headlessCurrentSubtitleText = null;
+    parsedSubtitles = [];
+  }
+
+  notifyContentScriptsOfHeadlessState();
+  notifyPopupOfState();
+
+  return next;
+}
+
+function disableHeadlessMode(): void {
+  if (headlessMode === 'disabled') return;
+
+  headlessMode = 'disabled';
+  setHeadlessMode('disabled');
+
+  headlessSubtitleOffset = 0;
+  headlessSubtitlesLoaded = false;
+  headlessCurrentSubtitleText = null;
+  parsedSubtitles = [];
+
+  if (watchTogetherState.isInRoom) {
+    handleLeaveWatchTogetherRoom().catch(() => {});
+  }
+
+  notifyContentScriptsOfHeadlessState();
+  notifyPopupOfState();
+}
+
+function notifyContentScriptsOfHeadlessState(): void {
+  const message: HeadlessStateMessage = {
+    type: 'HEADLESS_STATE_CHANGED',
+    enabled: isHeadlessEnabled(),
+  };
+  chrome.tabs.query({}).then((tabs) => {
+    for (const tab of tabs) {
+      if (tab.id !== undefined) {
+        chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+      }
+    }
+  });
+}
+
+function handleHeadlessSubtitleLoad(content: string, format?: 'srt' | 'vtt' | 'ass'): void {
+  parsedSubtitles = parseSubtitles(content, format);
+  headlessSubtitlesLoaded = parsedSubtitles.length > 0;
+
+  if (lastVideoState && headlessSubtitlesLoaded) {
+    handleHeadlessVideoStateUpdate(lastVideoState);
+  } else {
+    sendHeadlessSubtitleToActiveTab(null);
+  }
+}
+
+function handleHeadlessSubtitleOffsetChange(offset: number): void {
+  headlessSubtitleOffset = offset;
+
+  if (lastVideoState) {
+    handleHeadlessVideoStateUpdate(lastVideoState);
+  } else {
+    sendHeadlessSubtitleToActiveTab(headlessCurrentSubtitleText);
+  }
+}
+
+function handleHeadlessVideoStateUpdate(state: VideoState): void {
+  if (!isHeadlessEnabled()) return;
+
+  if (headlessSubtitlesLoaded && parsedSubtitles.length > 0) {
+    const subtitle = findCurrentSubtitle(parsedSubtitles, state.currentTime, headlessSubtitleOffset);
+    const text = subtitle?.text || null;
+
+    if (text !== headlessCurrentSubtitleText) {
+      headlessCurrentSubtitleText = text;
+      sendHeadlessSubtitleToActiveTab(text);
+    }
+  }
+}
+
+function sendHeadlessSubtitleToActiveTab(text: string | null): void {
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
+    if (tab?.id !== undefined) {
+      const message: HeadlessSubtitleMessage = {
+        type: 'HEADLESS_SUBTITLE_UPDATE',
+        text,
+        offset: headlessSubtitleOffset,
+      };
+      chrome.tabs.sendMessage(tab.id, message).catch(() => {});
+    }
+  });
+}
+
+async function fetchWatchTogether<T>(
+  url: string,
+  accessToken: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${accessToken}`);
+
+  const response = await fetch(url, {
+    ...init,
+    headers,
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as T & { error?: string };
+  if (!response.ok) {
+    throw new Error(payload.error || `Watch-together request failed: ${response.status}`);
+  }
+  return payload;
+}
+
+async function createWatchTogetherRoom(
+  accessToken: string,
+  payload: WatchTogetherPlaybackPayloadExt,
+): Promise<WatchTogetherRoomSessionExt> {
+  const response = await fetchWatchTogether<{
+    data: {
+      role: 'owner' | 'viewer';
+      canControl: boolean;
+      room: WatchTogetherRoomStateExt;
+      socket: { url: string; protocol: string };
+    };
+    actions: {
+      refresh: { method: string; url: string };
+      connect_socket: { method: string; url: string };
+      update_state?: { method: string; url: string };
+      close_room?: { method: string; url: string };
+      leave_room?: { method: string; url: string };
+    };
+  }>(`${cloudApiUrl}/api/watch-together/rooms`, accessToken, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  return {
+    role: response.data.role,
+    canControl: response.data.canControl,
+    room: response.data.room,
+    socket: response.data.socket,
+    actions: response.actions,
+  };
+}
+
+async function joinWatchTogetherRoom(
+  roomCode: string,
+  accessToken: string,
+): Promise<WatchTogetherRoomSessionExt> {
+  const response = await fetchWatchTogether<{
+    data: {
+      role: 'owner' | 'viewer';
+      canControl: boolean;
+      room: WatchTogetherRoomStateExt;
+      socket: { url: string; protocol: string };
+    };
+    actions: {
+      refresh: { method: string; url: string };
+      connect_socket: { method: string; url: string };
+      update_state?: { method: string; url: string };
+      close_room?: { method: string; url: string };
+      leave_room?: { method: string; url: string };
+    };
+  }>(`${cloudApiUrl}/api/watch-together/rooms/join`, accessToken, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roomCode: roomCode.replace(/[^A-Za-z0-9]/g, '').toUpperCase() }),
+  });
+
+  return {
+    role: response.data.role,
+    canControl: response.data.canControl,
+    room: response.data.room,
+    socket: response.data.socket,
+    actions: response.actions,
+  };
+}
+
+async function leaveWatchTogetherRoomApi(session: WatchTogetherRoomSessionExt, accessToken: string): Promise<void> {
+  if (!session.actions.leave_room) return;
+  await fetchWatchTogether<Record<string, never>>(session.actions.leave_room.url, accessToken, {
+    method: session.actions.leave_room.method,
+  });
+}
+
+async function closeWatchTogetherRoomApi(session: WatchTogetherRoomSessionExt, accessToken: string): Promise<void> {
+  if (!session.actions.close_room) return;
+  await fetchWatchTogether<Record<string, never>>(session.actions.close_room.url, accessToken, {
+    method: session.actions.close_room.method,
+  });
+}
+
+async function updateWatchTogetherRoomStateApi(
+  session: WatchTogetherRoomSessionExt,
+  accessToken: string,
+  payload: WatchTogetherPlaybackPayloadExt,
+): Promise<void> {
+  if (!session.actions.update_state) return;
+  await fetchWatchTogether<Record<string, never>>(session.actions.update_state.url, accessToken, {
+    method: session.actions.update_state.method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function handleCreateWatchTogetherRoom(accessToken: string): Promise<void> {
+  watchTogetherState.isConnecting = true;
+  watchTogetherState.error = null;
+
+  try {
+    const payload: WatchTogetherPlaybackPayloadExt = {
+      currentTime: lastVideoState?.currentTime ?? 0,
+      paused: !(lastVideoState?.isPlaying ?? false),
+      playbackRate: lastVideoState?.playbackRate ?? 1,
+      mediaUrl: lastVideoState?.src,
+    };
+
+    const session = await createWatchTogetherRoom(accessToken, payload);
+    activateRoom(session, accessToken);
+  } catch (error) {
+    watchTogetherState.isConnecting = false;
+    watchTogetherState.error = error instanceof Error ? error.message : 'Failed to create room';
+    notifyPopupOfState();
+  }
+}
+
+async function handleJoinWatchTogetherRoom(roomCode: string, accessToken: string): Promise<void> {
+  watchTogetherState.isConnecting = true;
+  watchTogetherState.error = null;
+
+  try {
+    const session = await joinWatchTogetherRoom(roomCode, accessToken);
+    activateRoom(session, accessToken);
+  } catch (error) {
+    watchTogetherState.isConnecting = false;
+    watchTogetherState.error = error instanceof Error ? error.message : 'Failed to join room';
+    notifyPopupOfState();
+  }
+}
+
+async function handleLeaveWatchTogetherRoom(): Promise<void> {
+  if (!currentRoomSession) {
+    cleanupRoomConnection();
+    return;
+  }
+
+  try {
+    if (currentRoomSession.role === 'owner') {
+      await closeWatchTogetherRoomApi(currentRoomSession, roomAccessToken);
+    } else {
+      await leaveWatchTogetherRoomApi(currentRoomSession, roomAccessToken);
+    }
+  } catch {
+    // Ignore errors on leave
+  }
+
+  cleanupRoomConnection();
+}
+
+function activateRoom(session: WatchTogetherRoomSessionExt, accessToken: string): void {
+  currentRoomSession = session;
+  roomAccessToken = accessToken;
+
+  watchTogetherState = {
+    isInRoom: true,
+    roomCode: session.room.roomCode,
+    role: session.role,
+    peerCount: session.room.peerCount,
+    isConnecting: false,
+    error: null,
+  };
+
+  notifyPopupOfState();
+
+  try {
+    const socket = new WebSocket(session.socket.url, [session.socket.protocol, accessToken]);
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
+
+    socket.addEventListener('open', () => {
+      pingInterval = setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send('ping');
+        }
+      }, 30000);
+
+      unsubscribeRealtimeRef = () => {
+        if (pingInterval !== null) {
+          clearInterval(pingInterval);
+          pingInterval = null;
+        }
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+          socket.close();
+        }
+      };
+    });
+
+    socket.addEventListener('message', (event) => {
+      try {
+        const payload = JSON.parse(String(event.data)) as
+          | { type: 'room-state'; room: WatchTogetherRoomStateExt }
+          | { type: 'peer-joined'; room: WatchTogetherRoomStateExt; peerId: string }
+          | { type: 'peer-left'; room: WatchTogetherRoomStateExt; peerId: string };
+
+        if (payload.type === 'room-state') {
+          const room = payload.room;
+          watchTogetherState.peerCount = room.peerCount;
+          currentRoomSession = { ...currentRoomSession!, room };
+
+          if (session.role === 'viewer' && lastVideoState) {
+            if (Math.abs(room.currentTime - lastVideoState.currentTime) > 2) {
+              forwardHeadlessCommand({
+                type: 'HEADLESS_COMMAND',
+                command: 'seek',
+                time: room.currentTime,
+              });
+            }
+            if (room.paused && lastVideoState.isPlaying) {
+              forwardHeadlessCommand({ type: 'HEADLESS_COMMAND', command: 'pause' });
+            } else if (!room.paused && !lastVideoState.isPlaying) {
+              forwardHeadlessCommand({ type: 'HEADLESS_COMMAND', command: 'play' });
+            }
+            if (room.playbackRate !== lastVideoState.playbackRate) {
+              forwardHeadlessCommand({
+                type: 'HEADLESS_COMMAND',
+                command: 'setRate',
+                rate: room.playbackRate,
+              });
+            }
+          }
+
+          notifyPopupOfState();
+        } else if (payload.type === 'peer-joined' || payload.type === 'peer-left') {
+          watchTogetherState.peerCount = payload.room.peerCount;
+          currentRoomSession = { ...currentRoomSession!, room: payload.room };
+          notifyPopupOfState();
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    });
+
+    socket.addEventListener('error', () => {
+      watchTogetherState.error = 'WebSocket error';
+      notifyPopupOfState();
+    });
+
+    socket.addEventListener('close', (event) => {
+      if (pingInterval !== null) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+      }
+      if (!event.wasClean) {
+        watchTogetherState.error = 'Connection closed unexpectedly';
+        notifyPopupOfState();
+      }
+    });
+  } catch {
+    watchTogetherState.error = 'Failed to connect to room';
+    notifyPopupOfState();
+  }
+
+  if (session.role === 'owner' && session.actions.update_state) {
+    ownerSyncInterval = setInterval(() => {
+      if (!lastVideoState || !currentRoomSession) return;
+
+      updateWatchTogetherRoomStateApi(currentRoomSession, roomAccessToken, {
+        currentTime: lastVideoState.currentTime,
+        paused: !lastVideoState.isPlaying,
+        playbackRate: lastVideoState.playbackRate ?? 1,
+        mediaUrl: lastVideoState.src,
+      });
+    }, 1000);
+  }
+}
+
+function cleanupRoomConnection(): void {
+  if (unsubscribeRealtimeRef) {
+    unsubscribeRealtimeRef();
+    unsubscribeRealtimeRef = null;
+  }
+
+  if (ownerSyncInterval) {
+    clearInterval(ownerSyncInterval);
+    ownerSyncInterval = null;
+  }
+
+  watchTogetherState = {
+    isInRoom: false,
+    roomCode: null,
+    role: null,
+    peerCount: 0,
+    isConnecting: false,
+    error: null,
+  };
+
+  currentRoomSession = null;
+  roomAccessToken = '';
+
+  notifyPopupOfState();
+}
+
+function forwardHeadlessCommand(command: HeadlessCommandMessage): void {
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
+    if (tab?.id !== undefined) {
+      chrome.tabs.sendMessage(tab.id, command).catch(() => {});
+    }
+  });
 }
 
 function isVideoStateMessage(message: unknown): message is VideoStateMessage {
@@ -116,6 +609,16 @@ function isSyncMessage(message: unknown): message is { type: 'SYNC_STATE' | 'GET
 function setupMessageListener(): void {
   chrome.runtime.onMessage.addListener(
     (message: unknown, _sender: chrome.runtime.MessageSender, sendResponse: (response?: unknown) => void) => {
+      // Allow cloud API URL override from any popup message
+      if (
+        typeof message === 'object' &&
+        message !== null &&
+        'cloudApiUrl' in message &&
+        typeof (message as Record<string, unknown>).cloudApiUrl === 'string'
+      ) {
+        cloudApiUrl = (message as Record<string, unknown>).cloudApiUrl as string;
+      }
+
       // Video state from content script
       if (isVideoStateMessage(message)) {
         const meta = message.meta;
@@ -126,6 +629,11 @@ function setupMessageListener(): void {
 
       // Geometry update from content script
       if (isGeometryUpdateMessage(message)) {
+        if (isHeadlessEnabled()) {
+          sendResponse({ received: true });
+          return true;
+        }
+
         const viewportGeometry = message.geometry;
         const windowId = _sender.tab?.windowId;
 
@@ -228,6 +736,108 @@ function setupMessageListener(): void {
           sendResponse(buildPopupStateResponse());
           return true;
         }
+
+        if (message.type === 'TOGGLE_HEADLESS_MODE') {
+          handleHeadlessModeToggle().then(() => {
+            sendResponse({
+              type: 'HEADLESS_STATE_UPDATE',
+              headlessState: buildHeadlessPopupState(),
+              watchTogetherState: buildWatchTogetherPopupState(),
+            });
+          });
+          return true;
+        }
+
+        if (message.type === 'GET_HEADLESS_STATE') {
+          sendResponse({
+            type: 'HEADLESS_STATE_UPDATE',
+            headlessState: buildHeadlessPopupState(),
+            watchTogetherState: buildWatchTogetherPopupState(),
+          });
+          return true;
+        }
+
+        if (message.type === 'LOAD_SUBTITLES') {
+          if (message.subtitleContent) {
+            handleHeadlessSubtitleLoad(message.subtitleContent, message.subtitleFormat);
+          }
+          sendResponse({
+            type: 'HEADLESS_STATE_UPDATE',
+            headlessState: buildHeadlessPopupState(),
+            watchTogetherState: buildWatchTogetherPopupState(),
+          });
+          return true;
+        }
+
+        if (message.type === 'SET_SUBTITLE_OFFSET') {
+          if (typeof message.offset === 'number') {
+            handleHeadlessSubtitleOffsetChange(message.offset);
+          }
+          sendResponse({
+            type: 'HEADLESS_STATE_UPDATE',
+            headlessState: buildHeadlessPopupState(),
+            watchTogetherState: buildWatchTogetherPopupState(),
+          });
+          return true;
+        }
+
+        if (message.type === 'WATCH_TOGETHER_CREATE_ROOM') {
+          if (message.accessToken) {
+            handleCreateWatchTogetherRoom(message.accessToken).then(() => {
+              sendResponse({
+                type: 'HEADLESS_STATE_UPDATE',
+                headlessState: buildHeadlessPopupState(),
+                watchTogetherState: buildWatchTogetherPopupState(),
+              });
+            });
+          } else {
+            sendResponse({
+              type: 'HEADLESS_STATE_UPDATE',
+              headlessState: buildHeadlessPopupState(),
+              watchTogetherState: buildWatchTogetherPopupState(),
+            });
+          }
+          return true;
+        }
+
+        if (message.type === 'WATCH_TOGETHER_JOIN_ROOM') {
+          if (message.roomCode && message.accessToken) {
+            handleJoinWatchTogetherRoom(message.roomCode, message.accessToken).then(() => {
+              sendResponse({
+                type: 'HEADLESS_STATE_UPDATE',
+                headlessState: buildHeadlessPopupState(),
+                watchTogetherState: buildWatchTogetherPopupState(),
+              });
+            });
+          } else {
+            sendResponse({
+              type: 'HEADLESS_STATE_UPDATE',
+              headlessState: buildHeadlessPopupState(),
+              watchTogetherState: buildWatchTogetherPopupState(),
+            });
+          }
+          return true;
+        }
+
+        if (message.type === 'WATCH_TOGETHER_LEAVE_ROOM') {
+          handleLeaveWatchTogetherRoom().then(() => {
+            sendResponse({
+              type: 'HEADLESS_STATE_UPDATE',
+              headlessState: buildHeadlessPopupState(),
+              watchTogetherState: buildWatchTogetherPopupState(),
+            });
+          });
+          return true;
+        }
+
+        if (message.type === 'WATCH_TOGETHER_GET_STATE') {
+          sendResponse({
+            type: 'HEADLESS_STATE_UPDATE',
+            headlessState: buildHeadlessPopupState(),
+            watchTogetherState: buildWatchTogetherPopupState(),
+          });
+          return true;
+        }
       }
 
       return false;
@@ -247,11 +857,19 @@ function handleVideoState(state: VideoState, meta?: { url: string; title: string
   }
 
   syncDebounceTimer = setTimeout(() => {
-    forwardVideoState(state, meta);
+    if (isHeadlessEnabled()) {
+      handleHeadlessVideoStateUpdate(state);
+    } else {
+      forwardVideoState(state, meta);
+    }
   }, SYNC_DEBOUNCE_MS);
 }
 
 function handleGeometryUpdate(geometry: { x: number; y: number; width: number; height: number; isFullscreen: boolean }): void {
+  if (isHeadlessEnabled()) {
+    return;
+  }
+
   pendingGeometry = geometry;
 
   if (geometryDebounceTimer) {
@@ -333,6 +951,10 @@ async function forwardVideoState(state: VideoState, meta?: { url: string; title:
 }
 
 async function forwardSubtitleTracks(message: SubtitleTracksMessage): Promise<void> {
+  if (isHeadlessEnabled()) {
+    return;
+  }
+
   if (status === 'disconnected') {
     return;
   }
@@ -476,6 +1098,8 @@ export function cleanupServiceWorker(): void {
     geometryDebounceTimer = null;
   }
 
+  cleanupRoomConnection();
+
   chrome.alarms.clearAll();
 }
 
@@ -494,3 +1118,4 @@ export function getLastVideoState(): VideoState | null {
 }
 
 initServiceWorker();
+initHeadlessMode();

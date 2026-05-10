@@ -2072,6 +2072,23 @@
         "PeerJoinedSingular": "Un participant a rejoint votre salle",
         "PeerJoinedPlural": "{count} participants ont rejoint votre salle"
       },
+      "Extension": {
+        "HeadlessMode": "Mode sans tête",
+        "Enable": "Activer",
+        "Disable": "Désactiver",
+        "Subtitles": "Sous-titres",
+        "LoadSubtitleFile": "Charger un fichier de sous-titres",
+        "SyncOffset": "Décalage de synchronisation",
+        "SignInRequired": "Connectez-vous pour utiliser Watch Together",
+        "SignIn": "Se connecter",
+        "Host": "Héberger",
+        "Join": "Rejoindre",
+        "CreateRoom": "Créer une salle",
+        "RoomCodePlaceholder": "Entrez le code de la salle",
+        "RoomCode": "Code de la salle",
+        "Peers": "Participants",
+        "LeaveRoom": "Quitter la salle"
+      },
       "Media": {
         "DistributeTitle": "Distribuer le média",
         "DistributeSubtitle": "Envoyer le fichier média aux pairs connectés via WebRTC",

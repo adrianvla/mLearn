@@ -33,6 +33,7 @@ export default defineConfig({
              'src/electron/**/*.test.ts',
              'src/shared/plugins/**/*.test.ts',
              'src/shared/utils/**/*.test.ts',
+             'extension/src/**/*.test.ts',
              'test/**/*.test.ts',
            ],
         },

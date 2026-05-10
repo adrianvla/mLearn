@@ -2072,6 +2072,23 @@
         "PeerJoinedSingular": "参加者がルームに参加しました",
         "PeerJoinedPlural": "{count}人の参加者がルームに参加しました"
       },
+      "Extension": {
+        "HeadlessMode": "ヘッドレスモード",
+        "Enable": "有効にする",
+        "Disable": "無効にする",
+        "Subtitles": "字幕",
+        "LoadSubtitleFile": "字幕ファイルを読み込む",
+        "SyncOffset": "同期オフセット",
+        "SignInRequired": "Watch Togetherを使用するにはサインインしてください",
+        "SignIn": "サインイン",
+        "Host": "ホスト",
+        "Join": "参加",
+        "CreateRoom": "ルームを作成",
+        "RoomCodePlaceholder": "ルームコードを入力",
+        "RoomCode": "ルームコード",
+        "Peers": "参加者",
+        "LeaveRoom": "ルームを退出"
+      },
       "Media": {
         "DistributeTitle": "メディアを配信",
         "DistributeSubtitle": "WebRTCを使用して接続中のピアにメディアファイルを送信",

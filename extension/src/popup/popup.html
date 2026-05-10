@@ -31,7 +31,7 @@
       </div>
     </section>
 
-    <section class="actions">
+    <section class="actions" id="actionsSection">
       <div class="playback-controls">
         <button class="btn btn-secondary" id="seekBackBtn" type="button">-5s</button>
         <button class="btn btn-primary" id="playPauseBtn" type="button" disabled>Play</button>
@@ -39,6 +39,64 @@
       </div>
       <button class="btn btn-primary" id="requestSyncBtn" type="button">Request Sync</button>
       <button class="btn btn-secondary" id="openOverlayBtn" type="button">Open Overlay</button>
+    </section>
+
+    <section class="headless-section hidden" id="headlessSection">
+      <div class="headless-header">
+        <span class="headless-label">Headless Mode</span>
+        <button class="btn btn-toggle" id="headlessToggleBtn" type="button">Enable</button>
+      </div>
+    </section>
+
+    <section class="headless-controls hidden" id="headlessControls">
+      <div class="headless-divider"></div>
+
+      <div class="subtitle-controls">
+        <h4>Subtitles</h4>
+        <button class="btn btn-secondary" id="loadSubtitlesBtn" type="button">Load Subtitle File</button>
+        <div class="offset-control">
+          <span class="offset-label">Sync Offset</span>
+          <div class="offset-buttons">
+            <button class="btn btn-small" id="offsetDecreaseBtn" type="button">-100ms</button>
+            <span class="offset-value" id="offsetValue">0ms</span>
+            <button class="btn btn-small" id="offsetIncreaseBtn" type="button">+100ms</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="watch-together-controls">
+        <h4>Watch Together</h4>
+        <div class="watch-together-signed-out hidden" id="watchTogetherSignedOut">
+          <p class="hint-text">Sign in to use Watch Together</p>
+          <button class="btn btn-primary" id="signInBtn" type="button">Sign In</button>
+        </div>
+        <div class="watch-together-panel" id="watchTogetherPanel">
+          <div class="watch-together-tabs" id="watchTogetherTabs">
+            <button class="tab-btn active" data-tab="host" type="button">Host</button>
+            <button class="tab-btn" data-tab="join" type="button">Join</button>
+          </div>
+          <div class="tab-content active" data-tab-content="host">
+            <button class="btn btn-primary" id="createRoomBtn" type="button">Create Room</button>
+          </div>
+          <div class="tab-content" data-tab-content="join">
+            <div class="join-input-group">
+              <input type="text" id="joinRoomCode" placeholder="Enter room code" maxlength="8">
+              <button class="btn btn-primary" id="joinRoomBtn" type="button">Join</button>
+            </div>
+          </div>
+          <div class="room-active hidden" id="roomActive">
+            <div class="room-info">
+              <span class="room-label">Room Code</span>
+              <span class="room-code" id="roomCodeValue">-</span>
+            </div>
+            <div class="room-info">
+              <span class="room-label">Peers</span>
+              <span class="room-peers" id="roomPeersValue">0</span>
+            </div>
+            <button class="btn btn-danger" id="leaveRoomBtn" type="button">Leave Room</button>
+          </div>
+        </div>
+      </div>
     </section>
   </div>
   <script src="popup.js" type="module"></script>

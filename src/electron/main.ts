@@ -224,8 +224,38 @@ function setupBaseIPC(): void {
 
   ipcMain.handle(IPC_CHANNELS.OPEN_EXTENSION_FOLDER, async () => {
     const extensionDir = path.resolve(__dirname, '..', '..', '..', 'extension', 'dist');
-    const result = await shell.openPath(extensionDir);
-    return result === '';
+    log.info(`Opening extension folder: ${extensionDir}`);
+
+    try {
+      const fs = await import('fs');
+      const stats = await fs.promises.stat(extensionDir);
+      if (!stats.isDirectory()) {
+        log.error(`Extension path is not a directory: ${extensionDir}`);
+        return false;
+      }
+    } catch (e) {
+      log.error(`Extension folder does not exist: ${extensionDir}`, e);
+      return false;
+    }
+
+    try {
+      const result = await shell.openPath(extensionDir);
+      if (result !== '') {
+        log.warn(`shell.openPath returned error: ${result}`);
+        const platform = process.platform;
+        if (platform === 'darwin') {
+          await promisify(exec)(`open "${extensionDir}"`);
+        } else if (platform === 'win32') {
+          await promisify(exec)(`explorer "${extensionDir}"`);
+        } else {
+          await promisify(exec)(`xdg-open "${extensionDir}"`);
+        }
+      }
+      return true;
+    } catch (e) {
+      log.error('Failed to open extension folder:', e);
+      return false;
+    }
   });
 }
 

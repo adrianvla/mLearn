@@ -2072,6 +2072,23 @@
         "PeerJoinedSingular": "Участник присоединился к вашей комнате",
         "PeerJoinedPlural": "{count} участников присоединились к вашей комнате"
       },
+      "Extension": {
+        "HeadlessMode": "Безголовый режим",
+        "Enable": "Включить",
+        "Disable": "Отключить",
+        "Subtitles": "Субтитры",
+        "LoadSubtitleFile": "Загрузить файл субтитров",
+        "SyncOffset": "Смещение синхронизации",
+        "SignInRequired": "Войдите, чтобы использовать Watch Together",
+        "SignIn": "Войти",
+        "Host": "Создать",
+        "Join": "Присоединиться",
+        "CreateRoom": "Создать комнату",
+        "RoomCodePlaceholder": "Введите код комнаты",
+        "RoomCode": "Код комнаты",
+        "Peers": "Участники",
+        "LeaveRoom": "Покинуть комнату"
+      },
       "Media": {
         "DistributeTitle": "Раздать медиа",
         "DistributeSubtitle": "Отправить медиафайл подключённым участникам через WebRTC",

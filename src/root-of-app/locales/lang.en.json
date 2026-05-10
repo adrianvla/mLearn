@@ -2072,6 +2072,23 @@
         "PeerJoinedSingular": "A peer joined your room",
         "PeerJoinedPlural": "{count} peers joined your room"
       },
+      "Extension": {
+        "HeadlessMode": "Headless Mode",
+        "Enable": "Enable",
+        "Disable": "Disable",
+        "Subtitles": "Subtitles",
+        "LoadSubtitleFile": "Load Subtitle File",
+        "SyncOffset": "Sync Offset",
+        "SignInRequired": "Sign in to use Watch Together",
+        "SignIn": "Sign In",
+        "Host": "Host",
+        "Join": "Join",
+        "CreateRoom": "Create Room",
+        "RoomCodePlaceholder": "Enter room code",
+        "RoomCode": "Room Code",
+        "Peers": "Peers",
+        "LeaveRoom": "Leave Room"
+      },
       "Media": {
         "DistributeTitle": "Distribute Media",
         "DistributeSubtitle": "Send the media file to connected peers via WebRTC",

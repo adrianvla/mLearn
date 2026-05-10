@@ -16,6 +16,7 @@ import {
   AlertBanner,
   Indicator,
 } from '../common';
+import { showToast } from '../common/Feedback/Toast';
 import { getBridge } from '../../../shared/bridges';
 import type { BrowserInfo, CustomBrowserPath } from '../../../shared/bridges/types';
 import './BrowserExtensionSettings.css';
@@ -234,9 +235,15 @@ export const BrowserExtensionSettings: Component = () => {
 
   const handleOpenExtensionFolder = async () => {
     try {
-      await getBridge().browser.openExtensionFolder();
+      const success = await getBridge().browser.openExtensionFolder();
+      if (success) {
+        showToast({ variant: 'success', message: t('mlearn.BrowserExtension.OpenExtensionFolder') });
+      } else {
+        showToast({ variant: 'error', message: t('mlearn.BrowserExtension.InstallFailed') });
+      }
     } catch (e) {
       log.error('Failed to open extension folder:', e);
+      showToast({ variant: 'error', message: t('mlearn.BrowserExtension.InstallFailed') });
     }
   };
 
@@ -253,6 +260,17 @@ export const BrowserExtensionSettings: Component = () => {
       }}
       padding="lg"
     >
+      <SettingGroup title={t('mlearn.BrowserExtension.Title')}>
+        <SettingRow
+          label={t('mlearn.BrowserExtension.OpenExtensionFolder')}
+          description={t('mlearn.BrowserExtension.ManualInstallHint')}
+        >
+          <Btn size="sm" onClick={handleOpenExtensionFolder}>
+            {t('mlearn.BrowserExtension.OpenExtensionFolder')}
+          </Btn>
+        </SettingRow>
+      </SettingGroup>
+
       <SettingGroup title={t('mlearn.BrowserExtension.DetectedBrowsers')}>
         <Show when={loading()}>
           <div class="browser-extension-loading">
