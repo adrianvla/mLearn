@@ -54,7 +54,14 @@ export {
   VolumeOffIcon,
   StealthIcon,
   AnkiIcon,
+  VolumeLevelIcon,
+  SubtitleIcon,
+  DragIcon,
+  ResizeIcon,
+  AutoPositionIcon,
   type IconProps,
+  type VolumeLevelIconProps,
+  type AutoPositionIconProps,
 } from './Icons';
 export { HoverReveal, type HoverRevealProps } from './HoverReveal';
 export { LegendItem, type LegendItemProps } from './LegendItem';

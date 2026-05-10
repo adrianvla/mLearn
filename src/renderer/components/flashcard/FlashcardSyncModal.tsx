@@ -1,14 +1,14 @@
 import { Component, createSignal, Show, onCleanup, createEffect } from 'solid-js';
 import { Modal, Btn, ProgressBar, Spinner, CheckIcon, CrossIcon } from '../../components/common';
-import { useFlashcards, useLocalization } from '../../context';
+import { useFlashcards, useLocalization, useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import {
   mergeFlashcards,
   ChunkCollector,
   createSyncRoom,
   SyncSocketClient,
-  prepareChunkList,
   splitTextIntoChunks,
+  stripMediaUrls,
   type FlashcardStore,
   type SyncSocketMessage,
 } from '../../services/flashcardSyncService';
@@ -52,6 +52,7 @@ type SyncRole = 'sender' | 'receiver' | null;
 export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) => {
   const { store } = useFlashcards();
   const { t } = useLocalization();
+  const { settings } = useSettings();
   
   const [phase, setPhase] = createSignal<SyncPhase>('init');
   const [statusText, setStatusText] = createSignal('');
@@ -124,14 +125,29 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     totalChunksExpected = 0;
   };
 
+  const getAccessToken = (): string | null => {
+    const token = settings.cloudAuthAccessToken?.trim();
+    if (!token) {
+      return null;
+    }
+    return token;
+  };
+
   const startAsSender = async () => {
     try {
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        setError(t('mlearn.Flashcards.Sync.Error.AuthRequired'));
+        setPhase('error');
+        return;
+      }
+
       cleanup();
       setRole('sender');
       setPhase('showing-qr');
       setStatusText(t('mlearn.Flashcards.Sync.GeneratingCode'));
       
-      const response = await createSyncRoom();
+      const response = await createSyncRoom(accessToken);
       const room = response.data;
       
       log.info('Created sync room:', room.roomId);
@@ -139,29 +155,36 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       displayRoomQR(room.roomId);
       setStatusText(t('mlearn.Flashcards.Sync.ScanInstructions', { numChunks: 1 }));
       
-      socketClient = new SyncSocketClient(room.roomId, 'sender');
+      socketClient = new SyncSocketClient(room.roomId, 'sender', accessToken);
       setupSocketHandlers();
       await socketClient.connect();
     } catch (e) {
-      log.error('Failed to create sync room:', e);
-      setError(t('mlearn.Flashcards.Sync.Error.Connection'));
+      log.error('Sync connection failed:', e);
+      setError(e instanceof Error ? e.message : t('mlearn.Flashcards.Sync.Error.Connection'));
       setPhase('error');
     }
   };
 
   const startAsReceiver = async (scannedRoomId: string) => {
     try {
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        setError(t('mlearn.Flashcards.Sync.Error.AuthRequired'));
+        setPhase('error');
+        return;
+      }
+
       cleanup();
       setRole('receiver');
       setPhase('connecting');
       setStatusText(t('mlearn.Flashcards.Sync.EstablishingConnection'));
       
-      socketClient = new SyncSocketClient(scannedRoomId, 'receiver');
+      socketClient = new SyncSocketClient(scannedRoomId, 'receiver', accessToken);
       setupSocketHandlers();
       await socketClient.connect();
     } catch (e) {
       log.error('Failed to connect as receiver:', e);
-      setError(t('mlearn.Flashcards.Sync.Error.Connection'));
+      setError(e instanceof Error ? e.message : t('mlearn.Flashcards.Sync.Error.Connection'));
       setPhase('error');
     }
   };
@@ -269,15 +292,14 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
   const sendOffer = async () => {
     if (!socketClient) return;
     
-    const storeData = JSON.stringify(store);
+    const strippedStore = stripMediaUrls(store);
+    const storeData = JSON.stringify(strippedStore);
     chunksToSend = splitTextIntoChunks(storeData);
-    const chunkList = await prepareChunkList(storeData);
     
     socketClient.send({
       type: 'offer',
       totalChunks: chunksToSend.length,
       totalSize: storeData.length,
-      chunkList,
     });
   };
 

@@ -750,6 +750,7 @@
         "Complete": "同期完了！",
         "ConnectedSyncing": "接続完了！同期中...",
         "Error": {
+          "AuthRequired": "フラッシュカードを同期するにはサインインしてください",
           "CameraAccess": "カメラへのアクセスが拒否されました",
           "Connection": "接続の開始に失敗しました",
           "LoadLibraries": "必要なライブラリの読み込みに失敗しました: {error}"

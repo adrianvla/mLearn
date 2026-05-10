@@ -750,9 +750,10 @@
         "Complete": "Synchronisierung abgeschlossen!",
         "ConnectedSyncing": "Verbunden! Synchronisiere...",
         "Error": {
+          "AuthRequired": "Bitte melden Sie sich an, um Karten zu synchronisieren",
           "CameraAccess": "Kamerazugriff verweigert",
           "Connection": "Verbindung konnte nicht hergestellt werden",
-          "LoadLibraries": "Erforderliche Bibliotheken konnten nicht geladen werden: {error}"
+          "LoadLibraries": "Fehler beim Laden benötigter Bibliotheken: {error}"
         },
         "EstablishingConnection": "Verbindung wird aufgebaut...",
         "GeneratingCode": "Verbindungscode wird generiert...",

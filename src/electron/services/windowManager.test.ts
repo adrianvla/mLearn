@@ -138,6 +138,9 @@ vi.mock('electron', () => ({
   dialog: {
     showMessageBox: vi.fn(() => Promise.resolve({ response: 1 })),
   },
+  screen: {
+    getPrimaryDisplay: vi.fn(() => ({ workAreaSize: { width: 1920, height: 1080 } })),
+  },
   shell: {
     openExternal: vi.fn(),
   },

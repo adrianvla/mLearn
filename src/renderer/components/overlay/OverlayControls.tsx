@@ -1,71 +1,8 @@
 import { Component, createSignal, createMemo, Show, onMount, onCleanup } from 'solid-js';
 import { useLocalization } from '../../context';
-import { IconBtn, RangeInput, Select, ProgressBar, Panel } from '../common';
+import { IconBtn, RangeInput, Select, ProgressBar, Panel, VolumeLevelIcon, SubtitleIcon, DragIcon, ResizeIcon, AutoPositionIcon } from '../common';
 import type { SelectOption } from '../common/Select/Select';
 import './OverlayControls.css';
-
-// ============ Icon Components ============
-
-interface VolumeIconProps {
-  level: 'high' | 'low' | 'muted';
-}
-
-const VolumeIcon: Component<VolumeIconProps> = (props) => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <path d="M11 5L6 9H2v6h4l5 4V5z" />
-    <Show when={props.level === 'high'}>
-      <path d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" />
-    </Show>
-    <Show when={props.level === 'low'}>
-      <path d="M15.54 8.46a5 5 0 010 7.07" />
-    </Show>
-    <Show when={props.level === 'muted'}>
-      <line x1="23" y1="9" x2="17" y2="15" />
-      <line x1="17" y1="9" x2="23" y2="15" />
-    </Show>
-  </svg>
-);
-
-const SubtitleIcon: Component = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
-    <line x1="6" y1="14" x2="18" y2="14" />
-    <line x1="6" y1="18" x2="14" y2="18" />
-  </svg>
-);
-
-const DragIcon: Component = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <circle cx="9" cy="5" r="1" />
-    <circle cx="15" cy="5" r="1" />
-    <circle cx="9" cy="12" r="1" />
-    <circle cx="15" cy="12" r="1" />
-    <circle cx="9" cy="19" r="1" />
-    <circle cx="15" cy="19" r="1" />
-  </svg>
-);
-
-const ResizeIcon: Component = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <polyline points="15 3 21 3 21 9" />
-    <polyline points="9 21 3 21 3 15" />
-    <line x1="21" y1="3" x2="14" y2="10" />
-    <line x1="3" y1="21" x2="10" y2="14" />
-  </svg>
-);
-
-const AutoPositionIcon: Component<{ enabled: boolean }> = (props) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-    <Show when={props.enabled} fallback={<>
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-      <line x1="9" y1="3" x2="9" y2="21" />
-    </>}>
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-      <line x1="9" y1="3" x2="9" y2="21" />
-      <path d="M15 8l3 3-3 3" />
-    </Show>
-  </svg>
-);
 
 // Speed options for playback rate menu
 const SPEED_OPTIONS: SelectOption[] = [
@@ -149,23 +86,26 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
     return (props.currentTime / props.duration) * 100;
   });
 
-  const handleMouseDown = () => {
+  let progressBarTrackEl: HTMLDivElement | null = null;
+
+  const handleMouseDown = (e: MouseEvent) => {
+    if (isDragging()) return;
     setIsDragging(true);
+    progressBarTrackEl = e.currentTarget as HTMLDivElement;
     window.addEventListener('mousemove', handleWindowMouseMove);
     window.addEventListener('mouseup', handleWindowMouseUp);
   };
 
   const handleWindowMouseMove = (e: MouseEvent) => {
-    if (!isDragging()) return;
-    const progressBarEl = document.querySelector('.overlay-progress-bar') as HTMLDivElement;
-    if (!progressBarEl) return;
-    const barRect = progressBarEl.getBoundingClientRect();
+    if (!isDragging() || !progressBarTrackEl) return;
+    const barRect = progressBarTrackEl.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (e.clientX - barRect.left) / barRect.width));
     props.onSeek(percent * props.duration);
   };
 
   const handleWindowMouseUp = () => {
     setIsDragging(false);
+    progressBarTrackEl = null;
     window.removeEventListener('mousemove', handleWindowMouseMove);
     window.removeEventListener('mouseup', handleWindowMouseUp);
   };
@@ -185,75 +125,112 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
 
   const offsetMs = () => Math.round(props.subtitleOffset * 1000);
 
-  let dragStartX = 0;
-  let dragStartY = 0;
-  let isWindowDragging = false;
+  const [isWindowDragging, setIsWindowDragging] = createSignal(false);
+  const [isWindowResizing, setIsWindowResizing] = createSignal(false);
+  let pendingMoveDeltaX = 0;
+  let pendingMoveDeltaY = 0;
+  let pendingResizeDeltaW = 0;
+  let pendingResizeDeltaH = 0;
+  let moveRafId: number | null = null;
+  let resizeRafId: number | null = null;
+
+  const flushMoveDelta = () => {
+    if (pendingMoveDeltaX !== 0 || pendingMoveDeltaY !== 0) {
+      props.onDragMove?.(pendingMoveDeltaX, pendingMoveDeltaY);
+      pendingMoveDeltaX = 0;
+      pendingMoveDeltaY = 0;
+    }
+    moveRafId = null;
+  };
+
+  const flushResizeDelta = () => {
+    if (pendingResizeDeltaW !== 0 || pendingResizeDeltaH !== 0) {
+      props.onResizeMove?.(pendingResizeDeltaW, pendingResizeDeltaH);
+      pendingResizeDeltaW = 0;
+      pendingResizeDeltaH = 0;
+    }
+    resizeRafId = null;
+  };
 
   const handleDragMouseDown = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    isWindowDragging = true;
-    dragStartX = e.clientX;
-    dragStartY = e.clientY;
+    setIsWindowDragging(true);
     props.onDragStart?.();
     window.addEventListener('mousemove', handleDragMouseMove);
     window.addEventListener('mouseup', handleDragMouseUp);
   };
 
   const handleDragMouseMove = (e: MouseEvent) => {
-    if (!isWindowDragging) return;
-    const deltaX = e.clientX - dragStartX;
-    const deltaY = e.clientY - dragStartY;
-    dragStartX = e.clientX;
-    dragStartY = e.clientY;
-    props.onDragMove?.(deltaX, deltaY);
+    if (!isWindowDragging()) return;
+    pendingMoveDeltaX += e.movementX;
+    pendingMoveDeltaY += e.movementY;
+    if (moveRafId === null) {
+      moveRafId = requestAnimationFrame(flushMoveDelta);
+    }
   };
 
   const handleDragMouseUp = () => {
-    if (!isWindowDragging) return;
-    isWindowDragging = false;
+    if (!isWindowDragging()) return;
+    setIsWindowDragging(false);
+    if (moveRafId !== null) {
+      cancelAnimationFrame(moveRafId);
+      moveRafId = null;
+    }
+    flushMoveDelta();
     props.onDragEnd?.();
     window.removeEventListener('mousemove', handleDragMouseMove);
     window.removeEventListener('mouseup', handleDragMouseUp);
   };
 
-  let resizeStartX = 0;
-  let resizeStartY = 0;
-  let isWindowResizing = false;
-
   const handleResizeMouseDown = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    isWindowResizing = true;
-    resizeStartX = e.clientX;
-    resizeStartY = e.clientY;
+    setIsWindowResizing(true);
     props.onResizeStart?.();
     window.addEventListener('mousemove', handleResizeMouseMove);
     window.addEventListener('mouseup', handleResizeMouseUp);
   };
 
   const handleResizeMouseMove = (e: MouseEvent) => {
-    if (!isWindowResizing) return;
-    const deltaX = e.clientX - resizeStartX;
-    const deltaY = e.clientY - resizeStartY;
-    resizeStartX = e.clientX;
-    resizeStartY = e.clientY;
-    props.onResizeMove?.(deltaX, deltaY);
+    if (!isWindowResizing()) return;
+    pendingResizeDeltaW += e.movementX;
+    pendingResizeDeltaH += e.movementY;
+    if (resizeRafId === null) {
+      resizeRafId = requestAnimationFrame(flushResizeDelta);
+    }
   };
 
   const handleResizeMouseUp = () => {
-    if (!isWindowResizing) return;
-    isWindowResizing = false;
+    if (!isWindowResizing()) return;
+    setIsWindowResizing(false);
+    if (resizeRafId !== null) {
+      cancelAnimationFrame(resizeRafId);
+      resizeRafId = null;
+    }
+    flushResizeDelta();
     props.onResizeEnd?.();
     window.removeEventListener('mousemove', handleResizeMouseMove);
     window.removeEventListener('mouseup', handleResizeMouseUp);
   };
 
   onCleanup(() => {
+    window.removeEventListener('mousemove', handleWindowMouseMove);
+    window.removeEventListener('mouseup', handleWindowMouseUp);
     window.removeEventListener('mousemove', handleDragMouseMove);
     window.removeEventListener('mouseup', handleDragMouseUp);
     window.removeEventListener('mousemove', handleResizeMouseMove);
     window.removeEventListener('mouseup', handleResizeMouseUp);
+    if (moveRafId !== null) {
+      cancelAnimationFrame(moveRafId);
+      moveRafId = null;
+    }
+    if (resizeRafId !== null) {
+      cancelAnimationFrame(resizeRafId);
+      resizeRafId = null;
+    }
+    flushMoveDelta();
+    flushResizeDelta();
   });
 
   return (
@@ -311,7 +288,7 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                     onClick={() => props.onToggleMute?.()}
                     aria-label={props.isMuted ? t('mlearn.Video.Controls.Unmute') : t('mlearn.Video.Controls.Mute')}
                   >
-                    <VolumeIcon level={volumeIconLevel()} />
+                    <VolumeLevelIcon level={volumeIconLevel()} />
                   </IconBtn>
                   <RangeInput
                     min={0}
@@ -438,17 +415,6 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                   <ResizeIcon />
                 </div>
               </Show>
-
-              {/* Load subtitles */}
-              <IconBtn
-                variant="ghost"
-                size="sm"
-                onClick={props.onLoadSubtitles}
-                aria-label={t('mlearn.Overlay.LoadSubtitles')}
-                title={t('mlearn.Overlay.LoadSubtitles')}
-              >
-                <SubtitleIcon />
-              </IconBtn>
 
               {/* Close */}
               <IconBtn

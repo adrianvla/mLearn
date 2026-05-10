@@ -47,6 +47,7 @@ export const App: Component = () => {
   const [dragOver, setDragOver] = createSignal(false);
   const [mouseInteractive, setMouseInteractive] = createSignal(false);
   const [autoPositionEnabled, setAutoPositionEnabled] = createSignal(true);
+  const [isManipulating, setIsManipulating] = createSignal(false);
 
   const hasSubtitles = createMemo(() => subtitles.subtitles().length > 0);
   const currentTime = createMemo(() => videoState()?.currentTime ?? 0);
@@ -65,66 +66,59 @@ export const App: Component = () => {
   });
 
   onMount(() => {
-    const cleanup = bridge.overlay.onOverlayVideoState((state: OverlayVideoState) => {
-      setVideoState(state);
-      setLastSyncAt(Date.now());
-      setIsConnected(true);
-      subtitles.updateTime(state.currentTime);
-    });
+    const cleanups: Array<() => void> = [];
 
+    cleanups.push(
+      bridge.overlay.onOverlayVideoState((state: OverlayVideoState) => {
+        setVideoState(state);
+        setLastSyncAt(Date.now());
+        setIsConnected(true);
+        subtitles.updateTime(state.currentTime);
+      })
+    );
     bridge.overlay.requestOverlaySync();
 
-    onCleanup(() => {
-      cleanup();
-    });
+    cleanups.push(
+      bridge.overlay.onOverlayGeometry((_geometry: OverlayGeometry) => {
+        triggerBorderFlash();
+      })
+    );
+
+    cleanups.push(
+      bridge.overlay.onOverlaySubtitleTracks((tracks: OverlaySubtitleTracks) => {
+        if (subtitles.subtitles().length === 0 && tracks.textTracks.length > 0) {
+          subtitles.loadSubtitles(tracks.textTracks[0].text);
+        }
+      })
+    );
+
+    cleanups.push(
+      bridge.overlay.onOverlayAutoPositionChanged((enabled: boolean) => {
+        setAutoPositionEnabled(enabled);
+      })
+    );
+
+    onCleanup(() => { for (const fn of cleanups) fn(); });
   });
 
   onMount(() => {
-    const cleanupGeometry = bridge.overlay.onOverlayGeometry((_geometry: OverlayGeometry) => {
-      triggerBorderFlash();
-    });
+    const cleanups: Array<() => void> = [];
 
-    onCleanup(() => {
-      cleanupGeometry();
-    });
-  });
-
-  onMount(() => {
-    const cleanupTracks = bridge.overlay.onOverlaySubtitleTracks((tracks: OverlaySubtitleTracks) => {
-      if (subtitles.subtitles().length === 0 && tracks.textTracks.length > 0) {
-        subtitles.loadSubtitles(tracks.textTracks[0].text);
-      }
-    });
-
-    onCleanup(() => {
-      cleanupTracks();
-    });
-  });
-
-  onMount(() => {
     const interval = setInterval(() => {
       if (Date.now() - lastSyncAt() > DISCONNECT_TIMEOUT_MS) {
         setIsConnected(false);
       }
     }, 1000);
+    cleanups.push(() => clearInterval(interval));
 
-    onCleanup(() => clearInterval(interval));
-  });
-
-  onMount(() => {
-    const cleanup = bridge.overlay.onOverlayAutoPositionChanged((enabled: boolean) => {
-      setAutoPositionEnabled(enabled);
-    });
-    onCleanup(() => cleanup());
-  });
-
-  onMount(() => {
     bridge.overlay.overlayGetBounds().then((bounds) => {
       if (bounds) {
         setLastSyncAt(Date.now());
         setIsConnected(true);
       }
     });
+
+    onCleanup(() => { for (const fn of cleanups) fn(); });
   });
 
   // Dynamic click-through: the window starts click-through and only becomes
@@ -232,6 +226,7 @@ export const App: Component = () => {
 
   const handleSeek = (time: number) => {
     if (!isConnected()) return;
+    if (!Number.isFinite(duration()) || !Number.isFinite(time)) return;
     const target = Math.max(0, Math.min(duration(), time));
     bridge.overlay.sendOverlayCommand({ command: 'seek', time: target });
   };
@@ -301,7 +296,7 @@ export const App: Component = () => {
   };
 
   const handleDragStart = () => {
-    triggerBorderFlash();
+    setIsManipulating(true);
   };
 
   const handleDragMove = (deltaX: number, deltaY: number) => {
@@ -309,11 +304,11 @@ export const App: Component = () => {
   };
 
   const handleDragEnd = () => {
-    triggerBorderFlash();
+    setIsManipulating(false);
   };
 
   const handleResizeStart = () => {
-    triggerBorderFlash();
+    setIsManipulating(true);
   };
 
   const handleResizeMove = (deltaWidth: number, deltaHeight: number) => {
@@ -321,7 +316,7 @@ export const App: Component = () => {
   };
 
   const handleResizeEnd = () => {
-    triggerBorderFlash();
+    setIsManipulating(false);
   };
 
   const handleToggleAutoPosition = () => {
@@ -333,7 +328,7 @@ export const App: Component = () => {
   return (
     <div
       class="overlay-container"
-      classList={{ 'drag-over': dragOver() }}
+      classList={{ 'drag-over': dragOver(), 'manipulating': isManipulating() }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

@@ -312,5 +312,12 @@ export {
   VolumeOffIcon,
   StealthIcon,
   AnkiIcon,
+  VolumeLevelIcon,
+  SubtitleIcon,
+  DragIcon,
+  ResizeIcon,
+  AutoPositionIcon,
   type IconProps,
+  type VolumeLevelIconProps,
+  type AutoPositionIconProps,
 } from './Misc';

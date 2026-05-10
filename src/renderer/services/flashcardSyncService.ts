@@ -1,6 +1,8 @@
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type WordCandidate, type WordStats, type FlashcardState } from '../../shared/types';
 
 const CHUNK_SIZE = 16000;
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 800;
 
 const WORKER_API_URL = 'https://mlearn-cloud.kikan.net';
 
@@ -99,6 +101,21 @@ function calculateWordStats(cards: Flashcard[]): WordStats {
   };
 }
 
+function stripMediaUrls(store: FlashcardStore): FlashcardStore {
+  const stripped = JSON.parse(JSON.stringify(store)) as FlashcardStore;
+
+  for (const card of Object.values(stripped.flashcards)) {
+    if (card.content) {
+      const content = card.content as unknown as Record<string, unknown>;
+      delete content.imageUrl;
+      delete content.audioUrl;
+      delete content.videoUrl;
+    }
+  }
+
+  return stripped;
+}
+
 export async function mergeFlashcards(
     localStore: FlashcardStore,
     remoteStore: FlashcardStore
@@ -154,7 +171,7 @@ export async function mergeFlashcards(
             example: (remoteCard.content.example?.length || 0) > (localCard.content.example?.length || 0)
                 ? remoteCard.content.example
                 : localCard.content.example,
-            imageUrl: remoteCard.content.imageUrl || localCard.content.imageUrl,
+            imageUrl: localCard.content.imageUrl || remoteCard.content.imageUrl,
           },
         };
       } else if (remoteUpdated > localUpdated) {
@@ -231,24 +248,29 @@ export class ChunkCollector {
   }
 }
 
-export async function createSyncRoom(): Promise<SyncRoomResponse> {
+export async function createSyncRoom(accessToken: string): Promise<SyncRoomResponse> {
   const response = await fetch(`${WORKER_API_URL}/api/flashcard-sync/rooms`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
     },
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error('Authentication required. Please sign in to sync.');
+    }
     throw new Error(`Failed to create sync room: ${response.status} ${response.statusText}`);
   }
 
   return response.json() as Promise<SyncRoomResponse>;
 }
 
-export function buildSyncSocketUrl(roomId: string, role: 'sender' | 'receiver'): string {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'wss:';
-  return `${protocol}//${new URL(WORKER_API_URL).host}/api/flashcard-sync/rooms/${roomId}/socket?_role=${role}`;
+export function buildSyncSocketUrl(roomId: string, role: 'sender' | 'receiver', accessToken: string): string {
+  const workerUrl = new URL(WORKER_API_URL);
+  const protocol = workerUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${workerUrl.host}/api/flashcard-sync/rooms/${roomId}/socket?_role=${role}&_token=${encodeURIComponent(accessToken)}`;
 }
 
 export interface SyncSocketMessage {
@@ -257,7 +279,6 @@ export interface SyncSocketMessage {
   data?: string;
   totalChunks?: number;
   totalSize?: number;
-  chunkList?: Array<{ index: number; hash: string; size: number }>;
   message?: string;
   role?: 'sender' | 'receiver';
 }
@@ -266,43 +287,54 @@ export class SyncSocketClient {
   private ws: WebSocket | null = null;
   private roomId: string;
   private role: 'sender' | 'receiver';
+  private accessToken: string;
   private onMessageCallback: ((msg: SyncSocketMessage) => void) | null = null;
   private onOpenCallback: (() => void) | null = null;
   private onCloseCallback: (() => void) | null = null;
   private onErrorCallback: ((error: string) => void) | null = null;
 
-  constructor(roomId: string, role: 'sender' | 'receiver') {
+  constructor(roomId: string, role: 'sender' | 'receiver', accessToken: string) {
     this.roomId = roomId;
     this.role = role;
+    this.accessToken = accessToken;
   }
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const url = buildSyncSocketUrl(this.roomId, this.role);
-      this.ws = new WebSocket(url, 'mlearn-flashcard-sync-v1');
+      const attempt = (retriesLeft: number) => {
+        const url = buildSyncSocketUrl(this.roomId, this.role, this.accessToken);
+        this.ws = new WebSocket(url, 'mlearn-flashcard-sync-v1');
 
-      this.ws.onopen = () => {
-        this.onOpenCallback?.();
-        resolve();
+        this.ws.onopen = () => {
+          this.onOpenCallback?.();
+          resolve();
+        };
+
+        this.ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data as string) as SyncSocketMessage;
+            this.onMessageCallback?.(msg);
+          } catch {
+            this.onErrorCallback?.('Invalid message received');
+          }
+        };
+
+        this.ws.onclose = () => {
+          this.onCloseCallback?.();
+        };
+
+        this.ws.onerror = () => {
+          if (retriesLeft > 0) {
+            this.ws = null;
+            setTimeout(() => attempt(retriesLeft - 1), RETRY_DELAY_MS);
+          } else {
+            this.onErrorCallback?.('WebSocket connection failed');
+            reject(new Error('WebSocket connection failed'));
+          }
+        };
       };
 
-      this.ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data as string) as SyncSocketMessage;
-          this.onMessageCallback?.(msg);
-        } catch {
-          this.onErrorCallback?.('Invalid message received');
-        }
-      };
-
-      this.ws.onclose = () => {
-        this.onCloseCallback?.();
-      };
-
-      this.ws.onerror = () => {
-        this.onErrorCallback?.('WebSocket error');
-        reject(new Error('WebSocket connection failed'));
-      };
+      attempt(MAX_RETRIES);
     });
   }
 
@@ -360,4 +392,5 @@ export async function prepareChunkList(data: string): Promise<Array<{ index: num
   return chunkList;
 }
 
+export { stripMediaUrls };
 export type { FlashcardStore, Flashcard };

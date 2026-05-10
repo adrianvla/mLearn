@@ -750,6 +750,7 @@
         "Complete": "Sync complete!",
         "ConnectedSyncing": "Connected! Syncing...",
         "Error": {
+          "AuthRequired": "Please sign in to sync flashcards",
           "CameraAccess": "Camera access denied",
           "Connection": "Failed to start connection",
           "LoadLibraries": "Failed to load required libraries: {error}"

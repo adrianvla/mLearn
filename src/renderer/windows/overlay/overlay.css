@@ -20,6 +20,11 @@ body {
   background-color: var(--overlay-dragover-bg);
 }
 
+.overlay-container.manipulating {
+  outline: 2px solid var(--color-info);
+  outline-offset: -2px;
+}
+
 .overlay-subtitle-wrapper {
   position: absolute;
   bottom: 48px;

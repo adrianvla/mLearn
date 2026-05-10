@@ -3,7 +3,7 @@
  * Handles creation and management of all application windows
  */
 
-import { BrowserWindow, app, ipcMain, Menu, dialog } from 'electron';
+import { BrowserWindow, app, ipcMain, Menu, dialog, screen } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { IPC_CHANNELS, WindowType } from '../../shared/constants';
@@ -117,8 +117,19 @@ export function resizeOverlayBy(deltaWidth: number, deltaHeight: number): void {
 }
 
 export function updateOverlayGeometry(geometry: { x: number; y: number; width: number; height: number }): void {
+  if (
+    !Number.isFinite(geometry.x) ||
+    !Number.isFinite(geometry.y) ||
+    !Number.isFinite(geometry.width) ||
+    !Number.isFinite(geometry.height)
+  ) {
+    console.warn('updateOverlayGeometry: received non-finite geometry values', geometry);
+    return;
+  }
+
   const win = getOverlayWindow();
   if (!win || win.isDestroyed()) return;
+
   const corrected = overlayAutoPositionEnabled
     ? {
         x: Math.round(geometry.x + overlayManualDelta.x),
@@ -129,9 +140,16 @@ export function updateOverlayGeometry(geometry: { x: number; y: number; width: n
     : {
         x: Math.round(geometry.x),
         y: Math.round(geometry.y),
-        width: Math.round(geometry.width),
-        height: Math.round(geometry.height),
+        width: Math.max(200, Math.round(geometry.width)),
+        height: Math.max(100, Math.round(geometry.height)),
       };
+
+  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+  if (corrected.x > screenWidth || corrected.y > screenHeight) {
+    console.warn('updateOverlayGeometry: corrected geometry is off-screen', corrected);
+    return;
+  }
+
   win.setBounds(corrected);
 }
 

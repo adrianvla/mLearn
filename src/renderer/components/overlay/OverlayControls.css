@@ -10,14 +10,14 @@
   right: 0;
   z-index: var(--z-overlay);
   pointer-events: none;
-  /* Hardcoded dark-theme contrast values (same as VideoControls) */
-  --text-primary: #f0f0f0;
-  --text-secondary: #a0a0a0;
-  --text-tertiary: rgba(255, 255, 255, 0.4);
-  --bg: rgba(130, 130, 130, 0.2);
-  --bg-intense: rgba(255, 255, 255, 0.15);
-  --border-color: rgba(255, 255, 255, 0.15);
-  --border-color-intense: rgba(255, 255, 255, 0.25);
+  /* Theme-aware values using global CSS custom properties */
+  --text-primary: var(--color-text);
+  --text-secondary: var(--color-text-secondary);
+  --text-tertiary: color-mix(in srgb, var(--color-text) 40%, transparent);
+  --bg: color-mix(in srgb, var(--color-surface) 20%, transparent);
+  --bg-intense: color-mix(in srgb, var(--color-surface) 15%, transparent);
+  --border-color: color-mix(in srgb, var(--color-border) 50%, transparent);
+  --border-color-intense: var(--color-border);
   --backdrop-filter: blur(20px) saturate(2) brightness(0.3);
 }
 

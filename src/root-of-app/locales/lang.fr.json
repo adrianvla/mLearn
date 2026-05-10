@@ -750,8 +750,9 @@
         "Complete": "Synchronisation terminée !",
         "ConnectedSyncing": "Connecté ! Synchronisation...",
         "Error": {
+          "AuthRequired": "Veuillez vous connecter pour synchroniser les cartes",
           "CameraAccess": "Accès à la caméra refusé",
-          "Connection": "Échec de l'établissement de la connexion",
+          "Connection": "Échec du démarrage de la connexion",
           "LoadLibraries": "Échec du chargement des bibliothèques requises : {error}"
         },
         "EstablishingConnection": "Établissement de la connexion...",

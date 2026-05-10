@@ -389,6 +389,12 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
       res.end('Method not allowed');
       return;
     }
+    const remoteAddress = req.socket.remoteAddress;
+    const isLocalhost = remoteAddress === '127.0.0.1' || remoteAddress === '::ffff:127.0.0.1' || remoteAddress === '::1';
+    if (!isLocalhost) {
+      sendJsonResponse(res, { error: 'Forbidden' }, 403);
+      return;
+    }
     let body = '';
     req.on('data', (chunk) => { body += chunk.toString(); });
     req.on('end', () => {
@@ -419,6 +425,12 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
       res.end('Method not allowed');
       return;
     }
+    const remoteAddress = req.socket.remoteAddress;
+    const isLocalhost = remoteAddress === '127.0.0.1' || remoteAddress === '::ffff:127.0.0.1' || remoteAddress === '::1';
+    if (!isLocalhost) {
+      sendJsonResponse(res, { error: 'Forbidden' }, 403);
+      return;
+    }
     let body = '';
     req.on('data', (chunk) => { body += chunk.toString(); });
     req.on('end', () => {
@@ -446,6 +458,12 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     if (req.method !== 'POST') {
       res.writeHead(405, corsHeaders);
       res.end('Method not allowed');
+      return;
+    }
+    const remoteAddress = req.socket.remoteAddress;
+    const isLocalhost = remoteAddress === '127.0.0.1' || remoteAddress === '::ffff:127.0.0.1' || remoteAddress === '::1';
+    if (!isLocalhost) {
+      sendJsonResponse(res, { error: 'Forbidden' }, 403);
       return;
     }
     let body = '';
