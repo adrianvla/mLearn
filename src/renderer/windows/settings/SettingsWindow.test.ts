@@ -18,6 +18,8 @@ vi.mock('../../context', () => ({
         'mlearn.Settings.Tabs.AI': 'AI',
         'mlearn.Settings.Tabs.Connection': 'Connection',
         'mlearn.Settings.Tabs.Plugins': 'Plugins',
+        'mlearn.Settings.Tabs.Components': 'Components',
+        'mlearn.Settings.Tabs.BrowserExtension': 'Browser Extension',
         'mlearn.Settings.Tabs.About': 'About',
       };
       return labels[key] ?? key;
@@ -44,6 +46,8 @@ vi.mock('./tabs', () => ({
   AITab: () => 'ai tab',
   ConnectionTab: () => 'connection tab',
   PluginsTab: () => 'plugins tab',
+  ComponentsTab: () => 'components tab',
+  BrowserExtensionTab: () => 'browser extension tab',
   AboutTab: () => 'about tab',
 }));
 
@@ -71,7 +75,7 @@ describe('SettingsContent', () => {
     const { SettingsContent } = await import('./SettingsWindow');
     const dispose = render(() => SettingsContent({}), container);
 
-    const tabs = Array.from(container.querySelectorAll('[role="tab"]')).map((tab) => tab.textContent?.trim());
+    const tabs = Array.from(container.querySelectorAll('[role="tab"] .tab-label')).map((tab) => tab.textContent?.trim());
     expect(tabs.indexOf('Plugins')).toBeGreaterThan(-1);
     expect(tabs.indexOf('Plugins')).toBeLessThan(tabs.indexOf('About'));
 
@@ -79,7 +83,7 @@ describe('SettingsContent', () => {
 
     expect(container.textContent).toContain('plugins tab');
     const selectedTab = container.querySelector('[role="tab"][aria-selected="true"]');
-    expect(selectedTab?.textContent).toContain('Plugins');
+    expect(selectedTab?.querySelector('.tab-label')?.textContent).toContain('Plugins');
 
     dispose();
   });

@@ -18,14 +18,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 0.75rem;
+  padding: var(--spacing-2) var(--spacing-3);
   background: var(--bg-nt-secondary);
   border-bottom: 1px solid var(--border-color-intense);
 }
 
 .log-console__title {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -34,7 +34,7 @@
 
 .log-console__actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
 }
 
 .log-console__action-btn {
@@ -42,12 +42,12 @@
   border: none;
   color: var(--text-tertiary);
   cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 4px;
+  padding: var(--spacing-1);
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all var(--transition-normal);
 }
 
 .log-console__action-btn:hover {
@@ -60,7 +60,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0.75rem;
+  padding: var(--spacing-3);
   min-height: 100px;
   max-height: 300px;
 }
@@ -69,10 +69,10 @@
 .log-console__entry {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.25rem 0;
-  font-size: 0.75rem;
-  line-height: 1.5;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) 0;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -84,7 +84,7 @@
 .log-console__timestamp {
   flex-shrink: 0;
   color: var(--text-tertiary);
-  font-size: 0.6875rem;
+  font-size: var(--font-size-xs);
 }
 
 /* Message */
@@ -119,11 +119,11 @@
 /* Level indicator */
 .log-console__level {
   flex-shrink: 0;
-  font-size: 0.625rem;
-  font-weight: 600;
+  font-size: var(--font-size-xxs);
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
-  padding: 0.125rem 0.25rem;
-  border-radius: 3px;
+  padding: 2px var(--spacing-1);
+  border-radius: var(--radius-sm);
 }
 
 .log-console__entry--info .log-console__level {
@@ -159,12 +159,12 @@
   height: 100%;
   min-height: 80px;
   color: var(--text-tertiary);
-  font-size: 0.75rem;
+  font-size: var(--font-size-xs);
 }
 
 /* Scrollbar */
 .log-console__content::-webkit-scrollbar {
-  width: 6px;
+  width: var(--scrollbar-width);
 }
 
 .log-console__content::-webkit-scrollbar-track {
@@ -173,7 +173,7 @@
 
 .log-console__content::-webkit-scrollbar-thumb {
   background: var(--text-tertiary);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 .log-console__content::-webkit-scrollbar-thumb:hover {
@@ -194,12 +194,12 @@
 /* Auto-scroll indicator */
 .log-console__auto-scroll {
   position: absolute;
-  bottom: 0.5rem;
-  right: 0.5rem;
-  font-size: 0.625rem;
+  bottom: var(--spacing-2);
+  right: var(--spacing-2);
+  font-size: var(--font-size-xxs);
   color: var(--text-tertiary);
   background: var(--bg-nt-secondary);
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-sm);
   pointer-events: none;
 }

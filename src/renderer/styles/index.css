@@ -222,7 +222,8 @@
   --skeleton-base: rgba(112, 112, 112, 0.63);
   --skeleton-highlight: rgba(160, 160, 160, 0.63);
 
-  /* ========== Scrollbar Colors ========== */
+  /* ========== Scrollbar ========== */
+  --scrollbar-width: 6px;
   --scrollbar-thumb: var(--bg);
   --scrollbar-thumb-hover: var(--accent-bg);
 
