@@ -760,7 +760,6 @@
         "LoadingLibraries": "Chargement des bibliothèques...",
         "PointCamera": "Dirigez la caméra vers le code QR...",
         "QRHint": "Scannez le code QR dans l'application mobile mLearn pour synchroniser",
-        "ScanInstructions": "Entrez {numChunks} dans l'application mLearn, puis scannez ce code QR",
         "ScanQRInstead": "Scanner le QR",
         "ShowQRInstead": "Afficher le QR",
         "SyncedSuccessfully": "Cartes synchronisées !",
@@ -1272,7 +1271,8 @@
         "KnowledgePriority": "Priorité de connaissance",
         "LiveTranslator": "Traducteur de mots en direct",
         "Behaviour": "Comportement",
-        "WordKnowledge": "Connaissance des mots"
+        "WordKnowledge": "Connaissance des mots",
+        "LanguageProficiency": "Niveau de langue d'apprentissage"
       },
       "Keybind": {
         "PressKey": "Appuyez sur une touche...",
@@ -1626,11 +1626,6 @@
             "Description": "Limite des cartes créées automatiquement",
             "Label": "Max. nouvelles par jour"
           },
-          "PreparedExamLevel": {
-            "Description": "Niveau cible pour les cartes auto-créées",
-            "Label": "Niveau d'examen cible",
-            "NoTarget": "Pas de cible"
-          },
           "StaleLearningDays": {
             "Label": "Seuil d'apprentissage périmé (jours)",
             "Description": "Réafficher les mots marqués \"En apprentissage\" dans la synchronisation après ce nombre de jours sans changement de statut"
@@ -1846,6 +1841,13 @@
         "Statistics": "Statistiques",
         "VideoPlayer": "Lecteur vidéo",
         "BrowserExtension": "Extension navigateur"
+      },
+      "Behaviour": {
+        "LearningLanguageLevel": {
+          "Label": "Niveau de langue d'apprentissage",
+          "Description": "Lorsqu'il est défini, les cartes suggérées au-dessus de ce niveau et les cartes sans niveau ne seront pas enregistrées. Affecte également la difficulté de Word Sync.",
+          "NoLimit": "Aucune limite"
+        }
       }
     },
     "BrowserExtension": {

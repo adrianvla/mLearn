@@ -176,7 +176,6 @@ export interface Settings {
   flashcards_add_picture: boolean;
   maxNewCardsPerDay: number;
   proportionOfExamCards: number;
-  preparedExam: number;
   /** Days after which a "learning" word is re-shown in Word Sync (default 30) */
   wordSyncStaleLearningDays: number;
   createUnseenCards: boolean;
@@ -199,6 +198,12 @@ export interface Settings {
    * Suggested Flashcards tab.
    */
   autoSuggestFlashcards: boolean;
+  /**
+   * Learning language level for the current language. When set, suggested flashcards
+   * above this level (harder) and cards without a level are not captured.
+   * Uses the language's raw_level scale (e.g., 2 = JLPT N2, 5 = JLPT N5).
+   */
+  learningLanguageLevel: number | null;
 
   // API URLs
   getCardUrl: string;
@@ -458,7 +463,6 @@ export const DEFAULT_SETTINGS: Settings = {
   timeWatched: 0,
   maxNewCardsPerDay: 10,
   proportionOfExamCards: 0.5,
-  preparedExam: 3,
   wordSyncStaleLearningDays: 30,
   createUnseenCards: true,
   flashcardLLMExamples: false,
@@ -468,6 +472,7 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardMediaType: 'image',
   flashcardVideoMargin: 300,
   autoSuggestFlashcards: true,
+  learningLanguageLevel: 3,
   devMode: false,
   lowBatteryMode: false,
   ocr_crop_padding: 200,

@@ -4,7 +4,6 @@ import { useFlashcards, useLocalization, useSettings } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import {
   mergeFlashcards,
-  ChunkCollector,
   createSyncRoom,
   SyncSocketClient,
   splitTextIntoChunks,
@@ -67,7 +66,6 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
   let videoStream: MediaStream | null = null;
   let scanAnimationId: number | null = null;
   
-  const chunkCollector = new ChunkCollector();
   let chunksToSend: string[] = [];
   let receivedChunks: Record<number, string> = {};
   let totalChunksExpected = 0;
@@ -119,7 +117,6 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       socketClient.disconnect();
       socketClient = null;
     }
-    chunkCollector.reset();
     chunksToSend = [];
     receivedChunks = {};
     totalChunksExpected = 0;
@@ -153,7 +150,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       log.info('Created sync room:', room.roomId);
       
       displayRoomQR(room.roomId);
-      setStatusText(t('mlearn.Flashcards.Sync.ScanInstructions', { numChunks: 1 }));
+      setStatusText(t('mlearn.Flashcards.Sync.QRHint'));
       
       socketClient = new SyncSocketClient(room.roomId, 'sender', accessToken);
       setupSocketHandlers();

@@ -6,11 +6,6 @@ const RETRY_DELAY_MS = 800;
 
 const WORKER_API_URL = 'https://mlearn-cloud.kikan.net';
 
-export interface SyncChunk {
-  type: string;
-  data: [number, string, number];
-}
-
 export interface SyncRoom {
   roomId: string;
   roomCode: string;
@@ -22,15 +17,6 @@ export interface SyncRoom {
 export interface SyncRoomResponse {
   data: SyncRoom;
   actions: Record<string, unknown>;
-}
-
-export interface SyncCallbacks {
-  onStatusUpdate: (status: string) => void;
-  onProgress: (current: number, total: number) => void;
-  onQRData: (data: string) => void;
-  onConnected: () => void;
-  onSyncComplete: (mergedStore: FlashcardStore) => void;
-  onError: (error: string) => void;
 }
 
 export function splitTextIntoChunks(text: string, chunkSize: number = CHUNK_SIZE): string[] {
@@ -213,41 +199,6 @@ export async function mergeFlashcards(
   return merged;
 }
 
-export class ChunkCollector {
-  private chunks: Record<number, string> = {};
-  private totalChunks: number = 0;
-
-  addChunk(index: number, data: string, total: number): boolean {
-    this.totalChunks = total;
-    this.chunks[index] = data;
-    return this.isComplete();
-  }
-
-  isComplete(): boolean {
-    return Object.keys(this.chunks).length === this.totalChunks && this.totalChunks > 0;
-  }
-
-  getProgress(): { current: number; total: number } {
-    return { current: Object.keys(this.chunks).length, total: this.totalChunks };
-  }
-
-  assemble(): string {
-    let data = '';
-    for (let i = 0; i < this.totalChunks; i++) {
-      if (!(i in this.chunks)) {
-        throw new Error(`Missing chunk ${i}`);
-      }
-      data += this.chunks[i];
-    }
-    return data;
-  }
-
-  reset(): void {
-    this.chunks = {};
-    this.totalChunks = 0;
-  }
-}
-
 export async function createSyncRoom(accessToken: string): Promise<SyncRoomResponse> {
   const response = await fetch(`${WORKER_API_URL}/api/flashcard-sync/rooms`, {
     method: 'POST',
@@ -366,30 +317,6 @@ export class SyncSocketClient {
   onError(callback: (error: string) => void): void {
     this.onErrorCallback = callback;
   }
-}
-
-export function computeChunkHash(chunk: string): Promise<string> {
-  const encoder = new TextEncoder();
-  return crypto.subtle.digest('SHA-256', encoder.encode(chunk)).then((buffer) => {
-    const array = Array.from(new Uint8Array(buffer));
-    return array.map((b) => b.toString(16).padStart(2, '0')).join('');
-  });
-}
-
-export async function prepareChunkList(data: string): Promise<Array<{ index: number; hash: string; size: number }>> {
-  const chunks = splitTextIntoChunks(data, CHUNK_SIZE);
-  const chunkList: Array<{ index: number; hash: string; size: number }> = [];
-
-  for (let i = 0; i < chunks.length; i++) {
-    const hash = await computeChunkHash(chunks[i]);
-    chunkList.push({
-      index: i,
-      hash,
-      size: chunks[i].length,
-    });
-  }
-
-  return chunkList;
 }
 
 export { stripMediaUrls };

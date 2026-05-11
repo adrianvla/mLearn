@@ -2,7 +2,7 @@
  * SRS Settings Tab
  */
 
-import { Component, createSignal, Show, For, createMemo, createEffect, on } from 'solid-js';
+import { Component, createSignal, Show, createMemo, createEffect, on } from 'solid-js';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import {
   SettingRow,
@@ -28,7 +28,7 @@ export const SRSTab: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const { store, updateMeta, resetSRS, nukeAllFlashcards } = useFlashcards();
-  const { getFreqLevelNames, getLanguageFeatures } = useLanguage();
+  const { getLanguageFeatures } = useLanguage();
   const anki = useAnki();
   const [ankiStatus, setAnkiStatus] = createSignal<'unchecked' | 'connected' | 'error'>('unchecked');
 
@@ -67,11 +67,6 @@ export const SRSTab: Component = () => {
     setNukeConfirmPhrase('');
     showToast({ message: t('mlearn.Settings.SRS.DataManagement.NukeFlashcards.Success'), variant: 'success' });
   };
-
-  const freqLevels = createMemo(() => {
-    const names = getFreqLevelNames();
-    return Object.entries(names).sort((a, b) => Number(b[0]) - Number(a[0]));
-  });
 
   const hasFreqLevels = createMemo(() => getLanguageFeatures().supportsFrequencyLevels);
 
@@ -510,24 +505,6 @@ export const SRSTab: Component = () => {
               step={0.1}
               onChange={(e) => updateSettings({ proportionOfExamCards: parseFloat(e.currentTarget.value) })}
             />
-          </SettingRow>
-
-          <SettingRow
-            label={t('mlearn.Settings.SRS.BuiltInFlashcards.PreparedExamLevel.Label')}
-            description={t('mlearn.Settings.SRS.BuiltInFlashcards.PreparedExamLevel.Description')}
-          >
-            <Select
-              class="setting-select"
-              value={settings.preparedExam.toString()}
-              onChange={(e) => updateSettings({ preparedExam: parseInt(e.currentTarget.value) })}
-            >
-              <option value="0">{t('mlearn.Settings.SRS.BuiltInFlashcards.PreparedExamLevel.NoTarget')}</option>
-              <For each={freqLevels()}>
-                {([level, name]) => (
-                  <option value={level}>{name}</option>
-                )}
-              </For>
-            </Select>
           </SettingRow>
 
           <SettingRow

@@ -25,6 +25,7 @@ import { CloudSessionCancelledError, CloudUnreachableError, withCloudAuth } from
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
+import { buildKnownWordSetFromStore, isWordKnown as checkWordIsKnown } from '../utils/knowledgeUtils';
 
 const log = getLogger("renderer.context.flashcard");
 
@@ -210,6 +211,8 @@ interface FlashcardContextValue {
   getSuggestedFlashcardsSync: () => SuggestedFlashcard[];
   /** Remove a suggestion without creating a card */
   removeSuggestedFlashcard: (id: string) => void;
+  /** Remove multiple suggestions in a single batch operation */
+  removeSuggestedFlashcards: (ids: string[]) => void;
   /** Promote suggestions into full flashcards (runs translation + optional LLM/TTS). Returns number promoted. */
   promoteSuggestedFlashcards: (
     ids: string[],
@@ -1302,6 +1305,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
     return index;
   });
 
+  const knownWordSet = createMemo(() =>
+    buildKnownWordSetFromStore(store, settings.known_ease_threshold)
+  );
+
   // Helper: get cards for a word from the index, filtered by current language.
   // Also checks the canonical form (e.g. kana → kanji) to unify lookup.
   const getCardsFromIndex = (word: string): Flashcard[] => {
@@ -1423,11 +1430,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     const lk = langKey(lang, wordHash);
     const now = Date.now();
 
-    // Skip if already has flashcard(s), is ignored, or marked known
-    const cardIds = store.wordToCardMap[lk];
-    if ((cardIds && cardIds.length > 0) || store.knownUntracked[lk] || store.ignoredWords[lk]) {
-      return;
-    }
+    if (checkWordIsKnown(lk, knownWordSet(), store.wordKnowledge, settings.known_ease_threshold)) return;
 
     setStore(produce((s) => {
       const existing = s.suggestedFlashcards[lk];
@@ -1468,11 +1471,21 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
-  /** Get sorted suggestions for the current language (newest first). */
+  /** Get sorted suggestions for the current language (newest first). Filters out known words and words above the user's level. */
   const getSuggestedFlashcardsSync = (): SuggestedFlashcard[] => {
     const lang = settings.language;
+    const userLevel = settings.learningLanguageLevel;
+    const known = knownWordSet();
     return Object.values(store.suggestedFlashcards)
-      .filter((s) => s.language === lang)
+      .filter((s) => {
+        if (s.language !== lang) return false;
+        if (userLevel != null) {
+          if (s.level == null || s.level < userLevel) return false;
+        }
+        const lk = langKey(lang, SRS.hashWordSync(s.word));
+        if (checkWordIsKnown(lk, known, store.wordKnowledge, settings.known_ease_threshold)) return false;
+        return true;
+      })
       .sort((a, b) => b.createdAt - a.createdAt);
   };
 
@@ -1489,6 +1502,22 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (!key) return;
     setStore(produce((s) => {
       delete s.suggestedFlashcards[key];
+    }));
+    saveFlashcards();
+  };
+
+  const removeSuggestedFlashcards = (ids: string[]): void => {
+    if (ids.length === 0) return;
+    const keysToRemove: string[] = [];
+    for (const id of ids) {
+      const key = findSuggestionKey(id);
+      if (key) keysToRemove.push(key);
+    }
+    if (keysToRemove.length === 0) return;
+    setStore(produce((s) => {
+      for (const key of keysToRemove) {
+        delete s.suggestedFlashcards[key];
+      }
     }));
     saveFlashcards();
   };
@@ -2504,6 +2533,7 @@ Translation: [${targetLang} translation]`;
     captureSuggestedFlashcard,
     getSuggestedFlashcardsSync,
     removeSuggestedFlashcard,
+    removeSuggestedFlashcards,
     promoteSuggestedFlashcards,
     trackWordSeen,
     trackWordHovered,

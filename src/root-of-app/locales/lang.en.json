@@ -760,7 +760,6 @@
         "LoadingLibraries": "Loading libraries...",
         "PointCamera": "Point camera at QR code...",
         "QRHint": "Scan with mLearn mobile app to sync flashcards",
-        "ScanInstructions": "Enter {numChunks} in mLearn app, then scan this QR code",
         "ScanQRInstead": "Scan QR Instead",
         "ShowQRInstead": "Show QR Instead",
         "SyncedSuccessfully": "Flashcards synced successfully!",
@@ -1272,7 +1271,8 @@
         "WordStatus": "Word Status",
         "KnowledgePriority": "Knowledge Priority",
         "Behaviour": "Behaviour",
-        "WordKnowledge": "Word Knowledge"
+        "WordKnowledge": "Word Knowledge",
+        "LanguageProficiency": "Language Proficiency"
       },
       "Keybind": {
         "PressKey": "Press a key...",
@@ -1308,6 +1308,13 @@
         "LearningLanguage": {
           "Description": "Select the language you are learning",
           "Label": "Learning Language"
+        }
+      },
+      "Behaviour": {
+        "LearningLanguageLevel": {
+          "Label": "Learning Language Level",
+          "Description": "When set, suggested flashcards above this level and cards without a level will not be saved. Also affects Word Sync difficulty.",
+          "NoLimit": "No limit"
         }
       },
       "Performance": {
@@ -1626,11 +1633,6 @@
             "Description": "Limit for auto-created flashcards",
             "Label": "Max New Cards Per Day"
           },
-          "PreparedExamLevel": {
-            "Description": "Target proficiency level for auto-created cards",
-            "Label": "Target Exam Level",
-            "NoTarget": "No target"
-          },
           "StaleLearningDays": {
             "Label": "Stale Learning Threshold (days)",
             "Description": "Re-show words marked as \"Learning\" in Word Sync after this many days without a status change"
@@ -1859,7 +1861,7 @@
       "Install": "Install",
       "Installing": "Installing...",
       "Installed": "Installed",
-"InstalledAt": "Installed at",
+      "InstalledAt": "Installed at",
       "InstallFailed": "Installation failed",
       "Retry": "Retry",
       "ManualTitle": "Manual Installation",

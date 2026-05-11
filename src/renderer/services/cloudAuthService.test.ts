@@ -83,7 +83,7 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
     ocr_crop_padding: 0,
     maxNewCardsPerDay: 20,
     proportionOfExamCards: 0,
-    preparedExam: 0,
+    learningLanguageLevel: 0,
     createUnseenCards: false,
     flashcardLLMExamples: false,
     newDayHour: 4,

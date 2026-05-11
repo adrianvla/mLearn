@@ -136,7 +136,7 @@ const WordSyncContent: Component = () => {
    const wordPool = createMemo(() => {
     const freq = langCtx.wordFrequency;
     const names = levelNames();
-    const target = settings.preparedExam;
+    const target = settings.learningLanguageLevel ?? 0;
     const skipSeen = !ignoreSeenFilter();
     const onlyUnknown = unknownOnly();
     const staleDaysMs = settings.wordSyncStaleLearningDays * 24 * 60 * 60 * 1000;

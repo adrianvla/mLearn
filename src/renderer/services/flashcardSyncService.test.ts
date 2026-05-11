@@ -4,7 +4,6 @@ import {
   splitTextIntoChunks,
   toUniqueIdentifier,
   mergeFlashcards,
-  ChunkCollector,
 } from './flashcardSyncService';
 import type { FlashcardStore, Flashcard } from './flashcardSyncService';
 
@@ -381,99 +380,4 @@ describe('mergeFlashcards', () => {
   });
 });
 
-describe('ChunkCollector', () => {
-  it('isComplete returns false before any chunks are added', () => {
-    const collector = new ChunkCollector();
-    expect(collector.isComplete()).toBe(false);
-  });
 
-  it('isComplete returns true when all chunks are added', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'part0', 2);
-    expect(collector.isComplete()).toBe(false);
-    collector.addChunk(1, 'part1', 2);
-    expect(collector.isComplete()).toBe(true);
-  });
-
-  it('addChunk returns true when collection becomes complete', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'a', 2);
-    const done = collector.addChunk(1, 'b', 2);
-    expect(done).toBe(true);
-  });
-
-  it('addChunk returns false when collection is not yet complete', () => {
-    const collector = new ChunkCollector();
-    const done = collector.addChunk(0, 'a', 3);
-    expect(done).toBe(false);
-  });
-
-  it('getProgress returns current and total chunk counts', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'x', 3);
-    collector.addChunk(2, 'z', 3);
-    const progress = collector.getProgress();
-    expect(progress.current).toBe(2);
-    expect(progress.total).toBe(3);
-  });
-
-  it('getProgress returns {current:0, total:0} before any chunks', () => {
-    const collector = new ChunkCollector();
-    const progress = collector.getProgress();
-    expect(progress.current).toBe(0);
-    expect(progress.total).toBe(0);
-  });
-
-  it('assemble returns chunks joined in index order', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(1, 'World', 3);
-    collector.addChunk(0, 'Hello ', 3);
-    collector.addChunk(2, '!', 3);
-    expect(collector.assemble()).toBe('Hello World!');
-  });
-
-  it('assemble throws when a chunk is missing', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'part0', 3);
-    collector.addChunk(2, 'part2', 3);
-    expect(() => collector.assemble()).toThrow('Missing chunk 1');
-  });
-
-  it('reset clears all chunks and totalChunks', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'data', 2);
-    collector.addChunk(1, 'more', 2);
-    collector.reset();
-    expect(collector.isComplete()).toBe(false);
-    const progress = collector.getProgress();
-    expect(progress.current).toBe(0);
-    expect(progress.total).toBe(0);
-  });
-
-  it('can be reused after reset', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'first', 1);
-    expect(collector.isComplete()).toBe(true);
-    collector.reset();
-    collector.addChunk(0, 'second', 1);
-    expect(collector.assemble()).toBe('second');
-  });
-
-  it('single chunk collection assembles correctly', () => {
-    const collector = new ChunkCollector();
-    collector.addChunk(0, 'all-in-one', 1);
-    expect(collector.isComplete()).toBe(true);
-    expect(collector.assemble()).toBe('all-in-one');
-  });
-
-  it('handles large number of chunks', () => {
-    const collector = new ChunkCollector();
-    const total = 100;
-    for (let i = 0; i < total; i++) {
-      collector.addChunk(i, String(i).padStart(3, '0'), total);
-    }
-    expect(collector.isComplete()).toBe(true);
-    const assembled = collector.assemble();
-    expect(assembled).toBe(Array.from({ length: total }, (_, i) => String(i).padStart(3, '0')).join(''));
-  });
-});

@@ -51,6 +51,7 @@ export const FlashcardsSuggested: Component = () => {
   const {
     getSuggestedFlashcardsSync,
     removeSuggestedFlashcard,
+    removeSuggestedFlashcards,
     promoteSuggestedFlashcards,
     ignoreWordForLanguage,
     store,
@@ -256,7 +257,7 @@ export const FlashcardsSuggested: Component = () => {
 
   const removeSelected = () => {
     const ids = Array.from(selected());
-    for (const id of ids) removeSuggestedFlashcard(id);
+    removeSuggestedFlashcards(ids);
     clearSelection();
     showToast({ message: t('mlearn.Flashcards.Suggested.Removed', { count: String(ids.length) }), variant: 'info' });
   };

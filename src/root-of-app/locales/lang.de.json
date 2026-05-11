@@ -760,7 +760,6 @@
         "LoadingLibraries": "Bibliotheken werden geladen...",
         "PointCamera": "Kamera auf den QR-Code richten...",
         "QRHint": "QR-Code in der mLearn-App scannen zum Synchronisieren",
-        "ScanInstructions": "Geben Sie {numChunks} in der mLearn-App ein und scannen Sie dann diesen QR-Code",
         "ScanQRInstead": "QR scannen",
         "ShowQRInstead": "QR anzeigen",
         "SyncedSuccessfully": "Lernkarten synchronisiert!",
@@ -1272,7 +1271,8 @@
         "KnowledgePriority": "Wissenspriorität",
         "LiveTranslator": "Live-Wortübersetzer",
         "Behaviour": "Verhalten",
-        "WordKnowledge": "Wortkenntnisse"
+        "WordKnowledge": "Wortkenntnisse",
+        "LanguageProficiency": "Lernsprachniveau"
       },
       "Keybind": {
         "PressKey": "Taste drücken...",
@@ -1626,11 +1626,6 @@
             "Description": "Limit für automatisch erstellte Karten",
             "Label": "Max. neue pro Tag"
           },
-          "PreparedExamLevel": {
-            "Description": "Zielstufe für automatisch erstellte Karten",
-            "Label": "Ziel-Prüfungsstufe",
-            "NoTarget": "Kein Ziel"
-          },
           "StaleLearningDays": {
             "Label": "Schwelle für veraltete Lernwörter (Tage)",
             "Description": "Als \"Lernend\" markierte Wörter nach dieser Anzahl Tagen ohne Statusänderung erneut in der Wortsynchronisation anzeigen"
@@ -1846,6 +1841,13 @@
         "Statistics": "Statistiken",
         "VideoPlayer": "Videoplayer",
         "BrowserExtension": "Browser-Erweiterung"
+      },
+      "Behaviour": {
+        "LearningLanguageLevel": {
+          "Label": "Lernsprachniveau",
+          "Description": "Wenn festgelegt, werden vorgeschlagene Lernkarten über diesem Niveau und Karten ohne Niveau nicht gespeichert. Betrifft auch die Word Sync-Schwierigkeit.",
+          "NoLimit": "Keine Begrenzung"
+        }
       }
     },
     "BrowserExtension": {

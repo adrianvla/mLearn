@@ -760,7 +760,6 @@
         "LoadingLibraries": "ライブラリを読み込み中...",
         "PointCamera": "カメラをQRコードに向けてください...",
         "QRHint": "mLearnモバイルアプリでQRコードをスキャンして同期",
-        "ScanInstructions": "mLearnアプリで{numChunks}を入力してから、このQRコードをスキャンしてください",
         "ScanQRInstead": "QRをスキャン",
         "ShowQRInstead": "QRを表示",
         "SyncedSuccessfully": "フラッシュカードの同期が完了しました！",
@@ -1272,7 +1271,8 @@
         "KnowledgePriority": "知識の優先度",
         "LiveTranslator": "ライブ単語翻訳",
         "Behaviour": "動作設定",
-        "WordKnowledge": "単語の知識"
+        "WordKnowledge": "単語の知識",
+        "LanguageProficiency": "学習言語レベル"
       },
       "Keybind": {
         "PressKey": "キーを押してください...",
@@ -1626,11 +1626,6 @@
             "Description": "自動作成カードの上限",
             "Label": "1日の最大新規カード数"
           },
-          "PreparedExamLevel": {
-            "Description": "自動作成カードの目標レベル",
-            "Label": "目標試験レベル",
-            "NoTarget": "目標なし"
-          },
           "StaleLearningDays": {
             "Label": "学習停滞しきい値（日数）",
             "Description": "ステータスが変更されずにこの日数が経過した「学習中」の単語を単語同期で再表示する"
@@ -1846,6 +1841,13 @@
         "Statistics": "統計",
         "VideoPlayer": "動画プレーヤー",
         "BrowserExtension": "ブラウザ拡張機能"
+      },
+      "Behaviour": {
+        "LearningLanguageLevel": {
+          "Label": "学習言語レベル",
+          "Description": "設定した場合、このレベルを超える提案フラッシュカードとレベルのないカードは保存されません。Word Syncの難易度にも影響します。",
+          "NoLimit": "制限なし"
+        }
       }
     },
     "BrowserExtension": {
