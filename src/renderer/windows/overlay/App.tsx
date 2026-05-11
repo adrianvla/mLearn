@@ -2,22 +2,10 @@ import { Component, createSignal, createMemo, onMount, onCleanup, createEffect }
 import { getBridge } from '../../../shared/bridges';
 import type { OverlayVideoState, OverlayGeometry, OverlaySubtitleTracks } from '../../../shared/types';
 import { SubtitleContainer } from '../../components/subtitle/SubtitleContainer';
-import { OverlayControls, BorderFlash, triggerBorderFlash } from '../../components/overlay';
+import { OverlayControls } from '../../components/overlay';
 import { useSubtitles } from '../../hooks/useSubtitles';
 import { useSettings } from '../../context';
 import { useWatchTogether } from '../../hooks/useWatchTogether';
-
-const formatTime = (seconds: number): string => {
-  if (!Number.isFinite(seconds) || seconds < 0) return '00:00';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  if (h > 0) {
-    return `${h}:${pad(m)}:${pad(s)}`;
-  }
-  return `${pad(m)}:${pad(s)}`;
-};
 
 const DISCONNECT_TIMEOUT_MS = 15000;
 
@@ -53,11 +41,6 @@ export const App: Component = () => {
   const currentTime = createMemo(() => videoState()?.currentTime ?? 0);
   const duration = createMemo(() => videoState()?.duration ?? 0);
   const isPlaying = createMemo(() => videoState()?.isPlaying ?? false);
-  const isBuffering = createMemo(() => videoState()?.isWaiting ?? false);
-  const volume = createMemo(() => videoState()?.volume ?? 1);
-  const isMuted = createMemo(() => videoState()?.muted ?? false);
-  const playbackRate = createMemo(() => videoState()?.playbackRate ?? 1);
-
   const watchTogether = useWatchTogether({
     getVideo: () => null,
     getVideoSrc: () => videoState()?.url ?? '',
@@ -80,7 +63,8 @@ export const App: Component = () => {
 
     cleanups.push(
       bridge.overlay.onOverlayGeometry((_geometry: OverlayGeometry) => {
-        triggerBorderFlash();
+        setLastSyncAt(Date.now());
+        setIsConnected(true);
       })
     );
 
@@ -231,21 +215,6 @@ export const App: Component = () => {
     bridge.overlay.sendOverlayCommand({ command: 'seek', time: target });
   };
 
-  const handleVolumeChange = (value: number) => {
-    if (!isConnected()) return;
-    bridge.overlay.sendOverlayCommand({ command: 'setVolume', volume: Math.max(0, Math.min(1, value)) });
-  };
-
-  const handleToggleMute = () => {
-    if (!isConnected()) return;
-    bridge.overlay.sendOverlayCommand({ command: 'setVolume', volume: isMuted() ? volume() || 1 : 0 });
-  };
-
-  const handlePlaybackRateChange = (rate: number) => {
-    if (!isConnected()) return;
-    bridge.overlay.sendOverlayCommand({ command: 'setRate', rate });
-  };
-
   const handleOpenSubtitleFile = async () => {
     const filePath = await bridge.files.selectSubtitleFile();
     if (!filePath) return;
@@ -350,22 +319,10 @@ export const App: Component = () => {
       </div>
 
       <OverlayControls
-        currentTime={currentTime()}
-        duration={duration()}
         isConnected={isConnected()}
         hasSubtitles={hasSubtitles()}
-        isPlaying={isPlaying()}
-        isBuffering={isBuffering()}
-        volume={volume()}
-        isMuted={isMuted()}
-        playbackRate={playbackRate()}
         subtitleOffset={settings.subsOffsetTime}
         autoPositionEnabled={autoPositionEnabled()}
-        onPlayPause={handlePlayPause}
-        onSeek={handleSeek}
-        onVolumeChange={handleVolumeChange}
-        onToggleMute={handleToggleMute}
-        onPlaybackRateChange={handlePlaybackRateChange}
         onOffsetChange={handleOffsetChange}
         onLoadSubtitles={handleOpenSubtitleFile}
         onClose={handleClose}
@@ -376,9 +333,7 @@ export const App: Component = () => {
         onResizeMove={handleResizeMove}
         onResizeEnd={handleResizeEnd}
         onToggleAutoPosition={handleToggleAutoPosition}
-        formatTime={formatTime}
       />
-      <BorderFlash />
     </div>
   );
 };

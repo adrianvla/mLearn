@@ -27,11 +27,13 @@ body {
 
 .overlay-subtitle-wrapper {
   position: absolute;
-  bottom: 48px;
+  top: 48px;
+  bottom: 0;
   left: 0;
   right: 0;
   display: flex;
   justify-content: center;
+  align-items: flex-end;
   pointer-events: none;
 }
 

@@ -19,7 +19,7 @@
     "build": "tsc -p src/electron/tsconfig.json && npm run bundle:preload && vite build",
     "bundle:preload": "esbuild dist-electron/electron/preload.js --bundle --platform=node --outfile=dist-electron/electron/preload.js --allow-overwrite --external:electron",
     "build:web": "vite build --mode web",
-    "preview": "vite preview",
+    "preview": "npm run build && vite preview",
     "typecheck": "tsc --noEmit && tsc -p src/electron/tsconfig.json --noEmit",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",

@@ -69,6 +69,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
   let chunksToSend: string[] = [];
   let receivedChunks: Record<number, string> = {};
   let totalChunksExpected = 0;
+  let ackedChunkCount = 0;
 
   const getThemeColor = (variableName: string): string =>
     getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
@@ -120,6 +121,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     chunksToSend = [];
     receivedChunks = {};
     totalChunksExpected = 0;
+    ackedChunkCount = 0;
   };
 
   const getAccessToken = (): string | null => {
@@ -213,7 +215,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     
     switch (msg.type) {
       case 'peer_connected': {
-        if (currentRole === 'sender') {
+        if (currentRole === 'sender' && !msg.message) {
           setPhase('syncing');
           setStatusText(t('mlearn.Flashcards.Sync.ConnectedSyncing'));
           await sendOffer();
@@ -257,8 +259,8 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       
       case 'chunk_received': {
         if (currentRole === 'sender') {
-          const current = parseInt(Object.keys(receivedChunks).length.toString(), 10);
-          setProgress((current / chunksToSend.length) * 100);
+          ackedChunkCount++;
+          setProgress((ackedChunkCount / chunksToSend.length) * 100);
         }
         break;
       }

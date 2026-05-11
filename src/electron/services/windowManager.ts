@@ -92,8 +92,10 @@ export function moveOverlayBy(deltaX: number, deltaY: number): void {
   const win = getOverlayWindow();
   if (!win || win.isDestroyed()) return;
   const bounds = win.getBounds();
-  overlayManualDelta.x += deltaX;
-  overlayManualDelta.y += deltaY;
+  if (overlayAutoPositionEnabled) {
+    overlayManualDelta.x += deltaX;
+    overlayManualDelta.y += deltaY;
+  }
   win.setBounds({
     x: Math.round(bounds.x + deltaX),
     y: Math.round(bounds.y + deltaY),
@@ -106,8 +108,10 @@ export function resizeOverlayBy(deltaWidth: number, deltaHeight: number): void {
   const win = getOverlayWindow();
   if (!win || win.isDestroyed()) return;
   const bounds = win.getBounds();
-  overlayManualDelta.width += deltaWidth;
-  overlayManualDelta.height += deltaHeight;
+  if (overlayAutoPositionEnabled) {
+    overlayManualDelta.width += deltaWidth;
+    overlayManualDelta.height += deltaHeight;
+  }
   win.setBounds({
     x: bounds.x,
     y: bounds.y,

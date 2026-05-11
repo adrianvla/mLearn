@@ -218,10 +218,10 @@ export async function createSyncRoom(accessToken: string): Promise<SyncRoomRespo
   return response.json() as Promise<SyncRoomResponse>;
 }
 
-export function buildSyncSocketUrl(roomId: string, role: 'sender' | 'receiver', accessToken: string): string {
+export function buildSyncSocketUrl(roomId: string, role: 'sender' | 'receiver'): string {
   const workerUrl = new URL(WORKER_API_URL);
   const protocol = workerUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${workerUrl.host}/api/flashcard-sync/rooms/${roomId}/socket?_role=${role}&_token=${encodeURIComponent(accessToken)}`;
+  return `${protocol}//${workerUrl.host}/api/flashcard-sync/rooms/${roomId}/socket?_role=${role}`;
 }
 
 export interface SyncSocketMessage {
@@ -253,8 +253,8 @@ export class SyncSocketClient {
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       const attempt = (retriesLeft: number) => {
-        const url = buildSyncSocketUrl(this.roomId, this.role, this.accessToken);
-        this.ws = new WebSocket(url, 'mlearn-flashcard-sync-v1');
+        const url = buildSyncSocketUrl(this.roomId, this.role);
+        this.ws = new WebSocket(url, ['mlearn-flashcard-sync-v1', this.accessToken]);
 
         this.ws.onopen = () => {
           this.onOpenCallback?.();
