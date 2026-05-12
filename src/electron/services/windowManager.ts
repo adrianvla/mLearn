@@ -120,6 +120,9 @@ export function resizeOverlayBy(deltaWidth: number, deltaHeight: number): void {
   });
 }
 
+let lastGeometryUpdateTime = 0;
+const GEOMETRY_UPDATE_MIN_INTERVAL_MS = 250;
+
 export function updateOverlayGeometry(geometry: { x: number; y: number; width: number; height: number }): void {
   if (
     !Number.isFinite(geometry.x) ||
@@ -149,11 +152,33 @@ export function updateOverlayGeometry(geometry: { x: number; y: number; width: n
       };
 
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
-  if (corrected.x > screenWidth || corrected.y > screenHeight) {
+  if (
+    corrected.x > screenWidth ||
+    corrected.y > screenHeight ||
+    corrected.x + corrected.width < 0 ||
+    corrected.y + corrected.height < 0
+  ) {
     console.warn('updateOverlayGeometry: corrected geometry is off-screen', corrected);
     return;
   }
 
+  const now = Date.now();
+  if (now - lastGeometryUpdateTime < GEOMETRY_UPDATE_MIN_INTERVAL_MS) {
+    return;
+  }
+
+  const currentBounds = win.getBounds();
+  const hasSignificantChange =
+    Math.abs(corrected.x - currentBounds.x) >= 2 ||
+    Math.abs(corrected.y - currentBounds.y) >= 2 ||
+    Math.abs(corrected.width - currentBounds.width) >= 2 ||
+    Math.abs(corrected.height - currentBounds.height) >= 2;
+
+  if (!hasSignificantChange) {
+    return;
+  }
+
+  lastGeometryUpdateTime = now;
   win.setBounds(corrected);
 }
 

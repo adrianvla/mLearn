@@ -851,6 +851,7 @@ function setupMessageListener(): void {
 let syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let geometryDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingGeometry: { x: number; y: number; width: number; height: number; isFullscreen: boolean } | null = null;
+let geometryAbortController: AbortController | null = null;
 
 function handleVideoState(state: VideoState, meta?: { url: string; title: string }, _tabId?: number): void {
   lastVideoState = state;
@@ -881,13 +882,17 @@ function handleGeometryUpdate(geometry: { x: number; y: number; width: number; h
 
   geometryDebounceTimer = setTimeout(() => {
     if (pendingGeometry) {
-      forwardGeometry(pendingGeometry);
+      if (geometryAbortController) {
+        geometryAbortController.abort();
+      }
+      geometryAbortController = new AbortController();
+      forwardGeometry(pendingGeometry, geometryAbortController.signal);
       pendingGeometry = null;
     }
   }, GEOMETRY_DEBOUNCE_MS);
 }
 
-async function forwardGeometry(geometry: { x: number; y: number; width: number; height: number; isFullscreen: boolean }): Promise<void> {
+async function forwardGeometry(geometry: { x: number; y: number; width: number; height: number; isFullscreen: boolean }, signal?: AbortSignal): Promise<void> {
   if (status === 'disconnected') {
     return;
   }
@@ -899,6 +904,7 @@ async function forwardGeometry(geometry: { x: number; y: number; width: number; 
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(geometry),
+      signal,
     });
 
     if (response.ok) {
@@ -910,6 +916,9 @@ async function forwardGeometry(geometry: { x: number; y: number; width: number; 
       handleConnectionError();
     }
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return;
+    }
     handleConnectionError();
   }
 }

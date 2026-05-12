@@ -31,21 +31,14 @@ interface QRCodeRenderer {
   ) => Promise<void>;
 }
 
-interface JsQrCode {
-  data: string;
-}
-
-type JsQrScanner = (data: Uint8ClampedArray, width: number, height: number) => JsQrCode | null;
-
 let QRCodeLib: QRCodeRenderer | null = null;
-let jsQR: JsQrScanner | null = null;
 
 export interface FlashcardSyncModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type SyncPhase = 'init' | 'showing-qr' | 'scanning' | 'connecting' | 'syncing' | 'complete' | 'error';
+type SyncPhase = 'init' | 'showing-qr' | 'connecting' | 'syncing' | 'complete' | 'error';
 type SyncRole = 'sender' | 'receiver' | null;
 
 export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) => {
@@ -61,10 +54,6 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
   
   let socketClient: SyncSocketClient | null = null;
   let qrCodeEl: HTMLDivElement | undefined;
-  let videoEl: HTMLVideoElement | undefined;
-  let canvasEl: HTMLCanvasElement | undefined;
-  let videoStream: MediaStream | null = null;
-  let scanAnimationId: number | null = null;
   
   let chunksToSend: string[] = [];
   let receivedChunks: Record<number, string> = {};
@@ -86,11 +75,6 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         QRCodeLib = (module.default || module) as QRCodeRenderer;
       }
       
-      if (!jsQR) {
-        const module = await import('jsqr');
-        jsQR = (module.default || module) as JsQrScanner;
-      }
-      
       await startAsSender();
     } catch (e) {
       log.error('Failed to load sync libraries:', e);
@@ -104,16 +88,6 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
   });
 
   const cleanup = () => {
-    if (scanAnimationId !== null) {
-      cancelAnimationFrame(scanAnimationId);
-      scanAnimationId = null;
-    }
-    if (videoStream) {
-      videoStream.getTracks().forEach((track) => {
-        track.stop();
-      });
-      videoStream = null;
-    }
     if (socketClient) {
       socketClient.disconnect();
       socketClient = null;
@@ -159,30 +133,6 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       await socketClient.connect();
     } catch (e) {
       log.error('Sync connection failed:', e);
-      setError(e instanceof Error ? e.message : t('mlearn.Flashcards.Sync.Error.Connection'));
-      setPhase('error');
-    }
-  };
-
-  const startAsReceiver = async (scannedRoomId: string) => {
-    try {
-      const accessToken = getAccessToken();
-      if (!accessToken) {
-        setError(t('mlearn.Flashcards.Sync.Error.AuthRequired'));
-        setPhase('error');
-        return;
-      }
-
-      cleanup();
-      setRole('receiver');
-      setPhase('connecting');
-      setStatusText(t('mlearn.Flashcards.Sync.EstablishingConnection'));
-      
-      socketClient = new SyncSocketClient(scannedRoomId, 'receiver', accessToken);
-      setupSocketHandlers();
-      await socketClient.connect();
-    } catch (e) {
-      log.error('Failed to connect as receiver:', e);
       setError(e instanceof Error ? e.message : t('mlearn.Flashcards.Sync.Error.Connection'));
       setPhase('error');
     }
@@ -365,77 +315,6 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     }
   };
 
-  const startScanning = async () => {
-    setPhase('scanning');
-    setStatusText(t('mlearn.Flashcards.Sync.PointCamera'));
-    
-    try {
-      videoStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
-      
-      if (videoEl) {
-        videoEl.srcObject = videoStream;
-        videoEl.setAttribute('playsinline', 'true');
-        await videoEl.play();
-        
-        const scan = () => {
-          if (!videoEl || phase() !== 'scanning') return;
-          
-          if (videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
-            const canvas = canvasEl || document.createElement('canvas');
-            canvas.width = videoEl.videoWidth;
-            canvas.height = videoEl.videoHeight;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(videoEl, 0, 0);
-              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              if (!jsQR) return;
-              const code = jsQR(imageData.data, canvas.width, canvas.height);
-              
-              if (code?.data) {
-                handleScannedRoomId(code.data);
-              }
-            }
-          }
-          
-          scanAnimationId = requestAnimationFrame(scan);
-        };
-        
-        scan();
-      }
-    } catch (e) {
-      log.error('Camera access error:', e);
-      setError(t('mlearn.Flashcards.Sync.Error.CameraAccess'));
-      setPhase('error');
-    }
-  };
-
-  const handleScannedRoomId = (data: string) => {
-    try {
-      const trimmed = data.trim();
-      if (trimmed.length > 0) {
-        startAsReceiver(trimmed);
-        stopScanning();
-      }
-    } catch (e) {
-      log.error('Error handling scanned room ID:', e);
-    }
-  };
-
-  const stopScanning = () => {
-    if (scanAnimationId !== null) {
-      cancelAnimationFrame(scanAnimationId);
-      scanAnimationId = null;
-    }
-    if (videoStream) {
-      videoStream.getTracks().forEach((track) => {
-        track.stop();
-      });
-      videoStream = null;
-    }
-  };
-
   const handleClose = () => {
     cleanup();
     props.onClose();
@@ -461,26 +340,6 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
             <p class="qr-hint">
               {t('mlearn.Flashcards.Sync.QRHint')}
             </p>
-            <Btn onClick={startScanning}>
-              {t('mlearn.Flashcards.Sync.ScanQRInstead')}
-            </Btn>
-          </div>
-        </Show>}
-        
-        {<Show when={phase() === 'scanning'}>
-          <div class="scan-container">
-            <video
-              ref={videoEl}
-              class="scan-video"
-              autoplay
-              playsinline
-              muted
-            />
-            <canvas ref={canvasEl} class="scan-canvas" />
-            <ProgressBar value={progress()} showPercent variant="primary" animated />
-            <Btn onClick={() => { stopScanning(); startAsSender(); }}>
-              {t('mlearn.Flashcards.Sync.ShowQRInstead')}
-            </Btn>
           </div>
         </Show>}
         
