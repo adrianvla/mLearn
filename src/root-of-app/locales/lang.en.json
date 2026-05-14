@@ -1929,6 +1929,8 @@
           "Young": "Young (<21d)"
         },
         "NewLearned": "New Learned",
+        "OutsideLevels": "Words Outside Levels",
+        "OutsideLevelsTotal": "Total",
         "Overdue": "Overdue",
         "RetentionRate": "Retention Rate",
         "ReviewActivity": "Review Activity (Last 30 Days)",

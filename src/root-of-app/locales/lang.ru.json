@@ -1929,6 +1929,8 @@
           "Young": "Молодые (<21д)"
         },
         "NewLearned": "Новые изученные",
+        "OutsideLevels": "Слова вне уровней",
+        "OutsideLevelsTotal": "Всего",
         "Overdue": "Просрочено",
         "RetentionRate": "Процент запоминания",
         "ReviewActivity": "Активность повторений (30 дней)",

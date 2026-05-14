@@ -1929,6 +1929,8 @@
           "Young": "若い (<21日)"
         },
         "NewLearned": "新規学習",
+        "OutsideLevels": "レベル外の単語",
+        "OutsideLevelsTotal": "合計",
         "Overdue": "期限超過",
         "RetentionRate": "記憶率",
         "ReviewActivity": "復習アクティビティ（過去30日間）",

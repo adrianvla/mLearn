@@ -1929,6 +1929,8 @@
           "Young": "Jung (<21T)"
         },
         "NewLearned": "Neu gelernt",
+        "OutsideLevels": "Wörter außerhalb der Level",
+        "OutsideLevelsTotal": "Gesamt",
         "Overdue": "Überfällig",
         "RetentionRate": "Behaltensrate",
         "ReviewActivity": "Wiederholungsaktivität (Letzte 30 Tage)",

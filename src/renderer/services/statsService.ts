@@ -1,7 +1,6 @@
 /**
  * Stats Service
- * Handles time tracking, word statistics, and related data management
- * Ported from stats.js in the original mLearn app
+ * Time tracking and legacy word status store.
  */
 
 import { createSignal } from 'solid-js';
@@ -119,51 +118,8 @@ export function updateTimeWatched(seconds: number): void {
   setTimeWatchedSeconds(seconds);
 }
 
-/**
- * Get words learned in app (uuid -> status)
- */
 export function getWordsLearnedInApp(): Record<string, number> {
   return wordsLearnedInApp();
-}
-
-/**
- * Get formatted words learned statistics (alias for StatsTab)
- */
-export function getWordsLearnedInAppStats(): {
-  total: number;
-  learned: number;
-  learning: number;
-  unknown: number;
-} {
-  return getWordsLearnedFormatted();
-}
-
-/**
- * Get formatted words learned statistics
- */
-export function getWordsLearnedFormatted(): {
-  total: number;
-  learned: number;
-  learning: number;
-  unknown: number;
-} {
-  const words = wordsLearnedInApp();
-  let learned = 0;
-  let learning = 0;
-  let unknown = 0;
-
-  for (const status of Object.values(words)) {
-    if (status === WORD_STATUS.KNOWN) learned++;
-    else if (status === WORD_STATUS.LEARNING) learning++;
-    else unknown++;
-  }
-
-  return {
-    total: Object.keys(words).length,
-    learned,
-    learning,
-    unknown,
-  };
 }
 
 /**
@@ -332,106 +288,6 @@ export async function toUniqueIdentifier(word: string): Promise<string> {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   return hashHex.substring(0, 16); // Use first 16 chars as ID
-}
-
-/**
- * Draw pie chart for words learned by status
- */
-export function drawWordsLearnedPieChart(
-  canvas: HTMLCanvasElement,
-  settings: Settings
-): void {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  const stats = getWordsLearnedFormatted();
-  const total = stats.total;
-
-  if (total === 0) {
-    ctx.fillStyle = '#aaa';
-    ctx.font = '14px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('No tracked words yet', canvas.width / 2, canvas.height / 2);
-    return;
-  }
-
-  // Calculate pie segments
-  const segments = [
-    { label: 'Learned', value: stats.learned, color: '#4CAF50' },
-    { label: 'Learning', value: stats.learning, color: '#FF9800' },
-    { label: 'Unknown', value: stats.unknown, color: '#9E9E9E' },
-  ].filter(s => s.value > 0);
-
-  // Canvas setup
-  const DPR = window.devicePixelRatio || 1;
-  const cssWidth = canvas.clientWidth || 300;
-  const cssHeight = canvas.clientHeight || 200;
-  canvas.width = Math.floor(cssWidth * DPR);
-  canvas.height = Math.floor(cssHeight * DPR);
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-
-  // Clear
-  ctx.clearRect(0, 0, cssWidth, cssHeight);
-
-  // Pie chart dimensions
-  const margin = { top: 20, right: 120, bottom: 20, left: 20 };
-  const cx = (cssWidth - margin.left - margin.right) / 2 + margin.left;
-  const cy = cssHeight / 2;
-  const radius = Math.min(
-    (cssWidth - margin.left - margin.right) / 2,
-    (cssHeight - margin.top - margin.bottom) / 2
-  );
-
-  // Draw pie segments
-  let startAngle = -Math.PI / 2;
-  segments.forEach((seg) => {
-    const sliceAngle = (seg.value / total) * 2 * Math.PI;
-    const endAngle = startAngle + sliceAngle;
-
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, radius, startAngle, endAngle);
-    ctx.closePath();
-    ctx.fillStyle = seg.color;
-    ctx.fill();
-
-    // Label inside slice
-    if (seg.value > 0) {
-      const mid = startAngle + sliceAngle / 2;
-      const lx = cx + Math.cos(mid) * (radius * 0.6);
-      const ly = cy + Math.sin(mid) * (radius * 0.6);
-      ctx.fillStyle = '#fff';
-      ctx.font = '12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`${seg.value}`, lx, ly);
-    }
-
-    startAngle = endAngle;
-  });
-
-  // Title
-  const isDark = settings.theme === 'dark' || settings.theme === 'glass-dark' || settings.theme === 'darker';
-  ctx.fillStyle = isDark ? '#ddd' : '#333';
-  ctx.font = '14px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText('Words learned in app', margin.left, 14);
-
-  // Legend
-  const legendX = cssWidth - margin.right + 10;
-  let legendY = margin.top;
-  ctx.font = '12px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  segments.forEach((seg) => {
-    const pct = Math.round((seg.value / total) * 1000) / 10;
-    ctx.fillStyle = seg.color;
-    ctx.fillRect(legendX, legendY, 14, 14);
-    ctx.fillStyle = isDark ? '#ccc' : '#444';
-    ctx.fillText(`${seg.label} – ${seg.value} (${pct}%)`, legendX + 20, legendY);
-    legendY += 20;
-  });
 }
 
 /**

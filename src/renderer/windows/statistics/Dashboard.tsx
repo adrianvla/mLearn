@@ -12,11 +12,8 @@ import type { PieSegment, BarChartDataPoint } from './charts';
 import type { MediaStats } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 
-import {
-  initTimeWatched,
-  getWordsLearnedInAppStats,
-  getWordsLearnedInApp,
-} from '../../services/statsService';
+import { initTimeWatched } from '../../services/statsService';
+import { computeWordLevelStats } from '../../utils/wordLevelStats';
 import {
   computeStateDistribution,
   computeMaturityBreakdown,
@@ -50,7 +47,7 @@ function scanlineMerge(intervals: Array<{ start: number; end: number }>): number
 export const Dashboard: Component = () => {
   const { store } = useFlashcards();
   const { settings } = useSettings();
-  const { wordFrequency, getFreqLevelNames, getFrequency, getLanguageFeatures } = useLanguage();
+  const { wordFrequency, getFreqLevelNames, getLanguageFeatures } = useLanguage();
   const { t } = useLocalization();
 
   initTimeWatched(settings);
@@ -197,8 +194,16 @@ export const Dashboard: Component = () => {
     };
   });
 
-  // ── Word stats ──
-  const wordStats = createMemo(() => getWordsLearnedInAppStats());
+  const wordStats = createMemo(() =>
+    computeWordLevelStats(
+      store,
+      wordFrequency,
+      settings.language,
+      settings.known_ease_threshold,
+      settings.srsLearningThreshold,
+      getFreqLevelNames(),
+    ),
+  );
 
   // ── Word acquisition (encounters until status change) ──
   const wordAcquisitionStats = createMemo(() => {
@@ -254,9 +259,9 @@ export const Dashboard: Component = () => {
   ]);
 
   const wordStatusPie = createMemo((): PieSegment[] => [
-    { label: t('mlearn.Statistics.Legend.Learned'), value: wordStats().learned, color: 'var(--color-success)' },
-    { label: t('mlearn.Statistics.Legend.Learning'), value: wordStats().learning, color: 'var(--color-warning)' },
-    { label: t('mlearn.Statistics.Legend.Viewed'), value: wordStats().unknown, color: 'var(--text-tertiary)' },
+    { label: t('mlearn.Statistics.Legend.Learned'), value: wordStats().allEncountered.known, color: 'var(--color-success)' },
+    { label: t('mlearn.Statistics.Legend.Learning'), value: wordStats().allEncountered.learning, color: 'var(--color-warning)' },
+    { label: t('mlearn.Statistics.Legend.Viewed'), value: wordStats().allEncountered.unknown, color: 'var(--text-tertiary)' },
   ]);
 
   // ── Helpers ──
@@ -274,54 +279,12 @@ export const Dashboard: Component = () => {
     return `${m}m`;
   };
 
-  // ── Level breakdown (with total words per level from frequency data) ──
-
   const levelBreakdown = createMemo(() => {
     if (!getLanguageFeatures().supportsFrequencyLevels) return [];
-    const names = getFreqLevelNames();
-    const entries = Object.entries(names).map(([k, v]) => ({ level: parseInt(k), name: v }));
-    entries.sort((a, b) => b.level - a.level);
-    if (entries.length === 0) return [];
-
-    // Count total words per level from frequency dictionary
-    const totalPerLevel = new Map<number, number>();
-    for (const entry of entries) {
-      totalPerLevel.set(entry.level, 0);
-    }
-    for (const freqEntry of Object.values(wordFrequency)) {
-      const cur = totalPerLevel.get(freqEntry.raw_level);
-      if (cur !== undefined) totalPerLevel.set(freqEntry.raw_level, cur + 1);
-    }
-
-    // Count user progress per level
-    const words = getWordsLearnedInApp();
-    const buckets = new Map<number, { learned: number; learning: number; viewed: number }>();
-    for (const entry of entries) {
-      buckets.set(entry.level, { learned: 0, learning: 0, viewed: 0 });
-    }
-    for (const [word, status] of Object.entries(words)) {
-      const freq = getFrequency(word);
-      if (!freq) continue;
-      const bucket = buckets.get(freq.raw_level);
-      if (!bucket) continue;
-      if (status === 2) bucket.learned++;
-      else if (status === 1) bucket.learning++;
-      else bucket.viewed++;
-    }
-
-    return entries.map(e => {
-      const b = buckets.get(e.level) ?? { learned: 0, learning: 0, viewed: 0 };
-      const total = totalPerLevel.get(e.level) ?? 0;
-      const encountered = b.learned + b.learning + b.viewed;
-      return {
-        name: e.name || `${t('mlearn.Statistics.LevelColumn')} ${e.level}`,
-        ...b,
-        total,
-        encountered,
-        coveragePct: total > 0 ? Math.round((b.learned / total) * 100) : 0,
-      };
-    });
+    return wordStats().byLevel;
   });
+
+  const outsideLevels = createMemo(() => wordStats().outsideLevels);
 
   // ── Heatmap color scales ──
   const reviewColorScale = [
@@ -444,25 +407,37 @@ export const Dashboard: Component = () => {
                 {(row) => (
                   <tr>
                     <td>{row.name}</td>
-                    <td class="level-num">{row.learned}</td>
+                    <td class="level-num">{row.known}</td>
                     <td class="level-num">{row.learning}</td>
-                    <td class="level-num">{row.viewed}</td>
-                    <td class="level-num">{row.total}</td>
+                    <td class="level-num">{row.unknown}</td>
+                    <td class="level-num">{row.totalDictionaryWords}</td>
                     <td class="level-coverage-cell">
                       <div class="level-coverage-bar">
-                        <Show when={row.total > 0}>
-                          <div class="level-coverage-fill level-coverage-learned" style={{ width: `${(row.learned / row.total) * 100}%` }} />
-                          <div class="level-coverage-fill level-coverage-learning" style={{ width: `${(row.learning / row.total) * 100}%` }} />
-                          <div class="level-coverage-fill level-coverage-viewed" style={{ width: `${(row.viewed / row.total) * 100}%` }} />
+                        <Show when={row.totalDictionaryWords > 0}>
+                          <div class="level-coverage-fill level-coverage-learned" style={{ width: `${(row.known / row.totalDictionaryWords) * 100}%` }} />
+                          <div class="level-coverage-fill level-coverage-learning" style={{ width: `${(row.learning / row.totalDictionaryWords) * 100}%` }} />
+                          <div class="level-coverage-fill level-coverage-viewed" style={{ width: `${(row.unknown / row.totalDictionaryWords) * 100}%` }} />
                         </Show>
                       </div>
-                      <span class="level-coverage-pct">{row.coveragePct}%</span>
+                      <span class="level-coverage-pct">{row.knownPct}%</span>
                     </td>
                   </tr>
                 )}
               </For>
             </tbody>
           </table>
+        </Panel>
+      </Show>
+
+      <Show when={outsideLevels().total > 0}>
+        <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
+          <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.OutsideLevels')}</h3>
+          <div class="dashboard-stats-row compact">
+            <StatCard label={t('mlearn.Statistics.Legend.Learned')} value={outsideLevels().known} size="sm" color="success" />
+            <StatCard label={t('mlearn.Statistics.Legend.Learning')} value={outsideLevels().learning} size="sm" color="warning" />
+            <StatCard label={t('mlearn.Statistics.Legend.Viewed')} value={outsideLevels().unknown} size="sm" />
+            <StatCard label={t('mlearn.Statistics.Dashboard.OutsideLevelsTotal')} value={outsideLevels().total} size="sm" />
+          </div>
         </Panel>
       </Show>
 
@@ -490,14 +465,14 @@ export const Dashboard: Component = () => {
           />
         </Panel>
 
-        <Show when={wordStats().total > 0}>
+        <Show when={wordStats().allEncountered.total > 0}>
           <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
             <h3 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.WordKnowledge')}</h3>
             <PieChart
               segments={wordStatusPie()}
               size={160}
               thickness={24}
-              centerValue={wordStats().total}
+              centerValue={wordStats().allEncountered.total}
               centerLabel={t('mlearn.Statistics.Dashboard.CenterLabel.Words')}
             />
           </Panel>

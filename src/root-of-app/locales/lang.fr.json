@@ -1929,6 +1929,8 @@
           "Young": "Récent (<21j)"
         },
         "NewLearned": "Nouveaux appris",
+        "OutsideLevels": "Mots hors niveaux",
+        "OutsideLevelsTotal": "Total",
         "Overdue": "En retard",
         "RetentionRate": "Taux de rétention",
         "ReviewActivity": "Activité de révision (30 derniers jours)",

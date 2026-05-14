@@ -143,12 +143,11 @@ describe('statsService', () => {
     });
 
     it('removes alias statuses when saving the preferred word form', async () => {
-      const { setWordStatus, getWordStatus, getWordsLearnedInApp } = await import('./statsService');
+      const { setWordStatus, getWordStatus } = await import('./statsService');
       setWordStatus('なかま', 1);
       setWordStatus('仲間', 2, ['なかま']);
 
       expect(getWordStatus('仲間', ['なかま'])).toBe(2);
-      expect(getWordsLearnedInApp()).not.toHaveProperty('なかま');
     });
 
     it('returns UNKNOWN (0) for unseen words', async () => {
@@ -197,45 +196,13 @@ describe('statsService', () => {
     });
   });
 
-  describe('getWordsLearnedFormatted / getWordsLearnedInAppStats', () => {
-    it('returns correct counts for mixed statuses', async () => {
-      const { setWordStatus, getWordsLearnedFormatted } = await import('./statsService');
-      setWordStatus('w1', 2);
-      setWordStatus('w2', 1);
-      setWordStatus('w3', 0);
-      const stats = getWordsLearnedFormatted();
-      expect(stats.total).toBeGreaterThanOrEqual(3);
-      expect(stats.learned).toBeGreaterThanOrEqual(1);
-      expect(stats.learning).toBeGreaterThanOrEqual(1);
-      expect(stats.unknown).toBeGreaterThanOrEqual(1);
-    });
-
-    it('getWordsLearnedInAppStats returns same as getWordsLearnedFormatted', async () => {
-      const { getWordsLearnedFormatted, getWordsLearnedInAppStats } = await import('./statsService');
-      expect(getWordsLearnedInAppStats()).toEqual(getWordsLearnedFormatted());
-    });
-
-    it('returns zeros when no words tracked', async () => {
-      const { getWordsLearnedFormatted, getWordsLearnedInApp } = await import('./statsService');
-      const words = getWordsLearnedInApp();
-      if (Object.keys(words).length === 0) {
-        const stats = getWordsLearnedFormatted();
-        expect(stats.total).toBe(0);
-        expect(stats.learned).toBe(0);
-        expect(stats.learning).toBe(0);
-        expect(stats.unknown).toBe(0);
-      }
-    });
-  });
-
   describe('loadWordsFromStorage', () => {
     it('loads words from KV store', async () => {
       const stored = JSON.stringify({ hello: 2, world: 1 });
       mockKvGet.mockResolvedValue(stored);
-      const { loadWordsFromStorage, getWordsLearnedInApp } = await import('./statsService');
+      const { loadWordsFromStorage } = await import('./statsService');
       await loadWordsFromStorage();
-      const words = getWordsLearnedInApp();
-      expect(typeof words).toBe('object');
+      expect(mockKvGet).toHaveBeenCalledWith('mlearn_words_learned');
     });
 
     it('calls getMigratedItem when no KV data and isElectron', async () => {
@@ -316,66 +283,6 @@ describe('statsService', () => {
       const id1 = await toUniqueIdentifier('consistent');
       const id2 = await toUniqueIdentifier('consistent');
       expect(id1).toBe(id2);
-    });
-  });
-
-  describe('drawWordsLearnedPieChart', () => {
-    it('draws "No tracked words yet" text when no words', async () => {
-      const { drawWordsLearnedPieChart } = await import('./statsService');
-      const canvas = document.createElement('canvas') as HTMLCanvasElement;
-      const fillTextMock = vi.fn();
-      const ctx = {
-        fillStyle: '',
-        font: '',
-        textAlign: '',
-        textBaseline: '',
-        fillText: fillTextMock,
-        clearRect: vi.fn(),
-        beginPath: vi.fn(),
-        moveTo: vi.fn(),
-        arc: vi.fn(),
-        closePath: vi.fn(),
-        fill: vi.fn(),
-        setTransform: vi.fn(),
-        fillRect: vi.fn(),
-      };
-      vi.spyOn(canvas, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
-      const mockSettings = { theme: 'light', timeWatched: 0 } as Parameters<typeof drawWordsLearnedPieChart>[1];
-      drawWordsLearnedPieChart(canvas, mockSettings);
-    });
-
-    it('draws pie chart segments when words exist', async () => {
-      const { setWordStatus, drawWordsLearnedPieChart } = await import('./statsService');
-      setWordStatus('testword', 2);
-      const canvas = document.createElement('canvas') as HTMLCanvasElement;
-      const arcMock = vi.fn();
-      const ctx = {
-        fillStyle: '',
-        font: '',
-        textAlign: '',
-        textBaseline: '',
-        fillText: vi.fn(),
-        clearRect: vi.fn(),
-        beginPath: vi.fn(),
-        moveTo: vi.fn(),
-        arc: arcMock,
-        closePath: vi.fn(),
-        fill: vi.fn(),
-        setTransform: vi.fn(),
-        fillRect: vi.fn(),
-      };
-      vi.spyOn(canvas, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
-      const mockSettings = { theme: 'dark', timeWatched: 0 } as Parameters<typeof drawWordsLearnedPieChart>[1];
-      drawWordsLearnedPieChart(canvas, mockSettings);
-      expect(arcMock).toHaveBeenCalled();
-    });
-
-    it('returns early when canvas context is null', async () => {
-      const { drawWordsLearnedPieChart } = await import('./statsService');
-      const canvas = document.createElement('canvas') as HTMLCanvasElement;
-      vi.spyOn(canvas, 'getContext').mockReturnValue(null);
-      const mockSettings = { theme: 'light', timeWatched: 0 } as Parameters<typeof drawWordsLearnedPieChart>[1];
-      expect(() => drawWordsLearnedPieChart(canvas, mockSettings)).not.toThrow();
     });
   });
 

@@ -13,7 +13,7 @@ import { migrationListenerReady, queuePendingFlashcardMigration } from './migrat
 import { useSettings } from './SettingsContext';
 import { useLocalization } from './LocalizationContext';
 import { useLanguage } from './LanguageContext';
-import { changeKnownStatus as changeKnownStatusInStats } from '../services/statsService';
+
 import { showToast, updateToast } from '../components/common/Feedback/Toast';
 import { GroupedTaskProgressContent, type TaskState, type TaskStatus, type TaskGroup } from '../components/common/TaskProgress/TaskProgress';
 import { getBridge } from '../../shared/bridges';
@@ -2392,8 +2392,43 @@ Translation: [${targetLang} translation]`;
         try {
           const updates: Array<{ word: string; status: number }> = JSON.parse(data as string);
           for (const update of updates) {
-            changeKnownStatusInStats(update.word, update.status);
+            const canonical = getCanonicalForm(update.word);
+            const wordHash = SRS.hashWordSync(canonical);
+            const lk = langKey(settings.language, wordHash);
+            const now = Date.now();
+
+            if (update.status === 2) {
+              setStore(produce((s) => {
+                s.knownUntracked[lk] = true;
+                delete s.wordCandidates[lk];
+                delete s.wordKnowledge[lk];
+              }));
+            } else if (update.status === 1) {
+              setStore(produce((s) => {
+                if (!s.wordKnowledge[lk]) {
+                  s.wordKnowledge[lk] = {
+                    ease: settings.srsLearningEase,
+                    lastSeen: now,
+                    timesSeen: 0,
+                    timesHovered: 0,
+                    word: canonical,
+                    language: settings.language,
+                    lastStatusChange: now,
+                    wordSyncRatedAt: now,
+                  };
+                } else {
+                  s.wordKnowledge[lk].ease = settings.srsLearningEase;
+                  s.wordKnowledge[lk].lastStatusChange = now;
+                }
+              }));
+            } else {
+              setStore(produce((s) => {
+                delete s.knownUntracked[lk];
+                delete s.ignoredWords[lk];
+              }));
+            }
           }
+          saveFlashcards();
         } catch (e) {
           log.error('[Tethered] Failed to process pill updates:', e);
         }
