@@ -6,6 +6,7 @@
 import { Component, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, Select, VideoIcon, RangeInput } from '../../../components/common';
+import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import '../SettingsForm.css';
 
 export const VideoPlayerTab: Component = () => {
@@ -29,7 +30,7 @@ export const VideoPlayerTab: Component = () => {
           description={t('mlearn.Settings.VideoPlayer.LiveTranslator.Show.Description')}
         >
           <ToggleSwitch
-            checked={settings.showLiveTranslator ?? true}
+            checked={settings.showLiveTranslator ?? DEFAULT_SETTINGS.showLiveTranslator!}
             onChange={(checked) => {
               if (checked) {
                 updateSettings({ showLiveTranslator: true, openAside: true });
@@ -46,7 +47,7 @@ export const VideoPlayerTab: Component = () => {
             description={t('mlearn.Settings.VideoPlayer.LiveTranslator.IncludeKnown.Description')}
           >
             <ToggleSwitch
-              checked={settings.liveTranslatorIncludeKnown ?? false}
+              checked={settings.liveTranslatorIncludeKnown ?? DEFAULT_SETTINGS.liveTranslatorIncludeKnown!}
               onChange={(checked) => updateSettings({ liveTranslatorIncludeKnown: checked })}
             />
           </SettingRow>
@@ -70,7 +71,7 @@ export const VideoPlayerTab: Component = () => {
             description={t('mlearn.Settings.DisplayOptions.HideReadingForKnownWords.Description')}
           >
             <ToggleSwitch
-              checked={settings.hideReadingForKnownWords ?? false}
+              checked={settings.hideReadingForKnownWords ?? DEFAULT_SETTINGS.hideReadingForKnownWords!}
               onChange={(checked) => updateSettings({ hideReadingForKnownWords: checked })}
             />
           </SettingRow>
@@ -113,7 +114,7 @@ export const VideoPlayerTab: Component = () => {
           description={t('mlearn.Settings.VideoPlayer.KnownWords.BlurKnown.Description')}
         >
           <ToggleSwitch
-            checked={settings.blurKnownWords ?? false}
+            checked={settings.blurKnownWords ?? DEFAULT_SETTINGS.blurKnownWords!}
             onChange={(checked) => updateSettings({ blurKnownWords: checked })}
           />
         </SettingRow>
@@ -242,12 +243,12 @@ export const VideoPlayerTab: Component = () => {
             min={0}
             max={2000}
             step={100}
-            value={settings.flashcardVideoMargin ?? 300}
+            value={settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin}
             onChange={(value) => updateSettings({ flashcardVideoMargin: value })}
             class="setting-range"
             disabled={settings.flashcardMediaType !== 'video'}
           />
-          <span class="setting-hint">{settings.flashcardVideoMargin ?? 300}ms</span>
+          <span class="setting-hint">{settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin}ms</span>
         </SettingRow>
       </SettingGroup>
 

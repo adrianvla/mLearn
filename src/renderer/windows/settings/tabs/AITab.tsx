@@ -13,7 +13,7 @@ import { getBridge } from '../../../../shared/bridges';
 import { CloudLLMAdapter } from '../../../../shared/backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../../../../shared/backends';
 import { BUILTIN_MODELS, autoselectBuiltinModel, getModelUrl } from '../../../../shared/builtinModels';
-import type { LLMProvider, LLMModelStatus, OCRProvider, SystemMemoryInfo } from '../../../../shared/types';
+import { DEFAULT_SETTINGS, type LLMProvider, type LLMModelStatus, type OCRProvider, type SystemMemoryInfo } from '../../../../shared/types';
 import { ensureCloudAccessToken, handleCloudSessionError } from '../../../services/cloudSessionManager';
 import '../SettingsForm.css';
 import './AITab.css';
@@ -614,7 +614,7 @@ export const AITab: Component = () => {
         >
           <Select
               class="setting-select"
-              value={settings.ocrProvider ?? 'local'}
+              value={settings.ocrProvider ?? DEFAULT_SETTINGS.ocrProvider}
               onChange={(e) => updateSettings({ ocrProvider: e.currentTarget.value as OCRProvider })}
               options={[
                 { value: 'local', label: t('mlearn.AI.Settings.OCR.Provider.Local') },

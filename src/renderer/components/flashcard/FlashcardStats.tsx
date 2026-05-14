@@ -20,6 +20,7 @@ import {
   computeDueCounts,
 } from '../../services/flashcardStats';
 import { Card, StatCard, BookIcon, CalendarIcon, StarIcon, BreakdownRow } from '../common';
+import { DEFAULT_SETTINGS } from '../../../shared/types';
 import './FlashcardStats.css';
 
 // ============================================================================
@@ -267,7 +268,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   // ---- Computed Data ----
 
   const cards = createMemo(() => getAllCards());
-  const dueCounts = createMemo(() => computeDueCounts(cards(), settings.newDayHour ?? 4));
+  const dueCounts = createMemo(() => computeDueCounts(cards(), settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!));
 
   const stateDistribution = createMemo(() => computeStateDistribution(cards()));
   const easeDistribution = createMemo(() => computeEaseDistribution(cards()));

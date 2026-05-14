@@ -5,6 +5,7 @@
 
 import { createSignal } from 'solid-js';
 import type { Settings } from '../../shared/types';
+import { DEFAULT_SETTINGS } from '../../shared/types';
 import { WORD_STATUS } from '../../shared/constants';
 import { getBridge } from '../../shared/bridges';
 import { isElectron } from '../../shared/platform';
@@ -63,7 +64,7 @@ let wordStatusesLoaded = false;
  * Initialize time watched from settings
  */
 export function initTimeWatched(settings: Settings): void {
-  setTimeWatchedSeconds(settings.timeWatched || 0);
+  setTimeWatchedSeconds(settings.timeWatched || DEFAULT_SETTINGS.timeWatched);
 }
 
 /**

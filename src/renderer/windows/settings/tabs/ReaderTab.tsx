@@ -6,6 +6,7 @@ import { Component, Show } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
 import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeInput, Input, BookIcon, Select, formatKeybindDisplay } from '../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../shared/constants';
+import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import '../SettingsForm.css';
 
 export const ReaderTab: Component = () => {
@@ -55,7 +56,7 @@ export const ReaderTab: Component = () => {
             description={t('mlearn.Settings.Reader.OcrSettings.RamSaver.Description')}
           >
             <ToggleSwitch
-              checked={settings.ocrRamSaver ?? false}
+              checked={settings.ocrRamSaver ?? DEFAULT_SETTINGS.ocrRamSaver!}
               onChange={(checked) => updateSettings({ ocrRamSaver: checked })}
             />
           </SettingRow>
@@ -66,7 +67,7 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.OcrSettings.TurboMode.Description')}
         >
           <ToggleSwitch
-            checked={settings.ocrTurboMode ?? true}
+            checked={settings.ocrTurboMode ?? DEFAULT_SETTINGS.ocrTurboMode!}
             onChange={(checked) => updateSettings({ ocrTurboMode: checked })}
           />
         </SettingRow>
@@ -77,7 +78,7 @@ export const ReaderTab: Component = () => {
             description={t('mlearn.Settings.Reader.OcrSettings.FuriganaDetection.Description')}
           >
             <ToggleSwitch
-              checked={settings.ocrFuriganaDetection ?? true}
+              checked={settings.ocrFuriganaDetection ?? DEFAULT_SETTINGS.ocrFuriganaDetection!}
               onChange={(checked) => updateSettings({ ocrFuriganaDetection: checked })}
             />
           </SettingRow>
@@ -90,12 +91,12 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.WordHoverBehavior.TriggerMode.Description')}
         >
           <Select
-            value={settings.readerWordHoverTrigger ?? 'hover'}
+            value={settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger!}
             onChange={(e) => updateSettings({ readerWordHoverTrigger: e.currentTarget.value as WordHoverTriggerMode })}
             options={[
               { value: 'hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.Hover') },
               { value: 'long-hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.LongHover') },
-              { value: 'key-hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.KeyHover', { key: formatKeybindDisplay(settings.readerWordHoverKey ?? 'shift', t) }) },
+              { value: 'key-hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.KeyHover', { key: formatKeybindDisplay(settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!, t) }) },
             ]}
           />
         </SettingRow>
@@ -106,7 +107,7 @@ export const ReaderTab: Component = () => {
             description={t('mlearn.Settings.Reader.WordHoverBehavior.HoverKey.Description')}
           >
             <KeybindInput
-              value={settings.readerWordHoverKey ?? 'Shift'}
+              value={settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!}
               onChange={(key) => updateSettings({ readerWordHoverKey: key })}
               allowModifierOnly={true}
             />
@@ -120,7 +121,7 @@ export const ReaderTab: Component = () => {
           description={t('mlearn.Settings.Reader.Furigana.Hide.Description')}
         >
           <ToggleSwitch
-            checked={settings.readerFuriganaHider ?? false}
+            checked={settings.readerFuriganaHider ?? DEFAULT_SETTINGS.readerFuriganaHider!}
             onChange={(checked) => updateSettings({ readerFuriganaHider: checked })}
           />
         </SettingRow>
@@ -133,7 +134,7 @@ export const ReaderTab: Component = () => {
         >
           <div style={{ display: 'flex', gap: '0.5rem', 'align-items': 'center' }}>
             <KeybindInput
-              value={settings.readerMagnifierHotkey ?? 'z'}
+              value={settings.readerMagnifierHotkey ?? DEFAULT_SETTINGS.readerMagnifierHotkey!}
               onChange={(key) => updateSettings({ readerMagnifierHotkey: key.length === 1 ? key.toLowerCase() : key })}
             />
             {/*<span style={{ color: 'var(--text-secondary)', 'font-size': '0.85rem' }}>*/}
@@ -151,13 +152,13 @@ export const ReaderTab: Component = () => {
               min={1.5}
               max={5}
               step={0.5}
-              value={settings.readerMagnifierZoom ?? 2}
+              value={settings.readerMagnifierZoom ?? DEFAULT_SETTINGS.readerMagnifierZoom!}
               style={{ width: '120px' }}
               onChange={(value) => updateSettings({ readerMagnifierZoom: value })}
             />
             <Input
               type="number"
-              value={settings.readerMagnifierZoom ?? 2}
+              value={settings.readerMagnifierZoom ?? DEFAULT_SETTINGS.readerMagnifierZoom!}
               min={1.5}
               max={5}
               step={0.5}
@@ -183,13 +184,13 @@ export const ReaderTab: Component = () => {
               min={100}
               max={400}
               step={25}
-              value={settings.readerMagnifierSize ?? 200}
+              value={settings.readerMagnifierSize ?? DEFAULT_SETTINGS.readerMagnifierSize!}
               style={{ width: '120px' }}
               onChange={(value) => updateSettings({ readerMagnifierSize: value })}
             />
             <Input
               type="number"
-              value={settings.readerMagnifierSize ?? 200}
+              value={settings.readerMagnifierSize ?? DEFAULT_SETTINGS.readerMagnifierSize!}
               min={100}
               max={400}
               step={25}

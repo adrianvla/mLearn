@@ -39,6 +39,7 @@ import {
 } from '../../../services/watchTogetherRoomService';
 import { useTokenizer, getCachedTranslation, useTranslation } from '../../../hooks/useTranslation';
 import type { ConversationAgentContext } from '../../../../shared/types';
+import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
 import { collectDroppedMediaFiles } from './videoDropUtils';
 import { detectMediaTracks, extractSubtitleTrack } from '../../../services/mediaTrackService';
@@ -576,7 +577,7 @@ export const VideoRoute: Component = () => {
       log.info('[VideoRoute] addVideoWordFlashcard: flashcardMediaType=', settings.flashcardMediaType, 'videoSrc=', videoSrc(), 'subtitleStart=', entry.subtitleStart, 'subtitleEnd=', entry.subtitleEnd);
       if (settings.flashcardMediaType === 'video' && videoSrc() && entry.subtitleStart != null && entry.subtitleEnd != null) {
         const { clipVideo } = await import('../../../services/videoClipService');
-        const margin = (settings.flashcardVideoMargin ?? 300) / 1000;
+        const margin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
         const start = Math.max(0, entry.subtitleStart - margin);
         const end = entry.subtitleEnd + margin;
         log.info('[VideoRoute] addVideoWordFlashcard: calling clipVideo, start=', start, 'end=', end);
@@ -908,8 +909,8 @@ export const VideoRoute: Component = () => {
     if (!html) return;
     watchTogether.sendSubtitles(
       html,
-      settings.subtitle_font_size ?? 32,
-      settings.subtitle_font_weight ?? 700,
+      settings.subtitle_font_size ?? DEFAULT_SETTINGS.subtitle_font_size,
+      settings.subtitle_font_weight ?? DEFAULT_SETTINGS.subtitle_font_weight,
     );
   });
   

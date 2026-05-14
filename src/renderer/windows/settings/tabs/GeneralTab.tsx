@@ -176,7 +176,7 @@ export const GeneralTab: Component = () => {
         >
           <Select
             class="setting-select"
-            value={settings.uiLanguage || 'en'}
+            value={settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage}
             onChange={(e) => {
               const lang = e.currentTarget.value;
               updateSettings({ uiLanguage: lang });

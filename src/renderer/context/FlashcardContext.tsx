@@ -8,6 +8,7 @@
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo } from 'solid-js';
 import { createStore, reconcile, produce } from 'solid-js/store';
 import { DEFAULT_SETTINGS, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type WordCandidate, type SuggestedFlashcard } from '../../shared/types';
+import type { WordStatus } from '../../shared/constants';
 import * as SRS from '../services/srsAlgorithm';
 import { migrationListenerReady, queuePendingFlashcardMigration } from './migrationSignals';
 import { useSettings } from './SettingsContext';
@@ -26,6 +27,7 @@ import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts, getLanguageDisplayName } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { buildKnownWordSetFromStore, isWordKnown as checkWordIsKnown } from '../utils/knowledgeUtils';
+
 
 const log = getLogger("renderer.context.flashcard");
 
@@ -142,6 +144,13 @@ export interface CaptureSuggestionParams {
   sourceMediaHash?: string;
 }
 
+export type KnowledgeBank = 'flashcard' | 'manual' | 'ignored' | 'passive';
+
+export interface SetWordBankStatusOptions {
+  reading?: string;
+  content?: Partial<FlashcardContent> & { front: string; back: string };
+}
+
 // Context interface
 interface FlashcardContextValue {
   // Store access
@@ -230,6 +239,7 @@ interface FlashcardContextValue {
   isWordLearningByText: (word: string) => boolean;
   trackWordStatusChange: (word: string) => void;
   setWordKnowledgeEase: (word: string, ease: number, reading?: string) => void;
+  setWordBankStatus: (word: string, status: WordStatus, bank: KnowledgeBank, options?: SetWordBankStatusOptions) => Promise<void>;
 
   // Word sync seen tracking
   markWordSyncSeen: (word: string) => void;
@@ -271,7 +281,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const { t } = useLocalization();
   const { getCanonicalForm } = useLanguage();
   const { requestAccess } = useLowPowerGate();
-  const newDayHour = () => settings.newDayHour ?? 4;
+  const newDayHour = () => settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour;
 
   const [store, setStore] = createStore<FlashcardStore>(getDefaultStore());
   const [isLoading, setIsLoading] = createSignal(true);
@@ -861,7 +871,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const postFlashcardCreation = (cardId: string, card: Flashcard) => {
     const hasExample = card.content.example && card.content.example !== '-' && card.content.example.replace(/<[^>]*>/g, '').trim().length > 0;
     const needsTranslation = hasExample && !card.content.exampleMeaning && settings.llmEnabled;
-    const needsTts = settings.flashcardAutoGenerateAudio && isElectron() && settings.flashcardTtsProvider !== 'kokoro';
+    const needsTts = settings.flashcardAutoGenerateAudio && isElectron() && settings.flashcardTtsProvider !== DEFAULT_SETTINGS.flashcardTtsProvider;
     const skipExampleTts = card.content.skipExampleTts;
 
     if (!needsTranslation && !needsTts) return;
@@ -1197,7 +1207,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     setQueue(newQueue);
 
     // Leech detection: notify when a card's lapses reach the threshold
-    const threshold = settings.leechThreshold ?? 10;
+    const threshold = settings.leechThreshold ?? DEFAULT_SETTINGS.leechThreshold;
     if (threshold > 0 && updated.lapses >= threshold && updated.lapses % threshold === 0) {
       showToast({
         variant: 'warning',
@@ -1629,7 +1639,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         if (useTts && isElectron()) {
           try {
             const bridge = getBridge();
-            const provider = settings.flashcardTtsProvider || 'kokoro';
+            const provider = settings.flashcardTtsProvider || DEFAULT_SETTINGS.flashcardTtsProvider;
             const voiceSampleId = settings.flashcardVoiceSampleId || undefined;
             const cloudApiUrl = provider === 'cloud' ? settings.cloudApiUrl : undefined;
             const ttsItems: Array<{ cardId: string; text: string; field: 'word' | 'example' }> = [
@@ -1947,6 +1957,95 @@ export const FlashcardProvider: ParentComponent = (props) => {
     saveFlashcards();
   };
 
+  const setWordBankStatus = async (
+    word: string,
+    status: WordStatus,
+    bank: KnowledgeBank,
+    options?: SetWordBankStatusOptions,
+  ): Promise<void> => {
+    const canonical = getCanonicalForm(word);
+    const wordHash = SRS.hashWordSync(canonical);
+    const lk = langKey(settings.language, wordHash);
+    const now = Date.now();
+
+    switch (bank) {
+      case 'manual': {
+        setStore(produce((s) => {
+          if (status === 'known') {
+            s.knownUntracked[lk] = true;
+          } else {
+            delete s.knownUntracked[lk];
+          }
+        }));
+        saveFlashcards();
+        break;
+      }
+
+      case 'ignored': {
+        if (status === 'known') {
+          await ignoreWordForLanguage(canonical, options?.reading);
+        } else {
+          await unignoreWordForLanguage(canonical);
+        }
+        break;
+      }
+
+      case 'passive': {
+        setStore(produce((s) => {
+          if (status === 'unknown') {
+            delete s.wordKnowledge[lk];
+          } else {
+            const ease = status === 'known' ? settings.srsKnownEase : settings.srsLearningEase;
+            if (!s.wordKnowledge[lk]) {
+              s.wordKnowledge[lk] = {
+                ease,
+                lastSeen: now,
+                timesSeen: 0,
+                timesHovered: 0,
+                word: canonical,
+                language: settings.language,
+                lastStatusChange: now,
+              };
+            } else {
+              s.wordKnowledge[lk].ease = ease;
+              s.wordKnowledge[lk].lastStatusChange = now;
+            }
+          }
+        }));
+        saveFlashcards();
+        break;
+      }
+
+      case 'flashcard': {
+        const cards = store.wordToCardMap[lk]?.map((id) => store.flashcards[id]).filter(Boolean) ?? [];
+
+        if (status === 'unknown') {
+          for (const card of [...cards]) {
+            await removeFlashcard(card.id, false);
+          }
+        } else if (cards.length > 0) {
+          const ease = status === 'known' ? settings.srsKnownEase : settings.srsLearningEase;
+          const state: FlashcardState = status === 'known' ? 'review' : 'learning';
+          for (const card of cards) {
+            updateFlashcard(card.id, { state, ease });
+          }
+        } else if (options?.content) {
+          const ease = status === 'known' ? settings.srsKnownEase : settings.srsLearningEase;
+          const state: FlashcardState = status === 'known' ? 'review' : 'learning';
+          const cardId = await addFlashcard(options.content, ease);
+          if (cardId) {
+            updateFlashcard(cardId, { state });
+          }
+        } else {
+          throw new Error(
+            `Cannot set flashcard status to "${status}" for "${word}" because no flashcard exists and no content was provided.`,
+          );
+        }
+        break;
+      }
+    }
+  };
+
   // ========================
   // Word Sync Seen
   // ========================
@@ -2051,7 +2150,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     candidates.sort((a, b) => b[1].count - a[1].count);
 
     // Limit to maxNewCardsPerDay
-    const maxCards = settings.maxNewCardsPerDay ?? 10;
+    const maxCards = settings.maxNewCardsPerDay ?? DEFAULT_SETTINGS.maxNewCardsPerDay;
     const toCreate = candidates.slice(0, maxCards);
 
     // Check backend availability
@@ -2186,7 +2285,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
     try {
       return await new Promise((resolve, reject) => {
-        const targetLang = getLanguageDisplayName(settings.uiLanguage || 'en');
+        const targetLang = getLanguageDisplayName(settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage);
         const prompt = `Generate a simple, natural example sentence using the word "${word}" (meaning: ${definition}) in ${language}. Then provide a ${targetLang} translation of the sentence. Format your response exactly as:
 Sentence: [sentence in ${language}]
 Translation: [${targetLang} translation]`;
@@ -2240,7 +2339,7 @@ Translation: [${targetLang} translation]`;
     const plainText = sentence.replace(/<[^>]*>/g, '').trim();
     if (!plainText || plainText === '-') return '';
 
-    const targetLang = getLanguageDisplayName(settings.uiLanguage || 'en');
+    const targetLang = getLanguageDisplayName(settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage);
 
     // Low power gate: prompt before local LLM call
     if (settings.llmProvider !== 'cloud') {
@@ -2309,8 +2408,8 @@ Translation: [${targetLang} translation]`;
 
     // Auto-create flashcards from word candidates if enabled
     if (settings.createUnseenCards && settings.enable_flashcard_creation) {
-      const useLLM = settings.flashcardLLMExamples ?? false;
-      const maxCards = settings.maxNewCardsPerDay ?? 10;
+      const useLLM = settings.flashcardLLMExamples ?? DEFAULT_SETTINGS.flashcardLLMExamples;
+      const maxCards = settings.maxNewCardsPerDay ?? DEFAULT_SETTINGS.maxNewCardsPerDay;
       let createdTotal = 0;
 
       // 1) First pass — use today's accumulated word candidates (existing logic).
@@ -2580,6 +2679,7 @@ Translation: [${targetLang} translation]`;
     isWordLearningByText,
     trackWordStatusChange,
     setWordKnowledgeEase,
+    setWordBankStatus,
     markWordSyncSeen,
     clearAllWordSyncSeen,
     trackGrammarEncountered,

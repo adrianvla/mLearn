@@ -205,6 +205,26 @@ export const Dashboard: Component = () => {
     ),
   );
 
+  const todaySessionStats = createMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    let videoTime = 0;
+    let readTime = 0;
+
+    for (const ms of mediaStatsList()) {
+      for (const session of ms.sessions) {
+        if (session.date === today) {
+          if (ms.mediaType === 'video') videoTime += session.duration;
+          else if (ms.mediaType === 'book') readTime += session.duration;
+        }
+      }
+    }
+
+    const flashcardTime = dailyStatsData().todayTime;
+    const total = flashcardTime + videoTime + readTime;
+
+    return { videoTime, readTime, flashcardTime, total };
+  });
+
   // ── Word acquisition (encounters until status change) ──
   const wordAcquisitionStats = createMemo(() => {
     const knowledge = store.wordKnowledge;
@@ -329,7 +349,29 @@ export const Dashboard: Component = () => {
           <StatCard label={t('mlearn.Statistics.Dashboard.NewLearned')} value={dailyStatsData().todayNew} size="sm" color="success" />
           <StatCard label={t('mlearn.Statistics.Dashboard.Lapses')} value={dailyStatsData().todayLapses} size="sm" color={dailyStatsData().todayLapses > 0 ? 'error' : 'default'} />
           <StatCard label={t('mlearn.Statistics.Dashboard.Graduated')} value={dailyStatsData().todayGraduated} size="sm" color="success" />
-          <StatCard label={t('mlearn.Statistics.Dashboard.StudyTime')} value={formatDuration(dailyStatsData().todayTime)} size="sm" />
+        </div>
+        <div class="session-time-breakdown">
+          <div class="session-time-total">
+            <span class="session-time-label">{t('mlearn.Statistics.Dashboard.TotalSessionTime')}</span>
+            <span class="session-time-value">{formatDuration(todaySessionStats().total)}</span>
+          </div>
+          <div class="session-time-grid">
+            <div class="session-time-item">
+              <span class="session-time-dot" style={{ background: 'var(--color-primary)' }} />
+              <span class="session-time-label-sm">{t('mlearn.Statistics.Dashboard.FlashcardTime')}</span>
+              <span class="session-time-value-sm">{formatDuration(todaySessionStats().flashcardTime)}</span>
+            </div>
+            <div class="session-time-item">
+              <span class="session-time-dot" style={{ background: 'var(--color-success)' }} />
+              <span class="session-time-label-sm">{t('mlearn.Statistics.Dashboard.VideoTime')}</span>
+              <span class="session-time-value-sm">{formatDuration(todaySessionStats().videoTime)}</span>
+            </div>
+            <div class="session-time-item">
+              <span class="session-time-dot" style={{ background: 'var(--color-info)' }} />
+              <span class="session-time-label-sm">{t('mlearn.Statistics.Dashboard.ReadingTime')}</span>
+              <span class="session-time-value-sm">{formatDuration(todaySessionStats().readTime)}</span>
+            </div>
+          </div>
         </div>
       </Panel>
 

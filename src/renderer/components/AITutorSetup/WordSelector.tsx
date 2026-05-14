@@ -19,8 +19,7 @@ import { useFlashcards } from '../../context/FlashcardContext';
 import { getBridge } from '../../../shared/bridges';
 import { streamChat } from '../../services/llmProvider';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
-import { getWordsLearnedInApp } from '../../services/statsService';
-import { WORD_STATUS } from '../../../shared/constants';
+
 import { Input, LevelPillsFilter, EmptyState, HintText, Btn, SparklesIcon, CollapsibleStickyHeader } from '../common';
 import type {
   TutorWordSelection,
@@ -171,8 +170,6 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
     return items;
   });
 
-  const wordStatusMap = createMemo(() => getWordsLearnedInApp());
-
   // Combined word list: media + tracked + flashcards, deduplicated, sorted by ease (least known first)
   const allWords = createMemo((): PassiveWordKnowledge[] => {
     const media = mediaWords();
@@ -196,28 +193,6 @@ export const WordSelector: Component<WordSelectorProps> = (props) => {
       const existing = wordMap.get(w.word);
       if (!existing || w.ease < existing.ease) {
         wordMap.set(w.word, w);
-      }
-    }
-
-    // Include words from the word-status database used by Word DB editor.
-    for (const [word, status] of Object.entries(wordStatusMap())) {
-      if (!isWordInLanguageScript(word, settings.language)) continue;
-      const statusEase = status === WORD_STATUS.KNOWN
-        ? 4.5
-        : status === WORD_STATUS.LEARNING
-          ? 2.5
-          : 1.8;
-      const existing = wordMap.get(word);
-      if (!existing) {
-        wordMap.set(word, {
-          word,
-          ease: statusEase,
-          lastSeen: 0,
-          timesSeen: 0,
-          timesHovered: 0,
-        });
-      } else if (status === WORD_STATUS.KNOWN && existing.ease < statusEase) {
-        wordMap.set(word, { ...existing, ease: statusEase });
       }
     }
 

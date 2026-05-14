@@ -22,7 +22,7 @@ import { useAnki, type AnkiNoteInfo } from '../../../hooks/useAnki';
 import '../SettingsForm.css';
 import './AnkiFieldPreview.css';
 import Icon from "@renderer/components/common/Icons/Icon";
-import type {TTSProvider} from "@shared/types";
+import { DEFAULT_SETTINGS, type TTSProvider } from "@shared/types";
 
 export const SRSTab: Component = () => {
   const { settings, updateSettings } = useSettings();
@@ -155,7 +155,7 @@ export const SRSTab: Component = () => {
           <input
             type="number"
             class="setting-input"
-            value={settings.newDayHour ?? 4}
+            value={settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour}
             min={0}
             max={23}
             onChange={(e) => {
@@ -559,7 +559,7 @@ export const SRSTab: Component = () => {
           <input
             type="number"
             class="setting-input"
-            value={settings.leechThreshold ?? 10}
+            value={settings.leechThreshold ?? DEFAULT_SETTINGS.leechThreshold}
             min={0}
             max={100}
             onChange={(e) => {

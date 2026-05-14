@@ -6,6 +6,7 @@
 import { ipcMain, type IpcMainEvent } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk } from '../../shared/types';
+import { DEFAULT_SETTINGS } from '../../shared/types';
 import { loadSettings } from './settings';
 import { ollamaStreamChatUnified, ollamaAbortStream } from './ollamaService';
 import { builtinStreamChat, builtinAbortStream } from './builtinLLMService';
@@ -38,7 +39,7 @@ export function setupLLMRouterIPC(): void {
   // Unified stream — routes to the correct provider
   ipcMain.on(IPC_CHANNELS.LLM_STREAM, async (event: IpcMainEvent, messages: LLMChatMessage[], tools: LLMToolDefinition[]) => {
     const settings = loadSettings();
-    const provider = settings.llmProvider || 'builtin';
+    const provider = settings.llmProvider || DEFAULT_SETTINGS.llmProvider;
 
     try {
       if (provider === 'cloud') {
@@ -69,7 +70,7 @@ export function setupLLMRouterIPC(): void {
   // Unified abort — routes to correct provider
   ipcMain.on(IPC_CHANNELS.LLM_STREAM_ABORT, (event: IpcMainEvent) => {
     const settings = loadSettings();
-    const provider = settings.llmProvider || 'builtin';
+    const provider = settings.llmProvider || DEFAULT_SETTINGS.llmProvider;
 
     if (provider === 'cloud') {
       cloudAdapter?.abort();

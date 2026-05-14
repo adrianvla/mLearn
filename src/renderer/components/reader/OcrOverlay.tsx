@@ -4,7 +4,7 @@
  */
 
 import { Component, For, Show, createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
-import type { Token } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token } from '../../../shared/types';
 import { useTokenizer, warmTranslationCache } from '../../hooks';
 import { useLanguage, useSettings } from '../../context';
 import { processOcrBoxes, type FilterDebugZone } from '../../utils/ocrUtils';
@@ -220,7 +220,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     });
 
     // When furigana detection is disabled, return all boxes unfiltered
-    if (!(settings.ocrFuriganaDetection ?? true)) {
+    if (!(settings.ocrFuriganaDetection ?? DEFAULT_SETTINGS.ocrFuriganaDetection)) {
       return { filtered: boxesWithIdx, contextMapByOriginal: ctxMap };
     }
 
@@ -373,7 +373,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   
   // Check if furigana hider is enabled (requires both user setting and reading-script language)
   // Check if furigana hider is enabled
-  const furiganaHiderEnabled = () => (settings.readerFuriganaHider ?? false) && langFeatures().supportsReadings;
+  const furiganaHiderEnabled = () => (settings.readerFuriganaHider ?? DEFAULT_SETTINGS.readerFuriganaHider!) && langFeatures().supportsReadings;
 
   return (
     <Show when={props.visible !== false && isReady()}>

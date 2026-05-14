@@ -37,6 +37,7 @@ import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
 import type { FlashcardContent, SuggestedFlashcard } from '../../../shared/types';
+import { DEFAULT_SETTINGS } from '../../../shared/types';
 import './FlashcardsSuggested.css';
 import { getLogger } from '@shared/utils/logger';
 
@@ -61,8 +62,8 @@ export const FlashcardsSuggested: Component = () => {
   const [quickFilter, setQuickFilter] = createSignal<QuickFilter>('all');
   const [levelFilter, setLevelFilter] = createSignal<string>('all');
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
-  const [useLLM, setUseLLM] = createSignal(settings.flashcardLLMExamples ?? false);
-  const [useTts, setUseTts] = createSignal(settings.flashcardAutoGenerateAudio ?? false);
+  const [useLLM, setUseLLM] = createSignal(settings.flashcardLLMExamples ?? DEFAULT_SETTINGS.flashcardLLMExamples);
+  const [useTts, setUseTts] = createSignal(settings.flashcardAutoGenerateAudio ?? DEFAULT_SETTINGS.flashcardAutoGenerateAudio);
   const [promoting, setPromoting] = createSignal<{ current: number; total: number } | null>(null);
 
   let suggestedRef: HTMLDivElement | undefined;

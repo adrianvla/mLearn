@@ -6,6 +6,7 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { OllamaModel, OllamaChatMessage, OllamaToolDefinition, LLMStreamChunk, LLMChatMessage, LLMToolDefinition } from '../../shared/types';
+import { DEFAULT_SETTINGS } from '../../shared/types';
 import { loadSettings } from './settings';
 import http from 'http';
 import https from 'https';
@@ -120,7 +121,7 @@ function streamChat(
   tools?: OllamaToolDefinition[],
 ): void {
   const settings = loadSettings();
-  const baseUrl = settings.ollamaUrl || 'http://localhost:11434';
+  const baseUrl = settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl;
   const model = settings.ollamaModel || 'llama3.2';
   const url = `${baseUrl}/api/chat`;
 
@@ -260,7 +261,7 @@ async function chatCompletion(
   tools?: OllamaToolDefinition[],
 ): Promise<{ content: string; tool_calls?: unknown[] }> {
   const settings = loadSettings();
-  const baseUrl = settings.ollamaUrl || 'http://localhost:11434';
+  const baseUrl = settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl;
   const model = settings.ollamaModel || 'llama3.2';
 
   const body: Record<string, unknown> = {
@@ -287,7 +288,7 @@ async function chatCompletion(
  */
 async function listModels(): Promise<OllamaModel[]> {
   const settings = loadSettings();
-  const baseUrl = settings.ollamaUrl || 'http://localhost:11434';
+  const baseUrl = settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl;
 
   const result = (await jsonRequest(`${baseUrl}/api/tags`, 'GET')) as {
     models?: OllamaModel[];
@@ -301,7 +302,7 @@ async function listModels(): Promise<OllamaModel[]> {
  */
 async function checkConnection(): Promise<boolean> {
   const settings = loadSettings();
-  const baseUrl = settings.ollamaUrl || 'http://localhost:11434';
+  const baseUrl = settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl;
 
   try {
     await jsonRequest(`${baseUrl}/api/tags`, 'GET', undefined, 5_000);
@@ -317,7 +318,7 @@ async function checkConnection(): Promise<boolean> {
  */
 function pullModel(sender: Electron.WebContents, modelName: string): void {
   const settings = loadSettings();
-  const baseUrl = settings.ollamaUrl || 'http://localhost:11434';
+  const baseUrl = settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl;
   const url = `${baseUrl}/api/pull`;
 
   const { hostname, port, protocol, path } = parseUrl(url);
@@ -424,7 +425,7 @@ function streamChatUnified(
   tools: LLMToolDefinition[],
 ): void {
   const settings = loadSettings();
-  const baseUrl = settings.ollamaUrl || 'http://localhost:11434';
+  const baseUrl = settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl;
   const model = settings.ollamaModel || 'llama3.2';
   const url = `${baseUrl}/api/chat`;
 

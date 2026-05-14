@@ -17,6 +17,7 @@ import path from 'path';
 import fs from 'fs';
 import { ipcMain } from 'electron';
 import { PROXY_SERVER_PORT, PYTHON_BACKEND_PORT, IPC_CHANNELS } from '../../shared/constants';
+import { DEFAULT_SETTINGS } from '../../shared/types';
 import { getAppPath, getResourcePath } from '../utils/platform';
 import { loadSettings, loadLangData, saveSettings } from './settings';
 import { getMainWindow, getOverlayWindow, launchOverlayWindow, updateOverlayGeometry } from './windowManager';
@@ -366,7 +367,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     req.on('end', async () => {
       try {
         const settings = loadSettings();
-        const ankiUrl = settings.ankiConnectUrl || 'http://127.0.0.1:8765';
+        const ankiUrl = settings.ankiConnectUrl || DEFAULT_SETTINGS.ankiConnectUrl;
         
         const response = await fetch(ankiUrl, {
           method: 'POST',

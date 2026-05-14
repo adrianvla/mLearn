@@ -13,6 +13,7 @@ import { useAnki } from '../../hooks/useAnki';
 import { showToast } from '../common/Feedback/Toast';
 import type { PendingFlashcardChoice } from '../../context/FlashcardContext';
 import './FlashcardCreationChoiceModal.css';
+import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.components.flashcardCreationChoiceModal");
@@ -77,9 +78,9 @@ const FlashcardCreationChoiceModalInner: Component<FlashcardCreationChoiceModalP
     props.onClose();
   };
 
-  const fieldExpression = () => settings.anki_field_expression || 'Expression';
-  const fieldReading = () => settings.anki_field_reading || 'Reading';
-  const fieldMeaning = () => settings.anki_field_meaning || 'Meaning';
+  const fieldExpression = () => settings.anki_field_expression || DEFAULT_SETTINGS.anki_field_expression!;
+  const fieldReading = () => settings.anki_field_reading || DEFAULT_SETTINGS.anki_field_reading!;
+  const fieldMeaning = () => settings.anki_field_meaning || DEFAULT_SETTINGS.anki_field_meaning!;
 
   return (
     <Modal

@@ -9,6 +9,7 @@ import { createSignal } from 'solid-js';
 import { useSettings } from '../context';
 import { PROXY_SERVER_PORT } from '../../shared/constants';
 import { getBackend } from '../../shared/backends';
+import { DEFAULT_SETTINGS } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.hooks.useAnki");
@@ -128,10 +129,10 @@ export function useAnki() {
     imageUrl?: string;
   }): Promise<number | null> => {
     const deckName = settings.flashcard_deck || settings.ankiDeckName || 'mLearn';
-    const modelName = settings.anki_model_name || 'Basic';
-    const fieldExpression = settings.anki_field_expression || 'Expression';
-    const fieldReading = settings.anki_field_reading || 'Reading';
-    const fieldMeaning = settings.anki_field_meaning || 'Meaning';
+    const modelName = settings.anki_model_name || DEFAULT_SETTINGS.anki_model_name!;
+    const fieldExpression = settings.anki_field_expression || DEFAULT_SETTINGS.anki_field_expression!;
+    const fieldReading = settings.anki_field_reading || DEFAULT_SETTINGS.anki_field_reading!;
+    const fieldMeaning = settings.anki_field_meaning || DEFAULT_SETTINGS.anki_field_meaning!;
 
     // Apply templates — replace placeholders with actual values
     const applyTemplate = (template: string): string => {
@@ -143,9 +144,9 @@ export function useAnki() {
         .replace(/\{exampleMeaning\}/g, params.sentenceMeaning || '');
     };
 
-    const templateExpression = settings.ankiTemplateExpression || '{word}';
-    const templateReading = settings.ankiTemplateReading || '{reading}';
-    const templateMeaning = settings.ankiTemplateMeaning || '{meaning}';
+    const templateExpression = settings.ankiTemplateExpression || DEFAULT_SETTINGS.ankiTemplateExpression!;
+    const templateReading = settings.ankiTemplateReading || DEFAULT_SETTINGS.ankiTemplateReading!;
+    const templateMeaning = settings.ankiTemplateMeaning || DEFAULT_SETTINGS.ankiTemplateMeaning!;
 
     // Ensure the deck exists before adding
     try {
@@ -201,7 +202,7 @@ export function useAnki() {
 
   const findNotes = async (word: string, deckName?: string): Promise<number[]> => {
     const deck = deckName || settings.flashcard_deck || settings.ankiDeckName || 'mLearn';
-    const fieldExpression = settings.anki_field_expression || 'Expression';
+    const fieldExpression = settings.anki_field_expression || DEFAULT_SETTINGS.anki_field_expression!;
     try {
       return await ankiRequest<number[]>(getProxyUrl(), 'findNotes', {
         query: `deck:"${deck}" "${fieldExpression}:${word}"`,
@@ -330,7 +331,7 @@ export function useAnki() {
    */
   const findCardsForWord = async (word: string): Promise<number[]> => {
     const deck = settings.flashcard_deck || settings.ankiDeckName || 'mLearn';
-    const fieldExpression = settings.anki_field_expression || 'Expression';
+    const fieldExpression = settings.anki_field_expression || DEFAULT_SETTINGS.anki_field_expression!;
     return findCards(`deck:"${deck}" "${fieldExpression}:${word}"`);
   };
 

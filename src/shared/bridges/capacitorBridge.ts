@@ -1207,7 +1207,7 @@ const llmBridge: LLMBridge = {
     const { signal } = ollamaAbortController;
 
     const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-    const ollamaUrl = settings.ollamaUrl || 'http://localhost:11434';
+    const ollamaUrl = settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl;
 
     fetch(`${ollamaUrl}/api/chat`, {
       method: 'POST',
@@ -1269,7 +1269,7 @@ const llmBridge: LLMBridge = {
   async ollamaListModels(): Promise<unknown[]> {
     try {
       const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-      const res = await fetch(`${settings.ollamaUrl || 'http://localhost:11434'}/api/tags`);
+      const res = await fetch(`${settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl}/api/tags`);
       const data = await res.json();
       return data.models || [];
     } catch (e) {
@@ -1281,7 +1281,7 @@ const llmBridge: LLMBridge = {
   async ollamaCheck(): Promise<boolean> {
     try {
       const settings = JSON.parse(localStorage.getItem('settings') || '{}');
-      const res = await fetch(`${settings.ollamaUrl || 'http://localhost:11434'}/api/tags`);
+      const res = await fetch(`${settings.ollamaUrl || DEFAULT_SETTINGS.ollamaUrl}/api/tags`);
       return res.ok;
     } catch (e) {
       log.error("error", e);

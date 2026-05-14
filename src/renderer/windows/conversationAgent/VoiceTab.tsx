@@ -22,6 +22,7 @@ import {
 import type { SelectOption } from '../../components/common';
 import { ChatBubble } from './ChatBubble';
 import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceMode, VoiceSample, Token, TTSProvider } from '../../../shared/types';
+import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './VoiceTab.css';
 import { getLogger } from '../../../shared/utils/logger';
@@ -143,9 +144,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const BARGE_IN_FRAMES_REQUIRED = 3;
 
   // Voice mode from settings
-  const voiceMode = () => (settings.voiceMode || 'vad') as VoiceMode;
-  const ttsSpeed = () => settings.voiceTtsSpeed ?? 1.0;
-  const silenceThreshold = () => settings.voiceSilenceThreshold ?? 1.2;
+  const voiceMode = () => (settings.voiceMode || DEFAULT_SETTINGS.voiceMode) as VoiceMode;
+  const ttsSpeed = () => settings.voiceTtsSpeed ?? DEFAULT_SETTINGS.voiceTtsSpeed;
+  const silenceThreshold = () => settings.voiceSilenceThreshold ?? DEFAULT_SETTINGS.voiceSilenceThreshold;
 
   let currentVoiceMode: VoiceMode = voiceMode();
   createEffect(() => {
@@ -319,7 +320,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       bargeInFrames = 0;
       // Generate TTS for the final assistant response with optional voice cloning
       const sampleId = selectedSampleId() || undefined;
-      const provider = settings.ttsProvider || 'kokoro';
+      const provider = settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider;
       if (provider !== 'cloud') {
         (async () => {
           const allowed = await requestAccess('tts');
@@ -582,7 +583,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     getBridge().voice.voiceStartSession(
       props.language,
       voiceMode(),
-      settings.voiceSilenceThreshold ?? 1.2,
+      settings.voiceSilenceThreshold ?? DEFAULT_SETTINGS.voiceSilenceThreshold,
     );
   };
 
@@ -656,7 +657,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
           getBridge().voice.voiceStartSession(
             props.language,
             mode as VoiceMode,
-            settings.voiceSilenceThreshold ?? 1.2,
+            settings.voiceSilenceThreshold ?? DEFAULT_SETTINGS.voiceSilenceThreshold,
           );
           startAudioCapture();
         }
@@ -968,7 +969,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 <div class="voice-mode-toggle">
                   <Btn
                     size="sm"
-                    variant={(settings.ttsProvider || 'kokoro') === 'kokoro' ? 'primary' : 'ghost'}
+                    variant={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'kokoro' ? 'primary' : 'ghost'}
                     onClick={() => setTtsProvider('kokoro')}
                     class="voice-mode-btn"
                   >
@@ -976,7 +977,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   </Btn>
                   <Btn
                     size="sm"
-                    variant={(settings.ttsProvider || 'kokoro') === 'qwen3' ? 'primary' : 'ghost'}
+                    variant={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'qwen3' ? 'primary' : 'ghost'}
                     onClick={() => setTtsProvider('qwen3')}
                     class="voice-mode-btn"
                   >
@@ -984,7 +985,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   </Btn>
                   <Btn
                     size="sm"
-                    variant={(settings.ttsProvider || 'kokoro') === 'cloud' ? 'primary' : 'ghost'}
+                    variant={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'cloud' ? 'primary' : 'ghost'}
                     onClick={() => setTtsProvider('cloud')}
                     class="voice-mode-btn"
                   >
@@ -1026,8 +1027,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
             {/* Voice sample selector */}
             <Show when={isCallActive() && !isInitializing()}>
-              <div class={`voice-sample-row ${((settings.ttsProvider || 'kokoro') === 'kokoro' || (settings.ttsProvider || 'kokoro') === 'cloud') ? 'disabled' : ''}`}
-                title={((settings.ttsProvider || 'kokoro') === 'kokoro' || (settings.ttsProvider || 'kokoro') === 'cloud') ? t('mlearn.ConversationAgent.Voice.VoiceSampleDisabledLocal') : undefined}
+              <div class={`voice-sample-row ${((settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'kokoro' || (settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'cloud') ? 'disabled' : ''}`}
+                title={((settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'kokoro' || (settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'cloud') ? t('mlearn.ConversationAgent.Voice.VoiceSampleDisabledLocal') : undefined}
               >
                 <label>{t('mlearn.ConversationAgent.Voice.VoiceSample')}</label>
                 <Select
@@ -1035,14 +1036,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                   value={selectedSampleId()}
                   onChange={(e) => setSelectedSampleId(e.currentTarget.value)}
                   size="sm"
-                  disabled={(settings.ttsProvider || 'kokoro') === 'kokoro' || (settings.ttsProvider || 'kokoro') === 'cloud'}
+                  disabled={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'kokoro' || (settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'cloud'}
                 />
                 <IconBtn
                   icon={<UploadIcon />}
                   variant="ghost"
                   size="sm"
                   onClick={handleSampleUpload}
-                  disabled={(settings.ttsProvider || 'kokoro') === 'kokoro' || (settings.ttsProvider || 'kokoro') === 'cloud'}
+                  disabled={(settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'kokoro' || (settings.ttsProvider || DEFAULT_SETTINGS.ttsProvider) === 'cloud'}
                   aria-label={t('mlearn.ConversationAgent.Voice.UploadSample')}
                 />
               </div>

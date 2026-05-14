@@ -199,6 +199,7 @@ type FlashcardCtx = {
   isWordKnown: (wordHash: string) => boolean;
   isWordKnownByText: (word: string) => boolean;
   trackGrammarEncountered: (pattern: string, level?: number) => void;
+  setWordBankStatus: (word: string, status: 'unknown' | 'learning' | 'known', bank: string, options?: { reading?: string; content?: Partial<Record<string, unknown>> & { front: string; back: string } }) => Promise<void>;
   trackGrammarFailed: (pattern: string, level?: number) => void;
   getGrammarKnowledge: (pattern: string) => { pattern: string; ease: number; timesEncountered: number; timesFailed: number; lastSeen: number; level: number; language: string } | undefined;
   startSession: () => void;
@@ -1039,6 +1040,154 @@ describe('FlashcardProvider', () => {
 
     ctx.trackWordSeen('既知');
     expect(ctx.store.wordKnowledge[lk]).toBeUndefined();
+    dispose();
+  });
+
+  it('setWordBankStatus manual bank adds to knownUntracked', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.setWordBankStatus('学校', 'known', 'manual');
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    expect(ctx.store.knownUntracked[lk]).toBe(true);
+    dispose();
+  });
+
+  it('setWordBankStatus manual bank removes from knownUntracked', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({ knownUntracked: { [lk]: true } }));
+
+    await ctx.setWordBankStatus('学校', 'unknown', 'manual');
+    expect(ctx.store.knownUntracked[lk]).toBeUndefined();
+    dispose();
+  });
+
+  it('setWordBankStatus passive bank sets ease for known', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.setWordBankStatus('学校', 'known', 'passive');
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    expect(ctx.store.wordKnowledge[lk]?.ease).toBe(DEFAULT_SETTINGS.srsKnownEase);
+    dispose();
+  });
+
+  it('setWordBankStatus passive bank removes entry for unknown', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    flashcardsCb(makeEmptyStore({
+      wordKnowledge: {
+        [lk]: { ease: 2.5, lastSeen: 1, timesSeen: 1, timesHovered: 0, word: '学校', language: 'ja' },
+      },
+    }));
+
+    await ctx.setWordBankStatus('学校', 'unknown', 'passive');
+    expect(ctx.store.wordKnowledge[lk]).toBeUndefined();
+    dispose();
+  });
+
+  it('setWordBankStatus ignored bank ignores word', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.setWordBankStatus('学校', 'known', 'ignored');
+    expect(ctx.isWordIgnoredSync('学校')).toBe(true);
+    dispose();
+  });
+
+  it('setWordBankStatus flashcard bank removes cards for unknown', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    const cardId = 'c1';
+    flashcardsCb(makeEmptyStore({
+      flashcards: {
+        [cardId]: {
+          id: cardId,
+          content: { type: 'word', front: '学校', back: 'school' },
+          state: 'review',
+          ease: 2.5,
+          interval: 0,
+          dueDate: 0,
+          reviews: 0,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: 1,
+          lastReviewed: 0,
+          lastUpdated: 1,
+          language: 'ja',
+        },
+      },
+      wordToCardMap: { [lk]: [cardId] },
+    }));
+
+    await ctx.setWordBankStatus('学校', 'unknown', 'flashcard');
+    expect(ctx.store.flashcards[cardId]).toBeUndefined();
+    dispose();
+  });
+
+  it('setWordBankStatus flashcard bank updates existing card state', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const hash = SRS.hashWordSync('学校');
+    const lk = `ja:${hash}`;
+    const cardId = 'c1';
+    flashcardsCb(makeEmptyStore({
+      flashcards: {
+        [cardId]: {
+          id: cardId,
+          content: { type: 'word', front: '学校', back: 'school' },
+          state: 'new',
+          ease: 2.5,
+          interval: 0,
+          dueDate: 0,
+          reviews: 0,
+          lapses: 0,
+          learningStep: 0,
+          createdAt: 1,
+          lastReviewed: 0,
+          lastUpdated: 1,
+          language: 'ja',
+        },
+      },
+      wordToCardMap: { [lk]: [cardId] },
+    }));
+
+    await ctx.setWordBankStatus('学校', 'known', 'flashcard');
+    expect(ctx.store.flashcards[cardId]?.state).toBe('review');
+    expect(ctx.store.flashcards[cardId]?.ease).toBe(DEFAULT_SETTINGS.srsKnownEase);
+    dispose();
+  });
+
+  it('setWordBankStatus flashcard bank creates card when content provided', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await ctx.setWordBankStatus('学校', 'learning', 'flashcard', {
+      content: { type: 'word', front: '学校', back: 'school' },
+    });
+    expect(Object.keys(ctx.store.flashcards)).toHaveLength(1);
+    const card = Object.values(ctx.store.flashcards)[0];
+    expect(card?.state).toBe('learning');
+    expect(card?.ease).toBe(DEFAULT_SETTINGS.srsLearningEase);
+    dispose();
+  });
+
+  it('setWordBankStatus flashcard bank throws when no card and no content', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+
+    await expect(ctx.setWordBankStatus('学校', 'known', 'flashcard')).rejects.toThrow('no content was provided');
     dispose();
   });
 

@@ -54,11 +54,12 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
   
   let socketClient: SyncSocketClient | null = null;
   let qrCodeEl: HTMLDivElement | undefined;
-  
+
   let chunksToSend: string[] = [];
   let receivedChunks: Record<number, string> = {};
   let totalChunksExpected = 0;
   let ackedChunkCount = 0;
+  let syncCompleted = false;
 
   const getThemeColor = (variableName: string): string =>
     getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
@@ -96,6 +97,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     receivedChunks = {};
     totalChunksExpected = 0;
     ackedChunkCount = 0;
+    syncCompleted = false;
   };
 
   const getAccessToken = (): string | null => {
@@ -124,8 +126,8 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       const room = response.data;
       
       log.info('Created sync room:', room.roomId);
-      
-      displayRoomQR(room.roomId);
+
+      displayRoomQR(room.roomId, room.roomCode);
       setStatusText(t('mlearn.Flashcards.Sync.QRHint'));
       
       socketClient = new SyncSocketClient(room.roomId, 'sender', accessToken);
@@ -217,20 +219,24 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
       
       case 'complete': {
         if (currentRole === 'sender') {
+          syncCompleted = true;
           setPhase('complete');
           setStatusText(t('mlearn.Flashcards.Sync.Complete'));
           setTimeout(() => props.onClose(), 2000);
         }
         break;
       }
-      
+
       case 'error': {
         setError(msg.message || 'Sync error');
         setPhase('error');
         break;
       }
-      
+
       case 'peer_disconnected': {
+        if (syncCompleted) {
+          break;
+        }
         setError(t('mlearn.Flashcards.Sync.Error.Connection'));
         setPhase('error');
         break;
@@ -294,14 +300,15 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
     }
   };
 
-  const displayRoomQR = async (roomIdValue: string) => {
+  const displayRoomQR = async (roomIdValue: string, roomCodeValue: string) => {
     if (!qrCodeEl || !QRCodeLib) return;
-    
+
     qrCodeEl.innerHTML = '';
-    
+
     try {
       const canvas = document.createElement('canvas');
-      await QRCodeLib.toCanvas(canvas, roomIdValue, {
+      const qrText = `${roomIdValue}:${roomCodeValue}`;
+      await QRCodeLib.toCanvas(canvas, qrText, {
         width: 300,
         margin: 1,
         color: {
@@ -335,7 +342,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         {<Show when={phase() === 'showing-qr' || phase() === 'init'}>
           <div class="qr-container">
             <div class="qr-code" ref={qrCodeEl}>
-              <Spinner size={40} shape="square" />
+              <Spinner size={40} shape="square" strokeWidth={8} cornerRadius={0} />
             </div>
             <p class="qr-hint">
               {t('mlearn.Flashcards.Sync.QRHint')}
@@ -345,7 +352,7 @@ export const FlashcardSyncModal: Component<FlashcardSyncModalProps> = (props) =>
         
         {<Show when={phase() === 'syncing' || phase() === 'connecting'}>
           <div class="sync-progress">
-            <Spinner size={48} shape="square" text={t('mlearn.Flashcards.Sync.SyncingFlashcards')} />
+            <Spinner size={48} shape="square" strokeWidth={8} cornerRadius={0} text={t('mlearn.Flashcards.Sync.SyncingFlashcards')} />
             <ProgressBar value={progress()} showPercent variant="primary" animated />
           </div>
         </Show>}

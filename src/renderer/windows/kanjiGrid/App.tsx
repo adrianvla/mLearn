@@ -11,10 +11,7 @@
  */
 
 import { Component, createSignal, For, Show, onMount, createMemo, createEffect } from 'solid-js';
-import { WindowWrapper, useLanguage, useLocalization } from '../../context';
-import {
-  getWordsLearnedInApp,
-} from '../../services/statsService';
+import { WindowWrapper, useLanguage, useLocalization, useSettings, useFlashcards } from '../../context';
 import { WORD_STATUS } from '../../../shared/constants';
 import { Spinner, PillLabel, LegendItem, BookIcon, AlertBanner } from '../../components/common';
 import './kanjiGrid.css';
@@ -79,7 +76,9 @@ function mixHex(c1: string, c2: string, t: number): string {
 export const KanjiGridContent: Component = () => {
   const { wordFrequency, getFreqLevelNames, getFrequency, currentLangData } = useLanguage();
   const { t } = useLocalization();
-  
+  const { settings } = useSettings();
+  const flashcardCtx = useFlashcards();
+
   const [kanjiData, setKanjiData] = createSignal<KanjiData[]>([]);
   const [hoveredKanji, setHoveredKanji] = createSignal<KanjiData | null>(null);
   const [hoveredLevel, setHoveredLevel] = createSignal<number | null>(null);
@@ -120,18 +119,43 @@ export const KanjiGridContent: Component = () => {
   // Build kanji data from tracked words
   const buildKanjiStats = async () => {
     setIsLoading(true);
-    
+
     try {
-      const trackedWordsMap = getWordsLearnedInApp();
       const kanjiMap = new Map<string, KanjiData>();
       const levels: Record<number, Set<string>> = {};
+      const lang = settings.language;
 
-      // Convert tracked words map to array
-      // Keys are in format: word|reading or just word
-      const trackedWordsArray = Object.entries(trackedWordsMap).map(([key, status]) => {
-        const [word] = key.split('|');
-        return { word, status };
-      });
+      const wordSet = new Set<string>();
+
+      for (const entry of Object.values(flashcardCtx.store.wordKnowledge)) {
+        if (entry && entry.language === lang) {
+          wordSet.add(entry.word);
+        }
+      }
+
+      for (const card of Object.values(flashcardCtx.store.flashcards)) {
+        if (card.language === lang) {
+          const word = card.content.front || card.content.word;
+          if (word) wordSet.add(word);
+        }
+      }
+
+      for (const entry of Object.values(flashcardCtx.store.ignoredWords)) {
+        if (entry && entry.language === lang) {
+          wordSet.add(entry.word);
+        }
+      }
+
+      const trackedWordsArray: Array<{ word: string; status: number }> = [];
+      for (const word of wordSet) {
+        if (flashcardCtx.isWordKnownByText(word)) {
+          trackedWordsArray.push({ word, status: WORD_STATUS.KNOWN });
+        } else if (flashcardCtx.isWordLearningByText(word)) {
+          trackedWordsArray.push({ word, status: WORD_STATUS.LEARNING });
+        } else {
+          trackedWordsArray.push({ word, status: WORD_STATUS.UNKNOWN });
+        }
+      }
 
       // Only process if we have tracked words - no sample/demo data
       if (trackedWordsArray.length === 0) {
@@ -146,7 +170,7 @@ export const KanjiGridContent: Component = () => {
       for (const { word, status } of trackedWordsArray) {
         const chars = Array.from(word) as string[];
         const uniqueKanji = new Set(chars.filter(ch => isKanjiChar(ch)));
-        
+
         // Get word level from frequency data
         const freqData = getFrequency(word);
         const wordLevel = freqData?.raw_level;
@@ -167,7 +191,7 @@ export const KanjiGridContent: Component = () => {
           }
 
           const item = kanjiMap.get(k)!;
-          
+
           // Track kanji by level for hover highlighting
           if (wordLevel !== undefined) {
             if (!levels[wordLevel]) {
@@ -179,7 +203,7 @@ export const KanjiGridContent: Component = () => {
               item.level = wordLevel;
             }
           }
-          
+
           if (status === WORD_STATUS.KNOWN) {
             item.score += 1;
             item.knownCount += 1;
@@ -193,24 +217,24 @@ export const KanjiGridContent: Component = () => {
           }
         }
       }
-      
+
       // Also add kanji from the frequency data (words not yet tracked)
       // This ensures we show all kanji that exist in the language's frequency list
       if (wordFrequency) {
         for (const [word, data] of Object.entries(wordFrequency)) {
           const level = data.raw_level;
           if (level === undefined) continue;
-          
+
           const chars = Array.from(word) as string[];
           const uniqueKanji = chars.filter(ch => isKanjiChar(ch));
-          
+
           for (const k of uniqueKanji) {
             // Add to level mapping
             if (!levels[level]) {
               levels[level] = new Set();
             }
             levels[level].add(k);
-            
+
             // Add kanji to map if not already present
             if (!kanjiMap.has(k)) {
               kanjiMap.set(k, {

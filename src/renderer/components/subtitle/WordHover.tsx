@@ -5,7 +5,7 @@
  */
 
 import { Component, JSX, Show, For, createMemo, createSignal, createEffect } from 'solid-js';
-import type { Token, DictionaryEntry, TranslationEntry, PitchData } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationEntry, type PitchData } from '../../../shared/types';
 import { normalizeReading } from '../../../shared/utils/textUtils';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { getWordStatus, toUniqueIdentifier } from '../../services/statsService';
@@ -371,7 +371,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
         // If video mode, clip and save the video segment
         if (isVideoMode && props.videoSrc && props.subtitleStart != null && props.subtitleEnd != null) {
-          const margin = (settings.flashcardVideoMargin ?? 300) / 1000;
+          const margin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
           const start = Math.max(0, props.subtitleStart - margin);
           const end = props.subtitleEnd + margin;
           const videoData = await clipVideo(props.videoSrc, start, end);
