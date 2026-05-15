@@ -219,27 +219,6 @@ export const ReaderTab: Component = () => {
           />
         </SettingRow>
 
-        <SettingRow
-          label={t('mlearn.Settings.Reader.LlmIntegration.Speech.Label')}
-          description={t('mlearn.Settings.Reader.LlmIntegration.Speech.Description')}
-        >
-          <ToggleSwitch
-            checked={settings.speechEnabled}
-            onChange={(checked) => updateSettings({ speechEnabled: checked })}
-          />
-        </SettingRow>
-
-        <Show when={settings.speechEnabled}>
-          <SettingRow
-            label={t('mlearn.Settings.Reader.LlmIntegration.AutoSpeak.Label')}
-            description={t('mlearn.Settings.Reader.LlmIntegration.AutoSpeak.Description')}
-          >
-            <ToggleSwitch
-              checked={settings.autoSpeak}
-              onChange={(checked) => updateSettings({ autoSpeak: checked })}
-            />
-          </SettingRow>
-        </Show>
       </SettingGroup>
     </TabContent>
   );

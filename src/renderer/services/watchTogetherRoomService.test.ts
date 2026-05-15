@@ -189,7 +189,7 @@ describe('watchTogetherRoomService', () => {
     const session = createSessionResponse().data as WatchTogetherRoomSession['actions'] extends never ? never : WatchTogetherRoomSession;
     const onRoom = vi.fn();
 
-    const unsubscribe = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom);
+    const subscription = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom);
     const socket = MockWebSocket.instances[0];
 
     expect(socket.url).toBe('wss://cloud.example.com/api/watch-together/rooms/room-1/socket');
@@ -210,7 +210,7 @@ describe('watchTogetherRoomService', () => {
     }));
 
     socket.readyState = MockWebSocket.OPEN;
-    unsubscribe();
+    subscription.unsubscribe();
     expect(socket.close).toHaveBeenCalled();
   });
 
@@ -219,7 +219,7 @@ describe('watchTogetherRoomService', () => {
     const session = createSessionResponse().data as WatchTogetherRoomSession['actions'] extends never ? never : WatchTogetherRoomSession;
     const onRoom = vi.fn();
 
-    const unsubscribe = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom);
+    const subscription = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom);
     const socket = MockWebSocket.instances[0];
 
     vi.advanceTimersByTime(30000);
@@ -233,7 +233,7 @@ describe('watchTogetherRoomService', () => {
     vi.advanceTimersByTime(30000);
     expect(socket.sentMessages).toEqual(['ping', 'ping']);
 
-    unsubscribe();
+    subscription.unsubscribe();
     vi.advanceTimersByTime(30000);
     expect(socket.sentMessages).toEqual(['ping', 'ping']);
 
@@ -245,7 +245,7 @@ describe('watchTogetherRoomService', () => {
     const onRoom = vi.fn();
     const onPeerEvent = vi.fn();
 
-    const unsubscribe = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom, onPeerEvent);
+    const subscription = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom, onPeerEvent);
     const socket = MockWebSocket.instances[0];
 
     socket.emit('message', {
@@ -267,7 +267,7 @@ describe('watchTogetherRoomService', () => {
     }));
 
     socket.readyState = MockWebSocket.OPEN;
-    unsubscribe();
+    subscription.unsubscribe();
   });
 
   it('forwards peer-left events to the peer event callback', () => {
@@ -275,7 +275,7 @@ describe('watchTogetherRoomService', () => {
     const onRoom = vi.fn();
     const onPeerEvent = vi.fn();
 
-    const unsubscribe = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom, onPeerEvent);
+    const subscription = subscribeToWatchTogetherRoom(session, 'worker-access-token', onRoom, onPeerEvent);
     const socket = MockWebSocket.instances[0];
 
     socket.emit('message', {
@@ -297,7 +297,7 @@ describe('watchTogetherRoomService', () => {
     }));
 
     socket.readyState = MockWebSocket.OPEN;
-    unsubscribe();
+    subscription.unsubscribe();
   });
 
   it('allows local and transient room sources when hosting a watch-together room', () => {

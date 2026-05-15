@@ -133,6 +133,7 @@ export const Modal: Component<ModalProps> = (props) => {
     <Show when={local.isOpen}>
       <Portal>
         <div
+          class="modal-overlay"
           style={overlayStyle()}
           onClick={(e) => {
             if (e.target === e.currentTarget && local.closeOnOverlay) {

@@ -50,4 +50,18 @@ body {
   position: relative;
   bottom: auto;
   pointer-events: auto;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+}
+.overlay-subtitle-wrapper span.frequency .star::before{
+  --shadow-size: 0;
+}
+.overlay-container .word-hover-container .subtitle_hover{
+  box-shadow:none !important;
+  /*background: var(--bg-nt-primary);*/
+}
+.draggable-popup{
+  box-shadow:none !important;
+}
+.draggable-popup .panel{
+  background: var(--bg-nt-primary);
 }

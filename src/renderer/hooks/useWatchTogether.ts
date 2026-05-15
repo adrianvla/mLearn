@@ -15,6 +15,8 @@ import {
   leaveWatchTogetherRoom,
   updateWatchTogetherRoomState,
   subscribeToWatchTogetherRoom,
+  type WatchTogetherSubscription,
+  type WatchTogetherSyncStartMessage,
   type WatchTogetherRoomSession,
   type WatchTogetherRoomState,
   type WatchTogetherRoomStateWithTimestamp,
@@ -69,6 +71,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   const [roomState, setRoomState] = createSignal<WatchTogetherRoomState | null>(null);
   const [remoteSubtitle, setRemoteSubtitle] = createSignal<RemoteSubtitleState | null>(null);
   const [peerCount, setPeerCount] = createSignal<number>(0);
+  const [isAnticipatingPing, setIsAnticipatingPing] = createSignal<boolean>(false);
 
   const cleanups: Array<() => void> = [];
   const isActive = createMemo(() => mode() !== 'inactive');
@@ -117,7 +120,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   // ---------------------------------------------------------------------------
 
   let roomAccessToken = '';
-  let unsubscribeRealtimeRef: (() => void) | null = null;
+  let subscriptionRef: WatchTogetherSubscription | null = null;
   let ownerSyncInterval: number | null = null;
 
   const OWNER_SYNC_INTERVAL_MS = 3000;
@@ -190,8 +193,8 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
   }
 
   function cleanupRoomConnection(): void {
-    unsubscribeRealtimeRef?.();
-    unsubscribeRealtimeRef = null;
+    subscriptionRef?.unsubscribe();
+    subscriptionRef = null;
     if (ownerSyncInterval !== null) {
       window.clearInterval(ownerSyncInterval);
       ownerSyncInterval = null;
@@ -275,7 +278,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
       }, OWNER_SYNC_INTERVAL_MS);
     }
 
-    unsubscribeRealtimeRef = subscribeToWatchTogetherRoom(
+    subscriptionRef = subscribeToWatchTogetherRoom(
       session,
       accessToken,
       (nextState) => {
@@ -283,8 +286,6 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         setPeerCount(nextState.peerCount ?? 0);
 
         if (mode() === 'room-viewer') {
-          const targetTime = computeDriftCompensatedTime(nextState);
-
           // Handle subtitles
           if (nextState.subtitleHtml) {
             setRemoteSubtitle({
@@ -299,6 +300,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
           if (!options.isOverlay) {
             const video = options.getVideo();
             if (video) {
+              const targetTime = computeDriftCompensatedTime(nextState);
               runSuppressed(() => {
                 if (Math.abs(video.currentTime - targetTime) > SYNC_DRIFT_THRESHOLD_S) {
                   video.currentTime = targetTime;
@@ -314,6 +316,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
               });
             }
           } else {
+            const targetTime = computeDriftCompensatedTime(nextState);
             options.onReceiveSeek?.(targetTime);
             if (nextState.paused) {
               options.onReceivePause?.(targetTime);
@@ -352,6 +355,9 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         } else if (event.type === 'left') {
           setPeerCount(event.room.peerCount ?? 0);
         }
+      },
+      (syncMsg) => {
+        handleSyncStart(syncMsg);
       },
     );
   }
@@ -449,6 +455,75 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
         size,
         weight,
       );
+    }
+  }
+
+  function handleSyncStart(message: WatchTogetherSyncStartMessage): void {
+    if (mode() !== 'room-viewer') return;
+
+    const waitMs = Math.max(0, message.targetTime - Date.now());
+
+    if (!options.isOverlay) {
+      const video = options.getVideo();
+      if (!video) return;
+
+      runSuppressed(() => {
+        video.currentTime = message.currentTime;
+        if (Math.abs(video.playbackRate - message.playbackRate) > 0.01) {
+          video.playbackRate = message.playbackRate;
+        }
+      });
+
+      if (waitMs > 0) {
+        setTimeout(() => {
+          runSuppressed(() => {
+            void video.play().catch(() => {});
+          });
+        }, waitMs);
+      } else {
+        runSuppressed(() => {
+          void video.play().catch(() => {});
+        });
+      }
+    } else {
+      options.onReceiveSeek?.(message.currentTime);
+      if (waitMs > 0) {
+        setTimeout(() => {
+          options.onReceivePlay?.(message.currentTime);
+        }, waitMs);
+      } else {
+        options.onReceivePlay?.(message.currentTime);
+      }
+    }
+  }
+
+  function handlePlayAction(): void {
+    if (mode() !== 'room-owner') {
+      const video = options.getVideo();
+      if (video) void video.play().catch(() => {});
+      return;
+    }
+
+    const video = options.getVideo();
+    if (!video) return;
+
+    const rtt = subscriptionRef?.getRtt() ?? 100;
+    const targetTime = Date.now() + Math.max(rtt, 100) + 100;
+
+    setIsAnticipatingPing(true);
+
+    subscriptionRef?.sendSyncStart(video.currentTime, video.playbackRate, targetTime);
+    void persistRoomPlaybackState(video.currentTime, false, video.playbackRate);
+
+    const waitMs = targetTime - Date.now();
+    if (waitMs > 0) {
+      setTimeout(() => {
+        setIsAnticipatingPing(false);
+        void video.play().catch(() => {});
+      }, waitMs);
+    } else {
+      setIsAnticipatingPing(false);
+      void video.play().catch(() => {});
     }
   }
 
@@ -585,6 +660,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     roomState,
     remoteSubtitle,
     peerCount,
+    isAnticipatingPing,
     activate,
     activateRoomWithUserId,
     deactivate,
@@ -593,6 +669,7 @@ export function useWatchTogether(options: UseWatchTogetherOptions) {
     sendPause,
     sendSync,
     sendSubtitles,
+    handlePlayAction,
     runSuppressed,
     get isSuppressed() { return suppressCount > 0; },
   };

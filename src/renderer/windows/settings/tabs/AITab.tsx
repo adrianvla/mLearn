@@ -624,6 +624,30 @@ export const AITab: Component = () => {
         </SettingRow>
       </SettingGroup>
 
+      <SettingGroup title={t('mlearn.AI.Settings.Speech.Title')}>
+        <SettingRow
+          label={t('mlearn.AI.Settings.Speech.Label')}
+          description={t('mlearn.AI.Settings.Speech.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.speechEnabled}
+            onChange={(checked) => updateSettings({ speechEnabled: checked })}
+          />
+        </SettingRow>
+
+        <Show when={settings.speechEnabled}>
+          <SettingRow
+            label={t('mlearn.AI.Settings.AutoSpeak.Label')}
+            description={t('mlearn.AI.Settings.AutoSpeak.Description')}
+          >
+            <ToggleSwitch
+              checked={settings.autoSpeak}
+              onChange={(checked) => updateSettings({ autoSpeak: checked })}
+            />
+          </SettingRow>
+        </Show>
+      </SettingGroup>
+
     </TabContent>
   );
 };

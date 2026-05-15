@@ -571,6 +571,13 @@ export function launchOverlayWindow(): void {
     skipTaskbar: true,
     resizable: true,
   });
+
+  if (isMac) {
+    win.setAlwaysOnTop(true, 'screen-saver');
+  } else {
+    win.setAlwaysOnTop(true);
+  }
+
   overlayWindow = win;
   win.on('closed', () => {
     overlayWindow = null;

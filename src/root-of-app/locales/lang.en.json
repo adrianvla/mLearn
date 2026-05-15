@@ -101,6 +101,15 @@
           "Description": "Use a separate LLM pass to detect and correct mistakes instead of the conversation agent.",
           "Title": "Checker Agent"
         },
+        "Speech": {
+          "Title": "Speech",
+          "Label": "Speech (Experimental)",
+          "Description": "Enable text-to-speech for AI responses and speech-to-text input"
+        },
+        "AutoSpeak": {
+          "Label": "Auto-speak Responses",
+          "Description": "Automatically read AI tutor responses aloud"
+        },
         "Title": "AI Configuration"
       },
       "SetupRequired": "AI features require setup. Opening settings..."
@@ -1412,10 +1421,6 @@
           "Title": "Reading"
         },
         "LlmIntegration": {
-          "AutoSpeak": {
-            "Description": "Automatically read AI tutor responses aloud",
-            "Label": "Auto-speak Responses"
-          },
           "Enable": {
             "Description": "Use AI to explain words and grammar",
             "Label": "Enable LLM Explanations"
@@ -1443,10 +1448,6 @@
               "Label": "Counted Hover Delay"
             },
             "Label": "Passive Word Tracking"
-          },
-          "Speech": {
-            "Description": "Enable text-to-speech for AI responses and speech-to-text input",
-            "Label": "Speech (Experimental)"
           },
           "Title": "LLM Integration"
         },
@@ -2086,7 +2087,8 @@
         "SignInHint": "Enter your mLearn Cloud credentials",
         "SignInCodeHint": "If you received a device code, enter it below",
         "PeerJoinedSingular": "A peer joined your room",
-        "PeerJoinedPlural": "{count} peers joined your room"
+        "PeerJoinedPlural": "{count} peers joined your room",
+        "AnticipatingPing": "Anticipating ping..."
       },
       "Extension": {
         "HeadlessMode": "Headless Mode",

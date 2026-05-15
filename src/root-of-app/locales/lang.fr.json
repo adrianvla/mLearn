@@ -101,6 +101,15 @@
           "Description": "Utiliser un passage LLM séparé pour détecter et corriger les erreurs au lieu de l'agent de conversation.",
           "Title": "Agent correcteur"
         },
+        "Speech": {
+          "Title": "Voix",
+          "Label": "Voix (expérimental)",
+          "Description": "Activer la synthèse vocale pour les réponses IA et la reconnaissance vocale en entrée"
+        },
+        "AutoSpeak": {
+          "Label": "Lecture auto des réponses",
+          "Description": "Lire automatiquement les réponses du tuteur IA"
+        },
         "Title": "Paramètres IA"
       },
       "SetupRequired": "Les fonctions IA nécessitent une configuration. Ouverture des paramètres..."
@@ -1405,10 +1414,6 @@
           "Title": "Lecture"
         },
         "LlmIntegration": {
-          "AutoSpeak": {
-            "Description": "Lire automatiquement les réponses du tuteur IA",
-            "Label": "Lecture auto des réponses"
-          },
           "Enable": {
             "Description": "Utiliser l'IA pour expliquer les mots et la grammaire",
             "Label": "Activer les explications LLM"
@@ -1436,10 +1441,6 @@
               "Label": "Délai du survol comptabilisé"
             },
             "Label": "Suivi passif des mots"
-          },
-          "Speech": {
-            "Description": "Activer la synthèse vocale pour les réponses IA et la reconnaissance vocale en entrée",
-            "Label": "Voix (expérimental)"
           },
           "Title": "Intégration LLM"
         },
@@ -2086,7 +2087,8 @@
         "SignInHint": "Entrez vos identifiants mLearn Cloud",
         "SignInCodeHint": "Si vous avez reçu un code d'appareil, entrez-le ci-dessous",
         "PeerJoinedSingular": "Un participant a rejoint votre salle",
-        "PeerJoinedPlural": "{count} participants ont rejoint votre salle"
+        "PeerJoinedPlural": "{count} participants ont rejoint votre salle",
+        "AnticipatingPing": "Anticipation du ping..."
       },
       "Extension": {
         "HeadlessMode": "Mode sans tête",

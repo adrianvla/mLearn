@@ -1,6 +1,7 @@
 import { Component, createSignal, createMemo, Show, onCleanup } from 'solid-js';
 import { useLocalization } from '../../context';
-import { IconBtn, Panel, SubtitleIcon, ResizeIcon, AutoPositionIcon, BookIcon, ChatIcon } from '../common';
+import { IconBtn, Panel, SubtitleIcon, FileIcon, ResizeIcon, AutoPositionIcon, BookIcon, ChatIcon } from '../common';
+import { findPreviousSubForSync, findNextSub } from '../subtitle/SubtitleSync';
 import './OverlayControls.css';
 
 export interface OverlayControlsProps {
@@ -11,6 +12,8 @@ export interface OverlayControlsProps {
   autoPositionEnabled?: boolean;
   showWordSidebar?: boolean;
   isPlaying?: boolean;
+  currentVideoTime?: () => number;
+  subtitles?: Array<{ start: number; end: number; text: string }>;
   onOffsetChange: (offset: number) => void;
   onLoadSubtitles: () => void;
   onToggleSubtitles: () => void;
@@ -39,14 +42,50 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
   );
 
   const handleOffsetDecrease = () => {
-    props.onOffsetChange(Math.round((props.subtitleOffset - 0.1) * 10) / 10);
+    const videoTime = props.currentVideoTime?.() ?? 0;
+    const adjustedTime = videoTime + props.subtitleOffset;
+    const sub = findPreviousSubForSync(props.subtitles, adjustedTime);
+    if (sub) {
+      const newOffset = sub.start - videoTime;
+      props.onOffsetChange(isNaN(newOffset) ? 0 : Math.round(newOffset * 100) / 100);
+    }
   };
 
   const handleOffsetIncrease = () => {
-    props.onOffsetChange(Math.round((props.subtitleOffset + 0.1) * 10) / 10);
+    const videoTime = props.currentVideoTime?.() ?? 0;
+    const adjustedTime = videoTime + props.subtitleOffset;
+    const nextSub = findNextSub(props.subtitles, adjustedTime);
+    if (nextSub) {
+      const newOffset = nextSub.start - videoTime;
+      props.onOffsetChange(isNaN(newOffset) ? 0 : Math.round(newOffset * 100) / 100);
+    }
   };
 
-  const offsetMs = () => Math.round(props.subtitleOffset * 1000);
+  const [offsetInputValue, setOffsetInputValue] = createSignal(props.subtitleOffset.toFixed(2));
+
+  createMemo(() => {
+    setOffsetInputValue(props.subtitleOffset.toFixed(2));
+  });
+
+  const handleOffsetInputChange = (value: string) => {
+    setOffsetInputValue(value);
+  };
+
+  const applyOffsetInputValue = () => {
+    const parsed = parseFloat(offsetInputValue());
+    if (!isNaN(parsed)) {
+      props.onOffsetChange(parsed);
+      setOffsetInputValue(parsed.toFixed(2));
+    } else {
+      setOffsetInputValue(props.subtitleOffset.toFixed(2));
+    }
+  };
+
+  const handleOffsetInputKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      applyOffsetInputValue();
+    }
+  };
 
   const [isWindowDragging, setIsWindowDragging] = createSignal(false);
   const [isWindowResizing, setIsWindowResizing] = createSignal(false);
@@ -191,13 +230,15 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                       icon="chevron"
                       iconRotation={-90}
                   />
-                  <span
-                      class="overlay-offset-value"
+                  <input
+                      type="text"
+                      class="overlay-offset-input"
+                      value={offsetInputValue()}
+                      onInput={(e) => handleOffsetInputChange(e.currentTarget.value)}
+                      onKeyDown={handleOffsetInputKeyDown}
+                      onBlur={applyOffsetInputValue}
                       title={t('mlearn.Overlay.OffsetTooltip')}
-                  >
-                  {offsetMs() >= 0 ? '+' : ''}
-                    {offsetMs()}ms
-                </span>
+                  />
                   <IconBtn
                       variant="ghost"
                       size="xs"
@@ -244,7 +285,7 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                     aria-label={t('mlearn.Overlay.LoadSubtitles')}
                     title={t('mlearn.Overlay.LoadSubtitles')}
                 >
-                  <SubtitleIcon />
+                  <FileIcon />
                 </IconBtn>
 
                 <Show when={props.onToggleWordSidebar}>

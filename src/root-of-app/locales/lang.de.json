@@ -101,6 +101,15 @@
           "Description": "Einen separaten LLM-Durchgang verwenden, um Fehler zu erkennen und zu korrigieren, statt den Gesprächsagenten.",
           "Title": "Korrektur-Agent"
         },
+        "Speech": {
+          "Title": "Sprache",
+          "Label": "Sprache (Experimentell)",
+          "Description": "Text-to-Speech für KI-Antworten und Speech-to-Text-Eingabe aktivieren"
+        },
+        "AutoSpeak": {
+          "Label": "Antworten automatisch vorlesen",
+          "Description": "Antworten des KI-Tutors automatisch laut vorlesen"
+        },
         "Title": "KI-Einstellungen"
       },
       "SetupRequired": "KI-Funktionen erfordern Einrichtung. Einstellungen werden geöffnet..."
@@ -1405,10 +1414,6 @@
           "Title": "Lesung"
         },
         "LlmIntegration": {
-          "AutoSpeak": {
-            "Description": "Antworten des KI-Tutors automatisch laut vorlesen",
-            "Label": "Antworten automatisch vorlesen"
-          },
           "Enable": {
             "Description": "KI zur Erklärung von Wörtern und Grammatik verwenden",
             "Label": "LLM-Erklärungen aktivieren"
@@ -1436,10 +1441,6 @@
               "Label": "Verzögerung für gezählten Hover"
             },
             "Label": "Passives Wort-Tracking"
-          },
-          "Speech": {
-            "Description": "Text-to-Speech für KI-Antworten und Speech-to-Text-Eingabe aktivieren",
-            "Label": "Sprache (Experimentell)"
           },
           "Title": "LLM-Integration"
         },
@@ -2086,7 +2087,8 @@
         "SignInHint": "Gib deine mLearn-Cloud-Anmeldedaten ein",
         "SignInCodeHint": "Falls du einen Gerätecode erhalten hast, gib ihn unten ein",
         "PeerJoinedSingular": "Ein Teilnehmer ist deinem Raum beigetreten",
-        "PeerJoinedPlural": "{count} Teilnehmer sind deinem Raum beigetreten"
+        "PeerJoinedPlural": "{count} Teilnehmer sind deinem Raum beigetreten",
+        "AnticipatingPing": "Ping wird antizipiert..."
       },
       "Extension": {
         "HeadlessMode": "Headless-Modus",

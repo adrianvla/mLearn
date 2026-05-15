@@ -37,6 +37,17 @@ const INTERACTIVE_SELECTORS = [
   '.toast-container',
   '.overlay-drag-handle',
   '.overlay-resize-handle',
+  '.word-hover-container',
+  '.subtitle_hover',
+  '.draggable-popup',
+  '.modal-overlay',
+  '.video-unknown-words-sidebar',
+  '.live-word-translator',
+  '.watch-together-code-modal',
+  '.watch-together-mode-modal',
+  '.subtitle-sync',
+  '.subtitle-sync-btn',
+  '.panel-header',
 ];
 
 function isOverInteractiveRegion(e: MouseEvent): boolean {
@@ -783,6 +794,8 @@ export const App: Component = () => {
         subtitleOffset={settings.subsOffsetTime}
         autoPositionEnabled={autoPositionEnabled()}
         showWordSidebar={showWordSidebar()}
+        currentVideoTime={() => currentTime()}
+        subtitles={subtitles.subtitles()}
         onOffsetChange={handleOffsetChange}
         onLoadSubtitles={handleOpenSubtitleFile}
         onToggleSubtitles={() => updateSettings({ showSubtitles: settings.showSubtitles === false })}

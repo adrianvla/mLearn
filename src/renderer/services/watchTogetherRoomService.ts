@@ -278,6 +278,14 @@ export interface WatchTogetherPeerEvent {
   room: WatchTogetherRoomState;
 }
 
+export interface WatchTogetherSyncStartMessage {
+  type: 'sync-start';
+  currentTime: number;
+  playbackRate: number;
+  targetTime: number;
+  timestamp?: string;
+}
+
 const PING_INTERVAL_MS = 30000;
 
 export interface WatchTogetherRoomStateWithTimestamp extends WatchTogetherRoomState {
@@ -285,29 +293,50 @@ export interface WatchTogetherRoomStateWithTimestamp extends WatchTogetherRoomSt
   timestamp?: string;
 }
 
+export interface WatchTogetherSubscription {
+  unsubscribe: () => void;
+  getRtt: () => number;
+  sendSyncStart: (currentTime: number, playbackRate: number, targetTime: number) => void;
+}
+
 export function subscribeToWatchTogetherRoom(
   session: WatchTogetherRoomSession,
   accessToken: string,
   onRoomState: (room: WatchTogetherRoomStateWithTimestamp) => void,
   onPeerEvent?: (event: WatchTogetherPeerEvent) => void,
-): () => void {
+  onSyncStart?: (message: WatchTogetherSyncStartMessage) => void,
+): WatchTogetherSubscription {
   const socket = new WebSocket(session.socket.url, [session.socket.protocol, accessToken]);
   let pingInterval: number | null = null;
+  let lastRtt = 100;
+  let pingSentAt = 0;
 
   socket.addEventListener('open', () => {
     pingInterval = window.setInterval(() => {
       if (socket.readyState === WebSocket.OPEN) {
+        pingSentAt = Date.now();
         socket.send('ping');
       }
     }, PING_INTERVAL_MS);
   });
 
   socket.addEventListener('message', (event) => {
+    const data = String(event.data);
+
+    if (data === 'pong') {
+      if (pingSentAt > 0) {
+        lastRtt = Date.now() - pingSentAt;
+        pingSentAt = 0;
+      }
+      return;
+    }
+
     try {
-      const payload = JSON.parse(String(event.data)) as
+      const payload = JSON.parse(data) as
         | WatchTogetherSocketMessage
         | WatchTogetherPeerJoinedMessage
-        | WatchTogetherPeerLeftMessage;
+        | WatchTogetherPeerLeftMessage
+        | WatchTogetherSyncStartMessage;
       if (payload.type === 'room-state') {
         onRoomState(payload.room as WatchTogetherRoomStateWithTimestamp);
       } else if (payload.type === 'peer-joined') {
@@ -316,6 +345,8 @@ export function subscribeToWatchTogetherRoom(
       } else if (payload.type === 'peer-left') {
         onRoomState(payload.room as WatchTogetherRoomStateWithTimestamp);
         onPeerEvent?.({ type: 'left', peerId: payload.peerId, room: payload.room });
+      } else if (payload.type === 'sync-start') {
+        onSyncStart?.(payload as WatchTogetherSyncStartMessage);
       }
     } catch (error) {
       log.error('[WatchTogether] Failed to parse Worker socket message', error);
@@ -335,7 +366,7 @@ export function subscribeToWatchTogetherRoom(
     log.warn('[WatchTogether] Worker socket closed unexpectedly', event.code, event.reason);
   });
 
-  return () => {
+  const unsubscribe = () => {
     if (pingInterval !== null) {
       window.clearInterval(pingInterval);
       pingInterval = null;
@@ -344,4 +375,12 @@ export function subscribeToWatchTogetherRoom(
       socket.close();
     }
   };
+
+  const sendSyncStart = (currentTime: number, playbackRate: number, targetTime: number) => {
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'sync-start', currentTime, playbackRate, targetTime }));
+    }
+  };
+
+  return { unsubscribe, getRtt: () => lastRtt, sendSyncStart };
 }

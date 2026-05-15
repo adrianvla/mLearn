@@ -101,6 +101,15 @@
           "Description": "会話エージェントの代わりに、別のLLMパスでミスを検出・修正します。",
           "Title": "校正エージェント"
         },
+        "Speech": {
+          "Title": "音声",
+          "Label": "音声（実験的）",
+          "Description": "AI応答の読み上げと音声入力を有効にします"
+        },
+        "AutoSpeak": {
+          "Label": "応答を自動読み上げ",
+          "Description": "AIチューターの応答を自動で音声再生します"
+        },
         "Title": "AI設定"
       },
       "SetupRequired": "AI機能にはセットアップが必要です。設定を開いています..."
@@ -1405,10 +1414,6 @@
           "Title": "読み"
         },
         "LlmIntegration": {
-          "AutoSpeak": {
-            "Description": "AIチューターの応答を自動で音声再生します",
-            "Label": "応答を自動読み上げ"
-          },
           "Enable": {
             "Description": "AIを使って単語と文法を解説",
             "Label": "LLM解説を有効にする"
@@ -1436,10 +1441,6 @@
               "Label": "カウント対象ホバーの遅延"
             },
             "Label": "受動的な単語トラッキング"
-          },
-          "Speech": {
-            "Description": "AI応答の読み上げと音声入力を有効にします",
-            "Label": "音声（実験的）"
           },
           "Title": "LLM連携"
         },
@@ -2086,7 +2087,8 @@
         "SignInHint": "mLearn Cloudの認証情報を入力してください",
         "SignInCodeHint": "デバイスコードを受け取った場合は、以下に入力してください",
         "PeerJoinedSingular": "参加者がルームに参加しました",
-        "PeerJoinedPlural": "{count}人の参加者がルームに参加しました"
+        "PeerJoinedPlural": "{count}人の参加者がルームに参加しました",
+        "AnticipatingPing": "pingを待機中..."
       },
       "Extension": {
         "HeadlessMode": "ヘッドレスモード",

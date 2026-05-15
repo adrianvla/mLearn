@@ -12,7 +12,7 @@ import { CloudReLoginModal } from '../../../components/cloud';
 import { WatchTogetherCodeModal, WatchTogetherModeModal } from '../../../components/watchTogether';
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
-import { Panel, Btn, NavBtn, VideoIcon } from '../../../components/common';
+import { Panel, Btn, NavBtn, VideoIcon, Spinner } from '../../../components/common';
 import { AnkiModifyWarningModal } from '../../../components/flashcard/AnkiModifyWarningModal';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
 import { SubtitleSync } from '../../../components/subtitle';
@@ -765,7 +765,7 @@ export const VideoRoute: Component = () => {
         url: videoSrc(),
         title: currentVideoName(),
       });
-    }, 250); // Sync overlay every 250ms
+    }, 100);
     ipcCleanups.push(() => clearInterval(overlaySyncInterval));
 
     // Respond to overlay sync requests
@@ -800,13 +800,28 @@ export const VideoRoute: Component = () => {
       const video = document.querySelector('video');
       if (!video) return;
 
+      let isAnticipatingPlay = false;
+
       const onPlay = () => {
-        if (!watchTogether.isSuppressed) {
+        if (watchTogether.isSuppressed) return;
+        if (watchTogether.mode() === 'room-owner' && !isAnticipatingPlay) {
+          isAnticipatingPlay = true;
+          video.pause();
+          watchTogether.handlePlayAction();
+          const checkDone = window.setInterval(() => {
+            if (!watchTogether.isAnticipatingPing()) {
+              window.clearInterval(checkDone);
+              isAnticipatingPlay = false;
+            }
+          }, 50);
+          return;
+        }
+        if (!isAnticipatingPlay) {
           watchTogether.sendPlay(video.currentTime);
         }
       };
       const onPause = () => {
-        if (!watchTogether.isSuppressed) {
+        if (!watchTogether.isSuppressed && !isAnticipatingPlay) {
           watchTogether.sendPause(video.currentTime);
         }
         savePlaybackTime();
@@ -816,6 +831,17 @@ export const VideoRoute: Component = () => {
         if (!watchTogether.isSuppressed) {
           watchTogether.sendSync(video.currentTime);
         }
+        bridge.overlay.sendOverlayVideoState({
+          currentTime: video.currentTime,
+          isPlaying: !video.paused,
+          duration: video.duration && isFinite(video.duration) ? video.duration : 0,
+          playbackRate: video.playbackRate,
+          volume: video.volume,
+          muted: video.muted,
+          isWaiting: video.readyState < 3,
+          url: videoSrc(),
+          title: currentVideoName(),
+        });
       };
 
       video.addEventListener('play', onPlay);
@@ -1247,27 +1273,34 @@ export const VideoRoute: Component = () => {
           </div>
         }
       >
-        <VideoPlayer
-          src={videoSrc()}
-          subtitleContent={subtitleContent()}
-          remoteSubtitleHtml={watchTogether.remoteSubtitle()?.html || null}
-          remoteSubtitleSize={watchTogether.remoteSubtitle()?.size ?? null}
-          remoteSubtitleWeight={watchTogether.remoteSubtitle()?.weight ?? null}
-          subtitles={subtitles}
-          ctxMenuOptions={{
-            isWatchTogether: watchTogether.isActive(),
-            hasContextPhrase: !!currentSubtitlePhrase(),
-            canExplainPhrase: settings.llmEnabled && !!currentSubtitlePhrase(),
-          }}
-          onContextMenuOpen={setContextMenuPosition}
-          onTimeUpdate={(time) => setCurrentVideoTime(time)}
-          showWordSidebar={showWordSidebar()}
-          onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
-          detectedAudioTracks={detectedAudioTracks()}
-          detectedSubtitleTracks={detectedSubtitleTracks()}
-          activeDetectedSubtitleTrack={activeDetectedSubtitleTrack()}
-          onSelectDetectedSubtitleTrack={handleSelectDetectedSubtitleTrack}
-        />
+        <div class="video-player-container">
+          <VideoPlayer
+            src={videoSrc()}
+            subtitleContent={subtitleContent()}
+            remoteSubtitleHtml={watchTogether.remoteSubtitle()?.html || null}
+            remoteSubtitleSize={watchTogether.remoteSubtitle()?.size ?? null}
+            remoteSubtitleWeight={watchTogether.remoteSubtitle()?.weight ?? null}
+            subtitles={subtitles}
+            ctxMenuOptions={{
+              isWatchTogether: watchTogether.isActive(),
+              hasContextPhrase: !!currentSubtitlePhrase(),
+              canExplainPhrase: settings.llmEnabled && !!currentSubtitlePhrase(),
+            }}
+            onContextMenuOpen={setContextMenuPosition}
+            onTimeUpdate={(time) => setCurrentVideoTime(time)}
+            showWordSidebar={showWordSidebar()}
+            onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
+            detectedAudioTracks={detectedAudioTracks()}
+            detectedSubtitleTracks={detectedSubtitleTracks()}
+            activeDetectedSubtitleTrack={activeDetectedSubtitleTrack()}
+            onSelectDetectedSubtitleTrack={handleSelectDetectedSubtitleTrack}
+          />
+          <Show when={watchTogether.isAnticipatingPing()}>
+            <div class="watch-together-anticipation-overlay">
+              <Spinner size={32} text={t('mlearn.WatchTogether.AnticipatingPing')} />
+            </div>
+          </Show>
+        </div>
       </Show>
 
       <ExplainerPopup
