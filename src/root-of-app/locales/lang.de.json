@@ -2037,7 +2037,8 @@
       "LoadSubtitles": "Untertitel laden",
       "OffsetTooltip": "Untertitel-Timing-Offset",
       "SyncActive": "Synchronisation aktiv",
-      "SyncInactive": "Synchronisation inaktiv"
+      "SyncInactive": "Synchronisation inaktiv",
+      "ToggleSubtitles": "Untertitel ein/aus"
     },
     "WatchTogether": {
       "Mode": {

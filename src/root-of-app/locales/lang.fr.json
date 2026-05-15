@@ -2037,7 +2037,8 @@
       "LoadSubtitles": "Charger les sous-titres",
       "OffsetTooltip": "Décalage temporel des sous-titres",
       "SyncActive": "Sync active",
-      "SyncInactive": "Sync inactive"
+      "SyncInactive": "Sync inactive",
+      "ToggleSubtitles": "Activer/désactiver les sous-titres"
     },
     "WatchTogether": {
       "Mode": {

@@ -2037,7 +2037,8 @@
       "LoadSubtitles": "Загрузить субтитры",
       "OffsetTooltip": "Смещение тайминга субтитров",
       "SyncActive": "Синхронизация активна",
-      "SyncInactive": "Синхронизация неактивна"
+      "SyncInactive": "Синхронизация неактивна",
+      "ToggleSubtitles": "Переключить субтитры"
     },
     "WatchTogether": {
       "Mode": {

@@ -10,8 +10,8 @@
   right: 0;
   z-index: var(--z-overlay);
   pointer-events: none;
-  /*--bg: var(--bg-opaque);*/
-  /*--panel-bg: var(--bg-opaque);*/
+  --bg: var(--bg-opaque);
+  --panel-bg: var(--bg-opaque);
 }
 
 .overlay-controls-container.interactive {
@@ -27,6 +27,7 @@
   height: 8px;
   pointer-events: auto;
   z-index: 1;
+  opacity: 0;
 }
 
 /* The actual control bar */
@@ -35,13 +36,21 @@
   transform: translateY(-100%);
   transition: opacity var(--transition-slow), transform var(--transition-slow);
   pointer-events: none;
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
+  cursor: grab;
 }
 
 .overlay-controls-bar.visible {
-  opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
+}
+
+.overlay-controls-bar.dimmed {
+  opacity: 0.5;
+}
+
+.overlay-controls-bar.visible:not(.dimmed) {
+  opacity: 1;
 }
 
 .overlay-controls-bar .panel {
@@ -173,7 +182,7 @@
   border-radius: var(--radius-full);
   background-color: var(--overlay-sync-indicator-default);
   transition: background-color var(--transition-slow);
-  border:1px solid var(--border-color);
+  box-shadow: var(--shadow-special);
 }
 
 .overlay-sync-indicator.sync-connected {
@@ -193,26 +202,9 @@
   color: var(--text-primary);
 }
 
-/* Drag handle */
-.overlay-drag-handle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  cursor: grab;
-  color: var(--text-secondary);
-  border-radius: var(--radius-sm);
-  transition: color var(--transition-normal), background-color var(--transition-normal);
-}
-
-.overlay-drag-handle:hover {
-  color: var(--text-primary);
-  background-color: var(--bg-intense);
-}
-
-.overlay-drag-handle:active {
-  cursor: grabbing;
+.overlay-controls-bar button,
+.overlay-controls-bar .btn-icon {
+  cursor: default;
 }
 
 /* Resize handle */

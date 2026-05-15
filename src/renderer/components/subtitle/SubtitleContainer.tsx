@@ -239,7 +239,10 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   // Container class with theme and visibility state
   const getContainerClass = () => {
     const classes = ['subtitles', getSubtitleThemeClass()];
-    if (!shouldShow()) {
+    const show = shouldShow();
+    const content = hasContent();
+    console.log('[SubtitleContainer] shouldShow=', show, 'hasContent=', content, 'tokens=', props.tokens.length, 'originalText=', !!props.originalText, 'isLoading=', props.isLoading, 'showSubtitles=', settings.showSubtitles);
+    if (!show) {
       classes.push('not-shown');
     }
     if (settings.blur_known_subtitles && allWordsKnown()) {

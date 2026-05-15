@@ -7,7 +7,7 @@ import { Component, Show, createSignal, createMemo } from 'solid-js';
 import type { useVideo, useSubtitles } from '../../hooks';
 import { useSettings, useLocalization } from '../../context';
 import { useIPC } from '../../hooks';
-import { Panel, IconBtn, RangeInput, Select, ProgressBar } from '../common';
+import { Panel, IconBtn, RangeInput, Select, ProgressBar, SubtitleIcon } from '../common';
 import type { SelectOption } from '../common/Select/Select';
 import './VideoControls.css';
 
@@ -244,8 +244,9 @@ export const VideoControls: Component<VideoControlsProps> = (props) => {
                                         }
                                     }}
                                     aria-label={t('mlearn.Video.Controls.SubtitleTrack')}
-                                    icon="subtitles"
-                                />
+                                >
+                                    <SubtitleIcon />
+                                </IconBtn>
                             </Show>
 
                             <Show when={state.textTracks.length > 0 || props.detectedSubtitleTracks?.length}>

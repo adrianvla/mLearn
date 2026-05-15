@@ -442,6 +442,7 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
           return;
         }
         const overlay = getOverlayWindow();
+        log.info('[webServer] /api/overlay-sync: time=', parsed.currentTime, 'overlay=', overlay ? 'found' : 'null');
         if (overlay && !overlay.isDestroyed()) {
           overlay.webContents.send(IPC_CHANNELS.OVERLAY_VIDEO_STATE, parsed);
         }
@@ -469,16 +470,19 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     }
     let body = '';
     req.on('data', (chunk) => { body += chunk.toString(); });
-    req.on('end', () => {
+      req.on('end', () => {
       try {
         const parsed = JSON.parse(body);
+        log.info('[webServer] /api/overlay-subtitles received: tracks=', parsed.tracks?.length, 'textTracks=', parsed.textTracks?.length, 'url=', parsed.url);
         if (!validateSubtitleTracks(parsed)) {
           sendJsonResponse(res, { status: 'error', error: 'Invalid subtitle tracks: tracks and textTracks must be arrays' }, 400);
           return;
         }
         const overlay = getOverlayWindow();
+        log.info('[webServer] getOverlayWindow result:', overlay ? 'found' : 'null', 'destroyed=', overlay?.isDestroyed());
         if (overlay && !overlay.isDestroyed()) {
           overlay.webContents.send(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, parsed);
+          log.info('[webServer] Sent OVERLAY_SUBTITLE_TRACKS to overlay');
         }
         sendJsonResponse(res, { status: 'ok' });
       } catch (e) {

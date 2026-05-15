@@ -224,6 +224,7 @@ export function useSubtitles() {
 
   // Load subtitles from text content
   const loadSubtitles = (content: string, format?: 'srt' | 'vtt' | 'ass') => {
+    console.log('[useSubtitles] loadSubtitles: content length=', content.length, 'format=', format);
     let parsed: Subtitle[];
     setError(null);
 
@@ -259,6 +260,7 @@ export function useSubtitles() {
     setCurrentIndex(-1);
     setTokens([]);
     tokenizationGen++;
+    console.log('[useSubtitles] loadSubtitles: parsed', parsed.length, 'subtitles');
   };
 
   // Load subtitles from file
@@ -305,13 +307,16 @@ export function useSubtitles() {
   };
 
   const updateTime = async (time: number) => {
+    console.log('[useSubtitles] updateTime: time=', time, 'offset=', settings.subsOffsetTime, 'subsCount=', subtitles().length);
     const result = getCurrentSubtitle(time);
-    
+
     if (!result) {
+      console.log('[useSubtitles] updateTime: no matching subtitle at time=', time);
       setCurrentIndex(-1);
       setTokens([]);
       return;
     }
+    console.log('[useSubtitles] updateTime: found subtitle idx=', result.idx, 'text=', result.sub.text.slice(0, 50));
 
     const { sub, idx } = result;
     if (idx === currentIndex()) return;
@@ -396,6 +401,7 @@ export function useSubtitles() {
 
   // Clear subtitles
   const clearSubtitles = () => {
+    console.log('[useSubtitles] clearSubtitles');
     setSubtitles([]);
     setCurrentIndex(-1);
     setTokens([]);

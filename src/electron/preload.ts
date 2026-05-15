@@ -252,6 +252,7 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.OVERLAY_GEOMETRY, (_event, geometry) => callback(geometry)),
   setOverlayIgnoreMouseEvents: (ignore: boolean) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_SET_IGNORE_MOUSE_EVENTS, ignore),
   sendOverlayCommand: (cmd: OverlayCommand) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_COMMAND, cmd),
+  sendOverlaySubtitleTracks: (tracks: OverlaySubtitleTracks) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, tracks),
   onOverlaySubtitleTracks: (callback: (tracks: OverlaySubtitleTracks) => void) =>
     ipcOn(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, (_event, tracks) => callback(tracks)),
   overlayMoveBy: (delta: { x: number; y: number }) => ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_MOVE_BY, delta),

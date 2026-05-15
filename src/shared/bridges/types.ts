@@ -258,6 +258,7 @@ export interface OverlayBridge {
   onOverlayGeometry: (callback: (geometry: import('../types').OverlayGeometry) => void) => () => void;
   setOverlayIgnoreMouseEvents: (ignore: boolean) => void;
   sendOverlayCommand: (cmd: import('../types').OverlayCommand) => void;
+  sendOverlaySubtitleTracks: (tracks: import('../types').OverlaySubtitleTracks) => void;
   onOverlaySubtitleTracks: (callback: (tracks: import('../types').OverlaySubtitleTracks) => void) => () => void;
   overlayMoveBy: (delta: import('../types').OverlayDelta) => Promise<void>;
   overlayResizeBy: (delta: import('../types').OverlaySizeDelta) => Promise<void>;

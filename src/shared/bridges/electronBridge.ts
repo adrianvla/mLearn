@@ -250,6 +250,7 @@ const overlayBridge: OverlayBridge = {
   onOverlayGeometry: (cb) => getIPC().onOverlayGeometry(cb),
   setOverlayIgnoreMouseEvents: (ignore) => getIPC().setOverlayIgnoreMouseEvents(ignore),
   sendOverlayCommand: (cmd) => getIPC().sendOverlayCommand(cmd),
+  sendOverlaySubtitleTracks: (tracks) => getIPC().sendOverlaySubtitleTracks(tracks),
   onOverlaySubtitleTracks: (cb) => getIPC().onOverlaySubtitleTracks(cb),
   overlayMoveBy: (delta) => getIPC().overlayMoveBy(delta),
   overlayResizeBy: (delta) => getIPC().overlayResizeBy(delta),

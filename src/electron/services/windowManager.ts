@@ -857,6 +857,13 @@ export function setupWindowIPC(): void {
     }
   });
 
+  ipcMain.on(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, (_event, tracks: unknown) => {
+    const target = overlayWindow;
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.OVERLAY_SUBTITLE_TRACKS, tracks);
+    }
+  });
+
   // Forward overlay sync request to main window
   ipcMain.on(IPC_CHANNELS.OVERLAY_REQUEST_SYNC, () => {
     const target = mainWindow;

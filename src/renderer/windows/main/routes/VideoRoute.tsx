@@ -399,6 +399,19 @@ export const VideoRoute: Component = () => {
   });
 
   createEffect(() => {
+    const content = subtitleContent();
+    const src = videoSrc();
+    if (!content || !src) return;
+    console.log('[VideoRoute] Forwarding subtitle tracks to overlay, content length=', content.length, 'url=', src);
+    const bridge = getBridge();
+    bridge.overlay.sendOverlaySubtitleTracks({
+      tracks: [],
+      textTracks: [{ language: settings.language || 'unknown', text: content }],
+      url: src,
+    });
+  });
+
+  createEffect(() => {
     const mode = watchTogether.mode();
     const activeVideoSrc = videoSrc();
 
@@ -770,6 +783,15 @@ export const VideoRoute: Component = () => {
         url: videoSrc(),
         title: currentVideoName(),
       });
+      const subContent = subtitleContent();
+      const src = videoSrc();
+      if (subContent && src) {
+        bridge.overlay.sendOverlaySubtitleTracks({
+          tracks: [],
+          textTracks: [{ language: settings.language || 'unknown', text: subContent }],
+          url: src,
+        });
+      }
     }));
 
     // Attach watch-together listeners to the video element once it exists.

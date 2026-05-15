@@ -2037,7 +2037,8 @@
       "LoadSubtitles": "字幕を読み込む",
       "OffsetTooltip": "字幕タイミングオフセット",
       "SyncActive": "同期中",
-      "SyncInactive": "同期停止"
+      "SyncInactive": "同期停止",
+      "ToggleSubtitles": "字幕を切り替え"
     },
     "WatchTogether": {
       "Mode": {

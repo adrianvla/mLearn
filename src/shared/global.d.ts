@@ -141,6 +141,7 @@ sendLogRecord: (record: unknown) => void;
   onOverlayGeometry: (callback: (geometry: import('./types').OverlayGeometry) => void) => () => void;
   setOverlayIgnoreMouseEvents: (ignore: boolean) => void;
   sendOverlayCommand: (cmd: import('./types').OverlayCommand) => void;
+  sendOverlaySubtitleTracks: (tracks: import('./types').OverlaySubtitleTracks) => void;
   onOverlaySubtitleTracks: (callback: (tracks: import('./types').OverlaySubtitleTracks) => void) => () => void;
   overlayMoveBy: (delta: { x: number; y: number }) => Promise<void>;
   overlayResizeBy: (delta: { width: number; height: number }) => Promise<void>;
