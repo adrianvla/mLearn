@@ -254,6 +254,7 @@ export interface Settings {
   showTranslation?: boolean; // Show translation line
   videoFit?: 'contain' | 'cover' | 'fill'; // Video object fit
   overlayAutoPosition?: boolean; // Enable automatic overlay positioning from browser extension
+  overlayTextMode?: boolean;
 
   // Subtitle processing
   removeParentheses?: boolean; // Remove content in parentheses from subtitles
@@ -459,6 +460,7 @@ export const DEFAULT_SETTINGS: Settings = {
   subtitle_font_size: 40,
   subtitle_font_weight: 400,
   overlayAutoPosition: true,
+  overlayTextMode: false,
   showPitchAccent: true,
   timeWatched: 0,
   maxNewCardsPerDay: 10,

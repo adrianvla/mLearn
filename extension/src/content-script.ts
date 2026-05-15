@@ -6,6 +6,7 @@ import type {
   ExtensionCommandMessage,
   HeadlessStateMessage,
   HeadlessCommandMessage,
+  TextModeWordLookupMessage,
 } from './types.js';
 
 interface ParsedSubtitle {
@@ -1107,6 +1108,135 @@ function removeHeadlessMessageListener(): void {
   runtime.onMessage.removeListener(handleHeadlessMessage);
 }
 
+// ============================================================================
+// Text Mode Word Lookup (Long-press) — always active, desktop decides whether to show
+// ============================================================================
+
+let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+let longPressStartX = 0;
+let longPressStartY = 0;
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_MOVE_THRESHOLD = 10;
+
+function getWordAtPoint(x: number, y: number): string | null {
+  const el = document.elementFromPoint(x, y);
+  if (!el) return null;
+  const text = el.textContent?.trim();
+  if (!text) return null;
+
+  const range = document.caretRangeFromPoint(x, y);
+  if (!range) return null;
+
+  const textNode = range.startContainer;
+  if (!textNode || textNode.nodeType !== Node.TEXT_NODE) {
+    const fullText = el.textContent || '';
+    const words = fullText.split(/[\s\n]+/);
+    for (const w of words) {
+      if (w.length > 0) return w.replace(/[^\w\p{L}]/gu, '');
+    }
+    return null;
+  }
+
+  const fullText = textNode.textContent || '';
+  const offset = range.startOffset;
+  let start = offset;
+  let end = offset;
+
+  while (start > 0 && /\w|\p{L}/u.test(fullText[start - 1])) start--;
+  while (end < fullText.length && /\w|\p{L}/u.test(fullText[end])) end++;
+
+  if (start === end) return null;
+  return fullText.slice(start, end);
+}
+
+function handleLongPressStart(e: MouseEvent): void {
+  if (e.button !== 0 || e.ctrlKey || e.metaKey) return;
+  longPressStartX = e.screenX;
+  longPressStartY = e.screenY;
+  longPressTimer = setTimeout(() => {
+    longPressTimer = null;
+    const word = getWordAtPoint(e.clientX, e.clientY);
+    console.log('[mLearn Content] Long-press detected, word:', word, 'at screen(', longPressStartX, longPressStartY, ')');
+    if (word && word.length > 0) {
+      const runtime = getChromeRuntime();
+      if (runtime) {
+        try {
+          runtime.sendMessage({
+            type: 'TEXT_MODE_WORD_LOOKUP',
+            word,
+            x: longPressStartX,
+            y: longPressStartY,
+          } satisfies TextModeWordLookupMessage);
+          console.log('[mLearn Content] Sent TEXT_MODE_WORD_LOOKUP for:', word);
+        } catch (err) {
+          console.log('[mLearn Content] Failed to send word lookup:', err);
+        }
+      }
+    }
+  }, LONG_PRESS_MS);
+}
+
+function handleLongPressMove(e: MouseEvent): void {
+  if (longPressTimer !== null) {
+    const dx = e.screenX - longPressStartX;
+    const dy = e.screenY - longPressStartY;
+    if (Math.abs(dx) > LONG_PRESS_MOVE_THRESHOLD || Math.abs(dy) > LONG_PRESS_MOVE_THRESHOLD) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+  }
+}
+
+function handleLongPressEnd(): void {
+  if (longPressTimer !== null) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+}
+
+function setupTextModeWordLookup(): void {
+  console.log('[mLearn Content] Setting up long-press word lookup');
+  document.addEventListener('mousedown', handleLongPressStart);
+  document.addEventListener('mousemove', handleLongPressMove);
+  document.addEventListener('mouseup', handleLongPressEnd);
+  document.addEventListener('mouseleave', handleLongPressEnd);
+}
+
+function showTextModeToast(text: string): void {
+  const toast = document.createElement('div');
+  toast.textContent = text;
+  toast.style.cssText =
+    'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
+    'background:rgba(0,0,0,0.8);color:#fff;padding:8px 16px;' +
+    'border-radius:8px;font-size:14px;z-index:2147483647;' +
+    'font-family:-apple-system,BlinkMacSystemFont,sans-serif;' +
+    'pointer-events:none;transition:opacity 0.3s ease;';
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, 2500);
+}
+
+function handleTextModeLookupMessage(message: unknown): void {
+  const msg = message as { type: string; error?: string };
+  if (msg.type === 'TEXT_MODE_LOOKUP_ERROR' && msg.error === 'cannot-connect') {
+    showTextModeToast('mLearn: Could not connect to desktop app');
+  }
+}
+
+function setupTextModeMessageListener(): void {
+  const runtime = getChromeRuntime();
+  if (!runtime?.onMessage) return;
+  runtime.onMessage.addListener(handleTextModeLookupMessage);
+}
+
+function removeTextModeMessageListener(): void {
+  const runtime = getChromeRuntime();
+  if (!runtime?.onMessage) return;
+  runtime.onMessage.removeListener(handleTextModeLookupMessage);
+}
+
 function destroy(): void {
   isDestroyed = true;
   detachFromVideo();
@@ -1114,6 +1244,12 @@ function destroy(): void {
   stopGeometryPolling();
   removeCommandListener();
   removeHeadlessMessageListener();
+  removeTextModeMessageListener();
+  if (longPressTimer !== null) { clearTimeout(longPressTimer); longPressTimer = null; }
+  document.removeEventListener('mousedown', handleLongPressStart);
+  document.removeEventListener('mousemove', handleLongPressMove);
+  document.removeEventListener('mouseup', handleLongPressEnd);
+  document.removeEventListener('mouseleave', handleLongPressEnd);
   disableSubtitleInjection();
   headlessSubtitles = [];
   headlessModeEnabled = false;
@@ -1134,6 +1270,8 @@ function initContentScript(): void {
   setupMutationObserver();
   setupCommandListener();
   setupHeadlessMessageListener();
+  setupTextModeMessageListener();
+  setupTextModeWordLookup();
 
   let lastUrl = window.location.href;
 

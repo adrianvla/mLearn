@@ -16,6 +16,8 @@ import { setupSettingsIPC } from './services/settings';
 import { setupLoggingService } from './services/loggingService';
 import { setupLocalizationIPC } from './services/localization';
 import { setupWindowIPC, createMainWindow, createWelcomeWindow, createDiagnosticsWindow } from './services/windowManager';
+import { initOverlaySiteState, registerOverlaySiteStateIPC } from './services/overlaySiteState';
+import { getExtensionDistDir } from './utils/platform';
 import { setupFileOperationsIPC } from './services/fileOperations';
 import { setupMigrationIPC, migrateLocalStorage } from './services/localStorageMigration';
 import { registerLocalMediaScheme, registerPluginUiScheme, setupLocalMediaProtocol, setupPluginUiProtocol } from './services/localMediaProtocol';
@@ -35,7 +37,6 @@ import { setupDiagnosticsIPC } from './services/diagnostics';
 import { IPC_CHANNELS } from '../shared/constants';
 import { setupKillHandlers } from './services/processManager';
 import { getLogger } from '../shared/utils/logger';
-import { getResourcePath } from './utils/platform';
 
 const log = getLogger('electron.main');
 
@@ -224,7 +225,7 @@ function setupBaseIPC(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.OPEN_EXTENSION_FOLDER, async () => {
-    const extensionDir = path.join(getResourcePath(), 'extension', 'dist');
+    const extensionDir = getExtensionDistDir();
     log.info(`Opening extension folder: ${extensionDir}`);
 
     try {
@@ -277,6 +278,8 @@ function setupAllIPC(): void {
   setupFlashcardTtsIPC();
   setupFlashcardVideoIPC();
   setupWindowIPC();
+  registerOverlaySiteStateIPC();
+  initOverlaySiteState();
   setupPluginUiProtocol();
   setupPythonBackendIPC();
   setupFileOperationsIPC();

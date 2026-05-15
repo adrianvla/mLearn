@@ -148,6 +148,14 @@ sendLogRecord: (record: unknown) => void;
   overlayGetBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
   overlaySetAutoPosition: (enabled: boolean) => Promise<void>;
   onOverlayAutoPositionChanged: (callback: (enabled: boolean) => void) => () => void;
+  sendOverlayTextModeLookup: (payload: { word: string; x: number; y: number }) => void;
+  onOverlayTextModeLookup: (callback: (payload: { word: string; x: number; y: number }) => void) => () => void;
+  onOverlayTextModeConnected: (callback: (connected: boolean) => void) => () => void;
+  overlaySaveSiteState: (payload: { url: string; state: Record<string, unknown> }) => void;
+  overlayLoadSiteState: (url: string) => Promise<Record<string, unknown> | null>;
+  overlayClearSiteState: (url: string) => void;
+  overlaySetBounds: (bounds: { x: number; y: number; width: number; height: number }) => Promise<void>;
+  onOverlayActiveUrlChanged: (callback: (url: string) => void) => () => void;
 
   // Pill/Word Updates (cross-window sync)
   onUpdatePills: (callback: (data: unknown) => void) => () => void;

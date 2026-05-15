@@ -1484,6 +1484,14 @@ const overlayBridge: OverlayBridge = {
   overlayGetBounds: async () => null,
   overlaySetAutoPosition: async () => {},
   onOverlayAutoPositionChanged: noopCleanup,
+  sendOverlayTextModeLookup: noop,
+  onOverlayTextModeLookup: noopCleanup,
+  onOverlayTextModeConnected: noopCleanup,
+  overlaySaveSiteState: noop,
+  overlayLoadSiteState: async () => null,
+  overlayClearSiteState: noop,
+  overlaySetBounds: async () => {},
+  onOverlayActiveUrlChanged: noopCleanup,
 };
 
 // ============================================================================

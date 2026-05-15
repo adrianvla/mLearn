@@ -164,6 +164,13 @@ export const IPC_CHANNELS = {
   OVERLAY_GET_BOUNDS: 'overlay-get-bounds',
   OVERLAY_SET_AUTO_POSITION: 'overlay-set-auto-position',
   OVERLAY_AUTO_POSITION_CHANGED: 'overlay-auto-position-changed',
+  OVERLAY_TEXT_MODE_LOOKUP: 'overlay-text-mode-lookup',
+  OVERLAY_TEXT_MODE_CONNECTED: 'overlay-text-mode-connected',
+  OVERLAY_SAVE_SITE_STATE: 'overlay-save-site-state',
+  OVERLAY_LOAD_SITE_STATE: 'overlay-load-site-state',
+  OVERLAY_CLEAR_SITE_STATE: 'overlay-clear-site-state',
+  OVERLAY_SET_BOUNDS: 'overlay-set-bounds',
+  OVERLAY_ACTIVE_URL_CHANGED: 'overlay-active-url-changed',
 
   DETECT_BROWSERS: 'detect-browsers',
   INSTALL_EXTENSION: 'install-extension',

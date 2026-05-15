@@ -88,6 +88,17 @@ export function getOverlayBounds(): { x: number; y: number; width: number; heigh
   return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
 }
 
+export function setOverlayBounds(bounds: { x: number; y: number; width: number; height: number }): void {
+  const win = getOverlayWindow();
+  if (!win || win.isDestroyed()) return;
+  win.setBounds({
+    x: Math.round(bounds.x),
+    y: Math.round(bounds.y),
+    width: Math.max(200, Math.round(bounds.width)),
+    height: Math.max(100, Math.round(bounds.height)),
+  });
+}
+
 export function moveOverlayBy(deltaX: number, deltaY: number): void {
   const win = getOverlayWindow();
   if (!win || win.isDestroyed()) return;
@@ -907,5 +918,13 @@ export function setupWindowIPC(): void {
   // Set overlay auto-position enabled
   ipcMain.handle(IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION, (_event, enabled: boolean) => {
     setOverlayAutoPositionEnabled(enabled);
+  });
+
+  // Forward text mode word lookup to overlay window (from extension/web server)
+  ipcMain.on(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, (_event, payload: { word: string; x: number; y: number }) => {
+    const target = overlayWindow;
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, payload);
+    }
   });
 }

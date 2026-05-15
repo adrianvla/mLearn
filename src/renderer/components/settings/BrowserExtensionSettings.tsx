@@ -248,7 +248,13 @@ export const BrowserExtensionSettings: Component = () => {
   };
 
   const handleCopyExtensionPath = (extensionPath: string) => {
-    getBridge().files.writeToClipboard(extensionPath);
+    try {
+      getBridge().files.writeToClipboard(extensionPath);
+      showToast({ variant: 'success', message: t('mlearn.BrowserExtension.ExtensionPathCopied') });
+    } catch (e) {
+      log.error('Failed to copy extension path:', e);
+      showToast({ variant: 'error', message: t('mlearn.BrowserExtension.OpenExtensionFolderFailed') });
+    }
   };
 
   return (

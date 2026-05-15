@@ -65,3 +65,53 @@ body {
 .draggable-popup .panel{
   background: var(--bg-nt-primary);
 }
+
+.overlay-container.text-mode {
+  pointer-events: none;
+}
+
+.text-mode-top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  pointer-events: auto;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.text-mode-top-bar:active {
+  cursor: grabbing;
+}
+
+.text-mode-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 0 0 8px 8px;
+}
+
+.text-mode-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff4444;
+  flex-shrink: 0;
+}
+
+.text-mode-status-dot.connected {
+  background: #44ff44;
+}
+
+.text-mode-drag-handle {
+  width: 24px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.4);
+}

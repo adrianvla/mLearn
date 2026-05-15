@@ -1,11 +1,12 @@
-import { Component, Show, createSignal, createMemo, onMount, onCleanup, createEffect } from 'solid-js';
+import { Component, Show, createSignal, createMemo, onMount, onCleanup, createEffect, untrack } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
-import type { OverlayVideoState, OverlayGeometry, OverlaySubtitleTracks } from '../../../shared/types';
+import type { OverlayVideoState, OverlayGeometry, OverlaySubtitleTracks, Token } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { SubtitleContainer } from '../../components/subtitle/SubtitleContainer';
 import { LiveWordTranslator } from '../../components/subtitle/LiveWordTranslator';
 import { SubtitleSync } from '../../components/subtitle/SubtitleSync';
 import { ExplainerPopup } from '../../components/subtitle/ExplainerPopup';
+import { WordHover } from '../../components/subtitle/WordHover';
 import { OverlayControls } from '../../components/overlay';
 import { VideoUnknownWordsSidebar, type VideoWordEntry } from '../../components/video/VideoUnknownWordsSidebar';
 import { WatchTogetherCodeModal, WatchTogetherModeModal } from '../../components/watchTogether';
@@ -27,6 +28,12 @@ import { createWatchTogetherRoom, isRemoteWatchTogetherUrl, joinWatchTogetherRoo
 import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../services/cloudSessionManager';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { getLogger } from '../../../shared/utils/logger';
+
+interface TextModeLookupData {
+  word: string;
+  x: number;
+  y: number;
+}
 
 const DISCONNECT_TIMEOUT_MS = 15000;
 
@@ -96,6 +103,12 @@ export const App: Component = () => {
   const [watchTogetherBusy, setWatchTogetherBusy] = createSignal(false);
   const [watchTogetherError, setWatchTogetherError] = createSignal('');
 
+  // Text mode state
+  const [textModeLookup, setTextModeLookup] = createSignal<TextModeLookupData | null>(null);
+  const [textModeToken, setTextModeToken] = createSignal<Token | null>(null);
+  const [textModeTranslation, setTextModeTranslation] = createSignal<{ data?: unknown[] } | null>(null);
+  const [textModeLoading, setTextModeLoading] = createSignal(false);
+
   const hasSubtitles = createMemo(() => subtitles.subtitles().length > 0);
   const currentTime = createMemo(() => videoState()?.currentTime ?? 0);
   const duration = createMemo(() => videoState()?.duration ?? 0);
@@ -140,12 +153,18 @@ export const App: Component = () => {
         const currentUrl = state.url ?? '';
         console.log('[Overlay] videoState update: prevUrl=', prevUrl, 'currentUrl=', currentUrl, 'time=', state.currentTime, 'subsOffsetTime=', settings.subsOffsetTime);
         if (prevUrl && prevUrl !== currentUrl) {
-          console.log('[Overlay] URL changed, clearing subtitles and resetting offset');
+          saveSiteOverlayState(prevUrl);
           setSubtitleContent('');
           subtitles.clearSubtitles();
           updateSetting('subsOffsetTime', 0);
+          clearTextModeLookup();
+          loadSiteOverlayState(currentUrl);
         }
         setLastVideoUrl(currentUrl);
+
+        if (currentUrl) {
+          updateSetting('overlayTextMode', false);
+        }
 
         subtitles.updateTime(state.currentTime);
       })
@@ -183,6 +202,41 @@ export const App: Component = () => {
     );
 
     cleanups.push(
+      bridge.overlay.onOverlayActiveUrlChanged((url: string) => {
+        console.log('[Overlay] active-url-changed received:', url, '| current lastVideoUrl:', lastVideoUrl());
+        const prevUrl = lastVideoUrl();
+        const strip = (u: string) => u.replace(/^https?:\/\//i, '').toLowerCase();
+        const current = strip(url);
+        const previous = strip(prevUrl);
+        console.log('[Overlay] stripped: current=', current, 'previous=', previous);
+        if (current !== previous) {
+          console.log('[Overlay] URL differs, switching site state from', previous, 'to', current);
+          if (prevUrl) saveSiteOverlayState(strip(prevUrl));
+          setSubtitleContent('');
+          subtitles.clearSubtitles();
+          updateSetting('subsOffsetTime', 0);
+          clearTextModeLookup();
+          setLastVideoUrl(url);
+          loadSiteOverlayState(current);
+        } else {
+          console.log('[Overlay] URL same, skipping state switch');
+        }
+      })
+    );
+
+    cleanups.push(
+      bridge.overlay.onOverlayTextModeLookup((payload: { word: string; x: number; y: number }) => {
+        updateSetting('overlayTextMode', true);
+        bridge.overlay.overlaySetBounds({
+          x: 0, y: 0,
+          width: window.screen.width,
+          height: window.screen.height,
+        });
+        setTextModeLookup(payload);
+      })
+    );
+
+    cleanups.push(
       bridge.window.onContextMenuCommand((command: string) => {
         handleContextMenuCommand(command);
       })
@@ -199,6 +253,13 @@ export const App: Component = () => {
         setIsConnected(false);
       }
     }, 1000);
+    cleanups.push(() => clearInterval(interval));
+
+    const stateSaveInterval = setInterval(() => {
+      const url = lastVideoUrl();
+      if (url) saveSiteOverlayState(url);
+    }, 30000);
+    cleanups.push(() => clearInterval(stateSaveInterval));
     cleanups.push(() => clearInterval(interval));
 
     bridge.overlay.overlayGetBounds().then((bounds) => {
@@ -288,6 +349,10 @@ export const App: Component = () => {
     const content = subtitleContent();
     if (content) {
       subtitles.loadSubtitles(content);
+      if (untrack(() => settings.showSubtitles) === false) {
+        updateSetting('showSubtitles', true);
+        subtitles.updateTime(currentTime());
+      }
     } else {
       subtitles.clearSubtitles();
     }
@@ -316,6 +381,43 @@ export const App: Component = () => {
     window.addEventListener('keydown', handleKeyDown);
     onCleanup(() => window.removeEventListener('keydown', handleKeyDown));
   });
+
+  function saveSiteOverlayState(url: string): void {
+    if (!url) return;
+    bridge.overlay.overlaySaveSiteState({
+      url,
+      state: {
+        subsOffsetTime: settings.subsOffsetTime,
+        subtitleContent: subtitleContent(),
+        overlayTextMode: settings.overlayTextMode,
+      },
+    });
+  }
+
+  async function loadSiteOverlayState(url: string): Promise<void> {
+    if (!url) return;
+    const saved = await bridge.overlay.overlayLoadSiteState(url);
+    if (!saved) return;
+    if (typeof saved.subsOffsetTime === 'number') {
+      updateSetting('subsOffsetTime', saved.subsOffsetTime);
+    }
+    if (typeof saved.subtitleContent === 'string' && saved.subtitleContent) {
+      setSubtitleContent(saved.subtitleContent);
+    }
+    if (typeof saved.overlayTextMode === 'boolean') {
+      updateSetting('overlayTextMode', saved.overlayTextMode);
+    }
+    const pos = saved.position as { x: number; y: number } | undefined;
+    const sz = saved.size as { width: number; height: number } | undefined;
+    if (pos && typeof pos.x === 'number') {
+      bridge.overlay.overlaySetBounds({
+        x: pos.x,
+        y: pos.y,
+        width: (sz && typeof sz.width === 'number') ? sz.width : 800,
+        height: (sz && typeof sz.height === 'number') ? sz.height : 600,
+      });
+    }
+  }
 
   const handlePlayPause = () => {
     if (!isConnected()) return;
@@ -368,11 +470,35 @@ export const App: Component = () => {
     setSubtitleContent(text);
   };
 
+  createEffect(() => {
+    if (!settings.showSubtitles) {
+      console.log('[Overlay] showSubtitles is FALSE');
+    }
+  });
+
+  const clearTextModeLookup = () => {
+    setTextModeLookup(null);
+    setTextModeToken(null);
+    setTextModeTranslation(null);
+    setTextModeLoading(false);
+  };
+
+  const handleToggleSubtitles = () => {
+    const next = !(settings.showSubtitles ?? true);
+    updateSetting('showSubtitles', next);
+    if (next) {
+      subtitles.updateTime(currentTime());
+    }
+  };
+
   const handleOffsetChange = (offset: number) => {
     updateSettings({ subsOffsetTime: offset });
+    subtitles.updateTime(currentTime());
   };
 
   const handleClose = () => {
+    const url = lastVideoUrl();
+    if (url) saveSiteOverlayState(url);
     bridge.window.closeWindow();
   };
 
@@ -737,6 +863,43 @@ export const App: Component = () => {
     watchTogether.deactivate();
   });
 
+  createEffect(() => {
+    const lookup = textModeLookup();
+    if (!lookup) return;
+
+    setTextModeLoading(true);
+    const word = lookup.word;
+
+    const cached = getCachedTranslation(word, settings.language);
+    if (cached) {
+      setTextModeTranslation(cached);
+    } else {
+      translateWord(word).then((result) => {
+        if (result) setTextModeTranslation(result);
+      }).catch(() => {});
+    }
+
+    const token: Token = {
+      word,
+      actual_word: word,
+      type: 'unknown',
+      surface: word,
+      partOfSpeech: 'unknown',
+    };
+
+    tokenize(word).then((tokens) => {
+      if (tokens && tokens.length > 0) {
+        setTextModeToken(tokens[0]);
+      } else {
+        setTextModeToken(token);
+      }
+    }).catch(() => {
+      setTextModeToken(token);
+    }).finally(() => {
+      setTextModeLoading(false);
+    });
+  });
+
   const currentVideoName = () => videoState()?.title ?? '';
 
   return (
@@ -745,6 +908,7 @@ export const App: Component = () => {
       classList={{
         'drag-over': dragOver(),
         'manipulating': isManipulating(),
+        'text-mode': settings.overlayTextMode === true,
       }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -752,128 +916,177 @@ export const App: Component = () => {
       role="application"
       aria-label="Subtitle overlay"
     >
-      {watchTogether.isActive() && (
-        <div class="watch-together-indicator">WT</div>
-      )}
-      <div
-        class="overlay-subtitle-wrapper"
-        onContextMenu={(e) => {
-          e.preventDefault();
-          setContextMenuPosition({ x: e.clientX, y: e.clientY });
-          bridge.window.showCtxMenu({
-            isWatchTogether: watchTogether.isActive(),
-            hasContextPhrase: !!currentSubtitlePhrase(),
-            canExplainPhrase: settings.llmEnabled && !!currentSubtitlePhrase(),
-          });
-        }}
+      <Show
+        when={settings.overlayTextMode}
+        fallback={
+          <>
+            {watchTogether.isActive() && (
+              <div class="watch-together-indicator">WT</div>
+            )}
+            <div
+              class="overlay-subtitle-wrapper"
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setContextMenuPosition({ x: e.clientX, y: e.clientY });
+                bridge.window.showCtxMenu({
+                  isWatchTogether: watchTogether.isActive(),
+                  hasContextPhrase: !!currentSubtitlePhrase(),
+                  canExplainPhrase: settings.llmEnabled && !!currentSubtitlePhrase(),
+                });
+              }}
+            >
+              <SubtitleContainer
+                tokens={subtitles.tokens()}
+                isLoading={subtitles.isTokenizing()}
+                originalText={subtitles.currentSubtitle()?.text}
+                subtitleStart={subtitles.currentSubtitle()?.start}
+                subtitleEnd={subtitles.currentSubtitle()?.end}
+                videoSrc={videoState()?.url}
+                remoteHtml={watchTogether.remoteSubtitle()?.html || null}
+                remoteSize={watchTogether.remoteSubtitle()?.size ?? null}
+                remoteWeight={watchTogether.remoteSubtitle()?.weight ?? null}
+              />
+            </div>
+
+            <Show when={hasSubtitles()}>
+              <LiveWordTranslator />
+            </Show>
+
+            <SubtitleSync
+              currentVideoTime={() => currentTime()}
+              subtitles={subtitles.subtitles()}
+            />
+
+            <OverlayControls
+              isConnected={isConnected()}
+              hasSubtitles={hasSubtitles()}
+              showSubtitles={settings.showSubtitles !== false}
+              subtitleOffset={settings.subsOffsetTime}
+              autoPositionEnabled={autoPositionEnabled()}
+              showWordSidebar={showWordSidebar()}
+              currentVideoTime={() => currentTime()}
+              subtitles={subtitles.subtitles()}
+              onOffsetChange={handleOffsetChange}
+              onLoadSubtitles={handleOpenSubtitleFile}
+              onToggleSubtitles={handleToggleSubtitles}
+              onClose={handleClose}
+              onDragStart={handleDragStart}
+              onDragMove={handleDragMove}
+              onDragEnd={handleDragEnd}
+              onResizeStart={handleResizeStart}
+              onResizeMove={handleResizeMove}
+              onResizeEnd={handleResizeEnd}
+              onToggleAutoPosition={handleToggleAutoPosition}
+              onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
+              onOpenConversationAgent={openConversationAgent}
+              isPlaying={isPlaying()}
+            />
+
+            <Show when={showWordSidebar()}>
+              <VideoUnknownWordsSidebar
+                words={visibleUnknownWords}
+                addingWordKeys={() => addingSidebarWords()}
+                isAddingAll={() => isAddingAllSidebarWords()}
+                failedWordSet={failedSidebarWordSet}
+                onAddWord={addVideoWordFlashcard}
+                onAddAll={addAllVideoWords}
+                onIgnoreWord={ignoreVideoWord}
+                onClose={() => setShowWordSidebar(false)}
+              />
+            </Show>
+
+            <ExplainerPopup
+              isOpen={explainerOpen()}
+              onClose={handleCloseExplainer}
+              word=""
+              contextPhrase={explainerContext()}
+              mode="phrase"
+              initialPosition={explainerPosition()}
+            />
+
+            <AnkiModifyWarningModal
+              isOpen={showAnkiAddAllWarning()}
+              title={t('mlearn.Sidebar.AnkiAddAllWarning.Title')}
+              message={t('mlearn.Sidebar.AnkiAddAllWarning.Message')}
+              confirmText={t('mlearn.Sidebar.AnkiAddAllWarning.Confirm')}
+              onConfirm={confirmAnkiAddAll}
+              onCancel={() => { setShowAnkiAddAllWarning(false); setPendingAddAllEntries([]); }}
+            />
+
+            <WatchTogetherModeModal
+              isOpen={showWatchTogetherModeModal()}
+              onClose={() => setShowWatchTogetherModeModal(false)}
+              onChooseLocal={handleChooseLocalWatchTogether}
+              onChooseCode={handleChooseCodeWatchTogether}
+            />
+
+            <WatchTogetherCodeModal
+              isOpen={showWatchTogetherCodeModal()}
+              onClose={() => setShowWatchTogetherCodeModal(false)}
+              isSignedIn={settings.cloudAuthStatus === 'signed-in'}
+              canHost={Boolean(buildWatchTogetherPayload())}
+              currentSession={watchTogether.roomSession()}
+              isBusy={watchTogetherBusy()}
+              error={watchTogetherError()}
+              onCreateRoom={handleCreateWatchTogetherRoom}
+              onJoinRoom={handleJoinWatchTogetherRoom}
+              onCopyRoomCode={handleCopyWatchTogetherRoomCode}
+              onDisconnect={handleDisconnectWatchTogether}
+              onOpenSignIn={() => setShowWatchTogetherSignInModal(true)}
+            />
+
+            <CloudReLoginModal
+              isOpen={showWatchTogetherSignInModal()}
+              onClose={() => setShowWatchTogetherSignInModal(false)}
+              onReLoginSuccess={() => setShowWatchTogetherSignInModal(false)}
+              title={t('mlearn.WatchTogether.Code.SignInModalTitle')}
+              warningMessage={t('mlearn.WatchTogether.Code.SignInRequiredMessage')}
+              hint={t('mlearn.WatchTogether.Code.SignInHint')}
+              codeHint={t('mlearn.WatchTogether.Code.SignInCodeHint')}
+            />
+          </>
+        }
       >
-        <SubtitleContainer
-          tokens={subtitles.tokens()}
-          isLoading={subtitles.isTokenizing()}
-          originalText={subtitles.currentSubtitle()?.text}
-          subtitleStart={subtitles.currentSubtitle()?.start}
-          subtitleEnd={subtitles.currentSubtitle()?.end}
-          videoSrc={videoState()?.url}
-          remoteHtml={watchTogether.remoteSubtitle()?.html || null}
-          remoteSize={watchTogether.remoteSubtitle()?.size ?? null}
-          remoteWeight={watchTogether.remoteSubtitle()?.weight ?? null}
-        />
-      </div>
-
-      <LiveWordTranslator />
-
-      <SubtitleSync
-        currentVideoTime={() => currentTime()}
-        subtitles={subtitles.subtitles()}
-      />
-
-      <OverlayControls
-        isConnected={isConnected()}
-        hasSubtitles={hasSubtitles()}
-        showSubtitles={settings.showSubtitles !== false}
-        subtitleOffset={settings.subsOffsetTime}
-        autoPositionEnabled={autoPositionEnabled()}
-        showWordSidebar={showWordSidebar()}
-        currentVideoTime={() => currentTime()}
-        subtitles={subtitles.subtitles()}
-        onOffsetChange={handleOffsetChange}
-        onLoadSubtitles={handleOpenSubtitleFile}
-        onToggleSubtitles={() => updateSettings({ showSubtitles: settings.showSubtitles === false })}
-        onClose={handleClose}
-        onDragStart={handleDragStart}
-        onDragMove={handleDragMove}
-        onDragEnd={handleDragEnd}
-        onResizeStart={handleResizeStart}
-        onResizeMove={handleResizeMove}
-        onResizeEnd={handleResizeEnd}
-        onToggleAutoPosition={handleToggleAutoPosition}
-        onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
-        onOpenConversationAgent={openConversationAgent}
-        isPlaying={isPlaying()}
-      />
-
-      <Show when={showWordSidebar()}>
-        <VideoUnknownWordsSidebar
-          words={visibleUnknownWords}
-          addingWordKeys={() => addingSidebarWords()}
-          isAddingAll={() => isAddingAllSidebarWords()}
-          failedWordSet={failedSidebarWordSet}
-          onAddWord={addVideoWordFlashcard}
-          onAddAll={addAllVideoWords}
-          onIgnoreWord={ignoreVideoWord}
-          onClose={() => setShowWordSidebar(false)}
-        />
+        <div
+          class="text-mode-top-bar"
+          onMouseDown={(e) => {
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const handleMouseMove = (ev: MouseEvent) => {
+              bridge.overlay.overlayMoveBy({ x: ev.clientX - startX, y: ev.clientY - startY });
+            };
+            const handleMouseUp = () => {
+              window.removeEventListener('mousemove', handleMouseMove);
+              window.removeEventListener('mouseup', handleMouseUp);
+            };
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+          }}
+        >
+          <div class="text-mode-status-row">
+            <span
+              class="text-mode-status-dot"
+              classList={{ connected: isConnected() }}
+            />
+            <span class="text-mode-drag-handle" />
+          </div>
+        </div>
       </Show>
 
-      <ExplainerPopup
-        isOpen={explainerOpen()}
-        onClose={handleCloseExplainer}
-        word=""
-        contextPhrase={explainerContext()}
-        mode="phrase"
-        initialPosition={explainerPosition()}
-      />
-
-      <AnkiModifyWarningModal
-        isOpen={showAnkiAddAllWarning()}
-        title={t('mlearn.Sidebar.AnkiAddAllWarning.Title')}
-        message={t('mlearn.Sidebar.AnkiAddAllWarning.Message')}
-        confirmText={t('mlearn.Sidebar.AnkiAddAllWarning.Confirm')}
-        onConfirm={confirmAnkiAddAll}
-        onCancel={() => { setShowAnkiAddAllWarning(false); setPendingAddAllEntries([]); }}
-      />
-
-      <WatchTogetherModeModal
-        isOpen={showWatchTogetherModeModal()}
-        onClose={() => setShowWatchTogetherModeModal(false)}
-        onChooseLocal={handleChooseLocalWatchTogether}
-        onChooseCode={handleChooseCodeWatchTogether}
-      />
-
-      <WatchTogetherCodeModal
-        isOpen={showWatchTogetherCodeModal()}
-        onClose={() => setShowWatchTogetherCodeModal(false)}
-        isSignedIn={settings.cloudAuthStatus === 'signed-in'}
-        canHost={Boolean(buildWatchTogetherPayload())}
-        currentSession={watchTogether.roomSession()}
-        isBusy={watchTogetherBusy()}
-        error={watchTogetherError()}
-        onCreateRoom={handleCreateWatchTogetherRoom}
-        onJoinRoom={handleJoinWatchTogetherRoom}
-        onCopyRoomCode={handleCopyWatchTogetherRoomCode}
-        onDisconnect={handleDisconnectWatchTogether}
-        onOpenSignIn={() => setShowWatchTogetherSignInModal(true)}
-      />
-
-      <CloudReLoginModal
-        isOpen={showWatchTogetherSignInModal()}
-        onClose={() => setShowWatchTogetherSignInModal(false)}
-        onReLoginSuccess={() => setShowWatchTogetherSignInModal(false)}
-        title={t('mlearn.WatchTogether.Code.SignInModalTitle')}
-        warningMessage={t('mlearn.WatchTogether.Code.SignInRequiredMessage')}
-        hint={t('mlearn.WatchTogether.Code.SignInHint')}
-        codeHint={t('mlearn.WatchTogether.Code.SignInCodeHint')}
-      />
+      <Show when={textModeToken() && textModeLookup()}>
+        <WordHover
+          token={textModeToken()!}
+          word={textModeLookup()!.word}
+          position={{ x: textModeLookup()!.x, y: textModeLookup()!.y }}
+          translationData={textModeTranslation() as never}
+          isLoading={textModeLoading()}
+          onClose={() => {
+            setTextModeLookup(null);
+            setTextModeToken(null);
+            setTextModeTranslation(null);
+          }}
+        />
+      </Show>
     </div>
   );
 };

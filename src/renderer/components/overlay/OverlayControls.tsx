@@ -269,8 +269,8 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                 <IconBtn
                     variant="ghost"
                     size="sm"
-                    active={props.showSubtitles && props.hasSubtitles}
-                    class={props.showSubtitles && props.hasSubtitles ? '' : 'inactive'}
+                    active={props.showSubtitles ?? true}
+                    class={props.showSubtitles === false ? 'inactive' : ''}
                     onClick={props.onToggleSubtitles}
                     aria-label={t('mlearn.Overlay.ToggleSubtitles')}
                     title={t('mlearn.Overlay.ToggleSubtitles')}

@@ -144,6 +144,13 @@ export interface HeadlessCommandMessage {
   volume?: number;
 }
 
+export interface TextModeWordLookupMessage {
+  type: 'TEXT_MODE_WORD_LOOKUP';
+  word: string;
+  x: number;
+  y: number;
+}
+
 export interface ParsedSubtitle {
   start: number;
   end: number;

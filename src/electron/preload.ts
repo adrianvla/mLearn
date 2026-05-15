@@ -261,6 +261,22 @@ const mLearnIPC = {
   overlaySetAutoPosition: (enabled: boolean) => ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION, enabled),
   onOverlayAutoPositionChanged: (callback: (enabled: boolean) => void) =>
     ipcOn(IPC_CHANNELS.OVERLAY_AUTO_POSITION_CHANGED, (_event, enabled) => callback(enabled)),
+  sendOverlayTextModeLookup: (payload: { word: string; x: number; y: number }) =>
+    ipcRenderer.send(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, payload),
+  onOverlayTextModeLookup: (callback: (payload: { word: string; x: number; y: number }) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, (_event, payload) => callback(payload)),
+  onOverlayTextModeConnected: (callback: (connected: boolean) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_TEXT_MODE_CONNECTED, (_event, connected) => callback(connected)),
+  overlaySaveSiteState: (payload: { url: string; state: Record<string, unknown> }) =>
+    ipcRenderer.send(IPC_CHANNELS.OVERLAY_SAVE_SITE_STATE, payload),
+  overlayLoadSiteState: (url: string): Promise<Record<string, unknown> | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_LOAD_SITE_STATE, url),
+  overlayClearSiteState: (url: string) =>
+    ipcRenderer.send(IPC_CHANNELS.OVERLAY_CLEAR_SITE_STATE, url),
+  overlaySetBounds: (bounds: { x: number; y: number; width: number; height: number }): Promise<void> =>
+    ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_SET_BOUNDS, bounds),
+  onOverlayActiveUrlChanged: (callback: (url: string) => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_ACTIVE_URL_CHANGED, (_event, url) => callback(url)),
 
   // ========== Tethered Updates ==========
   onUpdatePills: (callback: (data: string) => void) =>

@@ -257,6 +257,14 @@ const overlayBridge: OverlayBridge = {
   overlayGetBounds: () => getIPC().overlayGetBounds(),
   overlaySetAutoPosition: (enabled) => getIPC().overlaySetAutoPosition(enabled),
   onOverlayAutoPositionChanged: (cb) => getIPC().onOverlayAutoPositionChanged(cb),
+  sendOverlayTextModeLookup: (payload) => getIPC().sendOverlayTextModeLookup(payload),
+  onOverlayTextModeLookup: (cb) => getIPC().onOverlayTextModeLookup(cb),
+  onOverlayTextModeConnected: (cb) => getIPC().onOverlayTextModeConnected(cb),
+  overlaySaveSiteState: (payload) => getIPC().overlaySaveSiteState(payload),
+  overlayLoadSiteState: (url) => getIPC().overlayLoadSiteState(url),
+  overlayClearSiteState: (url) => getIPC().overlayClearSiteState(url),
+  overlaySetBounds: (bounds) => getIPC().overlaySetBounds(bounds),
+  onOverlayActiveUrlChanged: (cb) => getIPC().onOverlayActiveUrlChanged(cb),
 };
 
 const crossWindowBridge: CrossWindowBridge = {

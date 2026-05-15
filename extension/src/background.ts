@@ -12,6 +12,7 @@ import type {
   HeadlessStateMessage,
   HeadlessSubtitleMessage,
   HeadlessCommandMessage,
+  TextModeWordLookupMessage,
   WatchTogetherExtensionState,
   WatchTogetherRoomSessionExt,
   WatchTogetherPlaybackPayloadExt,
@@ -68,6 +69,32 @@ export function initServiceWorker(): void {
   status = 'connecting';
   setupPingAlarm();
   setupMessageListener();
+  setupTabActivatedListener();
+}
+
+function setupTabActivatedListener(): void {
+  chrome.tabs.onActivated.addListener((activeInfo) => {
+    console.log('[mLearn Background] Tab activated:', activeInfo.tabId);
+    chrome.tabs.get(activeInfo.tabId).then((tab) => {
+      const tabUrl = tab.url;
+      console.log('[mLearn Background] Tab URL:', tabUrl);
+      if (!tabUrl || tabUrl.startsWith('chrome://') || tabUrl.startsWith('about:') || tabUrl.startsWith('edge://') || tabUrl.startsWith('moz-extension://')) {
+        console.log('[mLearn Background] Skipping internal URL');
+        return;
+      }
+      fetch(`${MLEARN_BASE_URL}/api/active-url-changed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: tabUrl }),
+      }).then(() => {
+        console.log('[mLearn Background] Sent active-url-changed for:', tabUrl);
+      }).catch((err) => {
+        console.log('[mLearn Background] Failed to send active-url-changed:', err);
+      });
+    }).catch((err) => {
+      console.log('[mLearn Background] Failed to get tab:', err);
+    });
+  });
 }
 
 export async function initHeadlessMode(): Promise<void> {
@@ -117,6 +144,7 @@ function buildPopupStateResponse(): PopupMessage {
     timestamp: Date.now(),
     headlessState: buildHeadlessPopupState(),
     watchTogetherState: buildWatchTogetherPopupState(),
+
   };
 }
 
@@ -715,6 +743,36 @@ function setupMessageListener(): void {
           sendResponse({ status, lastVideoState, lastSubtitleTracks });
           return true;
         }
+      }
+
+      // Text mode word lookup from content script (long-press)
+      if (
+        typeof message === 'object' &&
+        message !== null &&
+        (message as Record<string, unknown>).type === 'TEXT_MODE_WORD_LOOKUP'
+      ) {
+        const { word, x, y } = message as TextModeWordLookupMessage;
+        fetch(`${MLEARN_BASE_URL}/api/overlay-text-lookup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ word, x, y }),
+        }).then((resp) => {
+          if (!resp.ok && _sender.tab?.id) {
+            chrome.tabs.sendMessage(_sender.tab.id, {
+              type: 'TEXT_MODE_LOOKUP_ERROR',
+              error: 'cannot-connect',
+            }).catch(() => {});
+          }
+        }).catch(() => {
+          if (_sender.tab?.id) {
+            chrome.tabs.sendMessage(_sender.tab.id, {
+              type: 'TEXT_MODE_LOOKUP_ERROR',
+              error: 'cannot-connect',
+            }).catch(() => {});
+          }
+        });
+        sendResponse({ received: true });
+        return true;
       }
 
       // Popup messages

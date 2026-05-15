@@ -493,6 +493,80 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
     return;
   }
 
+  // API: Active URL changed (POST from extension when tab switches)
+  if (pathname === '/api/active-url-changed' && req.method === 'POST') {
+    const remoteAddress = req.socket.remoteAddress;
+    const isLocalhost = remoteAddress === '127.0.0.1' || remoteAddress === '::ffff:127.0.0.1' || remoteAddress === '::1';
+    if (!isLocalhost) {
+      sendJsonResponse(res, { error: 'Forbidden' }, 403);
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(body);
+        log.info('[webServer] active-url-changed: url=', parsed.url);
+        const overlayWin = getOverlayWindow();
+        if (overlayWin && !overlayWin.isDestroyed()) {
+          overlayWin.webContents.send(IPC_CHANNELS.OVERLAY_ACTIVE_URL_CHANGED, parsed.url);
+          log.info('[webServer] Sent OVERLAY_ACTIVE_URL_CHANGED to overlay');
+        } else {
+          log.warn('[webServer] Overlay window not available, skipping');
+        }
+        sendJsonResponse(res, { status: 'ok' });
+      } catch (e) {
+        log.error('Error parsing active-url-changed body:', e);
+        sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
+      }
+    });
+    return;
+  }
+
+  // API: Text mode word lookup (POST from extension -> forwarded to overlay)
+  if (pathname === '/api/overlay-text-lookup' && req.method === 'POST') {
+    const remoteAddress = req.socket.remoteAddress;
+    const isLocalhost = remoteAddress === '127.0.0.1' || remoteAddress === '::ffff:127.0.0.1' || remoteAddress === '::1';
+    if (!isLocalhost) {
+      sendJsonResponse(res, { error: 'Forbidden' }, 403);
+      return;
+    }
+    let body = '';
+    req.on('data', (chunk) => { body += chunk.toString(); });
+    req.on('end', () => {
+      try {
+        const parsed = JSON.parse(body);
+        let overlayWin = getOverlayWindow();
+        const wasLaunched = !overlayWin || overlayWin.isDestroyed();
+        if (wasLaunched) {
+          launchOverlayWindow();
+          overlayWin = getOverlayWindow();
+        }
+        const forwardLookup = () => {
+          const win = getOverlayWindow();
+          if (win && !win.isDestroyed()) {
+            win.webContents.send(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, {
+              word: parsed.word,
+              x: parsed.x,
+              y: parsed.y,
+            });
+            log.info('[webServer] Sent OVERLAY_TEXT_MODE_LOOKUP');
+          }
+        };
+        if (wasLaunched) {
+          setTimeout(forwardLookup, 500);
+        } else {
+          forwardLookup();
+        }
+        sendJsonResponse(res, { status: 'ok' });
+      } catch (e) {
+        log.error('Error parsing overlay-text-lookup body:', e);
+        sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
+      }
+    });
+    return;
+  }
+
   // API: Overlay command (POST from overlay -> forwarded to extension)
   if (pathname === '/api/overlay-command' && req.method === 'POST') {
     const remoteAddress = req.socket.remoteAddress;
