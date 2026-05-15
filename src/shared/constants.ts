@@ -164,6 +164,7 @@ export const IPC_CHANNELS = {
   OVERLAY_GET_BOUNDS: 'overlay-get-bounds',
   OVERLAY_SET_AUTO_POSITION: 'overlay-set-auto-position',
   OVERLAY_AUTO_POSITION_CHANGED: 'overlay-auto-position-changed',
+  OVERLAY_SET_GEOMETRY_LOCKED: 'overlay-set-geometry-locked',
   OVERLAY_TEXT_MODE_LOOKUP: 'overlay-text-mode-lookup',
   OVERLAY_TEXT_MODE_CONNECTED: 'overlay-text-mode-connected',
   OVERLAY_SAVE_SITE_STATE: 'overlay-save-site-state',

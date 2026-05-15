@@ -274,10 +274,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     void props.dictionaryEntries;
     
     if (!visible || !subtitleHoverRef) return;
+
+    console.log('[WordHover] createEffect (1) triggering position calc, pos=', props.position.x, props.position.y, 'inner=', window.innerWidth, 'x', window.innerHeight);
     
     requestAnimationFrame(() => {
       const { width, height } = getHoverDimensions();
       const newPos = calculateBoundedPosition(width, height);
+      console.log('[WordHover] createEffect (1) RAF callback: dims=', width, 'x', height, 'newPos=', newPos, 'inner=', window.innerWidth, 'x', window.innerHeight);
       setComputedPosition(newPos);
     });
   });
@@ -286,9 +289,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const visible = isShown();
     if (!visible || !subtitleHoverRef) return;
 
-    const ro = new ResizeObserver(() => {
+    console.log('[WordHover] createEffect (2 - ResizeObserver) mounted, inner=', window.innerWidth, 'x', window.innerHeight);
+
+    const ro = new ResizeObserver((entries) => {
+      console.log('[WordHover] 🔄 ResizeObserver fired, contentRect=', entries[0]?.contentRect, 'inner=', window.innerWidth, 'x', window.innerHeight);
       const { width, height } = getHoverDimensions();
       const newPos = calculateBoundedPosition(width, height);
+      console.log('[WordHover] resize: newPos=', newPos);
       setComputedPosition(newPos);
     });
 
@@ -297,6 +304,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     requestAnimationFrame(() => {
       const { width, height } = getHoverDimensions();
       const newPos = calculateBoundedPosition(width, height);
+      console.log('[WordHover] createEffect (2) RAF: dims=', width, 'x', height, 'newPos=', newPos, 'inner=', window.innerWidth, 'x', window.innerHeight);
       setComputedPosition(newPos);
     });
 

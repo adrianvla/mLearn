@@ -145,25 +145,17 @@ export const App: Component = () => {
 
     cleanups.push(
       bridge.overlay.onOverlayVideoState((state: OverlayVideoState) => {
+        console.log('[Overlay] videoState update: url=', state.url, 'time=', state.currentTime);
         setVideoState(state);
         setLastSyncAt(Date.now());
         setIsConnected(true);
 
-        const prevUrl = lastVideoUrl();
-        const currentUrl = state.url ?? '';
-        console.log('[Overlay] videoState update: prevUrl=', prevUrl, 'currentUrl=', currentUrl, 'time=', state.currentTime, 'subsOffsetTime=', settings.subsOffsetTime);
-        if (prevUrl && prevUrl !== currentUrl) {
-          saveSiteOverlayState(prevUrl);
-          setSubtitleContent('');
-          subtitles.clearSubtitles();
-          updateSetting('subsOffsetTime', 0);
-          clearTextModeLookup();
-          loadSiteOverlayState(currentUrl);
-        }
-        setLastVideoUrl(currentUrl);
-
-        if (currentUrl) {
-          updateSetting('overlayTextMode', false);
+        if (state.url) {
+          const strip = (u: string) => u.replace(/^https?:\/\//i, '').toLowerCase();
+          const currentUrl = lastVideoUrl();
+          if (!currentUrl || strip(state.url) === strip(currentUrl)) {
+            updateSetting('overlayTextMode', false);
+          }
         }
 
         subtitles.updateTime(state.currentTime);
@@ -218,6 +210,7 @@ export const App: Component = () => {
           clearTextModeLookup();
           setLastVideoUrl(url);
           loadSiteOverlayState(current);
+          bridge.overlay.requestOverlaySync();
         } else {
           console.log('[Overlay] URL same, skipping state switch');
         }
@@ -226,7 +219,9 @@ export const App: Component = () => {
 
     cleanups.push(
       bridge.overlay.onOverlayTextModeLookup((payload: { word: string; x: number; y: number }) => {
+        console.log('[Overlay] 🏁 textModeLookup: word=', payload.word, 'x=', payload.x, 'y=', payload.y, 'screen=', window.screen.width, 'x', window.screen.height, 'inner=', window.innerWidth, 'x', window.innerHeight);
         updateSetting('overlayTextMode', true);
+        console.log('[Overlay] 📏 sending overlaySetBounds to fullscreen');
         bridge.overlay.overlaySetBounds({
           x: 0, y: 0,
           width: window.screen.width,
@@ -264,10 +259,15 @@ export const App: Component = () => {
 
     bridge.overlay.overlayGetBounds().then((bounds) => {
       if (bounds) {
+        console.log('[Overlay] initial bounds:', bounds);
         setLastSyncAt(Date.now());
         setIsConnected(true);
       }
     });
+
+    const handleResize = () => console.log('[Overlay] 📐 window resize: inner=', window.innerWidth, 'x', window.innerHeight);
+    window.addEventListener('resize', handleResize);
+    cleanups.push(() => window.removeEventListener('resize', handleResize));
 
     onCleanup(() => { for (const fn of cleanups) fn(); });
   });
@@ -346,6 +346,10 @@ export const App: Component = () => {
   });
 
   createEffect(() => {
+    bridge.overlay.overlaySetGeometryLocked(settings.overlayTextMode === true);
+  });
+
+  createEffect(() => {
     const content = subtitleContent();
     if (content) {
       subtitles.loadSubtitles(content);
@@ -406,16 +410,24 @@ export const App: Component = () => {
     }
     if (typeof saved.overlayTextMode === 'boolean') {
       updateSetting('overlayTextMode', saved.overlayTextMode);
-    }
-    const pos = saved.position as { x: number; y: number } | undefined;
-    const sz = saved.size as { width: number; height: number } | undefined;
-    if (pos && typeof pos.x === 'number') {
-      bridge.overlay.overlaySetBounds({
-        x: pos.x,
-        y: pos.y,
-        width: (sz && typeof sz.width === 'number') ? sz.width : 800,
-        height: (sz && typeof sz.height === 'number') ? sz.height : 600,
-      });
+      if (saved.overlayTextMode) {
+        bridge.overlay.overlaySetBounds({
+          x: 0, y: 0,
+          width: window.screen.width,
+          height: window.screen.height,
+        });
+      }
+    } else {
+      const pos = saved.position as { x: number; y: number } | undefined;
+      const sz = saved.size as { width: number; height: number } | undefined;
+      if (pos && typeof pos.x === 'number') {
+        bridge.overlay.overlaySetBounds({
+          x: pos.x,
+          y: pos.y,
+          width: (sz && typeof sz.width === 'number') ? sz.width : 800,
+          height: (sz && typeof sz.height === 'number') ? sz.height : 600,
+        });
+      }
     }
   }
 
@@ -867,6 +879,7 @@ export const App: Component = () => {
     const lookup = textModeLookup();
     if (!lookup) return;
 
+    console.log('[Overlay] ⚡ textModeLookup effect firing, word=', lookup.word, 'inner=', window.innerWidth, 'x', window.innerHeight);
     setTextModeLoading(true);
     const word = lookup.word;
 
@@ -888,6 +901,7 @@ export const App: Component = () => {
     };
 
     tokenize(word).then((tokens) => {
+      console.log('[Overlay] ✅ tokenize complete, will setTextModeToken, inner=', window.innerWidth, 'x', window.innerHeight);
       if (tokens && tokens.length > 0) {
         setTextModeToken(tokens[0]);
       } else {

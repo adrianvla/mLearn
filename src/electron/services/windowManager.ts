@@ -64,6 +64,7 @@ interface OverlayManualDelta {
 }
 let overlayManualDelta: OverlayManualDelta = { x: 0, y: 0, width: 0, height: 0 };
 let overlayAutoPositionEnabled = true;
+let geometryUpdateLocked = false;
 
 export function getOverlayAutoPositionEnabled(): boolean {
   return overlayAutoPositionEnabled;
@@ -135,6 +136,8 @@ let lastGeometryUpdateTime = 0;
 const GEOMETRY_UPDATE_MIN_INTERVAL_MS = 250;
 
 export function updateOverlayGeometry(geometry: { x: number; y: number; width: number; height: number }): void {
+  if (geometryUpdateLocked) return;
+
   if (
     !Number.isFinite(geometry.x) ||
     !Number.isFinite(geometry.y) ||
@@ -918,6 +921,10 @@ export function setupWindowIPC(): void {
   // Set overlay auto-position enabled
   ipcMain.handle(IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION, (_event, enabled: boolean) => {
     setOverlayAutoPositionEnabled(enabled);
+  });
+
+  ipcMain.on(IPC_CHANNELS.OVERLAY_SET_GEOMETRY_LOCKED, (_event, locked: boolean) => {
+    geometryUpdateLocked = locked;
   });
 
   // Forward text mode word lookup to overlay window (from extension/web server)

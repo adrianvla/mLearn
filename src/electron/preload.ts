@@ -258,7 +258,8 @@ const mLearnIPC = {
   overlayMoveBy: (delta: { x: number; y: number }) => ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_MOVE_BY, delta),
   overlayResizeBy: (delta: { width: number; height: number }) => ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_RESIZE_BY, delta),
   overlayGetBounds: (): Promise<{ x: number; y: number; width: number; height: number } | null> => ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_GET_BOUNDS),
-  overlaySetAutoPosition: (enabled: boolean) => ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION, enabled),
+        overlaySetAutoPosition: (enabled: boolean) => ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_SET_AUTO_POSITION, enabled),
+        overlaySetGeometryLocked: (locked: boolean) => ipcRenderer.send(IPC_CHANNELS.OVERLAY_SET_GEOMETRY_LOCKED, locked),
   onOverlayAutoPositionChanged: (callback: (enabled: boolean) => void) =>
     ipcOn(IPC_CHANNELS.OVERLAY_AUTO_POSITION_CHANGED, (_event, enabled) => callback(enabled)),
   sendOverlayTextModeLookup: (payload: { word: string; x: number; y: number }) =>

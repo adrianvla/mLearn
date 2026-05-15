@@ -94,7 +94,7 @@ body {
   gap: 8px;
   padding: 4px 12px;
   background: rgba(0, 0, 0, 0.3);
-  border-radius: 0 0 8px 8px;
+  border-radius: var(--radius-md);
 }
 
 .text-mode-status-dot {

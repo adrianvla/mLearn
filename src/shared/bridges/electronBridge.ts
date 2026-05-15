@@ -256,6 +256,7 @@ const overlayBridge: OverlayBridge = {
   overlayResizeBy: (delta) => getIPC().overlayResizeBy(delta),
   overlayGetBounds: () => getIPC().overlayGetBounds(),
   overlaySetAutoPosition: (enabled) => getIPC().overlaySetAutoPosition(enabled),
+  overlaySetGeometryLocked: (locked) => getIPC().overlaySetGeometryLocked(locked),
   onOverlayAutoPositionChanged: (cb) => getIPC().onOverlayAutoPositionChanged(cb),
   sendOverlayTextModeLookup: (payload) => getIPC().sendOverlayTextModeLookup(payload),
   onOverlayTextModeLookup: (cb) => getIPC().onOverlayTextModeLookup(cb),

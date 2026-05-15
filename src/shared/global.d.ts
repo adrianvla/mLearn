@@ -147,6 +147,7 @@ sendLogRecord: (record: unknown) => void;
   overlayResizeBy: (delta: { width: number; height: number }) => Promise<void>;
   overlayGetBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
   overlaySetAutoPosition: (enabled: boolean) => Promise<void>;
+  overlaySetGeometryLocked: (locked: boolean) => void;
   onOverlayAutoPositionChanged: (callback: (enabled: boolean) => void) => () => void;
   sendOverlayTextModeLookup: (payload: { word: string; x: number; y: number }) => void;
   onOverlayTextModeLookup: (callback: (payload: { word: string; x: number; y: number }) => void) => () => void;

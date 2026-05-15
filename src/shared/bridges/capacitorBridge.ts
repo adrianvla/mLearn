@@ -1483,6 +1483,7 @@ const overlayBridge: OverlayBridge = {
   overlayResizeBy: async () => {},
   overlayGetBounds: async () => null,
   overlaySetAutoPosition: async () => {},
+  overlaySetGeometryLocked: noop,
   onOverlayAutoPositionChanged: noopCleanup,
   sendOverlayTextModeLookup: noop,
   onOverlayTextModeLookup: noopCleanup,

@@ -264,6 +264,7 @@ export interface OverlayBridge {
   overlayResizeBy: (delta: import('../types').OverlaySizeDelta) => Promise<void>;
   overlayGetBounds: () => Promise<import('../types').OverlayBounds | null>;
   overlaySetAutoPosition: (enabled: boolean) => Promise<void>;
+  overlaySetGeometryLocked: (locked: boolean) => void;
   onOverlayAutoPositionChanged: (callback: (enabled: boolean) => void) => () => void;
   sendOverlayTextModeLookup: (payload: { word: string; x: number; y: number }) => void;
   onOverlayTextModeLookup: (callback: (payload: { word: string; x: number; y: number }) => void) => () => void;
