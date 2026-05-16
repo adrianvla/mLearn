@@ -255,7 +255,7 @@ let isInjectionEnabled = false;
 const defaultStyles = `
   #${SUBTITLE_CONTAINER_ID} {
     position: absolute;
-    bottom: 48px;
+    bottom: 56px;
     left: 0;
     right: 0;
     display: flex;
@@ -263,27 +263,31 @@ const defaultStyles = `
     align-items: center;
     pointer-events: none;
     z-index: 999999;
-    font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
-    font-size: 24px;
-    font-weight: 700;
+    font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    font-size: 22px;
+    font-weight: 600;
     line-height: 1.5;
     color: #ffffff;
-    text-shadow: 0 0 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7), 0 0 12px rgba(0, 0, 0, 0.5);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85), 0 2px 8px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.9);
     text-align: center;
-    padding: 0 20px;
+    padding: 0 24px;
     box-sizing: border-box;
-    transition: opacity 0.15s ease;
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
   #${SUBTITLE_CONTAINER_ID}.hidden {
     opacity: 0;
+    transform: translateY(6px);
   }
   #${SUBTITLE_CONTAINER_ID} .subtitle-line {
     display: inline-block;
-    background: rgba(0, 0, 0, 0.6);
-    padding: 4px 12px;
-    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    padding: 6px 16px;
+    border-radius: 8px;
     max-width: 90%;
     word-wrap: break-word;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 `;
 
@@ -1249,15 +1253,23 @@ function showTextModeToast(text: string): void {
   const toast = document.createElement('div');
   toast.textContent = text;
   toast.style.cssText =
-    'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
-    'background:rgba(0,0,0,0.8);color:#fff;padding:8px 16px;' +
-    'border-radius:8px;font-size:14px;z-index:2147483647;' +
-    'font-family:-apple-system,BlinkMacSystemFont,sans-serif;' +
-    'pointer-events:none;transition:opacity 0.3s ease;';
+    'position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(12px);' +
+    'background:rgba(15,15,17,0.92);color:#f4f4f5;padding:10px 20px;' +
+    'border-radius:9999px;font-size:13px;font-weight:500;z-index:2147483647;' +
+    'font-family:"Helvetica Neue",-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;' +
+    'pointer-events:none;opacity:0;' +
+    'box-shadow:0 4px 16px rgba(0,0,0,0.4),0 0 0 1px rgba(255,255,255,0.06);' +
+    'transition:opacity 0.35s cubic-bezier(0.4,0,0.2,1),transform 0.35s cubic-bezier(0.4,0,0.2,1);' +
+    'letter-spacing:0.01em;';
   document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+  });
   setTimeout(() => {
     toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
+    toast.style.transform = 'translateX(-50%) translateY(6px)';
+    setTimeout(() => toast.remove(), 350);
   }, 2500);
 }
 

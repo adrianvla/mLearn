@@ -51,10 +51,11 @@ function getElements(): {
   statusText: HTMLSpanElement;
   timeValue: HTMLSpanElement;
   playValue: HTMLSpanElement;
-  volumeValue: HTMLSpanElement;
   requestSyncBtn: HTMLButtonElement;
   openOverlayBtn: HTMLButtonElement;
   playPauseBtn: HTMLButtonElement;
+  playIcon: HTMLSpanElement;
+  pauseIcon: HTMLSpanElement;
   seekBackBtn: HTMLButtonElement;
   seekForwardBtn: HTMLButtonElement;
   actionsSection: HTMLElement;
@@ -82,10 +83,11 @@ function getElements(): {
   const statusText = document.getElementById('statusText');
   const timeValue = document.getElementById('timeValue');
   const playValue = document.getElementById('playValue');
-  const volumeValue = document.getElementById('volumeValue');
   const requestSyncBtn = document.getElementById('requestSyncBtn');
   const openOverlayBtn = document.getElementById('openOverlayBtn');
   const playPauseBtn = document.getElementById('playPauseBtn');
+  const playIcon = document.getElementById('playIcon');
+  const pauseIcon = document.getElementById('pauseIcon');
   const seekBackBtn = document.getElementById('seekBackBtn');
   const seekForwardBtn = document.getElementById('seekForwardBtn');
   const actionsSection = document.getElementById('actionsSection');
@@ -110,8 +112,9 @@ function getElements(): {
   const signOutBtn = document.getElementById('signOutBtn');
 
   if (
-    !statusDot || !statusText || !timeValue || !playValue || !volumeValue ||
-    !requestSyncBtn || !openOverlayBtn || !playPauseBtn || !seekBackBtn || !seekForwardBtn ||
+    !statusDot || !statusText || !timeValue || !playValue ||
+    !requestSyncBtn || !openOverlayBtn || !playPauseBtn || !playIcon || !pauseIcon ||
+    !seekBackBtn || !seekForwardBtn ||
     !actionsSection || !headlessSection || !headlessToggleBtn || !headlessControls ||
     !loadSubtitlesBtn || !snapBackwardBtn || !snapForwardBtn || !offsetInput ||
     !watchTogetherSignedOut || !watchTogetherPanel || !watchTogetherTabs ||
@@ -126,10 +129,11 @@ function getElements(): {
     statusText: statusText as HTMLSpanElement,
     timeValue: timeValue as HTMLSpanElement,
     playValue: playValue as HTMLSpanElement,
-    volumeValue: volumeValue as HTMLSpanElement,
     requestSyncBtn: requestSyncBtn as HTMLButtonElement,
     openOverlayBtn: openOverlayBtn as HTMLButtonElement,
     playPauseBtn: playPauseBtn as HTMLButtonElement,
+    playIcon: playIcon as HTMLSpanElement,
+    pauseIcon: pauseIcon as HTMLSpanElement,
     seekBackBtn: seekBackBtn as HTMLButtonElement,
     seekForwardBtn: seekForwardBtn as HTMLButtonElement,
     actionsSection: actionsSection as HTMLElement,
@@ -200,17 +204,19 @@ function updateUI(state: PopupState): void {
     }
     els.playValue.textContent = statusText;
 
-    const vol = state.videoState.volume ?? 1;
-    const muted = state.videoState.muted ?? false;
-    els.volumeValue.textContent = muted ? 'Muted' : `${Math.round(vol * 100)}%`;
-
-    els.playPauseBtn.textContent = state.videoState.isPlaying ? 'Pause' : 'Play';
+    if (state.videoState.isPlaying) {
+      els.playIcon.classList.add('hidden');
+      els.pauseIcon.classList.remove('hidden');
+    } else {
+      els.playIcon.classList.remove('hidden');
+      els.pauseIcon.classList.add('hidden');
+    }
     els.playPauseBtn.disabled = false;
   } else {
     els.timeValue.textContent = '--:--';
     els.playValue.textContent = 'No video';
-    els.volumeValue.textContent = '--';
-    els.playPauseBtn.textContent = 'Play';
+    els.playIcon.classList.remove('hidden');
+    els.pauseIcon.classList.add('hidden');
     els.playPauseBtn.disabled = true;
   }
 
@@ -229,7 +235,7 @@ function updateUI(state: PopupState): void {
     const joinContent = els.watchTogetherPanel.querySelector('[data-tab-content="join"]');
     if (joinContent) joinContent.classList.add('hidden');
     els.roomCodeValue.textContent = wt.roomCode ?? '-';
-    els.roomPeersValue.textContent = String(wt.peerCount);
+    els.roomPeersValue.textContent = String(wt.peerCount ?? 0);
   } else {
     els.roomActive.classList.add('hidden');
     els.watchTogetherTabs.classList.remove('hidden');

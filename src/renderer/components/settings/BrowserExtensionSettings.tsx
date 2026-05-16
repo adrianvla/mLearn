@@ -233,6 +233,17 @@ export const BrowserExtensionSettings: Component = () => {
     }
   };
 
+  const getManualInstruction = (type: BrowserInfo['type']) => {
+    switch (type) {
+      case 'chrome':
+        return t('mlearn.BrowserExtension.ManualChrome');
+      case 'firefox':
+        return t('mlearn.BrowserExtension.ManualFirefox');
+      default:
+        return t('mlearn.BrowserExtension.ManualUnknown');
+    }
+  };
+
   const handleOpenExtensionFolder = async () => {
     try {
       const success = await getBridge().browser.openExtensionFolder();
@@ -347,12 +358,7 @@ export const BrowserExtensionSettings: Component = () => {
                       <span class="error-text">{item.error}</span>
                       <div class="manual-install-guide">
                         <p class="manual-install-hint">{t('mlearn.BrowserExtension.ManualInstallHint')}</p>
-                        <ol class="manual-install-steps">
-                          <li>{t('mlearn.BrowserExtension.Step1')}</li>
-                          <li>{t('mlearn.BrowserExtension.Step2')}</li>
-                          <li>{t('mlearn.BrowserExtension.Step3')}</li>
-                          <li>{t('mlearn.BrowserExtension.Step4')}</li>
-                        </ol>
+                        <p class="manual-instructions">{getManualInstruction(item.browser.type)}</p>
                       </div>
                       <div class="manual-install-actions">
                         <Btn size="sm" onClick={handleOpenExtensionFolder}>

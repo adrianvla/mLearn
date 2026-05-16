@@ -9,7 +9,13 @@
 <body>
   <div class="popup-container">
     <header class="popup-header">
-      <span class="logo">mLearn</span>
+      <div class="brand">
+        <svg aria-hidden="true" focusable="false" class="brand-icon" width="20" height="20" viewBox="735 788 385 222" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path fill="currentColor" d="M748,1002L741,875L754,842L775,842L776,864L782,864C782,864 788.186,841.476 817,841C849.567,840.462 856,866 856,866L862.474,866C862.474,866 869.279,842.064 903,842C936.721,841.936 944,867 944,867L953,905L950,1005L927,1005L922,965L923,902C923,902 916.654,890.612 898,891C866.346,891.658 862.474,912 862.474,912L861,1004L838,1004L837,911C837,911 828.858,889.095 802,890C785.132,890.569 779,899 779,899L780,963L770,1002L748,1002Z"/>
+          <path fill="currentColor" d="M992,1005L981,964L989,793L1014,793L1028,820L1020,948L1092,949L1114,989L1113,1007L992,1005Z"/>
+        </svg>
+        <span class="logo">mLearn</span>
+      </div>
       <div class="connection-status" id="connectionStatus">
         <span class="status-dot" id="statusDot"></span>
         <span class="status-text" id="statusText">mLearn not running</span>
@@ -17,33 +23,93 @@
     </header>
 
     <section class="video-state" id="videoState">
-      <div class="state-row">
-        <span class="state-label">Time</span>
-        <span class="state-value" id="timeValue">--:--</span>
-      </div>
-      <div class="state-row">
-        <span class="state-label">State</span>
-        <span class="state-value" id="playValue">No video</span>
-      </div>
-      <div class="state-row">
-        <span class="state-label">Volume</span>
-        <span class="state-value" id="volumeValue">--</span>
+      <div class="state-grid">
+        <div class="state-item">
+          <div class="state-icon">
+            <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          <div class="state-meta">
+            <span class="state-label">Time</span>
+            <span class="state-value" id="timeValue">--:--</span>
+          </div>
+        </div>
+        <div class="state-item">
+          <div class="state-icon">
+            <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+          </div>
+          <div class="state-meta">
+            <span class="state-label">State</span>
+            <span class="state-value" id="playValue">No video</span>
+          </div>
+        </div>
       </div>
     </section>
 
     <section class="actions" id="actionsSection">
       <div class="playback-controls">
-        <button class="btn btn-secondary" id="seekBackBtn" type="button">-5s</button>
-        <button class="btn btn-primary" id="playPauseBtn" type="button" disabled>Play</button>
-        <button class="btn btn-secondary" id="seekForwardBtn" type="button">+5s</button>
+        <button class="btn btn-icon btn-secondary" id="seekBackBtn" type="button" title="Seek back 5 seconds">
+          <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="19 20 9 12 19 4 19 20"/>
+            <line x1="5" y1="19" x2="5" y2="5"/>
+          </svg>
+          <span>5s</span>
+        </button>
+        <button class="btn btn-icon btn-primary" id="playPauseBtn" type="button" disabled>
+          <span class="play-icon" id="playIcon">
+            <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+          </span>
+          <span class="pause-icon hidden" id="pauseIcon">
+            <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <rect x="6" y="4" width="4" height="16"/>
+              <rect x="14" y="4" width="4" height="16"/>
+            </svg>
+          </span>
+        </button>
+        <button class="btn btn-icon btn-secondary" id="seekForwardBtn" type="button" title="Seek forward 5 seconds">
+          <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5 4 15 12 5 20 5 4"/>
+            <line x1="19" y1="5" x2="19" y2="19"/>
+          </svg>
+          <span>5s</span>
+        </button>
       </div>
-      <button class="btn btn-primary" id="requestSyncBtn" type="button">Request Sync</button>
-      <button class="btn btn-secondary" id="openOverlayBtn" type="button">Open Overlay</button>
+      <div class="action-row">
+        <button class="btn btn-secondary" id="requestSyncBtn" type="button">
+          <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+          Request Sync
+        </button>
+        <button class="btn btn-secondary" id="openOverlayBtn" type="button">
+          <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
+            <path d="M16 3h3a2 2 0 0 1 2 2v3"/>
+            <path d="M8 21H5a2 2 0 0 1-2-2v-3"/>
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+          </svg>
+          Open Overlay
+        </button>
+      </div>
     </section>
 
-    <section class="headless-section hidden" id="headlessSection">
+    <section class="headless-section" id="headlessSection">
       <div class="headless-header">
-        <span class="headless-label">Headless Mode</span>
+        <div class="headless-brand">
+          <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8" y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          <span class="headless-label">Headless Mode</span>
+        </div>
         <button class="btn btn-toggle" id="headlessToggleBtn" type="button">Enable</button>
       </div>
     </section>
@@ -52,32 +118,77 @@
       <div class="headless-divider"></div>
 
       <div class="subtitle-controls">
-        <h4>Subtitles</h4>
-        <button class="btn btn-secondary" id="loadSubtitlesBtn" type="button">Load Subtitle File</button>
+        <h4>
+          <svg aria-hidden="true" focusable="false" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          Subtitles
+        </h4>
+        <button class="btn btn-secondary" id="loadSubtitlesBtn" type="button">
+          <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Load Subtitle File
+        </button>
         <div class="offset-control">
-          <span class="offset-label">Sync Offset (s)</span>
+          <span class="offset-label">Sync Offset</span>
           <div class="offset-buttons">
-            <button class="btn btn-small btn-snap" id="snapBackwardBtn" type="button" title="Snap to previous subtitle">&lt;&lt;</button>
+            <button class="btn btn-snap" id="snapBackwardBtn" type="button" title="Snap to previous subtitle">
+              <svg aria-hidden="true" focusable="false" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="11 17 6 12 11 7"/>
+                <polyline points="18 17 13 12 18 7"/>
+              </svg>
+            </button>
             <input type="number" class="offset-input" id="offsetInput" step="0.1" value="0">
-            <button class="btn btn-small btn-snap" id="snapForwardBtn" type="button" title="Snap to next subtitle">&gt;&gt;</button>
+            <span class="offset-unit">s</span>
+            <button class="btn btn-snap" id="snapForwardBtn" type="button" title="Snap to next subtitle">
+              <svg aria-hidden="true" focusable="false" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="13 17 18 12 13 7"/>
+                <polyline points="6 17 11 12 6 7"/>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
 
       <div class="watch-together-controls">
-        <h4>Watch Together</h4>
+        <h4>
+          <svg aria-hidden="true" focusable="false" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          Watch Together
+        </h4>
         <div class="watch-together-signed-out hidden" id="watchTogetherSignedOut">
           <p class="hint-text">Sign in to use Watch Together</p>
-          <button class="btn btn-primary" id="signInBtn" type="button">Sign In</button>
+          <button class="btn btn-primary" id="signInBtn" type="button">
+            <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+              <polyline points="10 17 15 12 10 7"/>
+              <line x1="15" y1="12" x2="3" y2="12"/>
+            </svg>
+            Sign In
+          </button>
         </div>
         <div class="watch-together-panel" id="watchTogetherPanel">
           <div class="watch-together-tabs" id="watchTogetherTabs">
             <button class="tab-btn active" data-tab="host" type="button">Host</button>
             <button class="tab-btn" data-tab="join" type="button">Join</button>
           </div>
-          <button class="btn btn-secondary btn-small" id="signOutBtn" type="button">Sign Out</button>
+          <button class="btn btn-ghost btn-small" id="signOutBtn" type="button">Sign Out</button>
           <div class="tab-content active" data-tab-content="host">
-            <button class="btn btn-primary" id="createRoomBtn" type="button">Create Room</button>
+            <button class="btn btn-primary" id="createRoomBtn" type="button">
+              <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="16"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+              </svg>
+              Create Room
+            </button>
           </div>
           <div class="tab-content" data-tab-content="join">
             <div class="join-input-group">
@@ -92,9 +203,22 @@
             </div>
             <div class="room-info">
               <span class="room-label">Peers</span>
-              <span class="room-peers" id="roomPeersValue">0</span>
+              <div class="room-peers-wrap">
+                <svg aria-hidden="true" focusable="false" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                </svg>
+                <span class="room-peers" id="roomPeersValue">0</span>
+              </div>
             </div>
-            <button class="btn btn-danger" id="leaveRoomBtn" type="button">Leave Room</button>
+            <button class="btn btn-danger" id="leaveRoomBtn" type="button">
+              <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              Leave Room
+            </button>
           </div>
         </div>
       </div>

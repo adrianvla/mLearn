@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { ipcMain } from 'electron';
-import AdmZip from 'adm-zip';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getLogger } from '../../shared/utils/logger';
 import { getExtensionDistDir } from '../utils/platform';
@@ -11,7 +10,6 @@ import type { BrowserInfo } from './browserDetection';
 const log = getLogger('electron.extensionInstaller');
 
 const EXTENSION_DIR_NAME = 'mlearn-extension';
-const FIREFOX_EXTENSION_ID = 'mlearn@morisinc.net';
 
 interface ExtensionManifest {
   manifest_version: number;
@@ -19,11 +17,6 @@ interface ExtensionManifest {
   version: string;
   description?: string;
   key?: string;
-  browser_specific_settings?: {
-    gecko?: {
-      id?: string;
-    };
-  };
   [key: string]: unknown;
 }
 
@@ -74,10 +67,6 @@ async function readExtensionManifest(sourceDir: string): Promise<ExtensionManife
   }
 }
 
-function getFirefoxExtensionId(manifest: ExtensionManifest): string {
-  return manifest.browser_specific_settings?.gecko?.id ?? FIREFOX_EXTENSION_ID;
-}
-
 function computeChromeExtensionId(manifestKeyBase64: string): string {
   try {
     const publicKey = Buffer.from(manifestKeyBase64, 'base64');
@@ -104,25 +93,6 @@ function getChromeExtensionsDir(profilePath: string): string {
 
 function getChromeExtensionDir(profilePath: string, extensionId: string, version: string): string {
   return path.join(getChromeExtensionsDir(profilePath), extensionId, version);
-}
-
-async function addDirToZip(zip: AdmZip, dirPath: string, zipRoot: string): Promise<void> {
-  const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
-  for (const entry of entries) {
-    const fullPath = path.join(dirPath, entry.name);
-    const zipPath = path.join(zipRoot, entry.name);
-    if (entry.isDirectory()) {
-      await addDirToZip(zip, fullPath, zipPath);
-    } else {
-      zip.addLocalFile(fullPath, zipRoot);
-    }
-  }
-}
-
-async function createExtensionXpi(sourceDir: string, destPath: string): Promise<void> {
-  const zip = new AdmZip();
-  await addDirToZip(zip, sourceDir, '');
-  zip.writeZip(destPath);
 }
 
 export async function installExtension(browserInfo: BrowserInfo): Promise<InstallResult> {
@@ -168,35 +138,13 @@ export async function installExtension(browserInfo: BrowserInfo): Promise<Instal
     }
 
     if (browserInfo.type === 'firefox') {
-      const profilesDir = browserInfo.profilePath;
-      let profileDirs: string[] = [];
-
-      try {
-        const entries = await fs.promises.readdir(profilesDir, { withFileTypes: true });
-        profileDirs = entries
-          .filter((e) => e.isDirectory())
-          .map((e) => path.join(profilesDir, e.name));
-      } catch {
-        log.warn(`Could not read Firefox profiles directory: ${profilesDir}`);
-        return { success: false, error: 'Could not read Firefox profiles directory', extensionPath: sourceDir };
-      }
-
-      if (profileDirs.length === 0) {
-        log.warn(`No Firefox profiles found in: ${profilesDir}`);
-        return { success: false, error: 'No Firefox profiles found', extensionPath: sourceDir };
-      }
-
-      const extensionId = manifest ? getFirefoxExtensionId(manifest) : FIREFOX_EXTENSION_ID;
-
-      for (const profileDir of profileDirs) {
-        const extensionsDir = path.join(profileDir, 'extensions');
-        await fs.promises.mkdir(extensionsDir, { recursive: true });
-
-        const xpiPath = path.join(extensionsDir, `${extensionId}.xpi`);
-        await createExtensionXpi(sourceDir, xpiPath);
-        log.info(`Extension installed for ${browserInfo.name} profile at ${xpiPath} (ID: ${extensionId})`);
-      }
-      return { success: true, path: `${extensionId}.xpi` };
+      // Firefox requires manual installation from the extension folder
+      // Auto-installing XPIs into profiles is unreliable and often fails
+      return {
+        success: false,
+        error: 'Firefox requires manual installation. Open the extension folder and load it as a temporary add-on.',
+        extensionPath: sourceDir,
+      };
     }
 
     log.warn(`Unsupported browser type: ${browserInfo.type}`);
@@ -251,33 +199,8 @@ export async function uninstallExtension(browserInfo: BrowserInfo): Promise<bool
     }
 
     if (browserInfo.type === 'firefox') {
-      const profilesDir = browserInfo.profilePath;
-      let profileDirs: string[] = [];
-
-      try {
-        const entries = await fs.promises.readdir(profilesDir, { withFileTypes: true });
-        profileDirs = entries
-          .filter((e) => e.isDirectory())
-          .map((e) => path.join(profilesDir, e.name));
-      } catch {
-        return false;
-      }
-
-      const extensionId = manifest ? getFirefoxExtensionId(manifest) : FIREFOX_EXTENSION_ID;
-
-      for (const profileDir of profileDirs) {
-        const xpiPath = path.join(profileDir, 'extensions', `${extensionId}.xpi`);
-        if (await pathExists(xpiPath)) {
-          await fs.promises.rm(xpiPath, { force: true });
-          log.info(`Extension XPI uninstalled for ${browserInfo.name} profile from ${xpiPath}`);
-        }
-
-        const legacyDir = path.join(profileDir, 'extensions', EXTENSION_DIR_NAME);
-        if (await pathExists(legacyDir)) {
-          await fs.promises.rm(legacyDir, { recursive: true, force: true });
-          log.info(`Removed legacy unpacked extension for ${browserInfo.name} profile from ${legacyDir}`);
-        }
-      }
+      // Firefox extensions are installed manually as temporary add-ons;
+      // there is no automatic uninstallation to perform.
       return true;
     }
 
@@ -314,24 +237,9 @@ export async function isExtensionInstalled(browserInfo: BrowserInfo): Promise<bo
     }
 
     if (browserInfo.type === 'firefox') {
-      const profilesDir = browserInfo.profilePath;
-      try {
-        const entries = await fs.promises.readdir(profilesDir, { withFileTypes: true });
-        const profileDirs = entries
-          .filter((e) => e.isDirectory())
-          .map((e) => path.join(profilesDir, e.name));
-
-        const extensionId = manifest ? getFirefoxExtensionId(manifest) : FIREFOX_EXTENSION_ID;
-
-        for (const profileDir of profileDirs) {
-          const xpiPath = path.join(profileDir, 'extensions', `${extensionId}.xpi`);
-          if (await pathExists(xpiPath)) {
-            return true;
-          }
-        }
-      } catch {
-        return false;
-      }
+      // Firefox extensions are loaded manually as temporary add-ons,
+      // so we cannot reliably detect whether the extension is active.
+      return false;
     }
 
     return false;

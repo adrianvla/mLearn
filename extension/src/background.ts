@@ -496,7 +496,7 @@ function activateRoom(session: WatchTogetherRoomSessionExt, accessToken: string)
     isInRoom: true,
     roomCode: session.room.roomCode,
     role: session.role,
-    peerCount: session.room.peerCount,
+    peerCount: session.room.peerCount ?? 0,
     isConnecting: false,
     error: null,
   };
@@ -534,7 +534,7 @@ function activateRoom(session: WatchTogetherRoomSessionExt, accessToken: string)
 
         if (payload.type === 'room-state') {
           const room = payload.room;
-          watchTogetherState.peerCount = room.peerCount;
+          watchTogetherState.peerCount = room.peerCount ?? 0;
           currentRoomSession = { ...currentRoomSession!, room };
 
           if (session.role === 'viewer' && lastVideoState) {
@@ -561,7 +561,7 @@ function activateRoom(session: WatchTogetherRoomSessionExt, accessToken: string)
 
           notifyPopupOfState();
         } else if (payload.type === 'peer-joined' || payload.type === 'peer-left') {
-          watchTogetherState.peerCount = payload.room.peerCount;
+          watchTogetherState.peerCount = payload.room.peerCount ?? 0;
           currentRoomSession = { ...currentRoomSession!, room: payload.room };
           notifyPopupOfState();
         }
@@ -804,14 +804,14 @@ function setupMessageListener(): void {
         message !== null &&
         (message as Record<string, unknown>).type === 'TEXT_MODE_WORD_LOOKUP'
       ) {
-        const { word, x, y, screenX, screenY, contextText, offset } = message as TextModeWordLookupMessage;
+        const { word, x, y, screenX, screenY, contextText } = message as TextModeWordLookupMessage;
         const windowId = _sender.tab?.windowId;
 
         const forwardLookup = (absX: number, absY: number) => {
           fetch(`${MLEARN_BASE_URL}/api/overlay-text-lookup`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ word, x: absX, y: absY, contextText, offset }),
+            body: JSON.stringify({ word, x: absX, y: absY, contextText }),
           }).then((resp) => {
             if (!resp.ok && _sender.tab?.id) {
               chrome.tabs.sendMessage(_sender.tab.id, {
@@ -1045,6 +1045,7 @@ let geometryAbortController: AbortController | null = null;
 
 function handleVideoState(state: VideoState, meta?: { url: string; title: string }, _tabId?: number): void {
   lastVideoState = state;
+  notifyPopupOfState();
 
   if (syncDebounceTimer) {
     clearTimeout(syncDebounceTimer);
