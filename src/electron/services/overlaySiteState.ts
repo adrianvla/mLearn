@@ -3,7 +3,7 @@ import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { getUserDataPath } from '../utils/platform';
-import { getOverlayBounds, setOverlayBounds, getOverlayWindow } from './windowManager';
+import { getOverlayBounds, setOverlayBounds } from './windowManager';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.overlaySiteState');

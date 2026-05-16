@@ -1493,6 +1493,7 @@ const overlayBridge: OverlayBridge = {
   overlayClearSiteState: noop,
   overlaySetBounds: async () => {},
   onOverlayActiveUrlChanged: noopCleanup,
+  onOverlayCloseHover: noopCleanup,
 };
 
 // ============================================================================

@@ -278,6 +278,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.OVERLAY_SET_BOUNDS, bounds),
   onOverlayActiveUrlChanged: (callback: (url: string) => void) =>
     ipcOn(IPC_CHANNELS.OVERLAY_ACTIVE_URL_CHANGED, (_event, url) => callback(url)),
+  onOverlayCloseHover: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.OVERLAY_CLOSE_HOVER, () => callback()),
 
   // ========== Tethered Updates ==========
   onUpdatePills: (callback: (data: string) => void) =>

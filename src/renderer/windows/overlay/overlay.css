@@ -10,6 +10,8 @@ body {
   background-color: transparent;
   position: relative;
   pointer-events: none;
+  --bg: var(--bg-opaque);
+  --panel-bg: var(--bg-opaque);
 }
 
 .overlay-container.interactive {
@@ -57,7 +59,7 @@ body {
 }
 .overlay-container .word-hover-container .subtitle_hover{
   box-shadow:none !important;
-  /*background: var(--bg-nt-primary);*/
+  background: var(--bg-nt-secondary);
 }
 .draggable-popup{
   box-shadow:none !important;

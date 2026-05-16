@@ -892,6 +892,8 @@
       "Cards": {
         "AITutor": {
           "Description": "Practice with an AI conversation partner",
+          "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
+          "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
           "Title": "AI Tutor"
         },
         "Flashcards": {
@@ -935,7 +937,7 @@
         "ContinueLearning": "Continue Learning",
         "LearningLanguage": "Learning {language}",
         "Title": "mLearn",
-        "TitleDescription": "Learn languages through immersion"
+        "TitleDescription": "Select an option below to begin"
       }
     },
     "Installer": {
@@ -1031,7 +1033,8 @@
       "en": "English",
       "fr": "Français",
       "ja": "日本語",
-      "ru": "Русский"
+      "ru": "Русский",
+      "zh": "中文"
     },
     "MediaStats": {
       "AllWordsKnown": "All words are known!",
@@ -2039,7 +2042,11 @@
       "OffsetTooltip": "Subtitle timing offset",
       "SyncActive": "Sync active",
       "SyncInactive": "Sync inactive",
-      "ToggleSubtitles": "Toggle subtitles"
+      "ToggleSubtitles": "Toggle subtitles",
+      "ToggleWordSidebar": "Toggle word sidebar",
+      "OpenConversationAgent": "Open AI conversation tutor",
+      "ToggleLiveTranslator": "Toggle live word translator",
+      "WatchTogether": "Watch together"
     },
     "WatchTogether": {
       "Mode": {

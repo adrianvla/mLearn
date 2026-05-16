@@ -55,11 +55,11 @@
         <h4>Subtitles</h4>
         <button class="btn btn-secondary" id="loadSubtitlesBtn" type="button">Load Subtitle File</button>
         <div class="offset-control">
-          <span class="offset-label">Sync Offset</span>
+          <span class="offset-label">Sync Offset (s)</span>
           <div class="offset-buttons">
-            <button class="btn btn-small" id="offsetDecreaseBtn" type="button">-100ms</button>
-            <span class="offset-value" id="offsetValue">0ms</span>
-            <button class="btn btn-small" id="offsetIncreaseBtn" type="button">+100ms</button>
+            <button class="btn btn-small btn-snap" id="snapBackwardBtn" type="button" title="Snap to previous subtitle">&lt;&lt;</button>
+            <input type="number" class="offset-input" id="offsetInput" step="0.1" value="0">
+            <button class="btn btn-small btn-snap" id="snapForwardBtn" type="button" title="Snap to next subtitle">&gt;&gt;</button>
           </div>
         </div>
       </div>
@@ -75,6 +75,7 @@
             <button class="tab-btn active" data-tab="host" type="button">Host</button>
             <button class="tab-btn" data-tab="join" type="button">Join</button>
           </div>
+          <button class="btn btn-secondary btn-small" id="signOutBtn" type="button">Sign Out</button>
           <div class="tab-content active" data-tab-content="host">
             <button class="btn btn-primary" id="createRoomBtn" type="button">Create Room</button>
           </div>

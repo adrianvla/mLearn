@@ -928,10 +928,17 @@ export function setupWindowIPC(): void {
   });
 
   // Forward text mode word lookup to overlay window (from extension/web server)
-  ipcMain.on(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, (_event, payload: { word: string; x: number; y: number }) => {
+  ipcMain.on(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, (_event, payload: { word: string; x: number; y: number; contextText?: string; offset?: number }) => {
     const target = overlayWindow;
     if (target && !target.isDestroyed()) {
       target.webContents.send(IPC_CHANNELS.OVERLAY_TEXT_MODE_LOOKUP, payload);
+    }
+  });
+
+  ipcMain.on(IPC_CHANNELS.OVERLAY_CLOSE_HOVER, () => {
+    const target = overlayWindow;
+    if (target && !target.isDestroyed()) {
+      target.webContents.send(IPC_CHANNELS.OVERLAY_CLOSE_HOVER);
     }
   });
 }

@@ -549,6 +549,8 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
               word: parsed.word,
               x: parsed.x,
               y: parsed.y,
+              contextText: parsed.contextText,
+              offset: parsed.offset,
             });
             log.info('[webServer] Sent OVERLAY_TEXT_MODE_LOOKUP');
           }
@@ -564,6 +566,21 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
         sendJsonResponse(res, { status: 'error', error: 'Invalid JSON' }, 400);
       }
     });
+    return;
+  }
+
+  if (pathname === '/api/overlay-close-hover' && req.method === 'POST') {
+    const remoteAddress = req.socket.remoteAddress;
+    const isLocalhost = remoteAddress === '127.0.0.1' || remoteAddress === '::ffff:127.0.0.1' || remoteAddress === '::1';
+    if (!isLocalhost) {
+      sendJsonResponse(res, { error: 'Forbidden' }, 403);
+      return;
+    }
+    const overlay = getOverlayWindow();
+    if (overlay && !overlay.isDestroyed()) {
+      overlay.webContents.send(IPC_CHANNELS.OVERLAY_CLOSE_HOVER);
+    }
+    sendJsonResponse(res, { status: 'ok' });
     return;
   }
 
@@ -655,6 +672,20 @@ async function handleHttpRequest(req: http.IncomingMessage, res: http.ServerResp
   // API: Command poll (for extension background script)
   if (pathname === '/api/command-poll') {
     sendJsonResponse(res, { status: 'ok', commands: getAndClearPendingCommands() });
+    return;
+  }
+
+  // API: Extension auth token (localhost only)
+  if (pathname === '/api/extension-auth-token') {
+    const remoteAddress = req.socket.remoteAddress;
+    const isLocalhost = remoteAddress === '127.0.0.1' || remoteAddress === '::ffff:127.0.0.1' || remoteAddress === '::1';
+    if (!isLocalhost) {
+      sendJsonResponse(res, { error: 'Forbidden' }, 403);
+      return;
+    }
+    const settings = loadSettings();
+    const accessToken = settings.cloudAuthAccessToken || settings.cloudAuthToken || '';
+    sendJsonResponse(res, { accessToken });
     return;
   }
 

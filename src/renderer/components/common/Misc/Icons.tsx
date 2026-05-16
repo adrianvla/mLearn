@@ -491,6 +491,65 @@ export const AutoPositionIcon: Component<AutoPositionIconProps> = (props) => {
   );
 };
 
+/** People group / Users icon – two people, for watch together */
+export const PeopleGroupIcon: Component<IconProps> = (props) => {
+  const [local, svgProps] = splitProps(props, ['size', 'color']);
+  return (
+    <svg
+      width={local.size ?? 20}
+      height={local.size ?? 20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={local.color ?? 'currentColor'}
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      {...svgProps}
+    >
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+};
+
+export interface TranslateIconProps extends IconProps {
+  active?: boolean;
+}
+
+/** Translate / Language icon – for live word translator toggle */
+export const TranslateIcon: Component<TranslateIconProps> = (props) => {
+  const [local, svgProps] = splitProps(props, ['size', 'color', 'active']);
+  return (
+    <svg
+      width={local.size ?? 20}
+      height={local.size ?? 20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={local.color ?? 'currentColor'}
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      {...svgProps}
+    >
+      <Show when={local.active}>
+        <path d="M10 5H20V14H13V20H5V13H10Z" fill="currentColor" opacity="0.25" />
+      </Show>
+      <path d="M4 4L5 5" />
+      <path d="M3 7H9" />
+      <path d="M6 7L3 12" />
+      <path d="M6 7L9 12" />
+      <path d="M10 5H20" />
+      <path d="M20 5V14" />
+      <path d="M5 13V20" />
+      <path d="M5 20H13" />
+      <path d="M14 20L17 12L20 20" />
+      <path d="M15.5 16.5H18.5" />
+    </svg>
+  );
+};
+
 export default {
   CloseIcon,
   CrossIcon,

@@ -7,6 +7,7 @@ import type {
   HeadlessStateMessage,
   HeadlessCommandMessage,
   TextModeWordLookupMessage,
+  TextModeCloseHoverMessage,
 } from './types.js';
 
 interface ParsedSubtitle {
@@ -704,6 +705,10 @@ function sendGeometryUpdate(geometry: VideoViewportGeometry): void {
   const runtime = getChromeRuntime();
   if (!runtime) return;
 
+  // Skip geometry updates from background/hidden tabs to prevent overlay
+  // from bouncing between multiple videos across tabs.
+  if (document.hidden) return;
+
   const message: GeometryUpdateMessage = {
     type: 'GEOMETRY_UPDATE',
     geometry,
@@ -1118,7 +1123,15 @@ let longPressStartY = 0;
 const LONG_PRESS_MS = 500;
 const LONG_PRESS_MOVE_THRESHOLD = 10;
 
-function getWordAtPoint(x: number, y: number): string | null {
+interface WordAtPointResult {
+  word: string;
+  /** Full text of the containing text node / element for proper CJK tokenization context */
+  contextText: string;
+  /** Character offset within contextText where the user clicked */
+  offset: number;
+}
+
+function getWordAtPoint(x: number, y: number): WordAtPointResult | null {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
   const text = el.textContent?.trim();
@@ -1132,7 +1145,11 @@ function getWordAtPoint(x: number, y: number): string | null {
     const fullText = el.textContent || '';
     const words = fullText.split(/[\s\n]+/);
     for (const w of words) {
-      if (w.length > 0) return w.replace(/[^\w\p{L}]/gu, '');
+      if (w.length > 0) return {
+        word: w.replace(/[^\w\p{L}]/gu, ''),
+        contextText: fullText,
+        offset: 0,
+      };
     }
     return null;
   }
@@ -1146,18 +1163,39 @@ function getWordAtPoint(x: number, y: number): string | null {
   while (end < fullText.length && /\w|\p{L}/u.test(fullText[end])) end++;
 
   if (start === end) return null;
-  return fullText.slice(start, end);
+  return {
+    word: fullText.slice(start, end),
+    contextText: fullText,
+    offset: range.startOffset,
+  };
+}
+
+function sendCloseHover(): void {
+  const runtime = getChromeRuntime();
+  if (runtime) {
+    try {
+      runtime.sendMessage({ type: 'TEXT_MODE_CLOSE_HOVER' } satisfies TextModeCloseHoverMessage);
+    } catch { /* empty */ }
+  }
+}
+
+function handleKeyDown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') {
+    sendCloseHover();
+  }
 }
 
 function handleLongPressStart(e: MouseEvent): void {
   if (e.button !== 0 || e.ctrlKey || e.metaKey) return;
-  longPressStartX = e.screenX;
-  longPressStartY = e.screenY;
+  sendCloseHover();
+  longPressStartX = e.clientX;
+  longPressStartY = e.clientY;
   longPressTimer = setTimeout(() => {
     longPressTimer = null;
-    const word = getWordAtPoint(e.clientX, e.clientY);
-    console.log('[mLearn Content] Long-press detected, word:', word, 'at screen(', longPressStartX, longPressStartY, ')');
-    if (word && word.length > 0) {
+    const result = getWordAtPoint(e.clientX, e.clientY);
+    const word = result?.word ?? '';
+    console.log('[mLearn Content] Long-press detected, word:', word, 'at client(', longPressStartX, longPressStartY, ') screen(', window.screenX, window.screenY, ')');
+    if (word.length > 0) {
       const runtime = getChromeRuntime();
       if (runtime) {
         try {
@@ -1166,6 +1204,10 @@ function handleLongPressStart(e: MouseEvent): void {
             word,
             x: longPressStartX,
             y: longPressStartY,
+            screenX: window.screenX,
+            screenY: window.screenY,
+            contextText: result?.contextText,
+            offset: result?.offset,
           } satisfies TextModeWordLookupMessage);
           console.log('[mLearn Content] Sent TEXT_MODE_WORD_LOOKUP for:', word);
         } catch (err) {
@@ -1200,6 +1242,7 @@ function setupTextModeWordLookup(): void {
   document.addEventListener('mousemove', handleLongPressMove);
   document.addEventListener('mouseup', handleLongPressEnd);
   document.addEventListener('mouseleave', handleLongPressEnd);
+  document.addEventListener('keydown', handleKeyDown);
 }
 
 function showTextModeToast(text: string): void {
@@ -1250,6 +1293,7 @@ function destroy(): void {
   document.removeEventListener('mousemove', handleLongPressMove);
   document.removeEventListener('mouseup', handleLongPressEnd);
   document.removeEventListener('mouseleave', handleLongPressEnd);
+  document.removeEventListener('keydown', handleKeyDown);
   disableSubtitleInjection();
   headlessSubtitles = [];
   headlessModeEnabled = false;
@@ -1305,6 +1349,7 @@ function initContentScript(): void {
   function checkUrlChange() {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
+      sendCloseHover();
       // Re-evaluate video on URL change
       if (!trackedVideo || !document.contains(trackedVideo.element)) {
         detachFromVideo();
@@ -1330,6 +1375,15 @@ function initContentScript(): void {
     urlObserver?.disconnect();
     history.pushState = originalPushState;
     history.replaceState = originalReplaceState;
+  });
+
+  // When the tab becomes visible again, immediately send the current geometry
+  // so the overlay can snap to the correct video without waiting for the
+  // next polling interval.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && trackedVideo) {
+      sendGeometryUpdate(getVideoGeometry(trackedVideo.element));
+    }
   });
 }
 

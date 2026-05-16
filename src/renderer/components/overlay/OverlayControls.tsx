@@ -1,6 +1,6 @@
 import { Component, createSignal, createMemo, Show, onCleanup } from 'solid-js';
 import { useLocalization } from '../../context';
-import { IconBtn, Panel, SubtitleIcon, FileIcon, ResizeIcon, AutoPositionIcon, BookIcon, ChatIcon } from '../common';
+import { IconBtn, Panel, SubtitleIcon, FileIcon, ResizeIcon, AutoPositionIcon, BookIcon, ChatIcon, PeopleGroupIcon, TranslateIcon } from '../common';
 import { findPreviousSubForSync, findNextSub } from '../subtitle/SubtitleSync';
 import './OverlayControls.css';
 
@@ -11,6 +11,8 @@ export interface OverlayControlsProps {
   subtitleOffset: number;
   autoPositionEnabled?: boolean;
   showWordSidebar?: boolean;
+  showLiveTranslator?: boolean;
+  isWatchTogetherActive?: boolean;
   isPlaying?: boolean;
   currentVideoTime?: () => number;
   subtitles?: Array<{ start: number; end: number; text: string }>;
@@ -27,6 +29,8 @@ export interface OverlayControlsProps {
   onToggleAutoPosition?: () => void;
   onToggleWordSidebar?: () => void;
   onOpenConversationAgent?: () => void;
+  onToggleWatchTogether?: () => void;
+  onToggleLiveTranslator?: () => void;
 }
 
 export const OverlayControls: Component<OverlayControlsProps> = (props) => {
@@ -287,6 +291,33 @@ export const OverlayControls: Component<OverlayControlsProps> = (props) => {
                 >
                   <FileIcon />
                 </IconBtn>
+
+                <Show when={props.onToggleWatchTogether}>
+                  <IconBtn
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => props.onToggleWatchTogether?.()}
+                      aria-label={t('mlearn.Overlay.WatchTogether')}
+                      title={t('mlearn.Overlay.WatchTogether')}
+                      classList={{ active: props.isWatchTogetherActive }}
+                  >
+                    <PeopleGroupIcon size={16} />
+                  </IconBtn>
+                </Show>
+
+                <Show when={props.onToggleLiveTranslator}>
+                  <IconBtn
+                      variant="ghost"
+                      size="sm"
+                      active={props.showLiveTranslator !== false}
+                      class={props.showLiveTranslator === false ? 'inactive' : ''}
+                      onClick={() => props.onToggleLiveTranslator?.()}
+                      aria-label={t('mlearn.Overlay.ToggleLiveTranslator')}
+                      title={t('mlearn.Overlay.ToggleLiveTranslator')}
+                  >
+                    <TranslateIcon size={16} active={props.showLiveTranslator !== false} />
+                  </IconBtn>
+                </Show>
 
                 <Show when={props.onToggleWordSidebar}>
                   <IconBtn

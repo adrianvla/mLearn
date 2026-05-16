@@ -1,0 +1,2354 @@
+{
+  "mlearn": {
+    "AI": {
+      "CloudUnreachable": "云服务无法连接。请检查您的网络连接后重试。",
+      "DownloadModel": "下载模型",
+      "ModelNotDownloaded": "模型尚未下载。",
+      "ModelReady": "模型已就绪。",
+      "OllamaInstallGuide": "安装 Ollama",
+      "OllamaInstallGuideUrl": "https://ollama.com/download",
+      "OllamaNotReachable": "无法连接 Ollama 服务器。请检查 Ollama 是否正在运行且 URL 正确。",
+      "Settings": {
+        "BuiltinModel": {
+          "DiskSpace": "所需磁盘空间：约{size}",
+          "ModelName": "模型",
+          "Redownload": "重新下载",
+          "Status": "状态",
+          "Title": "内置模型"
+        },
+        "CloudConfig": {
+          "ApiUrlHint": "云 API URL 在连接设置中配置。",
+          "ConnectionSuccess": "连接成功。",
+          "TestConnection": "测试连接",
+          "Title": "云 LLM 配置",
+          "TokenHint": "通过连接设置登录以验证云 LLM。"
+        },
+        "Description": "配置用于单词解释和对话练习的 AI 功能。",
+        "FlashcardTTS": {
+          "AutoGenerate": {
+            "Description": "自动生成并缓存新闪卡的音频文件",
+            "Label": "自动生成音频"
+          },
+          "AutoPlay": {
+            "Description": "复习时自动播放闪卡上单词的发音",
+            "Label": "自动播放 TTS"
+          },
+          "Provider": {
+            "Cloud": "云端",
+            "Description": "选择本地 Kokoro TTS、Qwen3-TTS（语音克隆）或云端 TTS",
+            "Kokoro": "Kokoro（本地）",
+            "Label": "TTS 提供商",
+            "Qwen3": "Qwen3-TTS（语音克隆）"
+          },
+          "Title": "闪卡 TTS",
+          "VoiceSample": {
+            "DefaultVoice": "默认语音",
+            "DeleteConfirm": "确定要删除此语音样本吗？此操作无法撤销。",
+            "DeleteSample": "删除语音样本",
+            "Description": "选择用于语音克隆的语音样本",
+            "Label": "语音样本",
+            "ModelLoading": "正在加载 TTS 模型…",
+            "NoTranscript": "无可用转录文本",
+            "PlaySample": "播放样本",
+            "TestPlaceholder": "输入文本来测试 TTS…",
+            "TestTts": "测试 TTS",
+            "Transcribing": "正在转录音频…",
+            "Transcript": "转录文本：",
+            "Upload": "上传语音样本"
+          }
+        },
+        "OCR": {
+          "Provider": {
+            "Cloud": "云端",
+            "Description": "选择处理 OCR 请求的后端。",
+            "Label": "OCR 提供商",
+            "Local": "本地"
+          },
+          "Title": "OCR 后端"
+        },
+        "OllamaConfig": {
+          "ConnectionSuccess": "连接成功。",
+          "InstallHintPrefix": "没有 Ollama？",
+          "InstallHintSuffix": "开始使用。",
+          "LoadingModels": "正在加载模型...",
+          "Model": "模型",
+          "ModelHint": "选择或输入 Ollama 模型名称。",
+          "ServerUrl": "服务器 URL",
+          "ServerUrlHint": "您的 Ollama 服务器地址。",
+          "TestConnection": "测试连接",
+          "Title": "Ollama 配置"
+        },
+        "Provider": {
+          "Builtin": "内置",
+          "Cloud": "云端",
+          "Description": "选择 AI 模型的运行方式。",
+          "Ollama": "Ollama",
+          "Title": "LLM 提供商"
+        },
+        "AgentMemory": {
+          "Enable": {
+            "Label": "代理记忆",
+            "Description": "允许 AI 导师在对话间记住关于您的信息"
+          },
+          "Shared": {
+            "Label": "在代理间共享记忆",
+            "Description": "启用后，所有代理可以访问所有记忆。禁用后，每个代理只能看到自己的记忆。"
+          },
+          "Title": "代理记忆"
+        },
+        "SplitChecker": {
+          "Label": "独立校对代理",
+          "Description": "使用独立的 LLM 通道检测和纠正错误，而不是由对话代理处理。",
+          "Title": "校对代理"
+        },
+        "Speech": {
+          "Title": "语音",
+          "Label": "语音（实验性）",
+          "Description": "启用 AI 回复的文本转语音和语音输入"
+        },
+        "AutoSpeak": {
+          "Label": "自动朗读回复",
+          "Description": "自动朗读 AI 导师的回复"
+        },
+        "Title": "AI 配置"
+      },
+      "SetupRequired": "AI 功能需要设置。正在打开设置…"
+    },
+    "AITutorSetup": {
+      "AllLevels": "全部",
+      "FailedWords": "困难单词",
+      "GenerateBtn": "生成",
+      "GenerateError": "生成词汇失败。请重试。",
+      "GenerateTopicPlaceholder": "输入主题以生成词汇…",
+      "GrammarTab": "语法",
+      "InstructionsLabel": "自定义指令",
+      "InstructionsPlaceholder": "描述您想练习的场景、角色扮演或特定主题。例如：'让我们练习在餐厅点餐'或'扮演面试官角色'。",
+      "InstructionsTab": "指令",
+      "ItemsSelected": "已选 {count} 项",
+      "LLMNotConfigured": "AI 尚未配置。请先在设置中进行配置。",
+      "MediaTab": "媒体",
+      "NoGrammarSupport": "该语言暂无可用的语法点。",
+      "NoMediaYet": "尚无保存的媒体。观看视频或阅读书籍来记录您的进度。",
+      "NoWordsYet": "尚未遇到任何单词。开始观看或阅读来积累词汇。",
+      "PressEnterToAdd": "按 Enter 添加此单词",
+      "SearchGrammar": "搜索语法点…",
+      "SearchWords": "搜索单词…",
+      "SelectGrammarHint": "选择您想练习的语法点。",
+      "SelectMediaHint": "选择已保存的媒体以包含上下文。",
+      "SelectWordsHint": "选择您想集中学习的单词。",
+      "StartSession": "开始会话",
+      "Title": "AI 导师设置",
+      "WordEaseLegend": {
+        "unassessed": "未评估",
+        "hard": "困难",
+        "struggling": "吃力",
+        "reviewing": "复习中",
+        "known": "已掌握"
+      },
+      "WordEaseLegendTitle": "单词熟悉度：",
+      "WordsTab": "单词"
+    },
+    "About": {
+      "Description": "mLearn 是一款通过沉浸式学习帮助您学习语言的工具。观看视频、阅读漫画，通过智能字幕和间隔重复自然地学习词汇。",
+      "KeyboardShortcuts": {
+        "F": "切换全屏",
+        "LeftRight": "快退/快进 5 秒",
+        "M": "静音/取消静音",
+        "Numbers": "闪卡评分",
+        "Space": "播放/暂停视频",
+        "Title": "键盘快捷键",
+        "Undo": "撤销闪卡操作",
+        "UpDown": "音量控制"
+      },
+      "Licenses": "许可协议",
+      "Title": "mLearn",
+      "VersionLabel": "版本 {version}",
+      "Website": "网站"
+    },
+    "CardEditor": {
+      "AudioUnavailable": "音频不可用。使用重新生成按钮生成。",
+      "TtsMissing": "未找到 {field}。请从卡片编辑器重新生成。",
+      "Fields": {
+        "Definitions": "释义（每行一个）",
+        "DefinitionsPlaceholder": "每行一个释义",
+        "ExampleSentence": "例句（允许 HTML）",
+        "ExampleTranslation": "例句翻译",
+        "PitchAccent": "音调核",
+        "PitchAccentPlaceholder": "0（平板型）、1、2、3…",
+        "Reading": "读音",
+        "ReadingPlaceholder": "假名 / 读音",
+        "StructuredContent": "结构化内容（可选 HTML）",
+        "SurfaceNote": "（单词）",
+        "Translation": "翻译（逗号或换行分隔）",
+        "Word": "单词",
+        "WordPlaceholder": "输入单词…"
+      },
+      "GenerateTtsAction": "生成",
+      "Hint": "翻译：逗号或换行分隔。音调核为拍节下降位置（0=平板型）。",
+      "NoCloudAuth": "未通过云认证。请通过设置→服务器登录。",
+      "Regenerate": {
+        "AllCompleted": "所有任务已完成",
+        "ExamplePhrase": "例句",
+        "ExampleTts": "例句 TTS",
+        "LLMFailedContinue": "无法生成例句。是否继续使用现有例句重新生成 TTS 和翻译？",
+        "LLMFailedNo": "跳过",
+        "LLMFailedTitle": "例句生成失败",
+        "LLMFailedYes": "继续",
+        "SomeFailed": "部分任务失败",
+        "Title": "重新生成",
+        "Translation": "翻译",
+        "UseReadings": "使用读音",
+        "WordTts": "单词 TTS"
+      },
+      "RegenerateExample": "重新生成例句",
+      "Statistics": {
+        "Ease": "难度系数：",
+        "Interval": "间隔：",
+        "Lapses": "遗忘次数：",
+        "LastReviewed": "上次复习：",
+        "Reviews": "复习次数：",
+        "State": "状态：",
+        "Title": "统计"
+      }
+    },
+    "CloudReLogin": {
+      "CodeHint": "输入登录页面中的一次性代码。",
+      "Hint": "点击登录在浏览器中打开登录页面。",
+      "RetryAction": "重试",
+      "SignInCanceled": "登录已取消。",
+      "SessionExpired": "您的云会话已过期。请重新登录以继续。",
+      "SessionRefreshed": "会话已刷新。请重试。",
+      "Title": "会话已过期"
+    },
+    "Components": {
+      "LogConsole": {
+        "ClearTooltip": "清除日志",
+        "DefaultTitle": "控制台",
+        "NoLogs": "没有可显示的日志"
+      }
+    },
+    "ConfirmDialog": {
+      "Title": "确认"
+    },
+    "Connection": {
+      "AuthStatus": "云账户",
+      "BackendMode": "后端模式",
+      "BackendUrl": "后端 URL",
+      "CloudApiUrl": "云 API URL",
+      "CloudLoginUrl": "云登录 URL",
+      "CompleteSignIn": "完成登录",
+      "Connected": "已连接",
+      "DefaultCloudEndpoint": "默认登录：{loginUrl} — 默认 API：{apiUrl}",
+      "DesktopCode": "桌面一次性代码",
+      "HintLocal": "使用本机上的本地 Python 后端。",
+      "HintTethered": "连接到您桌面上运行的 Python 后端。",
+      "Mode": "模式",
+      "ModeLocal": "本地",
+      "ModeTethered": "绑定模式",
+      "NodeServer": "桌面服务器",
+      "NodeServerUrl": "服务器 URL",
+      "OpenDashboard": "打开仪表盘",
+      "OverrideCloudEndpointUrl": "覆盖云 URL",
+      "OverrideCloudEndpointUrlDescription": "使用自定义云 URL 而非默认服务 URL。",
+      "SignIn": "登录",
+      "SignOut": "退出登录",
+      "SigningIn": "正在登录…",
+      "TestConnection": "测试连接",
+      "Title": "连接",
+      "Unreachable": "无法访问",
+      "ICEServers": "WebRTC ICE 服务器",
+      "ICEServersLabel": "STUN / TURN 服务器",
+      "ICEServersDescription": "用于一起看视频的对等连接。",
+      "ICETURNWarning": "仅配置了 STUN 服务器。不同网络上的对等端（例如移动热点）可能无法连接。添加 TURN 服务器以实现可靠的跨网络连接。"
+    },
+    "ConversationAgent": {
+      "Agents": {
+        "Create": "创建代理",
+        "Delete": "删除代理",
+        "DeleteAll": "删除所有代理",
+        "DeleteAllConfirm": "这将永久删除所有代理及其记忆和对话数据。输入以下单词确认：",
+        "DeleteAllConfirmPlaceholder": "输入以确认",
+        "DeleteAllConfirmWord": "删除",
+        "DeleteAllTitle": "删除所有代理",
+        "DeleteConfirm": "输入代理名称以确认删除：",
+        "DeleteConfirmPlaceholder": "代理名称",
+        "DeleteConfirmTitle": "删除代理",
+        "Edit": "编辑代理",
+        "EditTitle": "编辑代理",
+        "Empty": "还没有代理。创建一个开始吧。",
+        "Memories": "记忆",
+        "NoMemories": "尚未保存记忆。",
+        "Save": "保存",
+        "Title": "代理",
+        "Unnamed": "未命名代理"
+      },
+      "Clear": "清除对话",
+      "Connection": {
+        "AvailableModels": "可用模型",
+        "ConnectionFailed": "连接失败",
+        "ConnectionSuccess": "连接成功",
+        "FetchModels": "获取模型",
+        "Hint": "配置与您的 LLM 提供商的连接。",
+        "LoadingModels": "正在加载模型…",
+        "Model": "模型",
+        "ModelHint": "用于聊天补全的模型标识符。",
+        "NoModelsFound": "服务器上未找到模型",
+        "Save": "保存",
+        "Saved": "已保存",
+        "ServerUrl": "服务器 URL",
+        "ServerUrlHint": "LLM 服务器的基础 URL（例如 Ollama、LM Studio 或任何兼容 OpenAI 的端点）。",
+        "TestConnection": "测试连接",
+        "Testing": "测试中…",
+        "Title": "LLM 连接"
+      },
+      "Debug": {
+        "TimeToFirstToken": "TTFT：{value}ms",
+        "TokensPerSecond": "{value} tok/s",
+        "TotalTime": "总计：{value}ms"
+      },
+      "Empty": {
+        "Hint": "与 AI 导师一起练习目标语言。它会纠正错误、出题测验并帮助您学习。",
+        "StartConversation": "让 AI 开始",
+        "Title": "开始对话"
+      },
+      "ExperimentalBanner": "实验性功能 — AI 回复可能包含错误。请验证重要的语言点。",
+      "Disclaimer": "这是 AI，可能会犯错。请仔细核对回复内容。",
+      "IncludeKnowledge": "包含知识信息",
+      "InputPlaceholder": "用{language}发送消息…",
+      "LevelAdapt": {
+        "Label": "适配级别：",
+        "None": "无"
+      },
+      "Checker": {
+        "Alternatives": "替代表达"
+      },
+      "Safety": {
+        "AssistantFiltered": "已替换可能不安全的助手回复。",
+        "AssistantReplacement": "我需要谨慎回复。如果这涉及真实的自残风险或紧急危险，请立即联系您当地的紧急服务或危机热线。如果您愿意，可以告诉我发生了什么，我会继续谨慎回复。",
+        "GetHelp": "如果这反映了真实风险，请立即联系您当地的紧急服务或危机热线。",
+        "SensitiveNotice": "检测到可能涉及自残的敏感内容。",
+        "UrgentNotice": "检测到可能的即时自残风险。",
+        "UserConcernResponse": "我需要谨慎回复。如果这反映了真实的自残风险，请立即联系您当地的紧急服务或危机热线。如果您愿意，可以告诉我发生了什么，我会继续谨慎回复。",
+        "UserUrgentResponse": "我认真对待此事。如果涉及即时危险或自残风险，请立即联系您当地的紧急服务或危机热线。如果您愿意，可以告诉我是否处于即时危险中，我会谨慎回复。"
+      },
+      "Commands": {
+        "NewTopic": "新主题",
+        "NewTopicDesc": "切换到新的对话主题"
+      },
+      "Tools": {
+        "CorrectMistake": "纠正错误",
+        "CreateQuiz": "创建测验",
+        "FetchUrl": "获取 URL",
+        "GetMediaStats": "媒体统计",
+        "SearchWikipedia": "搜索 Wikipedia",
+        "SearchFandom": "搜索 Fandom",
+        "RecallBackstory": "回忆背景故事",
+        "SaveMemory": "保存记忆"
+      },
+      "Quiz": {
+        "BlankInputAriaLabel": "空格 {index}",
+        "Correct": "正确！",
+        "IncorrectAnswer": "答案是：{answer}",
+        "TextInputPlaceholder": "输入您的答案…"
+      },
+      "Regenerate": "重新生成回复",
+      "SceneContext": "场景上下文",
+      "SceneContextPlaceholder": "描述场景中发生了什么（例如角色行为、情节要点）。可以使用任何语言。",
+      "Send": "发送消息",
+      "ShowTooltipOn": "显示工具提示方式：",
+      "Speaking": "正在说话…",
+      "StartRecording": "开始录音",
+      "Stats": {
+        "AssessedLevel": "评估等级",
+        "ByOccurrence": "按出现次数",
+        "Current": "当前",
+        "Failed": "失败",
+        "FailedGrammarCount": "失败的语法",
+        "FailedWords": "失败的单词",
+        "Filter": {
+          "All": "全部",
+          "FailedOnly": "仅失败",
+          "Unknown": "无等级"
+        },
+        "Grammar": "语法",
+        "GrammarLevels": "语法等级",
+        "Hovered": "已悬停",
+        "Levels": "等级",
+        "NoFailedGrammar": "还没有失败的语法点。",
+        "NoFailedWords": "还没有失败的单词 — 继续沉浸式学习！",
+        "NoGrammarMatching": "没有语法点匹配当前筛选条件。",
+        "NoLevelData": "数据不足以计算等级分布。",
+        "NoMedia": "尚未保存媒体统计",
+        "NoMediaHint": "观看视频或阅读书籍后，此处将显示分析数据。",
+        "NoWordsMatching": "没有单词匹配当前筛选条件。",
+        "Overview": "概览",
+        "Seen": "已见",
+        "Unique": "唯一",
+        "UniqueWords": "唯一单词数",
+        "UnknownWords": "未知单词",
+        "Words": "单词",
+        "WordLevelDistribution": "单词等级分布",
+        "WordLevels": "单词等级"
+      },
+      "StopRecording": "停止录音",
+      "StopStreaming": "停止",
+      "Tab": {
+        "Agents": "代理",
+        "Chat": "聊天",
+        "Context": "上下文",
+        "Stats": "统计",
+        "Voice": "语音"
+      },
+      "Title": "对话 AI",
+      "TriggerHover": "悬停",
+      "TriggerKeyHover": "{key} + 悬停",
+      "TriggerLongHover": "长按悬停",
+      "Voice": {
+        "Aftermath": {
+          "Duration": "时长",
+          "Messages": "消息数",
+          "Mistakes": "记录的错误",
+          "NoMistakes": "未记录错误。做得好！",
+          "Title": "会话总结"
+        },
+        "CloudTts": "云端",
+        "DefaultVoice": "默认语音",
+        "DownloadFailed": "下载语音模型失败。可能未安装所需依赖。请重新安装应用程序或查看日志了解详情。",
+        "DownloadModels": "下载语音模型",
+        "DownloadingModels": "正在下载语音模型…",
+        "EmptyHint": "开始语音通话，与 AI 导师练习口语。",
+        "EndCall": "结束通话",
+        "HandsFree": "免提模式",
+        "Initializing": "正在加载语音引擎…",
+        "InstallingDependencies": "正在安装语音依赖…",
+        "Interrupted": "*被用户中断*",
+        "Listening": "正在聆听…",
+        "LoadingTtsModel": "正在加载语音合成模型…",
+        "LocalTts": "本地",
+        "MicPermission": "语音通话需要麦克风访问权限。",
+        "ModelsRequired": "此功能需要语音模型。请下载后开始使用。",
+        "Processing": "处理中…",
+        "PushToTalk": "按需通话",
+        "Qwen3Tts": "Qwen3",
+        "SilenceThreshold": "静音阈值",
+        "Speaking": "正在说话…",
+        "Stage": {
+          "LLM": "LLM",
+          "STT": "STT",
+          "TTS": "TTS"
+        },
+        "StartCall": "开始语音通话",
+        "TtsProvider": "TTS 引擎",
+        "TtsSpeed": "语速",
+        "UploadSample": "上传语音样本",
+        "VoiceSample": "语音克隆",
+        "VoiceSampleDisabledLocal": "自定义语音上传仅适用于 Qwen3-TTS 或云端 TTS"
+      },
+      "Memory": {
+        "ClearAll": "清除所有记忆",
+        "ClearAllConfirm": "确定要删除所有代理记忆吗？此操作无法撤销。",
+        "Delete": "删除记忆",
+        "Empty": "尚未保存记忆。代理会在您对话时保存重要信息。",
+        "Title": "代理记忆"
+      },
+      "Personality": {
+        "Casual": "随意",
+        "CasualDescription": "放松、友好、使用俚语和非正式语言",
+        "Label": "个性",
+        "Polite": "礼貌",
+        "PoliteDescription": "正式、结构化、教育性的语气",
+        "Roleplay": "角色扮演",
+        "RoleplayDescription": "带有名称和描述的自定义角色",
+        "RoleplayFormality": "正式程度",
+        "RoleplayLore": "角色描述",
+        "RoleplayLorePlaceholder": "描述角色的个性、特质以及他们应该如何互动…",
+        "RoleplayBackstory": "背景故事",
+        "RoleplayBackstoryPlaceholder": "从媒体中总结的故事背景…",
+        "RoleplayName": "角色名称",
+        "RoleplayNamePlaceholder": "为角色输入名称…",
+        "RoleplayQuotes": "示例台词",
+        "RoleplayQuotesHint": "2-4 条展示角色不同方面语音的简短台词。AI 将匹配此风格。",
+        "RoleplayQuotePlaceholder": "输入台词…",
+        "AddQuote": "添加台词",
+        "FandomUrl": "Fandom wiki URL",
+        "FandomUrlHint": "该角色系列的 Fandom wiki URL。启用 search_fandom 工具。",
+        "FandomUrlPlaceholder": "例如 https://myheroacademia.fandom.com"
+      },
+      "Reset": "重置代理",
+      "ResetConfirm": "这将清除代理的名称、个性和所有记忆。设置过程将重新开始。是否继续？",
+      "Setup": {
+        "Cancel": "取消",
+        "NameLabel": "为您的代理起个名字",
+        "NamePlaceholder": "留空则无名称",
+        "PersonalityLabel": "选择个性",
+        "ProfilePhoto": "头像照片",
+        "ProfilePhotoHint": "上传此代理头像的图片",
+        "ProfilePhotoRemove": "移除照片",
+        "Start": "开始",
+        "Title": "设置您的 AI 导师",
+        "UserNameLabel": "您的名字",
+        "UserNamePlaceholder": "您希望代理怎么称呼您？",
+        "AboutMeLabel": "关于您",
+        "AboutMeHint": "告诉代理关于您的信息，以便个性化对话。",
+        "AboutMePlaceholder": "例如：我是一名大学生，喜欢漫画，已经学习了 6 个月…",
+        "VoiceSample": "默认语音",
+        "ManualSetup": "手动设置",
+        "ManualSetupHint": "自行填写角色详情。"
+      },
+      "QuickStart": {
+        "Button": "从 Fandom 快速开始",
+        "Hint": "通过搜索 Fandom wiki 自动填充角色扮演字段。",
+        "Title": "快速创建角色扮演角色 - {name}",
+        "CharacterNameLabel": "角色名称",
+        "CharacterNamePlaceholder": "例如 绿谷出久",
+        "FandomUrlLabel": "Fandom wiki URL",
+        "FandomUrlHint": "输入 Fandom wiki 的基础 URL，或仅输入 wiki 名称（例如 myheroacademia）。",
+        "FandomUrlPlaceholder": "例如 myheroacademia 或 https://myheroacademia.fandom.com",
+        "Next": "下一步",
+        "Back": "返回",
+        "Search": "搜索",
+        "Searching": "正在搜索 Fandom wiki…",
+        "NoResults": "未找到结果。请尝试不同的名称或检查 wiki URL。",
+        "SelectResult": "找到多个结果。请选择正确的：",
+        "MediaTypeLabel": "媒体类型",
+        "ProgressPointLabel": "您的当前进度",
+        "ProgressPointHint": "使用类似'Chapter 43'、'Episode 30'的格式，或输入'all'表示整个故事。",
+        "ProgressPointPlaceholder": "例如 Chapter 43, Episode 30, all",
+        "InvalidProgressPoint": "请使用如'Chapter 43'、'Episode 30'、数字或'all'等可识别的格式。",
+        "Generate": "生成角色",
+        "Generating": "正在构建角色设定…",
+        "Confirm": "使用此角色",
+        "ReviewName": "角色",
+        "ReviewLore": "角色描述",
+        "ReviewQuotes": "示例台词",
+        "ReviewContext": "背景故事",
+        "ReviewFandom": "Fandom wiki",
+        "FetchingChapters": "正在获取章节摘要…",
+        "ExploringWiki": "正在探索 wiki 获取故事上下文…",
+        "ExploringWikiDetail": "正在探索 wiki：{detail}"
+      }
+    },
+    "ErrorModal": {
+      "AnkiDisablePermanent": "永久禁用 Anki",
+      "AnkiDisableSession": "禁用此会话的 Anki",
+      "Copied": "已复制！",
+      "CopyError": "复制错误",
+      "HideDetails": "隐藏详情",
+      "Messages": {
+        "AnkiConnectionFailed": "无法连接到 Anki。请确保 Anki 正在运行且已安装 AnkiConnect，或禁用 Anki 集成。",
+        "AnkiNoValidCards": "已连接到 Anki，但未找到有效卡片。请在设置中检查您的牌组和字段配置。",
+        "BackendStopped": "后端服务器意外停止。请重新启动应用程序。",
+        "FileNotFound": "未找到所需文件。请尝试重新安装应用程序。",
+        "PermissionDenied": "权限被拒绝。请检查系统权限或以管理员权限运行应用程序。",
+        "PortInUse": "另一个应用程序正在使用所需端口。请关闭其他 mLearn 实例或重新启动计算机。"
+      },
+      "Quit": "退出",
+      "ShowDetails": "显示详情",
+      "Title": {
+        "AnkiError": "Anki 连接错误",
+        "Error": "错误",
+        "Fatal": "严重错误",
+        "StartupError": "启动错误",
+        "Warning": "警告"
+      }
+    },
+    "Explainer": {
+      "Explanation": "解释",
+      "GenerationFailed": "无法生成 AI 解释。请尝试重新生成。",
+      "GeneratedBy": "由{provider}生成",
+      "Generating": "正在生成…",
+      "GrammarPoints": "主要语法点",
+      "Loading": "正在加载 AI 解释…",
+      "Provider": {
+        "Builtin": "本地 AI",
+        "Cloud": "云端 AI",
+        "Ollama": "Ollama"
+      },
+      "ShowParsed": "显示解析视图",
+      "ShowRaw": "显示原始文本",
+      "Title": "AI 解释",
+      "Translation": "翻译"
+    },
+    "FlashcardChoice": {
+      "AnkiError": "导出到 Anki 失败",
+      "AnkiSuccess": "闪卡已导出到 Anki",
+      "DontShowAgain": "不再显示（始终保存到 SRS）",
+      "Example": "例句",
+      "ExportToAnki": "导出到 Anki",
+      "SaveToSRS": "保存到 SRS",
+      "Title": "保存闪卡"
+    },
+    "Flashcards": {
+      "Browse": {
+        "NoWordsFound": "未找到匹配的卡片。",
+        "SearchPlaceholder": "搜索单词…",
+        "ShowingCount": "显示 {count}/{total} 个单词",
+        "SortDefault": "默认",
+        "SortDueDateAsc": "到期日（最早优先）",
+        "SortDueDateDesc": "到期日（最晚优先）",
+        "SortEaseAsc": "难度系数（低到高）",
+        "SortEaseDesc": "难度系数（高到低）"
+      },
+      "Bulk": {
+        "EtaRemaining": "约剩{eta}",
+        "ExamplesAllDone": "所有闪卡已有例句",
+        "ExamplesButton": "生成例句",
+        "ExamplesDone": "为 {count} 张卡片生成了例句",
+        "ExamplesDoneWithErrors": "为 {count} 张卡片生成了例句，{failed} 张失败",
+        "ExamplesLLMUnavailable": "没有正在运行的 LLM 后端。请在设置中启用模型以生成例句。",
+        "ExamplesProgress": "正在生成例句…",
+        "ExamplesTooltip": "为没有例句的卡片使用 LLM 生成例句",
+        "GenerateDescription": "批量生成闪卡的音频和例句",
+        "ModeChoice": "生成模式",
+        "ModeOlderThan": "重新生成早于指定日期的",
+        "ModeOnlyEmpty": "仅无现有数据的卡片",
+        "ModeReplaceAll": "全部重新生成（替换现有内容）",
+        "OlderThanDate": "之前生成",
+        "TtsAllDone": "所有闪卡已有 TTS 音频",
+        "TtsButton": "生成 TTS",
+        "TtsDone": "为 {count} 个项目生成了 TTS",
+        "TtsDoneWithErrors": "为 {count} 个项目生成了 TTS，{failed} 个失败",
+        "TtsProgress": "正在生成 TTS…",
+        "TtsTooltip": "为所有闪卡单词和例句生成 TTS 音频"
+      },
+      "Card": {
+        "Due": "到期：",
+        "Ease": "难度系数：",
+        "PlayExample": "播放例句",
+        "PlayWord": "播放单词发音",
+        "RateHint": "按 1-4 评分 • 点击翻回正面",
+        "RegenerateExample": "使用 AI 重新生成例句",
+        "RevealHint": "点击或按空格键显示答案",
+        "ScreenshotAlt": "截图",
+        "Tracked": "已追踪",
+        "AnkiDuplicate": "重复",
+        "Unseen": "未学习"
+      },
+      "EmptyState": {
+        "NoCardsDescription": "在观看视频或阅读时开始学习单词，它们将出现在这里供复习！",
+        "NoCardsDueDescription": "当前没有到期需要复习的卡片。做得好！",
+        "NoCardsDueTitle": "全部完成！",
+        "NoCardsTitle": "还没有闪卡"
+      },
+      "Leech": {
+        "Message": "“{word}”已遗忘 {count} 次，可能需要额外关注",
+        "Title": "检测到顽固卡片"
+      },
+      "Modals": {
+        "AddCard": {
+          "MeaningLabel": "含义",
+          "MeaningPlaceholder": "释义…",
+          "ReadingLabel": "读音（可选）",
+          "ReadingPlaceholder": "发音…",
+          "Submit": "添加卡片",
+          "Title": "添加新闪卡",
+          "WordLabel": "单词",
+          "WordPlaceholder": "输入单词…"
+        },
+        "DeleteCard": {
+          "Confirm": "确定要删除此闪卡吗？此操作无法撤销。",
+          "Title": "删除闪卡"
+        },
+        "EditCard": {
+          "Title": "编辑闪卡",
+          "TabEditor": "编辑器",
+          "TabAdvanced": "高级",
+          "AdvancedHint": "编辑闪卡原始数据。保存时应用更改。",
+          "FieldKey": "字段",
+          "FieldValue": "值",
+          "AddField": "添加字段",
+          "RemoveField": "删除",
+          "NewFieldKey": "字段名",
+          "NewFieldValue": "值",
+          "EmptyObject": "空对象",
+          "InvalidValue": "无效值",
+          "ContentSection": "内容",
+          "MetadataSection": "元数据",
+          "EditButton": "编辑卡片"
+        }
+      },
+      "PostCreate": {
+        "AllDone": "所有任务已完成",
+        "ExampleTts": "例句音频",
+        "SomeFailed": "部分任务失败",
+        "ToastTitle": "正在生成闪卡内容",
+        "Translation": "翻译",
+        "WordTts": "单词音频",
+        "TtsFailed": "TTS 生成失败"
+      },
+      "Repair": {
+        "Description": "{count} 个闪卡音频文件缺失。是否重新生成？",
+        "DescriptionWithLLM": "{llmCount} 张闪卡缺少例句翻译，{ttsCount} 个音频文件缺失。是否修复？",
+        "DescriptionLLMOnly": "{count} 张闪卡缺少例句翻译。是否立即生成？",
+        "Done": "已修复 {count} 个闪卡音频文件",
+        "DoneWithErrors": "已修复 {total} 个音频文件（{failed} 个失败）",
+        "LLMToastTitle": "正在生成缺失的例句翻译…",
+        "LLMDone": "为 {count} 张闪卡生成了翻译",
+        "LLMDoneWithErrors": "为 {count} 张闪卡生成了翻译，{failed} 个失败",
+        "LLMUnavailable": "没有正在运行的 LLM 后端。请在设置中启用模型以生成例句。",
+        "RepairButton": "修复",
+        "Title": "闪卡数据缺失",
+        "ToastTitle": "正在修复闪卡音频…"
+      },
+      "Review": {
+        "Again": "重来",
+        "Bury": "暂缓",
+        "Complete": "复习完成！",
+        "CompleteDescription": "您已复习完所有卡片。做得好！",
+        "WaitingTitle": "等待卡片…",
+        "WaitingDescription": "下一张卡片将在 {time} 后到期",
+        "Easy": "简单",
+        "Hard": "困难",
+        "LearningCard": "学习中卡片",
+        "LearningLabel": "学习中：",
+        "New": "新增：",
+        "NewCard": "新卡片",
+        "Ok": "一般",
+        "PressKeyTooltip": "按 {key}",
+        "RelearningCard": "重新学习中卡片",
+        "Remove": "移除",
+        "Review": "复习：",
+        "ReviewCard": "复习卡片",
+        "ReviewMore": "继续复习",
+        "ShowAnswer": "显示答案",
+        "Undo": "↩",
+        "UndoTooltip": "撤销",
+        "StealthMode": "隐身模式",
+        "MuteAudio": "静音"
+      },
+      "State": {
+        "Learning": "学习中",
+        "New": "新卡",
+        "Relearning": "重新学习",
+        "Review": "复习"
+      },
+      "Statistics": {
+        "Advanced": {
+          "AverageEase": "平均难度系数",
+          "AvgTimePerDay": "日均时间",
+          "CardMaturity": "卡片成熟度",
+          "DailyActivity": "每日活动",
+          "DaysStudied": "学习天数",
+          "EaseDistribution": "难度系数分布",
+          "IntervalDistribution": "间隔分布",
+          "Last30Days": "过去 30 天",
+          "Mature": "成熟",
+          "RetentionRate": "保持率",
+          "TotalLapses": "遗忘次数",
+          "TotalNewLearned": "新学数量",
+          "TotalReviews": "复习次数",
+          "Young": "年轻"
+        },
+        "CardBreakdown": "卡片分类",
+        "DueToday": "今日到期",
+        "Learning": "学习中",
+        "LearningLimits": "每日限制",
+        "LimitHint": "设为 -1 表示无限制",
+        "Mature": "成熟",
+        "MaxNewCardsPerDay": "每日最大新卡数",
+        "MaxReviewsPerDay": "每日最大复习数",
+        "New": "新卡",
+        "NewCardsStudied": "已学新卡数",
+        "Review": "复习",
+        "ReviewsCompleted": "已完成复习",
+        "Suspended": "已暂停",
+        "TodayProgress": "今日进度",
+        "TotalCards": "总卡数"
+      },
+      "Sync": {
+        "Complete": "同步完成！",
+        "ConnectedSyncing": "已连接！正在同步…",
+        "Error": {
+          "AuthRequired": "请登录以同步闪卡",
+          "CameraAccess": "相机访问被拒绝",
+          "Connection": "启动连接失败",
+          "LoadLibraries": "加载所需库失败：{error}"
+        },
+        "EstablishingConnection": "正在建立连接…",
+        "GeneratingCode": "正在生成连接代码…",
+        "LoadingLibraries": "正在加载库…",
+        "PointCamera": "将相机对准二维码…",
+        "QRHint": "使用 mLearn 移动应用扫描以同步闪卡",
+        "ScanQRInstead": "改为扫描二维码",
+        "ShowQRInstead": "改为显示二维码",
+        "SyncedSuccessfully": "闪卡同步成功！",
+        "SyncingFlashcards": "正在同步闪卡…",
+        "Title": "同步闪卡"
+      },
+      "UI": {
+        "AddCard": "+ 添加卡片",
+        "Sync": "同步",
+        "Tabs": {
+          "Browse": "浏览",
+          "Generate": "生成",
+          "Review": "复习",
+          "Statistics": "统计",
+          "Suggested": "推荐"
+        },
+        "Title": "闪卡"
+      },
+      "Suggested": {
+        "Title": "推荐闪卡",
+        "Description": "在您阅读或观看时自动捕获。升级以生成翻译、例句和音频。",
+        "CountLabel": "显示 {shown} 条 · 共 {total} 条",
+        "SearchPlaceholder": "搜索单词或读音…",
+        "EmptyTitle": "暂无推荐",
+        "EmptyDescription": "您在沉浸式学习中遇到的新单词将出现在这里。",
+        "NoMatchTitle": "没有推荐匹配您的筛选条件",
+        "NoMatchDescription": "尝试清除搜索或筛选。",
+        "Filter": {
+          "AllWords": "所有单词",
+          "FailedOnly": "仅失败",
+          "DictionaryOnly": "仅词典单词",
+          "AllLevels": "所有等级",
+          "Unknown": "无等级"
+        },
+        "SelectAll": "全选",
+        "DeselectAll": "取消选择",
+        "SelectCard": "选择推荐",
+        "SelectedCount": "已选 {count} 项",
+        "UseLLM": "生成例句",
+        "UseTTS": "生成音频",
+        "PromoteSelected": "升级所选",
+        "DeleteSelected": "删除所选",
+        "Promote": "升级",
+        "Delete": "删除",
+        "Promoting": "正在生成 {current}/{total}…",
+        "Promoted": "已创建 {count} 张闪卡",
+        "PromoteFailed": "升级推荐失败。",
+        "Removed": "已移除 {count} 条推荐",
+        "SeenCount": "已见 {count} 次",
+        "NoPreviewImage": "无预览图片"
+      }
+    },
+    "Global": {
+      "Actions": {
+        "SaveChanges": "保存更改"
+      },
+      "Add": "添加",
+      "AppName": "mLearn",
+      "Aria": {
+        "CloseAlert": "关闭提示",
+        "CloseModal": "关闭模态框",
+        "ExitFullscreen": "退出全屏",
+        "Fullscreen": "全屏",
+        "Pause": "暂停",
+        "PictureInPicture": "画中画",
+        "Play": "播放",
+        "ToggleSubtitles": "切换字幕"
+      },
+      "Accept": "接受",
+      "Back": "返回",
+      "Cancel": "取消",
+      "Close": "关闭",
+      "ComingSoon": "即将推出",
+      "Continue": "继续",
+      "Decline": "拒绝",
+      "Delete": "删除",
+      "Edit": "编辑",
+      "Export": "导出",
+      "Flashcard": "闪卡",
+      "Import": "导入",
+      "Loading": "加载中…",
+      "Ignore": "忽略",
+      "Ok": "确定",
+      "Ready": "就绪",
+      "Remove": "移除",
+      "RequiresRestart": "需要重启",
+      "Reset": "重置",
+      "Save": "保存",
+      "Search": "搜索",
+      "Status": {
+        "Adding": "添加中…",
+        "LoadingLanguageData": "正在加载语言数据…",
+        "LoadingSettings": "正在加载设置…",
+        "StartingBackend": "正在启动后端…"
+      },
+      "Success": "成功",
+      "Time": {
+        "HoursMinutes": "{hours}小时{minutes}分",
+        "LessThanMinute": "< 1 分钟",
+        "MinutesSeconds": "{minutes}分{seconds}秒",
+        "Now": "现在",
+        "ShortDay": "{value}天",
+        "ShortHour": "{value}小时",
+        "ShortMinute": "{value}分",
+        "ShortSecond": "{value}秒",
+        "ShortYear": "{value}年"
+      },
+      "TryAgain": "重试",
+      "Yes": "是"
+    },
+    "LowPowerGate": {
+      "Allow": "允许",
+      "AllowSession": "本次会话允许",
+      "Deny": "拒绝",
+      "DenySession": "本次会话拒绝",
+      "Message": "一个操作想要使用本地神经网络（{{backendType}}）。在低电量模式下允许此操作吗？",
+      "StatusBarTooltip": "低电量模式已激活",
+      "Title": "本地处理请求"
+    },
+    "Home": {
+      "Cards": {
+        "AITutor": {
+          "Description": "与 AI 对话伙伴一起练习",
+          "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
+          "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
+          "Title": "AI 导师"
+        },
+        "Flashcards": {
+          "Description": "通过间隔重复复习词汇",
+          "Title": "闪卡"
+        },
+        "Reader": {
+          "Description": "使用 OCR 阅读漫画或其他文档",
+          "Title": "阅读器"
+        },
+        "Settings": {
+          "Description": "按您的喜好配置 mLearn",
+          "Title": "设置"
+        },
+        "Video": {
+          "Description": "观看带有交互式字幕的视频",
+          "Title": "视频"
+        },
+        "Statistics": {
+          "Description": "追踪您的进度和学习历程",
+          "Title": "统计"
+        },
+        "WordDatabase": {
+          "Description": "浏览和管理您的追踪词汇",
+          "Title": "单词数据库"
+        },
+        "CharacterGrid": {
+          "Description": "字符掌握情况的视觉概览",
+          "Title": "字符网格"
+        },
+        "WordSync": {
+          "Description": "评估您的词汇掌握程度",
+          "Title": "单词同步"
+        }
+      },
+      "Errors": {
+        "UnableToOpen": "无法打开文件。文件路径未正确保存。"
+      },
+      "UI": {
+        "ChangeLanguage": "更改语言",
+        "ContinueLearning": "继续学习",
+        "LearningLanguage": "正在学习{language}",
+        "Title": "mLearn",
+        "TitleDescription": "选择下方选项开始学习"
+      }
+    },
+    "Installer": {
+      "Alerts": {
+        "NetworkError": "发生网络错误。请检查您的连接后重试。"
+      },
+      "Buttons": {
+        "CancelInstall": "取消安装",
+        "CancelRestart": "取消重启",
+        "Continue": "继续",
+        "Installing": "安装中…",
+        "StartInstallation": "开始安装"
+      },
+      "Components": {
+        "ExplainAi": {
+          "Description": "安装本地 LLM 神经网络。取消勾选可跳过约 3 GB 的依赖项。",
+          "Title": "安装 mLearn 解释 AI 模块"
+        },
+        "Reader": {
+          "Description": "安装用于阅读漫画/图片的 OCR 功能。取消勾选可跳过约 2 GB 的依赖项。",
+          "Title": "安装 mLearn 阅读器模块"
+        },
+        "Voice": {
+          "Description": "安装语音识别、文本转语音和语音克隆。取消勾选可跳过约 4 GB 的依赖项。",
+          "Title": "安装语音和 TTS 模块"
+        }
+      },
+      "Instructions": {
+        "ChooseComponents": "选择要安装的组件，然后点击安装。",
+        "ClickToBegin": "点击安装开始。",
+        "DownloadNote": "所有下载将自动处理。建议使用稳定的网络连接。",
+        "ForgetSomething": "安装完成后无法添加组件。请现在选择所有需要的组件。",
+        "LanguageUnlocks": "设置完成后可进行语言选择。"
+      },
+      "Status": {
+        "Complete": "安装完成！选择您的语言完成设置。",
+        "CouldNotStart": "无法启动安装过程。",
+        "ErrorOccurred": "发生错误。请查看下方日志。",
+        "Installing": "正在安装，请稍候…",
+        "InstallingPackages": "正在安装包…",
+        "LanguageInstalledRestarting": "语言已安装！正在重启…",
+        "LlmSkip": "正在跳过本地 AI 模型依赖。",
+        "LlmWillInstall": "将安装本地 AI 模型依赖。",
+        "NotStarted": "等待开始安装…",
+        "OcrSkip": "正在跳过 OCR 阅读器依赖。",
+        "OcrWillInstall": "将安装 OCR 阅读器依赖。",
+        "VoiceSkip": "正在跳过语音和 TTS 依赖。",
+        "VoiceWillInstall": "将安装语音和 TTS 依赖。",
+        "AlreadySatisfied": "已满足",
+        "Collecting": "正在收集依赖项…",
+        "Downloading": "正在下载…"
+      }
+    },
+    "KanjiGrid": {
+      "CharactersByExamLevel": "按考试等级划分的汉字：",
+      "Disclaimer": {
+        "Description": "此处 JLPT 汉字是根据分配给每个 JLPT 等级的单词推断出来的，然后从这些单词中提取。这意味着此网格是近似值：某些等级包含的单词中的汉字本身并不需要在该等级掌握。",
+        "Title": "JLPT 汉字为估算值"
+      },
+      "Description": "颜色：学习中（橙色→黄色），已掌握（绿色→浅绿色）；未知（灰色）。悬停查看详情。",
+      "EmptyState": {
+        "Description": "当您在视频和文本中遇到字符时，它们将出现在这里。",
+        "Hint": "开始观看或阅读内容以开始追踪！",
+        "Title": "尚无追踪的字符"
+      },
+      "Legend": {
+        "Known": "已掌握：",
+        "Learning": "学习中：",
+        "Unknown": "未知："
+      },
+      "LevelFallback": "等级 {level}",
+      "Loading": "正在加载字符数据…",
+      "Stats": {
+        "Known": "已掌握：",
+        "Learning": "学习中：",
+        "TotalFound": "已找到总数：",
+        "Unknown": "未知："
+      },
+      "Title": "汉字掌握概览",
+      "Tooltip": {
+        "KnownCount": "已掌握",
+        "LearningCount": "学习中",
+        "Score": "分数",
+        "WordsContaining": "包含{char}的单词"
+      }
+    },
+    "Languages": {
+      "de": "德语",
+      "ja": "日语"
+    },
+    "LocaleNames": {
+      "de": "德语",
+      "en": "英语",
+      "fr": "法语",
+      "ja": "日语",
+      "ru": "俄语",
+      "zh": "中文"
+    },
+    "MediaStats": {
+      "AllWordsKnown": "所有单词已掌握！",
+      "Difficulty": "难度",
+      "Failed": "失败 {count} 次",
+      "GrammarPoints": "语法点",
+      "Hovered": "已悬停 {count} 次",
+      "NoGrammarYet": "尚未检测到语法点。",
+      "NoWordsYet": "尚未遇到单词。",
+      "NotAssessed": "未评估",
+      "ReviewWithAI": "使用 AI 复习",
+      "Seen": "已见 {count} 次",
+      "Sessions": "会话",
+      "Tab": {
+        "Grammar": "语法",
+        "Summary": "摘要",
+        "Unknown": "未知",
+        "Words": "单词"
+      },
+      "TimeSpent": "花费时间",
+      "UnknownWords": "未知单词",
+      "WordsSeen": "已见单词"
+    },
+    "Notifications": {
+      "AnkiCacheLoaded": "从缓存加载了 Anki 闪卡（Anki 似乎离线）",
+      "MigrationComplete": "数据迁移完成",
+      "MigrationFlashcards": "您的闪卡已从 v{version} 迁移。已创建备份。",
+      "MigrationFlashcardsNoBackup": "您的闪卡已从 v{version} 迁移。",
+      "MigrationWordStatuses": "已迁移 {count} 个单词状态（来自 v1）。已创建备份。"
+    },
+    "PitchAccent": {
+      "Atamadaka": "头高型",
+      "DropAfterMora": "在拍节{mora}后下降",
+      "Heiban": "平板型",
+      "Nakadaka": "中高型",
+      "Odaka": "尾高型"
+    },
+    "Reader": {
+      "CollatePages": "合并页面",
+      "UncollatePages": "拆分页面",
+      "CopyPhrase": "复制短语",
+      "HideFurigana": "隐藏读音",
+      "ShowFurigana": "显示读音",
+      "Sidebar": {
+        "Pages": "页面",
+        "UnknownWordsEmpty": "当前页面未找到未知单词。",
+        "AddModal": {
+          "Title": "添加闪卡",
+          "LevelFilter": "低于等级阈值",
+          "LevelFilterDescription": "添加发现等级处于或低于所选阈值的单词",
+          "DictionaryFilter": "在词典中找到",
+          "DictionaryFilterDescription": "添加所有在词典中找到的单词",
+          "AddAll": "全部添加（{count}）",
+          "AddSelected": "添加所选（{count}）",
+          "SelectAll": "全选",
+          "DeselectAll": "取消全选",
+          "AddChecked": "添加已选（{count}）",
+          "WordListTitle": "要添加的单词"
+        },
+        "SortBy": {
+          "Label": "排序方式",
+          "OCROrder": "阅读顺序"
+        }
+      },
+      "Status": {
+        "Caching": "正在缓存 {x}/{y}",
+        "CleaningUp": "正在清理…",
+        "FailedToLoad": "加载失败",
+        "FailedToLoadPdf": "PDF 加载失败",
+        "ImportedBook": "已导入书籍",
+        "Loading": "加载中…",
+        "LoadingNeuralNetwork": "正在加载神经网络…",
+        "LoadingPdf": "正在加载 PDF…",
+        "NoImagesFound": "未找到图片",
+        "PdfDocument": "PDF 文档",
+        "Pending": "待处理…",
+        "Processing": "正在处理 {x}/{y}",
+        "Queued": "已排队…",
+        "Ready": "就绪",
+        "Recognizing": "正在识别…"
+      },
+      "StatusBar": {
+        "DebugOverlayOff": "调试：关闭",
+        "DebugOverlayOn": "调试：开启",
+        "DebugOverlayTitle": "切换调试叠加层以可视化 OCR 文本和读音标注检测",
+        "FuriganaDetectionOff": "读音检测：关闭",
+        "FuriganaDetectionOn": "读音检测：开启",
+        "MagnifierHint": "按 {key} 打开放大镜",
+        "OpenConversationAgent": "AI 导师",
+        "OpenConversationAgentTitle": "打开 AI 对话导师",
+        "PaddleDownscaleLabel": "PaddleOCR 缩放：{value}%",
+        "PaddleDownscaleTitle": "在处理前缩小图像（用于 PaddleOCR，开发用）",
+        "Ready": "就绪",
+        "ShowTooltipOn": "显示工具提示方式：",
+        "TimingDetection": "检测",
+        "TimingPerBox": "平均/框",
+        "TimingRecognition": "识别",
+        "TimingTotal": "总计",
+        "Tokenizing": "正在分词…",
+        "Translating": "正在翻译…",
+        "TriggerHover": "悬停",
+        "TriggerKeyHover": "{key} + 悬停",
+        "TriggerLongHover": "长按悬停",
+        "TriggerTitle": "单词悬停触发方式",
+        "TurboModeOff": "加速模式：关闭",
+        "TurboModeOn": "加速模式：开启",
+        "ZoneDeltaLabel": "区域差值：{value}px",
+        "ZoneDeltaTitle": "用于区域聚类的框边距最大像素距离"
+      },
+      "Toolbar": {
+        "BackToHome": "返回首页",
+        "DoublePage": "双页",
+        "FirstPagePairedTooltip": "首页为配对页",
+        "FirstPageSingleTooltip": "首页为单页（封面页）",
+        "FitHeight": "适应高度 ↕",
+        "FitWidth": "适应宽度 ↔",
+        "Home": "← 首页",
+        "PageLayoutPaired": "1+2|3+4",
+        "PageLayoutSingle": "1|2+3",
+        "SinglePage": "单页",
+        "ToggleUnknownWordsSidebar": "切换未知单词侧边栏"
+      },
+      "UI": {
+        "Tips": {
+          "NeverLosePlace": {
+            "Description": "您的位置会自动保存，方便返回时继续阅读。",
+            "Title": "永不丢失阅读位置"
+          },
+          "ShapeView": {
+            "Description": "使用侧边栏或键盘快捷键在单页和双页布局间切换。",
+            "Title": "调整阅读视图"
+          },
+          "SummonOcr": {
+            "Description": "页面可见后，触发 OCR 将图片转化为可交互的文本。",
+            "Title": "召唤 OCR 魔法"
+          }
+        },
+        "WelcomeSplash": {
+          "DropZone": "将文件拖放到此处以快速导入",
+          "Footer": "放入文件开始 — 此欢迎页面将为您的故事让路。",
+          "OpenFolder": "打开图片文件夹",
+          "OpenPdf": "打开 PDF",
+          "Title": "欢迎来到阅读器",
+          "TitleDescription": "拖放图片文件夹或 .pdf 文件到窗口中的任意位置。"
+        }
+      }
+    },
+    "Settings": {
+      "Appearance": {
+        "Theme": {
+          "Dark": "深色",
+          "DarkHighContrast": "深色高对比度",
+          "Darker": "更深色",
+          "Description": "选择应用程序的视觉主题",
+          "GlassDark": "毛玻璃深色",
+          "GlassLight": "毛玻璃浅色",
+          "Label": "主题",
+          "Light": "浅色",
+          "LightHighContrast": "浅色高对比度"
+        }
+      },
+      "BlurEffect": {
+        "BlurAmount": {
+          "Description": "模糊效果的强度",
+          "Label": "模糊程度"
+        },
+        "BlurKnownSubtitles": {
+          "Description": "当所有单词都已知时模糊字幕",
+          "Label": "模糊已知单词的字幕"
+        },
+        "BlurWords": {
+          "Description": "模糊您尚未学习的单词",
+          "Label": "模糊未知单词"
+        }
+      },
+      "CustomColors": {
+        "Description": "覆盖特定的颜色，这些颜色将全局应用，不受主题影响。留空则使用主题默认颜色。",
+        "Reset": "重置",
+        "ResetAll": "重置所有颜色"
+      },
+      "Data": {
+        "ExportAllData": {
+          "Description": "将所有学习数据（闪卡、媒体统计、音频、图片）导出为 ZIP 存档",
+          "Label": "导出所有数据"
+        },
+        "ExportSettings": {
+          "Description": "将您的设置导出为 JSON 文件",
+          "Label": "导出设置"
+        },
+        "ImportAllData": {
+          "Confirm": "这将覆盖您当前的所有数据（闪卡、媒体统计、音频、图片）。导入后应用将重启。是否继续？",
+          "Description": "从 ZIP 存档导入所有学习数据。这将覆盖现有数据。",
+          "Label": "导入所有数据",
+          "Success": "数据导入成功。应用将重启以应用更改。"
+        },
+        "ImportSettings": {
+          "Description": "从 JSON 文件导入设置",
+          "Label": "导入设置"
+        },
+        "ResetSettings": {
+          "Description": "将所有设置重置为默认值",
+          "Label": "重置设置"
+        }
+      },
+      "DisplayOptions": {
+        "ImmediateFetch": {
+          "Description": "字幕出现时立即获取单词数据",
+          "Label": "立即获取"
+        },
+        "OpenAside": {
+          "Description": "在字幕出现时显示单词翻译侧面板",
+          "Label": "实时翻译面板"
+        },
+        "ShowFurigana": {
+          "Description": "在单词上方显示读音",
+          "Label": "显示读音"
+        },
+        "HideReadingForKnownWords": {
+          "Description": "自动隐藏已掌握单词的读音",
+          "Label": "隐藏已知单词的读音"
+        },
+        "ShowPitchAccent": {
+          "Description": "显示单词的音调核信息",
+          "Label": "显示音调核"
+        },
+        "ShowPos": {
+          "Description": "显示单词的语法信息",
+          "Label": "显示词性"
+        }
+      },
+      "Groups": {
+        "Appearance": "外观",
+        "BlurEffect": "模糊效果",
+        "CustomColors": "自定义颜色覆盖",
+        "Data": "数据",
+        "DisplayOptions": "显示选项",
+        "Language": "语言",
+        "LiveTranslator": "实时单词翻译",
+        "Performance": "性能",
+        "PosColors": "词性颜色",
+        "Settings": "设置",
+        "SubtitleAppearance": "字幕外观",
+        "SubtitleTiming": "字幕时间",
+        "ThemePreview": "主题预览",
+        "VideoPlayerBehaviour": "视频播放器行为",
+        "WordStatus": "单词状态",
+        "KnowledgePriority": "知识优先级",
+        "Behaviour": "行为",
+        "WordKnowledge": "单词知识",
+        "LanguageProficiency": "语言水平"
+      },
+      "Keybind": {
+        "PressKey": "按一个键…",
+        "Tooltip": "点击开始录制，然后按一个键设置快捷键",
+        "Keys": {
+          "Ctrl": "Ctrl",
+          "Alt": "Alt",
+          "Shift": "Shift",
+          "Meta": "Meta",
+          "Space": "空格",
+          "Enter": "回车",
+          "Escape": "Esc",
+          "Backspace": "退格",
+          "Delete": "删除",
+          "Tab": "Tab",
+          "CapsLock": "大写锁定",
+          "ArrowUp": "上箭头",
+          "ArrowDown": "下箭头",
+          "ArrowLeft": "左箭头",
+          "ArrowRight": "右箭头",
+          "Home": "Home",
+          "End": "End",
+          "PageUp": "Page Up",
+          "PageDown": "Page Down",
+          "Insert": "Insert"
+        }
+      },
+      "Language": {
+        "AppLanguage": {
+          "Description": "选择用户界面的语言",
+          "Label": "应用语言"
+        },
+        "LearningLanguage": {
+          "Description": "选择您正在学习的语言",
+          "Label": "学习语言"
+        }
+      },
+      "Behaviour": {
+        "LearningLanguageLevel": {
+          "Label": "学习语言等级",
+          "Description": "设置后，高于此等级的推荐闪卡以及无等级的卡片将不会被保存。同时影响单词同步的难度。",
+          "NoLimit": "无限制"
+        }
+      },
+      "Performance": {
+        "DevMode": {
+          "AutoEnabled": "在开发模式下自动启用",
+          "Description": "启用开发者工具和调试功能",
+          "Label": "开发者模式"
+        },
+        "HoverKnownGetFromDictionary": {
+          "Description": "即使对于已掌握的单词也获取词典数据",
+          "Label": "查询已知单词"
+        },
+        "LowBatteryMode": {
+          "Description": "在运行本地神经网络（LLM、TTS、OCR）前提示以节省资源",
+          "Label": "低电量模式"
+        }
+      },
+      "Plugins": {
+        "Title": "插件",
+        "Description": "管理已安装的插件及其权限。",
+        "Loading": "正在加载插件…",
+        "Install": "安装插件",
+        "OpenWindow": "打开插件窗口",
+        "OpenWindowError": "无法打开插件窗口。",
+        "Enable": "启用",
+        "Disable": "禁用",
+        "Uninstall": "卸载",
+        "GrantPermissions": "授予权限",
+        "Capabilities": "功能",
+        "Permissions": "权限",
+        "Empty": {
+          "Title": "未安装插件",
+          "Description": "安装插件包以扩展 mLearn。"
+        },
+        "Status": {
+          "active": "活跃",
+          "disabled": "已禁用",
+          "pending": "待定",
+          "error": "错误"
+        }
+      },
+      "Shiritori": {
+        "Title": "Shiritori",
+        "Description": "连接日语名词。下一个单词必须以最后一个假名开头。以ん结尾的单词判负。不允许重复。",
+        "Turn": {
+          "User": "轮到您 — 说出一个以“{kana}”开头的单词",
+          "UserFirst": "轮到您 — 说出任意日语名词",
+          "Computer": "电脑的回合",
+          "ComputerThinking": "电脑正在思考…"
+        },
+        "Error": {
+          "Empty": "请输入一个单词。",
+          "Duplicate": "不能重复使用同一个单词。",
+          "NotFound": "词典中未找到该单词。",
+          "WrongStart": "该单词必须以“{kana}”开头。",
+          "EndsWithN": "单词以ん结尾 — 您输了！",
+          "NoReading": "无法确定该单词的读音。"
+        },
+        "GameOver": {
+          "UserWins": "您赢了！",
+          "ComputerWins": "电脑赢了！",
+          "PlayAgain": "再玩一次"
+        },
+        "Submit": "提交",
+        "LanguageWarning": "此插件仅在日语为活动语言时可用。请在设置中切换到日语。"
+      },
+      "KnowledgePriority": {
+        "Description": "配置如何从多个来源确定单词掌握状态",
+        "ResolutionMode": {
+          "Label": "解析模式",
+          "Description": "当多个来源有数据时如何确定单词状态"
+        },
+        "SourceOrder": {
+          "Label": "来源优先级",
+          "Description": "重新排序来源。在基于顺序的模式下，第一个有数据的来源决定单词状态"
+        },
+        "Mode": {
+          "Order": "基于顺序",
+          "Highest": "最高状态",
+          "Lowest": "最低状态"
+        },
+        "Source": {
+          "Srs": "内置 SRS",
+          "Anki": "Anki",
+          "Manual": "手动"
+        }
+      },
+      "Reader": {
+        "Description": "配置 OCR 和漫画阅读器设置",
+        "Furigana": {
+          "Hide": {
+            "Description": "用白色方框覆盖检测到的读音注释，悬停时显示（用于阅读练习）",
+            "Label": "隐藏读音"
+          },
+          "Title": "读音"
+        },
+        "LlmIntegration": {
+          "Enable": {
+            "Description": "使用 AI 解释单词和语法",
+            "Label": "启用 LLM 解释"
+          },
+          "PassiveWordTracking": {
+            "Description": "自动从阅读和悬停中追踪单词熟悉度。悬停持续{delay}毫秒后计为一次。计满{count}次后，该单词将被标记为失败并出现在困难单词列表和 AI 导师复习中。",
+            "Action": {
+              "Description": "单词进入失败状态后每次计次悬停时的操作",
+              "Label": "失败单词操作",
+              "Options": {
+                "DecreaseEase": "降低难度系数",
+                "None": "不执行操作"
+              }
+            },
+            "EaseDecrease": {
+              "Description": "当失败单词操作设为降低难度系数时每次减少的量",
+              "Label": "难度系数降低量"
+            },
+            "FailCount": {
+              "Description": "将此媒体的单词标记为失败所需的计次悬停次数",
+              "Label": "标记失败的悬停次数"
+            },
+            "HoverDelay": {
+              "Description": "悬停持续多久才计为一次失败单词尝试",
+              "Label": "计次悬停延迟"
+            },
+            "Label": "被动单词追踪"
+          },
+          "Title": "LLM 集成"
+        },
+        "Magnifier": {
+          "Hotkey": {
+            "Description": "按住以激活放大镜放大图片的按键",
+            "Hint": "按住放大",
+            "Label": "放大镜快捷键"
+          },
+          "Size": {
+            "Description": "放大镜镜头的像素大小",
+            "Label": "镜头大小"
+          },
+          "Title": "放大镜",
+          "Zoom": {
+            "Description": "放大镜的放大倍数",
+            "Label": "缩放级别"
+          }
+        },
+        "OcrSettings": {
+          "CropPadding": {
+            "Description": "为闪卡裁剪时文本周围的额外像素",
+            "Label": "OCR 裁剪边距"
+          },
+          "Enable": {
+            "Description": "启用图片的光学字符识别",
+            "Label": "启用 OCR"
+          },
+          "FuriganaDetection": {
+            "Description": "检测并从 OCR 结果中过滤读音注释。禁用后，所有检测到的文本框将原样显示，不进行读音注释过滤。",
+            "Label": "读音注释检测"
+          },
+          "RamSaver": {
+            "Description": "使用轻量级基于 OpenCV 的文本检测代替神经网络检测。内存使用减少约 1.5 GB，但复杂布局的准确度可能降低。识别质量不受影响。",
+            "Label": "内存节省模式"
+          },
+          "Title": "OCR 设置",
+          "TurboMode": {
+            "Description": "使用更快的检测设置。关闭时使用更高分辨率的检测，速度较慢但更准确，尤其适用于竖排文本。",
+            "Label": "加速模式"
+          }
+        },
+        "Title": "阅读器",
+        "WordHoverBehavior": {
+          "HoverKey": {
+            "Description": "悬停时按住以显示单词弹出窗口的按键",
+            "Label": "悬停键"
+          },
+          "Modes": {
+            "Hover": "悬停（立即）",
+            "KeyHover": "{key} + 悬停",
+            "LongHover": "长按悬停（500ms 延迟）"
+          },
+          "Title": "单词悬停行为",
+          "TriggerMode": {
+            "Description": "阅读器中如何触发单词翻译弹出窗口",
+            "Label": "悬停触发模式"
+          }
+        }
+      },
+      "SRS": {
+        "AnkiIntegration": {
+          "AddScreenshots": {
+            "Description": "在闪卡中包含视频和阅读器的截图",
+            "Label": "添加截图"
+          },
+          "ConnectUrl": {
+            "Description": "您的 AnkiConnect 服务器 URL",
+            "Label": "AnkiConnect URL"
+          },
+          "Connected": "已连接",
+          "ConnectionStatus": {
+            "Description": "测试您的 AnkiConnect 连接",
+            "Label": "连接状态"
+          },
+          "DeckName": {
+            "Description": "新卡片的 Anki 牌组",
+            "Label": "牌组名称",
+            "Placeholder": "选择牌组"
+          },
+          "Enable": {
+            "Description": "通过 AnkiConnect 从 Anki 获取闪卡数据。Anki 卡片优先于 mLearn 内置卡片",
+            "Label": "启用 Anki"
+          },
+          "Failed": "失败",
+          "FieldMapping": {
+            "Description": "将 Anki 笔记字段映射到 mLearn 闪卡字段",
+            "Expression": {
+              "Description": "包含单词或表达的字段",
+              "Label": "表达字段"
+            },
+            "Meaning": {
+              "Description": "包含定义或含义的字段",
+              "Label": "含义字段"
+            },
+            "None": "（无）",
+            "Placeholder": "选择字段",
+            "Reading": {
+              "Description": "包含读音或发音的字段",
+              "Label": "读音字段"
+            }
+          },
+          "ModelName": {
+            "Description": "新卡片使用的 Anki 笔记类型",
+            "Label": "笔记类型",
+            "Placeholder": "选择笔记类型"
+          },
+          "Preview": {
+            "Loading": "正在加载预览…",
+            "NoCard": "此笔记类型未找到卡片",
+            "Title": "卡片预览"
+          },
+          "Templates": {
+            "Description": "定义每个 Anki 字段的内容。占位符：{word}、{reading}、{meaning}、{example}、{exampleMeaning}",
+            "Expression": {
+              "Label": "表达模板"
+            },
+            "Reading": {
+              "Label": "读音模板"
+            },
+            "Meaning": {
+              "Label": "含义模板"
+            },
+            "Preview": {
+              "Label": "模板预览",
+              "Description": "预览字段在示例数据下的效果"
+            },
+            "Sample": {
+              "Word": "单词",
+              "Reading": "读音",
+              "Meaning": "释义",
+              "Example": "例句。",
+              "ExampleMeaning": "例句翻译。"
+            }
+          },
+          "Test": "测试",
+          "Title": "Anki 集成",
+          "EaseMapping": {
+            "Title": "难度系数映射",
+            "LearningEase": {
+              "Label": "Anki：学习难度系数",
+              "Description": "单词标记为学习中时分配的 Anki 难度系数（整数，1000–3000）"
+            },
+            "KnownEase": {
+              "Label": "Anki：已知难度系数",
+              "Description": "单词标记为已掌握时分配的 Anki 难度系数（整数，1000–3000）"
+            }
+          }
+        },
+        "BuiltInFlashcards": {
+          "AutomaticCreation": {
+            "Description": "在学习过程中自动为您遇到的单词创建闪卡",
+            "Label": "自动创建闪卡"
+          },
+          "CreateUnseenCards": {
+            "Description": "为目标等级的自动创建新单词卡片",
+            "Label": "创建未见过单词的卡片"
+          },
+          "Enable": {
+            "Description": "使用 mLearn 内置间隔重复系统而非 Anki",
+            "Label": "使用 mLearn SRS"
+          },
+          "ExamCardProportion": {
+            "Description": "从考试等级自动创建的卡片比例（0-1）",
+            "Label": "考试卡片比例"
+          },
+          "FlipAnimation": {
+            "Description": "显示闪卡答案时使用 3D 翻转动画",
+            "Label": "卡片翻转动画"
+          },
+          "ForceRecreate": {
+            "BackendUnavailable": "无法访问后端。请确保 Python 服务器正在运行。",
+            "Created": "已创建 {count} 张新闪卡。"
+          },
+          "LLMExamples": {
+            "Description": "在自动创建闪卡时使用 LLM 生成例句（需要后端连接）",
+            "Label": "生成例句"
+          },
+          "LeechThreshold": {
+            "Description": "卡片被标记为顽固卡片前的遗忘次数（0 = 禁用）",
+            "Label": "顽固卡片阈值"
+          },
+          "MaxNewCards": {
+            "Description": "自动创建闪卡的限制",
+            "Label": "每日最大新卡数"
+          },
+          "StaleLearningDays": {
+            "Label": "学习状态过期天数",
+            "Description": "在单词同步中标记为“学习中”的单词在此天数内状态未更改时重新显示"
+          },
+          "EaseMapping": {
+            "LearningEase": {
+              "Label": "内置 SRS：学习难度系数",
+              "Description": "单词标记为学习时分配的初始难度系数（例如 1.55）"
+            },
+            "KnownEase": {
+              "Label": "内置 SRS：已知难度系数",
+              "Description": "单词标记为已知时分配的初始难度系数（例如 1.8）"
+            }
+          },
+          "Title": "内置闪卡"
+        },
+        "DataManagement": {
+          "NukeButton": "删除全部",
+          "NukeFlashcards": {
+            "Description": "永久删除所有闪卡并重置所有内容（无法撤销！）",
+            "Label": "删除所有闪卡",
+            "ModalWarning": "这将永久删除您所有的闪卡、单词追踪数据、语法知识、每日统计和所有学习进度。此操作不可逆，闪卡系统将恢复到初始空状态，如同新安装的应用。",
+            "Success": "所有闪卡已被删除。",
+            "TypePhrase": "输入“{phrase}”确认此操作。"
+          },
+          "ResetButton": "重置 SRS",
+          "ResetSRS": {
+            "Description": "清除所有闪卡进度（无法撤销！）",
+            "Label": "重置 SRS 数据",
+            "ModalWarning": "这将重置所有闪卡排程数据，包括间隔、难度系数、复习次数和学习进度。闪卡内容将被保留，但所有卡片将回到“新卡”状态。",
+            "Success": "所有 SRS 数据已被重置。",
+            "TypePhrase": "输入“{phrase}”确认此操作。"
+          },
+          "Title": "数据管理"
+        },
+        "Description": "配置闪卡和 Anki 设置",
+        "LearningLimits": {
+          "MaxNewCardsLearning": {
+            "Description": "每日学习新卡的最大数量（-1 = 无限制）",
+            "Label": "最大学习新卡数"
+          },
+          "MaxReviews": {
+            "Description": "每日复习卡片的最大数量（-1 = 无限制）",
+            "Label": "每日最大复习数"
+          },
+          "NewDayHour": {
+            "Description": "SRS 日重置的小时（0-23）。在此小时前复习的卡片计为前一天。默认：4（凌晨 4:00）",
+            "Label": "新日开始小时"
+          },
+          "Title": "每日学习限制",
+          "UnlimitedHint": "-1 = 无限制"
+        },
+        "Title": "间隔重复"
+      },
+      "Subtitle": {
+        "FontSize": {
+          "Description": "字幕文本大小",
+          "Label": "字体大小"
+        },
+        "FontWeight": {
+          "Description": "字幕文本粗细",
+          "Label": "字体粗细"
+        },
+        "FontWeights": {
+          "Black": "特粗 (900)",
+          "Bold": "粗体 (700)",
+          "ExtraBold": "超粗 (800)",
+          "ExtraLight": "超细 (200)",
+          "Light": "细体 (300)",
+          "Medium": "中等 (500)",
+          "Normal": "常规 (400)",
+          "SemiBold": "半粗 (600)",
+          "Thin": "极细 (100)"
+        },
+        "Offset": {
+          "Description": "字幕时间的偏移量（毫秒）",
+          "Label": "字幕偏移"
+        },
+        "Theme": {
+          "Description": "字幕背景的视觉样式",
+          "Label": "字幕样式"
+        },
+        "Themes": {
+          "Background": "背景",
+          "Marker": "标记",
+          "Shadow": "阴影"
+        }
+      },
+      "UI": {
+        "Description": "按您的偏好配置 mLearn",
+        "ResetConfirm": "确定要将所有设置重置为默认值吗？此操作无法撤销。",
+        "ResetSuccess": "设置已重置为默认值",
+        "SaveError": "保存设置失败",
+        "Title": "设置"
+      },
+      "WordStatus": {
+        "ColourCodes": {
+          "Description": "根据语法角色为单词着色",
+          "Label": "词性颜色"
+        },
+        "ColourKnown": {
+          "Description": "用不同的颜色突出显示您已学习的单词",
+          "Label": "为已知单词着色"
+        },
+        "KnownColour": {
+          "Description": "用于突出显示已知单词的颜色",
+          "Label": "已知单词颜色"
+        },
+        "KnownThreshold": {
+          "Description": "单词被视为已知的难度系数阈值（0–5000，对应 0.0–5.0 标度）",
+          "Label": "内置 SRS：已知阈值"
+        },
+        "PosColors": {
+          "Description": "自定义每个词性标签的颜色。这些颜色用于在字幕、阅读器和对话代理中突出显示单词。",
+          "Reset": "重置",
+          "ResetAll": "重置所有词性颜色"
+        },
+        "AnkiLearningThreshold": {
+          "Label": "Anki：学习阈值",
+          "Description": "单词被视为学习中的 Anki 卡片系数阈值"
+        },
+        "SrsLearningThreshold": {
+          "Label": "内置 SRS：学习阈值",
+          "Description": "单词被视为学习中的难度系数阈值（0–5000，对应 0.0–5.0 标度）"
+        },
+        "AnkiKnownThreshold": {
+          "Label": "Anki：已知阈值",
+          "Description": "单词被视为已知的 Anki 卡片系数阈值"
+        }
+      },
+      "About": {
+        "Licenses": "许可协议",
+        "LicensesLoadError": "无法加载许可信息。"
+      },
+      "VideoPlayer": {
+        "Title": "视频播放器",
+        "Description": "配置视频播放器和字幕行为",
+        "LiveTranslator": {
+          "Show": {
+            "Label": "显示实时翻译器",
+            "Description": "在视频旁显示实时单词翻译面板"
+          },
+          "IncludeKnown": {
+            "Label": "包含已知单词",
+            "Description": "也将您已掌握的单词添加到实时翻译器"
+          }
+        },
+        "KnownWords": {
+          "BlurKnown": {
+            "Label": "模糊已知单词",
+            "Description": "对字幕中您已掌握的单词应用模糊效果"
+          }
+        },
+        "Playback": {
+          "VideoFit": {
+            "Label": "视频适配",
+            "Description": "视频在播放器区域内的缩放方式",
+            "Contain": "包含",
+            "Cover": "覆盖",
+            "Fill": "填充"
+          },
+          "ShowSubtitles": {
+            "Label": "显示字幕",
+            "Description": "切换视频播放器中的字幕可见性"
+          },
+          "ShowTranslation": {
+            "Label": "显示翻译",
+            "Description": "在字幕下方显示翻译行"
+          },
+          "SubtitlePosition": {
+            "Label": "字幕位置",
+            "Description": "字幕在屏幕上的位置",
+            "Top": "顶部",
+            "Bottom": "底部"
+          }
+        },
+        "SubtitleProcessing": {
+          "Title": "字幕处理",
+          "RemoveParentheses": {
+            "Label": "移除括号内容",
+            "Description": "从字幕中去除括号内的文本"
+          },
+          "RemoveSpeakerNames": {
+            "Label": "移除说话者名称",
+            "Description": "从字幕行中去除说话者名称前缀"
+          }
+        },
+        "FlashcardMedia": {
+          "Title": "闪卡媒体",
+          "MediaType": {
+            "Label": "媒体类型",
+            "Description": "为新建闪卡附加字幕片段的截图或视频剪辑",
+            "Image": "图片",
+            "Video": "视频"
+          },
+          "VideoMargin": {
+            "Label": "视频剪辑边距",
+            "Description": "视频剪辑中包含的字幕前后额外时间"
+          }
+        }
+      },
+      "Tabs": {
+        "AI": "AI",
+        "About": "关于",
+        "Appearance": "外观",
+        "Behaviour": "行为",
+        "Components": "组件",
+        "Connection": "连接",
+        "General": "通用",
+        "Plugins": "插件",
+        "Reader": "阅读器",
+        "SRS": "SRS",
+        "Statistics": "统计",
+        "VideoPlayer": "视频播放器",
+        "BrowserExtension": "浏览器扩展"
+      }
+    },
+    "BrowserExtension": {
+      "Title": "浏览器扩展",
+      "Description": "安装 mLearn 浏览器扩展以将视频播放与应用同步。",
+      "DetectedBrowsers": "检测到的浏览器",
+      "Detecting": "正在检测浏览器…",
+      "DetectError": "检测浏览器失败。请重试。",
+      "NoBrowsers": "未检测到浏览器",
+      "NoBrowsersHint": "如果未自动检测到浏览器，请在下方添加自定义浏览器路径。",
+      "Install": "安装",
+      "Installing": "正在安装…",
+      "Installed": "已安装",
+      "InstalledAt": "安装位置",
+      "InstallFailed": "安装失败",
+      "Retry": "重试",
+      "ManualTitle": "手动安装",
+      "ManualChrome": "打开 Chrome 扩展程序页面（chrome://extensions/），启用开发者模式，点击加载已解压的扩展程序，然后选择 extension/dist/ 文件夹。",
+      "ManualFirefox": "打开 about:debugging，点击此 Firefox，然后点击加载临时附加组件，选择 extension/dist/manifest.json 文件。",
+      "ManualUnknown": "请参考您浏览器的文档以了解如何加载解压的扩展程序。",
+      "CustomPath": "自定义浏览器路径",
+      "CustomPathLabel": "浏览器类型",
+      "CustomPathHint": "选择浏览器的主要可执行文件或应用包（例如 Chrome.app、chrome.exe、firefox.exe）。不要选择扩展程序文件夹。",
+      "Browse": "浏览",
+      "Uninstall": "卸载",
+      "UninstallFailed": "卸载失败",
+      "ConnectionStatus": "扩展连接",
+      "ExtensionStatus": "状态",
+      "Connected": "已连接",
+      "Disconnected": "未连接",
+      "OpenExtensionFolder": "打开扩展文件夹",
+      "OpenExtensionFolderSuccess": "扩展文件夹已打开",
+      "OpenExtensionFolderFailed": "打开扩展文件夹失败",
+      "CopyExtensionPath": "复制路径",
+      "ExtensionPathCopied": "路径已复制到剪贴板",
+      "ManualInstallHint": "自动安装失败。您可以手动安装扩展：",
+      "Step1": "打开浏览器的扩展程序页面（chrome://extensions/ 或 about:addons）",
+      "Step2": "启用开发者模式（Chrome）或打开齿轮图标（Firefox）",
+      "Step3": "点击“加载已解压的扩展程序”（Chrome）或“加载临时附加组件”（Firefox）",
+      "Step4": "选择已打开的扩展文件夹"
+    },
+    "Statistics": {
+      "Actions": {
+        "EditWordDatabase": "编辑单词数据库",
+        "OpenAiAnalytics": "AI 媒体分析",
+        "ViewKanjiGrid": "查看汉字网格"
+      },
+      "CurrentlyLearning": "正在学习",
+      "Dashboard": {
+        "AverageEase": "平均难度系数",
+        "BestStreak": "最佳连续天数",
+        "CardState": {
+          "Learning": "学习中",
+          "New": "新卡",
+          "Review": "复习",
+          "Suspended": "已暂停"
+        },
+        "CardStates": "卡片状态",
+        "CenterLabel": {
+          "Cards": "卡片",
+          "Mature": "成熟",
+          "Words": "单词"
+        },
+        "CurrentStreak": "当前连续天数",
+        "DaysStudied": "学习天数",
+        "EaseDistribution": "难度系数分布",
+        "Forecast": "14 天复习预测",
+        "Graduated": "已毕业",
+        "ImmersionHeatmap": "沉浸式学习热力图",
+        "ImmersionTime": "沉浸式学习时间",
+        "IntervalDistribution": "间隔分布",
+        "LapseHeatmap": "遗忘热力图",
+        "Lapses": "遗忘次数",
+        "LevelCoverage": "覆盖率",
+        "LevelTotal": "总计",
+        "Maturity": {
+          "Mature": "成熟（≥21天）",
+          "Title": "成熟度",
+          "Young": "年轻（<21天）"
+        },
+        "NewLearned": "新学数量",
+        "OutsideLevels": "等级外单词",
+        "OutsideLevelsTotal": "总计",
+        "Overdue": "逾期",
+        "RetentionRate": "保持率",
+        "ReviewActivity": "复习活动（过去 30 天）",
+        "ReviewHeatmap": "复习热力图",
+        "ReviewStudyTime": "复习学习时间",
+        "Reviews": "复习次数",
+        "SrsConfig": "SRS 配置",
+        "Srs": {
+          "EasyInterval": "简单间隔",
+          "GraduatingInterval": "毕业间隔",
+          "LearningSteps": "学习步骤",
+          "MaxInterval": "最大间隔",
+          "MaxReviewsPerDay": "每日最大复习数",
+          "NewCardsPerDay": "每日新卡数",
+          "NewIntervalMod": "新间隔调整",
+          "RelearnSteps": "重新学习步骤",
+          "ReviewIntervalMod": "复习间隔调整"
+        },
+        "StudyTime": "学习时间",
+        "TimeRead": "阅读时间",
+        "TimeWatched": "观看时间",
+        "Today": "今日",
+        "TodaysSession": "今日会话",
+        "TotalSessionTime": "总会话时间",
+        "FlashcardTime": "闪卡",
+        "VideoTime": "视频",
+        "ReadingTime": "阅读",
+        "TotalCards": "总卡片数",
+        "TotalImmersion": "总沉浸式学习时间",
+        "TotalReviews": "总复习次数",
+        "TotalTime": "总时间",
+        "WordAcquisition": {
+          "AvgEncounters": "平均遇到次数",
+          "MedianEncounters": "中位遇到次数",
+          "Title": "单词习得",
+          "WordsTracked": "追踪单词数"
+        },
+        "WordKnowledge": "单词掌握"
+      },
+      "Description": "追踪您的进度和学习历程",
+      "Legend": {
+        "Learned": "已学习",
+        "Learning": "学习中",
+        "Viewed": "已查看"
+      },
+      "LevelColumn": "等级",
+      "TimeWatched": "观看时间",
+      "Title": "学习统计",
+      "WordsByExamLevel": "按考试等级的单词",
+      "WordsByStatus": "按状态的单词",
+      "WordsLearned": "已学单词",
+      "WordsTracked": "追踪单词"
+    },
+    "SubtitleSync": {
+      "NextTooltip": "同步到下一字幕",
+      "PreviousTooltip": "同步到上一字幕"
+    },
+    "Video": {
+      "Controls": {
+        "Mute": "静音",
+        "PlaybackSpeed": "播放速度",
+        "Unmute": "取消静音",
+        "SubtitleNone": "无",
+        "SubtitleExternal": "用户提供的字幕",
+        "SubtitleTrack": "字幕轨道",
+        "AudioTrack": "音轨"
+      },
+      "CopySubtitle": "复制字幕",
+      "SyncSubtitles": "同步字幕",
+      "Tooltip": {
+        "GoHome": "返回首页",
+        "OpenConversationAgent": "打开 AI 对话导师"
+      },
+      "UI": {
+        "DropVideoHere": "将视频文件拖放到此处",
+        "GoHome": "← 首页",
+        "OpenConversationAgent": "AI 导师",
+        "OpenSubtitles": "打开字幕",
+        "OpenVideo": "打开视频",
+        "OrClickToBrowse": "或点击下方浏览",
+        "ToggleWordSidebar": "切换单词侧边栏"
+      },
+      "Sidebar": {
+        "UnknownWordsEmpty": "尚未发现未知单词。请加载字幕播放视频。",
+        "SortBy": {
+          "SubtitleOrder": "字幕顺序"
+        }
+      },
+      "VideoClipFailed": "视频剪辑失败，改用截图",
+      "SubtitleExtractionFailed": "无法从此视频提取字幕。请尝试加载外部字幕文件。",
+      "SubtitleTracksDetected": "检测到字幕轨道。大文件不支持自动提取。请加载外部字幕文件或使用 ffmpeg 提取。",
+      "WatchTogether": "一起看"
+    },
+    "Overlay": {
+      "Close": "关闭叠加层",
+      "ControlsAria": "叠加层控制",
+      "DecreaseOffset": "减少字幕偏移 100ms",
+      "DisableAutoPosition": "禁用自动定位",
+      "DragToMove": "拖动移动叠加层",
+      "DragToResize": "拖动调整叠加层大小",
+      "DropSubtitle": "将字幕文件拖放到此处",
+      "EnableAutoPosition": "启用自动定位",
+      "IncreaseOffset": "增加字幕偏移 100ms",
+      "LoadSubtitles": "加载字幕",
+      "OffsetTooltip": "字幕时间偏移",
+      "SyncActive": "同步已激活",
+      "SyncInactive": "同步未激活",
+      "ToggleSubtitles": "切换字幕",
+      "ToggleWordSidebar": "切换单词侧边栏",
+      "OpenConversationAgent": "打开 AI 对话导师",
+      "ToggleLiveTranslator": "切换实时单词翻译",
+      "WatchTogether": "一起看"
+    },
+    "WatchTogether": {
+      "Mode": {
+        "Title": "一起看",
+        "Subtitle": "选择连接方式",
+        "Local": {
+          "Title": "局域网",
+          "Description": "与同一网络上的绑定浏览器共享播放。",
+          "Action": "启动局域网"
+        },
+        "Code": {
+          "Title": "房间码",
+          "Description": "使用可共享的代码创建或加入房间。需要登录。",
+          "Action": "使用房间码"
+        }
+      },
+      "Code": {
+        "Title": "一起看房间",
+        "Subtitle": "主持或加入一起看会话",
+        "TabAriaLabel": "主持或加入",
+        "HostTab": "主持",
+        "JoinTab": "加入",
+        "HostTitle": "主持房间",
+        "HostDescription": "创建新房间并分享代码给其他人。",
+        "HostDisabled": "请先加载视频",
+        "CreateAction": "创建房间",
+        "JoinTitle": "加入房间",
+        "JoinDescription": "输入主持人分享的房间码。",
+        "RoomCodePlaceholder": "输入房间码",
+        "JoinAction": "加入",
+        "ActiveOwnerTitle": "主持房间",
+        "ActiveOwnerDescription": "分享下方房间码让其他人加入。",
+        "ActiveViewerTitle": "已加入房间",
+        "ActiveViewerDescription": "您已与房间主持人同步。",
+        "RoomCodeLabel": "房间码",
+        "CopyCodeAction": "复制代码",
+        "DisconnectAction": "断开连接",
+        "UnshareableVideo": "此视频源无法远程共享。",
+        "Copied": "房间码已复制到剪贴板",
+        "RoomClosed": "房间已被主持人关闭。",
+        "OpenRoomPanel": "房间",
+        "SignInRequiredTitle": "需要登录",
+        "SignInRequiredMessage": "使用您的 mLearn 云账户登录以使用房间码。",
+        "SignInModalTitle": "登录以使用一起看",
+        "SignInHint": "输入您的 mLearn 云凭证",
+        "SignInCodeHint": "如果您收到设备码，请在下方输入",
+        "PeerJoinedSingular": "有对等端加入了您的房间",
+        "PeerJoinedPlural": "{count} 个对等端加入了您的房间",
+        "AnticipatingPing": "等待 ping…"
+      },
+      "Extension": {
+        "HeadlessMode": "无头模式",
+        "Enable": "启用",
+        "Disable": "禁用",
+        "Subtitles": "字幕",
+        "LoadSubtitleFile": "加载字幕文件",
+        "SyncOffset": "同步偏移",
+        "SignInRequired": "登录以使用一起看",
+        "SignIn": "登录",
+        "Host": "主持",
+        "Join": "加入",
+        "CreateRoom": "创建房间",
+        "RoomCodePlaceholder": "输入房间码",
+        "RoomCode": "房间码",
+        "Peers": "对等端",
+        "LeaveRoom": "离开房间"
+      },
+      "Media": {
+        "DistributeTitle": "分发媒体",
+        "DistributeSubtitle": "通过 WebRTC 向连接的对等端发送媒体文件",
+        "DistributeAction": "分发",
+        "SelectFile": "选择要分发的媒体文件",
+        "FileName": "文件名",
+        "FileSize": "文件大小",
+        "ConnectedPeers": "连接的对等端",
+        "SubtitlesIncluded": "包含字幕",
+        "StartDistribution": "开始分发",
+        "Sending": "正在向对等端发送媒体…",
+        "DistributionComplete": "分发完成。所有对等端已收到媒体。",
+        "ReceiveTitle": "传入媒体",
+        "ReceivePrompt": "一个对等端想向您发送媒体文件。是否接收？",
+        "Receiving": "正在接收媒体…",
+        "ReceiveComplete": "媒体接收成功。",
+        "LoadMedia": "加载媒体",
+        "PeerConnectionFailed": "对等连接失败。如果对等端在不同网络上，请在连接设置中配置 TURN 服务器。",
+        "NoPeersConnected": "没有连接的对等端。确保所有参与者都在同一房间，如果在不同网络请检查连接设置。"
+      }
+    },
+    "WordDbEditor": {
+      "Actions": {
+        "Unignore": "取消忽略"
+      },
+      "AllLevels": "所有等级",
+      "Anki": {
+        "AlreadyInAnki": "已在 Anki 中",
+        "EmptyField": "（空）",
+        "ExportFailed": "导出到 Anki 失败",
+        "ExportToAnki": "导出到 Anki",
+        "Exported": "已导出到 Anki",
+        "NoCardFound": "未找到此单词的 Anki 卡片",
+        "NotConnected": "Anki 未连接",
+        "Preview": "预览",
+        "PreviewTitle": "Anki 预览 – {word}"
+      },
+      "BrowseMode": {
+        "AllWords": "所有单词",
+        "IgnoredWords": "已忽略的单词"
+      },
+      "Columns": {
+        "Level": "等级",
+        "Status": "状态",
+        "TrackedBy": "追踪来源",
+        "Translation": "翻译",
+        "Word": "单词"
+      },
+      "EditTranslation": {
+        "PitchError": "获取音调核数据失败",
+        "RemoveOverride": "移除覆盖",
+        "RevertError": "还原翻译覆盖失败",
+        "Title": "编辑翻译 – {word}",
+        "Tooltip": "编辑单词覆盖"
+      },
+      "EmptyIgnoredState": "未找到此语言的已忽略单词。",
+      "EmptyState": "未找到单词。点击“加载全部”加载您的单词数据库。",
+      "Fields": {
+        "PartOfSpeech": "词性",
+        "PosPlaceholder": "n、v、adj 等"
+      },
+      "LevelNames": {
+        "Common": "常用",
+        "Unlisted": "未列出"
+      },
+      "Loading": "正在加载单词数据库…",
+      "LoadingMore": "正在加载更多…",
+      "SearchHintDetailed": "按回车搜索；精确匹配优先。请先点击加载全部。",
+      "SearchPlaceholder": "搜索单词…",
+      "Searching": "正在搜索…",
+      "Trackers": {
+        "Anki": "Anki",
+        "Flashcards": "闪卡",
+        "Ignored": "已忽略",
+        "Nothing": "未追踪"
+      },
+      "Title": "单词数据库"
+    },
+    "WordHover": {
+      "AddToAnki": "添加到 Anki",
+      "AddToBuiltInSrs": "点击添加到内置 SRS",
+      "Alerts": {
+        "ExplainRequiresLlm": "解释功能需要本地 AI 语言模型。请在设置中启用 LLM 并重启应用。"
+      },
+      "AnkiDuplicateWarning": {
+        "Confirm": "仍要添加",
+        "DontRemind": "不再提醒",
+        "Message": "此单词已存在于 Anki 中。将其添加到内置 SRS 将创建重复闪卡。",
+        "Title": "重复闪卡"
+      },
+      "Errors": {
+        "FailedToAddFlashcard": "添加闪卡失败：{error}"
+      },
+      "Explain": "解释",
+      "InAnki": "在 Anki 中",
+      "Loading": "加载中…",
+      "NoTranslation": "未找到翻译",
+      "Status": {
+        "Known": "已掌握",
+        "Learning": "学习中",
+        "Unknown": "未知"
+      },
+      "StatusSource": {
+        "Prefix": "来源：",
+        "None": "无"
+      },
+      "StatusSourceWarning": {
+        "Confirm": "仍要更改",
+        "DontRemind": "不再提醒",
+        "Message": "此单词的状态由其最高知识来源决定。如果 Anki 或闪卡已以更高等级追踪此单词，手动更改可能无效。",
+        "Title": "状态覆盖"
+      },
+      "AnkiModifyWarning": {
+        "Title": "修改 Anki 卡片",
+        "Message": "这将修改此单词的 Anki 卡片的难度系数和位置。新卡片将移到复习队列的前面。",
+        "Confirm": "继续",
+        "BuiltInOnly": "仅更改状态",
+        "DontRemind": "不再提醒"
+      },
+      "AnkiEase": "Anki 难度系数：{ease}",
+      "AnkiUpdateSuccess": "已更新 {count} 张 Anki 卡片",
+      "AnkiUpdateRepositioned": "已更新 {count} 张卡片，重新定位了 {repositioned} 张新卡片",
+      "AnkiUpdateFailed": "更新 Anki 卡片失败"
+    },
+    "ConnectionStatus": {
+      "Connected": "已连接",
+      "Connecting": "正在连接…",
+      "Disconnected": "未连接",
+      "Error": "连接错误"
+    },
+    "Tabs": {
+      "Flashcards": "闪卡",
+      "Home": "首页",
+      "Reader": "阅读器",
+      "Settings": "设置",
+      "Video": "视频"
+    },
+    "Sidebar": {
+      "AddAll": "全部添加",
+      "AddingAll": "添加中…",
+      "AnkiAddAllWarning": {
+        "Title": "修改 Anki 卡片",
+        "Message": "这会将已知单词的 Anki 卡片重新定位到复习队列前面并更新其难度系数。对于不在 Anki 中的单词，将询问您保存位置。",
+        "Confirm": "继续",
+        "DontRemind": "不再提醒"
+      },
+      "DictionaryOnly": "仅词典",
+      "Ignore": "忽略",
+      "SortBy": {
+        "Level": "等级",
+        "Word": "单词"
+      },
+      "UnknownWords": "未知单词",
+      "WordCount": "{count} 个单词"
+    },
+    "WordSync": {
+      "FinishedTitle": "全部完成！",
+      "FinishedDescription": "您已评估了 {count} 个单词。您的单词知识已更新。",
+      "Progress": "{rated} / {total} 个单词",
+      "Unknown": "未知",
+      "Learning": "学习中",
+      "Known": "已掌握",
+      "ShowTranslation": "显示翻译",
+      "HideTranslation": "隐藏翻译",
+      "RecheckAll": "重新检查所有单词",
+      "UnknownOnly": "仅未知",
+      "Rated": {
+        "Unknown": "标记为未知",
+        "Learning": "标记为学习中",
+        "Known": "标记为已掌握"
+      }
+    },
+    "Menu": {
+      "About": "关于 mLearn",
+      "BrowserExtension": {
+        "Title": "浏览器扩展",
+        "InstallExtension": "安装扩展…",
+        "OpenOverlayWindow": "打开叠加窗口"
+      },
+      "Cancel": "取消",
+      "CollatePages": "合并页面",
+      "CopyPhrase": "复制短语",
+      "CopySubtitle": "复制字幕",
+      "Create": "创建",
+      "Edit": "编辑",
+      "EditWordKnowledgeDatabase": "编辑单词知识数据库",
+      "Explain": "解释",
+      "File": "文件",
+      "Flashcards": "闪卡",
+      "ForceRecreateFlashcards": "强制重新创建今日新闪卡",
+      "Help": "帮助",
+      "HideReading": "隐藏读音",
+      "OpenDevTools": "打开开发者工具",
+      "OpenLiveWordTranslator": "打开实时单词翻译",
+      "OpenSyncingWindow": "打开同步窗口",
+      "RecreateFlashcards": {
+        "Title": "重新创建闪卡",
+        "Message": "这将从追踪的单词候选中创建新闪卡。是否继续？",
+        "Cancel": "取消",
+        "Create": "创建"
+      },
+      "ReviewFlashcards": "复习闪卡",
+      "Settings": "设置",
+      "ShowKanjiGrid": "显示汉字网格",
+      "ShowLearningStatistics": "显示学习统计",
+      "ShowReading": "显示读音",
+      "Statistics": "统计",
+      "StopWatchTogether": "停止一起看",
+      "SyncSubtitles": "将字幕与视频同步",
+      "SyncWithMe": "与我同步",
+      "UncollatePages": "拆分页面",
+      "Video": "视频",
+      "View": "查看",
+      "WatchTogether": "一起看",
+      "Window": "窗口"
+    },
+    "ComponentsTab": {
+      "Description": "管理已安装的组件。切换模块的开启或关闭，重新安装以应用更改。",
+      "Reinstall": "重新安装组件",
+      "RestartNote": "安装完成后应用将重启。"
+    },
+    "Diagnostics": {
+      "Title": "mLearn 诊断",
+      "RunAllTests": "运行所有测试",
+      "RunAgain": "重新运行",
+      "Running": "运行中…",
+      "ExportJson": "导出 JSON",
+      "ErrorTitle": "诊断失败",
+      "ReportSavedTo": "报告已保存至：",
+      "FilterAll": "全部",
+      "FilterPass": "通过",
+      "FilterFail": "失败",
+      "FilterSkip": "跳过",
+      "EmptyTitle": "点击“运行所有测试”以验证 mLearn 中的所有功能。",
+      "EmptyDescription": "这将测试 Python 后端、LLM 提供商、云连接、词典、OCR、语音、存储、媒体协议等 — 全部使用真实服务。"
+    }
+  }
+}

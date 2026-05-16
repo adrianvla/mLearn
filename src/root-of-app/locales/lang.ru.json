@@ -892,6 +892,8 @@
       "Cards": {
         "AITutor": {
           "Description": "Практикуйтесь с ИИ-собеседником",
+          "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
+          "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
           "Title": "ИИ-репетитор"
         },
         "Flashcards": {
@@ -935,7 +937,7 @@
         "ContinueLearning": "Продолжить обучение",
         "LearningLanguage": "Изучаю {language}",
         "Title": "mLearn",
-        "TitleDescription": "Изучайте языки через погружение"
+        "TitleDescription": "Выберите пункт ниже, чтобы начать"
       }
     },
     "Installer": {
@@ -1031,7 +1033,8 @@
       "en": "English",
       "fr": "Français",
       "ja": "日本語",
-      "ru": "Русский"
+      "ru": "Русский",
+      "zh": "中文"
     },
     "MediaStats": {
       "AllWordsKnown": "Все слова известны!",
@@ -2039,7 +2042,11 @@
       "OffsetTooltip": "Смещение тайминга субтитров",
       "SyncActive": "Синхронизация активна",
       "SyncInactive": "Синхронизация неактивна",
-      "ToggleSubtitles": "Переключить субтитры"
+      "ToggleSubtitles": "Переключить субтитры",
+      "ToggleWordSidebar": "Панель слов",
+      "OpenConversationAgent": "Открыть AI-репетитора",
+      "ToggleLiveTranslator": "Вкл/выкл переводчик слов",
+      "WatchTogether": "Смотреть вместе"
     },
     "WatchTogether": {
       "Mode": {

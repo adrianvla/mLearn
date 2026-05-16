@@ -301,6 +301,50 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.btn-snap {
+  width: auto;
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: var(--font-size-xs);
+  background: var(--bg-tertiary);
+  color: var(--accent-primary);
+  border: 1px solid var(--border-color-intense);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.btn-snap:hover {
+  background: var(--bg-elevated);
+  transform: translateY(-1px);
+}
+
+.btn-snap:active {
+  transform: translateY(0);
+}
+
+.offset-input {
+  width: 60px;
+  padding: var(--spacing-1) var(--spacing-2);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  text-align: center;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.offset-input:focus {
+  border-color: var(--accent-primary);
+}
+
+#signOutBtn {
+  margin-top: var(--spacing-2);
+}
+
 .hint-text {
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);

@@ -95,10 +95,15 @@ export type PopupMessageType =
   | 'HEADLESS_STATE_UPDATE'
   | 'LOAD_SUBTITLES'
   | 'SET_SUBTITLE_OFFSET'
+  | 'SNAP_SUBTITLE_OFFSET_BACKWARD'
+  | 'SNAP_SUBTITLE_OFFSET_FORWARD'
+  | 'SET_SUBTITLE_OFFSET_EXPLICIT'
   | 'WATCH_TOGETHER_CREATE_ROOM'
   | 'WATCH_TOGETHER_JOIN_ROOM'
   | 'WATCH_TOGETHER_LEAVE_ROOM'
-  | 'WATCH_TOGETHER_GET_STATE';
+  | 'WATCH_TOGETHER_GET_STATE'
+  | 'SIGN_OUT'
+  | 'GET_AUTH_TOKEN';
 
 export interface PopupMessage {
   type: PopupMessageType;
@@ -109,6 +114,7 @@ export interface PopupMessage {
   subtitleContent?: string;
   subtitleFormat?: 'srt' | 'vtt' | 'ass';
   offset?: number;
+  explicitOffset?: number;
   roomCode?: string;
   accessToken?: string;
   headlessState?: HeadlessPopupState;
@@ -149,6 +155,14 @@ export interface TextModeWordLookupMessage {
   word: string;
   x: number;
   y: number;
+  screenX: number;
+  screenY: number;
+  contextText?: string;
+  offset?: number;
+}
+
+export interface TextModeCloseHoverMessage {
+  type: 'TEXT_MODE_CLOSE_HOVER';
 }
 
 export interface ParsedSubtitle {

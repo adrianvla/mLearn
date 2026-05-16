@@ -892,6 +892,8 @@
       "Cards": {
         "AITutor": {
           "Description": "AI会話パートナーと練習する",
+          "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
+          "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
           "Title": "AIチューター"
         },
         "Flashcards": {
@@ -935,7 +937,7 @@
         "ContinueLearning": "学習を続ける",
         "LearningLanguage": "{language}を学習中",
         "Title": "mLearn",
-        "TitleDescription": "没入型で言語を学ぶ"
+        "TitleDescription": "下の項目を選択して始めましょう"
       }
     },
     "Installer": {
@@ -1031,7 +1033,8 @@
       "en": "English",
       "fr": "Français",
       "ja": "日本語",
-      "ru": "Русский"
+      "ru": "Русский",
+      "zh": "中文"
     },
     "MediaStats": {
       "AllWordsKnown": "すべての単語は既知です！",
@@ -2039,7 +2042,11 @@
       "OffsetTooltip": "字幕タイミングオフセット",
       "SyncActive": "同期中",
       "SyncInactive": "同期停止",
-      "ToggleSubtitles": "字幕を切り替え"
+      "ToggleSubtitles": "字幕を切り替え",
+      "ToggleWordSidebar": "単語サイドバーを切り替え",
+      "OpenConversationAgent": "AI会話チューターを開く",
+      "ToggleLiveTranslator": "ライブ翻訳の切り替え",
+      "WatchTogether": "一緒に視聴"
     },
     "WatchTogether": {
       "Mode": {

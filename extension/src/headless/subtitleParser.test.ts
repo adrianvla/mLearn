@@ -6,6 +6,8 @@ import {
   detectSubtitleFormat,
   parseSubtitles,
   findCurrentSubtitle,
+  findPreviousSubForSync,
+  findNextSub,
 } from './subtitleParser';
 
 const SAMPLE_SRT = `1
@@ -166,7 +168,106 @@ Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\\b1}Bold{\\b0} text`;
     });
   });
 
+  describe('findPreviousSubForSync', () => {
+    const subs = [
+      { start: 0, end: 5, text: 'First' },
+      { start: 5, end: 10, text: 'Second' },
+      { start: 10, end: 15, text: 'Third' },
+      { start: 20, end: 25, text: 'Fourth' },
+    ];
+
+    it('returns null for empty array', () => {
+      expect(findPreviousSubForSync([], 5)).toBeNull();
+    });
+
+    it('returns null for undefined', () => {
+      expect(findPreviousSubForSync(undefined, 5)).toBeNull();
+    });
+
+    it('returns null when at first subtitle', () => {
+      expect(findPreviousSubForSync(subs, 2)).toBeNull();
+    });
+
+    it('returns previous subtitle when inside a subtitle', () => {
+      // Inside Second (time=6) → should return First
+      expect(findPreviousSubForSync(subs, 6)).toEqual(subs[0]);
+    });
+
+    it('returns previous subtitle when in a gap after first', () => {
+      expect(findPreviousSubForSync(subs, 12)).toEqual(subs[1]);
+    });
+
+    it('returns last subtitle that ended before time when in gap', () => {
+      // In gap between Third and Fourth (time=17)
+      expect(findPreviousSubForSync(subs, 17)).toEqual(subs[2]);
+    });
+
+    it('returns null at exact end boundary of first subtitle', () => {
+      // time=5 is inside First (end=5 inclusive) → no previous sub
+      expect(findPreviousSubForSync(subs, 5)).toBeNull();
+    });
+
+    it('returns null when time is before all subtitles', () => {
+      expect(findPreviousSubForSync(subs, -1)).toBeNull();
+    });
+
+    it('returns previous subtitle for gap before last subtitle', () => {
+      // In gap between Third and Fourth (time=18)
+      expect(findPreviousSubForSync(subs, 18)).toEqual(subs[2]);
+    });
+  });
+
+  describe('findNextSub', () => {
+    const subs = [
+      { start: 0, end: 5, text: 'First' },
+      { start: 5, end: 10, text: 'Second' },
+      { start: 10, end: 15, text: 'Third' },
+      { start: 20, end: 25, text: 'Fourth' },
+    ];
+
+    it('returns null for empty array', () => {
+      expect(findNextSub([], 5)).toBeNull();
+    });
+
+    it('returns null for undefined', () => {
+      expect(findNextSub(undefined, 5)).toBeNull();
+    });
+
+    it('finds next subtitle after given time', () => {
+      expect(findNextSub(subs, 2)).toEqual(subs[1]);
+      expect(findNextSub(subs, 7)).toEqual(subs[2]);
+    });
+
+    it('returns null when at last subtitle', () => {
+      expect(findNextSub(subs, 22)).toBeNull();
+    });
+
+    it('returns null when after all subtitles', () => {
+      expect(findNextSub(subs, 100)).toBeNull();
+    });
+
+    it('returns next subtitle when on exact boundary', () => {
+      // At start of First (time=0) → next is Second
+      expect(findNextSub(subs, 0)).toEqual(subs[1]);
+    });
+
+    it('returns first subtitle when before all', () => {
+      expect(findNextSub(subs, -1)).toEqual(subs[0]);
+    });
+
+    it('finds next subtitle from gap', () => {
+      // In gap between Third and Fourth (time=17) → next is Fourth
+      expect(findNextSub(subs, 17)).toEqual(subs[3]);
+    });
+
+    it('finds next subtitle after current', () => {
+      // Inside Second (time=6) → next is Third
+      expect(findNextSub(subs, 6)).toEqual(subs[2]);
+    });
+  });
+
   describe('findCurrentSubtitle', () => {
+    // All times and offset are in seconds.
     const subtitles = [
       { start: 0, end: 5, text: 'First' },
       { start: 5, end: 10, text: 'Second' },

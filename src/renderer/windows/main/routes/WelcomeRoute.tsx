@@ -8,7 +8,7 @@ import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { ActionCard, RecentCard, Btn, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, GridIcon, SearchIcon, RefreshIcon, type RecentItem } from '../../../components/common';
+import { ActionCard, RecentCard, Btn, Tooltip, VideoIcon, BookIcon, SettingsIcon, BotIcon, BarChartIcon, GridIcon, SearchIcon, RefreshIcon, type RecentItem } from '../../../components/common';
 import { AITutorSetupModal } from '../../../components/AITutorSetup';
 import type { TutorSessionConfig } from '../../../../shared/types';
 import { getRecentItems } from '../../../services/thumbnailService';
@@ -210,15 +210,37 @@ export const WelcomeRoute: Component = () => {
           onClick={openWordSync}
         />
 
-        <ActionCard
-          icon={<BotIcon size={24} />}
-          title={t('mlearn.Home.Cards.AITutor.Title')}
-          description={t('mlearn.Home.Cards.AITutor.Description')}
-          onClick={openAITutor}
-          primary
-          disabled={!settings.llmEnabled || !settings.llmConfigured}
-          class="welcome-ai-tutor-card"
-        />
+        <Show
+          when={!settings.llmEnabled || !settings.llmConfigured}
+          fallback={
+            <ActionCard
+              icon={<BotIcon size={24} />}
+              title={t('mlearn.Home.Cards.AITutor.Title')}
+              description={t('mlearn.Home.Cards.AITutor.Description')}
+              onClick={openAITutor}
+              primary
+              class="welcome-ai-tutor-card"
+            />
+          }
+        >
+          <Tooltip
+            content={
+              <span class="tooltip-text">
+                {t('mlearn.Home.Cards.AITutor.SetupRequiredTooltip')}
+              </span>
+            }
+          >
+            <ActionCard
+              icon={<BotIcon size={24} />}
+              title={t('mlearn.Home.Cards.AITutor.Title')}
+              description={t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
+              onClick={openAITutor}
+              primary
+              disabled
+              class="welcome-ai-tutor-card"
+            />
+          </Tooltip>
+        </Show>
       </section>
 
       <AITutorSetupModal

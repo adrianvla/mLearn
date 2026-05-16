@@ -266,6 +266,7 @@ const overlayBridge: OverlayBridge = {
   overlayClearSiteState: (url) => getIPC().overlayClearSiteState(url),
   overlaySetBounds: (bounds) => getIPC().overlaySetBounds(bounds),
   onOverlayActiveUrlChanged: (cb) => getIPC().onOverlayActiveUrlChanged(cb),
+  onOverlayCloseHover: (cb) => getIPC().onOverlayCloseHover(cb),
 };
 
 const crossWindowBridge: CrossWindowBridge = {

@@ -317,6 +317,8 @@ export {
   DragIcon,
   ResizeIcon,
   AutoPositionIcon,
+  PeopleGroupIcon,
+  TranslateIcon,
   type IconProps,
   type VolumeLevelIconProps,
   type AutoPositionIconProps,

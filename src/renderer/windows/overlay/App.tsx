@@ -33,6 +33,8 @@ interface TextModeLookupData {
   word: string;
   x: number;
   y: number;
+  contextText?: string;
+  offset?: number;
 }
 
 const DISCONNECT_TIMEOUT_MS = 15000;
@@ -61,6 +63,22 @@ function isOverInteractiveRegion(e: MouseEvent): boolean {
   const el = document.elementFromPoint(e.clientX, e.clientY);
   if (!el) return false;
   return INTERACTIVE_SELECTORS.some((sel) => el.closest(sel));
+}
+
+function findTokenByOffset(tokens: Token[], text: string, offset: number): Token | null {
+  let pos = 0;
+  for (const token of tokens) {
+    const surface = token.surface ?? token.word;
+    const idx = text.indexOf(surface, pos);
+    if (idx === -1) continue;
+    const start = idx;
+    const end = idx + surface.length;
+    if (offset >= start && offset < end) {
+      return token;
+    }
+    pos = end;
+  }
+  return null;
 }
 
 const log = getLogger('renderer.overlay');
@@ -94,6 +112,7 @@ export const App: Component = () => {
   const [showAnkiAddAllWarning, setShowAnkiAddAllWarning] = createSignal(false);
   const [pendingAddAllEntries, setPendingAddAllEntries] = createSignal<VideoWordEntry[]>([]);
   const [explainerOpen, setExplainerOpen] = createSignal(false);
+  const [explainerWord, setExplainerWord] = createSignal('');
   const [explainerContext, setExplainerContext] = createSignal('');
   const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
   const [contextMenuPosition, setContextMenuPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -108,6 +127,18 @@ export const App: Component = () => {
   const [textModeToken, setTextModeToken] = createSignal<Token | null>(null);
   const [textModeTranslation, setTextModeTranslation] = createSignal<{ data?: unknown[] } | null>(null);
   const [textModeLoading, setTextModeLoading] = createSignal(false);
+
+  const [viewportScale, setViewportScale] = createSignal({ x: 1, y: 1 });
+
+  const textModeScaledPosition = createMemo(() => {
+    const lookup = textModeLookup();
+    const scale = viewportScale();
+    if (!lookup) return { x: 0, y: 0 };
+    return {
+      x: lookup.x * scale.x,
+      y: lookup.y * scale.y,
+    };
+  });
 
   const hasSubtitles = createMemo(() => subtitles.subtitles().length > 0);
   const currentTime = createMemo(() => videoState()?.currentTime ?? 0);
@@ -218,8 +249,8 @@ export const App: Component = () => {
     );
 
     cleanups.push(
-      bridge.overlay.onOverlayTextModeLookup((payload: { word: string; x: number; y: number }) => {
-        console.log('[Overlay] 🏁 textModeLookup: word=', payload.word, 'x=', payload.x, 'y=', payload.y, 'screen=', window.screen.width, 'x', window.screen.height, 'inner=', window.innerWidth, 'x', window.innerHeight);
+      bridge.overlay.onOverlayTextModeLookup((payload: { word: string; x: number; y: number; contextText?: string; offset?: number }) => {
+        console.log('[Overlay] 🏁 textModeLookup: word=', payload.word, 'x=', payload.x, 'y=', payload.y, 'contextText length=', payload.contextText?.length, 'screen=', window.screen.width, 'x', window.screen.height, 'inner=', window.innerWidth, 'x', window.innerHeight);
         updateSetting('overlayTextMode', true);
         console.log('[Overlay] 📏 sending overlaySetBounds to fullscreen');
         bridge.overlay.overlaySetBounds({
@@ -228,6 +259,14 @@ export const App: Component = () => {
           height: window.screen.height,
         });
         setTextModeLookup(payload);
+      })
+    );
+
+    cleanups.push(
+      bridge.overlay.onOverlayCloseHover(() => {
+        setTextModeLookup(null);
+        setTextModeToken(null);
+        setTextModeTranslation(null);
       })
     );
 
@@ -265,7 +304,13 @@ export const App: Component = () => {
       }
     });
 
-    const handleResize = () => console.log('[Overlay] 📐 window resize: inner=', window.innerWidth, 'x', window.innerHeight);
+    const handleResize = () => {
+      setViewportScale({
+        x: window.innerWidth / window.screen.width,
+        y: window.innerHeight / window.screen.height,
+      });
+      console.log('[Overlay] 📐 window resize: inner=', window.innerWidth, 'x', window.innerHeight);
+    };
     window.addEventListener('resize', handleResize);
     cleanups.push(() => window.removeEventListener('resize', handleResize));
 
@@ -545,12 +590,23 @@ export const App: Component = () => {
   };
 
   const handleOpenPhraseExplainer = (context: string, position: { x: number; y: number }) => {
+    setExplainerWord('');
     setExplainerContext(context);
     setExplainerPosition(position);
     setExplainerOpen(true);
   };
 
-  const handleCloseExplainer = () => setExplainerOpen(false);
+  const handleOpenExplainer = (word: string, context: string, position: { x: number; y: number }) => {
+    setExplainerWord(word);
+    setExplainerContext(context);
+    setExplainerPosition(position);
+    setExplainerOpen(true);
+  };
+
+  const handleCloseExplainer = () => {
+    setExplainerOpen(false);
+    setExplainerWord('');
+  };
 
   const handleWatchTogetherCommand = () => {
     setWatchTogetherError('');
@@ -691,6 +747,10 @@ export const App: Component = () => {
 
   const ignoreVideoWord = async (entry: VideoWordEntry) => {
     await flashcardCtx.ignoreWordForLanguage(entry.word);
+  };
+
+  const handleToggleLiveTranslator = () => {
+    updateSetting('showLiveTranslator', settings.showLiveTranslator === false ? true : false);
   };
 
   const openConversationAgent = () => {
@@ -879,38 +939,94 @@ export const App: Component = () => {
     const lookup = textModeLookup();
     if (!lookup) return;
 
-    console.log('[Overlay] ⚡ textModeLookup effect firing, word=', lookup.word, 'inner=', window.innerWidth, 'x', window.innerHeight);
+    console.log('[Overlay] ⚡ textModeLookup effect firing, word=', lookup.word, 'contextText length=', lookup.contextText?.length, 'offset=', lookup.offset, 'inner=', window.innerWidth, 'x', window.innerHeight);
     setTextModeLoading(true);
     const word = lookup.word;
+    const contextText = lookup.contextText;
+    const offset = lookup.offset;
 
-    const cached = getCachedTranslation(word, settings.language);
-    if (cached) {
-      setTextModeTranslation(cached);
-    } else {
-      translateWord(word).then((result) => {
-        if (result) setTextModeTranslation(result);
-      }).catch(() => {});
-    }
+    // If we have full context from the extension, tokenize the full text
+    // so the backend can properly split CJK text (which doesn't use spaces between words).
+    // Then find the clicked word in the tokenized results.
+    const textToTokenize = contextText || word;
 
-    const token: Token = {
-      word,
-      actual_word: word,
-      type: 'unknown',
-      surface: word,
-      partOfSpeech: 'unknown',
-    };
-
-    tokenize(word).then((tokens) => {
+    tokenize(textToTokenize).then((tokens) => {
       console.log('[Overlay] ✅ tokenize complete, will setTextModeToken, inner=', window.innerWidth, 'x', window.innerHeight);
+      let selectedToken: Token | null = null;
+
       if (tokens && tokens.length > 0) {
-        setTextModeToken(tokens[0]);
-      } else {
-        setTextModeToken(token);
+        // Prefer offset-based matching for CJK and other languages where
+        // the extension cannot reliably determine word boundaries.
+        if (contextText && offset !== undefined && offset >= 0) {
+          selectedToken = findTokenByOffset(tokens, contextText, offset);
+        }
+        // Fallback to string matching when offset is unavailable.
+        if (!selectedToken && contextText) {
+          selectedToken = tokens.find(
+            (t) => (t.surface === word || t.word === word || t.actual_word === word)
+          ) ?? null;
+        }
+        if (!selectedToken) {
+          selectedToken = tokens[0];
+        }
       }
-    }).catch(() => {
-      setTextModeToken(token);
-    }).finally(() => {
+
+      if (!selectedToken) {
+        selectedToken = {
+          word,
+          actual_word: word,
+          type: 'unknown',
+          surface: word,
+          partOfSpeech: 'unknown',
+        };
+      }
+
+      setTextModeToken(selectedToken);
+
+      const lookupWord = selectedToken.actual_word ?? selectedToken.surface ?? selectedToken.word;
+      const cached = getCachedTranslation(lookupWord, settings.language);
+      if (cached) {
+        setTextModeTranslation(cached);
+      } else {
+        translateWord(lookupWord).then((result) => {
+          if (result) setTextModeTranslation(result);
+        }).catch(() => {});
+      }
+
       setTextModeLoading(false);
+    }).catch(() => {
+      setTextModeToken({
+        word,
+        actual_word: word,
+        type: 'unknown',
+        surface: word,
+        partOfSpeech: 'unknown',
+      });
+      setTextModeLoading(false);
+    });
+  });
+
+  createEffect(() => {
+    if (!textModeToken()) return;
+    const clickHandler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.word-hover-container')) return;
+      setTextModeLookup(null);
+      setTextModeToken(null);
+      setTextModeTranslation(null);
+    };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setTextModeLookup(null);
+        setTextModeToken(null);
+        setTextModeTranslation(null);
+      }
+    };
+    document.addEventListener('mousedown', clickHandler);
+    document.addEventListener('keydown', keyHandler);
+    onCleanup(() => {
+      document.removeEventListener('mousedown', clickHandler);
+      document.removeEventListener('keydown', keyHandler);
     });
   });
 
@@ -978,6 +1094,8 @@ export const App: Component = () => {
               subtitleOffset={settings.subsOffsetTime}
               autoPositionEnabled={autoPositionEnabled()}
               showWordSidebar={showWordSidebar()}
+              showLiveTranslator={settings.showLiveTranslator}
+              isWatchTogetherActive={watchTogether.isActive()}
               currentVideoTime={() => currentTime()}
               subtitles={subtitles.subtitles()}
               onOffsetChange={handleOffsetChange}
@@ -991,6 +1109,8 @@ export const App: Component = () => {
               onResizeMove={handleResizeMove}
               onResizeEnd={handleResizeEnd}
               onToggleAutoPosition={handleToggleAutoPosition}
+              onToggleWatchTogether={handleWatchTogetherCommand}
+              onToggleLiveTranslator={handleToggleLiveTranslator}
               onToggleWordSidebar={() => setShowWordSidebar(prev => !prev)}
               onOpenConversationAgent={openConversationAgent}
               isPlaying={isPlaying()}
@@ -1012,9 +1132,8 @@ export const App: Component = () => {
             <ExplainerPopup
               isOpen={explainerOpen()}
               onClose={handleCloseExplainer}
-              word=""
+              word={explainerWord()}
               contextPhrase={explainerContext()}
-              mode="phrase"
               initialPosition={explainerPosition()}
             />
 
@@ -1090,10 +1209,12 @@ export const App: Component = () => {
       <Show when={textModeToken() && textModeLookup()}>
         <WordHover
           token={textModeToken()!}
-          word={textModeLookup()!.word}
-          position={{ x: textModeLookup()!.x, y: textModeLookup()!.y }}
+          word={textModeToken()!.actual_word ?? textModeToken()!.surface ?? textModeToken()!.word}
+          position={textModeScaledPosition()}
           translationData={textModeTranslation() as never}
           isLoading={textModeLoading()}
+          contextPhrase={textModeLookup()?.contextText || ''}
+          onOpenExplainer={handleOpenExplainer}
           onClose={() => {
             setTextModeLookup(null);
             setTextModeToken(null);

@@ -230,3 +230,44 @@ export function findCurrentSubtitle(subtitles: ParsedSubtitle[], time: number, o
   if (adjustedTime > subtitles[found].end) return null;
   return subtitles[found];
 }
+
+/**
+ * Finds the subtitle strictly before the current adjusted position.
+ * If inside a subtitle, returns the one before it (not the current one).
+ * If in a gap, returns the last subtitle that ended before this time.
+ */
+export function findPreviousSubForSync(
+  subs: ParsedSubtitle[] | undefined,
+  adjustedTime: number,
+): ParsedSubtitle | null {
+  if (!subs || subs.length === 0) return null;
+
+  let previousSub: ParsedSubtitle | null = null;
+
+  for (let i = 0; i < subs.length; i++) {
+    if (adjustedTime >= subs[i].start && adjustedTime <= subs[i].end) {
+      break;
+    }
+    if (subs[i].start > adjustedTime) break;
+    previousSub = subs[i];
+  }
+
+  return previousSub;
+}
+
+/**
+ * Finds the first subtitle whose start time is strictly after adjustedTime.
+ */
+export function findNextSub(
+  subs: ParsedSubtitle[] | undefined,
+  adjustedTime: number,
+): ParsedSubtitle | null {
+  if (!subs || subs.length === 0) return null;
+
+  for (let i = 0; i < subs.length; i++) {
+    if (subs[i].start > adjustedTime) {
+      return subs[i];
+    }
+  }
+  return null;
+}

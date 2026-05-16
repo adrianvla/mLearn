@@ -172,6 +172,7 @@ export const IPC_CHANNELS = {
   OVERLAY_CLEAR_SITE_STATE: 'overlay-clear-site-state',
   OVERLAY_SET_BOUNDS: 'overlay-set-bounds',
   OVERLAY_ACTIVE_URL_CHANGED: 'overlay-active-url-changed',
+  OVERLAY_CLOSE_HOVER: 'overlay-close-hover',
 
   DETECT_BROWSERS: 'detect-browsers',
   INSTALL_EXTENSION: 'install-extension',

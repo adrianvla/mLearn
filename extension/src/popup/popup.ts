@@ -62,9 +62,9 @@ function getElements(): {
   headlessToggleBtn: HTMLButtonElement;
   headlessControls: HTMLElement;
   loadSubtitlesBtn: HTMLButtonElement;
-  offsetDecreaseBtn: HTMLButtonElement;
-  offsetIncreaseBtn: HTMLButtonElement;
-  offsetValue: HTMLSpanElement;
+  snapBackwardBtn: HTMLButtonElement;
+  snapForwardBtn: HTMLButtonElement;
+  offsetInput: HTMLInputElement;
   watchTogetherSignedOut: HTMLElement;
   watchTogetherPanel: HTMLElement;
   watchTogetherTabs: HTMLElement;
@@ -76,6 +76,7 @@ function getElements(): {
   roomPeersValue: HTMLSpanElement;
   leaveRoomBtn: HTMLButtonElement;
   signInBtn: HTMLButtonElement;
+  signOutBtn: HTMLButtonElement;
 } {
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
@@ -92,9 +93,9 @@ function getElements(): {
   const headlessToggleBtn = document.getElementById('headlessToggleBtn');
   const headlessControls = document.getElementById('headlessControls');
   const loadSubtitlesBtn = document.getElementById('loadSubtitlesBtn');
-  const offsetDecreaseBtn = document.getElementById('offsetDecreaseBtn');
-  const offsetIncreaseBtn = document.getElementById('offsetIncreaseBtn');
-  const offsetValue = document.getElementById('offsetValue');
+  const snapBackwardBtn = document.getElementById('snapBackwardBtn');
+  const snapForwardBtn = document.getElementById('snapForwardBtn');
+  const offsetInput = document.getElementById('offsetInput');
   const watchTogetherSignedOut = document.getElementById('watchTogetherSignedOut');
   const watchTogetherPanel = document.getElementById('watchTogetherPanel');
   const watchTogetherTabs = document.getElementById('watchTogetherTabs');
@@ -106,15 +107,16 @@ function getElements(): {
   const roomPeersValue = document.getElementById('roomPeersValue');
   const leaveRoomBtn = document.getElementById('leaveRoomBtn');
   const signInBtn = document.getElementById('signInBtn');
+  const signOutBtn = document.getElementById('signOutBtn');
 
   if (
     !statusDot || !statusText || !timeValue || !playValue || !volumeValue ||
     !requestSyncBtn || !openOverlayBtn || !playPauseBtn || !seekBackBtn || !seekForwardBtn ||
     !actionsSection || !headlessSection || !headlessToggleBtn || !headlessControls ||
-    !loadSubtitlesBtn || !offsetDecreaseBtn || !offsetIncreaseBtn || !offsetValue ||
+    !loadSubtitlesBtn || !snapBackwardBtn || !snapForwardBtn || !offsetInput ||
     !watchTogetherSignedOut || !watchTogetherPanel || !watchTogetherTabs ||
     !createRoomBtn || !joinRoomCode || !joinRoomBtn ||
-    !roomActive || !roomCodeValue || !roomPeersValue || !leaveRoomBtn || !signInBtn
+    !roomActive || !roomCodeValue || !roomPeersValue || !leaveRoomBtn || !signInBtn || !signOutBtn
   ) {
     throw new Error('Popup: required DOM elements not found');
   }
@@ -135,9 +137,9 @@ function getElements(): {
     headlessToggleBtn: headlessToggleBtn as HTMLButtonElement,
     headlessControls: headlessControls as HTMLElement,
     loadSubtitlesBtn: loadSubtitlesBtn as HTMLButtonElement,
-    offsetDecreaseBtn: offsetDecreaseBtn as HTMLButtonElement,
-    offsetIncreaseBtn: offsetIncreaseBtn as HTMLButtonElement,
-    offsetValue: offsetValue as HTMLSpanElement,
+    snapBackwardBtn: snapBackwardBtn as HTMLButtonElement,
+    snapForwardBtn: snapForwardBtn as HTMLButtonElement,
+    offsetInput: offsetInput as HTMLInputElement,
     watchTogetherSignedOut: watchTogetherSignedOut as HTMLElement,
     watchTogetherPanel: watchTogetherPanel as HTMLElement,
     watchTogetherTabs: watchTogetherTabs as HTMLElement,
@@ -149,6 +151,7 @@ function getElements(): {
     roomPeersValue: roomPeersValue as HTMLSpanElement,
     leaveRoomBtn: leaveRoomBtn as HTMLButtonElement,
     signInBtn: signInBtn as HTMLButtonElement,
+    signOutBtn: signOutBtn as HTMLButtonElement,
   };
 }
 
@@ -211,7 +214,13 @@ function updateUI(state: PopupState): void {
     els.playPauseBtn.disabled = true;
   }
 
-  els.offsetValue.textContent = `${state.headlessState.subtitleOffset}ms`;
+  els.offsetInput.value = String(state.headlessState.subtitleOffset);
+
+  if (state.accessToken) {
+    els.signOutBtn.classList.remove('hidden');
+  } else {
+    els.signOutBtn.classList.add('hidden');
+  }
 
   if (wt.isInRoom) {
     els.roomActive.classList.remove('hidden');
@@ -298,6 +307,10 @@ function initPopup(): void {
     handleStateUpdate(response as PopupMessage);
   });
 
+  sendMessage('GET_AUTH_TOKEN', {}, (response) => {
+    handleStateUpdate(response as PopupMessage);
+  });
+
   chrome.runtime.onMessage.addListener((message: PopupMessage) => {
     handleStateUpdate(message);
   });
@@ -354,18 +367,29 @@ function initPopup(): void {
     input.click();
   });
 
-  els.offsetDecreaseBtn.addEventListener('click', () => {
-    const newOffset = currentPopupState.headlessState.subtitleOffset - 100;
-    sendMessage('SET_SUBTITLE_OFFSET', { offset: newOffset }, (response) => {
-      handleStateUpdate(response as PopupMessage);
-    });
+  els.snapBackwardBtn.addEventListener('click', () => {
+    sendMessage('SNAP_SUBTITLE_OFFSET_BACKWARD');
   });
 
-  els.offsetIncreaseBtn.addEventListener('click', () => {
-    const newOffset = currentPopupState.headlessState.subtitleOffset + 100;
-    sendMessage('SET_SUBTITLE_OFFSET', { offset: newOffset }, (response) => {
-      handleStateUpdate(response as PopupMessage);
-    });
+  els.snapForwardBtn.addEventListener('click', () => {
+    sendMessage('SNAP_SUBTITLE_OFFSET_FORWARD');
+  });
+
+  const handleOffsetChange = (): void => {
+    const parsed = parseFloat(els.offsetInput.value);
+    if (!Number.isNaN(parsed)) {
+      sendMessage('SET_SUBTITLE_OFFSET_EXPLICIT', { explicitOffset: parsed }, (response) => {
+        handleStateUpdate(response as PopupMessage);
+      });
+    }
+  };
+
+  els.offsetInput.addEventListener('blur', handleOffsetChange);
+  els.offsetInput.addEventListener('change', handleOffsetChange);
+  els.offsetInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      els.offsetInput.blur();
+    }
   });
 
   els.watchTogetherTabs.addEventListener('click', (e) => {
@@ -405,7 +429,15 @@ function initPopup(): void {
   });
 
   els.signInBtn.addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://mlearn.kikan.net' });
+    sendMessage('GET_AUTH_TOKEN', {}, (response) => {
+      handleStateUpdate(response as PopupMessage);
+    });
+  });
+
+  els.signOutBtn.addEventListener('click', () => {
+    sendMessage('SIGN_OUT', {}, (response) => {
+      handleStateUpdate(response as PopupMessage);
+    });
   });
 }
 

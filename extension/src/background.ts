@@ -25,7 +25,8 @@ import {
   isHeadlessEnabled,
   toggleHeadlessMode,
 } from './headless/headlessState.js';
-import { parseSubtitles, findCurrentSubtitle } from './headless/subtitleParser.js';
+import { parseSubtitles, findCurrentSubtitle, findPreviousSubForSync, findNextSub } from './headless/subtitleParser.js';
+import { loadAuthToken, saveAuthToken, clearAuthToken, getAuthToken } from './headless/authTokenCache.js';
 
 const MLEARN_BASE_URL = 'http://127.0.0.1:7753';
 const DEFAULT_CLOUD_API_URL = 'https://mlearn-cloud.kikan.net';
@@ -65,9 +66,21 @@ let ownerSyncInterval: ReturnType<typeof setInterval> | null = null;
 
 let cloudApiUrl = DEFAULT_CLOUD_API_URL;
 
+async function fetchAuthTokenFromDesktop(): Promise<void> {
+  try {
+    const response = await fetch(`${MLEARN_BASE_URL}/api/extension-auth-token`);
+    if (!response.ok) return;
+    const data = (await response.json()) as { accessToken?: string };
+    await saveAuthToken(data.accessToken || '');
+  } catch {
+  }
+}
+
 export function initServiceWorker(): void {
   status = 'connecting';
   setupPingAlarm();
+  void fetchAuthTokenFromDesktop();
+  void loadAuthToken();
   setupMessageListener();
   setupTabActivatedListener();
 }
@@ -144,7 +157,7 @@ function buildPopupStateResponse(): PopupMessage {
     timestamp: Date.now(),
     headlessState: buildHeadlessPopupState(),
     watchTogetherState: buildWatchTogetherPopupState(),
-
+    accessToken: getAuthToken(),
   };
 }
 
@@ -234,10 +247,34 @@ function handleHeadlessSubtitleLoad(content: string, format?: 'srt' | 'vtt' | 'a
 function handleHeadlessSubtitleOffsetChange(offset: number): void {
   headlessSubtitleOffset = offset;
 
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
+    if (tab?.id !== undefined) {
+      chrome.tabs.sendMessage(tab.id, { type: 'HEADLESS_SUBTITLE_OFFSET', offset }).catch(() => {});
+    }
+  });
+
   if (lastVideoState) {
     handleHeadlessVideoStateUpdate(lastVideoState);
   } else {
     sendHeadlessSubtitleToActiveTab(headlessCurrentSubtitleText);
+  }
+}
+
+function handleSnapSubtitleOffset(direction: 'backward' | 'forward'): void {
+  if (!lastVideoState || parsedSubtitles.length === 0) return;
+
+  const adjustedTime = lastVideoState.currentTime + headlessSubtitleOffset;
+  let sub: ParsedSubtitle | null = null;
+
+  if (direction === 'backward') {
+    sub = findPreviousSubForSync(parsedSubtitles, adjustedTime);
+  } else {
+    sub = findNextSub(parsedSubtitles, adjustedTime);
+  }
+
+  if (sub) {
+    const newOffset = sub.start - lastVideoState.currentTime;
+    handleHeadlessSubtitleOffsetChange(newOffset);
   }
 }
 
@@ -381,7 +418,15 @@ async function updateWatchTogetherRoomStateApi(
   });
 }
 
-async function handleCreateWatchTogetherRoom(accessToken: string): Promise<void> {
+async function handleCreateWatchTogetherRoom(accessToken?: string): Promise<void> {
+  const token = accessToken || getAuthToken();
+  if (!token) {
+    watchTogetherState.isConnecting = false;
+    watchTogetherState.error = 'No access token available';
+    notifyPopupOfState();
+    return;
+  }
+
   watchTogetherState.isConnecting = true;
   watchTogetherState.error = null;
 
@@ -393,8 +438,8 @@ async function handleCreateWatchTogetherRoom(accessToken: string): Promise<void>
       mediaUrl: lastVideoState?.src,
     };
 
-    const session = await createWatchTogetherRoom(accessToken, payload);
-    activateRoom(session, accessToken);
+    const session = await createWatchTogetherRoom(token, payload);
+    activateRoom(session, token);
   } catch (error) {
     watchTogetherState.isConnecting = false;
     watchTogetherState.error = error instanceof Error ? error.message : 'Failed to create room';
@@ -402,13 +447,21 @@ async function handleCreateWatchTogetherRoom(accessToken: string): Promise<void>
   }
 }
 
-async function handleJoinWatchTogetherRoom(roomCode: string, accessToken: string): Promise<void> {
+async function handleJoinWatchTogetherRoom(roomCode: string, accessToken?: string): Promise<void> {
+  const token = accessToken || getAuthToken();
+  if (!token) {
+    watchTogetherState.isConnecting = false;
+    watchTogetherState.error = 'No access token available';
+    notifyPopupOfState();
+    return;
+  }
+
   watchTogetherState.isConnecting = true;
   watchTogetherState.error = null;
 
   try {
-    const session = await joinWatchTogetherRoom(roomCode, accessToken);
-    activateRoom(session, accessToken);
+    const session = await joinWatchTogetherRoom(roomCode, token);
+    activateRoom(session, token);
   } catch (error) {
     watchTogetherState.isConnecting = false;
     watchTogetherState.error = error instanceof Error ? error.message : 'Failed to join room';
@@ -751,26 +804,57 @@ function setupMessageListener(): void {
         message !== null &&
         (message as Record<string, unknown>).type === 'TEXT_MODE_WORD_LOOKUP'
       ) {
-        const { word, x, y } = message as TextModeWordLookupMessage;
-        fetch(`${MLEARN_BASE_URL}/api/overlay-text-lookup`, {
+        const { word, x, y, screenX, screenY, contextText, offset } = message as TextModeWordLookupMessage;
+        const windowId = _sender.tab?.windowId;
+
+        const forwardLookup = (absX: number, absY: number) => {
+          fetch(`${MLEARN_BASE_URL}/api/overlay-text-lookup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ word, x: absX, y: absY, contextText, offset }),
+          }).then((resp) => {
+            if (!resp.ok && _sender.tab?.id) {
+              chrome.tabs.sendMessage(_sender.tab.id, {
+                type: 'TEXT_MODE_LOOKUP_ERROR',
+                error: 'cannot-connect',
+              }).catch(() => {});
+            }
+          }).catch(() => {
+            if (_sender.tab?.id) {
+              chrome.tabs.sendMessage(_sender.tab.id, {
+                type: 'TEXT_MODE_LOOKUP_ERROR',
+                error: 'cannot-connect',
+              }).catch(() => {});
+            }
+          });
+        };
+
+        if (windowId !== undefined && chrome.windows) {
+          chrome.windows.get(windowId).then((win) => {
+            const left = win.left ?? screenX;
+            const top = (win.top && win.top > 0) ? win.top : screenY;
+            forwardLookup(left + x, top + y);
+          }).catch(() => {
+            forwardLookup(screenX + x, screenY + y);
+          });
+        } else {
+          forwardLookup(screenX + x, screenY + y);
+        }
+
+        sendResponse({ received: true });
+        return true;
+      }
+
+      if (
+        typeof message === 'object' &&
+        message !== null &&
+        (message as Record<string, unknown>).type === 'TEXT_MODE_CLOSE_HOVER'
+      ) {
+        fetch(`${MLEARN_BASE_URL}/api/overlay-close-hover`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ word, x, y }),
-        }).then((resp) => {
-          if (!resp.ok && _sender.tab?.id) {
-            chrome.tabs.sendMessage(_sender.tab.id, {
-              type: 'TEXT_MODE_LOOKUP_ERROR',
-              error: 'cannot-connect',
-            }).catch(() => {});
-          }
-        }).catch(() => {
-          if (_sender.tab?.id) {
-            chrome.tabs.sendMessage(_sender.tab.id, {
-              type: 'TEXT_MODE_LOOKUP_ERROR',
-              error: 'cannot-connect',
-            }).catch(() => {});
-          }
-        });
+          body: JSON.stringify({}),
+        }).catch(() => {});
         sendResponse({ received: true });
         return true;
       }
@@ -842,9 +926,42 @@ function setupMessageListener(): void {
           return true;
         }
 
+        if (message.type === 'SET_SUBTITLE_OFFSET_EXPLICIT') {
+          if (typeof message.explicitOffset === 'number') {
+            handleHeadlessSubtitleOffsetChange(message.explicitOffset);
+          }
+          sendResponse({
+            type: 'HEADLESS_STATE_UPDATE',
+            headlessState: buildHeadlessPopupState(),
+            watchTogetherState: buildWatchTogetherPopupState(),
+          });
+          return true;
+        }
+
+        if (message.type === 'SNAP_SUBTITLE_OFFSET_BACKWARD') {
+          handleSnapSubtitleOffset('backward');
+          sendResponse({
+            type: 'HEADLESS_STATE_UPDATE',
+            headlessState: buildHeadlessPopupState(),
+            watchTogetherState: buildWatchTogetherPopupState(),
+          });
+          return true;
+        }
+
+        if (message.type === 'SNAP_SUBTITLE_OFFSET_FORWARD') {
+          handleSnapSubtitleOffset('forward');
+          sendResponse({
+            type: 'HEADLESS_STATE_UPDATE',
+            headlessState: buildHeadlessPopupState(),
+            watchTogetherState: buildWatchTogetherPopupState(),
+          });
+          return true;
+        }
+
         if (message.type === 'WATCH_TOGETHER_CREATE_ROOM') {
-          if (message.accessToken) {
-            handleCreateWatchTogetherRoom(message.accessToken).then(() => {
+          const token = message.accessToken || getAuthToken();
+          if (token) {
+            handleCreateWatchTogetherRoom(token).then(() => {
               sendResponse({
                 type: 'HEADLESS_STATE_UPDATE',
                 headlessState: buildHeadlessPopupState(),
@@ -862,8 +979,9 @@ function setupMessageListener(): void {
         }
 
         if (message.type === 'WATCH_TOGETHER_JOIN_ROOM') {
-          if (message.roomCode && message.accessToken) {
-            handleJoinWatchTogetherRoom(message.roomCode, message.accessToken).then(() => {
+          const token = message.accessToken || getAuthToken();
+          if (message.roomCode && token) {
+            handleJoinWatchTogetherRoom(message.roomCode, token).then(() => {
               sendResponse({
                 type: 'HEADLESS_STATE_UPDATE',
                 headlessState: buildHeadlessPopupState(),
@@ -896,6 +1014,20 @@ function setupMessageListener(): void {
             type: 'HEADLESS_STATE_UPDATE',
             headlessState: buildHeadlessPopupState(),
             watchTogetherState: buildWatchTogetherPopupState(),
+          });
+          return true;
+        }
+
+        if (message.type === 'SIGN_OUT') {
+          clearAuthToken().then(() => {
+            sendResponse(buildPopupStateResponse());
+          });
+          return true;
+        }
+
+        if (message.type === 'GET_AUTH_TOKEN') {
+          fetchAuthTokenFromDesktop().then(() => {
+            sendResponse(buildPopupStateResponse());
           });
           return true;
         }
@@ -1082,6 +1214,7 @@ async function pingMlearn(): Promise<void> {
       retryDelay = INITIAL_RETRY_DELAY_MS;
       if (status !== 'connected') {
         setConnectionStatus('connected');
+        void fetchAuthTokenFromDesktop();
         if (lastVideoState) {
           forwardVideoState(lastVideoState);
         }
