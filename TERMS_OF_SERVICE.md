@@ -1,8 +1,9 @@
 # mLearn Cloud Terms of Service
 
-**Version 1.0 — Effective Date: 2026-05-17**
+**Version 1.1 — Effective Date: 2026-05-18**
 
 **Operator:** Adrian Vlasov, Vaud, Switzerland  
+**Contact:** adrian@kikan.net (legal) | support@kikan.net (technical)  
 **Service:** mLearn Cloud relay and sync infrastructure (mlearn-cloud.kikan.net)
 
 ---
@@ -21,6 +22,31 @@ accessible through a mLearn Cloud account, including:
 
 These ToS do NOT apply to self-hosted, local-only, or forked versions
 of the software.
+
+### 1.1 Definitions
+
+For the purposes of these Terms:
+- **"Service"** means the mLearn Cloud relay and sync infrastructure accessible at mlearn-cloud.kikan.net.
+- **"Software"** means the mLearn language immersion application, browser extension, installer, and associated documentation.
+- **"Cloud Features"** means features that require a connection to the Service, including but not limited to Cloud LLM relay, Cloud OCR, Cloud TTS, Watch Together, and flashcard sync.
+- **"Plugin"** means a third-party software module loaded via the local plugin manifest system.
+- **"Quota"** means the allocated usage limit for Cloud Features.
+- **"Institutional User"** means a school, university, tutoring center, or other educational institution.
+- **"Operator"**, **"We"**, or **"Us"** means Adrian Vlasov.
+- **"You"** or **"User"** means the individual using the Service.
+
+### 1.2 Hierarchy
+
+To the extent of any conflict between the mLearn End User License Agreement (EULA) and these Terms of Service, these Terms govern Cloud Services and the EULA governs the Software.
+
+### 1.3 Disclaimer of Warranties
+
+THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT.
+
+YOU ASSUME ALL RISKS ASSOCIATED WITH USE. WE DO NOT GUARANTEE
+AVAILABILITY, COMPATIBILITY, OR ERROR-FREE OPERATION OF THE SERVICE.
 
 ## 2. Account & Eligibility
 
@@ -97,7 +123,8 @@ Briefly:
 
 ### 6.1 Free Tier
 Cloud features are currently offered with limited free quota. We reserve
-the right to modify, reduce, or discontinue free quota at any time.
+the right to modify, reduce, or discontinue free quota with reasonable
+notice, or at the end of the current billing period.
 
 ### 6.2 Future Paid Tier
 If paid quotas are introduced, they will be billed through a separate
@@ -105,7 +132,7 @@ payment processor. You must be notified before any charges occur.
 
 ### 6.3 No Refunds
 Quota is consumed on use. We do not refund consumed quota except in cases
-of demonstrable service error on our part.
+of demonstrable service error on our part, or at our sole discretion.
 
 ## 7. Limitation of Liability
 
@@ -123,15 +150,87 @@ LIABILITY THAT CANNOT BE EXCLUDED UNDER MANDATORY SWISS LAW.
 
 You may delete your account at any time. We may suspend or terminate your
 account for violations of this ToS, abuse, or if required by law.
-Upon termination, your quota is forfeited and sync data may be deleted.
+Upon termination, your quota is forfeited and sync data will be deleted
+within thirty (30) days, except where retention is required by law or
+for fraud prevention.
 
-## 9. Governing Law
+## 9. Governing Law and Dispute Resolution
 
 These Terms are governed by the laws of Switzerland. Disputes shall be
 resolved in the courts of the canton of Vaud, unless mandatory consumer
 law requires otherwise.
 
+Before filing any claim, you agree to attempt to resolve the dispute
+informally by contacting us. If unresolved within thirty (30) days,
+either party may pursue mediation. Nothing in this clause prevents either
+party from seeking injunctive relief. Mandatory consumer protection law
+in your jurisdiction — including, where applicable, EU consumer protection
+law — may override the governing law and jurisdiction clauses above to the
+extent required by mandatory law.
+
 ## 10. Changes
 
 We may update these Terms. Material changes will be notified via email
-or in-app notice. Continued use after changes constitutes acceptance.
+and/or in-app notice at least thirty (30) days before they take effect.
+Continued use after the effective date constitutes acceptance.
+
+## 11. Indemnification
+
+You agree to indemnify, defend, and hold harmless the Operator from and
+against any and all claims, damages, losses, liabilities, costs, and
+expenses (including reasonable attorneys' fees) arising out of or relating
+to: (a) your misuse of the Service; (b) your violation of any third-party
+intellectual property rights through your use of the Service; (c) your
+violation of any applicable law or regulation; or (d) your breach of these
+Terms.
+
+## 12. Force Majeure
+
+Neither party shall be liable for any failure or delay in performance
+under these Terms due to causes beyond its reasonable control, including
+but not limited to acts of God, natural disasters, war, terrorism, riots,
+embargoes, acts of civil or military authorities, fire, floods, accidents,
+strikes, shortages of transportation, facilities, fuel, energy, labor, or
+materials, or failure of telecommunications or internet service providers.
+
+## 13. Copyright Policy
+
+If you believe that your copyrighted work has been copied in a way that
+constitutes copyright infringement and is accessible via the Service,
+please notify us at adrian@kikan.net with the following information:
+(a) identification of the copyrighted work; (b) identification of the
+infringing material and its location; (c) your contact information;
+(d) a statement that you have a good faith belief that the use is not
+authorized; (e) a statement that the information is accurate; and
+(f) your physical or electronic signature. We reserve the right to remove
+content and terminate accounts for repeat infringers.
+
+## 14. Severability
+
+If any provision of these Terms is held to be invalid, illegal, or
+unenforceable, the remaining provisions shall continue in full force and
+effect.
+
+## 15. Entire Agreement
+
+These Terms constitute the entire agreement between you and the Operator
+regarding the subject matter hereof and supersede all prior or
+contemporaneous agreements, representations, warranties, and understandings.
+
+## 16. Assignment
+
+You may not assign or transfer these Terms without the prior written consent
+of the Operator. The Operator may assign these Terms without restriction.
+
+## 17. Acceptance
+
+BY CREATING AN ACCOUNT OR USING THE CLOUD SERVICE, YOU ACKNOWLEDGE THAT YOU HAVE
+READ, UNDERSTOOD, AND AGREE TO BE BOUND BY THESE TERMS AND THE PRIVACY POLICY.
+
+If you do not agree, do not use the Service.
+
+## 18. Version History
+
+Your continued use of the Service after a version change constitutes
+acceptance of the updated terms. A version history is maintained as part
+of this document.
