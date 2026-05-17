@@ -104,8 +104,9 @@
   text-align: center;
 }
 
-.eula-checkbox-card {
+.eula-toggle {
   margin-top: var(--spacing-2);
+  justify-content: center;
 }
 
 .eula-actions {

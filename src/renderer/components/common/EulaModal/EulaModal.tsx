@@ -1,7 +1,7 @@
 import { Component, createSignal, onMount, onCleanup } from 'solid-js';
 import { getBridge } from '@shared/bridges';
 import { useSettings, useLocalization } from '@renderer/context';
-import { Btn, CheckboxCard } from '../';
+import { Btn, ToggleSwitch } from '../';
 import './EulaModal.css';
 
 export interface EulaModalProps {
@@ -150,12 +150,12 @@ export const EulaModal: Component<EulaModalProps> = (props) => {
             )}
           </div>
 
-          <CheckboxCard
+          <ToggleSwitch
             checked={hasRead()}
             onChange={setHasRead}
-            title={t('mlearn.Eula.AgreeLabel')}
+            label={t('mlearn.Eula.AgreeLabel')}
             disabled={!hasScrolledToBottom()}
-            class="eula-checkbox-card"
+            class="eula-toggle"
           />
         </div>
 
