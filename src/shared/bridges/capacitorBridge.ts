@@ -1086,6 +1086,17 @@ const serverBridge: ServerBridge = {
   onVersionReceive(callback) {
     return emitter.on('version', callback as Listener);
   },
+
+  getLegalDocument(name: string) {
+    fetch(`https://mlearn.morisinc.net/legal/${name}.md`)
+      .then(res => res.ok ? res.text() : '')
+      .then(text => emitter.emit('legal-document', text))
+      .catch(() => emitter.emit('legal-document', ''));
+  },
+
+  onLegalDocumentReceive(callback) {
+    return emitter.on('legal-document', callback as Listener);
+  },
 };
 
 // ============================================================================

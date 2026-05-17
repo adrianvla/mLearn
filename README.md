@@ -324,6 +324,17 @@ examples/plugins/    # Plugin templates
 
 ---
 
+## Legal
+
+- End User License Agreement: [EULA.md](EULA.md)
+- Terms of Service: [TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)
+- Privacy Policy: [PRIVACY_POLICY.md](PRIVACY_POLICY.md)
+- School Deployment Guide: [SCHOOL_DEPLOYMENT.md](SCHOOL_DEPLOYMENT.md)
+
+Web versions of these documents are available at [mlearn.morisinc.net](https://mlearn.morisinc.net).
+
+---
+
 ## License
 
 This software is licensed under the **Sustainable Use License v1.0**. See the [LICENSE](LICENSE) file for the full text.

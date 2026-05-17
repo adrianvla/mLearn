@@ -40,6 +40,14 @@
   margin-bottom: 2rem;
 }
 
+.about-legal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
 /* Note: .about-link class removed in favor of Button with ghost variant */
 
 .about-features,

@@ -160,6 +160,8 @@ export interface ServerBridge {
   restartBackend: () => void;
   getVersion: () => void;
   onVersionReceive: (callback: (version: string) => void) => () => void;
+  getLegalDocument: (name: string) => void;
+  onLegalDocumentReceive: (callback: (content: string) => void) => () => void;
 }
 
 export interface InstallerBridge {

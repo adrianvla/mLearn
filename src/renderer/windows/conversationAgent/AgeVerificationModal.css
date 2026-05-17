@@ -1,0 +1,79 @@
+.avm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-overlay, rgba(0, 0, 0, 0.75));
+  padding: var(--spacing-4);
+}
+
+.avm-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  max-width: 640px;
+  width: 100%;
+  max-height: calc(100vh - var(--spacing-8));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.avm-content {
+  padding: var(--spacing-6);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.avm-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  text-align: center;
+}
+
+.avm-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.avm-text {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.avm-warning {
+  color: var(--text-warning, #d97706);
+  font-weight: 500;
+}
+
+.avm-safety {
+  color: var(--text-info, #0284c7);
+  font-weight: 500;
+}
+
+.avm-certify {
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+  padding-top: var(--spacing-2);
+}
+
+.avm-actions {
+  padding: var(--spacing-4) var(--spacing-6);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: center;
+}
+
+.avm-continue-btn {
+  min-width: 200px;
+}

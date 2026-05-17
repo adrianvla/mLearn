@@ -2355,6 +2355,12 @@
       "FilterSkip": "跳过",
       "EmptyTitle": "点击“运行所有测试”以验证 mLearn 中的所有功能。",
       "EmptyDescription": "这将测试 Python 后端、LLM 提供商、云连接、词典、OCR、语音、存储、媒体协议等 — 全部使用真实服务。"
+    },
+    "Eula": {
+      "Title": "End User License Agreement",
+      "Loading": "Loading...",
+      "AgreeLabel": "I have read and agree to the End User License Agreement",
+      "AcceptButton": "Accept & Continue"
     }
   }
 }
