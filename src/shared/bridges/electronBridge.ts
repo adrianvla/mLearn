@@ -154,6 +154,8 @@ const serverBridge: ServerBridge = {
   restartBackend: () => getIPC().restartBackend(),
   getVersion: () => getIPC().getVersion(),
   onVersionReceive: (cb) => getIPC().onVersionReceive(cb),
+  getLegalDocument: (name) => getIPC().getLegalDocument(name),
+  onLegalDocumentReceive: (cb) => getIPC().onLegalDocumentReceive(cb),
 };
 
 const installerBridge: InstallerBridge = {

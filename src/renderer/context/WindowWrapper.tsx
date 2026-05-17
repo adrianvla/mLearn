@@ -13,6 +13,7 @@ import { ServerProvider, useServer } from './ServerContext';
 import { LocalizationProvider, useLocalization } from './LocalizationContext';
 import { ResponsiveProvider } from './ResponsiveContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
+import { EulaModal } from '../components/common';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
 import { getLocalStorageMigrationInfo, resetLocalStorageMigrationInfo } from '../services/statsService';
@@ -189,6 +190,16 @@ const GlobalCloudReLoginModal: Component = () => {
 };
 
 
+const GlobalEulaModal: Component = () => {
+  const { settings, isLoading } = useSettings();
+
+  return (
+    <Show when={!settings.eulaAccepted && !isLoading()}>
+      <EulaModal onAccept={() => {}} />
+    </Show>
+  );
+};
+
 /**
  * WindowWrapper wraps all window entry points with necessary providers
  * This ensures consistent context availability across all windows
@@ -204,6 +215,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; transpar
         <ResponsiveProvider>
           <SettingsProvider>
             <WindowLoadingScreen transparent={props.transparent} />
+            <GlobalEulaModal />
             {/*<DevToastTester />*/}
             <LowPowerGateProvider>
             <LanguageProviderBridge>

@@ -70,6 +70,21 @@ export const AboutTab: Component = () => {
         </Show>
       </div>
 
+      <div class="about-legal">
+        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.morisinc.net/eula')}>
+          End User License Agreement
+        </Btn>
+        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.morisinc.net/terms')}>
+          Terms of Service
+        </Btn>
+        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.morisinc.net/privacy')}>
+          Privacy Policy
+        </Btn>
+        <Btn variant="ghost" onClick={() => getBridge().window.openExternalUrl('https://mlearn.morisinc.net/school-deployment')}>
+          School Deployment
+        </Btn>
+      </div>
+
       <div class="about-shortcuts">
         <h3>{t('mlearn.About.KeyboardShortcuts.Title')}</h3>
         <div class="shortcuts-grid">

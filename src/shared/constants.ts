@@ -143,6 +143,8 @@ export const IPC_CHANNELS = {
   WRITE_TO_CLIPBOARD: 'write-to-clipboard',
   SHOW_CONTACT: 'show-contact',
   OPEN_EXTERNAL_URL: 'open-external-url',
+  GET_LEGAL_DOCUMENT: 'get-legal-document',
+  LEGAL_DOCUMENT: 'legal-document',
   AUTH_DEEP_LINK: 'auth-deep-link',
   LOOKUP_DEEP_LINK: 'lookup-deep-link',
   

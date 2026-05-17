@@ -180,6 +180,9 @@ const mLearnIPC = {
   getVersion: () => ipcRenderer.send(IPC_CHANNELS.GET_VERSION),
   onVersionReceive: (callback: (version: string) => void) =>
     ipcOn(IPC_CHANNELS.VERSION, (_event, version) => callback(version)),
+  getLegalDocument: (name: string) => ipcRenderer.send(IPC_CHANNELS.GET_LEGAL_DOCUMENT, name),
+  onLegalDocumentReceive: (callback: (content: string) => void) =>
+    ipcOn(IPC_CHANNELS.LEGAL_DOCUMENT, (_event, content) => callback(content)),
 
   // ========== Server Status ==========
   isLoaded: () => ipcRenderer.send(IPC_CHANNELS.IS_LOADED),

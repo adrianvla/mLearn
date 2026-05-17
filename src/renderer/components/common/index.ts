@@ -41,6 +41,12 @@ export {
   type DraggablePopupProps,
 } from './Modal';
 
+// EulaModal
+export {
+  EulaModal,
+  type EulaModalProps,
+} from './EulaModal/EulaModal';
+
 // ModalForm Components
 export {
   ModalForm,

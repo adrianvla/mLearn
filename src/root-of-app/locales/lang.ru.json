@@ -2355,6 +2355,12 @@
       "FilterSkip": "Skip",
       "EmptyTitle": "Click \"Run All Tests\" to validate every feature in mLearn.",
       "EmptyDescription": "This will test the Python backend, LLM providers, cloud connectivity, dictionaries, OCR, voice, storage, media protocols, and more — all using real services."
+    },
+    "Eula": {
+      "Title": "End User License Agreement",
+      "Loading": "Loading...",
+      "AgreeLabel": "I have read and agree to the End User License Agreement",
+      "AcceptButton": "Accept & Continue"
     }
   }
 }
