@@ -266,11 +266,7 @@
       "SigningIn": "サインイン中...",
       "TestConnection": "接続テスト",
       "Title": "接続",
-      "Unreachable": "到達不能",
-      "ICEServers": "WebRTC ICE Servers",
-      "ICEServersLabel": "STUN / TURN servers",
-      "ICEServersDescription": "Used for Watch Together peer connections.",
-      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
+      "Unreachable": "到達不能"
     },
     "ConversationAgent": {
       "Agents": {
@@ -337,6 +333,7 @@
         "AssistantFiltered": "安全でない可能性のあるアシスタントの返答を置き換えました。",
         "AssistantReplacement": "ここでは慎重に返答する必要があります。現実の自傷リスクや差し迫った危険に関することなら、今すぐ地域の緊急サービスまたは危機支援窓口に連絡してください。よければ、何が起きているのかを話してください。引き続き慎重に返答します。",
         "GetHelp": "現実の危険がある場合は、今すぐ地域の緊急サービスまたは危機支援窓口に連絡してください。",
+        "LockoutMessage": "This conversation has been locked due to a safety concern. Clear the chat to start a new conversation.",
         "SensitiveNotice": "自傷に関連する可能性のある内容を検出しました。",
         "UrgentNotice": "差し迫った自傷リスクの可能性を検出しました。",
         "UserConcernResponse": "これには慎重に対応する必要があります。現実の自傷リスクに関することなら、今すぐ地域の緊急サービスまたは危機支援窓口に連絡してください。よければ、何が起きているのかを話してください。引き続き慎重に返答します。",
@@ -2127,23 +2124,21 @@
       },
       "Media": {
         "DistributeTitle": "メディアを配信",
-        "DistributeSubtitle": "WebRTCを使用して接続中のピアにメディアファイルを送信",
+        "DistributeSubtitle": "クラウド同期を使用して接続中の参加者にメディアファイルを送信",
         "DistributeAction": "配信",
         "SelectFile": "配信するメディアファイルを選択",
         "FileName": "ファイル名",
         "FileSize": "ファイルサイズ",
-        "ConnectedPeers": "接続中のピア",
+        "ConnectedPeers": "接続中の参加者",
         "SubtitlesIncluded": "字幕を含む",
         "StartDistribution": "配信を開始",
-        "Sending": "ピアにメディアを送信中...",
-        "DistributionComplete": "配信完了。すべてのピアがメディアを受信しました。",
+        "Sending": "参加者にメディアを送信中...",
+        "DistributionComplete": "配信完了。すべての参加者がメディアを受信しました。",
         "ReceiveTitle": "メディアの受信",
-        "ReceivePrompt": "ピアがメディアファイルを送信しようとしています。受信しますか？",
+        "ReceivePrompt": "参加者がメディアファイルを送信しようとしています。受信しますか？",
         "Receiving": "メディアを受信中...",
         "ReceiveComplete": "メディアを正常に受信しました。",
-        "LoadMedia": "メディアを読み込む",
-        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
-        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
+        "LoadMedia": "メディアを読み込む"
       }
     },
     "WordDbEditor": {

@@ -45,9 +45,9 @@ mLearn is an all-in-one immersion app that knows what you know. Watch videos, re
 
 | Feature | Description |
 |---------|-------------|
-| **Watch Together** | Sync video playback across devices. Local network or cloud rooms with P2P media sharing. |
+| **Watch Together** | Sync video playback across devices. Local network or cloud rooms with cloud-synced playback. |
 | **Between-Devices Sync** | Desktop ↔ Mobile sync via tethered mode (local network) or cloud. Bidirectional settings + flashcard sync. |
-| **P2P Flashcard Sync** | Share flashcards instantly via QR code + WebRTC. |
+| **Cloud Flashcard Sync** | Share flashcards instantly via QR code through the cloud. |
 
 ### AI & Voice
 
@@ -86,7 +86,7 @@ v2.0 is a complete rewrite in **TypeScript + SolidJS** with major new capabiliti
 - **AI Conversation Agent** — Full AI tutor with voice chat, tool calling, and memory
 - **OCR Reader** — Manga/comic/PDF reader with 3 OCR engines
 - **Statistics Dashboard** — Comprehensive analytics with heatmaps and immersion tracking
-- **Watch Together** — Synced video watching with P2P media share
+- **Watch Together** — Synced video watching with cloud playback sync
 - **TTS / Voice** — Kokoro, Qwen3-TTS, voice cloning
 - **STT / Speech Recognition** — Whisper-based voice input
 - **Browser Extension** — Chrome/Firefox extension for streaming sites

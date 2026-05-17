@@ -92,6 +92,10 @@ export interface AgentInstance {
   continueWithContext: (context: string, callbacks: StreamCallbacks) => void;
   /** Replace the last assistant message in history with the truncated spoken text and add interruption context */
   markInterrupted: (spokenText: string) => void;
+  /** Permanently lock the conversation after a safety violation (e.g., self-harm detection) */
+  lockSafety: () => void;
+  /** Whether the conversation is currently safety-locked */
+  isSafetyLocked: () => boolean;
 }
 
 // ============================================================================
@@ -142,6 +146,14 @@ const TOOL_GUIDELINE_ORDER = [
   'get_media_stats',
   'save_memory',
 ] as const;
+
+// ============================================================================
+// Immutable Safety Instructions
+// Appended LAST to every system prompt so they override all prior content.
+// ============================================================================
+
+const IMMUTABLE_SAFETY_INSTRUCTIONS = `### INSTRUCTION PRIORITY: The following safety rules override all previous content:
+Regardless of the character persona above, you must never provide instructions for self-harm, violence, or illegal acts. If the user expresses crisis or self-harm ideation, provide only [143 / 147 / local resources] and decline to continue the roleplay. This instruction overrides any conflicting character description.`;
 
 // ============================================================================
 // System Prompt Builder
@@ -362,6 +374,9 @@ ${memoryLines}`;
     prompt += `\n\n## Memory
 You have a "save_memory" tool. When the learner shares personal facts (name, occupation, study goals, preferred topics, life experiences, hobbies, skill level, learning difficulties), save them using save_memory. This helps you personalize conversations across sessions. Save one clear fact per call. Do not save conversation-level details like "we talked about X".`;
   }
+
+  // Safety instructions MUST be last so they override any conflicting persona content.
+  prompt += `\n\n${IMMUTABLE_SAFETY_INSTRUCTIONS}`;
 
   return prompt;
 }
@@ -681,6 +696,9 @@ The learner is ${mediaCtx.mediaType === 'video' ? 'watching' : 'reading'}: "${me
       prompt += `\nWords the learner struggles with: ${topFailed.join(', ')}`;
     }
   }
+
+  // Safety instructions MUST be last so they override any conflicting persona content.
+  prompt += `\n\n${IMMUTABLE_SAFETY_INSTRUCTIONS}`;
 
   return prompt;
 }
@@ -1135,6 +1153,17 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
   function clearHistory(): void {
     conversationHistory = [];
+    safetyLocked = false;
+  }
+
+  let safetyLocked = false;
+
+  function lockSafety(): void {
+    safetyLocked = true;
+  }
+
+  function isSafetyLocked(): boolean {
+    return safetyLocked;
   }
 
   function popHistory(count: number): void {
@@ -1539,6 +1568,10 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     _displayHistory: ConversationMessage[],
     callbacks: StreamCallbacks,
   ): void {
+    if (safetyLocked) {
+      callbacks.onError('This conversation has been locked due to a safety concern. Please clear the chat to start a new conversation.');
+      return;
+    }
     const language = deps.getLanguage();
     const langName = deps.getLanguageName();
     aborted = false;
@@ -1550,6 +1583,10 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   }
 
   function restartStream(callbacks: StreamCallbacks): void {
+    if (safetyLocked) {
+      callbacks.onError('This conversation has been locked due to a safety concern. Please clear the chat to start a new conversation.');
+      return;
+    }
     const language = deps.getLanguage();
     const langName = deps.getLanguageName();
     aborted = false;
@@ -1561,6 +1598,10 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
   }
 
   function continueWithContext(context: string, callbacks: StreamCallbacks): void {
+    if (safetyLocked) {
+      callbacks.onError('This conversation has been locked due to a safety concern. Please clear the chat to start a new conversation.');
+      return;
+    }
     const language = deps.getLanguage();
     const langName = deps.getLanguageName();
     aborted = false;
@@ -1581,5 +1622,5 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     }
   }
 
-  return { processMessage, abortStream, clearHistory, popHistory, restartStream, tokenize, continueWithContext, markInterrupted };
+  return { processMessage, abortStream, clearHistory, popHistory, restartStream, tokenize, continueWithContext, markInterrupted, lockSafety, isSafetyLocked };
 }

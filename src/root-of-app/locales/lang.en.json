@@ -266,11 +266,7 @@
       "SigningIn": "Signing in...",
       "TestConnection": "Test Connection",
       "Title": "Connection",
-      "Unreachable": "Unreachable",
-      "ICEServers": "WebRTC ICE Servers",
-      "ICEServersLabel": "STUN / TURN servers",
-      "ICEServersDescription": "Used for Watch Together peer connections.",
-      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
+      "Unreachable": "Unreachable"
     },
     "ConversationAgent": {
       "Agents": {
@@ -337,6 +333,7 @@
         "AssistantFiltered": "A potentially unsafe assistant reply was replaced.",
         "AssistantReplacement": "I need to respond carefully here. If this is about real self-harm risk or immediate danger, contact local emergency services or a crisis line in your area right now. If you want, tell me what is happening and I will keep responding carefully.",
         "GetHelp": "If this reflects a real risk, contact local emergency services or a crisis line in your area now.",
+        "LockoutMessage": "This conversation has been locked due to a safety concern. Clear the chat to start a new conversation.",
         "SensitiveNotice": "Sensitive self-harm-related content detected.",
         "UrgentNotice": "Possible immediate self-harm risk detected.",
         "UserConcernResponse": "I need to respond carefully to that. If this reflects a real self-harm risk, contact local emergency services or a crisis line in your area now. If you want, tell me what is happening and I will keep responding carefully.",
@@ -2104,8 +2101,8 @@
         "SignInModalTitle": "Sign In for Watch Together",
         "SignInHint": "Enter your mLearn Cloud credentials",
         "SignInCodeHint": "If you received a device code, enter it below",
-        "PeerJoinedSingular": "A peer joined your room",
-        "PeerJoinedPlural": "{count} peers joined your room",
+        "PeerJoinedSingular": "A participant joined your room",
+        "PeerJoinedPlural": "{count} participants joined your room",
         "AnticipatingPing": "Anticipating ping..."
       },
       "Extension": {
@@ -2122,28 +2119,26 @@
         "CreateRoom": "Create Room",
         "RoomCodePlaceholder": "Enter room code",
         "RoomCode": "Room Code",
-        "Peers": "Peers",
+        "Peers": "Participants",
         "LeaveRoom": "Leave Room"
       },
       "Media": {
         "DistributeTitle": "Distribute Media",
-        "DistributeSubtitle": "Send the media file to connected peers via WebRTC",
+        "DistributeSubtitle": "Send the media file to connected participants via cloud sync",
         "DistributeAction": "Distribute",
         "SelectFile": "Select a media file to distribute",
         "FileName": "File name",
         "FileSize": "File size",
-        "ConnectedPeers": "Connected peers",
+        "ConnectedPeers": "Connected participants",
         "SubtitlesIncluded": "Subtitles included",
         "StartDistribution": "Start Distribution",
-        "Sending": "Sending media to peers...",
-        "DistributionComplete": "Distribution complete. All peers have received the media.",
+        "Sending": "Sending media to participants...",
+        "DistributionComplete": "Distribution complete. All participants have received the media.",
         "ReceiveTitle": "Incoming Media",
-        "ReceivePrompt": "A peer wants to send you a media file. Do you want to receive it?",
+        "ReceivePrompt": "A participant wants to send you a media file. Do you want to receive it?",
         "Receiving": "Receiving media...",
         "ReceiveComplete": "Media received successfully.",
-        "LoadMedia": "Load Media",
-        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
-        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
+        "LoadMedia": "Load Media"
       }
     },
     "WordDbEditor": {

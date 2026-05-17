@@ -266,11 +266,7 @@
       "SigningIn": "Anmeldung...",
       "TestConnection": "Verbindung testen",
       "Title": "Verbindung",
-      "Unreachable": "Nicht erreichbar",
-      "ICEServers": "WebRTC ICE Servers",
-      "ICEServersLabel": "STUN / TURN servers",
-      "ICEServersDescription": "Used for Watch Together peer connections.",
-      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
+      "Unreachable": "Nicht erreichbar"
     },
     "ConversationAgent": {
       "Agents": {
@@ -337,6 +333,7 @@
         "AssistantFiltered": "Eine potenziell unsichere Assistentenantwort wurde ersetzt.",
         "AssistantReplacement": "Ich muss hier vorsichtig antworten. Wenn es um ein reales Selbstgefährdungsrisiko oder eine unmittelbare Gefahr geht, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, was los ist, und ich antworte weiterhin vorsichtig.",
         "GetHelp": "Wenn das ein reales Risiko widerspiegelt, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region.",
+        "LockoutMessage": "This conversation has been locked due to a safety concern. Clear the chat to start a new conversation.",
         "SensitiveNotice": "Sensibler selbstverletzungsbezogener Inhalt erkannt.",
         "UrgentNotice": "Mögliches unmittelbares Selbstgefährdungsrisiko erkannt.",
         "UserConcernResponse": "Ich muss darauf vorsichtig reagieren. Wenn das ein reales Selbstgefährdungsrisiko widerspiegelt, kontaktiere jetzt den örtlichen Notruf oder eine Krisenhilfe in deiner Region. Wenn du möchtest, sag mir, was los ist, und ich antworte weiter vorsichtig.",
@@ -2127,23 +2124,21 @@
       },
       "Media": {
         "DistributeTitle": "Medien verteilen",
-        "DistributeSubtitle": "Mediendatei über WebRTC an verbundene Peers senden",
+        "DistributeSubtitle": "Mediendatei über Cloud-Sync an verbundene Teilnehmer senden",
         "DistributeAction": "Verteilen",
         "SelectFile": "Mediendatei zum Verteilen auswählen",
         "FileName": "Dateiname",
         "FileSize": "Dateigröße",
-        "ConnectedPeers": "Verbundene Peers",
+        "ConnectedPeers": "Verbundene Teilnehmer",
         "SubtitlesIncluded": "Untertitel enthalten",
         "StartDistribution": "Verteilung starten",
-        "Sending": "Medien werden an Peers gesendet...",
-        "DistributionComplete": "Verteilung abgeschlossen. Alle Peers haben die Medien erhalten.",
+        "Sending": "Medien werden an Teilnehmer gesendet...",
+        "DistributionComplete": "Verteilung abgeschlossen. Alle Teilnehmer haben die Medien erhalten.",
         "ReceiveTitle": "Eingehende Medien",
-        "ReceivePrompt": "Ein Peer möchte dir eine Mediendatei senden. Möchtest du sie empfangen?",
+        "ReceivePrompt": "Ein Teilnehmer möchte dir eine Mediendatei senden. Möchtest du sie empfangen?",
         "Receiving": "Medien werden empfangen...",
         "ReceiveComplete": "Medien erfolgreich empfangen.",
-        "LoadMedia": "Medien laden",
-        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
-        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
+        "LoadMedia": "Medien laden"
       }
     },
     "WordDbEditor": {
