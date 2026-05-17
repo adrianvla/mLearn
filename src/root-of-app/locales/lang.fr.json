@@ -96,10 +96,20 @@
           },
           "Title": "Mémoire de l'agent"
         },
-        "SplitChecker": {
-          "Label": "Agent correcteur séparé",
-          "Description": "Utiliser un passage LLM séparé pour détecter et corriger les erreurs au lieu de l'agent de conversation.",
-          "Title": "Agent correcteur"
+        "Checker": {
+          "Title": "Agent correcteur",
+          "SecondPass": {
+            "Label": "Second passage activé",
+            "Description": "Un passage LLM séparé s'exécute lorsqu'au moins une fonction de correction est active."
+          },
+          "Mistake": {
+            "Label": "Correction des erreurs",
+            "Description": "Utiliser un second passage pour détecter et corriger les erreurs de grammaire, de vocabulaire et d'orthographe."
+          },
+          "Safety": {
+            "Label": "Agent de sécurité",
+            "Description": "Utiliser un second passage pour détecter les risques d'auto-mutilation et les dangers liés à la sécurité."
+          }
         },
         "Speech": {
           "Title": "Voix",
@@ -112,6 +122,7 @@
         },
         "Title": "Paramètres IA"
       },
+      "QuotaExceeded": "Vous avez dépassé votre quota d'utilisation de l'IA. Veuillez vérifier votre compte cloud ou réessayer plus tard.",
       "SetupRequired": "Les fonctions IA nécessitent une configuration. Ouverture des paramètres..."
     },
     "AITutorSetup": {

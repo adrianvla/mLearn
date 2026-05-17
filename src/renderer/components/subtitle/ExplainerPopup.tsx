@@ -15,7 +15,7 @@ import { CloudSessionCancelledError, CloudUnreachableError } from '../../service
 import type { ParsedExplainer, ExplainerSection, GrammarPoint } from './ExplainerCards';
 import { ExplainerCards } from './ExplainerCards';
 import { buildExplainerGeneratedByLabel } from './explainerProviderLabel';
-import { hasExplainerGenerationOutput, normalizeExplainerErrorMessage } from './explainerPopupState';
+import { hasExplainerGenerationOutput, isQuotaError, normalizeExplainerErrorMessage } from './explainerPopupState';
 import { Spinner } from '../common';
 import './ExplainerPopup.css';
 import { getLogger } from '../../../shared/utils/logger';
@@ -96,7 +96,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [isComplete, setIsComplete] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
-  const [errorKind, setErrorKind] = createSignal<'generic' | 'cancelled' | 'unreachable' | null>(null);
+  const [errorKind, setErrorKind] = createSignal<'generic' | 'cancelled' | 'unreachable' | 'quota' | null>(null);
   const [abortFn, setAbortFn] = createSignal<(() => void) | null>(null);
 
   const isCancelledCloudError = (value: unknown): boolean => value instanceof CloudSessionCancelledError
@@ -268,8 +268,14 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
               setError(t('mlearn.AI.CloudUnreachable'));
               setErrorKind('unreachable');
             } else {
-              setError(normalizeExplainerErrorMessage(typeof err === 'string' ? err : err instanceof Error ? err.message : null, getExplainerFailureMessage()));
-              setErrorKind('generic');
+              const normalized = normalizeExplainerErrorMessage(typeof err === 'string' ? err : err instanceof Error ? err.message : null, getExplainerFailureMessage());
+              if (isQuotaError(normalized)) {
+                setError(t('mlearn.AI.QuotaExceeded'));
+                setErrorKind('quota');
+              } else {
+                setError(normalized);
+                setErrorKind('generic');
+              }
             }
             setIsLoading(false);
             setIsComplete(true);
@@ -295,8 +301,14 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
           setError(t('mlearn.AI.CloudUnreachable'));
           setErrorKind('unreachable');
         } else {
-          setError(getExplainerFailureMessage());
-          setErrorKind('generic');
+          const normalized = normalizeExplainerErrorMessage(typeof err === 'string' ? err : err instanceof Error ? err.message : null, getExplainerFailureMessage());
+          if (isQuotaError(normalized)) {
+            setError(t('mlearn.AI.QuotaExceeded'));
+            setErrorKind('quota');
+          } else {
+            setError(normalized);
+            setErrorKind('generic');
+          }
         }
         setIsLoading(false);
         setIsComplete(true);

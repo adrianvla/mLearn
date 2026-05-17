@@ -9,7 +9,40 @@ const REQUIRED_EXPLAINER_TOOLS_BY_MODE: Record<ExplainerOutputMode, string[]> = 
 
 export function normalizeExplainerErrorMessage(value: string | null | undefined, fallbackMessage: string): string {
   const trimmed = value?.trim();
-  return trimmed ? trimmed : fallbackMessage;
+  if (!trimmed) {
+    return fallbackMessage;
+  }
+
+  const jsonStart = trimmed.indexOf('{');
+  if (jsonStart !== -1) {
+    try {
+      const parsed = JSON.parse(trimmed.slice(jsonStart)) as Record<string, unknown>;
+      const message = typeof parsed.error === 'string' ? parsed.error
+        : typeof parsed.message === 'string' ? parsed.message
+        : typeof parsed.detail === 'string' ? parsed.detail
+        : null;
+      if (message) {
+        return message;
+      }
+    } catch {
+
+    }
+  }
+
+  return trimmed;
+}
+
+export function isQuotaError(value: string | null | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+  const lower = value.toLowerCase();
+  return lower.includes('quota')
+    || lower.includes('rate limit')
+    || lower.includes('insufficient')
+    || lower.includes('billing')
+    || lower.includes('credit')
+    || lower.includes('usage limit');
 }
 
 function hasRenderableExplainerToolCall(toolCall: LLMToolCall): boolean {

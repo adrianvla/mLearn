@@ -414,15 +414,16 @@ export const ConversationContent: Component = () => {
   };
 
   /**
-   * Run the checker agent on user text and apply corrections to the user message.
-   * Only called when agentSplitChecker is enabled.
+   * Run the checker agent on user text and apply corrections / safety flags.
+   * Called when at least one checker feature (mistake or safety) is enabled.
    */
   const runCheckerOnMessage = (userText: string, userMsgIndex: number, assistantMsgIndex: number) => {
     const customInstructions = tutorConfig()?.customInstructions || undefined;
     void enqueueCheckerTask(async () => {
       const result = await checkerAgent.checkMessage(userText, langName(), customInstructions, {
         speakerRole: 'user',
-        includeCorrections: settings.agentSplitChecker,
+        includeCorrections: settings.agentMistakeChecker,
+        includeSafety: settings.agentSafetyChecker,
       });
       if (result.corrections.length === 0 && !result.safety) {
         return;
@@ -956,7 +957,7 @@ export const ConversationContent: Component = () => {
         }
         clearAssistantStreamState();
 
-        if (assistantMessageIndex >= 0 && settings.agentSplitChecker && finalContent) {
+        if (assistantMessageIndex >= 0 && settings.agentSafetyChecker && finalContent) {
           runAssistantSafetyScan(finalContent, assistantMessageIndex);
         } else if (settings.autoSpeak && settings.speechEnabled && finalContent) {
           const langCode = settings.language;
@@ -1040,7 +1041,9 @@ export const ConversationContent: Component = () => {
       ...baseCallbacks,
       onDone: (...args) => {
         baseCallbacks.onDone(...args);
-        runCheckerOnMessage(text, userMsgIndex, assistantMessageIndex);
+        if (settings.agentMistakeChecker || settings.agentSafetyChecker) {
+          runCheckerOnMessage(text, userMsgIndex, assistantMessageIndex);
+        }
       },
     });
   };

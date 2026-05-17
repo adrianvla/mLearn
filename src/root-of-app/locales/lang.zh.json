@@ -96,10 +96,20 @@
           },
           "Title": "代理记忆"
         },
-        "SplitChecker": {
-          "Label": "独立校对代理",
-          "Description": "使用独立的 LLM 通道检测和纠正错误，而不是由对话代理处理。",
-          "Title": "校对代理"
+        "Checker": {
+          "Title": "校对代理",
+          "SecondPass": {
+            "Label": "二次检查已启用",
+            "Description": "当至少启用一项检查功能时，将运行独立的 LLM 通道。"
+          },
+          "Mistake": {
+            "Label": "错误检查",
+            "Description": "使用二次检查来检测和纠正语法、词汇和拼写错误。"
+          },
+          "Safety": {
+            "Label": "安全代理",
+            "Description": "使用二次检查来检测自残和安全相关风险。"
+          }
         },
         "Speech": {
           "Title": "语音",
@@ -112,6 +122,7 @@
         },
         "Title": "AI 配置"
       },
+      "QuotaExceeded": "您已超出 AI 使用配额。请检查您的云账户或稍后再试。",
       "SetupRequired": "AI 功能需要设置。正在打开设置…"
     },
     "AITutorSetup": {

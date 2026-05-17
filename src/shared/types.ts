@@ -384,8 +384,10 @@ export interface Settings {
   agentMemoryEnabled: boolean;
   /** Whether memories are shared across all agents or compartmentalized */
   agentMemoryShared: boolean;
-  /** Whether to use a separate checker agent for correcting mistakes */
-  agentSplitChecker: boolean;
+  /** Whether the separate checker agent should correct language mistakes */
+  agentMistakeChecker: boolean;
+  /** Whether the separate checker agent should flag safety risks (e.g. self-harm) */
+  agentSafetyChecker: boolean;
 
   /** List of browser paths that have the mLearn browser extension installed */
   installedBrowserExtensions: string[];
@@ -531,7 +533,8 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardMuteAudio: false,
   agentMemoryEnabled: true,
   agentMemoryShared: true,
-  agentSplitChecker: true,
+  agentMistakeChecker: true,
+  agentSafetyChecker: true,
   installedBrowserExtensions: [],
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },

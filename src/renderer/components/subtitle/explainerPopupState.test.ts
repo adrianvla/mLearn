@@ -4,6 +4,7 @@ import {
   hasCompleteExplainerGenerationOutput,
   hasCompleteStructuredExplainerOutput,
   hasExplainerGenerationOutput,
+  isQuotaError,
   normalizeExplainerErrorMessage,
 } from './explainerPopupState';
 
@@ -15,6 +16,35 @@ describe('explainerPopupState', () => {
 
   it('preserves a non-empty provider error message', () => {
     expect(normalizeExplainerErrorMessage('Model refused the request', 'Fallback message')).toBe('Model refused the request');
+  });
+
+  it('extracts the error field from a JSON payload in the error string', () => {
+    expect(normalizeExplainerErrorMessage('Cloud LLM error: 429 {"error":"You have ran out of quota"}', 'Fallback')).toBe('You have ran out of quota');
+  });
+
+  it('extracts the message field when error is not present', () => {
+    expect(normalizeExplainerErrorMessage('{"message":"Something went wrong"}', 'Fallback')).toBe('Something went wrong');
+  });
+
+  it('extracts the detail field when error and message are not present', () => {
+    expect(normalizeExplainerErrorMessage('{"detail":"Not found"}', 'Fallback')).toBe('Not found');
+  });
+
+  it('falls back to the full string when JSON has no recognized fields', () => {
+    expect(normalizeExplainerErrorMessage('Cloud LLM error: 500 {"code":"unknown"}', 'Fallback')).toBe('Cloud LLM error: 500 {"code":"unknown"}');
+  });
+
+  it('falls back to the full string when JSON is malformed', () => {
+    expect(normalizeExplainerErrorMessage('Cloud LLM error: 500 {broken', 'Fallback')).toBe('Cloud LLM error: 500 {broken');
+  });
+
+  it('detects quota errors by keyword', () => {
+    expect(isQuotaError('You have ran out of quota')).toBe(true);
+    expect(isQuotaError('Rate limit exceeded')).toBe(true);
+    expect(isQuotaError('Insufficient credits')).toBe(true);
+    expect(isQuotaError('Usage limit reached')).toBe(true);
+    expect(isQuotaError('Something else went wrong')).toBe(false);
+    expect(isQuotaError(null)).toBe(false);
   });
 
   it('treats an empty completion with no tool calls as a failed generation', () => {

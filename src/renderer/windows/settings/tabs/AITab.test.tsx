@@ -44,9 +44,13 @@ const translations: Record<string, string> = {
   'mlearn.AI.Settings.AgentMemory.Enable.Description': 'Allow the tutor to store memories.',
   'mlearn.AI.Settings.AgentMemory.Shared.Label': 'Shared memory',
   'mlearn.AI.Settings.AgentMemory.Shared.Description': 'Share memories across agents.',
-  'mlearn.AI.Settings.SplitChecker.Title': 'Split checker',
-  'mlearn.AI.Settings.SplitChecker.Label': 'Enable split checker',
-  'mlearn.AI.Settings.SplitChecker.Description': 'Use a second pass for corrections.',
+  'mlearn.AI.Settings.Checker.Title': 'Checker Agent',
+  'mlearn.AI.Settings.Checker.SecondPass.Label': 'Second pass enabled',
+  'mlearn.AI.Settings.Checker.SecondPass.Description': 'A separate LLM pass runs when at least one checker feature is active.',
+  'mlearn.AI.Settings.Checker.Mistake.Label': 'Mistake checker',
+  'mlearn.AI.Settings.Checker.Mistake.Description': 'Use a second pass to detect and correct mistakes.',
+  'mlearn.AI.Settings.Checker.Safety.Label': 'Safety agent',
+  'mlearn.AI.Settings.Checker.Safety.Description': 'Use a second pass to detect safety risks.',
   'mlearn.AI.Settings.OCR.Title': 'OCR',
   'mlearn.AI.Settings.OCR.Provider.Label': 'OCR provider',
   'mlearn.AI.Settings.OCR.Provider.Description': 'Choose the OCR backend.',
@@ -82,7 +86,8 @@ type TestSettings = {
   cloudAuthUserEmail: string;
   agentMemoryEnabled: boolean;
   agentMemoryShared: boolean;
-  agentSplitChecker: boolean;
+  agentMistakeChecker: boolean;
+  agentSafetyChecker: boolean;
   ocrProvider: 'local' | 'cloud';
   cloudApiUrl: string;
   overrideCloudEndpointUrl: boolean;
@@ -238,7 +243,8 @@ describe('AITab', () => {
       cloudAuthUserEmail: '',
       agentMemoryEnabled: true,
       agentMemoryShared: false,
-      agentSplitChecker: false,
+      agentMistakeChecker: false,
+      agentSafetyChecker: false,
       ocrProvider: 'local',
       cloudApiUrl: 'https://cloud.example.com',
       overrideCloudEndpointUrl: false,

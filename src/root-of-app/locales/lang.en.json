@@ -96,10 +96,20 @@
           },
           "Title": "Agent Memory"
         },
-        "SplitChecker": {
-          "Label": "Separate checker agent",
-          "Description": "Use a separate LLM pass to detect and correct mistakes instead of the conversation agent.",
-          "Title": "Checker Agent"
+        "Checker": {
+          "Title": "Checker Agent",
+          "SecondPass": {
+            "Label": "Second pass enabled",
+            "Description": "A separate LLM pass runs when at least one checker feature is active."
+          },
+          "Mistake": {
+            "Label": "Mistake checker",
+            "Description": "Use a second pass to detect and correct grammar, vocabulary, and spelling mistakes."
+          },
+          "Safety": {
+            "Label": "Safety agent",
+            "Description": "Use a second pass to detect self-harm and safety-related risks."
+          }
         },
         "Speech": {
           "Title": "Speech",
@@ -112,6 +122,7 @@
         },
         "Title": "AI Configuration"
       },
+      "QuotaExceeded": "You have exceeded your AI usage quota. Please check your cloud account or try again later.",
       "SetupRequired": "AI features require setup. Opening settings..."
     },
     "AITutorSetup": {

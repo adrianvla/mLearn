@@ -22,6 +22,10 @@ mLearn is an all-in-one immersion app that knows what you know. Watch videos, re
 
 <img src="https://mlearn.morisinc.net/img/Screenshot%202025-09-19%20at%2022.03.49.png" alt="Kanji knowledge grid" width="800"/>
 
+<img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn-video-overlay.webp" alt="Video overlay with synced subtitles over a streaming site" width="800"/>
+
+<img src="https://raw.githubusercontent.com/adrianvla/morisinc-cdn/refs/heads/main/mlearn-text-overlay.webp" alt="Text overlay mode - click any webpage text to look up words" width="800"/>
+
 ---
 
 ## Features
@@ -58,7 +62,8 @@ mLearn is an all-in-one immersion app that knows what you know. Watch videos, re
 
 | Feature | Description |
 |---------|-------------|
-| **Subtitle Overlay** | Transparent always-on-top window for subtitles over **any application**. Works with the browser extension for streaming sites. |
+| **Video Overlay** | Transparent always-on-top subtitle window for **any video player**. Syncs with the browser extension for streaming sites. Auto-positioning, geometry locking, drag & drop subtitles. |
+| **Text Overlay** | Full-screen overlay for **web browsing**. Click any text on a webpage to look up words instantly without leaving the page. |
 | **Browser Extension** | Chrome/Firefox extension that brings mLearn's subtitle overlay to any streaming website. |
 | **Statistics Dashboard** | Heatmaps, streaks, immersion tracking, review activity, level breakdowns, word acquisition analytics. |
 | **Kanji Grid** | Visual knowledge map of all kanji colored by status with level filtering. |
@@ -85,7 +90,8 @@ v2.0 is a complete rewrite in **TypeScript + SolidJS** with major new capabiliti
 - **TTS / Voice** — Kokoro, Qwen3-TTS, voice cloning
 - **STT / Speech Recognition** — Whisper-based voice input
 - **Browser Extension** — Chrome/Firefox extension for streaming sites
-- **Subtitle Overlay** — Always-on-top subtitle window for any video
+- **Video Overlay** — Always-on-top synced subtitles for any video player
+- **Text Overlay** — Click-to-lookup word overlay for web browsing
 - **Between-Devices Sync** — Mobile ↔ Desktop sync
 - **Cloud Backend** — Remote server support in addition to local/tethered
 - **Word Passive Tracking** — Auto-tracks word encounters across all media
@@ -262,8 +268,10 @@ Paste a link to a streaming playlist (e.g., ending in `.m3u8` or `.mp4`) into th
 ### How do I add subtitles?
 Drag & drop subtitle files (`.srt`, `.vtt`, `.ass`) onto the video player or overlay window.
 
-### How does the subtitle overlay work?
-Open the overlay window (from the video player's context menu or via the browser extension). It's a transparent, always-on-top window that syncs with the video and lets you look up words without leaving your content.
+### How does the overlay work?
+**Video Overlay** — Open it from the video player's context menu or via the browser extension. It's a transparent, always-on-top window that syncs with the video and lets you look up words without leaving your content.
+
+**Text Overlay** — Activate text mode from the browser extension or overlay controls. The window becomes fullscreen and click-through: click any text on a webpage to get an instant word lookup popup.
 
 ### I opened Anki, but mLearn cannot see it
 Install the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) plugin.

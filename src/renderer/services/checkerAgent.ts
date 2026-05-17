@@ -29,6 +29,7 @@ export interface CheckerResult {
 export interface CheckerMessageOptions {
   speakerRole?: 'user' | 'assistant';
   includeCorrections?: boolean;
+  includeSafety?: boolean;
 }
 
 export interface CheckerAgentInstance {
@@ -147,8 +148,12 @@ function buildCheckerPrompt(
 ): string {
   const speakerRole = options.speakerRole === 'assistant' ? 'assistant' : 'learner';
   const includeCorrections = options.includeCorrections ?? options.speakerRole !== 'assistant';
+  const includeSafety = options.includeSafety ?? true;
 
-  let prompt = `You are a safety-aware language review assistant for ${langName}. You are reviewing a ${speakerRole}'s message.
+  let prompt = `You are a language review assistant for ${langName}. You are reviewing a ${speakerRole}'s message.`;
+
+  if (includeSafety) {
+    prompt += `
 
 ## Primary Duty: Safety
 - Detect direct self-harm, suicidal ideation, self-injury, requests for methods, planning, preparation, encouragement, glorification, or anything closely related that requires a more cautious response.
@@ -160,24 +165,47 @@ function buildCheckerPrompt(
 - Use severity "concern" for non-immediate but still meaningful self-harm-related risk.
 - Every safety flag MUST include flagged_span copied exactly from the reviewed message. Never invent, paraphrase, or generalize the flagged span.
 - Do NOT flag greetings, small talk, ordinary encouragement, neutral tutoring language, generic frustration, or general emotional language unless the reviewed message itself explicitly contains self-harm-related content.
-- Do NOT flag neutral dictionary definitions, historical discussion, literary analysis, translation exercises, or other purely educational discussion unless the message is personally directed, asks how to do it, encourages it, or otherwise clearly requires caution.
+- Do NOT flag neutral dictionary definitions, historical discussion, literary analysis, translation exercises, or other purely educational discussion unless the message is personally directed, asks how to do it, encourages it, or otherwise clearly requires caution.`;
+  }
 
-## Secondary Duty: Language Review
-- If language corrections are enabled, review the message for mistakes, unnatural phrasing, or awkward expressions.
-- If language corrections are disabled, DO NOT suggest grammar, vocabulary, spelling, or stylistic edits.
+  if (includeCorrections) {
+    prompt += `
+
+## Language Review
+- Review the message for mistakes, unnatural phrasing, or awkward expressions.`;
+  }
+
+  prompt += `
 
 ## Rules
 - Analyze the message silently.
-- Only call tools. Do NOT add any visible text in your response.
-- Never call both "flag_self_harm_risk" and "mark_safe" for the same message.
+- Only call tools. Do NOT add any visible text in your response.`;
+
+  if (includeSafety) {
+    prompt += `
+- Never call both "flag_self_harm_risk" and "mark_safe" for the same message.`;
+  }
+
+  if (includeCorrections) {
+    prompt += `
 - The error_span must be copied EXACTLY from the learner's message. Do not translate or alter it.
 - When the same word or phrase appears multiple times, provide context_before and/or context_after for disambiguation.
 - Provide alternatives when there are multiple valid ways to express the same thing.
 - Do NOT correct text that is not in ${langName} — the message may mix languages occasionally.
 - Do NOT correct names.
 - Do NOT correct formality.
-- Do NOT correct anything if it's just to rewrite the sentence.
-- If there is no safety issue and no correction to make, call "mark_safe".
+- Do NOT correct anything if it's just to rewrite the sentence.`;
+  }
+
+  if (includeSafety && includeCorrections) {
+    prompt += `
+- If there is no safety issue and no correction to make, call "mark_safe".`;
+  } else if (includeSafety) {
+    prompt += `
+- If there is no safety issue, call "mark_safe".`;
+  }
+
+  prompt += `
 
 ## Casual Speech Policy
 - Be LENIENT with casual, colloquial, or informal speech. Casual register is VALID and should NOT be corrected.
@@ -193,13 +221,14 @@ function buildCheckerPrompt(
 - Use "other" only when none of the above categories fit.`;
 
   if (includeCorrections) {
-    prompt += '\n- If you find language issues, call the "suggest_corrections" tool with all corrections.';
-  } else {
-    prompt += '\n- Language corrections are disabled for this scan. Ignore grammar and style unless the message is itself unsafe.';
+    prompt += `
+- If you find language issues, call the "suggest_corrections" tool with all corrections.`;
   }
 
   if (customInstructions) {
-    prompt += `\n\n## Session Instructions (from the learner)
+    prompt += `
+
+## Session Instructions (from the learner)
 The learner has provided these custom instructions. Adjust your correction behavior accordingly:
 ${customInstructions}`;
   }
@@ -243,8 +272,12 @@ export function createCheckerAgent(): CheckerAgentInstance {
       };
 
       const messages: LLMChatMessage[] = [systemMsg, userMsg];
-      const tools: LLMToolDefinition[] = [SAFETY_TOOL, SAFE_TOOL];
+      const tools: LLMToolDefinition[] = [];
       const includeCorrections = options.includeCorrections ?? options.speakerRole !== 'assistant';
+      const includeSafety = options.includeSafety ?? true;
+      if (includeSafety) {
+        tools.push(SAFETY_TOOL, SAFE_TOOL);
+      }
       if (includeCorrections) {
         tools.push(CORRECTION_TOOL);
       }
