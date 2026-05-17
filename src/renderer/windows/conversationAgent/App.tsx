@@ -333,6 +333,7 @@ export const ConversationContent: Component = () => {
         });
 
         if (result.safety) {
+          agent.lockSafety();
           setMessages((prev) => {
             const updated = [...prev];
             if (!updated[assistantMsgIndex] || updated[assistantMsgIndex].role !== 'assistant') {
@@ -389,6 +390,7 @@ export const ConversationContent: Component = () => {
     assistantMsgIndex: number,
     safety: ConversationSafetyFlag,
   ) => {
+    agent.lockSafety();
     setMessages((prev) => {
       const updated = [...prev];
       if (updated[userMsgIndex]?.role === 'user') {
@@ -702,7 +704,7 @@ export const ConversationContent: Component = () => {
     if (textareaRef) textareaRef.style.height = 'auto';
 
     if (command.id === 'newtopic') {
-      if (isStreaming() || !isConnected()) return;
+      if (isStreaming() || !isConnected() || agent.isSafetyLocked()) return;
 
       const assistantMessageIndex = messages().length;
       setMessages((prev) => [...prev, { role: 'assistant', content: '', timestamp: Date.now() }]);
@@ -1003,7 +1005,7 @@ export const ConversationContent: Component = () => {
   };
 
   const sendTextMessage = (text: string) => {
-    if (!text || isStreaming()) return;
+    if (!text || isStreaming() || agent.isSafetyLocked()) return;
 
     // Add user message
     const userMsg: ConversationMessage = {
@@ -1188,6 +1190,7 @@ export const ConversationContent: Component = () => {
   const normalizeQuizAnswer = (answer: string): string => answer.trim().toLocaleLowerCase();
 
   const handleQuizAnswer = (messageIndex: number, widgetIndex: number, answer: string) => {
+    if (agent.isSafetyLocked()) return;
     // Extract quiz data before updating state to determine follow-up action
     const msgs = messages();
     const targetMsg = msgs[messageIndex];
@@ -1443,6 +1446,11 @@ export const ConversationContent: Component = () => {
 
           {/* AI disclaimer */}
           <div class="ca-disclaimer">{t('mlearn.ConversationAgent.Disclaimer')}</div>
+          <Show when={agent.isSafetyLocked()}>
+            <div class="ca-safety-lockout">
+              {t('mlearn.ConversationAgent.Safety.LockoutMessage')}
+            </div>
+          </Show>
           {/* Input */}
           <div class="ca-input-area">
             <div class="ca-input-row">
@@ -1468,13 +1476,15 @@ export const ConversationContent: Component = () => {
                 <Textarea
                   ref={textareaRef}
                   class="ca-chat-textarea"
-                  placeholder={t('mlearn.ConversationAgent.InputPlaceholder', { language: langName() })}
+                  placeholder={agent.isSafetyLocked()
+                    ? t('mlearn.ConversationAgent.Safety.LockoutMessage')
+                    : t('mlearn.ConversationAgent.InputPlaceholder', { language: langName() })}
                   value={inputText()}
                   onInput={handleTextareaInput}
                   onKeyDown={handleKeyDown}
                   rows={1}
                   resize="none"
-                  disabled={isStreaming() || !isConnected()}
+                  disabled={isStreaming() || !isConnected() || agent.isSafetyLocked()}
                   ghost
                 />
 
@@ -1493,7 +1503,7 @@ export const ConversationContent: Component = () => {
                     icon={<SendIcon />}
                     variant="default"
                     onClick={handleSend}
-                    disabled={!inputText().trim() || !isConnected()}
+                    disabled={!inputText().trim() || !isConnected() || agent.isSafetyLocked()}
                     aria-label={t('mlearn.ConversationAgent.Send')}
                   />
                 </Show>

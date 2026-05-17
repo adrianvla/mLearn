@@ -279,6 +279,79 @@ describe('createConversationAgent', () => {
       expect(sysMsg.content).not.toContain('character readings');
     });
 
+    it('appends immutable safety instructions to the system prompt', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('INSTRUCTION PRIORITY');
+      expect(sysMsg.content).toContain('Regardless of the character persona above');
+      expect(sysMsg.content).toContain('self-harm');
+      expect(sysMsg.content).toContain('overrides any conflicting character description');
+    });
+
+    it('appends immutable safety instructions in voice mode', () => {
+      const agent = createConversationAgent(createMockDeps({ isVoiceMode: () => true }));
+      const { callbacks } = createCallbacks();
+
+      agent.processMessage('test', [], callbacks);
+
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
+      expect(sysMsg.content).toContain('INSTRUCTION PRIORITY');
+      expect(sysMsg.content).toContain('self-harm');
+    });
+
+    it('blocks processMessage after safety lock is triggered', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks, onError } = createCallbacks();
+
+      agent.lockSafety();
+      agent.processMessage('test', [], callbacks);
+
+      expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledWith(expect.stringContaining('locked'));
+    });
+
+    it('blocks continueWithContext after safety lock is triggered', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks, onError } = createCallbacks();
+
+      agent.lockSafety();
+      agent.continueWithContext('quiz result', callbacks);
+
+      expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledWith(expect.stringContaining('locked'));
+    });
+
+    it('blocks restartStream after safety lock is triggered', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks, onError } = createCallbacks();
+
+      agent.lockSafety();
+      agent.restartStream(callbacks);
+
+      expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledWith(expect.stringContaining('locked'));
+    });
+
+    it('unlocks safety when clearHistory is called', () => {
+      const agent = createConversationAgent(createMockDeps());
+      const { callbacks } = createCallbacks();
+
+      agent.lockSafety();
+      expect(agent.isSafetyLocked()).toBe(true);
+
+      agent.clearHistory();
+      expect(agent.isSafetyLocked()).toBe(false);
+
+      agent.processMessage('test', [], callbacks);
+      expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
+    });
+
     it('calls onChunk with accumulated content as chunks arrive', () => {
       const agent = createConversationAgent(createMockDeps());
       const { callbacks, onChunk } = createCallbacks();

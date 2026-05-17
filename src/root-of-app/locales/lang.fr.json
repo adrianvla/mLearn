@@ -266,11 +266,7 @@
       "SigningIn": "Connexion...",
       "TestConnection": "Tester la connexion",
       "Title": "Connexion",
-      "Unreachable": "Injoignable",
-      "ICEServers": "WebRTC ICE Servers",
-      "ICEServersLabel": "STUN / TURN servers",
-      "ICEServersDescription": "Used for Watch Together peer connections.",
-      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
+      "Unreachable": "Injoignable"
     },
     "ConversationAgent": {
       "Agents": {
@@ -337,6 +333,7 @@
         "AssistantFiltered": "Une réponse potentiellement dangereuse de l'assistant a été remplacée.",
         "AssistantReplacement": "Je dois répondre avec prudence ici. S'il s'agit d'un risque réel d'automutilation ou d'un danger immédiat, contactez tout de suite les services d'urgence locaux ou une ligne de crise de votre région. Si vous voulez, dites-moi ce qui se passe et je continuerai à répondre avec prudence.",
         "GetHelp": "Si cela correspond à un risque réel, contactez maintenant les services d'urgence locaux ou une ligne de crise de votre région.",
+        "LockoutMessage": "This conversation has been locked due to a safety concern. Clear the chat to start a new conversation.",
         "SensitiveNotice": "Contenu sensible lié à l'automutilation détecté.",
         "UrgentNotice": "Risque possible d'automutilation immédiate détecté.",
         "UserConcernResponse": "Je dois répondre prudemment à cela. Si cela reflète un risque réel d'automutilation, contactez maintenant les services d'urgence locaux ou une ligne de crise de votre région. Si vous voulez, dites-moi ce qui se passe et je continuerai à répondre avec prudence.",
@@ -2127,23 +2124,21 @@
       },
       "Media": {
         "DistributeTitle": "Distribuer le média",
-        "DistributeSubtitle": "Envoyer le fichier média aux pairs connectés via WebRTC",
+        "DistributeSubtitle": "Envoyer le fichier média aux participants connectés via synchronisation cloud",
         "DistributeAction": "Distribuer",
         "SelectFile": "Sélectionner un fichier média à distribuer",
         "FileName": "Nom du fichier",
         "FileSize": "Taille du fichier",
-        "ConnectedPeers": "Pairs connectés",
+        "ConnectedPeers": "Participants connectés",
         "SubtitlesIncluded": "Sous-titres inclus",
         "StartDistribution": "Démarrer la distribution",
-        "Sending": "Envoi du média aux pairs...",
-        "DistributionComplete": "Distribution terminée. Tous les pairs ont reçu le média.",
+        "Sending": "Envoi du média aux participants...",
+        "DistributionComplete": "Distribution terminée. Tous les participants ont reçu le média.",
         "ReceiveTitle": "Média entrant",
-        "ReceivePrompt": "Un pair souhaite vous envoyer un fichier média. Voulez-vous le recevoir ?",
+        "ReceivePrompt": "Un participant souhaite vous envoyer un fichier média. Voulez-vous le recevoir ?",
         "Receiving": "Réception du média...",
         "ReceiveComplete": "Média reçu avec succès.",
-        "LoadMedia": "Charger le média",
-        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
-        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
+        "LoadMedia": "Charger le média"
       }
     },
     "WordDbEditor": {

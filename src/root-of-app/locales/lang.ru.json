@@ -266,11 +266,7 @@
       "SigningIn": "Вход...",
       "TestConnection": "Проверить подключение",
       "Title": "Подключение",
-      "Unreachable": "Недоступен",
-      "ICEServers": "WebRTC ICE Servers",
-      "ICEServersLabel": "STUN / TURN servers",
-      "ICEServersDescription": "Used for Watch Together peer connections.",
-      "ICETURNWarning": "Only STUN servers are configured. Peers on different networks (e.g., mobile hotspot) may not be able to connect. Add a TURN server for reliable cross-network connectivity."
+      "Unreachable": "Недоступен"
     },
     "ConversationAgent": {
       "Agents": {
@@ -337,6 +333,7 @@
         "AssistantFiltered": "Потенциально небезопасный ответ помощника был заменён.",
         "AssistantReplacement": "Мне нужно ответить здесь осторожно. Если речь идёт о реальном риске самоповреждения или немедленной опасности, сейчас же свяжитесь с местными экстренными службами или кризисной линией в вашем регионе. Если хотите, расскажите, что происходит, и я продолжу отвечать осторожно.",
         "GetHelp": "Если это отражает реальный риск, немедленно свяжитесь с местными экстренными службами или кризисной линией в вашем регионе.",
+        "LockoutMessage": "This conversation has been locked due to a safety concern. Clear the chat to start a new conversation.",
         "SensitiveNotice": "Обнаружен чувствительный контент, связанный с самоповреждением.",
         "UrgentNotice": "Обнаружен возможный немедленный риск самоповреждения.",
         "UserConcernResponse": "Мне нужно ответить на это осторожно. Если это отражает реальный риск самоповреждения, немедленно свяжитесь с местными экстренными службами или кризисной линией в вашем регионе. Если хотите, расскажите, что происходит, и я продолжу отвечать осторожно.",
@@ -2127,7 +2124,7 @@
       },
       "Media": {
         "DistributeTitle": "Раздать медиа",
-        "DistributeSubtitle": "Отправить медиафайл подключённым участникам через WebRTC",
+        "DistributeSubtitle": "Отправить медиафайл подключённым участникам через облачную синхронизацию",
         "DistributeAction": "Раздать",
         "SelectFile": "Выберите медиафайл для раздачи",
         "FileName": "Имя файла",
@@ -2141,9 +2138,7 @@
         "ReceivePrompt": "Участник хочет отправить вам медиафайл. Хотите его получить?",
         "Receiving": "Получение медиа...",
         "ReceiveComplete": "Медиа успешно получено.",
-        "LoadMedia": "Загрузить медиа",
-        "PeerConnectionFailed": "Peer connection failed. If peers are on different networks, configure a TURN server in Connection settings.",
-        "NoPeersConnected": "No peers are connected. Ensure all participants are in the same room and check Connection settings if on different networks."
+        "LoadMedia": "Загрузить медиа"
       }
     },
     "WordDbEditor": {

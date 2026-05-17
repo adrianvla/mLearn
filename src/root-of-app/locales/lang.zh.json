@@ -266,11 +266,7 @@
       "SigningIn": "正在登录…",
       "TestConnection": "测试连接",
       "Title": "连接",
-      "Unreachable": "无法访问",
-      "ICEServers": "WebRTC ICE 服务器",
-      "ICEServersLabel": "STUN / TURN 服务器",
-      "ICEServersDescription": "用于一起看视频的对等连接。",
-      "ICETURNWarning": "仅配置了 STUN 服务器。不同网络上的对等端（例如移动热点）可能无法连接。添加 TURN 服务器以实现可靠的跨网络连接。"
+      "Unreachable": "无法访问"
     },
     "ConversationAgent": {
       "Agents": {
@@ -337,6 +333,7 @@
         "AssistantFiltered": "已替换可能不安全的助手回复。",
         "AssistantReplacement": "我需要谨慎回复。如果这涉及真实的自残风险或紧急危险，请立即联系您当地的紧急服务或危机热线。如果您愿意，可以告诉我发生了什么，我会继续谨慎回复。",
         "GetHelp": "如果这反映了真实风险，请立即联系您当地的紧急服务或危机热线。",
+        "LockoutMessage": "This conversation has been locked due to a safety concern. Clear the chat to start a new conversation.",
         "SensitiveNotice": "检测到可能涉及自残的敏感内容。",
         "UrgentNotice": "检测到可能的即时自残风险。",
         "UserConcernResponse": "我需要谨慎回复。如果这反映了真实的自残风险，请立即联系您当地的紧急服务或危机热线。如果您愿意，可以告诉我发生了什么，我会继续谨慎回复。",
@@ -2127,23 +2124,21 @@
       },
       "Media": {
         "DistributeTitle": "分发媒体",
-        "DistributeSubtitle": "通过 WebRTC 向连接的对等端发送媒体文件",
+        "DistributeSubtitle": "通过云端同步向连接的参与者发送媒体文件",
         "DistributeAction": "分发",
         "SelectFile": "选择要分发的媒体文件",
         "FileName": "文件名",
         "FileSize": "文件大小",
-        "ConnectedPeers": "连接的对等端",
+        "ConnectedPeers": "连接的参与者",
         "SubtitlesIncluded": "包含字幕",
         "StartDistribution": "开始分发",
-        "Sending": "正在向对等端发送媒体…",
-        "DistributionComplete": "分发完成。所有对等端已收到媒体。",
+        "Sending": "正在向参与者发送媒体…",
+        "DistributionComplete": "分发完成。所有参与者已收到媒体。",
         "ReceiveTitle": "传入媒体",
-        "ReceivePrompt": "一个对等端想向您发送媒体文件。是否接收？",
+        "ReceivePrompt": "一个参与者想向您发送媒体文件。是否接收？",
         "Receiving": "正在接收媒体…",
         "ReceiveComplete": "媒体接收成功。",
-        "LoadMedia": "加载媒体",
-        "PeerConnectionFailed": "对等连接失败。如果对等端在不同网络上，请在连接设置中配置 TURN 服务器。",
-        "NoPeersConnected": "没有连接的对等端。确保所有参与者都在同一房间，如果在不同网络请检查连接设置。"
+        "LoadMedia": "加载媒体"
       }
     },
     "WordDbEditor": {
