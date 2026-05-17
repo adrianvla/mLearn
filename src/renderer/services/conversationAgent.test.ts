@@ -1461,7 +1461,7 @@ describe('createConversationAgent', () => {
       };
       const deps = createMockDeps({
         getTutorConfig: () => tutorConfig,
-        getSettings: () => ({ ...DEFAULT_SETTINGS, agentSplitChecker: false }),
+        getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }),
       });
       const agent = createConversationAgent(deps);
       const { callbacks } = createCallbacks();
@@ -1540,7 +1540,7 @@ describe('createConversationAgent', () => {
     it('uses text-mode tools (correct_mistake included, note_mistake excluded)', () => {
       const deps = createMockDeps({
         isVoiceMode: () => false,
-        getSettings: () => ({ ...DEFAULT_SETTINGS, agentSplitChecker: false }),
+        getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }),
       });
       const agent = createConversationAgent(deps);
       const { callbacks } = createCallbacks();
@@ -1605,7 +1605,7 @@ describe('createConversationAgent', () => {
         getTargetLevel: () => 3,
         getLevelName: () => 'N3',
         getFrequency,
-        getSettings: () => ({ ...DEFAULT_SETTINGS, agentSplitChecker: false }),
+        getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }),
       });
       const agent = createConversationAgent(deps);
       const { callbacks, onDone } = createCallbacks();
@@ -1642,7 +1642,7 @@ describe('createConversationAgent', () => {
         getTargetLevel: () => 3,
         getLevelName: () => 'N3',
         getFrequency,
-        getSettings: () => ({ ...DEFAULT_SETTINGS, agentSplitChecker: false }),
+        getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }),
       });
       const agent = createConversationAgent(deps);
       const { callbacks, onDone } = createCallbacks();
@@ -1707,9 +1707,9 @@ describe('createConversationAgent', () => {
   // ==========================================================================
 
   describe('disabled tools', () => {
-    it('excludes correct_mistake tool when agentSplitChecker is enabled', () => {
+    it('excludes correct_mistake tool when agentMistakeChecker is enabled', () => {
       const deps = createMockDeps({
-        getSettings: () => ({ ...DEFAULT_SETTINGS, agentSplitChecker: true }),
+        getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: true }),
       });
       const agent = createConversationAgent(deps);
       const { callbacks } = createCallbacks();

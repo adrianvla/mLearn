@@ -96,10 +96,20 @@
           },
           "Title": "Agenten-Gedächtnis"
         },
-        "SplitChecker": {
-          "Label": "Separater Korrektur-Agent",
-          "Description": "Einen separaten LLM-Durchgang verwenden, um Fehler zu erkennen und zu korrigieren, statt den Gesprächsagenten.",
-          "Title": "Korrektur-Agent"
+        "Checker": {
+          "Title": "Korrektur-Agent",
+          "SecondPass": {
+            "Label": "Zweiter Durchgang aktiviert",
+            "Description": "Ein separater LLM-Durchgang läuft, wenn mindestens eine Korrekturfunktion aktiv ist."
+          },
+          "Mistake": {
+            "Label": "Fehlerkorrektur",
+            "Description": "Einen zweiten Durchgang verwenden, um Grammatik-, Vokabel- und Rechtschreibfehler zu erkennen und zu korrigieren."
+          },
+          "Safety": {
+            "Label": "Sicherheitsagent",
+            "Description": "Einen zweiten Durchgang verwenden, um Selbstgefährdung und sicherheitsrelevante Risiken zu erkennen."
+          }
         },
         "Speech": {
           "Title": "Sprache",
@@ -112,6 +122,7 @@
         },
         "Title": "KI-Einstellungen"
       },
+      "QuotaExceeded": "Sie haben Ihr KI-Nutzungskontingent überschritten. Bitte überprüfen Sie Ihr Cloud-Konto oder versuchen Sie es später erneut.",
       "SetupRequired": "KI-Funktionen erfordern Einrichtung. Einstellungen werden geöffnet..."
     },
     "AITutorSetup": {

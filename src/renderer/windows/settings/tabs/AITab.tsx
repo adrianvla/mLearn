@@ -595,14 +595,33 @@ export const AITab: Component = () => {
       </SettingGroup>
 
       {/* Checker Agent */}
-      <SettingGroup title={t('mlearn.AI.Settings.SplitChecker.Title')}>
+      <SettingGroup title={t('mlearn.AI.Settings.Checker.Title')}>
         <SettingRow
-          label={t('mlearn.AI.Settings.SplitChecker.Label')}
-          description={t('mlearn.AI.Settings.SplitChecker.Description')}
+          label={t('mlearn.AI.Settings.Checker.SecondPass.Label')}
+          description={t('mlearn.AI.Settings.Checker.SecondPass.Description')}
         >
           <ToggleSwitch
-            checked={settings.agentSplitChecker}
-            onChange={(checked) => updateSettings({ agentSplitChecker: checked })}
+            checked={settings.agentMistakeChecker || settings.agentSafetyChecker}
+            onChange={() => {}}
+            disabled
+          />
+        </SettingRow>
+        <SettingRow
+          label={t('mlearn.AI.Settings.Checker.Mistake.Label')}
+          description={t('mlearn.AI.Settings.Checker.Mistake.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.agentMistakeChecker}
+            onChange={(checked) => updateSettings({ agentMistakeChecker: checked })}
+          />
+        </SettingRow>
+        <SettingRow
+          label={t('mlearn.AI.Settings.Checker.Safety.Label')}
+          description={t('mlearn.AI.Settings.Checker.Safety.Description')}
+        >
+          <ToggleSwitch
+            checked={settings.agentSafetyChecker}
+            onChange={(checked) => updateSettings({ agentSafetyChecker: checked })}
           />
         </SettingRow>
       </SettingGroup>

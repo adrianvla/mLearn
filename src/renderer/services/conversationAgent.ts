@@ -157,7 +157,7 @@ function buildSystemPrompt(
   agentConfig?: AgentConfig | null,
   memories?: AgentMemoryEntry[],
   includeKnowledgeInfo?: boolean,
-  splitChecker?: boolean,
+  mistakeCheckerEnabled?: boolean,
   inlineBackstory?: boolean,
   disabledTools?: Set<string>,
   features?: LanguageFeatures,
@@ -247,7 +247,7 @@ ${personalitySection}
     if (isToolDisabled(toolName)) continue;
     toolGuidelines.push(...TOOL_PROMPT_GUIDELINES[toolName](langName));
   }
-  if (splitChecker) {
+  if (mistakeCheckerEnabled) {
     toolGuidelines.push(`- Do NOT correct the learner's mistakes. A separate system handles corrections. Focus on natural conversation, quizzes, and teaching.`);
   }
 
@@ -1348,7 +1348,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     // Filter tools: only include save_memory if memory is enabled, exclude search_fandom if no URL configured
     const baseTools = isVoice ? VOICE_AGENT_TOOLS : AGENT_TOOLS;
     const hasFandomUrl = !!agentCfg?.roleplayFandomUrl;
-    const splitChecker = settingsObj.agentSplitChecker && !isVoice;
+    const mistakeCheckerEnabled = settingsObj.agentMistakeChecker && !isVoice;
     const userDisabledTools = deps.getDisabledTools?.() ?? new Set<string>();
 
     // Compute the effective disabled set: user-toggled + auto-filtered tools
@@ -1357,7 +1357,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     if (!hasFandomUrl) effectiveDisabled.add('search_fandom');
     const isRoleplay = agentCfg?.personality === 'roleplay' && !!agentCfg.roleplayContext;
     if (!isRoleplay) effectiveDisabled.add('recall_backstory');
-    if (splitChecker) effectiveDisabled.add('correct_mistake');
+    if (mistakeCheckerEnabled) effectiveDisabled.add('correct_mistake');
 
     // Filter tool definitions using the effective disabled set
     const tools = baseTools.filter((t) => !effectiveDisabled.has(t.name));
@@ -1375,7 +1375,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       role: 'system',
       content: isVoice
         ? buildVoiceSystemPrompt(langName, mediaCtx, langFeatures)
-        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, includeKnowledge, splitChecker, inlineBackstory, effectiveDisabled, langFeatures),
+        : buildSystemPrompt(language, langName, mediaCtx, sceneCtx || undefined, targetLevelName, tutorCfg, agentCfg, memoryEnabled ? memories : undefined, includeKnowledge, mistakeCheckerEnabled, inlineBackstory, effectiveDisabled, langFeatures),
     };
 
     const messages: LLMChatMessage[] = [
