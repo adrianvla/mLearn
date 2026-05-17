@@ -489,6 +489,8 @@ async function handleLeaveWatchTogetherRoom(): Promise<void> {
 }
 
 function activateRoom(session: WatchTogetherRoomSessionExt, accessToken: string): void {
+  cleanupRoomConnection();
+
   currentRoomSession = session;
   roomAccessToken = accessToken;
 
@@ -507,27 +509,33 @@ function activateRoom(session: WatchTogetherRoomSessionExt, accessToken: string)
     const socket = new WebSocket(session.socket.url, [session.socket.protocol, accessToken]);
     let pingInterval: ReturnType<typeof setInterval> | null = null;
 
+    unsubscribeRealtimeRef = () => {
+      if (pingInterval !== null) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+      }
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close();
+      }
+      unsubscribeRealtimeRef = null;
+    };
+
     socket.addEventListener('open', () => {
       pingInterval = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) {
           socket.send('ping');
         }
       }, 30000);
-
-      unsubscribeRealtimeRef = () => {
-        if (pingInterval !== null) {
-          clearInterval(pingInterval);
-          pingInterval = null;
-        }
-        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
-          socket.close();
-        }
-      };
     });
 
     socket.addEventListener('message', (event) => {
+      const data = String(event.data);
+      if (data === 'pong') {
+        return;
+      }
+
       try {
-        const payload = JSON.parse(String(event.data)) as
+        const payload = JSON.parse(data) as
           | { type: 'room-state'; room: WatchTogetherRoomStateExt }
           | { type: 'peer-joined'; room: WatchTogetherRoomStateExt; peerId: string }
           | { type: 'peer-left'; room: WatchTogetherRoomStateExt; peerId: string };
@@ -535,7 +543,9 @@ function activateRoom(session: WatchTogetherRoomSessionExt, accessToken: string)
         if (payload.type === 'room-state') {
           const room = payload.room;
           watchTogetherState.peerCount = room.peerCount ?? 0;
-          currentRoomSession = { ...currentRoomSession!, room };
+          if (currentRoomSession) {
+            currentRoomSession = { ...currentRoomSession, room };
+          }
 
           if (session.role === 'viewer' && lastVideoState) {
             if (Math.abs(room.currentTime - lastVideoState.currentTime) > 2) {
@@ -562,7 +572,9 @@ function activateRoom(session: WatchTogetherRoomSessionExt, accessToken: string)
           notifyPopupOfState();
         } else if (payload.type === 'peer-joined' || payload.type === 'peer-left') {
           watchTogetherState.peerCount = payload.room.peerCount ?? 0;
-          currentRoomSession = { ...currentRoomSession!, room: payload.room };
+          if (currentRoomSession) {
+            currentRoomSession = { ...currentRoomSession, room: payload.room };
+          }
           notifyPopupOfState();
         }
       } catch {
@@ -583,6 +595,9 @@ function activateRoom(session: WatchTogetherRoomSessionExt, accessToken: string)
       if (!event.wasClean) {
         watchTogetherState.error = 'Connection closed unexpectedly';
         notifyPopupOfState();
+      }
+      if (watchTogetherState.isInRoom) {
+        cleanupRoomConnection();
       }
     });
   } catch {

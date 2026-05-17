@@ -1240,7 +1240,7 @@ export const VideoRoute: Component = () => {
             onClick={openWatchTogetherCodeModal}
             title={t('mlearn.WatchTogether.Code.OpenRoomPanel')}
           >
-            {`${t('mlearn.WatchTogether.Code.OpenRoomPanel')}: ${watchTogether.roomSession()?.room.roomCode ?? ''}`}
+            {`${t('mlearn.WatchTogether.Code.OpenRoomPanel')}: ${watchTogether.roomSession()?.room.roomCode ?? ''} • ${watchTogether.peerCount()} ${t('mlearn.WatchTogether.Code.Peers')}`}
           </NavBtn>
         </Show>
       </div>
