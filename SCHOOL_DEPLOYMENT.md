@@ -1,6 +1,11 @@
 # mLearn Institutional Use Guide
 
-**For schools, universities, and tutoring centers**
+**For schools, universities, and tutoring centers**  
+**Version 1.1 — Effective Date: 2026-05-18**
+
+Your continued use of this guide and the software for institutional
+purposes after a version change constitutes acceptance of the updated
+terms.
 
 ---
 
@@ -15,6 +20,15 @@ under 18, the supported deployment is:
 
 The public cloud relay at `mlearn-cloud.kikan.net` is **not available**
 to users under 18 or to institutional accounts.
+
+### 1.1 Formal Acceptance
+
+Before deploying mLearn with students, your institution must either
+(a) sign a Data Processing Addendum (DPA) with the developer, or
+(b) accept the in-app institutional agreement presented on first launch
+in institutional mode. By deploying the software for student use, you
+represent that you have authority to bind your institution and that you
+accept full data-controller responsibility under applicable law.
 
 ---
 
@@ -81,6 +95,13 @@ all responsibility for:
   manga, PDFs, subtitles)
 - Enforce your school's device and software policies
 
+### 4.4 Data Backup
+
+The developer provides no backup, recovery, or data-loss prevention
+services for local deployments. You are solely responsible for
+implementing backup procedures for student flashcards, settings, and any
+other data stored on school devices.
+
 ---
 
 ## 5. Liability
@@ -121,4 +142,5 @@ students.**
 ## 7. Questions?
 
 If your institution has specific deployment needs or questions about
-local setup, you can reach the developer directly at support@kikan.net.
+local setup, you can reach the developer directly at support@kikan.net
+(technical) or adrian@kikan.net (legal / DPA inquiries).
